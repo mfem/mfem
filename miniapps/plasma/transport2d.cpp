@@ -512,7 +512,6 @@ protected:
    Array<double> &w_;
 
    Array<double> nrm_;
-   Array<BilinearFormIntegrator*> integ_;
    Array<ErrorEstimator*> est_;
 
    Vector err_;
@@ -526,12 +525,18 @@ public:
         err_(err_fes_.GetVSize())
    {
       nrm_.SetSize(w_.Size());
-      integ_.SetSize(w_.Size());
       est_.SetSize(w_.Size());
 
-      nrm_  =1.0;
-      integ_ = NULL;
+      nrm_ = 1.0;
       est_ = NULL;
+   }
+
+   ~VectorErrorEstimator()
+   {
+      for (int i=0; i<est_.Size(); i++)
+      {
+         delete est_[i];
+      }
    }
 
    void Reset()
@@ -572,6 +577,7 @@ private:
    ParFiniteElementSpace &sm_flux_fes_;
    Array<Coefficient*> &dCoef_;
    Array<MatrixCoefficient*> &DCoef_;
+   Array<BilinearFormIntegrator*> integ_;
 
 public:
    VectorL2ZZErrorEstimator(ParGridFunctionArray & pgf,
@@ -586,8 +592,11 @@ public:
         flux_fes_(flux_fes),
         sm_flux_fes_(sm_flux_fes),
         dCoef_(dCoef),
-        DCoef_(DCoef)
+        DCoef_(DCoef),
+        integ_(w_.Size())
    {
+      integ_ = NULL;
+
       for (int i=0; i<w_.Size(); i++)
       {
          if (w_[i] != 0.0)
@@ -612,6 +621,14 @@ public:
             est_[i] = new L2ZienkiewiczZhuEstimator(*integ_[i], *pgf_[i],
                                                     flux_fes_, sm_flux_fes_);
          }
+      }
+   }
+
+   ~VectorL2ZZErrorEstimator()
+   {
+      for (int i=0; i<integ_.Size(); i++)
+      {
+         delete integ_[i];
       }
    }
 };
