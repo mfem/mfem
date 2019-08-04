@@ -560,7 +560,8 @@ public:
          if (w_[i] != 0.0)
          {
             const Vector & err_k = est_[i]->GetLocalErrors();
-            //cout << i << " " << err_.Size() << " " << err_k.Size() << " " << err_k.Norml2() << " " << w_[i] << " " << nrm_[i] << endl;
+            cout << i << " " << err_.Size() << " " << err_k.Size() << " " << err_k.Norml2()
+                 << " " << w_[i] << " " << nrm_[i] << endl;
             err_.Add(w_[i] / nrm_[i], err_k);
          }
       }
@@ -653,6 +654,7 @@ public:
          if (w_[i] != 0.0)
          {
             double loc_nrm = pgf_[i]->Normlinf();
+            cout << i << "local norm = " << loc_nrm << endl;
             MPI_Allreduce(&loc_nrm, &nrm_[i], 1, MPI_DOUBLE, MPI_MAX,
                           err_fes_.GetComm());
             if (nrm_[i] == 0.0) { nrm_[i] = 1.0; }
@@ -932,7 +934,7 @@ int main(int argc, char *argv[])
          delete coef[i];
          delete coef_gf[i];
       }
-      // exit(1);
+      exit(1);
    }
 
    // Finite element space for all variables together (full thermodynamic state)
