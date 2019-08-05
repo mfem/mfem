@@ -36,61 +36,6 @@ namespace mfem
 {
 
 // ---------------------------------------------------------------------------
-// Base class for interfacing with SUNMatrix and SUNLinearSolver API
-// ---------------------------------------------------------------------------
-
-/** @brief Abstract base class for providing custom linear solvers to SUNDIALS
-    ODE packages, CVODE and ARKODE.
-
-    For a given ODE system
-
-        dy/dt = f(y,t) or M dy/dt = f(y,t)
-
-    the purpose of this class is to facilitate the (approximate) solution of
-    linear systems of the form
-
-        (I - gamma J) y = b or (M - gamma J) y = b,   J = J(y,t) = df/dy
-
-    and mass matrix systems of the form
-
-        M y = b,   M = M(t)
-
-    for given b, y, t and gamma, where gamma is a scaled time step. */
-class SundialsLinearSolver
-{
-protected:
-   SundialsLinearSolver() { }
-   virtual ~SundialsLinearSolver() { }
-
-public:
-   /// Setup the ODE linear system A(y,t) = (I - gamma J) or A = (M - gamma J).
-   /** @param[in]  t     The time at which A(y,t) should be evaluated.
-       @param[in]  y     The state at which A(y,t) should be evaluated.
-       @param[in]  fy    The current value of the ODE rhs function, f(y,t).
-       @param[in]  jok   Flag indicating if the Jacobian should be updated.
-       @param[out] jcur  Flag to signal if the Jacobian was updated.
-       @param[in]  gamma The scaled time step value. */
-   virtual int ODELinSys(double t, Vector y, Vector fy, int jok, int *jcur,
-                         double gamma);
-
-   /// Setup the ODE mass matrix system M.
-   /** @param[in] t The time at which M(t) should be evaluated. */
-   virtual int ODEMassSys(double t);
-
-   /// Initialize the linear solver (optional).
-   virtual int Init() { return (0); }
-
-   /// Setup the linear solver (optional).
-   virtual int Setup() { return (0); }
-
-   /// Solve the linear system A x = b.
-   /** @param[in,out]  x  On input, the initial guess. On output, the solution.
-       @param[in]      b  The linear system right-hand side. */
-   virtual int Solve(Vector &x, Vector b) = 0;
-};
-
-
-// ---------------------------------------------------------------------------
 // Base class for interfacing with SUNDIALS packages
 // ---------------------------------------------------------------------------
 
@@ -202,11 +147,6 @@ public:
        output time for the integration, tout = @a t + @a dt.
    */
    virtual void Step(Vector &x, double &t, double &dt);
-
-   /// Attach a custom linear solver solver to CVODE.
-   /** @param[in] ls_spec A SundialsLinearSolver object defining the custom
-                          linear solver. */
-   void SetLinearSolver(SundialsLinearSolver &ls_spec);
 
    /// Attach a custom linear solver to CVODE.
    void SetLinearSolver();
@@ -355,19 +295,7 @@ public:
    virtual void Step(Vector &x, double &t, double &dt);
 
    /// Attach a custom linear solver solver to ARKode.
-   /** @param[in] ls_spec A SundialsLinearSolver object defining the custom
-                          linear solver. */
-   void SetLinearSolver(SundialsLinearSolver &ls_spec);
-
-   /// Attach a custom linear solver solver to ARKode.
    void SetLinearSolver();
-
-   /// Attach a custom mass matrix linear solver to ARKode.
-   /** @param[in] ls_spec A SundialsLinearSolver object defining the custom
-                          linear solver.
-       @param[in] tdep    A integer flag indicating if the mass matrix is time
-                          dependent (1) or time independent (0). */
-   void SetMassLinearSolver(SundialsLinearSolver &ls_spec, int tdep);
 
    /// Attach a custom mass matrix linear solver to ARKode.
    /** @param[in] tdep    A integer flag indicating if the mass matrix is time
