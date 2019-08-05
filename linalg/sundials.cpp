@@ -40,12 +40,6 @@ namespace mfem
 // SUNMatrix interface functions
 // ---------------------------------------------------------------------------
 
-// Access the wrapped object in the SUNMatrix
-static inline SundialsLinearSolver *GetObj(SUNMatrix A)
-{
-   return (SundialsLinearSolver *)(A->content);
-}
-
 // Return the matrix ID
 static SUNMatrix_ID MatGetID(SUNMatrix A)
 {
@@ -64,37 +58,10 @@ static void MatDestroy(SUNMatrix A)
 // SUNLinearSolver interface functions
 // ---------------------------------------------------------------------------
 
-// Access wrapped object in the SUNLinearSolver
-static inline SundialsLinearSolver *GetObj(SUNLinearSolver LS)
-{
-   return (SundialsLinearSolver *)(LS->content);
-}
-
 // Return the linear solver type
 static SUNLinearSolver_Type LSGetType(SUNLinearSolver LS)
 {
    return (SUNLINEARSOLVER_MATRIX_ITERATIVE);
-}
-
-// Initialize the linear solver
-static int LSInit(SUNLinearSolver LS)
-{
-   return (GetObj(LS)->Init());
-}
-
-// Setup the linear solver
-static int LSSetup(SUNLinearSolver LS, SUNMatrix A)
-{
-   return (GetObj(LS)->Setup());
-}
-
-// Solve the linear system A x = b
-static int LSSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x, N_Vector b,
-                   realtype tol)
-{
-   Vector mfem_x(x);
-   const Vector mfem_b(b);
-   return (GetObj(LS)->Solve(mfem_x, mfem_b));
 }
 
 static int LSFree(SUNLinearSolver LS)
@@ -103,57 +70,6 @@ static int LSFree(SUNLinearSolver LS)
    if (LS->ops) { free(LS->ops); LS->ops = NULL; }
    free(LS); LS = NULL;
    return (0);
-}
-
-
-int SundialsLinearSolver::ODELinSys(double, Vector, Vector, int, int *, double)
-{
-   mfem_error("SundialsLinearSolver::ODELinSys() is not overridden!");
-   return (-1);
-}
-
-int SundialsLinearSolver::ODEMassSys(double)
-{
-   mfem_error("SundialsLinearSolver::ODEMassSys() is not overridden!");
-   return (-1);
-}
-
-
-// ---------------------------------------------------------------------------
-// Wrappers for evaluating ODE linear systems
-// ---------------------------------------------------------------------------
-
-static int cvLinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
-                         booleantype jok, booleantype *jcur, realtype gamma,
-                         void *user_data, N_Vector tmp1, N_Vector tmp2,
-                         N_Vector tmp3)
-{
-   // Get data from N_Vectors
-   const Vector mfem_y(y);
-   const Vector mfem_fy(fy);
-
-   // Compute the linear system
-   return (GetObj(A)->ODELinSys(t, mfem_y, mfem_fy, jok, jcur, gamma));
-}
-
-static int arkLinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
-                          SUNMatrix M, booleantype jok, booleantype *jcur,
-                          realtype gamma, void *user_data, N_Vector tmp1,
-                          N_Vector tmp2, N_Vector tmp3)
-{
-   // Get data from N_Vectors
-   const Vector mfem_y(y);
-   Vector mfem_fy(fy);
-
-   // Compute the linear system
-   return (GetObj(A)->ODELinSys(t, mfem_y, mfem_fy, jok, jcur, gamma));
-}
-
-static int arkMassSysSetup(realtype t, SUNMatrix M, void *user_data,
-                           N_Vector tmp1, N_Vector tmp2, N_Vector tmp3)
-{
-   // Compute the mass matrix linear system
-   return (GetObj(M)->ODEMassSys(t));
 }
 
 // ---------------------------------------------------------------------------
@@ -354,39 +270,6 @@ void CVODESolver::Step(Vector &x, double &t, double &dt)
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetLastStep()");
 }
 
-void CVODESolver::SetLinearSolver(SundialsLinearSolver &ls_spec)
-{
-   // Free any existing linear solver
-   if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
-
-   // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSA = SUNLinSolNewEmpty();
-   MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
-
-   LSA->content         = &ls_spec;
-   LSA->ops->gettype    = LSGetType;
-   LSA->ops->initialize = LSInit;
-   LSA->ops->setup      = LSSetup;
-   LSA->ops->solve      = LSSolve;
-   LSA->ops->free       = LSFree;
-
-   A = SUNMatNewEmpty();
-   MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
-
-   A->content      = &ls_spec;
-   A->ops->getid   = MatGetID;
-   A->ops->destroy = MatDestroy;
-
-   // Attach the linear solver and matrix
-   flag = CVodeSetLinearSolver(sundials_mem, LSA, A);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
-
-   // Set the linear system evaluation function
-   flag = CVodeSetLinSysFn(sundials_mem, cvLinSysSetup);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinSysFn()");
-}
-
-
 void CVODESolver::SetLinearSolver()
 {
    // Free any existing linear solver
@@ -396,10 +279,10 @@ void CVODESolver::SetLinearSolver()
    LSA = SUNLinSolNewEmpty();
    MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
-   LSA->content         = this;
-   LSA->ops->gettype    = LSGetType;
-   LSA->ops->solve      = CVODESolver::LinSysSolve;
-   LSA->ops->free       = LSFree;
+   LSA->content      = this;
+   LSA->ops->gettype = LSGetType;
+   LSA->ops->solve   = CVODESolver::LinSysSolve;
+   LSA->ops->free    = LSFree;
 
    A = SUNMatNewEmpty();
    MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
@@ -851,44 +734,6 @@ void ARKStepSolver::Step(Vector &x, double &t, double &dt)
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetLastStep()");
 }
 
-void ARKStepSolver::SetLinearSolver(SundialsLinearSolver &ls_spec)
-{
-   // Free any existing matrix and linear solver
-   if (A != NULL)   { SUNMatDestroy(A); A = NULL; }
-   if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
-
-   // Check for implicit method before attaching
-   MFEM_VERIFY(use_implicit,
-               "The function is applicable only to implicit or imex time"
-               " integration.");
-
-   // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSA = SUNLinSolNewEmpty();
-   MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
-
-   LSA->content         = &ls_spec;
-   LSA->ops->gettype    = LSGetType;
-   LSA->ops->initialize = LSInit;
-   LSA->ops->setup      = LSSetup;
-   LSA->ops->solve      = LSSolve;
-   LSA->ops->free       = LSFree;
-
-   A = SUNMatNewEmpty();
-   MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
-
-   A->content      = &ls_spec;
-   A->ops->getid   = MatGetID;
-   A->ops->destroy = MatDestroy;
-
-   // Attach the linear solver and matrix
-   flag = ARKStepSetLinearSolver(sundials_mem, LSA, A);
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
-
-   // Set the linear system evaluation function
-   flag = ARKStepSetLinSysFn(sundials_mem, arkLinSysSetup);
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinSysFn()");
-}
-
 void ARKStepSolver::SetLinearSolver()
 {
    // Free any existing linear solver
@@ -898,10 +743,10 @@ void ARKStepSolver::SetLinearSolver()
    LSA = SUNLinSolNewEmpty();
    MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
-   LSA->content         = this;
-   LSA->ops->gettype    = LSGetType;
-   LSA->ops->solve      = ARKStepSolver::LinSysSolve;
-   LSA->ops->free       = LSFree;
+   LSA->content      = this;
+   LSA->ops->gettype = LSGetType;
+   LSA->ops->solve   = ARKStepSolver::LinSysSolve;
+   LSA->ops->free    = LSFree;
 
    A = SUNMatNewEmpty();
    MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
@@ -919,40 +764,6 @@ void ARKStepSolver::SetLinearSolver()
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinSysFn()");
 }
 
-void ARKStepSolver::SetMassLinearSolver(SundialsLinearSolver &ls_spec,
-                                        int tdep)
-{
-   // Free any existing matrix and linear solver
-   if (M != NULL)   { SUNMatDestroy(M); M = NULL; }
-   if (LSM != NULL) { SUNLinSolFree(LSM); LSA = NULL; }
-
-   // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSM = SUNLinSolNewEmpty();
-   MFEM_VERIFY(LSM, "error in SUNLinSolNewEmpty()");
-
-   LSM->content         = &ls_spec;
-   LSM->ops->gettype    = LSGetType;
-   LSM->ops->initialize = LSInit;
-   LSM->ops->setup      = LSSetup;
-   LSM->ops->solve      = LSSolve;
-   LSA->ops->free       = LSFree;
-
-   M = SUNMatNewEmpty();
-   MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
-
-   M->content      = &ls_spec;
-   M->ops->getid   = SUNMatGetID;
-   M->ops->destroy = MatDestroy;
-
-   // Attach the linear solver and matrix
-   flag = ARKStepSetMassLinearSolver(sundials_mem, LSM, M, tdep);
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
-
-   // Set the linear system function
-   flag = ARKStepSetMassFn(sundials_mem, arkMassSysSetup);
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
-}
-
 void ARKStepSolver::SetMassLinearSolver(int tdep)
 {
    // Free any existing matrix and linear solver
@@ -963,10 +774,10 @@ void ARKStepSolver::SetMassLinearSolver(int tdep)
    LSM = SUNLinSolNewEmpty();
    MFEM_VERIFY(LSM, "error in SUNLinSolNewEmpty()");
 
-   LSM->content         = this;
-   LSM->ops->gettype    = LSGetType;
-   LSM->ops->solve      = ARKStepSolver::MassSysSolve;
-   LSA->ops->free       = LSFree;
+   LSM->content      = this;
+   LSM->ops->gettype = LSGetType;
+   LSM->ops->solve   = ARKStepSolver::MassSysSolve;
+   LSA->ops->free    = LSFree;
 
    M = SUNMatNewEmpty();
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
