@@ -166,7 +166,7 @@ double niFunc(const Vector &x, double t)
    double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
    double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
    return ni_min_ +
-          (ni_max_ - ni_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.25 * exp(-200.0 * rs));
+          (ni_max_ - ni_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-200.0 * rs));
 }
 
 double TiFunc(const Vector &x, double t)
@@ -177,7 +177,7 @@ double TiFunc(const Vector &x, double t)
    double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
    double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
    return T_min_ +
-          (T_max_ - T_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.25 * exp(-200.0 * rs));
+          (T_max_ - T_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-200.0 * rs));
 }
 
 double TeFunc(const Vector &x, double t)
