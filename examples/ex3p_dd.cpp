@@ -55,7 +55,27 @@ int dim;
 
 //#define SIGMAVAL -250.0
 //#define SIGMAVAL -2.0
-//#define SIGMAVAL -100.0
+#define SIGMAVAL -51.0
+
+void test1_RHS_exact(const Vector &x, Vector &f)
+{
+  const double kappa = M_PI;
+  const double sigma = SIGMAVAL;
+  f(0) = (sigma + kappa * kappa) * sin(kappa * x(1));
+  f(1) = (sigma + kappa * kappa) * sin(kappa * x(2));
+  f(2) = (sigma + kappa * kappa) * sin(kappa * x(0));
+}
+
+void test2_RHS_exact(const Vector &x, Vector &f)
+{
+  const double pi = M_PI;
+  const double sigma = SIGMAVAL;
+  const double c = (2.0 * pi * pi) + sigma;
+
+  f(0) = c * sin(pi * x(1)) * sin(pi * x(2));
+  f(1) = c * sin(pi * x(2)) * sin(pi * x(0));
+  f(2) = c * sin(pi * x(0)) * sin(pi * x(1));
+}
 
 void TestHypreRectangularSerial()
 {
@@ -235,6 +255,53 @@ void VisitTestPlotParMesh(const std::string filename, ParMesh *pmesh, const int 
   delete dc;
 }
 
+void PrintDenseMatrixOfOperator(Operator const& op, const int nprocs, const int rank)
+{
+  const int n = op.Height();
+
+  int ng = 0;
+  MPI_Allreduce(&n, &ng, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  
+  std::vector<int> alln(nprocs);
+  MPI_Allgather(&n, 1, MPI_INT, alln.data(), 1, MPI_INT, MPI_COMM_WORLD);
+  
+  int myos = 0;
+
+  int cnt = 0;
+  for (int i=0; i<nprocs; ++i)
+    {
+      if (i < rank)
+	myos += alln[i];
+
+      cnt += alln[i];
+    }
+
+  MFEM_VERIFY(cnt == ng, "");
+  
+  Vector x(n);
+  Vector y(n);
+
+  /*
+       Vector ej(Ndd);
+     Vector Aej(Ndd);
+     DenseMatrix ddd(Ndd);
+     
+     for (int j=0; j<Ndd; ++j)
+       {
+	 cout << "Computing column " << j << " of " << Ndd << " of ddi" << endl;
+	 
+	 ej = 0.0;
+	 ej[j] = 1.0;
+	 ddi.Mult(ej, Aej);
+
+	 for (int i=0; i<Ndd; ++i)
+	   {
+	     ddd(i,j) = Aej[i];
+	   }
+       }
+  */
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -301,7 +368,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -327,7 +394,37 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
    //    meshes need to be reoriented before we can define high-order Nedelec
    //    spaces on them.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh *pmesh = NULL;
+
+   const bool geometricPartition = true;
+
+   if (geometricPartition)
+     {
+       int nxyzGlobal[3] = {6, 1, 6};
+       int *partition = mesh->CartesianPartitioning(nxyzGlobal);
+
+       pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition);
+
+       /*
+       std::vector<int> partition;
+       partition.assign(mesh->GetNE(), -1);
+
+       Vector ec;
+       
+       for (int i=0; i<mesh->GetNE(); ++i)
+	 {
+	   mesh->GetElementCenter(i, ec);
+	   partition[i] = 0;
+	 }
+       
+       pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition.data());
+       */
+     }
+   else
+     {
+       pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+     }
+   
    delete mesh;
    {
       int par_ref_levels = 1;
@@ -461,8 +558,10 @@ int main(int argc, char *argv[])
    // 6.1. Create interface operator.
 
    DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, fespace, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
-			    &interfaces, &interfaceGlobalToLocalMap);  // PengLee2012 uses order 2 
+			    &interfaces, &interfaceGlobalToLocalMap, -SIGMAVAL);  // PengLee2012 uses order 2 
 
+   //PrintDenseMatrixOfOperator(ddi, num_procs, myid);
+   
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
@@ -641,8 +740,8 @@ int main(int argc, char *argv[])
    const bool solveDD = true;
    if (solveDD)
      {
-       //cout << "B size " << B.Size() << endl;
-       //cout << "fespace true V size " << fespace->GetTrueVSize() << endl;
+       cout << myid << ": B size " << B.Size() << ", norm " << B.Norml2() << endl;
+       cout << myid << ": fespace true V size " << fespace->GetTrueVSize() << endl;
 
        Vector Bdd(ddi.Width());
        Vector xdd(ddi.Width());
@@ -654,6 +753,21 @@ int main(int argc, char *argv[])
        //ddi.FullSystemAnalyticTest();
 
        //Bdd = 1.0;
+
+       /*
+       if (myid == 0)
+	 {
+	   ofstream ddrhsfile("bddtmp");
+	   Bdd.Print(ddrhsfile);
+	 }
+       if (myid == 1)
+	 {
+	   ofstream ddrhsfile("bddtmp1");
+	   Bdd.Print(ddrhsfile);
+	 }
+       */
+
+       cout << myid << ": Bdd norm " << Bdd.Norml2() << endl;
 
        cout << "Solving DD system" << endl;
 
@@ -679,12 +793,15 @@ int main(int argc, char *argv[])
        }
 
        cout << myid << ": xdd norm " << xdd.Norml2() << endl;
+
        /*
+       if (myid == 1)
        {
-	 ofstream ddsolfile("xddtmp");
+	 ofstream ddsolfile("xddtmp1");
 	 xdd.Print(ddsolfile);
        }
        */
+       
        ddi.RecoverDomainSolution(fespace, xdd, X);
 
        delete gmres;
