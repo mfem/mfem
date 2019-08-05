@@ -406,8 +406,8 @@ int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector ydot,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
    // Compute fi(t, y) in y' = fe(t, y) + fi(t, y)
-   self->f2->SetTime(t);
-   self->f2->Mult(mfem_y, mfem_ydot);
+   self->f->SetTime(t);
+   self->f->SUNImplicitMult(mfem_y, mfem_ydot);
 
    // Return success
    return (0);
@@ -435,14 +435,7 @@ int ARKStepSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(LS));
 
    // Solve the linear system
-   if (self->rk_type == IMPLICIT)
-   {
-      return (self->f->ImplicitSolve(mfem_x, mfem_b, tol));
-   }
-   else
-   {
-      return (self->f2->ImplicitSolve(mfem_x, mfem_b, tol));
-   }
+   return (self->f->ImplicitSolve(mfem_x, mfem_b, tol));
 }
 
 int ARKStepSolver::MassSysSetup(realtype t, SUNMatrix M, void *user_data,
@@ -462,14 +455,7 @@ int ARKStepSolver::MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(LS));
 
    // Solve the mass matrix system
-   if (self->rk_type == IMPLICIT)
-   {
-      return (self->f->MassSolve(mfem_x, mfem_b, tol));
-   }
-   else
-   {
-      return (self->f2->MassSolve(mfem_x, mfem_b, tol));
-   }
+   return (self->f->MassSolve(mfem_x, mfem_b, tol));
 }
 
 ARKStepSolver::ARKStepSolver(Type type)
@@ -513,10 +499,6 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
 
 void ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
 {
-   // Check type
-   MFEM_VERIFY(rk_type != IMEX,
-               "error incorrect initialization method for IMEX problems\n");
-
    // Check intputs for consistency
    MFEM_VERIFY(f_.Height() == x.Size(),
                "error inconsistent operator and vector size");
@@ -559,63 +541,16 @@ void ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
       {
          flag = ARKStepReInit(sundials_mem, NULL, ARKStepSolver::RHS1, t, y);
       }
-      else
+      else if (rk_type == EXPLICIT)
       {
          flag = ARKStepReInit(sundials_mem, ARKStepSolver::RHS1, NULL, t, y);
       }
-      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepReInit()");
-
-   }
-}
-
-void ARKStepSolver::Init(TimeDependentOperator &f_, TimeDependentOperator &f2_,
-                         double &t, Vector &x)
-{
-   // Check type
-   MFEM_VERIFY(rk_type == IMEX,
-               "error incorrect initialization method for non-IMEX problems\n");
-
-   // Check intputs for consistency
-   MFEM_VERIFY(f_.Height() == x.Size(),
-               "error inconsistent operator and vector size");
-
-   MFEM_VERIFY(f_.GetTime() == t,
-               "error inconsistent initial times");
-
-   // Initialize the base class
-   ODESolver::Init(f_, f2_);
-
-   // Create or ReInit ARKStep
-   if (!sundials_mem)
-   {
-
-      // Create ARKStep
-      ARKStepSolver::Create(t, x);
-
-   }
-   else
-   {
-
-      // Check that data is the same size and update array data
-      if (!Parallel())
-      {
-         MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(),
-                     "error to resize ARKStep use ARKStep::ReSize()");
-         NV_DATA_S(y) = x.GetData();
-      }
       else
       {
-#ifdef MFEM_USE_MPI
-         MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(),
-                     "error to resize ARKStep use ARKStep::ReSize()");
-         NV_DATA_P(y) = x.GetData();
-#endif
+         flag = ARKStepReInit(sundials_mem,
+                              ARKStepSolver::RHS1, ARKStepSolver::RHS2, t, y);
       }
-
-      // Reinitialize ARKStep memory
-      flag = ARKStepReInit(sundials_mem, ARKStepSolver::RHS1, ARKStepSolver::RHS2, t,
-                           y);
-      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepCreate()");
+      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepReInit()");
 
    }
 }
@@ -652,7 +587,8 @@ void ARKStepSolver::Create(double &t, Vector &x)
    }
    else
    {
-      sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, ARKStepSolver::RHS2, t, y);
+      sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, ARKStepSolver::RHS2,
+                                   t, y);
    }
    MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
 
@@ -682,7 +618,7 @@ void ARKStepSolver::Resize(Vector &x, double hscale, double &t)
 
    if (rk_type == IMEX)
    {
-      MFEM_VERIFY(f2->GetTime() == t, "error inconsistent times");
+      MFEM_VERIFY(f->GetTime() == t, "error inconsistent times");
    }
 
    // Fill N_Vector wrapper

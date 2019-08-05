@@ -247,6 +247,17 @@ public:
        current time. */
    virtual void Mult(const Vector &x, Vector &y) const;
 
+   /** @brief For an additively split operator, perform the action of the second
+       function: @a y = k = f(@a x, t) = f1(@a x, t) + f2(@a x, t), where k
+       solves the algebraic equation F(@a x, k, t) = G(@a x, t) and t is the
+       current time.
+
+       Presently, this method is used by SUNDIALS IMEX ODE solvers where f1 is
+       implemented by Mult and is integrated explicitly and f2 is implemented by
+       SUNImplicitMult and is treated implicitly. For more details, see the
+       SUNDIALS User Guides. */
+   virtual void SUNImplicitMult(const Vector &x, Vector &y) const;
+
    /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
        unknown @a k at the current time t.
 
