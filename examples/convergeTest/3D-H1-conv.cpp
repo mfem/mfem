@@ -52,7 +52,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    FiniteElementCollection *fec;
    if (order == 1)
    {
-      fec = new H1_FECollection(2, 3);
+      fec = new H1_FECollection(1, 3);
    }
    else if (order > 1)
    {
@@ -60,7 +60,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
    else if (order < 0)
    {
-      fec = new H1_FECollection(-order, 3, BasisType::Positive);
+      fec = new H1_FECollection(-order, 3);
    }
    else
    {
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
 
    if (order == 1)
    {
-      cout << "Using nodal H1 *** QUADRATIC *** tensor product elements (for testing / comparison)." << endl;
+      cout << "Using linear H1 tensor product basis (trilinears)." << endl;
    }
    else if (order > 1)
    {
@@ -365,14 +365,14 @@ int main(int argc, char *argv[])
    }
    else if (order < 0)
    {
-      cout << "Using H1 positive (Bernstein) basis of order " << -order << "." << endl;
+      cout << "Using H1 tensor product basis of order " << -order << "." << endl;
    }
    else
    {
       cout << "In this example, the order parameter is used as a proxy:\n" << 
-      "order = 1: quadratic tensor product elements\n" <<
+      "order = 1: trilinear tensor product elements\n" <<
       "order = p>1: order p serendipity elements\n" <<
-      "order = p<0: order -p Bernstein basis tensor product elements"  << endl;
+      "order = p<0: order -p tensor product elements"  << endl;
       return 1;
    }
 
@@ -462,6 +462,20 @@ int main(int argc, char *argv[])
       }
    }
    convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact, dof2view, solvePDE);
+
+
+   // if (order>5)
+   // {
+   //    cout << " *** ERROR *** need to set body shape + dshape functions for p>5 in 3D *** " << endl;
+   // }
+
+   // if (order >3)
+   // {
+   //    cout << " *** Need to fix H1Ser_Hex constructor - Nodes won't be correct for p>=4;" << endl;
+   //    cout << "     The issue is that we can't use the tensor product dof map trick for face Dof orders" << endl;
+   // }
+
+   cout << endl << " NOTE: QuadDofOrd is unecessarily too large (see fe_coll.cpp)" << endl;
 
    return 0;
 }

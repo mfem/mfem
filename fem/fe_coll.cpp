@@ -1608,7 +1608,10 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
-      const int &QuadDof = H1_dof[Geometry::SQUARE];
+      const int &QuadDof = H1_dof[Geometry::SQUARE]; 
+      
+      //QuadDof in TP case is (p-1)^2
+
       TriDofOrd[0] = new int[6*TriDof];
       for (int i = 1; i < 6; i++)
       {
@@ -1630,12 +1633,28 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          }
       }
 
+      // int shrinkIfSerendip = 0;
+      // if (b_type == BasisType::Serendipity && p > 3)
+      // {
+      //    shrinkIfSerendip = 2;
+      // }
 
       QuadDofOrd[0] = new int[8*QuadDof];
       for (int i = 1; i < 8; i++)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
       }
+      // cout << endl << "Printing QuadDofOrd: " << endl;
+      // for (int k=0; k<8; k++)
+      // {
+      //    for (int j=0; j<8*(QuadDof-shrinkIfSerendip); j++)
+      //    {
+      //       cout << "  qdo[" << k << "][" << j << "]= " << QuadDofOrd[k][j] << endl;
+      //    }
+      //    cout << endl;
+      // }
+                  
+
       // see Mesh::GetQuadOrientation in mesh/mesh.cpp
 
       // For serendipity, we need to adjust the QuadDofOrd array
@@ -1643,32 +1662,63 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       //  we have serendipity order 4, but this will not work in 
       //  general.
 
-      if (b_type == BasisType::Serendipity && p > 3)
+      if (b_type == BasisType::Serendipity)
       {
-         if (p == 4) // For S_4 L^0 R^3, we have one Dof per face --> equiv to Q_2^- L^0
+         if (p < 4) 
          {
-            for (int j = 0; j < 8; j++)
-            {
-               int o = 0;
-               QuadDofOrd[j][o] = 0;
-            }
+            // no face dofs --> don't need to build QuadDofOrd
          }
-         else // p> 4
+         else  // p >= 4 --> have face dofs
+               // Build a square array to store the face Dofs
+               // This is extraneous memory e.g. p=5, builds a 2x2 array when we only need 3 dofs, etc
          {
-            cout << endl;
-            cout << " ERROR: Order p>5 serendipity not supported yet in 3D." << endl;
-            cout << " Find this location in fe_coll.cpp to put in DoF ordering for faces!" << endl;
-            // In the tensor product case, i and j index tensor directions, and o indexes from 0 to (pm1)^2
-            // In the serendipity case, a relation to partial derivs or something else is needed
+            for (int j = 0; j < pm3; j++) { // same routine as tensor product case but with pm3 instead of pm1
+               for (int i = 0; i < pm3; i++)
+               {
+                  int o = i + j*pm3;
+                  // cout << " i, o = " << i << ", " << o << endl;
+                  QuadDofOrd[0][o] = i + j*pm3;  // (0,1,2,3)
+                  QuadDofOrd[1][o] = j + i*pm3;  // (0,3,2,1)
+                  QuadDofOrd[2][o] = j + (pm4 - i)*pm3;  // (1,2,3,0)
+                  QuadDofOrd[3][o] = (pm4 - i) + j*pm3;  // (1,0,3,2)
+                  QuadDofOrd[4][o] = (pm4 - i) + (pm4 - j)*pm3;  // (2,3,0,1)
+                  QuadDofOrd[5][o] = (pm4 - j) + (pm4 - i)*pm3;  // (2,1,0,3)
+                  QuadDofOrd[6][o] = (pm4 - j) + i*pm3;  // (3,0,1,2)
+                  QuadDofOrd[7][o] = i + (pm4 - j)*pm3;  // (3,2,1,0)
+                  // for (int k=0; k<8; k++)
+                  // {
+                  //    cout << "  qdo[" << k << "][" << o << "]= " << QuadDofOrd[k][o] << endl;
+                  // }
+               }
+            }  
+
+         // cout << "order = " << p << ", basis = " << b_type << ", QuadDofOrd= " << endl;
+
+         // Printing for debugging
+         // cout << endl;
+         // for (int i=0; i<8; i++)
+         // {
+         //    for(int j=0; j<p*(pm2)+1; j++)
+         //    {
+         //       cout << QuadDofOrd[i][j] << '\t';
+         //    }
+         //    cout << endl;
+         // }
+         // cout << endl;
+         // cout << endl << " NOTE: QuadDofOrd is too big (only the beginning of each row has relevant values), but it might still work" << endl << endl;
+         // In the tensor product case, i and j index tensor directions, and o indexes from 0 to (pm1)^2
+         // In the serendipity case, a relation to partial derivs or something else is needed
          }
       }
-      else // not serendipity, or p <=3, or 2D
+      else // not serendipity
       {
          for (int j = 0; j < pm1; j++)
          {
+            // cout << "j= " << j << endl;
             for (int i = 0; i < pm1; i++)
             {
                int o = i + j*pm1;
+               // cout << " i, o = " << i << ", " << o << endl;
                QuadDofOrd[0][o] = i + j*pm1;  // (0,1,2,3)
                QuadDofOrd[1][o] = j + i*pm1;  // (0,3,2,1)
                QuadDofOrd[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
@@ -1677,8 +1727,28 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
                QuadDofOrd[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
                QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
                QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+               // for (int k=0; k<8; k++)
+               // {
+               //    cout << "  qdo[" << k << "][" << o << "]= " << QuadDofOrd[k][o] << endl;
+               // }
             }
          }
+         // cout << endl;
+         // cout << "order = " << p << ", basis = " << b_type << ", QuadDofOrd= " << endl;
+
+         // Printing for debugging
+         // cout << endl;
+         // for (int i=0; i<8; i++)
+         // {
+         //    for(int j=0; j<p*(pm2)+1; j++)
+         //    {
+         //       cout << QuadDofOrd[i][j] << '\t';
+         //    }
+         //    cout << endl;
+         // }
+         // cout << endl;
+         // cout << endl << " *** end of tensor product p=" << p << " case *** " << endl;
+
       }
 
       if (dim >= 3)
@@ -1697,7 +1767,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             // NOTE: fe_coll.hpp has 
             //       virtual int DofForGeometry(Geometry::Type GeomType) const  { return H1_dof[GeomType]; }
             //       so we need to fix the value of H1_dof here for the serendipity case
-            
             int ser_exterior_dim = 8 + 12*pm1 + 3* pm2 * pm3;
             int ser_interior_dim = 0;
             if(p>5)
@@ -1705,6 +1774,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
                ser_interior_dim += pm3 * pm4 * pm5 / 6;
             }
             H1_dof[Geometry::CUBE] =  ser_interior_dim;
+
+            // The second argument to the H1Ser_Hex constructor is the # of DoFs for an order p element
             H1_Elements[Geometry::CUBE] = new H1Ser_HexElement(p, ser_exterior_dim + ser_interior_dim);
          }            
          else

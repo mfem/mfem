@@ -58,7 +58,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
    else if (order < 0)
    {
-      fec = new H1_FECollection(-order, 2, BasisType::Positive);
+      // fec = new H1_FECollection(-order, 2, BasisType::Positive);
+      fec = new H1_FECollection(-order, 2);
    }
    else
    {
@@ -374,7 +375,7 @@ int main(int argc, char *argv[])
    }
    else if (order < 0)
    {
-      cout << "Using H1 positive (Bernstein) basis of order " << -order << "." << endl;
+      cout << "Using H1 tensor product basis of order " << -order << "." << endl;
    }
    else
    {
