@@ -115,6 +115,7 @@ void ChiFunc(const Vector &x, DenseMatrix &M)
    }
 }
 */
+/*
 double QFunc(const Vector &x, double t)
 {
    double a = 0.4;
@@ -136,6 +137,7 @@ double QFunc(const Vector &x, double t)
             sin(0.5 * M_PI * sqrt(r)) / sqrt(r)
           );
 }
+*/
 /*
 double TFunc(const Vector &x, double t)
 {
@@ -522,16 +524,15 @@ public:
                         Array<double> &weights)
       : err_fes_(err_fes),
         w_(weights),
+        nrm_(w_.Size()),
+        est_(w_.Size()),
         err_(err_fes_.GetVSize())
    {
-      nrm_.SetSize(w_.Size());
-      est_.SetSize(w_.Size());
-
       nrm_ = 1.0;
       est_ = NULL;
    }
 
-   ~VectorErrorEstimator()
+   virtual ~VectorErrorEstimator()
    {
       for (int i=0; i<est_.Size(); i++)
       {
@@ -539,7 +540,7 @@ public:
       }
    }
 
-   void Reset()
+   virtual void Reset()
    {
       for (int i=0; i<est_.Size(); i++)
       {
@@ -550,7 +551,7 @@ public:
       }
    }
 
-   const Vector & GetLocalErrors()
+   virtual const Vector & GetLocalErrors()
    {
       err_.SetSize(err_fes_.GetVSize());
       err_ = 0.0;
@@ -560,8 +561,8 @@ public:
          if (w_[i] != 0.0)
          {
             const Vector & err_k = est_[i]->GetLocalErrors();
-            cout << i << " " << err_.Size() << " " << err_k.Size() << " " << err_k.Norml2()
-                 << " " << w_[i] << " " << nrm_[i] << endl;
+            // cout << i << " " << err_.Size() << " " << err_k.Size() << " " << err_k.Norml2()
+            //     << " " << w_[i] << " " << nrm_[i] << endl;
             err_.Add(w_[i] / nrm_[i], err_k);
          }
       }
@@ -625,7 +626,7 @@ public:
       }
    }
 
-   ~VectorL2ZZErrorEstimator()
+   virtual ~VectorL2ZZErrorEstimator()
    {
       for (int i=0; i<integ_.Size(); i++)
       {
@@ -654,7 +655,6 @@ public:
          if (w_[i] != 0.0)
          {
             double loc_nrm = pgf_[i]->Normlinf();
-            cout << i << "local norm = " << loc_nrm << endl;
             MPI_Allreduce(&loc_nrm, &nrm_[i], 1, MPI_DOUBLE, MPI_MAX,
                           err_fes_.GetComm());
             if (nrm_[i] == 0.0) { nrm_[i] = 1.0; }
@@ -918,12 +918,13 @@ int main(int argc, char *argv[])
       coef_gf.ProjectCoefficient(coef);
 
       Array<double> w(5); w = 1.0;
+      /*
       w[0] = 1.0 / nn_max_;
       w[1] = 1.0 / ni_max_;
       w[2] = 1.0 / v_max_;
       w[3] = 1.0 / T_max_;
       w[4] = 1.0 / T_max_;
-
+      */
       L2_FECollection fec_l2_o0(0, dim);
       // Finite element space for a scalar (thermodynamic quantity)
       ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
@@ -936,7 +937,6 @@ int main(int argc, char *argv[])
          delete coef[i];
          delete coef_gf[i];
       }
-      exit(1);
    }
 
    // Finite element space for all variables together (full thermodynamic state)
