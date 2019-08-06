@@ -35,7 +35,8 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      ColPtrJ(NULL),
      ColPtrNode(NULL),
      At(NULL),
-     isSorted(false)
+     isSorted(false),
+     use_dev(true)
 {
    // We probably do not need to set the ownership flags here.
    I.Reset(); I.SetHostPtrOwner(true);
@@ -58,7 +59,8 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
      ColPtrJ(NULL),
      ColPtrNode(NULL),
      At(NULL),
-     isSorted(false)
+     isSorted(false),
+     use_dev(true)
 {
    I.Wrap(i, height+1, true);
    J.Wrap(j, I[height], true);
@@ -76,7 +78,8 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
      ColPtrJ(NULL),
      ColPtrNode(NULL),
      At(NULL),
-     isSorted(issorted)
+     isSorted(issorted),
+     use_dev(true)
 {
    I.Wrap(i, height+1, ownij);
    J.Wrap(j, I[height], ownij);
@@ -98,12 +101,13 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
 }
 
 SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
-   : AbstractSparseMatrix(nrows, ncols)
-   , Rows(NULL)
-   , ColPtrJ(NULL)
-   , ColPtrNode(NULL)
-   , At(NULL)
-   , isSorted(false)
+   : AbstractSparseMatrix(nrows, ncols),
+     Rows(NULL),
+     ColPtrJ(NULL),
+     ColPtrNode(NULL),
+     At(NULL),
+     isSorted(false),
+     use_dev(true)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
@@ -181,15 +185,17 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    ColPtrNode = NULL;
    At = NULL;
    isSorted = mat.isSorted;
+   use_dev = mat.UseDevice();
 }
 
 SparseMatrix::SparseMatrix(const Vector &v)
-   : AbstractSparseMatrix(v.Size(), v.Size())
-   , Rows(NULL)
-   , ColPtrJ(NULL)
-   , ColPtrNode(NULL)
-   , At(NULL)
-   , isSorted(true)
+   : AbstractSparseMatrix(v.Size(), v.Size()),
+     Rows(NULL),
+     ColPtrJ(NULL),
+     ColPtrNode(NULL),
+     At(NULL),
+     isSorted(true),
+     use_dev(true)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
@@ -230,6 +236,7 @@ void SparseMatrix::MakeRef(const SparseMatrix &master)
    J = master.J; J.ClearOwnerFlags();
    A = master.A; A.ClearOwnerFlags();
    isSorted = master.isSorted;
+   use_dev = master.UseDevice();
 }
 
 void SparseMatrix::SetEmpty()
@@ -579,12 +586,12 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 #ifndef MFEM_USE_LEGACY_OPENMP
    const int height = this->height;
    const int nnz = J.Capacity();
-   auto d_I = Read(I, height+1);
-   auto d_J = Read(J, nnz);
-   auto d_A = Read(A, nnz);
-   auto d_x = x.Read();
-   auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, height,
+   auto d_I = Read(I, height+1, use_dev);
+   auto d_J = Read(J, nnz, use_dev);
+   auto d_A = Read(A, nnz, use_dev);
+   auto d_x = x.Read(use_dev);
+   auto d_y = y.ReadWrite(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, height,
    {
       double d = 0.0;
       const int end = d_I[i+1];
@@ -686,13 +693,13 @@ void SparseMatrix::PartMult(
 
    const int n = rows.Size();
    const int nnz = J.Capacity();
-   auto d_rows = rows.Read();
-   auto d_I = Read(I, height+1);
-   auto d_J = Read(J, nnz);
-   auto d_A = Read(A, nnz);
-   auto d_x = x.Read();
-   auto d_y = y.Write();
-   MFEM_FORALL(i, n,
+   auto d_rows = rows.Read(use_dev);
+   auto d_I = Read(I, height+1, use_dev);
+   auto d_J = Read(J, nnz, use_dev);
+   auto d_A = Read(A, nnz, use_dev);
+   auto d_x = x.Read(use_dev);
+   auto d_y = y.Write(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, n,
    {
       const int r = d_rows[i];
       const int end = d_I[r + 1];
@@ -733,11 +740,11 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 
    const int height = Height();
    const int nnz = J.Capacity();
-   auto d_I = Read(I, height+1);
-   auto d_J = Read(J, nnz);
-   auto d_x = Read(x.GetMemory(), x.Size());
-   auto d_y = Write(y.GetMemory(), y.Size());
-   MFEM_FORALL(i, height,
+   auto d_I = Read(I, height+1, use_dev);
+   auto d_J = Read(J, nnz, use_dev);
+   auto d_x = Read(x.GetMemory(), x.Size(), use_dev);
+   auto d_y = Write(y.GetMemory(), y.Size(), use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, height,
    {
       bool d_yi = false;
       const int end = d_I[i+1];
@@ -3666,6 +3673,7 @@ void SparseMatrix::Swap(SparseMatrix &other)
 #endif
 
    mfem::Swap(isSorted, other.isSorted);
+   mfem::Swap(use_dev, other.use_dev);
 }
 
 }

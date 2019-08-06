@@ -76,6 +76,8 @@ protected:
 
    /// Are the columns sorted already.
    bool isSorted;
+   /// Should the CSR operations be done on the device
+   bool use_dev;
 
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
@@ -373,8 +375,19 @@ public:
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
+   /// Returns whether or not CSR format has been finalized.
    bool Finalized() const { return !A.Empty(); }
+   /// Returns whether or not the columns are sorted.
    bool areColumnsSorted() const { return isSorted; }
+
+   /** @brief Specify whether or not to use the device for CSR operations. */
+   /** By default, most CSR operations are done on the device. Calling UseDevice(false)
+       will force these to instead be done on the host. Note that all LIL operations
+       are currently only implemented on the host. */
+   void UseDevice(bool use_dev_) { use_dev = use_dev_; }
+
+   /// Returns whether or not the CSR operations will be done on the device
+   bool UseDevice() const { return use_dev; }
 
    /** @brief Remove entries smaller in absolute value than a given tolerance
        @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
