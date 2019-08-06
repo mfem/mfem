@@ -92,12 +92,12 @@ public:
 
    /** Setup the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int ImplicitSetup(const double t, const Vector &x, const Vector &fx,
-                             int jok, int *jcur, double gamma);
+   virtual int SUNImplicitSetup(const double t, const Vector &x, const Vector &fx,
+                                int jok, int *jcur, double gamma);
 
    /** Solve the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int ImplicitSolve(Vector &x, const Vector &b, double tol);
+   virtual int SUNImplicitSolve(Vector &x, const Vector &b, double tol);
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
@@ -446,9 +446,9 @@ void ConductionOperator::SetParameters(const Vector &u)
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 }
 
-int ConductionOperator::ImplicitSetup(const double t, const Vector &x,
-                                      const Vector &fx, int jok, int *jcur,
-                                      double gamma)
+int ConductionOperator::SUNImplicitSetup(const double t, const Vector &x,
+                                         const Vector &fx, int jok, int *jcur,
+                                         double gamma)
 {
    // Setup the ODE Jacobian T = M + gamma K.
    if (T) { delete T; }
@@ -458,7 +458,7 @@ int ConductionOperator::ImplicitSetup(const double t, const Vector &x,
    return (0);
 }
 
-int ConductionOperator::ImplicitSolve(Vector &x, const Vector &b, double tol)
+int ConductionOperator::SUNImplicitSolve(Vector &x, const Vector &b, double tol)
 {
    // Solve the system A x = z => (M - gamma K) x = M b.
    Mmat.Mult(b, z);
