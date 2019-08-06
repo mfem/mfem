@@ -1246,10 +1246,10 @@ int main(int argc, char *argv[])
    ScalarVectorProductCoefficient  MomCoef(mnCoef, ViCoef);
 
    // Diffusion Coefficients
-   NeutralDiffusionCoef           DnCoef(neCoef, vnCoef, izCoef);
-   ScalarMatrixProductCoefficient DiCoef(DiPerpCoef, perpCoef);
-   MomentumDiffusionCoef          EtaCoef(dim, ion_charge, ion_mass,
-                                          DiPerpCoef, niCoef, TiCoef);
+   NeutralDiffusionCoef     DnCoef(neCoef, vnCoef, izCoef);
+   IonDiffusionCoef         DiCoef(DiPerpCoef, B3Coef);
+   MomentumDiffusionCoef   EtaCoef(dim, ion_charge, ion_mass,
+                                   DiPerpCoef, niCoef, TiCoef);
    ScalarMatrixProductCoefficient nXiCoef(niCoef, XiCoef);
    ScalarMatrixProductCoefficient nXeCoef(neCoef, XeCoef);
 
