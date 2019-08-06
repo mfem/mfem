@@ -1703,6 +1703,26 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       }
    }
    cout << "|y| after bfbfi: " << y.Norml2() << endl;
+   if (dlfi_.Size())
+   {
+      ElementTransformation *eltrans = NULL;
+
+      for (int i=0; i < fes_->GetNE(); i++)
+      {
+         fes_->GetElementVDofs(i, vdofs_);
+         eltrans = fes_->GetElementTransformation(i);
+
+         int ndof = vdofs_.Size();
+         elvec_.SetSize(ndof);
+
+         for (int k=0; k < dlfi_.Size(); k++)
+         {
+            dlfi_[k]->AssembleRHSElementVect(*fes_->GetFE(i), *eltrans, elvec_);
+            y.AddElementVector (vdofs_, elvec_);
+         }
+      }
+   }
+
    if (fes_->GetMyRank() == 0 && logging_)
    {
       cout << log_prefix_
