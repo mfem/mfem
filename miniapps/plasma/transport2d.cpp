@@ -46,7 +46,8 @@ static double ni_min_ = 1.0e16;
 static double T_max_ = 10.0;
 static double T_min_ =  1.0;
 
-static double B_max_ = 5.0;
+static double Tot_B_max_ = 5.0; // Maximum of total B field
+static double Pol_B_max_ = 0.5; // Maximum of poloidal B field
 static double v_max_ = 1e3;
 
 // Maximum characteristic speed (updated by integrators)
@@ -213,82 +214,52 @@ void bHatFunc(const Vector &x, Vector &B)
    B[1] = -b * b * x[0] / den;
 }
 
-void bFunc(const Vector &x, Vector &B)
+void PolBFunc(const Vector &x, Vector &B)
 {
    B.SetSize(2);
 
    double a = 0.4;
    double b = 0.8;
 
-   double r = axis_sym_ ? (x[0] - axis_x_) : 1.0;
+   B[0] = -a * x[1] / (b * b);
+   B[1] =  x[0] / a;
 
-   B[0] = -a * x[1] / (b * b * r);
-   B[1] =  x[0] / (a * r);
-
-   B *= B_max_;
+   B *= Pol_B_max_;
 }
 
-void bbTFunc(const Vector &x, DenseMatrix &M)
+void TotBFunc(const Vector &x, Vector &B)
+{
+   B.SetSize(3);
+
+   Vector polB(B.GetData(), 2);
+
+   PolBFunc(x, polB);
+
+   B[2] = sqrt(Tot_B_max_ * Tot_B_max_ - (polB * polB));
+}
+
+void paraFunc(const Vector &x, DenseMatrix &M)
 {
    M.SetSize(2);
 
-   switch (prob_)
-   {
-      case 1:
-      {
-         double cx = cos(M_PI * x[0]);
-         double cy = cos(M_PI * x[1]);
-         double sx = sin(M_PI * x[0]);
-         double sy = sin(M_PI * x[1]);
+   double b_pol[2];
+   Vector B(b_pol, 2);
 
-         double den = cx * cx * sy * sy + sx * sx * cy * cy;
+   PolBFunc(x, B);
 
-         M(0,0) = sx * sx * cy * cy;
-         M(1,1) = sy * sy * cx * cx;
+   M(0,0) = B(0) * B(0);
+   M(0,1) = B(0) * B(1);
+   M(1,0) = B(1) * B(0);
+   M(1,1) = B(1) * B(1);
 
-         M(0,1) =  -1.0 * cx * cy * sx * sy;
-         M(1,0) = M(0,1);
-
-         M *= 1.0 / den;
-      }
-      break;
-      case 2:
-      case 4:
-      {
-         double a = 0.4;
-         double b = 0.8;
-
-         double den = pow(b * b * x[0], 2) + pow(a * a * x[1], 2);
-
-         M(0,0) = pow(a * a * x[1], 2);
-         M(1,1) = pow(b * b * x[0], 2);
-
-         M(0,1) = -1.0 * pow(a * b, 2) * x[0] * x[1];
-         M(1,0) = M(0,1);
-
-         M *= 1.0 / den;
-      }
-      break;
-      case 3:
-      {
-         double ca = cos(alpha_);
-         double sa = sin(alpha_);
-
-         M(0,0) = ca * ca;
-         M(1,1) = sa * sa;
-
-         M(0,1) = ca * sa;
-         M(1,0) = ca * sa;
-      }
-      break;
-   }
+   M *= 1.0 / (Pol_B_max_ * Pol_B_max_);
 }
 
 void perpFunc(const Vector &x, DenseMatrix &M)
 {
    int dim = x.Size();
 
-   bbTFunc(x, M);
+   paraFunc(x, M);
    M *= -1.0;
 
    for (int d=0; d<dim; d++) { M(d,d) += 1.0; }
@@ -359,7 +330,7 @@ public:
 
       double tau = tau_i(mi_, zi_, ni, Ti, lnLam_);
 
-      bbTFunc(x_, K);
+      paraFunc(x_, K);
       K *= 0.96 * ni * Ti * eV_ * tau;
 
       perpFunc(x_, perp_);
@@ -415,7 +386,7 @@ public:
 
       T.Transform(ip, x_);
 
-      bbTFunc(x_, K);
+      paraFunc(x_, K);
 
       K *= a_ * Temp * eV_ * tau / ( m_ * amu_ );
 
@@ -792,7 +763,9 @@ int main(int argc, char *argv[])
                   "Temperature of the neutral species (in eV)");
    // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
    //               "Diffusion constant used in momentum equation.");
-   args.AddOption(&B_max_, "-B", "--B-magnitude",
+   args.AddOption(&Tot_B_max_, "-B", "--total-B-magnitude",
+                  "");
+   args.AddOption(&Pol_B_max_, "-pB", "--poloidal-B-magnitude",
                   "");
    args.AddOption(&v_max_, "-v", "--velocity",
                   "");
@@ -1249,6 +1222,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient     vnCoef(sqrt(8.0 * neutral_temp * eV_ /
                                        (M_PI * neutral_mass * amu_)));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
+
+   VectorFunctionCoefficient B3Coef(3, TotBFunc);
 
    // Intermediate Coefficients
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);

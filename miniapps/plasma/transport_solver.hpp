@@ -425,6 +425,43 @@ public:
 
 };
 
+class IonDiffusionCoef : public StateVariableMatCoef
+{
+private:
+   Coefficient       * Dperp_;
+   VectorCoefficient * B3_;
+
+   mutable Vector B_;
+
+public:
+   IonDiffusionCoef(Coefficient &DperpCoef, VectorCoefficient &B3Coef)
+      : StateVariableMatCoef(2), Dperp_(&DperpCoef), B3_(&B3Coef), B_(3) {}
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   void Eval_Func(DenseMatrix & M,
+                  ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      M.SetSize(2);
+
+      double Dperp = Dperp_->Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+
+      M(0,0) = (B_[1] * B_[1] + B_[2] * B_[2]) * Dperp / Bmag2;
+      M(0,1) = -B_[0] * B_[1] * Dperp / Bmag2;
+      M(1,0) = M(0,1);
+      M(1,1) = (B_[0] * B_[0] + B_[2] * B_[2]) * Dperp / Bmag2;
+   }
+
+};
+
 struct DGParams
 {
    double sigma;
