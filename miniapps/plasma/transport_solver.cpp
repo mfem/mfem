@@ -2028,6 +2028,8 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(DGParams & dg,
      izCoef_(Te1Coef_),
      DCoef_(ne1Coef_, vnCoef_, izCoef_),
      dtDCoef_(0.0, DCoef_),
+     SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     negSizCoef_(-1.0, SizCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
      neizCoef_(ne1Coef_, izCoef_),
      dtdSndnnCoef_(0.0, neizCoef_),
@@ -2040,6 +2042,8 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(DGParams & dg,
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
+
+   dlfi_.Append(new DomainLFIntegrator(negSizCoef_));
 
    blf_[0] = new ParBilinearForm((*pgf_)[0]->ParFESpace());
    blf_[0]->AddDomainIntegrator(new MassIntegrator);
@@ -2227,10 +2231,14 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
      dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
      nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-     Te1Coef_(Te0Coef_, dTeCoef_), izCoef_(Te1Coef_),
+     Te1Coef_(Te0Coef_, dTeCoef_),
+     ne0Coef_(z_i_, ni0Coef_),
+     ne1Coef_(z_i_, ni1Coef_),
+     izCoef_(Te1Coef_),
      DPerpCoef_(DPerp),
      PerpCoef_(&PerpCoef), DCoef_(DPerpCoef_, *PerpCoef_),
      dtDCoef_(0.0, DCoef_),
+     SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
      niizCoef_(ni1Coef_, izCoef_),
      dtdSndnnCoef_(0.0, niizCoef_),
@@ -2242,6 +2250,8 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
+
+   dlfi_.Append(new DomainLFIntegrator(SizCoef_));
 
    // blf_[0] = new ParBilinearForm((*pgf_)[0]->ParFESpace());
    // blf_[0]->AddDomainIntegrator(new MassIntegrator(dtdSndnnCoef_));

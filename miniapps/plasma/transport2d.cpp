@@ -1254,7 +1254,8 @@ int main(int argc, char *argv[])
    ScalarMatrixProductCoefficient nXeCoef(neCoef, XeCoef);
 
    // Source Coefficients
-   ProductCoefficient  SiCoef(nnneCoef, izCoef);
+   IonSourceCoef SiCoef(neCoef, nnCoef, izCoef);
+   // ProductCoefficient  SiCoef(nnneCoef, izCoef);
    ProductCoefficient  SnCoef(-1.0, SiCoef);
    ConstantCoefficient SMomCoef(0.0); // TODO: implement momentum source
    ConstantCoefficient QiCoef(0.0);   // TODO: implement ion energy source

@@ -462,6 +462,66 @@ public:
 
 };
 
+class IonSourceCoef : public StateVariableCoef
+{
+private:
+   ProductCoefficient * ne_;
+   Coefficient        * nn_;
+   StateVariableCoef  * iz_;
+
+public:
+   IonSourceCoef(ProductCoefficient &neCoef, Coefficient &nnCoef,
+                 StateVariableCoef &izCoef)
+      : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef) {}
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID || deriv == NEUTRAL_DENSITY ||
+              deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ne = ne_->Eval(T, ip);
+      double nn = nn_->Eval(T, ip);
+      double iz = iz_->Eval(T, ip);
+
+      return ne * nn * iz;
+   }
+
+   double Eval_dNn(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ne = ne_->Eval(T, ip);
+      double iz = iz_->Eval(T, ip);
+
+      return ne * iz;
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double nn = nn_->Eval(T, ip);
+      double iz = iz_->Eval(T, ip);
+
+      double dNe_dNi = ne_->GetAConst();
+
+      return dNe_dNi * nn * iz;
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ne = ne_->Eval(T, ip);
+      double nn = nn_->Eval(T, ip);
+
+      double diz_dTe = iz_->Eval_dTe(T, ip);
+
+      return ne * nn * diz_dTe;
+   }
+};
+
 struct DGParams
 {
    double sigma;
@@ -746,6 +806,9 @@ private:
       NeutralDiffusionCoef      DCoef_;
       ProductCoefficient      dtDCoef_;
 
+      IonSourceCoef           SizCoef_;
+      ProductCoefficient   negSizCoef_;
+
       ProductCoefficient     nnizCoef_; // nn * iz
       ProductCoefficient     neizCoef_; // ne * iz
       ProductCoefficient dtdSndnnCoef_; // - dt * dSn/dnn
@@ -787,12 +850,17 @@ private:
       mutable SumCoefficient  ni1Coef_;
       mutable SumCoefficient  Te1Coef_;
 
+      ProductCoefficient      ne0Coef_;
+      ProductCoefficient      ne1Coef_;
+
       ApproxIonizationRate     izCoef_;
 
       ConstantCoefficient DPerpCoef_;
       MatrixCoefficient * PerpCoef_;
       ScalarMatrixProductCoefficient DCoef_;
       ScalarMatrixProductCoefficient dtDCoef_;
+
+      IonSourceCoef           SizCoef_;
 
       ProductCoefficient nnizCoef_;
       ProductCoefficient niizCoef_;
