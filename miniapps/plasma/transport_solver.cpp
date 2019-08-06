@@ -2214,8 +2214,8 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
      nnizCoef_(nn1Coef_, izCoef_),
      niizCoef_(ni1Coef_, izCoef_),
      dtdSndnnCoef_(0.0, niizCoef_),
-     dtdSndniCoef_(0.0, nnizCoef_),
-     diff_(DCoef_), dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
+     dtdSndniCoef_(0.0, nnizCoef_)//,
+     // diff_(DCoef_), dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
 {
    dbfi_m_.Append(new MassIntegrator);
    dbfi_.Append(new DiffusionIntegrator(DCoef_));
@@ -2229,8 +2229,8 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
    blf_[1]->AddDomainIntegrator(new MassIntegrator);
    blf_[1]->AddDomainIntegrator(new DiffusionIntegrator(dtDCoef_));
    blf_[1]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
-								dg_.sigma,
-								dg_.kappa));
+                                                                dg_.sigma,
+                                                                dg_.kappa));
    // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSndniCoef_));
 }
 

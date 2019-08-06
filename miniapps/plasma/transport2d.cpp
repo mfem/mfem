@@ -17,15 +17,15 @@ using namespace mfem::miniapps;
 using namespace mfem::plasma;
 using namespace mfem::plasma::transport;
 
-int problem_;
+//int problem_;
 
 // Axisymmetry parameters
 // If axis_sym_ is TRUE then cylindrical symmetry is assumed.
 // The mesh coordinates are taken to be (x,y).  We overlay an (r,z) coordinate
 // system where r = 0 corresponds to x = axis_x_ (or r = x - axis_x),
 // and z = y.
-static bool axis_sym_ = true;
-static double axis_x_ = -0.8;
+//static bool axis_sym_ = true;
+//static double axis_x_ = -0.8;
 
 // Equation constant parameters.
 /*
@@ -54,9 +54,9 @@ static double v_max_ = 1e3;
 //static double max_char_speed_;
 
 // Background fields and initial conditions
-static int prob_ = 4;
+//static int prob_ = 4;
 //static int gamma_ = 10;
-static double alpha_ = NAN;
+//static double alpha_ = NAN;
 //static double chi_max_ratio_ = 1.0;
 //static double chi_min_ratio_ = 1.0;
 /*
@@ -652,7 +652,7 @@ int main(int argc, char *argv[])
    MPI_Session mpi(argc, argv);
 
    // 2. Parse command-line options.
-   problem_ = 1;
+   // problem_ = 1;
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
@@ -707,8 +707,8 @@ int main(int argc, char *argv[])
                   "Set the logging level.");
    args.AddOption(&op_flag, "-op", "--operator-test",
                   "Bitmask for disabling operators.");
-   args.AddOption(&problem_, "-p", "--problem",
-                  "Problem setup to use. See options in velocity_function().");
+   // args.AddOption(&problem_, "-p", "--problem",
+   //                "Problem setup to use. See options in velocity_function().");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly before parallel"
                   " partitioning, -1 for auto.");

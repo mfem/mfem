@@ -799,8 +799,8 @@ private:
       ProductCoefficient dtdSndnnCoef_;
       ProductCoefficient dtdSndniCoef_;
 
-      mutable DiffusionIntegrator   diff_;
-      mutable DGDiffusionIntegrator dg_diff_;
+      // mutable DiffusionIntegrator   diff_;
+      // mutable DGDiffusionIntegrator dg_diff_;
 
    public:
       IonDensityOp(DGParams & dg,
