@@ -137,12 +137,12 @@ public:
 
    /** Setup the linear system. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int ImplicitSetup(const double t, const Vector &y, const Vector &fy,
-                             int jok, int *jcur, double gamma);
+   virtual int SUNImplicitSetup(const double t, const Vector &y, const Vector &fy,
+                                int jok, int *jcur, double gamma);
 
    /** Solve the linear system. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int ImplicitSolve(Vector &x, const Vector &b, double tol);
+   virtual int SUNImplicitSolve(Vector &x, const Vector &b, double tol);
 
    double ElasticEnergy(const Vector &x) const;
    double KineticEnergy(const Vector &v) const;
@@ -710,9 +710,9 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
    add(v, dt, dv_dt, dx_dt);
 }
 
-int HyperelasticOperator::ImplicitSetup(const double t, const Vector &y,
-                                        const Vector &fy, int jok, int *jcur,
-                                        double gamma)
+int HyperelasticOperator::SUNImplicitSetup(const double t, const Vector &y,
+                                           const Vector &fy, int jok, int *jcur,
+                                           double gamma)
 {
    int sc = y.Size() / 2;
    const Vector x(y.GetData() + sc, sc);
@@ -736,7 +736,7 @@ int HyperelasticOperator::ImplicitSetup(const double t, const Vector &y,
    return 0;
 }
 
-int HyperelasticOperator::ImplicitSolve(Vector &x, const Vector &b, double tol)
+int HyperelasticOperator::SUNImplicitSolve(Vector &x, const Vector &b, double tol)
 {
    int sc = b.Size() / 2;
    // Vector x(y_cur.GetData() + sc, sc);

@@ -177,29 +177,29 @@ void TimeDependentOperator::SUNImplicitMult(const Vector &, Vector &) const
    mfem_error("TimeDependentOperator::SUNImplicitMult() is not overridden!");
 }
 
-int TimeDependentOperator::ImplicitSetup(const double, const Vector &,
-                                         const Vector &,
-                                         int, int *, double)
+int TimeDependentOperator::SUNImplicitSetup(const double, const Vector &,
+                                            const Vector &,
+                                            int, int *, double)
 {
-   mfem_error("TimeDependentOperator::ImplicitSetup() is not overridden!");
+   mfem_error("TimeDependentOperator::SUNImplicitSetup() is not overridden!");
    return (-1);
 }
 
-int TimeDependentOperator::ImplicitSolve(Vector &, const Vector &, double)
+int TimeDependentOperator::SUNImplicitSolve(Vector &, const Vector &, double)
 {
-   mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
+   mfem_error("TimeDependentOperator::SUNImplicitSolve() is not overridden!");
    return (-1);
 }
 
-int TimeDependentOperator::MassSetup(const double)
+int TimeDependentOperator::SUNMassSetup(const double)
 {
-   mfem_error("TimeDependentOperator::MassSetup() is not overridden!");
+   mfem_error("TimeDependentOperator::SUNMassSetup() is not overridden!");
    return (-1);
 }
 
-int TimeDependentOperator::MassSolve(Vector &, const Vector &, double)
+int TimeDependentOperator::SUNMassSolve(Vector &, const Vector &, double)
 {
-   mfem_error("TimeDependentOperator::MassSolve() is not overridden!");
+   mfem_error("TimeDependentOperator::SUNMassSolve() is not overridden!");
    return (-1);
 }
 

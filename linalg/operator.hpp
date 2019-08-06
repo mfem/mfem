@@ -305,8 +305,8 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int ImplicitSetup(const double t, const Vector &x, const Vector &fx,
-                             int jok, int *jcur, double gamma);
+   virtual int SUNImplicitSetup(const double t, const Vector &x, const Vector &fx,
+                                int jok, int *jcur, double gamma);
 
    /** @brief Solve the ODE linear system A x = b as setup by the method
        ImplicitSetup().
@@ -319,7 +319,7 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int ImplicitSolve(Vector &x, const Vector &b, double tol);
+   virtual int SUNImplicitSolve(Vector &x, const Vector &b, double tol);
 
    /** @brief Setup the mass matrix in the ODE system M y' = f(y,t).
 
@@ -329,7 +329,7 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int MassSetup(const double t);
+   virtual int SUNMassSetup(const double t);
 
    /** @brief Solve the mass matrix linear system M x = b as setup by the method
        MassSetup().
@@ -342,7 +342,7 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int MassSolve(Vector &x, const Vector &b, double tol);
+   virtual int SUNMassSolve(Vector &x, const Vector &b, double tol);
 
    virtual ~TimeDependentOperator() { }
 };
