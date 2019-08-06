@@ -33,8 +33,19 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+8/5
+The current way of allocating hypre matrices may be slow in assembly
+
+Alternatively, I could try:
+VecReciprocal(diag);
+MatDiagonalSet
+MatPtAP
+
+Try use Add to define some matrices (in SetParameters)
+
 7/29
 1. try useFull=false first
+mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 1 -dt .001 -usepetsc --petscopts rc_jfnk -s 1 -shell
 
 7/13
 in GetGradient:

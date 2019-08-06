@@ -215,7 +215,7 @@ public:
    FullBlockSolver(const OperatorHandle &oh);
 
    virtual void SetOperator (const Operator &op)
-   { MFEM_ABORT("MyBlockSolver::SetOperator is not supported.");}
+   { MFEM_ABORT("FullBlockSolver::SetOperator is not supported.");}
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual ~FullBlockSolver();
