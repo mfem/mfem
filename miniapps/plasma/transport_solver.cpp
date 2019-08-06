@@ -1202,10 +1202,10 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
       cout << "Entering DGTransportTDO::ImplicitSolve" << endl;
    }
 
-   cout << "calling DGTransportTDO::ImplicitSolve with arg u = " << u.GetData() <<
-        ", arg dudt = " << dudt.GetData() << ", pgf = " << (*pgf_)[0]->GetData() <<
-        " -> " << u.GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() << " -> " <<
-        dudt.GetData() << endl;
+   // cout << "calling DGTransportTDO::ImplicitSolve with arg u = " << u.GetData() <<
+   //   ", arg dudt = " << dudt.GetData() << ", pgf = " << (*pgf_)[0]->GetData() <<
+   //   " -> " << u.GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() << " -> " <<
+   //   dudt.GetData() << endl;
 
    dudt = 0.0;
 
@@ -1215,7 +1215,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      cout << "offsets_[" << i << "] = " << offsets_[i] << endl;
+     // cout << "offsets_[" << i << "] = " << offsets_[i] << endl;
       // (*pgf_)[i]->SetData(u.GetData() + offsets_[i]);
       (*pgf_)[i]->MakeRef(fes_, u.GetData() + offsets_[i]);
    }
@@ -1426,8 +1426,8 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
    y = 0.0;
 
-   cout << "| u[" << index_ << "]| : " << (*pgf_)[index_]->Norml2() << endl;
-   cout << "|du[" << index_ << "]| : " << (*dpgf_)[index_]->Norml2() << endl;
+   // cout << "| u[" << index_ << "]| : " << (*pgf_)[index_]->Norml2() << endl;
+   // cout << "|du[" << index_ << "]| : " << (*dpgf_)[index_]->Norml2() << endl;
 
    if (dbfi_m_.Size())
    {
@@ -1463,7 +1463,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          y.AddElementVector(vdofs_, elvec_);
       }
    }
-   cout << "|y| after dbfi_m: " << y.Norml2() << endl;
+   // cout << "|y| after dbfi_m: " << y.Norml2() << endl;
    if (fes_->GetMyRank() == 0 && logging_)
    {
       cout << log_prefix_
@@ -1503,7 +1503,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          y.AddElementVector(vdofs_, elvec_);
       }
    }
-   cout << "|y| after dbfi: " << y.Norml2() << endl;
+   // cout << "|y| after dbfi: " << y.Norml2() << endl;
    if (fes_->GetMyRank() == 0 && logging_)
    {
       cout << log_prefix_
@@ -1629,7 +1629,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       }
 
    }
-   cout << "|y| after fbfi: " << y.Norml2() << endl;
+   // cout << "|y| after fbfi: " << y.Norml2() << endl;
    if (fes_->GetMyRank() == 0 && logging_)
    {
       cout << log_prefix_
@@ -1702,7 +1702,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          }
       }
    }
-   cout << "|y| after bfbfi: " << y.Norml2() << endl;
+   // cout << "|y| after bfbfi: " << y.Norml2() << endl;
    if (dlfi_.Size())
    {
       ElementTransformation *eltrans = NULL;
@@ -1917,9 +1917,9 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
    {
       cout << "DGTransportTDO::CombinedOp::UpdateGradient" << endl;
    }
-   cout << "calling CombinedOp::UpdateGradient with arg x = " << x.GetData() <<
-        ", pgf = " << (*pgf_)[0]->GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() <<
-        " -> " << x.GetData() << endl;
+   // cout << "calling CombinedOp::UpdateGradient with arg x = " << x.GetData() <<
+   //       ", pgf = " << (*pgf_)[0]->GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() <<
+   //     " -> " << x.GetData() << endl;
 
    delete grad_;
 
@@ -1941,7 +1941,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
          Operator * gradIJ = op_[i]->GetGradientBlock(j);
          if (gradIJ)
          {
-            cout << "setting gradient block " << i << " " << j << endl;
+            // cout << "setting gradient block " << i << " " << j << endl;
             grad_->SetBlock(i, j, gradIJ);
          }
       }
@@ -1969,9 +1969,9 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
    {
       cout << "DGTransportTDO::CombinedOp::Mult" << endl;
    }
-   cout << "calling CombinedOp::Mult with arg k = " << k.GetData() << ", pgf = "
-        << (*pgf_)[0]->GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() << " -> " <<
-        k.GetData() << endl;
+   // cout << "calling CombinedOp::Mult with arg k = " << k.GetData() << ", pgf = "
+   //    << (*pgf_)[0]->GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() << " -> " <<
+   //   k.GetData() << endl;
 
    double *prev_k = (*dpgf_)[0]->GetData();
 
@@ -1990,8 +1990,8 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
 
       op_[i]->Mult(k, y_i);
 
-      cout << "Norm of y_" << i << " " << y_i.Norml2() << ", offsets = " <<
-           offsets_[i] << endl;
+      // cout << "Norm of y_" << i << " " << y_i.Norml2() << ", offsets = " <<
+      //   offsets_[i] << endl;
    }
 
    for (int i=0; i<offsets_.Size() - 1; i++)
@@ -2057,7 +2057,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(DGParams & dg,
 
 void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
 {
-   cout << "Setting time step: " << dt << " in NeutralDensityOp" << endl;
+  // cout << "Setting time step: " << dt << " in NeutralDensityOp" << endl;
    NLOperator::SetTimeStep(dt);
 
    nn1Coef_.SetBeta(dt);
@@ -2267,7 +2267,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
 
 void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
 {
-   cout << "Setting time step: " << dt << " in IonDensityOp" << endl;
+  // cout << "Setting time step: " << dt << " in IonDensityOp" << endl;
    NLOperator::SetTimeStep(dt);
 
    nn1Coef_.SetBeta(dt);
