@@ -807,7 +807,6 @@ private:
       ProductCoefficient      dtDCoef_;
 
       IonSourceCoef           SizCoef_;
-      ProductCoefficient   negSizCoef_;
 
       ProductCoefficient     nnizCoef_; // nn * iz
       ProductCoefficient     neizCoef_; // ne * iz
@@ -861,6 +860,7 @@ private:
       ScalarMatrixProductCoefficient dtDCoef_;
 
       IonSourceCoef           SizCoef_;
+      ProductCoefficient   negSizCoef_;
 
       ProductCoefficient nnizCoef_;
       ProductCoefficient niizCoef_;
