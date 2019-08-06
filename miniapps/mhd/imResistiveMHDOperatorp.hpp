@@ -280,7 +280,7 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    Vec y0, y1, y2;
    Vec b, bhat, diag, rhs, tmp; 
 
-   PetscInt iter=2; //number of Jacobi iteration 
+   PetscInt iter=5; //number of Jacobi iteration 
 
    X->PlaceArray(x.GetData()); 
    Y->PlaceArray(y.GetData());
@@ -587,7 +587,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    ConstantCoefficient resi_coeff(resistivity);
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
-
   
    if (use_petsc)
    {
@@ -621,7 +620,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
                          KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
                          ess_tdof_list, ess_bdr, useFull);
 
-      const double rel_tol=1.e-5;
+      const double rel_tol=1.e-8;
       pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
       if (use_factory)
       {
