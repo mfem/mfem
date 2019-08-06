@@ -591,8 +591,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
   
    if (use_petsc)
    {
-      ParBilinearForm *DRepr, *DSlpr;
-      HypreParMatrix *DRematpr, *DSlmatpr;
+      ParBilinearForm *DRepr=NULL, *DSlpr=NULL;
+      HypreParMatrix *DRematpr=NULL, *DSlmatpr=NULL;
       if (viscosity != 0.0)
       {   
           //assemble diffusion matrices (I cannot delete them if I want to do ParAdd)
@@ -603,11 +603,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
           DRematpr = &DRemat;
           DRepr = &DRe;
-      }
-      else
-      {
-          DRematpr = NULL;
-          DRepr = NULL;
       }
 
       if (resistivity != 0.0)
@@ -620,18 +615,13 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
           DSlmatpr = &DSlmat;
           DSlpr = &DSl;
       }
-      else
-      {
-          DSlmatpr = NULL;
-          DSlpr = NULL;
-      }
 
-      bool useFull = false;
+      bool useFull = true;
       reduced_oper  = new ReducedSystemOperator(f, M, Mmat, K, Kmat,
                          KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
                          ess_tdof_list, ess_bdr, useFull);
 
-      const double rel_tol=1.e-8;
+      const double rel_tol=1.e-5;
       pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
       if (use_factory)
       {
@@ -654,8 +644,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       pnewton_solver->iterative_mode=true;
    }
 }
-
-
 
 void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
 {
@@ -887,15 +875,12 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     useFull = useFull_;
 
     Mdtpr = new HypreParMatrix(Mmat_);
-    ARe=NULL;
-    ASl=NULL;
+    ARe=NULL; ASl=NULL;
 
     DRematpr = DRemat_;
     DSlmatpr = DSlmat_;
 
-    AReFull=NULL; 
-    ScFull=NULL; 
-    NbFull=NULL;
+    AReFull=NULL; ScFull=NULL; NbFull=NULL;
 
     int sc = height/3;
     block_trueOffsets.SetSize(4);
@@ -936,13 +921,11 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        Nv->Assemble(); 
        Nv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
        Nv->Finalize();
-       AReFull = Nv->ParallelAssemble();
-
-       ScFull = new HypreParMatrix(*AReFull);
+       HypreParMatrix *NvMat = Nv->ParallelAssemble();
 
        //change AReFull to the true ARe operator and ScFull to the true ASl operator
-       *AReFull+=*ARe;
-       *ScFull+=*ASl;    
+       AReFull = ParAdd(ARe, NvMat);
+       HypreParMatrix *ASltmp = ParAdd(ASl, NvMat);    
 
        //form Nb matrix
        delete Nb;
@@ -964,12 +947,14 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        DinvNb->InvScaleRows(*ARed);
        HypreParMatrix *NbtDinv=DinvNb->Transpose();
        HypreParMatrix *S = ParMult(NbtDinv, NbFull);
-       *ScFull+=*S;
+       ScFull = ParAdd(ASltmp, S);
 
        delete DinvNb;
        delete ARed;
        delete NbtDinv;
        delete S;
+       delete NvMat;
+       delete ASltmp;
 
        Jacobian = new BlockOperator(block_trueOffsets);
        Jacobian->SetBlock(0,0,AReFull);
