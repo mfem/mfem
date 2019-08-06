@@ -271,6 +271,67 @@ protected:
    StateVariableCoef(DerivType deriv = INVALID) : StateVariableFunc(deriv) {}
 };
 
+class StateVariableMatCoef : public StateVariableFunc, public MatrixCoefficient
+{
+public:
+   virtual void Eval(DenseMatrix &M,
+                     ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      M.SetSize(height, width);
+
+      switch (derivType_)
+      {
+         case INVALID:
+            return Eval_Func(M, T, ip);
+         case NEUTRAL_DENSITY:
+            return Eval_dNn(M, T, ip);
+         case ION_DENSITY:
+            return Eval_dNi(M, T, ip);
+         case ION_PARA_VELOCITY:
+            return Eval_dVi(M, T, ip);
+         case ION_TEMPERATURE:
+            return Eval_dTi(M, T, ip);
+         case ELECTRON_TEMPERATURE:
+            return Eval_dTe(M, T, ip);
+         default:
+            M = 0.0;
+            return;
+      }
+   }
+
+   virtual void Eval_Func(DenseMatrix &M,
+                          ElementTransformation &T,
+                          const IntegrationPoint &ip) { M = 0.0; }
+
+   virtual void Eval_dNn(DenseMatrix &M,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { M = 0.0; }
+
+   virtual void Eval_dNi(DenseMatrix &M,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { M = 0.0; }
+
+   virtual void Eval_dVi(DenseMatrix &M,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { M = 0.0; }
+
+   virtual void Eval_dTi(DenseMatrix &M,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { M = 0.0; }
+
+   virtual void Eval_dTe(DenseMatrix &M,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { M = 0.0; }
+
+protected:
+   StateVariableMatCoef(int dim, DerivType deriv = INVALID)
+      : StateVariableFunc(deriv), MatrixCoefficient(dim) {}
+
+   StateVariableMatCoef(int h, int w, DerivType deriv = INVALID)
+      : StateVariableFunc(deriv), MatrixCoefficient(h, w) {}
+};
+
 /** Given the electron temperature in eV this coefficient returns an
     approzximation to the expected ionization rate in m^3/s.
 */
