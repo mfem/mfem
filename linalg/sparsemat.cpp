@@ -551,7 +551,7 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
-   if (Finalized()) { y.UseDevice(true); }
+   if (Finalized()) { y.UseDevice(use_dev); }
    y = 0.0;
    AddMult(x, y);
 }
@@ -622,7 +622,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
 void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
 {
-   if (Finalized()) { y.UseDevice(true); }
+   if (Finalized()) { y.UseDevice(use_dev); }
    y = 0.0;
    AddMultTranspose(x, y);
 }
@@ -736,7 +736,7 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    MFEM_ASSERT(x.Size() == Width(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << Width() << ")");
 
-   y.SetSize(Height(), Device::GetMemoryType());
+   y.SetSize(Height(), use_dev ? Device::GetMemoryType() : MemoryType::HOST );
 
    const int height = Height();
    const int nnz = J.Capacity();
