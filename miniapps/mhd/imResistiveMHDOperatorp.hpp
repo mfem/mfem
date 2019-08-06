@@ -74,31 +74,42 @@ public:
        if (dtOld!=dt && initialMdt)
        {
            cout <<"------update Mdt------"<<endl;
-           if (useFull)
-           {
-               ARe->Add(-1., *Mdtpr);
-               ASl->Add(-1., *Mdtpr);
-           }
            double rate=dtOld/dt;
            *Mdtpr*=rate;
+
            if (useFull)
            {
-               *DRematpr+=*Mdtpr;
-               *DSlmatpr+=*Mdtpr;
+               delete ARe;
+               delete ASl;
+               if (DRematpr!=NULL)
+                  ARe = ParAdd(Mdtpr, DRematpr);
+               else
+                  ARe = new HypreParMatrix(*Mdtpr);
+                  
+               if (DSlmatpr!=NULL)
+                  ASl = ParAdd(Mdtpr, DSlmatpr);
+               else
+                  ASl = new HypreParMatrix(*Mdtpr);
            }
        }
        if(initialMdt==false)
        {
            cout <<"------initial Mdt-------"<<endl;
            *Mdtpr*=(1./dt); 
-           *ARe*=(1./dt);
-           *ASl*=(1./dt);
            initialMdt=true;
 
-           if (DRematpr!=NULL)
-              *ARe+=*DRematpr;
-           if (DSlmatpr!=NULL)
-              *ASl+=*DSlmatpr;
+           if (useFull)
+           {
+              if (DRematpr!=NULL)
+                 ARe = ParAdd(Mdtpr, DRematpr);
+              else
+                 ARe = new HypreParMatrix(*Mdtpr);
+                 
+              if (DSlmatpr!=NULL)
+                 ASl = ParAdd(Mdtpr, DSlmatpr);
+              else
+                 ASl = new HypreParMatrix(*Mdtpr);
+           }
        }
    }
 
@@ -167,6 +178,7 @@ protected:
 
    mutable Vector z, zFull; // auxiliary vector 
    mutable ParGridFunction j, gf;  //auxiliary variable (to store the boundary condition)
+   ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
 
 public:
    ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr, 
@@ -513,7 +525,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      viscosity(visc),  resistivity(resi), useAMG(false), 
      reduced_oper(NULL), pnewton_solver(NULL), J_factory(NULL),
      M_solver(f.GetComm()), K_solver(f.GetComm()), 
-     K_amg(NULL), K_pcg(NULL), z(height/3), zFull(f.GetVSize()), j(&fespace) 
+     K_amg(NULL), K_pcg(NULL), z(height/3), zFull(f.GetVSize()), j(&fespace),
+     DRetmp(NULL), DSltmp(NULL)
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -582,12 +595,11 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       HypreParMatrix *DRematpr, *DSlmatpr;
       if (viscosity != 0.0)
       {   
-          //assemble diffusion matrices
-          ParBilinearForm *DRetmp = new ParBilinearForm(&fespace);
+          //assemble diffusion matrices (I cannot delete them if I want to do ParAdd)
+          DRetmp = new ParBilinearForm(&fespace);
           DRetmp->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
           DRetmp->Assemble();
           DRetmp->FormSystemMatrix(ess_tdof_list, DRemat);
-          delete DRetmp;
 
           DRematpr = &DRemat;
           DRepr = &DRe;
@@ -600,11 +612,10 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
       if (resistivity != 0.0)
       {
-          ParBilinearForm *DSltmp = new ParBilinearForm(&fespace);
+          DSltmp = new ParBilinearForm(&fespace);
           DSltmp->AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
           DSltmp->Assemble();
           DSltmp->FormSystemMatrix(ess_tdof_list, DSlmat);
-          delete DSltmp;
 
           DSlmatpr = &DSlmat;
           DSlpr = &DSl;
@@ -614,7 +625,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
           DSlmatpr = NULL;
           DSlpr = NULL;
       }
-
 
       bool useFull = false;
       reduced_oper  = new ReducedSystemOperator(f, M, Mmat, K, Kmat,
@@ -824,6 +834,8 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete Nv;
     delete Nb;
     delete K_pcg;
+    delete DRetmp;
+    delete DSltmp;
 }
 
 ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
@@ -867,16 +879,16 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
      initialMdt(false),
-     E0Vec(NULL), M_solver(M_solver_), useFull(useFull_),
+     E0Vec(NULL), M_solver(M_solver_), 
      dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_),
      Nv(NULL), Nb(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
-    Mdtpr = new HypreParMatrix(Mmat_);
+    useFull = useFull_;
 
-    //ARe and ASl in the reduced system did not contain Nv term
-    ARe = new HypreParMatrix(Mmat_);
-    ASl = new HypreParMatrix(Mmat_);
+    Mdtpr = new HypreParMatrix(Mmat_);
+    ARe=NULL;
+    ASl=NULL;
 
     DRematpr = DRemat_;
     DSlmatpr = DSlmat_;
@@ -926,7 +938,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        Nv->Finalize();
        AReFull = Nv->ParallelAssemble();
 
-       ScFull = new HypreParMatrix(*AReFull);    //XXX did deep copy??
+       ScFull = new HypreParMatrix(*AReFull);
 
        //change AReFull to the true ARe operator and ScFull to the true ASl operator
        *AReFull+=*ARe;
