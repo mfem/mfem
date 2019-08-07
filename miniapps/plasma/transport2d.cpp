@@ -425,7 +425,7 @@ public:
 class VectorNormedDifferenceMeasure : public ODEDifferenceMeasure
 {
 private:
-   Array<double> w_;
+   Vector w_;
    Array<NormedDifferenceMeasure*> msr_;
 
    int size_;
@@ -433,7 +433,7 @@ private:
    Vector u1_;
 
 public:
-   VectorNormedDifferenceMeasure(MPI_Comm comm, Array<double> & weights)
+   VectorNormedDifferenceMeasure(MPI_Comm comm, Vector & weights)
       : w_(weights),
         msr_(w_.Size()),
         size_(0),
@@ -482,7 +482,7 @@ class VectorErrorEstimator : public ErrorEstimator
 {
 protected:
    ParFiniteElementSpace &err_fes_;
-   Array<double> &w_;
+   Vector &w_;
 
    Array<double> nrm_;
    Array<ErrorEstimator*> est_;
@@ -492,7 +492,7 @@ protected:
 public:
 
    VectorErrorEstimator(ParFiniteElementSpace & err_fes,
-                        Array<double> &weights)
+                        Vector &weights)
       : err_fes_(err_fes),
         w_(weights),
         nrm_(w_.Size()),
@@ -557,7 +557,7 @@ public:
                             ParFiniteElementSpace & err_fes,
                             ParFiniteElementSpace & flux_fes,
                             ParFiniteElementSpace & sm_flux_fes,
-                            Array<double> & weights,
+                            Vector & weights,
                             Array<Coefficient*> & dCoef,
                             Array<MatrixCoefficient*> & DCoef)
       : VectorErrorEstimator(err_fes, weights),
@@ -616,7 +616,7 @@ public:
    VectorLpErrorEstimator(int p, Array<Coefficient*> & coef,
                           ParGridFunctionArray & pgf,
                           ParFiniteElementSpace & err_fes,
-                          Array<double> & weights)
+                          Vector & weights)
       : VectorErrorEstimator(err_fes, weights),
         coef_(coef),
         pgf_(pgf)
@@ -641,7 +641,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
                       ParGridFunctionArray & gf, Array<Coefficient*> &coef,
-                      Array<double> &weights,
+                      Vector &weights,
                       int p, double tol, bool visualization = false);
 
 void InitialCondition(const Vector &x, Vector &y);
@@ -697,6 +697,9 @@ int main(int argc, char *argv[])
    double      Xi_perp = 1.0;        // Ion thermal diffusion (m^2/s)
    double      Xe_perp = 1.0;        // Electron thermal diffusion (m^2/s)
 
+   Vector amr_weights;
+   Vector ode_weights;
+   
    int precision = 8;
    cout.precision(precision);
 
@@ -721,6 +724,9 @@ int main(int argc, char *argv[])
                   "Derefinement safety coefficient.");
    args.AddOption(&nc_limit, "-l", "--nc-limit",
                   "Maximum level of hanging nodes.");
+   args.AddOption(&amr_weights, "-amr-w","--amr-weights",
+		  "Relative importance of fields when computing "
+		  "AMR error estimates.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&dg.sigma, "-dgs", "--dg-sigma",
@@ -743,6 +749,9 @@ int main(int argc, char *argv[])
                   "            A-stable methods (not L-stable)\n\t"
                   "            22 - ImplicitMidPointSolver,\n\t"
                   "            23 - SDIRK23, 34 - SDIRK34.");
+   args.AddOption(&ode_weights, "-ode-w","--ode-weights",
+		  "Relative importance of fields when computing "
+		  "ODE time step.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -816,6 +825,18 @@ int main(int argc, char *argv[])
    */
    imex = ode_solver_type < 10;
 
+   if (amr_weights.Size() != 5)
+   {
+     amr_weights.SetSize(5);
+     amr_weights = 1.0;
+   }
+
+   if (ode_weights.Size() != 5)
+   {
+     ode_weights.SetSize(5);
+     ode_weights = 1.0;
+   }
+   
    if (t_final < 0.0)
    {
       if (strcmp(mesh_file, "../data/periodic-hexagon.mesh") == 0)
@@ -890,7 +911,7 @@ int main(int argc, char *argv[])
 
       coef_gf.ProjectCoefficient(coef);
 
-      Array<double> w(5); w = 1.0;
+      //Array<double> w(5); w = 1.0;
       /*
       w[0] = 1.0 / nn_max_;
       w[1] = 1.0 / ni_max_;
@@ -902,7 +923,7 @@ int main(int argc, char *argv[])
       // Finite element space for a scalar (thermodynamic quantity)
       ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
 
-      AdaptInitialMesh(mpi, pmesh, err_fes, fes, coef_gf, coef, w,
+      AdaptInitialMesh(mpi, pmesh, err_fes, fes, coef_gf, coef, amr_weights,
                        2, tol_init, visualization);
 
       for (int i=0; i<5; i++)
@@ -1203,11 +1224,11 @@ int main(int argc, char *argv[])
    // ion_density = 1.0e19;
    para_velocity = 0.0;
 
-   Array<double> weights(5);
-   weights = 1.0;
+   // Array<double> weights(5);
+   // weights = 1.0;
    // weights[0] = 1.0;
    // weights[4] = 0.0;
-   VectorNormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD, weights);
+   VectorNormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD, ode_weights);
    ode_diff_msr.SetOperator(m);
 
    // Coefficients representing primary fields
@@ -1477,8 +1498,8 @@ int main(int argc, char *argv[])
    DCoefs[3] = &nXiCoef;
    DCoefs[4] = &nXeCoef;
 
-   Array<double> estWeights(5);
-   for (int i=0; i<5; i++) { estWeights[i] = weights[i] / coefNrm[i]; }
+   Vector estWeights(5);
+   for (int i=0; i<5; i++) { estWeights[i] = amr_weights[i] / coefNrm[i]; }
 
    VectorL2ZZErrorEstimator estimator(pgf, fes_l2_o0, flux_fes, smooth_flux_fes,
                                       estWeights, dCoefs, DCoefs);
@@ -1836,7 +1857,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
                       ParGridFunctionArray & gf, Array<Coefficient*> &coef,
-                      Array<double> &weights,
+                      Vector &weights,
                       int p, double tol, bool visualization)
 {
    VectorLpErrorEstimator estimator(p, coef, gf, err_fespace, weights);
