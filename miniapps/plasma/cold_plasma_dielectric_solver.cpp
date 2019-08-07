@@ -594,7 +594,7 @@ CPDSolver::~CPDSolver()
    delete L2VFESpace_;
    // delete H1FESpace_;
    delete HCurlFESpace_;
-   // delete HDivFESpace_;
+   delete HDivFESpace_;
 
    map<string,socketstream*>::iterator mit;
    for (mit=socks_.begin(); mit!=socks_.end(); mit++)
@@ -684,7 +684,7 @@ CPDSolver::Update()
    if (L2FESpace_) { L2FESpace_->Update(); }
    if (L2VFESpace_) { L2VFESpace_->Update(); }
    HCurlFESpace_->Update();
-   HDivFESpace_->Update(false);
+   if (HDivFESpace_) { HDivFESpace_->Update(false); }
 
    if ( ess_bdr_.Size() > 0 )
    {
