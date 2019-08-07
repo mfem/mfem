@@ -33,6 +33,11 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+8/7
+inexac Newton?
+
+preconditioner needs improvements in solving omega (increase regularity)
+
 8/6
 compare
 run -n 4 imMHDp -rs 2 -o 2 -tf 3 -vs 100 -dt .002 -usepetsc --petscopts rc_jfnk -s 1 -shell

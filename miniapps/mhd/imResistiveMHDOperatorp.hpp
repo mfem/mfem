@@ -628,7 +628,10 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
          SNES snes=SNES(*pnewton_solver);
          KSP ksp; 
 		 SNESGetKSP(snes,&ksp);
-		 KSPSetType(ksp,KSPPREONLY);
+
+		 //KSPSetType(ksp,KSPGMRES);
+         //SNESKSPSetUseEW(snes,PETSC_TRUE);
+         //SNESKSPSetParametersEW(snes,2,1e-4,0.1,0.9,1.5,1.5,0.1);
 
          if (useFull)
             J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK preconditioner");
@@ -756,9 +759,40 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
    MFEM_VERIFY(pnewton_solver->GetConverged(),
                   "Newton solver did not converge.");
 
+   
+
    //modify k so that it fits into the backward euler framework
    k-=vx;
    k/=dt;
+
+   if(false)
+   {
+      ParGridFunction phi1, psi1, w1;
+      phi1.MakeTRef(&fespace, k, 0);
+      psi1.MakeTRef(&fespace, k, sc);
+        w1.MakeTRef(&fespace, k, 2*sc);
+
+      phi1.SetFromTrueVector(); psi1.SetFromTrueVector(); w1.SetFromTrueVector();
+
+      int myid;
+      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+      ostringstream phi_name, psi_name, w_name;
+      phi_name << "dbg_phi." << setfill('0') << setw(6) << myid;
+      psi_name << "dbg_psi." << setfill('0') << setw(6) << myid;
+      w_name << "dbg_omega." << setfill('0') << setw(6) << myid;
+
+      ofstream osol(phi_name.str().c_str());
+      osol.precision(8);
+      phi1.Save(osol);
+
+      ofstream osol3(psi_name.str().c_str());
+      osol3.precision(8);
+      psi1.Save(osol3);
+
+      ofstream osol4(w_name.str().c_str());
+      osol4.precision(8);
+      w1.Save(osol4);
+   }
 }
 
 
