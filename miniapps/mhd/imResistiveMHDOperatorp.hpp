@@ -639,7 +639,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       pnewton_solver->SetPrintLevel(1); // print Newton iterations
       pnewton_solver->SetRelTol(rel_tol);
       pnewton_solver->SetAbsTol(0.0);
-      pnewton_solver->SetMaxIter(10);
+      pnewton_solver->SetMaxIter(20);
       pnewton_solver->iterative_mode=true;
    }
 }

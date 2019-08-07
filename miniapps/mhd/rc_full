@@ -1,32 +1,47 @@
 # matrix-free Jacobian action, full preconditioner constructed using PetscPreconditionerFactory
 -snes_monitor
 -snes_mf_operator
--snes_max_it 10
--snes_rtol 1e-5
+-snes_max_it 20
+-snes_rtol 5e-6
 -snes_converged_reason 
+#-snes_view
+-snes_linesearch_type l2
+# use inexact newton based on pixie2d:  
+# ierr = SNESKSPSetParametersEW(snes,3,tolgm,0.9,0.9,1.5,1.5,0.1)
+-snes_ksp_ew
+-snes_ksp_ew_version 3
+-snes_ksp_ew_rtol0 5e-6
+-snes_ksp_ew_rtolmax 0.9
+-snes_ksp_ew_gamma 0.9
+-snes_ksp_ew_alpha2 1.5
+-snes_ksp_ew_alpha2 1.5
+-snes_ksp_ew_threshold 0.1
 #
--ksp_type preonly
-#-ksp_monitor_true_residual
+-ksp_type gmres
+-ksp_converged_reason
+-ksp_rtol 5e-6
 #-ksp_view
+#-snes_ksp_ew
+-ksp_monitor_true_residual
 #
 #======Stiffness matrix======
--s1_ksp_rtol 1e-8
+-s1_ksp_rtol 1e-6
 -s1_ksp_type cg
--s1_ksp_converged_reason
+#-s1_ksp_converged_reason
 -s1_pc_type hypre
 #-s1_ksp_view
 #-s1_ksp_monitor
 #
 #======Schur matrix======
 #-s2_ksp_view
--s2_ksp_rtol 1e-8
--s2_ksp_converged_reason
+-s2_ksp_rtol 1e-6
 -s2_pc_type hypre
+#-s2_ksp_converged_reason
 #-s2_ksp_monitor
 #
 #======Mass matrix======
--s3_ksp_rtol 1e-8
--s3_ksp_converged_reason
+-s3_ksp_rtol 1e-6
 -s3_ksp_type cg
+#-s3_ksp_converged_reason
 #-s3_pc_type hypre
 #-s3_ksp_view

@@ -31,7 +31,76 @@ glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
 glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 
 parallel plot:
-glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+
+8/6
+compare
+run -n 4 imMHDp -rs 2 -o 2 -tf 3 -vs 100 -dt .002 -usepetsc --petscopts rc_jfnk -s 1 -shell
+vs
+run -n 4 imMHDp -rs 2 -o 2 -tf 3 -vs 100 -dt .002 -usepetsc --petscopts rc_full -s 1 -shell
+
+this seems working:
+srun -n 4 imMHDp -rs 4 -o 2 -tf 3 -vs 100 -dt .1 -usepetsc --petscopts rc_full -s 1 -shell
+
+when iter=10, whis works
+mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 1 -dt .02 -usepetsc --petscopts rc_full -s 1 -shell
+
+when iter=5, this is ok
+mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 1 -dt .01 -usepetsc --petscopts rc_full -s 1 -shell
+
+when iter=8, this is ok
+mpirun -n 4 imMHDp -m xperiodic.mesh -rs 4 -rp 0 -o 3 -tf 1 -vs 50 -dt .01 -i 3 --usepetsc --petscopts rc_full -s 1 -shell
+
+My time step is smaller than pixie2d??
+
+Possible fix:
+1 use fieldsplit
+2 use inexact Newton: where could I trun on GMRES??
+
+I am doing GMRES for nested mat or jfnk??
+
+iter=5 is ok if GMRES is turned on but I am not sure I am doing the correct GMRES
+
+this works (with iter=5):
+-snes_monitor
+-snes_mf_operator
+-snes_max_it 20
+-snes_rtol 5e-6
+-snes_converged_reason 
+-snes_linesearch_type l2
+#
+# use inexact newton based on pixie2d:  
+# ierr = SNESKSPSetParametersEW(snes,3,tolgm,0.9,0.9,1.5,1.5,0.1)
+-snes_ksp_ew
+-snes_ksp_ew_version 3
+-snes_ksp_ew_rtol0 5e-6
+-snes_ksp_ew_rtolmax 0.9
+-snes_ksp_ew_gamma 0.9
+-snes_ksp_ew_alpha2 1.5
+-snes_ksp_ew_alpha2 1.5
+-snes_ksp_ew_threshold 0.1
+#
+-ksp_type gmres
+-ksp_converged_reason
+-ksp_rtol 5e-6
+-ksp_monitor_true_residual
+#======Stiffness matrix======
+-s1_ksp_rtol 1e-6
+-s1_ksp_type cg
+-s1_pc_type hypre
+#======Schur matrix======
+-s2_ksp_rtol 1e-6
+-s2_pc_type hypre
+#======Mass matrix======
+-s3_ksp_rtol 1e-6
+-s3_ksp_type cg
+
+ok:
+mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -vs 1 -tf 20 -dt 1 -usepetsc --petscopts rc_full -s 1 -shell
+mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -vs 1 -tf 20 -dt 5 -usepetsc --petscopts rc_full -s 1 -shell
+
+what kind of newton solver used in pixie2d?
+
 
 8/5
 The current way of allocating hypre matrices may be slow in assembly
@@ -44,8 +113,12 @@ MatPtAP
 Try use Add to define some matrices (in SetParameters)
 
 7/29
-1. try useFull=false first
+fix useFull=false (I need to use ParAdd and I cannot delete BilinearForm)
 mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 1 -dt .001 -usepetsc --petscopts rc_jfnk -s 1 -shell
+
+ok:
+srun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 1 -dt .001 -usepetsc --petscopts rc_jfnk -s 1 -shell
+srun -n 4 imMHDp -rs 2 -o 2 -tf 3 -vs 100 -dt .002 -usepetsc --petscopts rc_jfnk -s 1 -shell
 
 7/13
 in GetGradient:

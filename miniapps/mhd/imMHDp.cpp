@@ -493,7 +493,7 @@ int main(int argc, char *argv[])
             else
             {
                 vis_phi << "parallel " << num_procs << " " << myid << "\n";
-                vis_phi << "solution\n" << *pmesh << phi;
+                vis_phi << "solution\n" << *pmesh << psi;
             }
 
             if (icase==1) 
