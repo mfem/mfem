@@ -757,8 +757,8 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    int mid41 = FindMidEdgeNode(vn4, vn1);
    if (mid23 >= 0 && mid41 >= 0)
    {
-      int midf1 = nodes.FindId(mid23, mid41);
-      if (midf1 >= 0 && !nodes[midf1].Shadow())
+      int midf = nodes.FindId(mid23, mid41);
+      if (midf >= 0 /*&& !nodes[midf1].Shadow()*/)
       {
 #if 0 // par-aniso-ref-dev
          int midf2 = nodes.FindId(mid12, mid34);
@@ -870,7 +870,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    {
       ForceRefinement(vn1, vn2, vn3, vn4);
    }
-   return 0;
+   //return 0;
 }
 
 void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
@@ -2173,8 +2173,8 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
       if (nd.p1 != e2 && nd.p2 != e2) { midf2 = -1; }
    }
 
-   if (midf1 >= 0 && nodes[midf1].Shadow()) { midf1 = -1; }
-   if (midf2 >= 0 && nodes[midf2].Shadow()) { midf2 = -1; }
+   /*if (midf1 >= 0 && nodes[midf1].Shadow()) { midf1 = -1; }
+   if (midf2 >= 0 && nodes[midf2].Shadow()) { midf2 = -1; }*/
 
    // only one way to access the mid-face node must always exist
    MFEM_ASSERT(!(midf1 >= 0 && midf2 >= 0), "incorrectly split face!");
@@ -2306,10 +2306,10 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                               const PointMatrix& pm, int level,
                               Face* eface[4])
 {
-   MFEM_ASSERT(!nodes[vn0].Shadow(), "");
+   /*MFEM_ASSERT(!nodes[vn0].Shadow(), "");
    MFEM_ASSERT(!nodes[vn1].Shadow(), "");
    MFEM_ASSERT(!nodes[vn2].Shadow(), "");
-   MFEM_ASSERT(!nodes[vn3].Shadow(), "");
+   MFEM_ASSERT(!nodes[vn3].Shadow(), "");*/
 
    if (level > 0)
    {
@@ -2547,8 +2547,8 @@ void NCMesh::BuildFaceList()
 
 void NCMesh::EdgeMasters(int vn0, int vn1, Array<int> &edge_master, int master)
 {
-   MFEM_ASSERT(!nodes[vn0].Shadow(), "");
-   MFEM_ASSERT(!nodes[vn1].Shadow(), "");
+   /*MFEM_ASSERT(!nodes[vn0].Shadow(), "");
+   MFEM_ASSERT(!nodes[vn1].Shadow(), "");*/
 
    int mid = FindMidEdgeNode(vn0, vn1);
    if (mid < 0) { return; }
@@ -4528,14 +4528,14 @@ int NCMesh::GetEdgeMaster(int node) const
 {
    MFEM_ASSERT(node >= 0, "edge node not found.");
    const Node &nd = nodes[node];
-   MFEM_ASSERT(!nd.Shadow(), "");
+   //MFEM_ASSERT(!nd.Shadow(), "");
 
    int p1 = nd.p1, p2 = nd.p2;
    MFEM_ASSERT(p1 != p2, "invalid edge node.");
 
    const Node &n1 = nodes[p1], &n2 = nodes[p2];
-   MFEM_ASSERT(!n1.Shadow(), "");
-   MFEM_ASSERT(!n2.Shadow(), "");
+   /*MFEM_ASSERT(!n1.Shadow(), "");
+   MFEM_ASSERT(!n2.Shadow(), "");*/
 
    int n1p1 = n1.p1, n1p2 = n1.p2;
    int n2p1 = n2.p1, n2p2 = n2.p2;
@@ -5340,6 +5340,7 @@ struct CheckPt
 
 void NCMesh::DebugCheckConsistency() const
 {
+#if 0
    // check shadow nodes
    int nshadow = 0;
    for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
@@ -5386,6 +5387,7 @@ void NCMesh::DebugCheckConsistency() const
    {
       if (node->Shadowed()) { FindShadowNode(*node); }
    }
+#endif
 }
 #endif
 

@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      //srand(seed);
+      srand(seed);
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh->UniformRefinement();
