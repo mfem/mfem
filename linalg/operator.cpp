@@ -177,7 +177,7 @@ void TimeDependentOperator::SUNImplicitMult(const Vector &, Vector &) const
    mfem_error("TimeDependentOperator::SUNImplicitMult() is not overridden!");
 }
 
-int TimeDependentOperator::SUNImplicitSetup(const double, const Vector &,
+int TimeDependentOperator::SUNImplicitSetup(const Vector &,
                                             const Vector &,
                                             int, int *, double)
 {
@@ -191,7 +191,7 @@ int TimeDependentOperator::SUNImplicitSolve(const Vector &, Vector &, double)
    return (-1);
 }
 
-int TimeDependentOperator::SUNMassSetup(const double)
+int TimeDependentOperator::SUNMassSetup()
 {
    mfem_error("TimeDependentOperator::SUNMassSetup() is not overridden!");
    return (-1);
