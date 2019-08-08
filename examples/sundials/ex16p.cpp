@@ -89,7 +89,7 @@ public:
 
    /** Solve the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int SUNImplicitSolve(Vector &x, const Vector &b, double tol);
+   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
@@ -494,7 +494,7 @@ int ConductionOperator::SUNImplicitSetup(const double t, const Vector &x,
    return (0);
 }
 
-int ConductionOperator::SUNImplicitSolve(Vector &x, const Vector &b, double tol)
+int ConductionOperator::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
 {
    // Solve the system A x = z => (M - gamma K) x = M b.
    Mmat.Mult(b, z);

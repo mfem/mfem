@@ -114,7 +114,7 @@ int CVODESolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
    CVODESolver *self = static_cast<CVODESolver*>(GET_CONTENT(LS));
 
    // Solve the linear system
-   return (self->f->SUNImplicitSolve(mfem_x, mfem_b, tol));
+   return (self->f->SUNImplicitSolve(mfem_b, mfem_x, tol));
 }
 
 CVODESolver::CVODESolver(int lmm)
@@ -435,7 +435,7 @@ int ARKStepSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(LS));
 
    // Solve the linear system
-   return (self->f->SUNImplicitSolve(mfem_x, mfem_b, tol));
+   return (self->f->SUNImplicitSolve(mfem_b, mfem_x, tol));
 }
 
 int ARKStepSolver::MassSysSetup(realtype t, SUNMatrix M, void *user_data,
@@ -455,7 +455,7 @@ int ARKStepSolver::MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(LS));
 
    // Solve the mass matrix system
-   return (self->f->SUNMassSolve(mfem_x, mfem_b, tol));
+   return (self->f->SUNMassSolve(mfem_b, mfem_x, tol));
 }
 
 ARKStepSolver::ARKStepSolver(Type type)

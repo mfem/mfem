@@ -311,15 +311,15 @@ public:
    /** @brief Solve the ODE linear system A x = b as setup by the method
        ImplicitSetup().
 
-       @param[in,out]  x   On input, the initial guess. On output, the solution.
        @param[in]      b   The linear system right-hand side.
+       @param[in,out]  x   On input, the initial guess. On output, the solution.
        @param[in]      tol Linear solve tolerance.
 
        If not re-implemented, this method simply generates an error.
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSolve(Vector &x, const Vector &b, double tol);
+   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
    /** @brief Setup the mass matrix in the ODE system M y' = f(y,t).
 
@@ -334,15 +334,15 @@ public:
    /** @brief Solve the mass matrix linear system M x = b as setup by the method
        MassSetup().
 
-       @param[in,out]  x   On input, the initial guess. On output, the solution.
        @param[in]      b   The linear system right-hand side.
+       @param[in,out]  x   On input, the initial guess. On output, the solution.
        @param[in]      tol Linear solve tolerance.
 
        If not re-implemented, this method simply generates an error.
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int SUNMassSolve(Vector &x, const Vector &b, double tol);
+   virtual int SUNMassSolve(const Vector &b, Vector &x, double tol);
 
    virtual ~TimeDependentOperator() { }
 };

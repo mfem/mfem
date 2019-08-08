@@ -144,7 +144,7 @@ public:
 
    /** Solve the linear system. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int SUNImplicitSolve(Vector &x, const Vector &b, double tol);
+   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
    double ElasticEnergy(const ParGridFunction &x) const;
    double KineticEnergy(const ParGridFunction &v) const;
@@ -816,7 +816,7 @@ int HyperelasticOperator::SUNImplicitSetup(const double t, const Vector &y,
    return 0;
 }
 
-int HyperelasticOperator::SUNImplicitSolve(Vector &x, const Vector &b, double tol)
+int HyperelasticOperator::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
 {
    int sc = b.Size() / 2;
    ParFiniteElementSpace *fes = H.ParFESpace();
