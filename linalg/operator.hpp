@@ -294,7 +294,6 @@ public:
    /** @brief Setup the ODE linear system A(x,t) = (I - gamma J) or
        A = (M - gamma J), where J(x,t) = df/dt(x,t).
 
-       @param[in]  t     The time at which A(x,t) should be evaluated.
        @param[in]  x     The state at which A(x,t) should be evaluated.
        @param[in]  fx    The current value of the ODE rhs function, f(x,t).
        @param[in]  jok   Flag indicating if the Jacobian should be updated.
@@ -305,7 +304,7 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSetup(const double t, const Vector &x, const Vector &fx,
+   virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
                                 int jok, int *jcur, double gamma);
 
    /** @brief Solve the ODE linear system A x = b as setup by the method
@@ -323,13 +322,11 @@ public:
 
    /** @brief Setup the mass matrix in the ODE system M y' = f(y,t).
 
-       @param[in]  t     The time at which M(t) should be evaluated.
-
        If not re-implemented, this method simply generates an error.
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int SUNMassSetup(const double t);
+   virtual int SUNMassSetup();
 
    /** @brief Solve the mass matrix linear system M x = b as setup by the method
        MassSetup().

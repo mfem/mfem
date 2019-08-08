@@ -92,7 +92,7 @@ public:
 
    /** Setup the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int SUNImplicitSetup(const double t, const Vector &x, const Vector &fx,
+   virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
                                 int jok, int *jcur, double gamma);
 
    /** Solve the system (M + dt K) x = M b. This method is used by the implicit
@@ -446,7 +446,7 @@ void ConductionOperator::SetParameters(const Vector &u)
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 }
 
-int ConductionOperator::SUNImplicitSetup(const double t, const Vector &x,
+int ConductionOperator::SUNImplicitSetup(const Vector &x,
                                          const Vector &fx, int jok, int *jcur,
                                          double gamma)
 {

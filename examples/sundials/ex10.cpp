@@ -137,7 +137,7 @@ public:
 
    /** Setup the linear system. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int SUNImplicitSetup(const double t, const Vector &y, const Vector &fy,
+   virtual int SUNImplicitSetup(const Vector &y, const Vector &fy,
                                 int jok, int *jcur, double gamma);
 
    /** Solve the linear system. This method is used by the implicit
@@ -710,7 +710,7 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
    add(v, dt, dv_dt, dx_dt);
 }
 
-int HyperelasticOperator::SUNImplicitSetup(const double t, const Vector &y,
+int HyperelasticOperator::SUNImplicitSetup(const Vector &y,
                                            const Vector &fy, int jok, int *jcur,
                                            double gamma)
 {

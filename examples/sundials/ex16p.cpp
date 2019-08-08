@@ -84,7 +84,7 @@ public:
 
    /** Setup the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int SUNImplicitSetup(const double t, const Vector &x, const Vector &fx,
+   virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
                                 int jok, int *jcur, double gamma);
 
    /** Solve the system (M + dt K) x = M b. This method is used by the implicit
@@ -482,7 +482,7 @@ void ConductionOperator::ImplicitSolve(const double dt,
    T_solver.Mult(z, du_dt);
 }
 
-int ConductionOperator::SUNImplicitSetup(const double t, const Vector &x,
+int ConductionOperator::SUNImplicitSetup(const Vector &x,
                                          const Vector &fx, int jok, int *jcur,
                                          double gamma)
 {
