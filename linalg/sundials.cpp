@@ -171,7 +171,8 @@ void CVODESolver::Init(TimeDependentOperator &f_)
    {
 
       // Temporarly set N_Vector wrapper data to create ARKStep. The correct
-      // initial condition will be set using ARKStepReInit() when Step() is called.
+      // initial condition will be set using ARKStepReInit() when Step() is
+      // called.
       if (!Parallel())
       {
          NV_LENGTH_S(y) = local_size;
@@ -562,7 +563,8 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    {
 
       // Temporarly set N_Vector wrapper data to create ARKStep. The correct
-      // initial condition will be set using ARKStepReInit() when Step() is called.
+      // initial condition will be set using ARKStepReInit() when Step() is
+      // called.
       if (!Parallel())
       {
          NV_LENGTH_S(y) = local_size;
