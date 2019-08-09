@@ -670,10 +670,10 @@ void ARKStepSolver::Step(Vector &x, double &t, double &dt)
    if (resize) {
       flag = ARKStepResize(sundials_mem, y, 1.0, t, NULL, NULL);
       MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepResize()");
-      
+
       // reset flag
       resize = false;
-   }   
+   }
 
    // Integrate the system
    double tout = t + dt;
