@@ -190,10 +190,6 @@ public:
 /// Interface to ARKode's ARKStep module -- additive Runge-Kutta methods.
 class ARKStepSolver : public ODESolver, public SundialsSolver
 {
-private:
-   /// Utility function for creating ARKStep.
-   void Create(double &t, Vector &x);
-
 public:
    /// Types of ARKODE solvers.
    enum Type
