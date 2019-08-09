@@ -90,10 +90,6 @@ public:
 /// Interface to the CVODE library -- linear multi-step methods.
 class CVODESolver : public ODESolver, public SundialsSolver
 {
-private:
-   /// Utility function for creating CVODE.
-   void Create(double &t, Vector &x);
-
 protected:
    int lmm_type;  ///< Linear multistep method type.
    int step_mode; ///< CVODE step mode (CV_NORMAL or CV_ONE_STEP).
@@ -127,19 +123,14 @@ public:
    CVODESolver(MPI_Comm comm, int lmm);
 #endif
 
-   /// Base class Init -- DO NOT CALL, use the below initialization function
-   /// that takes the initial t and x as inputs.
-   virtual void Init(TimeDependentOperator &f_);
-
-   using ODESolver::Init;
-
-   /// Initialize CVODE: Calls CVodeInit() and sets some defaults.
+   /** @brief Initialize CVODE: calls CVodeCreate() to create the CVODE
+       memory and set some defaults. If the CVODE memory has already been
+       created, it signals if a call to CVodeReInit() or CVodeResize() needs
+       to be made on the next Step() call. */
    /** @param[in] f_ The TimeDependentOperator that defines the ODE system.
-       @param[in] t  The initial time.
-       @param[in] x  The initial condition.
 
        @note All other methods must be called after Init(). */
-   void Init(TimeDependentOperator &f_, double &t, Vector &x);
+   void Init(TimeDependentOperator &f_);
 
    /// Integrate the ODE with CVODE using the specified step mode.
    /** @param[in,out] x  On output, the solution vector at the requested output

@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
       case 6: ode_solver = new RK6Solver; break;
       case 7:
          cvode = new CVODESolver(CV_ADAMS);
-         cvode->Init(adv, t, u);
+         cvode->Init(adv);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = cvode; break;

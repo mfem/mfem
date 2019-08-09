@@ -456,7 +456,7 @@ int main(int argc, char *argv[])
       case 11:
       case 12:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_BDF);
-         cvode->Init(oper, t, vx);
+         cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          if (ode_solver_type == 12)
@@ -469,7 +469,7 @@ int main(int argc, char *argv[])
       case 13:
       case 14:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
-         cvode->Init(oper, t, vx);
+         cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          if (ode_solver_type == 14)
