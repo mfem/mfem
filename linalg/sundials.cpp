@@ -520,6 +520,28 @@ int ARKStepSolver::MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
    return (self->f->SUNMassSolve(mfem_b, mfem_x, tol));
 }
 
+int ARKStepSolver::MassMult1(SUNMatrix M, N_Vector x, N_Vector v)
+{
+   const Vector mfem_x(x);
+   Vector mfem_v(v);
+   ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(M));
+
+   // Compute the mass matrix-vector product
+   return (self->f->SUNMassMult(mfem_x, mfem_v));
+}
+
+int ARKStepSolver::MassMult2(N_Vector x, N_Vector v, realtype t,
+                             void* mtimes_data)
+{
+   const Vector mfem_x(x);
+   Vector mfem_v(v);
+   ARKStepSolver *self = static_cast<ARKStepSolver*>(mtimes_data);
+
+   // Compute the mass matrix-vector product
+   self->f->SetTime(t);
+   return (self->f->SUNMassMult(mfem_x, mfem_v));
+}
+
 ARKStepSolver::ARKStepSolver(Type type)
    : rk_type(type), step_mode(ARK_NORMAL),
      use_implicit(type == IMPLICIT || type == IMEX)
@@ -784,11 +806,11 @@ void ARKStepSolver::UseSundialsLinearSolver()
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
 }
 
-void ARKStepSolver::SetMassLinearSolver(int tdep)
+void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
 {
    // Free any existing matrix and linear solver
    if (M != NULL)   { SUNMatDestroy(M); M = NULL; }
-   if (LSM != NULL) { SUNLinSolFree(LSM); LSA = NULL; }
+   if (LSM != NULL) { SUNLinSolFree(LSM); LSM = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
    LSM = SUNLinSolNewEmpty();
@@ -804,6 +826,7 @@ void ARKStepSolver::SetMassLinearSolver(int tdep)
 
    M->content      = this;
    M->ops->getid   = SUNMatGetID;
+   M->ops->matvec  = ARKStepSolver::MassMult1;
    M->ops->destroy = MatDestroy;
 
    // Attach the linear solver and matrix
@@ -813,6 +836,26 @@ void ARKStepSolver::SetMassLinearSolver(int tdep)
    // Set the linear system function
    flag = ARKStepSetMassFn(sundials_mem, ARKStepSolver::MassSysSetup);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
+}
+
+void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
+{
+   // Free any existing matrix and linear solver
+   if (M != NULL)   { SUNMatDestroy(A); M = NULL; }
+   if (LSM != NULL) { SUNLinSolFree(LSM); LSM = NULL; }
+
+   // Create linear solver
+   LSM = SUNLinSol_SPGMR(y, PREC_NONE, 0);
+   MFEM_VERIFY(LSM, "error in SUNLinSol_SPGMR()");
+
+   // Attach linear solver
+   flag = ARKStepSetMassLinearSolver(sundials_mem, LSM, NULL, tdep);
+   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassLinearSolver()");
+
+   // Attach matrix multiplication function
+   flag = ARKStepSetMassTimes(sundials_mem, NULL, ARKStepSolver::MassMult2,
+                              this);
+   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassTimes()");
 }
 
 void ARKStepSolver::SetStepMode(int itask)

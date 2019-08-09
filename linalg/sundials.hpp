@@ -224,6 +224,13 @@ protected:
    static int MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
                            N_Vector b, realtype tol);
 
+   /// Compute the matrix-vector product M x = v
+   static int MassMult1(SUNMatrix M, N_Vector x, N_Vector v);
+
+   /// Compute the matrix-vector product M x = v
+   static int MassMult2(N_Vector x, N_Vector v, realtype t,
+                        void* mtimes_data);
+
 public:
    /// Construct a serial wrapper to SUNDIALS' ARKode integrator.
    /** @param[in] type Specifies the RK method type:
@@ -266,13 +273,18 @@ public:
    /// Attach an MFEM linear solver solver to ARKode.
    void UseMFEMLinearSolver();
 
-   /// Attach a Sundials linear solver to ARKode.
+   /// Attach a SUNDIALS linear solver to ARKode.
    void UseSundialsLinearSolver();
 
-   /// Attach a custom mass matrix linear solver to ARKode.
-   /** @param[in] tdep    A integer flag indicating if the mass matrix is time
+   /// Attach an MFEM mass matrix linear solver to ARKode.
+   /** @param[in] tdep    An integer flag indicating if the mass matrix is time
                           dependent (1) or time independent (0). */
-   void SetMassLinearSolver(int tdep);
+   void UseMFEMMassLinearSolver(int tdep);
+
+   /// Attach a SUNDIALS mass matrix linear solver to ARKode.
+   /** @param[in] tdep    An integer flag indicating if the mass matrix is time
+                          dependent (1) or time independent (0). */
+   void UseSundialsMassLinearSolver(int tdep);
 
    /// Select the ARKode step mode: ARK_NORMAL (default) or ARK_ONE_STEP.
    /** @param[in] itask  The desired step mode. */

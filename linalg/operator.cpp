@@ -203,6 +203,12 @@ int TimeDependentOperator::SUNMassSolve(const Vector &, Vector &, double)
    return (-1);
 }
 
+int TimeDependentOperator::SUNMassMult(const Vector &, Vector &)
+{
+   mfem_error("TimeDependentOperator::SUNMassMult() is not overridden!");
+   return (-1);
+}
+
 
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)

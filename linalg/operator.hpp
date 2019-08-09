@@ -341,6 +341,17 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassSolve(const Vector &b, Vector &x, double tol);
 
+   /** @brief Compute the mass matrix-vector product M x = v.
+
+       @param[in]   x The vector to multiply.
+       @param[out]  v The result of the matrix-vector product.
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ARKStep integrator, for more
+       details, see the ARKode User Guide. */
+   virtual int SUNMassMult(const Vector &x, Vector &v);
+
    virtual ~TimeDependentOperator() { }
 };
 
