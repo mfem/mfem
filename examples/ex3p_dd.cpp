@@ -54,8 +54,7 @@ double freq = 1.0, kappa;
 int dim;
 
 //#define SIGMAVAL -250.0
-//#define SIGMAVAL -2.0
-#define SIGMAVAL -51.0
+#define SIGMAVAL -2.0
 
 void test1_RHS_exact(const Vector &x, Vector &f)
 {
@@ -368,7 +367,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -400,10 +399,12 @@ int main(int argc, char *argv[])
 
    if (geometricPartition)
      {
-       int nxyzGlobal[3] = {6, 1, 6};
+       int nxyzGlobal[3] = {1, 1, 1};
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
-
+       
        pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition);
+
+       // pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 
        /*
        std::vector<int> partition;
@@ -748,7 +749,8 @@ int main(int argc, char *argv[])
 
        Vector B_Im(B.Size());
        B_Im = 0.0;
-
+       //B_Im = B;
+       
        ddi.GetReducedSource(fespace, B, B_Im, Bdd);
        //ddi.FullSystemAnalyticTest();
 
@@ -775,7 +777,7 @@ int main(int argc, char *argv[])
 
        gmres->SetOperator(ddi);
        gmres->SetRelTol(1e-8);
-       gmres->SetMaxIter(100);
+       gmres->SetMaxIter(1000);
        gmres->SetPrintLevel(1);
 
        gmres->SetName("ddi");

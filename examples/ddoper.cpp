@@ -620,7 +620,6 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
   SparseMatrix *globalI = NULL;
   if (ifespace != NULL)
     {
-      // TODO: this defines a square matrix, although in the mixed case I is not square. So far, it seems to work despite this general inconsistency.
       globalI = GatherHypreParMatrix(I);
 
       if (globalI != NULL && cI != 0.0)
@@ -1677,6 +1676,9 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	      if (it != pmeshFacesInInterface.end())
 		{
 		  std::map<int, int>::iterator itf = pmeshFaceToElem.find(elFaces[j]);
+		  if (itf != pmeshFaceToElem.end())
+		    cout << "Already found " << elFaces[j] << endl;
+		  
 		  MFEM_VERIFY(itf == pmeshFaceToElem.end(), "");
 		  
 		  pmeshFaceToElem[elFaces[j]] = elId;
@@ -3410,15 +3412,15 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 	    
 	  const bool explicitRHS = false;
 	  /*
-	  if (explicitRHS)
+	    if (explicitRHS)
 	    {
-	      ParGridFunction x(fespace[m]);
-	      VectorFunctionCoefficient f2(3, test2_RHS_exact);
+	    ParGridFunction x(fespace[m]);
+	    VectorFunctionCoefficient f2(3, test2_RHS_exact);
 
-	      //x.SetFromTrueDofs(sourceSD);
-	      x.ProjectCoefficient(f2);
+	    //x.SetFromTrueDofs(sourceSD);
+	    x.ProjectCoefficient(f2);
 
-	      x.GetTrueDofs(sourceSD);
+	    x.GetTrueDofs(sourceSD);
 	    }
 	  */
 	  
@@ -3452,21 +3454,19 @@ dc->Save();
   for (int i=0; i<sourceSD.Size(); ++i)
     (*(ySD[m]))[i] = sourceSD[i];  // Set the u_m block of ySD, real part
 
-  /*
-    cout << rank << ": Setting imaginary subdomain DOFs, sd " << m << endl;
-    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalIm, sourceSD);
+  cout << rank << ": Setting imaginary subdomain DOFs, sd " << m << endl;
+  SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalIm, sourceSD);
 
     cout << rank << ": Done setting imaginary subdomain DOFs, sd " << m << endl;
 
     if (explicitRHS)
-    sourceSD = 0.0;
+      sourceSD = 0.0;
 
     for (int i=0; i<sourceSD.Size(); ++i)
-    (*(ySD[m]))[block_ComplexOffsetsSD[m][1] + i] = sourceSD[i];  // Set the u_m block of ySD, imaginary part
-  */
-	}
+      (*(ySD[m]))[block_ComplexOffsetsSD[m][1] + i] = sourceSD[i];  // Set the u_m block of ySD, imaginary part
+	} // if pmeshSD[m] != null
 
-      MPI_Barrier(MPI_COMM_WORLD);  // TODO: remove this barrier. The subdomain computations should be parallel.
+      //MPI_Barrier(MPI_COMM_WORLD);  // TODO: remove this barrier. The subdomain computations should be parallel.
 	
       {
 	cout << rank << ": ySD norm: " << ySD[m]->Norml2() << ", wSD norm " << wSD.Norml2() << endl;
@@ -3517,8 +3517,8 @@ dc->Save();
 	}
       */
 
-      MPI_Barrier(MPI_COMM_WORLD);
-    }
+      //MPI_Barrier(MPI_COMM_WORLD);
+}  // loop (m) over subdomains
 }
 
 void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceGlobal, const Vector & solReduced, Vector & solDomain)
@@ -3536,6 +3536,9 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 
   // Now w = \sum_{j\neq i} C_{ij} R_j^T \overbar{u}_j
 
+  Vector domainError(3), eSD(3);
+  domainError = 0.0;
+  
   for (int m=0; m<numSubdomains; ++m)
     {
       if (ySD[m] != NULL)
@@ -3558,7 +3561,12 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	  uSD = 0.0;
 	  invAsdComplex[m]->Mult(*(ySD[m]), uSD);
 
-	  PrintSubdomainError(m, uSD);
+	  PrintSubdomainError(m, uSD, eSD);
+	  if (m_rank == 0)
+	    {
+	      for (int i=0; i<3; ++i)
+		domainError[i] += eSD[i] * eSD[i];
+	    }
 #else
 	  MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets[m+1] - block_trueOffsets[m], "");
 
@@ -3578,6 +3586,20 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	  SetDomainDofsFromSubdomainDofs(fespace[m], fespaceGlobal, uSD, solDomain);
 #endif
 	}
+    } // loop (m) over subdomains
+
+  if (m_rank == 0)
+    {
+      const double errRe = sqrt(domainError[0]);
+      const double errIm = sqrt(domainError[1]);
+      const double errTotal = sqrt(domainError[0] + domainError[1]);
+      const double normE = sqrt(domainError[2]);
+      
+      cout << m_rank << ": global domain || E_h - E ||_{L^2} Re = " << errRe << endl;
+      cout << m_rank << ": global domain || E_h - E ||_{L^2} Im = " << errIm << endl;
+      cout << m_rank << ": global domain || E ||_{L^2} Re = " << normE << endl;
+      cout << m_rank << ": global domain rel err Re " << errRe / normE << endl;
+      cout << m_rank << ": global domain rel err tot " << errTotal / normE << endl;
     }
 }
 
@@ -3675,8 +3697,10 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
   NDH1grad->AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
   NDH1grad->Assemble();
 
+  /*
 #ifdef ZERO_RHO_BC
   {
+  // Note that this does not seem to be necessary.
     Array<int> ess_bdr(pmeshIF[interfaceIndex]->bdr_attributes.Max());
     cout << myid << ": ess_bdr size " << pmeshIF[interfaceIndex]->bdr_attributes.Max() << endl;
     ess_bdr = 1;
@@ -3690,7 +3714,8 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
     NDH1grad->EliminateTrialDofs(ess_bdr, trialDummy, testDummy);
   }
 #endif
-    
+  */
+  
   NDH1grad->Finalize();
     
   //ifNDH1grad[interfaceIndex] = new HypreParMatrix();
@@ -4584,27 +4609,36 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 	    {
 	      // Create new HypreParMatrix for the sum
 
+	      (*(ifNDmass[interfaceIndex])) *= -alpha;
+	      (*(ifNDcurlcurl[interfaceIndex])) *= -beta;
+
+	      HypreParMatrix *sumMassCC = ParAdd(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex]);
+		    
+	      (*(ifNDmass[interfaceIndex])) *= -1.0 / alpha;
+	      (*(ifNDcurlcurl[interfaceIndex])) *= -1.0 / beta;
+
 	      if (A_SS[subdomain] == NULL)
 		{
-		  (*(ifNDmass[interfaceIndex])) *= -alpha;
-		  (*(ifNDcurlcurl[interfaceIndex])) *= -beta;
-
-		  HypreParMatrix *sumMassCC = ParAdd(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex]);
-		    
-		  (*(ifNDmass[interfaceIndex])) *= -1.0 / alpha;
-		  (*(ifNDcurlcurl[interfaceIndex])) *= -1.0 / beta;
-
 		  A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, sdNDcopy[subdomain], sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
 									 InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 									 ifespace[interfaceIndex], NULL, true, PENALTY_U_S);
-		  delete sumMassCC;
 		}
 	      else
 		{
 		  // TODO: add another interface operator to A_SS
-		  MFEM_VERIFY(false, "TODO");
+		  //MFEM_VERIFY(false, "TODO");
+
+		  HypreParMatrix *previousSum = A_SS[subdomain];
+		  
+		  A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, previousSum, sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
+									 InterfaceToSurfaceInjectionGlobalData[subdomain][i],
+									 ifespace[interfaceIndex], NULL, true, PENALTY_U_S);
+
+		  delete previousSum;
 		}
-		
+
+	      delete sumMassCC;
+	      
 	      op->SetBlock(0, 0, A_SS[subdomain]);
 	    }
 	  else
@@ -4632,7 +4666,24 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 	      else
 		{
 		  // TODO: add another interface operator to A_SS_op
-		  MFEM_VERIFY(false, "TODO");
+		  // MFEM_VERIFY(false, "TODO");
+		  // TODO: this may be a memory leak, but its magnitude seems tolerable (each SumOperator just stores 2 vectors).
+		  A_SS_op = new SumOperator(A_SS_op,
+					    new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
+#ifdef EQUATE_REDUNDANT_VARS
+								      new SumOperator(new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()),
+										      new SumOperator(ifNDmass[interfaceIndex],
+												      ifNDcurlcurl[interfaceIndex],
+												      false, false, -alpha, -beta),
+										      false, false, sd1pen, 1.0),
+#else
+								      new SumOperator(ifNDmass[interfaceIndex],
+										      ifNDcurlcurl[interfaceIndex],
+										      false, false, -alpha, -beta),
+#endif
+								      new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
+								      false, false, false),
+					    false, false, 1.0, 1.0);
 		}
 		
 	      op->SetBlock(0, 0, A_SS_op);
@@ -4653,7 +4704,16 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 	  else
 	    {
 	      // TODO: add another interface operator to A_SS_op
-	      MFEM_VERIFY(false, "TODO");
+	      //MFEM_VERIFY(false, "TODO");
+
+	      // TODO: this may be a memory leak, but its magnitude seems tolerable (each SumOperator just stores 2 vectors).
+	      A_SS_op = new SumOperator(A_SS_op, new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
+									   new SumOperator(ifNDmass[interfaceIndex],
+											   ifNDcurlcurl[interfaceIndex],
+											   false, false, -alpha, -beta),
+									   new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
+									   false, false, false),
+					false, false, 1.0, 1.0);
 	    }
 		
 	  op->SetBlock(0, 0, A_SS_op);
@@ -4860,7 +4920,15 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       else
 	{
 	  // TODO: add another interface operator to A_SS_op
-	  MFEM_VERIFY(false, "TODO");
+	  //MFEM_VERIFY(false, "TODO");
+	  
+	  HypreParMatrix *previousSum = A_SS_op;
+
+	  A_SS_op = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, previousSum, ifSum, InterfaceToSurfaceInjectionData[subdomain][i],
+							 InterfaceToSurfaceInjectionGlobalData[subdomain][i],
+							 ifespace[interfaceIndex], NULL, true, 0.0, sdNDcoef);
+
+	  delete previousSum;
 	}
 		
       block(0, 0) = A_SS_op;

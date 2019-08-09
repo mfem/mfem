@@ -586,7 +586,7 @@ public:
   void GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm, Vector & sourceReduced) const;
 
 #ifdef DDMCOMPLEX
-  void PrintSubdomainError(const int sd, Vector & u)
+  void PrintSubdomainError(const int sd, Vector & u, Vector & eSD)
   {
     ParGridFunction x(fespace[sd]);
     VectorFunctionCoefficient E(3, test2_E_exact);
@@ -639,17 +639,36 @@ public:
       uSD[i] = u[block_ComplexOffsetsSD[sd][1] + i];
 
     x.SetFromTrueDofs(uSD);
-    double errIm = x.ComputeL2Error(vzero);
+    const double errIm = x.ComputeL2Error(vzero);
+    //const double errIm = x.ComputeL2Error(E);
 
     ParGridFunction zerogf(fespace[sd]);
     zerogf = 0.0;
-    double normE = zerogf.ComputeL2Error(E);
-    //if (m_rank == 0)
+    const double normE = zerogf.ComputeL2Error(E);
+
+    const double relErrRe = errRe / normE;
+    const double relErrTot = sqrt((errRe*errRe) + (errIm*errIm)) / normE;
+
+    /*
+    double relErrReMax = -1.0;
+    double relErrTotMax = -1.0;
+    
+    MPI_Allreduce(&relErrRe, &relErrReMax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(&relErrTot, &relErrTotMax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    */
+    
+    if (m_rank == 0)
       {
 	cout << m_rank << ": sd " << sd << " || E_h - E ||_{L^2} Re = " << errRe << endl;
 	cout << m_rank << ": sd " << sd << " || E_h - E ||_{L^2} Im = " << errIm << endl;
 	cout << m_rank << ": sd " << sd << " || E_h ||_{L^2} Re = " << normXRe << endl;
 	cout << m_rank << ": sd " << sd << " || E ||_{L^2} Re = " << normE << endl;
+	cout << m_rank << ": sd " << sd << " rel err Re " << relErrRe << endl; // ", max " << relErrReMax << endl;
+	cout << m_rank << ": sd " << sd << " rel err tot " << relErrTot << endl; // ", max " << relErrTotMax << endl;
+
+	eSD[0] = errRe;
+	eSD[1] = errIm;
+	eSD[2] = normE;
       }
   }
 #endif
@@ -778,6 +797,8 @@ private:
     // Note that PengLee2012 recommends cTE = 1.5 * cTM. 
 
     // TODO: take these parameters from the mesh and finite element space.
+    //const double h = 0.0350769;
+    //const double h = 0.0175385;
     const double h = 1.4e-1;
     const double feOrder = 1.0;
     
