@@ -356,7 +356,7 @@ protected:
 
 public:
 
-   /// Construct a serial warpper to SUNDIALS' KINSOL nonlinear solver.
+   /// Construct a serial wrapper to SUNDIALS' KINSOL nonlinear solver.
    /** @param[in] strategy   Specifies the nonlinear solver strategy:
                              KIN_NONE / KIN_LINESEARCH / KIN_PICARD / KIN_FP.
        @param[in] oper_grad  Specifies whether the solver should use its
@@ -365,7 +365,7 @@ public:
    KINSolver(int strategy, bool oper_grad = true);
 
 #ifdef MFEM_USE_MPI
-   /// Construct a parallel warpper to SUNDIALS' KINSOL nonlinear solver.
+   /// Construct a parallel wrapper to SUNDIALS' KINSOL nonlinear solver.
    /** @param[in] comm       The MPI communicator used to partition the system.
        @param[in] strategy   Specifies the nonlinear solver strategy:
                              KIN_NONE / KIN_LINESEARCH / KIN_PICARD / KIN_FP.
