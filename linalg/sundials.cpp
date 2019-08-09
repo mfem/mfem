@@ -151,99 +151,127 @@ CVODESolver::CVODESolver(MPI_Comm comm, int lmm)
 
 void CVODESolver::Init(TimeDependentOperator &f_)
 {
-   mfem_error("CVODE Initialization error: use the initialization method\n"
-              "CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)\n");
-}
-
-void CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
-{
-   // Check intputs for consistency
-   MFEM_VERIFY(f_.Height() == x.Size(),
-               "error inconsistent operator and vector size");
-
-   MFEM_VERIFY(f_.GetTime() == t,
-               "error inconsistent initial times");
-
    // Initialize the base class
    ODESolver::Init(f_);
 
-   // Create or ReInit CVODE
+   // Get the vector length
+   long local_size = f_.Height();
+   long global_size;
+
+   if (Parallel()) {
+      MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
+                    NV_COMM_P(y));
+   }
+
+   // Get current time
+   double t = f_.GetTime();
+
+   // Create, ReInit, or ReSize CVODE
    if (!sundials_mem)
    {
 
-      // Create CVODE memory
-      CVODESolver::Create(t, x);
-
-   }
-   else
-   {
-
-      // Check that data is the same size and update array data
+      // Temporarly set N_Vector wrapper data to create ARKStep. The correct
+      // initial condition will be set using ARKStepReInit() when Step() is called.
       if (!Parallel())
       {
-         MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(),
-                     "error CVODE does not support resizing");
-         NV_DATA_S(y) = x.GetData();
+         NV_LENGTH_S(y) = local_size;
+         NV_DATA_S(y)   = new double[local_size](); // value-initialize
       }
       else
       {
 #ifdef MFEM_USE_MPI
-         MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(),
-                     "error CVODE does not support resizing");
-         NV_DATA_P(y) = x.GetData();
+         NV_LOCLENGTH_P(y)  = local_size;
+         NV_GLOBLENGTH_P(y) = global_size;
+         saved_global_size  = global_size;
+         NV_DATA_P(y)       = new double[local_size](); // value-initialize
 #endif
       }
 
-      // Reinitialize CVODE memory
-      flag = CVodeReInit(sundials_mem, t, y);
-      MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeReInit()");
+      // Create CVODE
+      sundials_mem = CVodeCreate(lmm_type);
+      MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
+
+      // Initialize CVODE
+      flag = CVodeInit(sundials_mem, CVODESolver::RHS, t, y);
+      MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeInit()");
+
+      // Attach the CVODESolver as user-defined data
+      flag = CVodeSetUserData(sundials_mem, this);
+      MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetUserData()");
+
+      // Set default tolerances
+      flag = CVodeSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
+      MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetSStolerances()");
+
+      // Set default linear solver (Newton is the default Nonlinear Solver)
+      LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
+      MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
+
+      flag = CVodeSetLinearSolver(sundials_mem, LSA, NULL);
+      MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
+
+      // Set the reinit flag to call CVodeReInit() in the next Step() call.
+      reinit = true;
 
    }
-}
+   else
+   {
 
-void CVODESolver::Create(double &t, Vector &x)
-{
-   // Fill N_Vector wrapper with initial condition data
+      // Check if the problem size has changed since the last Init() call. Set
+      // the resize flag if necessary to call ARKStepResize() in the next
+      // Step() call.
+      if (!Parallel())
+      {
+         resize = (NV_LENGTH_S(y) != local_size);
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         resize = (NV_LOCLENGTH_P(y) != local_size) ||
+            (saved_global_size != global_size);
+#endif
+      }
+
+      if (resize) {
+
+         // Update vector size. The correct initial condition will be set using
+         // ARKStepResize() when Step() is called.
+         if (!Parallel())
+         {
+            NV_LENGTH_S(y) = local_size;
+         }
+         else
+         {
+#ifdef MFEM_USE_MPI
+            NV_LOCLENGTH_P(y)  = local_size;
+            NV_GLOBLENGTH_P(y) = global_size;
+            saved_global_size  = global_size;
+#endif
+         }
+
+      } else {
+
+         // The vector size has not changed. Set the reinit flag to call
+         // ARKStepReInit() in the next Step() call to set the new state.
+         reinit = true;
+
+      }
+
+   }
+
+   // Delete the allocated data in y.
    if (!Parallel())
    {
-      NV_LENGTH_S(y) = x.Size();
-      NV_DATA_S(y)   = x.GetData();
+      delete [] NV_DATA_S(y);
+      NV_DATA_S(y) = NULL;
    }
    else
    {
 #ifdef MFEM_USE_MPI
-      long local_size = x.Size();
-      long global_size;
-      MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
-                    NV_COMM_P(y));
-      NV_LOCLENGTH_P(y)  = x.Size();
-      NV_GLOBLENGTH_P(y) = global_size;
-      NV_DATA_P(y)       = x.GetData();
+      delete [] NV_DATA_P(y);
+      NV_DATA_P(y) = NULL;
 #endif
    }
-
-   // Create CVODE
-   sundials_mem = CVodeCreate(lmm_type);
-   MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
-
-   // Initialize CVODE
-   flag = CVodeInit(sundials_mem, CVODESolver::RHS, t, y);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeInit()");
-
-   // Attach the CVODESolver as user-defined data
-   flag = CVodeSetUserData(sundials_mem, this);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetUserData()");
-
-   // Set default tolerances
-   flag = CVodeSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetSStolerances()");
-
-   // Set default linear solver (Newton is the default Nonlinear Solver)
-   LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
-   MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
-
-   flag = CVodeSetLinearSolver(sundials_mem, LSA, NULL);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
 }
 
 void CVODESolver::Step(Vector &x, double &t, double &dt)
@@ -259,6 +287,24 @@ void CVODESolver::Step(Vector &x, double &t, double &dt)
       NV_DATA_P(y) = x.GetData();
       MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(), "");
 #endif
+   }
+
+   // Reinitialize CVODE memory if needed
+   if (reinit) {
+      flag = CVodeReInit(sundials_mem, t, y);
+      MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeReInit()");
+
+      // reset flag
+      reinit = false;
+   }
+
+   // Resize CVODE memory if needed
+   if (resize) {
+      flag = CVodeResize(sundials_mem, t, y, NULL, NULL);
+      MFEM_VERIFY(flag == ARK_SUCCESS, "error in CVodeResize()");
+
+      // reset flag
+      resize = false;
    }
 
    // Integrate the system

@@ -312,14 +312,14 @@ int main(int argc, char *argv[])
       // CVODE
       case 8:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
-         cvode->Init(oper, t, u);
+         cvode->Init(oper);
          cvode->SetLinearSolver();
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
       case 9:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_BDF);
-         cvode->Init(oper, t, u);
+         cvode->Init(oper);
          cvode->SetLinearSolver();
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
