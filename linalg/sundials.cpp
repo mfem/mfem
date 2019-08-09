@@ -204,12 +204,8 @@ void CVODESolver::Init(TimeDependentOperator &f_)
       flag = CVodeSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
       MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetSStolerances()");
 
-      // Set default linear solver (Newton is the default Nonlinear Solver)
-      LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
-      MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
-
-      flag = CVodeSetLinearSolver(sundials_mem, LSA, NULL);
-      MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
+      // Attach MFEM linear solver by default
+      UseMFEMLinearSolver();
 
       // Set the reinit flag to call CVodeReInit() in the next Step() call.
       reinit = true;
@@ -318,9 +314,10 @@ void CVODESolver::Step(Vector &x, double &t, double &dt)
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetLastStep()");
 }
 
-void CVODESolver::SetLinearSolver()
+void CVODESolver::UseMFEMLinearSolver()
 {
-   // Free any existing linear solver
+   // Free any existing matrix and linear solver
+   if (A != NULL)   { SUNMatDestroy(A); A = NULL; }
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
@@ -346,6 +343,21 @@ void CVODESolver::SetLinearSolver()
    // Set the linear system evaluation function
    flag = CVodeSetLinSysFn(sundials_mem, CVODESolver::LinSysSetup);
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinSysFn()");
+}
+
+void CVODESolver::UseSundialsLinearSolver()
+{
+   // Free any existing matrix and linear solver
+   if (A != NULL)   { SUNMatDestroy(A); A = NULL; }
+   if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
+
+   // Create linear solver
+   LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
+   MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
+
+   // Attach linear solver
+   flag = CVodeSetLinearSolver(sundials_mem, LSA, NULL);
+   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
 }
 
 void CVODESolver::SetStepMode(int itask)
@@ -604,15 +616,8 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
       flag = ARKStepSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
       MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetSStolerances()");
 
-      // If implicit, set default linear solver
-      if (use_implicit)
-      {
-         LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
-         MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
-
-         flag = ARKStepSetLinearSolver(sundials_mem, LSA, NULL);
-         MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
-      }
+      // If implicit, attach MFEM linear solver by default
+      if (use_implicit) { UseMFEMLinearSolver(); }
 
       // Set the reinit flag to call ARKStepReInit() in the next Step() call.
       reinit = true;
@@ -733,9 +738,10 @@ void ARKStepSolver::Step(Vector &x, double &t, double &dt)
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetLastStep()");
 }
 
-void ARKStepSolver::SetLinearSolver()
+void ARKStepSolver::UseMFEMLinearSolver()
 {
-   // Free any existing linear solver
+   // Free any existing matrix and linear solver
+   if (A != NULL)   { SUNMatDestroy(A); A = NULL; }
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
@@ -761,6 +767,21 @@ void ARKStepSolver::SetLinearSolver()
    // Set the linear system evaluation function
    flag = ARKStepSetLinSysFn(sundials_mem, ARKStepSolver::LinSysSetup);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinSysFn()");
+}
+
+void ARKStepSolver::UseSundialsLinearSolver()
+{
+   // Free any existing matrix and linear solver
+   if (A != NULL)   { SUNMatDestroy(A); A = NULL; }
+   if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
+
+   // Create linear solver
+   LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
+   MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
+
+   // Attach linear solver
+   flag = ARKStepSetLinearSolver(sundials_mem, LSA, NULL);
+   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
 }
 
 void ARKStepSolver::SetMassLinearSolver(int tdep)

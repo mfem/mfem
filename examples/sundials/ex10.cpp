@@ -407,10 +407,9 @@ int main(int argc, char *argv[])
          cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
-         if (ode_solver_type == 12)
+         if (ode_solver_type == 11)
          {
-            // Custom Jacobian inversion.
-            cvode->SetLinearSolver();
+            cvode->UseSundialsLinearSolver();
          }
          ode_solver = cvode; break;
       // CVODE Adams
@@ -420,10 +419,9 @@ int main(int argc, char *argv[])
          cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
-         if (ode_solver_type == 14)
+         if (ode_solver_type == 13)
          {
-            // Custom Jacobian inversion.
-            cvode->SetLinearSolver();
+            cvode->UseSundialsLinearSolver();
          }
          ode_solver = cvode; break;
       // ARKStep Implicit methods
@@ -433,10 +431,9 @@ int main(int argc, char *argv[])
          arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 16)
+         if (ode_solver_type == 15)
          {
-            // Custom Jacobian inversion.
-            arkode->SetLinearSolver();
+            arkode->UseSundialsLinearSolver();
          }
          ode_solver = arkode; break;
       // ARKStep Explicit methods

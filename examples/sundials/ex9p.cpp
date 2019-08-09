@@ -333,6 +333,7 @@ int main(int argc, char *argv[])
          cvode->Init(adv);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
+         cvode->UseSundialsLinearSolver();
          ode_solver = cvode; break;
       case 8:
       case 9:

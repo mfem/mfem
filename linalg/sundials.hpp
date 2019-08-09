@@ -143,8 +143,11 @@ public:
    */
    virtual void Step(Vector &x, double &t, double &dt);
 
-   /// Attach a custom linear solver to CVODE.
-   void SetLinearSolver();
+   /// Attach an MFEM linear solver to CVODE.
+   void UseMFEMLinearSolver();
+
+   /// Attach SUNDIALS linear solver to CVODE.
+   void UseSundialsLinearSolver();
 
    /// Select the CVODE step mode: CV_NORMAL (default) or CV_ONE_STEP.
    /** @param[in] itask  The desired step mode. */
@@ -260,8 +263,11 @@ public:
    */
    virtual void Step(Vector &x, double &t, double &dt);
 
-   /// Attach a custom linear solver solver to ARKode.
-   void SetLinearSolver();
+   /// Attach an MFEM linear solver solver to ARKode.
+   void UseMFEMLinearSolver();
+
+   /// Attach a Sundials linear solver to ARKode.
+   void UseSundialsLinearSolver();
 
    /// Attach a custom mass matrix linear solver to ARKode.
    /** @param[in] tdep    A integer flag indicating if the mass matrix is time

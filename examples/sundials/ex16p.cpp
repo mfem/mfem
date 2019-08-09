@@ -147,8 +147,8 @@ int main(int argc, char *argv[])
                   "7  - SDIRK 3,\n\t"
                   "8  - CVODE (implicit Adams),\n\t"
                   "9  - CVODE (implicit BDF),\n\t"
-                  "10 - ARKODE (default explicit)\n\t,"
-                  "11 - ARKODE (explicit Fehlberg-6-4-5)\n\t,"
+                  "10 - ARKODE (default explicit),\n\t"
+                  "11 - ARKODE (explicit Fehlberg-6-4-5),\n\t"
                   "12 - ARKODE (default impicit).");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
@@ -313,14 +313,12 @@ int main(int argc, char *argv[])
       case 8:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
          cvode->Init(oper);
-         cvode->SetLinearSolver();
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
       case 9:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_BDF);
          cvode->Init(oper);
-         cvode->SetLinearSolver();
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
@@ -336,7 +334,6 @@ int main(int argc, char *argv[])
       case 12:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
          arkode->Init(oper);
-         arkode->SetLinearSolver();
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          ode_solver = arkode; break;
