@@ -43,12 +43,15 @@ namespace mfem
 class SundialsSolver
 {
 protected:
-   void *sundials_mem; ///< SUNDIALS mem structure.
-   mutable int flag;   ///< Last flag returned from a call to SUNDIALS.
+   void *sundials_mem;     ///< SUNDIALS mem structure.
+   mutable int flag;       ///< Last flag returned from a call to SUNDIALS.
+   bool reinit;            ///< Flag to signal memory reinitialization is need.
+   bool resize;            ///< Flag to singal memory resizing is needed.
+   long saved_global_size; ///< Global length on last call to Init().
 
-   N_Vector           y;  ///< State vector.
-   SUNMatrix          A;  ///< Linear system A = I - gamma J, M - gamma J, or J.
-   SUNMatrix          M;  ///< Mass matrix M.
+   N_Vector           y;   ///< State vector.
+   SUNMatrix          A;   ///< Linear system A = I - gamma J, M - gamma J, or J.
+   SUNMatrix          M;   ///< Mass matrix M.
    SUNLinearSolver    LSA; ///< Linear solver for A.
    SUNLinearSolver    LSM; ///< Linear solver for M.
    SUNNonlinearSolver NLS; ///< Nonlinear solver.
@@ -67,8 +70,9 @@ protected:
 
    /** @brief Protected constructor: objects of this type should be constructed
        only as part of a derived class. */
-   SundialsSolver() : sundials_mem(NULL), flag(0), y(NULL), A(NULL), M(NULL),
-      LSA(NULL), LSM(NULL), NLS(NULL) { }
+   SundialsSolver() : sundials_mem(NULL), flag(0), reinit(false), resize(false),
+                      saved_global_size(0), y(NULL), A(NULL), M(NULL),
+                      LSA(NULL), LSM(NULL), NLS(NULL) { }
 
 public:
    /// Access the SUNDIALS memory structure.
@@ -248,39 +252,14 @@ public:
    ARKStepSolver(MPI_Comm comm, Type type = EXPLICIT);
 #endif
 
-   /// Base class Init -- DO NOT CALL, use the below initialization function
-   /// that takes the initial t and x as inputs.
-   virtual void Init(TimeDependentOperator &f_);
-
-   using ODESolver::Init;
-
-   /** @brief Initialize ARKode: calls ARKStepInit() for explicit or implicit
-       problems and sets some defaults. */
+   /** @brief Initialize ARKode: calls ARKStepCreate() to create the ARKStep
+       memory and set some defaults. If the ARKStep memory has already been
+       created, it signals if a call to ARKReInit() or ARKStepResize() needs
+       to be made on the next Step() call. */
    /** @param[in] f_ The TimeDependentOperator that defines the ODE system.
-       @param[in] t  The initial time.
-       @param[in] x  The initial condition.
 
        @note All other methods must be called after Init(). */
-   void Init(TimeDependentOperator &f_, double &t, Vector &x);
-
-   /** @brief Initialize ARKode: calls ARKStepInit() for IMEX problems and sets
-       some defaults. */
-   /** @param[in] f_  The TimeDependentOperator that defines the ODE system.
-       @param[in] f2_ FIXME
-       @param[in] t   The initial time.
-       @param[in] x   The initial condition.
-
-       @note All other methods must be called after Init(). */
-   void Init(TimeDependentOperator &f_, TimeDependentOperator &f2_, double &t,
-             Vector &x);
-
-   /// Resize ARKode: resize ARKode internal memory for the current problem.
-   /**
-       @param[in] x      The newly-sized state vector x(t).
-       @param[in] hscale Sacling factor for the next time step.
-       @param[in] t      The current time -- must be consistent with x(t).
-   */
-   void Resize(Vector &x, double hscale, double &t);
+   void Init(TimeDependentOperator &f_);
 
    /// Integrate the ODE with ARKode using the specified step mode.
    /**

@@ -289,14 +289,14 @@ int main(int argc, char *argv[])
       case 10:
       case 11:
          arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
-         arkode->Init(oper, t, u);
+         arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 11) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
          ode_solver = arkode; break;
       case 12:
          arkode = new ARKStepSolver(ARKStepSolver::IMPLICIT);
-         arkode->Init(oper, t, u);
+         arkode->Init(oper);
          arkode->SetLinearSolver();
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
