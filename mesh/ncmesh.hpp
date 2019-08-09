@@ -385,9 +385,9 @@ protected: // implementation
    {
       int vert_index, edge_index; ///< vertex/edge number in Mesh
       char vert_refc, edge_refc;  ///< reference counts
-      //char flags;                 ///< shadow node flags (aniso)
+      char flags;                 ///< shadow node flags (aniso only)
 
-      Node() : vert_index(-1), edge_index(-1), vert_refc(0), edge_refc(0)/*, flags(0)*/ {}
+      Node() : vert_index(-1), edge_index(-1), vert_refc(0), edge_refc(0), flags(0) {}
       ~Node();
 
       bool HasVertex() const { return vert_refc > 0; }
@@ -397,14 +397,11 @@ protected: // implementation
       bool UnrefVertex() { --vert_refc; return vert_refc || edge_refc; }
       bool UnrefEdge()   { --edge_refc; return vert_refc || edge_refc; }
 
-/*      // check/set shadow/shadowed status (mid-face node with alternate parents)
+      // check shadow/shadowed status (mid-face node with alternate parents)
       bool Shadow() const { return flags & 1; }
       bool Shadowed() const { return flags & 2; }
 
-      void SetShadow(int target) { flags |= 1; vert_index = target; }
-      void SetShadowed() { flags |= 2; }
-
-      int ShadowTarget() const { MFEM_ASSERT(Shadow(), ""); return vert_index; }*/
+      int ShadowTarget() const { MFEM_ASSERT(Shadow(), ""); return vert_index; }
    };
 
    /** Similarly to nodes, faces can be accessed by hashing their four vertex

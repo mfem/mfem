@@ -11,6 +11,8 @@
 
 #include "mesh_headers.hpp"
 
+#include <fstream>
+
 #include <string>
 #include <climits> // INT_MAX
 #include <map>
@@ -271,8 +273,12 @@ void NCMesh::ReparentNode(int node, int new_p1, int new_p2)
                "shadow node already exists");
 
    // store old parent pair temporarily in 'shadow'
-   int sh = shadow.GetId(old_p1, old_p2);
-   shadow[sh].vert_index = node;
+   Node* sh = shadow.Get(old_p1, old_p2);
+   sh->vert_index = node;
+
+   // set shadow/shadowed flags on the two nodes
+   sh->flags = 1;
+   nd.flags = 2;
 }
 
 int NCMesh::FindMidEdgeNode(int node1, int node2) const
@@ -285,7 +291,7 @@ int NCMesh::FindMidEdgeNode(int node1, int node2) const
       mid = shadow.FindId(node1, node2);
       if (mid >= 0)
       {
-         mid = shadow[mid].vert_index; // index of the original node
+         mid = shadow[mid].ShadowTarget(); // index of the original node
       }
    }
    return mid;
@@ -907,12 +913,12 @@ void NCMesh::RefineElement(int elem, char ref_type)
       return;
    }
 
-   /*std::cout << "Refining element " << elem << " ("
+   std::cout << "Refining element " << elem << " ("
              << el.node[0] << ", " << el.node[1] << ", "
              << el.node[2] << ", " << el.node[3] << ", "
              << el.node[4] << ", " << el.node[5] << ", "
              << el.node[6] << ", " << el.node[7] << "), "
-             << "ref_type " << int(ref_type) << std::endl;*/
+             << "ref_type " << int(ref_type) << std::endl;
 
    int* no = el.node;
    int attr = el.attribute;
@@ -1463,8 +1469,8 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_queue.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
-   /*std::cout << "---" << std::endl;
-   static int iter = 0;*/
+   //std::cout << "---" << std::endl;
+   static int iter = 0;
 
    // keep refining as long as the queue contains something
    int total = 0;
@@ -1480,12 +1486,12 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       RefineElement(ref.index, ref.ref_type);
       total++;
 
-      /*{char fname[100];
+      {char fname[100];
       sprintf(fname, "ncmesh-%03d.dbg", iter++);
       std::ofstream f(fname);
       Update();
       DebugDump(f);}
-      DebugCheckConsistency();*/
+      DebugCheckConsistency();
    }
 #endif
 
@@ -1502,6 +1508,11 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 #ifdef MFEM_DEBUG
    DebugCheckConsistency();
 #endif
+
+   /*{
+      std::ofstream ofs("debug.mesh");
+      DebugDump(ofs);
+   }*/
 }
 
 
@@ -5257,15 +5268,23 @@ void NCMesh::DebugDump(std::ostream &out) const
 {
    // dump nodes
    tmp_vertex = new TmpVertex[nodes.NumIds()];
-   out << nodes.Size() << "\n";
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   out << nodes.Size() + shadow.Size() << "\n";
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
       const double *pos = CalcVertexPos(node.index());
       out << node.index() << " "
           << pos[0] << " " << pos[1] << " " << pos[2] << " "
           << node->p1 << " " << node->p2 << " "
           << node->vert_index << " " << node->edge_index << " "
-          << 0 << "\n";
+          << int(node->flags) << "\n";
+   }
+   for (auto shd = shadow.cbegin(); shd != shadow.cend(); ++shd)
+   {
+      const double *pos = CalcVertexPos(shd->ShadowTarget());
+      out << nodes.Size() + shd.index() << " "
+          << pos[0] << " " << pos[1] << " " << pos[2] << " "
+          << shd->p1 << " " << shd->p2 << " "
+          << -1 << " " << -1 << " " << int(shd->flags) << "\n";
    }
    delete [] tmp_vertex;
    out << "\n";

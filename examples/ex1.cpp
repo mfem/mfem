@@ -158,6 +158,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+   mesh->EnsureNCMesh(true);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -170,6 +171,11 @@ int main(int argc, char *argv[])
          //mesh->UniformRefinement();
          mesh->RandomRefinement(0.7, true);
       }
+   }
+
+   {
+      ofstream ofs("debug.mesh");
+      mesh->ncmesh->DebugDump(ofs);
    }
 
    // Test neighbor calculation
