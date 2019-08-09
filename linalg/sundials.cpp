@@ -496,156 +496,138 @@ ARKStepSolver::ARKStepSolver(MPI_Comm comm, Type type)
 
 void ARKStepSolver::Init(TimeDependentOperator &f_)
 {
-   mfem_error("ARKStep Initialization error: use the initialization method\n"
-              "ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)\n");
-}
-
-void ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
-{
-   // Check intputs for consistency
-   MFEM_VERIFY(f_.Height() == x.Size(),
-               "error inconsistent operator and vector size");
-
-   MFEM_VERIFY(f_.GetTime() == t,
-               "error inconsistent initial times");
-
    // Initialize the base class
    ODESolver::Init(f_);
 
-   // Create or ReInit ARKStep
+   // Get the vector length
+   long local_size = f_.Height();
+   long global_size;
+
+   if (Parallel()) {
+      MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
+                    NV_COMM_P(y));
+   }
+
+   // Get current time
+   double t = f_.GetTime();
+
+   // Create, ReInit, or ReSize ARKStep
    if (!sundials_mem)
    {
 
-      // Create ARKStep memory
-      ARKStepSolver::Create(t, x);
-
-   }
-   else
-   {
-
-      // Check that data is the same size and update array data
+      // Temporarly set N_Vector wrapper data to create ARKStep. The correct
+      // initial condition will be set using ARKStepReInit() when Step() is called.
       if (!Parallel())
       {
-         MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(),
-                     "error to resize ARKStep use ARKStep::ReSize()");
-         NV_DATA_S(y) = x.GetData();
+         NV_LENGTH_S(y) = local_size;
+         NV_DATA_S(y)   = new double[local_size](); // value-initialize
       }
       else
       {
 #ifdef MFEM_USE_MPI
-         MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(),
-                     "error to resize ARKStep use ARKStep::ReSize()");
-         NV_DATA_P(y) = x.GetData();
+         NV_LOCLENGTH_P(y)  = local_size;
+         NV_GLOBLENGTH_P(y) = global_size;
+         saved_global_size  = global_size;
+         NV_DATA_P(y)       = new double[local_size](); // value-initialize
 #endif
       }
 
-      // Reinitialize ARKStep memory
+      // Create ARKStep memory
       if (rk_type == IMPLICIT)
       {
-         flag = ARKStepReInit(sundials_mem, NULL, ARKStepSolver::RHS1, t, y);
+         sundials_mem = ARKStepCreate(NULL, ARKStepSolver::RHS1, t, y);
       }
       else if (rk_type == EXPLICIT)
       {
-         flag = ARKStepReInit(sundials_mem, ARKStepSolver::RHS1, NULL, t, y);
+         sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, NULL, t, y);
       }
       else
       {
-         flag = ARKStepReInit(sundials_mem,
-                              ARKStepSolver::RHS1, ARKStepSolver::RHS2, t, y);
+         sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, ARKStepSolver::RHS2,
+                                      t, y);
       }
-      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepReInit()");
+      MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
+
+      // Attach the ARKStepSolver as user-defined data
+      flag = ARKStepSetUserData(sundials_mem, this);
+      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetUserData()");
+
+      // Set default tolerances
+      flag = ARKStepSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
+      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetSStolerances()");
+
+      // If implicit, set default linear solver
+      if (use_implicit)
+      {
+         LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
+         MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
+
+         flag = ARKStepSetLinearSolver(sundials_mem, LSA, NULL);
+         MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
+      }
+
+      // Set the reinit flag to call ARKStepReInit() in the next Step() call.
+      reinit = true;
 
    }
-}
+   else
+   {
 
-void ARKStepSolver::Create(double &t, Vector &x)
-{
-   // Fill N_Vector wrapper with initial condition data
+      // Check if the problem size has changed since the last Init() call. Set
+      // the resize flag if necessary to call ARKStepResize() in the next
+      // Step() call.
+      if (!Parallel())
+      {
+         resize = (NV_LENGTH_S(y) != local_size);
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         resize = (NV_LOCLENGTH_P(y) != local_size) ||
+            (saved_global_size != global_size);
+#endif
+      }
+
+      if (resize) {
+
+         // Update vector size. The correct initial condition will be set using
+         // ARKStepResize() when Step() is called.
+         if (!Parallel())
+         {
+            NV_LENGTH_S(y) = local_size;
+         }
+         else
+         {
+#ifdef MFEM_USE_MPI
+            NV_LOCLENGTH_P(y)  = local_size;
+            NV_GLOBLENGTH_P(y) = global_size;
+            saved_global_size  = global_size;
+#endif
+         }
+
+      } else {
+
+         // The vector size has not changed. Set the reinit flag to call
+         // ARKStepReInit() in the next Step() call to set the new state.
+         reinit = true;
+
+      }
+
+   }
+
+   // Delete the allocated data in y.
    if (!Parallel())
    {
-      NV_LENGTH_S(y) = x.Size();
-      NV_DATA_S(y)   = x.GetData();
+      delete [] NV_DATA_S(y);
+      NV_DATA_S(y) = NULL;
    }
    else
    {
 #ifdef MFEM_USE_MPI
-      long local_size = x.Size();
-      long global_size;
-      MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
-                    NV_COMM_P(y));
-      NV_LOCLENGTH_P(y)  = x.Size();
-      NV_GLOBLENGTH_P(y) = global_size;
-      NV_DATA_P(y)       = x.GetData();
+      delete [] NV_DATA_P(y);
+      NV_DATA_P(y) = NULL;
 #endif
    }
-
-   // Initialize ARKStep
-   if (rk_type == IMPLICIT)
-   {
-      sundials_mem = ARKStepCreate(NULL, ARKStepSolver::RHS1, t, y);
-   }
-   else if (rk_type == EXPLICIT)
-   {
-      sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, NULL, t, y);
-   }
-   else
-   {
-      sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, ARKStepSolver::RHS2,
-                                   t, y);
-   }
-   MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
-
-   // Attach the ARKStepSolver as user-defined data
-   flag = ARKStepSetUserData(sundials_mem, this);
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetUserData()");
-
-   // Set default tolerances
-   flag = ARKStepSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetSStolerances()");
-
-   // If implicit, set default linear solver
-   if (use_implicit)
-   {
-      LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
-      MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
-
-      flag = ARKStepSetLinearSolver(sundials_mem, LSA, NULL);
-      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
-   }
-}
-
-void ARKStepSolver::Resize(Vector &x, double hscale, double &t)
-{
-   MFEM_VERIFY(f->GetTime() == t,
-               "error inconsistent times");
-
-   if (rk_type == IMEX)
-   {
-      MFEM_VERIFY(f->GetTime() == t, "error inconsistent times");
-   }
-
-   // Fill N_Vector wrapper
-   if (!Parallel())
-   {
-      NV_LENGTH_S(y) = x.Size();
-      NV_DATA_S(y)   = x.GetData();
-   }
-   else
-   {
-#ifdef MFEM_USE_MPI
-      long local_size = x.Size();
-      long global_size;
-      MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
-                    NV_COMM_P(y));
-      NV_LOCLENGTH_P(y)  = x.Size();
-      NV_GLOBLENGTH_P(y) = global_size;
-      NV_DATA_P(y)       = x.GetData();
-#endif
-   }
-
-   // Resize ARKode memory
-   flag = ARKStepResize(sundials_mem, y, hscale, t, NULL, NULL);
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepResize()");
 }
 
 void ARKStepSolver::Step(Vector &x, double &t, double &dt)
@@ -662,6 +644,36 @@ void ARKStepSolver::Step(Vector &x, double &t, double &dt)
       MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(), "");
 #endif
    }
+
+   // Reinitialize ARKStep memory if needed
+   if (reinit) {
+      if (rk_type == IMPLICIT)
+      {
+         flag = ARKStepReInit(sundials_mem, NULL, ARKStepSolver::RHS1, t, y);
+      }
+      else if (rk_type == EXPLICIT)
+      {
+         flag = ARKStepReInit(sundials_mem, ARKStepSolver::RHS1, NULL, t, y);
+      }
+      else
+      {
+         flag = ARKStepReInit(sundials_mem,
+                              ARKStepSolver::RHS1, ARKStepSolver::RHS2, t, y);
+      }
+      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepReInit()");
+
+      // reset flag
+      reinit = false;
+   }
+
+   // Resize ARKStep memory if needed
+   if (resize) {
+      flag = ARKStepResize(sundials_mem, y, 1.0, t, NULL, NULL);
+      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepResize()");
+      
+      // reset flag
+      resize = false;
+   }   
 
    // Integrate the system
    double tout = t + dt;

@@ -482,7 +482,7 @@ int main(int argc, char *argv[])
       case 15:
       case 16:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
-         arkode->Init(oper, t, vx);
+         arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 16)
@@ -494,7 +494,7 @@ int main(int argc, char *argv[])
       // ARKStep Explicit methods
       case 17:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::EXPLICIT);
-         arkode->Init(oper, t, vx);
+         arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          ode_solver = arkode; break;
