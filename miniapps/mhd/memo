@@ -33,10 +33,34 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+
+
+8/8
+probably need to change Sc to nontranspose version? No
+Changing mat_mffd_err 1e-5 helps significantly!
+
+this works:
+ mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -vs 1 -tf 250 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 1 -shell
+
 8/7
 inexac Newton?
 
 preconditioner needs improvements in solving omega (increase regularity)
+
+this does not perform well
+mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -vs 1 -tf 5 -dt 5 -usepetsc --petscopts rc_debug -s 1 -shell
+
+inexact newton is ok for case 1
+mpirun -n 4 imMHDp -rs 4 -o 2 -vs 1 -tf 3 -dt .1 -usepetsc --petscopts rc_debug -s 1 -shell
+ok for case 3
+mpirun -n 4 imMHDp -m xperiodic.mesh -rs 4 -rp 0 -o 3 -tf 1 -vs 1 -dt .1 -i 3 --usepetsc --petscopts rc_debug -s 1 -shell
+
+icase 2:
+resitivity=10^4; dt = 2 ok
+resitivity=10^3; dt = 1 ok
+resitivity=10^3; dt = 2 (fgmres is slightly better; will take more ksp solves)
+
+maybe I should use MatCreateSchurComplement?
 
 8/6
 compare
@@ -60,9 +84,9 @@ My time step is smaller than pixie2d??
 
 Possible fix:
 1 use fieldsplit
-2 use inexact Newton: where could I trun on GMRES??
+2 use inexact Newton
 
-I am doing GMRES for nested mat or jfnk??
+I am doing GMRES for nested mat or jfnk?? jfnk
 
 iter=5 is ok if GMRES is turned on but I am not sure I am doing the correct GMRES
 

@@ -32,21 +32,23 @@ private:
    HypreParMatrix &Mmat, &Kmat, *DRematpr, *DSlmatpr;
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl;
-   mutable HypreParMatrix *ScFull, *AReFull, *NbFull;
+   mutable HypreParMatrix *ScFull, *AReFull, *NbFull, *PwMat, Mmatlp;
    bool initialMdt, useFull;
    HypreParVector *E0Vec;
    ParGridFunction *j0;
    Array<int> block_trueOffsets;
+   ParBilinearForm *Mlp; 
 
    CGSolver *M_solver;
 
+   int myid;
    double dt, dtOld;
    const Vector *phi, *psi, *w;
    const Array<int> &ess_tdof_list;
    const Array<int> &ess_bdr;
 
-   mutable ParGridFunction phiGf, psiGf;
-   mutable ParBilinearForm *Nv, *Nb;
+   mutable ParGridFunction phiGf, psiGf, wGf;
+   mutable ParBilinearForm *Nv, *Nb, *Pw;
    mutable BlockOperator *Jacobian;
    mutable Vector z, zFull;
 
@@ -73,7 +75,8 @@ public:
        dtOld=dt; dt=dt_; phi=phi_; psi=psi_; w=w_;
        if (dtOld!=dt && initialMdt)
        {
-           cout <<"------update Mdt------"<<endl;
+           if (myid==0) 
+              cout <<"------update Mdt------"<<endl;
            double rate=dtOld/dt;
            *Mdtpr*=rate;
 
@@ -94,7 +97,8 @@ public:
        }
        if(initialMdt==false)
        {
-           cout <<"------initial Mdt-------"<<endl;
+           if (myid==0) 
+              cout <<"------initial Mdt-------"<<endl;
            *Mdtpr*=(1./dt); 
            initialMdt=true;
 
@@ -216,12 +220,13 @@ private:
    Mat **sub; 
 
    // Create internal KSP objects to handle the subproblems
-   KSP kspblock[3];
+   KSP kspblock[4];
 
    // Create PetscParVectors as placeholders X and Y
    mutable PetscParVector *X, *Y;
 
    IS index_set[3];
+   bool version2;
 
 public:
    FullBlockSolver(const OperatorHandle &oh);
@@ -271,6 +276,17 @@ FullBlockSolver::FullBlockSolver(const OperatorHandle &oh) : Solver() {
    KSPAppendOptionsPrefix(kspblock[2],"s3_");
    KSPSetFromOptions(kspblock[2]);
    KSPSetUp(kspblock[2]);
+
+   version2 = true;
+   if (version2)
+   {
+      //ARe matrix (for version 2)
+      ierr=KSPCreate(PETSC_COMM_WORLD, &kspblock[3]);    PCHKERRQ(kspblock[3], ierr);
+      ierr=KSPSetOperators(kspblock[3], sub[0][0], sub[0][0]);PCHKERRQ(sub[0][0], ierr);
+      KSPAppendOptionsPrefix(kspblock[3],"s4_");
+      KSPSetFromOptions(kspblock[3]);
+      KSPSetUp(kspblock[3]);
+   }
 }
 
 //Mult will only be called once
@@ -280,7 +296,11 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    Vec y0, y1, y2;
    Vec b, bhat, diag, rhs, tmp; 
 
-   PetscInt iter=5; //number of Jacobi iteration 
+   PetscInt iter=4; //number of Jacobi iteration 
+   Mat Mmat = sub[2][2];
+   Mat Mmatlp = sub[0][2];
+   Mat Kmat = sub[2][0];
+   Mat ARe = sub[0][0];
 
    X->PlaceArray(x.GetData()); 
    Y->PlaceArray(y.GetData());
@@ -297,13 +317,15 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
 
    //first solve b=M*K^-1 (-b2 + ARe*M^-1 b0)
    KSPSolve(kspblock[2],b0,tmp);
-   MatMult(sub[0][0], tmp, rhs);
+   MatMult(ARe, tmp, rhs);
    VecAXPY(rhs, -1., b2);
    KSPSolve(kspblock[0],rhs,tmp);
-   MatMult(sub[2][2], tmp, b);
+   MatMult(Mmat, tmp, b);
 
-   //get diag 
-   MatGetDiagonal(sub[0][0],diag);
+   if(Mmatlp==NULL)
+      MatGetDiagonal(ARe,diag);
+   else
+      MatGetDiagonal(Mmatlp,diag);
 
    //note [y0, y1, y2]=[phi, psi, w]
    VecGetSubVector(*Y,index_set[0],&y0);
@@ -319,9 +341,8 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
       {
           VecPointwiseMult(bhat,diag,y0);
           VecAXPY(bhat, 1.0, b);
-          VecScale(bhat, -1.0);
-          MatMultAdd(sub[0][0], y0, bhat, bhat);
-          VecScale(bhat, -1.0);
+          MatMult(ARe, y0, tmp);
+          VecAXPY(bhat, -1.0, tmp);
       }
 
       VecPointwiseDivide(tmp, bhat, diag);
@@ -336,9 +357,26 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    }
 
    //update y2
-   MatMult(sub[2][0], y0, rhs);
-   VecAYPX(rhs, -1., b0);
-   KSPSolve(kspblock[2],rhs,y2);
+   if(!version2)
+   {
+      //version 1
+      MatMult(Kmat, y0, rhs);
+      VecAYPX(rhs, -1., b0);
+      KSPSolve(kspblock[2],rhs,y2);
+   }
+   else{
+      //version 2
+      MatMult(sub[0][1], y1, rhs);
+      KSPSolve(kspblock[2],rhs,rhs);
+      MatMult(Kmat, rhs, tmp);
+      MatMultAdd(sub[1][0], y0, b2, rhs);
+      VecAXPY(rhs, -1., tmp);
+      KSPSolve(kspblock[3],rhs,y2);
+
+      MatMult(Mmat, y2, rhs);
+      VecAYPX(rhs, -1., b0);
+      KSPSolve(kspblock[0],rhs,y0);
+   }
 
    VecRestoreSubVector(*X,index_set[0],&b0);
    VecRestoreSubVector(*X,index_set[1],&b1);
@@ -364,6 +402,8 @@ FullBlockSolver::~FullBlockSolver()
     {
         KSPDestroy(&kspblock[i]);
     }
+    if(version2)
+        KSPDestroy(&kspblock[3]);
     
     delete X;
     delete Y;
@@ -451,7 +491,6 @@ MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() {
 
 void MyBlockSolver::Mult(const Vector &x, Vector &y) const
 {
-   //Mat &mass = sub[0][2];
    Vec blockx, blocky;
    Vec blockx0, blocky0;
 
@@ -699,13 +738,6 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    M->RecoverFEMSolution(Y, z, j);
    */
 
-
-   /*
-   cout << "Size of matrix in KB: " <<  KB->Size()<< endl;
-   cout << "Size of matrix in Nv: " <<  Nv->Size()<< endl;
-   cout << "Size of matrix in DSl: " <<  DSl.Size()<< endl;
-   */
-
    //compute the current as an auxilary variable
    gf.SetFromTrueVector();  //recover psi
 
@@ -758,14 +790,12 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
    pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1}
    MFEM_VERIFY(pnewton_solver->GetConverged(),
                   "Newton solver did not converge.");
-
-   
-
    //modify k so that it fits into the backward euler framework
    k-=vx;
    k/=dt;
 
-   if(false)
+   bool output=false;
+   if (output)
    {
       ParGridFunction phi1, psi1, w1;
       phi1.MakeTRef(&fespace, k, 0);
@@ -774,9 +804,11 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
 
       phi1.SetFromTrueVector(); psi1.SetFromTrueVector(); w1.SetFromTrueVector();
 
-      int myid;
-      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
       ostringstream phi_name, psi_name, w_name;
+      int myid;
+      if (myid==0)
+          cout <<"======OUTPUT: matrices in ResisitiveMHDOperator:ImplicitSolve======"<<endl;
+      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
       phi_name << "dbg_phi." << setfill('0') << setw(6) << myid;
       psi_name << "dbg_psi." << setfill('0') << setw(6) << myid;
       w_name << "dbg_omega." << setfill('0') << setw(6) << myid;
@@ -870,13 +902,14 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      initialMdt(false), E0Vec(NULL), M_solver(M_solver_),
      dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_),
-     Nv(NULL), Nb(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
+     Nv(NULL), Nb(NULL), Pw(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
     //this is not right because Mdtpr shares the same matrix with Mmat_
     //hypre_ParCSRMatrix *csrM = (hypre_ParCSRMatrix*)(Mmat_);
     //Mdtpr = new HypreParMatrix(csrM, true);
     
     useFull=false;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
     //correct way to deep copy:
     Mdtpr = new HypreParMatrix(Mmat_);
@@ -903,9 +936,10 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      E0Vec(NULL), M_solver(M_solver_), 
      dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_),
-     Nv(NULL), Nb(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
+     Nv(NULL), Nb(NULL), Pw(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
     useFull = useFull_;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
     Mdtpr = new HypreParMatrix(Mmat_);
     ARe=NULL; ASl=NULL;
@@ -913,7 +947,13 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     DRematpr = DRemat_;
     DSlmatpr = DSlmat_;
 
-    AReFull=NULL; ScFull=NULL; NbFull=NULL;
+    AReFull=NULL; ScFull=NULL; NbFull=NULL; PwMat=NULL;
+
+    MassIntegrator *mass = new MassIntegrator;
+    Mlp = new ParBilinearForm(&fespace);
+    Mlp->AddDomainIntegrator(new LumpedIntegrator(mass));
+    Mlp->Assemble();
+    Mlp->FormSystemMatrix(ess_tdof_list, Mmatlp);
 
     int sc = height/3;
     block_trueOffsets.SetSize(4);
@@ -925,9 +965,9 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
 
 /*
  * the full preconditioner is (note the sign of Nb)
- * [  ARe Nb  0  ]
- * [  0   Sc  0  ]
- * [  K   0   M  ]
+ * [  ARe Nb  (Mlp)]
+ * [  Pw  Sc  0    ]
+ * [  K   0   M    ]
 */
 
 Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
@@ -940,6 +980,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        delete AReFull; 
        delete ScFull; 
        delete NbFull;
+       delete PwMat;
 
        Vector &k_ = const_cast<Vector &>(k);
 
@@ -972,15 +1013,81 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        Nb->Finalize();
        NbFull = Nb->ParallelAssemble();
 
+       //form Pw operator        
+       delete Pw;
+       wGf.MakeTRef(&fespace, k_, 2*sc);
+       wGf.SetFromTrueVector();
+       Pw = new ParBilinearForm(&fespace);
+       MyCoefficient dw(&wGf, 2);
+       Pw->AddDomainIntegrator(new ConvectionIntegrator(dw));
+       Pw->Assemble();
+       Pw->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+       Pw->Finalize();
+       PwMat = Pw->ParallelAssemble();
+
        //here we use B^T D^-1 B = (D^-1 B)^T B
        HypreParMatrix *DinvNb = new HypreParMatrix(*NbFull);
        HypreParVector *ARed = new HypreParVector(AReFull->GetComm(), AReFull->GetGlobalNumRows(),
                                         AReFull->GetRowStarts());
-       AReFull->GetDiag(*ARed);
-       DinvNb->InvScaleRows(*ARed);
-       HypreParMatrix *NbtDinv=DinvNb->Transpose();
-       HypreParMatrix *S = ParMult(NbtDinv, NbFull);
-       ScFull = ParAdd(ASltmp, S);
+       HypreParMatrix *NbtDinv=NULL, *S=NULL;
+       HypreParMatrix *tmp=Mdtpr;  //if use lumped matrix, it needs to be scaled by dt
+
+       int iSc=0;
+       if (iSc==0)
+       {
+           //VERSION0: same as Luis's preconditioner
+           AReFull->GetDiag(*ARed);
+           DinvNb->InvScaleRows(*ARed);
+           NbtDinv=DinvNb->Transpose();
+           S = ParMult(NbtDinv, NbFull);
+           ScFull = ParAdd(ASltmp, S);
+       }
+       else if (iSc==1)
+       {
+           //VERSION1: schur complement without transpose
+           //here Sc=ASl-B D^-1 B 
+           AReFull->GetDiag(*ARed);
+           DinvNb->InvScaleRows(*ARed);
+           S = ParMult(NbFull, DinvNb);
+           *S *= -1;
+           ScFull = ParAdd(ASltmp, S);
+       }
+       else if (iSc==2) {
+           //VERSION2: use (lumped) mass matrix
+           if (myid==0) 
+           {
+              cout <<"======WARNING: use scaled mass matrix in Schur complement======"<<endl;
+              cout <<"======WARNING: this changes preconditioner in pcshell !!!======"<<endl;
+           }
+           tmp->GetDiag(*ARed);
+           DinvNb->InvScaleRows(*ARed);
+           NbtDinv=DinvNb->Transpose();
+           S = ParMult(NbtDinv, NbFull);
+           ScFull = ParAdd(ASltmp, S);
+       }
+
+       bool outputMatrix=false;
+       if (outputMatrix)
+       {
+           if (myid==0) 
+              cout <<"======OUTPUT: matrices in ReducedSystemOperator:GetGradient======"<<endl;
+           ofstream myf ("DRe.m");
+           DRematpr->PrintMatlab(myf);
+
+           ofstream myfile ("ARe.m");
+           ARe->PrintMatlab(myfile);
+
+           ofstream myfile0 ("AReFull.m");
+           AReFull->PrintMatlab(myfile0);
+
+           ofstream myfile2 ("NvMat.m");
+           NvMat->PrintMatlab(myfile2);
+
+           ofstream myfile4 ("lump.m");
+           Mmatlp.PrintMatlab(myfile4);
+
+           ARed->Print("diag.dat");
+       }
 
        delete DinvNb;
        delete ARed;
@@ -992,9 +1099,12 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        Jacobian = new BlockOperator(block_trueOffsets);
        Jacobian->SetBlock(0,0,AReFull);
        Jacobian->SetBlock(0,1,NbFull);
+       Jacobian->SetBlock(1,0,PwMat);
        Jacobian->SetBlock(1,1,ScFull);
        Jacobian->SetBlock(2,0,&Kmat);
        Jacobian->SetBlock(2,2,&Mmat);
+
+       if (iSc==2) Jacobian->SetBlock(0,2,tmp);
    }
    else
    {
@@ -1017,11 +1127,14 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete ARe;
    delete ASl;
    delete AReFull;
-   delete NbFull;
    delete ScFull;
+   delete NbFull;
+   delete PwMat;
    delete Jacobian;
    delete Nv;
    delete Nb;
+   delete Pw;
+   delete Mlp;
 }
 
 void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
