@@ -469,12 +469,6 @@ protected: // implementation
    /// coordinates of top-level vertices (organized as triples)
    Array<double> top_vertex_pos;
 
-   typedef HashTable<Node>::iterator node_iterator;
-   typedef HashTable<Face>::iterator face_iterator;
-   typedef HashTable<Node>::const_iterator node_const_iterator;
-   typedef HashTable<Face>::const_iterator face_const_iterator;
-   typedef BlockArray<Element>::iterator elem_iterator;
-
 
    // secondary data
 
