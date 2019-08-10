@@ -123,13 +123,6 @@ public:
    void setE0(HypreParVector *E0Vec_)
    { E0Vec=E0Vec_;}
 
-   //link gf with psi
-   void BindingGF(Vector &k){
-       int sc = height/3;
-       phiGf.MakeTRef(&fespace, k, 0);
-       psiGf.MakeTRef(&fespace, k, sc);
-   }
-
    /// Define F(k) 
    virtual void Mult(const Vector &k, Vector &y) const;
 
@@ -228,6 +221,11 @@ private:
    IS index_set[3];
    bool version2;
 
+   //solutions holder
+   mutable Vec b0, b1, b2, y0, y1, y2;
+   mutable Vec b, bhat, rhs, tmp; 
+   Vec diag;
+
 public:
    FullBlockSolver(const OperatorHandle &oh);
 
@@ -277,30 +275,42 @@ FullBlockSolver::FullBlockSolver(const OperatorHandle &oh) : Solver() {
    KSPSetFromOptions(kspblock[2]);
    KSPSetUp(kspblock[2]);
 
+   Mat ARe = sub[0][0];
+   Mat Mmatlp = sub[0][2];
+
    version2 = true;
    if (version2)
    {
       //ARe matrix (for version 2)
       ierr=KSPCreate(PETSC_COMM_WORLD, &kspblock[3]);    PCHKERRQ(kspblock[3], ierr);
-      ierr=KSPSetOperators(kspblock[3], sub[0][0], sub[0][0]);PCHKERRQ(sub[0][0], ierr);
+      ierr=KSPSetOperators(kspblock[3], ARe, ARe);PCHKERRQ(ARe, ierr);
       KSPAppendOptionsPrefix(kspblock[3],"s4_");
       KSPSetFromOptions(kspblock[3]);
       KSPSetUp(kspblock[3]);
    }
+
+   MatCreateVecs(sub[0][0], &b, NULL);
+   MatCreateVecs(sub[0][0], &bhat, NULL);
+   MatCreateVecs(sub[0][0], &diag, NULL);
+   MatCreateVecs(sub[0][0], &rhs, NULL);
+   MatCreateVecs(sub[0][0], &tmp, NULL);
+
+   //get diag consistent with Schur complement
+   if(Mmatlp==NULL)
+      MatGetDiagonal(ARe,diag);
+   else
+      MatGetDiagonal(Mmatlp,diag);
 }
 
 //Mult will only be called once
 void FullBlockSolver::Mult(const Vector &x, Vector &y) const
 {
-   Vec b0, b1, b2;
-   Vec y0, y1, y2;
-   Vec b, bhat, diag, rhs, tmp; 
-
    PetscInt iter=4; //number of Jacobi iteration 
+
+   Mat ARe = sub[0][0];
    Mat Mmat = sub[2][2];
    Mat Mmatlp = sub[0][2];
    Mat Kmat = sub[2][0];
-   Mat ARe = sub[0][0];
 
    X->PlaceArray(x.GetData()); 
    Y->PlaceArray(y.GetData());
@@ -309,11 +319,10 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    VecGetSubVector(*X,index_set[1],&b1);
    VecGetSubVector(*X,index_set[2],&b2);
 
-   VecDuplicate(b0,&b);
-   VecDuplicate(b0,&bhat);
-   VecDuplicate(b0,&diag);
-   VecDuplicate(b0,&rhs);
-   VecDuplicate(b0,&tmp);
+   //note [y0, y1, y2]=[phi, psi, w]
+   VecGetSubVector(*Y,index_set[0],&y0);
+   VecGetSubVector(*Y,index_set[1],&y1);
+   VecGetSubVector(*Y,index_set[2],&y2);
 
    //first solve b=M*K^-1 (-b2 + ARe*M^-1 b0)
    KSPSolve(kspblock[2],b0,tmp);
@@ -322,17 +331,7 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    KSPSolve(kspblock[0],rhs,tmp);
    MatMult(Mmat, tmp, b);
 
-   if(Mmatlp==NULL)
-      MatGetDiagonal(ARe,diag);
-   else
-      MatGetDiagonal(Mmatlp,diag);
-
-   //note [y0, y1, y2]=[phi, psi, w]
-   VecGetSubVector(*Y,index_set[0],&y0);
-   VecGetSubVector(*Y,index_set[1],&y1);
-   VecGetSubVector(*Y,index_set[2],&y2);
-
-   //Jacobi iteration
+   //Jacobi iteration with Schur complement
    for (int j = 0; j<iter; j++)
    {
       if (j==0)
@@ -356,7 +355,7 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
       VecPointwiseDivide(y0, rhs, diag);
    }
 
-   //update y2
+   //update y2 (version 2 increase smoothness in omega)
    if(!version2)
    {
       //version 1
@@ -386,12 +385,6 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    VecRestoreSubVector(*Y,index_set[1],&y1);
    VecRestoreSubVector(*Y,index_set[2],&y2);
 
-   VecDestroy(&b);
-   VecDestroy(&bhat); 
-   VecDestroy(&diag);
-   VecDestroy(&rhs);
-   VecDestroy(&tmp);
-
    X->ResetArray();
    Y->ResetArray();
 }
@@ -405,6 +398,12 @@ FullBlockSolver::~FullBlockSolver()
     if(version2)
         KSPDestroy(&kspblock[3]);
     
+    VecDestroy(&b);
+    VecDestroy(&bhat); 
+    VecDestroy(&diag);
+    VecDestroy(&rhs);
+    VecDestroy(&tmp);
+
     delete X;
     delete Y;
 }
@@ -633,7 +632,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       HypreParMatrix *DRematpr=NULL, *DSlmatpr=NULL;
       if (viscosity != 0.0)
       {   
-          //assemble diffusion matrices (I cannot delete them if I want to do ParAdd)
+          //assemble diffusion matrices (cannot delete DRetmp if ParAdd is used later)
           DRetmp = new ParBilinearForm(&fespace);
           DRetmp->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
           DRetmp->Assemble();
@@ -723,21 +722,6 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector dpsi_dt(dvx_dt.GetData() +  sc, sc);
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
 
-   /*
-   //compute the current as an auxilary variable
-   KB->Mult(psi, z);
-   z.Neg(); // z = -z
-   //z.SetSubVector(ess_tdof_list,jBdy);
-   //Vector J(sc);
-   //M_solver.Mult(z, J);
-
-   HypreParMatrix tmp;
-   Vector Y, Z;
-   M->FormLinearSystem(ess_tdof_list, j, z, tmp, Y, Z); 
-   M_solver.Mult(Z, Y);
-   M->RecoverFEMSolution(Y, z, j);
-   */
-
    //compute the current as an auxilary variable
    gf.SetFromTrueVector();  //recover psi
 
@@ -771,7 +755,6 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Nb->TrueAddMult(J, z); 
    z.SetSubVector(ess_tdof_list,0.0);
    M_solver.Mult(z, dw_dt);
-
 }
 
 void ResistiveMHDOperator::ImplicitSolve(const double dt,
@@ -786,7 +769,6 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
    Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
    
    k = vx; //Provide the initial guess as vx and use iterative_mode
-   //reduced_oper->BindingGF(k); use type cast in Mult instead
    pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1}
    MFEM_VERIFY(pnewton_solver->GetConverged(),
                   "Newton solver did not converge.");
@@ -1018,8 +1000,8 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        wGf.MakeTRef(&fespace, k_, 2*sc);
        wGf.SetFromTrueVector();
        Pw = new ParBilinearForm(&fespace);
-       MyCoefficient dw(&wGf, 2);
-       Pw->AddDomainIntegrator(new ConvectionIntegrator(dw));
+       MyCoefficient curlw(&wGf, 2);
+       Pw->AddDomainIntegrator(new ConvectionIntegrator(curlw));
        Pw->Assemble();
        Pw->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
        Pw->Finalize();
@@ -1184,8 +1166,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
    //compute y2
    //note z=psiNew-*psi
-   z=psiNew;
-   z-=*psi;
+   add(psiNew, -1., *psi, z);
    z/=dt;
    Mmat.Mult(z,y2);
    Nv->TrueAddMult(psiNew,y2);
@@ -1197,8 +1178,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
    //compute y3
    //note z=wNew-*w
-   z=wNew;
-   z-=*w;
+   add(wNew, -1., *w, z);
    z/=dt;
    Mmat.Mult(z,y3);
    Nv->TrueAddMult(wNew,y3);

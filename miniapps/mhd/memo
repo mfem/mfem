@@ -41,6 +41,9 @@ Changing mat_mffd_err 1e-5 helps significantly!
 
 this works:
  mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -vs 1 -tf 250 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 1 -shell
+ mpirun -n 4 imMHDp -m xperiodic.mesh -rs 4 -o 3 -i 3 -vs 1 -tf 8 -dt .2 -usepetsc --petscopts petscrc/rc_debug -s 1 -shell
+
+use richardson as ksp if one wants to use hypre as the solver in petsc
 
 8/7
 inexac Newton?

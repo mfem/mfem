@@ -22,17 +22,12 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = exMHD exAMRMHD 
-PAR_EXAMPLES = exMHDp
+PAR_EXAMPLES = exMHDp exAMRMHDp imMHDp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
    EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
-
-.SUFFIXES:
-.SUFFIXES: .o .cpp .mk
-.PHONY: exMHD exMHDp exAMRMHDp exAMRMHD all clean clean-build clean-exec
-.PRECIOUS: %.o
 
 # Remove built-in rule
 %: %.cpp
@@ -43,24 +38,29 @@ endif
 
 all: $(EXAMPLES) 
 
-implicitMHDc2: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
+.SUFFIXES:
+.SUFFIXES: .o .cpp .mk
+.PHONY: all clean clean-build clean-exec
+.PRECIOUS: %.o
 
-exAMRMHD: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
 
-exMHD: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
-
-exMHDnew: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
-
-exMHDp: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
-
-exAMRMHDp: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
-
+##implicitMHDc2: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+##	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
+##
+##exAMRMHD: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+##	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
+##
+##exMHD: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+##	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
+##
+##exMHDnew: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+##	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
+##
+##exMHDp: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+##	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
+##
+##exAMRMHDp: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+##	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 
 .PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
