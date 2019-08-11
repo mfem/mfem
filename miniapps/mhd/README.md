@@ -102,7 +102,7 @@ mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 10 -dt 5 -usepetsc --petscopts petscrc/rc
 glvis -np 4 -m mesh -g sol_phi -k "mmc" -ww 800 -wh 800
 ```
 This example is identical to the explicit run, but we note that we take a much larger time step dt=5. It demonstrates the advantage of physics-based preconditioning.
-However, this particular test is extremely simple, so the computational time for both solvers are comparable. 
+However, this particular test is very simple, so the computational time for both solvers is comparable. 
 Implicit solvers will show a significant speedup as we refine the mesh.
 
 # FAQs
@@ -120,19 +120,20 @@ glvis -np 4 -m mesh -g sol_phi -k "mmc" -ww 800 -wh 800
 
 
 ### What examples are provided?
-* Case `-i 1`: Wave Propagation (5.1.1) in ["An implicit, nonlinear reduced resistive MHD solver." JCP 2002]. Identical setup.
-* Case `-i 2` Tearing Mode (5.1.2) in ["An implicit, nonlinear reduced resistive MHD solver." JCP 2002]. Identical setup.
-* Case `-i 3`: Island Coalescence (5.2) in ["Implicit adaptive mesh refinement for 2D reduced resistive magnetohydrodynamics, JCP 2008]. Identical setup.
+* Case `-i 1`: Wave Propagation (5.1.1) in [An implicit, nonlinear reduced resistive MHD solver. JCP 2002]. Identical setup.
+* Case `-i 2` Tearing Mode (5.1.2) in [An implicit, nonlinear reduced resistive MHD solver. JCP 2002]. Identical setup.
+* Case `-i 3`: Island Coalescence (5.2) in [Implicit adaptive mesh refinement for 2D reduced resistive magnetohydrodynamics, JCP 2008]. Identical setup.
 
 ### Where has the code been built and tested?
 * Mac OS
 * Linux 
 * Many HPC including LANL and NERSC machines
 
-### Why do the implicit solvers complaint about hypre? 
+### Why do the implicit solvers complain about hypre? 
 It is likely there are two different versions of hypre linked in the code.
 One needs to make sure there is only one version of hypre seen by mfem.
 We recommend to link mfem with the hypre installed by PETSc.
+Please also avoid linking your local hypre with PETSc.
 
 
 
@@ -154,7 +155,7 @@ There is a known compiler bug (https://github.com/mfem/mfem/issues/956) on cori.
 
 ### Could I use glvis on cori?
 
-We have not successfully built glvis on cori. 
+We were not able to build glvis on cori. 
 Visit is probably easier to build there.
 
 
