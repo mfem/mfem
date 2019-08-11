@@ -174,6 +174,14 @@ int main(int argc, char *argv[])
    }
    pres_fes->GetEssentialTrueDofs(ess_bdr_attr_p, ess_tdof_list_p);
 
+   double g0 = 1.0;
+   double a0 = -1.0;
+   double a1 = 0.0;
+   double a2 = 0.0;
+   double b0 = 1.0;
+   double b1 = 0.0;
+   double b2 = 0.0;
+
    Vector un(vel_fes->GetTrueVSize()), unm1(vel_fes->GetTrueVSize()),
       unm2(vel_fes->GetTrueVSize());
    Vector uh(vel_fes->GetTrueVSize());
@@ -250,7 +258,8 @@ int main(int argc, char *argv[])
    HypreParMatrix *G = G_form->ParallelAssemble();
 
    ParLinearForm *g_bdr_form = new ParLinearForm(pres_fes);
-   g_bdr_form->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(*u_ex_coeff));
+   g_bdr_form->AddBoundaryIntegrator(
+      new BoundaryNormalLFIntegrator(*u_ex_coeff));
 
    VectorGridFunctionCoefficient Nu_gf_coeff(&Nu_gf);
    ParLinearForm *Nu_bdr_form = new ParLinearForm(pres_fes);
@@ -258,8 +267,9 @@ int main(int argc, char *argv[])
       new BoundaryNormalLFIntegrator(Nu_gf_coeff));
 
    ConstantCoefficient lincoeff(dt * ctx.kinvis);
+   ConstantCoefficient bdfcoeff(1.0);
    ParBilinearForm *H_form = new ParBilinearForm(vel_fes);
-   H_form->AddDomainIntegrator(new VectorMassIntegrator);
+   H_form->AddDomainIntegrator(new VectorMassIntegrator(bdfcoeff));
    H_form->AddDomainIntegrator(new VectorDiffusionIntegrator(lincoeff));
    H_form->Assemble();
    HypreParMatrix H;
@@ -320,6 +330,7 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc("mms", pmesh);
    visit_dc.SetPrefixPath("output");
    visit_dc.SetCycle(0);
+   visit_dc.SetTime(t);
    visit_dc.RegisterField("velocity", &u_gf);
    visit_dc.RegisterField("pressure", &p_gf);
    visit_dc.Save();
@@ -331,17 +342,21 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   double err_u = u_gf.ComputeL2Error(*u_ex_coeff, irs);
+   double err_u = 0.0;
    double err_p = 0.0;
+   double err_inf_u = 0.0;
+   double err_inf_p = 0.0;
    double u_inf = u_gf.Normlinf();
    double p_inf = p_gf.Normlinf();
    if (myid == 0)
    {
-      printf("%.3E %.2E %.5E %.5E %.5E %.5E\n",
+      printf("%.3E %.2E %.5E %.5E %.5E %.5E %.5E %.5E\n",
              t,
              dt,
              err_u,
              err_p,
+             err_inf_u,
+             err_inf_p,
              u_inf,
              p_inf);
    }
@@ -351,10 +366,6 @@ int main(int argc, char *argv[])
    Vector tmpp(pres_fes->GetTrueVSize());
 
    bool last_step = false;
-
-   double b0 = 1.0;
-   double b1 = 0.0;
-   double b2 = 0.0;
 
    for (int step = 0; !last_step; ++step)
    {
@@ -368,11 +379,8 @@ int main(int argc, char *argv[])
       u_ex_coeff->SetTime(t);
       p_ex_coeff.SetTime(t);
 
-      if (mpi.Root())
-      {
-         // cout << "\nExtrapolation" << endl;
-      }
-
+      // Extrapolation
+#if 0
       // AB3 coefficients
       if (step == 0)
       {
@@ -392,7 +400,41 @@ int main(int argc, char *argv[])
          b1 = -16.0 / 12.0;
          b2 = 5.0 / 12.0;
       }
+#endif
 
+      // BDFk/EXTk coefficients
+      if (step == 0)
+      {
+         g0 = 1.0;
+         a0 = -1.0;
+         a1 = 0.0;
+         a2 = 0.0;
+         b0 = 1.0;
+         b1 = 0.0;
+         b2 = 0.0;
+      }
+      else if (step == 1)
+      {
+         g0 = 3.0 / 2.0;
+         a0 = -2.0;
+         a1 = 1.0 / 2.0;
+         a2 = 0.0;
+         b0 = 2.0;
+         b1 = -1.0;
+         b2 = 0.0;
+      }
+      else if (step == 2)
+      {
+         g0 = 11.0 / 6.0;
+         a0 = -3.0;
+         a1 = 3.0 / 2.0;
+         a2 = -1.0 / 3.0;
+         b0 = 3.0;
+         b1 = -3.0;
+         b2 = 1.0;
+      }
+
+      // EXT terms
       N->Mult(un, tmp1);
       tmp1 *= b0;
       N->Mult(unm1, tmp2);
@@ -404,28 +446,35 @@ int main(int argc, char *argv[])
       tmp1 += tmp3;
       tmp1 *= dt;
       MvInv.Mult(tmp1, uh);
-      uh += un;
 
-      if (mpi.Root())
+      // BDF terms
+      uh.Add(-a0, un);
+      uh.Add(-a1, unm1);
+      uh.Add(-a2, unm2);
+
+      if (step <= 2)
       {
-         // cout << "\nPressure poisson" << endl;
+         bdfcoeff.constant = g0;
+         H_form->Update();
+         H_form->Assemble();
+         H_form->FormSystemMatrix(ess_tdof_list_u, H);
+         HInv.SetOperator(H);
       }
+
+      // Pressure poisson
 
       D->Mult(uh, tmpp);
       tmpp *= -1.0 / dt;
 
       // Add boundary terms
-      // N->Mult(un, tmp1);
-      // Nu_gf.Distribute(tmp1);
-      // Nu_bdr_form->Assemble();
-      // tmpp += *Nu_bdr_form;
+      // MISSING
 
       ParGridFunction pn_gf(pres_fes), tmpp_gf(pres_fes);
       pn_gf = 0.0;
       tmpp_gf = 0.0;
       pn_gf.Distribute(pn);
 
-      ortho(tmpp);
+      // ortho(tmpp);
 
       pres_fes->GetRestrictionMatrix()->MultTranspose(tmpp, tmpp_gf);
       pn_gf = 0.0;
@@ -437,24 +486,18 @@ int main(int argc, char *argv[])
 
       pn_gf.GetTrueDofs(pn);
 
-      ortho(pn);
+      // ortho(pn);
 
       p_gf.Distribute(pn);
 
-      if (mpi.Root())
-      {
-         // cout << "\nProjection" << endl;
-      }
+      // Project velocity
 
       G->Mult(pn, uhh);
       uhh *= -dt;
       Mv.Mult(uh, tmp1);
       uhh += tmp1;
 
-      if (mpi.Root())
-      {
-         // cout << "\nHelmholtz" << endl;
-      }
+      // Helmholtz
 
       ParGridFunction un_gf(vel_fes), uhh_gf(vel_fes);
       un_gf = 0.0;
@@ -462,8 +505,8 @@ int main(int argc, char *argv[])
       un_gf.ProjectBdrCoefficient(*u_ex_coeff, ess_bdr_attr_u);
       vel_fes->GetRestrictionMatrix()->MultTranspose(uhh, uhh_gf);
 
-      unm1 = un;
       unm2 = unm1;
+      unm1 = un;
 
       Vector X2, B2;
       H_form->FormLinearSystem(ess_tdof_list_u, un_gf, uhh_gf, H, X2, B2);
@@ -487,20 +530,25 @@ int main(int argc, char *argv[])
                 << endl;
 
          visit_dc.SetCycle(step);
+         visit_dc.SetTime(t);
          visit_dc.Save();
       }
 
       err_u = u_gf.ComputeL2Error(*u_ex_coeff, irs);
       err_p = p_gf.ComputeL2Error(p_ex_coeff, irs);
+      err_inf_u = u_gf.ComputeMaxError(*u_ex_coeff, irs);
+      err_inf_p = p_gf.ComputeMaxError(p_ex_coeff, irs);
       u_inf = u_gf.Normlinf();
       p_inf = p_gf.Normlinf();
       if (myid == 0)
       {
-         printf("%.3E %.2E %.5E %.5E %.5E %.5E\n",
+         printf("%.3E %.2E %.5E %.5E %.5E %.5E %.5E %.5E\n",
                 t,
                 dt,
                 err_u,
                 err_p,
+                err_inf_u,
+                err_inf_p,
                 u_inf,
                 p_inf);
       }
