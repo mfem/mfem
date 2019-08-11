@@ -33,6 +33,13 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+8/11
+try this:
+mpirun -n 4 imMHDp -rs 5 -o 3 -i 2 -tf 10 -dt 2 -vs 1 -no-vis -usepetsc --petscopts petscrc/rc_debug -s 1 -shell
+snes_rtol=1e-4 amg tol=1e-5
+time 2281
+
+add SDIRK and mid-point stepping
 
 
 8/8

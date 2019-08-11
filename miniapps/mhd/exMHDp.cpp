@@ -365,11 +365,11 @@ int main(int argc, char *argv[])
          //if (icase==2)
          //   vis_phi << "valuerange -.001 .001\n";
 
-         vis_phi << "pause\n";
+         //vis_phi << "pause\n";
          vis_phi << flush;
-         if (myid==0)
-            cout << "GLVis visualization paused."
-                 << " Press space (in the GLVis window) to resume it.\n";
+         //if (myid==0)
+         //   cout << "GLVis visualization paused."
+         //        << " Press space (in the GLVis window) to resume it.\n";
 
          MPI_Barrier(pmesh->GetComm());
          vis_j.open(vishost, visport);

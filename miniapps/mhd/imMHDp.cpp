@@ -146,7 +146,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 Backward Euler; 2 - Brailovskaya.");
+                  "ODE solver: 1 - Backward Euler, 2 - Brailovskaya,\n\t"
+                  "            3 - L-stable SDIRK23, 4 - L-stable SDIRK33,\n\t"
+                  "            22 - Implicit Midpoint, 23 - SDIRK23, 24 - SDIRK34.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -219,14 +221,19 @@ int main(int argc, char *argv[])
    //    explicit Runge-Kutta methods are available.
    PDSolver *ode_solver=NULL;
    ODESolver *ode_solver2=NULL;
-   bool explicitSolve=true;
+   bool explicitSolve=false;
    switch (ode_solver_type)
    {
-     case 1: 
-         ode_solver2 = new BackwardEulerSolver; 
-         explicitSolve = false;
-         break;
-     case 2: ode_solver = new PDSolver; break;
+      //Explicit methods (first-order Predictor-Corrector)
+      case 2: ode_solver = new PDSolver; explicitSolve = true; break;
+      //Implict L-stable methods 
+      case 1: ode_solver2 = new BackwardEulerSolver; break;
+      case 3: ode_solver2 = new SDIRK23Solver(2); break;
+      case 4: ode_solver2 = new SDIRK33Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 12: ode_solver2 = new ImplicitMidpointSolver; break;
+      case 13: ode_solver2 = new SDIRK23Solver; break;
+      case 14: ode_solver2 = new SDIRK34Solver; break;
      default:
          if (myid == 0) cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;
@@ -390,12 +397,7 @@ int main(int argc, char *argv[])
          vis_phi.precision(8);
          vis_phi << "solution\n" << *pmesh << psiPer;
          vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
-
-         vis_phi << "pause\n";
          vis_phi << flush;
-         if (myid==0)
-            cout << "GLVis visualization paused."
-                 << " Press space (in the GLVis window) to resume it.\n";
 
          MPI_Barrier(pmesh->GetComm());
       }

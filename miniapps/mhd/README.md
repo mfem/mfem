@@ -9,7 +9,7 @@ Other MHD models will be developed soon.
 
 ### Some highlights of the miniapp
 * Both implicit and explicit MHD solvers are available
-  * Implicit solvers support backward Euler; high-order SDIRK will be added soon
+  * Implicit solvers support backward Euler, implicit midpoint and SDIRK
   * Explicit solvers support a predictor-corrector Brailovskaya’s scheme
 * Scalable physics-based preconditioning
 * Structured and unstructured (high-order) meshes
@@ -101,9 +101,8 @@ make imMHDp
 mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 10 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 1 -shell
 glvis -np 4 -m mesh -g sol_phi -k "mmc" -ww 800 -wh 800
 ```
-This example is identical to the explicit run, but we note that we take a much larger time step dt=5. It demonstrates the advantage of physics-based preconditioning.
-However, this particular test is very simple, so the computational time for both solvers is comparable. 
-Implicit solvers will show a significant speedup as we refine the mesh.
+This example is similar with the explicit run except for refined by a factor of 2, but we note that we take a much larger time step dt=5. It demonstrates the advantage of physics-based preconditioning.
+Implicit solvers will show a even more significant speedup as we refine the mesh.
 
 # FAQs
 
