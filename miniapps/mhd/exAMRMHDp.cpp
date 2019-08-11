@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
    int ref_steps=1000;
 
    bool visualization = true;
-   int vis_steps = 10;
+   int vis_steps = 200;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
