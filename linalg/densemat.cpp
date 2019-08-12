@@ -2966,13 +2966,16 @@ void DenseMatrix::PrintShort(std::ostream &out) const
    // out << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
-      out << 100+i << " ";
-      for (int j = 0; j < width; j++)
+      if ((*this)(i,0) != 0 || (*this)(i,1) != 0 || (*this)(i,2) != 0)
       {
-         out << (*this)(i,j);
-         out << ' ';
+         out << i << "\t";
+         for (int j = 0; j < width; j++)
+         {
+            out << (*this)(i,j);
+            out << '\t';
+         }
+         out << "\n";
       }
-      out << "\n";
    }
    // reset output flags to original values
    out.flags(old_flags);

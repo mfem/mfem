@@ -259,7 +259,6 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    const ScalarFiniteElement &fine_fe) const
 {
    // General "interpolation", defined by L2 projection
-   cout << "fe: ScalarFE: Scalar Local Int" << endl;
 
    double v[Geometry::MaxDim];
    Vector vv (v, Dim);
@@ -1827,7 +1826,8 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
 
    // Store the dof_map of the associated TensorBasisElement, which will be used to create the
    // serendipity dof map.  Its size is larger than the size of the serendipity element.
-   TensorBasisElement *tbeTemp = new TensorBasisElement(2, p, BasisType::GaussLobatto, TensorBasisElement::DofMapType::Sr_DOF_MAP);
+   TensorBasisElement *tbeTemp = new TensorBasisElement(2, p, BasisType::GaussLobatto,
+                                          TensorBasisElement::DofMapType::Sr_DOF_MAP);
    const Array<int> tp_dof_map = tbeTemp->GetDofMap();
    delete tbeTemp;
 
@@ -2065,10 +2065,12 @@ void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation &Tr
 { 
    if (Order <= 4)
    {
+      cout << "fe: called H1Ser_Quad::GetLocalInterp --> Nodal version" << endl;
       NodalLocalInterpolation(Trans, I, *this); 
    }
    else
    {
+      cout << "fe: called H1Ser_Quad::GetLocalInterp --> Scalar version" << endl;
       ScalarLocalInterpolation(Trans, I, *this);
    }
 }
@@ -2098,6 +2100,8 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
    
 
    int o = 0;
+
+   // cout << "fe: Put face nodes at: " << endl;
 
    for (int k = 0; k <= p; k++) {
       for (int j = 0; j <= p; j++) {
@@ -2138,7 +2142,11 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
 
                   // NOTE: no attempt has been made to optimize the location of the face nodes within a face;
                   // it is only guaranteed that a node associated to a face will be on the interior of that face.
-                  // The default tensor product ordering should apply (presumably filling in rows starting from the bottom left)
+                  // The default tensor product ordering should apply (presumably filling in rows starting from 
+                  // the bottom left of ambient orientation is and moving in direction of increasing 'x')
+                  // cout << '\t' << corrected_i << '\t' << corrected_j << '\t' << corrected_k << endl;
+                  // cout << '\t' << cp[corrected_i] << '\t' << cp[corrected_j] << '\t' << cp[corrected_k] << endl;
+                  // cout << endl;
                }
                else // ... it's a body Dof
                {
@@ -2167,13 +2175,14 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
          }
       }
    }
-   // cout << endl << "  Hex nodes are: " << endl;
+//    cout << endl << "  Hex nodes are: " << endl;
 
-   // for(int t=0; t<Nodes.Size(); t++)
-   // {
-   //    cout << "Node#: " << t <<  '\t' << Nodes.IntPoint(t).x << '\t' << Nodes.IntPoint(t).y << '\t'<< Nodes.IntPoint(t).z << endl;
-   // }
-   // cout << endl;
+//    for(int t=0; t<Nodes.Size(); t++)
+//    {
+//       cout << "Node#: " << t <<  '\t' << Nodes.IntPoint(t).x << '\t';
+//       cout << Nodes.IntPoint(t).y << '\t'<< Nodes.IntPoint(t).z << endl;
+//    }
+//    cout << endl;
 }
 
 void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
@@ -2285,7 +2294,7 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
       shape( 7) -= (1-edgePts[i+1])*(shape(e14p) + shape(e15m) + shape(e19m));
    }
 
-   if (p>3)
+   if (p>3) // set face shape functions
    {
       int dofsPerFace = (p-3)*(p-2)/2;  
 
@@ -2298,13 +2307,47 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
       storeLegendre->CalcLegendre(p-2, y , legY);
       storeLegendre->CalcLegendre(p-2, z , legZ);
 
+      // Starting nodal face attempt here
+      // Poly_1D::Basis faceNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
+      // Vector faceNodalX(p+1);
+      // Vector faceNodalY(p+1);
+      // Vector faceNodalZ(p+1);
+
+      // faceNodalBasis.Eval(x, faceNodalX);
+      // faceNodalBasis.Eval(y, faceNodalY);
+      // faceNodalBasis.Eval(z, faceNodalZ);
+
+      // int loopsThruFaces = 0;
+      // for (int k = 0; k < dofsPerFace; k++)
+      // {        
+      //       shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalY(dofsPerFace-k) * x*omx*y*omy * omz;
+      //       shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalZ(dofsPerFace-k) * x*omx*z*omz * omy;
+      //       shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = faceNodalY(k) * faceNodalZ(dofsPerFace-k) * y*omy*z*omz * x  ;
+      //       shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalZ(dofsPerFace-k) * x*omx*z*omz * y  ;
+      //       shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = faceNodalY(k) * faceNodalZ(dofsPerFace-k) * y*omy*z*omz * omx;
+      //       shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalY(dofsPerFace-k) * x*omx*y*omy * z  ;
+
+      //       cout << "Just set these: " << 8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces << ", " << 8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces << " etc" << endl;
+      //       cout << "     with faceNodalX = " << endl;
+      //       faceNodalX.Print();
+
+      //       loopsThruFaces++;
+
+      // }
+      // cout << endl;
+
+
+      // This code uses Legendre functions on the faces:
+
       int loopsThruFaces = 0;
       for (int j = 4; j < p + 1; j++)
       {
          for (int k = 0; k < j-3; k++)
          {
             // This presumes something about the order of variables on a face; there may be some effect
-            // to changing e.g. legX[k] * legY[j-4-k] to legY[k] * legX[j-4-k]
+            // to changing e.g. legX[k] * legY[j-4-k] to legY[k] * legX[j-4-k];
+            // ** remember to change dshape accordingly as well!
+            
             shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = legX[k] * legY[j-4-k] * x*omx*y*omy * omz;
             shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = legX[k] * legZ[j-4-k] * x*omx*z*omz * omy;
             shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = legY[k] * legZ[j-4-k] * y*omy*z*omz * x  ;
@@ -2315,7 +2358,7 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
          }
       }
 
-      if (p>5) // Set body shape functions
+      if (p>5) // set body shape functions
       {
          int firstBodyDof = 8 + 12*(p-1) +6*dofsPerFace;
          double bubbleVal = x*omx*y*omy*z*omz;
@@ -2347,10 +2390,6 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
       // shape(49) = x*omx*y*omy * z;  
    }
 
-
-   // Set body shape functions
-   //     body shape indices = ... through ...
-
    // cout << "shape set to: " << endl;
    // shape.Print(mfem::out, 5);
    // cout << endl;
@@ -2371,6 +2410,8 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
 
    // Print out some dshape values
 
+   // int loopThruVtxs = 0;
+
    // for(int a=0; a<2; a++)
    // {
    //    for(int b=0; b<2; b++)
@@ -2385,7 +2426,10 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
    // myIP.x = x;
    // myIP.y = y;
    // myIP.z = z;
-   // cout << endl << "myIP is " << myIP.x << ", " << myIP.y << ", " << myIP.z << endl;
+   // if (loopThruVtxs ==0)
+   // {
+   //    cout << endl << "myIP is " << myIP.x << ", " << myIP.y << ", " << myIP.z << endl;
+   // }
 
    double omx = 1.-x, omy = 1.-y, omz = 1.-z;
 
@@ -2454,7 +2498,10 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
 
    TriLinear3DFiniteElement trilinear = TriLinear3DFiniteElement();
    DenseMatrix DtrilinearsAtIP(8);
+   
    trilinear.CalcDShape(ip, DtrilinearsAtIP);
+   // trilinear.CalcDShape(myIP, DtrilinearsAtIP);
+
 
    // Fix vertex functions for nodality
 
@@ -2510,7 +2557,7 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       }
    }
 
-   if (p>3) // quad-interior basis functions appear starting at order p=4.  These are non-nodal bubble funtions.
+   if (p>3) // set face dshape values
    {
       int dofsPerFace = (p-3)*(p-2)/2;
 
@@ -2531,10 +2578,10 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       {
          for (int k = 0; k < j-3; k++)
          {
-            //shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = legX[k]*x*omx*  legY[j-4-k]*y*omy * omz;
+            // //shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = legX[k]*x*omx*  legY[j-4-k]*y*omy * omz;
             dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,0) = legY[j-4-k]*y*omy * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * omz;
             dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,1) = legX[k]*x*omx     * (DlegY[j-4-k]*y*omy + legY[j-4-k]*(1-2*y)) * omz;
-            dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,2) = legX[k]*x*omx     * legY[j-4-k]*y*omy                          * (-1);;
+            dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,2) = legX[k]*x*omx     * legY[j-4-k]*y*omy                          * (-1);
 
             //shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = legX[k]*x*omx*  legZ[j-4-k]*z*omz * omy;
             dshape(8 + 12*(p-1) +1*dofsPerFace + loopsThruFaces,0) = legZ[j-4-k]*z*omz * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * omy;
@@ -2565,10 +2612,9 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
          }
       }
 
-      if (p>5)  // Set body dshape values
+      if (p>5)  // set body dshape values
       {
          int firstBodyDof = 8 + 12*(p-1) +6*dofsPerFace;
-         // double bubbleVal = x*omx*y*omy*z*omz;
          
          int interior_total = 0;
          for (int i=0; i < p-5; i++) {
@@ -2584,19 +2630,6 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
             }
          }
       }
-   
-      // 2D code:
-      //
-      // int interior_total = 0;
-      // for (int j = 4; j < p + 1; j++)
-      // {
-      //    for (int k = 0; k < j-3; k++)
-      //    {
-      //       dshape(4 + 4*(p-1) + interior_total, 0) = legY[j-4-k]*y*(1-y) * (DlegX[k]*x*(1-x) + legX[k]*(1-2*x));        
-      //       dshape(4 + 4*(p-1) + interior_total, 1) = legX[k]*x*(1-x)     * (DlegY[j-4-k]*y*(1-y) + legY[j-4-k]*(1-2*y));
-      //       interior_total++;
-      //    }
-      // }
 
       delete[] legX;
       delete[] legY;
@@ -2607,9 +2640,13 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       delete storeLegendre;
    }
    
-   // cout << "fe: dshape is: " << endl;
-   // dshape.PrintShort();
-   // cout << endl;
+   // if (loopThruVtxs ==0)
+   // {
+   //    cout << "fe: some dshape values are: " << endl;
+   //    dshape.PrintShort();
+   //    cout << endl;
+   // }
+   // loopThruVtxs++;
 
    //       }
    //    }
@@ -2650,10 +2687,12 @@ void H1Ser_HexElement::GetLocalInterpolation(ElementTransformation &Trans,
 { 
    if (Order <= 4)
    {
+      cout << "fe: called H1Ser_Hex::GetLocalInterp --> Nodal version" << endl;
       NodalLocalInterpolation(Trans, I, *this); 
    }
    else
    {
+      cout << "fe: called H1Ser_Hex::GetLocalInterp --> Scalar version" << endl;
       ScalarLocalInterpolation(Trans, I, *this);
    }
 }
@@ -2663,6 +2702,9 @@ void H1Ser_HexElement::GetLocalInterpolation(ElementTransformation &Trans,
 void H1Ser_HexElement::Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const
 {
+
+   cout << "*** called H1Ser_Hex::Project" << endl;
+
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
    Vector x(vc.GetVDim());
 
