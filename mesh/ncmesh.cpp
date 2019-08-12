@@ -610,24 +610,25 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    if (IsGhost(el)) { return; }
    // TODO: ?
 
+   // select the right split depending on face orientation
+   char ref_type = 0;
    int* nodes = el.node;
    if (el.Geom() == Geometry::CUBE)
    {
-      // schedule the right split depending on face orientation
       if ((CubeFaceLeft(vn1, nodes) && CubeFaceRight(vn2, nodes)) ||
           (CubeFaceLeft(vn2, nodes) && CubeFaceRight(vn1, nodes)))
       {
-         ref_queue.Append(Refinement(elem, 1)); // X split
+         ref_type = 1; // X split
       }
       else if ((CubeFaceFront(vn1, nodes) && CubeFaceBack(vn2, nodes)) ||
                (CubeFaceFront(vn2, nodes) && CubeFaceBack(vn1, nodes)))
       {
-         ref_queue.Append(Refinement(elem, 2)); // Y split
+         ref_type = 2; // Y split
       }
       else if ((CubeFaceBottom(vn1, nodes) && CubeFaceTop(vn2, nodes)) ||
                (CubeFaceBottom(vn2, nodes) && CubeFaceTop(vn1, nodes)))
       {
-         ref_queue.Append(Refinement(elem, 4)); // Z split
+         ref_type = 4; // Z split
       }
       else
       {
@@ -639,12 +640,12 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
       if ((PrismFaceTop(vn1, nodes) && PrismFaceBottom(vn4, nodes)) ||
           (PrismFaceTop(vn4, nodes) && PrismFaceBottom(vn1, nodes)))
       {
-         ref_queue.Append(Refinement(elem, 3)); // XY split
+         ref_type = 3; // XY split
       }
       else if ((PrismFaceTop(vn1, nodes) && PrismFaceBottom(vn2, nodes)) ||
                (PrismFaceTop(vn2, nodes) && PrismFaceBottom(vn1, nodes)))
       {
-         ref_queue.Append(Refinement(elem, 4)); // Z split
+         ref_type = 4; // Z split
       }
       else
       {
@@ -655,6 +656,10 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    {
       MFEM_ABORT("Unsupported geometry.")
    }
+
+   // schedule the refinement
+   ref_queue.Append(Refinement(elem, ref_type));
+   el.flag = ref_type;
 }
 
 
@@ -875,6 +880,10 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    if (level > 0)
    {
       ForceRefinement(vn1, vn2, vn3, vn4);
+
+      // prepare an empty node consistent with the future forced refinement
+      // (since forced refinements are merely scheduled at this point)
+      GetMidEdgeNode(mid12, mid34);
    }
    //return 0;
 }
@@ -897,10 +906,15 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
 
 void NCMesh::RefineElement(int elem, char ref_type)
 {
+   Element &el = elements[elem];
+
+   // add forced refinement if one is pending (see ForceRefinement)
+   ref_type |= el.flag;
+   el.flag = 0;
+
    if (!ref_type) { return; }
 
    // handle elements that may have been (force-) refined already
-   Element &el = elements[elem];
    if (el.ref_type)
    {
       char remaining = ref_type & ~el.ref_type;
@@ -1438,7 +1452,6 @@ void NCMesh::RefineElement(int elem, char ref_type)
    std::memcpy(el.child, child, sizeof(el.child));
 }
 
-
 void NCMesh::Refine(const Array<Refinement>& refinements)
 {
 #if 0
@@ -1873,6 +1886,7 @@ void NCMesh::CollectLeafElements(int elem, int state)
       }
    }
    el.index = -1;
+   el.flag = 0;
 }
 
 void NCMesh::UpdateLeafElements()
@@ -1882,9 +1896,6 @@ void NCMesh::UpdateLeafElements()
    for (int i = 0; i < root_state.Size(); i++)
    {
       CollectLeafElements(i, root_state[i]);
-      // TODO: root state should not always be 0, we need a precomputed array
-      // with root element states to ensure continuity where possible, also
-      // optimized ordering of the root elements themselves (Gecko?)
    }
    AssignLeafIndices();
 }

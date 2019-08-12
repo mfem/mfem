@@ -173,10 +173,10 @@ int main(int argc, char *argv[])
       }
    }
 
-   {
+   /*{
       ofstream ofs("debug.mesh");
       mesh->ncmesh->DebugDump(ofs);
-   }
+   }*/
 
    // Test neighbor calculation
 #if 0
