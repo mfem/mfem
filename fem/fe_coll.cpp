@@ -1716,7 +1716,10 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 
             // **
             // ** Should throw some error here if p>=5 to indicate that the implemenation isn't finalized yet  **
-            cout << endl << "WARNING: Order p>4 serendipity elements in 3D are not yet working!" << endl;
+            if(p>4)
+            {
+               cout << endl << "WARNING: Order p>4 serendipity elements in 3D are not yet working!" << endl;
+            }
             // **
          }            
          else
