@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
    double t = 0.0;
    double dt = 1e-5;
    double t_final = dt;
-   ctx.prob_type = 1;
+   ctx.prob_type = 0;
    ctx.kinvis = 1.0 / 100000.0;
 
    OptionsParser args(argc, argv);
@@ -82,6 +82,7 @@ int main(int argc, char *argv[])
                   "-rs",
                   "--serial-ref-levels",
                   "Number of serial refinement levels.");
+   args.AddOption(&ctx.prob_type, "-prob", "--prob", ".");
    args.AddOption(&ctx.kinvis, "-kv", "--kinvis", ".");
    args.AddOption(&dt, "-dt", "--dt", ".");
    args.AddOption(&t_final, "-tf", "--final-time", ".");
@@ -261,10 +262,10 @@ int main(int argc, char *argv[])
    g_bdr_form->AddBoundaryIntegrator(
       new BoundaryNormalLFIntegrator(*u_ex_coeff));
 
-   VectorGridFunctionCoefficient Nu_gf_coeff(&Nu_gf);
-   ParLinearForm *Nu_bdr_form = new ParLinearForm(pres_fes);
-   Nu_bdr_form->AddBoundaryIntegrator(
-      new BoundaryNormalLFIntegrator(Nu_gf_coeff));
+   VectorGridFunctionCoefficient u_gf_coeff(&u_gf);
+   // ParLinearForm *Nu_bdr_form = new ParLinearForm(pres_fes);
+   // Nu_bdr_form->AddBoundaryIntegrator(
+   //    new BoundaryNormalLFIntegrator(Nu_gf_coeff));
 
    ConstantCoefficient lincoeff(dt * ctx.kinvis);
    ConstantCoefficient bdfcoeff(1.0);
@@ -281,7 +282,7 @@ int main(int argc, char *argv[])
    MvInv.SetPreconditioner(MvInvPC);
    MvInv.SetOperator(Mv);
    MvInv.SetPrintLevel(0);
-   MvInv.SetRelTol(1e-12);
+   MvInv.SetRelTol(1e-8);
    MvInv.SetMaxIter(50);
 
    HypreBoomerAMG SpInvPC = HypreBoomerAMG(Sp);
@@ -290,7 +291,7 @@ int main(int argc, char *argv[])
    SpInv.SetPreconditioner(SpInvPC);
    SpInv.SetOperator(Sp);
    SpInv.SetPrintLevel(0);
-   SpInv.SetRelTol(1e-12);
+   SpInv.SetRelTol(1e-8);
    SpInv.SetMaxIter(50);
 
    HypreBoomerAMG HInvPC = HypreBoomerAMG(H);
@@ -299,7 +300,7 @@ int main(int argc, char *argv[])
    HInv.SetPreconditioner(HInvPC);
    HInv.SetOperator(H);
    HInv.SetPrintLevel(0);
-   HInv.SetRelTol(1e-12);
+   HInv.SetRelTol(1e-8);
    HInv.SetMaxIter(50);
 
    char vishost[] = "localhost";
@@ -327,12 +328,22 @@ int main(int argc, char *argv[])
           << "pause\n"
           << endl;
 
+   ParGridFunction *u_err_gf = nullptr;
+   ParGridFunction *p_err_gf = nullptr;
+
    VisItDataCollection visit_dc("mms", pmesh);
    visit_dc.SetPrefixPath("output");
    visit_dc.SetCycle(0);
    visit_dc.SetTime(t);
    visit_dc.RegisterField("velocity", &u_gf);
    visit_dc.RegisterField("pressure", &p_gf);
+   if (ctx.prob_type == 0)
+   {
+      u_err_gf = new ParGridFunction(vel_fes);
+      p_err_gf = new ParGridFunction(pres_fes);
+      visit_dc.RegisterField("velocity_error", u_err_gf);
+      visit_dc.RegisterField("pressure_error", p_err_gf);
+   }
    visit_dc.Save();
 
    int order_quad = max(2, 2 * order + 1);
@@ -474,7 +485,7 @@ int main(int argc, char *argv[])
       tmpp_gf = 0.0;
       pn_gf.Distribute(pn);
 
-      // ortho(tmpp);
+      ortho(tmpp);
 
       pres_fes->GetRestrictionMatrix()->MultTranspose(tmpp, tmpp_gf);
       pn_gf = 0.0;
@@ -486,7 +497,7 @@ int main(int argc, char *argv[])
 
       pn_gf.GetTrueDofs(pn);
 
-      // ortho(pn);
+      ortho(pn);
 
       p_gf.Distribute(pn);
 
@@ -529,6 +540,13 @@ int main(int argc, char *argv[])
                 << *pmesh << p_gf << "window_title 'pressure t=" << t << "'"
                 << endl;
 
+         if (ctx.prob_type == 0)
+         {
+            u_err_gf->ProjectCoefficient(*u_ex_coeff);
+            p_err_gf->ProjectCoefficient(p_ex_coeff);
+            u_err_gf->Add(-1.0, u_gf);
+            p_err_gf->Add(-1.0, p_gf);
+         }
          visit_dc.SetCycle(step);
          visit_dc.SetTime(t);
          visit_dc.Save();
