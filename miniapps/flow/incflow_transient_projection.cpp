@@ -55,7 +55,15 @@ double p_ex(const Vector &x, double t)
 
 void ortho(Vector &v)
 {
-   v -= v.Sum() / v.Size();
+   double loc_sum = v.Sum();
+   double global_sum = 0.0;
+   int loc_size = v.Size();
+   int global_size = 0;
+
+   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+   v -= global_sum / static_cast<double>(global_size);
 }
 
 int main(int argc, char *argv[])
