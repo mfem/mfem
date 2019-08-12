@@ -24,6 +24,7 @@
 //               ex1 -m ../data/fichera-amr.mesh
 //               ex1 -m ../data/mobius-strip.mesh
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
+//               ex1 -m ../data/inline-quad.mesh -o 6 -ser
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
