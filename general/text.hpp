@@ -24,7 +24,7 @@ namespace mfem
 
 // Utilities for text parsing
 
-inline void skip_comment_lines(std::istream &is, const char comment_char)
+static inline void skip_comment_lines(std::istream &is, const char comment_char)
 {
    while (1)
    {
@@ -38,7 +38,7 @@ inline void skip_comment_lines(std::istream &is, const char comment_char)
 }
 
 // Check for, and remove, a trailing '\r'.
-inline void filter_dos(std::string &line)
+static inline void filter_dos(std::string &line)
 {
    if (!line.empty() && *line.rbegin() == '\r')
    {
@@ -47,7 +47,7 @@ inline void filter_dos(std::string &line)
 }
 
 // Convert an integer to a string
-inline std::string to_string(int i)
+static inline std::string to_string(int i)
 {
    std::stringstream ss;
    ss << i;
@@ -59,7 +59,7 @@ inline std::string to_string(int i)
 }
 
 // Convert an integer to a 0-padded string with the given number of 'digits'
-inline std::string to_padded_string(int i, int digits)
+static inline std::string to_padded_string(int i, int digits)
 {
    std::ostringstream oss;
    oss << std::setw(digits) << std::setfill('0') << i;
@@ -67,7 +67,7 @@ inline std::string to_padded_string(int i, int digits)
 }
 
 // Convert a string to an int
-inline int to_int(const std::string& str)
+static inline int to_int(const std::string& str)
 {
    int i;
    std::stringstream(str) >> i;

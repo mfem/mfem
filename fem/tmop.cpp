@@ -927,28 +927,36 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec)
 }
 #endif
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec)
+void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec, GridFunction &tspec2)
 {
    target_spec.SetSize(tspec.Size());
    target_spec = tspec;
    tspec_fes   = tspec.FESpace();
 
+   target_spec2.SetSize(tspec2.Size());
+   target_spec2 = tspec2;
+   tspec_fes2   = tspec2.FESpace();
+
+
    // Default evaluator is based on CG advection.
-   if (adapt_eval == NULL) { adapt_eval = new AdvectorCG; }
+   //if (adapt_eval == NULL) { adapt_eval = new AdvectorCG; }
+   //if (adapt_eval == NULL) { adapt_eval = new InterpolatorFP; }
 
    adapt_eval->SetSerialMetaInfo(*tspec.FESpace()->GetMesh(),
                                  *tspec.FESpace()->FEColl(),
                                  tspec.FESpace()->GetVDim());
 
    adapt_eval->SetInitialField
-         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
+         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec, target_spec2);
+
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
 {
    MFEM_VERIFY(target_spec.Size() > 0, "Target specification is not set!");
 
-   adapt_eval->ComputeAtNewPosition(new_x, target_spec);
+   adapt_eval->ComputeAtNewPosition(new_x, target_spec, target_spec2);
+   
 }
 
 void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
@@ -967,13 +975,17 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          const int dim = Wideal.Height(),
                    ntspec_dofs = tspec_fes->GetFE(0)->GetDof();
 
-         Vector shape(ntspec_dofs), tspec_vals(ntspec_dofs);
+         Vector shape(ntspec_dofs), tspec_vals(ntspec_dofs), tspec_vals2(ntspec_dofs);
          Array<int> dofs;
          tspec_fes->GetElementDofs(e_id, dofs);
          target_spec.GetSubVector(dofs, tspec_vals);
 
+         target_spec2.GetSubVector(dofs,tspec_vals2);
+         
+
          const double min_size = tspec_vals.Min();
-         MFEM_ASSERT(min_size > 0.0,
+         const double min_size2 = tspec_vals2.Min();
+         MFEM_VERIFY(min_size > 0.0,
                     "Non-positive size propagated in the target definition.");
 
          for (int i = 0; i < ir.GetNPoints(); i++)
@@ -981,8 +993,23 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             const IntegrationPoint &ip = ir.IntPoint(i);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
             const double size = std::max(shape * tspec_vals, min_size);
+            const double dx_dy = std::max(shape * tspec_vals2, min_size2);
+            
+            DenseMatrix t(2,2);
+            t(0,0) = 1.0;
+            t(1,0) = 0.0;
+            t(0,1) = 0.0;
+            t(1,1) = dx_dy;
+            double det = t.Det();
+            //std::cout << "det : " << det << std::endl;
+            //Jtr(i).Set(std::pow(size / det, 1.0/dim), t);
+
+            //Jtr(i).Set(1,t);
+
             Jtr(i).Set(std::pow(size / Wideal.Det(), 1.0/dim), Wideal);
+                  
          }
+
          break;
       }
       default:
@@ -1021,6 +1048,11 @@ AdaptivityEvaluator::~AdaptivityEvaluator()
    delete pmesh;
 #endif
 }
+
+ void DiscreteAdaptTC::GetTargetSpec(Vector &field)
+   {
+       field = target_spec;
+   }
 
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
                                      const GridFunction &dist, Coefficient &w0,

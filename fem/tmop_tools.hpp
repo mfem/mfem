@@ -15,6 +15,7 @@
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "tmop.hpp"
+#include "gslib.hpp"
 
 namespace mfem
 {
@@ -36,6 +37,34 @@ public:
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
 };
+
+
+class InterpolatorFP : public AdaptivityEvaluator
+{
+private:
+    Vector nodes0;
+    Vector field0;
+    Vector field2;
+    FindPointsGSLib finder;
+
+public:
+    InterpolatorFP() : AdaptivityEvaluator(), nodes0(), field0(), field2(){ }
+
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field,
+                                const Vector &init_field2);
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field, 
+                                     Vector &new_field2);
+    ~InterpolatorFP(){finder.FreeData();}
+};
+
+
+
+
+
+
 
 /// Performs a single remap advection step in serial.
 class SerialAdvectorCGOper : public TimeDependentOperator

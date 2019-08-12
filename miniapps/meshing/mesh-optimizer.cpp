@@ -61,21 +61,48 @@
 using namespace mfem;
 using namespace std;
 
+void DiffuseField(GridFunction &field, int smooth_steps)
+{
+      //Setup the Laplacian operator
+      BilinearForm *Lap = new BilinearForm(field.FESpace());
+      Lap->AddDomainIntegrator(new DiffusionIntegrator());
+      Lap->Assemble();
+      Lap->Finalize();
+
+      //Setup the smoothing operator
+      DSmoother *S = new DSmoother(0,1.0,smooth_steps);
+      S->iterative_mode = true;
+      S->SetOperator(Lap->SpMat());
+
+      Vector tmp(field.Size());
+      tmp = 0.0;
+      S->Mult(tmp, field);
+
+      delete S;
+      delete Lap;
+}
+
 double weight_fun(const Vector &x);
 
 double ind_values(const Vector &x)
 {
-   const int opt = 6;
+   const int opt = 7;
    const double small = 0.001, big = 0.01;
-
+   
    // Sine wave.
    if (opt==1)
    {
       const double X = x(0), Y = x(1);
-      const double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                         std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+      double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+                   std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+      
+      
+      if (ind > 1.0) {ind = 1.;}
+      if (ind < 0.0) {ind = 0.;}
+      const double small = 0.001, big = 0.01;
+      ind = ind * small + (1.0 - ind) * big;
 
-      return ind * small + (1.0 - ind) * big;
+      return ind;
    }
 
    if (opt==2)
@@ -89,6 +116,7 @@ double ind_values(const Vector &x)
       if (val > 1.) {val = 1;}
 
       return val * small + (1.0 - val) * big;
+      
    }
 
    if (opt == 3)
@@ -109,7 +137,7 @@ double ind_values(const Vector &x)
    {
       // Multiple circles
       double r1,r2,val,rval;
-      double sf = 10;
+      double sf = 25;
       val = 0.;
       // circle 1
       r1= 0.25; r2 = 0.25;rval = 0.1;
@@ -164,11 +192,26 @@ double ind_values(const Vector &x)
       const double xc = x(0) - 0.0, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
       double r1 = 0.45;double r2 = 0.55;double sf=30.0;
-      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+      val = 0.75*(1+std::tanh(sf*(r-r1))) - 0.75*(1+std::tanh(sf*(r-r2)));
       if (val > 1.) {val = 1;}
       if (val < 0.) {val = 0;}
-
+      //std::cout << "Val: " << val * small + (1.0 - val) * big << std::endl;
       return val * small + (1.0 - val) * big;
+   }
+
+   if (opt==7)
+   {
+      double val = 0.;
+      const double X = x(0); 
+      const double Y = x(1);
+      val =  0.25*std::sin(4*M_PI*X)+0.5;
+      
+      
+      if (Y > val) {val = 1.0;}
+      else {val = 0.0;}
+      //if (Y > 0.5 && X > 0.5){val = 1.0;}
+      //else {val = 0.000001;}
+      return val;
    }
 
    return 0.0;
@@ -232,7 +275,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-12;
+   double newton_rtol    = 1e-8;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -240,6 +283,8 @@ int main (int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
+   int aspect_ratio_flag = 0;
+   
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -306,6 +351,7 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&aspect_ratio_flag, "-ar", "--aspect_ratio", "Use aspect ratio and size.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
    args.Parse();
@@ -445,6 +491,11 @@ int main (int argc, char *argv[])
    H1_FECollection ind_fec(3, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    GridFunction size;
+   double error = 0.0;
+   GridFunction d_x;
+   GridFunction d_y;
+   GridFunction grad;
+   GridFunction aspect_ratio;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -456,18 +507,115 @@ int main (int argc, char *argv[])
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
          adapt_coeff = new HessianCoefficient(dim, 1);
          tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
-         target_c = tc;
+         target_c = tc; 
          break;
       }
       case 5:
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         tc->SetAdaptivityEvaluator(new InterpolatorFP);
          size.SetSpace(&ind_fes);
+         
+         d_x.SetSpace(&ind_fes);
+         d_y.SetSpace(&ind_fes);
+         grad.SetSpace(&ind_fes);
+         aspect_ratio.SetSpace(&ind_fes);
          FunctionCoefficient ind_coeff(ind_values);
          size.ProjectCoefficient(ind_coeff);
-         tc->SetSerialDiscreteTargetSpec(size);
-         target_c = tc;
+         error = size.ComputeL1Error(ind_coeff);
+
+         //Diffuse the interface
+         DiffuseField(size,12);
+
+         //Get  partials with respect to x and y of the grid function
+         size.GetDerivative(1,0,d_x);
+         size.GetDerivative(1,1,d_y);
+
+         //Compute the squared magnitude of the gradient
+         for (int i = 0; i < grad.Size(); i++)
+         {
+               grad(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
+         }
+         const double max = grad.Max();
+         
+         for (int i = 0; i < d_x.Size(); i++)
+         {
+               d_x(i) = std::abs(d_x(i));
+               d_y(i) = std::abs(d_y(i));
+         }
+         const double eps = 0.05;
+         const double ratio = 5.0;
+         const double big_small_ratio = 5.0;
+
+         for (int i = 0; i < grad.Size(); i++)
+         {
+               grad(i) = (grad(i)/max);
+               aspect_ratio(i) = (d_x(i)+eps)/(d_y(i)+eps);
+               if (aspect_ratio(i) > ratio){aspect_ratio(i) = ratio;}
+               if (aspect_ratio(i) < 1.0/ratio){aspect_ratio(i) = 1.0/ratio;}
+         }
+
+
+      
+
+         Vector vals;
+         const int NE = mesh->GetNE();
+         double volume = 0.0, volume_ind = 0.0;
+        
+         for (int i = 0; i < NE; i++)
+         {
+            ElementTransformation *Tr = mesh->GetElementTransformation(i);
+            const IntegrationRule &ir =
+               IntRules.Get(mesh->GetElementBaseGeometry(i), Tr->OrderJ());
+            grad.GetValues(i, ir, vals);
+            for (int j = 0; j < ir.GetNPoints(); j++)
+            {
+                 const IntegrationPoint &ip = ir.IntPoint(j);
+                 Tr->SetIntPoint(&ip);
+                 volume     += ip.weight * Tr->Weight();
+                 volume_ind += vals(j) * ip.weight * Tr->Weight();
+            }
+         }
+         const double avg_zone_size = volume / NE;
+
+         const double small_avg_ratio = (volume_ind + (volume - volume_ind) / big_small_ratio) /
+                               volume;
+
+         const double small_zone_size = small_avg_ratio * avg_zone_size;
+         const double big_zone_size   = big_small_ratio * small_zone_size;
+
+         std::cout << small_zone_size << " " << avg_zone_size << " " << big_zone_size << std::endl;
+   
+         for (int i = 0; i < grad.Size(); i++)
+         {
+             const double val = grad(i);
+             const double a = (big_zone_size - small_zone_size) / small_zone_size;
+             grad(i) = big_zone_size / (1.0+a*val);
+         }
+         DiffuseField(aspect_ratio, 50);
+         //DiffuseField(grad, 20);
+         
+         if (visualization)
+         {
+            osockstream sock(19916, "localhost");
+            sock << "solution\n";
+            mesh->Print(sock);
+            grad.Save(sock);
+            sock.send();
+            sock << "window_title 'Adaptivity Function'\n"
+                 << "window_geometry "
+                 << 0 << " " << 600 << " " << 600 << " " << 600 << "\n"
+                 << "keys jRmclA" << endl;
+         }         
+         if (aspect_ratio_flag == 0){
+             tc->SetSerialDiscreteTargetSpec(grad,grad);
+             target_c = tc;
+         }
+         if (aspect_ratio_flag == 1){
+             tc->SetSerialDiscreteTargetSpec(grad,aspect_ratio);
+             target_c = tc;
+         }
          break;
       }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
@@ -733,6 +881,30 @@ int main (int argc, char *argv[])
            << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
            << "keys jRmclA" << endl;
    }
+
+   /*if (visualization)
+         {
+            Vector buf;
+            dynamic_cast<DiscreteAdaptTC *>(target_c)->GetTargetSpec(buf);
+            GridFunction bufgf(&ind_fes);
+            bufgf = buf;
+            osockstream sock(19916, "localhost");
+      sock << "solution\n";
+      mesh->Print(sock);
+      bufgf.Save(sock);
+      sock.send();
+      sock << "window_title 'New Field'\n"
+           << "window_geometry "
+           << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
+           << "keys jRmclA" << endl;
+         }*/
+
+    GridFunction c2;
+   c2.SetSpace(&ind_fes);
+   FunctionCoefficient ind_coeff(ind_values);
+   c2.ProjectCoefficient(ind_coeff);
+   std::cout << "L1 Error Before: " << error << std::endl;
+   std::cout << "L1 Error After:  " << c2.ComputeL1Error(ind_coeff) << std::endl;
 
    // 24. Free the used memory.
    delete S;

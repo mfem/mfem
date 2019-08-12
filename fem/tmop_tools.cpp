@@ -118,6 +118,137 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    delete oper;
 }
 
+
+
+void InterpolatorFP::SetInitialField(const Vector &init_nodes,
+                                     const Vector &init_field,
+                                     const Vector &init_field2)
+{
+   nodes0 = init_nodes;
+   field0 = init_field;
+   field2 = init_field2;
+   Mesh *m = mesh;
+   mesh->SetNodes(nodes0);
+   
+   const double rel_bbox_el = 0.05;
+   const double newton_tol  = 1.0e-12;
+   const int npts_at_once   = 256;
+   finder.Setup(*mesh, rel_bbox_el, newton_tol, npts_at_once);
+}
+
+void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
+                                          Vector &new_field,
+                                          Vector &new_field2)
+{
+
+   mesh->SetNodes(new_nodes);
+
+   GridFunction field_in(fes);
+   field_in = field0;
+   
+   // The size is 2 * the number of elements * the number of integration points 
+   const int size = 2 * (mesh->GetNE()) * (fes->GetFE(0)->GetNodes().GetNPoints());
+
+   // Positions to be found.  Ordered in (XXX...,YYY...)
+   Vector positionsToFind(size);
+   
+   // Number of points to search for
+   const int pts_cnt = positionsToFind.Size()/2;
+
+
+   Vector pos(2);
+   Array<int> dofs;
+   for (int i = 0; i < mesh->GetNE(); i++){
+         const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
+         fes->GetElementDofs(i, dofs);
+         
+         for (int j = 0; j < ir.GetNPoints(); j++){
+             
+             const IntegrationPoint &ip = ir.IntPoint(j);
+             ElementTransformation *et = mesh->GetElementTransformation(i);
+             et->Transform(ip, pos);
+
+             
+             positionsToFind(dofs[j]) = pos(0);
+             positionsToFind(dofs[j]+pts_cnt) = pos(1);
+ 
+         }
+   }
+
+   
+
+   // Interpolate FE function values on the found points.
+   Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
+   Vector pos_r_out(pts_cnt*2), dist_p_out(pts_cnt);
+
+   
+   finder.FindPoints(positionsToFind, code_out, task_id_out,
+                     el_id_out, pos_r_out, dist_p_out);
+   
+   Vector interp_vals(pts_cnt);
+   finder.Interpolate(code_out, task_id_out, el_id_out,
+                      pos_r_out, field_in, interp_vals);
+
+    int face_pts = 0, not_found = 0, found = 0;
+
+   for (int i = 0; i < pts_cnt; i++)
+   {
+      if (code_out[i] < 2)
+      {
+         found++;
+        
+         if (code_out[i] == 1) { face_pts++; }
+      }
+      else { not_found++; }
+   }
+
+   /*std::cout  << "Searched points:     "   << pts_cnt
+        << "\nFound points:        " << found
+        << "\nPoints not found:    " << not_found
+        << "\nPoints on faces:     " << face_pts << std::endl;*/
+   
+   new_field = interp_vals;
+   // interpolate second field
+   field_in = field2;
+   
+
+   // Interpolate FE function values on the found points.
+   
+   
+   finder.FindPoints(positionsToFind, code_out, task_id_out,
+                     el_id_out, pos_r_out, dist_p_out);
+   
+   finder.Interpolate(code_out, task_id_out, el_id_out,
+                      pos_r_out, field_in, interp_vals);
+
+    face_pts = 0;
+    not_found = 0;
+    found = 0;
+
+   for (int i = 0; i < pts_cnt; i++)
+   {
+      if (code_out[i] < 2)
+      {
+         found++;
+        
+         if (code_out[i] == 1) { face_pts++; }
+      }
+      else { not_found++; }
+   }
+
+   /*std::cout  << "Searched points 2:     "   << pts_cnt
+        << "\nFound points 2:        " << found
+        << "\nPoints not found 2:    " << not_found
+        << "\nPoints on faces 2:     " << face_pts << std::endl;*/
+   
+   new_field2 = interp_vals;
+
+}
+
+
+
+
+
 SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
                                            GridFunction &vel,
                                            FiniteElementSpace &fes)

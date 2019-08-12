@@ -15,6 +15,9 @@
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
 
+#include <fstream>
+#include <iostream>
+
 namespace mfem
 {
 
@@ -553,10 +556,12 @@ public:
 
    // TODO use GridFunctions to make clear it's on the ldofs?
    virtual void SetInitialField(const Vector &init_nodes,
-                                const Vector &init_field) = 0;
+                                const Vector &init_field,
+                                const Vector &init_field2) = 0;
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field) = 0;
+                                     Vector &new_field,
+                                     Vector &new_field2) = 0;
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -677,22 +682,23 @@ protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
    Vector target_spec;
+   Vector target_spec2;
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
    const FiniteElementSpace *tspec_fes;
+   const FiniteElementSpace *tspec_fes2;
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
    AdaptivityEvaluator *adapt_eval;
-
 public:
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
-        target_spec(), tspec_fes(NULL), adapt_eval(NULL) { }
+        target_spec(),tspec_fes(NULL), tspec_fes2(NULL), adapt_eval(NULL) { }
 
-   virtual ~DiscreteAdaptTC() { delete adapt_eval; }
+   virtual ~DiscreteAdaptTC() { delete adapt_eval;}
 
-   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec);
+   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec1, GridFunction &tspec2);
 #ifdef MFEM_USE_MPI
    virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec);
 #endif
@@ -716,8 +722,8 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+                                      void GetTargetSpec(Vector &field);
 };
-
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
 
