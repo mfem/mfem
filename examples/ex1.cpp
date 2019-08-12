@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool use_serendip = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -80,6 +81,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity",
+                  "-no-ser", "--not-serendipity",
+                  "Use serendipity element collection.");
    args.Parse();
    if (!args.Good())
    {
@@ -106,10 +110,10 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+   for (int l = 0; l < ref_levels; l++)
+   {
+      mesh->UniformRefinement();
+   }
    }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
@@ -118,7 +122,14 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+      if (use_serendip)
+      {
+         fec = new H1Ser_FECollection(order, dim);
+      }
+      else
+      {
+         fec = new H1_FECollection(order, dim);
+      }
    }
    else if (mesh->GetNodes())
    {
