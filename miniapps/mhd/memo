@@ -41,6 +41,25 @@ time 2281
 
 add SDIRK and mid-point stepping
 
+this is okay (change mesh to a single mesh)
+
+ok
+mpirun -n 6 imMHDp -m meshes/xperiodic1.mesh -rs 4 -rp 2 -o 3 -i 3 -vs 1 -tf .1 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+  total number of linear solver iterations=15
+
+not ok
+mpirun -n 6 imMHDp -m meshes/xperiodic1.mesh -rs 5 -rp 2 -o 3 -i 3 -vs 1 -tf .1 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+
+ok
+mpirun -n 4 imMHDp -rs 4 -rp 2 -o 2 -i 2 -vs 1 -tf 5 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+
+ok
+mpirun -n 6 imMHDp -rs 5 -rp 2 -o 2 -i 2 -vs 1 -tf 1 -dt 1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+let mffd be 1e-4 becomes much better?!
+
+check the allocation part, is it slow??
+mpirun -n 6 imMHDp -rs 5 -rp 3 -o 2 -i 2 -vs 1 -tf 1 -dt 1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+
 
 8/8
 probably need to change Sc to nontranspose version? No

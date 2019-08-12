@@ -420,9 +420,17 @@ int main(int argc, char *argv[])
         dc = new VisItDataCollection("case1", pmesh);
         dc->RegisterField("psiPer", &psiPer);
       }
-      else
+      else if (icase==2)
       {
         dc = new VisItDataCollection("case2", pmesh);
+        dc->RegisterField("psiPer", &psiPer);
+        dc->RegisterField("psi", &psi);
+        dc->RegisterField("phi", &phi);
+        dc->RegisterField("omega", &w);
+      }
+      else
+      {
+        dc = new VisItDataCollection("case3", pmesh);
         dc->RegisterField("psiPer", &psiPer);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("phi", &phi);
@@ -475,15 +483,6 @@ int main(int argc, char *argv[])
          if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
          psi.SetFromTrueVector();
          subtract(psi,psiBack,psiPer);
-         
-         /*
-         ofstream myfile2("psiBack.dat");
-         psiBack.Print(myfile2, 10);
-         ofstream myfile1("psi.dat");
-         psi.Print(myfile1, 10);
-         ofstream myfile0("psiPer.dat");
-         psiPer.Print(myfile0, 10);
-         */
 
          if (visualization)
          {
@@ -510,6 +509,11 @@ int main(int argc, char *argv[])
 
          if (visit)
          {
+            if (icase!=1)
+            {
+              phi.SetFromTrueVector();
+              w.SetFromTrueVector();
+            }
             dc->SetCycle(ti);
             dc->SetTime(t);
             dc->Save();

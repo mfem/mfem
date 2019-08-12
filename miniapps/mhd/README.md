@@ -104,9 +104,17 @@ glvis -np 4 -m mesh -g sol_phi -k "mmc" -ww 800 -wh 800
 This example is similar with the explicit run except for refined by a factor of 2, but we note that we take a much larger time step dt=5. It demonstrates the advantage of physics-based preconditioning.
 Implicit solvers will show a even more significant speedup as we refine the mesh.
 
+#### Building on NERSC
+The changes are
+```
+./configure CC=cc CXX=CC --with-fc=0 --download-hypre --with-debugging=0 --with-valgrind=0 --with-cxx-dialect=C++11
+make config MFEM_USE_MPI=YES MFEM_DEBUG=YES MFEM_USE_PETSC=YES MPICXX=CC MFEM_MPIEXEC=srun MFEM_MPIEXEC_NP=-n
+```
+The rest steps are identical.
+
 # FAQs
 
-### How could I visualize the solutions?
+#### How could I visualize the solutions?
 Two options are provided:
 * GLVis
   * Before the run, if one opens a glvis in another terminal, some solutions will be plotted automatically.
@@ -118,17 +126,17 @@ glvis -np 4 -m mesh -g sol_phi -k "mmc" -ww 800 -wh 800
   adding a flag `-visit` will output all the solutions in the visit format.
 
 
-### What examples are provided?
+#### What examples are provided?
 * Case `-i 1`: Wave Propagation (5.1.1) in [An implicit, nonlinear reduced resistive MHD solver. JCP 2002]. Identical setup.
 * Case `-i 2` Tearing Mode (5.1.2) in [An implicit, nonlinear reduced resistive MHD solver. JCP 2002]. Identical setup.
 * Case `-i 3`: Island Coalescence (5.2) in [Implicit adaptive mesh refinement for 2D reduced resistive magnetohydrodynamics, JCP 2008]. Identical setup.
 
-### Where has the code been built and tested?
+#### Where has the code been built and tested?
 * Mac OS
 * Linux 
 * Many HPC including LANL and NERSC machines
 
-### Why do the implicit solvers complain about hypre? 
+#### Why do the implicit solvers complain about hypre? 
 It is likely there are two different versions of hypre linked in the code.
 One needs to make sure there is only one version of hypre seen by mfem.
 We recommend to link mfem with the hypre installed by PETSc.
@@ -136,7 +144,7 @@ Please also avoid linking your local hypre with PETSc.
 
 
 
-### Why mfem produces an error on cori at NERSC?
+#### Why mfem produces an error on cori at NERSC?
 There is a known compiler bug (https://github.com/mfem/mfem/issues/956) on cori. It can be fixed by
 ```
 --- a/linalg/densemat.cpp
@@ -152,8 +160,7 @@ There is a known compiler bug (https://github.com/mfem/mfem/issues/956) on cori.
              }
 ```
 
-### Could I use glvis on cori?
-
+#### Could I use glvis on cori?
 We were not able to build glvis on cori. 
 Visit is probably easier to build there.
 
