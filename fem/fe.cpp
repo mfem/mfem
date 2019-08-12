@@ -1756,61 +1756,61 @@ void BiQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 
 
-H1Ser_SegmentElement::H1Ser_SegmentElement(const int p)
-   : ScalarFiniteElement(1, Geometry::SEGMENT, p+1, p, FunctionSpace::Pk)
-{
-   cout << " **** Calling H1Ser_SegmentElement - this is unusual *** " << endl;
-   Nodes.IntPoint(0).x = 0.0;
-   Nodes.IntPoint(1).x = 1.0;
-   for (int i = 1; i < p; i++)
-   {
-      Nodes.IntPoint(i+1).x = double(i)/p; // set equispaced nodes
-   }
-}
+// H1Ser_SegmentElement::H1Ser_SegmentElement(const int p)
+//    : ScalarFiniteElement(1, Geometry::SEGMENT, p+1, p, FunctionSpace::Pk)
+// {
+//    cout << " **** Calling H1Ser_SegmentElement - this is unusual *** " << endl;
+//    Nodes.IntPoint(0).x = 0.0;
+//    Nodes.IntPoint(1).x = 1.0;
+//    for (int i = 1; i < p; i++)
+//    {
+//       Nodes.IntPoint(i+1).x = double(i)/p; // set equispaced nodes
+//    }
+// }
 
-void H1Ser_SegmentElement::CalcShape(const IntegrationPoint &ip,
-                                     Vector &shape) const
-{
-   int p = (this)->GetOrder();
+// void H1Ser_SegmentElement::CalcShape(const IntegrationPoint &ip,
+//                                      Vector &shape) const
+// {
+//    int p = (this)->GetOrder();
 
-   double x = ip.x;  
-   shape(0) = (1. - x);
-   shape(1) = x;
-   shape(2) = 2* x * (1. - x);
+//    double x = ip.x;  
+//    shape(0) = (1. - x);
+//    shape(1) = x;
+//    shape(2) = 2* x * (1. - x);
 
-   if(p >= 3)
-   {
-      double *legX = new double[p-1];
-      Poly_1D *storeLegendre = new Poly_1D();
-      storeLegendre->CalcLegendre(p-2, x , legX);
-      for (int i = 3; i < p+1; i++)
-      {
-         shape(i) = legX[i-2]*shape(2);
-      }
-      delete[] legX;
-      delete storeLegendre;
-   }
-}
+//    if(p >= 3)
+//    {
+//       double *legX = new double[p-1];
+//       Poly_1D *storeLegendre = new Poly_1D();
+//       storeLegendre->CalcLegendre(p-2, x , legX);
+//       for (int i = 3; i < p+1; i++)
+//       {
+//          shape(i) = legX[i-2]*shape(2);
+//       }
+//       delete[] legX;
+//       delete storeLegendre;
+//    }
+// }
 
 
 
-void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
-                                      DenseMatrix &dshape) const
-{
-   int p = (this)->GetOrder();
+// void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
+//                                       DenseMatrix &dshape) const
+// {
+//    int p = (this)->GetOrder();
 
-   cout << "fe.cpp: calling H1Ser_SegmentElement::CalcDShape... this is unusual" << endl;
+//    cout << "fe.cpp: calling H1Ser_SegmentElement::CalcDShape... this is unusual" << endl;
 
-   double x = ip.x;
+//    double x = ip.x;
    
-   dshape(0,0) = -1.;
-   dshape(1,0) = 1.;
-   dshape(2,0) = -4. * x + 2.;
-   if(p == 3)
-   {   
-      dshape(3,0) = -2.*(-1.+x)*x*(-1.+2.*x);
-   }
-}
+//    dshape(0,0) = -1.;
+//    dshape(1,0) = 1.;
+//    dshape(2,0) = -4. * x + 2.;
+//    if(p == 3)
+//    {   
+//       dshape(3,0) = -2.*(-1.+x)*x*(-1.+2.*x);
+//    }
+// }
 
 
 
