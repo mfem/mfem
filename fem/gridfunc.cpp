@@ -28,7 +28,7 @@ namespace mfem
 using namespace std;
 
 GridFunction::GridFunction(Mesh *m, std::istream &input)
-    : Vector()
+   : Vector()
 {
    // Grid functions are stored on the device
    UseDevice(true);
@@ -317,7 +317,7 @@ int GridFunction::VectorDim() const
    {
       const FiniteElementCollection *fec = fes->FEColl();
       static const Geometry::Type geoms[3] =
-          {Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON};
+      {Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON};
       fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension() - 1]);
    }
    else
@@ -372,7 +372,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
    fes->GetElementVDofs(i, vdofs);
    const FiniteElement *FElem = fes->GetFE(i);
    const IntegrationRule *ElemVert =
-       Geometries.GetVertices(FElem->GetGeomType());
+      Geometries.GetVertices(FElem->GetGeomType());
    int dof = FElem->GetDof();
    int n = ElemVert->GetNPoints();
    nval.SetSize(n);
@@ -405,7 +405,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
 }
 
 double GridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
-    const
+const
 {
    Array<int> dofs;
    fes->GetElementDofs(i, dofs);
@@ -455,7 +455,7 @@ void GridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
 
 void GridFunction::GetValues(int i, const IntegrationRule &ir, Vector &vals,
                              int vdim)
-    const
+const
 {
    Array<int> dofs;
    int n = ir.GetNPoints();
@@ -477,7 +477,7 @@ void GridFunction::GetValues(int i, const IntegrationRule &ir, Vector &vals,
 
 void GridFunction::GetValues(int i, const IntegrationRule &ir, Vector &vals,
                              DenseMatrix &tr, int vdim)
-    const
+const
 {
    ElementTransformation *ET;
    ET = fes->GetElementTransformation(i);
@@ -500,7 +500,7 @@ int GridFunction::GetFaceValues(int i, int side, const IntegrationRule &ir,
       Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
       if (Transf->Elem2No < 0 ||
           fes->GetAttribute(Transf->Elem1No) <=
-              fes->GetAttribute(Transf->Elem2No))
+          fes->GetAttribute(Transf->Elem2No))
       {
          dir = 0;
       }
@@ -591,8 +591,8 @@ void GridFunction::GetVectorValues(int i, const IntegrationRule &ir,
 }
 
 int GridFunction::GetFaceVectorValues(
-    int i, int side, const IntegrationRule &ir,
-    DenseMatrix &vals, DenseMatrix &tr) const
+   int i, int side, const IntegrationRule &ir,
+   DenseMatrix &vals, DenseMatrix &tr) const
 {
    int n, di;
    FaceElementTransformations *Transf;
@@ -604,7 +604,7 @@ int GridFunction::GetFaceVectorValues(
    {
       if (Transf->Elem2No < 0 ||
           fes->GetAttribute(Transf->Elem1No) <=
-              fes->GetAttribute(Transf->Elem2No))
+          fes->GetAttribute(Transf->Elem2No))
       {
          di = 0;
       }
@@ -663,7 +663,7 @@ void GridFunction::GetValuesFrom(const GridFunction &orig_func)
          for (d = 0; d < vdim; d++)
          {
             loc_values(d * dof + j) =
-                shape * ((const double *)orig_loc_values + d * odof);
+               shape * ((const double *)orig_loc_values + d * odof);
          }
       }
       SetSubVector(vdofs, loc_values);
@@ -700,7 +700,7 @@ void GridFunction::GetBdrValuesFrom(const GridFunction &orig_func)
          for (d = 0; d < vdim; d++)
          {
             loc_values(d * dof + j) =
-                shape * ((const double *)orig_loc_values + d * odof);
+               shape * ((const double *)orig_loc_values + d * odof);
          }
       }
       SetSubVector(vdofs, loc_values);
@@ -708,8 +708,8 @@ void GridFunction::GetBdrValuesFrom(const GridFunction &orig_func)
 }
 
 void GridFunction::GetVectorFieldValues(
-    int i, const IntegrationRule &ir, DenseMatrix &vals,
-    DenseMatrix &tr, int comp) const
+   int i, const IntegrationRule &ir, DenseMatrix &vals,
+   DenseMatrix &tr, int comp) const
 {
    Array<int> vdofs;
    ElementTransformation *transf;
@@ -791,7 +791,7 @@ void GridFunction::GetVectorFieldNodalValues(Vector &val, int comp) const
    for (i = 0; i < fes->GetNE(); i++)
    {
       const IntegrationRule *ir =
-          Geometries.GetVertices(fes->GetFE(i)->GetGeomType());
+         Geometries.GetVertices(fes->GetFE(i)->GetGeomType());
       fes->GetElementVertices(i, vertices);
       GetVectorFieldValues(i, *ir, vals, tr);
       for (k = 0; k < ir->GetNPoints(); k++)
@@ -881,7 +881,10 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
       loc_func.SetSize(dof);
       transf = fes->GetElementTransformation(i);
       for (j = 0; j < dof; j++)
-         loc_func(j) = ((ind = vdofs[comp * dof + j]) >= 0) ? (data[ind]) : (-data[-1 - ind]);
+      {
+         loc_func(j) = ((ind = vdofs[comp * dof + j]) >= 0) ? (data[ind]) :
+                       (-data[-1 - ind]);
+      }
       for (k = 0; k < der_dof; k++)
       {
          const IntegrationPoint &ip = ir.IntPoint(k);
@@ -906,7 +909,7 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
 }
 
 void GridFunction::GetVectorGradientHat(
-    ElementTransformation &T, DenseMatrix &gh) const
+   ElementTransformation &T, DenseMatrix &gh) const
 {
    int elNo = T.ElementNo;
    const FiniteElement *FElem = fes->GetFE(elNo);
@@ -1053,7 +1056,7 @@ void GridFunction::GetGradients(ElementTransformation &tr,
 }
 
 void GridFunction::GetVectorGradient(
-    ElementTransformation &tr, DenseMatrix &grad) const
+   ElementTransformation &tr, DenseMatrix &grad) const
 {
    MFEM_ASSERT(fes->GetFE(tr.ElementNo)->GetMapType() == FiniteElement::VALUE,
                "invalid FE map type");
@@ -1229,7 +1232,8 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
                                            AvgType type,
                                            Array<int> &zones_per_vdof)
 {
-   cout << "gridfunc.cpp: Doing accum + count zeros (includes Project call)" << endl;
+   cout << "gridfunc.cpp: Doing accum + count zeros (includes Project call)" <<
+        endl;
    zones_per_vdof.SetSize(fes->GetVSize());
    zones_per_vdof = 0;
 
@@ -1322,8 +1326,8 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
 }
 
 void GridFunction::AccumulateAndCountBdrValues(
-    Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr,
-    Array<int> &values_counter)
+   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr,
+   Array<int> &values_counter)
 {
    int i, j, fdof, d, ind, vdim;
    double val; // maybe not used, or in wrong scope?
@@ -1374,7 +1378,7 @@ void GridFunction::AccumulateAndCountBdrValues(
          rhs[j] = coeff[0]->Eval(*transf, ip);
       }
       V.Transpose();
-      
+
       // cout << "gridfunc: V is: " << endl;
       // V.PrintShort();
       // cout << endl;
@@ -1539,8 +1543,8 @@ static void accumulate_dofs(const Array<int> &dofs, const Vector &vals,
 }
 
 void GridFunction::AccumulateAndCountBdrTangentValues(
-    VectorCoefficient &vcoeff, Array<int> &bdr_attr,
-    Array<int> &values_counter)
+   VectorCoefficient &vcoeff, Array<int> &bdr_attr,
+   Array<int> &values_counter)
 {
    const FiniteElement *fe;
    ElementTransformation *T;
@@ -1594,30 +1598,30 @@ void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
 {
    switch (type)
    {
-   case ARITHMETIC:
-      for (int i = 0; i < size; i++)
-      {
-         const int nz = zones_per_vdof[i];
-         if (nz)
+      case ARITHMETIC:
+         for (int i = 0; i < size; i++)
          {
-            (*this)(i) /= nz;
+            const int nz = zones_per_vdof[i];
+            if (nz)
+            {
+               (*this)(i) /= nz;
+            }
          }
-      }
-      break;
+         break;
 
-   case HARMONIC:
-      for (int i = 0; i < size; i++)
-      {
-         const int nz = zones_per_vdof[i];
-         if (nz)
+      case HARMONIC:
+         for (int i = 0; i < size; i++)
          {
-            (*this)(i) = nz / (*this)(i);
+            const int nz = zones_per_vdof[i];
+            if (nz)
+            {
+               (*this)(i) = nz / (*this)(i);
+            }
          }
-      }
-      break;
+         break;
 
-   default:
-      MFEM_ABORT("invalud AvgType");
+      default:
+         MFEM_ABORT("invalud AvgType");
    }
 }
 
@@ -1716,7 +1720,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
 }
 
 void GridFunction::ProjectCoefficient(
-    Coefficient &coeff, Array<int> &dofs, int vd)
+   Coefficient &coeff, Array<int> &dofs, int vd)
 {
    int el = -1;
    ElementTransformation *T = NULL;
@@ -1755,7 +1759,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 }
 
 void GridFunction::ProjectCoefficient(
-    VectorCoefficient &vcoeff, Array<int> &dofs)
+   VectorCoefficient &vcoeff, Array<int> &dofs)
 {
    int el = -1;
    ElementTransformation *T = NULL;
@@ -1915,7 +1919,7 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 }
 
 void GridFunction::ProjectBdrCoefficientNormal(
-    VectorCoefficient &vcoeff, Array<int> &bdr_attr)
+   VectorCoefficient &vcoeff, Array<int> &bdr_attr)
 {
 #if 0
    // implementation for the case when the face dofs are integrals of the
@@ -1986,7 +1990,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
 }
 
 void GridFunction::ProjectBdrCoefficientTangent(
-    VectorCoefficient &vcoeff, Array<int> &bdr_attr)
+   VectorCoefficient &vcoeff, Array<int> &bdr_attr)
 {
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
@@ -2003,7 +2007,7 @@ void GridFunction::ProjectBdrCoefficientTangent(
 }
 
 double GridFunction::ComputeL2Error(
-    Coefficient *exsol[], const IntegrationRule *irs[]) const
+   Coefficient *exsol[], const IntegrationRule *irs[]) const
 {
    double error = 0.0, a;
    const FiniteElement *fe;
@@ -2059,8 +2063,8 @@ double GridFunction::ComputeL2Error(
 }
 
 double GridFunction::ComputeL2Error(
-    VectorCoefficient &exsol, const IntegrationRule *irs[],
-    Array<int> *elems) const
+   VectorCoefficient &exsol, const IntegrationRule *irs[],
+   Array<int> *elems) const
 {
    double error = 0.0;
    const FiniteElement *fe;
@@ -2107,8 +2111,8 @@ double GridFunction::ComputeL2Error(
 }
 
 double GridFunction::ComputeH1Error(
-    Coefficient *exsol, VectorCoefficient *exgrad,
-    Coefficient *ell_coeff, double Nu, int norm_type) const
+   Coefficient *exsol, VectorCoefficient *exgrad,
+   Coefficient *ell_coeff, double Nu, int norm_type) const
 {
    // assuming vdim is 1
    int i, fdof, dim, intorder, j, k;
@@ -2179,7 +2183,7 @@ double GridFunction::ComputeH1Error(
             }
          intorder = 2 * intorder; // <-------------
          const IntegrationRule &ir =
-             IntRules.Get(face_elem_transf->FaceGeom, intorder);
+            IntRules.Get(face_elem_transf->FaceGeom, intorder);
          err_val.SetSize(ir.GetNPoints());
          ell_coeff_val.SetSize(ir.GetNPoints());
          // side 1
@@ -2255,7 +2259,7 @@ double GridFunction::ComputeH1Error(
 }
 
 double GridFunction::ComputeMaxError(
-    Coefficient *exsol[], const IntegrationRule *irs[]) const
+   Coefficient *exsol[], const IntegrationRule *irs[]) const
 {
    double error = 0.0, a;
    const FiniteElement *fe;
@@ -2312,8 +2316,8 @@ double GridFunction::ComputeMaxError(
 }
 
 double GridFunction::ComputeW11Error(
-    Coefficient *exsol, VectorCoefficient *exgrad, int norm_type,
-    Array<int> *elems, const IntegrationRule *irs[]) const
+   Coefficient *exsol, VectorCoefficient *exgrad, int norm_type,
+   Array<int> *elems, const IntegrationRule *irs[]) const
 {
    // assuming vdim is 1
    int i, fdof, dim, intorder, j, k;
@@ -2444,7 +2448,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       else
       {
          int intorder = 2 * fe->GetOrder() + 1; // <----------
-                                                // cout << "******** gridfunc.cpp: intorder = " << intorder << endl;
+         // cout << "******** gridfunc.cpp: intorder = " << intorder << endl;
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       GetValues(i, *ir, vals);
@@ -2791,7 +2795,7 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
-             mesh->GetElementBaseGeometry(i), ref, 1);
+                   mesh->GetElementBaseGeometry(i), ref, 1);
 
          GetValues(i, RefG->RefPts, val, pmat);
 
@@ -2808,7 +2812,7 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
-             mesh->GetElementBaseGeometry(i), ref, 1);
+                   mesh->GetElementBaseGeometry(i), ref, 1);
 
          GetVectorValues(i, RefG->RefPts, vval, pmat);
 
@@ -2837,7 +2841,7 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             RefG = GlobGeometryRefiner.Refine(
-                mesh->GetElementBaseGeometry(i), ref, 1);
+                      mesh->GetElementBaseGeometry(i), ref, 1);
 
             GetValues(i, RefG->RefPts, val, pmat, vd + 1);
 
@@ -2858,7 +2862,8 @@ void GridFunction::SaveSTLTri(std::ostream &out, double p1[], double p2[],
    double v2[3] = {p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2]};
    double n[] = {v1[1] * v2[2] - v1[2] * v2[1],
                  v1[2] * v2[0] - v1[0] * v2[2],
-                 v1[0] * v2[1] - v1[1] * v2[0]};
+                 v1[0] * v2[1] - v1[1] * v2[0]
+                };
    double rl = 1.0 / sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
    n[0] *= rl;
    n[1] *= rl;
@@ -2890,7 +2895,7 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
    out << "solid GridFunction\n";
 
    bbox[0][0] = bbox[0][1] = bbox[1][0] = bbox[1][1] =
-       bbox[2][0] = bbox[2][1] = 0.0;
+                                             bbox[2][0] = bbox[2][1] = 0.0;
    for (i = 0; i < mesh->GetNE(); i++)
    {
       Geometry::Type geom = mesh->GetElementBaseGeometry(i);
@@ -3167,7 +3172,7 @@ double ExtrudeCoefficient::Eval(ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
    ElementTransformation *T_in =
-       mesh_in->GetElementTransformation(T.ElementNo / n);
+      mesh_in->GetElementTransformation(T.ElementNo / n);
    T_in->SetIntPoint(&ip);
    return sol_in.Eval(*T_in, ip);
 }
