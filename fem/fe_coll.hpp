@@ -120,7 +120,7 @@ public:
       : H1_FECollection(p, dim, BasisType::Positive) { }
 };
 
-/** Arbitrary order H1-conforming (continuous) serendipity finite elements; 
+/** Arbitrary order H1-conforming (continuous) serendipity finite elements;
  *  current implemenation works for arbitrary order in 2D but only up through
  *  order 4 in 3D.  Higher order bases in 3D are available but are non-nodal.
 */
@@ -128,7 +128,7 @@ class H1Ser_FECollection : public H1_FECollection
 {
 public:
    explicit H1Ser_FECollection(const int p, const int dim = 2)
-     : H1_FECollection(p, dim, BasisType::Serendipity) { };
+      : H1_FECollection(p, dim, BasisType::Serendipity) { };
 };
 
 /** Arbitrary order "H^{1/2}-conforming" trace finite elements defined on the

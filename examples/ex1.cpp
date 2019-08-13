@@ -111,10 +111,10 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-   for (int l = 0; l < ref_levels; l++)
-   {
-      mesh->UniformRefinement();
-   }
+      for (int l = 0; l < ref_levels; l++)
+      {
+         mesh->UniformRefinement();
+      }
    }
 
    // 5. Define a finite element space on the mesh. Here we use continuous

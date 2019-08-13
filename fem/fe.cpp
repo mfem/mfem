@@ -1752,14 +1752,16 @@ void BiQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 
 
 H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
-  : ScalarFiniteElement(2, Geometry::SQUARE, (p*p + 3*p +6) / 2, p, FunctionSpace::Qk)
+   : ScalarFiniteElement(2, Geometry::SQUARE, (p*p + 3*p +6) / 2, p,
+                         FunctionSpace::Qk)
 {
    // ***  Do we want FunctionSpace = Pk or Qk for serendipity elements?   ***
 
    // Store the dof_map of the associated TensorBasisElement, which will be used to create the
    // serendipity dof map.  Its size is larger than the size of the serendipity element.
-   TensorBasisElement *tbeTemp = new TensorBasisElement(2, p, BasisType::GaussLobatto,
-                                          TensorBasisElement::DofMapType::Sr_DOF_MAP);
+   TensorBasisElement *tbeTemp = new TensorBasisElement(2, p,
+                                                        BasisType::GaussLobatto,
+                                                        TensorBasisElement::DofMapType::Sr_DOF_MAP);
    const Array<int> tp_dof_map = tbeTemp->GetDofMap();
    delete tbeTemp;
 
@@ -1778,7 +1780,7 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
          if (tp_dof_map[o] < Nodes.Size())
          {
             Nodes.IntPoint(tp_dof_map[o]).x = cp[i];
-            Nodes.IntPoint(tp_dof_map[o]).y = cp[j];  
+            Nodes.IntPoint(tp_dof_map[o]).y = cp[j];
          }
          o++;
       }
@@ -1791,7 +1793,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
    int p = (this)->GetOrder();
-   double x = ip.x, y = ip.y; 
+   double x = ip.x, y = ip.y;
 
    Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
    Vector nodalX(p+1);
@@ -1800,7 +1802,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    edgeNodalBasis.Eval(x, nodalX);
    edgeNodalBasis.Eval(y, nodalY);
 
-   // First, fix edge-based shape functions.  Use a nodal interpolant for the edge points, 
+   // First, fix edge-based shape functions.  Use a nodal interpolant for the edge points,
    //    weighted by the linear function that vansihes on the opposite edge
    for (int i = 0; i < p-1; i++)
    {
@@ -1814,7 +1816,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    Vector bilinearsAtIP(4);
    bilinear.CalcShape(ip, bilinearsAtIP);
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));
 
    // Next set the shape function associated to vertex V, evaluated at (x,y) to be:
    //    bilinear function associated to V, evaluated at (x,y)
@@ -1825,12 +1827,16 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    double vtx1fix =0;
    double vtx2fix =0;
    double vtx3fix =0;
-   for(int i = 0; i<p-1; i++)
+   for (int i = 0; i<p-1; i++)
    {
-      vtx0fix += (1-edgePts[i+1])*(shape(4 + i)          +shape(4 + 4*(p-1) - i - 1));  // bot + left edge
-      vtx1fix += (1-edgePts[i+1])*(shape(4 + 1*(p-1) + i)+shape(4 + (p-2)-i));      // right + bot edge
-      vtx2fix += (1-edgePts[i+1])*(shape(4 + 2*(p-1) + i)+shape(1 + 2*p-i));  // top + right edge
-      vtx3fix += (1-edgePts[i+1])*(shape(4 + 3*(p-1) + i)+shape(3*p - i));  // left + top edge
+      vtx0fix += (1-edgePts[i+1])*(shape(4 + i)          +shape(4 + 4*
+                                                                (p-1) - i - 1));  // bot + left edge
+      vtx1fix += (1-edgePts[i+1])*(shape(4 + 1*(p-1) + i)+shape(4 +
+                                                                (p-2)-i));      // right + bot edge
+      vtx2fix += (1-edgePts[i+1])*(shape(4 + 2*(p-1) + i)+shape(
+                                      1 + 2*p-i));  // top + right edge
+      vtx3fix += (1-edgePts[i+1])*(shape(4 + 3*(p-1) + i)+shape(
+                                      3*p - i));  // left + top edge
    }
 
    shape(0) = bilinearsAtIP(0) - vtx0fix;
@@ -1839,21 +1845,22 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    shape(3) = bilinearsAtIP(3) - vtx3fix;
 
    // Interior basis functions appear starting at order p=4.  These are non-nodal bubble funtions.
-   if (p>3) 
+   if (p>3)
    {
       double *legX = new double[p-1];
       double *legY = new double[p-1];
       Poly_1D *storeLegendre = new Poly_1D();
 
-      storeLegendre->CalcLegendre(p-2, x , legX);
-      storeLegendre->CalcLegendre(p-2, y , legY);
+      storeLegendre->CalcLegendre(p-2, x, legX);
+      storeLegendre->CalcLegendre(p-2, y, legY);
 
       int interior_total = 0;
       for (int j = 4; j < p + 1; j++)
       {
          for (int k = 0; k < j-3; k++)
          {
-            shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
+            shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x *
+                                                  (1. - x) * y * (1. - y);
             interior_total++;
          }
       }
@@ -1867,7 +1874,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 
 
 void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
-                                       DenseMatrix &dshape) const
+                                            DenseMatrix &dshape) const
 {
    int p = (this)->GetOrder();
    double x = ip.x, y = ip.y;
@@ -1881,12 +1888,12 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    edgeNodalBasis.Eval(x, nodalX, DnodalX);
    edgeNodalBasis.Eval(y, nodalY, DnodalY);
 
-  for (int i = 0; i < p-1; i++) 
+   for (int i = 0; i < p-1; i++)
    {
-      dshape(4 + 0*(p-1) + i ,0) =  DnodalX(i+1) * (1.-y);
-      dshape(4 + 0*(p-1) + i ,1) = -nodalX(i+1);
-      dshape(4 + 1*(p-1) + i ,0) =  nodalY(i+1);
-      dshape(4 + 1*(p-1) + i ,1) =  DnodalY(i+1)*x;
+      dshape(4 + 0*(p-1) + i,0) =  DnodalX(i+1) * (1.-y);
+      dshape(4 + 0*(p-1) + i,1) = -nodalX(i+1);
+      dshape(4 + 1*(p-1) + i,0) =  nodalY(i+1);
+      dshape(4 + 1*(p-1) + i,1) =  DnodalY(i+1)*x;
       dshape(4 + 3*(p-1) - i - 1,0) =  DnodalX(i+1)*y;
       dshape(4 + 3*(p-1) - i - 1,1) =  nodalX(i+1);
       dshape(4 + 4*(p-1) - i - 1,0) = -nodalY(i+1);
@@ -1897,7 +1904,7 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix DbilinearsAtIP(4);
    bilinear.CalcDShape(ip, DbilinearsAtIP);
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));
 
    dshape(0,0) = DbilinearsAtIP(0,0);
    dshape(0,1) = DbilinearsAtIP(0,1);
@@ -1908,15 +1915,21 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    dshape(3,0) = DbilinearsAtIP(3,0);
    dshape(3,1) = DbilinearsAtIP(3,1);
 
-   for(int i = 0; i<p-1; i++)
+   for (int i = 0; i<p-1; i++)
    {
-      dshape(0,0) -= (1-edgePts[i+1])*(dshape(4 + 0*(p-1) + i, 0)+dshape(4 + 4*(p-1) - i - 1,0));
-      dshape(0,1) -= (1-edgePts[i+1])*(dshape(4 + 0*(p-1) + i, 1)+dshape(4 + 4*(p-1) - i - 1,1));
-      dshape(1,0) -= (1-edgePts[i+1])*(dshape(4 + 1*(p-1) + i, 0)+dshape(4 + (p-2)-i, 0));
-      dshape(1,1) -= (1-edgePts[i+1])*(dshape(4 + 1*(p-1) + i, 1)+dshape(4 + (p-2)-i, 1));
-      dshape(2,0) -= (1-edgePts[i+1])*(dshape(4 + 2*(p-1) + i, 0)+dshape(1 + 2*p-i, 0)); 
-      dshape(2,1) -= (1-edgePts[i+1])*(dshape(4 + 2*(p-1) + i, 1)+dshape(1 + 2*p-i, 1)); 
-      dshape(3,0) -= (1-edgePts[i+1])*(dshape(4 + 3*(p-1) + i, 0)+dshape(3*p - i, 0)); 
+      dshape(0,0) -= (1-edgePts[i+1])*(dshape(4 + 0*(p-1) + i,
+                                              0)+dshape(4 + 4*(p-1) - i - 1,0));
+      dshape(0,1) -= (1-edgePts[i+1])*(dshape(4 + 0*(p-1) + i,
+                                              1)+dshape(4 + 4*(p-1) - i - 1,1));
+      dshape(1,0) -= (1-edgePts[i+1])*(dshape(4 + 1*(p-1) + i, 0)+dshape(4 + (p-2)-i,
+                                                                         0));
+      dshape(1,1) -= (1-edgePts[i+1])*(dshape(4 + 1*(p-1) + i, 1)+dshape(4 + (p-2)-i,
+                                                                         1));
+      dshape(2,0) -= (1-edgePts[i+1])*(dshape(4 + 2*(p-1) + i, 0)+dshape(1 + 2*p-i,
+                                                                         0));
+      dshape(2,1) -= (1-edgePts[i+1])*(dshape(4 + 2*(p-1) + i, 1)+dshape(1 + 2*p-i,
+                                                                         1));
+      dshape(3,0) -= (1-edgePts[i+1])*(dshape(4 + 3*(p-1) + i, 0)+dshape(3*p - i, 0));
       dshape(3,1) -= (1-edgePts[i+1])*(dshape(4 + 3*(p-1) + i, 1)+dshape(3*p - i, 1));
    }
 
@@ -1931,14 +1944,16 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
       storeLegendre->CalcLegendre(p-2, x, legX, DlegX);
       storeLegendre->CalcLegendre(p-2, y, legY, DlegY);
-    
+
       int interior_total = 0;
       for (int j = 4; j < p + 1; j++)
       {
          for (int k = 0; k < j-3; k++)
          {
-            dshape(4 + 4*(p-1) + interior_total, 0) = legY[j-4-k]*y*(1-y) * (DlegX[k]*x*(1-x) + legX[k]*(1-2*x));
-            dshape(4 + 4*(p-1) + interior_total, 1) = legX[k]*x*(1-x)     * (DlegY[j-4-k]*y*(1-y) + legY[j-4-k]*(1-2*y));
+            dshape(4 + 4*(p-1) + interior_total,
+                   0) = legY[j-4-k]*y*(1-y) * (DlegX[k]*x*(1-x) + legX[k]*(1-2*x));
+            dshape(4 + 4*(p-1) + interior_total,
+                   1) = legX[k]*x*(1-x)     * (DlegY[j-4-k]*y*(1-y) + legY[j-4-k]*(1-2*y));
             interior_total++;
          }
       }
@@ -1950,13 +1965,14 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
-void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
-{ 
+void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation
+                                                       &Trans,
+                                                       DenseMatrix &I) const
+{
    // For p<=4, the basis is nodal; for p>4, the quad-interior functions are non-nodal
    if (Order <= 4)
    {
-      NodalLocalInterpolation(Trans, I, *this); 
+      NodalLocalInterpolation(Trans, I, *this);
    }
    else
    {
@@ -1966,13 +1982,14 @@ void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation &Tr
 
 
 H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
-  : ScalarFiniteElement(3, Geometry::CUBE, ser_space_dim, p, FunctionSpace::Qk)
+   : ScalarFiniteElement(3, Geometry::CUBE, ser_space_dim, p, FunctionSpace::Qk)
 {
    // ***  Do we want FunctionSpace = Pk or Qk for serendipity elements?   ***
 
    // Store the dof_map of the associated TensorBasisElement, which will be used to create the
    // serendipity dof map.  Its size is larger than the size of the serendipity element.
-   TensorBasisElement *tbeTemp = new TensorBasisElement(3, p, BasisType::GaussLobatto, TensorBasisElement::DofMapType::Sr_DOF_MAP);
+   TensorBasisElement *tbeTemp = new TensorBasisElement(3, p,
+                                                        BasisType::GaussLobatto, TensorBasisElement::DofMapType::Sr_DOF_MAP);
    const Array<int> tp_dof_map = tbeTemp->GetDofMap();
    const Array<int> tp_inv_dof_map = tbeTemp->GetInverseDofMap();
    delete tbeTemp;
@@ -1981,12 +1998,15 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
 
    // Fixing the Nodes is exactly the same as the H1_HexElement constructor
    // except we only use those values of the associated tensor product dof_map that
-   // are <= the number of serendipity Dofs 
+   // are <= the number of serendipity Dofs
 
    int o = 0;
-   for (int k = 0; k <= p; k++) {
-      for (int j = 0; j <= p; j++) {
-         for (int i = 0; i <= p; i++) {
+   for (int k = 0; k <= p; k++)
+   {
+      for (int j = 0; j <= p; j++)
+      {
+         for (int i = 0; i <= p; i++)
+         {
             int dofToSet = tp_dof_map[o];
             if (dofToSet < Nodes.Size()) // ...then we need to set an IntPoint for it
             {
@@ -1994,14 +2014,14 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
                {
                   Nodes.IntPoint(dofToSet).x = cp[i];
                   Nodes.IntPoint(dofToSet).y = cp[j];
-                  Nodes.IntPoint(dofToSet).z = cp[k];  
+                  Nodes.IntPoint(dofToSet).z = cp[k];
                }
                else if (dofToSet < 3*p*p - 3*p +14) // ... then it's a face Dof
                {
-                  int dofsPerFace = (p-3)*(p-2)/2;  
+                  int dofsPerFace = (p-3)*(p-2)/2;
 
                   // intialize ddn as index of dofToSet among serendipity face dofs (0 = first face dof)
-                  int ddn = dofToSet - (8+12*(p-1)); 
+                  int ddn = dofToSet - (8+12*(p-1));
 
                   // given that dofToSet is meant to be the ith dof on the jth face of a serendipity element,
                   // ddn (''desired dof number'') is set to be the ith dof on the jth face of a tensor product element
@@ -2010,7 +2030,7 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
                   // find the corresponding index stored during the construction of dof_map
                   int inv_ddn = tp_inv_dof_map[ddn];
 
-                  // the correct i,j,k indices are given by the representation of inv_ddn in base (p+1) 
+                  // the correct i,j,k indices are given by the representation of inv_ddn in base (p+1)
                   int corrected_i = inv_ddn % (p+1);
                   inv_ddn = floor(inv_ddn / (p+1));
                   int corrected_j = inv_ddn % (p+1);
@@ -2019,25 +2039,25 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
 
                   Nodes.IntPoint(dofToSet).x = cp[corrected_i];
                   Nodes.IntPoint(dofToSet).y = cp[corrected_j];
-                  Nodes.IntPoint(dofToSet).z = cp[corrected_k];  
+                  Nodes.IntPoint(dofToSet).z = cp[corrected_k];
 
                   // NOTE: no attempt has been made to optimize the location of the face nodes within a face;
                   // it is only guaranteed that a node associated to a face will be on the interior of that face.
-                  // The default tensor product ordering should apply (presumably filling in rows starting from 
+                  // The default tensor product ordering should apply (presumably filling in rows starting from
                   // the bottom left of ambient orientation is and moving in direction of increasing 'x')
                }
                else // ... it's a body Dof
                {
-                  int dofsPerFace = (p-3)*(p-2)/2; 
+                  int dofsPerFace = (p-3)*(p-2)/2;
 
                   // given that dofToSet is meant to be the ith body dof of a serendipity element,
                   // ddn (''desired dof number'') is set to be the ith body dof of a tensor product element
-                  int ddn = dofToSet - (6*dofsPerFace) + 6*(p-1)*(p-1); 
+                  int ddn = dofToSet - (6*dofsPerFace) + 6*(p-1)*(p-1);
 
                   // find the corresponding index stored during the construction of dof_map
                   int inv_ddn = tp_inv_dof_map[ddn];
 
-                  // the correct i,j,k indices are given by the representation of inv_ddn in base (p+1) 
+                  // the correct i,j,k indices are given by the representation of inv_ddn in base (p+1)
                   int corrected_i = inv_ddn % (p+1);
                   inv_ddn = floor(inv_ddn / (p+1));
                   int corrected_j = inv_ddn % (p+1);
@@ -2046,7 +2066,7 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
 
                   Nodes.IntPoint(dofToSet).x = cp[corrected_i];
                   Nodes.IntPoint(dofToSet).y = cp[corrected_j];
-                  Nodes.IntPoint(dofToSet).z = cp[corrected_k];  
+                  Nodes.IntPoint(dofToSet).z = cp[corrected_k];
                }
             }
             o++;
@@ -2056,7 +2076,7 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, int ser_space_dim)
 }
 
 void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
-                                           Vector &shape) const
+                                 Vector &shape) const
 {
    int p = (this)->GetOrder();
 
@@ -2074,7 +2094,7 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
 
    // Set edge shape functions as nodals times an applicable bilinear:
    //     edge shape indices = 8 through 8 + 12*(p-1) - 1
-   for (int i = 0; i < p-1; i++) 
+   for (int i = 0; i < p-1; i++)
    {
       shape(8 +  0*(p-1) + i) =     omy*omz*nodalX(i+1); // edge 8
       shape(8 +  1*(p-1) + i) =       x*omz*nodalY(i+1); // edge 9
@@ -2101,10 +2121,10 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    shape( 7) = omx*  y*z;
 
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));
 
    //  Maybe there is a slicker way to define these e##p ints?  Opted for clarity over cuteness.
-   for(int i = 0; i<p-1; i++)
+   for (int i = 0; i<p-1; i++)
    {
       int e08p = 8 + 0*(p-1) + i;
       int e09p = 8 + 1*(p-1) + i;
@@ -2145,16 +2165,16 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    // Face shape functions appear starting at order 4
    if (p>3)
    {
-      int dofsPerFace = (p-3)*(p-2)/2;  
+      int dofsPerFace = (p-3)*(p-2)/2;
 
       double *legX = new double[p-1];
       double *legY = new double[p-1];
       double *legZ = new double[p-1];
       Poly_1D *storeLegendre = new Poly_1D();
 
-      storeLegendre->CalcLegendre(p-2, x , legX);
-      storeLegendre->CalcLegendre(p-2, y , legY);
-      storeLegendre->CalcLegendre(p-2, z , legZ);
+      storeLegendre->CalcLegendre(p-2, x, legX);
+      storeLegendre->CalcLegendre(p-2, y, legY);
+      storeLegendre->CalcLegendre(p-2, z, legZ);
 
       // This code uses Legendre functions on the faces, which are not nodal
       int loopsThruFaces = 0;
@@ -2165,26 +2185,34 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
             // This presumes something about the order of variables on a face; there may be some effect
             // to changing e.g. legX[k] * legY[j-4-k] to legY[k] * legX[j-4-k];
 
-            shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = legX[k] * legY[j-4-k] * x*omx*y*omy * omz;
-            shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = legX[k] * legZ[j-4-k] * x*omx*z*omz * omy;
-            shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = legY[k] * legZ[j-4-k] * y*omy*z*omz * x  ;
-            shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = legX[k] * legZ[j-4-k] * x*omx*z*omz * y  ;
-            shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = legY[k] * legZ[j-4-k] * y*omy*z*omz * omx;
-            shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = legX[k] * legY[j-4-k] * x*omx*y*omy * z  ;
+            shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = legX[k] * legY[j-4-k] *
+                                                                   x*omx*y*omy * omz;
+            shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = legX[k] * legZ[j-4-k] *
+                                                                   x*omx*z*omz * omy;
+            shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = legY[k] * legZ[j-4-k] *
+                                                                   y*omy*z*omz * x  ;
+            shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = legX[k] * legZ[j-4-k] *
+                                                                   x*omx*z*omz * y  ;
+            shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = legY[k] * legZ[j-4-k] *
+                                                                   y*omy*z*omz * omx;
+            shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = legX[k] * legY[j-4-k] *
+                                                                   x*omx*y*omy * z  ;
             loopsThruFaces++;
          }
       }
 
       // Body shape functions appear starting at order 6
-      if (p>5) 
+      if (p>5)
       {
          int firstBodyDof = 8 + 12*(p-1) +6*dofsPerFace;
          double bubbleVal = x*omx*y*omy*z*omz;
-         
+
          int interior_total = 0;
-         for (int i=0; i < p-5; i++) {
-            for (int j=0; j < p-5-i; j++) {
-               for (int k=0; k < p-5-i-j; k++) 
+         for (int i=0; i < p-5; i++)
+         {
+            for (int j=0; j < p-5-i; j++)
+            {
+               for (int k=0; k < p-5-i-j; k++)
                {
                   shape(firstBodyDof + interior_total) = legX[i] * legY[j] * legZ[k] * bubbleVal;
                   interior_total++;
@@ -2201,7 +2229,7 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
 }
 
 void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
-                                       DenseMatrix &dshape) const
+                                  DenseMatrix &dshape) const
 {
    int p = (this)->GetOrder();
    double x = ip.x, y = ip.y, z = ip.z;
@@ -2219,7 +2247,7 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
    edgeNodalBasis.Eval(y, nodalY, DnodalY);
    edgeNodalBasis.Eval(z, nodalZ, DnodalZ);
 
-  for (int i = 0; i < p-1; i++) 
+   for (int i = 0; i < p-1; i++)
    {
       dshape(8 + 0*(p-1) + i, 0) = omy*omz*DnodalX(i+1);
       dshape(8 + 0*(p-1) + i, 1) = -omz*nodalX(i+1);
@@ -2272,20 +2300,20 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
 
    TriLinear3DFiniteElement trilinear = TriLinear3DFiniteElement();
    DenseMatrix DtrilinearsAtIP(8);
-   
+
    trilinear.CalcDShape(ip, DtrilinearsAtIP);
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));
 
-   for(int i=0; i<8; i++)
+   for (int i=0; i<8; i++)
    {
-      for(int j=0; j<3; j++)
+      for (int j=0; j<3; j++)
       {
          dshape(i,j) = DtrilinearsAtIP(i,j);
       }
    }
 
-   for(int i = 0; i < p-1; i++)
+   for (int i = 0; i < p-1; i++)
    {
       int e08p = 8 + 0*(p-1) + i;
       int e09p = 8 + 1*(p-1) + i;
@@ -2313,16 +2341,24 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       int e18m = 8 + 11*(p-1) - i - 1;
       int e19m = 8 + 12*(p-1) - i - 1;
 
-      for(int j = 0; j < 3; j++)
+      for (int j = 0; j < 3; j++)
       {
-         dshape(0,j) -= (1-edgePts[i+1])*(dshape(e08p,j) + dshape(e11p,j) + dshape(e16p,j));
-         dshape(1,j) -= (1-edgePts[i+1])*(dshape(e08m,j) + dshape(e09p,j) + dshape(e17p,j));
-         dshape(2,j) -= (1-edgePts[i+1])*(dshape(e09m,j) + dshape(e10m,j) + dshape(e18p,j));
-         dshape(3,j) -= (1-edgePts[i+1])*(dshape(e10p,j) + dshape(e11m,j) + dshape(e19p,j));
-         dshape(4,j) -= (1-edgePts[i+1])*(dshape(e12p,j) + dshape(e15p,j) + dshape(e16m,j));
-         dshape(5,j) -= (1-edgePts[i+1])*(dshape(e12m,j) + dshape(e13p,j) + dshape(e17m,j));
-         dshape(6,j) -= (1-edgePts[i+1])*(dshape(e13m,j) + dshape(e14m,j) + dshape(e18m,j));
-         dshape(7,j) -= (1-edgePts[i+1])*(dshape(e14p,j) + dshape(e15m,j) + dshape(e19m,j));
+         dshape(0,j) -= (1-edgePts[i+1])*(dshape(e08p,j) + dshape(e11p,j) + dshape(e16p,
+                                                                                   j));
+         dshape(1,j) -= (1-edgePts[i+1])*(dshape(e08m,j) + dshape(e09p,j) + dshape(e17p,
+                                                                                   j));
+         dshape(2,j) -= (1-edgePts[i+1])*(dshape(e09m,j) + dshape(e10m,j) + dshape(e18p,
+                                                                                   j));
+         dshape(3,j) -= (1-edgePts[i+1])*(dshape(e10p,j) + dshape(e11m,j) + dshape(e19p,
+                                                                                   j));
+         dshape(4,j) -= (1-edgePts[i+1])*(dshape(e12p,j) + dshape(e15p,j) + dshape(e16m,
+                                                                                   j));
+         dshape(5,j) -= (1-edgePts[i+1])*(dshape(e12m,j) + dshape(e13p,j) + dshape(e17m,
+                                                                                   j));
+         dshape(6,j) -= (1-edgePts[i+1])*(dshape(e13m,j) + dshape(e14m,j) + dshape(e18m,
+                                                                                   j));
+         dshape(7,j) -= (1-edgePts[i+1])*(dshape(e14p,j) + dshape(e15m,j) + dshape(e19m,
+                                                                                   j));
       }
    }
 
@@ -2341,41 +2377,59 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       storeLegendre->CalcLegendre(p-2, x, legX, DlegX);
       storeLegendre->CalcLegendre(p-2, y, legY, DlegY);
       storeLegendre->CalcLegendre(p-2, z, legZ, DlegZ);
-    
+
       int loopsThruFaces = 0;
       for (int j = 4; j < p + 1; j++)
       {
          for (int k = 0; k < j-3; k++)
          {
             // //shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = legX[k]*x*omx*  legY[j-4-k]*y*omy * omz;
-            dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,0) = legY[j-4-k]*y*omy * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * omz;
-            dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,1) = legX[k]*x*omx     * (DlegY[j-4-k]*y*omy + legY[j-4-k]*(1-2*y)) * omz;
-            dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,2) = legX[k]*x*omx     * legY[j-4-k]*y*omy                          * (-1);
+            dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,
+                   0) = legY[j-4-k]*y*omy * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * omz;
+            dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,
+                   1) = legX[k]*x*omx     * (DlegY[j-4-k]*y*omy + legY[j-4-k]*(1-2*y)) * omz;
+            dshape(8 + 12*(p-1) +0*dofsPerFace + loopsThruFaces,
+                   2) = legX[k]*x*omx     * legY[j-4-k]*y*omy                          * (-1);
 
             //shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = legX[k]*x*omx*  legZ[j-4-k]*z*omz * omy;
-            dshape(8 + 12*(p-1) +1*dofsPerFace + loopsThruFaces,0) = legZ[j-4-k]*z*omz * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * omy;
-            dshape(8 + 12*(p-1) +1*dofsPerFace + loopsThruFaces,1) = legX[k]*x*omx     * legZ[j-4-k]*z*omz                          * (-1);
-            dshape(8 + 12*(p-1) +1*dofsPerFace + loopsThruFaces,2) = legX[k]*x*omx     * (DlegZ[j-4-k]*z*omz + legZ[j-4-k]*(1-2*z)) * omy;
+            dshape(8 + 12*(p-1) +1*dofsPerFace + loopsThruFaces,
+                   0) = legZ[j-4-k]*z*omz * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * omy;
+            dshape(8 + 12*(p-1) +1*dofsPerFace + loopsThruFaces,
+                   1) = legX[k]*x*omx     * legZ[j-4-k]*z*omz                          * (-1);
+            dshape(8 + 12*(p-1) +1*dofsPerFace + loopsThruFaces,
+                   2) = legX[k]*x*omx     * (DlegZ[j-4-k]*z*omz + legZ[j-4-k]*(1-2*z)) * omy;
 
             //shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = legY[k]*y*omy*  legZ[j-4-k]*z*omz * x  ;
-            dshape(8 + 12*(p-1) +2*dofsPerFace + loopsThruFaces,0) = legY[k]*y*omy     * legZ[j-4-k]*z*omz                          * 1;
-            dshape(8 + 12*(p-1) +2*dofsPerFace + loopsThruFaces,1) = legZ[j-4-k]*z*omz * (DlegY[k]*y*omy     + legY[k]*(1-2*y))     * x;
-            dshape(8 + 12*(p-1) +2*dofsPerFace + loopsThruFaces,2) = legY[k]*y*omy     * (DlegZ[j-4-k]*z*omz + legZ[j-4-k]*(1-2*z)) * x;
+            dshape(8 + 12*(p-1) +2*dofsPerFace + loopsThruFaces,
+                   0) = legY[k]*y*omy     * legZ[j-4-k]*z*omz                          * 1;
+            dshape(8 + 12*(p-1) +2*dofsPerFace + loopsThruFaces,
+                   1) = legZ[j-4-k]*z*omz * (DlegY[k]*y*omy     + legY[k]*(1-2*y))     * x;
+            dshape(8 + 12*(p-1) +2*dofsPerFace + loopsThruFaces,
+                   2) = legY[k]*y*omy     * (DlegZ[j-4-k]*z*omz + legZ[j-4-k]*(1-2*z)) * x;
 
             //shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = legX[k]*x*omx*  legZ[j-4-k]*z*omz * y  ;
-            dshape(8 + 12*(p-1) +3*dofsPerFace + loopsThruFaces,0) = legZ[j-4-k]*z*omz * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * y;
-            dshape(8 + 12*(p-1) +3*dofsPerFace + loopsThruFaces,1) = legX[k]*x*omx     * legZ[j-4-k]*z*omz                          * 1;
-            dshape(8 + 12*(p-1) +3*dofsPerFace + loopsThruFaces,2) = legX[k]*x*omx     * (DlegZ[j-4-k]*z*omz + legZ[j-4-k]*(1-2*z)) * y;
+            dshape(8 + 12*(p-1) +3*dofsPerFace + loopsThruFaces,
+                   0) = legZ[j-4-k]*z*omz * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * y;
+            dshape(8 + 12*(p-1) +3*dofsPerFace + loopsThruFaces,
+                   1) = legX[k]*x*omx     * legZ[j-4-k]*z*omz                          * 1;
+            dshape(8 + 12*(p-1) +3*dofsPerFace + loopsThruFaces,
+                   2) = legX[k]*x*omx     * (DlegZ[j-4-k]*z*omz + legZ[j-4-k]*(1-2*z)) * y;
 
             //shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = legY[k]*y*omy* legZ[j-4-k]*z*omz * omx;
-            dshape(8 + 12*(p-1) +4*dofsPerFace + loopsThruFaces,0) = legY[k]*y*omy     * legZ[j-4-k]*z*omz                          * (-1);
-            dshape(8 + 12*(p-1) +4*dofsPerFace + loopsThruFaces,1) = legZ[j-4-k]*z*omz * (DlegY[k]*y*omy     + legY[k]*(1-2*y))     * omx;
-            dshape(8 + 12*(p-1) +4*dofsPerFace + loopsThruFaces,2) = legY[k]*y*omy     * (DlegZ[j-4-k]*z*omz + legZ[j-4-k]*(1-2*z)) * omx;
+            dshape(8 + 12*(p-1) +4*dofsPerFace + loopsThruFaces,
+                   0) = legY[k]*y*omy     * legZ[j-4-k]*z*omz                          * (-1);
+            dshape(8 + 12*(p-1) +4*dofsPerFace + loopsThruFaces,
+                   1) = legZ[j-4-k]*z*omz * (DlegY[k]*y*omy     + legY[k]*(1-2*y))     * omx;
+            dshape(8 + 12*(p-1) +4*dofsPerFace + loopsThruFaces,
+                   2) = legY[k]*y*omy     * (DlegZ[j-4-k]*z*omz + legZ[j-4-k]*(1-2*z)) * omx;
 
             //shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = legX[k]*x*omx* legY[j-4-k]*y*omy * z  ;
-            dshape(8 + 12*(p-1) +5*dofsPerFace + loopsThruFaces,0) = legY[j-4-k]*y*omy * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * z;
-            dshape(8 + 12*(p-1) +5*dofsPerFace + loopsThruFaces,1) = legX[k]*x*omx     * (DlegY[j-4-k]*y*omy + legY[j-4-k]*(1-2*y)) * z;
-            dshape(8 + 12*(p-1) +5*dofsPerFace + loopsThruFaces,2) = legX[k]*x*omx     * legY[j-4-k]*y*omy                          * 1;
+            dshape(8 + 12*(p-1) +5*dofsPerFace + loopsThruFaces,
+                   0) = legY[j-4-k]*y*omy * (DlegX[k]*x*omx     + legX[k]*(1-2*x))     * z;
+            dshape(8 + 12*(p-1) +5*dofsPerFace + loopsThruFaces,
+                   1) = legX[k]*x*omx     * (DlegY[j-4-k]*y*omy + legY[j-4-k]*(1-2*y)) * z;
+            dshape(8 + 12*(p-1) +5*dofsPerFace + loopsThruFaces,
+                   2) = legX[k]*x*omx     * legY[j-4-k]*y*omy                          * 1;
 
             loopsThruFaces++;
          }
@@ -2384,16 +2438,21 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       if (p>5)  // set body dshape values
       {
          int firstBodyDof = 8 + 12*(p-1) +6*dofsPerFace;
-         
+
          int interior_total = 0;
-         for (int i=0; i < p-5; i++) {
-            for (int j=0; j < p-5-i; j++) {
-               for (int k=0; k < p-5-i-j; k++) 
+         for (int i=0; i < p-5; i++)
+         {
+            for (int j=0; j < p-5-i; j++)
+            {
+               for (int k=0; k < p-5-i-j; k++)
                {
                   // shape(firstBodyDof + interior_total) = legX[i] * legY[j] * legZ[k] * bubbleVal;
-                  dshape(firstBodyDof + interior_total,0) = (DlegX[i]*x*omx + legX[i]*(1-2*x)) * legY[j]*y*omy * legZ[k]*z*omz;
-                  dshape(firstBodyDof + interior_total,1) = (DlegY[j]*y*omy + legY[j]*(1-2*y)) * legX[i]*x*omx * legZ[k]*z*omz;
-                  dshape(firstBodyDof + interior_total,2) = (DlegZ[k]*z*omz + legZ[k]*(1-2*z)) * legX[i]*x*omx * legY[j]*y*omy;
+                  dshape(firstBodyDof + interior_total,
+                         0) = (DlegX[i]*x*omx + legX[i]*(1-2*x)) * legY[j]*y*omy * legZ[k]*z*omz;
+                  dshape(firstBodyDof + interior_total,
+                         1) = (DlegY[j]*y*omy + legY[j]*(1-2*y)) * legX[i]*x*omx * legZ[k]*z*omz;
+                  dshape(firstBodyDof + interior_total,
+                         2) = (DlegZ[k]*z*omz + legZ[k]*(1-2*z)) * legX[i]*x*omx * legY[j]*y*omy;
                   interior_total++;
                }
             }
@@ -2408,14 +2467,14 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       delete[] DlegZ;
       delete storeLegendre;
    }
-} 
+}
 
 void H1Ser_HexElement::GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
-{ 
+                                             DenseMatrix &I) const
+{
    if (Order <= 4)
    {
-      NodalLocalInterpolation(Trans, I, *this); 
+      NodalLocalInterpolation(Trans, I, *this);
    }
    else
    {
@@ -4151,21 +4210,21 @@ const double RT2TriangleFiniteElement::M[15][15] =
    },
    {
       -0.67620999227554986889, 0, -3.4427400463467007866, 0,
-      7.3524199845510997378, 0.67620999227554986889, 7.4141100695200511800, 0,
-      -0.76209992275549868892, 4.1189500386222506555, -12.,
-      -7.3524199845510997378, -3.2951600308978005244, -6.5903200617956010489,
-      12.
-   },
+         7.3524199845510997378, 0.67620999227554986889, 7.4141100695200511800, 0,
+         -0.76209992275549868892, 4.1189500386222506555, -12.,
+         -7.3524199845510997378, -3.2951600308978005244, -6.5903200617956010489,
+         12.
+      },
    {
       1.5, 0, 2.625, 0, -15., -1.5, -14.625, 0, 30., -4.125, 15., 15., 10.5,
       -15., -15.
    },
    {
       -5.3237900077244501311, 0, 24.442740046346700787, 0, 16.647580015448900262,
-      5.3237900077244501311, -34.414110069520051180, 0, -47.237900077244501311,
-      -19.118950038622250656, -12., -16.647580015448900262, 15.295160030897800524,
-      30.590320061795601049, 12.
-   },
+         5.3237900077244501311, -34.414110069520051180, 0, -47.237900077244501311,
+         -19.118950038622250656, -12., -16.647580015448900262, 15.295160030897800524,
+         30.590320061795601049, 12.
+      },
    { 0, 0, 18., 0, 0, 6., -42., 0, -30., -26., 0, -14., 24., 32., 8.},
    { 0, 0, 6., 0, 0, 18., -14., 0, -26., -30., 0, -42., 8., 32., 24.},
    { 0, 0, -6., 0, 0, -4., 30., 0, 4., 22., 0, 4., -24., -16., 0},
@@ -7659,7 +7718,7 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
          }
          case 2:
          {
-	    const int p1 = p + 1;
+            const int p1 = p + 1;
             dof_map.SetSize(p1*p1);
 
             // vertices
@@ -7702,7 +7761,8 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
             const int p1 = p + 1;
             dof_map.SetSize(p1*p1*p1);
 
-            if (dmtype == Sr_DOF_MAP && p>3) // only build inv_dof_map in p>3 serendipity case
+            if (dmtype == Sr_DOF_MAP &&
+                p>3) // only build inv_dof_map in p>3 serendipity case
             {
                inv_dof_map.SetSize(p1*p1*p1);
             }
@@ -7773,19 +7833,19 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
             {
                for (int i = 1; i < p; i++)
                {
-                  if(inv_dof_map.Size()) // In serendipity case, store inverse values for face & int dofs
+                  if (inv_dof_map.Size()) // In serendipity case, store inverse values for face & int dofs
                   {
                      inv_dof_map[o] = i + ((p-j) + 0*p1)*p1;
                   }
                   dof_map[i + ((p-j) + 0*p1)*p1] = o++;   // (3,2,1,0)
-                  
+
                }
             }
             for (int j = 1; j < p; j++)
             {
                for (int i = 1; i < p; i++)
                {
-                  if(inv_dof_map.Size()) 
+                  if (inv_dof_map.Size())
                   {
                      inv_dof_map[o] = i + (0 + j*p1)*p1;
                   }
@@ -7796,7 +7856,7 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
             {
                for (int i = 1; i < p; i++)
                {
-                  if(inv_dof_map.Size())
+                  if (inv_dof_map.Size())
                   {
                      inv_dof_map[o] = p + (i + j*p1)*p1;
                   }
@@ -7807,7 +7867,7 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
             {
                for (int i = 1; i < p; i++)
                {
-                  if(inv_dof_map.Size())
+                  if (inv_dof_map.Size())
                   {
                      inv_dof_map[o] = (p-i) + (p + j*p1)*p1;
                   }
@@ -7818,7 +7878,7 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
             {
                for (int i = 1; i < p; i++)
                {
-                  if(inv_dof_map.Size())
+                  if (inv_dof_map.Size())
                   {
                      inv_dof_map[o] = 0 + ((p-i) + j*p1)*p1;
                   }
@@ -7829,7 +7889,7 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
             {
                for (int i = 1; i < p; i++)
                {
-                  if(inv_dof_map.Size())
+                  if (inv_dof_map.Size())
                   {
                      inv_dof_map[o] = i + (j + p*p1)*p1;
                   }
@@ -7844,7 +7904,7 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
                {
                   for (int i = 1; i < p; i++)
                   {
-                     if(inv_dof_map.Size())
+                     if (inv_dof_map.Size())
                      {
                         inv_dof_map[o] = i + (j + k*p1)*p1;
                      }
