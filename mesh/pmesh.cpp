@@ -151,10 +151,11 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          partitioning = mesh.GeneratePartitioning(NRanks, part_method);
          if (mesh.Dim == 4 && mesh.is_reflected)
          {
-            // modify the partioning such that all childs of one orginial element are on the same processor
+            // Modify the partioning such that all children of one original element are on the same processor
             // Assumptions:
             //    - mesh has been only once subdivided to obtain reflected neighbors
             //    - no element reordering
+
             int NumOfSuperElements = mesh.NumOfElements / 60;
             Array<int> elem_per_proc(NRanks), num_procs;
             for (int i = 0; i < NumOfSuperElements; ++i)
@@ -1002,6 +1003,7 @@ void ParMesh::BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
          {
             shared_tetra[stetr_counter].Set(fv, 2);
             int *v = shared_tetra[stetr_counter].v;
+            if (mesh.getSwappedFaceElementInfo(i)) { Swap(v); }
             for (int j = 0; j <4 ; j++) { v[j] = vert_global_local[v[j]]; }
             sface_lface[stetr_counter] =
                (*faces_tbl_4d)(v[0], v[1], v[2], v[3]);
@@ -1011,7 +1013,6 @@ void ParMesh::BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
             {
                int gl_el1, gl_el2;
                mesh.GetFaceElements(i, &gl_el1, &gl_el2);
-               if (mesh.getSwappedFaceElementInfo(i)) { Swap(v); }
 
 
                if (MyRank == partitioning[gl_el2])
@@ -1148,6 +1149,9 @@ void ParMesh::FinalizeParTopo()
          const int *v = shared_edges[se]->GetVertices();
          const int l_edge = v_to_v(v[0], v[1]);
          MFEM_ASSERT(l_edge >= 0, "invalid shared edge");
+/*         if (!(l_edge >= 0))
+            MFEM_WARNING("invalid shared edge"
+                  << " (" << v[0] << ", " << v[1] << ")");*/
          sedge_ledge[se] = l_edge;
       }
    }
@@ -1830,6 +1834,50 @@ void ParMesh::GetFaceSplittings(const int *fv, const HashTable<Hashed2> &v_to_v,
    codes.Append(code);
 }
 
+void ParMesh::GetFaceSplittings4D(const Vert4 &_f, const HashTable<Hashed2> &v_to_v,
+                                Array<unsigned> &codes)
+{
+   Array<Vert4> face_stack;
+
+   unsigned code = 0;
+   face_stack.Append(Vert4(_f.v[0], _f.v[1], _f.v[2], _f.v[3], _f.tag));
+   for (unsigned bit = 0; face_stack.Size() > 0; bit++)
+   {
+      if (bit == 8*sizeof(unsigned))
+      {
+         codes.Append(code);
+         code = bit = 0;
+      }
+
+      const Vert4 &f = face_stack.Last();
+      char tag = f.tag;
+      int mid = v_to_v.FindId(f.v[0], f.v[3]);
+      if (mid == -1)
+      {
+         // leave a 0 at bit 'bit'
+         face_stack.DeleteLast();
+      }
+      else
+      {
+         code += (1 << bit); // set bit 'bit' to 1
+         mid += NumOfVertices;
+         char new_tag = (tag+1) % 3;
+         if (tag > 0)
+         {
+            face_stack.Append(Vert4(f.v[3], mid, f.v[1], f.v[2], new_tag));
+         }
+         else
+         {
+            face_stack.Append(Vert4(f.v[3], mid, f.v[2], f.v[1], new_tag));
+         }
+         Vert4 &r = face_stack[face_stack.Size()-2];
+         r.tag = new_tag;
+         r.v[3] = r.v[2]; r.v[2] = r.v[1]; r.v[1] = mid; // r.v[0] = r.v[0]
+      }
+   }
+   codes.Append(code);
+}
+
 bool ParMesh::DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
                                    const Array<unsigned> &codes, int &pos)
 {
@@ -1862,6 +1910,51 @@ bool ParMesh::DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
       face_stack.Append(face_t(f.three, f.one, mid));
       face_t &r = face_stack[face_stack.Size()-2];
       r = face_t(r.two, r.three, mid);
+   }
+   return need_refinement;
+}
+
+bool ParMesh::DecodeFaceSplittings4D(HashTable<Hashed2> &v_to_v, const Vert4 &v,
+                                     const Array<unsigned> &codes, int &pos)
+{
+   Array<Vert4> face_stack;
+
+   bool need_refinement = 0;
+   face_stack.Append(Vert4(v.v[0], v.v[1], v.v[2], v.v[3], v.tag));
+   for (unsigned bit = 0, code = codes[pos++]; face_stack.Size() > 0; bit++)
+   {
+      if (bit == 8*sizeof(unsigned))
+      {
+         code = codes[pos++];
+         bit = 0;
+      }
+
+      if ((code & (1 << bit)) == 0) { face_stack.DeleteLast(); continue; }
+
+      const Vert4 &f = face_stack.Last();
+      int mid = v_to_v.FindId(f.v[0], f.v[3]);
+      char tag = f.tag;
+      if (mid == -1)
+      {
+         mid = v_to_v.GetId(f.v[0], f.v[3]);
+         int ind[2] = { f.v[0], f.v[3] };
+         vertices.Append(Vertex());
+         AverageVertices(ind, 2, vertices.Size()-1);
+         need_refinement = 1;
+      }
+      mid += NumOfVertices;
+      char new_tag = (tag + 1) % 3;
+      if (tag > 0)
+      {
+         face_stack.Append(Vert4(f.v[3], mid, f.v[1], f.v[2], new_tag));
+      }
+      else
+      {
+         face_stack.Append(Vert4(f.v[3], mid, f.v[2], f.v[1], new_tag));
+      }
+      Vert4 &r = face_stack[face_stack.Size()-2];
+      r.tag = new_tag;
+      r.v[3] = r.v[2]; r.v[2] = r.v[1]; r.v[1] = mid; // r.v[0] = r.v[0]
    }
    return need_refinement;
 }
@@ -2798,6 +2891,8 @@ void ParMesh::ReorientTetMesh()
    FinalizeParTopo();
 }
 
+#define MFEM_DEBUG_PARMESH_LOCALREF
+
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
    if (pncmesh)
@@ -2811,7 +2906,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
    if (Dim == 4)
    {
-      int uniform_refinement = 1;
+      int uniform_refinement = 0;
       if (type < 0)
       {
          type = -type;
@@ -2886,16 +2981,16 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
             int req_count = 0;
             for (int i = 0; i < GetNGroups()-1; i++)
             {
-               const int *group_faces = group_stria.GetRow(i);
-               const int faces_in_group = group_stria.RowSize(i);
+               const int *group_faces = group_stetr.GetRow(i);
+               const int faces_in_group = group_stetr.RowSize(i);
                // it is enough to communicate through the faces
                if (faces_in_group == 0) { continue; }
 
                face_splittings[i].SetSize(0);
                for (int j = 0; j < faces_in_group; j++)
                {
-                  GetFaceSplittings(shared_trias[group_faces[j]].v, v_to_v,
-                                    face_splittings[i]);
+                  GetFaceSplittings4D(shared_tetra[group_faces[j]], v_to_v,
+                                      face_splittings[i]);
                }
                const int *nbs = gtopo.GetGroup(i+1);
                neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
@@ -2907,8 +3002,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
             // (b) receive the type of interface splitting
             for (int i = 0; i < GetNGroups()-1; i++)
             {
-               const int *group_faces = group_stria.GetRow(i);
-               const int faces_in_group = group_stria.RowSize(i);
+               const int *group_faces = group_stetr.GetRow(i);
+               const int faces_in_group = group_stetr.RowSize(i);
                if (faces_in_group == 0) { continue; }
 
                const int *nbs = gtopo.GetGroup(i+1);
@@ -2919,11 +3014,10 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                iBuf.SetSize(count);
                MPI_Recv(iBuf, count, MPI_UNSIGNED, neighbor, tag, MyComm,
                         MPI_STATUS_IGNORE);
-
                for (int j = 0, pos = 0; j < faces_in_group; j++)
                {
-                  const int *v = shared_trias[group_faces[j]].v;
-                  need_refinement |= DecodeFaceSplittings(v_to_v, v, iBuf, pos);
+                  const Vert4 &v = shared_tetra[group_faces[j]];
+                  need_refinement |= DecodeFaceSplittings4D(v_to_v, v, iBuf, pos);
                }
             }
 
@@ -2998,6 +3092,33 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
          GetElementToPlanarTable();
          GeneratePlanars();
+
+/*
+         Array<int> group_trias, group_tetra;
+         for (int group = 0; group < GetNGroups()-1; group++)
+         {
+            // Get the group shared objects
+            group_stria.GetRow(group, group_trias);
+//            group_stetr.GetRow(group, group_tetra);
+
+            for (int i = 0; i < group_stria.RowSize(group); i++)
+            {
+               int *v = shared_trias[group_trias[i]].v;
+               const int *pv = planars[splan_lplan[group_trias[i]]]->GetVertices();
+
+               v[0] = pv[0]; v[1] = pv[1]; v[2] = pv[2];
+            }
+            for (int i = 0; i < group_stetr.RowSize(group); i++)
+            {
+               int *v = shared_tetra[group_tetra[i]].v;
+               const int *fv = faces[sface_lface[group_tetra[i]]]->GetVertices();
+               if (swappedFaces[sface_lface[group_tetra[i]]])
+                  {v[0] = fv[1]; v[1] = fv[0]; v[2] = fv[2]; v[3] = fv[3];}
+               else
+                  {v[0] = fv[0]; v[1] = fv[1]; v[2] = fv[2]; v[3] = fv[3];}
+            }
+         }
+*/
       }
 
       // 6. Update element-to-edge relations.
@@ -4155,6 +4276,9 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
    I_group_stria[0] = 0;
    I_group_stets[0] = 0;
 
+   DSTable edges(NumOfVertices);
+   GetVertexToVertexTable(edges);
+
    for (int group = 0; group < GetNGroups()-1; group++)
    {
       // Get the group shared objects
@@ -4162,7 +4286,9 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
       group_sedge.GetRow(group, group_edges);
       group_stria.GetRow(group, group_trias);
       group_stetr.GetRow(group, group_tetra);
-      //printf("before: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+
+//      if (MyRank == 0)
+//         printf("[%d] before: nstetr=%d, nstria=%d, nsedges=%d\n", group, shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
 
       // Check which edges have been refined
       for (int i = 0; i < group_sedge.RowSize(group); i++)
@@ -4213,20 +4339,117 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
          }
          while (sedge_stack.Size() > 0);
       }
-      //printf("edges: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+
+//      if (MyRank == 0)
+//         printf("[%d] edges: nstetr=%d, nstria=%d, nsedges=%d\n", group, shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
 
       // Check which triangles have been refined
       for (int i = 0; i < group_stria.RowSize(group); i++)
       {
          int *v = shared_trias[group_trias[i]].v;
-         int ind = v_to_v.FindId(v[0], v[2]);
-         int lplan = splan_lplan[group_trias[i]];
+         int mid[3] = {v_to_v.FindId(v[0], v[2]), v_to_v.FindId(v[2], v[1]), v_to_v.FindId(v[1], v[0])};
 
-//         if (MyRank == 0)
-            //printf("st=%d (%d): (%d, %d, %d)\n", group_trias[i], lplan, v[0], v[1], v[2]);
-         if (ind == -1)
+         int ind; // = v_to_v.FindId(v[0], v[2]);
+
+         if (mid[0] == -1 && mid[1] == -1 && mid[2] == -1)
          {
+             continue;
+         }
+//         else if (mid[0] != -1 && mid[1] == -1 && mid[2] == -1)
+         else if (mid[0] != -1 && ((edges(mid[0] + old_nv, v[1]) != -1) || (v_to_v.FindId(mid[0] + old_nv, v[1]) != -1)))
+         {
+             ind = mid[0];
+         }
+//         else if (mid[0] == -1 && mid[1] != -1 && mid[2] == -1)
+         else if (mid[1] != -1 && ((edges(mid[1] + old_nv, v[0]) != -1) || (v_to_v.FindId(mid[1] + old_nv, v[0]) != -1)))
+         {
+             swap(v[0], v[2]); swap(v[1], v[2]);
+             ind = mid[1];
+         }
+//         else if (mid[0] == -1 && mid[1] == -1 && mid[2] != -1)
+         else if (mid[2] != -1 && ((edges(mid[2] + old_nv, v[2]) != -1) || (v_to_v.FindId(mid[2] + old_nv, v[2]) != -1)))
+         {
+             int tmp = v[2];
+             v[2] = v[0]; v[0] = v[1]; v[1] = tmp;
+             ind = mid[2];
+         }
+#if 0
+         else if (mid[0] != -1 && mid[1] != -1 && mid[2] == -1)
+         {
+             if (edges(mid[0] + old_nv, v[1]) != -1)
+             {
+                 ind = mid[0];
+             }
+             else if (edges(mid[1] + old_nv, v[0]) != -1)
+             {
+                 swap(v[0], v[2]); swap(v[1], v[2]);
+                 ind = mid[1];
+             }
+         }
+         else if (mid[0] == -1 && mid[1] != -1 && mid[2] != -1)
+         {
+             if (edges(mid[2] + old_nv, v[2]) != -1)
+             {
+                 int tmp = v[2];
+                 v[2] = v[0]; v[0] = v[1]; v[1] = tmp;
+                 ind = mid[2];
+             }
+             else if (edges(mid[1] + old_nv, v[0]) != -1)
+             {
+                 swap(v[0], v[2]); swap(v[1], v[2]);
+                 ind = mid[1];
+             }
+         }
+         else if (mid[0] != -1 && mid[1] == -1 && mid[2] != -1)
+         {
+             if (edges(mid[0] + old_nv, v[1]) != -1)
+             {
+                 ind = mid[0];
+             }
+             else if (edges(mid[2] + old_nv, v[2]) != -1)
+             {
+                 int tmp = v[2];
+                 v[2] = v[0]; v[0] = v[1]; v[1] = tmp;
+                 ind = mid[2];
+             }
+         }
+         else if (mid[0] != -1 && mid[1] != -1 && mid[2] != -1)
+         {
+             mfem::out << "I've been cut thrice. Whoa!" << endl;
+             mfem::out << "Let's fix this right now!" << endl;
+             if (edges(mid[0] + old_nv, v[1]) != -1)
+             {
+                 ind = mid[0];
+             }
+             else if (edges(mid[1] + old_nv, v[0]) != -1)
+             {
+                 swap(v[0], v[2]); swap(v[1], v[2]);
+                 ind = mid[1];
+             }
+             else if (edges(mid[2] + old_nv, v[2]) != -1)
+             {
+                 int tmp = v[2];
+                 v[2] = v[0]; v[0] = v[1]; v[1] = tmp;
+                 ind = mid[2];
+             }
+             else
+             {
+                 mfem::out << "We couldn't fix it?" << endl;
+                 continue;
+             }
+         }
+#endif
+         else
+         {
+             mfem::out << "I don't how this could happen. I'm sorry!" << endl;
+             continue;
+         }
+#if 0
+         if (false && ind == -1)
+         {
+            //continue;
             // we may not have the right ordering, rotate the vertices to the left
+            // FIXME: this causes some problems later
             swap(v[0], v[2]); swap(v[1], v[2]);
             ind = v_to_v.FindId(v[0], v[2]);
             if (ind == -1)
@@ -4242,7 +4465,7 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
                }
             }
          }
-
+#endif
          // This shared planar is refined: walk the whole refinement tree
          const int edge_attr = 1;
          do
@@ -4314,9 +4537,10 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
          }
          while (sedge_stack.Size() > 0);
       }
-      //printf("planars: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
 
-      // TODO faces (Pls kill me!)
+//      if (MyRank == 0)
+//         printf("[%d] planars: nstetr=%d, nstria=%d, nsedges=%d\n", group, shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+
       // Check which tetrahedra have been refined
       for (int i = 0; i < group_stetr.RowSize(group); i++)
       {
@@ -4330,9 +4554,30 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
          do
          {
             ind += old_nv;
+
             // Add the interior refinement triangle to the planar stack
-            splan_stack.Append(Vert3(ind, v[1], v[2])); // TODO check if orientation matters
-            // TODO see if interior faces need to be tagged correctly
+            // FIXME orientation matters
+            {
+                int mid[3] = {v_to_v.FindId(v[1], v[2]), v_to_v.FindId(ind, v[2]), v_to_v.FindId(v[1], ind)};
+                if (mid[0] != -1 && ( (edges(mid[0] + old_nv, ind) != -1) || (v_to_v.FindId(mid[0] + old_nv, ind) != -1) ))
+                {
+//                    mfem::out << "Take this!" << endl;
+                    splan_stack.Append(Vert3(v[1], ind, v[2]));
+                }
+                else if (mid[1] != -1 && ( (edges(mid[1] + old_nv, v[1]) != -1) || (v_to_v.FindId(mid[1] + old_nv, v[1]) != -1) ))
+                {
+//                    mfem::out << "Take that!" << endl;
+                    splan_stack.Append(Vert3(ind, v[1], v[2]));
+                }
+                else if (mid[2] != -1 && ( (edges(mid[0] + old_nv, v[2]) != -1) || (v_to_v.FindId(mid[0] + old_nv, v[2]) != -1) ))
+                {
+//                    mfem::out << "And that!" << endl;
+                    splan_stack.Append(Vert3(v[1], v[2], ind));
+                }
+                else
+                    splan_stack.Append(Vert3(v[1], ind, v[2]));
+            }
+//            splan_stack.Append(Vert3(v[1], ind, v[2])); // FIXME orientation matters
             // Put the upper sub-tetrahedron on top of the face stack
             if (tag > 0)
                sface_stack.Append(Vert4(v[3], ind, v[1], v[2], (tag+1) % 3));
@@ -4340,7 +4585,8 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
                sface_stack.Append(Vert4(v[3], ind, v[2], v[1], (tag+1) % 3));
             // The lower sub-tetrahedron replaces the original one
             v[3] = v[2]; v[2] = v[1]; v[1] = ind;
-            shared_tetra[group_tetra[i]].tag = (tag+1) % 3;
+            tag = (tag+1) % 3;
+            shared_tetra[group_tetra[i]].tag = tag;
             ind = v_to_v.FindId(v[0], v[3]);
          }
          while (ind != -1);
@@ -4364,9 +4610,9 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
                // The tetrahedron 'sf' is refined
                ind += old_nv;
                // Add the interior refinement triangle to the planar stack
-               splan_stack.Append(Vert3(ind, v[1], v[2])); // TODO check if orientation matters
+               splan_stack.Append(Vert3(v[1], ind, v[2])); // TODO check if orientation matters
                // Put the lower sub-tetrahedron on top of the face stack
-               sface_stack.Append(Vert4(v[0], ind, v[1], v[2], (tag + 1) % 3)); // TODO continue here!
+               sface_stack.Append(Vert4(v[0], ind, v[1], v[2], (tag + 1) % 3));
                // Note that the above Append() may invalidate 'v'
                v = sface_stack[sface_stack.Size()-2].v;
                // The upper sub-triangle replaces the original one
@@ -4439,7 +4685,9 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
             }
          }
       }
-      //printf("faces: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+
+//      if (MyRank == 0)
+//         printf("[%d] faces: nstetr=%d, nstria=%d, nsedges=%d\n", group, shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
 
       I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
       I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
@@ -4451,7 +4699,8 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
       J_group_stria.Append(group_trias);
       J_group_stets.Append(group_tetra);
    }
-   //printf("final: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+//   if (MyRank == 0)
+//      printf("final: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
 
    FinalizeParTopo();
 

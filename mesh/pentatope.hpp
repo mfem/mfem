@@ -27,19 +27,23 @@ protected:
 
    unsigned transform;
 
-   char type; /// simplex type is either 0, 1 ,2, 3
+   /* Flag holds currently
+    *    One bit indicating if the element has been swapped.
+    *    Two bits indicating the tag of the simplex (0, 1, 2, 3)
+    */
+   unsigned char flag;
 
 public:
 
    typedef Geometry::Constants<Geometry::PENTATOPE> geom_p;
 
-   Pentatope() : Element(Geometry::PENTATOPE) { transform = 0; type = 0;};
+   Pentatope() : Element(Geometry::PENTATOPE) { transform = 0; flag = 0;};
 
    /// Constructs pentatope by specifying the indices and the attribute.
-   Pentatope(const int *ind, int attr = 1, char type = 0);
+   Pentatope(const int *ind, int attr = 1, unsigned char type = 0);
 
    /// Constructs pentatope by specifying the indices and the attribute.
-   Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr = 1, char type = 0);
+   Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr = 1, unsigned char type = 0);
 
 
    virtual int GetRefinementFlag()
@@ -66,10 +70,13 @@ public:
    /// Return element's type.
    virtual Type GetType() const { return Element::PENTATOPE; }
 
-   virtual void SetSimplexType(const char t) { type = t; }
+   virtual void CreateFlag(char  t, bool  swap);
+   virtual void  ParseFlag(char &t, bool &swap);
 
-   /// Return simplex type of element.
-   virtual char GetSimplexType() const { return type; }
+   virtual void SetFlag(const unsigned char t) { flag = t; }
+
+   /// Return flag of element.
+   virtual unsigned char GetFlag() const { return flag; }
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices(Array<int> &v) const;

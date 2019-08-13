@@ -18,7 +18,7 @@ namespace mfem
 {
 
 
-Pentatope::Pentatope(const int *ind, int attr, char t)
+Pentatope::Pentatope(const int *ind, int attr, unsigned char f)
    : Element(Geometry::PENTATOPE)
 {
    attribute = attr;
@@ -28,10 +28,10 @@ Pentatope::Pentatope(const int *ind, int attr, char t)
    }
 
    transform = 0;
-   type = t;
+   flag = f;
 }
 
-Pentatope::Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr, char t)
+Pentatope::Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr, unsigned char f)
    : Element(Geometry::PENTATOPE)
 {
    attribute  = attr;
@@ -42,7 +42,7 @@ Pentatope::Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr,
    indices[4] = ind5;
 
    transform = 0;
-   type = t;
+   flag = f;
 }
 
 void Pentatope::GetVertices(Array<int> &v) const
@@ -119,7 +119,7 @@ Element *Pentatope::Duplicate(Mesh *m) const
    Pentatope *pent = new Pentatope;
    pent->SetVertices(indices);
    pent->SetAttribute(attribute);
-   pent->SetSimplexType(type);
+   pent->SetFlag(flag);
    return pent;
 }
 
@@ -136,6 +136,22 @@ int Pentatope::NeedRefinement(HashTable<Hashed2> &v_to_v) const
    if (v_to_v.FindId(indices[2], indices[4]) != -1) { return 1; }
    if (v_to_v.FindId(indices[4], indices[3]) != -1) { return 1; }
    return 0;
+}
+
+void Pentatope::CreateFlag(char t, bool swap)
+{
+   flag = t;
+   flag <<= 1;
+   flag |= swap;
+}
+
+void Pentatope::ParseFlag(char& t, bool& swap)
+{
+   unsigned char f = flag;
+
+   swap = (f & 1);
+   f >>= 1;
+   t = (f & 3);
 }
 
 Linear4DFiniteElement PentatopeFE;

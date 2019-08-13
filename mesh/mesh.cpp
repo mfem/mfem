@@ -1733,6 +1733,9 @@ void Mesh::MakeReflectedPentMesh()
    int tet[4], tri[3];
    int new_vert[5];
    int attr;
+   unsigned char flag = 3;
+   flag <<= 1;
+   flag |= false;
 
    for (i = 0; i < NumOfElements; i++)
    {
@@ -1792,18 +1795,18 @@ void Mesh::MakeReflectedPentMesh()
             }
 
             new_vert[0] = tri[0]; new_vert[4] = tri[1];
-            elements.Append(new Pentatope(new_vert, attr, 3));o++;
+            elements.Append(new Pentatope(new_vert, attr, flag));o++;
             new_vert[0] = tri[1]; new_vert[4] = tri[2];
-            elements.Append(new Pentatope(new_vert, attr, 3));o++;
+            elements.Append(new Pentatope(new_vert, attr, flag));o++;
             new_vert[0] = tri[2]; new_vert[4] = tri[0];
             if (o == 59)
             {
                   elements[i]->SetVertices(new_vert);
-                  ((Pentatope*)elements[i])->SetSimplexType(3);
+                  ((Pentatope*)elements[i])->SetFlag(flag);
             }
             else
             {
-               elements.Append(new Pentatope(new_vert, attr, 3)); o++;
+               elements.Append(new Pentatope(new_vert, attr, flag)); o++;
             }
          }
       }
@@ -4579,13 +4582,13 @@ int Mesh::GetTetOrientation (const int * base, const int * test)
       }
    }
 #ifdef MFEM_DEBUG
-   /* const int *aor = tet_t::Orient[orient];
+    const int *aor = tet_t::Orient[orient];
     for (int j = 0; j < 4; j++)
        if (test[aor[j]] != base[j])
        {
           mfem_error("Mesh::GetTetOrientation(...)");
        }
-       */
+
 #endif
 
    return orient + 0;
@@ -5846,6 +5849,12 @@ void Mesh::GeneratePlanars()
             {
                pv = pent_t::PlanarVert[j];
                planars[ep[j]] = new Triangle(v[pv[0]], v[pv[1]], v[pv[2]]);
+            }
+            else if ((j == 2) || (j == 4) || (j == 5)) // Force ordering for refinement edges.
+            {
+               pv = pent_t::PlanarVert[j];
+               int ind[3] = {v[pv[0]], v[pv[1]], v[pv[2]]};
+               planars[ep[j]]->SetVertices(ind);
             }
          }
       }
@@ -8133,6 +8142,9 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       //    edges.
       HashTable<Hashed2> v_to_v;
 
+      if (type < 0)
+         type = -type;
+
       int need_refinement, green_cycles;
       switch(type)
       {
@@ -8535,7 +8547,7 @@ void Mesh::UniformRefinement(int ref_algo)
       {
          // In parallel we should set the default 2nd argument to -3 to indicate
          // uniform refinement.
-         LocalRefinement(elem_to_refine);
+         LocalRefinement(elem_to_refine, (Dim == 4) ? -3 : 3);
       }
       else
       {
@@ -8921,13 +8933,17 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
    {
       int j;
       char type, new_type;
+      bool swapped;
 
       Pentatope *pent = (Pentatope*) el;
 
       // MFEM_VERIFY ?
 
       vert = pent->GetVertices();
-      type = pent->GetSimplexType();
+      pent->ParseFlag(type, swapped);
+
+      if (swapped)
+         swap(vert[0], vert[1]);
 
       // 1. Get the index for the new vertex in v_new.
       bisect = v_to_v.FindId(vert[0], vert[4]);
@@ -8950,6 +8966,7 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
       v[0][0] = vert[0];
       v[1][0] = vert[4];
 
+      bool swaps[2];
       switch(type)
       {
       case 0:
@@ -8957,34 +8974,43 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
          v[0][3] = v[1][3] = vert[2];
          v[0][4] = v[1][2] = vert[3];
          new_type = 1;
+         swaps[0] = !swapped; swaps[1] = !swapped;
          break;
       case 1:
          v[0][2] = v[1][2] = vert[1];
          v[0][3] = v[1][4] = vert[2];
          v[0][4] = v[1][3] = vert[3];
          new_type = 2;
+         swaps[0] = !swapped; swaps[1] = !swapped;
          break;
       case 2:
          v[0][2] = v[1][2] = vert[1];
          v[0][3] = v[1][3] = vert[2];
          v[0][4] = v[1][4] = vert[3];
          new_type = 3;
+         swaps[0] = !swapped; swaps[1] = swapped;
          break;
       case 3:
          v[0][2] = v[1][2] = vert[1];
          v[0][3] = v[1][3] = vert[2];
          v[0][4] = v[1][4] = vert[3];
          new_type = 0;
+         swaps[0] = !swapped; swaps[1] = swapped;
          break;
       default:
          MFEM_ABORT("Invalid simplex type " << type << ".");
       }
+      if (swaps[0])
+         swap(v[0][0], v[0][1]);
+      if (swaps[1])
+         swap(v[1][0], v[1][1]);
 
       int attr = el->GetAttribute();
       pent->SetVertices(v[0]);
-      pent->SetSimplexType(new_type);
+      pent->CreateFlag(new_type, swaps[0]);
 
-      Pentatope *pent2 = new Pentatope(v[1], attr, new_type);
+      Pentatope *pent2 = new Pentatope(v[1], attr);
+      pent2->CreateFlag(new_type, swaps[1]);
 
       pent2->ResetTransform(pent->GetTransform());
       elements.Append(pent2);

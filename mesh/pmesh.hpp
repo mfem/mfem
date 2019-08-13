@@ -107,6 +107,12 @@ protected:
    bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
                              const Array<unsigned> &codes, int &pos);
 
+   void GetFaceSplittings4D(const Vert4 &f, const HashTable<Hashed2> &v_to_v,
+                            Array<unsigned> &codes);
+
+   bool DecodeFaceSplittings4D(HashTable<Hashed2> &v_to_v, const Vert4 &v,
+                               const Array<unsigned> &codes, int &pos);
+
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
 
