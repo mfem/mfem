@@ -66,6 +66,22 @@ void ortho(Vector &v)
    v -= global_sum / static_cast<double>(global_size);
 }
 
+void ortho(ParGridFunction &v)
+{
+   ConstantCoefficient one(1.0);
+   ParLinearForm mass_lf(v.ParFESpace());
+   mass_lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+   mass_lf.Assemble();
+
+   ParGridFunction one_gf(v.ParFESpace());
+   one_gf.ProjectCoefficient(one);
+
+   double volume = mass_lf(one_gf);
+   double integ = mass_lf(v);
+
+   v -= integ / volume;
+}
+
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
@@ -290,7 +306,7 @@ int main(int argc, char *argv[])
    MvInv.SetPreconditioner(MvInvPC);
    MvInv.SetOperator(Mv);
    MvInv.SetPrintLevel(0);
-   MvInv.SetRelTol(1e-8);
+   MvInv.SetRelTol(1e-12);
    MvInv.SetMaxIter(50);
 
    HypreBoomerAMG SpInvPC = HypreBoomerAMG(Sp);
@@ -299,8 +315,8 @@ int main(int argc, char *argv[])
    SpInv.SetPreconditioner(SpInvPC);
    SpInv.SetOperator(Sp);
    SpInv.SetPrintLevel(0);
-   SpInv.SetRelTol(1e-8);
-   SpInv.SetMaxIter(50);
+   SpInv.SetRelTol(1e-12);
+   SpInv.SetMaxIter(200);
 
    HypreBoomerAMG HInvPC = HypreBoomerAMG(H);
    HInvPC.SetPrintLevel(0);
@@ -308,8 +324,8 @@ int main(int argc, char *argv[])
    HInv.SetPreconditioner(HInvPC);
    HInv.SetOperator(H);
    HInv.SetPrintLevel(0);
-   HInv.SetRelTol(1e-8);
-   HInv.SetMaxIter(50);
+   HInv.SetRelTol(1e-12);
+   HInv.SetMaxIter(200);
 
    char vishost[] = "localhost";
    int visport = 19916;
@@ -503,9 +519,9 @@ int main(int argc, char *argv[])
       SpInv.Mult(B1, X1);
       Sp_form->RecoverFEMSolution(X1, tmpp_gf, pn_gf);
 
-      pn_gf.GetTrueDofs(pn);
+      ortho(pn_gf);
 
-      ortho(pn);
+      pn_gf.GetTrueDofs(pn);
 
       p_gf.Distribute(pn);
 
