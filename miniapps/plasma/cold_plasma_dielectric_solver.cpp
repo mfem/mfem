@@ -744,42 +744,6 @@ CPDSolver::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
 
-   // *e_ = 0.0;
-
-   /// For testing
-   // e_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-   /*
-   ComplexHypreParMatrix * A1 =
-      a1_->ParallelAssemble();
-   if ( A1->hasRealPart() ) { A1->real().Print("A1_real.mat"); }
-   if ( A1->hasImagPart() ) { A1->imag().Print("A1_imag.mat"); }
-   HypreParMatrix * A1C = A1->GetSystemMatrix();
-   A1C->Print("A1_combined.mat");
-   HypreParVector ra(*A1C); ra.Randomize(123);
-   HypreParVector A1ra(*A1C);
-   HypreParVector Ara(*A1C);
-   HypreParVector diff(*A1C);
-   A1->Mult(ra, A1ra);
-   A1C->Mult(ra, Ara);
-   subtract(A1ra, Ara, diff);
-   ra.Print("r.vec");
-   A1ra.Print("A1r.vec");
-   Ara.Print("Ar.vec");
-   diff.Print("diff.vec");
-   double nrm = Ara.Norml2();
-   double nrm1 = A1ra.Norml2();
-   double nrmdiff = diff.Norml2();
-   if ( myid_ == 0 )
-   {
-      cout << "norms " << nrm << " " << nrm1 << " " << nrmdiff << endl;
-   }
-   */
-   /*
-   HYPRE_Int size = HCurlFESpace_->GetTrueVSize();
-   Vector E(2*size), RHS(2*size);
-   jd_->ParallelAssemble(RHS);
-   e_->ParallelProject(E);
-   */
    OperatorHandle A1;
    Vector E, RHS;
    // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
@@ -807,29 +771,6 @@ CPDSolver::Solve()
    OperatorHandle PCOp;
    b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
 
-   /*
-   #ifdef MFEM_USE_SUPERLU
-   SuperLURowLocMatrix A_SuperLU(*A1C);
-   SuperLUSolver solver(MPI_COMM_WORLD);
-   solver.SetOperator(A_SuperLU);
-   solver.Mult(RHS, E);
-   #endif
-   #ifdef MFEM_USE_STRUMPACK
-   STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
-   STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
-   solver.SetOperator(A_STRUMPACK);
-   solver.Mult(RHS, E);
-   #endif
-   */
-   /*
-   MINRESSolver minres(HCurlFESpace_->GetComm());
-   minres.SetOperator(*A1);
-   minres.SetRelTol(1e-6);
-   minres.SetMaxIter(5000);
-   minres.SetPrintLevel(1);
-   // pcg.SetPreconditioner(ams);
-   minres.Mult(RHS, E);
-   */
    tic_toc.Clear();
    tic_toc.Start();
 
@@ -930,17 +871,6 @@ CPDSolver::Solve()
          {
             cout << "FGMRES Solver Requested" << endl;
          }
-         /*
-          HypreAMS amsr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
-                             HCurlFESpace_);
-               ScaledOperator amsi(&amsr,
-                                   (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0);
-
-               BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
-               BDP.SetDiagonalBlock(0,&amsr);
-               BDP.SetDiagonalBlock(1,&amsi);
-               BDP.owns_blocks = 0;
-         */
          FGMRESSolver fgmres(HCurlFESpace_->GetComm());
          if (BDP) { fgmres.SetPreconditioner(*BDP); }
          fgmres.SetOperator(*A1.Ptr());
@@ -1026,81 +956,6 @@ CPDSolver::Solve()
    if (pci != pcr) { delete pci; }
    delete pcr;
 
-   // delete A1;
-   // delete A1C;
-   /*
-   // Initialize the magnetic vector potential with its boundary conditions
-   *a_ = 0.0;
-   // Apply surface currents if available
-   if ( k_ )
-   {
-      SurfCur_->ComputeSurfaceCurrent(*k_);
-      *a_ = *k_;
-   }
-   // Apply uniform B boundary condition on remaining surfaces
-   a_->ProjectBdrCoefficientTangent(*aBCCoef_, non_k_bdr_);
-   // Initialize the RHS vector to zero
-   *jd_ = 0.0;
-   // Initialize the volumetric current density
-   if ( jr_ )
-   {
-      jr_->ProjectCoefficient(*jCoef_);
-      // Compute the discretely divergence-free portion of jr_
-      DivFreeProj_->Mult(*jr_, *j_);
-      // Compute the dual of j_
-      hCurlMass_->AddMult(*j_, *jd_);
-   }
-   // Initialize the Magnetization
-   if ( m_ )
-   {
-      m_->ProjectCoefficient(*mCoef_);
-      weakCurlMuInv_->AddMult(*m_, *jd_, mu0_);
-   }
-   // Apply Dirichlet BCs to matrix and right hand side and otherwise
-   // prepare the linear system
-   HypreParMatrix CurlMuInvCurl;
-   HypreParVector A(HCurlFESpace_);
-   HypreParVector RHS(HCurlFESpace_);
-   curlMuInvCurl_->FormLinearSystem(ess_bdr_tdofs_, *a_, *jd_, CurlMuInvCurl,
-                                    A, RHS);
-   // Define and apply a parallel PCG solver for AX=B with the AMS
-   // preconditioner from hypre.
-   HypreAMS ams(CurlMuInvCurl, HCurlFESpace_);
-   ams.SetSingularProblem();
-   HyprePCG pcg (CurlMuInvCurl);
-   pcg.SetTol(1e-12);
-   pcg.SetMaxIter(50);
-   pcg.SetPrintLevel(2);
-   pcg.SetPreconditioner(ams);
-   pcg.Mult(RHS, A);
-   // Extract the parallel grid function corresponding to the finite
-   // element approximation A. This is the local solution on each
-   // processor.
-   curlMuInvCurl_->RecoverFEMSolution(A, *jd_, *a_);
-   // Compute the negative Gradient of the solution vector.  This is
-   // the magnetic field corresponding to the scalar potential
-   // represented by phi.
-   curl_->Mult(*a_, *b_);
-   // Compute magnetic field (H) from B and M
-   if (myid_ == 0) { cout << "Computing H ... " << flush; }
-   hDivHCurlMuInv_->Mult(*b_, *bd_);
-   if ( m_ )
-   {
-      hDivHCurlMuInv_->AddMult(*m_, *bd_, -1.0 * mu0_);
-   }
-   HypreParMatrix MassHCurl;
-   Vector BD, H;
-   Array<int> dbc_dofs_h;
-   hCurlMass_->FormLinearSystem(dbc_dofs_h, *h_, *bd_, MassHCurl, H, BD);
-   HyprePCG pcgM(MassHCurl);
-   pcgM.SetTol(1e-12);
-   pcgM.SetMaxIter(500);
-   pcgM.SetPrintLevel(0);
-   HypreDiagScale diagM;
-   pcgM.SetPreconditioner(diagM);
-   pcgM.Mult(BD, H);
-   hCurlMass_->RecoverFEMSolution(H, *bd_, *h_);
-   */
    if ( myid_ == 0 && logging_ > 0 )
    {
       cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
