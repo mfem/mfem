@@ -82,7 +82,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    Mrhs->Assemble();
 
    M_solver.iterative_mode = true;
-   M_solver.SetRelTol(1e-12);
+   M_solver.SetRelTol(1e-12);   //FIXME so small??
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(2000);
    M_solver.SetPrintLevel(0);

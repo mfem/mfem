@@ -49,6 +49,7 @@ private:
 
    mutable ParGridFunction phiGf, psiGf, wGf;
    mutable ParBilinearForm *Nv, *Nb, *Pw;
+   mutable ParLinearForm *PB_VPsi, *PB_VOmega, *PB_BJ;
    mutable BlockOperator *Jacobian;
    mutable Vector z, zFull;
 
@@ -309,7 +310,6 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
 
    Mat ARe = sub[0][0];
    Mat Mmat = sub[2][2];
-   Mat Mmatlp = sub[0][2];
    Mat Kmat = sub[2][0];
 
    X->PlaceArray(x.GetData()); 
@@ -575,7 +575,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
    M_solver.iterative_mode = true;
-   M_solver.SetRelTol(1e-12);
+   M_solver.SetRelTol(1e-7);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(2000);
    M_solver.SetPrintLevel(0);
@@ -883,7 +883,8 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      initialMdt(false), E0Vec(NULL), M_solver(M_solver_),
      dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_),
-     Nv(NULL), Nb(NULL), Pw(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
+     Nv(NULL), Nb(NULL), Pw(NULL), PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
+     Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
     useFull=false;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -917,7 +918,8 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      E0Vec(NULL), M_solver(M_solver_), 
      dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_),
-     Nv(NULL), Nb(NULL), Pw(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
+     Nv(NULL), Nb(NULL), Pw(NULL),  PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
+     Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
     useFull = useFull_;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1115,6 +1117,9 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete Nv;
    delete Nb;
    delete Pw;
+   delete PB_VPsi; 
+   delete PB_VOmega;
+   delete PB_BJ;
    delete Mlp;
 }
 
@@ -1131,23 +1136,42 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Vector y3(y.GetData() +2*sc, sc);
 
    Vector &k_ = const_cast<Vector &>(k);
-
-   //------assemble Nv and Nb (operators are assembled locally)------
-   delete Nv;
    phiGf.MakeTRef(&fespace, k_, 0);
    phiGf.SetFromTrueVector();
-   Nv = new ParBilinearForm(&fespace);
-   MyCoefficient velocity(&phiGf, 2);   //we update velocity
-   Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
-   Nv->Assemble(); 
-
-   delete Nb;
    psiGf.MakeTRef(&fespace, k_, sc);
    psiGf.SetFromTrueVector();
-   Nb = new ParBilinearForm(&fespace);
-   MyCoefficient Bfield(&psiGf, 2);   //we update B
-   Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
-   Nb->Assemble();
+
+   //two different ways to implement Poission Bracket
+   //BilinearForm seems a better idea unless we are willing to 
+   //sacrifice the accuracy (use a less accurate integrator)
+   bool bilinearPB = true;
+   if (bilinearPB)
+   {
+      //------assemble Nv and Nb (operators are assembled locally)------
+      delete Nv;
+      Nv = new ParBilinearForm(&fespace);
+      MyCoefficient velocity(&phiGf, 2);   //we update velocity
+      Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
+      Nv->Assemble(); 
+   }
+   else
+   {
+      delete PB_VPsi;
+      PB_VPsi = new ParLinearForm(&fespace);
+      PBCoefficient pbCoeff(&phiGf, &psiGf);
+      //intOrder = 3*k+0
+      PB_VPsi->AddDomainIntegrator(new DomainLFIntegrator(pbCoeff, 3, 0));
+      PB_VPsi->Assemble();
+
+      wGf.MakeTRef(&fespace, k_, 2*sc);
+      wGf.SetFromTrueVector();
+
+      delete PB_VOmega;
+      PB_VOmega = new ParLinearForm(&fespace);
+      PBCoefficient pbCoeff2(&phiGf, &wGf);
+      PB_VOmega->AddDomainIntegrator(new DomainLFIntegrator(pbCoeff2, 3, 0));
+      PB_VOmega->Assemble();
+   }
 
    //------compute the current as an auxilary variable------
    Vector J, Z;
@@ -1167,7 +1191,12 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    add(psiNew, -1., *psi, z);
    z/=dt;
    Mmat.Mult(z,y2);
-   Nv->TrueAddMult(psiNew,y2);
+
+   if (bilinearPB)
+      Nv->TrueAddMult(psiNew,y2);
+   else
+      y2 += *PB_VPsi;
+
    if (DSl!=NULL)
        DSl->TrueAddMult(psiNew,y2);
    if (E0Vec!=NULL)
@@ -1178,13 +1207,40 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    add(wNew, -1., *w, z);
    z/=dt;
    Mmat.Mult(z,y3);
-   Nv->TrueAddMult(wNew,y3);
+   if (bilinearPB)
+      Nv->TrueAddMult(wNew,y3);
+   else
+      y3 += *PB_VOmega;
+
    if (DRe!=NULL)
        DRe->TrueAddMult(wNew,y3);
 
-   //note J=-M^{-1} KB*Psi; so let J=-J
+   //we let J=-J for applying -Nb*J
    J.Neg();
-   Nb->TrueAddMult(J, y3); 
+   if (bilinearPB)
+   {      
+      delete Nb;
+      Nb = new ParBilinearForm(&fespace);
+      MyCoefficient Bfield(&psiGf, 2);   //we update B
+      Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
+      Nb->Assemble();
+      Nb->TrueAddMult(J, y3); 
+   }
+   else
+   {
+      //use wGf temporary to hold j
+      wGf.MakeTRef(&fespace, J, 0);
+      wGf.SetFromTrueVector();
+      delete PB_BJ;
+      PB_BJ = new ParLinearForm(&fespace);
+      PBCoefficient pbCoeff(&psiGf, &wGf);
+
+      PB_BJ->AddDomainIntegrator(new DomainLFIntegrator(pbCoeff, 3, 0));
+      PB_BJ->Assemble();
+      HypreParVector *trueBJ = PB_BJ->ParallelAssemble();
+      y3 += *trueBJ;
+      delete trueBJ;
+   }
    y3.SetSubVector(ess_tdof_list, 0.0);
 }
 

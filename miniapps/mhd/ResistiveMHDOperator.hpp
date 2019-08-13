@@ -248,7 +248,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    //ofstream myfile("zLHS1.dat");
    //z.Print(myfile, 1000);
 
-   if (PB_VPsi!=NULL)
+   if (PB_VOmega!=NULL)
    {
        //cout <<"VOmgea ";
        z=*PB_VOmega;
