@@ -87,9 +87,9 @@ int main(int argc, char *argv[])
                   "-no-ser", "--not-serendipity",
                   "Use serendipity element collection.");
    args.AddOption(&total_refinements, "-r", "--refine",
-                  "Number of uniform refinements to do.");
+                  "Number of uniform refinements to do."); 
    args.AddOption(&CG_max_its, "-i", "--cg-its",
-                  "Max number of iterations of CG to do.");
+                  "Max number of iterations of CG to do."); 
    args.Parse();
    if (!args.Good())
    {
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
    //    elements.
 
    int ref_levels =
-      (int)floor(log(50000. / mesh->GetNE()) / log(2.) / dim);
+       (int)floor(log(50000. / mesh->GetNE()) / log(2.) / dim);
    if (total_refinements > -1)
    {
       ref_levels = total_refinements;
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
    if (pa)
    {
       a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   }  
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -222,14 +222,14 @@ int main(int argc, char *argv[])
 
       // DSmoother M((SparseMatrix&)(*A));
       // PCG(*A, M, B, X, 2, 5, 1e-12, 0.0);
-
+      
       GSSmoother M((SparseMatrix &)(*A));
       PCG(*A, M, B, X, 2, 200, 1e-12, 0.0);
-      // set 5th parameter to "2" instead of 1 to limit information on interations
-
+            // set 5th parameter to "2" instead of 1 to limit information on interations
+      
       // DSmoother M((SparseMatrix &)(*A));
       // PCG(*A, M, B, X, 1, CG_max_its, 1e-12, 0.0);
-
+      
       // SparseMatrix *Amat;
       // Amat = A.As<SparseMatrix>();
       // cout << "Type ID: " << A.Type() << '\n';

@@ -963,12 +963,10 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
    : fespace(fespace)
    , old_elem_dof(old_elem_dof)
 {
-   if (fespace->GetNDofs() < old_ndofs)
+   if(fespace->GetNDofs() < old_ndofs)
    {
-      cout << endl << "*** fespace about to abort with fec = " <<
-           fespace->fec->Name();
-      cout << " because new dofs = " << fespace->GetNDofs() << " < " << old_ndofs <<
-           " = old dofs!";
+      cout << endl << "*** fespace about to abort with fec = " << fespace->fec->Name();
+      cout << " because new dofs = " << fespace->GetNDofs() << " < " << old_ndofs << " = old dofs!";
    }
    MFEM_VERIFY(fespace->GetNDofs() >= old_ndofs,
                "Previous space is not coarser.");
@@ -1456,8 +1454,8 @@ void FiniteElementSpace::Construct()
             nbdofs += fec->DofForGeometry(geom);
             bdofs[i+1] = nbdofs;
          }
-         // cout << "fespace.cpp: Using a serendipity element!" << endl;
-         // Need to adjust something here for serendipity elements
+      // cout << "fespace.cpp: Using a serendipity element!" << endl;
+      // Need to adjust something here for serendipity elements
       }
       else
       {
@@ -1472,10 +1470,10 @@ void FiniteElementSpace::Construct()
       }
       ndofs = nvdofs + nedofs + nfdofs + nbdofs;
       // cout << "Computed ndofs as sum of " << nvdofs << " vdofs, " << nedofs << " nedofs, " << nfdofs << " nfdofs, and " << nbdofs << " nbdofs." << endl;
-      //   Serendipity edits will need to be done here...
+   //   Serendipity edits will need to be done here...
 
-      // Do not build elem_dof Table here: in parallel it has to be constructed
-      // later.
+   // Do not build elem_dof Table here: in parallel it has to be constructed
+   // later.
    }
 }
 
@@ -1495,7 +1493,7 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
       nv = fec->DofForGeometry(Geometry::POINT);
       ne = (dim > 1) ? ( fec->DofForGeometry(Geometry::SEGMENT) ) : ( 0 );
       nb = (dim > 0) ? fec->DofForGeometry(mesh->GetElementBaseGeometry(i)) : 0;
-
+      
       if (nv > 0)
       {
          mesh->GetElementVertices(i, V);
@@ -1677,7 +1675,7 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
                   mesh->GetBdrElementBaseGeometry(i), oF);
          for (j = 0; j < nf; j++)
          {
-
+            
             if (ind[j] < 0)
             {
                dofs[ne+j] = -1 - ( nvdofs+nedofs+fdofs[iF]+(-1-ind[j]) );

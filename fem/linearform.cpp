@@ -91,7 +91,7 @@ void LinearForm::Assemble()
    // The above operation is executed on device because of UseDevice().
    // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
-
+   
    if (dlfi.Size())
    {
       for (i = 0; i < fes -> GetNE(); i++)
@@ -105,11 +105,11 @@ void LinearForm::Assemble()
          }
       }
    }
-
+   
 
    AssembleDelta();
 
-
+   
 
    if (blfi.Size())
    {

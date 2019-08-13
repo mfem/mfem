@@ -65,8 +65,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_serendip, "-ser", "--use-serendipity",
-                  "-no-ser", "--not-serendipity",
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity", 
+                  "-no-ser", "--not-serendipity", 
                   "Use serendipity element collection.");
 
 
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection *fec;
    if (use_serendip)
-   {
+   {     
       fec = new H1Ser_FECollection(order,dim);
    }
    else

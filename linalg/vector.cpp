@@ -578,11 +578,11 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
       const int j = d_dofs[i];
       if (j >= 0)
       {
-         d_X[j] += d_y[i];
+	d_X[j] += d_y[i];
       }
       else
       {
-         d_X[-1-j] -= d_y[i];
+	d_X[-1-j] -= d_y[i];
       }
    });
 }

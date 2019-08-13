@@ -71,10 +71,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_serendip, "-ser", "--use-serendipity",
-                  "-no-ser", "--not-serendipity",
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity", 
+                  "-no-ser", "--not-serendipity", 
                   "Use serendipity element collection.");
-
+                     
    args.Parse();
    if (!args.Good())
    {
@@ -124,10 +124,10 @@ int main(int argc, char *argv[])
 
    // 7. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
-
+   
    FiniteElementCollection *fec;
    if (use_serendip)
-   {
+   {     
       fec = new H1Ser_FECollection(order,dim);
    }
    else
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
 
    // 13. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-
+   
    // const int max_dofs = 100000;
    const int max_dofs = 10000;
    const int max_its = 2; // remove it<max_its condition from for loop below

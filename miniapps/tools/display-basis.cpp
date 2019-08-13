@@ -81,7 +81,7 @@ public:
    };
 
    Deformation(int dim, DefType dType, const DeformationData &data)
-      : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
+       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
    void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
@@ -158,8 +158,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&onlySome, "-only", "--onlySome",
-                  "Only view 10 dofs starting with the specified one.");
+   args.AddOption(&onlySome, "-only", "--onlySome", "Only view 10 dofs starting with the specified one.");
    args.Parse();
    if (!args.Good())
    {
@@ -175,32 +174,32 @@ int main(int argc, char *argv[])
    }
    switch (bInt)
    {
-      case 0:
-         bType = 'h';
-         break;
-      case 1:
-         bType = 'n';
-         break;
-      case 2:
-         bType = 'r';
-         break;
-      case 3:
-         bType = 'l';
-         break;
-      case 4:
-         bType = 'f';
-         break;
-      case 5:
-         bType = 'g';
-         break;
-      case 6:
-         bType = 'c';
-         break;
-      case 7:
-         bType = 's';
-         break;
-      default:
-         bType = 'h';
+   case 0:
+      bType = 'h';
+      break;
+   case 1:
+      bType = 'n';
+      break;
+   case 2:
+      bType = 'r';
+      break;
+   case 3:
+      bType = 'l';
+      break;
+   case 4:
+      bType = 'f';
+      break;
+   case 5:
+      bType = 'g';
+      break;
+   case 6:
+      bType = 'c';
+      break;
+   case 7:
+      bType = 's';
+      break;
+   default:
+      bType = 'h';
    }
 
    // Collect user input
@@ -230,10 +229,10 @@ int main(int argc, char *argv[])
       print_char = false;
       cout << endl;
       cout << "What would you like to do?\n"
-           "q) Quit\n"
-           "c) Close Windows and Quit\n"
-           "e) Change Element Type\n"
-           "b) Change Basis Type\n";
+              "q) Quit\n"
+              "c) Close Windows and Quit\n"
+              "e) Change Element Type\n"
+              "b) Change Basis Type\n";
       if (bType == 'h' || bType == 'p' || bType == 'n' || bType == 'r' ||
           bType == 'l' || bType == 'f' || bType == 'g' || bType == 's')
       {
@@ -272,12 +271,12 @@ int main(int argc, char *argv[])
          if (basisIs2D(bType))
          {
             cout << "2) Triangle\n"
-                 "3) Quadrilateral\n";
+                    "3) Quadrilateral\n";
          }
          if (basisIs3D(bType))
          {
             cout << "4) Tetrahedron\n"
-                 "5) Hexahedron\n";
+                    "5) Hexahedron\n";
          }
          cout << "enter new element type --> " << flush;
          cin >> eInt;
@@ -302,8 +301,7 @@ int main(int argc, char *argv[])
          }
          else
          {
-            cout << "invalid element type \"" << eInt << "\" for basis type \"" <<
-                 basisTypeStr(bType) << "\"." << endl;
+            cout << "invalid element type \"" << eInt << "\" for basis type \"" << basisTypeStr(bType) << "\"." << endl;
          }
       }
       if (mk == 'b')
@@ -331,7 +329,7 @@ int main(int argc, char *argv[])
          cout << "enter new basis type --> " << flush;
          cin >> bChar;
          if (bChar == 'h' || bChar == 'p' || bChar == 'l' || bChar == 'f' ||
-             bChar == 's' ||
+            bChar == 's' ||
              ((bChar == 'n' || bChar == 'r') &&
               (elemIs2D(eType) || elemIs3D(eType))) ||
              (bChar == 'c' && (elemIs1D(eType) || elemIs2D(eType))) ||
@@ -398,8 +396,8 @@ int main(int argc, char *argv[])
       {
          int mInt = 0;
          cout << "valid map types:\n"
-              "0) VALUE\n"
-              "1) INTEGRAL\n";
+                 "0) VALUE\n"
+                 "1) INTEGRAL\n";
          cout << "enter new map type --> " << flush;
          cin >> mInt;
          if (mInt >= 0 && mInt <= 1)
@@ -417,19 +415,19 @@ int main(int argc, char *argv[])
          int oInt = 1;
          int oMin = (bType == 'h' || bType == 'p' || bType == 'n' ||
                      bType == 'f' || bType == 'g' || bType == 's')
-                    ? 1
-                    : 0;
+                        ? 1
+                        : 0;
          int oMax = -1;
          switch (bType)
          {
-            case 'g':
-               oMax = 2;
-               break;
-            case 'f':
-               oMax = 3;
-               break;
-            default:
-               oMax = -1;
+         case 'g':
+            oMax = 2;
+            break;
+         case 'f':
+            oMax = 3;
+            break;
+         default:
+            oMax = -1;
          }
          cout << "basis function order must be >= " << oMin;
          if (oMax >= 0)
@@ -524,20 +522,20 @@ string elemTypeStr(const Element::Type &eType)
 {
    switch (eType)
    {
-      case Element::POINT:
-         return "POINT";
-      case Element::SEGMENT:
-         return "SEGMENT";
-      case Element::TRIANGLE:
-         return "TRIANGLE";
-      case Element::QUADRILATERAL:
-         return "QUADRILATERAL";
-      case Element::TETRAHEDRON:
-         return "TETRAHEDRON";
-      case Element::HEXAHEDRON:
-         return "HEXAHEDRON";
-      default:
-         return "INVALID";
+   case Element::POINT:
+      return "POINT";
+   case Element::SEGMENT:
+      return "SEGMENT";
+   case Element::TRIANGLE:
+      return "TRIANGLE";
+   case Element::QUADRILATERAL:
+      return "QUADRILATERAL";
+   case Element::TETRAHEDRON:
+      return "TETRAHEDRON";
+   case Element::HEXAHEDRON:
+      return "HEXAHEDRON";
+   default:
+      return "INVALID";
    };
 }
 
@@ -561,26 +559,26 @@ basisTypeStr(char bType)
 {
    switch (bType)
    {
-      case 'h':
-         return "Continuous (H1)";
-      case 'p':
-         return "Continuous Positive (H1)";
-      case 's':
-         return "Continuous Serendipity (H1)";
-      case 'n':
-         return "Nedelec";
-      case 'r':
-         return "Raviart-Thomas";
-      case 'l':
-         return "Discontinuous (L2)";
-      case 'f':
-         return "Fixed Order Continuous";
-      case 'g':
-         return "Gaussian Discontinuous";
-      case 'c':
-         return "Crouzeix-Raviart";
-      default:
-         return "INVALID";
+   case 'h':
+      return "Continuous (H1)";
+   case 'p':
+      return "Continuous Positive (H1)";
+   case 's':
+      return "Continuous Serendipity (H1)";
+   case 'n':
+      return "Nedelec";
+   case 'r':
+      return "Raviart-Thomas";
+   case 'l':
+      return "Discontinuous (L2)";
+   case 'f':
+      return "Fixed Order Continuous";
+   case 'g':
+      return "Gaussian Discontinuous";
+   case 'c':
+      return "Crouzeix-Raviart";
+   default:
+      return "INVALID";
    };
 }
 
@@ -608,16 +606,16 @@ mapTypeStr(int mType)
 {
    switch (mType)
    {
-      case FiniteElement::VALUE:
-         return "VALUE";
-      case FiniteElement::H_CURL:
-         return "H_CURL";
-      case FiniteElement::H_DIV:
-         return "H_DIV";
-      case FiniteElement::INTEGRAL:
-         return "INTEGRAL";
-      default:
-         return "INVALID";
+   case FiniteElement::VALUE:
+      return "VALUE";
+   case FiniteElement::H_CURL:
+      return "H_CURL";
+   case FiniteElement::H_DIV:
+      return "H_DIV";
+   case FiniteElement::INTEGRAL:
+      return "INTEGRAL";
+   default:
+      return "INVALID";
    }
 }
 
@@ -629,15 +627,15 @@ void Deformation::Eval(Vector &v, ElementTransformation &T,
 
    switch (dim_)
    {
-      case 1:
-         Def1D(u, v);
-         break;
-      case 2:
-         Def2D(u, v);
-         break;
-      case 3:
-         Def3D(u, v);
-         break;
+   case 1:
+      Def1D(u, v);
+      break;
+   case 2:
+      Def2D(u, v);
+      break;
+   case 3:
+      Def3D(u, v);
+      break;
    }
 }
 
@@ -654,21 +652,21 @@ void Deformation::Def2D(const Vector &u, Vector &v)
 {
    switch (dType_)
    {
-      case UNIFORM:
-         v = u;
-         v *= data_.uniformScale;
-         break;
-      case SQUEEZE:
-         v = u;
-         v[data_.squeezeAxis] /= data_.squeezeFactor;
-         v[(data_.squeezeAxis + 1) % 2] *= data_.squeezeFactor;
-         break;
-      case SHEAR:
-         v = u;
-         v.Add(v[data_.shearAxis], data_.shearVec);
-         break;
-      default:
-         v = u;
+   case UNIFORM:
+      v = u;
+      v *= data_.uniformScale;
+      break;
+   case SQUEEZE:
+      v = u;
+      v[data_.squeezeAxis] /= data_.squeezeFactor;
+      v[(data_.squeezeAxis + 1) % 2] *= data_.squeezeFactor;
+      break;
+   case SHEAR:
+      v = u;
+      v.Add(v[data_.shearAxis], data_.shearVec);
+      break;
+   default:
+      v = u;
    }
 }
 
@@ -676,22 +674,22 @@ void Deformation::Def3D(const Vector &u, Vector &v)
 {
    switch (dType_)
    {
-      case UNIFORM:
-         v = u;
-         v *= data_.uniformScale;
-         break;
-      case SQUEEZE:
-         v = u;
-         v[data_.squeezeAxis] /= data_.squeezeFactor;
-         v[(data_.squeezeAxis + 1) % 2] *= sqrt(data_.squeezeFactor);
-         v[(data_.squeezeAxis + 2) % 2] *= sqrt(data_.squeezeFactor);
-         break;
-      case SHEAR:
-         v = u;
-         v.Add(v[data_.shearAxis], data_.shearVec);
-         break;
-      default:
-         v = u;
+   case UNIFORM:
+      v = u;
+      v *= data_.uniformScale;
+      break;
+   case SQUEEZE:
+      v = u;
+      v[data_.squeezeAxis] /= data_.squeezeFactor;
+      v[(data_.squeezeAxis + 1) % 2] *= sqrt(data_.squeezeFactor);
+      v[(data_.squeezeAxis + 2) % 2] *= sqrt(data_.squeezeFactor);
+      break;
+   case SHEAR:
+      v = u;
+      v.Add(v[data_.shearAxis], data_.shearVec);
+      break;
+   default:
+      v = u;
    }
 }
 
@@ -724,65 +722,65 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
    FiniteElementCollection *FEC = NULL;
    switch (bType)
    {
-      case 'h':
+   case 'h':
+      FEC = new H1_FECollection(bOrder, dim);
+      vec = false;
+      break;
+   case 'p':
+      FEC = new H1Pos_FECollection(bOrder, dim);
+      vec = false;
+      break;
+   case 's':
+      if (bOrder == 1)
+      {
          FEC = new H1_FECollection(bOrder, dim);
-         vec = false;
-         break;
-      case 'p':
-         FEC = new H1Pos_FECollection(bOrder, dim);
-         vec = false;
-         break;
-      case 's':
-         if (bOrder == 1)
-         {
-            FEC = new H1_FECollection(bOrder, dim);
-         }
-         else
-         {
-            FEC = new H1Ser_FECollection(bOrder, dim);
-         }
-         vec = false;
-         break;
-      case 'n':
-         FEC = new ND_FECollection(bOrder, dim);
-         vec = true;
-         break;
-      case 'r':
-         FEC = new RT_FECollection(bOrder - 1, dim);
-         vec = true;
-         break;
-      case 'l':
-         FEC = new L2_FECollection(bOrder, dim, BasisType::GaussLegendre,
-                                   mType);
-         vec = false;
-         break;
-      case 'c':
-         FEC = new CrouzeixRaviartFECollection();
-         break;
-      case 'f':
-         if (bOrder == 1)
-         {
-            FEC = new LinearFECollection();
-         }
-         else if (bOrder == 2)
-         {
-            FEC = new QuadraticFECollection();
-         }
-         else if (bOrder == 3)
-         {
-            FEC = new CubicFECollection();
-         }
-         break;
-      case 'g':
-         if (bOrder == 1)
-         {
-            FEC = new GaussLinearDiscont2DFECollection();
-         }
-         else if (bOrder == 2)
-         {
-            FEC = new GaussQuadraticDiscont2DFECollection();
-         }
-         break;
+      }
+      else
+      {
+         FEC = new H1Ser_FECollection(bOrder, dim);
+      }
+      vec = false;
+      break;
+   case 'n':
+      FEC = new ND_FECollection(bOrder, dim);
+      vec = true;
+      break;
+   case 'r':
+      FEC = new RT_FECollection(bOrder - 1, dim);
+      vec = true;
+      break;
+   case 'l':
+      FEC = new L2_FECollection(bOrder, dim, BasisType::GaussLegendre,
+                                mType);
+      vec = false;
+      break;
+   case 'c':
+      FEC = new CrouzeixRaviartFECollection();
+      break;
+   case 'f':
+      if (bOrder == 1)
+      {
+         FEC = new LinearFECollection();
+      }
+      else if (bOrder == 2)
+      {
+         FEC = new QuadraticFECollection();
+      }
+      else if (bOrder == 3)
+      {
+         FEC = new CubicFECollection();
+      }
+      break;
+   case 'g':
+      if (bOrder == 1)
+      {
+         FEC = new GaussLinearDiscont2DFECollection();
+      }
+      else if (bOrder == 2)
+      {
+         FEC = new GaussQuadraticDiscont2DFECollection();
+      }
+      break;
    }
    if (FEC == NULL)
    {
@@ -846,7 +844,7 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
    {
       if (bType == 's')
       {
-         //   break;
+      //   break;
       }
       mesh->UniformRefinement();
       FESpace.Update();
@@ -863,8 +861,7 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
    {
       cout << endl;
       cout << "There are more than 25 windows to open.  Only showing Dofs 1-10 to avoid crashing. "
-           << endl << "Use the -only option in command line select which Dofs to view." <<
-           endl;
+      << endl << "Use the -only option in command line select which Dofs to view." << endl;
       onlySome = 1;
    }
    for (int i = 0; i < stopAt; i++)
