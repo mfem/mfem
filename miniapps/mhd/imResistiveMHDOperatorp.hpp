@@ -1191,7 +1191,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    add(psiNew, -1., *psi, z);
    z/=dt;
    Mmat.Mult(z,y2);
-
    if (bilinearPB)
       Nv->TrueAddMult(psiNew,y2);
    else
@@ -1215,8 +1214,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    if (DRe!=NULL)
        DRe->TrueAddMult(wNew,y3);
 
-   //we let J=-J for applying -Nb*J
-   J.Neg();
    if (bilinearPB)
    {      
       delete Nb;
@@ -1224,11 +1221,13 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       MyCoefficient Bfield(&psiGf, 2);   //we update B
       Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
       Nb->Assemble();
-      Nb->TrueAddMult(J, y3); 
+      Nb->TrueAddMult(J, y3, -1.); 
    }
    else
    {
-      //use wGf temporary to hold j
+      //we let J=-J for applying -Nb*J
+      J.Neg();
+      //use wGf to temporarily hold j
       wGf.MakeTRef(&fespace, J, 0);
       wGf.SetFromTrueVector();
       delete PB_BJ;
