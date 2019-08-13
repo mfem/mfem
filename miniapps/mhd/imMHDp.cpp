@@ -2,11 +2,11 @@
 //
 // Compile with: make imMHDp
 //
-// Sample runs:
-//    imMHDp -m xperiodic-square.mesh -r 2 -o 3 -tf 3 -vs 100 -dt .001 -visit
-
-//
-// Description:  it solves a time dependent resistive MHD problem 
+// Description:  It solves a time dependent resistive MHD problem 
+//               There three versions:
+//               1. explicit scheme
+//               2. implicit scheme using a very simple linear preconditioner
+//               3. implicit scheme using physcis-based preconditioner
 // Author: QT
 
 #include "mfem.hpp"
@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // 1. Parse command-line options.
+   //++++Parse command-line options.
    const char *mesh_file = "./xperiodic-square.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
@@ -212,13 +212,13 @@ int main(int argc, char *argv[])
       MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
    }
 
-   // 2. Read the mesh from the given mesh file.    
+   //+++++Read the mesh from the given mesh file.    
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 3. Define the ODE solver used for time integration. Several implicit
+   //++++Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
-   //    explicit Runge-Kutta methods are available.
+   //    backward Euler methods are available.
    PDSolver *ode_solver=NULL;
    ODESolver *ode_solver2=NULL;
    bool explicitSolve=false;
@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   // 4. Refine the mesh to increase the resolution.    
+   //++++++Refine the mesh to increase the resolution.    
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -254,11 +254,9 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 5. Define the vector finite element spaces representing 
-   //  [Psi, Phi, w]
-   // in block vector bv, with offsets given by the
-   //    fe_offset array.
-   // All my fespace is 1D bu the problem is multi-dimensional!!
+   //+++++Define the vector finite element spaces representing  [Psi, Phi, w]
+   // in block vector bv, with offsets given by the fe_offset array.
+   // All my fespace is 1D but the problem is multi-dimensional
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll); 
 
@@ -281,7 +279,7 @@ int main(int argc, char *argv[])
    psi.MakeTRef(&fespace, vx, fe_offset[1]);
      w.MakeTRef(&fespace, vx, fe_offset[2]);
 
-   // 6. Set the initial conditions, and the boundary conditions
+   //+++++Set the initial conditions, and the boundary conditions
    FunctionCoefficient phiInit(InitialPhi);
    phi.ProjectCoefficient(phiInit);
    phi.SetTrueVector();
@@ -307,7 +305,7 @@ int main(int argc, char *argv[])
    w.ProjectCoefficient(wInit);
    w.SetTrueVector();
    
-   //this is necessary to make sure unknows are updated
+   //this step is necessary to make sure unknows are updated!
    phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
 
    //Set the background psi
@@ -328,7 +326,7 @@ int main(int argc, char *argv[])
    }
    psiBack.SetTrueVector();
 
-   //this is a periodic boundary condition in x and Direchlet in y 
+   //++++++this is a periodic boundary condition in x and Direchlet in y 
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary fixed
@@ -343,7 +341,7 @@ int main(int argc, char *argv[])
     return 2;
    }
 
-   // 7. Initialize the MHD operator, the GLVis visualization    
+   //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
    if (icase==2)  //add the source term
    {
@@ -450,7 +448,7 @@ int main(int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
 
-   // 8. Perform time-integration (looping over the time iterations, ti, with a
+   //++++Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -525,7 +523,7 @@ int main(int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD); 
    double end = MPI_Wtime();
 
-   // 9. Save the solutions.
+   //++++++Save the solutions.
    {
       phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
 
@@ -557,7 +555,7 @@ int main(int argc, char *argv[])
        cout <<"######Runtime = "<<end-start<<" ######"<<endl;
    }
 
-   // 10. Free the used memory.
+   //+++++Free the used memory.
    delete ode_solver;
    delete ode_solver2;
    delete pmesh;

@@ -1,6 +1,6 @@
 clear all;
 %this is a simple matlab scrip to generate 3*2^n meshes
-m=3*2^3;
+m=2^2;
 
 elements=m^2;
 

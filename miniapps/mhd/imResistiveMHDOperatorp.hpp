@@ -662,12 +662,11 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
       if (use_factory)
       {
-         //we should set ksptype as preonly here:
          SNES snes=SNES(*pnewton_solver);
          KSP ksp; 
 		 SNESGetKSP(snes,&ksp);
 
-		 //KSPSetType(ksp,KSPGMRES);
+		 //KSPSetType(ksp,KSPFGMRES);
          //SNESKSPSetUseEW(snes,PETSC_TRUE);
          //SNESKSPSetParametersEW(snes,2,1e-4,0.1,0.9,1.5,1.5,0.1);
 
@@ -886,12 +885,12 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_),
      Nv(NULL), Nb(NULL), Pw(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
-    //this is not right because Mdtpr shares the same matrix with Mmat_
-    //hypre_ParCSRMatrix *csrM = (hypre_ParCSRMatrix*)(Mmat_);
-    //Mdtpr = new HypreParMatrix(csrM, true);
-    
     useFull=false;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+    //the following is not right because Mdtpr shares the same matrix with Mmat_
+    //hypre_ParCSRMatrix *csrM = (hypre_ParCSRMatrix*)(Mmat_);
+    //Mdtpr = new HypreParMatrix(csrM, true);
 
     //correct way to deep copy:
     Mdtpr = new HypreParMatrix(Mmat_);
@@ -1158,14 +1157,13 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    M->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
    M_solver->Mult(Z, J); 
 
-   //compute y1
+   //+++++compute y1
    Kmat.Mult(phiNew,y1);
    Mmat.Mult(wNew,z);
    y1+=z;
    y1.SetSubVector(ess_tdof_list, 0.0);
 
-   //compute y2
-   //note z=psiNew-*psi
+   //+++++compute y2
    add(psiNew, -1., *psi, z);
    z/=dt;
    Mmat.Mult(z,y2);
@@ -1176,8 +1174,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
        y2 += *E0Vec;
    y2.SetSubVector(ess_tdof_list, 0.0);
 
-   //compute y3
-   //note z=wNew-*w
+   //+++++compute y3
    add(wNew, -1., *w, z);
    z/=dt;
    Mmat.Mult(z,y3);
