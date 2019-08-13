@@ -10,6 +10,7 @@
 //               ex2 -m ../data/beam-quad.mesh -o 3 -sc
 //               ex2 -m ../data/beam-quad-nurbs.mesh
 //               ex2 -m ../data/beam-hex-nurbs.mesh
+//               ex2 -m ../data/beam-hex.mesh -o 2 -ser
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
@@ -51,6 +52,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
+   bool use_serendip = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -62,6 +64,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity",
+                  "-no-ser", "--not-serendipity",
+                  "Use serendipity element collection.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -117,7 +123,14 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order, dim);
+      if (use_serendip)
+      {
+         fec = new H1Ser_FECollection(order, dim);
+      }
+      else
+      {
+         fec = new H1_FECollection(order, dim);
+      }
       fespace = new FiniteElementSpace(mesh, fec, dim);
    }
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()

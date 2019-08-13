@@ -1999,6 +1999,8 @@ public:
                            DenseMatrix &dshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
    using FiniteElement::Project;
 };
 

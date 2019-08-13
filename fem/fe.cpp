@@ -2483,8 +2483,29 @@ void H1Ser_HexElement::GetLocalInterpolation(ElementTransformation &Trans,
 }
 
 
-
-
+// This is an exact copy of NodalFiniteElement::Project
+// It's an inelegant solution - is there a better way to give the H1Ser_Hex class access to this function?
+// It's required in ex2, for instance.
+void H1Ser_HexElement::Project (VectorCoefficient &vc,
+                                ElementTransformation &Trans, Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
+   Vector x(vc.GetVDim());
+   for (int i = 0; i < Dof; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      vc.Eval (x, Trans, ip);
+      if (MapType == INTEGRAL)
+      {
+         x *= Trans.Weight();
+      }
+      for (int j = 0; j < x.Size(); j++)
+      {
+         dofs(Dof*j+i) = x(j);
+      }
+   }
+}
 
 BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()
    : PositiveFiniteElement(2, Geometry::SQUARE, 9, 2, FunctionSpace::Qk)
