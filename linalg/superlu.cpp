@@ -141,7 +141,7 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    width  = m_loc;
 
    double * nzval  = csr_op->data;
-   int    * colind = csr_op->j;
+   int    * colind = csr_op->big_j;
    int    * rowptr = NULL;
 
    // The "i" array cannot be stolen from the hypre_CSRMatrix so we'll copy it
