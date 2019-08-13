@@ -160,11 +160,11 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "H1Pos_", 6))
    {
-      fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6)); 
+      fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6));
    }
    else if (!strncmp(name, "H1Ser_", 6))
    {
-      // Are the numbers 10 and 6 correct here? 
+      // Are the numbers 10 and 6 correct here?
       fec = new H1Ser_FECollection(atoi(name + 10), atoi(name + 6));
    }
    else if (!strncmp(name, "H1@", 3))
@@ -1527,7 +1527,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       case BasisType::Serendipity:
       {
-      	snprintf(h1_name, 32, "H1Ser_%dD_P%d", dim, p);
+         snprintf(h1_name, 32, "H1Ser_%dD_P%d", dim, p);
          break;
       }
       default:
@@ -1567,7 +1567,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       H1_dof[Geometry::SEGMENT] = pm1;
       if (b_type == BasisType::Positive)
       {
-	      H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
+         H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
       }
       else
       {
@@ -1594,21 +1594,23 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       else if (b_type == BasisType::Serendipity)
       {
-         // NOTE: fe_coll.hpp has 
+         // NOTE: fe_coll.hpp has
          //            virtual int DofForGeometry(Geometry::Type GeomType) const  { return H1_dof[GeomType]; }
          //       so we need to fix the value of H1_dof here for the serendipity case
-         H1_dof[Geometry::SQUARE] = (pm3*pm2)/2; // formula for number of interior serendipity DoFs (when p>1)
-      	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
-         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p); // allows for mixed tri/quad meshes
+         H1_dof[Geometry::SQUARE] =
+            (pm3*pm2)/2; // formula for number of interior serendipity DoFs (when p>1)
+         H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
+         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(
+            p); // allows for mixed tri/quad meshes
       }
       else
       {
-	      H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
+         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
          H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
-      const int &QuadDof = H1_dof[Geometry::SQUARE]; 
+      const int &QuadDof = H1_dof[Geometry::SQUARE];
       TriDofOrd[0] = new int[6*TriDof];
       for (int i = 1; i < 6; i++)
       {
@@ -1635,23 +1637,24 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
       }
-     
+
       // For serendipity order >=4, the QuadDofOrd array must be re-defined
       // We hack this by computing the corresponding tensor product QuadDofOrd array
       //  or two orders less, which contains enough DoFs for ther serendipity basis.
       //  There may be a slicker way to do this.
       if (b_type == BasisType::Serendipity)
       {
-         if (p < 4) 
+         if (p < 4)
          {
             // no face dofs --> don't need to adjust QuadDofOrd
          }
          else  // p >= 4 --> have face dofs
-               // Exacatly the same as tesnor product case but with all orders reduced by 2
-               // e.g. in case p=5 it builds a 2x2 array, even though there are only 3 serendipity dofs
-               // In the tensor product case, i and j index tensor directions, and o indexes from 0 to (pm1)^2
+            // Exacatly the same as tesnor product case but with all orders reduced by 2
+            // e.g. in case p=5 it builds a 2x2 array, even though there are only 3 serendipity dofs
+            // In the tensor product case, i and j index tensor directions, and o indexes from 0 to (pm1)^2
          {
-            for (int j = 0; j < pm3; j++) { // pm3 instead of pm1, etc
+            for (int j = 0; j < pm3; j++)   // pm3 instead of pm1, etc
+            {
                for (int i = 0; i < pm3; i++)
                {
                   int o = i + j*pm3;
@@ -1664,7 +1667,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
                   QuadDofOrd[6][o] = (pm4 - j) + i*pm3;  // (3,0,1,2)
                   QuadDofOrd[7][o] = i + (pm4 - j)*pm3;  // (3,2,1,0)
                }
-            }  
+            }
 
          }
       }
@@ -1700,28 +1703,30 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          }
          else if (b_type == BasisType::Serendipity)
          {
-            // NOTE: fe_coll.hpp has 
+            // NOTE: fe_coll.hpp has
             //       virtual int DofForGeometry(Geometry::Type GeomType) const  { return H1_dof[GeomType]; }
             //       so we need to fix the value of H1_dof here for the serendipity case
             int ser_exterior_dim = 8 + 12*pm1 + 3* pm2 * pm3;
             int ser_interior_dim = 0;
-            if(p>5)
+            if (p>5)
             {
                ser_interior_dim += pm3 * pm4 * pm5 / 6;
             }
             H1_dof[Geometry::CUBE] =  ser_interior_dim;
 
             // The second argument to the H1Ser_Hex constructor is the # of DoFs for an order p element
-            H1_Elements[Geometry::CUBE] = new H1Ser_HexElement(p, ser_exterior_dim + ser_interior_dim);
+            H1_Elements[Geometry::CUBE] = new H1Ser_HexElement(p,
+                                                               ser_exterior_dim + ser_interior_dim);
 
             // **
             // ** Should throw some error here if p>=5 to indicate that the implemenation isn't finalized yet  **
-            if(p>4)
+            if (p>4)
             {
-               cout << endl << "WARNING: Order p>4 serendipity elements in 3D are not yet working!" << endl;
+               cout << endl <<
+                    "WARNING: Order p>4 serendipity elements in 3D are not yet working!" << endl;
             }
             // **
-         }            
+         }
          else
          {
             H1_Elements[Geometry::TETRAHEDRON] =
@@ -1744,7 +1749,7 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    {
       return TriDofOrd[Or%6];
    }
-   else if (GeomType == Geometry::SQUARE) 
+   else if (GeomType == Geometry::SQUARE)
    {
       return QuadDofOrd[Or%8];
    }

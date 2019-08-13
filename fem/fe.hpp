@@ -525,7 +525,7 @@ public:
    {
       const int q_type = BasisType::GetQuadrature1D(b_type);
       return ((q_type != Quadrature1D::Invalid) &&
-	       (Quadrature1D::CheckClosed(q_type) != Quadrature1D::Invalid));
+              (Quadrature1D::CheckClosed(q_type) != Quadrature1D::Invalid));
    }
 
    static bool IsOpenType(int b_type)
@@ -1998,7 +1998,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                           DenseMatrix &I) const;
+                                      DenseMatrix &I) const;
    using FiniteElement::Project;
 };
 
