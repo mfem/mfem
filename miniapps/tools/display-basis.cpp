@@ -24,6 +24,7 @@
 // Sample runs:  display-basis
 //               display_basis -e 2 -b 3 -o 3
 //               display-basis -e 5 -b 1 -o 1
+//               display-basis -e 5 -b 7 -o 3 -only 5
 
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
@@ -49,10 +50,10 @@ struct DeformationData
 {
    double uniformScale;
 
-   int    squeezeAxis;
+   int squeezeAxis;
    double squeezeFactor;
 
-   int    shearAxis;
+   int shearAxis;
    Vector shearVec;
 };
 
@@ -72,48 +73,54 @@ struct DeformationData
 class Deformation : public VectorCoefficient
 {
 public:
+   enum DefType
+   {
+      INVALID,
+      UNIFORM,
+      SQUEEZE,
+      SHEAR
+   };
 
-   enum DefType {INVALID, UNIFORM, SQUEEZE, SHEAR};
-
-   Deformation(int dim, DefType dType, const DeformationData & data)
+   Deformation(int dim, DefType dType, const DeformationData &data)
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
    void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
-private:
-   void Def1D(const Vector & u, Vector & v);
-   void Def2D(const Vector & u, Vector & v);
-   void Def3D(const Vector & u, Vector & v);
 
-   int     dim_;
+private:
+   void Def1D(const Vector &u, Vector &v);
+   void Def2D(const Vector &u, Vector &v);
+   void Def3D(const Vector &u, Vector &v);
+
+   int dim_;
    DefType dType_;
-   const DeformationData & data_;
+   const DeformationData &data_;
 };
 
-string   elemTypeStr(const Element::Type & eType);
-inline bool elemIs1D(const Element::Type & eType);
-inline bool elemIs2D(const Element::Type & eType);
-inline bool elemIs3D(const Element::Type & eType);
+string elemTypeStr(const Element::Type &eType);
+inline bool elemIs1D(const Element::Type &eType);
+inline bool elemIs2D(const Element::Type &eType);
+inline bool elemIs3D(const Element::Type &eType);
 
-string   basisTypeStr(char bType);
+string basisTypeStr(char bType);
 inline bool basisIs1D(char bType);
 inline bool basisIs2D(char bType);
 inline bool basisIs3D(char bType);
 
 string mapTypeStr(int mType);
 
-int update_basis(vector<socketstream*> & sock, const VisWinLayout & vwl,
+int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
                  Element::Type e, char bType, int bOrder, int mType,
-                 Deformation::DefType dType, const DeformationData & defData,
-                 bool visualization);
+                 Deformation::DefType dType, const DeformationData &defData,
+                 bool visualization, int &onlySome);
 
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   Element::Type eType  = Element::TRIANGLE;
-   char          bType  = 'h';
-   int           bOrder = 2;
-   int           mType  = 0;
+   Element::Type eType = Element::TRIANGLE;
+   char bType = 'h';
+   int bOrder = 2;
+   int mType = 0;
 
    int eInt = -1;
    int bInt = -1;
@@ -121,15 +128,16 @@ int main(int argc, char *argv[])
    VisWinLayout vwl;
    vwl.nx = 5;
    vwl.ny = 3;
-   vwl.w  = 250;
-   vwl.h  = 250;
+   vwl.w = 250;
+   vwl.h = 250;
 
    Deformation::DefType dType = Deformation::INVALID;
    DeformationData defData;
 
    bool visualization = true;
+   int onlySome = -1;
 
-   vector<socketstream*> sock;
+   vector<socketstream *> sock;
 
    OptionsParser args(argc, argv);
    args.AddOption(&eInt, "-e", "--elem-type",
@@ -138,7 +146,7 @@ int main(int argc, char *argv[])
    args.AddOption(&bInt, "-b", "--basis-type",
                   "Basis Function Type (0-H1, 1-Nedelec, 2-Raviart-Thomas, "
                   "3-L2, 4-Fixed Order Cont.,\n\t5-Gaussian Discontinuous (2D),"
-                  " 6-Crouzeix-Raviart)");
+                  " 6-Crouzeix-Raviart, 7-Serendipity)");
    args.AddOption(&bOrder, "-o", "--order", "Basis function order");
    args.AddOption(&vwl.nx, "-nx", "--num-win-x",
                   "Number of Viz windows in X");
@@ -151,6 +159,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&onlySome, "-only", "--onlySome",
+                  "Only view 10 dofs, starting with the specified one.");
    args.Parse();
    if (!args.Good())
    {
@@ -160,7 +170,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   if ( eInt > 0 && eInt < 6 )
+   if (eInt > 0 && eInt < 6)
    {
       eType = (Element::Type)eInt;
    }
@@ -187,6 +197,9 @@ int main(int argc, char *argv[])
       case 6:
          bType = 'c';
          break;
+      case 7:
+         bType = 's';
+         break;
       default:
          bType = 'h';
    }
@@ -199,17 +212,21 @@ int main(int argc, char *argv[])
       {
          cout << endl;
          cout << "Element Type:          " << elemTypeStr(eType) << endl;
-         cout << "Basis Type:            " << basisTypeStr(bType) << endl;;
+         cout << "Basis Type:            " << basisTypeStr(bType) << endl;
+         ;
          cout << "Basis function order:  " << bOrder << endl;
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }
-      if ( update_basis(sock, vwl, eType, bType, bOrder, mType,
-                        dType, defData, visualization) )
+      if (update_basis(sock, vwl, eType, bType, bOrder, mType,
+                       dType, defData, visualization, onlySome))
       {
          cerr << "Invalid combination of basis info (try again)" << endl;
       }
 
-      if (!visualization) { break; }
+      if (!visualization)
+      {
+         break;
+      }
 
       print_char = false;
       cout << endl;
@@ -218,13 +235,13 @@ int main(int argc, char *argv[])
            "c) Close Windows and Quit\n"
            "e) Change Element Type\n"
            "b) Change Basis Type\n";
-      if ( bType == 'h' || bType == 'p' || bType == 'n' || bType == 'r' ||
-           bType == 'l' || bType == 'f' || bType == 'g' )
+      if (bType == 'h' || bType == 'p' || bType == 'n' || bType == 'r' ||
+          bType == 'l' || bType == 'f' || bType == 'g' || bType == 's')
       {
          cout << "o) Change Basis Order\n";
       }
       // The following is disabled pending updates to GLVis
-      if ( bType == 'l' && false )
+      if (bType == 'l' && false)
       {
          cout << "m) Change Map Type\n";
       }
@@ -239,7 +256,7 @@ int main(int argc, char *argv[])
       }
       if (mk == 'c')
       {
-         for (unsigned int i=0; i<sock.size(); i++)
+         for (unsigned int i = 0; i < sock.size(); i++)
          {
             *sock[i] << "keys q";
          }
@@ -249,36 +266,34 @@ int main(int argc, char *argv[])
       {
          eInt = 0;
          cout << "valid element types:\n";
-         if ( basisIs1D(bType) )
+         if (basisIs1D(bType))
          {
-            cout <<
-                 "1) Segment\n";
+            cout << "1) Segment\n";
          }
-         if ( basisIs2D(bType) )
+         if (basisIs2D(bType))
          {
-            cout <<
-                 "2) Triangle\n"
+            cout << "2) Triangle\n"
                  "3) Quadrilateral\n";
          }
-         if ( basisIs3D(bType) )
+         if (basisIs3D(bType))
          {
-            cout <<
-                 "4) Tetrahedron\n"
+            cout << "4) Tetrahedron\n"
                  "5) Hexahedron\n";
          }
          cout << "enter new element type --> " << flush;
          cin >> eInt;
-         if ( eInt <= 0 || eInt > 5 )
+         if (eInt <= 0 || eInt > 5)
          {
-            cout << "invalid element type \"" << eInt << "\"" << endl << flush;
+            cout << "invalid element type \"" << eInt << "\"" << endl
+                 << flush;
          }
-         else if ( (elemIs1D((Element::Type)eInt) && basisIs1D(bType)) ||
-                   (elemIs2D((Element::Type)eInt) && basisIs2D(bType)) ||
-                   (elemIs3D((Element::Type)eInt) && basisIs3D(bType)) )
+         else if ((elemIs1D((Element::Type)eInt) && basisIs1D(bType)) ||
+                  (elemIs2D((Element::Type)eInt) && basisIs2D(bType)) ||
+                  (elemIs3D((Element::Type)eInt) && basisIs3D(bType)))
          {
-            if ( (elemIs1D((Element::Type)eInt) && !elemIs1D(eType)) ||
-                 (elemIs2D((Element::Type)eInt) && !elemIs2D(eType)) ||
-                 (elemIs3D((Element::Type)eInt) && !elemIs3D(eType)) )
+            if ((elemIs1D((Element::Type)eInt) && !elemIs1D(eType)) ||
+                (elemIs2D((Element::Type)eInt) && !elemIs2D(eType)) ||
+                (elemIs3D((Element::Type)eInt) && !elemIs3D(eType)))
             {
                dType = Deformation::INVALID;
             }
@@ -288,8 +303,8 @@ int main(int argc, char *argv[])
          }
          else
          {
-            cout << "invalid element type \"" << eInt <<
-                 "\" for basis type \"" << basisTypeStr(bType) << "\"." << endl;
+            cout << "invalid element type \"" << eInt << "\" for basis type \"" <<
+                 basisTypeStr(bType) << "\"." << endl;
          }
       }
       if (mk == 'b')
@@ -298,74 +313,80 @@ int main(int argc, char *argv[])
          cout << "valid basis types:\n";
          cout << "h) H1 Finite Element\n";
          cout << "p) H1 Positive Finite Element\n";
-         if ( elemIs2D(eType) || elemIs3D(eType) )
+         if (elemIs2D(eType) || elemIs3D(eType))
          {
+            cout << "s) H1 Serendipity Finite Element\n";
             cout << "n) Nedelec Finite Element\n";
             cout << "r) Raviart-Thomas Finite Element\n";
          }
          cout << "l) L2 Finite Element\n";
-         if ( elemIs1D(eType) || elemIs2D(eType) )
+         if (elemIs1D(eType) || elemIs2D(eType))
          {
             cout << "c) Crouzeix-Raviart Finite Element\n";
          }
          cout << "f) Fixed Order Continuous Finite Element\n";
-         if ( elemIs2D(eType) )
+         if (elemIs2D(eType))
          {
             cout << "g) Gauss Discontinuous Finite Element\n";
          }
          cout << "enter new basis type --> " << flush;
          cin >> bChar;
-         if ( bChar == 'h' || bChar == 'p' || bChar == 'l' || bChar == 'f' ||
-              ((bChar == 'n' || bChar == 'r') &&
-               (elemIs2D(eType) || elemIs3D(eType))) ||
-              (bChar == 'c' && (elemIs1D(eType) || elemIs2D(eType))) ||
-              (bChar == 'g' && elemIs2D(eType)))
+         if (bChar == 'h' || bChar == 'p' || bChar == 'l' || bChar == 'f' ||
+             bChar == 's' ||
+             ((bChar == 'n' || bChar == 'r') &&
+              (elemIs2D(eType) || elemIs3D(eType))) ||
+             (bChar == 'c' && (elemIs1D(eType) || elemIs2D(eType))) ||
+             (bChar == 'g' && elemIs2D(eType)))
          {
             bType = bChar;
-            if ( bType == 'h' )
+            if (bType == 'h')
             {
                mType = FiniteElement::VALUE;
             }
-            else if ( bType == 'p' )
+            else if (bType == 'p')
             {
                mType = FiniteElement::VALUE;
             }
-            else if ( bType == 'n' )
+            else if (bType == 's')
+            {
+               mType = FiniteElement::VALUE;
+            }
+            else if (bType == 'n')
             {
                mType = FiniteElement::H_CURL;
             }
-            else if ( bType == 'r' )
+            else if (bType == 'r')
             {
                mType = FiniteElement::H_DIV;
             }
-            else if ( bType == 'l' )
+            else if (bType == 'l')
             {
-               if ( mType != FiniteElement::VALUE &&
-                    mType != FiniteElement::INTEGRAL )
+               if (mType != FiniteElement::VALUE &&
+                   mType != FiniteElement::INTEGRAL)
                {
                   mType = FiniteElement::VALUE;
                }
             }
-            else if ( bType == 'c' )
+            else if (bType == 'c')
             {
                bOrder = 1;
-               mType  = FiniteElement::VALUE;
+               mType = FiniteElement::VALUE;
             }
-            else if ( bType == 'f' )
+            else if (bType == 'f')
             {
-               if ( bOrder < 1 || bOrder > 3)
+               if (bOrder < 1 || bOrder > 3)
                {
                   bOrder = 1;
                }
-               mType  = FiniteElement::VALUE;
+               mType = FiniteElement::VALUE;
             }
-            else if ( bType == 'g' )
+            else if (bType == 'g')
             {
-               if ( bOrder < 1 || bOrder > 2)
+               if (bOrder < 1 || bOrder > 2)
                {
                   bOrder = 1;
                }
-               mType  = FiniteElement::VALUE;
+               mType = FiniteElement::VALUE;
             }
             print_char = true;
          }
@@ -382,7 +403,7 @@ int main(int argc, char *argv[])
               "1) INTEGRAL\n";
          cout << "enter new map type --> " << flush;
          cin >> mInt;
-         if (mInt >=0 && mInt <= 1)
+         if (mInt >= 0 && mInt <= 1)
          {
             mType = mInt;
             print_char = true;
@@ -395,8 +416,10 @@ int main(int argc, char *argv[])
       if (mk == 'o')
       {
          int oInt = 1;
-         int oMin = ( bType == 'h' || bType == 'p' || bType == 'n' ||
-                      bType == 'f' || bType == 'g')?1:0;
+         int oMin = (bType == 'h' || bType == 'p' || bType == 'n' ||
+                     bType == 'f' || bType == 'g' || bType == 's')
+                    ? 1
+                    : 0;
          int oMax = -1;
          switch (bType)
          {
@@ -410,14 +433,14 @@ int main(int argc, char *argv[])
                oMax = -1;
          }
          cout << "basis function order must be >= " << oMin;
-         if ( oMax >= 0 )
+         if (oMax >= 0)
          {
             cout << " and <= " << oMax;
          }
          cout << endl;
          cout << "enter new basis function order --> " << flush;
          cin >> oInt;
-         if ( oInt >= oMin && oInt <= (oMax>=0)?oMax:oInt )
+         if (oInt >= oMin && oInt <= (oMax >= 0) ? oMax : oInt)
          {
             bOrder = oInt;
             print_char = true;
@@ -432,7 +455,7 @@ int main(int argc, char *argv[])
          cout << "transformation options:\n";
          cout << "r) reset to reference element\n";
          cout << "u) uniform scaling\n";
-         if ( elemIs2D(eType) || elemIs3D(eType) )
+         if (elemIs2D(eType) || elemIs3D(eType))
          {
             cout << "c) compression\n";
             cout << "s) shear\n";
@@ -448,39 +471,39 @@ int main(int argc, char *argv[])
          {
             cout << "enter scaling constant --> " << flush;
             cin >> defData.uniformScale;
-            if ( defData.uniformScale > 0.0 )
+            if (defData.uniformScale > 0.0)
             {
                dType = Deformation::UNIFORM;
             }
          }
          else if (tk == 'c' && !elemIs1D(eType))
          {
-            int dim = elemIs2D(eType)?2:3;
+            int dim = elemIs2D(eType) ? 2 : 3;
             cout << "enter compression factor --> " << flush;
             cin >> defData.squeezeFactor;
-            cout << "enter compression axis (0-" << dim-1 << ") --> " << flush;
+            cout << "enter compression axis (0-" << dim - 1 << ") --> " << flush;
             cin >> defData.squeezeAxis;
 
-            if ( defData.squeezeFactor > 0.0 &&
-                 (defData.squeezeAxis >= 0 && defData.squeezeAxis < dim))
+            if (defData.squeezeFactor > 0.0 &&
+                (defData.squeezeAxis >= 0 && defData.squeezeAxis < dim))
             {
                dType = Deformation::SQUEEZE;
             }
          }
          else if (tk == 's' && !elemIs1D(eType))
          {
-            int dim = elemIs2D(eType)?2:3;
+            int dim = elemIs2D(eType) ? 2 : 3;
             cout << "enter shear vector (components separated by spaces) --> "
                  << flush;
             defData.shearVec.SetSize(dim);
-            for (int i=0; i<dim; i++)
+            for (int i = 0; i < dim; i++)
             {
                cin >> defData.shearVec[i];
             }
-            cout << "enter shear axis (0-" << dim-1 << ") --> " << flush;
+            cout << "enter shear axis (0-" << dim - 1 << ") --> " << flush;
             cin >> defData.shearAxis;
 
-            if ( defData.shearAxis >= 0 && defData.shearAxis < dim )
+            if (defData.shearAxis >= 0 && defData.shearAxis < dim)
             {
                dType = Deformation::SHEAR;
             }
@@ -489,7 +512,7 @@ int main(int argc, char *argv[])
    }
 
    // Cleanup
-   for (unsigned int i=0; i<sock.size(); i++)
+   for (unsigned int i = 0; i < sock.size(); i++)
    {
       delete sock[i];
    }
@@ -498,7 +521,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-string elemTypeStr(const Element::Type & eType)
+string elemTypeStr(const Element::Type &eType)
 {
    switch (eType)
    {
@@ -519,20 +542,17 @@ string elemTypeStr(const Element::Type & eType)
    };
 }
 
-bool
-elemIs1D(const Element::Type & eType)
+bool elemIs1D(const Element::Type &eType)
 {
    return eType == Element::SEGMENT;
 }
 
-bool
-elemIs2D(const Element::Type & eType)
+bool elemIs2D(const Element::Type &eType)
 {
    return eType == Element::TRIANGLE || eType == Element::QUADRILATERAL;
 }
 
-bool
-elemIs3D(const Element::Type & eType)
+bool elemIs3D(const Element::Type &eType)
 {
    return eType == Element::TETRAHEDRON || eType == Element::HEXAHEDRON;
 }
@@ -546,6 +566,8 @@ basisTypeStr(char bType)
          return "Continuous (H1)";
       case 'p':
          return "Continuous Positive (H1)";
+      case 's':
+         return "Continuous Serendipity (H1)";
       case 'n':
          return "Nedelec";
       case 'r':
@@ -563,25 +585,23 @@ basisTypeStr(char bType)
    };
 }
 
-bool
-basisIs1D(char bType)
+bool basisIs1D(char bType)
 {
    return bType == 'h' || bType == 'p' || bType == 'l' || bType == 'c' ||
           bType == 'f';
 }
 
-bool
-basisIs2D(char bType)
+bool basisIs2D(char bType)
 {
    return bType == 'h' || bType == 'p' || bType == 'n' || bType == 'r' ||
-          bType == 'l' || bType == 'c' || bType == 'f' || bType == 'g';
+          bType == 'l' || bType == 'c' || bType == 'f' || bType == 'g' ||
+          bType == 's';
 }
 
-bool
-basisIs3D(char bType)
+bool basisIs3D(char bType)
 {
    return bType == 'h' || bType == 'p' || bType == 'n' || bType == 'r' ||
-          bType == 'f' || bType == 'l';
+          bType == 'f' || bType == 'l' || bType == 's';
 }
 
 string
@@ -602,9 +622,8 @@ mapTypeStr(int mType)
    }
 }
 
-void
-Deformation::Eval(Vector &v, ElementTransformation &T,
-                  const IntegrationPoint &ip)
+void Deformation::Eval(Vector &v, ElementTransformation &T,
+                       const IntegrationPoint &ip)
 {
    Vector u(dim_);
    T.Transform(ip, u);
@@ -623,18 +642,16 @@ Deformation::Eval(Vector &v, ElementTransformation &T,
    }
 }
 
-void
-Deformation::Def1D(const Vector & u, Vector & v)
+void Deformation::Def1D(const Vector &u, Vector &v)
 {
    v = u;
-   if ( dType_ == UNIFORM )
+   if (dType_ == UNIFORM)
    {
       v *= data_.uniformScale;
    }
 }
 
-void
-Deformation::Def2D(const Vector & u, Vector & v)
+void Deformation::Def2D(const Vector &u, Vector &v)
 {
    switch (dType_)
    {
@@ -644,8 +661,8 @@ Deformation::Def2D(const Vector & u, Vector & v)
          break;
       case SQUEEZE:
          v = u;
-         v[ data_.squeezeAxis     ] /= data_.squeezeFactor;
-         v[(data_.squeezeAxis+1)%2] *= data_.squeezeFactor;
+         v[data_.squeezeAxis] /= data_.squeezeFactor;
+         v[(data_.squeezeAxis + 1) % 2] *= data_.squeezeFactor;
          break;
       case SHEAR:
          v = u;
@@ -656,8 +673,7 @@ Deformation::Def2D(const Vector & u, Vector & v)
    }
 }
 
-void
-Deformation::Def3D(const Vector & u, Vector & v)
+void Deformation::Def3D(const Vector &u, Vector &v)
 {
    switch (dType_)
    {
@@ -667,9 +683,9 @@ Deformation::Def3D(const Vector & u, Vector & v)
          break;
       case SQUEEZE:
          v = u;
-         v[ data_.squeezeAxis     ] /= data_.squeezeFactor;
-         v[(data_.squeezeAxis+1)%2] *= sqrt(data_.squeezeFactor);
-         v[(data_.squeezeAxis+2)%2] *= sqrt(data_.squeezeFactor);
+         v[data_.squeezeAxis] /= data_.squeezeFactor;
+         v[(data_.squeezeAxis + 1) % 2] *= sqrt(data_.squeezeFactor);
+         v[(data_.squeezeAxis + 2) % 2] *= sqrt(data_.squeezeFactor);
          break;
       case SHEAR:
          v = u;
@@ -680,11 +696,10 @@ Deformation::Def3D(const Vector & u, Vector & v)
    }
 }
 
-int
-update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
-             Element::Type e, char bType, int bOrder, int mType,
-             Deformation::DefType dType, const DeformationData & defData,
-             bool visualization)
+int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
+                 Element::Type e, char bType, int bOrder, int mType,
+                 Deformation::DefType dType, const DeformationData &defData,
+                 bool visualization, int &onlySome)
 {
    bool vec = false;
 
@@ -693,20 +708,21 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
    if (!imesh)
    {
       {
-         cerr << "\nProblem with meshstream object\n" << endl;
+         cerr << "\nProblem with meshstream object\n"
+              << endl;
       }
       return 2;
    }
    mesh = new Mesh(imesh, 1, 1);
    int dim = mesh->Dimension();
 
-   if ( dType != Deformation::INVALID )
+   if (dType != Deformation::INVALID)
    {
       Deformation defCoef(dim, dType, defData);
       mesh->Transform(defCoef);
    }
 
-   FiniteElementCollection * FEC = NULL;
+   FiniteElementCollection *FEC = NULL;
    switch (bType)
    {
       case 'h':
@@ -717,12 +733,23 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
          FEC = new H1Pos_FECollection(bOrder, dim);
          vec = false;
          break;
+      case 's':
+         if (bOrder == 1)
+         {
+            FEC = new H1_FECollection(bOrder, dim);
+         }
+         else
+         {
+            FEC = new H1Ser_FECollection(bOrder, dim);
+         }
+         vec = false;
+         break;
       case 'n':
          FEC = new ND_FECollection(bOrder, dim);
          vec = true;
          break;
       case 'r':
-         FEC = new RT_FECollection(bOrder-1, dim);
+         FEC = new RT_FECollection(bOrder - 1, dim);
          vec = true;
          break;
       case 'l':
@@ -734,31 +761,31 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
          FEC = new CrouzeixRaviartFECollection();
          break;
       case 'f':
-         if ( bOrder == 1 )
+         if (bOrder == 1)
          {
             FEC = new LinearFECollection();
          }
-         else if ( bOrder == 2 )
+         else if (bOrder == 2)
          {
             FEC = new QuadraticFECollection();
          }
-         else if ( bOrder == 3 )
+         else if (bOrder == 3)
          {
             FEC = new CubicFECollection();
          }
          break;
       case 'g':
-         if ( bOrder == 1 )
+         if (bOrder == 1)
          {
             FEC = new GaussLinearDiscont2DFECollection();
          }
-         else if ( bOrder == 2 )
+         else if (bOrder == 2)
          {
             FEC = new GaussQuadraticDiscont2DFECollection();
          }
          break;
    }
-   if ( FEC == NULL)
+   if (FEC == NULL)
    {
       delete mesh;
       return 1;
@@ -769,33 +796,34 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
    int ndof = FESpace.GetVSize();
 
    Array<int> vdofs;
-   FESpace.GetElementVDofs(0,vdofs);
+   FESpace.GetElementVDofs(0, vdofs);
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
+   int visport = 19916;
 
-   int offx = vwl.w+10, offy = vwl.h+45; // window offsets
+   int offx = vwl.w + 10, offy = vwl.h + 45; // window offsets
 
-   for (unsigned int i=0; i<sock.size(); i++)
+   for (unsigned int i = 0; i < sock.size(); i++)
    {
       *sock[i] << "keys q";
       delete sock[i];
    }
 
    sock.resize(ndof);
-   for (int i=0; i<ndof; i++)
+   for (int i = 0; i < ndof; i++)
    {
-      sock[i] = new socketstream; sock[i]->precision(8);
+      sock[i] = new socketstream;
+      sock[i]->precision(8);
    }
 
-   GridFunction ** x = new GridFunction*[ndof];
-   for (int i=0; i<ndof; i++)
+   GridFunction **x = new GridFunction *[ndof];
+   for (int i = 0; i < ndof; i++)
    {
-      x[i]  = new GridFunction(&FESpace);
+      x[i] = new GridFunction(&FESpace);
       *x[i] = 0.0;
-      if ( vdofs[i] < 0 )
+      if (vdofs[i] < 0)
       {
-         (*x[i])(-1-vdofs[i]) = -1.0;
+         (*x[i])(-1 - vdofs[i]) = -1.0;
       }
       else
       {
@@ -803,24 +831,47 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
       }
    }
 
+
    int ref = 0;
    int exOrder = 0;
-   if ( bType == 'n' ) { exOrder++; }
-   if ( bType == 'r' ) { exOrder += 2; }
-   while ( 1<<ref < bOrder + exOrder || ref == 0 )
+   if (bType == 'n')
+   {
+      exOrder++;
+   }
+   if (bType == 'r')
+   {
+      exOrder += 2;
+   }
+
+   while (1 << ref < bOrder + exOrder || ref == 0)
    {
       mesh->UniformRefinement();
       FESpace.Update();
 
-      for (int i=0; i<ndof; i++)
+      for (int i = 0; i < ndof; i++)
       {
          x[i]->Update();
       }
       ref++;
    }
 
-   for (int i=0; i<ndof; i++)
+   int stopAt = ndof;
+   if (ndof > 25 && onlySome == -1)
    {
+      cout << endl;
+      cout << "There are more than 25 windows to open.  Only showing Dofs 1-10 to avoid crashing. "
+           << endl << "Use the option -only N when running to show Dofs N to N+9 instead."
+           <<
+           endl;
+      onlySome = 1;
+   }
+   for (int i = 0; i < stopAt; i++)
+   {
+      if (i ==0 && onlySome > 0 && onlySome <ndof)
+      {
+         i = onlySome-1;
+         stopAt = min(ndof,onlySome+9);
+      }
       ostringstream oss;
       oss << "DoF " << i + 1;
       if (visualization)
@@ -832,11 +883,11 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
       }
    }
 
-   for (int i=0; i<ndof; i++)
+   for (int i = 0; i < ndof; i++)
    {
       delete x[i];
    }
-   delete [] x;
+   delete[] x;
 
    delete FEC;
    delete mesh;
