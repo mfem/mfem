@@ -225,10 +225,9 @@ void ParGridFunction::ExchangeFaceNbrData()
    MPI_Request *recv_requests = requests + num_face_nbrs;
    MPI_Status  *statuses = new MPI_Status[num_face_nbrs];
 
-   const double *h_data = this->HostRead();
    for (int i = 0; i < send_data.Size(); i++)
    {
-      send_data[i] = h_data[send_ldof[i]];
+      send_data[i] = data[send_ldof[i]];
    }
 
    for (int fn = 0; fn < num_face_nbrs; fn++)

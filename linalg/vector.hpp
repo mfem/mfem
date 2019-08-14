@@ -141,11 +141,11 @@ public:
    inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
 
    /// Reset the Vector to be a reference to a sub-vector of @a base.
-   inline void MakeRef(Vector &base, int offset, int size);
+   inline void MakeRef(const Vector &base, int offset, int size);
 
    /** @brief Reset the Vector to be a reference to a sub-vector of @a base
        without changing its current size. */
-   inline void MakeRef(Vector &base, int offset);
+   inline void MakeRef(const Vector &base, int offset);
 
    /// Set the Vector data (host pointer) ownership flag.
    void MakeDataOwner() const { data.SetHostPtrOwner(true); }
@@ -465,14 +465,14 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
    if (!own_mem) { data.ClearOwnerFlags(); }
 }
 
-inline void Vector::MakeRef(Vector &base, int offset, int s)
+inline void Vector::MakeRef(const Vector &base, int offset, int s)
 {
    data.Delete();
    size = s;
    data.MakeAlias(base.GetMemory(), offset, s);
 }
 
-inline void Vector::MakeRef(Vector &base, int offset)
+inline void Vector::MakeRef(const Vector &base, int offset)
 {
    data.Delete();
    data.MakeAlias(base.GetMemory(), offset, size);
