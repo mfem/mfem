@@ -552,7 +552,7 @@ public:
 class VectorFunctionRestrictedCoefficient : public VectorCoefficient
 {
 private:
-   void (*TDFunction)(double, int, Vector &);
+   void (*TDFunction)(int, Vector &);
    Array<int> active_attr;
    Coefficient *Q;
 
