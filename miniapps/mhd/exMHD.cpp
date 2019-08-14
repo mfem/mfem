@@ -14,7 +14,7 @@
 #include "myCoefficient.hpp"
 #include "BoundaryGradIntegrator.hpp"
 #include "ResistiveMHDOperator.hpp"
-#include "PDSolver.hpp"
+#include "PCSolver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   PDSolver *ode_solver;
+   PCSolver *ode_solver;
    switch (ode_solver_type)
    {
      // Explicit methods XXX: waring: FE is not stable 
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
      //        ode_solver = new ForwardEulerSolver; 
      //        ode_predictor = new ForwardEulerSolver; 
      //        break; //first order predictor-corrector
-     case 2: ode_solver = new PDSolver; break;
+     case 2: ode_solver = new PCSolver; break;
      default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;

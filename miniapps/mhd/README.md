@@ -98,7 +98,7 @@ make -j
 cd miniapps/mhd
 make exMHDp
 make imMHDp
-mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 10 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 1 -shell
+mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 10 -dt 5 -usepetsc --petscopts petscrc/rc_full -s 3 -shell
 glvis -np 4 -m mesh -g sol_phi -k "mmc" -ww 800 -wh 800
 ```
 This example is similar with the explicit run except for refined by a factor of 2, but we note that we take a much larger time step dt=5. It demonstrates the advantage of physics-based preconditioning.

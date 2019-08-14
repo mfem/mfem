@@ -13,7 +13,7 @@
 #include "myCoefficient.hpp"
 #include "BoundaryGradIntegrator.hpp"
 #include "imResistiveMHDOperatorp.hpp"
-#include "PDSolver.hpp"
+#include "PCSolver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -219,13 +219,13 @@ int main(int argc, char *argv[])
    //++++Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    backward Euler methods are available.
-   PDSolver *ode_solver=NULL;
+   PCSolver *ode_solver=NULL;
    ODESolver *ode_solver2=NULL;
    bool explicitSolve=false;
    switch (ode_solver_type)
    {
       //Explicit methods (first-order Predictor-Corrector)
-      case 2: ode_solver = new PDSolver; explicitSolve = true; break;
+      case 2: ode_solver = new PCSolver; explicitSolve = true; break;
       //Implict L-stable methods 
       case 1: ode_solver2 = new BackwardEulerSolver; break;
       case 3: ode_solver2 = new SDIRK23Solver(2); break;

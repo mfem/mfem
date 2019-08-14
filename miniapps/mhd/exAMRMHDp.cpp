@@ -15,7 +15,7 @@
 #include "BoundaryGradIntegrator.hpp"
 #include "AMRResistiveMHDOperatorp.hpp"
 #include "BlockZZEstimator.hpp"
-#include "PDSolver.hpp"
+#include "PCSolver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -223,11 +223,11 @@ int main(int argc, char *argv[])
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
    //ODESolver *ode_solver, *ode_predictor;
-   PDSolver *ode_solver;
+   PCSolver *ode_solver;
    switch (ode_solver_type)
    {
      // Explicit methods XXX: waring: FE is not stable 
-     case 2: ode_solver = new PDSolver; break;
+     case 2: ode_solver = new PCSolver; break;
      default:
          if (myid == 0) cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;

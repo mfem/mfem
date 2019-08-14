@@ -1,4 +1,4 @@
-//write my own predictor corrector solver
+//this is a first-order predictor corrector time stepping
 
 #include "mfem.hpp"
 
@@ -6,7 +6,7 @@ namespace mfem
 {
 
 // predictor-corrector scheme Brailovskaya’s scheme
-class PDSolver : public ODESolver
+class PCSolver : public ODESolver
 {
 private:
    Vector dxdt, x1;
@@ -18,7 +18,7 @@ public:
    virtual void Step(Vector &x, double &t, double &dt);//Corrector
 };
 
-void PDSolver::Init(TimeDependentOperator &_f)
+void PCSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
    int n = f->Width();
@@ -26,10 +26,9 @@ void PDSolver::Init(TimeDependentOperator &_f)
    x1.SetSize(n);
 }
 
-void PDSolver::StepP(Vector &x, double &t, double &dt)
+void PCSolver::StepP(Vector &x, double &t, double &dt)
 {
    f->SetTime(t);
-   //cout <<"t="<<f->GetTime()<<endl;
 
    //predictor: update Psi w-> update j
    x1=x;
@@ -38,13 +37,11 @@ void PDSolver::StepP(Vector &x, double &t, double &dt)
 }
 
 
-void PDSolver::Step(Vector &x, double &t, double &dt)
+void PCSolver::Step(Vector &x, double &t, double &dt)
 {
-   //cout <<"t="<<f->GetTime()<<endl;
    //corrector: update Psi w-> update j and Phi
    f->Mult(x, dxdt);
    add(x1, dt, dxdt, x);
-
    t += dt;
 }
 
