@@ -91,6 +91,11 @@ void IterativeSolver::SetPreconditioner(Solver &pr)
    prec->iterative_mode = false;
 }
 
+void IterativeSolver::ClearPreconditioner()
+{
+   prec = NULL;
+}
+
 void IterativeSolver::SetOperator(const Operator &op)
 {
    oper = &op;

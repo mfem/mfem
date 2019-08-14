@@ -69,6 +69,9 @@ public:
 
    /// This should be called before SetOperator
    virtual void SetPreconditioner(Solver &pr);
+   /// Clear the Preconditioner currently stored to NULL.
+   /// Does NOT delete the underlying preconditioner.
+   void ClearPreconditioner();
 
    /// Also calls SetOperator for the preconditioner if there is one
    virtual void SetOperator(const Operator &op);
