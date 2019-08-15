@@ -817,6 +817,7 @@ double Vector::Max() const
 {
    if (size == 0) { return -infinity(); }
 
+   HostRead();
    double max = data[0];
 
    for (int i = 1; i < size; i++)
@@ -832,13 +833,12 @@ double Vector::Max() const
 
 double Vector::Sum() const
 {
+   HostRead();
    double sum = 0.0;
-
    for (int i = 0; i < size; i++)
    {
       sum += data[i];
    }
-
    return sum;
 }
 
