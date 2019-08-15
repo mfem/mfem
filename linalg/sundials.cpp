@@ -1219,6 +1219,9 @@ void KINSolver::SetMaxSetupCalls(int max_calls)
 // Compute the scaling vectors and solve nonlinear system
 void KINSolver::Mult(const Vector &b, Vector &x) const
 {
+   // resiudal norm tolerance
+   double tol;
+
    // Uses c = 1, corresponding to x_scale.
    c = 1.0;
 
@@ -1242,19 +1245,22 @@ void KINSolver::Mult(const Vector &b, Vector &x) const
       if (abs_tol > rel_tol * norm)
       {
          r = 1.0;
+         tol = abs_tol;
       }
       else
       {
          r =  1.0 / norm;
+         tol = rel_tol;
       }
    }
    else
    {
       r = 1.0;
+      tol = abs_tol;
    }
 
    // Set the residual norm tolerance
-   flag = KINSetFuncNormTol(sundials_mem, abs_tol);
+   flag = KINSetFuncNormTol(sundials_mem, tol);
    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetFuncNormTol()");
 
    // Solve the nonlinear system by calling the other Mult method
