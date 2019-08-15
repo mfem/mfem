@@ -1176,6 +1176,7 @@ void KINSolver::SetSolver(Solver &solver)
    prec = &solver;
 
    // Free any existing linear solver
+   if (A != NULL) { SUNMatDestroy(A); A = NULL; }
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Wrap KINSolver as SUNLinearSolver and SUNMatrix
