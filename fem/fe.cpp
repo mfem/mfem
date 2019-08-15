@@ -2358,6 +2358,14 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
          }
       }
 
+
+      // basis1d.Eval(ip.x, shape_x);
+      // basis1d.Eval(ip.y, shape_y);
+      // basis1d.Eval(ip.z, shape_z);
+
+      // shape(dof_map[o++]) = shape_x(i)*shape_y(j)*shape_z(k);
+
+
       if (p>5) // set body shape functions
       {
          int firstBodyDof = 8 + 12*(p-1) +6*dofsPerFace;

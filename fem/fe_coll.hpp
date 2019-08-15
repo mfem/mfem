@@ -110,9 +110,6 @@ public:
    /// Get the Cartesian to local H1 dof map
    const int *GetDofMap(Geometry::Type GeomType) const;
 
-   // virtual int GetSerendipityOrder() const = 0;
-   // virtual int SetSerendipityOrder() = 0;
-
    virtual ~H1_FECollection();
 };
 

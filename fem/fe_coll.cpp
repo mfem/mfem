@@ -1639,6 +1639,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       //    shrinkIfSerendip = 2;
       // }
 
+      // cout << endl << "*** QuadDof is " << QuadDof << " ***" << endl;
+
       QuadDofOrd[0] = new int[8*QuadDof];
       for (int i = 1; i < 8; i++)
       {
@@ -1672,7 +1674,9 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
                // Build a square array to store the face Dofs
                // This is extraneous memory e.g. p=5, builds a 2x2 array when we only need 3 dofs, etc
          {
-            for (int j = 0; j < pm3; j++) { // same routine as tensor product case but with pm3 instead of pm1
+            for (int j = 0; j < pm3; j++)
+            {
+               // cout << "j= " << j << endl;
                for (int i = 0; i < pm3; i++)
                {
                   int o = i + j*pm3;
@@ -1690,7 +1694,34 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
                   //    cout << "  qdo[" << k << "][" << o << "]= " << QuadDofOrd[k][o] << endl;
                   // }
                }
-            }  
+            }
+
+            // for (int j = 0; j < QuadDof; j++) { 
+            //    int o = j;
+            //    // cout << " i, o = " << i << ", " << o << endl;
+            //    QuadDofOrd[0][o] = 0;
+            //    QuadDofOrd[1][o] = 0;
+            //    QuadDofOrd[2][o] = 0;
+            //    QuadDofOrd[3][o] = 0;
+            //    QuadDofOrd[4][o] = 0;
+            //    QuadDofOrd[5][o] = 0;
+            //    QuadDofOrd[6][o] = 0;
+            //    QuadDofOrd[7][o] = 0;
+            //    // for (int k=0; k<8; k++)
+            //    // {
+            //    //    cout << "  qdo[" << k << "][" << o << "]= " << QuadDofOrd[k][o] << endl;
+            //    // }
+            // }  
+
+            // QuadDofOrd[0][0] = 0;   QuadDofOrd[0][1] = 1;   QuadDofOrd[0][2] = 2;
+            // QuadDofOrd[1][0] = 0;   QuadDofOrd[1][1] = 1;   QuadDofOrd[1][2] = 2;
+            // QuadDofOrd[2][0] = 0;   QuadDofOrd[2][1] = 1;   QuadDofOrd[2][2] = 2;
+            // QuadDofOrd[3][0] = 0;   QuadDofOrd[3][1] = 1;   QuadDofOrd[3][2] = 2;
+            // QuadDofOrd[4][0] = 0;   QuadDofOrd[4][1] = 1;   QuadDofOrd[4][2] = 2;
+            // QuadDofOrd[5][0] = 0;   QuadDofOrd[5][1] = 1;   QuadDofOrd[5][2] = 2;
+            // QuadDofOrd[6][0] = 0;   QuadDofOrd[6][1] = 1;   QuadDofOrd[6][2] = 2;
+            // QuadDofOrd[7][0] = 0;   QuadDofOrd[7][1] = 1;   QuadDofOrd[7][2] = 2;
+
 
          // cout << "order = " << p << ", basis = " << b_type << ", QuadDofOrd= " << endl;
 
@@ -1698,7 +1729,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          // cout << endl;
          // for (int i=0; i<8; i++)
          // {
-         //    for(int j=0; j<p*(pm2)+1; j++)
+         //    for(int j=0; j<QuadDof; j++)
          //    {
          //       cout << QuadDofOrd[i][j] << '\t';
          //    }
@@ -1736,7 +1767,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          // cout << endl;
          // cout << "order = " << p << ", basis = " << b_type << ", QuadDofOrd= " << endl;
 
-         // Printing for debugging
+         // // Printing for debugging
          // cout << endl;
          // for (int i=0; i<8; i++)
          // {
@@ -1788,6 +1819,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
    }
 }
+
+
 
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                    int Or) const
