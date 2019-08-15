@@ -1138,8 +1138,12 @@ void KINSolver::SetOperator(const Operator &op)
    flag = KINSetUserData(sundials_mem, this);
    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
 
-   // Set default linear solver if necessary
-   if (!prec)
+   // Set linear solver
+   if (prec)
+   {
+      KINSolver::SetSolver(*prec);
+   }
+   else
    {
       LSA  = SUNLinSol_SPGMR(y, PREC_NONE, 0);
       MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
