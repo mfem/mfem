@@ -659,7 +659,7 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 
    // schedule the refinement
    ref_queue.Append(Refinement(elem, ref_type));
-   el.flag = ref_type;
+   el.flag |= ref_type;
 }
 
 
@@ -1482,8 +1482,13 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_queue.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
-   //std::cout << "---" << std::endl;
-   static int iter = 0;
+   // reset element flags, used for marking scheduled force refinement
+   for (auto it = elements.begin(); it != elements.end(); ++it)
+   {
+      it->flag = 0;
+   }
+
+   //static int iter = 0;
 
    // keep refining as long as the queue contains something
    int total = 0;
@@ -1499,12 +1504,12 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       RefineElement(ref.index, ref.ref_type);
       total++;
 
-      {char fname[100];
+      /*{char fname[100];
       sprintf(fname, "ncmesh-%03d.dbg", iter++);
       std::ofstream f(fname);
       Update();
       DebugDump(f);}
-      DebugCheckConsistency();
+      DebugCheckConsistency();*/
    }
 #endif
 
@@ -1886,7 +1891,6 @@ void NCMesh::CollectLeafElements(int elem, int state)
       }
    }
    el.index = -1;
-   el.flag = 0;
 }
 
 void NCMesh::UpdateLeafElements()
@@ -2116,7 +2120,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
 
       MFEM_ASSERT(node && node->HasEdge(),
-                  "edge (" << ev[0] << "," << ev[1] << ") not found, "
+                  "edge (" << vertex_nodeId[ev[0]] << "," << vertex_nodeId[ev[1]] << ") not found, "
                   "node = " << node);
 
       node->edge_index = i;
