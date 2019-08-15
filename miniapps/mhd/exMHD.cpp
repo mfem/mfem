@@ -111,7 +111,7 @@ double E0rhs3(const Vector &x)
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "./xperiodic-square.mesh";
+   const char *mesh_file = "./Meshes/xperiodic-square.mesh";
    int ref_levels = 2;
    int order = 2;
    int ode_solver_type = 2;

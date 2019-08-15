@@ -74,7 +74,7 @@ One should obtain a surface plot identical to the serial case.
 The parallel AMR solver can be built and tested by
 ```
 make exAMRMHDp
-mpirun -n 4 exAMRMHDp -m xperiodicR1.mesh -o 4 -tf 1 -dt .0001 -i 3 -amrl 3 -ltol 2e-3 -derefine
+mpirun -n 4 exAMRMHDp -m Meshes/xperiodicR1.mesh -o 4 -tf 1 -dt .0001 -i 3 -amrl 3 -ltol 2e-3 -derefine
 ```
 
 ### Building both explicit and implicit solvers

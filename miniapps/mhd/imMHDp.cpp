@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    //++++Parse command-line options.
-   const char *mesh_file = "./xperiodic-square.mesh";
+   const char *mesh_file = "./Meshes/xperiodic-square.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 2;
