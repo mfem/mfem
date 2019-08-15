@@ -1048,10 +1048,6 @@ KINSolver::KINSolver(int strategy, bool oper_grad)
    f_scale = N_VNewEmpty_Serial(0);
    MFEM_VERIFY(y && y_scale && f_scale, "Error in N_VNewEmpty_Serial().");
 
-   // Create the solver memory
-   sundials_mem = KINCreate();
-   MFEM_VERIFY(sundials_mem, "Error in KINCreate().");
-
    // Default abs_tol and print_level
    abs_tol     = pow(UNIT_ROUNDOFF, 1.0/3.0);
    print_level = 0;
@@ -1083,10 +1079,6 @@ KINSolver::KINSolver(MPI_Comm comm, int strategy, bool oper_grad)
 
    }
 
-   // Create the solver memory
-   sundials_mem = KINCreate();
-   MFEM_VERIFY(sundials_mem, "error in KINCreate().");
-
    // Default abs_tol and print_level
    abs_tol     = pow(UNIT_ROUNDOFF, 1.0/3.0);
    print_level = 0;
@@ -1100,77 +1092,117 @@ void KINSolver::SetOperator(const Operator &op)
    NewtonSolver::SetOperator(op);
    jacobian = NULL;
 
-   // Set actual size and data in the N_Vector y.
-   if (!Parallel())
-   {
+   // Get the vector length
+   long local_size = height;
+   long global_size;
 
-      NV_LENGTH_S(y)       = height;
-      NV_DATA_S(y)         = new double[height](); // value-initialize
-      NV_LENGTH_S(y_scale) = height;
-      NV_DATA_S(y_scale)   = NULL;
-      NV_LENGTH_S(f_scale) = height;
-      NV_DATA_S(f_scale)   = NULL;
-
-   }
-   else
+   if (Parallel())
    {
-#ifdef MFEM_USE_MPI
-      long local_size = height, global_size;
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
-      NV_LOCLENGTH_P(y)        = local_size;
-      NV_GLOBLENGTH_P(y)       = global_size;
-      NV_DATA_P(y)             = new double[local_size](); // value-initialize
-      NV_LOCLENGTH_P(y_scale)  = local_size;
-      NV_GLOBLENGTH_P(y_scale) = global_size;
-      NV_DATA_P(y_scale)       = NULL;
-      NV_LOCLENGTH_P(f_scale)  = local_size;
-      NV_GLOBLENGTH_P(f_scale) = global_size;
-      NV_DATA_P(f_scale)       = NULL;
-#endif
    }
 
-   // Initialize KINSOL
-   flag = KINInit(sundials_mem, KINSolver::Mult, y);
-   MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINInit()");
-
-   // Attach the KINSolver as user-defined data
-   flag = KINSetUserData(sundials_mem, this);
-   MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
-
-   // Set linear solver
-   if (prec)
+   if (sundials_mem)
    {
-      KINSolver::SetSolver(*prec);
-   }
-   else
-   {
-      LSA  = SUNLinSol_SPGMR(y, PREC_NONE, 0);
-      MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
-
-      flag = KINSetLinearSolver(sundials_mem, LSA, NULL);
-      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
-
-      // Set Jacobian-vector product function
-      if (use_oper_grad)
+      // Check if the problem size has changed since the last SetOperator call
+      if (!Parallel())
       {
-         flag = KINSetJacTimesVecFn(sundials_mem, KINSolver::GradientMult);
-         MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetJacTimesVecFn()");
+         resize = (NV_LENGTH_S(y) != local_size);
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         resize = (NV_LOCLENGTH_P(y) != local_size) ||
+            (saved_global_size != global_size);
+#endif
+      }
+
+      // Free existing solver memory and re-create with new vector size
+      if (resize)
+      {
+         KINFree(&sundials_mem);
+         sundials_mem = NULL;
       }
    }
 
-   // Delete the allocated data in y.
-   if (!Parallel())
+   if (!sundials_mem)
    {
-      delete [] NV_DATA_S(y);
-      NV_DATA_S(y) = NULL;
-   }
-   else
-   {
+      // Set actual size and data in the N_Vector y.
+      if (!Parallel())
+      {
+         NV_LENGTH_S(y)       = local_size;
+         NV_DATA_S(y)         = new double[local_size](); // value-initialize
+         NV_LENGTH_S(y_scale) = local_size;
+         NV_DATA_S(y_scale)   = NULL;
+         NV_LENGTH_S(f_scale) = local_size;
+         NV_DATA_S(f_scale)   = NULL;
+      }
+      else
+      {
 #ifdef MFEM_USE_MPI
-      delete [] NV_DATA_P(y);
-      NV_DATA_P(y) = NULL;
+         NV_LOCLENGTH_P(y)        = local_size;
+         NV_GLOBLENGTH_P(y)       = global_size;
+         NV_DATA_P(y)             = new double[local_size](); // value-initialize
+         NV_LOCLENGTH_P(y_scale)  = local_size;
+         NV_GLOBLENGTH_P(y_scale) = global_size;
+         NV_DATA_P(y_scale)       = NULL;
+         NV_LOCLENGTH_P(f_scale)  = local_size;
+         NV_GLOBLENGTH_P(f_scale) = global_size;
+         NV_DATA_P(f_scale)       = NULL;
+         saved_global_size        = global_size;
 #endif
+      }
+
+      // Create the solver memory
+      sundials_mem = KINCreate();
+      MFEM_VERIFY(sundials_mem, "Error in KINCreate().");
+
+      // Initialize KINSOL
+      flag = KINInit(sundials_mem, KINSolver::Mult, y);
+      MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINInit()");
+
+      // Attach the KINSolver as user-defined data
+      flag = KINSetUserData(sundials_mem, this);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
+
+      // Set the linear solver
+      if (prec)
+      {
+         KINSolver::SetSolver(*prec);
+      }
+      else
+      {
+         // Free any existing linear solver
+         if (A != NULL) { SUNMatDestroy(A); A = NULL; }
+         if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
+
+         LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
+         MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
+
+         flag = KINSetLinearSolver(sundials_mem, LSA, NULL);
+         MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
+
+         // Set Jacobian-vector product function
+         if (use_oper_grad)
+         {
+            flag = KINSetJacTimesVecFn(sundials_mem, KINSolver::GradientMult);
+            MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetJacTimesVecFn()");
+         }
+      }
+
+      // Delete the allocated data in y.
+      if (!Parallel())
+      {
+         delete [] NV_DATA_S(y);
+         NV_DATA_S(y) = NULL;
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         delete [] NV_DATA_P(y);
+         NV_DATA_P(y) = NULL;
+#endif
+      }
    }
 }
 
