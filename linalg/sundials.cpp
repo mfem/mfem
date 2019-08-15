@@ -157,7 +157,8 @@ void CVODESolver::Init(TimeDependentOperator &f_)
    long local_size = f_.Height();
    long global_size;
 
-   if (Parallel()) {
+   if (Parallel())
+   {
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
    }
@@ -165,12 +166,33 @@ void CVODESolver::Init(TimeDependentOperator &f_)
    // Get current time
    double t = f_.GetTime();
 
-   // Create, ReInit, or ReSize CVODE
+   if (sundials_mem)
+   {
+      // Check if the problem size has changed since the last Init() call
+      if (!Parallel())
+      {
+         resize = (NV_LENGTH_S(y) != local_size);
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         resize = (NV_LOCLENGTH_P(y) != local_size) ||
+            (saved_global_size != global_size);
+#endif
+      }
+
+      // Free existing solver memory and re-create with new vector size
+      if (resize)
+      {
+         CVodeFree(&sundials_mem);
+         sundials_mem = NULL;
+      }
+   }
+
    if (!sundials_mem)
    {
-
-      // Temporarly set N_Vector wrapper data to create ARKStep. The correct
-      // initial condition will be set using ARKStepReInit() when Step() is
+      // Temporarly set N_Vector wrapper data to create CVODE. The correct
+      // initial condition will be set using CVodeReInit() when Step() is
       // called.
       if (!Parallel())
       {
@@ -206,68 +228,23 @@ void CVODESolver::Init(TimeDependentOperator &f_)
       // Attach MFEM linear solver by default
       UseMFEMLinearSolver();
 
-      // Set the reinit flag to call CVodeReInit() in the next Step() call.
-      reinit = true;
-
-   }
-   else
-   {
-
-      // Check if the problem size has changed since the last Init() call. Set
-      // the resize flag if necessary to call ARKStepResize() in the next
-      // Step() call.
+      // Delete the allocated data in y.
       if (!Parallel())
       {
-         resize = (NV_LENGTH_S(y) != local_size);
+         delete [] NV_DATA_S(y);
+         NV_DATA_S(y) = NULL;
       }
       else
       {
 #ifdef MFEM_USE_MPI
-         resize = (NV_LOCLENGTH_P(y) != local_size) ||
-            (saved_global_size != global_size);
+         delete [] NV_DATA_P(y);
+         NV_DATA_P(y) = NULL;
 #endif
       }
-
-      if (resize) {
-
-         // Update vector size. The correct initial condition will be set using
-         // ARKStepResize() when Step() is called.
-         if (!Parallel())
-         {
-            NV_LENGTH_S(y) = local_size;
-         }
-         else
-         {
-#ifdef MFEM_USE_MPI
-            NV_LOCLENGTH_P(y)  = local_size;
-            NV_GLOBLENGTH_P(y) = global_size;
-            saved_global_size  = global_size;
-#endif
-         }
-
-      } else {
-
-         // The vector size has not changed. Set the reinit flag to call
-         // ARKStepReInit() in the next Step() call to set the new state.
-         reinit = true;
-
-      }
-
    }
 
-   // Delete the allocated data in y.
-   if (!Parallel())
-   {
-      delete [] NV_DATA_S(y);
-      NV_DATA_S(y) = NULL;
-   }
-   else
-   {
-#ifdef MFEM_USE_MPI
-      delete [] NV_DATA_P(y);
-      NV_DATA_P(y) = NULL;
-#endif
-   }
+   // Set the reinit flag to call CVodeReInit() in the next Step() call.
+   reinit = true;
 }
 
 void CVODESolver::Step(Vector &x, double &t, double &dt)
@@ -286,21 +263,13 @@ void CVODESolver::Step(Vector &x, double &t, double &dt)
    }
 
    // Reinitialize CVODE memory if needed
-   if (reinit) {
+   if (reinit)
+   {
       flag = CVodeReInit(sundials_mem, t, y);
       MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeReInit()");
 
       // reset flag
       reinit = false;
-   }
-
-   // Resize CVODE memory if needed
-   if (resize) {
-      flag = CVodeResize(sundials_mem, t, y, NULL, NULL);
-      MFEM_VERIFY(flag == ARK_SUCCESS, "error in CVodeResize()");
-
-      // reset flag
-      resize = false;
    }
 
    // Integrate the system
