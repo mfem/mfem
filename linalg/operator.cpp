@@ -53,15 +53,9 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
-   const Operator *P = this->GetProlongation();
-   const Operator *R = this->GetRestriction();
-   InitTVectors(P, R, x, b, X, B);
-
-   if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-
    ConstrainedOperator *constrainedA;
    FormConstrainedSystemOperator(ess_tdof_list, constrainedA);
-   constrainedA->EliminateRHS(X, B);
+   constrainedA->FormLinearSystem(ess_tdof_list, x, b, X, B, copy_interior);
    Aout = constrainedA;
 }
 
@@ -312,6 +306,18 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
       const int id = idx[i];
       d_b[id] = d_x[id];
    });
+}
+
+void ConstrainedOperator::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                           Vector &x, Vector &b,
+                                           Vector &X, Vector &B,
+                                           int copy_interior)
+{
+   const Operator *P = this->GetProlongation();
+   const Operator *R = this->GetRestriction();
+   InitTVectors(P, R, x, b, X, B);
+   if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+   EliminateRHS(X, B);
 }
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const

@@ -545,6 +545,11 @@ public:
        the vectors, and "_i" -- the rest of the entries. */
    void EliminateRHS(const Vector &x, Vector &b) const;
 
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         Vector &X, Vector &B,
+                         int copy_interior = 0);
+
    /** @brief Constrained operator action.
 
        Performs the following steps:
