@@ -26,7 +26,7 @@ protected:
    ParBilinearForm *Mrhs;
    ParBilinearForm *Nv, *Nb;
    ParLinearForm *E0, *Sw; //two source terms
-   HypreParMatrix Kmat, Mmat;
+   HypreParMatrix Kmat, Mmat, *NbMat;
    double viscosity, resistivity;
    bool useAMG;
 
@@ -65,7 +65,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f),
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Mrhs(NULL),
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
-     viscosity(visc),  resistivity(resi), useAMG(false), 
+     viscosity(visc),  resistivity(resi), NbMat(NULL), useAMG(false), 
      M_solver(f.GetComm()), K_solver(f.GetComm()), 
      K_amg(NULL), K_pcg(NULL), z(height/4)
 {
@@ -195,6 +195,9 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    }
    z.Neg(); // z = -z
    Nb->AddMult(j, z);
+   //Vector tmp;
+   //NbMat->Mult(j, tmp);
+   //z+=tmp;
 
    //z.SetSubVector(ess_tdof_list, 0.0);
    //M_solver.Mult(z, dw_dt);
@@ -217,11 +220,14 @@ void ResistiveMHDOperator::assembleNv(ParGridFunction *gf)
 void ResistiveMHDOperator::assembleNb(ParGridFunction *gf) 
 {
    delete Nb;
+   delete NbMat;
    Nb = new ParBilinearForm(&fespace);
    MyCoefficient Bfield(gf, 2);   //we update B
 
    Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
    Nb->Assemble();
+   Nb->Finalize();
+   NbMat=Nb->ParallelAssemble();
 }
 
 void ResistiveMHDOperator::UpdateJ(Vector &vx)
@@ -284,6 +290,7 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete KB;
     delete Nv;
     delete Nb;
+    delete NbMat;
     delete Mrhs;
     delete K_pcg;
     //delete K_amg;
