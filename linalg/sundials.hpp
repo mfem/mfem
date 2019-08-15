@@ -374,7 +374,7 @@ public:
    /** @param[in] comm       The MPI communicator used to partition the system.
        @param[in] strategy   Specifies the nonlinear solver strategy:
                              KIN_NONE / KIN_LINESEARCH / KIN_PICARD / KIN_FP.
-      @param[in] oper_grad   Specifies whether the solver should use its
+       @param[in] oper_grad  Specifies whether the solver should use its
                              Operator's GetGradient() method to compute the
                              Jacobian of the system. */
    KINSolver(MPI_Comm comm, int strategy, bool oper_grad = true);
@@ -396,11 +396,13 @@ public:
    virtual void SetPreconditioner(Solver &solver) { SetSolver(solver); }
 
    /// Set KINSOL's scaled step tolerance.
-   /** The default tolerance is U^(2/3), where U = machine unit roundoff. */
+   /** The default tolerance is U^(2/3), where U = machine unit roundoff.
+       @note This method must be called after SetOperator(). */
    void SetScaledStepTol(double sstol);
 
    /// Set maximum number of nonlinear iterations without a Jacobian update.
-   /** The default is 10. */
+   /** The default is 10.
+       @note This method must be called after SetOperator(). */
    void SetMaxSetupCalls(int max_calls);
 
    /// Solve the nonlinear system F(x) = 0.
