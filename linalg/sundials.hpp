@@ -28,6 +28,8 @@
 #if !defined(SUNDIALS_VERSION_MAJOR) || (SUNDIALS_VERSION_MAJOR < 5)
 #error MFEM requires SUNDIALS version 5.0.0 or newer!
 #endif
+#include <sundials/sundials_matrix.h>
+#include <sundials/sundials_linearsolver.h>
 #include <cvode/cvode.h>
 #include <arkode/arkode_arkstep.h>
 #include <kinsol/kinsol.h>

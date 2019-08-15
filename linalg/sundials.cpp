@@ -18,17 +18,16 @@
 #include "hypre.hpp"
 #endif
 
-#include <sundials/sundials_config.h>
-#include <sundials/sundials_matrix.h>
-#include <sundials/sundials_linearsolver.h>
+// SUNDIALS vectors
 #include <nvector/nvector_serial.h>
 #ifdef MFEM_USE_MPI
 #include <nvector/nvector_parallel.h>
 #endif
 
-#include <cvode/cvode.h>
+// SUNDIALS linear solvers
 #include <sunlinsol/sunlinsol_spgmr.h>
 
+// Access SUNDIALS object's content pointer
 #define GET_CONTENT(X) ( X->content )
 
 using namespace std;
