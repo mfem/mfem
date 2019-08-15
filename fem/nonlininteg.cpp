@@ -756,7 +756,13 @@ void VectorConvectionNLFIntegrator::Setup(const FiniteElementSpace &fes)
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    pa_data.SetSize(ne*nq*dim*dim, Device::GetMemoryType());
-   const double COEFF = 1.0;
+   double COEFF = 1.0;
+   if (Q)
+   {
+      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
+      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+      COEFF = cQ->constant;
+   }
    const int NE = ne;
    const int NQ = nq;
    auto W = ir->GetWeights().Read();
