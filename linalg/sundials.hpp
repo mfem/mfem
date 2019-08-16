@@ -398,7 +398,9 @@ public:
    /// Set the linear solver for inverting the Jacobian.
    /** @note This function assumes that Operator::GetGradient(const Vector &)
              is implemented by the Operator specified by
-             SetOperator(const Operator &). */
+             SetOperator(const Operator &).
+
+             This method must be called after SetOperator(). */
    virtual void SetSolver(Solver &solver);
 
    /// Equivalent to SetSolver(solver).
