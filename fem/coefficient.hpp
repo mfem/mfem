@@ -445,6 +445,8 @@ protected:
    GridFunction *GridFunc;
 
 public:
+   bool assume_scalar;
+
    CurlGridFunctionCoefficient(GridFunction *gf);
 
    void SetGridFunction(GridFunction *gf);

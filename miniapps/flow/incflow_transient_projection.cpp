@@ -12,6 +12,48 @@ struct Context
    double kinvis;
 } ctx;
 
+void f_mms_guermond(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+
+   u(0) = M_PI * sin(t) * sin(M_PI * xi) * sin(M_PI * yi)
+             * (-1.0
+                + 2.0 * pow(M_PI, 2.0) * sin(t) * sin(M_PI * xi)
+                     * sin(2.0 * M_PI * xi) * sin(M_PI * yi))
+          + M_PI
+               * (2.0 * ctx.kinvis * pow(M_PI, 2.0)
+                     * (1.0 - 2.0 * cos(2.0 * M_PI * xi)) * sin(t)
+                  + cos(t) * pow(sin(M_PI * xi), 2.0))
+               * sin(2.0 * M_PI * yi);
+
+   u(1) = M_PI * cos(M_PI * yi) * sin(t)
+             * (cos(M_PI * xi)
+                + 2.0 * ctx.kinvis * pow(M_PI, 2.0) * cos(M_PI * yi)
+                     * sin(2.0 * M_PI * xi))
+          - M_PI * (cos(t) + 6.0 * ctx.kinvis * pow(M_PI, 2.0) * sin(t))
+               * sin(2.0 * M_PI * xi) * pow(sin(M_PI * yi), 2.0)
+          + 4.0 * pow(M_PI, 3.0) * cos(M_PI * yi) * pow(sin(t), 2.0)
+               * pow(sin(M_PI * xi), 2.0) * pow(sin(M_PI * yi), 3.0);
+}
+
+void vel_mms_guermond(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+
+   u(0) = M_PI * sin(t) * pow(sin(M_PI * xi), 2.0) * sin(2.0 * M_PI * yi);
+   u(1) = -(M_PI * sin(t) * sin(2.0 * M_PI * xi) * pow(sin(M_PI * yi), 2.0));
+}
+
+double pres_mms_guermond(const Vector &x, double t)
+{
+   double xi = x(0);
+   double yi = x(1);
+
+   return cos(M_PI * xi) * sin(t) * sin(M_PI * yi);
+}
+
 void vel_mms(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
@@ -66,7 +108,7 @@ void ortho(Vector &v)
    v -= global_sum / static_cast<double>(global_size);
 }
 
-void ortho(ParGridFunction &v)
+void MeanZero(ParGridFunction &v)
 {
    ConstantCoefficient one(1.0);
    ParLinearForm mass_lf(v.ParFESpace());
@@ -80,6 +122,29 @@ void ortho(ParGridFunction &v)
    double integ = mass_lf(v);
 
    v -= integ / volume;
+}
+
+void ComputeCurlCurl(ParGridFunction &u, ParGridFunction &ccu)
+{
+   // ParFiniteElementSpace u_comp_fes(u.ParFESpace()->GetParMesh(),
+   //                                  u.ParFESpace()->FEColl());
+   // ParGridFunction u_comp(&u_comp_fes);
+   ParGridFunction cu(u.ParFESpace());
+   CurlGridFunctionCoefficient cu_gfcoeff(&u);
+
+   cu.ProjectDiscCoefficient(cu_gfcoeff);
+
+   if (u.ParFESpace()->GetVDim() == 2)
+   {
+      for (int i = 0; i < u.ParFESpace()->GetNDofs(); i++)
+      {
+         cu[cu.ParFESpace()->DofToVDof(i, 1)] = 0.0;
+      }
+   }
+
+   cu_gfcoeff.SetGridFunction(&cu);
+   cu_gfcoeff.assume_scalar = true;
+   ccu.ProjectDiscCoefficient(cu_gfcoeff);
 }
 
 int main(int argc, char *argv[])
@@ -99,7 +164,7 @@ int main(int argc, char *argv[])
    double dt = 1e-5;
    double t_final = dt;
    ctx.prob_type = 0;
-   ctx.kinvis = 1.0 / 100000.0;
+   ctx.kinvis = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&serial_ref_levels,
@@ -125,7 +190,7 @@ int main(int argc, char *argv[])
    }
 
    std::string mesh_file;
-   if (ctx.prob_type == 0)
+   if (ctx.prob_type == 0 || ctx.prob_type == 2)
    {
       mesh_file = "../../data/inline-quad.mesh";
    }
@@ -177,7 +242,7 @@ int main(int argc, char *argv[])
 
    Array<int> ess_tdof_list_u;
    Array<int> ess_bdr_attr_u;
-   if (ctx.prob_type == 0)
+   if (ctx.prob_type == 0 || ctx.prob_type == 2)
    {
       ess_bdr_attr_u.SetSize(pmesh->bdr_attributes.Max());
       ess_bdr_attr_u[0] = 1;
@@ -189,7 +254,7 @@ int main(int argc, char *argv[])
 
    Array<int> ess_tdof_list_p;
    Array<int> ess_bdr_attr_p;
-   if (ctx.prob_type == 0)
+   if (ctx.prob_type == 0 || ctx.prob_type == 2)
    {
       ess_bdr_attr_p.SetSize(pmesh->bdr_attributes.Max());
       ess_bdr_attr_p[0] = 0;
@@ -211,12 +276,21 @@ int main(int argc, char *argv[])
       unm2(vel_fes->GetTrueVSize());
    Vector uh(vel_fes->GetTrueVSize());
    Vector uhh(vel_fes->GetTrueVSize());
+   Vector f(vel_fes->GetTrueVSize());
+   Vector f_bdr(pres_fes->GetTrueVSize());
+   Vector Nuext_bdr(pres_fes->GetTrueVSize());
+   Vector curlcurlu_bdr(pres_fes->GetTrueVSize());
+   Vector uh_bdr(pres_fes->GetTrueVSize());
+   Vector g_bdr(pres_fes->GetTrueVSize());
 
    un = 0.0;
    unm1 = 0.0;
    unm2 = 0.0;
    uh = 0.0;
    uhh = 0.0;
+   f = 0.0;
+   f_bdr = 0.0;
+   uh_bdr = 0.0;
 
    ParGridFunction Nu_gf(vel_fes);
    Nu_gf = 0.0;
@@ -227,6 +301,14 @@ int main(int argc, char *argv[])
    ParGridFunction p_gf(pres_fes);
    p_gf = 0.0;
 
+   ParGridFunction curlcurlu_gf(vel_fes), curlcurlun_gf(vel_fes),
+      curlcurlunm1_gf(vel_fes), curlcurlunm2_gf(vel_fes), un_gf(vel_fes),
+      unm1_gf(vel_fes), unm2_gf(vel_fes);
+   curlcurlu_gf = 0.0;
+
+   ParGridFunction uh_gf(vel_fes);
+   uh_gf = 0.0;
+
    VectorFunctionCoefficient *u_ex_coeff = nullptr;
    if (ctx.prob_type == 0)
    {
@@ -236,14 +318,47 @@ int main(int argc, char *argv[])
    {
       u_ex_coeff = new VectorFunctionCoefficient(dim, vel_shear_ic);
    }
+   else if (ctx.prob_type == 2)
+   {
+      u_ex_coeff = new VectorFunctionCoefficient(dim, vel_mms_guermond);
+   }
    ParGridFunction u_gf(vel_fes);
    u_gf = 0.0;
    u_gf.ProjectCoefficient(*u_ex_coeff);
    u_gf.GetTrueDofs(un);
 
-   FunctionCoefficient p_ex_coeff(p_ex);
+   FunctionCoefficient *p_ex_coeff = nullptr;
+   if (ctx.prob_type == 0 || ctx.prob_type == 1)
+   {
+      p_ex_coeff = new FunctionCoefficient(p_ex);
+   }
+   else if (ctx.prob_type == 2)
+   {
+      p_ex_coeff = new FunctionCoefficient(pres_mms_guermond);
+   }
+
    ParGridFunction p_ex_gf(pres_fes);
-   p_ex_gf.ProjectCoefficient(p_ex_coeff);
+   p_ex_gf.ProjectCoefficient(*p_ex_coeff);
+   p_ex_gf.GetTrueDofs(pn);
+
+   VectorCoefficient *forcing_coeff = nullptr;
+   if (ctx.prob_type == 2)
+   {
+      forcing_coeff = new VectorFunctionCoefficient(dim, f_mms_guermond);
+   }
+   else
+   {
+      Vector v(dim);
+      v = 0.0;
+      forcing_coeff = new VectorConstantCoefficient(v);
+   }
+   ParLinearForm *f_form = new ParLinearForm(vel_fes);
+   VectorDomainLFIntegrator *vdlfi = new VectorDomainLFIntegrator(
+      *forcing_coeff);
+   const IntegrationRule &ir = IntRules.Get(vel_fes->GetFE(0)->GetGeomType(),
+                                            4 * order);
+   vdlfi->SetIntRule(&ir);
+   f_form->AddDomainIntegrator(vdlfi);
 
    ConstantCoefficient nlcoeff(-1.0);
    ParNonlinearForm *N = new ParNonlinearForm(vel_fes);
@@ -251,17 +366,17 @@ int main(int argc, char *argv[])
 
    ParBilinearForm *Mv_form = new ParBilinearForm(vel_fes);
    VectorMassIntegrator *blfi = new VectorMassIntegrator;
-   //   const IntegrationRule *ir
-   //      = &IntRules.Get(vel_fes->GetFE(0)->GetGeomType(),
-   //                      vel_fes->GetElementTransformation(0)->OrderW()
-   //                         + 2 * (order + 1));
-   //   blfi->SetIntRule(ir);
+   // IntegrationRules rules_ni(0, Quadrature1D::GaussLobatto);
+   // const IntegrationRule &ir_ni = rules_ni.Get(vel_fes->GetFE(0)->GetGeomType(),
+   //                                             2 * order - 1);
+   // blfi->SetIntRule(&ir_ni);
    Mv_form->AddDomainIntegrator(blfi);
    Mv_form->Assemble();
    Mv_form->Finalize();
    HypreParMatrix Mv = *Mv_form->ParallelAssemble();
    Array<int> empty;
    Mv_form->FormSystemMatrix(empty, Mv);
+   // Mv.Threshold(1e-12);
 
    ParBilinearForm *Sp_form = new ParBilinearForm(pres_fes);
    Sp_form->AddDomainIntegrator(new DiffusionIntegrator);
@@ -286,10 +401,25 @@ int main(int argc, char *argv[])
    g_bdr_form->AddBoundaryIntegrator(
       new BoundaryNormalLFIntegrator(*u_ex_coeff));
 
-   VectorGridFunctionCoefficient u_gf_coeff(&u_gf);
-   // ParLinearForm *Nu_bdr_form = new ParLinearForm(pres_fes);
-   // Nu_bdr_form->AddBoundaryIntegrator(
-   //    new BoundaryNormalLFIntegrator(Nu_gf_coeff));
+   VectorGridFunctionCoefficient uh_gf_coeff(&uh_gf);
+   ParLinearForm *uh_bdr_form = new ParLinearForm(pres_fes);
+   uh_bdr_form->AddBoundaryIntegrator(
+      new BoundaryNormalLFIntegrator(uh_gf_coeff));
+
+   ParLinearForm *f_bdr_form = new ParLinearForm(pres_fes);
+   f_bdr_form->AddBoundaryIntegrator(
+      new BoundaryNormalLFIntegrator(*forcing_coeff));
+
+   ParGridFunction Nuext_gf(vel_fes);
+   VectorGridFunctionCoefficient Nuext_gfcoeff(&Nuext_gf);
+   ParLinearForm *Nuext_bdr_form = new ParLinearForm(pres_fes);
+   Nuext_bdr_form->AddBoundaryIntegrator(
+      new BoundaryNormalLFIntegrator(Nuext_gfcoeff));
+
+   VectorGridFunctionCoefficient curlcurlu_gfcoeff(&curlcurlu_gf);
+   ParLinearForm *curlcurlu_bdr_form = new ParLinearForm(pres_fes);
+   curlcurlu_bdr_form->AddBoundaryIntegrator(
+      new BoundaryNormalLFIntegrator(curlcurlu_gfcoeff, 2, 1));
 
    ConstantCoefficient lincoeff(dt * ctx.kinvis);
    ConstantCoefficient bdfcoeff(1.0);
@@ -310,22 +440,34 @@ int main(int argc, char *argv[])
    MvInv.SetMaxIter(50);
 
    HypreBoomerAMG SpInvPC = HypreBoomerAMG(Sp);
+   // HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(SpInvPC);
+   // HYPRE_BoomerAMGSetCoarsenType(amg_precond, 6);
+   // HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
+   // HYPRE_BoomerAMGSetRelaxType(amg_precond, 6);
+   // HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
+   // HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
    SpInvPC.SetPrintLevel(0);
    GMRESSolver SpInv(MPI_COMM_WORLD);
    SpInv.SetPreconditioner(SpInvPC);
    SpInv.SetOperator(Sp);
    SpInv.SetPrintLevel(0);
    SpInv.SetRelTol(1e-12);
-   SpInv.SetMaxIter(200);
+   SpInv.SetMaxIter(50);
 
    HypreBoomerAMG HInvPC = HypreBoomerAMG(H);
+   // amg_precond = static_cast<HYPRE_Solver>(HInvPC);
+   // HYPRE_BoomerAMGSetCoarsenType(amg_precond, 6);
+   // HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
+   // HYPRE_BoomerAMGSetRelaxType(amg_precond, 6);
+   // HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
+   // HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
    HInvPC.SetPrintLevel(0);
    CGSolver HInv(MPI_COMM_WORLD);
    HInv.SetPreconditioner(HInvPC);
    HInv.SetOperator(H);
    HInv.SetPrintLevel(0);
    HInv.SetRelTol(1e-12);
-   HInv.SetMaxIter(200);
+   HInv.SetMaxIter(50);
 
    char vishost[] = "localhost";
    int visport = 19916;
@@ -361,7 +503,8 @@ int main(int argc, char *argv[])
    visit_dc.SetTime(t);
    visit_dc.RegisterField("velocity", &u_gf);
    visit_dc.RegisterField("pressure", &p_gf);
-   if (ctx.prob_type == 0)
+   visit_dc.RegisterField("curlcurlun", &curlcurlun_gf);
+   if (ctx.prob_type == 0 || ctx.prob_type == 2)
    {
       u_err_gf = new ParGridFunction(vel_fes);
       p_err_gf = new ParGridFunction(pres_fes);
@@ -372,9 +515,10 @@ int main(int argc, char *argv[])
 
    int order_quad = max(2, 2 * order + 1);
    const IntegrationRule *irs[Geometry::NumGeom];
+   IntegrationRules irs_gll(0, Quadrature1D::GaussLobatto);
    for (int i = 0; i < Geometry::NumGeom; ++i)
    {
-      irs[i] = &(IntRules.Get(i, order_quad));
+      irs[i] = &(irs_gll.Get(i, order_quad));
    }
 
    double err_u = 0.0;
@@ -412,7 +556,8 @@ int main(int argc, char *argv[])
       t += dt;
 
       u_ex_coeff->SetTime(t);
-      p_ex_coeff.SetTime(t);
+      p_ex_coeff->SetTime(t);
+      forcing_coeff->SetTime(t);
 
       // Extrapolation
 #if 0
@@ -477,6 +622,18 @@ int main(int argc, char *argv[])
       N->Mult(unm2, tmp3);
       tmp3 *= b2;
 
+      Vector Nuext(vel_fes->GetTrueVSize());
+      Nuext = tmp1;
+      Nuext += tmp2;
+      Nuext += tmp3;
+      Nuext_gf.SetFromTrueDofs(Nuext);
+
+      // Forcing term
+      // f^{n+1} is assumed to be known
+      f_form->Assemble();
+      f_form->ParallelAssemble(f);
+      tmp1 += f;
+
       tmp1 += tmp2;
       tmp1 += tmp3;
       tmp1 *= dt;
@@ -502,7 +659,40 @@ int main(int argc, char *argv[])
       tmpp *= -1.0 / dt;
 
       // Add boundary terms
-      // MISSING
+      tmp1 = 0.0;
+      tmp1.Add(-a0, un);
+      tmp1.Add(-a1, unm1);
+      tmp1.Add(-a2, unm2);
+      uh_gf.SetFromTrueDofs(tmp1);
+      uh_bdr_form->Assemble();
+      uh_bdr_form->ParallelAssemble(uh_bdr);
+      g_bdr_form->Assemble();
+      g_bdr_form->ParallelAssemble(g_bdr);
+      tmpp.Add(1.0 / dt, uh_bdr);
+      tmpp.Add(-g0 / dt, g_bdr);
+
+      // Forcing
+      f_bdr_form->Assemble();
+      f_bdr_form->ParallelAssemble(f_bdr);
+      tmpp += f_bdr;
+
+      // Extrapolated nonlinear terms
+      // Has actually an impact on the error,
+      // although only in the range ~1e-6
+      Nuext_bdr_form->Assemble();
+      Nuext_bdr_form->ParallelAssemble(Nuext_bdr);
+      tmpp += Nuext_bdr;
+
+      // CurlCurl
+      tmp1 = 0.0;
+      tmp1.Add(b0, un);
+      tmp1.Add(b1, unm1);
+      tmp1.Add(b2, unm2);
+      uh_gf.SetFromTrueDofs(tmp1);
+      ComputeCurlCurl(uh_gf, curlcurlu_gf);
+      curlcurlu_bdr_form->Assemble();
+      curlcurlu_bdr_form->ParallelAssemble(curlcurlu_bdr);
+      tmpp.Add(-ctx.kinvis, curlcurlu_bdr);
 
       ParGridFunction pn_gf(pres_fes), tmpp_gf(pres_fes);
       pn_gf = 0.0;
@@ -519,7 +709,7 @@ int main(int argc, char *argv[])
       SpInv.Mult(B1, X1);
       Sp_form->RecoverFEMSolution(X1, tmpp_gf, pn_gf);
 
-      ortho(pn_gf);
+      MeanZero(pn_gf);
 
       pn_gf.GetTrueDofs(pn);
 
@@ -534,7 +724,7 @@ int main(int argc, char *argv[])
 
       // Helmholtz
 
-      ParGridFunction un_gf(vel_fes), uhh_gf(vel_fes);
+      ParGridFunction uhh_gf(vel_fes);
       un_gf = 0.0;
       uhh_gf = 0.0;
       un_gf.ProjectBdrCoefficient(*u_ex_coeff, ess_bdr_attr_u);
@@ -552,7 +742,7 @@ int main(int argc, char *argv[])
 
       u_gf.Distribute(un);
 
-      if (step % 10 == 0 || last_step)
+      if ((step + 1) % 10 == 0 || last_step)
       {
          u_sock << "parallel " << num_procs << " " << myid << "\n"
                 << "solution\n"
@@ -564,22 +754,22 @@ int main(int argc, char *argv[])
                 << *pmesh << p_gf << "window_title 'pressure t=" << t << "'"
                 << endl;
 
-         if (ctx.prob_type == 0)
+         if (ctx.prob_type == 0 || ctx.prob_type == 2)
          {
             u_err_gf->ProjectCoefficient(*u_ex_coeff);
-            p_err_gf->ProjectCoefficient(p_ex_coeff);
+            p_err_gf->ProjectCoefficient(*p_ex_coeff);
             u_err_gf->Add(-1.0, u_gf);
             p_err_gf->Add(-1.0, p_gf);
          }
-         visit_dc.SetCycle(step);
+         visit_dc.SetCycle(step + 1);
          visit_dc.SetTime(t);
          visit_dc.Save();
       }
 
       err_u = u_gf.ComputeL2Error(*u_ex_coeff, irs);
-      err_p = p_gf.ComputeL2Error(p_ex_coeff, irs);
+      err_p = p_gf.ComputeL2Error(*p_ex_coeff, irs);
       err_inf_u = u_gf.ComputeMaxError(*u_ex_coeff, irs);
-      err_inf_p = p_gf.ComputeMaxError(p_ex_coeff, irs);
+      err_inf_p = p_gf.ComputeMaxError(*p_ex_coeff, irs);
       u_inf = u_gf.Normlinf();
       p_inf = p_gf.Normlinf();
       if (myid == 0)
@@ -595,7 +785,7 @@ int main(int argc, char *argv[])
                 p_inf);
       }
 
-      MFEM_ASSERT(u_gf.Normlinf() <= 2.0, "UNSTABLE");
+      MFEM_ASSERT(u_gf.Normlinf() <= 3.0, "UNSTABLE");
    }
 
    return 0;

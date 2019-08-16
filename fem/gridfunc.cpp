@@ -949,7 +949,9 @@ double GridFunction::GetDivergence(ElementTransformation &tr) const
    return div_v;
 }
 
-void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
+void GridFunction::GetCurl(ElementTransformation &tr,
+                           Vector &curl,
+                           bool assume_scalar) const
 {
    int elNo = tr.ElementNo;
    const FiniteElement *FElem = fes->GetFE(elNo);
@@ -972,8 +974,17 @@ void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
       }
       else if (grad.Height() == 2)
       {
-         curl.SetSize(1);
-         curl(0) = grad(1,0) - grad(0,1);
+         if (assume_scalar)
+         {
+            curl.SetSize(2);
+            curl(0) = grad(0, 1);
+            curl(1) = -grad(0, 0);
+         }
+         else
+         {
+            curl.SetSize(1);
+            curl(0) = grad(1, 0) - grad(0, 1);
+         }
       }
    }
    else
