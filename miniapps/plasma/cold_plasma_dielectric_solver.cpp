@@ -336,7 +336,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
    */
    ess_bdr_.SetSize(pmesh.bdr_attributes.Max());
-   if ( dbcs_ != NULL )
+   if ( dbcs_->Size() > 0 )
    {
       if ( dbcs_->Size() == 1 && (*dbcs_)[0].attr[0] == -1 )
       {
@@ -747,7 +747,7 @@ CPDSolver::Solve()
    OperatorHandle A1;
    Vector E, RHS;
    // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
-   if (dbcs_)
+   if (dbcs_->Size() > 0)
    {
       Array<int> attr_marker(pmesh_->bdr_attributes.Max());
       for (int i = 0; i<dbcs_->Size(); i++)
