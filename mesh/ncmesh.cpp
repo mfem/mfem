@@ -277,8 +277,8 @@ void NCMesh::ReparentNode(int node, int new_p1, int new_p2)
    sh->vert_index = node;
 
    // set shadow/shadowed flags on the two nodes
-   sh->flags = 1;
-   nd.flags = 2;
+   //sh->flags = 1;
+   //nd.flags = 2;
 }
 
 int NCMesh::FindMidEdgeNode(int node1, int node2) const
@@ -600,7 +600,12 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 {
    // get the element this face belongs to
    Face* face = faces.Find(vn1, vn2, vn3, vn4);
-   if (!face) { return; }
+   if (!face)
+   {
+      /*mfem::out << "Face (" << vn1 << ", " << vn2 << ", "
+                            << vn3 << ", " << vn4 << ") not found." << std::endl;*/
+      return;
+   }
 
    int elem = face->GetSingleElement();
    Element &el = elements[elem];
@@ -659,7 +664,6 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 
    // schedule the refinement
    ref_queue.Append(Refinement(elem, ref_type));
-   el.flag |= ref_type;
 }
 
 
@@ -908,10 +912,6 @@ void NCMesh::RefineElement(int elem, char ref_type)
 {
    Element &el = elements[elem];
 
-   // add forced refinement if one is pending (see ForceRefinement)
-   ref_type |= el.flag;
-   el.flag = 0;
-
    if (!ref_type) { return; }
 
    // handle elements that may have been (force-) refined already
@@ -927,12 +927,12 @@ void NCMesh::RefineElement(int elem, char ref_type)
       return;
    }
 
-   std::cout << "Refining element " << elem << " ("
+   /*std::cout << "Refining element " << elem << " ("
              << el.node[0] << ", " << el.node[1] << ", "
              << el.node[2] << ", " << el.node[3] << ", "
              << el.node[4] << ", " << el.node[5] << ", "
              << el.node[6] << ", " << el.node[7] << "), "
-             << "ref_type " << int(ref_type) << std::endl;
+             << "ref_type " << int(ref_type) << std::endl;*/
 
    int* no = el.node;
    int attr = el.attribute;
@@ -1482,12 +1482,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_queue.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
-   // reset element flags, used for marking scheduled force refinement
-   for (auto it = elements.begin(); it != elements.end(); ++it)
-   {
-      it->flag = 0;
-   }
-
    //static int iter = 0;
 
    // keep refining as long as the queue contains something
@@ -1517,9 +1511,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    std::cout << "Refined " << refinements.Size() << " + "
              << total - refinements.Size() << " elements" << std::endl;
 #endif
-
-   ref_queue.DeleteAll();
-   shadow.DeleteAll();
 
    Update();
 
@@ -2117,6 +2108,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
       const int *ev = edge_vertex->GetRow(i);
+#if 0
       Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
 
       MFEM_ASSERT(node && node->HasEdge(),
@@ -2124,6 +2116,15 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
                   "node = " << node);
 
       node->edge_index = i;
+#else
+      int node = FindMidEdgeNode(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
+
+      MFEM_ASSERT(node >= 0 && nodes[node].HasEdge(),
+                  "edge (" << vertex_nodeId[ev[0]] << "," << vertex_nodeId[ev[1]] << ") not found, "
+                  "node = " << node);
+
+      nodes[node].edge_index = i;
+#endif
    }
 
    // get face enumeration from the Mesh
@@ -5291,7 +5292,7 @@ void NCMesh::DebugDump(std::ostream &out) const
           << pos[0] << " " << pos[1] << " " << pos[2] << " "
           << node->p1 << " " << node->p2 << " "
           << node->vert_index << " " << node->edge_index << " "
-          << int(node->flags) << "\n";
+          << /*int(node->flags)*/0 << "\n";
    }
    for (auto shd = shadow.cbegin(); shd != shadow.cend(); ++shd)
    {
@@ -5299,7 +5300,7 @@ void NCMesh::DebugDump(std::ostream &out) const
       out << nodes.Size() + shd.index() << " "
           << pos[0] << " " << pos[1] << " " << pos[2] << " "
           << shd->p1 << " " << shd->p2 << " "
-          << -1 << " " << -1 << " " << int(shd->flags) << "\n";
+          << -1 << " " << -1 << " " << /*int(shd->flags)*/1 << "\n";
    }
    delete [] tmp_vertex;
    out << "\n";

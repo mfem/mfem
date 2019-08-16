@@ -385,9 +385,9 @@ protected: // implementation
    {
       int vert_index, edge_index; ///< vertex/edge number in Mesh
       char vert_refc, edge_refc;  ///< reference counts
-      char flags;                 ///< shadow node flags (aniso only)
+      //char flags;                 ///< shadow node flags (aniso only)
 
-      Node() : vert_index(-1), edge_index(-1), vert_refc(0), edge_refc(0), flags(0) {}
+      Node() : vert_index(-1), edge_index(-1), vert_refc(0), edge_refc(0)/*, flags(0)*/ {}
       ~Node();
 
       bool HasVertex() const { return vert_refc > 0; }
@@ -398,10 +398,10 @@ protected: // implementation
       bool UnrefEdge()   { --edge_refc; return vert_refc || edge_refc; }
 
       // check shadow/shadowed status (mid-face node with alternate parents)
-      bool Shadow() const { return flags & 1; }
-      bool Shadowed() const { return flags & 2; }
+      //bool Shadow() const { return flags & 1; }
+      //bool Shadowed() const { return flags & 2; }
 
-      int ShadowTarget() const { MFEM_ASSERT(Shadow(), ""); return vert_index; }
+      int ShadowTarget() const { /*MFEM_ASSERT(Shadow(), "");*/ return vert_index; }
    };
 
    /** Similarly to nodes, faces can be accessed by hashing their four vertex
@@ -452,11 +452,11 @@ protected: // implementation
 
    // primary data
 
-   HashTable<Node> nodes; // associative container holding all Nodes
-   HashTable<Face> faces; // associative container holding all Faces
+   HashTable<Node> nodes; ///< associative container holding all Nodes
+   HashTable<Face> faces; ///< associative container holding all Faces
 
-   BlockArray<Element> elements; // storage for all Elements
-   Array<int> free_element_ids;  // unused element ids - indices into 'elements'
+   BlockArray<Element> elements; ///< storage for all Elements
+   Array<int> free_element_ids;  ///< unused element ids - indices into 'elements'
 
    /** Initial traversal state (~ element orientation) for each root element
        NOTE: M = root_state.Size() is the number of root elements.
@@ -465,6 +465,8 @@ protected: // implementation
 
    /// coordinates of top-level vertices (organized as triples)
    Array<double> top_vertex_pos;
+
+   HashTable<Node> shadow; ///< nodes with alternate parents (aniso refinement)
 
 
    // secondary data
@@ -516,7 +518,6 @@ protected: // implementation
    // refinement/derefinement
 
    Array<Refinement> ref_queue; ///< stack of scheduled refinements (temporary)
-   HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable

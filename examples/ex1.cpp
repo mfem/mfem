@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+#if 1
    {
       srand(seed);
       for (int l = 0; l < ref_levels; l++)
@@ -172,6 +173,22 @@ int main(int argc, char *argv[])
          mesh->RandomRefinement(0.7, true);
       }
    }
+#else
+   {
+      Array<Refinement> refs;
+      refs.Append(Refinement(1, 1));
+      mesh->GeneralRefinement(refs);
+
+      refs.DeleteAll();
+      refs.Append(Refinement(0, 2));
+      refs.Append(Refinement(2, 1));
+      mesh->GeneralRefinement(refs);
+
+      refs.DeleteAll();
+      refs.Append(Refinement(0, 1));
+      mesh->GeneralRefinement(refs);
+   }
+#endif
 
    /*{
       ofstream ofs("debug.mesh");
