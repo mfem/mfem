@@ -1678,9 +1678,8 @@ slbqp_done:
 }
 
 
-#ifdef MFEM_USE_PETSC
 GMGSolver::GMGSolver(HypreParMatrix * Af_,
-                     std::vector<HypreParMatrix *> P_)
+                     std::vector<HypreParMatrix *> P_, CoarseSolver cs)
    : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
 
    NumGrids = P.size();
@@ -1695,9 +1694,50 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
       // Put a check on check dimension of RAP (to do)
    }
    // Set up coarse solve operator
-   invAc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
-   // Convert to PetscParMatrix
-   invAc->SetOperator(PetscParMatrix(A[0], Operator::PETSC_MATAIJ));
+   switch(cs)
+   {
+      case PETSC:
+#ifndef MFEM_USE_PETSC
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with PETSC");
+#else
+         petsc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
+         // Convert to PetscParMatrix
+         petsc->SetOperator(PetscParMatrix(A[0], Operator::PETSC_MATAIJ));
+         invAc = petsc;
+#endif
+      break;   
+      case SUPERLU:
+#ifndef MFEM_USE_SUPERLU
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with SUPERLU");
+#else
+         SluA = new SuperLURowLocMatrix(*A[0]);
+         superlu = new SuperLUSolver(*SluA);
+         superlu->SetPrintStatistics(false);
+         superlu->SetSymmetricPattern(true);
+         superlu->SetColumnPermutation(superlu::PARMETIS);
+         // superlu->SetColumnPermutation(superlu::NATURAL); // Sometimes parmetis crashes for multiple processos. 
+         superlu->SetOperator(*SluA);
+         invAc = superlu;
+#endif
+      break;
+      case STRUMPACK:
+#ifndef MFEM_USE_STRUMPACK
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with STRUMPACK");
+#else
+         StpA = new STRUMPACKRowLocMatrix(*A[0]);
+         strumpack = new STRUMPACKSolver(*StpA);
+         strumpack->SetPrintFactorStatistics(false);
+         strumpack->SetPrintSolveStatistics(false);
+         strumpack->SetOperator(*StpA);
+         strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+         strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+         strumpack->DisableMatching();
+         invAc = strumpack;
+#endif
+         break;
+   }   
+   // Check if direct solver is found 
+   if (!invAc) MFEM_ABORT("Direct Solver of coarse solve not found");
    // construct smoothers
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
@@ -1715,7 +1755,6 @@ void GMGSolver::SetSmootherType(const HypreSmoother::Type type) const
       S[i]->SetOperator(*A[i+1]);
    }
 }
-
 
 void GMGSolver::Mult(const Vector &r, Vector &z) const
 {
@@ -1744,6 +1783,7 @@ void GMGSolver::Mult(const Vector &r, Vector &z) const
       // Restrict
       P[i - 1]->MultTranspose(rv[i], rv[i - 1]);
    }
+
    // Coarse grid Stiffness matrix
    invAc->Mult(rv[0], zv[0]);
    //
@@ -1771,11 +1811,23 @@ GMGSolver::~GMGSolver() {
    {
       delete S[i];
    }
+#ifdef MFEM_USE_PETSC
+   // delete petsc;
+#endif   
+#ifdef MFEM_USE_STRUMPACK
+   delete StpA;
+   delete strumpack;
+#endif   
+#ifdef MFEM_USE_SUPERLU   
+   // delete SluA;
+   // delete superlu;
+#endif   
+   // delete invAc;
+
 }
 
-
 ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
-                     std::vector<HypreParMatrix *> P_)
+                     std::vector<HypreParMatrix *> P_, CoarseSolver cs)
    : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
 
    NumGrids = P.size();
@@ -1795,10 +1847,52 @@ ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
                                            false, false, ComplexOperator::HERMITIAN);
    }
    // Set up coarse solve operator
-   invAc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
-   // Convert to PetscParMatrix
-   invAc->SetOperator(PetscParMatrix(A[0]->GetSystemMatrix(), Operator::PETSC_MATAIJ));
-   // // construct smoothers
+   switch(cs)
+   {
+      case PETSC:
+#ifndef MFEM_USE_PETSC
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with PETSC");
+#else
+         petsc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
+         // Convert to PetscParMatrix
+         petsc->SetOperator(PetscParMatrix(A[0]->GetSystemMatrix(), Operator::PETSC_MATAIJ));
+         invAc = petsc;
+#endif
+      break;   
+      case SUPERLU:
+#ifndef MFEM_USE_SUPERLU
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with SUPERLU");
+#else
+         SluA = new SuperLURowLocMatrix(*A[0]->GetSystemMatrix());
+         superlu = new SuperLUSolver(*SluA);
+         superlu->SetPrintStatistics(false);
+         superlu->SetSymmetricPattern(true);
+         superlu->SetColumnPermutation(superlu::PARMETIS);
+         // superlu->SetColumnPermutation(superlu::NATURAL);
+         superlu->SetOperator(*SluA);
+         invAc = superlu;
+#endif
+      break;
+      case STRUMPACK:
+#ifndef MFEM_USE_STRUMPACK
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with STRUMPACK");
+#else
+         StpA = new STRUMPACKRowLocMatrix(*A[0]->GetSystemMatrix());
+         strumpack = new STRUMPACKSolver(*StpA);
+         strumpack->SetPrintFactorStatistics(false);
+         strumpack->SetPrintSolveStatistics(false);
+         strumpack->SetOperator(*StpA);
+         strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+         strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+         strumpack->DisableMatching();
+         invAc = strumpack;
+#endif
+         break;
+   }   
+   // Check if direct solver is found 
+   if (!invAc) MFEM_ABORT("Direct Solver of coarse solve not found");
+
+    // construct smoothers
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
       S[i] = new HypreSmoother;
@@ -1815,8 +1909,6 @@ void ComplexGMGSolver::SetSmootherType(const HypreSmoother::Type type) const
       S[i]->SetOperator(*A[i+1]->GetSystemMatrix());
    }
 }
-
-
 void ComplexGMGSolver::Mult(const Vector &r, Vector &z) const
 {
    // Residual vectors
@@ -1883,20 +1975,25 @@ void ComplexGMGSolver::Mult(const Vector &r, Vector &z) const
    }
    z = zv[NumGrids];
 }
-
 ComplexGMGSolver::~ComplexGMGSolver() {
    int n = S.size();
    for (int i = n - 1; i >= 0 ; i--)
    {
       delete S[i];
    }
+#ifdef MFEM_USE_PETSC
+   // delete petsc;
+#endif   
+#ifdef MFEM_USE_STRUMPACK
+   delete StpA;
+   delete strumpack;
+#endif   
+#ifdef MFEM_USE_SUPERLU   
+   // delete SluA;
+   // delete superlu;
+#endif   
+   // delete invAc;
 }
-#endif
-
-
-
-
-
 
 
 

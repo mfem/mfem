@@ -91,7 +91,12 @@ public:
    void SetPrintSolveStatistics( bool print_stat );
    void SetRelTol( double rtol );
    void SetAbsTol( double atol );
-
+   void SetHSS(bool hss_flag);
+   void SetHssAbsTol( double atol);
+   void SetHssRelTol( double rtol);
+   void SetBlr(bool blr_flag);
+   void SetBlrAbsTol( double atol);
+   void SetBlrRelTol( double rtol);
    /**
     * STRUMPACK is an (approximate) direct solver. It can be used as a direct
     * solver or as a preconditioner. To use STRUMPACK as only a preconditioner,

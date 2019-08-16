@@ -30,6 +30,16 @@
 #include <klu.h>
 #endif
 
+#ifdef MFEM_USE_SUPERLU
+#include "superlu.hpp"
+#include <vector>
+#endif
+
+#ifdef MFEM_USE_STRUMPACK
+#include "strumpack.hpp"
+#include <vector>
+#endif
+
 namespace mfem
 {
 
@@ -343,7 +353,7 @@ public:
 };
 
 
-#ifdef MFEM_USE_PETSC
+
 
 class GMGSolver : public Solver {
 private:
@@ -353,10 +363,25 @@ private:
    std::vector<HypreParMatrix *> P;
    std::vector<HypreSmoother  *> S;
    int NumGrids;
-   PetscLinearSolver *invAc = nullptr;
+//   
+#ifdef MFEM_USE_PETSC
+   PetscLinearSolver *petsc = nullptr;
+#endif   
+#ifdef MFEM_USE_STRUMPACK
+   STRUMPACKRowLocMatrix *StpA = nullptr;
+   STRUMPACKSolver *strumpack = nullptr;
+#endif   
+#ifdef MFEM_USE_SUPERLU   
+   SuperLURowLocMatrix *SluA = nullptr;
+   SuperLUSolver *superlu = nullptr;
+#endif   
+   Solver * invAc=nullptr;
    double theta = 1.0;
 public:
-   GMGSolver(HypreParMatrix * Af_, std::vector<HypreParMatrix *> P_);
+   enum CoarseSolver { PETSC, SUPERLU, STRUMPACK};
+
+   GMGSolver(HypreParMatrix * Af_, std::vector<HypreParMatrix *> P_, CoarseSolver);
+
    virtual void SetOperator(const Operator &op) {}
 
    virtual void SetSmootherType(const HypreSmoother::Type type) const;
@@ -375,12 +400,26 @@ private:
    std::vector<HypreParMatrix *> P;
    std::vector<HypreSmoother  *> S;
    int NumGrids;
-   PetscLinearSolver *invAc = nullptr;
+   Solver * invAc=nullptr;
+   //
+#ifdef MFEM_USE_PETSC
+   PetscLinearSolver *petsc = nullptr;
+#endif   
+#ifdef MFEM_USE_STRUMPACK
+   STRUMPACKRowLocMatrix *StpA = nullptr;
+   STRUMPACKSolver *strumpack = nullptr;
+#endif   
+#ifdef MFEM_USE_SUPERLU   
+   SuperLURowLocMatrix *SluA = nullptr;
+   SuperLUSolver *superlu = nullptr;
+#endif   
    double theta = 1.0;
    mutable Array<int> block_OffsetsI;
    mutable Array<int> block_OffsetsJ;
 public:
-   ComplexGMGSolver(ComplexHypreParMatrix * Af_, std::vector<HypreParMatrix *> P_);
+   enum CoarseSolver { PETSC, SUPERLU, STRUMPACK};
+
+   ComplexGMGSolver(ComplexHypreParMatrix * Af_, std::vector<HypreParMatrix *> P_, CoarseSolver);
    virtual void SetOperator(const Operator &op) {}
 
    virtual void SetSmootherType(const HypreSmoother::Type type) const;
@@ -390,9 +429,6 @@ public:
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~ComplexGMGSolver();
 };
-
-
-#endif
 
 #ifdef MFEM_USE_SUITESPARSE
 

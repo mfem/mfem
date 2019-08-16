@@ -183,6 +183,48 @@ void STRUMPACKSolver::SetAbsTol( double atol )
    solver_->options().set_abs_tol( atol );
 }
 
+void STRUMPACKSolver::SetHSS( bool hss_flag )
+{
+   if(hss_flag) 
+   {
+      solver_->options().enable_HSS();
+   }
+   else
+   {
+      solver_->options().disable_HSS();
+   }
+}
+void STRUMPACKSolver::SetHssAbsTol( double atol)
+{
+   solver_->options().HSS_options().set_abs_tol(atol);
+}
+
+void STRUMPACKSolver::SetHssRelTol( double rtol)
+{
+   solver_->options().HSS_options().set_rel_tol(rtol);
+}
+
+void STRUMPACKSolver::SetBlr( bool blr_flag )
+{
+   if(blr_flag) 
+   {
+      solver_->options().enable_BLR();
+   }
+   else
+   {
+      solver_->options().disable_BLR();
+   }
+}
+void STRUMPACKSolver::SetBlrAbsTol( double atol)
+{
+   solver_->options().BLR_options().set_abs_tol(atol);
+}
+
+void STRUMPACKSolver::SetBlrRelTol( double rtol)
+{
+   solver_->options().BLR_options().set_rel_tol(rtol);
+}
+
 
 void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
 {
