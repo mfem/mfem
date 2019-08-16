@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool gpu_aware_mpi = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -84,6 +85,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&gpu_aware_mpi, "-ga", "--gpu-aware", "-no-ga",
+                  "--no-gpu-aware", "Enable GPU Aware MPI.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -108,7 +111,7 @@ int main(int argc, char *argv[])
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    if (myid == 0) { device.Print(); }
-   device.SetForceCudaAwareMPI();
+   if (gpu_aware_mpi) { device.SetForceCudaAwareMPI(); }
 
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface

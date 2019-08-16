@@ -3092,11 +3092,9 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
       const int send_size = shr_buf_offsets[nbr+1] - send_offset;
       if (send_size > 0)
       {
-         void *send_buf;
          if (!gpu_aware_mpi) { shr_buf.HostReadWrite(); }
-         shr_buf.HostReadWrite();
-         send_buf = shr_buf + send_offset;
-         //send_buf = shr_buf.GetMemory().GetPtr() + send_offset;
+         else { shr_buf.HostReadWrite(); }
+         auto send_buf = shr_buf.ReadWrite() + send_offset;
          MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41822, gtopo.GetComm(), &requests[req_counter++]);
       }
@@ -3104,10 +3102,8 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
       const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0)
       {
-         void *recv_buf;
          if (!gpu_aware_mpi) { ext_buf.HostWrite(); }
-         ext_buf.HostWrite();
-         recv_buf = ext_buf + recv_offset;
+         auto recv_buf = ext_buf.Write() + recv_offset;
          MPI_Irecv(recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41822, gtopo.GetComm(), &requests[req_counter++]);
       }
@@ -3191,8 +3187,8 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
       const int send_size = ext_buf_offsets[nbr+1] - send_offset;
       if (send_size > 0)
       {
-         if (!gpu_aware_mpi) { ext_buf.HostReadWrite(); }
-         auto send_buf = ext_buf.Write() + send_offset;
+         if (!gpu_aware_mpi) { ext_buf.HostRead(); }
+         auto send_buf = ext_buf.Read() + send_offset;
          MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41823, gtopo.GetComm(), &requests[req_counter++]);
       }
@@ -3200,9 +3196,8 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
       const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0)
       {
-         void *recv_buf;
          if (!gpu_aware_mpi) { shr_buf.HostWrite(); }
-         recv_buf = shr_buf + recv_offset;
+         auto recv_buf = shr_buf.Write() + recv_offset;
          MPI_Irecv((void*)recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41823, gtopo.GetComm(), &requests[req_counter++]);
       }
