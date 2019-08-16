@@ -766,11 +766,15 @@ int main(int argc, char *argv[])
    }
 
    // Setup coefficients for Dirichlet BC
-   Array<ComplexVectorCoefficientByAttr> dbcs(1);
-   dbcs[0].attr = dbca;
-   dbcs[0].real = &EReCoef;
-   dbcs[0].imag = &EImCoef;
-
+   Array<ComplexVectorCoefficientByAttr> dbcs;
+   if (dbca.Size() > 0)
+   {
+     dbcs.SetSize(1);
+     dbcs[0].attr = dbca;
+     dbcs[0].real = &EReCoef;
+     dbcs[0].imag = &EImCoef;
+   }
+   
    // Create the Magnetostatic solver
    CPDSolver CPD(pmesh, order, omega,
                  (CPDSolver::SolverType)sol, solOpts,
