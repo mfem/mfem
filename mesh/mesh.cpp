@@ -9008,11 +9008,12 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
       int attr = el->GetAttribute();
       pent->SetVertices(v[0]);
       pent->CreateFlag(new_type, swaps[0]);
+      pent->ResetTransform(type);
 
       Pentatope *pent2 = new Pentatope(v[1], attr);
       pent2->CreateFlag(new_type, swaps[1]);
 
-      pent2->ResetTransform(pent->GetTransform());
+      pent2->ResetTransform(10 + pent->GetTransform());
       elements.Append(pent2);
 
       int coarse = FindCoarseElement(i);

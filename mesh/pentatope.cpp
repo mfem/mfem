@@ -82,6 +82,23 @@ void Pentatope::GetPointMatrix(unsigned transform, DenseMatrix &pm) // FIXME for
    double f[4], g[4];
    switch (transform)
    {
+   case 0:
+       AVG(e,a,e); SWAP(d,e); SWAP(c,d); SWAP(b,c); break; // child 1, tag 0 parent
+   case 1:
+       AVG(e,a,e); SWAP(d,e); SWAP(c,d); SWAP(b,c); break; // child 1, tag 1 parent
+   case 2:
+       AVG(e,a,e); SWAP(d,e); SWAP(c,d); SWAP(b,c); break; // child 1, tag 2 parent
+   case 3:
+       AVG(e,a,e); SWAP(d,e); SWAP(c,d); SWAP(b,c); break; // child 1, tag 3 parent
+   case 10:
+       AVG(a,a,e); SWAP(a,e); SWAP(b,e); SWAP(c,d); break; // child 2, tag 0 parent
+   case 11:
+       AVG(a,a,e); SWAP(a,e); SWAP(c,e); SWAP(b,c); break; // child 2, tag 1 parent
+   case 12:
+       AVG(a,a,e); SWAP(a,e); SWAP(d,e); SWAP(c,d); SWAP(b,c); break; // child 2, tag 2 parent
+   case 13:
+       AVG(a,a,e); SWAP(a,e); SWAP(d,e); SWAP(c,d); SWAP(b,c); break; // child 2, tag 3 parent
+#if 0 // Freudenthal
       case 0 : AVG(b,a,b); AVG(c,a,c); AVG(d,a,d); AVG(e,a,e); break; // 1,6,7,8,9
       case 1 : AVG(a,a,b); AVG(c,b,c); AVG(d,b,d); AVG(e,b,e); break; // 6,2,10,11,12
       case 2 : AVG(a,a,c); AVG(b,b,c); AVG(d,c,d); AVG(e,c,e); break; // 7,10,3,13,14
@@ -109,6 +126,7 @@ void Pentatope::GetPointMatrix(unsigned transform, DenseMatrix &pm) // FIXME for
          AVG(c,f,g); break; // 9,10,12,14,15
       case 15: ASGN(f,d); AVG(d,c,d); AVG(a,a,b); ASGN(g,b); AVG(b,b,c); AVG(e,f,e);
          AVG(c,g,f); break; // 6,10,11,13,15
+#endif
       default:
          MFEM_ABORT("Invalid transform.");
    }
