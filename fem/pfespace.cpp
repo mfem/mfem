@@ -2945,7 +2945,9 @@ void ConformingProlongationOperator::MultTranspose(
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator
-(const ParFiniteElementSpace &pfes) : ConformingProlongationOperator(pfes)
+(const ParFiniteElementSpace &pfes) :
+   ConformingProlongationOperator(pfes),
+   gpu_aware_mpi(false)
 {
    dbg("");
    MFEM_ASSERT(pfes.Conforming(), "internal error");
@@ -2997,30 +2999,19 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator
       delete [] nbr_ldof.GetJ();
       nbr_ldof.LoseData();
    }
-   host_shr_buf = NULL;
-   host_ext_buf = NULL;
    // If we are in device mode with a separate memory space (e.g. CUDA device)
    // and the MPI library does not support buffers there, we allocate separate
    // host buffers to use for the MPI communication.
    if (Device::Allows(Backend::CUDA_MASK))
    {
-      bool need_host_buf = true;
-      //#warning need_host_buf = false;
-      //    need_host_buf = false;
 #ifdef MPIX_CUDA_AWARE_SUPPORT
-      need_host_buf = !MPIX_Query_cuda_support();
+      gpu_aware_mpi = MPIX_Query_cuda_support();
 #endif
-      if (Device::GetForceCudaAwareMPI()) { need_host_buf = false; }
+      if (Device::GetForceCudaAwareMPI()) { gpu_aware_mpi = true; }
       if (gc.GetGroupTopology().MyRank() == 0)
       {
          mfem::out << "\nConformingProlongation: CUDA-aware MPI: "
-                   << (need_host_buf ? "NO" : "YES") << "\n\n";
-      }
-      if (need_host_buf)
-      {
-         const int sizeof_double = static_cast<int>(sizeof(double));
-         host_shr_buf = new char[shr_buf.Size()*sizeof_double];
-         host_ext_buf = new char[ext_buf.Size()*sizeof_double];
+                   << (gpu_aware_mpi ? "YES" : "NO") << "\n\n";
       }
    }
    const GroupTopology &gtopo = gc.GetGroupTopology();
@@ -3073,10 +3064,7 @@ void DeviceConformingProlongationOperator::BcastLocalCopy(
 {
    // dst[ltdof_ldof[i]] = src[i]
    if (ltdof_ldof.Size() == 0) { return; }
-   dbg("x: %.15e", x*x);
    SetSubVector(ltdof_ldof.Size(), ltdof_ldof, x, y);
-   MFEM_CUDA_CHECK(cudaDeviceSynchronize());
-   dbg("y: %.15e", y*y);
 }
 
 void DeviceConformingProlongationOperator::BcastEndCopy(
@@ -3084,26 +3072,17 @@ void DeviceConformingProlongationOperator::BcastEndCopy(
 {
    // dst[ext_ldof[i]] = ext_buf[i]
    if (ext_ldof.Size() == 0) { return; }
-   /*if (host_ext_buf)
-   {
-      ext_buf.HostReadWrite();
-      ext_buf.CopyFrom(host_ext_buf);
-   }*/
    SetSubVector(ext_ldof.Size(), ext_ldof, ext_buf, y);
-   MFEM_CUDA_CHECK(cudaDeviceSynchronize());
-   dbg("y: %.15e", y*y);
-   //y.HostRead();
 }
 
 void DeviceConformingProlongationOperator::Mult(const Vector &x,
                                                 Vector &y) const
 {
-   if (host_shr_buf)
+   if (!gpu_aware_mpi)
    {
       x.HostRead();
       y.HostReadWrite();
    }
-   dbg("x: %.15e", x*x);
    const GroupTopology &gtopo = gc.GetGroupTopology();
    BcastBeginCopy(x); // copy to 'shr_buf'
    int req_counter = 0;
@@ -3111,20 +3090,13 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    {
       const int send_offset = shr_buf_offsets[nbr];
       const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-      //const int sizeof_double = static_cast<int>(sizeof(double));
       if (send_size > 0)
       {
          void *send_buf;
-         if (host_shr_buf)
-         {
-            shr_buf.HostReadWrite();
-            send_buf = shr_buf + send_offset;
-            //send_buf = host_shr_buf + send_offset*sizeof_double;
-         }
-         else
-         {
-            send_buf = shr_buf + send_offset;
-         }
+         if (!gpu_aware_mpi) { shr_buf.HostReadWrite(); }
+         shr_buf.HostReadWrite();
+         send_buf = shr_buf + send_offset;
+         //send_buf = shr_buf.GetMemory().GetPtr() + send_offset;
          MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41822, gtopo.GetComm(), &requests[req_counter++]);
       }
@@ -3133,17 +3105,9 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
       if (recv_size > 0)
       {
          void *recv_buf;
-         if (host_ext_buf)
-         {
-
-            ext_buf.HostWrite();
-            recv_buf = ext_buf + recv_offset;
-            //recv_buf = host_ext_buf + recv_offset*sizeof_double;
-         }
-         else
-         {
-            recv_buf = ext_buf + recv_offset;
-         }
+         if (!gpu_aware_mpi) { ext_buf.HostWrite(); }
+         ext_buf.HostWrite();
+         recv_buf = ext_buf + recv_offset;
          MPI_Irecv(recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41822, gtopo.GetComm(), &requests[req_counter++]);
       }
@@ -3151,14 +3115,11 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    BcastLocalCopy(x, y);
    MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
    BcastEndCopy(y); // copy from 'ext_buf'
-   dbg("y: %.15e", y*y);
 }
 
 DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
 {
    delete [] requests;
-   delete [] host_ext_buf;
-   delete [] host_shr_buf;
    delete [] ext_buf_offsets;
    delete [] shr_buf_offsets;
 }
@@ -3168,18 +3129,10 @@ void DeviceConformingProlongationOperator::ReduceBeginCopy(
 {
    // ext_buf[i] = src[ext_ldof[i]]
    if (ext_ldof.Size() == 0) { return; }
-   dbg("x: %.15e", x*x);
    ExtractSubVector(ext_ldof.Size(), ext_ldof, x, ext_buf);
-   dbg("ext_buf: %.15e", ext_buf*ext_buf);
    // If the above kernel is executed asynchronously,
    // we should wait for it to complete
-   MFEM_CUDA_CHECK(cudaDeviceSynchronize());
-   /*if (host_ext_buf)
-   {
-      dbg("host_ext_buf");
-      ext_buf.HostReadWrite();
-      ext_buf.CopyTo(host_ext_buf);
-   }*/
+   Device::Synchronize();
 }
 
 void DeviceConformingProlongationOperator::ReduceLocalCopy(
@@ -3187,10 +3140,7 @@ void DeviceConformingProlongationOperator::ReduceLocalCopy(
 {
    // dst[i] = src[ltdof_ldof[i]]
    if (ltdof_ldof.Size() == 0) { return; }
-   dbg("x: %.15e", x*x);
    ExtractSubVector(ltdof_ldof.Size(), ltdof_ldof, x, y);
-   MFEM_CUDA_CHECK(cudaDeviceSynchronize());
-   dbg("y: %.15e", y*y);
 }
 
 static void AddSubVector(const int num_unique_dst_indices,
@@ -3221,29 +3171,19 @@ void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
    // dst[shr_ltdof[i]] += shr_buf[i]
    const int unq_ltdof_size = unq_ltdof.Size();
    if (unq_ltdof_size == 0) { return; }
-   /*if (host_shr_buf)
-   {
-      dbg("host_shr_buf");
-      //shr_buf.HostWrite();
-      shr_buf.CopyFrom(host_shr_buf);
-   }*/
-   dbg("shr_buf: %.15e", shr_buf*shr_buf);
    AddSubVector(unq_ltdof_size, unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, y);
-   dbg("y: %.15e", y*y);
 }
 
 void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                                                          Vector &y) const
 {
-   if (host_shr_buf)
+   if (!gpu_aware_mpi)
    {
       x.HostRead();
       y.HostReadWrite();
    }
-   dbg("x: %.15e", x*x);
    const GroupTopology &gtopo = gc.GetGroupTopology();
    ReduceBeginCopy(x); // copy to 'ext_buf'
-   dbg("\033[33mx: %.15e", x*x);
    int req_counter = 0;
    for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
    {
@@ -3253,18 +3193,13 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
       if (send_size > 0)
       {
          void *send_buf;
-         if (host_ext_buf)
-         {
-            dbg("host_ext_buf");
-            //send_buf = host_ext_buf + send_offset*sizeof_double;
-            ext_buf.HostReadWrite();
-            send_buf = ext_buf + send_offset;
-         }
-         else
-         {
-            dbg("!host_ext_buf");
-            send_buf = ext_buf + send_offset;
-         }
+         if (!gpu_aware_mpi) { ext_buf.HostReadWrite(); }
+         ext_buf.HostReadWrite();
+         //Memory<double> alias(ext_buf, send_offset, send_size);
+         //send_buf = alias;
+         send_buf = ext_buf + send_offset;
+         //auto send_bfr_gpu = mfem::Write(alias,send_size);
+         //send_buf = ext_buf.GetMemory().GetPtr() + send_offset;
          MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41823, gtopo.GetComm(), &requests[req_counter++]);
       }
@@ -3273,28 +3208,15 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
       if (recv_size > 0)
       {
          void *recv_buf;
-         if (host_shr_buf)
-         {
-            dbg("host_shr_buf");
-            shr_buf.HostWrite();
-            //recv_buf = host_shr_buf + recv_offset*sizeof_double;
-            recv_buf = shr_buf + recv_offset;
-         }
-         else
-         {
-            dbg("!host_shr_buf");
-            //shr_buf.HostWrite();
-            recv_buf = shr_buf + recv_offset;
-         }
+         if (!gpu_aware_mpi) { shr_buf.HostWrite(); }
+         recv_buf = shr_buf + recv_offset;
          MPI_Irecv((void*)recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41823, gtopo.GetComm(), &requests[req_counter++]);
       }
    }
    ReduceLocalCopy(x, y);
-   dbg("\033[32my: %.15e", y*y);
    MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
    ReduceEndAssemble(y); // assemble from 'shr_buf'
-   dbg("\033[31my: %.15e", y*y);
 }
 
 } // namespace mfem

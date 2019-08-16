@@ -283,6 +283,7 @@ public:
 
        When the Memory is empty, this method can be used and it returns NULL. */
    inline operator T*();
+   inline T* GetPtr() { return h_ptr; }
 
    /// Direct access to the host memory as const T* (implicit conversion).
    /** This method can be used only if the host pointer is currently valid (the

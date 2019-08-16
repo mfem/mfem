@@ -391,9 +391,9 @@ class DeviceConformingProlongationOperator: public
    ConformingProlongationOperator
 {
 protected:
+   bool gpu_aware_mpi;
    Array<int> shr_ltdof, ext_ldof;
    mutable Vector shr_buf, ext_buf;
-   char *host_shr_buf, *host_ext_buf;
    int *shr_buf_offsets, *ext_buf_offsets;
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
