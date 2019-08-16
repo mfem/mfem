@@ -18,7 +18,6 @@
 #endif
 
 #include "pfespace.hpp"
-#include "../general/dbg.hpp"
 #include "../general/device.hpp"
 #include "../general/forall.hpp"
 #include "../general/sort_pairs.hpp"
@@ -863,12 +862,17 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
    {
-      //#warning defined(MFEM_USE_MPI) && !defined(MFEM_USE_CUDA)
-      /*#if defined(MFEM_USE_MPI) && !defined(MFEM_USE_CUDA)
-            if (!Pconf) { Pconf = new ConformingProlongationOperator(*this); }
-      #else*/
-      if (!Pconf) { Pconf = new DeviceConformingProlongationOperator(*this); }
-      //#endif
+      if (!Pconf)
+      {
+         if (Device::Allows(Backend::CUDA))
+         {
+            Pconf = new DeviceConformingProlongationOperator(*this);
+         }
+         else
+         {
+            Pconf = new ConformingProlongationOperator(*this);
+         }
+      }
       return Pconf;
    }
    else
@@ -2949,7 +2953,6 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator
    ConformingProlongationOperator(pfes),
    gpu_aware_mpi(false)
 {
-   dbg("");
    MFEM_ASSERT(pfes.Conforming(), "internal error");
    const SparseMatrix *R = pfes.GetRestrictionMatrix();
    MFEM_ASSERT(R->Finalized(), "");
@@ -3029,15 +3032,14 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator
    requests = new MPI_Request[req_counter];
 }
 
-static void ExtractSubVector(const int entries,
+static void ExtractSubVector(const int N,
                              const Array<int> &indices,
-                             const Vector &in,
-                             Vector &out)
+                             const Vector &in, Vector &out)
 {
    auto x = in.Read();
    auto y = out.Write();
    auto I = indices.Read();
-   MFEM_FORALL(i, entries, y[i] = x[I[i]];); // indices can be repeated
+   MFEM_FORALL(i, N, y[i] = x[I[i]];); // indices can be repeated
 }
 
 void DeviceConformingProlongationOperator::BcastBeginCopy(
@@ -3046,17 +3048,19 @@ void DeviceConformingProlongationOperator::BcastBeginCopy(
    // shr_buf[i] = src[shr_ltdof[i]]
    if (shr_ltdof.Size() == 0) { return; }
    ExtractSubVector(shr_ltdof.Size(), shr_ltdof, x, shr_buf);
+   // If the above kernel is executed asynchronously,
+   // we should wait for it to complete
+   Device::Synchronize();
 }
 
-static void SetSubVector(const int entries,
+static void SetSubVector(const int N,
                          const Array<int> &indices,
-                         const Vector &in,
-                         Vector &out)
+                         const Vector &in, Vector &out)
 {
    auto x = in.Read();
    auto y = out.Write();
    auto I = indices.Read();
-   MFEM_FORALL(i, entries, y[I[i]] = x[i];);
+   MFEM_FORALL(i, N, y[I[i]] = x[i];);
 }
 
 void DeviceConformingProlongationOperator::BcastLocalCopy(
@@ -3081,7 +3085,7 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    if (!gpu_aware_mpi)
    {
       x.HostRead();
-      y.HostReadWrite();
+      y.HostWrite();
    }
    const GroupTopology &gtopo = gc.GetGroupTopology();
    BcastBeginCopy(x); // copy to 'shr_buf'
@@ -3092,20 +3096,19 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
       const int send_size = shr_buf_offsets[nbr+1] - send_offset;
       if (send_size > 0)
       {
-         if (!gpu_aware_mpi) { shr_buf.HostReadWrite(); }
-         else { shr_buf.HostReadWrite(); }
-         auto send_buf = shr_buf.ReadWrite() + send_offset;
-         MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
-                   41822, gtopo.GetComm(), &requests[req_counter++]);
+         auto send_buf = gpu_aware_mpi ? shr_buf.Read() : shr_buf.HostRead();
+         MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
+                   gtopo.GetNeighborRank(nbr), 41822,
+                   gtopo.GetComm(), &requests[req_counter++]);
       }
       const int recv_offset = ext_buf_offsets[nbr];
       const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0)
       {
-         if (!gpu_aware_mpi) { ext_buf.HostWrite(); }
-         auto recv_buf = ext_buf.Write() + recv_offset;
-         MPI_Irecv(recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
-                   41822, gtopo.GetComm(), &requests[req_counter++]);
+         auto recv_buf = gpu_aware_mpi ? ext_buf.Write() : ext_buf.HostWrite();
+         MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+                   gtopo.GetNeighborRank(nbr), 41822,
+                   gtopo.GetComm(), &requests[req_counter++]);
       }
    }
    BcastLocalCopy(x, y);
@@ -3187,19 +3190,19 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
       const int send_size = ext_buf_offsets[nbr+1] - send_offset;
       if (send_size > 0)
       {
-         if (!gpu_aware_mpi) { ext_buf.HostRead(); }
-         auto send_buf = ext_buf.Read() + send_offset;
-         MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
-                   41823, gtopo.GetComm(), &requests[req_counter++]);
+         auto send_buf = gpu_aware_mpi ? ext_buf.Read() : ext_buf.HostRead();
+         MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
+                   gtopo.GetNeighborRank(nbr), 41823,
+                   gtopo.GetComm(), &requests[req_counter++]);
       }
       const int recv_offset = shr_buf_offsets[nbr];
       const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0)
       {
-         if (!gpu_aware_mpi) { shr_buf.HostWrite(); }
-         auto recv_buf = shr_buf.Write() + recv_offset;
-         MPI_Irecv((void*)recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
-                   41823, gtopo.GetComm(), &requests[req_counter++]);
+         auto recv_buf = gpu_aware_mpi ? shr_buf.Write() : shr_buf.HostWrite();
+         MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+                   gtopo.GetNeighborRank(nbr), 41823,
+                   gtopo.GetComm(), &requests[req_counter++]);
       }
    }
    ReduceLocalCopy(x, y);
