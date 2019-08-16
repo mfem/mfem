@@ -980,7 +980,7 @@ int KINSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
 
 KINSolver::KINSolver(int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
-     f_scale(NULL), jacobian(NULL)
+     f_scale(NULL), jacobian(NULL), maa(0)
 {
    // Allocate empty serial N_Vectors
    y = N_VNewEmpty_Serial(0);
@@ -996,7 +996,7 @@ KINSolver::KINSolver(int strategy, bool oper_grad)
 #ifdef MFEM_USE_MPI
 KINSolver::KINSolver(MPI_Comm comm, int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
-     f_scale(NULL), jacobian(NULL)
+     f_scale(NULL), jacobian(NULL), maa(0)
 {
    if (comm == MPI_COMM_NULL)
    {
@@ -1098,6 +1098,13 @@ void KINSolver::SetOperator(const Operator &op)
       sundials_mem = KINCreate();
       MFEM_VERIFY(sundials_mem, "Error in KINCreate().");
 
+      // Set number of acceleration vectors
+      if (maa > 0)
+      {
+         flag = KINSetMAA(sundials_mem, maa);
+         MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+      }
+
       // Initialize KINSOL
       flag = KINInit(sundials_mem, KINSolver::Mult, y);
       MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINInit()");
@@ -1193,10 +1200,16 @@ void KINSolver::SetMaxSetupCalls(int max_calls)
    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMaxSetupCalls()");
 }
 
-void KINSolver::SetMAA(int maa)
+void KINSolver::SetMAA(int m_aa)
 {
-   flag = KINSetMAA(sundials_mem, maa);
-   MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+   // Store internally as maa must be set before calling KINInit() to
+   // set the maxium acceleration space size.
+   maa = m_aa;
+   if (sundials_mem)
+   {
+      flag = KINSetMAA(sundials_mem, maa);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+   }
 }
 
 // Compute the scaling vectors and solve nonlinear system
