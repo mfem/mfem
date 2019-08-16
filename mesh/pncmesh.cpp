@@ -146,7 +146,7 @@ void ParNCMesh::UpdateVertices()
    // The remaining (ghost) vertices are assigned indices greater or equal to
    // Mesh::GetNV().
 
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex()) { node->vert_index = -1; }
    }
@@ -166,7 +166,7 @@ void ParNCMesh::UpdateVertices()
    }
 
    vertex_nodeId.SetSize(NVertices);
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex() && node->vert_index >= 0)
       {
@@ -175,7 +175,7 @@ void ParNCMesh::UpdateVertices()
    }
 
    NGhostVertices = 0;
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex() && node->vert_index < 0)
       {
@@ -191,11 +191,11 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // assign indices to ghost edges/faces that don't exist in the 'mesh'.
 
    // clear edge_index and Face::index
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasEdge()) { node->edge_index = -1; }
    }
-   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   for (auto face = faces.begin(); face != faces.end(); ++face)
    {
       face->index = -1;
    }
@@ -206,7 +206,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // assign ghost edge indices
    NEdges = mesh->GetNEdges();
    NGhostEdges = 0;
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasEdge() && node->edge_index < 0)
       {
@@ -217,7 +217,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // assign ghost face indices
    NFaces = mesh->GetNumFaces();
    NGhostFaces = 0;
-   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   for (auto face = faces.begin(); face != faces.end(); ++face)
    {
       if (face->index < 0) { face->index = NFaces + (NGhostFaces++); }
    }
@@ -708,7 +708,7 @@ void ParNCMesh::CalcFaceOrientations()
    face_orient.SetSize(NFaces);
    face_orient = 0;
 
-   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   for (auto face = faces.begin(); face != faces.end(); ++face)
    {
       if (face->elem[0] >= 0 && face->elem[1] >= 0 && face->index < NFaces)
       {
