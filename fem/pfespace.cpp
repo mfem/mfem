@@ -3189,17 +3189,10 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
    {
       const int send_offset = ext_buf_offsets[nbr];
       const int send_size = ext_buf_offsets[nbr+1] - send_offset;
-      //const int sizeof_double = static_cast<int>(sizeof(double));
       if (send_size > 0)
       {
-         void *send_buf;
          if (!gpu_aware_mpi) { ext_buf.HostReadWrite(); }
-         ext_buf.HostReadWrite();
-         //Memory<double> alias(ext_buf, send_offset, send_size);
-         //send_buf = alias;
-         send_buf = ext_buf + send_offset;
-         //auto send_bfr_gpu = mfem::Write(alias,send_size);
-         //send_buf = ext_buf.GetMemory().GetPtr() + send_offset;
+         auto send_buf = ext_buf.Write() + send_offset;
          MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41823, gtopo.GetComm(), &requests[req_counter++]);
       }
