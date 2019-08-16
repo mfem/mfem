@@ -1,0 +1,22 @@
+mpirun -np 4 ./ex1p -r 1 -o 2 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 1 -o 3 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 1 -o 4 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 2 -o 2 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 2 -o 3 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 2 -o 4 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 3 -o 2 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 3 -o 3 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 3 -o 4 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 4 -o 2 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 4 -o 3 -ser > junk.txt
+mpirun -np 4 ./ex1p -r 1 -o 2      > junk.txt
+mpirun -np 4 ./ex1p -r 1 -o 3      > junk.txt
+mpirun -np 4 ./ex1p -r 1 -o 4      > junk.txt
+mpirun -np 4 ./ex1p -r 2 -o 2      > junk.txt
+mpirun -np 4 ./ex1p -r 2 -o 3      > junk.txt
+mpirun -np 4 ./ex1p -r 2 -o 4      > junk.txt
+mpirun -np 4 ./ex1p -r 3 -o 2      > junk.txt
+mpirun -np 4 ./ex1p -r 3 -o 3      > junk.txt
+mpirun -np 4 ./ex1p -r 4 -o 2      > junk.txt
+mpirun -np 4 ./ex1p -r 4 -o 3      > junk.txt
+mpirun -np 4 ./ex1p -r 3 -o 4      > junk.txt

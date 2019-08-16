@@ -2308,55 +2308,73 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
       storeLegendre->CalcLegendre(p-2, z , legZ);
 
       // Starting nodal face attempt here
-      // Poly_1D::Basis faceNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
-      // Vector faceNodalX(p+1);
-      // Vector faceNodalY(p+1);
-      // Vector faceNodalZ(p+1);
+      Poly_1D::Basis faceNodalBasis(poly1d.GetBasis(p-3, BasisType::GaussLobatto));
 
-      // faceNodalBasis.Eval(x, faceNodalX);
-      // faceNodalBasis.Eval(y, faceNodalY);
-      // faceNodalBasis.Eval(z, faceNodalZ);
+      Vector faceNodalX(p-2);
+      Vector faceNodalY(p-2);
+      Vector faceNodalZ(p-2);
 
-      // int loopsThruFaces = 0;
-      // for (int k = 0; k < dofsPerFace; k++)
-      // {        
-      //       shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalY(dofsPerFace-k) * x*omx*y*omy * omz;
-      //       shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalZ(dofsPerFace-k) * x*omx*z*omz * omy;
-      //       shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = faceNodalY(k) * faceNodalZ(dofsPerFace-k) * y*omy*z*omz * x  ;
-      //       shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalZ(dofsPerFace-k) * x*omx*z*omz * y  ;
-      //       shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = faceNodalY(k) * faceNodalZ(dofsPerFace-k) * y*omy*z*omz * omx;
-      //       shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalY(dofsPerFace-k) * x*omx*y*omy * z  ;
+      faceNodalBasis.Eval(x, faceNodalX);
+      faceNodalBasis.Eval(y, faceNodalY);
+      faceNodalBasis.Eval(z, faceNodalZ);
 
-      //       cout << "Just set these: " << 8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces << ", " << 8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces << " etc" << endl;
-      //       cout << "     with faceNodalX = " << endl;
-      //       faceNodalX.Print();
+      int loopsThruFaces = 0;
+      for (int k = 0; k < dofsPerFace; k++)
+      {        
+            // with faceNodalBasis(poly1d.GetBasis(p-3...
+            // shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalY(dofsPerFace-k-1) * x*omx*y*omy * omz;
+            // shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalZ(dofsPerFace-k-1) * x*omx*z*omz * omy;
+            // shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = faceNodalY(k) * faceNodalZ(dofsPerFace-k-1) * y*omy*z*omz * x  ;
+            // shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalZ(dofsPerFace-k-1) * x*omx*z*omz * y  ;
+            // shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = faceNodalY(k) * faceNodalZ(dofsPerFace-k-1) * y*omy*z*omz * omx;
+            // shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalY(dofsPerFace-k-1) * x*omx*y*omy * z  ;
 
-      //       loopsThruFaces++;
+            // with faceNodalBasis(poly1d.GetBasis(p-3...
+            shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalY(1) * x*omx*y*omy * omz;
+            shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalZ(1) * x*omx*z*omz * omy;
+            shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = faceNodalY(k) * faceNodalZ(1) * y*omy*z*omz * x  ;
+            shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = faceNodalX(k) * faceNodalZ(1) * x*omx*z*omz * y  ;
+            shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = faceNodalY(k) * faceNodalZ(1) * y*omy*z*omz * omx;
+            shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = faceNodalX(1) * faceNodalY(k) * x*omx*y*omy * z  ;
 
-      // }
+            // with faceNodalBasis(poly1d.GetBasis(p-1...
+            // shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = faceNodalX(k+1) * faceNodalY(2) * x*omx*y*omy * omz;
+            // shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = faceNodalX(k+1) * faceNodalZ(2) * x*omx*z*omz * omy;
+            // shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = faceNodalY(k+1) * faceNodalZ(2) * y*omy*z*omz * x  ;
+            // shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = faceNodalX(k+1) * faceNodalZ(2) * x*omx*z*omz * y  ;
+            // shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = faceNodalY(k+1) * faceNodalZ(2) * y*omy*z*omz * omx;
+            // shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = faceNodalX(k+1) * faceNodalY(2) * x*omx*y*omy * z  ;
+
+            // cout << "Just set these: " << 8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces << ", " << 8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces << " etc" << endl;
+            // cout << "     with faceNodalX = " << endl;
+            // faceNodalX.Print();
+
+            loopsThruFaces++;
+
+      }
       // cout << endl;
 
 
       // This code uses Legendre functions on the faces:
 
-      int loopsThruFaces = 0;
-      for (int j = 4; j < p + 1; j++)
-      {
-         for (int k = 0; k < j-3; k++)
-         {
-            // This presumes something about the order of variables on a face; there may be some effect
-            // to changing e.g. legX[k] * legY[j-4-k] to legY[k] * legX[j-4-k];
-            // ** remember to change dshape accordingly as well!
+      // int loopsThruFaces = 0;
+      // for (int j = 4; j < p + 1; j++)
+      // {
+      //    for (int k = 0; k < j-3; k++)
+      //    {
+      //       // This presumes something about the order of variables on a face; there may be some effect
+      //       // to changing e.g. legX[k] * legY[j-4-k] to legY[k] * legX[j-4-k];
+      //       // ** remember to change dshape accordingly as well!
             
-            shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = legX[k] * legY[j-4-k] * x*omx*y*omy * omz;
-            shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = legX[k] * legZ[j-4-k] * x*omx*z*omz * omy;
-            shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = legY[k] * legZ[j-4-k] * y*omy*z*omz * x  ;
-            shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = legX[k] * legZ[j-4-k] * x*omx*z*omz * y  ;
-            shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = legY[k] * legZ[j-4-k] * y*omy*z*omz * omx;
-            shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = legX[k] * legY[j-4-k] * x*omx*y*omy * z  ;
-            loopsThruFaces++;
-         }
-      }
+      //       shape(8 + 12*(p-1) + 0*dofsPerFace + loopsThruFaces) = legX[k] * legY[j-4-k] * x*omx*y*omy * omz;
+      //       shape(8 + 12*(p-1) + 1*dofsPerFace + loopsThruFaces) = legX[k] * legZ[j-4-k] * x*omx*z*omz * omy;
+      //       shape(8 + 12*(p-1) + 2*dofsPerFace + loopsThruFaces) = legY[k] * legZ[j-4-k] * y*omy*z*omz * x  ;
+      //       shape(8 + 12*(p-1) + 3*dofsPerFace + loopsThruFaces) = legX[k] * legZ[j-4-k] * x*omx*z*omz * y  ;
+      //       shape(8 + 12*(p-1) + 4*dofsPerFace + loopsThruFaces) = legY[k] * legZ[j-4-k] * y*omy*z*omz * omx;
+      //       shape(8 + 12*(p-1) + 5*dofsPerFace + loopsThruFaces) = legX[k] * legY[j-4-k] * x*omx*y*omy * z  ;
+      //       loopsThruFaces++;
+      //    }
+      // }
 
 
       // basis1d.Eval(ip.x, shape_x);

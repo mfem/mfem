@@ -840,7 +840,7 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
       exOrder += 2;
    }
 
-   while (1 << ref < bOrder + exOrder || ref == 0)
+   while  (1 << ref < bOrder + exOrder || ref == 0)
    {
       if (bType == 's')
       {

@@ -475,7 +475,12 @@ int main(int argc, char *argv[])
    //    cout << "     The issue is that we can't use the tensor product dof map trick for face Dof orders" << endl;
    // }
 
-   cout << endl << " NOTE: QuadDofOrd is unecessarily too large (see fe_coll.cpp)" << endl;
+   cout << endl << " IDEAS for debugging order p>4 in 3D:" << endl;
+   cout << "1: Build meshes of 2 square elements in various confirgurations (using constructor Mesh(2,1,1,...), Mesh(1,2,1...) etc)" << endl;
+   cout << "   Then, print out global dofs and make sure there is agreement on shared face dofs" << endl;
+   cout << "2: Re-define QuadDofOrd in fe_coll.cpp specialized to serendipity case, e.g. in a hierarchical basis, " << endl;
+   cout << "   the first function should always match to the first function, regardless of orientation." << endl;
+   cout << "3: Remember to redefine CalcDShape routing when testing for convergence rate on solving PDEs" << endl;
 
    return 0;
 }
