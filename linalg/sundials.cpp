@@ -1193,6 +1193,12 @@ void KINSolver::SetMaxSetupCalls(int max_calls)
    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMaxSetupCalls()");
 }
 
+void KINSolver::SetMAA(int maa)
+{
+   flag = KINSetMAA(sundials_mem, maa);
+   MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+}
+
 // Compute the scaling vectors and solve nonlinear system
 void KINSolver::Mult(const Vector &b, Vector &x) const
 {
