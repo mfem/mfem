@@ -37,15 +37,15 @@ protected:
       const Array<int> &test_tdof_list,
       RectangularConstrainedOperator* &Aout);
 
+   /// Returns RAP Operator of this, taking in input/output Prolongation matrices
+   Operator *SetupRAP(const Operator *Pi, const Operator *Po);
+
+public:
    /// Initializes memory for true vectors of linear system
    void InitTVectors(const Operator *Po, const Operator *Ri,
                      Vector &x, Vector &b,
                      Vector &X, Vector &B) const;
 
-   /// Returns RAP Operator of this, taking in input/output Prolongation matrices
-   Operator *SetupRAP(const Operator *Pi, const Operator *Po);
-
-public:
    /// Construct a square Operator with given size s (default 0).
    explicit Operator(int s = 0) { height = width = s; }
 
@@ -544,11 +544,6 @@ public:
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
    void EliminateRHS(const Vector &x, Vector &b) const;
-
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         Vector &X, Vector &B,
-                         int copy_interior = 0);
 
    /** @brief Constrained operator action.
 
