@@ -863,7 +863,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
    {
-#warning defined(MFEM_USE_MPI) && !defined(MFEM_USE_CUDA)
+      //#warning defined(MFEM_USE_MPI) && !defined(MFEM_USE_CUDA)
       /*#if defined(MFEM_USE_MPI) && !defined(MFEM_USE_CUDA)
             if (!Pconf) { Pconf = new ConformingProlongationOperator(*this); }
       #else*/
@@ -2947,6 +2947,7 @@ void ConformingProlongationOperator::MultTranspose(
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator
 (const ParFiniteElementSpace &pfes) : ConformingProlongationOperator(pfes)
 {
+   dbg("");
    MFEM_ASSERT(pfes.Conforming(), "internal error");
    const SparseMatrix *R = pfes.GetRestrictionMatrix();
    MFEM_ASSERT(R->Finalized(), "");
@@ -3049,16 +3050,11 @@ static void ExtractSubVector(const int entries,
 }
 
 void DeviceConformingProlongationOperator::BcastBeginCopy(
-   const Vector &src) const
+   const Vector &x) const
 {
    // shr_buf[i] = src[shr_ltdof[i]]
    if (shr_ltdof.Size() == 0) { return; }
-   ExtractSubVector(shr_ltdof.Size(), shr_ltdof, src, shr_buf);
-   if (host_shr_buf)
-   {
-      shr_buf.HostReadWrite();
-      shr_buf.CopyTo(host_shr_buf);
-   }
+   ExtractSubVector(shr_ltdof.Size(), shr_ltdof, x, shr_buf);
 }
 
 static void SetSubVector(const int entries,
@@ -3073,26 +3069,30 @@ static void SetSubVector(const int entries,
 }
 
 void DeviceConformingProlongationOperator::BcastLocalCopy(
-   const Vector &src, Vector &dst) const
+   const Vector &x, Vector &y) const
 {
    // dst[ltdof_ldof[i]] = src[i]
    if (ltdof_ldof.Size() == 0) { return; }
-   SetSubVector(ltdof_ldof.Size(), ltdof_ldof, src, dst);
-   dst.HostRead();
+   dbg("x: %.15e", x*x);
+   SetSubVector(ltdof_ldof.Size(), ltdof_ldof, x, y);
+   MFEM_CUDA_CHECK(cudaDeviceSynchronize());
+   dbg("y: %.15e", y*y);
 }
 
 void DeviceConformingProlongationOperator::BcastEndCopy(
-   Vector &dst) const
+   Vector &y) const
 {
    // dst[ext_ldof[i]] = ext_buf[i]
    if (ext_ldof.Size() == 0) { return; }
-   if (host_ext_buf)
+   /*if (host_ext_buf)
    {
-      //ext_buf.HostWrite();
+      ext_buf.HostReadWrite();
       ext_buf.CopyFrom(host_ext_buf);
-   }
-   SetSubVector(ext_ldof.Size(), ext_ldof, ext_buf, dst);
-   dst.HostRead();
+   }*/
+   SetSubVector(ext_ldof.Size(), ext_ldof, ext_buf, y);
+   MFEM_CUDA_CHECK(cudaDeviceSynchronize());
+   dbg("y: %.15e", y*y);
+   //y.HostRead();
 }
 
 void DeviceConformingProlongationOperator::Mult(const Vector &x,
@@ -3101,8 +3101,9 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    if (host_shr_buf)
    {
       x.HostRead();
-      y.HostWrite();
+      y.HostReadWrite();
    }
+   dbg("x: %.15e", x*x);
    const GroupTopology &gtopo = gc.GetGroupTopology();
    BcastBeginCopy(x); // copy to 'shr_buf'
    int req_counter = 0;
@@ -3110,13 +3111,15 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    {
       const int send_offset = shr_buf_offsets[nbr];
       const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-      const int sizeof_double = static_cast<int>(sizeof(double));
+      //const int sizeof_double = static_cast<int>(sizeof(double));
       if (send_size > 0)
       {
          void *send_buf;
          if (host_shr_buf)
          {
-            send_buf = host_shr_buf + send_offset*sizeof_double;
+            shr_buf.HostReadWrite();
+            send_buf = shr_buf + send_offset;
+            //send_buf = host_shr_buf + send_offset*sizeof_double;
          }
          else
          {
@@ -3132,7 +3135,10 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
          void *recv_buf;
          if (host_ext_buf)
          {
-            recv_buf = host_ext_buf + recv_offset*sizeof_double;
+
+            ext_buf.HostWrite();
+            recv_buf = ext_buf + recv_offset;
+            //recv_buf = host_ext_buf + recv_offset*sizeof_double;
          }
          else
          {
@@ -3145,6 +3151,7 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    BcastLocalCopy(x, y);
    MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
    BcastEndCopy(y); // copy from 'ext_buf'
+   dbg("y: %.15e", y*y);
 }
 
 DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
@@ -3157,27 +3164,33 @@ DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
 }
 
 void DeviceConformingProlongationOperator::ReduceBeginCopy(
-   const Vector &src) const
+   const Vector &x) const
 {
    // ext_buf[i] = src[ext_ldof[i]]
    if (ext_ldof.Size() == 0) { return; }
-   ExtractSubVector(ext_ldof.Size(), ext_ldof, src, ext_buf);
+   dbg("x: %.15e", x*x);
+   ExtractSubVector(ext_ldof.Size(), ext_ldof, x, ext_buf);
+   dbg("ext_buf: %.15e", ext_buf*ext_buf);
    // If the above kernel is executed asynchronously,
    // we should wait for it to complete
-   if (host_ext_buf)
+   MFEM_CUDA_CHECK(cudaDeviceSynchronize());
+   /*if (host_ext_buf)
    {
+      dbg("host_ext_buf");
       ext_buf.HostReadWrite();
       ext_buf.CopyTo(host_ext_buf);
-   }
+   }*/
 }
 
 void DeviceConformingProlongationOperator::ReduceLocalCopy(
-   const Vector &src, Vector &dst) const
+   const Vector &x, Vector &y) const
 {
    // dst[i] = src[ltdof_ldof[i]]
    if (ltdof_ldof.Size() == 0) { return; }
-   ExtractSubVector(ltdof_ldof.Size(), ltdof_ldof, src, dst);
-   dst.HostRead();
+   dbg("x: %.15e", x*x);
+   ExtractSubVector(ltdof_ldof.Size(), ltdof_ldof, x, y);
+   MFEM_CUDA_CHECK(cudaDeviceSynchronize());
+   dbg("y: %.15e", y*y);
 }
 
 static void AddSubVector(const int num_unique_dst_indices,
@@ -3203,14 +3216,20 @@ static void AddSubVector(const int num_unique_dst_indices,
    });
 }
 
-void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &dst) const
+void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
 {
    // dst[shr_ltdof[i]] += shr_buf[i]
    const int unq_ltdof_size = unq_ltdof.Size();
    if (unq_ltdof_size == 0) { return; }
-   if (host_shr_buf) { shr_buf.CopyFrom(host_shr_buf); }
-   AddSubVector(unq_ltdof_size, unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, dst);
-   dst.HostRead();
+   /*if (host_shr_buf)
+   {
+      dbg("host_shr_buf");
+      //shr_buf.HostWrite();
+      shr_buf.CopyFrom(host_shr_buf);
+   }*/
+   dbg("shr_buf: %.15e", shr_buf*shr_buf);
+   AddSubVector(unq_ltdof_size, unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, y);
+   dbg("y: %.15e", y*y);
 }
 
 void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
@@ -3219,25 +3238,31 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
    if (host_shr_buf)
    {
       x.HostRead();
-      y.HostWrite();
+      y.HostReadWrite();
    }
+   dbg("x: %.15e", x*x);
    const GroupTopology &gtopo = gc.GetGroupTopology();
    ReduceBeginCopy(x); // copy to 'ext_buf'
+   dbg("\033[33mx: %.15e", x*x);
    int req_counter = 0;
    for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
    {
       const int send_offset = ext_buf_offsets[nbr];
       const int send_size = ext_buf_offsets[nbr+1] - send_offset;
-      const int sizeof_double = static_cast<int>(sizeof(double));
+      //const int sizeof_double = static_cast<int>(sizeof(double));
       if (send_size > 0)
       {
          void *send_buf;
          if (host_ext_buf)
          {
-            send_buf = host_ext_buf + send_offset*sizeof_double;
+            dbg("host_ext_buf");
+            //send_buf = host_ext_buf + send_offset*sizeof_double;
+            ext_buf.HostReadWrite();
+            send_buf = ext_buf + send_offset;
          }
          else
          {
+            dbg("!host_ext_buf");
             send_buf = ext_buf + send_offset;
          }
          MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
@@ -3250,10 +3275,15 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
          void *recv_buf;
          if (host_shr_buf)
          {
-            recv_buf = host_shr_buf + recv_offset*sizeof_double;
+            dbg("host_shr_buf");
+            shr_buf.HostWrite();
+            //recv_buf = host_shr_buf + recv_offset*sizeof_double;
+            recv_buf = shr_buf + recv_offset;
          }
          else
          {
+            dbg("!host_shr_buf");
+            //shr_buf.HostWrite();
             recv_buf = shr_buf + recv_offset;
          }
          MPI_Irecv((void*)recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
@@ -3261,8 +3291,10 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
       }
    }
    ReduceLocalCopy(x, y);
+   dbg("\033[32my: %.15e", y*y);
    MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
    ReduceEndAssemble(y); // assemble from 'shr_buf'
+   dbg("\033[31my: %.15e", y*y);
 }
 
 } // namespace mfem

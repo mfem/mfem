@@ -14,6 +14,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "fem.hpp"
+#include "../general/dbg.hpp"
 #include "../general/sort_pairs.hpp"
 
 namespace mfem
@@ -291,8 +292,10 @@ void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
 {
+   dbg("");
    if (ext)
    {
+      dbg("ext");
       ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
       return;
    }
