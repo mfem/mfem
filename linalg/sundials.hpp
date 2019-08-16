@@ -352,6 +352,7 @@ protected:
    bool use_oper_grad;                // use the Jv prod function
    mutable N_Vector y_scale, f_scale; // scaling vectors
    const Operator *jacobian;          // stores oper->GetGradient()
+   int maa;                           // number of acceleration vectors
 
    /// Wrapper to compute the nonlinear residual F(u) = 0
    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
@@ -418,7 +419,10 @@ public:
 
    /// Set the number of acceleration vectors to use with KIN_FP or KIN_PICARD.
    /** The default is 0.
-       @ note This method must be called after SetOperator(). */
+       @ note This method must be called before SetOperator() to set the
+       maximum size of the acceleration space. The value of @a maa can be
+       altered after SetOperator() is called but it can't be higher than initial
+       maximum. */
    void SetMAA(int maa);
 
    /// Solve the nonlinear system F(x) = 0.
