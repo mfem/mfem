@@ -48,8 +48,7 @@ protected:
    void *sundials_mem;     ///< SUNDIALS mem structure.
    mutable int flag;       ///< Last flag returned from a call to SUNDIALS.
    bool reinit;            ///< Flag to signal memory reinitialization is need.
-   bool resize;            ///< Flag to singal memory resizing is needed.
-   long saved_global_size; ///< Global length on last call to Init().
+   long saved_global_size; ///< Global vector length on last initialization.
 
    N_Vector           y;   ///< State vector.
    SUNMatrix          A;   ///< Linear system A = I - gamma J, M - gamma J, or J.
@@ -72,7 +71,7 @@ protected:
 
    /** @brief Protected constructor: objects of this type should be constructed
        only as part of a derived class. */
-   SundialsSolver() : sundials_mem(NULL), flag(0), reinit(false), resize(false),
+   SundialsSolver() : sundials_mem(NULL), flag(0), reinit(false),
                       saved_global_size(0), y(NULL), A(NULL), M(NULL),
                       LSA(NULL), LSM(NULL), NLS(NULL) { }
 
@@ -126,9 +125,13 @@ public:
 #endif
 
    /** @brief Initialize CVODE: calls CVodeCreate() to create the CVODE
-       memory and set some defaults. If the CVODE memory has already been
-       created, it signals if a call to CVodeReInit() or CVodeResize() needs
-       to be made on the next Step() call. */
+       memory and set some defaults.
+
+       If the CVODE memory has already been created, it checks if the problem
+       size has changed since the last call to Init(). If the problem is the
+       same then CVodeReInit() will be called in the next call to Step(). If
+       the problem size has changed, the CVODE memory is freed and realloced
+       for the new problem size. */
    /** @param[in] f_ The TimeDependentOperator that defines the ODE system.
 
        @note All other methods must be called after Init(). */
@@ -252,9 +255,13 @@ public:
 #endif
 
    /** @brief Initialize ARKode: calls ARKStepCreate() to create the ARKStep
-       memory and set some defaults. If the ARKStep memory has already been
-       created, it signals if a call to ARKReInit() or ARKStepResize() needs
-       to be made on the next Step() call. */
+       memory and set some defaults.
+
+       If the ARKStep has already been created, it checks if the problem size
+       has changed since the last call to Init(). If the problem is the same
+       then ARKStepReInit() will be called in the next call to Step(). If the
+       problem size has changed, the ARKStep memory is freed and realloced
+       for the new problem size. */
    /** @param[in] f_ The TimeDependentOperator that defines the ODE system.
 
        @note All other methods must be called after Init(). */

@@ -169,6 +169,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
    if (sundials_mem)
    {
       // Check if the problem size has changed since the last Init() call
+      bool resize;
       if (!Parallel())
       {
          resize = (NV_LENGTH_S(y) != local_size);
@@ -564,6 +565,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    if (sundials_mem)
    {
       // Check if the problem size has changed since the last Init() call
+      bool resize;
       if (!Parallel())
       {
          resize = (NV_LENGTH_S(y) != local_size);
@@ -1043,6 +1045,7 @@ void KINSolver::SetOperator(const Operator &op)
    if (sundials_mem)
    {
       // Check if the problem size has changed since the last SetOperator call
+      bool resize;
       if (!Parallel())
       {
          resize = (NV_LENGTH_S(y) != local_size);
