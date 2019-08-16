@@ -39,9 +39,11 @@
       } \
    } \
    while (0)
+#define MFEM_DEVICE_SYNC MFEM_CUDA_CHECK(cudaDeviceSynchronize())
 #else
 #define MFEM_DEVICE
 #define MFEM_HOST_DEVICE
+#define MFEM_DEVICE_SYNC
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros
@@ -68,6 +70,9 @@ namespace mfem
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);
 #endif
+
+/// Synchronize device
+void* CuDevSync();
 
 /// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);

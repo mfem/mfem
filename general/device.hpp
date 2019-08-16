@@ -12,6 +12,7 @@
 #ifndef MFEM_DEVICE_HPP
 #define MFEM_DEVICE_HPP
 
+#include "cuda.hpp"
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
@@ -221,6 +222,7 @@ public:
    { Get().force_cuda_aware_mpi = force; }
 
    static bool GetForceCudaAwareMPI() { return Get().force_cuda_aware_mpi; }
+   static void Synchronize() { MFEM_DEVICE_SYNC; }
 #endif
 };
 
