@@ -766,10 +766,9 @@ int main(int argc, char *argv[])
    }
 
    // Setup coefficients for Dirichlet BC
-   Array<ComplexVectorCoefficientByAttr> dbcs;
+   Array<ComplexVectorCoefficientByAttr> dbcs((dbca.Size()==0)?0:1);
    if (dbca.Size() > 0)
    {
-     dbcs.SetSize(1);
      dbcs[0].attr = dbca;
      dbcs[0].real = &EReCoef;
      dbcs[0].imag = &EImCoef;
