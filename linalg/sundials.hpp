@@ -416,6 +416,11 @@ public:
        @note This method must be called after SetOperator(). */
    void SetMaxSetupCalls(int max_calls);
 
+   /// Set the number of acceleration vectors to use with KIN_FP or KIN_PICARD.
+   /** The default is 0.
+       @ note This method must be called after SetOperator(). */
+   void SetMAA(int maa);
+
    /// Solve the nonlinear system F(x) = 0.
    /** This method computes the x_scale and fx_scale vectors and calls the
        other Mult(Vector&, Vector&, Vector&) const method. The x_scale vector
