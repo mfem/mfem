@@ -2200,9 +2200,6 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
       if (nd.p1 != e2 && nd.p2 != e2) { midf2 = -1; }
    }
 
-   /*if (midf1 >= 0 && nodes[midf1].Shadow()) { midf1 = -1; }
-   if (midf2 >= 0 && nodes[midf2].Shadow()) { midf2 = -1; }*/
-
    // only one way to access the mid-face node must always exist
    MFEM_ASSERT(!(midf1 >= 0 && midf2 >= 0), "incorrectly split face!");
 
@@ -2333,11 +2330,6 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                               const PointMatrix& pm, int level,
                               Face* eface[4])
 {
-   /*MFEM_ASSERT(!nodes[vn0].Shadow(), "");
-   MFEM_ASSERT(!nodes[vn1].Shadow(), "");
-   MFEM_ASSERT(!nodes[vn2].Shadow(), "");
-   MFEM_ASSERT(!nodes[vn3].Shadow(), "");*/
-
    if (level > 0)
    {
       // check if we made it to a face that is not split further
@@ -2574,9 +2566,6 @@ void NCMesh::BuildFaceList()
 
 void NCMesh::EdgeMasters(int vn0, int vn1, Array<int> &edge_master, int master)
 {
-   /*MFEM_ASSERT(!nodes[vn0].Shadow(), "");
-   MFEM_ASSERT(!nodes[vn1].Shadow(), "");*/
-
    int mid = FindMidEdgeNode(vn0, vn1);
    if (mid < 0) { return; }
 
@@ -4555,14 +4544,11 @@ int NCMesh::GetEdgeMaster(int node) const
 {
    MFEM_ASSERT(node >= 0, "edge node not found.");
    const Node &nd = nodes[node];
-   //MFEM_ASSERT(!nd.Shadow(), "");
 
    int p1 = nd.p1, p2 = nd.p2;
    MFEM_ASSERT(p1 != p2, "invalid edge node.");
 
    const Node &n1 = nodes[p1], &n2 = nodes[p2];
-   /*MFEM_ASSERT(!n1.Shadow(), "");
-   MFEM_ASSERT(!n2.Shadow(), "");*/
 
    int n1p1 = n1.p1, n1p2 = n1.p2;
    int n2p1 = n2.p1, n2p2 = n2.p2;
@@ -5376,28 +5362,6 @@ struct CheckPt
 void NCMesh::DebugCheckConsistency() const
 {
 #if 0
-   // check shadow nodes
-   int nshadow = 0;
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
-   {
-      MFEM_ASSERT(!nodes[node->p1].Shadow() && !nodes[node->p2].Shadow(),
-                  "shadow node cannot be used as parent.");
-
-      if (node->Shadow())
-      {
-         MFEM_ASSERT(!nodes[node->ShadowTarget()].Shadow(), "");
-         MFEM_ASSERT(nodes[node->ShadowTarget()].Shadowed(), "");
-         nshadow++;
-      }
-      /*else
-      {
-         MFEM_ASSERT(node->vert_refc || node->edge_refc,
-                     "unused node " << node.index());
-      }*/
-   }
-   std::cout << nshadow << " shadow nodes exist out of "
-             << nodes.Size() << " nodes total." << std::endl;
-
    // check double nodes
    tmp_vertex = new TmpVertex[nodes.NumIds()];
    std::set<CheckPt> points;
@@ -5416,12 +5380,6 @@ void NCMesh::DebugCheckConsistency() const
       }
    }
    delete [] tmp_vertex;
-
-   // check that shadow nodes can be reached from shadowed nodes
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
-   {
-      if (node->Shadowed()) { FindShadowNode(*node); }
-   }
 #endif
 }
 #endif
