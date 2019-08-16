@@ -14,7 +14,6 @@
 
 #include "../general/forall.hpp"
 #include "bilinearform.hpp"
-#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -93,7 +92,6 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Vector &X, Vector &B,
                                                int copy_interior)
 {
-   dbg("");
    Operator *oper;
    Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
    A.Reset(oper); // A will own oper
@@ -101,7 +99,6 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   dbg("");
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
@@ -128,7 +125,6 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
-   dbg("");
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
    if (elem_restrict_lex)
