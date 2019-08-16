@@ -552,7 +552,8 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    long local_size = f_.Height();
    long global_size;
 
-   if (Parallel()) {
+   if (Parallel())
+   {
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
    }
@@ -560,7 +561,29 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    // Get current time
    double t = f_.GetTime();
 
-   // Create, ReInit, or ReSize ARKStep
+   if (sundials_mem)
+   {
+      // Check if the problem size has changed since the last Init() call
+      if (!Parallel())
+      {
+         resize = (NV_LENGTH_S(y) != local_size);
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         resize = (NV_LOCLENGTH_P(y) != local_size) ||
+            (saved_global_size != global_size);
+#endif
+      }
+
+      // Free existing solver memory and re-create with new vector size
+      if (resize)
+      {
+         ARKStepFree(&sundials_mem);
+         sundials_mem = NULL;
+      }
+   }
+
    if (!sundials_mem)
    {
 
@@ -609,68 +632,23 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
       // If implicit, attach MFEM linear solver by default
       if (use_implicit) { UseMFEMLinearSolver(); }
 
-      // Set the reinit flag to call ARKStepReInit() in the next Step() call.
-      reinit = true;
-
-   }
-   else
-   {
-
-      // Check if the problem size has changed since the last Init() call. Set
-      // the resize flag if necessary to call ARKStepResize() in the next
-      // Step() call.
+      // Delete the allocated data in y.
       if (!Parallel())
       {
-         resize = (NV_LENGTH_S(y) != local_size);
+         delete [] NV_DATA_S(y);
+         NV_DATA_S(y) = NULL;
       }
       else
       {
 #ifdef MFEM_USE_MPI
-         resize = (NV_LOCLENGTH_P(y) != local_size) ||
-            (saved_global_size != global_size);
+         delete [] NV_DATA_P(y);
+         NV_DATA_P(y) = NULL;
 #endif
       }
-
-      if (resize) {
-
-         // Update vector size. The correct initial condition will be set using
-         // ARKStepResize() when Step() is called.
-         if (!Parallel())
-         {
-            NV_LENGTH_S(y) = local_size;
-         }
-         else
-         {
-#ifdef MFEM_USE_MPI
-            NV_LOCLENGTH_P(y)  = local_size;
-            NV_GLOBLENGTH_P(y) = global_size;
-            saved_global_size  = global_size;
-#endif
-         }
-
-      } else {
-
-         // The vector size has not changed. Set the reinit flag to call
-         // ARKStepReInit() in the next Step() call to set the new state.
-         reinit = true;
-
-      }
-
    }
 
-   // Delete the allocated data in y.
-   if (!Parallel())
-   {
-      delete [] NV_DATA_S(y);
-      NV_DATA_S(y) = NULL;
-   }
-   else
-   {
-#ifdef MFEM_USE_MPI
-      delete [] NV_DATA_P(y);
-      NV_DATA_P(y) = NULL;
-#endif
-   }
+   // Set the reinit flag to call ARKStepReInit() in the next Step() call.
+   reinit = true;
 }
 
 void ARKStepSolver::Step(Vector &x, double &t, double &dt)
@@ -689,7 +667,8 @@ void ARKStepSolver::Step(Vector &x, double &t, double &dt)
    }
 
    // Reinitialize ARKStep memory if needed
-   if (reinit) {
+   if (reinit)
+   {
       if (rk_type == IMPLICIT)
       {
          flag = ARKStepReInit(sundials_mem, NULL, ARKStepSolver::RHS1, t, y);
@@ -707,15 +686,6 @@ void ARKStepSolver::Step(Vector &x, double &t, double &dt)
 
       // reset flag
       reinit = false;
-   }
-
-   // Resize ARKStep memory if needed
-   if (resize) {
-      flag = ARKStepResize(sundials_mem, y, 1.0, t, NULL, NULL);
-      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepResize()");
-
-      // reset flag
-      resize = false;
    }
 
    // Integrate the system
