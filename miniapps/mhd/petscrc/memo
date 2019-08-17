@@ -33,6 +33,15 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+8/17
+new tests:
+mpirun -n 4 exMHDp -m Meshes/xperiodic1.mesh -rs 4 -o 2 -tf 1 -vs 100 -dt .001 -i 3
+mpirun -n 4 exMHDp -m Meshes/xperiodic-square-new.mesh -rs 2 -o 2 -tf 3 -vs 100 -dt .001
+
+redo:
+64*64
+mpirun -n 4 imMHDp  -m Meshes/xperiodic-square-new.mesh -rs 4 -o 2 -i 2 -tf 10 -dt 5 -s 3 -usepetsc --petscopts petscrc/rc_full -shell
+
 8/13
 srun -n 16 imMHDp -rs 6 -rp 1 -o 2 -i 2 -vs 1 -tf 5 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
 key parameters:
