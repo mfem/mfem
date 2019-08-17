@@ -253,7 +253,7 @@ public:
 
    template <typename U>
    inline void CopyFrom(const U *src)
-   { std::memcpy(begin(), src, size * sizeof(T)); }
+   { std::memcpy(begin(), src, MemoryUsage()); }
 
    // STL-like begin/end
    inline T* begin() { return data; }

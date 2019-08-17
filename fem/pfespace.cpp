@@ -864,13 +864,13 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    {
       if (!Pconf)
       {
-         if (Device::Allows(Backend::CUDA))
+         if (!Device::Allows(Backend::CUDA))
          {
-            Pconf = new DeviceConformingProlongationOperator(*this);
+            Pconf = new ConformingProlongationOperator(*this);
          }
          else
          {
-            Pconf = new ConformingProlongationOperator(*this);
+            Pconf = new DeviceConformingProlongationOperator(*this);
          }
       }
       return Pconf;
@@ -2971,8 +2971,8 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator
       shr_buf.UseDevice(true);
       shr_buf_offsets = nbr_ltdof.GetI();
       {
-         mfem::Array<int> shr_ltdof(nbr_ltdof.GetJ(), nb_connections);
-         mfem::Array<int> unique_ltdof(shr_ltdof);
+         Array<int> shr_ltdof(nbr_ltdof.GetJ(), nb_connections);
+         Array<int> unique_ltdof(shr_ltdof);
          unique_ltdof.Sort();
          unique_ltdof.Unique();
          // Note: the next loop modifies the J array of nbr_ltdof
@@ -3036,9 +3036,9 @@ static void ExtractSubVector(const int N,
                              const Array<int> &indices,
                              const Vector &in, Vector &out)
 {
-   auto x = in.Read();
    auto y = out.Write();
-   auto I = indices.Read();
+   const auto x = in.Read();
+   const auto I = indices.Read();
    MFEM_FORALL(i, N, y[i] = x[I[i]];); // indices can be repeated
 }
 
@@ -3050,16 +3050,16 @@ void DeviceConformingProlongationOperator::BcastBeginCopy(
    ExtractSubVector(shr_ltdof.Size(), shr_ltdof, x, shr_buf);
    // If the above kernel is executed asynchronously,
    // we should wait for it to complete
-   Device::Synchronize();
+   if (gpu_aware_mpi) { Device::Synchronize(); }
 }
 
 static void SetSubVector(const int N,
                          const Array<int> &indices,
                          const Vector &in, Vector &out)
 {
-   auto x = in.Read();
    auto y = out.Write();
-   auto I = indices.Read();
+   const auto x = in.Read();
+   const auto I = indices.Read();
    MFEM_FORALL(i, N, y[I[i]] = x[i];);
 }
 
@@ -3082,11 +3082,6 @@ void DeviceConformingProlongationOperator::BcastEndCopy(
 void DeviceConformingProlongationOperator::Mult(const Vector &x,
                                                 Vector &y) const
 {
-   if (!gpu_aware_mpi)
-   {
-      x.HostRead();
-      y.HostWrite();
-   }
    const GroupTopology &gtopo = gc.GetGroupTopology();
    BcastBeginCopy(x); // copy to 'shr_buf'
    int req_counter = 0;
@@ -3131,7 +3126,7 @@ void DeviceConformingProlongationOperator::ReduceBeginCopy(
    ExtractSubVector(ext_ldof.Size(), ext_ldof, x, ext_buf);
    // If the above kernel is executed asynchronously,
    // we should wait for it to complete
-   Device::Synchronize();
+   if (gpu_aware_mpi) { Device::Synchronize(); }
 }
 
 void DeviceConformingProlongationOperator::ReduceLocalCopy(
@@ -3149,18 +3144,17 @@ static void AddSubVector(const int num_unique_dst_indices,
                          const Vector &src,
                          Vector &dst)
 {
-   auto x = src.Read();
    auto y = dst.Write();
-   auto DST_I = unique_dst_indices.Read();
-   auto SRC_O = unique_to_src_offsets.Read();
-   auto SRC_I = unique_to_src_indices.Read();
+   const auto x = src.Read();
+   const auto DST_I = unique_dst_indices.Read();
+   const auto SRC_O = unique_to_src_offsets.Read();
+   const auto SRC_I = unique_to_src_indices.Read();
    MFEM_FORALL(i, num_unique_dst_indices,
    {
       const int dst_idx = DST_I[i];
       double sum = y[dst_idx];
       const int end = SRC_O[i+1];
-      for (int j = SRC_O[i]; j != end; ++j)
-      { sum += x[SRC_I[j]]; }
+      for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
       y[dst_idx] = sum;
    });
 }
@@ -3176,11 +3170,6 @@ void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
 void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                                                          Vector &y) const
 {
-   if (!gpu_aware_mpi)
-   {
-      x.HostRead();
-      y.HostReadWrite();
-   }
    const GroupTopology &gtopo = gc.GetGroupTopology();
    ReduceBeginCopy(x); // copy to 'ext_buf'
    int req_counter = 0;

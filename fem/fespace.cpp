@@ -11,7 +11,6 @@
 
 // Implementation of FiniteElementSpace
 
-#include "../general/dbg.hpp"
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
@@ -582,7 +581,6 @@ FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
 
 void FiniteElementSpace::BuildConformingInterpolation() const
 {
-   dbg("");
 #ifdef MFEM_USE_MPI
    MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
                "This method should not be used with a ParFiniteElementSpace!");
@@ -665,7 +663,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          cR_A[i] = 1.0;
       }
       cR_I[n_true_dofs] = n_true_dofs;
-      dbg("cR = new SparseMatrix");
       cR = new SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs);
    }
 
