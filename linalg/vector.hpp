@@ -224,19 +224,6 @@ public:
    /// Redefine '=' for vector = constant.
    Vector &operator=(double value);
 
-   template <typename U>
-   inline void CopyTo(U *dest) { std::copy(begin(), end(), dest); }
-
-   template <typename U>
-   inline void CopyFrom(const U *src)
-   { std::memcpy(begin(), src, size * sizeof(double)); }
-
-   // STL-like begin/end
-   inline double* begin() { return data; }
-   inline double* end() { return data + size; }
-   inline const double* begin() const { return data; }
-   inline const double* end() const { return data + size; }
-
    Vector &operator*=(double c);
 
    Vector &operator/=(double c);
