@@ -103,7 +103,7 @@ class InjectionOperator : public Operator
 private:
   int *id;  // Size should be fullWidth, mapping to true subdomain DOF's.
   //mutable ParGridFunction gf;
-  int fullWidth;
+  //int fullWidth;
   int m_nprocs, m_rank;
   
   std::vector<int> m_numTrueSD;
@@ -115,7 +115,8 @@ private:
   
   mutable std::vector<double> m_recv, m_send;
   std::vector<int> m_scnt, m_sdspl, m_rcnt, m_rdspl;
-  
+
+  MPI_Comm m_comm;
 public:
 
   InjectionOperator(ParFiniteElementSpace *subdomainSpace, ParFiniteElementSpace *interfaceSpace, int *a,
@@ -123,6 +124,11 @@ public:
   
   ~InjectionOperator()
   {
+  }
+
+  void SetComm(MPI_Comm comm)
+  {
+    m_comm = comm;
   }
   
   virtual void Mult(const Vector & x, Vector & y) const
@@ -151,7 +157,7 @@ public:
 	}
     }
     
-    MPI_Alltoallv(m_send.data(), m_scnt.data(), m_sdspl.data(), MPI_DOUBLE, (double*) m_recv.data(), m_rcnt.data(), m_rdspl.data(), MPI_DOUBLE, MPI_COMM_WORLD);
+    MPI_Alltoallv(m_send.data(), m_scnt.data(), m_sdspl.data(), MPI_DOUBLE, (double*) m_recv.data(), m_rcnt.data(), m_rdspl.data(), MPI_DOUBLE, m_comm);
 
     y = 0.0;
     /*
@@ -182,7 +188,7 @@ public:
       }
 
     // The roles of receive and send data are reversed.
-    MPI_Alltoallv(m_recv.data(), m_rcnt.data(), m_rdspl.data(), MPI_DOUBLE, m_send.data(), m_scnt.data(), m_sdspl.data(), MPI_DOUBLE, MPI_COMM_WORLD);
+    MPI_Alltoallv(m_recv.data(), m_rcnt.data(), m_rdspl.data(), MPI_DOUBLE, m_send.data(), m_scnt.data(), m_sdspl.data(), MPI_DOUBLE, m_comm);
 
     std::vector<int> cnt;
     cnt.assign(m_nprocs, 0);
@@ -588,6 +594,9 @@ public:
 #ifdef DDMCOMPLEX
   void PrintSubdomainError(const int sd, Vector & u, Vector & eSD)
   {
+    if (fespace[sd] == NULL)
+      return;
+    
     ParGridFunction x(fespace[sd]);
     VectorFunctionCoefficient E(3, test2_E_exact);
     //x.ProjectCoefficient(E);
@@ -638,6 +647,8 @@ public:
     for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
       uSD[i] = u[block_ComplexOffsetsSD[sd][1] + i];
 
+    MFEM_VERIFY(u.Size() == block_ComplexOffsetsSD[sd][2], "");
+    
     x.SetFromTrueDofs(uSD);
     const double errIm = x.ComputeL2Error(vzero);
     //const double errIm = x.ComputeL2Error(E);
@@ -657,7 +668,7 @@ public:
     MPI_Allreduce(&relErrTot, &relErrTotMax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     */
     
-    if (m_rank == 0)
+    //if (m_rank == 0)
       {
 	cout << m_rank << ": sd " << sd << " || E_h - E ||_{L^2} Re = " << errRe << endl;
 	cout << m_rank << ": sd " << sd << " || E_h - E ||_{L^2} Im = " << errIm << endl;
@@ -739,6 +750,8 @@ private:
   std::vector<int> globalInterfaceIndex;
   std::vector<std::vector<int> > subdomainLocalInterfaces;
 
+  std::vector<int> ifNDtrue, ifH1true;
+  
 #ifdef DDMCOMPLEX
   BlockOperator *globalInterfaceOpRe, *globalInterfaceOpIm;
   std::vector<Array<int> > block_ComplexOffsetsSD;
@@ -791,27 +804,33 @@ private:
 
   void SetParameters()
   {
+    const double k = sqrt(k2);
+
     const double cTE = 0.5;  // From RawatLee2010
     const double cTM = 4.0;  // From RawatLee2010
-
+    
     // Note that PengLee2012 recommends cTE = 1.5 * cTM. 
 
     // TODO: take these parameters from the mesh and finite element space.
     //const double h = 0.0350769;
     //const double h = 0.0175385;
     const double h = 1.4e-1;
+    //const double h = 0.5;
     const double feOrder = 1.0;
-    
+
     const double ktTE = cTE * M_PI * feOrder / h;
     const double ktTM = cTM * M_PI * feOrder / h;
+
+    /*    
+    const double ktTE = 3.0 * k; // From PengLee2012
+    const double ktTM = 2.0 * k; // From PengLee2012
+    */
     
     //const double kzTE = sqrt(8.0 * k2);
     //const double kzTM = sqrt(3.0 * k2);
 
     const double kzTE = sqrt((ktTE*ktTE) - k2);
     const double kzTM = sqrt((ktTM*ktTM) - k2);
-    
-    const double k = sqrt(k2);
 
     // PengLee2012
     // alpha = ik

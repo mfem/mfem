@@ -74,6 +74,25 @@ void test2_RHS_exact(const Vector &x, Vector &f)
   f(0) = c * sin(pi * x(1)) * sin(pi * x(2));
   f(1) = c * sin(pi * x(2)) * sin(pi * x(0));
   f(2) = c * sin(pi * x(0)) * sin(pi * x(1));
+
+  /*  
+  f(0) = SIGMAVAL * x(1) * (1.0 - x(1)) * x(2) * (1.0 - x(2));
+  f(1) = SIGMAVAL * x(0) * (1.0 - x(0)) * x(2) * (1.0 - x(2));
+  f(2) = SIGMAVAL * x(1) * (1.0 - x(1)) * x(0) * (1.0 - x(0));
+
+  f(0) += 2.0 * ((x(1) * (1.0 - x(1))) + (x(2) * (1.0 - x(2))));
+  f(1) += 2.0 * ((x(0) * (1.0 - x(0))) + (x(2) * (1.0 - x(2))));
+  f(2) += 2.0 * ((x(0) * (1.0 - x(0))) + (x(1) * (1.0 - x(1))));
+  */
+  /*
+  f(0) = SIGMAVAL * x(0) * x(1) * (1.0 - x(1)) * x(2) * (1.0 - x(2));
+  f(1) = SIGMAVAL * x(1) * x(0) * (1.0 - x(0)) * x(2) * (1.0 - x(2));
+  f(2) = SIGMAVAL * x(2) * x(1) * (1.0 - x(1)) * x(0) * (1.0 - x(0));
+
+  f(0) += ((x(1) * (1.0 - x(1))) + (x(2) * (1.0 - x(2))));
+  f(1) += ((x(0) * (1.0 - x(0))) + (x(2) * (1.0 - x(2))));
+  f(2) += ((x(0) * (1.0 - x(0))) + (x(1) * (1.0 - x(1))));
+  */
 }
 
 void TestHypreRectangularSerial()
@@ -367,7 +386,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -399,6 +418,8 @@ int main(int argc, char *argv[])
 
    if (geometricPartition)
      {
+       //int nxyzGlobal[3] = {1, 2, 1};
+       //int nxyzGlobal[3] = {2, 1, 2};
        int nxyzGlobal[3] = {1, 1, 1};
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
        
@@ -546,7 +567,8 @@ int main(int argc, char *argv[])
      cout << "Number of finite element unknowns: " << size << endl;
      cout << "Root local number of finite element unknowns: " << fespace->TrueVSize() << endl;
    }
-
+   
+   if (myid == 0)
    { // Print the interface mesh
      ostringstream mesh_name;
      mesh_name << "ifmesh." << setfill('0') << setw(6) << myid;
@@ -750,6 +772,7 @@ int main(int argc, char *argv[])
        Vector B_Im(B.Size());
        B_Im = 0.0;
        //B_Im = B;
+       //B = 0.0;
        
        ddi.GetReducedSource(fespace, B, B_Im, Bdd);
        //ddi.FullSystemAnalyticTest();
@@ -777,7 +800,7 @@ int main(int argc, char *argv[])
 
        gmres->SetOperator(ddi);
        gmres->SetRelTol(1e-8);
-       gmres->SetMaxIter(1000);
+       gmres->SetMaxIter(100);
        gmres->SetPrintLevel(1);
 
        gmres->SetName("ddi");

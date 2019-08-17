@@ -2,11 +2,8 @@
 #include "ddoper.hpp"
 
 InjectionOperator::InjectionOperator(ParFiniteElementSpace *subdomainSpace, ParFiniteElementSpace *interfaceSpace, int *a,
-				     std::vector<int> const& gdofmap) : Operator(subdomainSpace->GetTrueVSize(), interfaceSpace->GetTrueVSize()),
-									fullWidth(interfaceSpace->GetVSize()), id(a) //, gf(interfaceSpace)
+				     std::vector<int> const& gdofmap) : id(a)
 {
-  MFEM_VERIFY(height >= width, "InjectionOperator constructor");
-
   MPI_Comm_size(MPI_COMM_WORLD, &m_nprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &m_rank);
     
@@ -15,6 +12,10 @@ InjectionOperator::InjectionOperator(ParFiniteElementSpace *subdomainSpace, ParF
 
   const int sdtsize = (subdomainSpace == NULL) ? 0 : subdomainSpace->GetTrueVSize();
   const int iftsize = (interfaceSpace == NULL) ? 0 : interfaceSpace->GetTrueVSize();
+
+  height = sdtsize;
+  width = iftsize;
+  //MFEM_VERIFY(height >= width, "InjectionOperator constructor");
 
   std::vector<int> allsdtos, alliftos;
   allsdtos.assign(m_nprocs, 0);
@@ -197,6 +198,17 @@ void test2_E_exact(const Vector &x, Vector &E)
   E(0) = sin(pi * x(1)) * sin(pi * x(2));
   E(1) = sin(pi * x(2)) * sin(pi * x(0));
   E(2) = sin(pi * x(0)) * sin(pi * x(1));
+
+  /*  
+  E(0) = x(1) * (1.0 - x(1)) * x(2) * (1.0 - x(2));
+  E(1) = x(0) * (1.0 - x(0)) * x(2) * (1.0 - x(2));
+  E(2) = x(1) * (1.0 - x(1)) * x(0) * (1.0 - x(0));
+  */
+  /*  
+  E(0) = x(0) * x(1) * (1.0 - x(1)) * x(2) * (1.0 - x(2));
+  E(1) = x(1) * x(0) * (1.0 - x(0)) * x(2) * (1.0 - x(2));
+  E(2) = x(2) * x(1) * (1.0 - x(1)) * x(0) * (1.0 - x(0));
+  */
 }
 
 void test2_f_exact_0(const Vector &x, Vector &f)
@@ -600,14 +612,26 @@ void SendSparseMatrix(SparseMatrix *S, const int dest)
   MPI_Send(S->GetData(), sizes[2], MPI_DOUBLE, dest, 3, MPI_COMM_WORLD);
 }
 
+void GetStarts(MPI_Comm comm, const int rank, const int nprocs, const int n, std::vector<HYPRE_Int> & starts, int& g)
+{
+  std::vector<int> alln(nprocs);
+  MPI_Allgather(&n, 1, MPI_INT, alln.data(), 1, MPI_INT, comm);
+	      
+  int first_loc = 0;
+  g = 0;
+  for (int i=0; i<nprocs; ++i)
+    {
+      g += alln[i];
+      if (i < rank)
+	first_loc += alln[i];
+    }
+	      
+  starts[0] = first_loc;
+  starts[1] = first_loc + alln[rank];
+}
+
 // We assume here that the sparsity structure of the interface matrix I is contained in that of the subdomain matrix A.
 // We simply add entries from I to existing entries of A. The constant cI times the interface identity matrix is added.
-/*
-HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMatrix *A, HypreParMatrix *I, std::vector<int> & inj,
-						     std::vector<int> & ginj,
-						     ParFiniteElementSpace *ifespace, ParFiniteElementSpace *ifespace2=NULL,
-						     const bool adding=true, const double cI=0.0, const double cA=1.0, const bool injRows=true)
-*/
 HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMatrix *A, HypreParMatrix *I, std::vector<int> & inj,
 						     std::vector<int> & ginj,
 						     ParFiniteElementSpace *ifespace, ParFiniteElementSpace *ifespace2,
@@ -631,20 +655,22 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	}
     }
 
-  // Find the unique rank in MPI_COMM_WORLD of the ifespace rank 0 process that stores globalI. 
+  // Find the unique rank in ifcomm of the ifespace rank 0 process that stores globalI. 
 
   int nprocs, rank;
-  MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(ifcomm, &nprocs);
+  MPI_Comm_rank(ifcomm, &rank);
 
+  /*
   int A_rank;
   MPI_Comm_rank(A->GetComm(), &A_rank);
+  */
   
   int *allg = new int[nprocs];
   
   const int haveGlobalI = (globalI != NULL) ? 1 : 0;
   
-  MPI_Allgather(&haveGlobalI, 1, MPI_INT, allg, 1, MPI_INT, MPI_COMM_WORLD);
+  MPI_Allgather(&haveGlobalI, 1, MPI_INT, allg, 1, MPI_INT, ifcomm);
 
   int count = 0;
   int ownerGlobalI = -1;
@@ -661,7 +687,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
   
   const int haveA = (A != NULL) ? 1 : 0;
   
-  MPI_Allgather(&haveA, 1, MPI_INT, allg, 1, MPI_INT, MPI_COMM_WORLD);
+  MPI_Allgather(&haveA, 1, MPI_INT, allg, 1, MPI_INT, ifcomm);
 
   count = 0;
   for (int i=0; i<nprocs; ++i)
@@ -675,7 +701,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
   MFEM_VERIFY(count > 0, "");
 
   // Send entire global interface matrix to all processes in the subdomain communicator given by A.
-  // Note that the processes owing the interface matrix I may be different from those in the subdomain communicator. 
+  // Note that the processes owning the interface matrix I may be different from those in the subdomain communicator. 
 
   if (haveGlobalI)
     {
@@ -698,7 +724,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
       */
     }
   
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(ifcomm);
   
   // First cast the matrix A to a hypre_ParCSRMatrix
   //hypre_ParCSRMatrix * A_parcsr_op = (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*A);
@@ -706,7 +732,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
   HypreParMatrix *Acopy = NULL;
   hypre_CSRMatrix * csr_op = NULL;
   
-  if (adding)
+  if (adding && haveA)
     {
       Acopy = A;  // TODO: make a copy of A?
       //HypreParMatrix Acopy(A_parcsr_op);
@@ -738,16 +764,18 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
   // Create map from interface full DOF's to global subdomain true DOF's. First, verify that global true DOF's go from 0 to the global matrix size minus 1.
   bool gtdofInRange = true;
   bool maxGlobalTDofFound = false;
-  const int igsize = I->GetGlobalNumRows();
+  const int igsize = (I == NULL) ? 0 : I->GetGlobalNumRows();
   const int maxgtdof = igsize - 1;
 
   int alligsize = -1;
-  MPI_Allreduce(&igsize, &alligsize, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  MPI_Allreduce(&igsize, &alligsize, 1, MPI_INT, MPI_MAX, ifcomm);
 
   MFEM_VERIFY(alligsize > 0, "");
 
   if (globalI != NULL)
-    MFEM_VERIFY(igsize == globalI->Size() && igsize == alligsize, "");
+    {
+      MFEM_VERIFY(alligsize == globalI->Size(), "");
+    }
   
   int *ifgtsdt = new int[alligsize];  // interface global true to subdomain true DOF's.
   int *maxifgtsdt = new int[alligsize];  // interface global true to subdomain true DOF's.
@@ -760,7 +788,8 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
   const int ossdt = (A != NULL) ? A->RowPart()[0] : 0;
   const int ossdtNext = (A != NULL) ? A->RowPart()[1] : 0;
 
-  MFEM_VERIFY(A->Height() == A->RowPart()[1] - A->RowPart()[0], "");
+  if (haveA)
+    MFEM_VERIFY(A->Height() == A->RowPart()[1] - A->RowPart()[0], "");
   
   for (int i=0; i<ifullsize; ++i)
     {
@@ -777,11 +806,11 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 
   bool allMaxGlobalTDofFound = false;
 
-  MPI_Allreduce(&maxGlobalTDofFound, &allMaxGlobalTDofFound, 1, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
+  MPI_Allreduce(&maxGlobalTDofFound, &allMaxGlobalTDofFound, 1, MPI_C_BOOL, MPI_LOR, ifcomm);
   
   MFEM_VERIFY(gtdofInRange && allMaxGlobalTDofFound, "");
 
-  MPI_Allreduce(ifgtsdt, maxifgtsdt, alligsize, MPI_INT, MPI_MAX, MPI_COMM_WORLD);  // TODO: can this be done in place?
+  MPI_Allreduce(ifgtsdt, maxifgtsdt, alligsize, MPI_INT, MPI_MAX, ifcomm);  // TODO: can this be done in place?
   
   int *iftfull = (iftsize > 0) ? new int[iftsize] : NULL;
   int *iftfull2 = (iftsize2 > 0) ? new int[iftsize2] : NULL;
@@ -834,9 +863,11 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
       iftsdt[i] = ifullsdt[iftfull[i]];  // well-defined
     }
 
+  MPI_Barrier(ifcomm);
+
   if (globalI != NULL && A != NULL && adding) // Add values from globalI to the local rows of csr_op
     {
-      MFEM_VERIFY(globalI->Size() == igsize, "");
+      MFEM_VERIFY(globalI->Size() == alligsize, "");
 
       if (cA != 1.0) // Scale A entries in csr_op by cA
 	{
@@ -886,29 +917,32 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
       MFEM_VERIFY(allEntriesFound, "");
     }
 
+  MPI_Barrier(ifcomm);
+
   HypreParMatrix *S = NULL;
 
-  if (A != NULL)
+  //if (A != NULL)
     {
-      if (adding)
+      if (adding && A != NULL)
 	{
 	  const int size = A->GetGlobalNumRows();
 	  S = new HypreParMatrix(A->GetComm(), csr_op->num_rows, size, size, csr_op->i, csr_op->j, csr_op->data, Acopy->RowPart(), Acopy->ColPart());
 	}
-      else if (globalI != NULL)
+      else if (!adding && globalI != NULL)
 	{
-	  MFEM_VERIFY(globalI->Height() == igsize, "");
+	  MFEM_VERIFY(globalI->Height() == alligsize, "");
 
 	  const bool mixed = (ifespace2 != NULL);  // interface matrix I is in the mixed space (ifespace, ifespace2)
 
 #ifdef MIXED_MATRIX_NO_TRANSPOSE
 	  // Create new sparse matrix of size nrows(A) x ncols(I) if injRows, else of size nrows(I) x ncols(A)
 
-	  const int numLocRows = injRows ? A->Height() : I->Height();
+	  const int numLocRows = injRows ? ((A == NULL) ? 0 : A->Height()) : ((I == NULL) ? 0 : I->Height());
 
-	  MFEM_VERIFY(numLocRows > 0, "");
+	  //MFEM_VERIFY(numLocRows > 0, "");
 
 	  std::vector<std::size_t> rowCount;
+	  //if (numLocRows > 0)
 	  rowCount.assign(numLocRows, 0);
 	  
 	  int *SI = new int[numLocRows + 1];
@@ -942,7 +976,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	    }
 	  else
 	    {
-	      MFEM_VERIFY(iftsize == I->Height(), "");
+	      //MFEM_VERIFY(iftsize == I->Height(), "");
 
 	      for (int i=0; i<iftsize; ++i)
 		{
@@ -1000,7 +1034,8 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	    {
 	      MFEM_VERIFY(!mixed, "");
 
-	      // Get iftsize on all processes, to map from global ifespace indices (columns of globalI) to local indices. 
+	      // Get iftsize on all processes, to map from global ifespace indices (columns of globalI) to local indices.
+	      /*
 	      int ifnprocs, ifrank;
 	      MPI_Comm_size(ifcomm, &ifnprocs);
 	      MPI_Comm_rank(ifcomm, &ifrank);
@@ -1022,6 +1057,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	      MFEM_VERIFY(globalI->Width() == sumSizes, "");
 
 	      ifrankos[1] = ifrankos[0] + alliftsize[ifrank];
+	      */
 	      
 	      for (int i=0; i<iftsize; ++i)
 		{
@@ -1049,12 +1085,45 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	  
 	  MFEM_VERIFY(nnz == cnt && sumCnt == cnt, "");
 
-	  MPI_Barrier(MPI_COMM_WORLD);
-
+	  int ifnprocs, ifrank;
+	  MPI_Comm_size(ifcomm, &ifnprocs);
+	  MPI_Comm_rank(ifcomm, &ifrank);
+	  
+	  MPI_Barrier(ifcomm);
+	  
 	  if (injRows)
-	    S = new HypreParMatrix(ifcomm, numLocRows, A->GetGlobalNumRows(), globalI->Width(), SI, SJ, Sdata, A->RowPart(), I->ColPart());
+	    {
+	      const int num_loc_rows = (A == NULL) ? 0 : A->Height();
+	      const int num_loc_cols = (I == NULL) ? 0 : I->Width();
+
+	      int glob_nrows = 0;
+	      int glob_ncols = 0;
+
+	      std::vector<HYPRE_Int> rowStarts(2);
+	      std::vector<HYPRE_Int> colStarts(2);
+
+	      GetStarts(ifcomm, ifrank, ifnprocs, num_loc_rows, rowStarts, glob_nrows);
+	      GetStarts(ifcomm, ifrank, ifnprocs, num_loc_cols, colStarts, glob_ncols);
+	      
+	      //S = new HypreParMatrix(ifcomm, numLocRows, A->GetGlobalNumRows(), globalI->Width(), SI, SJ, Sdata, A->RowPart(), I->ColPart());
+	      S = new HypreParMatrix(ifcomm, numLocRows, glob_nrows, globalI->Width(), SI, SJ, Sdata, (HYPRE_Int*) rowStarts.data(), (HYPRE_Int*) colStarts.data());
+	    }
 	  else
-	    S = new HypreParMatrix(ifcomm, numLocRows, globalI->Height(), A->GetGlobalNumCols(), SI, SJ, Sdata, I->RowPart(), A->ColPart());
+	    {
+	      const int num_loc_rows = (I == NULL) ? 0 : I->Height();
+	      const int num_loc_cols = (A == NULL) ? 0 : A->Width();
+
+	      int glob_nrows = 0;
+	      int glob_ncols = 0;
+	      std::vector<HYPRE_Int> rowStarts(2);
+	      std::vector<HYPRE_Int> colStarts(2);
+
+	      GetStarts(ifcomm, ifrank, ifnprocs, num_loc_rows, rowStarts, glob_nrows);
+	      GetStarts(ifcomm, ifrank, ifnprocs, num_loc_cols, colStarts, glob_ncols);
+	      
+	      //S = new HypreParMatrix(ifcomm, numLocRows, globalI->Height(), A->GetGlobalNumCols(), SI, SJ, Sdata, I->RowPart(), A->ColPart());
+	      S = new HypreParMatrix(ifcomm, numLocRows, globalI->Height(), glob_ncols, SI, SJ, Sdata, (HYPRE_Int*) rowStarts.data(), (HYPRE_Int*) colStarts.data());
+	    }
 #else
 	  // Create new sparse matrix of size ncols(I) x nrows(A)
 
@@ -1101,6 +1170,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	  if (globalI_tr)
 	    delete globalI_tr;
 	  
+	  MPI_Barrier(ifcomm);
 	  S = new HypreParMatrix(ifcomm, numLocRows, globalI->Width(), A->GetGlobalNumRows(), SI, SJ, Sdata, I->ColPart(), A->RowPart());
 #endif
 	  
@@ -1109,6 +1179,8 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	  delete[] Sdata;
 	}
     }
+
+  MPI_Barrier(ifcomm);
   
   if (iftfull)
     delete[] iftfull;
@@ -1625,22 +1697,27 @@ void PrintMeshBoundingBox(ParMesh *mesh)
 
 // Therefore, dofmap is defined by SetInterfaceToSurfaceDOFMap() to be of full ifespace DOF size, mapping from full ifespace DOF's to true
 // subdomain DOF's in fespace; fdofmap is also of full ifespace DOF size, mapping from full ifespace DOF's to full subdomain DOF's in fespace.
+
+// For full generality of parallel partitioning, we must allow for ifespace and fespace to be NULL (possibly even both), as this function
+// needs to be called by all processes in MPI_COMM_WORLD. There may be processes that touch an interface but not a subdomain, and vice versa.
+// Therefore, we cannot limit calls to this function only to processes touching an interface or subdomain.
 void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteElementSpace *fespace, ParFiniteElementSpace *fespaceGlobal,
 				 ParMesh *pmesh, const int sdAttribute, const std::set<int>& pmeshFacesInInterface,
 				 const std::set<int>& pmeshEdgesInInterface, const std::set<int>& pmeshVerticesInInterface, 
 				 const FiniteElementCollection *fec, std::vector<int>& dofmap, //std::vector<int>& fdofmap,
 				 std::vector<int>& gdofmap)
 {
-  const int ifSize = ifespace->GetVSize();  // Full DOF size
-  const int iftSize = ifespace->GetTrueVSize();  // True DOF size, used for global gdofmap
+  const int ifSize = (ifespace == NULL) ? 0 : ifespace->GetVSize();  // Full DOF size
+  const int iftSize = (ifespace == NULL) ? 0 : ifespace->GetTrueVSize();  // True DOF size, used for global gdofmap
 
-  const HYPRE_Int iftos = ifespace->GetMyTDofOffset();
-  const HYPRE_Int sdtos = fespace->GetMyTDofOffset();
+  const HYPRE_Int iftos = (ifespace == NULL) ? 0 : ifespace->GetMyTDofOffset();
+  const HYPRE_Int sdtos = (fespace == NULL) ? 0 : fespace->GetMyTDofOffset();
   
   int ifgSize = 0;
 
   // TODO: in general, this may need to be MPI_COMM_WORLD, since a process may see the subdomain but not the interface.
-  MPI_Allreduce(&iftSize, &ifgSize, 1, MPI_INT, MPI_SUM, ifespace->GetComm());
+  //MPI_Allreduce(&iftSize, &ifgSize, 1, MPI_INT, MPI_SUM, ifespace->GetComm());
+  MPI_Allreduce(&iftSize, &ifgSize, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
   std::vector<int> fdofmap; // TODO: remove
   
@@ -1654,8 +1731,8 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
   
   const double vertexTol = 1.0e-12;
   
-  ParMesh *ifMesh = ifespace->GetParMesh();  // Interface mesh
-  ParMesh *sdMesh = fespace->GetParMesh();  // Subdomain mesh
+  ParMesh *ifMesh = (ifespace == NULL) ? NULL : ifespace->GetParMesh();  // Interface mesh
+  ParMesh *sdMesh = (fespace == NULL) ? NULL : fespace->GetParMesh();  // Subdomain mesh
 
   //PrintMeshBoundingBox(sdMesh);
   
@@ -1749,8 +1826,10 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 
   }
   */
+
+  const int sdNE = (sdMesh == NULL) ? 0 : sdMesh->GetNE();
   
-  for (int elId=0; elId<sdMesh->GetNE(); ++elId)
+  for (int elId=0; elId<sdNE; ++elId)
     {
       {
 	Array<int> sdEdge, sdOri;
@@ -1973,6 +2052,7 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 		      MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
 		      for (int d=0; d<ifdofs.Size(); ++d)
 			{
+			  MFEM_VERIFY(sddofs[d] >= 0, "");
 			  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 
 			  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
@@ -2053,12 +2133,16 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	      MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
 	      for (int d=0; d<ifdofs.Size(); ++d)
 		{
+		  MFEM_VERIFY(sddofs[d] >= 0 && ifdofs[d] >= 0, "");
+		  
 		  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 
 		  /*
 		  if (ifdofs[d] == 276)
 		    cout << "276 found on " << endl;
 		  */
+
+		  const int ifdof_d = ifdofs[d];
 		  
 		  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
 		  fdofmap[ifdofs[d]] = sddofs[d];
@@ -2076,17 +2160,22 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
       const int nf = fec->DofForGeometry(sdMesh->GetFaceGeometryType(0));
       if (nf > 0)
 	{
-	  MFEM_VERIFY(false, "TODO: it may be necessary to set face DOF's in gdofmap.");
+	  //MFEM_VERIFY(false, "TODO: it may be necessary to set face DOF's in gdofmap.");
 	  
 	  Array<int> ifdofs, sddofs;
-	  ifespace->GetFaceDofs(i, ifdofs);
+	  ifespace->GetElementDofs(i, ifdofs);
 	  fespace->GetFaceDofs(sdMeshFace, sddofs);
 
 	  MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
 	  for (int d=0; d<ifdofs.Size(); ++d)
 	    {
-	      const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
+	      const int sddof_d = sddofs[d] >= 0 ? sddofs[d] : -1 - sddofs[d];
+	      const int ifdof_d = ifdofs[d] >= 0 ? ifdofs[d] : -1 - ifdofs[d];
+	      
+	      //const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
+	      const int sdtdof = fespace->GetLocalTDofNumber(sddof_d);
 
+	      /*
 	      MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
 	      fdofmap[ifdofs[d]] = sddofs[d];
 			  
@@ -2094,6 +2183,16 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 		{
 		  MFEM_VERIFY(dofmap[ifdofs[d]] == sdtdof || dofmap[ifdofs[d]] == -1, "");
 		  dofmap[ifdofs[d]] = sdtdof;
+		}
+	      */
+
+	      MFEM_VERIFY(fdofmap[ifdof_d] == sddof_d || fdofmap[ifdof_d] == -1, "");
+	      fdofmap[ifdof_d] = sddof_d;
+			  
+	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
+		{
+		  MFEM_VERIFY(dofmap[ifdof_d] == sdtdof || dofmap[ifdof_d] == -1, "");
+		  dofmap[ifdof_d] = sdtdof;
 		}
 	    }
 	}
@@ -2247,7 +2346,8 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
       }
     }
 
-  MPI_Allreduce((int*) ifpedge.data(), (int*) maxifpedge.data(), ifgSize, MPI_INT, MPI_MAX, ifespace->GetComm());
+  //MPI_Allreduce((int*) ifpedge.data(), (int*) maxifpedge.data(), ifgSize, MPI_INT, MPI_MAX, ifespace->GetComm());
+  MPI_Allreduce((int*) ifpedge.data(), (int*) maxifpedge.data(), ifgSize, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
   for (i=0; i<ifgSize; ++i)
     {
@@ -2331,6 +2431,8 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 		      MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
 		      for (int d=0; d<ifdofs.Size(); ++d)
 			{
+			  MFEM_VERIFY(sddofs[d] >= 0 && ifdofs[d] >= 0, "");
+			  
 			  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 
 			  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
@@ -2363,7 +2465,8 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	    {
 	      ifespace->GetEdgeDofs(ifMeshEdge, ifdofs);
 	      MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
-
+	      MFEM_VERIFY(ifdofs[0] >= 0, "");
+	      
 	      const int ltdof = ifespace->GetLocalTDofNumber(ifdofs[0]);
 	      if (ltdof >= 0)
 		{
@@ -2378,6 +2481,8 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	  
 	  for (int d=0; d<sddofs.Size(); ++d)
 	    {
+	      MFEM_VERIFY(sddofs[d] >= 0, "");
+
 	      const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 
 	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
@@ -2445,6 +2550,8 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	  MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
 	  for (int d=0; d<ifdofs.Size(); ++d)
 	    {
+	      MFEM_VERIFY(sddofs[d] >= 0 && ifdofs[d] >= 0, "");
+	      
 	      const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 
 	      MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
@@ -2486,9 +2593,16 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
       }
     
     ifpedge = gdofmap;
-    MPI_Allreduce((int*) ifpedge.data(), (int*) gdofmap.data(), ifgSize, MPI_INT, MPI_MAX, ifespace->GetComm());
+    //MPI_Allreduce((int*) ifpedge.data(), (int*) gdofmap.data(), ifgSize, MPI_INT, MPI_MAX, ifespace->GetComm());
+    MPI_Allreduce((int*) ifpedge.data(), (int*) gdofmap.data(), ifgSize, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+    for (i=0; i<ifgSize; ++i)
+      {
+	if (gdofmap[i] < 0)
+	  MFEM_VERIFY(gdofmap[i] >= 0, "");
+      }
   }
-  
+
   /*
   bool mapDefined = true;
   for (i=0; i<ifSize; ++i)
@@ -2663,11 +2777,17 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   ifNDH1grad = numInterfaces > 0 ? new HypreParMatrix*[numInterfaces] : NULL;
   ifNDH1gradT = numInterfaces > 0 ? new HypreParMatrix*[numInterfaces] : NULL;
   ifND_FS = numInterfaces > 0 ? new HypreParMatrix*[numInterfaces] : NULL;
-    
+  
   numLocalInterfaces = localInterfaces->size();
   globalInterfaceIndex.resize(numLocalInterfaces);
   globalInterfaceIndex.assign(numLocalInterfaces, -1);
-    
+
+  // QUESTION: is numLocalInterfaces == numInterfaces in general?
+  MFEM_VERIFY(numLocalInterfaces == numInterfaces, "");
+
+  ifNDtrue.assign(numInterfaces, 0);
+  ifH1true.assign(numInterfaces, 0);
+  
   for (int i=0; i<numInterfaces; ++i)
     {
       if (pmeshIF[i] == NULL)
@@ -2687,6 +2807,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  ifespace[i] = new ParFiniteElementSpace(pmeshIF[i], &fecbdry);  // Nedelec space for f_{m,j} when interface i is the j-th interface of subdomain m. 
 	  iH1fespace[i] = new ParFiniteElementSpace(pmeshIF[i], &fecbdryH1);  // H^1 space \rho_{m,j} when interface i is the j-th interface of subdomain m.
 
+	  ifNDtrue[i] = ifespace[i]->GetTrueVSize();
+	  ifH1true[i] = iH1fespace[i]->GetTrueVSize();
+
 	  cout << rank << ": Interface " << i << " number of bdry attributes: " << pmeshIF[i]->bdr_attributes.Size()
 	       << ", NE " << pmeshIF[i]->GetNE() << ", NBE " << pmeshIF[i]->GetNBE() << endl;
 
@@ -2700,7 +2823,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
       const int ifli = (*interfaceLocalIndex)[i];
 
-      MFEM_VERIFY((ifli >= 0) == (pmeshIF[i] != NULL), "");
+      //MFEM_VERIFY((ifli >= 0) == (pmeshIF[i] != NULL), "");
 	
       if (ifli >= 0)
 	{
@@ -2798,18 +2921,39 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
 	{
 	  const int interfaceIndex = subdomainLocalInterfaces[m][i];
-	    
-	  size += ifespace[interfaceIndex]->GetTrueVSize();
-	  size += iH1fespace[interfaceIndex]->GetTrueVSize();
+	  
+	  MFEM_VERIFY((ifespace[interfaceIndex] == NULL) == (iH1fespace[interfaceIndex] == NULL), "");
 
-	  block_trueOffsets[m+1] += ifespace[interfaceIndex]->GetTrueVSize();
-	  block_trueOffsets[m+1] += iH1fespace[interfaceIndex]->GetTrueVSize();
+	  /*
+	  if (ifespace[interfaceIndex] == NULL)
+	    {
+	      InterfaceToSurfaceInjection[m][i] = NULL;
+	      continue;
+	    }
+	  */
+	  
+	  size += ifNDtrue[interfaceIndex];  // ifespace[interfaceIndex]->GetTrueVSize();
+	  size += ifH1true[interfaceIndex]; // iH1fespace[interfaceIndex]->GetTrueVSize();
 
+	  block_trueOffsets[m+1] += ifNDtrue[interfaceIndex]; // ifespace[interfaceIndex]->GetTrueVSize();
+	  block_trueOffsets[m+1] += ifH1true[interfaceIndex]; // iH1fespace[interfaceIndex]->GetTrueVSize();
+
+	  const int ifli = (*interfaceLocalIndex)[interfaceIndex];
+	  MFEM_VERIFY(ifli >= 0, "");
+
+	  SetInterfaceToSurfaceDOFMap(ifespace[interfaceIndex], fespace[m], fespaceGlobal, pmeshGlobal, m+1, (*localInterfaces)[ifli].faces, 
+				      (*localInterfaces)[ifli].edges, (*localInterfaces)[ifli].vertices, &fecbdry,
+				      InterfaceToSurfaceInjectionData[m][i], //InterfaceToSurfaceInjectionFullData[m][i],
+				      InterfaceToSurfaceInjectionGlobalData[m][i]);
+
+	  InterfaceToSurfaceInjection[m][i] = new InjectionOperator(fespace[m], ifespace[interfaceIndex],
+								    &(InterfaceToSurfaceInjectionData[m][i][0]),
+								    InterfaceToSurfaceInjectionGlobalData[m][i]);
+	  
+	  /*
 	  if (fespace[m] != NULL)
 	    {
-	      const int ifli = (*interfaceLocalIndex)[interfaceIndex];
-	      MFEM_VERIFY(ifli >= 0, "");
-
+	  */
 	      /*
 		if (m == 0)
 		{ // debugging
@@ -2847,12 +2991,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		}
 		}
 	      */
-		
-	      SetInterfaceToSurfaceDOFMap(ifespace[interfaceIndex], fespace[m], fespaceGlobal, pmeshGlobal, m+1, (*localInterfaces)[ifli].faces, 
-					  (*localInterfaces)[ifli].edges, (*localInterfaces)[ifli].vertices, &fecbdry,
-					  InterfaceToSurfaceInjectionData[m][i], //InterfaceToSurfaceInjectionFullData[m][i],
-					  InterfaceToSurfaceInjectionGlobalData[m][i]);
-	    
+	  /*			    
 	      InterfaceToSurfaceInjection[m][i] = new InjectionOperator(fespace[m], ifespace[interfaceIndex],
 									&(InterfaceToSurfaceInjectionData[m][i][0]),
 									InterfaceToSurfaceInjectionGlobalData[m][i]);
@@ -2861,6 +3000,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    {
 	      InterfaceToSurfaceInjection[m][i] = NULL;
 	    }
+	  */
 	}
     }
 
@@ -2916,18 +3056,25 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #ifdef DDMCOMPLEX
       // Real part
       SetToRealParameters();
-	
+
       AsdRe[m] = CreateSubdomainOperator(m);
 
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
       {
+	// Define a minimal communicator for each subdomain and its interfaces.
+	
 	const int locSizeSD = trueOffsetsSD[m][trueOffsetsSD[m].Size()-1];
 
 	int color = (locSizeSD == 0);
 	const int status = MPI_Comm_split(MPI_COMM_WORLD, color, m_rank, &(sd_com[m]));
 	MFEM_VERIFY(status == MPI_SUCCESS, "Construction of comm failed");
       }
-	
+
+      for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
+	{
+	  InterfaceToSurfaceInjection[m][i]->SetComm(sd_com[m]);
+	}      
+
       CreateSubdomainHypreBlocks(m, AsdRe_HypreBlocks[m], AsdRe_HypreBlockCoef[m]);
 #endif
 	
@@ -2946,6 +3093,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       preconditionerMode = true;  // TODO!
       AsdP[m] = CreateSubdomainOperator(m);
       preconditionerMode = false;
+
+      SetParameters();
+      SetToImaginaryParameters();
 
       gmres->SetOperator(*(AsdP[m]));  // TODO: maybe try an SPD version of Asd with a CG solver instead of GMRES.
 #else
@@ -3025,23 +3175,26 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
       // Create operators for interface between subdomains sd0 and sd1, namely C_{sd0,sd1} R_{sd1}^T and the other.
 
+      if (ifNDtrue[ili] > 0)
+	{
 #ifdef DDMCOMPLEX
-      // Real part
-      SetToRealParameters();
+	  // Real part
+	  SetToRealParameters();
 	
-      globalInterfaceOpRe->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
+	  globalInterfaceOpRe->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
 #ifndef ELIMINATE_REDUNDANT_VARS
-      globalInterfaceOpRe->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
+	  globalInterfaceOpRe->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
 #endif
 	
-      // Imaginary part
-      SetToImaginaryParameters();
+	  // Imaginary part
+	  SetToImaginaryParameters();
 	
-      globalInterfaceOpIm->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
+	  globalInterfaceOpIm->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
 #ifndef ELIMINATE_REDUNDANT_VARS
-      globalInterfaceOpIm->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
+	  globalInterfaceOpIm->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
 #endif
-	
+	}
+      
       // Set complex blocks
       rowTrueOffsetsComplexIF[ili].SetSize(3);
       colTrueOffsetsComplexIF[ili].SetSize(3);
@@ -3062,29 +3215,34 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	PrintNonzerosOfInterfaceOperator(globalInterfaceOpRe->GetBlock(sd0, sd1), fespace[sd0]->GetTrueVSize(), fespace[sd1]->GetTrueVSize(),
 	tdofsBdry[sd0], tdofsBdry[sd1], num_procs, rank);
       */
-	
-      BlockOperator *complexBlock01 = new BlockOperator(rowTrueOffsetsComplexIF[ili], colTrueOffsetsComplexIF[ili]);
-      complexBlock01->SetBlock(0, 0, &(globalInterfaceOpRe->GetBlock(sd0, sd1)));
-      complexBlock01->SetBlock(0, 1, &(globalInterfaceOpIm->GetBlock(sd0, sd1)), -1.0);
-      complexBlock01->SetBlock(1, 0, &(globalInterfaceOpIm->GetBlock(sd0, sd1)));
-      complexBlock01->SetBlock(1, 1, &(globalInterfaceOpRe->GetBlock(sd0, sd1)));
+      
+      if (ifNDtrue[ili] > 0)
+	{
+	  BlockOperator *complexBlock01 = new BlockOperator(rowTrueOffsetsComplexIF[ili], colTrueOffsetsComplexIF[ili]);
+	  complexBlock01->SetBlock(0, 0, &(globalInterfaceOpRe->GetBlock(sd0, sd1)));
+	  complexBlock01->SetBlock(0, 1, &(globalInterfaceOpIm->GetBlock(sd0, sd1)), -1.0);
+	  complexBlock01->SetBlock(1, 0, &(globalInterfaceOpIm->GetBlock(sd0, sd1)));
+	  complexBlock01->SetBlock(1, 1, &(globalInterfaceOpRe->GetBlock(sd0, sd1)));
 
 #ifndef ELIMINATE_REDUNDANT_VARS
-      BlockOperator *complexBlock10 = new BlockOperator(colTrueOffsetsComplexIF[ili], rowTrueOffsetsComplexIF[ili]);
-      complexBlock10->SetBlock(0, 0, &(globalInterfaceOpRe->GetBlock(sd1, sd0)));
-      complexBlock10->SetBlock(0, 1, &(globalInterfaceOpIm->GetBlock(sd1, sd0)), -1.0);
-      complexBlock10->SetBlock(1, 0, &(globalInterfaceOpIm->GetBlock(sd1, sd0)));
-      complexBlock10->SetBlock(1, 1, &(globalInterfaceOpRe->GetBlock(sd1, sd0)));
+	  BlockOperator *complexBlock10 = new BlockOperator(colTrueOffsetsComplexIF[ili], rowTrueOffsetsComplexIF[ili]);
+	  complexBlock10->SetBlock(0, 0, &(globalInterfaceOpRe->GetBlock(sd1, sd0)));
+	  complexBlock10->SetBlock(0, 1, &(globalInterfaceOpIm->GetBlock(sd1, sd0)), -1.0);
+	  complexBlock10->SetBlock(1, 0, &(globalInterfaceOpIm->GetBlock(sd1, sd0)));
+	  complexBlock10->SetBlock(1, 1, &(globalInterfaceOpRe->GetBlock(sd1, sd0)));
 #endif
 	
-      globalInterfaceOp->SetBlock(sd0, sd1, complexBlock01);
+	  globalInterfaceOp->SetBlock(sd0, sd1, complexBlock01);
 #ifndef ELIMINATE_REDUNDANT_VARS
-      globalInterfaceOp->SetBlock(sd1, sd0, complexBlock10);
+	  globalInterfaceOp->SetBlock(sd1, sd0, complexBlock10);
 #endif
-
+	}
 #else // if DDMCOMPLEX is not defined
-      globalInterfaceOp->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
-      globalInterfaceOp->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
+      if (ifNDtrue[ili] > 0)
+	{
+	  globalInterfaceOp->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
+	  globalInterfaceOp->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
+	}
 #endif
     }
     
@@ -3133,11 +3291,14 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
 	  {
 	    const int interfaceIndex = subdomainLocalInterfaces[m][i];
-	
+
+	    /*
 	    MFEM_VERIFY(ifespace[interfaceIndex] != NULL, "");
 	    MFEM_VERIFY(iH1fespace[interfaceIndex] != NULL, "");
-
-	    ifsize += ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
+	    */
+	    
+	    //ifsize += ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
+	    ifsize += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
 	  }
 
 	rowTrueOffsetsSD[m][2] = ifsize;
@@ -3261,7 +3422,13 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    //if (m == 1) HypreAsdComplex[m]->Print("HypreAsdComplex_Par7");
 	    //if (m == 1) HypreAsdComplex[m]->Print("HypreAsdComplex_Serial");
 		
-	    invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
+	    //invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
+	    invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), sd_com[m]);
+	  }
+	else
+	  {
+	    HypreAsdComplex[m] = NULL;
+	    invAsdComplex[m] = NULL;
 	  }
 #else // if not HYPRE_PARALLEL_ASDCOMPLEX
 	SpAsdComplex[m] = GetSparseMatrixFromOperator(AsdComplex[m]);
@@ -3300,8 +3467,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	invAsdComplex[m] = gmres;
 #endif // SPARSE_ASDCOMPLEX
 
-	globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injComplexSD[m]), invAsdComplex[m], injComplexSD[m],
-								    false, false, false));
+	if (invAsdComplex[m] != NULL)
+	  {
+	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injComplexSD[m]), invAsdComplex[m], injComplexSD[m],
+									false, false, false));
+	  }
 #else // if not DDMCOMPLEX
 	globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injSD[m]), invAsd[m], injSD[m], false, false, false));
 #endif // DDMCOMPLEX
@@ -3383,9 +3553,11 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
     {
       ySD[m] = NULL;
 	
-      if (pmeshSD[m] != NULL)
+      //if (pmeshSD[m] != NULL)
 	{
-	  sourceSD.SetSize(fespace[m]->GetTrueVSize());
+	  const int sdsize = (fespace[m] == NULL) ? 0 : fespace[m]->GetTrueVSize();
+	  //sourceSD.SetSize(fespace[m]->GetTrueVSize());
+	  sourceSD.SetSize(sdsize);
 
 	  // Map from the global u to [u_m f_m \rho_m], with blocks corresponding to subdomains, and f_m = 0, \rho_m = 0.
 #ifdef DDMCOMPLEX
@@ -3400,16 +3572,19 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 
 	  wSD.SetSize(AsdComplex[m]->Height());
 	  wSD = 0.0;
-	    
-	  sourceSD = -1.0e7;
-	  SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
 
-	  for (int i=0; i<sourceSD.Size(); ++i)
+	  if (sdsize > 0)
 	    {
-	      if (fabs(sourceSD[i]) > 1.0e5 || sourceSD[i] < -1.0e5)
-		cout << "Entry not set!!!!!!!!!!!!!!" << endl;
+	      sourceSD = -1.0e7;
+	      SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
+
+	      for (int i=0; i<sourceSD.Size(); ++i)
+		{
+		  if (fabs(sourceSD[i]) > 1.0e5 || sourceSD[i] < -1.0e5)
+		    cout << "Entry not set!!!!!!!!!!!!!!" << endl;
+		}
 	    }
-	    
+	  
 	  const bool explicitRHS = false;
 	  /*
 	    if (explicitRHS)
@@ -3455,8 +3630,11 @@ dc->Save();
     (*(ySD[m]))[i] = sourceSD[i];  // Set the u_m block of ySD, real part
 
   cout << rank << ": Setting imaginary subdomain DOFs, sd " << m << endl;
-  SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalIm, sourceSD);
-
+  if (sdsize > 0)
+    {
+      SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalIm, sourceSD);
+    }
+  
     cout << rank << ": Done setting imaginary subdomain DOFs, sd " << m << endl;
 
     if (explicitRHS)
@@ -3474,8 +3652,9 @@ dc->Save();
 	cout << rank << ": Applying invAsdComplex[" << m << "]" << endl;
 
 	//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplexCheck");
-	    
-	invAsdComplex[m]->Mult(*(ySD[m]), wSD);
+
+	if (invAsdComplex[m] != NULL)
+	  invAsdComplex[m]->Mult(*(ySD[m]), wSD);
 	//AsdComplex[m]->Mult(*(ySD[m]), wSD);
 
 	cout << rank << ": Done applying invAsdComplex[" << m << "], norm of wSD: " << wSD.Norml2() << endl;
@@ -3545,7 +3724,7 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	{
 #ifdef DDMCOMPLEX
 	  //MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets2[m+1] - block_trueOffsets2[m], "");  wrong
-	  MFEM_VERIFY(ySD[m]->Size() > block_trueOffsets2[m+1] - block_trueOffsets2[m], "");
+	  //MFEM_VERIFY(ySD[m]->Size() > block_trueOffsets2[m+1] - block_trueOffsets2[m], "");
 	  MFEM_VERIFY(ySD[m]->Size() == AsdComplex[m]->Height(), "");
 
 	  // Put the [u_m^s, f_m, \rho_m] entries of w (real and imaginary parts) into wSD.
@@ -3555,11 +3734,55 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	  for (int i=0; i<block_trueOffsets2[m+1] - block_trueOffsets2[m]; ++i)
 	    wSD[i] = w[block_trueOffsets2[m] + i];
 
+	  {
+	    const int imsize = wSD.Size() / 2;
+	    Vector wIm(imsize);
+
+	    for (int i=0; i<imsize; ++i)
+	      wIm[i] = wSD[imsize + i];
+
+	    const double normIm = wIm.Norml2();
+	    const double normIm2 = normIm*normIm;
+
+	    const double normW = wSD.Norml2();
+	    const double norm2 = normW*normW;
+
+	    for (int i=0; i<imsize; ++i)
+	      wIm[i] = solReduced[block_trueOffsets2[m] + i];
+
+	    const double normSolRe = wIm.Norml2();
+	    const double normSolRe2 = normSolRe*normSolRe;
+
+	    for (int i=0; i<imsize; ++i)
+	      wIm[i] = solReduced[block_trueOffsets2[m] + imsize + i];
+
+	    const double normSolIm = wIm.Norml2();
+	    const double normSolIm2 = normSolIm*normSolIm;
+
+	    double sumNormIm2 = 0.0;
+	    double sumNormSolRe2 = 0.0;
+	    double sumNormSolIm2 = 0.0;
+	    double sumNorm2 = 0.0;
+	    
+	    MPI_Allreduce(&norm2, &sumNorm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	    MPI_Allreduce(&normIm2, &sumNormIm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+	    MPI_Allreduce(&normSolRe2, &sumNormSolRe2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	    MPI_Allreduce(&normSolIm2, &sumNormSolIm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+	    if (m_rank == 0)
+	      {
+		cout << "Subdomain " << m << " global Norml2 of imaginary part of C_ij times reduced solution: " << sqrt(sumNormIm2) << ", full reduced " << sqrt(sumNorm2) << endl;
+		cout << "Subdomain " << m << " global Norml2 of real part of reduced solution: " << sqrt(sumNormSolRe2) << ", imaginary " << sqrt(sumNormSolIm2) << endl;
+	      }
+	  }
+	  
 	  injComplexSD[m]->Mult(wSD, uSD);
 
 	  *(ySD[m]) -= uSD;
 	  uSD = 0.0;
-	  invAsdComplex[m]->Mult(*(ySD[m]), uSD);
+	  if (invAsdComplex[m] != NULL)
+	    invAsdComplex[m]->Mult(*(ySD[m]), uSD);
 
 	  PrintSubdomainError(m, uSD, eSD);
 	  if (m_rank == 0)
@@ -3977,8 +4200,11 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int localInterface
     
   BlockOperator *rightInjection = new BlockOperator(rowTrueOffsetsIFR[localInterfaceIndex][orientation], colTrueOffsetsIFR[localInterfaceIndex][orientation]);
 
-  rightInjection->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd1][sd1if]),
-						     tdofsBdryInjection[sd1], false, false));
+  if (tdofsBdryInjection[sd1] != NULL)
+    {
+      rightInjection->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd1][sd1if]),
+							 tdofsBdryInjection[sd1], false, false));
+    }
   rightInjection->SetBlock(1, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize()));
 
   // Create left injection operator for sd0.
@@ -4001,7 +4227,11 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int localInterface
     
   BlockOperator *leftInjection = new BlockOperator(rowTrueOffsetsIFL[localInterfaceIndex][orientation], colTrueOffsetsIFL[localInterfaceIndex][orientation]);
 
-  leftInjection->SetBlock(0, 0, new ProductOperator(tdofsBdryInjectionTranspose[sd0], InterfaceToSurfaceInjection[sd0][sd0if], false, false));
+  if (tdofsBdryInjectionTranspose[sd0] != NULL)
+    {
+      leftInjection->SetBlock(0, 0, new ProductOperator(tdofsBdryInjectionTranspose[sd0], InterfaceToSurfaceInjection[sd0][sd0if], false, false));
+    }
+  
   leftInjection->SetBlock(1, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()));
 
   TripleProductOperator *CijS = new TripleProductOperator(leftInjection, Cij, rightInjection, false, false, false);
@@ -4267,10 +4497,14 @@ Solver* DDMInterfaceOperator::CreateSubdomainPreconditionerStrumpack(const int s
 	op->SetDiagonalBlock(0, sdNDinv[subdomain]);
       }
     }
-    
+
+  
   for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
     {
       const int interfaceIndex = subdomainLocalInterfaces[subdomain][i];
+
+      if (ifNDtrue[interfaceIndex] == 0)
+	continue;
 
       // Diagonal blocks
 
@@ -4340,12 +4574,16 @@ void DDMInterfaceOperator::SetOffsetsSD(const int subdomain)
   for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
     {
       const int interfaceIndex = subdomainLocalInterfaces[subdomain][i];
-	
+
+      /*
       MFEM_VERIFY(ifespace[interfaceIndex] != NULL, "");
       MFEM_VERIFY(iH1fespace[interfaceIndex] != NULL, "");
-	
-      trueOffsetsSD[subdomain][(2*i) + 2] += ifespace[interfaceIndex]->GetTrueVSize();
-      trueOffsetsSD[subdomain][(2*i) + 3] += iH1fespace[interfaceIndex]->GetTrueVSize();
+      */
+      
+      //trueOffsetsSD[subdomain][(2*i) + 2] += ifespace[interfaceIndex]->GetTrueVSize();
+      //trueOffsetsSD[subdomain][(2*i) + 3] += iH1fespace[interfaceIndex]->GetTrueVSize();
+      trueOffsetsSD[subdomain][(2*i) + 2] += ifNDtrue[interfaceIndex];
+      trueOffsetsSD[subdomain][(2*i) + 3] += ifH1true[interfaceIndex];
     }
     
   trueOffsetsSD[subdomain].PartialSum();
@@ -4378,6 +4616,8 @@ void DDMInterfaceOperator::SetOffsetsSD(const int subdomain)
 	  Array<int> sdMeshEdgeVert;
 	  sdMesh->GetEdgeVertices(j, sdMeshEdgeVert);
 	  MFEM_VERIFY(sdMeshEdgeVert.Size() == 2, "");
+
+	  MFEM_VERIFY(dofs[0] >= 0, "");
 	    
 	  const int sdtdof = fespace[subdomain]->GetLocalTDofNumber(dofs[0]);
 	  if (sdtdof >= 0)
@@ -4414,7 +4654,9 @@ void DDMInterfaceOperator::SetOffsetsSD(const int subdomain)
 	      Array<int> edgeVert;
 	      ifMesh->GetEdgeVertices(j, edgeVert);
 	      MFEM_VERIFY(edgeVert.Size() == 2, "");
-	    
+
+	      MFEM_VERIFY(dofs[0] >= 0, "");
+
 	      const int iftdof = ifespace[interfaceIndex]->GetLocalTDofNumber(dofs[0]);
 	      if (iftdof >= 0)
 		{
@@ -4437,7 +4679,9 @@ void DDMInterfaceOperator::SetOffsetsSD(const int subdomain)
 
 	      iH1fespace[interfaceIndex]->GetVertexDofs(j, dofs);
 	      MFEM_VERIFY(dofs.Size() == 1, ""); // only implemented for testing order 1 nodal elements
-	    
+
+	      MFEM_VERIFY(dofs[0] >= 0, "");
+
 	      const int iftdof = iH1fespace[interfaceIndex]->GetLocalTDofNumber(dofs[0]);
 	      if (iftdof >= 0)
 		{
@@ -4608,18 +4852,21 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 	  if (preconditionerMode)
 	    {
 	      // Create new HypreParMatrix for the sum
+	      HypreParMatrix *sumMassCC = NULL;
+	      if (ifNDtrue[interfaceIndex] > 0)
+		{
+		  (*(ifNDmass[interfaceIndex])) *= -alpha;
+		  (*(ifNDcurlcurl[interfaceIndex])) *= -beta;
 
-	      (*(ifNDmass[interfaceIndex])) *= -alpha;
-	      (*(ifNDcurlcurl[interfaceIndex])) *= -beta;
-
-	      HypreParMatrix *sumMassCC = ParAdd(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex]);
+		  sumMassCC = ParAdd(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex]);
 		    
-	      (*(ifNDmass[interfaceIndex])) *= -1.0 / alpha;
-	      (*(ifNDcurlcurl[interfaceIndex])) *= -1.0 / beta;
+		  (*(ifNDmass[interfaceIndex])) *= -1.0 / alpha;
+		  (*(ifNDcurlcurl[interfaceIndex])) *= -1.0 / beta;
+		}
 
 	      if (A_SS[subdomain] == NULL)
 		{
-		  A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, sdNDcopy[subdomain], sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
+		  A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
 									 InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 									 ifespace[interfaceIndex], NULL, true, PENALTY_U_S);
 		}
@@ -4630,7 +4877,7 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 
 		  HypreParMatrix *previousSum = A_SS[subdomain];
 		  
-		  A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, previousSum, sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
+		  A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], previousSum, sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
 									 InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 									 ifespace[interfaceIndex], NULL, true, PENALTY_U_S);
 
@@ -4638,55 +4885,65 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 		}
 
 	      delete sumMassCC;
-	      
-	      op->SetBlock(0, 0, A_SS[subdomain]);
+
+	      if (A_SS[subdomain] != NULL)
+		op->SetBlock(0, 0, A_SS[subdomain]);
 	    }
 	  else
 	    {
 	      // Sum operators abstractly, without adding matrices into a new HypreParMatrix.
 	      if (A_SS_op == NULL)
 		{
-		  A_SS_op = new SumOperator(sdND[subdomain],
-					    new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
+		  if (ifNDtrue[interfaceIndex] == 0)
+		    A_SS_op = sdND[subdomain];
+		  else
+		    {
+		      Operator *ifop = new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
 #ifdef EQUATE_REDUNDANT_VARS
-								      new SumOperator(new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()),
-										      new SumOperator(ifNDmass[interfaceIndex],
-												      ifNDcurlcurl[interfaceIndex],
-												      false, false, -alpha, -beta),
-										      false, false, sd1pen, 1.0),
+								 new SumOperator(new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()),
+										 new SumOperator(ifNDmass[interfaceIndex],
+												 ifNDcurlcurl[interfaceIndex],
+												 false, false, -alpha, -beta),
+										 false, false, sd1pen, 1.0),
 #else
-								      new SumOperator(ifNDmass[interfaceIndex],
-										      ifNDcurlcurl[interfaceIndex],
-										      false, false, -alpha, -beta),
+								 new SumOperator(ifNDmass[interfaceIndex],
+										 ifNDcurlcurl[interfaceIndex],
+										 false, false, -alpha, -beta),
 #endif
-								      new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
-								      false, false, false),
-					    false, false, 1.0, 1.0);
+								 new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
+								 false, false, false);
+
+		      A_SS_op = (sdND[subdomain] == NULL) ? ifop : new SumOperator(sdND[subdomain], ifop, false, false, 1.0, 1.0);
+		    }
 		}
 	      else
 		{
 		  // TODO: add another interface operator to A_SS_op
 		  // MFEM_VERIFY(false, "TODO");
 		  // TODO: this may be a memory leak, but its magnitude seems tolerable (each SumOperator just stores 2 vectors).
-		  A_SS_op = new SumOperator(A_SS_op,
-					    new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
+		  if (ifNDtrue[interfaceIndex] > 0)
+		    {
+		      A_SS_op = new SumOperator(A_SS_op,
+						new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
 #ifdef EQUATE_REDUNDANT_VARS
-								      new SumOperator(new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()),
-										      new SumOperator(ifNDmass[interfaceIndex],
-												      ifNDcurlcurl[interfaceIndex],
-												      false, false, -alpha, -beta),
-										      false, false, sd1pen, 1.0),
+									  new SumOperator(new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()),
+											  new SumOperator(ifNDmass[interfaceIndex],
+													  ifNDcurlcurl[interfaceIndex],
+													  false, false, -alpha, -beta),
+											  false, false, sd1pen, 1.0),
 #else
-								      new SumOperator(ifNDmass[interfaceIndex],
-										      ifNDcurlcurl[interfaceIndex],
-										      false, false, -alpha, -beta),
+									  new SumOperator(ifNDmass[interfaceIndex],
+											  ifNDcurlcurl[interfaceIndex],
+											  false, false, -alpha, -beta),
 #endif
-								      new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
-								      false, false, false),
-					    false, false, 1.0, 1.0);
+									  new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
+									  false, false, false),
+						false, false, 1.0, 1.0);
+		    }
 		}
-		
-	      op->SetBlock(0, 0, A_SS_op);
+
+	      if (A_SS_op != NULL)
+		op->SetBlock(0, 0, A_SS_op);
 	    }
 	}
       else  // if not real part
@@ -4694,12 +4951,15 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 	  // Sum operators abstractly, without adding matrices into a new HypreParMatrix.
 	  if (A_SS_op == NULL)
 	    {
-	      A_SS_op = new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
-						  new SumOperator(ifNDmass[interfaceIndex],
-								  ifNDcurlcurl[interfaceIndex],
-								  false, false, -alpha, -beta),
-						  new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
-						  false, false, false);
+	      if (ifNDtrue[interfaceIndex] > 0)
+		{
+		  A_SS_op = new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
+						      new SumOperator(ifNDmass[interfaceIndex],
+								      ifNDcurlcurl[interfaceIndex],
+								      false, false, -alpha, -beta),
+						      new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
+						      false, false, false);
+		}
 	    }
 	  else
 	    {
@@ -4707,16 +4967,20 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 	      //MFEM_VERIFY(false, "TODO");
 
 	      // TODO: this may be a memory leak, but its magnitude seems tolerable (each SumOperator just stores 2 vectors).
-	      A_SS_op = new SumOperator(A_SS_op, new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
-									   new SumOperator(ifNDmass[interfaceIndex],
-											   ifNDcurlcurl[interfaceIndex],
-											   false, false, -alpha, -beta),
-									   new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
-									   false, false, false),
-					false, false, 1.0, 1.0);
+	      if (ifNDtrue[interfaceIndex] > 0)
+		{
+		  A_SS_op = new SumOperator(A_SS_op, new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
+									       new SumOperator(ifNDmass[interfaceIndex],
+											       ifNDcurlcurl[interfaceIndex],
+											       false, false, -alpha, -beta),
+									       new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
+									       false, false, false),
+					    false, false, 1.0, 1.0);
+		}
 	    }
-		
-	  op->SetBlock(0, 0, A_SS_op);
+	  
+	  if (A_SS_op != NULL)
+	    op->SetBlock(0, 0, A_SS_op);
 	}
 #else
       // TODO: implement A_SS in the real case. 
@@ -4733,7 +4997,10 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
       // Since <<\rho>>_{mn} = \rho_m + \rho_n, the A_m^{S\rho} block is the part
       // -\gamma <\pi_{mn}(v_m), \nabla_\tau \rho_m >_{S_{mn}}
       // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
-	
+
+      if (ifNDtrue[interfaceIndex] == 0)
+	continue;
+
 #ifdef SCHURCOMPSD
       // Modify the A_m^{SF} block by subtracting A_m^{S\rho} A_m^{\rho\rho}^{-1} A_m^{\rho F}; drop the A_m^{S\rho} block
       op->SetBlock(0, (2*i) + 1, new TripleProductOperator(new ProductOperator(InterfaceToSurfaceInjection[subdomain][i], ifNDH1grad[interfaceIndex],
@@ -4891,7 +5158,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 
       // Add -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m>_{S_{mn}} - beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{nm}(u_n)>_{S_{mn}} to A_m^{SS}.
 #ifdef DDMCOMPLEX
-      HypreParMatrix *ifSum = Add(-alpha, *(ifNDmass[interfaceIndex]), -beta, *(ifNDcurlcurl[interfaceIndex]));
+      HypreParMatrix *ifSum = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(-alpha, *(ifNDmass[interfaceIndex]), -beta, *(ifNDcurlcurl[interfaceIndex]));
 
       // TODO: the following are wrong, just for testing!
       //HypreParMatrix *ifSum = ParAdd(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex]);
@@ -4913,7 +5180,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       if (A_SS_op == NULL)
 	{
 	  // TODO: try with sdND, to see if sdNDcopy is unnecessary.
-	  A_SS_op = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, sdNDcopy[subdomain], ifSum, InterfaceToSurfaceInjectionData[subdomain][i],
+	  A_SS_op = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifSum, InterfaceToSurfaceInjectionData[subdomain][i],
 							 InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 							 ifespace[interfaceIndex], NULL, true, 0.0, sdNDcoef);
 	}
@@ -4924,16 +5191,18 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 	  
 	  HypreParMatrix *previousSum = A_SS_op;
 
-	  A_SS_op = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, previousSum, ifSum, InterfaceToSurfaceInjectionData[subdomain][i],
+	  A_SS_op = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], previousSum, ifSum, InterfaceToSurfaceInjectionData[subdomain][i],
 							 InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 							 ifespace[interfaceIndex], NULL, true, 0.0, sdNDcoef);
 
 	  delete previousSum;
 	}
-		
-      block(0, 0) = A_SS_op;
 
-      delete ifSum;
+      if (A_SS_op != NULL)
+	block(0, 0) = A_SS_op;
+
+      if (ifSum != NULL)
+	delete ifSum;
 #else
       // TODO: implement A_SS in the real case. 
 #endif
@@ -4950,8 +5219,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       // -\gamma <\pi_{mn}(v_m), \nabla_\tau \rho_m >_{S_{mn}}
       // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
 
-      //HypreParMatrix* injectedTr = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDH1grad[interfaceIndex],
-      HypreParMatrix* injectedTr = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, sdNDcopy[subdomain], ifNDH1grad[interfaceIndex],
+      HypreParMatrix* injectedTr = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDH1grad[interfaceIndex],
 									InterfaceToSurfaceInjectionData[subdomain][i],
 									InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 									ifespace[interfaceIndex], iH1fespace[interfaceIndex], false);
@@ -4995,25 +5263,31 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 	}
 	}
       */
-	
+
+      if (injectedTr != NULL)
+	{
 #ifdef MIXED_MATRIX_NO_TRANSPOSE
-      block(0, (2*i) + 2) = injectedTr;
+	  block(0, (2*i) + 2) = injectedTr;
 #else
-      block(0, (2*i) + 2) = injectedTr->Transpose();  // not the most efficient implementation, to avoid premature optimization.
-      delete injectedTr;
+	  block(0, (2*i) + 2) = injectedTr->Transpose();  // not the most efficient implementation, to avoid premature optimization.
+	  delete injectedTr;
 #endif
+
+	  blockCoefficient(0, (2*i) + 2) = -gamma;
+	}
 	
-      blockCoefficient(0, (2*i) + 2) = -gamma;
 	
       // In PengLee2012 A_m^{F\rho} corresponds to
       // gamma / alpha <w_m^s, \nabla_\tau <<\rho>>_{mn} >_{S_{mn}}
       // Since <<\rho>>_{mn} = \rho_m + \rho_n, the A_m^{F\rho} block is the part
       // gamma / alpha <w_m, \nabla_\tau \rho_n >_{S_{mn}}
       // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
-
-      block((2*i) + 1, (2*i) + 2) = ifNDH1grad[interfaceIndex];
-      blockCoefficient((2*i) + 1, (2*i) + 2) = gammaOverAlpha;
-	
+      if (ifNDH1grad[interfaceIndex] != NULL)
+	{
+	  block((2*i) + 1, (2*i) + 2) = ifNDH1grad[interfaceIndex];
+	  blockCoefficient((2*i) + 1, (2*i) + 2) = gammaOverAlpha;
+	}
+      
       // In PengLee2012 A_m^{FS} corresponds to
       // <w_m^s, [[u]]_{mn}>_{S_{mn}} + beta/alpha <curl_\tau w_m, curl_\tau [[u]]_{mn}>_{S_{mn}}
       // Since [[u]]_{mn} = \pi_{mn}(u_m) - \pi_{nm}(u_n), the A_m^{FS} block is the part
@@ -5024,14 +5298,16 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       if (realPart)
 #endif
 	{
-	  ifSum = Add(1.0, *(ifNDmass[interfaceIndex]), betaOverAlpha, *(ifNDcurlcurl[interfaceIndex]));
+	  
+	  ifSum = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(1.0, *(ifNDmass[interfaceIndex]), betaOverAlpha, *(ifNDcurlcurl[interfaceIndex]));
 	  block((2*i) + 1, 0) = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifSum,
 								     InterfaceToSurfaceInjectionData[subdomain][i],
 								     InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 								     ifespace[interfaceIndex], NULL, false,
 								     0.0, 1.0, false);
-	    
-	  delete ifSum;
+	  
+	  if (ifSum != NULL)
+	    delete ifSum;
 	}
 #ifdef DDMCOMPLEX
       else
@@ -5050,6 +5326,9 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
       //op->SetBlock((2*i) + 2, (2*i) + 1, new TransposeOperator(ifNDH1grad[interfaceIndex]));  // TODO: Without this block, the block diagonal preconditioner works very well!
 
+      if (ifNDtrue[interfaceIndex] == 0)
+	continue;
+      
 #ifdef DDMCOMPLEX
       if (realPart)
 #endif
