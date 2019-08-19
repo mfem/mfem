@@ -55,10 +55,11 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   int num_procs, myid;
+   int num_procs, myid, num_gpus;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MFEM_CUDA_CHECK(cudaGetDeviceCount(&num_gpus));
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -109,7 +110,12 @@ int main(int argc, char *argv[])
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
+   const int dev = (myid%num_gpus);
+   mfem::out << "\033[31;1m[ex1p] myid: " << myid
+             << ", num_gpus:" << num_gpus << "\033[m";
+   Device device(device_config, dev);
+   mfem::out << "\033[31;1m[ex1p] dev: " << dev << "/" << num_gpus << "\033[m";
+   fflush(0);
    if (myid == 0) { device.Print(); }
    if (gpu_aware_mpi) { device.SetForceCudaAwareMPI(); }
 
@@ -231,7 +237,7 @@ int main(int argc, char *argv[])
    if (!pa) { prec = new HypreBoomerAMG; }
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
+   cg.SetMaxIter(8192);
    cg.SetPrintLevel(1);
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
