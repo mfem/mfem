@@ -25,6 +25,77 @@ namespace plasma
 // Used for combining scalar coefficients
 double prodFunc(double a, double b) { return a * b; }
 
+ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(double omega,
+						     VectorCoefficient &Er,
+						     VectorCoefficient &Ei,
+						     MatrixCoefficient &epsr,
+						     MatrixCoefficient &epsi)
+   : omega_(omega),
+     ErCoef_(Er),
+     EiCoef_(Ei),
+     epsrCoef_(epsr),
+     epsiCoef_(epsi),
+     Er_(3),
+     Ei_(3),
+     Dr_(3),
+     Di_(3),
+     eps_r_(3),
+     eps_i_(3)
+{}
+
+double ElectricEnergyDensityCoef::Eval(ElementTransformation &T,
+				       const IntegrationPoint &ip)
+{
+   ErCoef_.Eval(Er_, T, ip);
+   EiCoef_.Eval(Ei_, T, ip);
+
+   epsrCoef_.Eval(eps_r_, T, ip);
+   epsiCoef_.Eval(eps_i_, T, ip);
+
+   if (T.ElementNo == 1)
+   {
+     cout << "eps_r" << endl;
+     eps_r_.Print(std::cout, 3);
+     cout << "eps_i" << endl;
+     eps_i_.Print(std::cout, 3);
+   }
+   
+   eps_r_.Mult(Er_, Dr_);
+   eps_i_.AddMult_a(-1.0, Ei_, Dr_);
+
+   eps_i_.Mult(Er_, Di_);
+   eps_r_.AddMult(Ei_, Di_);
+
+   double u = (Er_ * Dr_) + (Ei_ * Di_);
+
+   return 0.5 * u;
+}
+
+MagneticEnergyDensityCoef::MagneticEnergyDensityCoef(double omega,
+						     VectorCoefficient &dEr,
+						     VectorCoefficient &dEi,
+						     Coefficient &muInv)
+   : omega_(omega),
+     dErCoef_(dEr),
+     dEiCoef_(dEi),
+     muInvCoef_(muInv),
+     Br_(3),
+     Bi_(3)
+{}
+
+double MagneticEnergyDensityCoef::Eval(ElementTransformation &T,
+				       const IntegrationPoint &ip)
+{
+   dErCoef_.Eval(Bi_, T, ip); Bi_ /=  omega_;
+   dEiCoef_.Eval(Br_, T, ip); Br_ /= -omega_;
+
+   double muInv = muInvCoef_.Eval(T, ip);
+
+   double u = ((Br_ * Br_) + (Bi_ * Bi_)) * muInv;
+
+   return 0.5 * u;
+}
+
 EnergyDensityCoef::EnergyDensityCoef(double omega,
                                      VectorCoefficient &Er,
                                      VectorCoefficient &Ei,
@@ -213,6 +284,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      e_v_(NULL),
      j_v_(NULL),
      u_(NULL),
+     uE_(NULL),
+     uB_(NULL),
      S_(NULL),
      epsReCoef_(&epsReCoef),
      epsImCoef_(&epsImCoef),
@@ -248,6 +321,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      deiCoef_(NULL),
      uCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_,
             *epsReCoef_, *epsImCoef_, *muInvCoef_),
+     uECoef_(omega_, erCoef_, eiCoef_, *epsReCoef_, *epsImCoef_),
+     uBCoef_(omega_, derCoef_, deiCoef_, *muInvCoef_),
      SrCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
      SiCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
      j_r_src_(j_r_src),
@@ -513,6 +588,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    {
       L2FESpace_ = new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension());
       u_ = new ParGridFunction(L2FESpace_);
+      uE_ = new ParGridFunction(L2FESpace_);
+      uB_ = new ParGridFunction(L2FESpace_);
 
       HDivFESpace_ = new RT_ParFESpace(pmesh_,2*order,pmesh_->Dimension());
       S_ = new ParComplexGridFunction(HDivFESpace_);
@@ -570,6 +647,8 @@ CPDSolver::~CPDSolver()
    // delete h_;
    delete j_;
    delete u_;
+   delete uE_;
+   delete uB_;
    // delete j_r_;
    // delete j_i_;
    // delete j_;
@@ -699,6 +778,8 @@ CPDSolver::Update()
    // Inform the grid functions that the space has changed.
    e_->Update();
    if (u_) { u_->Update(); }
+   if (uE_) { uE_->Update(); }
+   if (uB_) { uB_->Update(); }
    if (S_) { S_->Update(); }
    if (e_t_) { e_t_->Update(); }
    if (e_v_) { e_v_->Update(); }
@@ -1020,6 +1101,8 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
    if ( u_ )
    {
       visit_dc.RegisterField("U", u_);
+      visit_dc.RegisterField("U_E", uE_);
+      visit_dc.RegisterField("U_B", uB_);
       visit_dc.RegisterField("Re(S)", &S_->real());
       visit_dc.RegisterField("Im(S)", &S_->imag());
       // visit_dc.RegisterField("Im(u)", &u_->imag());
@@ -1045,6 +1128,8 @@ CPDSolver::WriteVisItFields(int it)
       if ( u_ )
       {
          u_->ProjectCoefficient(uCoef_);
+         uE_->ProjectCoefficient(uECoef_);
+         uB_->ProjectCoefficient(uBCoef_);
          S_->ProjectCoefficient(SrCoef_, SiCoef_);
       }
 
@@ -1087,6 +1172,12 @@ CPDSolver::InitializeGLVis()
    {
       socks_["U"] = new socketstream;
       socks_["U"]->precision(8);
+
+      socks_["U_E"] = new socketstream;
+      socks_["U_E"]->precision(8);
+
+      socks_["U_B"] = new socketstream;
+      socks_["U_B"]->precision(8);
 
       socks_["Sr"] = new socketstream;
       socks_["Sr"]->precision(8);
@@ -1185,10 +1276,20 @@ CPDSolver::DisplayToGLVis()
       Wx = 0; Wy += offy; // next line
 
       u_->ProjectCoefficient(uCoef_);
+      uE_->ProjectCoefficient(uECoef_);
+      uB_->ProjectCoefficient(uBCoef_);
       S_->ProjectCoefficient(SrCoef_, SiCoef_);
 
       VisualizeField(*socks_["U"], vishost, visport,
                      *u_, "Energy Density, U", Wx, Wy, Ww, Wh);
+
+      Wx += offx;
+      VisualizeField(*socks_["U_E"], vishost, visport,
+                     *uE_, "Energy Density, U_E", Wx, Wy, Ww, Wh);
+
+      Wx += offx;
+      VisualizeField(*socks_["U_B"], vishost, visport,
+                     *uB_, "Energy Density, U_B", Wx, Wy, Ww, Wh);
 
       Wx += offx;
       VisualizeField(*socks_["Sr"], vishost, visport,

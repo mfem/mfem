@@ -52,6 +52,53 @@ struct ComplexVectorCoefficientByAttr
    VectorCoefficient * imag;
 };
 
+class ElectricEnergyDensityCoef : public Coefficient
+{
+public:
+   ElectricEnergyDensityCoef(double omega,
+			     VectorCoefficient &Er, VectorCoefficient &Ei,
+			     MatrixCoefficient &epsr, MatrixCoefficient &epsi);
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+
+private:
+   double omega_;
+
+   VectorCoefficient &ErCoef_;
+   VectorCoefficient &EiCoef_;
+   MatrixCoefficient &epsrCoef_;
+   MatrixCoefficient &epsiCoef_;
+
+   mutable Vector Er_;
+   mutable Vector Ei_;
+   mutable Vector Dr_;
+   mutable Vector Di_;
+   mutable DenseMatrix eps_r_;
+   mutable DenseMatrix eps_i_;
+};
+
+class MagneticEnergyDensityCoef : public Coefficient
+{
+public:
+   MagneticEnergyDensityCoef(double omega,
+			     VectorCoefficient &dEr, VectorCoefficient &dEi,
+			     Coefficient &muInv);
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+
+private:
+   double omega_;
+
+   VectorCoefficient &dErCoef_;
+   VectorCoefficient &dEiCoef_;
+   Coefficient &muInvCoef_;
+
+   mutable Vector Br_;
+   mutable Vector Bi_;
+};
+
 class EnergyDensityCoef : public Coefficient
 {
 public:
@@ -250,6 +297,8 @@ private:
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
    ParGridFunction        * u_;   // Energy density (L2)
+   ParGridFunction        * uE_;  // Electric Energy density (L2)
+   ParGridFunction        * uB_;  // Magnetic Energy density (L2)
    ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
 
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
@@ -291,6 +340,8 @@ private:
    CurlGridFunctionCoefficient deiCoef_;
 
    EnergyDensityCoef     uCoef_;
+   ElectricEnergyDensityCoef uECoef_;
+   MagneticEnergyDensityCoef uBCoef_;
    PoyntingVectorReCoef SrCoef_;
    PoyntingVectorImCoef SiCoef_;
 
