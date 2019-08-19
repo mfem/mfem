@@ -286,7 +286,7 @@ int NCMesh::FindMidEdgeNode(int node1, int node2) const
    int mid = nodes.FindId(node1, node2);
    if (mid < 0 && shadow.Size())
    {
-      // if (anisotropic) refinement is underway, some nodes may temporarily
+      // if anisotropic refinements are present, some nodes may
       // be available under alternate parents (see ReparentNode)
       mid = shadow.FindId(node1, node2);
       if (mid >= 0)
@@ -4530,10 +4530,10 @@ int NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
       int n1 = el.node[fv[i]];
       int n2 = el.node[fv[j]];
 
-      const Node* en = nodes.Find(n1, n2);
-      MFEM_ASSERT(en != NULL, "edge not found.");
+      int enode = FindMidEdgeNode(n1, n2);
+      MFEM_ASSERT(enode >= 0, "edge not found.");
 
-      edge_index[i] = en->edge_index;
+      edge_index[i] = nodes[enode].edge_index;
       edge_orientation[i] = (vert_index[i] < vert_index[j]) ? 1 : -1;
    }
 
