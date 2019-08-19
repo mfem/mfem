@@ -147,39 +147,63 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
    field_in = field0;
    
    // The size is 2 * the number of elements * the number of integration points 
-   const int size = 2 * (mesh->GetNE()) * (fes->GetFE(0)->GetNodes().GetNPoints());
+   const int dim = mesh->Dimension();
+   const int size = dim * (mesh->GetNE()) * (fes->GetFE(0)->GetNodes().GetNPoints());
 
    // Positions to be found.  Ordered in (XXX...,YYY...)
    Vector positionsToFind(size);
    
    // Number of points to search for
-   const int pts_cnt = positionsToFind.Size()/2;
+   const int pts_cnt = positionsToFind.Size()/dim;
 
 
-   Vector pos(2);
+   Vector pos(dim);
    Array<int> dofs;
-   for (int i = 0; i < mesh->GetNE(); i++){
-         const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
-         fes->GetElementDofs(i, dofs);
+   if (dim == 2)
+   {
+       for (int i = 0; i < mesh->GetNE(); i++){
+             const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
+             fes->GetElementDofs(i, dofs);
          
-         for (int j = 0; j < ir.GetNPoints(); j++){
+             for (int j = 0; j < ir.GetNPoints(); j++){
              
-             const IntegrationPoint &ip = ir.IntPoint(j);
-             ElementTransformation *et = mesh->GetElementTransformation(i);
-             et->Transform(ip, pos);
+                 const IntegrationPoint &ip = ir.IntPoint(j);
+                 ElementTransformation *et = mesh->GetElementTransformation(i);
+                 et->Transform(ip, pos);
 
              
-             positionsToFind(dofs[j]) = pos(0);
-             positionsToFind(dofs[j]+pts_cnt) = pos(1);
+                 positionsToFind(dofs[j]) = pos(0);
+                 positionsToFind(dofs[j]+pts_cnt) = pos(1);
  
-         }
+             }
+       }
+   }
+   else
+   {
+       for (int i = 0; i < mesh->GetNE(); i++){
+             const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
+             fes->GetElementDofs(i, dofs);
+         
+             for (int j = 0; j < ir.GetNPoints(); j++){
+             
+                 const IntegrationPoint &ip = ir.IntPoint(j);
+                 ElementTransformation *et = mesh->GetElementTransformation(i);
+                 et->Transform(ip, pos);
+
+             
+                 positionsToFind(dofs[j]) = pos(0);
+                 positionsToFind(dofs[j]+pts_cnt) = pos(1);
+                 positionsToFind(dofs[j]+2*pts_cnt) = pos(2);
+ 
+             }
+       }  
    }
 
    
 
    // Interpolate FE function values on the found points.
    Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
-   Vector pos_r_out(pts_cnt*2), dist_p_out(pts_cnt);
+   Vector pos_r_out(pts_cnt*dim), dist_p_out(pts_cnt);
 
    
    finder.FindPoints(positionsToFind, code_out, task_id_out,
@@ -209,7 +233,7 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
    
    new_field = interp_vals;
    // interpolate second field
-   field_in = field2;
+   /*field_in = field2;
    
 
    // Interpolate FE function values on the found points.
@@ -241,7 +265,7 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
         << "\nPoints not found 2:    " << not_found
         << "\nPoints on faces 2:     " << face_pts << std::endl;*/
    
-   new_field2 = interp_vals;
+   //new_field2 = interp_vals;
 
 }
 

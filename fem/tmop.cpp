@@ -994,19 +994,23 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
             const double size = std::max(shape * tspec_vals, min_size);
             const double dx_dy = std::max(shape * tspec_vals2, min_size2);
-            
-            DenseMatrix t(2,2);
-            t(0,0) = 1.0;
-            t(1,0) = 0.0;
-            t(0,1) = 0.0;
-            t(1,1) = dx_dy;
-            double det = t.Det();
-            //std::cout << "det : " << det << std::endl;
-            //Jtr(i).Set(std::pow(size / det, 1.0/dim), t);
 
-            //Jtr(i).Set(1,t);
+            if (use_size_and_aspect_ratio == 0) 
+            {
+                  Jtr(i).Set(std::pow(size / Wideal.Det(), 1.0/dim), Wideal);
+            }
+            else
+            {
+                  DenseMatrix t(2,2);
+                  t(0,0) = 1.0;
+                  t(1,0) = 0.0;
+                  t(0,1) = 0.0;
+                  t(1,1) = dx_dy;
+                  double det = t.Det();
+                  Jtr(i).Set(std::pow(size / det, 1.0/dim), t);
+            }
 
-            Jtr(i).Set(std::pow(size / Wideal.Det(), 1.0/dim), Wideal);
+            //
                   
          }
 

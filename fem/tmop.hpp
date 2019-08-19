@@ -683,6 +683,7 @@ protected:
    // Data is owned, updated by UpdateTargetSpecification.
    Vector target_spec;
    Vector target_spec2;
+   int use_size_and_aspect_ratio;
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
    const FiniteElementSpace *tspec_fes;
@@ -692,9 +693,9 @@ protected:
    // Owned.
    AdaptivityEvaluator *adapt_eval;
 public:
-   DiscreteAdaptTC(TargetType ttype)
-      : TargetConstructor(ttype),
-        target_spec(),tspec_fes(NULL), tspec_fes2(NULL), adapt_eval(NULL) { }
+   DiscreteAdaptTC(TargetType ttype, int flag)
+      : TargetConstructor(ttype), 
+        target_spec(), target_spec2(),tspec_fes(NULL), tspec_fes2(NULL), adapt_eval(NULL) {use_size_and_aspect_ratio = flag;}
 
    virtual ~DiscreteAdaptTC() { delete adapt_eval;}
 

@@ -86,7 +86,7 @@ double weight_fun(const Vector &x);
 
 double ind_values(const Vector &x)
 {
-   const int opt = 7;
+   const int opt = 8;
    const double small = 0.001, big = 0.01;
    
    // Sine wave.
@@ -214,6 +214,36 @@ double ind_values(const Vector &x)
       return val;
    }
 
+   if (opt == 8)
+   {
+      // Circle in the middle.
+      double val = 0.;
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc + zc*zc);
+      double r1 = 0.15;double r2 = 0.35;double sf=30.0;
+      val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
+      if (val > 1.) {val = 1;}
+
+      return val * small + (1.0 - val) * big;
+      
+   }
+
+   if (opt == 9)
+   {
+      double val = 0.;
+      const double xc = x(0) - 0.0, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc + zc*zc);
+      double r1 = 0.45;double r2 = 0.55;double sf=30.0;
+      val = 0.75*(1+std::tanh(sf*(r-r1))) - 0.75*(1+std::tanh(sf*(r-r2)));
+      if (val > 1.) {val = 1;}
+      if (val < 0.) {val = 0;}
+      //std::cout << "Val: " << val * small + (1.0 - val) * big << std::endl;
+      return val * small + (1.0 - val) * big;
+   }
+
+   
+   
+
    return 0.0;
 }
 
@@ -275,7 +305,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-8;
+   double newton_rtol    = 1e-5;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -388,6 +418,7 @@ int main (int argc, char *argv[])
    //    means that we define the mesh elements through a fespace-based
    //    transformation of the reference element.
    mesh->SetNodalFESpace(fespace);
+   
 
    // 5. Set up an empty right-hand side vector b, which is equivalent to b=0.
    Vector b(0);
@@ -397,6 +428,7 @@ int main (int argc, char *argv[])
    //    changing x automatically changes the shapes of the mesh elements.
    GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
+   
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
@@ -420,7 +452,7 @@ int main (int argc, char *argv[])
       volume += mesh->GetElementVolume(i);
    }
    const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
-
+   
    // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
    //    zero on the boundary and its values are locally of the order of h0.
@@ -447,7 +479,7 @@ int main (int argc, char *argv[])
       for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
    x -= rdm;
-
+   
    // 9. Save the starting (prior to the optimization) mesh to a file. This
    //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
    {
@@ -496,6 +528,7 @@ int main (int argc, char *argv[])
    GridFunction d_y;
    GridFunction grad;
    GridFunction aspect_ratio;
+   
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -513,27 +546,29 @@ int main (int argc, char *argv[])
       case 5:
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t, aspect_ratio_flag);
          tc->SetAdaptivityEvaluator(new InterpolatorFP);
          size.SetSpace(&ind_fes);
          
-         d_x.SetSpace(&ind_fes);
+         /*d_x.SetSpace(&ind_fes);
          d_y.SetSpace(&ind_fes);
          grad.SetSpace(&ind_fes);
-         aspect_ratio.SetSpace(&ind_fes);
+         aspect_ratio.SetSpace(&ind_fes);*/
          FunctionCoefficient ind_coeff(ind_values);
+         
          size.ProjectCoefficient(ind_coeff);
+         
          error = size.ComputeL1Error(ind_coeff);
 
          //Diffuse the interface
-         DiffuseField(size,12);
-
+         //DiffuseField(size,12);
+        
          //Get  partials with respect to x and y of the grid function
-         size.GetDerivative(1,0,d_x);
-         size.GetDerivative(1,1,d_y);
+         //size.GetDerivative(1,0,d_x);
+         //size.GetDerivative(1,1,d_y);
 
          //Compute the squared magnitude of the gradient
-         for (int i = 0; i < grad.Size(); i++)
+         /*for (int i = 0; i < grad.Size(); i++)
          {
                grad(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
          }
@@ -545,8 +580,8 @@ int main (int argc, char *argv[])
                d_y(i) = std::abs(d_y(i));
          }
          const double eps = 0.05;
-         const double ratio = 5.0;
-         const double big_small_ratio = 5.0;
+         const double ratio = 10.0;
+         const double big_small_ratio = 10.0;
 
          for (int i = 0; i < grad.Size(); i++)
          {
@@ -593,7 +628,7 @@ int main (int argc, char *argv[])
              const double a = (big_zone_size - small_zone_size) / small_zone_size;
              grad(i) = big_zone_size / (1.0+a*val);
          }
-         DiffuseField(aspect_ratio, 50);
+         DiffuseField(aspect_ratio, 50);*/
          //DiffuseField(grad, 20);
          
          if (visualization)
@@ -601,21 +636,23 @@ int main (int argc, char *argv[])
             osockstream sock(19916, "localhost");
             sock << "solution\n";
             mesh->Print(sock);
-            grad.Save(sock);
+            size.Save(sock);
             sock.send();
             sock << "window_title 'Adaptivity Function'\n"
                  << "window_geometry "
                  << 0 << " " << 600 << " " << 600 << " " << 600 << "\n"
                  << "keys jRmclA" << endl;
-         }         
+         }     
+         //MFEM_ABORT("Done");    
          if (aspect_ratio_flag == 0){
-             tc->SetSerialDiscreteTargetSpec(grad,grad);
+             tc->SetSerialDiscreteTargetSpec(size,size);
              target_c = tc;
          }
+         /*
          if (aspect_ratio_flag == 1){
              tc->SetSerialDiscreteTargetSpec(grad,aspect_ratio);
              target_c = tc;
-         }
+         }*/
          break;
       }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
