@@ -133,6 +133,97 @@ void j_src(const Vector &x, Vector &j)
 void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
 
+class DensityProfile : public Coefficient
+{
+public:
+   /**
+      The different types of density profiles require different sets of
+      paramters, for example.
+
+      CONSTANT: 1 parameter
+         The constant value of the density
+
+      GRADIENT: 7 parameters
+         The value of the density at one point
+         The location of this point (3 parameters)
+         The gradient of the density at this point (3 parameters)
+
+      TANH: 9 parameters
+         The value of the density when tanh equals zero
+         The value of the density when tanh equals one
+         The skin depth, defined as the distance, in the direction of the
+            steepest gradient, between locations where tanh equals zero and
+            where tanh equals one-half.
+         The location of a point where tanh equals zero (3 parameters)
+         The unit vector in the direction of the steepest gradient away from
+            the location described by the previous parameter (3 parameters)
+
+    */
+   enum Type {CONSTANT, GRADIENT, TANH};
+
+private:
+   Type type_;
+   Vector p_;
+
+   const int np_[3] = {1, 7, 9};
+
+   mutable Vector x_;
+
+public:
+
+   DensityProfile(Type type, const Vector & params)
+      : type_(type), p_(params), x_(3)
+   {
+      MFEM_ASSERT(params.Size() >= np_[type],
+                  "Insufficient number of parameters, " << params.Size()
+                  << ", for profile of type: " << type << ".");
+   }
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      if (type_ != CONSTANT)
+      {
+         T.Transform(ip, x_);
+      }
+
+      switch (type_)
+      {
+         case CONSTANT:
+            return p_[0];
+            break;
+         case GRADIENT:
+         {
+            Vector x0(&p_[1], 3);
+            Vector drho(&p_[4], 3);
+
+            x_ -= x0;
+
+            return p_[0] + (drho * x_);
+         }
+         break;
+         case TANH:
+         {
+            Vector x0(&p_[3], 3);
+            Vector drho(&p_[6], 3);
+
+            x_ -= x0;
+            double a = 0.5 * log(3.0) * (drho * x_) / p_[2];
+
+            if (fabs(a) < 10.0)
+            {
+               return p_[0] + (p_[1] - p_[0]) * tanh(a);
+            }
+            else
+            {
+               return p_[1];
+            }
+         }
+         break;
+      }
+   }
+};
+
 class ColdPlasmaPlaneWave: public VectorCoefficient
 {
 public:
@@ -229,6 +320,9 @@ int main(int argc, char *argv[])
    Vector charges;
    Vector masses;
 
+   DensityProfile::Type dpt = DensityProfile::CONSTANT;
+   Vector dpp;
+
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbcs; // Sheath BC attributes
    Array<int> peca; // Perfect Electric Conductor BC attributes
@@ -259,6 +353,16 @@ int main(int argc, char *argv[])
                   "Frequency in Hertz (of course...)");
    args.AddOption(&hz, "-mh", "--mesh-height",
                   "Thickness of extruded mesh in meters.");
+   args.AddOption((int*)&dpt, "-dp", "--density-profile",
+                  "Density Profile Type (for ions): \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent.");
+   args.AddOption(&dpp, "-dpp", "--density-profile-params",
+                  "Density Profile Parameters:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -269,8 +373,8 @@ int main(int argc, char *argv[])
                   "Background magnetic flux vector");
    args.AddOption(&kVec[2], "-kz", "--wave-vector-z",
                   "z-Component of wave vector.");
-   args.AddOption(&numbers, "-num", "--number-densites",
-                  "Number densities of the various species");
+   // args.AddOption(&numbers, "-num", "--number-densites",
+   //               "Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
                   "Charges of the various species "
                   "(in units of electron charge)");
@@ -348,8 +452,38 @@ int main(int argc, char *argv[])
    if (numbers.Size() == 0)
    {
       numbers.SetSize(2);
-      numbers[0] = 1.0e19;
-      numbers[1] = 1.0e19;
+      if (dpp.Size() == 0)
+      {
+         numbers[0] = 1.0e19;
+         numbers[1] = 1.0e19;
+      }
+      else
+      {
+         switch (dpt)
+         {
+            case DensityProfile::CONSTANT:
+               numbers[0] = dpp[0];
+               numbers[1] = dpp[0];
+               break;
+            case DensityProfile::GRADIENT:
+               numbers[0] = dpp[0];
+               numbers[1] = dpp[0];
+               break;
+            case DensityProfile::TANH:
+               numbers[0] = dpp[1];
+               numbers[1] = dpp[1];
+               break;
+            default:
+               numbers[0] = 1.0e19;
+               numbers[1] = 1.0e19;
+               break;
+         }
+      }
+   }
+   if (dpp.Size() == 0)
+   {
+      dpp.SetSize(1);
+      dpp[0] = 1.0e19;
    }
    if (charges.Size() == 0)
    {
@@ -603,9 +737,10 @@ int main(int argc, char *argv[])
    density_gf.MakeRef(&L2FESpace, density.GetBlock(2));
    density_gf.ProjectCoefficient(rhoCoef3);
    */
-   for (int i=0; i<numbers.Size(); i++)
+   for (int i=0; i<charges.Size(); i++)
    {
-      ConstantCoefficient rhoCoef(numbers[i]);
+      // ConstantCoefficient rhoCoef(numbers[i]);
+      DensityProfile rhoCoef(dpt, dpp);
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
    }
@@ -683,6 +818,20 @@ int main(int argc, char *argv[])
                      BField, "Background Magnetic Field",
                      Wx, Wy, Ww, Wh);
 
+      for (int i=0; i<charges.Size(); i++)
+      {
+         Wx += offx;
+
+         socketstream sock;
+         sock.precision(8);
+
+         stringstream oss;
+         oss << "Density Species " << i;
+         density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+         VisualizeField(sock, vishost, visport,
+                        density_gf, oss.str().c_str(),
+                        Wx, Wy, Ww, Wh);
+      }
    }
 
    // Setup coefficients for Dirichlet BC
