@@ -224,6 +224,9 @@ public:
    static bool GetForceCudaAwareMPI() { return Get().force_cuda_aware_mpi; }
    static void Synchronize() { MFEM_DEVICE_SYNC; }
 #endif
+
+   /** @brief Get the number of device available. */
+   static int GetDeviceCount() { return CuGetDeviceCount(); }
 };
 
 
