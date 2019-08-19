@@ -2512,28 +2512,15 @@ void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
 
 void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
 {
-   Element &old = elements[id.element];
-   const int *ev = GI[old.Geom()].edges[(int) id.local];
-   Node* node = nodes.Find(old.node[ev[0]], old.node[ev[1]]);
-   MFEM_ASSERT(node != NULL, "Edge not found.");
-
-   Element &el = elements[elem];
-   MFEM_ASSERT(el.ref_type == 0, "");
-
-   GeomInfo& gi = GI[el.Geom()];
-   for (int i = 0; i < gi.ne; i++)
+   if (elem != id.element)
    {
-      const int* ev = gi.edges[i];
-      if ((el.node[ev[0]] == node->p1 && el.node[ev[1]] == node->p2) ||
-          (el.node[ev[1]] == node->p1 && el.node[ev[0]] == node->p2))
-      {
-         id.local = i;
-         id.element = elem;
-         return;
-      }
+      Element &old = elements[id.element];
+      const int *ev = GI[old.Geom()].edges[(int) id.local];
+      int vn1 = old.node[ev[0]], vn2 = old.node[ev[1]];
 
+      id.element = elem;
+      id.local = find_element_edge(elements[elem], vn1, vn2);
    }
-   MFEM_ABORT("Edge not found.");
 }
 
 void ParNCMesh::ChangeRemainingMeshIds(Array<MeshId> &ids, int pos,
