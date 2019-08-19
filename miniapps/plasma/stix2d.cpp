@@ -231,7 +231,12 @@ int main(int argc, char *argv[])
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbcs; // Sheath BC attributes
-   Array<int> dbca; // Dirichlet BC attributes
+   Array<int> peca; // Perfect Electric Conductor BC attributes
+   Array<int> dbca1; // Dirichlet BC attributes
+   Array<int> dbca2; // Dirichlet BC attributes
+   Vector dbcv1; // Dirichlet BC values
+   Vector dbcv2; // Dirichlet BC values
+
    int num_elements = 10;
 
    SolverOptions solOpts;
@@ -305,8 +310,18 @@ int main(int argc, char *argv[])
                   "3D Vector Amplitude, 2D Position, Radius");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
-   args.AddOption(&dbca, "-dbcs", "--dirichlet-bc-surf",
-                  "Dirichlet Boundary Condition Surfaces");
+   args.AddOption(&peca, "-pecs", "--pec-bc-surf",
+                  "Perfect Electrical Conductor Boundary Condition Surfaces");
+   args.AddOption(&dbca1, "-dbcs1", "--dirichlet-bc-1-surf",
+                  "Dirichlet Boundary Condition Surfaces Using Value 1");
+   args.AddOption(&dbca2, "-dbcs2", "--dirichlet-bc-2-surf",
+                  "Dirichlet Boundary Condition Surfaces Using Value 2");
+   args.AddOption(&dbcv1, "-dbcv1", "--dirichlet-bc-1-vals",
+                  "Dirichlet Boundary Condition Value 1 (v_x v_y v_z)"
+		  " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+   args.AddOption(&dbcv2, "-dbcv2", "--dirichlet-bc-2-vals",
+                  "Dirichlet Boundary Condition Value 2 (v_x v_y v_z)"
+		  " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
    // args.AddOption(&num_elements, "-ne", "--num-elements",
    //             "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
@@ -678,29 +693,80 @@ int main(int argc, char *argv[])
    dbcs[0].imag = &EImCoef;
    */
 
+   int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0);
+
+   Array<ComplexVectorCoefficientByAttr> dbcs(dbcsSize);
+
    Vector zeroVec(3); zeroVec = 0.0;
-   Vector yVec(3); yVec = 0.0; yVec[1] = 1.0;
-   Vector yNegVec(3); yNegVec = 0.0; yNegVec[1] = -1.0;
+   Vector dbc1ReVec;
+   Vector dbc1ImVec;
+   Vector dbc2ReVec;
+   Vector dbc2ImVec;
+
+   if (dbcv1.Size() >= 3)
+   {
+     dbc1ReVec.SetDataAndSize(&dbcv1[0], 3);
+   }
+   else
+   {
+     dbc1ReVec.SetDataAndSize(&zeroVec[0], 3);
+   }
+   if (dbcv1.Size() >= 6)
+   {
+     dbc1ImVec.SetDataAndSize(&dbcv1[3], 3);
+   }
+   else
+   {
+     dbc1ImVec.SetDataAndSize(&zeroVec[0], 3);
+   }
+   if (dbcv2.Size() >= 3)
+   {
+     dbc2ReVec.SetDataAndSize(&dbcv2[0], 3);
+   }
+   else
+   {
+     dbc2ReVec.SetDataAndSize(&zeroVec[0], 3);
+   }
+   if (dbcv2.Size() >= 6)
+   {
+     dbc2ImVec.SetDataAndSize(&dbcv2[3], 3);
+   }
+   else
+   {
+     dbc2ImVec.SetDataAndSize(&zeroVec[0], 3);
+   }
+   
    VectorConstantCoefficient zeroCoef(zeroVec);
-   VectorConstantCoefficient yCoef(yVec);
-   VectorConstantCoefficient yNegCoef(yNegVec);
+   VectorConstantCoefficient dbc1ReCoef(dbc1ReVec);
+   VectorConstantCoefficient dbc1ImCoef(dbc1ImVec);
+   VectorConstantCoefficient dbc2ReCoef(dbc2ReVec);
+   VectorConstantCoefficient dbc2ImCoef(dbc2ImVec);
 
-   Array<ComplexVectorCoefficientByAttr> dbcs(3);
-
-   Array<int> dbcz(4); dbcz[0] = 1; dbcz[1] = 2; dbcz[2] = 3; dbcz[3] = 4;
-   dbcs[0].attr = dbcz;
-   dbcs[0].real = &zeroCoef;
-   dbcs[0].imag = &zeroCoef;
-
-   Array<int> dbcf(1); dbcf[0] = 5;
-   dbcs[1].attr = dbcf;
-   dbcs[1].real = &yCoef;
-   dbcs[1].imag = &zeroCoef;
-
-   Array<int> dbcb(1); dbcb[0] = 6;
-   dbcs[2].attr = dbcb;
-   dbcs[2].real = &yNegCoef;
-   dbcs[2].imag = &zeroCoef;
+   if (dbcsSize > 0)
+   {
+     int c = 0;
+     if (peca.Size() > 0)
+     {
+       dbcs[c].attr = peca;
+       dbcs[c].real = &zeroCoef;
+       dbcs[c].imag = &zeroCoef;
+       c++;
+     }
+     if (dbca1.Size() > 0)
+     {
+       dbcs[c].attr = dbca1;
+       dbcs[c].real = &dbc1ReCoef;
+       dbcs[c].imag = &dbc1ImCoef;
+       c++;
+     }
+     if (dbca2.Size() > 0)
+     {
+       dbcs[c].attr = dbca2;
+       dbcs[c].real = &dbc2ReCoef;
+       dbcs[c].imag = &dbc2ImCoef;
+       c++;
+     }
+   }
 
    cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;
 
