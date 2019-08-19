@@ -20,14 +20,15 @@ namespace mfem
 using namespace mfem;
 
 void AdvectorCG::SetInitialField(const Vector &init_nodes,
-                                 const Vector &init_field)
+                                 const Vector &init_field,
+                                 const Vector &init_field2)
 {
    nodes0 = init_nodes;
    field0 = init_field;
 }
 
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
-                                      Vector &new_field)
+                                      Vector &new_field, Vector &new_field2)
 {
    int myid = 0;
    Mesh *m = mesh;
@@ -118,102 +119,107 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    delete oper;
 }
 
-
-
 void InterpolatorFP::SetInitialField(const Vector &init_nodes,
                                      const Vector &init_field,
                                      const Vector &init_field2)
 {
    nodes0 = init_nodes;
    field0 = init_field;
-   field2 = init_field2;
+
    Mesh *m = mesh;
-   mesh->SetNodes(nodes0);
+#ifdef MFEM_USE_MPI
+   if (pmesh) { m = pmesh; }
+#endif
+   m->SetNodes(nodes0);
    
    const double rel_bbox_el = 0.05;
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
-   finder.Setup(*mesh, rel_bbox_el, newton_tol, npts_at_once);
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(pfes, "The parallel build of GSLIB doesn't work in serial.");
+   finder = new FindPointsGSLib(pfes->GetComm());
+#else
+   finder = new FindPointsGSLib();
+#endif
+   finder->Setup(*m, rel_bbox_el, newton_tol, npts_at_once);
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
                                           Vector &new_field,
                                           Vector &new_field2)
 {
+   Mesh *m = mesh;
+   FiniteElementSpace *f = fes;
+#ifdef MFEM_USE_MPI
+   if (pmesh) { m = pmesh; }
+   if (pfes)  { f = pfes; }
+#endif
+   m->SetNodes(new_nodes);
 
-   mesh->SetNodes(new_nodes);
-
-   GridFunction field_in(fes);
-   field_in = field0;
-   
    // The size is 2 * the number of elements * the number of integration points 
-   const int dim = mesh->Dimension();
-   const int size = dim * (mesh->GetNE()) * (fes->GetFE(0)->GetNodes().GetNPoints());
+   const int dim = m->Dimension();
+   const int size = dim * (m->GetNE()) * (f->GetFE(0)->GetNodes().GetNPoints());
 
    // Positions to be found.  Ordered in (XXX...,YYY...)
    Vector positionsToFind(size);
    
    // Number of points to search for
-   const int pts_cnt = positionsToFind.Size()/dim;
-
+   const int pts_cnt = positionsToFind.Size() / dim;
 
    Vector pos(dim);
    Array<int> dofs;
    if (dim == 2)
    {
-       for (int i = 0; i < mesh->GetNE(); i++){
-             const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
-             fes->GetElementDofs(i, dofs);
+      for (int i = 0; i < m->GetNE(); i++)
+      {
+         const IntegrationRule &ir = f->GetFE(i)->GetNodes();
+         f->GetElementDofs(i, dofs);
          
-             for (int j = 0; j < ir.GetNPoints(); j++){
-             
-                 const IntegrationPoint &ip = ir.IntPoint(j);
-                 ElementTransformation *et = mesh->GetElementTransformation(i);
-                 et->Transform(ip, pos);
+         for (int j = 0; j < ir.GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(j);
+            ElementTransformation *et = m->GetElementTransformation(i);
+            et->Transform(ip, pos);
 
-             
-                 positionsToFind(dofs[j]) = pos(0);
-                 positionsToFind(dofs[j]+pts_cnt) = pos(1);
- 
-             }
-       }
+            positionsToFind(dofs[j]) = pos(0);
+            positionsToFind(dofs[j]+pts_cnt) = pos(1);
+         }
+      }
    }
    else
    {
-       for (int i = 0; i < mesh->GetNE(); i++){
-             const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
-             fes->GetElementDofs(i, dofs);
+       for (int i = 0; i < m->GetNE(); i++)
+       {
+             const IntegrationRule &ir = f->GetFE(i)->GetNodes();
+             f->GetElementDofs(i, dofs);
          
-             for (int j = 0; j < ir.GetNPoints(); j++){
-             
+             for (int j = 0; j < ir.GetNPoints(); j++)
+             {
                  const IntegrationPoint &ip = ir.IntPoint(j);
-                 ElementTransformation *et = mesh->GetElementTransformation(i);
+                 ElementTransformation *et = m->GetElementTransformation(i);
                  et->Transform(ip, pos);
 
-             
                  positionsToFind(dofs[j]) = pos(0);
                  positionsToFind(dofs[j]+pts_cnt) = pos(1);
                  positionsToFind(dofs[j]+2*pts_cnt) = pos(2);
- 
              }
-       }  
+       }
    }
-
-   
 
    // Interpolate FE function values on the found points.
    Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
    Vector pos_r_out(pts_cnt*dim), dist_p_out(pts_cnt);
 
-   
-   finder.FindPoints(positionsToFind, code_out, task_id_out,
-                     el_id_out, pos_r_out, dist_p_out);
+   finder->FindPoints(positionsToFind, code_out, task_id_out,
+                      el_id_out, pos_r_out, dist_p_out);
    
    Vector interp_vals(pts_cnt);
-   finder.Interpolate(code_out, task_id_out, el_id_out,
-                      pos_r_out, field_in, interp_vals);
+   GridFunction field0_gf(f);
+   field0_gf = field0;
+   finder->Interpolate(code_out, task_id_out, el_id_out,
+                       pos_r_out, field0_gf, interp_vals);
 
-    int face_pts = 0, not_found = 0, found = 0;
+   int face_pts = 0, not_found = 0, found = 0;
 
    for (int i = 0; i < pts_cnt; i++)
    {

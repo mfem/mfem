@@ -923,7 +923,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec)
                               tspec.FESpace()->GetVDim());
 
    adapt_eval->SetInitialField
-         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
+         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec, target_spec);
 }
 #endif
 
@@ -980,8 +980,10 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          tspec_fes->GetElementDofs(e_id, dofs);
          target_spec.GetSubVector(dofs, tspec_vals);
 
-         target_spec2.GetSubVector(dofs,tspec_vals2);
-         
+         if (use_size_and_aspect_ratio)
+         {
+            target_spec2.GetSubVector(dofs, tspec_vals2);
+         }
 
          const double min_size = tspec_vals.Min();
          const double min_size2 = tspec_vals2.Min();
@@ -993,7 +995,6 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             const IntegrationPoint &ip = ir.IntPoint(i);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
             const double size = std::max(shape * tspec_vals, min_size);
-            const double dx_dy = std::max(shape * tspec_vals2, min_size2);
 
             if (use_size_and_aspect_ratio == 0) 
             {
@@ -1001,17 +1002,15 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             }
             else
             {
-                  DenseMatrix t(2,2);
-                  t(0,0) = 1.0;
-                  t(1,0) = 0.0;
-                  t(0,1) = 0.0;
-                  t(1,1) = dx_dy;
-                  double det = t.Det();
-                  Jtr(i).Set(std::pow(size / det, 1.0/dim), t);
+               const double dx_dy = std::max(shape * tspec_vals2, min_size2);
+               DenseMatrix t(2,2);
+               t(0,0) = 1.0;
+               t(1,0) = 0.0;
+               t(0,1) = 0.0;
+               t(1,1) = dx_dy;
+               double det = t.Det();
+               Jtr(i).Set(std::pow(size / det, 1.0/dim), t);
             }
-
-            //
-                  
          }
 
          break;

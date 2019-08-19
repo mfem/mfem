@@ -32,12 +32,14 @@ public:
    AdvectorCG() : AdaptivityEvaluator(), ode_solver(), nodes0(), field0() { }
 
    virtual void SetInitialField(const Vector &init_nodes,
-                                const Vector &init_field);
+                                const Vector &init_field,
+                                const Vector &init_field2);
 
+   /// The assumption is that new_nodes and new_field are ldof Vectors.
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field);
+                                     Vector &new_field,
+                                     Vector &new_field2);
 };
-
 
 class InterpolatorFP : public AdaptivityEvaluator
 {
@@ -45,26 +47,25 @@ private:
     Vector nodes0;
     Vector field0;
     Vector field2;
-    FindPointsGSLib finder;
+    FindPointsGSLib *finder;
 
 public:
-    InterpolatorFP() : AdaptivityEvaluator(), nodes0(), field0(), field2(){ }
+    InterpolatorFP() : AdaptivityEvaluator(),
+                       nodes0(), field0(), field2(), finder(NULL) { }
 
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field,
                                 const Vector &init_field2);
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field, 
+                                     Vector &new_field,
                                      Vector &new_field2);
-    ~InterpolatorFP(){finder.FreeData();}
+   ~InterpolatorFP()
+   {
+       finder->FreeData();
+       delete finder;
+   }
 };
-
-
-
-
-
-
 
 /// Performs a single remap advection step in serial.
 class SerialAdvectorCGOper : public TimeDependentOperator

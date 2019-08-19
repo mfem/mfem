@@ -86,7 +86,7 @@ double weight_fun(const Vector &x);
 
 double ind_values(const Vector &x)
 {
-   const int opt = 8;
+   const int opt = 6;
    const double small = 0.001, big = 0.01;
    
    // Sine wave.

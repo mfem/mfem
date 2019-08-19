@@ -164,7 +164,7 @@ double ind_values(const Vector &x)
       const double xc = x(0) - 0.0, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
       double r1 = 0.45;double r2 = 0.55;double sf=30.0;
-      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+      val = 0.75*(1+std::tanh(sf*(r-r1))) - 0.75*(1+std::tanh(sf*(r-r2)));
       if (val > 1.) {val = 1;}
       if (val < 0.) {val = 0;}
 
@@ -488,10 +488,11 @@ int main (int argc, char *argv[])
       case 5:
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t, false);
          size.SetSpace(&ind_fes);
          FunctionCoefficient ind_coeff(ind_values);
          size.ProjectCoefficient(ind_coeff);
+         tc->SetAdaptivityEvaluator(new InterpolatorFP);
          tc->SetParDiscreteTargetSpec(size);
          target_c = tc;
          break;

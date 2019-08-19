@@ -708,6 +708,7 @@ public:
        new mesh positions are given by new_x. */
    void UpdateTargetSpecification(const Vector &new_x);
 
+   /// Must be called before SetSerial/ParDiscreteTargetSpec!
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
       if (adapt_eval) { delete adapt_eval; }
