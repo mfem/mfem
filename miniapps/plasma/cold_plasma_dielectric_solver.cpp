@@ -26,10 +26,10 @@ namespace plasma
 double prodFunc(double a, double b) { return a * b; }
 
 ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(double omega,
-						     VectorCoefficient &Er,
-						     VectorCoefficient &Ei,
-						     MatrixCoefficient &epsr,
-						     MatrixCoefficient &epsi)
+                                                     VectorCoefficient &Er,
+                                                     VectorCoefficient &Ei,
+                                                     MatrixCoefficient &epsr,
+                                                     MatrixCoefficient &epsi)
    : omega_(omega),
      ErCoef_(Er),
      EiCoef_(Ei),
@@ -44,7 +44,7 @@ ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(double omega,
 {}
 
 double ElectricEnergyDensityCoef::Eval(ElementTransformation &T,
-				       const IntegrationPoint &ip)
+                                       const IntegrationPoint &ip)
 {
    ErCoef_.Eval(Er_, T, ip);
    EiCoef_.Eval(Ei_, T, ip);
@@ -54,12 +54,12 @@ double ElectricEnergyDensityCoef::Eval(ElementTransformation &T,
 
    if (T.ElementNo == 1)
    {
-     cout << "eps_r" << endl;
-     eps_r_.Print(std::cout, 3);
-     cout << "eps_i" << endl;
-     eps_i_.Print(std::cout, 3);
+      cout << "eps_r" << endl;
+      eps_r_.Print(std::cout, 3);
+      cout << "eps_i" << endl;
+      eps_i_.Print(std::cout, 3);
    }
-   
+
    eps_r_.Mult(Er_, Dr_);
    eps_i_.AddMult_a(-1.0, Ei_, Dr_);
 
@@ -72,9 +72,9 @@ double ElectricEnergyDensityCoef::Eval(ElementTransformation &T,
 }
 
 MagneticEnergyDensityCoef::MagneticEnergyDensityCoef(double omega,
-						     VectorCoefficient &dEr,
-						     VectorCoefficient &dEi,
-						     Coefficient &muInv)
+                                                     VectorCoefficient &dEr,
+                                                     VectorCoefficient &dEi,
+                                                     Coefficient &muInv)
    : omega_(omega),
      dErCoef_(dEr),
      dEiCoef_(dEi),
@@ -84,7 +84,7 @@ MagneticEnergyDensityCoef::MagneticEnergyDensityCoef(double omega,
 {}
 
 double MagneticEnergyDensityCoef::Eval(ElementTransformation &T,
-				       const IntegrationPoint &ip)
+                                       const IntegrationPoint &ip)
 {
    dErCoef_.Eval(Bi_, T, ip); Bi_ /=  omega_;
    dEiCoef_.Eval(Br_, T, ip); Br_ /= -omega_;

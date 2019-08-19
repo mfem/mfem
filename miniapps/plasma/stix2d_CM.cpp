@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
    Array<int> abcs;  // Absorbing BC attributes
    Array<int> sbcs;  // Sheath BC attributes
    Array<int> dbca;  // Dirichlet BC attributes
-   Array<int> ants_; // Antenna Dirichlet BC attributes 
+   Array<int> ants_; // Antenna Dirichlet BC attributes
    int num_elements = 10;
 
    SolverOptions solOpts;
@@ -312,20 +312,20 @@ int main(int argc, char *argv[])
                   "3D Vector Amplitude, 2D Position, Radius");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
-    args.AddOption(&sbcs, "-sbcs", "--sheath-bc-surf",
-                   "Sheath Boundary Condition Surfaces");
+   args.AddOption(&sbcs, "-sbcs", "--sheath-bc-surf",
+                  "Sheath Boundary Condition Surfaces");
    args.AddOption(&dbca, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
    args.AddOption(&dbcv_, "-dbcv", "--dirichlet-bc-val",
-		  "Real Dirichlet Boundary Condition Values");
+                  "Real Dirichlet Boundary Condition Values");
    args.AddOption(&dbcv_re_, "-dbcv_re", "--dirichlet-bc-re-val",
-		  "Imaginary part of complex Dirichlet values");
+                  "Imaginary part of complex Dirichlet values");
    args.AddOption(&dbcv_im_, "-dbcv_im", "--dirichlet-bc-im-val",
-		  "Real part of complex Dirichlet values");
+                  "Real part of complex Dirichlet values");
    args.AddOption(&ants_, "-ants", "--antenna-attr",
-		  "Boundary attributes of anteanna");
+                  "Boundary attributes of anteanna");
    args.AddOption(&antv_, "-antv", "--antenna-vals",
-		  "Efield values at antenna attributes");
+                  "Efield values at antenna attributes");
    // args.AddOption(&num_elements, "-ne", "--num-elements",
    //             "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
@@ -704,66 +704,67 @@ int main(int argc, char *argv[])
    if ( dbcv_.Size() > 0 )
    {
       MFEM_VERIFY(dbcv_.Size() == 3*dbca.Size(),
-                  "Each Dirichlet boundary condition value must be associated" 
+                  "Each Dirichlet boundary condition value must be associated"
                   "with exactly one Dirichlet boundary surface.");
 
       for (int i=0; i<dbca.Size(); i++)
       {
-          Vector dbcz_(3); dbcz_[0] = dbcv_[i];
-          dbcz_[1] = dbcv_[i+1]; dbcz_[2] = dbcv_[i+2];
-          VectorCoefficient *dbcz_Coef = new VectorConstantCoefficient(dbcz_);
-	
-          Array<int> resize(1);
-          dbcs[i].attr = resize;
-          
-          dbcs[i].attr = dbca[i];
-          dbcs[i].real = dbcz_Coef;
-          dbcs[i].imag = &zeroCoef;
+         Vector dbcz_(3); dbcz_[0] = dbcv_[i];
+         dbcz_[1] = dbcv_[i+1]; dbcz_[2] = dbcv_[i+2];
+         VectorCoefficient *dbcz_Coef = new VectorConstantCoefficient(dbcz_);
+
+         Array<int> resize(1);
+         dbcs[i].attr = resize;
+
+         dbcs[i].attr = dbca[i];
+         dbcs[i].real = dbcz_Coef;
+         dbcs[i].imag = &zeroCoef;
       }
    }
-   
+
    if ( dbcv_re_.Size() > 0 )
    {
-      MFEM_VERIFY(dbcv_re_.Size() == 3*dbca.Size() && dbcv_im_.Size() == 3*dbca.Size(),
-                  "Each Dirichlet boundary condition value must be associated" 
+      MFEM_VERIFY(dbcv_re_.Size() == 3*dbca.Size() &&
+                  dbcv_im_.Size() == 3*dbca.Size(),
+                  "Each Dirichlet boundary condition value must be associated"
                   "with exactly one Dirichlet boundary surface.");
-      
-     for (int i=0; i<dbca.Size(); i++)
+
+      for (int i=0; i<dbca.Size(); i++)
       {
-          Vector dbcz_re_(3); dbcz_re_[0] = dbcv_re_[i];
-          dbcz_re_[1] = dbcv_re_[i+1]; dbcz_re_[2] = dbcv_re_[i+2];
-          Vector dbcz_im_(3); dbcz_im_[0] = dbcv_im_[i];
-          dbcz_im_[1] = dbcv_im_[i+1]; dbcz_im_[2] = dbcv_im_[i+2];
-          VectorCoefficient *dbcz_reCoef = new VectorConstantCoefficient(dbcz_re_);
-          VectorCoefficient *dbcz_imCoef = new VectorConstantCoefficient(dbcz_im_);
-	
-          Array<int> resize(1);
-          dbcs[i].attr = resize;
-          
-          dbcs[i].attr = dbca[i];
-          dbcs[i].real = dbcz_reCoef;
-          dbcs[i].imag = dbcz_imCoef;
+         Vector dbcz_re_(3); dbcz_re_[0] = dbcv_re_[i];
+         dbcz_re_[1] = dbcv_re_[i+1]; dbcz_re_[2] = dbcv_re_[i+2];
+         Vector dbcz_im_(3); dbcz_im_[0] = dbcv_im_[i];
+         dbcz_im_[1] = dbcv_im_[i+1]; dbcz_im_[2] = dbcv_im_[i+2];
+         VectorCoefficient *dbcz_reCoef = new VectorConstantCoefficient(dbcz_re_);
+         VectorCoefficient *dbcz_imCoef = new VectorConstantCoefficient(dbcz_im_);
+
+         Array<int> resize(1);
+         dbcs[i].attr = resize;
+
+         dbcs[i].attr = dbca[i];
+         dbcs[i].real = dbcz_reCoef;
+         dbcs[i].imag = dbcz_imCoef;
       }
    }
 
    if ( ants_.Size() > 0 )
    {
       MFEM_VERIFY(antv_.Size() == 3*ants_.Size(),
-                  "Each Dirichlet boundary condition value must be associated" 
+                  "Each Dirichlet boundary condition value must be associated"
                   "with exactly one Dirichlet boundary surface.");
-      
+
       for (int i=0; i<ants_.Size(); i++)
       {
-          Vector antz_(3); antz_[0] = antv_[i];
-          antz_[1] = antv_[i+1]; antz_[2] = antv_[i+2];
-          VectorCoefficient *antz_Coef = new VectorConstantCoefficient(antz_);
-	
-          Array<int> resize(1);
-          dbcs[i+dbca.Size()].attr = resize;
-          
-          dbcs[i+dbca.Size()].attr = ants_[i];
-          dbcs[i+dbca.Size()].real = antz_Coef;
-          dbcs[i+dbca.Size()].imag = &zeroCoef;
+         Vector antz_(3); antz_[0] = antv_[i];
+         antz_[1] = antv_[i+1]; antz_[2] = antv_[i+2];
+         VectorCoefficient *antz_Coef = new VectorConstantCoefficient(antz_);
+
+         Array<int> resize(1);
+         dbcs[i+dbca.Size()].attr = resize;
+
+         dbcs[i+dbca.Size()].attr = ants_[i];
+         dbcs[i+dbca.Size()].real = antz_Coef;
+         dbcs[i+dbca.Size()].imag = &zeroCoef;
       }
    }
 
@@ -791,7 +792,7 @@ int main(int argc, char *argv[])
    dbcs[2].real = &yNegCoef;
    dbcs[2].imag = &zeroCoef;
    */
-  
+
    cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;
 
    // Create the Magnetostatic solver
@@ -956,18 +957,18 @@ int main(int argc, char *argv[])
    // delete epsCoef;
    // delete muInvCoef;
    // delete sigmaCoef;
-    
-    for ( int i=0; i<dbcs.Size(); i++)
-    {
-        if ( dbcs[i].real != NULL && dbcs[i].real != &zeroCoef)
-        {
-            delete dbcs[i].real;
-        }
-        if ( dbcs[i].imag != NULL && dbcs[i].imag != &zeroCoef)
-        {
-            delete dbcs[i].imag;
-        }
-    }
+
+   for ( int i=0; i<dbcs.Size(); i++)
+   {
+      if ( dbcs[i].real != NULL && dbcs[i].real != &zeroCoef)
+      {
+         delete dbcs[i].real;
+      }
+      if ( dbcs[i].imag != NULL && dbcs[i].imag != &zeroCoef)
+      {
+         delete dbcs[i].imag;
+      }
+   }
 
    return 0;
 }
@@ -1049,7 +1050,7 @@ SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
          pw_eta_inv_ = 0.0;
 
          for (int i=0; i<pw_eta_.Size(); i++)
-	   {
+         {
             pw_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
          }
       }

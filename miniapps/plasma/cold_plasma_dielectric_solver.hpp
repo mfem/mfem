@@ -56,8 +56,8 @@ class ElectricEnergyDensityCoef : public Coefficient
 {
 public:
    ElectricEnergyDensityCoef(double omega,
-			     VectorCoefficient &Er, VectorCoefficient &Ei,
-			     MatrixCoefficient &epsr, MatrixCoefficient &epsi);
+                             VectorCoefficient &Er, VectorCoefficient &Ei,
+                             MatrixCoefficient &epsr, MatrixCoefficient &epsi);
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
@@ -82,8 +82,8 @@ class MagneticEnergyDensityCoef : public Coefficient
 {
 public:
    MagneticEnergyDensityCoef(double omega,
-			     VectorCoefficient &dEr, VectorCoefficient &dEi,
-			     Coefficient &muInv);
+                             VectorCoefficient &dEr, VectorCoefficient &dEi,
+                             Coefficient &muInv);
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);

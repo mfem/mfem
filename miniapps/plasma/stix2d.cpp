@@ -422,10 +422,10 @@ int main(int argc, char *argv[])
                   "Dirichlet Boundary Condition Surfaces Using Value 2");
    args.AddOption(&dbcv1, "-dbcv1", "--dirichlet-bc-1-vals",
                   "Dirichlet Boundary Condition Value 1 (v_x v_y v_z)"
-		  " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+                  " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
    args.AddOption(&dbcv2, "-dbcv2", "--dirichlet-bc-2-vals",
                   "Dirichlet Boundary Condition Value 2 (v_x v_y v_z)"
-		  " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+                  " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
    // args.AddOption(&num_elements, "-ne", "--num-elements",
    //             "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
@@ -854,37 +854,37 @@ int main(int argc, char *argv[])
 
    if (dbcv1.Size() >= 3)
    {
-     dbc1ReVec.SetDataAndSize(&dbcv1[0], 3);
+      dbc1ReVec.SetDataAndSize(&dbcv1[0], 3);
    }
    else
    {
-     dbc1ReVec.SetDataAndSize(&zeroVec[0], 3);
+      dbc1ReVec.SetDataAndSize(&zeroVec[0], 3);
    }
    if (dbcv1.Size() >= 6)
    {
-     dbc1ImVec.SetDataAndSize(&dbcv1[3], 3);
+      dbc1ImVec.SetDataAndSize(&dbcv1[3], 3);
    }
    else
    {
-     dbc1ImVec.SetDataAndSize(&zeroVec[0], 3);
+      dbc1ImVec.SetDataAndSize(&zeroVec[0], 3);
    }
    if (dbcv2.Size() >= 3)
    {
-     dbc2ReVec.SetDataAndSize(&dbcv2[0], 3);
+      dbc2ReVec.SetDataAndSize(&dbcv2[0], 3);
    }
    else
    {
-     dbc2ReVec.SetDataAndSize(&zeroVec[0], 3);
+      dbc2ReVec.SetDataAndSize(&zeroVec[0], 3);
    }
    if (dbcv2.Size() >= 6)
    {
-     dbc2ImVec.SetDataAndSize(&dbcv2[3], 3);
+      dbc2ImVec.SetDataAndSize(&dbcv2[3], 3);
    }
    else
    {
-     dbc2ImVec.SetDataAndSize(&zeroVec[0], 3);
+      dbc2ImVec.SetDataAndSize(&zeroVec[0], 3);
    }
-   
+
    VectorConstantCoefficient zeroCoef(zeroVec);
    VectorConstantCoefficient dbc1ReCoef(dbc1ReVec);
    VectorConstantCoefficient dbc1ImCoef(dbc1ImVec);
@@ -893,28 +893,28 @@ int main(int argc, char *argv[])
 
    if (dbcsSize > 0)
    {
-     int c = 0;
-     if (peca.Size() > 0)
-     {
-       dbcs[c].attr = peca;
-       dbcs[c].real = &zeroCoef;
-       dbcs[c].imag = &zeroCoef;
-       c++;
-     }
-     if (dbca1.Size() > 0)
-     {
-       dbcs[c].attr = dbca1;
-       dbcs[c].real = &dbc1ReCoef;
-       dbcs[c].imag = &dbc1ImCoef;
-       c++;
-     }
-     if (dbca2.Size() > 0)
-     {
-       dbcs[c].attr = dbca2;
-       dbcs[c].real = &dbc2ReCoef;
-       dbcs[c].imag = &dbc2ImCoef;
-       c++;
-     }
+      int c = 0;
+      if (peca.Size() > 0)
+      {
+         dbcs[c].attr = peca;
+         dbcs[c].real = &zeroCoef;
+         dbcs[c].imag = &zeroCoef;
+         c++;
+      }
+      if (dbca1.Size() > 0)
+      {
+         dbcs[c].attr = dbca1;
+         dbcs[c].real = &dbc1ReCoef;
+         dbcs[c].imag = &dbc1ImCoef;
+         c++;
+      }
+      if (dbca2.Size() > 0)
+      {
+         dbcs[c].attr = dbca2;
+         dbcs[c].real = &dbc2ReCoef;
+         dbcs[c].imag = &dbc2ImCoef;
+         c++;
+      }
    }
 
    cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;

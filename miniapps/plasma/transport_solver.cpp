@@ -1215,7 +1215,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-     // cout << "offsets_[" << i << "] = " << offsets_[i] << endl;
+      // cout << "offsets_[" << i << "] = " << offsets_[i] << endl;
       // (*pgf_)[i]->SetData(u.GetData() + offsets_[i]);
       (*pgf_)[i]->MakeRef(fes_, u.GetData() + offsets_[i]);
    }
@@ -2057,7 +2057,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(DGParams & dg,
 
 void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
 {
-  // cout << "Setting time step: " << dt << " in NeutralDensityOp" << endl;
+   // cout << "Setting time step: " << dt << " in NeutralDensityOp" << endl;
    NLOperator::SetTimeStep(dt);
 
    nn1Coef_.SetBeta(dt);
@@ -2267,7 +2267,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
 
 void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
 {
-  // cout << "Setting time step: " << dt << " in IonDensityOp" << endl;
+   // cout << "Setting time step: " << dt << " in IonDensityOp" << endl;
    NLOperator::SetTimeStep(dt);
 
    nn1Coef_.SetBeta(dt);

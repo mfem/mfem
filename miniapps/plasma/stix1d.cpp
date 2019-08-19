@@ -769,11 +769,11 @@ int main(int argc, char *argv[])
    Array<ComplexVectorCoefficientByAttr> dbcs((dbca.Size()==0)?0:1);
    if (dbca.Size() > 0)
    {
-     dbcs[0].attr = dbca;
-     dbcs[0].real = &EReCoef;
-     dbcs[0].imag = &EImCoef;
+      dbcs[0].attr = dbca;
+      dbcs[0].real = &EReCoef;
+      dbcs[0].imag = &EImCoef;
    }
-   
+
    // Create the Magnetostatic solver
    CPDSolver CPD(pmesh, order, omega,
                  (CPDSolver::SolverType)sol, solOpts,
