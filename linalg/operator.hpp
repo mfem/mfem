@@ -291,11 +291,11 @@ public:
        details, see the PETSc Manual. */
    virtual Operator& GetExplicitGradient(const Vector &x) const;
 
-   /** @brief Setup the ODE linear system A(x,t) = (I - gamma J) or
-       A = (M - gamma J), where J(x,t) = df/dt(x,t).
+   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
+       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
 
-       @param[in]  x     The state at which A(x,t) should be evaluated.
-       @param[in]  fx    The current value of the ODE rhs function, f(x,t).
+       @param[in]  x     The state at which \f$A(x,t)\f$ should be evaluated.
+       @param[in]  fx    The current value of the ODE rhs function, \f$f(x,t)\f$.
        @param[in]  jok   Flag indicating if the Jacobian should be updated.
        @param[out] jcur  Flag to signal if the Jacobian was updated.
        @param[in]  gamma The scaled time step value.
@@ -307,8 +307,8 @@ public:
    virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
                                 int jok, int *jcur, double gamma);
 
-   /** @brief Solve the ODE linear system A x = b as setup by the method
-       ImplicitSetup().
+   /** @brief Solve the ODE linear system \f$ A x = b \f$ as setup by 
+       the method ImplicitSetup().
 
        @param[in]      b   The linear system right-hand side.
        @param[in,out]  x   On input, the initial guess. On output, the solution.
@@ -320,7 +320,7 @@ public:
        details, see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
-   /** @brief Setup the mass matrix in the ODE system M y' = f(y,t).
+   /** @brief Setup the mass matrix in the ODE system \f$ M y' = f(y,t) \f$ .
 
        If not re-implemented, this method simply generates an error.
 
@@ -328,8 +328,8 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassSetup();
 
-   /** @brief Solve the mass matrix linear system M x = b as setup by the method
-       MassSetup().
+   /** @brief Solve the mass matrix linear system \f$ M x = b \f$  
+       as setup by the method MassSetup().
 
        @param[in]      b   The linear system right-hand side.
        @param[in,out]  x   On input, the initial guess. On output, the solution.
@@ -341,7 +341,7 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassSolve(const Vector &b, Vector &x, double tol);
 
-   /** @brief Compute the mass matrix-vector product M x = v.
+   /** @brief Compute the mass matrix-vector productv \f$ v = M x \f$ .
 
        @param[in]   x The vector to multiply.
        @param[out]  v The result of the matrix-vector product.
