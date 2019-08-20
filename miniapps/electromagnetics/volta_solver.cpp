@@ -409,6 +409,11 @@ VoltaSolver::Solve()
    pcg.SetPreconditioner(amg);
    pcg.Mult(RHS, Phi);
 
+   double energy = InnerProduct(RHS, Phi);
+
+   if (myid_ == 0)
+   { cout << "Electrostatic field energy: " << energy << endl << flush; }
+
    // Extract the parallel grid function corresponding to the finite
    // element approximation Phi. This is the local solution on each
    // processor.
