@@ -249,22 +249,21 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
 HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), hiop_problem(NULL)
 { 
 #ifdef MFEM_USE_MPI
-  //in case a serial driver in parallel MFEM build calls HiOp
+  // Set in case a serial driver uses a parallel MFEM build.
   comm_ = MPI_COMM_WORLD;
   int initialized, nret = MPI_Initialized(&initialized); 
-  MFEM_ASSERT(MPI_SUCCESS==nret, "failure in calling MPI_Initialized");
-  if(!initialized) {
+  MFEM_ASSERT(MPI_SUCCESS == nret, "Failure in calling MPI_Initialized!");
+  if (!initialized)
+  {
     nret = MPI_Init(NULL, NULL);
-    MFEM_ASSERT(MPI_SUCCESS==nret, "failure in calling MPI_Init");
+    MFEM_ASSERT(MPI_SUCCESS == nret, "Failure in calling MPI_Init!");
   }
 #endif
 } 
 
 #ifdef MFEM_USE_MPI
 HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
-  : OptimizationSolver(_comm),
-    hiop_problem(NULL),
-    comm_(_comm) { }
+  : OptimizationSolver(_comm), hiop_problem(NULL), comm_(_comm) { }
 #endif
 
 HiopNlpOptimizer::~HiopNlpOptimizer()
