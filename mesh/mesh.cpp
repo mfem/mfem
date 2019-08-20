@@ -8142,8 +8142,9 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 1. Hash table of vertex to vertex connections corresponding to refined
       //    edges.
       HashTable<Hashed2> v_to_v;
+      bool uniform_refinement = 0;
 
-      if (type < 0)
+      if ( (uniform_refinement = (type < 0) ) )
          type = -type;
 
       int need_refinement, green_cycles;
@@ -8156,6 +8157,30 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          for (i = 0; i < marked_el.Size(); i++)
          {
             Bisection(marked_el[i], v_to_v);
+#if 0
+            if (uniform_refinement)
+            {
+                int ii = NumOfElements - 1, iii;
+
+                Bisection(ii, v_to_v);
+                iii = NumOfElements - 1;
+                Bisection(iii, v_to_v);
+                Bisection(NumOfElements - 1, v_to_v);
+                Bisection(iii, v_to_v);
+                Bisection(ii, v_to_v);
+                Bisection(NumOfElements - 1, v_to_v);
+                Bisection(ii, v_to_v);
+
+                Bisection(marked_el[i], v_to_v);
+                ii = NumOfElements - 1;
+                Bisection(ii, v_to_v);
+                Bisection(NumOfElements - 1, v_to_v);
+                Bisection(ii, v_to_v);
+                Bisection(marked_el[i], v_to_v);
+                Bisection(NumOfElements - 1, v_to_v);
+                Bisection(marked_el[i], v_to_v);
+            }
+#endif
          }
 
          // 3. Do the green refinement (to get conforming mesh).

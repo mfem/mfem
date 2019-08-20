@@ -193,7 +193,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          }
       }
 
-      if (mesh.Dim == 4)
+      if (false && mesh.Dim == 4)
       {
           int *temp = partitioning;
           partitioning = new int[60*mesh.NumOfElements];
@@ -4558,10 +4558,50 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
       // Check which tetrahedra have been refined
       for (int i = 0; i < group_stetr.RowSize(group); i++)
       {
+         int tmp;
          char tag = shared_tetra[group_tetra[i]].tag;
          int *v = shared_tetra[group_tetra[i]].v;
-         int ind = v_to_v.FindId(v[0], v[3]);
-         if (ind == -1) { continue; }
+         int mid[6] = {v_to_v.FindId(v[0], v[3]),
+                 v_to_v.FindId(v[3], v[2]),
+                 v_to_v.FindId(v[2], v[1]),
+                 v_to_v.FindId(v[1], v[0]),
+                 v_to_v.FindId(v[1], v[3]),
+                 v_to_v.FindId(v[0], v[2])};
+         int ind; // = v_to_v.FindId(v[0], v[3]);
+         //if (ind == -1) { continue; }
+         if (mid[0] != -1 && ((edges(mid[0] + old_nv, v[1]) != -1) || (v_to_v.FindId(mid[0] + old_nv, v[1]) != -1)))
+         {
+             ind = mid[0];
+         }
+         else if (mid[1] != -1 && ((edges(mid[1] + old_nv, v[0]) != -1) || (v_to_v.FindId(mid[1] + old_nv, v[0]) != -1)))
+         {
+             ind = mid[1];
+             tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = v[0]; v[0] = tmp;
+         }
+         else if (mid[2] != -1 && ((edges(mid[2] + old_nv, v[3]) != -1) || (v_to_v.FindId(mid[2] + old_nv, v[3]) != -1)))
+         {
+             ind = mid[2];
+             tmp = v[3]; v[3] = v[1]; v[1] = tmp; tmp = v[0]; v[0] = v[2]; v[2] = tmp;
+         }
+         else if (mid[3] != -1 && ((edges(mid[3] + old_nv, v[2]) != -1) || (v_to_v.FindId(mid[3] + old_nv, v[2]) != -1)))
+         {
+             ind = mid[3];
+             tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = v[0]; v[0] = tmp;
+         }
+         else if (mid[4] != -1 && ((edges(mid[4] + old_nv, v[2]) != -1) || (v_to_v.FindId(mid[4] + old_nv, v[2]) != -1)))
+         {
+             ind = mid[4];
+             tmp = v[2]; v[2] = v[0]; v[0] = v[1]; v[1] = tmp;
+         }
+         else if (mid[5] != -1 && ((edges(mid[5] + old_nv, v[3]) != -1) || (v_to_v.FindId(mid[5] + old_nv, v[3]) != -1)))
+         {
+             ind = mid[5];
+             tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = tmp;
+         }
+         else
+         {
+             continue;
+         }
 
          // This shared face is refined: walk the whole refinement tree
          const int edge_attr = 1;
