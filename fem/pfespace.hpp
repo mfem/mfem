@@ -431,22 +431,22 @@ public:
 
 
 // ***************************************************************************
-class DeviceGroupCommunicator : public GroupCommunicator
+class CudaGroupCommunicator : public GroupCommunicator
 {
 private:
+   const GroupCommunicator &gc;
    Table d_group_ldof;
    Table d_group_ltdof;
-   Array<double> d_group_buf;
+   mutable Array<double> d_group_buf;
 public:
-   DeviceGroupCommunicator(const GroupCommunicator&);
-   //~DeviceGroupCommunicator();
-   double *d_CopyGroupToBuffer(const double*,double*,int,int) const;
-   const double *d_CopyGroupFromBuffer(const double*, double*,int, int) const;
-   const double *d_ReduceGroupFromBuffer(const double*,double*,int,int) const;
-   void d_BcastBegin(double*,int);
-   void d_BcastEnd(double*, int);
-   void d_ReduceBegin(const double*);
-   void d_ReduceEnd(double*,int);
+   CudaGroupCommunicator(ParFiniteElementSpace &pfes);
+   double *CudaCopyGroupToBuffer(const double*,double*,int,int) const;
+   const double *CudaCopyGroupFromBuffer(const double*, double*,int) const;
+   const double *CudaReduceGroupFromBuffer(const double*,double*,int) const;
+   void CudaBcastBegin(const double*) const;
+   void CudaBcastEnd(double*) const;
+   void CudaReduceBegin(const double*) const;
+   void CudaReduceEnd(double*) const;
 };
 
 // ***************************************************************************
@@ -455,18 +455,17 @@ public:
 class CudaConformingProlongationOperator : public ConformingProlongationOperator
 {
 protected:
-   Array<int> d_external_ldofs;
-   DeviceGroupCommunicator *d_gc;
+   Array<int> d_ext_ldofs;
+   CudaGroupCommunicator d_gc;
    int kMaxTh;
 public:
-   CudaConformingProlongationOperator(const ParFiniteElementSpace &pfes);
-   virtual ~CudaConformingProlongationOperator();
+   CudaConformingProlongationOperator(ParFiniteElementSpace &pfes);
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
-   void d_Mult(const Vector &x, Vector &y) const;
-   void d_MultTranspose(const Vector &x, Vector &y) const;
-   void h_Mult(const Vector &x, Vector &y) const;
-   void h_MultTranspose(const Vector &x, Vector &y) const;
+   void CudaMult(const Vector &x, Vector &y) const;
+   void CudaMultTranspose(const Vector &x, Vector &y) const;
+   void HostMult(const Vector &x, Vector &y) const;
+   void HostMultTranspose(const Vector &x, Vector &y) const;
 };
 
 }
