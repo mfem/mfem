@@ -55,13 +55,10 @@
 //   By default the sources and fields are all zero
 //     mpirun -np 4 hertz
 //
-// ./stix1d -md 0.24 -ne 50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20'
 //
-// ./stix1d -md 0.24 -ne 50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20'
+// ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
 //
-// ./stix1d -md 0.007 -ne 50 -dbcs '3 5' -s 5 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20'
-//
-// ./stix1d -md 0.24 -ne 480 -dbcs '3 5' -s 5 -f 80e6 -maxit 1 -B '0 0 5.4' -w J -slab '0 1 0 0.16 0.02' -num '2e20 2e20'
+// mpirun -np 8 ./stix2d -rod '0 0 1 0 0 0.1' -dbcs '1' -w Z -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
 //
 //   Current source in a sphere with absorbing boundary conditions
 //     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
@@ -118,57 +115,29 @@ static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
 static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
 static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
 
-// Current Density Function
-static Vector slab_params_(0); // Amplitude of x, y, z current source
+// Storage for user-supplied, Dirichlet boundary conditions
+static Vector dbcv_(0);    // Real Dirichlet value
+static Vector dbcv_re_(0); // Real component of complex Dirichlet value
+static Vector dbcv_im_(0); // Imaginary component of complex Dirichlet value
 
-void slab_current_source(const Vector &x, Vector &j);
+// Current Density Function
+static Vector rod_params_
+(0); // Amplitude of x, y, z current source, position in 2D, and radius
+static Vector antv_(0); // Values of Efield for each antenna attribute
+
+void rod_current_source(const Vector &x, Vector &j);
 void j_src(const Vector &x, Vector &j)
 {
-   if (slab_params_.Size() > 0)
+   if (rod_params_.Size() > 0)
    {
-      slab_current_source(x, j);
+      rod_current_source(x, j);
    }
 }
-
-static Vector B_params_(0);
-void B_func(const Vector &x, Vector &E);
 
 // Electric Field Boundary Condition: The following function returns zero but
 // any function could be used.
 void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
-
-class StixLCoefficient : public Coefficient
-{
-private:
-   double   omega_;
-   VectorCoefficient & B_;
-   const Vector & number_;
-   const Vector & charge_;
-   const Vector & mass_;
-   mutable Vector BVec_;
-
-public:
-   StixLCoefficient(double omega, VectorCoefficient &B,
-                    const Vector & number,
-                    const Vector & charge,
-                    const Vector & mass)
-      : omega_(omega),
-        B_(B),
-        number_(number),
-        charge_(charge),
-        mass_(mass),
-        BVec_(3)
-   {}
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      B_.Eval(BVec_, T, ip);
-      double BMag = BVec_.Norml2();
-      return L_cold_plasma(omega_, BMag, number_, charge_, mass_);
-   }
-};
 
 class ColdPlasmaPlaneWave: public VectorCoefficient
 {
@@ -224,7 +193,7 @@ void Update(ParFiniteElementSpace & HCurlFESpace,
 //static double freq_ = 1.0e9;
 
 // Mesh Size
-static Vector mesh_dim_(0); // x, y, z dimensions of mesh
+//static Vector mesh_dim_(0); // x, y, z dimensions of mesh
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -238,10 +207,10 @@ int main(int argc, char *argv[])
    int logging = 1;
 
    // Parse command-line options.
+   const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
+   int ser_ref_levels = 0;
    int order = 1;
-   int maxit = 1;
-   // int serial_ref_levels = 0;
-   // int parallel_ref_levels = 0;
+   int maxit = 100;
    int sol = 2;
    int prec = 1;
    // int nspecies = 2;
@@ -250,7 +219,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = true;
 
-   double freq = 1.0e9;
+   double freq = 1.0e6;
    const char * wave_type = "R";
 
    Vector BVec(3);
@@ -260,13 +229,16 @@ int main(int argc, char *argv[])
    Vector kVec(3);
    kVec = 0.0;
 
+   double hz = -1.0;
+
    Vector numbers;
    Vector charges;
    Vector masses;
 
-   Array<int> abcs; // Absorbing BC attributes
-   Array<int> sbcs; // Sheath BC attributes
-   Array<int> dbca; // Dirichlet BC attributes
+   Array<int> abcs;  // Absorbing BC attributes
+   Array<int> sbcs;  // Sheath BC attributes
+   Array<int> dbca;  // Dirichlet BC attributes
+   Array<int> ants_; // Antenna Dirichlet BC attributes
    int num_elements = 10;
 
    SolverOptions solOpts;
@@ -277,24 +249,26 @@ int main(int argc, char *argv[])
    solOpts.euLvl = 1;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    // args.AddOption(&nspecies, "-ns", "--num-species",
    //               "Number of ion species.");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
+   args.AddOption(&hz, "-mh", "--mesh-height",
+                  "Thickness of extruded mesh in meters.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
                   "'O' - Ordinary, 'X' - Extraordinary, "
                   "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
-   args.AddOption(&B_params_, "-b", "--magnetic-flux",
-                  "Background magnetic flux parameters");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
-   args.AddOption(&kVec[1], "-ky", "--wave-vector-y",
-                  "y-Component of wave vector.");
    args.AddOption(&kVec[2], "-kz", "--wave-vector-z",
                   "z-Component of wave vector.");
    args.AddOption(&numbers, "-num", "--number-densites",
@@ -334,18 +308,26 @@ int main(int argc, char *argv[])
    args.AddOption(&pw_eta_im_, "-pwz-i", "--piecewise-eta-i",
                   "Piecewise values of Imaginary part of Complex Impedance "
                   "(one value per abc surface)");
-   args.AddOption(&slab_params_, "-slab", "--slab_params",
-                  "Amplitude");
+   args.AddOption(&rod_params_, "-rod", "--rod_params",
+                  "3D Vector Amplitude, 2D Position, Radius");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&sbcs, "-sbcs", "--sheath-bc-surf",
                   "Sheath Boundary Condition Surfaces");
    args.AddOption(&dbca, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
-   args.AddOption(&mesh_dim_, "-md", "--mesh_dimensions",
-                  "The x, y, z mesh dimensions");
-   args.AddOption(&num_elements, "-ne", "--num-elements",
-                  "The number of mesh elements in x");
+   args.AddOption(&dbcv_, "-dbcv", "--dirichlet-bc-val",
+                  "Real Dirichlet Boundary Condition Values");
+   args.AddOption(&dbcv_re_, "-dbcv_re", "--dirichlet-bc-re-val",
+                  "Imaginary part of complex Dirichlet values");
+   args.AddOption(&dbcv_im_, "-dbcv_im", "--dirichlet-bc-im-val",
+                  "Real part of complex Dirichlet values");
+   args.AddOption(&ants_, "-ants", "--antenna-attr",
+                  "Boundary attributes of anteanna");
+   args.AddOption(&antv_, "-antv", "--antenna-vals",
+                  "Efield values at antenna attributes");
+   // args.AddOption(&num_elements, "-ne", "--num-elements",
+   //             "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -389,28 +371,12 @@ int main(int argc, char *argv[])
    {
       num_elements = 10;
    }
-   if (mesh_dim_.Size() == 0)
+   if (hz < 0.0)
    {
-      mesh_dim_.SetSize(3);
-      mesh_dim_ = 0.0;
-   }
-   else if (mesh_dim_.Size() < 3)
-   {
-      double d0 = mesh_dim_[0];
-      double d1 = (mesh_dim_.Size() == 2) ? mesh_dim_[1] : 0.1 * d0;
-      mesh_dim_.SetSize(3);
-      mesh_dim_[0] = d0;
-      mesh_dim_[1] = d1;
-      mesh_dim_[2] = d1;
-   }
-   if (mesh_dim_[0] == 0.0)
-   {
-      mesh_dim_[0] = 1.0;
-      mesh_dim_[1] = 0.1;
-      mesh_dim_[2] = 0.1;
+      hz = 0.1;
    }
    double omega = 2.0 * M_PI * freq;
-   if (kVec[1] != 0.0 || kVec[2] != 0.0)
+   if (kVec[2] != 0.0)
    {
       phase_shift = true;
    }
@@ -497,40 +463,24 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
-                          mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+   // Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
+   //                      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+   Mesh * mesh2d = new Mesh(mesh_file, 1, 1);
+   for (int lev = 0; lev < ser_ref_levels; lev++)
+   {
+      mesh2d->UniformRefinement();
+   }
+   Mesh * mesh = Extrude2D(mesh2d, 3, hz);
+   delete mesh2d;
    {
       /*
-      vector<Vector> trans(2);
+      vector<Vector> trans(1);
       trans[0].SetSize(3);
-      trans[1].SetSize(3);
-      trans[0] = 0.0; trans[0][1] = mesh_dim_[1];
-      trans[1] = 0.0; trans[1][2] = mesh_dim_[2];
+      trans[0] = 0.0; trans[0][2] = hz;
       */
       Array<int> v2v(mesh->GetNV());
       for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
-      for (int i=0; i<=num_elements; i++)
-      {
-         v2v[ 3 * num_elements +  3 + i] = i; // y = sy, z = 0
-         v2v[12 * num_elements + 12 + i] = i; // y =  0, z = sz
-         v2v[15 * num_elements + 15 + i] = i; // y = sy, z = sz
-      }
-      for (int j=1; j<3; j++)
-      {
-         for (int i=0; i<=num_elements; i++)
-         {
-            v2v[(j + 12) * (num_elements +  1) + i] =
-               j * (num_elements +  1) + i;
-         }
-      }
-      for (int k=1; k<3; k++)
-      {
-         for (int i=0; i<=num_elements; i++)
-         {
-            v2v[(4 * k + 3) * (num_elements +  1) + i] =
-               4 * k * (num_elements +  1) + i;
-         }
-      }
+      for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
 
       Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, v2v);
       /*
@@ -559,6 +509,16 @@ int main(int argc, char *argv[])
       delete mesh;
       mesh = per_mesh;
    }
+   tic_toc.Stop();
+
+   if (mpi.Root() && logging > 0 )
+   {
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
+   if (mpi.Root())
+   {
+      cout << "Starting initialization." << endl;
+   }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
    mesh->EnsureNCMesh();
@@ -568,14 +528,6 @@ int main(int argc, char *argv[])
    // parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-
-   tic_toc.Stop();
-
-   if (mpi.Root() && logging > 0 )
-   {
-      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
-   }
-
    /*
    {
      for (int i=0; i<pmesh.GetNBE(); i++)
@@ -602,25 +554,8 @@ int main(int argc, char *argv[])
       return 3;
    }
    */
-   if (mpi.Root() && logging > 0)
-   {
-      cout << "Initializing coefficients..." << endl;
-   }
-   tic_toc.Clear();
-   tic_toc.Start();
-
-   VectorCoefficient * BCoef = NULL;
-   if (B_params_.Size()  == 7)
-   {
-      BCoef = new VectorFunctionCoefficient(3, B_func);
-   }
-   else
-   {
-      BCoef = new VectorConstantCoefficient(BVec);
-   }
+   VectorConstantCoefficient BCoef(BVec);
    VectorConstantCoefficient kCoef(kVec);
-
-   StixLCoefficient LCoef(omega, *BCoef, numbers, charges, masses);
    /*
    double ion_frac = 0.0;
    ConstantCoefficient rhoCoef1(rho1);
@@ -634,12 +569,10 @@ int main(int argc, char *argv[])
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
 
    ParGridFunction BField(&HDivFESpace);
-   ParGridFunction LField(&L2FESpace);
    // ParGridFunction temperature_gf;
    ParGridFunction density_gf;
 
-   BField.ProjectCoefficient(*BCoef);
-   LField.ProjectCoefficient(LCoef);
+   BField.ProjectCoefficient(BCoef);
 
    // int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
@@ -707,6 +640,7 @@ int main(int argc, char *argv[])
    ColdPlasmaPlaneWave EImCoef(wave_type[0], omega, BVec,
                                numbers, charges, masses, false);
 
+   /*
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
    {
       EReCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
@@ -714,19 +648,12 @@ int main(int argc, char *argv[])
       EImCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
                              mesh_dim_[0]);
    }
+   */
    if (phase_shift)
    {
       EReCoef.SetPhaseShift(kVec);
       EImCoef.SetPhaseShift(kVec);
    }
-
-   tic_toc.Stop();
-
-   if (mpi.Root() && logging > 0 )
-   {
-      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
-   }
-
    if (visualization)
    {
       ParComplexGridFunction EField(&HCurlFESpace);
@@ -739,40 +666,134 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      socketstream sock_Er, sock_Ei, sock_B, sock_L;
+      socketstream sock_Er, sock_Ei, sock_B;
       sock_Er.precision(8);
       sock_Ei.precision(8);
       sock_B.precision(8);
-      sock_L.precision(8);
 
       Wx += 2 * offx;
       VisualizeField(sock_Er, vishost, visport,
                      EField.real(), "Exact Electric Field, Re(E)",
                      Wx, Wy, Ww, Wh);
-
       Wx += offx;
+
       VisualizeField(sock_Ei, vishost, visport,
                      EField.imag(), "Exact Electric Field, Im(E)",
                      Wx, Wy, Ww, Wh);
-
       Wx -= offx;
       Wy += offy;
 
       VisualizeField(sock_B, vishost, visport,
-                     BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
+                     BField, "Background Magnetic Field",
+                     Wx, Wy, Ww, Wh);
 
-      VisualizeField(sock_L, vishost, visport,
-                     LField, "L", Wx, Wy, Ww, Wh);
    }
 
    // Setup coefficients for Dirichlet BC
-   Array<ComplexVectorCoefficientByAttr> dbcs((dbca.Size()==0)?0:1);
-   if (dbca.Size() > 0)
+   /*
+   Array<ComplexVectorCoefficientByAttr> dbcs(1);
+   dbcs[0].attr = dbca;
+   dbcs[0].real = &EReCoef;
+   dbcs[0].imag = &EImCoef;
+   */
+
+   Vector zeroVec(3); zeroVec = 0.0;
+   VectorConstantCoefficient zeroCoef(zeroVec);
+   Array<ComplexVectorCoefficientByAttr> dbcs(dbca.Size()+ants_.Size());
+
+   if ( dbcv_.Size() > 0 )
    {
-      dbcs[0].attr = dbca;
-      dbcs[0].real = &EReCoef;
-      dbcs[0].imag = &EImCoef;
+      MFEM_VERIFY(dbcv_.Size() == 3*dbca.Size(),
+                  "Each Dirichlet boundary condition value must be associated"
+                  "with exactly one Dirichlet boundary surface.");
+
+      for (int i=0; i<dbca.Size(); i++)
+      {
+         Vector dbcz_(3); dbcz_[0] = dbcv_[i];
+         dbcz_[1] = dbcv_[i+1]; dbcz_[2] = dbcv_[i+2];
+         VectorCoefficient *dbcz_Coef = new VectorConstantCoefficient(dbcz_);
+
+         Array<int> resize(1);
+         dbcs[i].attr = resize;
+
+         dbcs[i].attr = dbca[i];
+         dbcs[i].real = dbcz_Coef;
+         dbcs[i].imag = &zeroCoef;
+      }
    }
+
+   if ( dbcv_re_.Size() > 0 )
+   {
+      MFEM_VERIFY(dbcv_re_.Size() == 3*dbca.Size() &&
+                  dbcv_im_.Size() == 3*dbca.Size(),
+                  "Each Dirichlet boundary condition value must be associated"
+                  "with exactly one Dirichlet boundary surface.");
+
+      for (int i=0; i<dbca.Size(); i++)
+      {
+         Vector dbcz_re_(3); dbcz_re_[0] = dbcv_re_[i];
+         dbcz_re_[1] = dbcv_re_[i+1]; dbcz_re_[2] = dbcv_re_[i+2];
+         Vector dbcz_im_(3); dbcz_im_[0] = dbcv_im_[i];
+         dbcz_im_[1] = dbcv_im_[i+1]; dbcz_im_[2] = dbcv_im_[i+2];
+         VectorCoefficient *dbcz_reCoef = new VectorConstantCoefficient(dbcz_re_);
+         VectorCoefficient *dbcz_imCoef = new VectorConstantCoefficient(dbcz_im_);
+
+         Array<int> resize(1);
+         dbcs[i].attr = resize;
+
+         dbcs[i].attr = dbca[i];
+         dbcs[i].real = dbcz_reCoef;
+         dbcs[i].imag = dbcz_imCoef;
+      }
+   }
+
+   if ( ants_.Size() > 0 )
+   {
+      MFEM_VERIFY(antv_.Size() == 3*ants_.Size(),
+                  "Each Dirichlet boundary condition value must be associated"
+                  "with exactly one Dirichlet boundary surface.");
+
+      for (int i=0; i<ants_.Size(); i++)
+      {
+         Vector antz_(3); antz_[0] = antv_[i];
+         antz_[1] = antv_[i+1]; antz_[2] = antv_[i+2];
+         VectorCoefficient *antz_Coef = new VectorConstantCoefficient(antz_);
+
+         Array<int> resize(1);
+         dbcs[i+dbca.Size()].attr = resize;
+
+         dbcs[i+dbca.Size()].attr = ants_[i];
+         dbcs[i+dbca.Size()].real = antz_Coef;
+         dbcs[i+dbca.Size()].imag = &zeroCoef;
+      }
+   }
+
+   /*
+   Vector y(3); yVec = 0.0; yVec[1] = 1.0;
+   Vector yNegVec(3); yNegVec = 0.0; yNegVec[1] = -1.0;
+   VectorConstantCoefficient zeroCoef(zeroVec);
+   VectorConstantCoefficient yCoef(yVec);
+   VectorConstantCoefficient yNegCoef(yNegVec);
+
+   Array<ComplexVectorCoefficientByAttr> dbcs(3);
+
+   Array<int> dbcz(4); dbcz[0] = 1; dbcz[1] = 2; dbcz[2] = 3; dbcz[3] = 4;
+   dbcs[0].attr = dbcz;
+   dbcs[0].real = &zeroCoef;
+   dbcs[0].imag = &zeroCoef;
+
+   Array<int> dbcf(1); dbcf[0] = 5;
+   dbcs[1].attr = dbcf;
+   dbcs[1].real = &yCoef;
+   dbcs[1].imag = &zeroCoef;
+
+   Array<int> dbcb(1); dbcb[0] = 6;
+   dbcs[2].attr = dbcb;
+   dbcs[2].real = &yNegCoef;
+   dbcs[2].imag = &zeroCoef;
+   */
+
+   cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;
 
    // Create the Magnetostatic solver
    CPDSolver CPD(pmesh, order, omega,
@@ -784,7 +805,7 @@ int main(int argc, char *argv[])
                  abcs, sbcs, dbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
-                 (slab_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);
+                 (rod_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -793,12 +814,11 @@ int main(int argc, char *argv[])
    }
 
    // Initialize VisIt visualization
-   VisItDataCollection visit_dc("STIX1D-AMR-Parallel", &pmesh);
+   VisItDataCollection visit_dc("STIX2D-AMR-Parallel", &pmesh);
 
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
-      visit_dc.RegisterField("L", &LField);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
@@ -901,7 +921,7 @@ int main(int argc, char *argv[])
               {
                  if (errors[i] > threshold)
                  {
-                    refs.Append(Refinement(i, 1));
+                    refs.Append(Refinement(i, 3));
                  }
               }
               if (refs.Size() > 0)
@@ -912,7 +932,7 @@ int main(int argc, char *argv[])
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
-      Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
+      Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
              size_l2, numbers, density_offsets, density, density_gf);
       CPD.Update();
 
@@ -922,7 +942,7 @@ int main(int argc, char *argv[])
          pmesh.Rebalance();
 
          // Update again after rebalancing
-         Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
+         Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
                 size_l2, numbers, density_offsets, density, density_gf);
          CPD.Update();
       }
@@ -937,6 +957,18 @@ int main(int argc, char *argv[])
    // delete epsCoef;
    // delete muInvCoef;
    // delete sigmaCoef;
+
+   for ( int i=0; i<dbcs.Size(); i++)
+   {
+      if ( dbcs[i].real != NULL && dbcs[i].real != &zeroCoef)
+      {
+         delete dbcs[i].real;
+      }
+      if ( dbcs[i].imag != NULL && dbcs[i].imag != &zeroCoef)
+      {
+         delete dbcs[i].imag;
+      }
+   }
 
    return 0;
 }
@@ -973,15 +1005,15 @@ void Update(ParFiniteElementSpace & HCurlFESpace,
    }
 }
 
-// Print the STIX1D ascii logo to the given ostream
+// Print the stix2d ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-   os << "  _________ __   __        ____     ___" << endl
-      << " /   _____//  |_|__|__  __/_   | __| _/" << endl
-      << " \\_____  \\\\   __\\  \\  \\/  /|   |/ __ | " << endl
-      << " /        \\|  | |  |>    < |   / /_/ | " << endl
-      << "/_______  /|__| |__/__/\\_ \\|___\\____ | " << endl
-      << "        \\/               \\/         \\/ " << endl
+   os << "  _________ __   __       ________      ___" << endl
+      << " /   _____//  |_|__|__  __\\_____  \\  __| _/" << endl
+      << " \\_____  \\\\   __\\  \\  \\/  //  ____/ / __ | " << endl
+      << " /        \\|  | |  |>    </       \\/ /_/ | " << endl
+      << "/_______  /|__| |__/__/\\_ \\_______ \\____ | " << endl
+      << "        \\/               \\/       \\/    \\/ "  << endl
       << endl
       << "* Thomas H. Stix was a pioneer in the use of radio frequency"
       << " waves to heat" << endl
@@ -1035,13 +1067,12 @@ SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
                             Coefficient *& etaInvReCoef,
                             Coefficient *& etaInvImCoef )
 {
-   MFEM_VERIFY(pw_eta_re_.Size() == sbcs.Size() &&
-               pw_eta_im_.Size() == sbcs.Size(),
-               "Each impedance value must be associated with exactly one "
-               "sheath boundary surface.");
-
    if (pw_eta_re_.Size() > 0)
    {
+      MFEM_VERIFY(pw_eta_re_.Size() == sbcs.Size() &&
+                  pw_eta_im_.Size() == sbcs.Size(),
+                  "Each impedance value must be associated with exactly one "
+                  "sheath boundary surface.");
 
       pw_eta_inv_re_.SetSize(mesh.bdr_attributes.Size());
       pw_eta_inv_im_.SetSize(mesh.bdr_attributes.Size());
@@ -1072,23 +1103,24 @@ SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
    }
 }
 
-void slab_current_source(const Vector &x, Vector &j)
+void rod_current_source(const Vector &x, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    j.SetSize(x.Size());
    j = 0.0;
 
-   double width = slab_params_(4);
-   // double height = 1.0 / width;
-   double half_x_l = slab_params_(3) - 0.5 * width;
-   double half_x_r = slab_params_(3) + 0.5 * width;
+   double x0 = rod_params_(3);
+   double y0 = rod_params_(4);
+   double radius = rod_params_(5);
 
-   if (x(0) <= half_x_r && x(0) >= half_x_l)
+   double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
+
+   if (r2 <= radius * radius)
    {
-      j(0) = slab_params_(0);
-      j(1) = slab_params_(1);
-      j(2) = slab_params_(2);
+      j(0) = rod_params_(0);
+      j(1) = rod_params_(1);
+      j(2) = rod_params_(2);
    }
    // j *= height;
 }
@@ -1104,17 +1136,6 @@ void e_bc_i(const Vector &x, Vector &E)
 {
    E.SetSize(3);
    E = 0.0;
-}
-
-void B_func(const Vector &x, Vector &B)
-{
-   B.SetSize(3);
-
-   for (int i=0; i<3; i++)
-   {
-      B[i] = B_params_[i] +
-             (B_params_[i+3] - B_params_[i]) * x[0] / B_params_[6];
-   }
 }
 
 ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
