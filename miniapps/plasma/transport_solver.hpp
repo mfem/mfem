@@ -866,7 +866,7 @@ private:
       VectorCoefficient * bHatCoef_;
       ScalarVectorProductCoefficient ViCoef_;
       ScalarVectorProductCoefficient dtViCoef_;
-     
+
       IonSourceCoef           SizCoef_;
       ProductCoefficient   negSizCoef_;
 
@@ -882,8 +882,8 @@ private:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
                    ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                    int ion_charge, double DPerp,
-		   VectorCoefficient & bHatCoef,
-		   MatrixCoefficient & PerpCoef);
+                   VectorCoefficient & bHatCoef,
+                   MatrixCoefficient & PerpCoef);
 
       virtual void SetTimeStep(double dt);
 
@@ -945,8 +945,8 @@ private:
                  Array<int> & offsets,
                  int ion_charge, double neutral_mass, double neutral_temp,
                  double DiPerp,
-		 VectorCoefficient & bHatCoef,
-		 MatrixCoefficient & PerpCoef,
+                 VectorCoefficient & bHatCoef,
+                 MatrixCoefficient & PerpCoef,
                  unsigned int op_flag = 31, int logging = 0);
 
       ~CombinedOp();
@@ -990,8 +990,8 @@ public:
                   double neutral_mass,
                   double neutral_temp,
                   double Di_perp,
-		  VectorCoefficient & bHatCoef,
-		  MatrixCoefficient & perpCoef,
+                  VectorCoefficient & bHatCoef,
+                  MatrixCoefficient & perpCoef,
                   Coefficient &MomCCoef,
                   Coefficient &TiCCoef,
                   Coefficient &TeCCoef,

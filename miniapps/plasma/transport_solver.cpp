@@ -901,7 +901,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                double neutral_mass,
                                double neutral_temp,
                                double Di_perp,
-			       VectorCoefficient &bHatCoef,
+                               VectorCoefficient &bHatCoef,
                                MatrixCoefficient &perpCoef,
                                Coefficient &MomCCoef,
                                Coefficient &TiCCoef,
@@ -1199,7 +1199,7 @@ void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
 void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
                                    Vector &dudt)
 {
-  if (mpi_.Root() && logging_ > 1)
+   if (mpi_.Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::ImplicitSolve" << endl;
    }
@@ -1392,7 +1392,7 @@ void DGTransportTDO::Update()
 }
 
 DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
-				       const DGParams & dg, int index,
+                                       const DGParams & dg, int index,
                                        ParGridFunctionArray & pgf,
                                        ParGridFunctionArray & dpgf)
    : Operator(pgf[0]->ParFESpace()->GetVSize(),
@@ -1792,15 +1792,15 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 }
 
 DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
-				       const DGParams & dg,
+                                       const DGParams & dg,
                                        ParGridFunctionArray & pgf,
                                        ParGridFunctionArray & dpgf,
                                        Array<int> & offsets,
                                        int ion_charge,
                                        double neutral_mass, double neutral_temp,
                                        double DiPerp,
-				       VectorCoefficient &bHatCoef,
-				       MatrixCoefficient &PerpCoef,
+                                       VectorCoefficient &bHatCoef,
+                                       MatrixCoefficient &PerpCoef,
                                        unsigned int op_flag, int logging)
    : mpi_(mpi),
      neq_(5),
@@ -1837,7 +1837,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    if ((op_flag >> 1) & 1)
    {
       op_[1] = new IonDensityOp(mpi, dg, pgf, dpgf, ion_charge, DiPerp,
-				bHatCoef, PerpCoef);
+                                bHatCoef, PerpCoef);
       op_[1]->SetLogging(logging, "n_i: ");
    }
    else
@@ -2018,7 +2018,7 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
 }
 
 DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
-						   const DGParams & dg,
+                                                   const DGParams & dg,
                                                    ParGridFunctionArray & pgf,
                                                    ParGridFunctionArray & dpgf,
                                                    int ion_charge,
@@ -2232,12 +2232,12 @@ Operator *DGTransportTDO::NeutralDensityOp::GetGradientBlock(int i)
 }
 */
 DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
-					   const DGParams & dg,
+                                           const DGParams & dg,
                                            ParGridFunctionArray & pgf,
                                            ParGridFunctionArray & dpgf,
                                            int ion_charge,
                                            double DPerp,
-					   VectorCoefficient & bHatCoef,
+                                           VectorCoefficient & bHatCoef,
                                            MatrixCoefficient & PerpCoef)
    : NLOperator(mpi, dg, 1, pgf, dpgf), z_i_(ion_charge), DPerpConst_(DPerp),
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]), Te0Coef_(pgf[4]),
@@ -2269,7 +2269,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
    fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
    // bfbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
-   
+
    dlfi_.Append(new DomainLFIntegrator(negSizCoef_));
 
    // blf_[0] = new ParBilinearForm((*pgf_)[0]->ParFESpace());
@@ -2283,7 +2283,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    blf_[1]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(dtViCoef_));
    blf_[1]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtViCoef_,
-							    1.0, -0.5));
+                                                            1.0, -0.5));
    // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSndniCoef_));
 }
 
