@@ -221,6 +221,7 @@ public:
          }
          break;
       }
+      return 0.0;
    }
 };
 
