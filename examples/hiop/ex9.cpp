@@ -1,4 +1,4 @@
-//                                MFEM Example 9
+//            MFEM Example 9 with Nonlinear Constrained Optimization
 //
 // Compile with: make ex9
 //
@@ -28,8 +28,15 @@
 //    ex9 -m ../../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8 -opt 1
 //    ex9 -m ../../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8 -opt 2
 
+// Description:  This example modifies the standard MFEM ex9 by adding nonlinear
+//               constrained optimization capabilities through the SLBQP and
+//               HIOP solvers. It demonstrates how a user can define a custom
+//               class OptimizationProblem that includes linear/nonlinear
+//               equality/inequality constraints. This optimization is applied
+//               as post-processing to the solution of the transport equation.
 //
-// Description:  This example code solves the time-dependent advection equation
+//               Description of ex9:
+//               This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
