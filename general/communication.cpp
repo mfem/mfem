@@ -18,6 +18,7 @@
 #include <mpix.h>
 #endif
 
+#include "dbg.hpp"
 #include "array.hpp"
 #include "table.hpp"
 #include "sets.hpp"
@@ -1277,10 +1278,18 @@ void GroupCommunicator::PrintInfo(std::ostream &out) const
 
 GroupCommunicator::~GroupCommunicator()
 {
+   dbg("");
+   dbg("buf_offsets:%p",buf_offsets);
+   dbg("request_marker:%p",request_marker);
+   dbg("requests:%p",requests);
    delete [] buf_offsets;
    delete [] request_marker;
    // delete [] statuses;
    delete [] requests;
+   dbg("delete");
+   dbg("buf_offsets:%p",buf_offsets);
+   dbg("request_marker:%p",request_marker);
+   dbg("requests:%p",requests);
 }
 
 // @cond DOXYGEN_SKIP

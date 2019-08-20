@@ -161,9 +161,11 @@ public:
    /** @brief Fill-in the returned Table reference to initialize the
        GroupCommunicator then call Finalize(). */
    Table &GroupLDofTable() { return group_ldof; }
+   Table &GroupLTDofTable() { return group_ltdof; }
 
    /// Read-only access to group-ldof Table.
    const Table &GroupLDofTable() const { return group_ldof; }
+   const Table &GroupLTDofTable() const { return group_ltdof; }
 
    /// Allocate internal buffers after the GroupLDofTable is defined
    void Finalize();
