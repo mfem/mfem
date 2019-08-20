@@ -149,7 +149,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       else
       {
          partitioning = mesh.GeneratePartitioning(NRanks, part_method);
-         if (mesh.Dim == 4 && mesh.is_reflected)
+         if (false && mesh.Dim == 4 && mesh.is_reflected)
          {
             // Modify the partioning such that all children of one original element are on the same processor
             // Assumptions:
@@ -191,6 +191,20 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                }
             }
          }
+      }
+
+      if (mesh.Dim == 4)
+      {
+          int *temp = partitioning;
+          partitioning = new int[60*mesh.NumOfElements];
+          mesh.is_reflected = false;
+          mesh.MakeReflectedPentMesh();
+          for (int k = 0, o = mesh.NumOfElements/60; k < mesh.NumOfElements/60; ++k)
+          {
+              partitioning[k] = temp[k];
+              for (int m = 0; m < 59; ++m)
+                  partitioning[o++] = temp[k];
+          }
       }
 
       // re-enumerate the partitions to better map to actual processor

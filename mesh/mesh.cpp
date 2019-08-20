@@ -1860,10 +1860,11 @@ void Mesh::MakeReflectedPentMesh()
    swappedBdr.SetSize(NumOfBdrElements, false);
 
    NumOfVertices = vertices.Size();
-
+#if 0
    ofstream file("reflect.mesh");
    Print(file);
    file.close();
+#endif
    is_reflected = true;
 
    Finalize(false, true);
