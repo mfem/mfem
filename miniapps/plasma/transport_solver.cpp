@@ -249,7 +249,7 @@ EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 */
-DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(DGParams & dg,
+DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(const DGParams & dg,
                                                  ParFiniteElementSpace &fes,
                                                  ParGridFunctionArray &pgf,
                                                  Coefficient &CCoef,
@@ -891,7 +891,7 @@ void TransportPrec::SetOperator(const Operator &op)
    }
 }
 
-DGTransportTDO::DGTransportTDO(DGParams & dg,
+DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &ffes,
                                Array<int> & offsets,
@@ -908,7 +908,8 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
                                Coefficient &TeCCoef,
                                bool imex, unsigned int op_flag, int logging)
    : TimeDependentOperator(ffes.GetVSize()),
-     MyRank_(fes.GetMyRank()),
+     mpi_(mpi),
+     // MyRank_(fes.GetMyRank()),
      logging_(logging),
      fes_(&fes),
      ffes_(&ffes),
@@ -918,7 +919,7 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
      newton_op_prec_(offsets),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
-     op_(dg, pgf, dpgf, offsets_,
+     op_(mpi, dg, pgf, dpgf, offsets_,
          ion_charge, neutral_mass, neutral_temp, Di_perp,
          bHatCoef, perpCoef, op_flag, logging)//,
      // oneCoef_(1.0),
@@ -928,7 +929,7 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
      // T_i_oper_(dg, fes, pgf,  TiCCoef, imex),
      // T_e_oper_(dg, fes, pgf,  TeCCoef, imex)
 {
-   if ( MyRank_ == 0 && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Constructing DGTransportTDO" << endl;
    }
@@ -981,7 +982,7 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
    newton_solver_.SetRelTol(rel_tol);
    newton_solver_.SetAbsTol(0.0);
    newton_solver_.SetMaxIter(10);
-   if ( MyRank_ == 0 && logging_ > 1)
+   if (mpi_.Root() && logging_ > 1)
    {
       cout << "Done constructing DGTransportTDO" << endl;
    }
@@ -991,7 +992,7 @@ DGTransportTDO::~DGTransportTDO() {}
 
 void DGTransportTDO::SetTime(const double _t)
 {
-   if ( MyRank_ == 0 && logging_ > 1)
+   if (mpi_.Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::SetTime" << endl;
    }
@@ -1003,7 +1004,7 @@ void DGTransportTDO::SetTime(const double _t)
    // T_i_oper_.SetTime(_t);
    // T_e_oper_.SetTime(_t);
 
-   if ( MyRank_ == 0 && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::SetTime" << endl;
    }
@@ -1198,7 +1199,7 @@ void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
 void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
                                    Vector &dudt)
 {
-   if (fes_->GetMyRank() == 0 && logging_ > 1)
+  if (mpi_.Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::ImplicitSolve" << endl;
    }
@@ -1231,7 +1232,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    }
    dpgf_->ExchangeFaceNbrData();
 
-   if (fes_->GetMyRank() == 0 && logging_ > 0)
+   if (mpi_.Root() == 0 && logging_ > 0)
    {
       cout << "Setting time step: " << dt << endl;
    }
@@ -1370,7 +1371,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    }
 
    // T_e_oper_.ImplicitSolve(dt, u_, dudt_);
-   if (fes_->GetMyRank() == 0 && logging_ > 1)
+   if (mpi_.Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::ImplicitSolve" << endl;
    }
@@ -1390,12 +1391,13 @@ void DGTransportTDO::Update()
    // T_e_oper_.Update();
 }
 
-DGTransportTDO::NLOperator::NLOperator(DGParams & dg, int index,
+DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
+				       const DGParams & dg, int index,
                                        ParGridFunctionArray & pgf,
                                        ParGridFunctionArray & dpgf)
    : Operator(pgf[0]->ParFESpace()->GetVSize(),
               5*(pgf[0]->ParFESpace()->GetVSize())),
-     dg_(dg), index_(index), dt_(0.0),
+     mpi_(mpi), dg_(dg), index_(index), dt_(0.0),
      fes_(pgf[0]->ParFESpace()),
      pmesh_(fes_->GetParMesh()),
      pgf_(&pgf), dpgf_(&dpgf),
@@ -1420,7 +1422,7 @@ void DGTransportTDO::NLOperator::SetLogging(int logging, const string & prefix)
 
 void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 {
-   if (fes_->GetMyRank() == 0 && logging_)
+   if (mpi_.Root() && logging_)
    {
       cout << log_prefix_ << "DGTransportTDO::NLOperator::Mult" << endl;
    }
@@ -1465,7 +1467,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       }
    }
    // cout << "|y| after dbfi_m: " << y.Norml2() << endl;
-   if (fes_->GetMyRank() == 0 && logging_)
+   if (mpi_.Root() && logging_)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult element loop done" << endl;
@@ -1505,7 +1507,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       }
    }
    // cout << "|y| after dbfi: " << y.Norml2() << endl;
-   if (fes_->GetMyRank() == 0 && logging_)
+   if (mpi_.Root() && logging_)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult element loop done" << endl;
@@ -1631,7 +1633,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
    }
    // cout << "|y| after fbfi: " << y.Norml2() << endl;
-   if (fes_->GetMyRank() == 0 && logging_)
+   if (mpi_.Root() && logging_)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult face loop done" << endl;
@@ -1724,7 +1726,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       }
    }
 
-   if (fes_->GetMyRank() == 0 && logging_)
+   if (mpi_.Root() && logging_)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult done" << endl;
@@ -1789,7 +1791,8 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
    */
 }
 
-DGTransportTDO::CombinedOp::CombinedOp(DGParams & dg,
+DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
+				       const DGParams & dg,
                                        ParGridFunctionArray & pgf,
                                        ParGridFunctionArray & dpgf,
                                        Array<int> & offsets,
@@ -1799,8 +1802,9 @@ DGTransportTDO::CombinedOp::CombinedOp(DGParams & dg,
 				       VectorCoefficient &bHatCoef,
 				       MatrixCoefficient &PerpCoef,
                                        unsigned int op_flag, int logging)
-   : neq_(5),
-     MyRank_(pgf[0]->ParFESpace()->GetMyRank()),
+   : mpi_(mpi),
+     neq_(5),
+     //MyRank_(pgf[0]->ParFESpace()->GetMyRank()),
      logging_(logging),
      fes_(pgf[0]->ParFESpace()),
      pgf_(&pgf), dpgf_(&dpgf),
@@ -1820,30 +1824,31 @@ DGTransportTDO::CombinedOp::CombinedOp(DGParams & dg,
 
    if ((op_flag >> 0) & 1)
    {
-      op_[0] = new NeutralDensityOp(dg, pgf, dpgf, ion_charge,
+      op_[0] = new NeutralDensityOp(mpi, dg, pgf, dpgf, ion_charge,
                                     neutral_mass, neutral_temp);
       op_[0]->SetLogging(logging, "n_n: ");
    }
    else
    {
-      op_[0] = new DummyOp(dg, pgf, dpgf, 0);
+      op_[0] = new DummyOp(mpi, dg, pgf, dpgf, 0);
       op_[0]->SetLogging(logging, "n_n (dummy): ");
    }
 
    if ((op_flag >> 1) & 1)
    {
-      op_[1] = new IonDensityOp(dg, pgf, dpgf, ion_charge, DiPerp, PerpCoef);
+      op_[1] = new IonDensityOp(mpi, dg, pgf, dpgf, ion_charge, DiPerp,
+				bHatCoef, PerpCoef);
       op_[1]->SetLogging(logging, "n_i: ");
    }
    else
    {
-      op_[1] = new DummyOp(dg, pgf, dpgf, 1);
+      op_[1] = new DummyOp(mpi, dg, pgf, dpgf, 1);
       op_[1]->SetLogging(logging, "n_i (dummy): ");
    }
 
-   op_[2] = new DummyOp(dg, pgf, dpgf, 2);
-   op_[3] = new DummyOp(dg, pgf, dpgf, 3);
-   op_[4] = new DummyOp(dg, pgf, dpgf, 4);
+   op_[2] = new DummyOp(mpi, dg, pgf, dpgf, 2);
+   op_[3] = new DummyOp(mpi, dg, pgf, dpgf, 3);
+   op_[4] = new DummyOp(mpi, dg, pgf, dpgf, 4);
 
    op_[2]->SetLogging(logging, "v_i (dummy): ");
    op_[3]->SetLogging(logging, "T_i (dummy): ");
@@ -1882,7 +1887,7 @@ void DGTransportTDO::CombinedOp::updateOffsets()
 
 void DGTransportTDO::CombinedOp::SetTimeStep(double dt)
 {
-   if ( MyRank_ == 0 && logging_ > 0)
+   if ( mpi_.Root() && logging_ > 0)
    {
       cout << "Setting time step: " << dt << " in CombinedOp" << endl;
    }
@@ -1915,7 +1920,7 @@ void DGTransportTDO::CombinedOp::Update()
 
 void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
 {
-   if ( MyRank_ == 0 && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::UpdateGradient" << endl;
    }
@@ -1959,7 +1964,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
       dpgf_->ExchangeFaceNbrData();
    }
 
-   if ( MyRank_ == 0 && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::UpdateGradient done" << endl;
    }
@@ -1967,7 +1972,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
 
 void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
 {
-   if ( MyRank_ == 0 && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::Mult" << endl;
    }
@@ -2006,19 +2011,20 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
       dpgf_->ExchangeFaceNbrData();
    }
 
-   if ( MyRank_ == 0 && logging_ > 1)
+   if ( mpi_.Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::Mult done" << endl;
    }
 }
 
-DGTransportTDO::NeutralDensityOp::NeutralDensityOp(DGParams & dg,
+DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
+						   const DGParams & dg,
                                                    ParGridFunctionArray & pgf,
                                                    ParGridFunctionArray & dpgf,
                                                    int ion_charge,
                                                    double neutral_mass,
                                                    double neutral_temp)
-   : NLOperator(dg, 0, pgf, dpgf),
+   : NLOperator(mpi, dg, 0, pgf, dpgf),
      z_i_(ion_charge), m_n_(neutral_mass), T_n_(neutral_temp),
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
      dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
@@ -2059,7 +2065,10 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(DGParams & dg,
 
 void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
 {
-   // cout << "Setting time step: " << dt << " in NeutralDensityOp" << endl;
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time step: " << dt << " in NeutralDensityOp" << endl;
+   }
    NLOperator::SetTimeStep(dt);
 
    nn1Coef_.SetBeta(dt);
@@ -2222,16 +2231,15 @@ Operator *DGTransportTDO::NeutralDensityOp::GetGradientBlock(int i)
  }
 }
 */
-DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
+DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
+					   const DGParams & dg,
                                            ParGridFunctionArray & pgf,
                                            ParGridFunctionArray & dpgf,
                                            int ion_charge,
                                            double DPerp,
 					   VectorCoefficient & bHatCoef,
                                            MatrixCoefficient & PerpCoef)
-   : NLOperator(dg, 1, pgf, dpgf), z_i_(ion_charge), DPerpConst_(DPerp),
-     nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
-     dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
+   : NLOperator(mpi, dg, 1, pgf, dpgf), z_i_(ion_charge), DPerpConst_(DPerp),
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]), Te0Coef_(pgf[4]),
      dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dviCoef_(dpgf[2]), dTeCoef_(dpgf[4]),
      nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
@@ -2282,7 +2290,10 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
 
 void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
 {
-   // cout << "Setting time step: " << dt << " in IonDensityOp" << endl;
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time step: " << dt << " in IonDensityOp" << endl;
+   }
    NLOperator::SetTimeStep(dt);
 
    nn1Coef_.SetBeta(dt);
@@ -2450,11 +2461,11 @@ Operator *DGTransportTDO::IonDensityOp::GetGradientBlock(int i)
 }
 */
 
-DGTransportTDO::DummyOp::DummyOp(DGParams & dg,
+DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
                                  ParGridFunctionArray & pgf,
                                  ParGridFunctionArray & dpgf,
                                  int index)
-   : NLOperator(dg, index, pgf, dpgf)
+   : NLOperator(mpi, dg, index, pgf, dpgf)
 {
    dbfi_m_.Append(new MassIntegrator);
 

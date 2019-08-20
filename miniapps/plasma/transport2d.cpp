@@ -1421,7 +1421,7 @@ int main(int argc, char *argv[])
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
    cout << "calling DGTransportTDO with " << pgf[0]->GetData() << " and " <<
         dpgf[0]->GetData() << endl;
-   DGTransportTDO oper(dg, fes, ffes, offsets, pgf, dpgf,
+   DGTransportTDO oper(mpi, dg, fes, ffes, offsets, pgf, dpgf,
                        ion_charge, neutral_mass, neutral_temp,
                        Di_perp, bHatCoef, perpCoef, mnCoef, niCoef, neCoef,
                        imex, op_flag, logging);

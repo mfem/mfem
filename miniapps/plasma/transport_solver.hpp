@@ -577,7 +577,7 @@ public:
 class DGAdvectionDiffusionTDO : public TimeDependentOperator
 {
 private:
-   DGParams & dg_;
+   const DGParams & dg_;
 
    bool imex_;
    int logging_;
@@ -631,7 +631,7 @@ private:
    void initQ();
 
 public:
-   DGAdvectionDiffusionTDO(DGParams & dg,
+   DGAdvectionDiffusionTDO(const DGParams & dg,
                            ParFiniteElementSpace &fes,
                            ParGridFunctionArray &pgf,
                            Coefficient &CCoef, bool imex = true);
@@ -671,7 +671,7 @@ public:
 class DGTransportTDO : public TimeDependentOperator
 {
 private:
-   int MyRank_;
+   const MPI_Session & mpi_;
    int logging_;
 
    ParFiniteElementSpace *fes_;
@@ -690,7 +690,8 @@ private:
    class NLOperator : public Operator
    {
    protected:
-      DGParams & dg_;
+      const MPI_Session & mpi_;
+      const DGParams & dg_;
 
       int logging_;
       std::string log_prefix_;
@@ -724,7 +725,7 @@ private:
 
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
 
-      NLOperator(DGParams & dg, int index,
+      NLOperator(const MPI_Session & mpi, const DGParams & dg, int index,
                  ParGridFunctionArray & pgf,
                  ParGridFunctionArray & dpgf);
 
@@ -817,7 +818,7 @@ private:
       // mutable DGDiffusionIntegrator dg_diff_;
 
    public:
-      NeutralDensityOp(DGParams & dg,
+      NeutralDensityOp(const MPI_Session & mpi, const DGParams & dg,
                        ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                        int ion_charge, double neutral_mass,
                        double neutral_temp);
@@ -878,9 +879,11 @@ private:
       // mutable DGDiffusionIntegrator dg_diff_;
 
    public:
-      IonDensityOp(DGParams & dg,
+      IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
                    ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
-                   int ion_charge, double DPerp, MatrixCoefficient & PerpCoef);
+                   int ion_charge, double DPerp,
+		   VectorCoefficient & bHatCoef,
+		   MatrixCoefficient & PerpCoef);
 
       virtual void SetTimeStep(double dt);
 
@@ -894,13 +897,16 @@ private:
    class DummyOp : public NLOperator
    {
    public:
-      DummyOp(DGParams & dg,
+      DummyOp(const MPI_Session & mpi, const DGParams & dg,
               ParGridFunctionArray & pgf,
               ParGridFunctionArray & dpgf, int index);
 
       virtual void SetTimeStep(double dt)
       {
-         std::cout << "Setting time step: " << dt << " in DummyOp" << std::endl;
+         if (mpi_.Root() && logging_ > 0)
+         {
+            std::cout << "Setting time step: " << dt << " in DummyOp\n";
+         }
          NLOperator::SetTimeStep(dt);
       }
 
@@ -912,8 +918,8 @@ private:
    class CombinedOp : public Operator
    {
    private:
+      const MPI_Session & mpi_;
       int neq_;
-      int MyRank_;
       int logging_;
 
       ParFiniteElementSpace *fes_;
@@ -934,7 +940,7 @@ private:
       void updateOffsets();
 
    public:
-      CombinedOp(DGParams & dg,
+      CombinedOp(const MPI_Session & mpi, const DGParams & dg,
                  ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                  Array<int> & offsets,
                  int ion_charge, double neutral_mass, double neutral_temp,
@@ -974,7 +980,7 @@ private:
    Vector dudt_;
 
 public:
-   DGTransportTDO(DGParams & dg,
+   DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &ffes,
                   Array<int> &offsets,
