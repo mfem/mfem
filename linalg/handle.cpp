@@ -78,7 +78,8 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
          // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
-         oper = new PetscParMatrix(comm, glob_size, row_starts, diag, type_id);
+         oper = new PetscParMatrix(comm, glob_size, (PetscInt*)row_starts, diag,
+                                   type_id);
          break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);
@@ -110,7 +111,7 @@ MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
       case Operator::PETSC_MATIS:
          // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
          oper = new PetscParMatrix(comm, glob_num_rows, glob_num_cols,
-                                   row_starts, col_starts, diag, type_id);
+                                   (PetscInt*)row_starts, (PetscInt*)col_starts, diag, type_id);
          break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);

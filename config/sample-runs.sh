@@ -18,6 +18,8 @@ run_prefix=""
 run_vg="valgrind --leak-check=full --show-reachable=yes --track-origins=yes"
 run_suffix="-no-vis"
 skip_gen_meshes="yes"
+# filter-out device runs ("no") or non-device runs ("yes"):
+device_runs="no"
 cur_dir="${PWD}"
 mfem_dir="$(cd "$(dirname "$0")"/.. && pwd)"
 mfem_build_dir=""
@@ -44,7 +46,8 @@ groups_serial=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp shaper.cpp mesh-optimizer.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
+    mesh-optimizer.cpp"'
 )
 # Parallel groups
 groups_parallel=(
@@ -97,7 +100,8 @@ groups_all=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp shaper.cpp {,p}mesh-optimizer.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
+    {,p}mesh-optimizer.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -146,6 +150,11 @@ function extract_sample_runs()
    if [ "$skip_gen_meshes" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep -v ".* -m .*\.gen"`
    fi
+   if [ "$device_runs" == "yes" ]; then
+      runs=`printf "%s" "$runs" | grep ".* -d .*"`
+   else
+      runs=`printf "%s" "$runs" | grep -v ".* -d .*"`
+   fi
    IFS=$'\n'
    runs=(${runs})
    IFS="${old_IFS}"
@@ -167,6 +176,9 @@ function help_message()
       -g <dir> <pattern>
                   Specify explicitly a group (dir + file pattern) to run; This
                   option can be used multiple times to define multiple groups
+      -dev        configure only sample runs using devices.
+                  To test with a parallel build, the parallel (-p|-par) option
+                  should be set first on the command line.
       -v          Enable valgrind
       -o <dir>    [${output_dir:-"<empty>: output goes to stdout"}]
                   If not empty, save output to files inside <dir>
@@ -251,7 +263,7 @@ case "$1" in
    -h|-help)
       opt_help="yes"
       ;;
-   -p|-parallel)
+   -p|-par)
       mfem_config="MFEM_USE_MPI=YES MFEM_DEBUG=NO"
       ;;
    -g)
@@ -261,6 +273,10 @@ case "$1" in
       test_group="\"${gname}\" \"${gtitle}\" \"$2\" \"$3\""
       groups=("${groups[@]}" "${test_group}")
       shift 2
+      ;;
+   -dev)
+       device_runs="yes"
+       mfem_config+=" MFEM_USE_CUDA=YES MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES MFEM_USE_OPENMP=YES"
       ;;
    -v)
       valgrind="yes"
@@ -291,6 +307,10 @@ case "$1" in
       ;;
    -n)
       run_prefix="echo"
+      ;;
+   -*)
+      echo "unknown option: '$1'"
+      exit 1
       ;;
    *=*)
       eval $1

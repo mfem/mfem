@@ -36,6 +36,8 @@ struct Refinement
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
+   Refinement() = default;
+
    Refinement(int index, int type = 7) : index(index), ref_type(type) {}
 };
 
@@ -47,6 +49,8 @@ struct Embedding
    /** @brief Index into the DenseTensor corresponding to the parent
        Geometry::Type stored in CoarseFineTransformations::point_matrices. */
    int matrix;
+
+   Embedding() = default;
 
    Embedding(int elem, int matrix = 0) : parent(elem), matrix(matrix) {}
 };
@@ -60,6 +64,13 @@ struct CoarseFineTransformations
    Array<Embedding> embeddings;
 
    const DenseTensor &GetPointMatrices(Geometry::Type geom) const;
+
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine,
+                           Array<int> &coarse_to_ref_type,
+                           Table &ref_type_to_matrix,
+                           Array<Geometry::Type> &ref_type_to_geom) const;
+
    void Clear() { point_matrices.clear(); embeddings.DeleteAll(); }
    long MemoryUsage() const;
 };
@@ -245,15 +256,34 @@ public:
    void ClearTransforms();
 
 
+   // grid ordering
+
+   /** Return a space filling curve for a rectangular grid of elements.
+       Implemented is a generalized Hilbert curve for arbitrary grid dimensions.
+       If the width is odd, height should be odd too, otherwise one diagonal
+       (vertex-neighbor) step cannot be avoided in the curve. Even dimensions
+       are recommended. */
+   static void GridSfcOrdering2D(int width, int height,
+                                 Array<int> &coords);
+
+   /** Return a space filling curve for a 3D rectangular grid of elements.
+       The Hilbert-curve-like algorithm works well for even dimensions. For odd
+       width/height/depth it tends to produce some diagonal (edge-neighbor)
+       steps. Even dimensions are recommended. */
+   static void GridSfcOrdering3D(int width, int height, int depth,
+                                 Array<int> &coords);
+
+
    // utility
 
    /// Return Mesh vertex indices of an edge identified by 'edge_id'.
-   void GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const;
+   void GetEdgeVertices(const MeshId &edge_id, int vert_index[2],
+                        bool oriented = true) const;
 
-   /** Return "NC" orientation of an edge. As opposed standard Mesh edge
+   /** Return "NC" orientation of an edge. As opposed to standard Mesh edge
        orientation based on vertex IDs, "NC" edge orientation follows the local
        edge orientation within the element 'edge_id.element' and is thus
-       processor independent. */
+       processor independent. TODO: this seems only partially true? */
    int GetEdgeNCOrientation(const MeshId &edge_id) const;
 
    /// Return Mesh vertex and edge indices of a face identified by 'face_id'.
@@ -366,7 +396,7 @@ protected: // implementation
       Face() : attribute(-1), index(-1) { elem[0] = elem[1] = -1; }
 
       bool Boundary() const { return attribute >= 0; }
-      bool Unused() const { return elem[0] < 0 && elem[1] < 0;}
+      bool Unused() const { return elem[0] < 0 && elem[1] < 0; }
 
       // add or remove an element from the 'elem[2]' array
       void RegisterElement(int e);
@@ -405,10 +435,12 @@ protected: // implementation
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 
-   // the first 'root_count' entries of 'elements' is the coarse mesh
-   int root_count;
+   /** Initial traversal state (~ element orientation) for each root element
+       NOTE: M = root_state.Size() is the number of root elements.
+       NOTE: the first M items of 'elements' is the coarse mesh. */
+   Array<int> root_state;
 
-   // coordinates of top-level vertices (organized as triples)
+   /// coordinates of top-level vertices (organized as triples)
    Array<double> top_vertex_pos;
 
    typedef HashTable<Node>::iterator node_iterator;
@@ -448,6 +480,12 @@ protected: // implementation
    void UpdateLeafElements();
 
    virtual void AssignLeafIndices();
+
+   /** Try to find a space-filling curve friendly orientation of the root
+       elements: set 'root_state' based on the ordering of coarse elements.
+       Note that the coarse mesh itself must be ordered as an SFC by e.g.
+       Mesh::GetGeckoElementReordering. */
+   void InitRootState(int root_count);
 
    virtual bool IsGhost(const Element &el) const { return false; }
    virtual int GetNumGhostElements() const { return 0; }
@@ -527,6 +565,12 @@ protected: // implementation
 
    void CollectDerefinements(int elem, Array<Connection> &list);
 
+   /// Return el.node[index] correctly, even if the element is refined.
+   int RetrieveNode(const Element &el, int index);
+
+   /// Extended version of find_node: works if 'el' is refined; optional abort.
+   int FindNodeExt(const Element &el, int node, bool abort = false);
+
 
    // face/edge lists
 
@@ -547,9 +591,9 @@ protected: // implementation
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
-   virtual void ElementSharesFace(int elem, int face) {} // ParNCMesh
-   virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
-   virtual void ElementSharesVertex(int elem, int vnode) {} // ParNCMesh
+   virtual void ElementSharesFace(int elem, int local, int face) {} // ParNCMesh
+   virtual void ElementSharesEdge(int elem, int local, int enode) {} // ParNCMesh
+   virtual void ElementSharesVertex(int elem, int local, int vnode) {} // ParNCMesh
 
 
    // neighbors / element_vertex table
@@ -736,6 +780,7 @@ protected: // implementation
 
 #ifdef MFEM_DEBUG
 public:
+   void DebugLeafOrder(std::ostream &out) const;
    void DebugDump(std::ostream &out) const;
 #endif
 

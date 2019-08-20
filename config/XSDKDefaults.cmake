@@ -74,7 +74,7 @@
 
 IF (NOT COMMAND PRINT_VAR)
   FUNCTION(PRINT_VAR  VAR_NAME)
-    MESSAGE("-- " "${VAR_NAME} = '${${VAR_NAME}}'")
+    MESSAGE(STATUS "${VAR_NAME} = '${${VAR_NAME}}'")
   ENDFUNCTION()
 ENDIF()
 
@@ -166,20 +166,27 @@ IF (USE_XSDK_DEFAULTS)
     ENDIF()
     XSDK_HANDLE_LANG_DEFAULTS(Fortran  FC  "FFLAGS;FCFLAGS")
   ENDIF()
-  
+
   # Set XSDK defaults for other CMake variables
-  
+
   IF ("${BUILD_SHARED_LIBS}"  STREQUAL  "")
     MESSAGE("-- " "XSDK: Setting default BUILD_SHARED_LIBS=TRUE")
     SET(BUILD_SHARED_LIBS  TRUE  CACHE  BOOL  "Set by default in XSDK mode")
   ENDIF()
-  
+
   IF ("${CMAKE_BUILD_TYPE}"  STREQUAL  "")
     MESSAGE("-- " "XSDK: Setting default CMAKE_BUILD_TYPE=DEBUG")
     SET(CMAKE_BUILD_TYPE  DEBUG  CACHE  STRING  "Set by default in XSDK mode")
   ENDIF()
 
 ENDIF()
+
+
+##################################################################################
+#
+#               MFEM-specific additions: set TPL MFEM_USE_* defaults
+#
+##################################################################################
 
 IF (DEFINED TPL_ENABLE_MPI)
   SET(MFEM_USE_MPI ${TPL_ENABLE_MPI} CACHE BOOL "Enable MPI parallel build" FORCE)
@@ -251,4 +258,16 @@ ENDIF()
 
 IF (DEFINED TPL_ENABLE_PUMI)
   SET(MFEM_USE_PUMI ${TPL_ENABLE_PUMI} CACHE BOOL "Enable PUMI" FORCE)
+ENDIF()
+
+IF (DEFINED TPL_ENABLE_CUDA)
+  SET(MFEM_USE_CUDA ${TPL_ENABLE_CUDA} CACHE BOOL "Enable CUDA" FORCE)
+ENDIF()
+
+IF (DEFINED TPL_ENABLE_OCCA)
+  SET(MFEM_USE_OCCA ${TPL_ENABLE_OCCA} CACHE BOOL "Enable OCCA" FORCE)
+ENDIF()
+
+IF (DEFINED TPL_ENABLE_RAJA)
+  SET(MFEM_USE_RAJA ${TPL_ENABLE_RAJA} CACHE BOOL "Enable RAJA" FORCE)
 ENDIF()

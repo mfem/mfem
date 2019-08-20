@@ -17,12 +17,18 @@
 namespace mfem
 {
 
+class ConstrainedOperator;
+
 /// Abstract operator
 class Operator
 {
 protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
    int width;  ///< Dimension of the input / number of columns in the matrix.
+
+   /// see FormSystemOperator()
+   void FormConstrainedSystemOperator(
+      const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
 
 public:
    /// Construct a square Operator with given size s (default 0).
@@ -43,6 +49,17 @@ public:
    /** @brief Get the number of columns (size of input) of the Operator. Synonym
        with Width(). */
    inline int NumCols() const { return width; }
+
+   /// Return the MemoryClass preferred by the Operator.
+   /** This is the MemoryClass that will be used to access the input and output
+       vectors in the Mult() and MultTranspose() methods.
+
+       For example, classes using the MFEM_FORALL macro for implementation can
+       return the value returned by Device::GetMemoryClass().
+
+       The default implementation of this method in class Operator returns
+       MemoryClass::HOST. */
+   virtual MemoryClass GetMemoryClass() const { return MemoryClass::HOST; }
 
    /// Operator application: `y=A(x)`.
    virtual void Mult(const Vector &x, Vector &y) const = 0;
@@ -66,6 +83,9 @@ public:
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetRestriction() const  { return NULL; }
+   /** @brief Restriction operator from output vectors for the operator to linear
+       algebra (linear system) vectors. `NULL` means identity. */
+   virtual const Operator *GetOutputRestriction() const  { return NULL; }
 
    /** @brief Form a constrained linear system using a matrix-free approach.
 
@@ -82,7 +102,7 @@ public:
        are e.g. available through the (parallel) finite element space of any
        (parallel) bilinear form operator. We assume that the operator is square,
        using the same input and output space, so we have: `A(X)=[P^t (*this)
-       P](X)`, `B=P^t(b)`, and `x=P(X)`.
+       P](X)`, `B=P^t(b)`, and `X=R(x)`.
 
        The vector @a x must contain the essential boundary condition values.
        These are eliminated through the ConstrainedOperator class and the vector
@@ -112,6 +132,27 @@ public:
        method has identical signature to the analogous method for bilinear
        forms, though currently @a b is not used in the implementation. */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this square
+       operator.
+
+       This returns the same operator as FormLinearSystem(), but does without
+       the transformations of the right-hand side and initial guess. */
+   void FormSystemOperator(const Array<int> &ess_tdof_list,
+                           Operator* &A);
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this
+       rectangular operator.
+
+       This is similar to FormSystemOperator(), but for dof-to-dof mappings
+       (discrete linear operators), which can also correspond to rectangular
+       matrices. The user should provide specializations of GetProlongation()
+       for the input dofs and GetOutputRestriction() for the output dofs in
+       their Operator implementation that are appropriate for the two spaces the
+       Operator maps between. These are e.g. available through the (parallel)
+       finite element space of any (parallel) bilinear form operator. We have:
+       `A(X)=[Rout (*this) Pin](X)`. */
+   void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
@@ -296,6 +337,9 @@ public:
 
    /// Operator application
    virtual void Mult(const Vector &x, Vector &y) const { y = x; }
+
+   /// Application of the transpose
+   virtual void MultTranspose(const Vector &x, Vector &y) const { y = x; }
 };
 
 
@@ -354,10 +398,13 @@ private:
    const Operator & P;
    mutable Vector Px;
    mutable Vector APx;
+   MemoryClass mem_class;
 
 public:
    /// Construct the RAP operator given R^T, A and P.
    RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_);
+
+   virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    /// Operator application.
    virtual void Mult(const Vector & x, Vector & y) const
@@ -377,10 +424,13 @@ class TripleProductOperator : public Operator
    const Operator *C;
    bool ownA, ownB, ownC;
    mutable Vector t1, t2;
+   MemoryClass mem_class;
 
 public:
    TripleProductOperator(const Operator *A, const Operator *B,
                          const Operator *C, bool ownA, bool ownB, bool ownC);
+
+   virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    virtual void Mult(const Vector &x, Vector &y) const
    { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }
@@ -405,6 +455,7 @@ protected:
    Operator *A;                 ///< The unconstrained Operator.
    bool own_A;                  ///< Ownership flag for A.
    mutable Vector z, w;         ///< Auxiliary vectors.
+   MemoryClass mem_class;
 
 public:
    /** @brief Constructor from a general Operator and a list of essential
@@ -415,6 +466,8 @@ public:
        ownership flag @a own_A is true, the operator @a *A will be destroyed
        when this object is destroyed. */
    ConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false);
+
+   virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -437,7 +490,7 @@ public:
        the vectors, and "_i" -- the rest of the entries. */
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   /// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
+   /// Destructor: destroys the unconstrained Operator, if owned.
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
 

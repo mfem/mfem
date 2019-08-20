@@ -53,6 +53,12 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 %-test-seq: %
 	@$(call mfem-test,$<,, NURBS miniapp)
 
+# Additional tests
+EX1_ARGS_2 := -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+ex1-test-seq: ex1
+	@$(call mfem-test,$<,, NURBS miniapp)
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_2))
+
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit

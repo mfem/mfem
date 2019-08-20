@@ -87,6 +87,9 @@ class IntegrationRule : public Array<IntegrationPoint>
 private:
    friend class IntegrationRules;
    int Order;
+   /** @brief The quadrature weights gathered as a contiguous array. Created
+       by request with the method GetWeights(). */
+   mutable Array<double> weights;
 
    /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
    void GrundmannMollerSimplexRule(int s, int n = 3);
@@ -239,6 +242,11 @@ public:
    /// Returns a const reference to the i-th integration point
    const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
 
+   /// Return the quadrature weights in a contiguous array.
+   /** If a contiguous array is not required, the weights can be accessed with
+       a call like this: `IntPoint(i).weight`. */
+   const Array<double> &GetWeights() const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
@@ -325,6 +333,9 @@ private:
       return Order | 1; // valid for all quad_type's
    }
 
+   /// The following methods allocate new IntegrationRule objects without
+   /// checking if they already exist.  To avoid memory leaks use
+   /// IntegrationRules::Get(int GeomType, int Order) instead.
    IntegrationRule *GenerateIntegrationRule(int GeomType, int Order);
    IntegrationRule *PointIntegrationRule(int Order);
    IntegrationRule *SegmentIntegrationRule(int Order);

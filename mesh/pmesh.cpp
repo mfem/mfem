@@ -21,6 +21,7 @@
 #include "../general/globals.hpp"
 
 #include <iostream>
+#include <fstream>
 
 using namespace std;
 
@@ -102,18 +103,18 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.Nonconforming())
    {
-      if (partitioning_ && MyRank == 0)
+      if (partitioning_)
       {
-         MFEM_WARNING("Prescribed partitioning is not supported for NC meshes.");
+         partitioning = partitioning_;
       }
-
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh);
-
-      // save the element partitioning before Prune()
-      partitioning = new int[mesh.GetNE()];
-      for (int i = 0; i < mesh.GetNE(); i++)
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
+      if (!partitioning)
       {
-         partitioning[i] = pncmesh->InitialPartition(i);
+         partitioning = new int[mesh.GetNE()];
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            partitioning[i] = pncmesh->InitialPartition(i);
+         }
       }
 
       pncmesh->Prune();
@@ -2987,6 +2988,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                  "serial Mesh)");
    }
 
+   DeleteFaceNbrData();
+
    // NOTE: no check of !refinements.Size(), in parallel we would have to reduce
 
    // do the refinements
@@ -3085,6 +3088,23 @@ void ParMesh::Rebalance()
    {
       MFEM_ABORT("Load balancing is currently not supported for conforming"
                  " meshes.");
+   }
+
+   // Make sure the Nodes use a ParFiniteElementSpace
+   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
+   {
+      ParFiniteElementSpace *pfes =
+         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
+      ParGridFunction *new_nodes = new ParGridFunction(pfes);
+      *new_nodes = *Nodes;
+      if (Nodes->OwnFEC())
+      {
+         new_nodes->MakeOwner(Nodes->OwnFEC());
+         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
+         delete Nodes->FESpace();
+      }
+      delete Nodes;
+      Nodes = new_nodes;
    }
 
    DeleteFaceNbrData();
@@ -3613,6 +3633,7 @@ void ParMesh::UniformRefinement3D()
    // update the groups
    UniformRefineGroups3D(old_nv, old_nedges, v_to_v, *faces_tbl,
                          f2qf.Size() ? &f2qf : NULL);
+   delete faces_tbl;
 
    UpdateNodes();
 }
@@ -5059,6 +5080,102 @@ int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
       MFEM_WARNING((npts-pts_found) << " points were not found");
    }
    return pts_found;
+}
+
+static void PrintVertex(const Vertex &v, int space_dim, ostream &out)
+{
+   out << v(0);
+   for (int d = 1; d < space_dim; d++)
+   {
+      out << ' ' << v(d);
+   }
+}
+
+void ParMesh::PrintSharedEntities(const char *fname_prefix) const
+{
+   stringstream out_name;
+   out_name << fname_prefix << '_' << setw(5) << setfill('0') << MyRank
+            << ".shared_entities";
+   ofstream out(out_name.str().c_str());
+   out.precision(16);
+
+   gtopo.Save(out);
+
+   out << "\ntotal_shared_vertices " << svert_lvert.Size() << '\n';
+   if (Dim >= 2)
+   {
+      out << "total_shared_edges " << shared_edges.Size() << '\n';
+   }
+   if (Dim >= 3)
+   {
+      out << "total_shared_faces " << sface_lface.Size() << '\n';
+   }
+   for (int gr = 1; gr < GetNGroups(); gr++)
+   {
+      {
+         const int  nv = group_svert.RowSize(gr-1);
+         const int *sv = group_svert.GetRow(gr-1);
+         out << "\n# group " << gr << "\n\nshared_vertices " << nv << '\n';
+         for (int i = 0; i < nv; i++)
+         {
+            const int lvi = svert_lvert[sv[i]];
+            // out << lvi << '\n';
+            PrintVertex(vertices[lvi], spaceDim, out);
+            out << '\n';
+         }
+      }
+      if (Dim >= 2)
+      {
+         const int  ne = group_sedge.RowSize(gr-1);
+         const int *se = group_sedge.GetRow(gr-1);
+         out << "\nshared_edges " << ne << '\n';
+         for (int i = 0; i < ne; i++)
+         {
+            const int *v = shared_edges[se[i]]->GetVertices();
+            // out << v[0] << ' ' << v[1] << '\n';
+            PrintVertex(vertices[v[0]], spaceDim, out);
+            out << " | ";
+            PrintVertex(vertices[v[1]], spaceDim, out);
+            out << '\n';
+         }
+      }
+      if (Dim >= 3)
+      {
+         const int  nt = group_stria.RowSize(gr-1);
+         const int *st = group_stria.GetRow(gr-1);
+         const int  nq = group_squad.RowSize(gr-1);
+         const int *sq = group_squad.GetRow(gr-1);
+         out << "\nshared_faces " << nt+nq << '\n';
+         for (int i = 0; i < nt; i++)
+         {
+            const int *v = shared_trias[st[i]].v;
+#if 0
+            out << Geometry::TRIANGLE;
+            for (int j = 0; j < 3; j++) { out << ' ' << v[j]; }
+            out << '\n';
+#endif
+            for (int j = 0; j < 3; j++)
+            {
+               PrintVertex(vertices[v[j]], spaceDim, out);
+               (j < 2) ? out << " | " : out << '\n';
+            }
+         }
+         for (int i = 0; i < nq; i++)
+         {
+            const int *v = shared_quads[sq[i]].v;
+#if 0
+            out << Geometry::SQUARE;
+            for (int j = 0; j < 4; j++) { out << ' ' << v[j]; }
+            out << '\n';
+#endif
+            for (int j = 0; j < 4; j++)
+            {
+               PrintVertex(vertices[v[j]], spaceDim, out);
+               (j < 3) ? out << " | " : out << '\n';
+            }
+         }
+      }
+   }
 }
 
 ParMesh::~ParMesh()
