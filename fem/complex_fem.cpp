@@ -352,6 +352,75 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
    if ( blfi_ ) { blfi_->Update(nfes); }
 }
 
+MixedSesquilinearForm::MixedSesquilinearForm(FiniteElementSpace *tr_f,
+                                             FiniteElementSpace *te_f,
+                                             ComplexOperator::Convention convention)
+   : conv_(convention),
+     blfr_(new MixedBilinearForm(tr_f, te_f)),
+     blfi_(new MixedBilinearForm(tr_f, te_f))
+{}
+
+MixedSesquilinearForm::~MixedSesquilinearForm()
+{
+   delete blfr_;
+   delete blfi_;
+}
+
+void
+MixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                                           BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { blfr_->AddDomainIntegrator(bfi_real); }
+   if (bfi_imag) { blfi_->AddDomainIntegrator(bfi_imag); }
+}
+
+void
+MixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                                             BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { blfr_->AddBoundaryIntegrator(bfi_real); }
+   if (bfi_imag) { blfi_->AddBoundaryIntegrator(bfi_imag); }
+}
+/*
+void
+MixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                    BilinearFormIntegrator *bfi_imag,
+                    Array<int> & bdr_marker)
+{
+  if (bfi_real) { blfr_->AddBoundaryIntegrator(bfi_real, bdr_marker); }
+  if (bfi_imag) { blfi_->AddBoundaryIntegrator(bfi_imag, bdr_marker); }
+}
+*/
+void
+MixedSesquilinearForm::Assemble(int skip_zeros)
+{
+   blfr_->Assemble(skip_zeros);
+   blfi_->Assemble(skip_zeros);
+}
+
+void
+MixedSesquilinearForm::Finalize(int skip_zeros)
+{
+   blfr_->Finalize(skip_zeros);
+   blfi_->Finalize(skip_zeros);
+}
+
+ComplexSparseMatrix *
+MixedSesquilinearForm::AssembleCompSpMat()
+{
+   return new ComplexSparseMatrix(&blfr_->SpMat(),
+                                  &blfi_->SpMat(),
+                                  false, false, conv_);
+
+}
+
+void
+MixedSesquilinearForm::Update()
+{
+   if ( blfr_ ) { blfr_->Update(); }
+   if ( blfi_ ) { blfi_->Update(); }
+}
+
 
 #ifdef MFEM_USE_MPI
 
@@ -768,6 +837,77 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
 {
    if ( pblfr_ ) { pblfr_->Update(nfes); }
    if ( pblfi_ ) { pblfi_->Update(nfes); }
+}
+
+ParMixedSesquilinearForm::ParMixedSesquilinearForm(ParFiniteElementSpace *tr_pf,
+                                                   ParFiniteElementSpace *te_pf,
+                                                   ComplexOperator::Convention
+                                                   convention)
+   : conv_(convention),
+     pblfr_(new ParMixedBilinearForm(tr_pf, te_pf)),
+     pblfi_(new ParMixedBilinearForm(tr_pf, te_pf))
+{}
+
+ParMixedSesquilinearForm::~ParMixedSesquilinearForm()
+{
+   delete pblfr_;
+   delete pblfi_;
+}
+
+void ParMixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator
+                                                   *bfi_real,
+                                                   BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { pblfr_->AddDomainIntegrator(bfi_real); }
+   if (bfi_imag) { pblfi_->AddDomainIntegrator(bfi_imag); }
+}
+
+void
+ParMixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator
+                                                *bfi_real,
+                                                BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { pblfr_->AddBoundaryIntegrator(bfi_real); }
+   if (bfi_imag) { pblfi_->AddBoundaryIntegrator(bfi_imag); }
+}
+/*
+void
+ParMixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                                         BilinearFormIntegrator *bfi_imag,
+                                         Array<int> & bdr_marker)
+{
+ if (bfi_real) { pblfr_->AddBoundaryIntegrator(bfi_real, bdr_marker); }
+ if (bfi_imag) { pblfi_->AddBoundaryIntegrator(bfi_imag, bdr_marker); }
+}
+*/
+void
+ParMixedSesquilinearForm::Assemble(int skip_zeros)
+{
+   pblfr_->Assemble(skip_zeros);
+   pblfi_->Assemble(skip_zeros);
+}
+
+void
+ParMixedSesquilinearForm::Finalize(int skip_zeros)
+{
+   pblfr_->Finalize(skip_zeros);
+   pblfi_->Finalize(skip_zeros);
+}
+
+ComplexHypreParMatrix *
+ParMixedSesquilinearForm::ParallelAssemble()
+{
+   return new ComplexHypreParMatrix(pblfr_->ParallelAssemble(),
+                                    pblfi_->ParallelAssemble(),
+                                    true, true, conv_);
+
+}
+
+void
+ParMixedSesquilinearForm::Update()
+{
+   if ( pblfr_ ) { pblfr_->Update(); }
+   if ( pblfi_ ) { pblfi_->Update(); }
 }
 
 

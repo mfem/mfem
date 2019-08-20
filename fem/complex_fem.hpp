@@ -181,6 +181,68 @@ public:
    virtual ~SesquilinearForm();
 };
 
+// Class for mixed sesquilinear form
+class MixedSesquilinearForm
+{
+private:
+   ComplexOperator::Convention conv_;
+
+   //protected:
+   MixedBilinearForm *blfr_;
+   MixedBilinearForm *blfi_;
+
+public:
+   MixedSesquilinearForm(FiniteElementSpace *tr_fes,
+                         FiniteElementSpace *te_fes,
+                         ComplexOperator::Convention
+                         convention = ComplexOperator::HERMITIAN);
+
+   ComplexOperator::Convention GetConvention() const { return conv_; }
+   void SetConvention(const ComplexOperator::Convention &
+                      convention) { conv_  = convention; }
+
+   MixedBilinearForm & real() { return *blfr_; }
+   MixedBilinearForm & imag() { return *blfi_; }
+   const MixedBilinearForm & real() const { return *blfr_; }
+   const MixedBilinearForm & imag() const { return *blfi_; }
+
+   /// Adds new Domain Integrator.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                            BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                              BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Boundary Integrator, restricted to specific boundary attributes.
+   /*
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                              BilinearFormIntegrator *bfi_imag,
+                              Array<int> &bdr_marker);
+   */
+   /// Assemble the local matrix
+   void Assemble(int skip_zeros = 1);
+
+   /// Finalizes the matrix initialization.
+   void Finalize(int skip_zeros = 1);
+
+   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
+   /** The returned matrix has to be deleted by the caller. */
+   ComplexSparseMatrix *AssembleCompSpMat();
+   /*
+    void EliminateTrialDofs(Array<int> &bdr_attr_is_ess,
+                            const Vector &sol, Vector &rhs);
+
+    void EliminateEssentialBCFromTrialDofs(Array<int> &marked_vdofs,
+                                           const Vector &sol, Vector &rhs);
+
+    virtual void EliminateTestDofs(Array<int> &bdr_attr_is_ess);
+   */
+   virtual void Update();
+
+   virtual ~MixedSesquilinearForm();
+};
+
 #ifdef MFEM_USE_MPI
 
 /// Class for complex-valued grid function - Vector with associated FE space.
@@ -369,6 +431,60 @@ public:
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
    virtual ~ParSesquilinearForm();
+};
+
+// Class for parallel mixed sesquilinear form
+class ParMixedSesquilinearForm
+{
+private:
+   ComplexOperator::Convention conv_;
+
+   //protected:
+   ParMixedBilinearForm *pblfr_;
+   ParMixedBilinearForm *pblfi_;
+
+public:
+   ParMixedSesquilinearForm(ParFiniteElementSpace *tr_pf,
+                            ParFiniteElementSpace *te_pf,
+                            ComplexOperator::Convention
+                            convention = ComplexOperator::HERMITIAN);
+
+   ComplexOperator::Convention GetConvention() const { return conv_; }
+   void SetConvention(const ComplexOperator::Convention &
+                      convention) { conv_  = convention; }
+
+   ParMixedBilinearForm & real() { return *pblfr_; }
+   ParMixedBilinearForm & imag() { return *pblfi_; }
+   const ParMixedBilinearForm & real() const { return *pblfr_; }
+   const ParMixedBilinearForm & imag() const { return *pblfi_; }
+
+   /// Adds new Domain Integrator.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                            BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                              BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Boundary Integrator, restricted to specific boundary attributes.
+   /*
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
+                              BilinearFormIntegrator *bfi_imag,
+                              Array<int> &bdr_marker);
+   */
+   /// Assemble the local matrix
+   void Assemble(int skip_zeros = 1);
+
+   /// Finalizes the matrix initialization.
+   void Finalize(int skip_zeros = 1);
+
+   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
+   /** The returned matrix has to be deleted by the caller. */
+   ComplexHypreParMatrix *ParallelAssemble();
+
+   virtual void Update();
+
+   virtual ~ParMixedSesquilinearForm();
 };
 
 #endif // MFEM_USE_MPI
