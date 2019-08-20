@@ -901,6 +901,7 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
                                double neutral_mass,
                                double neutral_temp,
                                double Di_perp,
+			       VectorCoefficient &bHatCoef,
                                MatrixCoefficient &perpCoef,
                                Coefficient &MomCCoef,
                                Coefficient &TiCCoef,
@@ -919,7 +920,7 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
      newton_solver_(fes.GetComm()),
      op_(dg, pgf, dpgf, offsets_,
          ion_charge, neutral_mass, neutral_temp, Di_perp,
-         perpCoef, op_flag, logging)//,
+         bHatCoef, perpCoef, op_flag, logging)//,
      // oneCoef_(1.0),
      // n_n_oper_(dg, fes, pgf, oneCoef_, imex),
      // n_i_oper_(dg, fes, pgf, oneCoef_, imex),
@@ -1795,7 +1796,8 @@ DGTransportTDO::CombinedOp::CombinedOp(DGParams & dg,
                                        int ion_charge,
                                        double neutral_mass, double neutral_temp,
                                        double DiPerp,
-                                       MatrixCoefficient &PerpCoef,
+				       VectorCoefficient &bHatCoef,
+				       MatrixCoefficient &PerpCoef,
                                        unsigned int op_flag, int logging)
    : neq_(5),
      MyRank_(pgf[0]->ParFESpace()->GetMyRank()),
@@ -2225,18 +2227,23 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
                                            ParGridFunctionArray & dpgf,
                                            int ion_charge,
                                            double DPerp,
+					   VectorCoefficient & bHatCoef,
                                            MatrixCoefficient & PerpCoef)
    : NLOperator(dg, 1, pgf, dpgf), z_i_(ion_charge), DPerpConst_(DPerp),
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
      dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
+     nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]), Te0Coef_(pgf[4]),
+     dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dviCoef_(dpgf[2]), dTeCoef_(dpgf[4]),
      nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-     Te1Coef_(Te0Coef_, dTeCoef_),
+     vi1Coef_(vi0Coef_, dviCoef_), Te1Coef_(Te0Coef_, dTeCoef_),
      ne0Coef_(z_i_, ni0Coef_),
      ne1Coef_(z_i_, ni1Coef_),
      izCoef_(Te1Coef_),
      DPerpCoef_(DPerp),
      PerpCoef_(&PerpCoef), DCoef_(DPerpCoef_, *PerpCoef_),
      dtDCoef_(0.0, DCoef_),
+     bHatCoef_(&bHatCoef),
+     ViCoef_(vi1Coef_, *bHatCoef_), dtViCoef_(0.0, ViCoef_),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
@@ -2251,6 +2258,10 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
                                           dg_.sigma,
                                           dg_.kappa));
 
+   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
+   fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
+   // bfbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
+   
    dlfi_.Append(new DomainLFIntegrator(negSizCoef_));
 
    // blf_[0] = new ParBilinearForm((*pgf_)[0]->ParFESpace());
@@ -2261,6 +2272,10 @@ DGTransportTDO::IonDensityOp::IonDensityOp(DGParams & dg,
    blf_[1]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
                                                                 dg_.sigma,
                                                                 dg_.kappa));
+   blf_[1]->AddDomainIntegrator(
+      new MixedScalarWeakDivergenceIntegrator(dtViCoef_));
+   blf_[1]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtViCoef_,
+							    1.0, -0.5));
    // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSndniCoef_));
 }
 
@@ -2272,9 +2287,11 @@ void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
 
    nn1Coef_.SetBeta(dt);
    ni1Coef_.SetBeta(dt);
+   vi1Coef_.SetBeta(dt);
    Te1Coef_.SetBeta(dt);
 
    dtDCoef_.SetAConst(dt);
+   dtViCoef_.SetAConst(dt);
    dtdSndnnCoef_.SetAConst(-dt);
    dtdSndniCoef_.SetAConst(-dt * z_i_);
 }

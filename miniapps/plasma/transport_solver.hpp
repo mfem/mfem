@@ -839,14 +839,17 @@ private:
 
       GridFunctionCoefficient nn0Coef_;
       GridFunctionCoefficient ni0Coef_;
+      GridFunctionCoefficient vi0Coef_;
       GridFunctionCoefficient Te0Coef_;
 
       GridFunctionCoefficient dnnCoef_;
       GridFunctionCoefficient dniCoef_;
+      GridFunctionCoefficient dviCoef_;
       GridFunctionCoefficient dTeCoef_;
 
       mutable SumCoefficient  nn1Coef_;
       mutable SumCoefficient  ni1Coef_;
+      mutable SumCoefficient  vi1Coef_;
       mutable SumCoefficient  Te1Coef_;
 
       ProductCoefficient      ne0Coef_;
@@ -859,6 +862,10 @@ private:
       ScalarMatrixProductCoefficient DCoef_;
       ScalarMatrixProductCoefficient dtDCoef_;
 
+      VectorCoefficient * bHatCoef_;
+      ScalarVectorProductCoefficient ViCoef_;
+      ScalarVectorProductCoefficient dtViCoef_;
+     
       IonSourceCoef           SizCoef_;
       ProductCoefficient   negSizCoef_;
 
@@ -931,7 +938,9 @@ private:
                  ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                  Array<int> & offsets,
                  int ion_charge, double neutral_mass, double neutral_temp,
-                 double DiPerp, MatrixCoefficient & PerpCoef,
+                 double DiPerp,
+		 VectorCoefficient & bHatCoef,
+		 MatrixCoefficient & PerpCoef,
                  unsigned int op_flag = 31, int logging = 0);
 
       ~CombinedOp();
@@ -975,7 +984,8 @@ public:
                   double neutral_mass,
                   double neutral_temp,
                   double Di_perp,
-                  MatrixCoefficient & perpCoef,
+		  VectorCoefficient & bHatCoef,
+		  MatrixCoefficient & perpCoef,
                   Coefficient &MomCCoef,
                   Coefficient &TiCCoef,
                   Coefficient &TeCCoef,

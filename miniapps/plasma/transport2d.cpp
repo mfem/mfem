@@ -1423,7 +1423,7 @@ int main(int argc, char *argv[])
         dpgf[0]->GetData() << endl;
    DGTransportTDO oper(dg, fes, ffes, offsets, pgf, dpgf,
                        ion_charge, neutral_mass, neutral_temp,
-                       Di_perp, perpCoef, mnCoef, niCoef, neCoef,
+                       Di_perp, bHatCoef, perpCoef, mnCoef, niCoef, neCoef,
                        imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
