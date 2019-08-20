@@ -98,13 +98,13 @@ protected:
    /// Wrapper to compute the ODE rhs function.
    static int RHS(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
 
-   /// Setup the linear system A x = b
+   /// Setup the linear system \f$ A x = b \f$.
    static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
                           booleantype jok, booleantype *jcur,
                           realtype gamma, void *user_data, N_Vector tmp1,
                           N_Vector tmp2, N_Vector tmp3);
 
-   /// Solve the linear system A x = b
+   /// Solve the linear system \f$ A x = b \f$.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
                           N_Vector b, realtype tol);
 
@@ -211,46 +211,46 @@ protected:
    static int RHS2(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
    ///@}
 
-   /// Setup the linear system A x = b
+   /// Setup the linear system \f$ A x = b \f$.
    static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
                           SUNMatrix M, booleantype jok, booleantype *jcur,
                           realtype gamma, void *user_data, N_Vector tmp1,
                           N_Vector tmp2, N_Vector tmp3);
 
-   /// Solve the linear system A x = b
+   /// Solve the linear system \f$ A x = b \f$.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
                           N_Vector b, realtype tol);
 
-   /// Setup the linear system M x = b
+   /// Setup the linear system \f$ M x = b \f$.
    static int MassSysSetup(realtype t, SUNMatrix M, void *user_data,
                            N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
 
-   /// Solve the linear system M x = b
+   /// Solve the linear system \f$ M x = b \f$.
    static int MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
                            N_Vector b, realtype tol);
 
-   /// Compute the matrix-vector product M x = v
+   /// Compute the matrix-vector product \f$ v = M x \f$.
    static int MassMult1(SUNMatrix M, N_Vector x, N_Vector v);
 
-   /// Compute the matrix-vector product M x = v
+   /// Compute the matrix-vector product \f$v = M_t x \f$ at time t.
    static int MassMult2(N_Vector x, N_Vector v, realtype t,
                         void* mtimes_data);
 
 public:
    /// Construct a serial wrapper to SUNDIALS' ARKode integrator.
    /** @param[in] type Specifies the RK method type:
-                       - EXPLICIT - explicit RK method,
-                       - IMPLICIT - implicit RK method,
-                       - IMEX     - implicit-explicit ARK method. */
+                       - EXPLICIT - explicit RK method (default)
+                       - IMPLICIT - implicit RK method
+                       - IMEX     - implicit-explicit ARK method */
    ARKStepSolver(Type type = EXPLICIT);
 
 #ifdef MFEM_USE_MPI
    /// Construct a parallel wrapper to SUNDIALS' ARKode integrator.
    /** @param[in] comm The MPI communicator used to partition the ODE system.
        @param[in] type Specifies the RK method type:
-                       - EXPLICIT - explicit RK method,
-                       - IMPLICIT - implicit RK method,
-                       - IMEX     - implicit-explicit ARK method. */
+                       - EXPLICIT - explicit RK method (default)
+                       - IMPLICIT - implicit RK method
+                       - IMEX     - implicit-explicit ARK method */
    ARKStepSolver(MPI_Comm comm, Type type = EXPLICIT);
 #endif
 
@@ -262,7 +262,7 @@ public:
        then ARKStepReInit() will be called in the next call to Step(). If the
        problem size has changed, the ARKStep memory is freed and realloced
        for the new problem size. */
-   /** @param[in] f_ The TimeDependentOperator that defines the ODE system.
+   /** @param[in] f_ The TimeDependentOperator that defines the ODE system
 
        @note All other methods must be called after Init(). */
    void Init(TimeDependentOperator &f_);
@@ -270,9 +270,9 @@ public:
    /// Integrate the ODE with ARKode using the specified step mode.
    /**
        @param[in,out] x  On output, the solution vector at the requested output
-                         time, tout = @a t + @a dt.
-       @param[in,out] t  On output, the output time reached.
-       @param[in,out] dt On output, the last time step taken.
+                         time, tout = @a t + @a dt
+       @param[in,out] t  On output, the output time reached
+       @param[in,out] dt On output, the last time step taken
 
        @note On input, the values of @a t and @a dt are used to compute desired
        output time for the integration, tout = @a t + @a dt.
@@ -287,16 +287,16 @@ public:
 
    /// Attach an MFEM mass matrix linear solver to ARKode.
    /** @param[in] tdep    An integer flag indicating if the mass matrix is time
-                          dependent (1) or time independent (0). */
+                          dependent (1) or time independent (0) */
    void UseMFEMMassLinearSolver(int tdep);
 
    /// Attach a SUNDIALS mass matrix linear solver to ARKode.
    /** @param[in] tdep    An integer flag indicating if the mass matrix is time
-                          dependent (1) or time independent (0). */
+                          dependent (1) or time independent (0) */
    void UseSundialsMassLinearSolver(int tdep);
 
    /// Select the ARKode step mode: ARK_NORMAL (default) or ARK_ONE_STEP.
-   /** @param[in] itask  The desired step mode. */
+   /** @param[in] itask  The desired step mode */
    void SetStepMode(int itask);
 
    /// Set the scalar relative and scalar absolute tolerances.
@@ -311,17 +311,17 @@ public:
    void SetOrder(int order);
 
    /// Choose a specific Butcher table for an explicit RK method.
-   /** See the documentation for all possible options, stability regions, etc.
+   /** See ARKODE documentation for all possible options, stability regions, etc.
        For example, table_num = BOGACKI_SHAMPINE_4_2_3 is 4-stage 3rd order. */
    void SetERKTableNum(int table_num);
 
    /// Choose a specific Butcher table for a diagonally implicit RK method.
-   /** See the documentation for all possible options, stability regions, etc.
+   /** See ARKODE documentation for all possible options, stability regions, etc.
        For example, table_num = CASH_5_3_4 is 5-stage 4th order. */
    void SetIRKTableNum(int table_num);
 
    /// Choose a specific Butcher table for an IMEX RK method.
-   /** See the documentation for all possible options, stability regions, etc.
+   /** See ARKODE documentation for all possible options, stability regions, etc.
        For example, etable_num = ARK548L2SA_DIRK_8_4_5 and
        itable_num = ARK548L2SA_ERK_8_4_5 is 8-stage 5th order. */
    void SetIMEXTableNum(int etable_num, int itable_num);
@@ -348,24 +348,24 @@ public:
 class KINSolver : public NewtonSolver, public SundialsSolver
 {
 protected:
-   int global_strategy;               // KINSOL solution strategy
-   bool use_oper_grad;                // use the Jv prod function
-   mutable N_Vector y_scale, f_scale; // scaling vectors
-   const Operator *jacobian;          // stores oper->GetGradient()
-   int maa;                           // number of acceleration vectors
+   int global_strategy;               ///< KINSOL solution strategy
+   bool use_oper_grad;                ///< use the Jv prod function
+   mutable N_Vector y_scale, f_scale; ///< scaling vectors
+   const Operator *jacobian;          ///< stores oper->GetGradient()
+   int maa;                           ///< number of acceleration vectors
 
-   /// Wrapper to compute the nonlinear residual F(u) = 0
+   /// Wrapper to compute the nonlinear residual \f$ F(u) = 0 \f$.
    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
 
-   /// Wrapper to compute the Jacobian-vector product J(u) v = Jv
+   /// Wrapper to compute the Jacobian-vector product \f$ J(u) v = Jv \f$.
    static int GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
                            booleantype *new_u, void *user_data);
 
-   /// Setup the linear system J u = b
+   /// Setup the linear system \f$ J u = b \f$.
    static int LinSysSetup(N_Vector u, N_Vector fu, SUNMatrix J,
                           void *user_data, N_Vector tmp1, N_Vector tmp2);
 
-   /// Solve the linear system J u = b
+   /// Solve the linear system \f$ J u = b \f$.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
                           N_Vector b, realtype tol);
 
@@ -408,7 +408,8 @@ public:
    virtual void SetPreconditioner(Solver &solver) { SetSolver(solver); }
 
    /// Set KINSOL's scaled step tolerance.
-   /** The default tolerance is U^(2/3), where U = machine unit roundoff.
+   /** The default tolerance is \f$ U^\frac{2}{3} \f$ , where 
+       U = machine unit roundoff.
        @note This method must be called after SetOperator(). */
    void SetScaledStepTol(double sstol);
 
@@ -425,30 +426,30 @@ public:
        maximum. */
    void SetMAA(int maa);
 
-   /// Solve the nonlinear system F(x) = 0.
+   /// Solve the nonlinear system \f$ F(x) = 0 \f$.
    /** This method computes the x_scale and fx_scale vectors and calls the
        other Mult(Vector&, Vector&, Vector&) const method. The x_scale vector
        is a vector of ones and values of fx_scale are determined by comparing
        the chosen relative and functional norm (i.e. absolute) tolerances.
-       @param[in]     b  Not used, KINSOL always assumes zero RHS.
+       @param[in]     b  Not used, KINSOL always assumes zero RHS
        @param[in,out] x  On input, initial guess, if @a #iterative_mode = true,
                          otherwise the initial guess is zero; on output, the
-                         solution. */
+                         solution */
    virtual void Mult(const Vector &b, Vector &x) const;
 
-   /// Solve the nonlinear system F(x) = 0.
+   /// Solve the nonlinear system \f$ F(x) = 0 \f$.
    /** Calls KINSol() to solve the nonlinear system. Before calling KINSol(),
        this functions uses the data members inherited from class IterativeSolver
        to set corresponding KINSOL options.
        @param[in,out] x         On input, initial guess, if @a #iterative_mode =
                                 true, otherwise the initial guess is zero; on
-                                output, the solution.
+                                output, the solution
        @param[in]     x_scale   Elements of a diagonal scaling matrix D, s.t.
                                 D*x has all elements roughly the same when
-                                x is close to a solution.
+                                x is close to a solution
        @param[in]     fx_scale  Elements of a diagonal scaling matrix E, s.t.
                                 D*F(x) has all elements roughly the same when
-                                x is not too close to a solution. */
+                                x is not too close to a solution */
    void Mult(Vector &x, const Vector &x_scale, const Vector &fx_scale) const;
 };
 
