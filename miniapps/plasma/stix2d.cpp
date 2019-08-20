@@ -174,8 +174,9 @@ private:
 };
 
 void Update(ParFiniteElementSpace & HCurlFESpace,
-            ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
+            ParFiniteElementSpace & L2FESpace2D,
+            ParFiniteElementSpace & L2FESpace3D,
             ParGridFunction & BField,
             VectorCoefficient & BCoef,
             int & size_l2,
@@ -208,6 +209,7 @@ int main(int argc, char *argv[])
    int sol = 2;
    int prec = 1;
    // int nspecies = 2;
+   bool two_d = false;
    bool herm_conv = false;
    bool vis_u = false;
    bool visualization = true;
@@ -246,6 +248,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&two_d, "-2d", "--2d", "-no-2d", "--no-2d",
+                  "Enable or disable 2D simulation.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    // args.AddOption(&nspecies, "-ns", "--num-species",
@@ -451,44 +455,53 @@ int main(int argc, char *argv[])
    {
       mesh2d->UniformRefinement();
    }
-   Mesh * mesh = Extrude2D(mesh2d, 3, hz);
-   delete mesh2d;
-   {
-      /*
-      vector<Vector> trans(1);
-      trans[0].SetSize(3);
-      trans[0] = 0.0; trans[0][2] = hz;
-      */
-      Array<int> v2v(mesh->GetNV());
-      for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
-      for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
+   Mesh * mesh = NULL;
 
-      Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, v2v);
-      /*
-      ofstream ofs("per_mesh.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-      cout << "Chekcing eltrans from mesh" << endl;
-      for (int i=0; i<mesh->GetNBE(); i++)
+   if (two_d)
+   {
+      mesh = mesh2d;
+   }
+   else
+   {
+      mesh = Extrude2D(mesh2d, 3, hz);
+      delete mesh2d;
       {
-        ElementTransformation * eltrans = mesh->GetBdrElementTransformation(i);
-        cout << i
-        << '\t' << eltrans->ElementNo
-        << '\t' << eltrans->Attribute
-        << endl;
+         /*
+         vector<Vector> trans(1);
+         trans[0].SetSize(3);
+         trans[0] = 0.0; trans[0][2] = hz;
+         */
+         Array<int> v2v(mesh->GetNV());
+         for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
+         for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
+
+         Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, v2v);
+         /*
+         ofstream ofs("per_mesh.mesh");
+         per_mesh->Print(ofs);
+         ofs.close();
+         cout << "Chekcing eltrans from mesh" << endl;
+         for (int i=0; i<mesh->GetNBE(); i++)
+         {
+           ElementTransformation * eltrans = mesh->GetBdrElementTransformation(i);
+           cout << i
+           << '\t' << eltrans->ElementNo
+           << '\t' << eltrans->Attribute
+           << endl;
+         }
+         cout << "Chekcing eltrans from per_mesh" << endl;
+         for (int i=0; i<per_mesh->GetNBE(); i++)
+         {
+           ElementTransformation * eltrans = per_mesh->GetBdrElementTransformation(i);
+           cout << i
+           << '\t' << eltrans->ElementNo
+           << '\t' << eltrans->Attribute
+           << endl;
+         }
+         */
+         delete mesh;
+         mesh = per_mesh;
       }
-      cout << "Chekcing eltrans from per_mesh" << endl;
-      for (int i=0; i<per_mesh->GetNBE(); i++)
-      {
-        ElementTransformation * eltrans = per_mesh->GetBdrElementTransformation(i);
-        cout << i
-        << '\t' << eltrans->ElementNo
-        << '\t' << eltrans->Attribute
-        << endl;
-      }
-      */
-      delete mesh;
-      mesh = per_mesh;
    }
    tic_toc.Stop();
 
@@ -546,10 +559,12 @@ int main(int argc, char *argv[])
    */
    // H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
-   RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
+   // RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
+   L2_ParFESpace L2FESpace2D(&pmesh, order, pmesh.Dimension(), 2);
+   L2_ParFESpace L2FESpace3D(&pmesh, order, pmesh.Dimension(), 3);
 
-   ParGridFunction BField(&HDivFESpace);
+   ParGridFunction BField(&L2FESpace3D);
    // ParGridFunction temperature_gf;
    ParGridFunction density_gf;
 
@@ -647,10 +662,11 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      socketstream sock_Er, sock_Ei, sock_B;
+      socketstream sock_Er, sock_Ei, sock_B, sock_Bz;
       sock_Er.precision(8);
       sock_Ei.precision(8);
       sock_B.precision(8);
+      sock_Bz.precision(8);
 
       Wx += 2 * offx;
       VisualizeField(sock_Er, vishost, visport,
@@ -664,10 +680,25 @@ int main(int argc, char *argv[])
       Wx -= offx;
       Wy += offy;
 
-      VisualizeField(sock_B, vishost, visport,
-                     BField, "Background Magnetic Field",
-                     Wx, Wy, Ww, Wh);
+      if (two_d)
+      {
+         ParGridFunction BField_xy(&L2FESpace2D, BField.GetData());
+         ParGridFunction BField_z(&L2FESpace, &BField.GetData()[2*size_l2]);
 
+         VisualizeField(sock_B, vishost, visport,
+                        BField_xy, "Background Magnetic Field (xy)",
+                        Wx, Wy, Ww, Wh);
+         Wx += offx;
+         VisualizeField(sock_Bz, vishost, visport,
+                        BField_z, "Background Magnetic Field (z)",
+                        Wx, Wy, Ww, Wh);
+      }
+      else
+      {
+         VisualizeField(sock_B, vishost, visport,
+                        BField, "Background Magnetic Field",
+                        Wx, Wy, Ww, Wh);
+      }
    }
 
    // Setup coefficients for Dirichlet BC
@@ -841,7 +872,7 @@ int main(int argc, char *argv[])
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
-      Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
+      Update(HCurlFESpace, L2FESpace, L2FESpace2D, L2FESpace3D, BField, BCoef,
              size_l2, numbers, density_offsets, density, density_gf);
       CPD.Update();
 
@@ -851,7 +882,8 @@ int main(int argc, char *argv[])
          pmesh.Rebalance();
 
          // Update again after rebalancing
-         Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
+         Update(HCurlFESpace, L2FESpace, L2FESpace2D, L2FESpace3D,
+                BField, BCoef,
                 size_l2, numbers, density_offsets, density, density_gf);
          CPD.Update();
       }
@@ -871,8 +903,9 @@ int main(int argc, char *argv[])
 }
 
 void Update(ParFiniteElementSpace & HCurlFESpace,
-            ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
+            ParFiniteElementSpace & L2FESpace2D,
+            ParFiniteElementSpace & L2FESpace3D,
             ParGridFunction & BField,
             VectorCoefficient & BCoef,
             int & size_l2,
@@ -882,8 +915,10 @@ void Update(ParFiniteElementSpace & HCurlFESpace,
             ParGridFunction & density_gf)
 {
    HCurlFESpace.Update();
-   HDivFESpace.Update();
+   // HDivFESpace.Update();
    L2FESpace.Update();
+   L2FESpace2D.Update();
+   L2FESpace3D.Update();
 
    BField.Update();
    BField.ProjectCoefficient(BCoef);

@@ -137,6 +137,143 @@ private:
    mutable Vector Hi_;
 };
 
+class VectorEntryCoefficient : public Coefficient
+{
+private:
+   Vector V;
+   VectorCoefficient * VCoef;
+   int r;
+
+public:
+   VectorEntryCoefficient(VectorCoefficient &coef, int row)
+      : VCoef(&coef), r(row)
+   {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      VCoef->Eval(V, T, ip);
+      return V[r];
+   }
+};
+
+class MatrixEntryCoefficient : public Coefficient
+{
+private:
+   DenseMatrix M;
+   MatrixCoefficient * MCoef;
+   int r, c;
+
+public:
+   MatrixEntryCoefficient(MatrixCoefficient &coef, int row, int col)
+      : MCoef(&coef), r(row), c(col)
+   {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      MCoef->Eval(M, T, ip);
+      return M(r, c);
+   }
+};
+
+class SubVectorCoefficient : public VectorCoefficient
+{
+private:
+   DenseMatrix M;
+   Vector v;
+   MatrixCoefficient * MCoef;
+   VectorCoefficient * VCoef;
+   int h, w, r, c;
+
+public:
+   SubVectorCoefficient(MatrixCoefficient &coef, int height, int width,
+                        int row, int col)
+      : VectorCoefficient(std::max(height, width)),
+        MCoef(&coef), VCoef(NULL), h(height), w(width), r(row), c(col)
+   {
+      MFEM_ASSERT(h==1 || w==1, "Either the height or width must be 1. "
+                  "Provided values are " << h << " and " << w << ".");
+   }
+
+   SubVectorCoefficient(VectorCoefficient &coef, int length, int offset)
+      : VectorCoefficient(length),
+        MCoef(NULL), VCoef(&coef), h(length), w(1), r(offset), c(0)
+   {
+      MFEM_ASSERT(h==1 || w==1, "Either the height or width must be 1. "
+                  "Provided values are " << h << " and " << w << ".");
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      V.SetSize(vdim);
+
+      if (MCoef)
+      {
+         MCoef->Eval(M, T, ip);
+
+         if (h == 1)
+         {
+            for (int i=0; i<vdim; i++)
+            {
+               V[i] = M(r, c + i);
+            }
+         }
+         else
+         {
+            for (int i=0; i<vdim; i++)
+            {
+               V[i] = M(r + i, c);
+            }
+         }
+      }
+      else if (VCoef)
+      {
+         VCoef->Eval(v, T, ip);
+
+         for (int i=0; i<vdim; i++)
+         {
+            V[i] = v[r + i];
+         }
+      }
+      else
+      {
+         V = 0.0;
+      }
+   }
+};
+
+class SubMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   DenseMatrix M;
+   MatrixCoefficient * MCoef;
+   int h, w, r, c;
+
+public:
+   SubMatrixCoefficient(MatrixCoefficient &coef, int height, int width,
+                        int row, int col)
+      : MatrixCoefficient(height, width),
+        MCoef(&coef), r(row), c(col)
+   {
+   }
+
+   void Eval(DenseMatrix &D, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      D.SetSize(height, width);
+
+      MCoef->Eval(M, T, ip);
+
+      for (int i=0; i<height; i++)
+         for (int j=0; j<width; j++)
+         {
+            D(i, j) = M(r + i, c + j);
+         }
+   }
+};
+
 /// Cold Plasma Dielectric Solver
 class CPDSolver
 {
@@ -233,21 +370,21 @@ private:
 
    L2_ParFESpace * L2FESpace_;
    L2_ParFESpace * L2VFESpace_;
-   // H1_ParFESpace * H1FESpace_;
+   H1_ParFESpace * H1FESpace_;
    ND_ParFESpace * HCurlFESpace_;
    RT_ParFESpace * HDivFESpace_;
 
    Array<HYPRE_Int> blockTrueOffsets_;
 
-   // ParSesquilinearForm * a0_;
-   ParSesquilinearForm * a1_;
-   ParBilinearForm * b1_;
+   Array2D<ParSesquilinearForm*>      a_;
+   Array2D<ParMixedSesquilinearForm*> am_;
+   Array<ParBilinearForm*>            b_;
 
-   ParComplexGridFunction * e_;   // Complex electric field (HCurl)
-   ParComplexGridFunction * j_;   // Complex current density (HCurl)
-   ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
+   Array<ParComplexGridFunction*> e_;   // Complex electric field (HCurl)
+   Array<ParComplexGridFunction*> j_;   // Complex current density (HCurl)
+   Array<ParComplexLinearForm*> rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
-   ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
+   Array<ParComplexGridFunction*> e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
    ParGridFunction        * u_;   // Energy density (L2)
    ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
@@ -273,16 +410,37 @@ private:
    Coefficient * negsinkx_;      // -sin(ky * y + kz * z)
    Coefficient * negMuInvCoef_;  // -1.0 / mu
 
-   MatrixCoefficient * massReCoef_;  // -omega^2 Re(epsilon)
-   MatrixCoefficient * massImCoef_;  // omega^2 Im(epsilon)
-   MatrixCoefficient * posMassCoef_; // omega^2 Abs(epsilon)
+   MatrixCoefficient * massReCoef_;       // -omega^2 Re(epsilon)
+   MatrixCoefficient * massImCoef_;       // omega^2 Im(epsilon)
+   MatrixCoefficient * posMassCoef_;      // omega^2 Abs(epsilon)
    MatrixCoefficient * negMuInvkxkxCoef_; // -\vec{k}\times\vec{k}\times/mu
 
+   // Coefficients for 2D system
+   MatrixCoefficient * massRe2x2Coef_;     // -omega^2 Re(epsilon)
+   VectorCoefficient * massRe2x1Coef_;     // -omega^2 Re(epsilon)
+   VectorCoefficient * massRe1x2Coef_;     // -omega^2 Re(epsilon)
+   Coefficient       * massReZZCoef_;      // -omega^2 Re(epsilon)
+   MatrixCoefficient * massIm2x2Coef_;     // omega^2 Im(epsilon)
+   VectorCoefficient * massIm2x1Coef_;     // omega^2 Im(epsilon)
+   VectorCoefficient * massIm1x2Coef_;     // omega^2 Im(epsilon)
+   Coefficient       * massImZZCoef_;      // omega^2 Im(epsilon)
+   MatrixCoefficient * posMass2x2Coef_;    // omega^2 Abs(epsilon)
+   Coefficient       * posMassZZCoef_;     // omega^2 Abs(epsilon)
+
    VectorCoefficient * negMuInvkCoef_; // -\vec{k}/mu
-   VectorCoefficient * jrCoef_;     // Volume Current Density Function
-   VectorCoefficient * jiCoef_;     // Volume Current Density Function
-   VectorCoefficient * rhsrCoef_;     // Volume Current Density Function
-   VectorCoefficient * rhsiCoef_;     // Volume Current Density Function
+   VectorCoefficient * jrCoef_;        // Volume Current Density Function
+   VectorCoefficient * jiCoef_;        // Volume Current Density Function
+   VectorCoefficient * rhsrCoef_;      // Volume Current Density Function
+   VectorCoefficient * rhsiCoef_;      // Volume Current Density Function
+
+   VectorCoefficient * jr2x1Coef_;        // Volume Current Density Function
+   VectorCoefficient * ji2x1Coef_;        // Volume Current Density Function
+   Coefficient       * jrZCoef_;        // Volume Current Density Function
+   Coefficient       * jiZCoef_;        // Volume Current Density Function
+   VectorCoefficient * rhsr2x1Coef_;     // Volume Current Density Function
+   VectorCoefficient * rhsi2x1Coef_;     // Volume Current Density Function
+   Coefficient       * rhsrZCoef_;       // Volume Current Density Function
+   Coefficient       * rhsiZCoef_;       // Volume Current Density Function
 
    VectorGridFunctionCoefficient erCoef_;
    VectorGridFunctionCoefficient eiCoef_;
@@ -294,8 +452,8 @@ private:
    PoyntingVectorReCoef SrCoef_;
    PoyntingVectorImCoef SiCoef_;
 
-   // const VectorCoefficient & erCoef_;     // Electric Field Boundary Condition
-   // const VectorCoefficient & eiCoef_;     // Electric Field Boundary Condition
+   // const VectorCoefficient & erCoef_; // Electric Field Boundary Condition
+   // const VectorCoefficient & eiCoef_; // Electric Field Boundary Condition
 
    void   (*j_r_src_)(const Vector&, Vector&);
    void   (*j_i_src_)(const Vector&, Vector&);
@@ -314,7 +472,8 @@ private:
    // Array<int> * dbcs_;
    Array<ComplexVectorCoefficientByAttr> * dbcs_;
    Array<int> ess_bdr_;
-   Array<int> ess_bdr_tdofs_;
+   Array<int> ess_bdr_nd_tdofs_;
+   Array<int> ess_bdr_h1_tdofs_;
    Array<int> non_k_bdr_;
 
    VisItDataCollection * visit_dc_;
