@@ -16,6 +16,10 @@ add_mfem_miniapp(nurbs_ex1
 add_test(NAME nurbs_ex1_ser
   COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis)
 
+add_test(NAME nurbs_ex1_per_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+  -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2)
+
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
     MAIN ex1p.cpp

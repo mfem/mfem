@@ -16,6 +16,26 @@
 namespace mfem
 {
 
+LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
+   : Vector(f->GetVSize())
+{
+   // Linear forms are stored on the device
+   UseDevice(true);
+
+   fes = f;
+   extern_lfs = 1;
+
+   // Copy the pointers to the integrators
+   dlfi = lf->dlfi;
+
+   dlfi_delta = lf->dlfi_delta;
+
+   blfi = lf->blfi;
+
+   flfi = lf->flfi;
+   flfi_marker = lf->flfi_marker;
+}
+
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
 {
    DeltaLFIntegrator *maybe_delta =
@@ -65,6 +85,10 @@ void LinearForm::Assemble()
    int i;
 
    Vector::operator=(0.0);
+
+   // The above operation is executed on device because of UseDevice().
+   // The first use of AddElementVector() below will move it back to host
+   // because both 'vdofs' and 'elemvect' are on host.
 
    if (dlfi.Size())
    {
@@ -230,11 +254,15 @@ LinearForm & LinearForm::operator=(const Vector &v)
 
 LinearForm::~LinearForm()
 {
-   int k;
-   for (k=0; k < dlfi_delta.Size(); k++) { delete dlfi_delta[k]; }
-   for (k=0; k < dlfi.Size(); k++) { delete dlfi[k]; }
-   for (k=0; k < blfi.Size(); k++) { delete blfi[k]; }
-   for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }
+   if (!extern_lfs)
+   {
+      int k;
+      for (k=0; k < dlfi_delta.Size(); k++) { delete dlfi_delta[k]; }
+      for (k=0; k < dlfi.Size(); k++) { delete dlfi[k]; }
+      for (k=0; k < blfi.Size(); k++) { delete blfi[k]; }
+      for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }
+   }
 }
+
 
 }

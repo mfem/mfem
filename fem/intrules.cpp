@@ -78,6 +78,19 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    }
 }
 
+const Array<double> &IntegrationRule::GetWeights() const
+{
+   if (weights.Size() != GetNPoints())
+   {
+      weights.SetSize(GetNPoints());
+      for (int i = 0; i < GetNPoints(); i++)
+      {
+         weights[i] = IntPoint(i).weight;
+      }
+   }
+   return weights;
+}
+
 void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
 {
    // for pow on older compilers
@@ -886,7 +899,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
 
    if (!HaveIntRule(*ir_array, Order))
    {
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
       #pragma omp critical
 #endif
       {
@@ -1595,20 +1608,20 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
 // Integration rules for reference prism
 IntegrationRule *IntegrationRules::PrismIntegrationRule(int Order)
 {
-   IntegrationRule * irt = GenerateIntegrationRule(Geometry::TRIANGLE, Order);
-   IntegrationRule * irs = GenerateIntegrationRule(Geometry::SEGMENT, Order);
-   int nt = irt->GetNPoints();
-   int ns = irs->GetNPoints();
+   const IntegrationRule & irt = Get(Geometry::TRIANGLE, Order);
+   const IntegrationRule & irs = Get(Geometry::SEGMENT, Order);
+   int nt = irt.GetNPoints();
+   int ns = irs.GetNPoints();
    AllocIntRule(PrismIntRules, Order);
    PrismIntRules[Order] = new IntegrationRule(nt * ns);
 
    for (int ks=0; ks<ns; ks++)
    {
-      const IntegrationPoint & ips = irs->IntPoint(ks);
+      const IntegrationPoint & ips = irs.IntPoint(ks);
       for (int kt=0; kt<nt; kt++)
       {
          int kp = ks * nt + kt;
-         const IntegrationPoint & ipt = irt->IntPoint(kt);
+         const IntegrationPoint & ipt = irt.IntPoint(kt);
          IntegrationPoint & ipp = PrismIntRules[Order]->IntPoint(kp);
          ipp.x = ipt.x;
          ipp.y = ipt.y;

@@ -19,3 +19,6 @@ add_mfem_miniapp(load-dc
 
 add_mfem_miniapp(convert-dc
   MAIN convert-dc.cpp LIBRARIES mfem)
+
+add_mfem_miniapp(lor-transfer
+  MAIN lor-transfer.cpp LIBRARIES mfem)

@@ -1,15 +1,15 @@
-//                                MFEM Example 22
+//                                MFEM Example 21
 //
-// Compile with: make ex22p
+// Compile with: make ex21p
 //
-// Sample runs:  mpirun -np 4 ex22p
-//               mpirun -np 4 ex22p -o 3
-//               mpirun -np 4 ex22p -m ../data/beam-quad.mesh
-//               mpirun -np 4 ex22p -m ../data/beam-quad.mesh -o 3
-//               mpirun -np 4 ex22p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex22p -m ../data/beam-tet.mesh -o 2
-//               mpirun -np 4 ex22p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex22p -m ../data/beam-hex.mesh -o 2
+// Sample runs:  mpirun -np 4 ex21p
+//               mpirun -np 4 ex21p -o 3
+//               mpirun -np 4 ex21p -m ../data/beam-quad.mesh
+//               mpirun -np 4 ex21p -m ../data/beam-quad.mesh -o 3
+//               mpirun -np 4 ex21p -m ../data/beam-tet.mesh
+//               mpirun -np 4 ex21p -m ../data/beam-tet.mesh -o 2
+//               mpirun -np 4 ex21p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex21p -m ../data/beam-hex.mesh -o 2
 //
 // Description:  This is a version of Example 2p with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the linear
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
          x.Update();
       }
 
-      // 22. Inform also the bilinear and linear forms that the space has
+      // 21. Inform also the bilinear and linear forms that the space has
       //     changed.
       a.Update();
       b.Update();
@@ -338,9 +338,9 @@ int main(int argc, char *argv[])
 
    {
       ostringstream mref_name, mesh_name, sol_name;
-      mref_name << "ex22p_reference_mesh." << setfill('0') << setw(6) << myid;
-      mesh_name << "ex22p_deformed_mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "ex22p_displacement." << setfill('0') << setw(6) << myid;
+      mref_name << "ex21p_reference_mesh." << setfill('0') << setw(6) << myid;
+      mesh_name << "ex21p_deformed_mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "ex21p_displacement." << setfill('0') << setw(6) << myid;
 
       ofstream mesh_ref_out(mref_name.str().c_str());
       mesh_ref_out.precision(16);

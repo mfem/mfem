@@ -29,6 +29,7 @@ namespace mfem
 
 // Data type mesh
 
+class GeometricFactors;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
@@ -121,6 +122,8 @@ protected:
       const DenseMatrix* PointMatrix; // if Slave, position within master face
       // (NOTE: PointMatrix points to a matrix owned by NCMesh.)
 
+      NCFaceInfo() = default;
+
       NCFaceInfo(bool slave, int master, const DenseMatrix* pm)
          : Slave(slave), MasterFace(master), PointMatrix(pm) {}
    };
@@ -138,6 +141,7 @@ protected:
    mutable Table *edge_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
+   IsoparametricTransformation BdrTransformation;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
 
@@ -176,6 +180,7 @@ public:
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
+   Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -210,7 +215,7 @@ protected:
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
-   void ReadInlineMesh(std::istream &input, int generate_edges = 0);
+   void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
@@ -408,17 +413,20 @@ protected:
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
-       type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
-       generated, if 1 edges are generated. */
-   void Make3D(int nx, int ny, int nz, Element::Type type, int generate_edges,
-               double sx, double sy, double sz);
+       type=TETRAHEDRON. The parameter @a sfc_ordering controls how the elements
+       (when type=HEXAHEDRON) are ordered: true - use space-filling curve
+       ordering, or false - use lexicographic ordering. */
+   void Make3D(int nx, int ny, int nz, Element::Type type,
+               double sx, double sy, double sz, bool sfc_ordering);
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
-       if 1 edges are generated. */
-   void Make2D(int nx, int ny, Element::Type type, int generate_edges,
-               double sx, double sy);
+       if 1 edges are generated. The parameter @a sfc_ordering controls how the
+       elements (when type=QUADRILATERAL) are ordered: true - use space-filling
+       curve ordering, or false - use lexicographic ordering. */
+   void Make2D(int nx, int ny, Element::Type type, double sx, double sy,
+               bool generate_edges, bool sfc_ordering);
 
    /// Creates a 1D mesh for the interval [0,sx] divided into n equal intervals.
    void Make1D(int n, double sx = 1.0);
@@ -531,7 +539,7 @@ public:
 
        After calling this method, setting the Mesh vertices or nodes, it may be
        appropriate to call the method Finalize(). */
-   void FinalizeTopology();
+   void FinalizeTopology(bool generate_bdr = true);
 
    /// Finalize the construction of a general Mesh.
    /** This method will:
@@ -555,34 +563,46 @@ public:
    /** This is our integration with the Gecko library.  This will call the
        Gecko library to find an element ordering that will increase memory
        coherency by putting elements that are in physical proximity closer in
-       memory. */
-   void GetGeckoElementReordering(Array<int> &ordering);
+       memory. It can also be used to get a space-filling curve ordering for
+       ParNCMesh partitioning.
+       @param[out] ordering Output element ordering.
+       @param[in] iterations Number of V cycles (default 1).
+       @param[in] window Initial window size (default 2).
+       @param[in] period Iterations between window increment (default 1).
+       @param[in] seed Random number seed (default 0). */
+   void GetGeckoElementReordering(Array<int> &ordering,
+                                  int iterations = 1, int window = 2,
+                                  int period = 1, int seed = 0);
 #endif
 
    /** Rebuilds the mesh with a different order of elements.  The ordering
        vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements.  */
+       reorders the vertices and nodes edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
-       type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
-       generated, if 1 edges are generated. */
-   Mesh(int nx, int ny, int nz, Element::Type type, int generate_edges = 0,
-        double sx = 1.0, double sy = 1.0, double sz = 1.0)
+       type=TETRAHEDRON. If sfc_ordering = true (default), elements are ordered
+       along a space-filling curve, instead of row by row and layer by layer.
+       The parameter @a generate_edges is ignored (for now, it is kept for
+       backward compatibility). */
+   Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
+        double sx = 1.0, double sy = 1.0, double sz = 1.0,
+        bool sfc_ordering = true)
    {
-      Make3D(nx, ny, nz, type, generate_edges, sx, sy, sz);
+      Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
       Finalize(true); // refine = true
    }
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
-       if 1 edges are generated. */
-   Mesh(int nx, int ny, Element::Type type, int generate_edges = 0,
-        double sx = 1.0, double sy = 1.0)
+       if 1 edges are generated. If scf_ordering = true (default), elements are
+       ordered along a space-filling curve, instead of row by row. */
+   Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
+        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
    {
-      Make2D(nx, ny, type, generate_edges, sx, sy);
+      Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
       Finalize(true); // refine = true
    }
 
@@ -672,6 +692,16 @@ public:
 
    /// Return the total (global) number of elements.
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+
+   /** @brief Return the mesh geometric factors corresponding to the given
+       integration rule. */
+   const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
+                                               const int flags);
+
+   /// Destroy all GeometricFactors stored by the Mesh.
+   /** This method can be used to force recomputation of the GeometricFactors,
+       for example, after the mesh nodes are modified externally. */
+   void DeleteGeometricFactors();
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
@@ -1020,6 +1050,10 @@ public:
    /** Return the FiniteElementSpace on which the current mesh nodes are
        defined or NULL if the mesh does not have nodes. */
    const FiniteElementSpace *GetNodalFESpace() const;
+   /** Make sure that the mesh has valid nodes, i.e. its geometry is described
+       by a vector finite element grid function (even if it is a low-order mesh
+       with straight edges). */
+   void EnsureNodes();
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
@@ -1187,11 +1221,11 @@ public:
                                        const Array<int> &num_elems_by_geom,
                                        std::ostream &out);
 
-   /** @brief Compute and print mesh charateristics such as number of vertices,
+   /** @brief Compute and print mesh characteristics such as number of vertices,
        number of elements, number of boundary elements, minimal and maximal
        element sizes, minimal and maximal element aspect ratios, etc. */
    /** If @a Vh or @a Vk are not NULL, return the element sizes and aspect
-       ratios for all elements in the given Vecror%s. */
+       ratios for all elements in the given Vector%s. */
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
                              std::ostream &out = mfem::out);
 
@@ -1241,6 +1275,51 @@ public:
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
     class ParMesh */
 std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
+
+
+/** @brief Structure for storing mesh geometric factors: coordinates, Jacobians,
+    and determinants of the Jacobians. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetGeometricFactors(). */
+class GeometricFactors
+{
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+   };
+
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
+       where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NE = number of elements in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NE) where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NE = number of elements in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NE) where
+       - NQ = number of quadrature points per element, and
+       - NE = number of elements in the mesh. */
+   Vector detJ;
+};
 
 
 /// Class used to extrude the nodes of a mesh
