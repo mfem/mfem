@@ -699,7 +699,7 @@ int main(int argc, char *argv[])
 
    Vector amr_weights;
    Vector ode_weights;
-   
+
    int precision = 8;
    cout.precision(precision);
 
@@ -725,8 +725,8 @@ int main(int argc, char *argv[])
    args.AddOption(&nc_limit, "-l", "--nc-limit",
                   "Maximum level of hanging nodes.");
    args.AddOption(&amr_weights, "-amr-w","--amr-weights",
-		  "Relative importance of fields when computing "
-		  "AMR error estimates.");
+                  "Relative importance of fields when computing "
+                  "AMR error estimates.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&dg.sigma, "-dgs", "--dg-sigma",
@@ -750,8 +750,8 @@ int main(int argc, char *argv[])
                   "            22 - ImplicitMidPointSolver,\n\t"
                   "            23 - SDIRK23, 34 - SDIRK34.");
    args.AddOption(&ode_weights, "-ode-w","--ode-weights",
-		  "Relative importance of fields when computing "
-		  "ODE time step.");
+                  "Relative importance of fields when computing "
+                  "ODE time step.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -827,16 +827,16 @@ int main(int argc, char *argv[])
 
    if (amr_weights.Size() != 5)
    {
-     amr_weights.SetSize(5);
-     amr_weights = 1.0;
+      amr_weights.SetSize(5);
+      amr_weights = 1.0;
    }
 
    if (ode_weights.Size() != 5)
    {
-     ode_weights.SetSize(5);
-     ode_weights = 1.0;
+      ode_weights.SetSize(5);
+      ode_weights = 1.0;
    }
-   
+
    if (t_final < 0.0)
    {
       if (strcmp(mesh_file, "../data/periodic-hexagon.mesh") == 0)
