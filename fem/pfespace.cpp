@@ -877,8 +877,8 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
             }
             else
             {
-               //Pconf = new CudaConformingProlongationOperator(*this);
-               Pconf = new CudaConformingProlongationOperator(*this);
+               Pconf = new CudaConformingProlongationOperator(
+                  const_cast<ParFiniteElementSpace&>(*this));
             }
          }
       }
@@ -2958,8 +2958,8 @@ void ConformingProlongationOperator::MultTranspose(
    gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
 }
 
-DeviceConformingProlongationOperator::DeviceConformingProlongationOperator
-(const ParFiniteElementSpace &pfes) :
+DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
+   const ParFiniteElementSpace &pfes) :
    ConformingProlongationOperator(pfes)
 {
    MFEM_ASSERT(pfes.Conforming(), "internal error");
@@ -3208,22 +3208,28 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
    ReduceEndAssemble(y); // assemble from 'shr_buf'
 }
 
-// ***************************************************************************
-// * DeviceGroupCommunicator
-// ***************************************************************************
-DeviceGroupCommunicator::DeviceGroupCommunicator(const GroupCommunicator &gc):
-   GroupCommunicator(gc),
-   d_group_ldof(group_ldof),
-   d_group_ltdof(group_ltdof),
-   d_group_buf() { comm_lock=0; }
-
-//DeviceGroupCommunicator::~DeviceGroupCommunicator() { }
-
 
 #ifdef MFEM_USE_CUDA
 // ***************************************************************************
-static double *d_CopyGroupToBuffer_k(const double *d_ldata, double *d_buf,
-                                     const Table &d_dofs, const int group)
+// * CudaGroupCommunicator
+// ***************************************************************************
+CudaGroupCommunicator::CudaGroupCommunicator(ParFiniteElementSpace &p):
+   GroupCommunicator(p.GroupComm().GetGroupTopology()),
+   gc(p.GroupComm()),
+   d_group_ldof(),
+   d_group_ltdof(),
+   d_group_buf()
+{
+   group_ldof = gc.GroupLDofTable();
+   Finalize();
+   d_group_ldof = gc.GroupLDofTable();
+   d_group_ltdof = gc.GroupLTDofTable();
+   comm_lock = 0;
+}
+
+// ***************************************************************************
+static double *CudaCopyGroupToBuffer_k(const double *d_ldata, double *d_buf,
+                                       const Table &d_dofs, const int group)
 {
    const int ndofs = d_dofs.RowSize(group);
    const Memory<int> &I = d_dofs.GetIMemory();
@@ -3235,23 +3241,19 @@ static double *d_CopyGroupToBuffer_k(const double *d_ldata, double *d_buf,
 }
 
 // ***************************************************************************
-double *DeviceGroupCommunicator::d_CopyGroupToBuffer(const double *d_ldata,
+double *CudaGroupCommunicator::CudaCopyGroupToBuffer(const double *d_ldata,
                                                      double *d_buf,
                                                      int group,
                                                      int layout) const
 {
-   const Table &d_group = (layout==2)?d_group_ltdof:d_group_ldof;
-   return d_CopyGroupToBuffer_k(d_ldata,d_buf,d_group,group);
+   const Table &d_group = (layout==2) ? d_group_ltdof : d_group_ldof;
+   return CudaCopyGroupToBuffer_k(d_ldata,d_buf,d_group,group);
 }
 
 // ***************************************************************************
-const double *DeviceGroupCommunicator::d_CopyGroupFromBuffer(
-   const double *d_buf,
-   double *d_ldata,
-   int group,
-   int layout) const
+const double *CudaGroupCommunicator::CudaCopyGroupFromBuffer(
+   const double *d_buf,  double *d_ldata, int group) const
 {
-   MFEM_ASSERT(layout==0,"");
    const int ndofs = d_group_ldof.RowSize(group);
    const Memory<int> &I = d_group_ldof.GetIMemory();
    const Memory<int> &J = d_group_ldof.GetJMemory();
@@ -3262,14 +3264,14 @@ const double *DeviceGroupCommunicator::d_CopyGroupFromBuffer(
 }
 
 // ***************************************************************************
-const double *DeviceGroupCommunicator::d_ReduceGroupFromBuffer(
-   const double *d_buf, double *d_ldata, int group, int layout) const
+const double *CudaGroupCommunicator::CudaReduceGroupFromBuffer(
+   const double *d_buf, double *d_ldata, int group) const
 {
+   const int ndofs = d_group_ldof.RowSize(group);
    const Memory<int> &I = d_group_ltdof.GetIMemory();
    const Memory<int> &J = d_group_ltdof.GetJMemory();
    const int Jsize = J.Capacity();
-   const int *dofs = J.Read(MemoryClass::CUDA,Jsize) + I[group];
-   const int ndofs = group_ldof.RowSize(group);
+   const int *dofs = J.Read(MemoryClass::CUDA, Jsize) + I[group];
    MFEM_FORALL(i, ndofs, d_ldata[ dofs[i]] += d_buf[i];);
    return d_buf + ndofs;
 }
@@ -3278,11 +3280,10 @@ const double *DeviceGroupCommunicator::d_ReduceGroupFromBuffer(
 // ***************************************************************************
 // * d_BcastBegin
 // ***************************************************************************
-void DeviceGroupCommunicator::d_BcastBegin(double *d_ldata, int layout)
+void CudaGroupCommunicator::CudaBcastBegin(const double *d_ldata) const
 {
    MFEM_VERIFY(comm_lock == 0, "object is already in use");
    if (group_buf_size == 0) { return; }
-   MFEM_ASSERT(layout==2,"");
    int rnk;
    MPI_Comm_rank(MPI_COMM_WORLD, &rnk);
    int request_counter = 0;
@@ -3301,8 +3302,7 @@ void DeviceGroupCommunicator::d_BcastBegin(double *d_ldata, int layout)
          for (int i = 0; i < num_send_groups; i++)
          {
             double *d_buf_ini = d_buf;
-            MFEM_ASSERT(layout==2,"");
-            d_buf = d_CopyGroupToBuffer(d_ldata, d_buf, grp_list[i], 2);
+            d_buf = CudaCopyGroupToBuffer(d_ldata, d_buf, grp_list[i], 2);
             buf += d_buf - d_buf_ini;
          }
          if (!Device::GetGpuAwareMPI())
@@ -3310,11 +3310,7 @@ void DeviceGroupCommunicator::d_BcastBegin(double *d_ldata, int layout)
             CuMemcpyDtoH(buf_start,d_buf_start,(buf-buf_start)*sizeof(double));
          }
          // make sure the device has finished
-         if (Device::GetGpuAwareMPI())
-         {
-            cudaStreamSynchronize(0);
-         }
-
+         if (Device::GetGpuAwareMPI()) { cudaStreamSynchronize(0); }
          if (Device::GetGpuAwareMPI())
             MPI_Isend(d_buf_start,
                       buf - buf_start,
@@ -3375,7 +3371,7 @@ void DeviceGroupCommunicator::d_BcastBegin(double *d_ldata, int layout)
 // ***************************************************************************
 // * d_BcastEnd
 // ***************************************************************************
-void DeviceGroupCommunicator::d_BcastEnd(double *d_ldata, int layout)
+void CudaGroupCommunicator::CudaBcastEnd(double *d_ldata) const
 {
    if (comm_lock == 0) { return; }
    int rnk;
@@ -3403,11 +3399,12 @@ void DeviceGroupCommunicator::d_BcastEnd(double *d_ldata, int layout)
          const double *d_buf = (double*)d_group_buf.Write() + buf_offsets[nbr];
          if (!Device::GetGpuAwareMPI())
          {
-            CuMemcpyHtoD((void*)d_buf,buf,recv_size*sizeof(double));
+            const size_t bytes = static_cast<size_t>(recv_size)*sizeof(double);
+            CuMemcpyHtoD((void*)d_buf,buf,bytes);
          }
          for (int i = 0; i < num_recv_groups; i++)
          {
-            d_buf = d_CopyGroupFromBuffer(d_buf, d_ldata, grp_list[i], layout);
+            d_buf = CudaCopyGroupFromBuffer(d_buf, d_ldata, grp_list[i]);
          }
       }
    }
@@ -3418,7 +3415,7 @@ void DeviceGroupCommunicator::d_BcastEnd(double *d_ldata, int layout)
 // ***************************************************************************
 // * d_ReduceBegin
 // ***************************************************************************
-void DeviceGroupCommunicator::d_ReduceBegin(const double *d_ldata)
+void CudaGroupCommunicator::CudaReduceBegin(const double *d_ldata) const
 {
    MFEM_VERIFY(comm_lock == 0, "object is already in use");
    if (group_buf_size == 0) { return; }
@@ -3427,10 +3424,7 @@ void DeviceGroupCommunicator::d_ReduceBegin(const double *d_ldata)
    int request_counter = 0;
    group_buf.SetSize(group_buf_size*sizeof(double));
    double *buf = (double *)group_buf.GetData();
-   //if (!d_group_buf)
-   {
-      d_group_buf.SetSize(group_buf_size);
-   }
+   d_group_buf.SetSize(group_buf_size);
    double *d_buf = (double*)d_group_buf.Read();
    for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
    {
@@ -3443,18 +3437,17 @@ void DeviceGroupCommunicator::d_ReduceBegin(const double *d_ldata)
          for (int i = 0; i < num_send_groups; i++)
          {
             double *d_buf_ini = d_buf;
-            d_buf = d_CopyGroupToBuffer(d_ldata, d_buf, grp_list[i], 0);
+            d_buf = CudaCopyGroupToBuffer(d_ldata, d_buf, grp_list[i], 0);
             buf += d_buf - d_buf_ini;
          }
          if (!Device::GetGpuAwareMPI())
          {
-            CuMemcpyDtoH(buf_start,d_buf_start,(buf-buf_start)*sizeof(double));
+            const long length = buf - buf_start;
+            const size_t bytes = static_cast<size_t>(length)*sizeof(double);
+            CuMemcpyDtoH(buf_start,d_buf_start,bytes);
          }
          // make sure the device has finished
-         if (Device::GetGpuAwareMPI())
-         {
-            cudaStreamSynchronize(0);
-         }
+         if (Device::GetGpuAwareMPI()) { cudaStreamSynchronize(0); }
          if (Device::GetGpuAwareMPI())
             MPI_Isend(d_buf_start,
                       buf - buf_start,
@@ -3474,7 +3467,6 @@ void DeviceGroupCommunicator::d_ReduceBegin(const double *d_ldata)
          request_marker[request_counter] = -1; // mark as send request
          request_counter++;
       }
-
       // In Reduce operation: send_groups <--> recv_groups
       const int num_recv_groups = nbr_send_groups.RowSize(nbr);
       if (num_recv_groups > 0)
@@ -3516,7 +3508,7 @@ void DeviceGroupCommunicator::d_ReduceBegin(const double *d_ldata)
 // ***************************************************************************
 // * d_ReduceEnd
 // ***************************************************************************
-void DeviceGroupCommunicator::d_ReduceEnd(double *d_ldata, int layout)
+void CudaGroupCommunicator::CudaReduceEnd(double *d_ldata) const
 {
    if (comm_lock == 0) { return; }
    int rnk;
@@ -3537,18 +3529,17 @@ void DeviceGroupCommunicator::d_ReduceEnd(double *d_ldata, int layout)
             recv_size += group_ldof.RowSize(grp_list[i]);
          }
          const double *buf = (double*)group_buf.GetData() + buf_offsets[nbr];
-         //MFEM_ASSERT(d_group_buf,"");
          const double*d_buf = (double*)d_group_buf.Write() + buf_offsets[nbr];
          if (!Device::GetGpuAwareMPI())
          {
-            CuMemcpyHtoD((void*)d_buf,buf,recv_size*sizeof(double));
+            const size_t bytes = static_cast<size_t>(recv_size)*sizeof(double);
+            CuMemcpyHtoD((void*)d_buf, buf, bytes);
          }
          for (int i = 0; i < num_recv_groups; i++)
          {
-            d_buf = d_ReduceGroupFromBuffer(d_buf, d_ldata, grp_list[i], layout);
+            d_buf = CudaReduceGroupFromBuffer(d_buf, d_ldata, grp_list[i]);
          }
       }
-      else { dbg("else");}
    }
    comm_lock = 0; // 0 - no lock
    num_requests = 0;
@@ -3558,9 +3549,9 @@ void DeviceGroupCommunicator::d_ReduceEnd(double *d_ldata, int layout)
 // * CudaConformingProlongationOperator
 // ***************************************************************************
 CudaConformingProlongationOperator::CudaConformingProlongationOperator
-(const ParFiniteElementSpace &pfes): ConformingProlongationOperator(pfes),
-   d_external_ldofs(Height()-Width()), // size can be 0 here
-   d_gc(new DeviceGroupCommunicator(pfes.GroupComm())),
+(ParFiniteElementSpace &pfes): ConformingProlongationOperator(pfes),
+   d_ext_ldofs(Height()-Width()), // size can be 0 here
+   d_gc(pfes),
    kMaxTh(0)
 {
    // If we are in device mode with a separate memory space (e.g. CUDA device)
@@ -3580,12 +3571,12 @@ CudaConformingProlongationOperator::CudaConformingProlongationOperator
    }
 
    Array<int> ldofs;
-   Table &group_ldof = d_gc->GroupLDofTable();
+   Table &group_ldof = d_gc.GroupLDofTable();
    external_ldofs.LoseData();
    external_ldofs.Reserve(Height()-Width());
    for (int gr = 1; gr < group_ldof.Size(); gr++)
    {
-      if (!d_gc->GetGroupTopology().IAmMaster(gr))
+      if (!d_gc.GetGroupTopology().IAmMaster(gr))
       {
          ldofs.MakeRef(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
          external_ldofs.Append(ldofs);
@@ -3595,7 +3586,7 @@ CudaConformingProlongationOperator::CudaConformingProlongationOperator
    const int HmW=Height()-Width();
    if (HmW>0)
    {
-      d_external_ldofs = external_ldofs;
+      d_ext_ldofs = external_ldofs;
    }
    MFEM_ASSERT(external_ldofs.Size() == Height()-Width(),"");
    const int m = external_ldofs.Size();
@@ -3607,14 +3598,6 @@ CudaConformingProlongationOperator::CudaConformingProlongationOperator
       if (size>kMaxTh) { kMaxTh=size; }
       j = end+1;
    }
-}
-
-// ***************************************************************************
-// * ~CudaConformingProlongationOperator
-// ***************************************************************************
-CudaConformingProlongationOperator::~CudaConformingProlongationOperator()
-{
-   delete d_gc;
 }
 
 // ***************************************************************************
@@ -3652,24 +3635,20 @@ void k_Mult2(double *y, const double *x, const int *external_ldofs,
 }
 
 // ***************************************************************************
-// * Device Mult
-// ***************************************************************************
-void CudaConformingProlongationOperator::d_Mult(const Vector &x,
-                                                Vector &y) const
+void CudaConformingProlongationOperator::CudaMult(const Vector &X,
+                                                  Vector &Y) const
 {
-   const double *d_xdata = x.Read();
-   const int in_layout = 2; // 2 - input is ltdofs array
-   d_gc->d_BcastBegin(const_cast<double*>(d_xdata), in_layout);
-   double *d_ydata = y.ReadWrite();
+   double *y = Y.Write();
+   const double *x = X.Read();
+   d_gc.CudaBcastBegin(x);
    int j = 0;
    const int m = external_ldofs.Size();
-   if (m>0)
+   if (m > 0)
    {
       const int maxXThDim = 1024;
-      if (m>maxXThDim)
+      if (m > maxXThDim)
       {
-         const int kTpB=256;
-         k_Mult<kTpB><<<m,kTpB>>>(d_ydata,d_xdata,d_external_ldofs,m);
+         k_Mult<256><<<m,256>>>(y, x, d_ext_ldofs,m);
       }
       else
       {
@@ -3678,32 +3657,29 @@ void CudaConformingProlongationOperator::d_Mult(const Vector &x,
          for (int of7=0; of7<m/maxXThDim; of7+=1)
          {
             const int base = of7*maxXThDim;
-            k_Mult2<<<kMaxTh,maxXThDim>>>(d_ydata,d_xdata,d_external_ldofs.Read(),m,base);
+            k_Mult2<<<kMaxTh,maxXThDim>>>(y, x, d_ext_ldofs.Read(), m, base);
          }
-         k_Mult2<<<kMaxTh,m%maxXThDim>>>(d_ydata,d_xdata,d_external_ldofs.Read(),m,0);
+         k_Mult2<<<kMaxTh,m%maxXThDim>>>(y, x, d_ext_ldofs.Read(), m, 0);
       }
       j = external_ldofs[m-1]+1;
    }
-   CuMemcpyDtoD(d_ydata+j,d_xdata+j-m,(Width()+m-j)*sizeof(double));
-   const int out_layout = 0; // 0 - output is ldofs array
-   d_gc->d_BcastEnd(d_ydata, out_layout);
+   CuMemcpyDtoD(y+j, x+j-m, static_cast<size_t>(Width()+m-j)*sizeof(double));
+   d_gc.CudaBcastEnd(y);
 }
 
 
 // ***************************************************************************
-// * k_Mult
-// ***************************************************************************
 template <int BLOCK>
 static __global__
 void k_MultTranspose(double *y, const double *x,
-                     const int *external_ldofs, const int m)
+                     const int *dofs, const int m)
 {
    const int i = blockIdx.x;
    __shared__ int j,end;
    if (threadIdx.x == 0)
    {
-      j = (i>0)?external_ldofs[i-1]+1:0;
-      end = external_ldofs[i];
+      j = (i>0)?dofs[i-1]+1:0;
+      end = dofs[i];
    }
    __syncthreads();
    for (int k=threadIdx.x; k<(end-j); k+=BLOCK)
@@ -3714,35 +3690,34 @@ void k_MultTranspose(double *y, const double *x,
 
 static __global__
 void k_MultTranspose2(double *y, const double *x,
-                      const int *external_ldofs,
+                      const int *dofs,
                       const int m, const int base)
 {
    const int i = base+threadIdx.x;
-   const int j = (i>0)?external_ldofs[i-1]+1:0;
-   const int end = external_ldofs[i];
+   const int j = (i>0)?dofs[i-1]+1:0;
+   const int end = dofs[i];
    const int k = blockIdx.x;
    if (k>=(end-j)) { return; }
    y[j-i+k]=x[j+k];
 }
 
 // ***************************************************************************
-// * Device MultTranspose
-// ***************************************************************************
-void CudaConformingProlongationOperator::d_MultTranspose(const Vector &x,
-                                                         Vector &y) const
+void CudaConformingProlongationOperator::CudaMultTranspose(const Vector &X,
+                                                           Vector &Y) const
 {
-   const double *d_xdata = x.Read();
-   d_gc->d_ReduceBegin(d_xdata);
-   double *d_ydata = y.ReadWrite();
    int j = 0;
+   const double *x = X.Read();
+   d_gc.CudaReduceBegin(x);
+   double *y = Y.ReadWrite();
    const int m = external_ldofs.Size();
+   const int *ldofs = d_ext_ldofs.Read();
    if (m>0)
    {
       const int maxXThDim = 1024;
       if (m>maxXThDim)
       {
          const int kTpB=256;
-         k_MultTranspose<kTpB><<<m,kTpB>>>(d_ydata,d_xdata,d_external_ldofs,m);
+         k_MultTranspose<kTpB><<<m,kTpB>>>(y, x, ldofs, m);
       }
       else
       {
@@ -3750,61 +3725,55 @@ void CudaConformingProlongationOperator::d_MultTranspose(const Vector &x,
          for (int of7=0; of7<m/maxXThDim; of7+=1)
          {
             const int base = of7*maxXThDim;
-            k_MultTranspose2<<<kMaxTh,maxXThDim>>>(d_ydata, d_xdata,
-                                                   d_external_ldofs.Read(),
-                                                   m, base);
+            k_MultTranspose2<<<kMaxTh,maxXThDim>>>(y, x, ldofs, m, base);
          }
-         k_MultTranspose2<<<kMaxTh, m%maxXThDim>>>(d_ydata, d_xdata,
-                                                   d_external_ldofs.Read(),
-                                                   m, 0);
+         k_MultTranspose2<<<kMaxTh, m%maxXThDim>>>(y, x, ldofs, m, 0);
       }
       j = external_ldofs[m-1]+1;
    }
-   CuMemcpyDtoD(d_ydata+j-m, d_xdata+j, (Height()-j)*sizeof(double));
-   const int out_layout = 2; // 2 - output is an array on all ltdofs
-   d_gc->d_ReduceEnd(d_ydata, out_layout);
+   CuMemcpyDtoD(y+j-m, x+j, (Height()-j)*sizeof(double));
+   d_gc.CudaReduceEnd(y);
 }
 
 // ***************************************************************************
-// * Host Mult
-// ***************************************************************************
-void CudaConformingProlongationOperator::h_Mult(const Vector &x,
-                                                Vector &y) const
+void CudaConformingProlongationOperator::HostMult(const Vector &X,
+                                                  Vector &Y) const
 {
-   const double *xdata = x.GetData();
-   double *ydata = y.GetData();
+   const double *x = X.GetData();
+   double *y = Y.GetData();
    const int m = external_ldofs.Size();
-   d_gc->BcastBegin(const_cast<double*>(xdata), 2);
+   d_gc.BcastBegin(const_cast<double*>(x), 2);
    int j = 0;
    for (int i = 0; i < m; i++)
    {
       const int end = external_ldofs[i];
-      std::copy(xdata+j-i, xdata+end-i, ydata+j);
+      std::copy(x+j-i, x+end-i, y+j);
       j = end+1;
    }
-   std::copy(xdata+j-m, xdata+Width(), ydata+j);
-   d_gc->BcastEnd(ydata, 0);
+   std::copy(x+j-m, x+Width(), y+j);
+   d_gc.BcastEnd(y, 0);
 }
 
-void CudaConformingProlongationOperator::h_MultTranspose(const Vector &x,
-                                                         Vector &y) const
+// ***************************************************************************
+void CudaConformingProlongationOperator::HostMultTranspose(const Vector &X,
+                                                           Vector &Y) const
 {
-   const double *xdata = x.GetData();
-   double *ydata = y.GetData();
+   double *y = Y.GetData();
+   const double *x = X.GetData();
    const int m = external_ldofs.Size();
-   d_gc->ReduceBegin(xdata);
+   d_gc.ReduceBegin(x);
    int j = 0;
    for (int i = 0; i < m; i++)
    {
       const int end = external_ldofs[i];
-      std::copy(xdata+j, xdata+end, ydata+j-i);
+      std::copy(x+j, x+end, y+j-i);
       j = end+1;
    }
-   std::copy(xdata+j, xdata+Height(), ydata+j-m);
-   const int out_layout = 2; // 2 - output is an array on all ltdofs
-   d_gc->ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
+   std::copy(x+j, x+Height(), y+j-m);
+   d_gc.ReduceEnd<double>(y, 2, GroupCommunicator::Sum);
 }
 
+// ***************************************************************************
 void CudaConformingProlongationOperator::Mult(const Vector& x,
                                               Vector& y) const
 {
@@ -3818,12 +3787,12 @@ void CudaConformingProlongationOperator::Mult(const Vector& x,
    }
    if (!Device::GetMPIViaHost())
    {
-      d_Mult(x, y);
+      CudaMult(x, y);
       return;
    }
    x.HostRead();
    y.HostWrite();
-   h_Mult(x, y);
+   HostMult(x, y);
 }
 
 // ***************************************************************************
@@ -3840,12 +3809,12 @@ void CudaConformingProlongationOperator::MultTranspose(const Vector& x,
    }
    if (!Device::GetMPIViaHost())
    {
-      d_MultTranspose(x, y);
+      CudaMultTranspose(x, y);
       return;
    }
    x.HostRead();
    y.HostWrite();
-   h_MultTranspose(x, y);
+   HostMultTranspose(x, y);
 }
 
 } // namespace mfem
