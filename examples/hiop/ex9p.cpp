@@ -13,14 +13,14 @@
 //    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 1
 //    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 2
 //
-//    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh -p 1 -rs 2 -dt 0.002 -tf 9 -opt 1
-//    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh -p 1 -rs 2 -dt 0.002 -tf 9 -opt 2
+//    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh -p 1 -rs 1 -dt 0.002 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh -p 1 -rs 1 -dt 0.002 -tf 9 -opt 2
 //
-//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 1 -rs 3 -dt 0.005 -tf 9 -opt 1
-//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 1 -rs 3 -dt 0.005 -tf 9 -opt 2
+//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 2
 //
-//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 2 -rs 3 -dt 0.005 -tf 9 -opt 1
-//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 2 -rs 3 -dt 0.005 -tf 9 -opt 2
+//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 2 -rs 2 -dt 0.01 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 2 -rs 2 -dt 0.01 -tf 9 -opt 2
 //
 //    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 3 -rs 3 -dt 0.0025 -tf 9 -opt 1
 //    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 3 -rs 3 -dt 0.0025 -tf 9 -opt 2

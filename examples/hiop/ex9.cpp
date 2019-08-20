@@ -13,14 +13,14 @@
 //    ex9 -m ../../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9 -opt 1
 //    ex9 -m ../../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9 -opt 2
 //
-//    ex9 -m ../../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9 -opt 1
-//    ex9 -m ../../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9 -opt 2
+//    ex9 -m ../../data/amr-quad.mesh -p 1 -r 1 -dt 0.002 -tf 9 -opt 1
+//    ex9 -m ../../data/amr-quad.mesh -p 1 -r 1 -dt 0.002 -tf 9 -opt 2
 //
-//    ex9 -m ../../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9 -opt 1
-//    ex9 -m ../../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9 -opt 2
+//    ex9 -m ../../data/disc-nurbs.mesh -p 1 -r 2 -dt 0.005 -tf 9 -opt 1
+//    ex9 -m ../../data/disc-nurbs.mesh -p 1 -r 2 -dt 0.005 -tf 9 -opt 2
 //
-//    ex9 -m ../../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9 -opt 1
-//    ex9 -m ../../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9 -opt 2
+//    ex9 -m ../../data/disc-nurbs.mesh -p 2 -r 2 -dt 0.01 -tf 9 -opt 1
+//    ex9 -m ../../data/disc-nurbs.mesh -p 2 -r 2 -dt 0.01 -tf 9 -opt 2
 //
 //    ex9 -m ../../data/periodic-square.mesh -p 3 -r 3 -dt 0.0025 -tf 9 -opt 1
 //    ex9 -m ../../data/periodic-square.mesh -p 3 -r 3 -dt 0.0025 -tf 9 -opt 2
