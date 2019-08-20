@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    bool gpu_aware_mpi = false;
+   bool mpi_via_host = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -88,6 +89,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&gpu_aware_mpi, "-ga", "--gpu-aware", "-no-ga",
                   "--no-gpu-aware", "Enable GPU Aware MPI.");
+   args.AddOption(&mpi_via_host, "-vh", "--via-host", "-no-vh",
+                  "--no-via-host", "Enable MPI via host.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -117,7 +120,8 @@ int main(int argc, char *argv[])
    mfem::out << "\033[31;1m[ex1p] dev: " << dev << "/" << num_gpus << "\033[m";
    fflush(0);
    if (myid == 0) { device.Print(); }
-   if (gpu_aware_mpi) { device.SetForceCudaAwareMPI(); }
+   if (mpi_via_host) { device.SetMPIViaHost(); }
+   if (gpu_aware_mpi) { device.SetGpuAwareMPI(); }
 
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface

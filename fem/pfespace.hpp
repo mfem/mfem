@@ -375,6 +375,7 @@ public:
 class ConformingProlongationOperator : public Operator
 {
 protected:
+   bool gpu_aware_mpi;
    Array<int> external_ldofs;
    const GroupCommunicator &gc;
 
@@ -391,7 +392,6 @@ class DeviceConformingProlongationOperator: public
    ConformingProlongationOperator
 {
 protected:
-   bool gpu_aware_mpi;
    Array<int> shr_ltdof, ext_ldof;
    mutable Vector shr_buf, ext_buf;
    int *shr_buf_offsets, *ext_buf_offsets;
@@ -427,6 +427,51 @@ public:
    virtual ~DeviceConformingProlongationOperator();
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+
+// ***************************************************************************
+class CudaCommD : public GroupCommunicator
+{
+private:
+   Table d_group_ldof;
+   Table d_group_ltdof;
+   Array<double> d_group_buf;
+public:
+   CudaCommD(const ParFiniteElementSpace&);
+   ~CudaCommD();
+
+   template <class T>
+   T *d_CopyGroupToBuffer(const T*,T*,int,int) const;
+   template <class T>
+   const T *d_CopyGroupFromBuffer(const T*, T*,int, int) const;
+   template <class T>
+   const T *d_ReduceGroupFromBuffer(const T*,T*,int,int,
+                                    void (*)(OpData<T>)) const;
+   template <class T> void d_BcastBegin(T*,int);
+   template <class T> void d_BcastEnd(T*, int);
+   template <class T> void d_ReduceBegin(const T*);
+   template <class T> void d_ReduceEnd(T*,int,void (*)(OpData<T>));
+};
+
+// ***************************************************************************
+// * CudaConformingProlongationOperator
+//  **************************************************************************
+class CudaConformingProlongationOperator : public ConformingProlongationOperator
+{
+protected:
+   Array<int> d_external_ldofs;
+   CudaCommD *d_gc;
+   int kMaxTh;
+public:
+   CudaConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+   virtual ~CudaConformingProlongationOperator();
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void d_Mult(const Vector &x, Vector &y) const;
+   void d_MultTranspose(const Vector &x, Vector &y) const;
+   void h_Mult(const Vector &x, Vector &y) const;
+   void h_MultTranspose(const Vector &x, Vector &y) const;
 };
 
 }
