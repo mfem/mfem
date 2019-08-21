@@ -86,8 +86,6 @@ protected:
    LinearForm * lfr_;
    LinearForm * lfi_;
 
-   // HYPRE_Int * tdof_offsets_;
-
 public:
 
    ComplexLinearForm(FiniteElementSpace *fes,
@@ -123,7 +121,6 @@ class SesquilinearForm
 private:
    ComplexOperator::Convention conv_;
 
-   //protected:
    BilinearForm *blfr_;
    BilinearForm *blfi_;
 
@@ -291,7 +288,6 @@ class ParSesquilinearForm
 private:
    ComplexOperator::Convention conv_;
 
-   //protected:
    ParBilinearForm *pblfr_;
    ParBilinearForm *pblfi_;
 
