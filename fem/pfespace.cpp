@@ -3586,13 +3586,12 @@ CudaConformingProlongationOperator::CudaConformingProlongationOperator
 }
 
 // ***************************************************************************
-template <int BLOCK>
-static __global__
+template <int BLOCK> static MFEM_GLOBAL
 void KerBcastCopy(double *y, const double *x,
                   const int *external_ldofs, const int m)
 {
    const int i = MFEM_BLOCK_ID(x);
-   __shared__ int j,end;
+   MFEM_SHARED int j,end;
    if (MFEM_THREAD_ID(x) == 0)
    {
       j = (i>0)?external_ldofs[i-1]+1:0;
@@ -3606,7 +3605,7 @@ void KerBcastCopy(double *y, const double *x,
 }
 
 // ***************************************************************************
-static __global__
+static MFEM_GLOBAL
 void KerBcastCopy2(double *y, const double *x, const int *external_ldofs,
                    const int m, const int base)
 {
@@ -3660,13 +3659,12 @@ void CudaConformingProlongationOperator::CudaMult(const Vector &X,
 
 
 // ***************************************************************************
-template <int BLOCK>
-static __global__
+template <int BLOCK> static MFEM_GLOBAL
 void KerReduceCopy(double *y, const double *x,
                    const int *dofs, const int m)
 {
    const int i = MFEM_BLOCK_ID(x);
-   __shared__ int j, end, N;
+   MFEM_SHARED int j, end, N;
    if (MFEM_THREAD_ID(x) == 0)
    {
       j = (i>0)?dofs[i-1]+1:0;
@@ -3680,7 +3678,7 @@ void KerReduceCopy(double *y, const double *x,
    }
 }
 
-static __global__
+static MFEM_GLOBAL
 void KerReduceCopy2(double *y, const double *x,
                     const int *dofs,
                     const int m, const int base)
