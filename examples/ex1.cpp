@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
    {
       Vector diag_pa(fespace->GetTrueVSize());
       a->AssembleDiagonal(diag_pa);
-      VectorSmoother M(diag_pa, ess_tdof_list);
+      OperatorJacobiSmoother M(diag_pa, ess_tdof_list);
       PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
    }
 

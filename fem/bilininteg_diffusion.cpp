@@ -473,7 +473,6 @@ static void PADiffusionDiagonal3D(const int NE,
          }
       }
 
-      // these are really terrible variable names
       double ytemp01[max_Q1D][max_D1D][max_D1D];
       double ytemp02[max_Q1D][max_D1D][max_D1D];
       double ytemp03[max_Q1D][max_D1D][max_D1D];

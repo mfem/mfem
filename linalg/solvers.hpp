@@ -75,21 +75,21 @@ public:
 };
 
 
-/// Jacobi smoothing with given vector
+/// Jacobi smoothing with given vector, no matrix necessary
 /** Potentially useful with tensorized operators, for example.
     This is just a very basic Jacobi iteration, if you want
     tolerances, iteration control, etc. wrap this with SLISolver. */
-class VectorSmoother : public Solver
+class OperatorJacobiSmoother : public Solver
 {
 public:
    /** Application is by *inverse* of the given vector.
        It is assumed the underlying operator acts as the identity
        on entries in ess_tdof_list, corresponding to (assembled) DIAG_ONE
        policy or ConstratinedOperator in the matrix-free setting. */
-   VectorSmoother(const Vector &d,
-                  const Array<int>& ess_tdof_list,
-                  const double damping=1.0);
-   ~VectorSmoother() {}
+   OperatorJacobiSmoother(const Vector &d,
+                          const Array<int>& ess_tdof_list,
+                          const double damping=1.0);
+   ~OperatorJacobiSmoother() {}
 
    void Mult(const Vector&x, Vector &y) const;
 

@@ -104,9 +104,9 @@ void IterativeSolver::SetOperator(const Operator &op)
 }
 
 
-VectorSmoother::VectorSmoother(const Vector &d,
-                               const Array<int>& ess_tdofs,
-                               const double dmpng)
+OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
+                                               const Array<int>& ess_tdofs,
+                                               const double dmpng)
    :
    Solver(d.Size()),
    N(d.Size()),
@@ -116,7 +116,7 @@ VectorSmoother::VectorSmoother(const Vector &d,
    ess_tdof_list(ess_tdofs),
    residual(N) { Setup(); }
 
-void VectorSmoother::Setup()
+void OperatorJacobiSmoother::Setup()
 {
    residual.UseDevice(true);
    const double delta = damping;
@@ -127,7 +127,7 @@ void VectorSmoother::Setup()
    MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = delta; );
 }
 
-void VectorSmoother::Mult(const Vector& x, Vector &y) const
+void OperatorJacobiSmoother::Mult(const Vector& x, Vector &y) const
 {
    if (iterative_mode && oper)
    {
