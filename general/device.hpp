@@ -107,7 +107,7 @@ private:
    unsigned long backends; ///< Bitwise-OR of all configured backends.
    /// Set to true during configuration, except in 'device_singleton'.
    bool destroy_mm;
-   bool gpu_aware_mpi;
+   bool mpi_gpu_aware;
    bool mpi_via_host;
 
    MemoryType mem_type;    ///< Current Device MemoryType
@@ -146,7 +146,7 @@ public:
       : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
         destroy_mm(false),
-        gpu_aware_mpi(false),
+        mpi_gpu_aware(false),
         mpi_via_host(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
@@ -162,7 +162,7 @@ public:
       : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
         destroy_mm(false),
-        gpu_aware_mpi(false),
+        mpi_gpu_aware(false),
         mpi_via_host(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
@@ -222,8 +222,8 @@ public:
 
 #ifdef MFEM_USE_MPI
    static void SetGpuAwareMPI(const bool force = true)
-   { Get().gpu_aware_mpi = force; }
-   static bool GetGpuAwareMPI() { return Get().gpu_aware_mpi; }
+   { Get().mpi_gpu_aware = force; }
+   static bool GetGpuAwareMPI() { return Get().mpi_gpu_aware; }
    static void SetMPIViaHost(const bool force = true)
    { Get().mpi_via_host = force; }
    static bool GetMPIViaHost() { return Get().mpi_via_host; }
