@@ -24,6 +24,7 @@
 #define MFEM_CUDA_BLOCKS 256
 
 #ifdef MFEM_USE_CUDA
+#define MFEM_GLOBAL __global__
 #define MFEM_DEVICE __device__
 #define MFEM_HOST_DEVICE __host__ __device__
 // Define a CUDA error check macro, MFEM_CUDA_CHECK(x), where x returns/is of
@@ -46,6 +47,7 @@
                    args, (size_t)sharedMem, stream)
 #else
 #define MFEM_DEVICE
+#define MFEM_GLOBAL
 #define MFEM_HOST_DEVICE
 #define MFEM_DEVICE_SYNC
 #define MFEM_LAUNCH_KERNEL(name,...) name
