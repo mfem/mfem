@@ -423,15 +423,15 @@ static void PADiffusionDiagonal3D(const int NE,
       // eight Bx By Gz O32 Bx Gy Bz;
       // nine  Bx By Gz O33 Bx By Gz;
 
-      double tempone[max_Q1D][max_Q1D][max_D1D];
-      double temptwo[max_Q1D][max_Q1D][max_D1D];
-      double tempthree[max_Q1D][max_Q1D][max_D1D];
-      double tempfour[max_Q1D][max_Q1D][max_D1D];
-      double tempfive[max_Q1D][max_Q1D][max_D1D];
-      double tempsix[max_Q1D][max_Q1D][max_D1D];
-      double tempseven[max_Q1D][max_Q1D][max_D1D];
-      double tempeight[max_Q1D][max_Q1D][max_D1D];
-      double tempnine[max_Q1D][max_Q1D][max_D1D];
+      double ztemp01[max_Q1D][max_Q1D][max_D1D];
+      double ztemp02[max_Q1D][max_Q1D][max_D1D];
+      double ztemp03[max_Q1D][max_Q1D][max_D1D];
+      double ztemp04[max_Q1D][max_Q1D][max_D1D];
+      double ztemp05[max_Q1D][max_Q1D][max_D1D];
+      double ztemp06[max_Q1D][max_Q1D][max_D1D];
+      double ztemp07[max_Q1D][max_Q1D][max_D1D];
+      double ztemp08[max_Q1D][max_Q1D][max_D1D];
+      double ztemp09[max_Q1D][max_Q1D][max_D1D];
 
       // first tensor contraction, along z direction
       for (int qx = 0; qx < Q1D; ++qx)
@@ -440,15 +440,15 @@ static void PADiffusionDiagonal3D(const int NE,
          {
             for (int dz = 0; dz < D1D; ++dz)
             {
-               tempone[qx][qy][dz] = 0.0;
-               temptwo[qx][qy][dz] = 0.0;
-               tempthree[qx][qy][dz] = 0.0;
-               tempfour[qx][qy][dz] = 0.0;
-               tempfive[qx][qy][dz] = 0.0;
-               tempsix[qx][qy][dz] = 0.0;
-               tempseven[qx][qy][dz] = 0.0;
-               tempeight[qx][qy][dz] = 0.0;
-               tempnine[qx][qy][dz] = 0.0;
+               ztemp01[qx][qy][dz] = 0.0;
+               ztemp02[qx][qy][dz] = 0.0;
+               ztemp03[qx][qy][dz] = 0.0;
+               ztemp04[qx][qy][dz] = 0.0;
+               ztemp05[qx][qy][dz] = 0.0;
+               ztemp06[qx][qy][dz] = 0.0;
+               ztemp07[qx][qy][dz] = 0.0;
+               ztemp08[qx][qy][dz] = 0.0;
+               ztemp09[qx][qy][dz] = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   const int q = qx + (qy + qz * Q1D) * Q1D;
@@ -459,30 +459,30 @@ static void PADiffusionDiagonal3D(const int NE,
                   const double O23 = Q(q,4,e);
                   const double O33 = Q(q,5,e);
 
-                  tempone[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O11;
-                  temptwo[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O12;
-                  tempthree[qx][qy][dz] += B(qz, dz) * G(qz, dz) * O13;
-                  tempfour[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O12;
-                  tempfive[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O22;
-                  tempsix[qx][qy][dz] += B(qz, dz) * G(qz, dz) * O23;
-                  tempseven[qx][qy][dz] += G(qz, dz) * B(qz, dz) * O13;
-                  tempeight[qx][qy][dz] += G(qz, dz) * B(qz, dz) * O23;
-                  tempnine[qx][qy][dz] += G(qz, dz) * G(qz, dz) * O33;
+                  ztemp01[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O11;
+                  ztemp02[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O12;
+                  ztemp03[qx][qy][dz] += B(qz, dz) * G(qz, dz) * O13;
+                  ztemp04[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O12;
+                  ztemp05[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O22;
+                  ztemp06[qx][qy][dz] += B(qz, dz) * G(qz, dz) * O23;
+                  ztemp07[qx][qy][dz] += G(qz, dz) * B(qz, dz) * O13;
+                  ztemp08[qx][qy][dz] += G(qz, dz) * B(qz, dz) * O23;
+                  ztemp09[qx][qy][dz] += G(qz, dz) * G(qz, dz) * O33;
                }
             }
          }
       }
 
       // these are really terrible variable names
-      double temp2one[max_Q1D][max_D1D][max_D1D];
-      double temp2two[max_Q1D][max_D1D][max_D1D];
-      double temp2three[max_Q1D][max_D1D][max_D1D];
-      double temp2four[max_Q1D][max_D1D][max_D1D];
-      double temp2five[max_Q1D][max_D1D][max_D1D];
-      double temp2six[max_Q1D][max_D1D][max_D1D];
-      double temp2seven[max_Q1D][max_D1D][max_D1D];
-      double temp2eight[max_Q1D][max_D1D][max_D1D];
-      double temp2nine[max_Q1D][max_D1D][max_D1D];
+      double ytemp01[max_Q1D][max_D1D][max_D1D];
+      double ytemp02[max_Q1D][max_D1D][max_D1D];
+      double ytemp03[max_Q1D][max_D1D][max_D1D];
+      double ytemp04[max_Q1D][max_D1D][max_D1D];
+      double ytemp05[max_Q1D][max_D1D][max_D1D];
+      double ytemp06[max_Q1D][max_D1D][max_D1D];
+      double ytemp07[max_Q1D][max_D1D][max_D1D];
+      double ytemp08[max_Q1D][max_D1D][max_D1D];
+      double ytemp09[max_Q1D][max_D1D][max_D1D];
 
       // second tensor contraction, along y direction
       for (int qx = 0; qx < Q1D; ++qx)
@@ -491,26 +491,26 @@ static void PADiffusionDiagonal3D(const int NE,
          {
             for (int dy = 0; dy < D1D; ++dy)
             {
-               temp2one[qx][dy][dz] = 0.0;
-               temp2two[qx][dy][dz] = 0.0;
-               temp2three[qx][dy][dz] = 0.0;
-               temp2four[qx][dy][dz] = 0.0;
-               temp2five[qx][dy][dz] = 0.0;
-               temp2six[qx][dy][dz] = 0.0;
-               temp2seven[qx][dy][dz] = 0.0;
-               temp2eight[qx][dy][dz] = 0.0;
-               temp2nine[qx][dy][dz] = 0.0;
+               ytemp01[qx][dy][dz] = 0.0;
+               ytemp02[qx][dy][dz] = 0.0;
+               ytemp03[qx][dy][dz] = 0.0;
+               ytemp04[qx][dy][dz] = 0.0;
+               ytemp05[qx][dy][dz] = 0.0;
+               ytemp06[qx][dy][dz] = 0.0;
+               ytemp07[qx][dy][dz] = 0.0;
+               ytemp08[qx][dy][dz] = 0.0;
+               ytemp09[qx][dy][dz] = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  temp2one[qx][dy][dz] += B(qy, dy) * B(qy, dy) * tempone[qx][qy][dz];
-                  temp2two[qx][dy][dz] += B(qy, dy) * G(qy, dy) * temptwo[qx][qy][dz];
-                  temp2three[qx][dy][dz] += B(qy, dy) * B(qy, dy) * tempthree[qx][qy][dz];
-                  temp2four[qx][dy][dz] += G(qy, dy) * B(qy, dy) * tempfour[qx][qy][dz];
-                  temp2five[qx][dy][dz] += G(qy, dy) * G(qy, dy) * tempfive[qx][qy][dz];
-                  temp2six[qx][dy][dz] += G(qy, dy) * B(qy, dy) * tempsix[qx][qy][dz];
-                  temp2seven[qx][dy][dz] += B(qy, dy) * B(qy, dy) * tempseven[qx][qy][dz];
-                  temp2eight[qx][dy][dz] += B(qy, dy) * G(qy, dy) * tempeight[qx][qy][dz];
-                  temp2nine[qx][dy][dz] += B(qy, dy) * B(qy, dy) * tempnine[qx][qy][dz];
+                  ytemp01[qx][dy][dz] += B(qy, dy) * B(qy, dy) * ztemp01[qx][qy][dz];
+                  ytemp02[qx][dy][dz] += B(qy, dy) * G(qy, dy) * ztemp02[qx][qy][dz];
+                  ytemp03[qx][dy][dz] += B(qy, dy) * B(qy, dy) * ztemp03[qx][qy][dz];
+                  ytemp04[qx][dy][dz] += G(qy, dy) * B(qy, dy) * ztemp04[qx][qy][dz];
+                  ytemp05[qx][dy][dz] += G(qy, dy) * G(qy, dy) * ztemp05[qx][qy][dz];
+                  ytemp06[qx][dy][dz] += G(qy, dy) * B(qy, dy) * ztemp06[qx][qy][dz];
+                  ytemp07[qx][dy][dz] += B(qy, dy) * B(qy, dy) * ztemp07[qx][qy][dz];
+                  ytemp08[qx][dy][dz] += B(qy, dy) * G(qy, dy) * ztemp08[qx][qy][dz];
+                  ytemp09[qx][dy][dz] += B(qy, dy) * B(qy, dy) * ztemp09[qx][qy][dz];
                }
             }
          }
@@ -525,15 +525,15 @@ static void PADiffusionDiagonal3D(const int NE,
             {
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  Y(dx, dy, dz, e) += G(qx, dx) * G(qx, dx) * temp2one[qx][dy][dz];
-                  Y(dx, dy, dz, e) += G(qx, dx) * B(qx, dx) * temp2two[qx][dy][dz];
-                  Y(dx, dy, dz, e) += G(qx, dx) * B(qx, dx) * temp2three[qx][dy][dz];
-                  Y(dx, dy, dz, e) += B(qx, dx) * G(qx, dx) * temp2four[qx][dy][dz];
-                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2five[qx][dy][dz];
-                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2six[qx][dy][dz];
-                  Y(dx, dy, dz, e) += B(qx, dx) * G(qx, dx) * temp2seven[qx][dy][dz];
-                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2eight[qx][dy][dz];
-                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2nine[qx][dy][dz];
+                  Y(dx, dy, dz, e) += G(qx, dx) * G(qx, dx) * ytemp01[qx][dy][dz];
+                  Y(dx, dy, dz, e) += G(qx, dx) * B(qx, dx) * ytemp02[qx][dy][dz];
+                  Y(dx, dy, dz, e) += G(qx, dx) * B(qx, dx) * ytemp03[qx][dy][dz];
+                  Y(dx, dy, dz, e) += B(qx, dx) * G(qx, dx) * ytemp04[qx][dy][dz];
+                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * ytemp05[qx][dy][dz];
+                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * ytemp06[qx][dy][dz];
+                  Y(dx, dy, dz, e) += B(qx, dx) * G(qx, dx) * ytemp07[qx][dy][dz];
+                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * ytemp08[qx][dy][dz];
+                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * ytemp09[qx][dy][dz];
                }
             }
          }
