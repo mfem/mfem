@@ -14,10 +14,10 @@
 
 using namespace mfem;
 
-namespace vectorsmoother
+namespace operatorjacobismoother
 {
 
-TEST_CASE("vectorsmoother")
+TEST_CASE("operatorjacobismoother")
 {
    for (int dimension = 2; dimension < 4; ++dimension)
    {
@@ -87,4 +87,4 @@ TEST_CASE("vectorsmoother")
    }
 }
 
-} // namespace vectorsmoother
+} // namespace operatorjacobismoother
