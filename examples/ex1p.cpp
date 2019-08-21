@@ -68,7 +68,8 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   bool gpu_aware_mpi = false;
+   int gpu_device = -1;
+   bool mpi_gpu_aware = false;
    bool mpi_via_host = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -87,7 +88,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&gpu_aware_mpi, "-ga", "--gpu-aware", "-no-ga",
+   args.AddOption(&gpu_device, "-dev", "--device", "GPU device");
+   args.AddOption(&mpi_gpu_aware, "-ga", "--gpu-aware", "-no-ga",
                   "--no-gpu-aware", "Enable GPU Aware MPI.");
    args.AddOption(&mpi_via_host, "-vh", "--via-host", "-no-vh",
                   "--no-via-host", "Enable MPI via host.");
@@ -113,7 +115,7 @@ int main(int argc, char *argv[])
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   const int dev = (myid%num_gpus);
+   const int dev = (gpu_device < 0) ? (myid%num_gpus) : gpu_device;
    mfem::out << "\033[31;1m[ex1p] myid: " << myid
              << ", num_gpus:" << num_gpus << "\033[m";
    Device device(device_config, dev);
@@ -121,7 +123,7 @@ int main(int argc, char *argv[])
    fflush(0);
    if (myid == 0) { device.Print(); }
    if (mpi_via_host) { device.SetMPIViaHost(); }
-   if (gpu_aware_mpi) { device.SetGpuAwareMPI(); }
+   if (mpi_gpu_aware) { device.SetGpuAwareMPI(); }
 
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
