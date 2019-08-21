@@ -1677,6 +1677,7 @@ slbqp_done:
    }
 }
 
+#ifdef MFEM_USE_MPI
 
 GMGSolver::GMGSolver(HypreParMatrix * Af_,
                      std::vector<HypreParMatrix *> P_, CoarseSolver cs)
@@ -1995,7 +1996,7 @@ ComplexGMGSolver::~ComplexGMGSolver() {
    // delete invAc;
 }
 
-
+#endif
 
 
 #ifdef MFEM_USE_SUITESPARSE

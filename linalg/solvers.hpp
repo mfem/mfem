@@ -354,6 +354,7 @@ public:
 
 
 
+#ifdef MFEM_USE_MPI
 
 class GMGSolver : public Solver {
 private:
@@ -429,6 +430,7 @@ public:
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~ComplexGMGSolver();
 };
+#endif
 
 #ifdef MFEM_USE_SUITESPARSE
 
