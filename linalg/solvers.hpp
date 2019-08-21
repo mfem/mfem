@@ -389,8 +389,11 @@ protected:
    {
       add(xt, l, w, x);
       if (problem == NULL) { x.median(lo,hi); }
-      else                 { x.median(*problem->GetBoundsVec_Lo(),
-                                      *problem->GetBoundsVec_Hi()); }
+      else
+      {
+         x.median(*problem->GetBoundsVec_Lo(),
+                  *problem->GetBoundsVec_Hi());
+      }
       nclip++;
       if (problem == NULL) { return Dot(w, x) - a; }
       else

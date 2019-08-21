@@ -756,7 +756,7 @@ double u0_function(const Vector &x)
          {
             case 1:
                return (X(0) > -0.15 && X(0) < 0.15) ? 1.0 : 0.0;
-               //return exp(-40.*pow(X(0)-0.0,2));
+            //return exp(-40.*pow(X(0)-0.0,2));
             case 2:
             case 3:
             {
