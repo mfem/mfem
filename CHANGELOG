@@ -11,6 +11,17 @@
 Version 4.0.1 (development)
 ===========================
 
+- Added general interface for nonlinear constrained optimization problems
+  through the classes OptimizationProblem and OptimizationSolver.
+
+- Added support for HiOp (external dependency) nonlinear optimization solvers,
+  see class HiOpNLPOptimizer.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a modification of ex9 in examples/hiop/ that demonstrates the nonlinear
+  constrained optimization interface and the use of the SLBQP and HiOp solvers.
+
 
 Version 4.0, released on May 24, 2019
 =====================================
