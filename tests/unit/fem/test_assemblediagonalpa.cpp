@@ -71,7 +71,8 @@ TEST_CASE("diffusiondiag")
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         std::cout << "Testing " << dimension << "D partial assembly diffusion diagonal: "
+         std::cout << "Testing " << dimension <<
+                   "D partial assembly diffusion diagonal: "
                    << std::pow(ne, dimension) << " elements." << std::endl;
          for (int order = 1; order < 5; ++order)
          {

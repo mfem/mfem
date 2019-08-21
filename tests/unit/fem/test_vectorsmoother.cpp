@@ -50,7 +50,7 @@ TEST_CASE("vectorsmoother")
             paform.Assemble();
             Vector pa_diag(h1_fespace.GetVSize());
             paform.AssembleDiagonal(pa_diag);
-            VectorSmoother pa_smoother(pa_diag, ess_tdof_list);
+            OperatorJacobiSmoother pa_smoother(pa_diag, ess_tdof_list);
 
             GridFunction x(&h1_fespace);
             x = 0.0;

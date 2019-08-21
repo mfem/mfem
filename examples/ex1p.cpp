@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
    {
       Vector diag_pa(fespace->GetTrueVSize());
       a->AssembleDiagonal(diag_pa);
-      prec = new VectorSmoother(diag_pa, ess_tdof_list);
+      prec = new OperatorJacobiSmoother(diag_pa, ess_tdof_list);
    }
    else
    {
