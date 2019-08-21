@@ -248,28 +248,28 @@ static void PADiffusionDiagonal2D(const int NE,
       // four  Bx Gy O22 Bx Gy
       // below I do them all at once, but you could save memory by
       // doing them one at a time (with longer code...)
-      double tempone[max_Q1D][max_D1D];
-      double temptwo[max_Q1D][max_D1D];
-      double tempthree[max_Q1D][max_D1D];
-      double tempfour[max_Q1D][max_D1D];
+      double temp01[max_Q1D][max_D1D];
+      double temp02[max_Q1D][max_D1D];
+      double temp03[max_Q1D][max_D1D];
+      double temp04[max_Q1D][max_D1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dy = 0; dy < D1D; ++dy)
          {
-            tempone[qx][dy] = 0.0;
-            temptwo[qx][dy] = 0.0;
-            tempthree[qx][dy] = 0.0;
-            tempfour[qx][dy] = 0.0;
+            temp01[qx][dy] = 0.0;
+            temp02[qx][dy] = 0.0;
+            temp03[qx][dy] = 0.0;
+            temp04[qx][dy] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int q = qx + qy * Q1D;
                const double O11 = Q(q,0,e);
                const double O12 = Q(q,1,e);
                const double O22 = Q(q,2,e);
-               tempone[qx][dy]   += B(qy, dy) * B(qy, dy) * O11;
-               temptwo[qx][dy]   += B(qy, dy) * G(qy, dy) * O12;
-               tempthree[qx][dy] += G(qy, dy) * B(qy, dy) * O12;
-               tempfour[qx][dy]  += G(qy, dy) * G(qy, dy) * O22;
+               temp01[qx][dy]   += B(qy, dy) * B(qy, dy) * O11;
+               temp02[qx][dy]   += B(qy, dy) * G(qy, dy) * O12;
+               temp03[qx][dy] += G(qy, dy) * B(qy, dy) * O12;
+               temp04[qx][dy]  += G(qy, dy) * G(qy, dy) * O22;
             }
          }
       }
@@ -279,10 +279,10 @@ static void PADiffusionDiagonal2D(const int NE,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               Y(dx,dy,e) += G(qx, dx) * G(qx, dx) * tempone[qx][dy];
-               Y(dx,dy,e) += G(qx, dx) * B(qx, dx) * temptwo[qx][dy];
-               Y(dx,dy,e) += B(qx, dx) * G(qx, dx) * tempthree[qx][dy];
-               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * tempfour[qx][dy];
+               Y(dx,dy,e) += G(qx, dx) * G(qx, dx) * temp01[qx][dy];
+               Y(dx,dy,e) += G(qx, dx) * B(qx, dx) * temp02[qx][dy];
+               Y(dx,dy,e) += B(qx, dx) * G(qx, dx) * temp03[qx][dy];
+               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * temp04[qx][dy];
             }
          }
       }
