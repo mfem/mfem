@@ -78,6 +78,19 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    }
 }
 
+const Array<double> &IntegrationRule::GetWeights() const
+{
+   if (weights.Size() != GetNPoints())
+   {
+      weights.SetSize(GetNPoints());
+      for (int i = 0; i < GetNPoints(); i++)
+      {
+         weights[i] = IntPoint(i).weight;
+      }
+   }
+   return weights;
+}
+
 void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
 {
    // for pow on older compilers
