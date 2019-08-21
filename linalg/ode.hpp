@@ -24,9 +24,10 @@ class ODESolver
 protected:
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
+   MemoryType mem_type;
 
 public:
-   ODESolver() : f(NULL) { }
+   ODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
 
    /// Associate a TimeDependentOperator with the ODE solver.
    /** This method has to be called:
@@ -34,10 +35,7 @@ public:
        - When the dimensions of the associated TimeDependentOperator change.
        - When a time stepping sequence has to be restarted.
        - To change the associated TimeDependentOperator. */
-   virtual void Init(TimeDependentOperator &f)
-   {
-      this->f = &f;
-   }
+   virtual void Init(TimeDependentOperator &f);
 
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based
        on the requested step size @a dt [in]. */

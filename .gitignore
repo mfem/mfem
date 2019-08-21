@@ -82,9 +82,9 @@ examples/ex20.dat
 examples/ex20p_?????.dat
 examples/gnuplot_ex20.inp
 examples/gnuplot_ex20p.inp
-examples/ex22*.mesh
-examples/ex22*.sol
-examples/ex22p_*.*
+examples/ex21*.mesh
+examples/ex21*.sol
+examples/ex21p_*.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
@@ -183,3 +183,6 @@ miniapps/nurbs/Example1*
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
+
+# VPATH builds
+build-*/*
