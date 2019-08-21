@@ -528,8 +528,12 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    OptimizationSolver *optsolver = NULL;
    if (optimizer_type == 2)
    {
+#ifdef MFEM_USE_HIOP
       HiopNlpOptimizer *tmp_opt_ptr = new HiopNlpOptimizer();
       optsolver = tmp_opt_ptr;
+#else
+      MFEM_ABORT("MFEM is not built with HiOp support!");
+#endif
    }
    else
    {
