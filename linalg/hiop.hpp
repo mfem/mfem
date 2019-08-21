@@ -60,12 +60,12 @@ public:
         x_start(NULL),
         constr_vals(m_total), constr_grads(m_total, ntdofs_loc),
         constr_info_is_current(false)
-  { 
+   {
 #ifdef MFEM_USE_MPI
-    // Used when HiOp with MPI support is called by a serial driver.
-    comm_ = MPI_COMM_WORLD;
+      // Used when HiOp with MPI support is called by a serial driver.
+      comm_ = MPI_COMM_WORLD;
 #endif
-  }
+   }
 
 #ifdef MFEM_USE_MPI
    HiopOptimizationProblem(const MPI_Comm& _comm,
