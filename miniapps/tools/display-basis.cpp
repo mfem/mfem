@@ -85,6 +85,7 @@ public:
                      const IntegrationPoint &ip)
    { return Eval(V, T); }
 #endif
+   using VectorCoefficient::Eval;
 
 private:
    void Def1D(const Vector & u, Vector & v) const;

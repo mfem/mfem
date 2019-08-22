@@ -325,6 +325,10 @@ public:
                   double *data, HYPRE_Int *rows,
                   HYPRE_Int *cols); // constructor with 9 arguments
 
+   /** @brief Copy constructor for a ParCSR matrix which creates a deep copy of
+       structure and data from @a P. */
+   HypreParMatrix(const HypreParMatrix &P);
+
    /// Make this HypreParMatrix a reference to 'master'
    void MakeRef(const HypreParMatrix &master);
 
@@ -451,16 +455,18 @@ public:
 
    /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMult(int alpha, int *x, int beta, int *y)
+   void BooleanMult(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, const_cast<int*>(x),
+                                                beta, y);
    }
 
    /** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMultTranspose(int alpha, int *x, int beta, int *y)
+   void BooleanMultTranspose(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, const_cast<int*>(x),
+                                                 beta, y);
    }
 
    /// Initialize all entries with value.
@@ -468,13 +474,16 @@ public:
    { internal::hypre_ParCSRMatrixSetConstantValues(A, value); return *this; }
 
    /** Perform the operation `*this += B`, assuming that both matrices use the
-       same row and column partitions and the same col_map_offd arrays. We also
-       assume that the sparsity pattern of `*this` contains that of `B`. */
+       same row and column partitions and the same col_map_offd arrays, or B has
+       an empty off-diagonal block. We also assume that the sparsity pattern of
+       `*this` contains that of `B`. */
    HypreParMatrix &operator+=(const HypreParMatrix &B) { return Add(1.0, B); }
 
    /** Perform the operation `*this += beta*B`, assuming that both matrices use
-       the same row and column partitions and the same col_map_offd arrays. We
-       also assume that the sparsity pattern of `*this` contains that of `B`. */
+       the same row and column partitions and the same col_map_offd arrays, or
+       B has an empty off-diagonal block. We also assume that the sparsity
+       pattern of `*this` contains that of `B`. For a more general case consider
+       the stand-alone function ParAdd described below. */
    HypreParMatrix &Add(const double beta, const HypreParMatrix &B)
    {
       MFEM_VERIFY(internal::hypre_ParCSRMatrixSum(A, beta, B.A) == 0,
@@ -664,6 +673,15 @@ public:
 /// Abstract class for hypre's solvers and preconditioners
 class HypreSolver : public Solver
 {
+public:
+   /// How to treat errors returned by hypre function calls.
+   enum ErrorMode
+   {
+      IGNORE_HYPRE_ERRORS, ///< Ignore hypre errors (see e.g. HypreADS)
+      WARN_HYPRE_ERRORS,   ///< Issue warnings on hypre errors
+      ABORT_HYPRE_ERRORS   ///< Abort on hypre errors (default in base class)
+   };
+
 protected:
    /// The linear system matrix
    HypreParMatrix *A;
@@ -673,6 +691,9 @@ protected:
 
    /// Was hypre's Setup function called already?
    mutable int setup_called;
+
+   /// How to treat hypre errors.
+   mutable ErrorMode error_mode;
 
 public:
    HypreSolver();
@@ -693,6 +714,17 @@ public:
    /// Solve the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   /** @brief Set the behavior for treating hypre errors, see the ErrorMode
+       enum. The default mode in the base class is ABORT_HYPRE_ERRORS. */
+   /** Currently, there are three cases in derived classes where the error flag
+       is set to IGNORE_HYPRE_ERRORS:
+       * in the method HypreBoomerAMG::SetElasticityOptions(), and
+       * in the constructor of classes HypreAMS and HypreADS.
+       The reason for this is that a nonzero hypre error is returned) when
+       hypre_ParCSRComputeL1Norms() encounters zero row in a matrix, which is
+       expected in some cases with the above solvers. */
+   void SetErrorMode(ErrorMode err_mode) const { error_mode = err_mode; }
 
    virtual ~HypreSolver();
 };

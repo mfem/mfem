@@ -10,18 +10,15 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 
-// Support out-of-source builds: if MFEM_BUILD_DIR is defined, load the config
-// file MFEM_BUILD_DIR/config/_config.hpp.
+// Support out-of-source builds: if MFEM_CONFIG_FILE is defined, include it.
 //
 // Otherwise, use the local file: _config.hpp.
 
 #ifndef MFEM_CONFIG_HPP
 #define MFEM_CONFIG_HPP
 
-#ifdef MFEM_BUILD_DIR
-#define MFEM_QUOTE(a) #a
-#define MFEM_MAKE_PATH(x,y) MFEM_QUOTE(x/y)
-#include MFEM_MAKE_PATH(MFEM_BUILD_DIR,config/_config.hpp)
+#ifdef MFEM_CONFIG_FILE
+#include MFEM_CONFIG_FILE
 #else
 #include "_config.hpp"
 #endif
@@ -55,10 +52,5 @@
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
 #endif // MFEM_USE_MPI not defined
-
-// CUDA requires the memory manager
-#if defined(MFEM_USE_CUDA) && !defined(MFEM_USE_MM)
-#error Building with CUDA (MFEM_USE_CUDA=YES) requires MFEM_USE_MM=YES
-#endif
 
 #endif // MFEM_CONFIG_HPP

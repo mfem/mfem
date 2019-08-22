@@ -181,7 +181,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = el.GetOrder() + 1;
+      int intorder = 2*el.GetOrder();
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -240,7 +240,7 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = el.GetOrder() + 1;
+      int intorder = 2*el.GetOrder();
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -275,7 +275,7 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = el.GetOrder() + 1;
+      int intorder = 2*el.GetOrder();
       ir = &IntRules.Get(Tr.FaceGeom, intorder);
    }
 
