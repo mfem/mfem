@@ -111,12 +111,17 @@ public:
        be fes->GetVSize(). */
    double GetGridFunctionEnergy(const Vector &x) const;
 
-   /// Compute the enery corresponding to the state @a x.
+   /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */
    virtual double GetEnergy(const Vector &x) const
    { return GetGridFunctionEnergy(Prolongate(x)); }
+
+   /// Compute the functional corresponding to the state @a x.
+   /** This simply wraps GetEnergy */
+   virtual double GetFunctional(const Vector &x) const
+   { return GetEnergy(x); }
 
    /// Evaluate the action of the NonlinearForm.
    /** The input essential dofs in @a x will, generally, be non-zero. However,
