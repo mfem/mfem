@@ -62,14 +62,20 @@ make pdebug
    A shortcut to configure and build the parallel debug version of the library.
 make cuda
    A shortcut to configure and build the serial GPU/CUDA optimized version of the library.
-make hip
-   A shortcut to configure and build the serial GPU/HIP optimized version of the library.
 make pcuda
    A shortcut to configure and build the parallel GPU/CUDA optimized version of the library.
 make cudebug
    A shortcut to configure and build the serial GPU/CUDA debug version of the library.
 make pcudebug
    A shortcut to configure and build the parallel GPU/CUDA debug version of the library.
+make hip
+   A shortcut to configure and build the serial GPU/HIP optimized version of the library.
+make phip
+   A shortcut to configure and build the parallel GPU/HIP optimized version of the library.
+make hipdebug
+   A shortcut to configure and build the serial GPU/HIP debug version of the library.
+make phipdebug
+   A shortcut to configure and build the parallel GPU/HIP debug version of the library.
 make test
    Verify the build by checking the results from running all examples, miniapps,
    and tests.
@@ -432,12 +438,12 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
-serial debug cuda hip cudebug:  M_MPI=NO
-parallel pdebug pcuda pcudebug: M_MPI=YES
-serial parallel cuda hip pcuda: M_DBG=NO
-debug pdebug cudebug pcudebug:  M_DBG=YES
-cuda pcuda cudebug pcudebug:    M_CUDA=YES
-hip:                            M_HIP=YES
+serial debug cuda hip cudebug:                 M_MPI=NO
+parallel pdebug pcuda pcudebug phip phipdebug: M_MPI=YES
+serial parallel cuda hip pcuda:                M_DBG=NO
+debug pdebug cudebug pcudebug:                 M_DBG=YES
+cuda pcuda cudebug pcudebug:                   M_CUDA=YES
+hip phip hipdebug phipdebug:                   M_HIP=YES
 
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
@@ -449,7 +455,7 @@ cuda pcuda cudebug pcudebug:
 	   MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
-hip:
+hip phip hipdebug phipdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	MFEM_USE_HIP=$(M_HIP) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
