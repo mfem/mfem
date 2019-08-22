@@ -7,15 +7,6 @@
 
                                http://mfem.org
 
-libCEED support
----------------
-- Added initial integration of libCEED for Mass and Diffusion integrators.
-  libCEED GPU backends can be used without activating anything specific in MFEM,
-  however it is highly recommended to use the "cuda" build option to avoid
-  unnecessary memory transfers. Two mode for the libCEED backend are available:
-   * ceed-cpu: use libCEED without memory manager
-   * ceed-cuda: use libCEED in colaboration with the Cuda backend and the memory
-     manager.
 
 Version 4.0.1 (development)
 ===========================
@@ -28,6 +19,17 @@ GPU support
   language that can run on both AMD and NVIDIA hardware. The list of current
   backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
   "omp", "occa-cpu", "raja-cpu", and "cpu".
+
+libCEED support
+---------------
+- Added support for libCEED, the portable library for high-order operator
+  evaluation developed by the Center for Efficient Exascale Discretizations in
+  the Exascale Computing Project, https://github.com/CEED/libCEED. This initial
+  integration includes Mass and Diffusion integrators. libCEED GPU backends can
+  be used without specific MFEM configuration, however it is highly recommended
+  to use the "cuda" build option to minimize memory transfers. Both CPU and GPU
+  modes are available as MFEM device backends (ceed-cpu and ceed-cuda), using
+  some of the best performing CPU and GPU backends from libCEED.
 
 
 Version 4.0, released on May 24, 2019

@@ -443,10 +443,9 @@ MFEM_USE_OCCA = YES/NO
    in MFEM as well, i.e. MFEM_USE_CUDA=YES must be set.
 
 MFEM_USE_CEED = YES/NO
-   Enables support for the libCEED library in MFEM. libCEED is a high-order
-   API library, that provides a common algebraic low-level operator description,
-   allowing a wide variety of applications to take advantage of the efficient
-   operator evaluation algorithms in the different CEED packages.
+   Enables support for the libCEED library in MFEM. libCEED is a portable
+   library for performant high-order operator evaluation developed by the Center
+   for Efficient Exascale Discretizations in the Exascale Computing Project.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -576,8 +575,8 @@ The specific libraries and their options are:
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
 
 - CEED, used when MFEM_USE_CEED = YES.
-  URL: https://github.com/CEED/libCEED/
-       https://ceed.exascaleproject.org/libceed/
+  URL: https://github.com/CEED/libCEED
+       https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB
 
 - RAJA, used when MFEM_USE_RAJA = YES.
