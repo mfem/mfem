@@ -117,7 +117,8 @@ static int f_apply_mass(void *ctx, CeedInt Q,
    return 0;
 }
 
-void CeedPAMassAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRule &irm, CeedData& ceedData)
+void CeedPAMassAssemble(const FiniteElementSpace &fes,
+                        const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
@@ -155,12 +156,14 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRu
    {
       case Const:
          CeedQFunctionCreateInterior(ceed, 1, f_build_mass_const,
-                                     MFEM_SOURCE_DIR"/fem/libceed_mass.okl:f_build_mass_const", &ceedData.build_qfunc);
+                                     MFEM_SOURCE_DIR"/fem/libceed_mass.okl:f_build_mass_const",
+                                     &ceedData.build_qfunc);
          ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          break;
       case Grid:
          CeedQFunctionCreateInterior(ceed, 1, f_build_mass_grid,
-                                     MFEM_SOURCE_DIR"/fem/libceed_mass.okl:f_build_mass_grid", &ceedData.build_qfunc);
+                                     MFEM_SOURCE_DIR"/fem/libceed_mass.okl:f_build_mass_grid",
+                                     &ceedData.build_qfunc);
          CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
          break;
       default:
