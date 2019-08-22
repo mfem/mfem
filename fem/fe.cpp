@@ -10748,10 +10748,10 @@ H1_PentatopeElement::H1_PentatopeElement(const int p, const int type)
          }
    for (int k = 1; k < p; k++)
       for (int j = 1; j + k < p; j++)
-         for (int i = 1; i + j + k < p; i++)  // (1,0,2,4)
+         for (int i = 1; i + j + k < p; i++)  // (0,2,1,4)
          {
             double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
-            Nodes.IntPoint(o++).Set4(cp[p-i-j-k]/w, cp[j]/w, cp[0], cp[k]/w);
+            Nodes.IntPoint(o++).Set4(cp[j]/w, cp[i]/w, cp[0], cp[k]/w);
          }
    for (int k = 1; k < p; k++)
       for (int j = 1; j + k < p; j++)
@@ -10762,10 +10762,10 @@ H1_PentatopeElement::H1_PentatopeElement(const int p, const int type)
          }
    for (int k = 1; k < p; k++)
       for (int j = 1; j + k < p; j++)
-         for (int i = 1; i + j + k < p; i++)  // (0,2,3,4)
+         for (int i = 1; i + j + k < p; i++)  // (0,3,2,4)
          {
             double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
-            Nodes.IntPoint(o++).Set4(cp[0], cp[p-i-j-k]/w, cp[j]/w, cp[k]/w);
+            Nodes.IntPoint(o++).Set4(cp[0], cp[j]/w, cp[i]/w, cp[k]/w);
          }
    for (int k = 1; k < p; k++)
       for (int j = 1; j + k < p; j++)
@@ -13776,10 +13776,10 @@ RT_PentatopeElement::RT_PentatopeElement(const int p)
          }
    for (int k = 0; k <= p; k++)
       for (int j = 0; j + k <= p; j++)
-         for (int i = 0; i + j + k <= p; i++)  // (1,0,2,4)
+         for (int i = 0; i + j + k <= p; i++)  // (0,2,1,4)
          {
             double w = bop[i] + bop[j] + bop[k] + bop[p-i-j-k];
-            Nodes.IntPoint(o).Set4(bop[p-i-j-k]/w, bop[j]/w, 0., bop[k]/w);
+            Nodes.IntPoint(o).Set4(bop[j]/w, bop[i]/w, 0., bop[k]/w);
             dof2nk[o++] = 1;
          }
    for (int k = 0; k <= p; k++)
@@ -13792,10 +13792,10 @@ RT_PentatopeElement::RT_PentatopeElement(const int p)
          }
    for (int k = 0; k <= p; k++)
       for (int j = 0; j + k <= p; j++)
-         for (int i = 0; i + j + k <= p; i++)  // (0,2,3,4)
+         for (int i = 0; i + j + k <= p; i++)  // (0,3,2,4)
          {
             double w = bop[i] + bop[j] + bop[k] + bop[p-i-j-k];
-            Nodes.IntPoint(o).Set4(0., bop[p-i-j-k]/w, bop[j]/w, bop[k]/w);
+            Nodes.IntPoint(o).Set4(0., bop[j]/w, bop[i]/w, bop[k]/w);
             dof2nk[o++] = 3;
          }
    for (int k = 0; k <= p; k++)

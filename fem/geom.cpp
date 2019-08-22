@@ -1021,8 +1021,8 @@ Constants<Geometry::PENTATOPE>::FaceVert[5][4] =
    //   {0, 1, 2, 3}, {0, 1, 2, 4},
    //   {0, 1, 3, 4}, {0, 2, 3, 4},
    //   {1, 2, 3, 4}
-   {0, 1, 2, 3}, {1, 0, 2, 4},     //<---- sorted such that the normal vectors are outer normal vectors
-   {0, 1, 3, 4}, {2, 0, 3, 4},
+   {0, 1, 2, 3}, {0, 2, 1, 4},     //<---- sorted such that the normal vectors are outer normal vectors
+   {0, 1, 3, 4}, {0, 3, 2, 4},
    {1, 2, 3, 4}
 };
 const int Geometry::
