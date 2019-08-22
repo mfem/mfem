@@ -987,6 +987,7 @@ double Vector::operator*(const Vector &v) const
       return prod;
    }
 #endif
+
 vector_dot_cpu:
    return operator*(v_data);
 }
