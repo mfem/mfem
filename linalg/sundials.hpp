@@ -139,7 +139,7 @@ public:
 
    /// Integrate the ODE with CVODE using the specified step mode.
    /** @param[in,out] x  On output, the solution vector at the requested output
-                         time tout = @a t + @a dt..
+                         time tout = @a t + @a dt.
        @param[in,out] t  On output, the output time reached.
        @param[in,out] dt On output, the last time step taken.
 
