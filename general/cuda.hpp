@@ -26,10 +26,10 @@
 #ifdef MFEM_USE_CUDA
 #define MFEM_DEVICE __device__
 #define MFEM_HOST_DEVICE __host__ __device__
-// Define a CUDA error check macro, MFEM_CUDA_CHECK(x), where x returns/is of
+// Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
 // result is not cudaSuccess.
-#define MFEM_CUDA_CHECK(x) \
+#define MFEM_GPU_CHECK(x) \
    do \
    { \
       cudaError_t err = (x); \
@@ -64,7 +64,7 @@ namespace mfem
 {
 
 #ifdef MFEM_USE_CUDA
-// Function used by the macro MFEM_CUDA_CHECK.
+// Function used by the macro MFEM_GPU_CHECK.
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);
 #endif
