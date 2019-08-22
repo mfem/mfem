@@ -573,8 +573,8 @@ protected: // implementation
    void CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                         const Refinement *refs, int nref);
 
-   void CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
-                       int mid12, int mid34, int level = 0);
+   int CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
+                      int mid12, int mid34, int level = 0);
    void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
 

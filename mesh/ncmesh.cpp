@@ -754,8 +754,8 @@ void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
 }
 
 
-void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
-                            int mid12, int mid34, int level)
+int NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
+                           int mid12, int mid34, int level)
 {
    // TODO: update this documentation
    //
@@ -845,8 +845,17 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
 
          int rs = ref_queue.Size();
 
-         CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1);
-         CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1);
+         int refined =
+            CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1) +
+            CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1);
+
+         if (refined)
+         {
+            // if at least one forced refinement was needed, prepare also
+            // the 'horizontal' nodes
+            GetMidEdgeNode(mid41, midf);
+            GetMidEdgeNode(midf, mid23);
+         }
 
          if (HavePrisms() && nodes[midf].HasEdge())
          {
@@ -874,7 +883,8 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             }
             reparents.DeleteAll();
          }
-         return;
+
+         return 0;
       }
    }
 
@@ -904,7 +914,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
       // (since forced refinements are merely scheduled at this point)
       GetMidEdgeNode(mid12, mid34);
    }
-   //return 0;
+   return 1;
 }
 
 void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
