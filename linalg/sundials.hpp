@@ -291,14 +291,22 @@ public:
    /// Attach a SUNDIALS GMRES linear solver to ARKode.
    void UseSundialsLinearSolver();
 
-   /// Attach an MFEM mass matrix linear solver to ARKode.
-   /** @param[in] tdep    An integer flag indicating if the mass matrix is time
-                          dependent (1) or time independent (0) */
+   /** @brief Attach mass matrix linear system setup, solve, and matrix-vector
+       product methods from the TimeDependentOperator i.e., SUNMassSetup(),
+       SUNMassSolve(), and SUNMassMult() to ARKode.
+
+       @param[in] tdep    An integer flag indicating if the mass matrix is time
+                          dependent (1) or time independent (0)
+   */
    void UseMFEMMassLinearSolver(int tdep);
 
-   /// Attach a SUNDIALS mass matrix linear solver to ARKode.
-   /** @param[in] tdep    An integer flag indicating if the mass matrix is time
-                          dependent (1) or time independent (0) */
+   /** @brief Attach the SUNDIALS GMRES linear solver and the mass matrix
+       matrix-vector product method from the TimeDependentOperator i.e.,
+       SUNMassMult() to ARKode to solve mass matrix systems.
+
+       @param[in] tdep    An integer flag indicating if the mass matrix is time
+                          dependent (1) or time independent (0)
+   */
    void UseSundialsMassLinearSolver(int tdep);
 
    /// Select the ARKode step mode: ARK_NORMAL (default) or ARK_ONE_STEP.
