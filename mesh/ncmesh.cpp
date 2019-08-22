@@ -264,21 +264,36 @@ NCMesh::Node::~Node()
 void NCMesh::ReparentNode(int node, int new_p1, int new_p2)
 {
    Node &nd = nodes[node];
-   int old_p1 = nd.p1, old_p2 = nd.p2;
+   if (nd.HasEdge() || nd.HasVertex())
+   {
+      int old_p1 = nd.p1, old_p2 = nd.p2;
 
-   // assign new parents
-   nodes.Reparent(node, new_p1, new_p2);
+      // assign new parents
+      nodes.Reparent(node, new_p1, new_p2);
 
-   MFEM_ASSERT(shadow.FindId(old_p1, old_p2) < 0,
-               "shadow node already exists");
+      MFEM_ASSERT(shadow.FindId(old_p1, old_p2) < 0,
+                  "shadow node already exists");
 
-   // store old parent pair temporarily in 'shadow'
-   Node* sh = shadow.Get(old_p1, old_p2);
-   sh->vert_index = node;
+      // store old parent pair temporarily in 'shadow'
+      Node* sh = shadow.Get(old_p1, old_p2);
+      sh->vert_index = node;
 
-   // set shadow/shadowed flags on the two nodes
-   //sh->flags = 1;
-   //nd.flags = 2;
+      // set shadow/shadowed flags on the two nodes
+      //sh->flags = 1;
+      //nd.flags = 2;
+   }
+   else
+   {
+      // special case: empty node (forced refinement pending, see
+      // "GetMidEdgeNode" at the end of CheckAnisoFace)
+
+      MFEM_ASSERT(shadow.FindId(new_p1, new_p2) < 0,
+                  "shadow node already exists");
+
+      // keep the old node and shadow the new parent pair
+      Node* sh = shadow.Get(new_p1, new_p2);
+      sh->vert_index = node;
+   }
 }
 
 int NCMesh::FindMidEdgeNode(int node1, int node2) const
@@ -2108,12 +2123,12 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
       const int *ev = edge_vertex->GetRow(i);
-#if 0
+#if 1
       Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
 
-      MFEM_ASSERT(node && node->HasEdge(),
-                  "edge (" << vertex_nodeId[ev[0]] << "," << vertex_nodeId[ev[1]] << ") not found, "
-                  "node = " << node);
+      MFEM_VERIFY(node && node->HasEdge(),
+                  "Internal error: edge (" << vertex_nodeId[ev[0]] << ","
+                  << vertex_nodeId[ev[1]] << ") not found, node = " << node);
 
       node->edge_index = i;
 #else
@@ -4530,10 +4545,17 @@ int NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
       int n1 = el.node[fv[i]];
       int n2 = el.node[fv[j]];
 
+#if 0
       int enode = FindMidEdgeNode(n1, n2);
       MFEM_ASSERT(enode >= 0, "edge not found.");
 
       edge_index[i] = nodes[enode].edge_index;
+#else
+      const Node* en = nodes.Find(n1, n2);
+      MFEM_ASSERT(en != NULL, "edge not found.");
+
+      edge_index[i] = en->edge_index;
+#endif
       edge_orientation[i] = (vert_index[i] < vert_index[j]) ? 1 : -1;
    }
 
