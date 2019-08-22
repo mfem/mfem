@@ -17,7 +17,7 @@ namespace mfem
 
 // Internal debug option, useful for tracking HIP allocations, deallocations
 // and transfers.
-//#define MFEM_TRACK_HIP_MEM
+// #define MFEM_TRACK_HIP_MEM
 
 #ifdef MFEM_USE_HIP
 void mfem_hip_error(hipError_t err, const char *expr, const char *func,

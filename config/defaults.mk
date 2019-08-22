@@ -47,11 +47,12 @@ CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
 # HIP configuration options
-# The 'amdgpu' option allows to specify the AMD GPU processor, for example:
-# gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
-# gfx900, gfx1010
 HIP_CXX = hipcc
-HIP_FLAGS = --amdgpu-target=gfx900
+# The HIP_ARCH option specifies the AMD GPU processor, similar to CUDA_ARCH. For
+# example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
+# gfx900, gfx1010, etc.
+HIP_ARCH = gfx900
+HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
 
 ifneq ($(NOTMAC),)
    AR      = ar

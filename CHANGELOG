@@ -13,11 +13,10 @@ Version 4.0.1 (development)
 
 GPU support
 -----------
-- Added initial support for AMD GPUs via HIP: one of ROCm's C++ runtime API and
-  kernel language that allows developers to create portable applications that
-  can run on AMD and other GPU’s.
-  The list of current backends is: "occa-cuda", "raja-cuda", "cuda", "hip",
-  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+- Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
+  language that can run on both AMD and NVIDIA hardware. The list of current
+  backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
+  "omp", "occa-cpu", "raja-cpu", and "cpu".
 
 
 Version 4.0, released on May 24, 2019
