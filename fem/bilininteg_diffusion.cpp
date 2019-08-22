@@ -1054,7 +1054,7 @@ static void PADiffusionApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
 
-   if (Device::Allows(Backend::RAJA_CUDA) || (Device::Allows(Backend::HIP)))
+   if (Device::Allows(Backend::RAJA_CUDA))
    {
       if (dim == 2)
       {
