@@ -172,6 +172,19 @@ void Pentatope::ParseFlag(char& t, bool& swap)
    t = (f & 3);
 }
 
+void Pentatope::GetFace(int fi, int *fv)
+{
+    const int *v = GetFaceVertices(fi);
+    for (int k = 0; k < 4; ++k)
+    {
+        fv[k] = indices[v[k]];
+    }
+
+    if (fi % 2 == 1)
+        std::swap(fv[1], fv[2]);
+}
+
+
 Linear4DFiniteElement PentatopeFE;
 
 }

@@ -108,10 +108,16 @@ protected:
                              const Array<unsigned> &codes, int &pos);
 
    void GetFaceSplittings4D(const Vert4 &f, const HashTable<Hashed2> &v_to_v,
-                            Array<unsigned> &codes);
+                            const DSTable &edges, Array<unsigned> &codes);
 
    bool DecodeFaceSplittings4D(HashTable<Hashed2> &v_to_v, const Vert4 &v,
                                const Array<unsigned> &codes, int &pos);
+
+   void GetFaceSplittings4D_old(const Vert4 &f, const HashTable<Hashed2> &v_to_v,
+                                Array<unsigned> &codes);
+
+   bool DecodeFaceSplittings4D_old(HashTable<Hashed2> &v_to_v, const Vert4 &v,
+                                   const Array<unsigned> &codes, int &pos);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);

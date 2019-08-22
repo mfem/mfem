@@ -2322,7 +2322,7 @@ void Mesh::FinalizeTopology()
       }
       if (Dim == 4)
       {
-         ReplaceBoundaryFromFaces();
+         //ReplaceBoundaryFromFaces();
 
          GetElementToPlanarTable();
          GeneratePlanars();
@@ -5782,6 +5782,7 @@ void Mesh::GenerateFaces()
                int filter[5] = {0,1,2,3,4};
                if (swapped)
                {
+                   mfem::out << "This shouldn't have happened!" << endl;
                   filter[3] = 4;
                   filter[4] = 3;
                }
@@ -5791,7 +5792,7 @@ void Mesh::GenerateFaces()
                   bool swapFace = false;
                   if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
                   {
-                     swapFace = true;
+//                     swapFace = true;
                   }
 
                   if (faces[ef[filter[j]]] == NULL)
@@ -6242,7 +6243,7 @@ void Mesh::ReplaceBoundaryFromFaces()
 //          for(int k=0; k<NVertices; k++) cout << vBnd[k] << " "; cout << endl;
 //          for(int k=0; k<NVertices; k++) cout << vFce[k] << " "; cout << endl << endl;
 
-      for (int k=0; k<NVertices; k++) { vBnd[k] = vFce[k]; }
+//      for (int k=0; k<NVertices; k++) { vBnd[k] = vFce[k]; }
    }
 }
 

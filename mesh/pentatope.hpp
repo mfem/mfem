@@ -66,6 +66,7 @@ public:
    virtual void MarkEdge(const DSTable &v_to_v, const int *length)
    { MFEM_ABORT("PENTATOPE:: MarkEdge not implemented"); }
 
+   virtual void GetFace(int fi, int *fv);
 
    /// Return element's type.
    virtual Type GetType() const { return Element::PENTATOPE; }
