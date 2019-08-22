@@ -57,11 +57,14 @@ public:
     */
    BlockVector(const Array<int> & bOffsets);
 
+   /// Construct a BlockVector with the given MemoryType @a mt.
+   BlockVector(const Array<int> & bOffsets, MemoryType mt);
+
    //! Copy constructor
    BlockVector(const BlockVector & block);
 
    //! View constructor
-   /*
+   /**
     * data is an array of double of length at least blockOffsets[numBlocks] that
     * contain all the values of the monolithic vector.  bOffsets is an array of
     * integers (length nBlocks+1) that tells the offsets of each block start.
@@ -101,6 +104,14 @@ public:
        - the offsets @a bOffsets are different from the current offsets, or
        - currently, the block-vector does not own its data. */
    void Update(const Array<int> &bOffsets);
+
+   /** @brief Update a BlockVector with new @a bOffsets and make sure it owns
+       its data and uses the MemoryType @a mt. */
+   /** The block-vector will be re-allocated if either:
+       - the offsets @a bOffsets are different from the current offsets, or
+       - currently, the block-vector does not own its data, or
+       - currently, the block-vector does not use MemoryType @a mt. */
+   void Update(const Array<int> &bOffsets, MemoryType mt);
 };
 
 }
