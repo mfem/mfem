@@ -148,10 +148,13 @@ public:
    */
    virtual void Step(Vector &x, double &t, double &dt);
 
-   /// Attach an MFEM linear solver to CVODE.
+   /** @brief Attach the linear system setup and solve methods from the
+       TimeDependentOperator i.e., SUNImplicitSetup() and SUNImplicitSolve() to
+       CVODE.
+   */
    void UseMFEMLinearSolver();
 
-   /// Attach SUNDIALS linear solver to CVODE.
+   /// Attach SUNDIALS GMRES linear solver to CVODE.
    void UseSundialsLinearSolver();
 
    /// Select the CVODE step mode: CV_NORMAL (default) or CV_ONE_STEP.
@@ -279,10 +282,13 @@ public:
    */
    virtual void Step(Vector &x, double &t, double &dt);
 
-   /// Attach an MFEM linear solver solver to ARKode.
+   /** @brief Attach the linear system setup and solve methods from the
+       TimeDependentOperator i.e., SUNImplicitSetup() and SUNImplicitSolve() to
+       ARKode.
+   */
    void UseMFEMLinearSolver();
 
-   /// Attach a SUNDIALS linear solver to ARKode.
+   /// Attach a SUNDIALS GMRES linear solver to ARKode.
    void UseSundialsLinearSolver();
 
    /// Attach an MFEM mass matrix linear solver to ARKode.
@@ -408,7 +414,7 @@ public:
    virtual void SetPreconditioner(Solver &solver) { SetSolver(solver); }
 
    /// Set KINSOL's scaled step tolerance.
-   /** The default tolerance is \f$ U^\frac{2}{3} \f$ , where 
+   /** The default tolerance is \f$ U^\frac{2}{3} \f$ , where
        U = machine unit roundoff.
        @note This method must be called after SetOperator(). */
    void SetScaledStepTol(double sstol);
