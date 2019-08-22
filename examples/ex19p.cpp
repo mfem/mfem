@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options
-   const char *mesh_file = "../data/beam-hex.mesh";
+   const char *mesh_file = "../data/beam-tet.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int order = 2;

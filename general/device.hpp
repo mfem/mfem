@@ -13,6 +13,7 @@
 #define MFEM_DEVICE_HPP
 
 #include "globals.hpp"
+#include "mem_manager.hpp"
 
 namespace mfem
 {
@@ -59,25 +60,31 @@ struct Backend
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
       NUM_BACKENDS = 9,
+
+      /// Biwise-OR of all CPU backends
+      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
-      /// Biwise-OR of all RAJA backends
-      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
-      /// Biwise-OR of all OCCA backends
-      OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK
+      DEVICE_MASK = CUDA_MASK,
+
+      /// Biwise-OR of all RAJA backends
+      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
+      /// Biwise-OR of all OCCA backends
+      OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA
    };
 };
 
 
-/** @brief The MFEM Device class abstracts hardware devices, such as GPUs, as
-    well as programming models, such as CUDA, OCCA, RAJA and OpenMP. */
+/** @brief The MFEM Device class abstracts hardware devices such as GPUs, as
+    well as programming models such as CUDA, OCCA, RAJA and OpenMP. */
 /** This class represents a "virtual device" with the following properties:
-    - There a single object of this class which is controlled by its static
-      methods.
+    - At most one object of this class can be constructed and that object is
+      controlled by its static methods.
+    - If no Device object is constructed, the static methods will use a default
+      global object which is never configured and always uses Backend::CPU.
     - Once configured, the object cannot be re-configured during the program
       lifetime.
     - MFEM classes use this object to determine where (host or device) to
@@ -85,37 +92,78 @@ struct Backend
     - Multiple backends can be configured at the same time; currently, a fixed
       priority order is used to select a specific backend from the list of
       configured backends. See the Backend class and the Configure() method in
-      this class for details.
-    - The device can be disabled to restrict the backend selection to only the
-      default host CPU backend, see the methods Enable() and Disable(). */
+      this class for details. */
 class Device
 {
 private:
    enum MODES {SEQUENTIAL, ACCELERATED};
 
+   static Device device_singleton;
+
    MODES mode;
    int dev = 0; ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
    unsigned long backends; ///< Bitwise-OR of all configured backends.
-   /** Bitwise-OR mask of all allowed backends. All backends are active when the
-       Device is enabled. When the Device is disabled, only the host CPU backend
-       is allowed. */
-   unsigned long allowed_backends;
+   /// Set to true during configuration, except in 'device_singleton'.
+   bool destroy_mm;
 
-   Device()
-      : mode(Device::SEQUENTIAL),
-        backends(Backend::CPU),
-        allowed_backends(backends) { }
+   MemoryType mem_type;    ///< Current Device MemoryType
+   MemoryClass mem_class;  ///< Current Device MemoryClass
+
    Device(Device const&);
    void operator=(Device const&);
-   static Device& Get() { static Device singleton; return singleton; }
+   static Device& Get() { return device_singleton; }
 
    /// Setup switcher based on configuration settings
    void Setup(const int dev = 0);
 
    void MarkBackend(Backend::Id b) { backends |= b; }
 
+   void UpdateMemoryTypeAndClass();
+
+   /// Enable the use of the configured device in the code that follows.
+   /** After this call MFEM classes will use the backend kernels whenever
+       possible, transferring data automatically to the device, if necessary.
+
+       If the only configured backend is the default host CPU one, the device
+       will remain disabled.
+
+       If the device is actually enabled, this method will also update the
+       current MemoryType and MemoryClass. */
+   static void Enable();
+
 public:
+   /** @brief Default constructor. Unless Configure() is called later, the
+       default Backend::CPU will be used. */
+   /** @note At most one Device object can be constructed during the lifetime of
+       a program.
+       @note This object should be destroyed after all other MFEM objects that
+       use the Device are destroyed. */
+   Device()
+      : mode(Device::SEQUENTIAL),
+        backends(Backend::CPU),
+        destroy_mm(false),
+        mem_type(MemoryType::HOST),
+        mem_class(MemoryClass::HOST)
+   { }
+
+   /** @brief Construct a Device and configure it based on the @a device string.
+       See Configure() for more details. */
+   /** @note At most one Device object can be constructed during the lifetime of
+       a program.
+       @note This object should be destroyed after all other MFEM objects that
+       use the Device are destroyed. */
+   Device(const std::string &device, const int dev = 0)
+      : mode(Device::SEQUENTIAL),
+        backends(Backend::CPU),
+        destroy_mm(false),
+        mem_type(MemoryType::HOST),
+        mem_class(MemoryClass::HOST)
+   { Configure(device, dev); }
+
+   /// Destructor.
+   ~Device();
+
    /// Configure the Device backends.
    /** The string parameter @a device must be a comma-separated list of backend
        string names (see below). The @a dev argument specifies the ID of the
@@ -131,12 +179,11 @@ public:
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
        * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
-         is already enabled.
-       * After this call, the Device will be disabled. */
-   static void Configure(const std::string &device, const int dev = 0);
+         is already enabled. */
+   void Configure(const std::string &device, const int dev = 0);
 
    /// Print the configuration of the MFEM virtual device object.
-   static void Print(std::ostream &out = mfem::out);
+   void Print(std::ostream &out = mfem::out);
 
    /// Return true if Configure() has been called previously.
    static inline bool IsConfigured() { return Get().ngpu >= 0; }
@@ -144,44 +191,104 @@ public:
    /// Return true if an actual device (e.g. GPU) has been configured.
    static inline bool IsAvailable() { return Get().ngpu > 0; }
 
-   /// Enable the use of the configured device in the code that follows.
-   /** After this call MFEM classes will use the backend kernels whenever
-       possible, transferring data automatically to the device, if necessary.
-
-       If the only configured backend is the default host CPU one, the device
-       will remain disabled. */
-   static inline void Enable()
-   {
-      if (Get().backends & ~Backend::CPU)
-      {
-         Get().mode = Device::ACCELERATED;
-         Get().allowed_backends = Get().backends;
-      }
-   }
-
-   /// Disable the use of the configured device in the code that follows.
-   /** After this call MFEM classes will only use default CPU kernels,
-       transferring data automatically from the device, if necessary. */
-   static inline void Disable()
-   {
-      Get().mode = Device::SEQUENTIAL;
-      Get().allowed_backends = Backend::CPU;
-   }
-
-   /// Return true if the Device is enabled.
+   /// Return true if any backend other than Backend::CPU is enabled.
    static inline bool IsEnabled() { return Get().mode == ACCELERATED; }
 
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
 
    /** @brief Return true if any of the backends in the backend mask, @a b_mask,
-       are allowed. The allowed backends are all configured backends minus the
-       device backends when the Device is disabled. */
+       are allowed. */
    /** This method can be used with any of the Backend::Id constants, the
        Backend::*_MASK, or combinations of those. */
    static inline bool Allows(unsigned long b_mask)
-   { return Get().allowed_backends & b_mask; }
+   { return Get().backends & b_mask; }
+
+   /** @brief Get the current Device MemoryType. This is the MemoryType used by
+       most MFEM classes when allocating memory to be used with device kernels.
+   */
+   static inline MemoryType GetMemoryType() { return Get().mem_type; }
+
+   /** @brief Get the current Device MemoryClass. This is the MemoryClass used
+       by most MFEM device kernels to access Memory objects. */
+   static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
 };
+
+
+// Inline Memory access functions using the mfem::Device MemoryClass or
+// MemoryClass::HOST.
+
+/** @brief Get a pointer for read access to @a mem with the mfem::Device
+    MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
+/** Also, if @a on_dev = true, the device flag of @a mem will be set. */
+template <typename T>
+inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
+{
+   if (!on_dev)
+   {
+      return mem.Read(MemoryClass::HOST, size);
+   }
+   else
+   {
+      mem.UseDevice(true);
+      return mem.Read(Device::GetMemoryClass(), size);
+   }
+}
+
+/** @brief Shortcut to Read(const Memory<T> &mem, int size, false) */
+template <typename T>
+inline const T *HostRead(const Memory<T> &mem, int size)
+{
+   return mfem::Read(mem, size, false);
+}
+
+/** @brief Get a pointer for write access to @a mem with the mfem::Device
+    MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
+/** Also, if @a on_dev = true, the device flag of @a mem will be set. */
+template <typename T>
+inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
+{
+   if (!on_dev)
+   {
+      return mem.Write(MemoryClass::HOST, size);
+   }
+   else
+   {
+      mem.UseDevice(true);
+      return mem.Write(Device::GetMemoryClass(), size);
+   }
+}
+
+/** @brief Shortcut to Write(const Memory<T> &mem, int size, false) */
+template <typename T>
+inline const T *HostWrite(const Memory<T> &mem, int size)
+{
+   return mfem::Write(mem, size, false);
+}
+
+/** @brief Get a pointer for read+write access to @a mem with the mfem::Device
+    MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
+/** Also, if @a on_dev = true, the device flag of @a mem will be set. */
+template <typename T>
+inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
+{
+   if (!on_dev)
+   {
+      return mem.ReadWrite(MemoryClass::HOST, size);
+   }
+   else
+   {
+      mem.UseDevice(true);
+      return mem.ReadWrite(Device::GetMemoryClass(), size);
+   }
+}
+
+/** @brief Shortcut to ReadWrite(const Memory<T> &mem, int size, false) */
+template <typename T>
+inline const T *HostReadWrite(const Memory<T> &mem, int size)
+{
+   return mfem::ReadWrite(mem, size, false);
+}
 
 } // mfem
 
