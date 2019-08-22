@@ -1678,8 +1678,9 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
-   // Ceed extension
+   // CEED extension
    void* ceedDataPtr;
+
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator() { Q = NULL; MQ = NULL; maps = NULL; geom = NULL; }
@@ -1739,8 +1740,9 @@ protected:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   // Ceed extension
+   // CEED extension
    void* ceedDataPtr;
+
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir) { Q = NULL; maps = NULL; geom = NULL; }
