@@ -20,7 +20,8 @@ namespace mfem
 
 #ifdef MFEM_USE_CEED
 
-void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRule &ir,  CeedData& ceedData);
+void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
+                             const mfem::IntegrationRule &ir,  CeedData& ceedData);
 
 #endif
 

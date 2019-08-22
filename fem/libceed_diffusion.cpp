@@ -212,7 +212,8 @@ static int f_apply_diff(void *ctx, CeedInt Q,
    return 0;
 }
 
-void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRule &irm, CeedData& ceedData)
+void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
+                             const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
@@ -250,12 +251,14 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::Integrat
    {
       case Const:
          CeedQFunctionCreateInterior(ceed, 1, f_build_diff_const,
-                                     MFEM_SOURCE_DIR"/fem/libceed_diffusion.okl:f_build_diff_const", &ceedData.build_qfunc);
+                                     MFEM_SOURCE_DIR"/fem/libceed_diffusion.okl:f_build_diff_const",
+                                     &ceedData.build_qfunc);
          ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          break;
       case Grid:
          CeedQFunctionCreateInterior(ceed, 1, f_build_diff_grid,
-                                     MFEM_SOURCE_DIR"/fem/libceed_diffusion.okl:f_build_diff_grid", &ceedData.build_qfunc);
+                                     MFEM_SOURCE_DIR"/fem/libceed_diffusion.okl:f_build_diff_grid",
+                                     &ceedData.build_qfunc);
          CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
          break;
       default:
@@ -305,7 +308,8 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::Integrat
 
    // Create the Q-function that defines the action of the diff operator.
    CeedQFunctionCreateInterior(ceed, 1, f_apply_diff,
-                            MFEM_SOURCE_DIR"/fem/libceed_diffusion.okl:f_apply_diff", &ceedData.apply_qfunc);
+                               MFEM_SOURCE_DIR"/fem/libceed_diffusion.okl:f_apply_diff",
+                               &ceedData.apply_qfunc);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "u", 1, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "rho", dim * (dim + 1) / 2,
                          CEED_EVAL_NONE);
