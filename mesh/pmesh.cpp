@@ -103,18 +103,18 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.Nonconforming())
    {
-      if (partitioning_ && MyRank == 0)
+      if (partitioning_)
       {
-         MFEM_WARNING("Prescribed partitioning is not supported for NC meshes.");
+         partitioning = partitioning_;
       }
-
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh);
-
-      // save the element partitioning before Prune()
-      partitioning = new int[mesh.GetNE()];
-      for (int i = 0; i < mesh.GetNE(); i++)
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
+      if (!partitioning)
       {
-         partitioning[i] = pncmesh->InitialPartition(i);
+         partitioning = new int[mesh.GetNE()];
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            partitioning[i] = pncmesh->InitialPartition(i);
+         }
       }
 
       pncmesh->Prune();
@@ -3147,16 +3147,16 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
 
-   I_group_svert = mfem::New<int>(GetNGroups()+1);
-   I_group_sedge = mfem::New<int>(GetNGroups()+1);
+   I_group_svert = new int[GetNGroups()+1];
+   I_group_sedge = new int[GetNGroups()+1];
 
    I_group_svert[0] = I_group_svert[1] = 0;
    I_group_sedge[0] = I_group_sedge[1] = 0;
 
    // overestimate the size of the J arrays
-   J_group_svert = mfem::New<int>(group_svert.Size_of_connections()
-                                  + group_sedge.Size_of_connections());
-   J_group_sedge = mfem::New<int>(2*group_sedge.Size_of_connections());
+   J_group_svert = new int[group_svert.Size_of_connections()
+                           + group_sedge.Size_of_connections()];
+   J_group_sedge = new int[2*group_sedge.Size_of_connections()];
 
    for (int group = 0; group < GetNGroups()-1; group++)
    {
@@ -3394,16 +3394,16 @@ void ParMesh::UniformRefineGroups2D(int old_nv)
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
 
-   I_group_svert = mfem::New<int>(GetNGroups());
-   I_group_sedge = mfem::New<int>(GetNGroups());
+   I_group_svert = new int[GetNGroups()];
+   I_group_sedge = new int[GetNGroups()];
 
    I_group_svert[0] = 0;
    I_group_sedge[0] = 0;
 
    // compute the size of the J arrays
-   J_group_svert = mfem::New<int>(group_svert.Size_of_connections()
-                                  + group_sedge.Size_of_connections());
-   J_group_sedge = mfem::New<int>(2*group_sedge.Size_of_connections());
+   J_group_svert = new int[group_svert.Size_of_connections()
+                           + group_sedge.Size_of_connections()];
+   J_group_sedge = new int[2*group_sedge.Size_of_connections()];
 
    for (int group = 0; group < GetNGroups()-1; group++)
    {
@@ -3452,10 +3452,10 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
    int *I_group_stria, *J_group_stria;
    int *I_group_squad, *J_group_squad;
 
-   I_group_svert = mfem::New<int>(GetNGroups());
-   I_group_sedge = mfem::New<int>(GetNGroups());
-   I_group_stria = mfem::New<int>(GetNGroups());
-   I_group_squad = mfem::New<int>(GetNGroups());
+   I_group_svert = new int[GetNGroups()];
+   I_group_sedge = new int[GetNGroups()];
+   I_group_stria = new int[GetNGroups()];
+   I_group_squad = new int[GetNGroups()];
 
    I_group_svert[0] = 0;
    I_group_sedge[0] = 0;
@@ -3463,14 +3463,14 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
    I_group_squad[0] = 0;
 
    // compute the size of the J arrays
-   J_group_svert = mfem::New<int>(group_svert.Size_of_connections()
-                                  + group_sedge.Size_of_connections()
-                                  + group_squad.Size_of_connections());
-   J_group_sedge = mfem::New<int>(2*group_sedge.Size_of_connections()
-                                  + 3*group_stria.Size_of_connections()
-                                  + 4*group_squad.Size_of_connections());
-   J_group_stria = mfem::New<int>(4*group_stria.Size_of_connections());
-   J_group_squad = mfem::New<int>(4*group_squad.Size_of_connections());
+   J_group_svert = new int[group_svert.Size_of_connections()
+                           + group_sedge.Size_of_connections()
+                           + group_squad.Size_of_connections()];
+   J_group_sedge = new int[2*group_sedge.Size_of_connections()
+                           + 3*group_stria.Size_of_connections()
+                           + 4*group_squad.Size_of_connections()];
+   J_group_stria = new int[4*group_stria.Size_of_connections()];
+   J_group_squad = new int[4*group_squad.Size_of_connections()];
 
    const int oface = old_nv + old_nedges;
 
