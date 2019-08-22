@@ -422,11 +422,12 @@ MFEM_USE_CUDA = YES/NO
    capability used during compilation (by default, CUDA_ARCH=sm_60). When
    enabled, this option uses the CUDA_* build options, see below.
 
-MFEM_USE_CUDA = YES/NO
-   Enables support for AMD devices in MFEM. HIP is a programming model and
-   programming interface. The variable HIP_ARCH is used to specify the AMP
-   chip used during compilation (by default, HIP_ARCH=gfx900).
-   When enabled, this option uses the HIP_* build options, see below.
+MFEM_USE_HIP = YES/NO
+   Enables support for AMD devices in MFEM. HIP is a heterogeneous-compute
+   interface for portability developed by AMD that can target both AMD and
+   NVIDIA GPUs. The variable HIP_ARCH is used to specify the AMD GPU processor
+   used during compilation (by default, HIP_ARCH=gfx900).  When enabled, this
+   option uses the HIP_* build options, see below.
 
 MFEM_USE_RAJA = YES/NO
    Enable support for the RAJA performance portability layer in MFEM. RAJA
