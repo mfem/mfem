@@ -29,6 +29,7 @@ namespace mfem
 
 // Data type mesh
 
+class GeometricFactors;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
@@ -121,6 +122,8 @@ protected:
       const DenseMatrix* PointMatrix; // if Slave, position within master face
       // (NOTE: PointMatrix points to a matrix owned by NCMesh.)
 
+      NCFaceInfo() = default;
+
       NCFaceInfo(bool slave, int master, const DenseMatrix* pm)
          : Slave(slave), MasterFace(master), PointMatrix(pm) {}
    };
@@ -138,6 +141,7 @@ protected:
    mutable Table *edge_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
+   IsoparametricTransformation BdrTransformation;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
 
@@ -176,6 +180,7 @@ public:
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
+   Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -534,7 +539,7 @@ public:
 
        After calling this method, setting the Mesh vertices or nodes, it may be
        appropriate to call the method Finalize(). */
-   void FinalizeTopology();
+   void FinalizeTopology(bool generate_bdr = true);
 
    /// Finalize the construction of a general Mesh.
    /** This method will:
@@ -687,6 +692,16 @@ public:
 
    /// Return the total (global) number of elements.
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+
+   /** @brief Return the mesh geometric factors corresponding to the given
+       integration rule. */
+   const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
+                                               const int flags);
+
+   /// Destroy all GeometricFactors stored by the Mesh.
+   /** This method can be used to force recomputation of the GeometricFactors,
+       for example, after the mesh nodes are modified externally. */
+   void DeleteGeometricFactors();
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
@@ -1206,11 +1221,11 @@ public:
                                        const Array<int> &num_elems_by_geom,
                                        std::ostream &out);
 
-   /** @brief Compute and print mesh charateristics such as number of vertices,
+   /** @brief Compute and print mesh characteristics such as number of vertices,
        number of elements, number of boundary elements, minimal and maximal
        element sizes, minimal and maximal element aspect ratios, etc. */
    /** If @a Vh or @a Vk are not NULL, return the element sizes and aspect
-       ratios for all elements in the given Vecror%s. */
+       ratios for all elements in the given Vector%s. */
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
                              std::ostream &out = mfem::out);
 
@@ -1260,6 +1275,51 @@ public:
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
     class ParMesh */
 std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
+
+
+/** @brief Structure for storing mesh geometric factors: coordinates, Jacobians,
+    and determinants of the Jacobians. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetGeometricFactors(). */
+class GeometricFactors
+{
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+   };
+
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
+       where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NE = number of elements in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NE) where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NE = number of elements in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NE) where
+       - NQ = number of quadrature points per element, and
+       - NE = number of elements in the mesh. */
+   Vector detJ;
+};
 
 
 /// Class used to extrude the nodes of a mesh

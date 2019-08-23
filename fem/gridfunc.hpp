@@ -68,15 +68,16 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; sequence = 0; }
+   GridFunction() { fes = NULL; fec = NULL; sequence = 0; UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { }
+      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence)
+   { UseDevice(true); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -84,8 +85,9 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
     */
-   GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   GridFunction(FiniteElementSpace *f, double *data)
+      : Vector(data, f->GetVSize())
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -124,6 +126,7 @@ public:
 
    /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
    /// then `tv` will be set to point to the data of `*this`.
+   /** @warning This method breaks const-ness when all dofs are true. */
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
@@ -702,7 +705,7 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.SetSize(vdim*sl_size);
-   double *q = data + vdim*s_offset;
+   const double *q = data + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
    {
       values(i) = *(q++);
@@ -722,12 +725,14 @@ inline void QuadratureFunction::GetElementValues(int idx,
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.SetSize(vdim, sl_size);
-   double *q = data + vdim*s_offset;
+   const double *q = data + vdim*s_offset;
    for (int j = 0; j<sl_size; j++)
+   {
       for (int i = 0; i<vdim; i++)
       {
          values(i,j) = *(q++);
       }
+   }
 }
 
 } // namespace mfem
