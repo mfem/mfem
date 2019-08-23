@@ -114,7 +114,6 @@ TEST_CASE("Simplex integration rules", "[SimplexRules]")
    //This code is automatically re-executed for all of the sections.
    IntegrationRules my_intrules(0, Quadrature1D::GaussLegendre);
    IntegrationRule single_point_rule(1);
-   const IntegrationRule *ir;
 
    const int maxn = 32;
    int binom[maxn+1][maxn+1];

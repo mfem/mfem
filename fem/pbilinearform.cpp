@@ -203,7 +203,14 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
       vdofs1.Copy(vdofs_all);
       for (int j = 0; j < vdofs2.Size(); j++)
       {
-         vdofs2[j] += height;
+         if (vdofs2[j] >= 0)
+         {
+            vdofs2[j] += height;
+         }
+         else
+         {
+            vdofs2[j] -= height;
+         }
       }
       vdofs_all.Append(vdofs2);
       for (int k = 0; k < fbfi.Size(); k++)
