@@ -217,10 +217,10 @@ public:
        by most MFEM device kernels to access Memory objects. */
    static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
 
-   static void SetGpuAwareMPI(const bool force = true)
+   static void SetGPUAwareMPI(const bool force = true)
    { Get().mpi_gpu_aware = force; }
 
-   static bool GetGpuAwareMPI() { return Get().mpi_gpu_aware; }
+   static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
    static void Synchronize() { MFEM_DEVICE_SYNC; }
 };

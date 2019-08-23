@@ -2949,7 +2949,7 @@ void ConformingProlongationOperator::MultTranspose(
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    const ParFiniteElementSpace &pfes) :
    ConformingProlongationOperator(pfes),
-   mpi_gpu_aware(Device::GetGpuAwareMPI())
+   mpi_gpu_aware(Device::GetGPUAwareMPI())
 {
    MFEM_ASSERT(pfes.Conforming(), "internal error");
    const SparseMatrix *R = pfes.GetRestrictionMatrix();
@@ -3042,8 +3042,8 @@ void DeviceConformingProlongationOperator::BcastBeginCopy(
    // shr_buf[i] = src[shr_ltdof[i]]
    if (shr_ltdof.Size() == 0) { return; }
    ExtractSubVector(shr_ltdof.Size(), shr_ltdof, x, shr_buf);
-   // If the above kernel is executed asynchronously,
-   // we should wait for it to complete
+   // If the above kernel is executed asynchronously, we should wait for it to
+   // complete
    if (mpi_gpu_aware) { Device::Synchronize(); }
 }
 
@@ -3118,8 +3118,8 @@ void DeviceConformingProlongationOperator::ReduceBeginCopy(
    // ext_buf[i] = src[ext_ldof[i]]
    if (ext_ldof.Size() == 0) { return; }
    ExtractSubVector(ext_ldof.Size(), ext_ldof, x, ext_buf);
-   // If the above kernel is executed asynchronously,
-   // we should wait for it to complete
+   // If the above kernel is executed asynchronously, we should wait for it to
+   // complete
    if (mpi_gpu_aware) { Device::Synchronize(); }
 }
 

@@ -95,7 +95,7 @@ void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 /// Copies memory from Device to Host
 void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
 
-/// Get the number of device count
+/// Get the number of CUDA devices
 int CuGetDeviceCount();
 
 } // namespace mfem

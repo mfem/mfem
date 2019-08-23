@@ -10,6 +10,7 @@
 
 Version 4.0.1 (development)
 ===========================
+- Improved multi-GPU MPI communication.
 
 
 Version 4.0, released on May 24, 2019
