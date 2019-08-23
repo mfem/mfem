@@ -533,6 +533,8 @@ protected: // implementation
    long GroupsMemoryUsage() const;
 
    friend class NeighborRowMessage;
+
+   void DebugRefineDump(const char* text);
 };
 
 

@@ -21,6 +21,8 @@
 #include "../mesh/nurbs.hpp"
 #include "fespace.hpp"
 
+//#define MFEM_DEBUG_PMATRIX
+
 namespace mfem
 {
 

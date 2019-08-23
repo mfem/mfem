@@ -164,6 +164,13 @@ int main(int argc, char *argv[])
    }
    //pmesh->Rebalance();
 
+   {
+      char fname[100];
+      sprintf(fname, "ncmesh%03d.dbg", myid);
+      ofstream f(fname);
+      pmesh->pncmesh->DebugDump(f);
+   }
+
    /*{
       Mesh debug;
       pmesh->pncmesh->GetDebugMesh(debug);
@@ -222,6 +229,8 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+
+   MPI_Finalize(); exit(EXIT_SUCCESS);
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is

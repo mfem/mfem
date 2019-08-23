@@ -2133,7 +2133,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
       const int *ev = edge_vertex->GetRow(i);
-#if 1
+#if 0
       Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
 
       MFEM_VERIFY(node && node->HasEdge(),
@@ -4555,7 +4555,7 @@ int NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
       int n1 = el.node[fv[i]];
       int n2 = el.node[fv[j]];
 
-#if 0
+#if 1
       int enode = FindMidEdgeNode(n1, n2);
       MFEM_ASSERT(enode >= 0, "edge not found.");
 
