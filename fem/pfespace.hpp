@@ -371,11 +371,11 @@ public:
    int TrueVSize() const { return ltdof_size; }
 };
 
+
 /// Auxiliary class used by ParFiniteElementSpace.
 class ConformingProlongationOperator : public Operator
 {
 protected:
-   bool gpu_aware_mpi;
    Array<int> external_ldofs;
    const GroupCommunicator &gc;
 
@@ -392,6 +392,7 @@ class DeviceConformingProlongationOperator: public
    ConformingProlongationOperator
 {
 protected:
+   bool mpi_gpu_aware;
    Array<int> shr_ltdof, ext_ldof;
    mutable Vector shr_buf, ext_buf;
    int *shr_buf_offsets, *ext_buf_offsets;
@@ -424,50 +425,12 @@ protected:
 
 public:
    DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
    virtual ~DeviceConformingProlongationOperator();
+
    virtual void Mult(const Vector &x, Vector &y) const;
+
    virtual void MultTranspose(const Vector &x, Vector &y) const;
-};
-
-
-// ***************************************************************************
-class CudaGroupCommunicator : public GroupCommunicator
-{
-private:
-   const GroupCommunicator &gc;
-   Table d_group_ldof, d_group_ltdof;
-   mutable Array<double> h_group_buf;
-   mutable Array<double> d_group_buf;
-public:
-   CudaGroupCommunicator(ParFiniteElementSpace &pfes);
-   double *CudaCopyGroupToBuffer(const double*,double*, int, int) const;
-   const double *CudaCopyGroupFromBuffer(const double*, double*,int) const;
-   const double *CudaReduceGroupFromBuffer(const double*,double*,int) const;
-   void CudaBcastBegin(const double*) const;
-   void CudaBcastEnd(double*) const;
-   void CudaReduceBegin(const double*) const;
-   void CudaReduceEnd(double*) const;
-};
-
-// ***************************************************************************
-// * CudaConformingProlongationOperator
-//  **************************************************************************
-class CudaConformingProlongationOperator : public ConformingProlongationOperator
-{
-protected:
-   unsigned int grid;
-   Array<int> d_ext_ldofs;
-   CudaGroupCommunicator d_gc;
-   const bool IAmAlone, HostOperations;
-public:
-   CudaConformingProlongationOperator(ParFiniteElementSpace &pfes);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
-private:
-   void CudaMult(const Vector &x, Vector &y) const;
-   void HostMult(const Vector &x, Vector &y) const;
-   void CudaMultTranspose(const Vector &x, Vector &y) const;
-   void HostMultTranspose(const Vector &x, Vector &y) const;
 };
 
 }

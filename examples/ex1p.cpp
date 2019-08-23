@@ -55,32 +55,22 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   int num_procs, myid, num_gpus;
+   int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   MFEM_CUDA_CHECK(cudaGetDeviceCount(&num_gpus));
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int ser_ref_levels = -1;
-   int par_ref_levels = -1;
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   int gpu_device = -1;
-   bool mpi_gpu_aware = false;
-   bool mpi_via_host = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
-                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -88,11 +78,6 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&gpu_device, "-dev", "--device", "GPU device");
-   args.AddOption(&mpi_gpu_aware, "-ga", "--gpu-aware", "-no-ga",
-                  "--no-gpu-aware", "Enable GPU Aware MPI.");
-   args.AddOption(&mpi_via_host, "-vh", "--via-host", "-no-vh",
-                  "--no-via-host", "Enable MPI via host.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -115,15 +100,8 @@ int main(int argc, char *argv[])
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   const int dev = (gpu_device < 0) ? (myid%num_gpus) : gpu_device;
-   mfem::out << "\033[31;1m[ex1p] myid: " << myid
-             << ", num_gpus:" << num_gpus << "\033[m";
-   Device device(device_config, dev);
-   mfem::out << "\033[31;1m[ex1p] dev: " << dev << "/" << num_gpus << "\033[m";
-   fflush(0);
+   Device device(device_config);
    if (myid == 0) { device.Print(); }
-   if (mpi_via_host) { device.SetMPIViaHost(); }
-   if (mpi_gpu_aware) { device.SetGpuAwareMPI(); }
 
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -136,12 +114,8 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      ref_levels = ser_ref_levels >= 0 ? ser_ref_levels : ref_levels;
-      if (myid == 0)
-      {
-         cout << "Serial refinement levels: " << ref_levels << endl;
-      }
+      int ref_levels =
+         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -154,11 +128,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      par_ref_levels = par_ref_levels >= 0 ? par_ref_levels : 2;
-      if (myid == 0)
-      {
-         cout << "Parallel refinement levels: " << par_ref_levels << endl;
-      }
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -243,7 +213,7 @@ int main(int argc, char *argv[])
    if (!pa) { prec = new HypreBoomerAMG; }
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
-   cg.SetMaxIter(8192);
+   cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
