@@ -336,8 +336,8 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::Integrat
    FESpace2Ceed(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
-   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts * dim * (dim + 1) / 2,
-                                     nqpts * nelem * dim * (dim + 1) / 2, 1, &ceedData.restr_i);
+   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
+                                     nqpts * nelem, dim * (dim + 1) / 2, &ceedData.restr_i);
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
                                      nqpts * nelem, 1, &ceedData.mesh_restr_i);
 
@@ -640,8 +640,8 @@ void CeedMFDiffusionAssemble(const FiniteElementSpace &fes, const mfem::Integrat
    FESpace2Ceed(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
-   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts * dim * (dim + 1) / 2,
-                                     nqpts * nelem * dim * (dim + 1) / 2, 1, &ceedData.restr_i);
+   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
+                                     nqpts * nelem, dim * (dim + 1) / 2, &ceedData.restr_i);
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
                                      nqpts * nelem, 1, &ceedData.mesh_restr_i);
 
@@ -725,7 +725,7 @@ void CeedMFDiffusionAssemble(const FiniteElementSpace &fes, const mfem::Integrat
                            ceedCoeff->basis, ceedCoeff->coeffVector);
    }
    CeedOperatorSetField(ceedData.oper, "dx", ceedData.mesh_restr, lmode,
-                        ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
+                        ceedData.mesh_basis, ceedData.node_coords);
    CeedOperatorSetField(ceedData.oper, "weights", ceedData.mesh_restr_i,
                         CEED_NOTRANSPOSE,
                         ceedData.mesh_basis, CEED_VECTOR_NONE);
