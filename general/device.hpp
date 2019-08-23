@@ -108,7 +108,6 @@ private:
    /// Set to true during configuration, except in 'device_singleton'.
    bool destroy_mm;
    bool mpi_gpu_aware;
-   bool mpi_via_host;
 
    MemoryType mem_type;    ///< Current Device MemoryType
    MemoryClass mem_class;  ///< Current Device MemoryClass
@@ -147,7 +146,6 @@ public:
         backends(Backend::CPU),
         destroy_mm(false),
         mpi_gpu_aware(false),
-        mpi_via_host(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
    { }
@@ -163,7 +161,6 @@ public:
         backends(Backend::CPU),
         destroy_mm(false),
         mpi_gpu_aware(false),
-        mpi_via_host(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
    { Configure(device, dev); }
@@ -220,18 +217,12 @@ public:
        by most MFEM device kernels to access Memory objects. */
    static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
 
-#ifdef MFEM_USE_MPI
    static void SetGpuAwareMPI(const bool force = true)
    { Get().mpi_gpu_aware = force; }
-   static bool GetGpuAwareMPI() { return Get().mpi_gpu_aware; }
-   static void SetMPIViaHost(const bool force = true)
-   { Get().mpi_via_host = force; }
-   static bool GetMPIViaHost() { return Get().mpi_via_host; }
-   static void Synchronize() { MFEM_DEVICE_SYNC; }
-#endif
 
-   /** @brief Get the number of device available. */
-   static int GetDeviceCount() { return CuGetDeviceCount(); }
+   static bool GetGpuAwareMPI() { return Get().mpi_gpu_aware; }
+
+   static void Synchronize() { MFEM_DEVICE_SYNC; }
 };
 
 

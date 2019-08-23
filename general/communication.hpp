@@ -165,9 +165,6 @@ public:
    /// Read-only access to group-ldof Table.
    const Table &GroupLDofTable() const { return group_ldof; }
 
-   /// Read-only access to group-ltdof Table.
-   const Table &GroupLTDofTable() const { return group_ltdof; }
-
    /// Allocate internal buffers after the GroupLDofTable is defined
    void Finalize();
 

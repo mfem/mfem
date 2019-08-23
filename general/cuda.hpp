@@ -24,7 +24,6 @@
 #define MFEM_CUDA_BLOCKS 256
 
 #ifdef MFEM_USE_CUDA
-#define MFEM_GLOBAL __global__
 #define MFEM_DEVICE __device__
 #define MFEM_HOST_DEVICE __host__ __device__
 // Define a CUDA error check macro, MFEM_CUDA_CHECK(x), where x returns/is of
@@ -41,30 +40,22 @@
    } \
    while (0)
 #define MFEM_DEVICE_SYNC MFEM_CUDA_CHECK(cudaDeviceSynchronize())
-#define MFEM_LAUNCH_KERNEL(func, gridDim, blockDim, args, sharedMem, stream) \
-  cudaLaunchKernel((void*)func, \
-                   dim3((unsigned int)gridDim), dim3((unsigned int)blockDim), \
-                   args, (size_t)sharedMem, stream)
 #else
 #define MFEM_DEVICE
-#define MFEM_GLOBAL
 #define MFEM_HOST_DEVICE
 #define MFEM_DEVICE_SYNC
-#define MFEM_LAUNCH_KERNEL(name,...) name
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
-#define MFEM_BLOCK_ID(k) blockIdx.k
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
 #else
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
-#define MFEM_BLOCK_ID(k) 0
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
@@ -79,9 +70,6 @@ namespace mfem
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);
 #endif
-
-/// Synchronize device
-void* CuDevSync();
 
 /// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);
