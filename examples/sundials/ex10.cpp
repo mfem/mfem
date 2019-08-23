@@ -4,14 +4,14 @@
 // Compile with: make ex10
 //
 // Sample runs:
-//    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 12 -dt 0.15 -vs 10
+//    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 12 -dt 0.1  -vs 10
 //    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s 16 -dt 0.3  -vs 5
-//    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s 12 -dt 0.2  -vs 5
+//    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s 12 -dt 0.15 -vs 5
 //    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s  2 -dt 3 -nls kinsol
 //    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s  2 -dt 3 -nls kinsol
 //    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s  2 -dt 3 -nls kinsol
 //    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s 17 -dt 0.01 -vs 30
-//    ex10 -m ../../data/beam-quad-amr.mesh -r 2 -o 2 -s 12 -dt 0.15 -vs 10
+//    ex10 -m ../../data/beam-quad-amr.mesh -r 2 -o 2 -s 12 -dt 0.1 -vs 10
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -736,9 +736,10 @@ int HyperelasticOperator::SUNImplicitSetup(const Vector &y,
 int HyperelasticOperator::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
 {
    int sc = b.Size() / 2;
-   // Vector x(y_cur.GetData() + sc, sc);
    Vector b_v(b.GetData() +  0, sc);
    Vector b_x(b.GetData() + sc, sc);
+   Vector x_v(x.GetData() +  0, sc);
+   Vector x_x(x.GetData() + sc, sc);
    Vector rhs(sc);
 
    // rhs = M b_v - dt*grad(H) b_x
@@ -747,9 +748,9 @@ int HyperelasticOperator::SUNImplicitSolve(const Vector &b, Vector &x, double to
    M.AddMult(b_v, rhs);
 
    J_solver->iterative_mode = false;
-   J_solver->Mult(rhs, b_v);
+   J_solver->Mult(rhs, x_v);
 
-   b_x.Add(saved_gamma, b_v);
+   add(b_x, saved_gamma, x_v, x_x);
 
    return 0;
 }
