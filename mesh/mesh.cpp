@@ -9260,6 +9260,85 @@ void Mesh::ParPrint(const char *mesh_file_root, int nparts,
       }
       out << "mfem_serial_mesh_end\n";
 
+      int ngroups = 0;
+
+      Array<Element *> shared_edges;
+      Array<Element *> shared_trias;
+      Array<Element *> shared_quads;
+   
+      Table group_svert;
+      Table group_sedge;
+      Table group_stria;  // contains shared triangle indices
+      Table group_squad;  // contains shared quadrilateral indices
+
+      /// Shared to local index mapping.
+      Array<int> svert_lvert;
+      // Array<int> sedge_ledge;
+      // sface ids: all triangles first, then all quads
+      Array<int> sface_lface;
+
+      out << "\ncommunication_groups\n";
+      out << "number_of_groups ";
+      out << ngroups << '\n';
+      out << "\n# number of entities in each group, "
+	  << "followed by group ids in group\n";
+
+      out << "\ntotal_shared_vertices " << svert_lvert.Size() << '\n';
+      if (Dim >= 2)
+      {
+         out << "total_shared_edges " << shared_edges.Size() << '\n';
+      }
+      if (Dim >= 3)
+      {
+         out << "total_shared_faces " << sface_lface.Size() << '\n';
+      }
+
+      for (int gr = 1; gr < ngroups; gr++)
+      {
+	 {
+	    const int  nv = group_svert.RowSize(gr-1);
+	    const int *sv = group_svert.GetRow(gr-1);
+	    out << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
+	    for (int i = 0; i < nv; i++)
+	    {
+               out << svert_lvert[sv[i]] << '\n';
+	    }
+	 }
+	 if (Dim >= 2)
+	 {
+            const int  ne = group_sedge.RowSize(gr-1);
+	    const int *se = group_sedge.GetRow(gr-1);
+	    out << "\nshared_edges " << ne << '\n';
+	    for (int i = 0; i < ne; i++)
+            {
+               const int *v = shared_edges[se[i]]->GetVertices();
+               out << v[0] << ' ' << v[1] << '\n';
+	    }
+	 }
+	 if (Dim >= 3)
+         {
+            const int  nt = group_stria.RowSize(gr-1);
+	    const int *st = group_stria.GetRow(gr-1);
+	    const int  nq = group_squad.RowSize(gr-1);
+	    const int *sq = group_squad.GetRow(gr-1);
+	    out << "\nshared_faces " << nt+nq << '\n';
+	    for (int i = 0; i < nt; i++)
+            {
+               out << Geometry::TRIANGLE;
+	       const int *v = shared_trias[st[i]]->GetVertices();
+	       for (int j = 0; j < 3; j++) { out << ' ' << v[j]; }
+	       out << '\n';
+	    }
+	    for (int i = 0; i < nq; i++)
+            {
+               out << Geometry::SQUARE;
+	       const int *v = shared_quads[sq[i]]->GetVertices();
+	       for (int j = 0; j < 4; j++) { out << ' ' << v[j]; }
+	       out << '\n';
+	    }
+	 }
+      }
+      
       out << "mfem_mesh_end\n";
 
       out.close();
