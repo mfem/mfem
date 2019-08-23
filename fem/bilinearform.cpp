@@ -1177,7 +1177,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          dbfi[0] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
                                             *test_fes  -> GetFE(i),
                                             *eltrans, totelemmat);
-         for (k = 1; k < dbfi.Size(); k++)
+         for (int k = 1; k < dbfi.Size(); k++)
          {
             dbfi[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
 					       *test_fes  -> GetFE(i),
