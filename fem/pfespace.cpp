@@ -775,17 +775,17 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          }
       }
 
-      HYPRE_Int *i_diag = mfem::New<HYPRE_Int>(ldof+1);
-      HYPRE_Int *j_diag = mfem::New<HYPRE_Int>(ltdof);
-      double    *d_diag = mfem::New<double>(ltdof);
+      HYPRE_Int *i_diag = new HYPRE_Int[ldof+1];
+      HYPRE_Int *j_diag = new HYPRE_Int[ltdof];
+      double    *d_diag = new double[ltdof];
       int diag_counter;
 
-      HYPRE_Int *i_offd = mfem::New<HYPRE_Int>(ldof+1);
-      HYPRE_Int *j_offd = mfem::New<HYPRE_Int>(nnz_offd);
-      double    *d_offd = mfem::New<double>(nnz_offd);
+      HYPRE_Int *i_offd = new HYPRE_Int[ldof+1];
+      HYPRE_Int *j_offd = new HYPRE_Int[nnz_offd];
+      double    *d_offd = new double[nnz_offd];
       int offd_counter;
 
-      HYPRE_Int *cmap   = mfem::New<HYPRE_Int>(ldof-ltdof);
+      HYPRE_Int *cmap   = new HYPRE_Int[ldof-ltdof];
 
       HYPRE_Int *col_starts = GetTrueDofOffsets();
       HYPRE_Int *row_starts = GetDofOffsets();
@@ -3163,8 +3163,6 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
          }
       }
    }
-
-   y.Push();
 }
 
 void ConformingProlongationOperator::MultTranspose(
@@ -3174,7 +3172,6 @@ void ConformingProlongationOperator::MultTranspose(
    MFEM_ASSERT(y.Size() == Width(), "");
 
    const double *xdata = x.HostRead();
-   x.Pull();
 
    /// TODO: Check the placement of this code relative to cals to gc.*
    if (pfes.SharedNDTriangleDofs())

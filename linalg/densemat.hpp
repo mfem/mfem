@@ -678,8 +678,7 @@ public:
       : Mk(NULL, i, j)
    {
       nk = k;
-      tdata = d;
-      own_data = false;
+      tdata.Wrap(d, i*j*k, false);
    }
 
    /// Copy constructor: deep copy
