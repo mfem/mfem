@@ -817,9 +817,10 @@ int HyperelasticOperator::SUNImplicitSolve(const Vector &b, Vector &x, double to
 {
    int sc = b.Size() / 2;
    ParFiniteElementSpace *fes = H.ParFESpace();
-   // Vector x(y_cur.GetData() + sc, sc);
    Vector b_v(b.GetData() +  0, sc);
    Vector b_x(b.GetData() + sc, sc);
+   Vector x_v(x.GetData() +  0, sc);
+   Vector x_x(x.GetData() + sc, sc);
    Vector rhs(sc);
 
    // We can assume that b_v and b_x have zeros at essential tdofs.
@@ -834,9 +835,9 @@ int HyperelasticOperator::SUNImplicitSolve(const Vector &b, Vector &x, double to
    rhs.SetSubVector(ess_tdof_list, 0.0);
 
    J_solver->iterative_mode = false;
-   J_solver->Mult(rhs, b_v);
+   J_solver->Mult(rhs, x_v);
 
-   b_x.Add(saved_gamma, b_v);
+   add(b_x, saved_gamma, x_v, x_x);
 
    return 0;
 }
