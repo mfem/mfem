@@ -138,7 +138,7 @@ void Device::Enable()
 #ifdef MFEM_USE_CUDA
 static void DeviceSetup(const int dev, int &ngpu)
 {
-   MFEM_GPU_CHECK(cudaGetDeviceCount(&ngpu));
+   ngpu = CuGetDeviceCount();
    MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
    MFEM_GPU_CHECK(cudaSetDevice(dev));
 }
