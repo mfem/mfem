@@ -179,10 +179,10 @@ public:
    /// Get a const reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() const { return gtopo; }
 
-   // TODO: doxygen
+   /// Dofs to be sent to communication neighbors
    void GetNeighborLTDofTable(Table &nbr_ltdof) const;
 
-   // TODO: doxygen
+   /// Dofs to be received from communication neighbors
    void GetNeighborLDofTable(Table &nbr_ldof) const;
 
    /** @brief Data structure on which we define reduce operations.
