@@ -2,6 +2,7 @@
 //
 // Compile with: make AddScwarz
 //
+// Example run: ./AddSchwarz -sr 4 -o 2 -d 2
 
 #include "mfem.hpp"
 #include <fstream>
@@ -18,6 +19,8 @@ private:
    Array<SparseMatrix *> A_local;
    Array<UMFPackSolver *> invA_local;
    int nrvert;
+   Array<int>vert_dofs;
+
 public:
    AddSchwarzSmoother(SparseMatrix *A_, FiniteElementSpace *fespace);
 
@@ -34,15 +37,14 @@ AddSchwarzSmoother::AddSchwarzSmoother(SparseMatrix * A_, FiniteElementSpace *fe
    if (fespace->GetMesh()->bdr_attributes.Size())
    {
       Array<int> ess_bdr(fespace->GetMesh()->bdr_attributes.Max());
-      ess_bdr = 0;
+      ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   int nrvert_all = fespace->GetMesh()->GetNV();      
+   nrvert = fespace->GetMesh()->GetNV();      
    int nredge = fespace->GetMesh()->GetNEdges();
    int nrface = fespace->GetMesh()->GetNFaces();
    int nrelem = fespace->GetMesh()->GetNE();
-   Array<int>vert_dofs;
    Array<int>edge_vert;
    Array<int>edge_int_dofs;
    Array<int>face_vert;
@@ -50,18 +52,14 @@ AddSchwarzSmoother::AddSchwarzSmoother(SparseMatrix * A_, FiniteElementSpace *fe
    Array<int>elem_vert;
    Array<int>elem_int_dofs;
 
-   int iv = 0;
-   // go through the list of essential bc and find the number of vertex dofs
-
    vert_dofs.SetSize(0);
-   for (int i=0; i<nrvert_all; i++)
+   for (int i=0; i<nrvert; i++)
    {
       int j = ess_tdof_list.FindSorted(i);
       if (j == -1 ) 
          vert_dofs.Append(i);
    }
 
-   nrvert =  vert_dofs.Size();
    // Build a sparse matrix out of this map to extract the patch submatrix
    Pid.SetSize(nrvert);
    Array<int> dofoffset(nrvert);
@@ -71,8 +69,8 @@ AddSchwarzSmoother::AddSchwarzSmoother(SparseMatrix * A_, FiniteElementSpace *fe
       int height = fespace->GetVSize();
       Pid[i] = new SparseMatrix(height);
       // skip if its a dirichlet vertex
-      int m = vert_dofs[i];
-      Pid[i]->Set(m,dofoffset[i],1.0); // Fill in the vertex dof (1 column for each vertex)
+      // int m = vert_dofs[i];
+      Pid[i]->Set(i,dofoffset[i],1.0); // Fill in the vertex dof (1 column for each vertex)
       dofoffset[i]++;
    }
 
@@ -89,7 +87,6 @@ AddSchwarzSmoother::AddSchwarzSmoother(SparseMatrix * A_, FiniteElementSpace *fe
          for (int l=0; l < ne; l++)
          {
             int m = edge_int_dofs[l];
-            // Pid[k]->SetWidth(dofoffset[k]+1);
             Pid[k]->Set(m,dofoffset[k],1.0);
             dofoffset[k]++;
          }
@@ -108,7 +105,6 @@ AddSchwarzSmoother::AddSchwarzSmoother(SparseMatrix * A_, FiniteElementSpace *fe
          for (int l=0; l < nf; l++)
          {
             int m = face_int_dofs[l];
-            // Pid[k]->SetWidth(dofoffset[k]+1);
             Pid[k]->Set(m,dofoffset[k],1.0);
             dofoffset[k]++;
          }
@@ -127,31 +123,25 @@ AddSchwarzSmoother::AddSchwarzSmoother(SparseMatrix * A_, FiniteElementSpace *fe
          for (int l=0; l < nel; l++)
          {
             int m = elem_int_dofs[l];
-            // Pid[k]->SetWidth(dofoffset[k]+1);
             Pid[k]->Set(m,dofoffset[k],1.0);
             dofoffset[k]++;
          }
       }
    }
 
+   A_local.SetSize(nrvert);
+   invA_local.SetSize(nrvert);
    for (int i=0; i< nrvert; i++ )
    {
       Pid[i]->SetWidth(dofoffset[i]);
       Pid[i]->Finalize();
-   }
-   // construct the local problems
-   A_local.SetSize(nrvert);
-   for (int i=0; i< nrvert; i++)
-   {
+
+      // construct the local problems. Factor the patch matrices
       A_local[i] = RAP(*Pid[i],*A,*Pid[i]);
-   }
-   invA_local.SetSize(nrvert);
-   for (int i=0; i< nrvert; i++)
-   {
       invA_local[i] = new UMFPackSolver;
       invA_local[i]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       invA_local[i]->SetOperator(*A_local[i]);   
-   }   
+   }
 }
 
 
@@ -162,27 +152,16 @@ void AddSchwarzSmoother::Mult(const Vector &r, Vector &z) const
    Array<Vector> sol_local(nrvert);
    Array<Vector> zaux(nrvert);
    z = 0.0;
-   // Get the local residuals
    for (int i=0; i< nrvert; i++)
+   // for (int ii=0; ii< vert_dofs.Size(); ii++)  // loop through only the patches associate with a non-dirichlet vertex
    {
+      // int i = vert_dofs[ii];
       res_local[i].SetSize(Pid[i]->NumCols()); 
       sol_local[i].SetSize(Pid[i]->NumCols()); 
       Pid[i]->MultTranspose(r,res_local[i]);
-   }
-   for (int i=0; i< nrvert; i++)
-   {
       invA_local[i]->Mult(res_local[i],sol_local[i]);
-   }
-   for (int i=0; i< nrvert; i++)
-   {
-      zaux[i].SetSize(r.Size());
-      zaux[i]=0.0; 
-   }
-
-   for (int i=0; i< nrvert; i++)
-   {
-      Pid[i]->Mult(sol_local[i],zaux[i]);
-      zaux[i] *= 0.5;
+      zaux[i].SetSize(r.Size()); zaux[i]=0.0; 
+      Pid[i]->Mult(sol_local[i],zaux[i]); zaux[i] *= 0.5;
       z += zaux[i];
    }
 }
