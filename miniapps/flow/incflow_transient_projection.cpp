@@ -34,7 +34,7 @@ double pres_kovasznay(const Vector &x)
    double lam = 0.5 * reynolds
                 - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
 
-   return 0.5 * (1.0 - exp(2.0 * lam * xi));
+   return (0.0 - 0.5 * exp(2.0 * lam * xi));
 }
 
 void f_mms_guermond(const Vector &x, double t, Vector &u)
@@ -189,8 +189,7 @@ double neknormvc(const Vector &utdof, ParFiniteElementSpace *pfes)
 
    ParFiniteElementSpace h1compfes(pfes->GetParMesh(), pfes->FEColl());
 
-   ParGridFunction u(&h1compfes), v(&h1compfes),
-      velmagl2(&h1compfes);
+   ParGridFunction u(&h1compfes), v(&h1compfes), velmagl2(&h1compfes);
 
    for (int comp = 0; comp < pfes->GetVDim(); comp++)
    {
@@ -247,7 +246,6 @@ double neknormsc(const Vector &ptdof, ParFiniteElementSpace *pfes)
    double nekl2norm = sqrt(mass_lf(p2) / mass_lf(onegf));
    return nekl2norm;
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -701,7 +699,7 @@ int main(int argc, char *argv[])
    ParLinearForm mass_lf(pres_fes);
    mass_lf.AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
    mass_lf.Assemble();
-   
+
    double sqrtvol = sqrt(mass_lf.Sum());
    double err_u = u_gf.ComputeL2Error(*u_ex_coeff, irs) / sqrtvol;
    double err_p = p_gf.ComputeL2Error(*p_ex_coeff, irs) / sqrtvol;
@@ -791,23 +789,23 @@ int main(int argc, char *argv[])
       //
 
       // f^{n+1}
-      forcing_coeff->SetTime(t);
-      f_form->Assemble();
-      f_form->ParallelAssemble(tmp1);
+      // forcing_coeff->SetTime(t);
+      // f_form->Assemble();
+      // f_form->ParallelAssemble(tmp1);
 
       // Extrapolated f^{n+1}
-      // f_form->Assemble();
-      // f_form->ParallelAssemble(fn);
-      // tmp1.Add(ab1, fn);
-      // tmp1.Add(ab2, fnm1);
-      // tmp1.Add(ab3, fnm2);
-      // fnm2 = fnm1;
-      // fnm1 = fn;
-      // forcing_coeff->SetTime(t);
+      f_form->Assemble();
+      f_form->ParallelAssemble(fn);
+      tmp1.Set(ab1, fn);
+      tmp1.Add(ab2, fnm1);
+      tmp1.Add(ab3, fnm2);
+      fnm2 = fnm1;
+      fnm1 = fn;
+      forcing_coeff->SetTime(t);
 
       // Nonlinear EXT terms
-      // Fext.Add(1.0, tmp1);
-      Fext = 0.0;
+      Fext.Set(1.0, tmp1);
+      // Fext = 0.0;
 
       // TODO extrapolate like in Nek....
       N->Mult(un, tmp1);
@@ -870,8 +868,8 @@ int main(int argc, char *argv[])
       FText.Add(1.0, Fext);
 
       // MvInv.Mult(Lext, scrv);
-      scrv = FText;
-      printf("%.8E myvar\n", neknormvc(scrv, vel_fes));
+      // scrv = FText;
+      // printf("%.8E myvar\n", neknormvc(scrv, vel_fes));
 
       // TODO check if we need partial integration here and use G^T
       D->Mult(FText, resp);

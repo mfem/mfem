@@ -1,0 +1,7 @@
+MFEM INLINE mesh v1.0
+
+type = quad
+nx = 2
+ny = 4
+sx = 1.5
+sy = 2.0
