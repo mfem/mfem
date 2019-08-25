@@ -365,7 +365,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
       @MFEM_EXT_LIBS@
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
    ifeq ($(MFEM_USE_OCCA),YES)
-      ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX))
+      ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX)))
          $(error OCCA is enabled: PREFIX must be set during configuration!)
       endif
    endif
