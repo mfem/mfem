@@ -398,8 +398,9 @@ int main(int argc, char *argv[])
       unm2(vel_fes->GetTrueVSize());
    Vector uh(vel_fes->GetTrueVSize());
    Vector resu(vel_fes->GetTrueVSize());
-   Vector AB1(vel_fes->GetTrueVSize());
-   Vector AB2(vel_fes->GetTrueVSize());
+   Vector Nun(vel_fes->GetTrueVSize());
+   Vector Nunm1(vel_fes->GetTrueVSize());
+   Vector Nunm2(vel_fes->GetTrueVSize());
    Vector f(vel_fes->GetTrueVSize());
    Vector fn(vel_fes->GetTrueVSize());
    Vector fnm1(vel_fes->GetTrueVSize());
@@ -413,8 +414,9 @@ int main(int argc, char *argv[])
    Vector FText_bdr(pres_fes->GetTrueVSize());
    Vector g_bdr(pres_fes->GetTrueVSize());
 
-   AB1 = 0.0;
-   AB2 = 0.0;
+   Nun = 0.0;
+   Nunm1 = 0.0;
+   Nunm2 = 0.0;
    un = 0.0;
    unm1 = 0.0;
    unm2 = 0.0;
@@ -788,45 +790,36 @@ int main(int argc, char *argv[])
       // Forcing term
       //
 
-      // f^{n+1}
-      // forcing_coeff->SetTime(t);
-      // f_form->Assemble();
-      // f_form->ParallelAssemble(tmp1);
-
       // Extrapolated f^{n+1}
+      forcing_coeff->SetTime(t - dt);
       f_form->Assemble();
       f_form->ParallelAssemble(fn);
-      tmp1.Set(ab1, fn);
-      tmp1.Add(ab2, fnm1);
-      tmp1.Add(ab3, fnm2);
-      fnm2 = fnm1;
-      fnm1 = fn;
       forcing_coeff->SetTime(t);
 
+      //
       // Nonlinear EXT terms
-      Fext.Set(1.0, tmp1);
-      // Fext = 0.0;
+      //
 
-      // TODO extrapolate like in Nek....
-      N->Mult(un, tmp1);
-      tmp1 *= ab1;
-      Fext.Add(1.0, tmp1);
+      N->Mult(un, Nun);
+      Nun.Add(1.0, fn);
+      Fext.Set(ab1, Nun);
+      Fext.Add(ab2, Nunm1);
+      Fext.Add(ab3, Nunm2);
 
-      N->Mult(unm1, tmp1);
-      tmp1 *= ab2;
-      Fext.Add(1.0, tmp1);
+      Nunm2 = Nunm1;
+      Nunm1 = Nun;
 
-      N->Mult(unm2, tmp1);
-      tmp1 *= ab3;
-      Fext.Add(1.0, tmp1);
+      // MvInv.Mult(Lext, scrv);
+      // // scrv = FText;
+      // printf("%.8E myvar\n", neknormvc(scrv, vel_fes));
 
       // printf("%.3E %.8E %.3E %.8E %.3E %.8E myvar\n",
       //        ab1,
-      //        un.Norml2(),
+      //        Nun.Norml2(),
       //        ab2,
-      //        unm1.Norml2(),
+      //        Nunm1.Norml2(),
       //        ab3,
-      //        unm2.Norml2());
+      //        Nunm2.Norml2());
 
       // M^{-1} (F(u^{n}) + f^{n+1})
       MvInv.Mult(Fext, tmp1);
@@ -849,11 +842,10 @@ int main(int argc, char *argv[])
       // Pressure poisson
       //
 
-      // L(u^{n}) = CurlCurl(u^{n})
-      Lext = 0.0;
+      // L(u^{n}) = \nu CurlCurl(u^{n})
       if (enable_curl)
       {
-         Lext.Add(ab1, un);
+         Lext.Set(ab1, un);
          Lext.Add(ab2, unm1);
          Lext.Add(ab3, unm2);
          uh_gf.SetFromTrueDofs(Lext);
@@ -863,17 +855,14 @@ int main(int argc, char *argv[])
       }
 
       // \tilde{F} = F - \nu CurlCurl(u)
-      FText = Lext;
-      FText.Neg();
+      FText.Set(-1.0, Lext);
       FText.Add(1.0, Fext);
 
       // MvInv.Mult(Lext, scrv);
       // scrv = FText;
       // printf("%.8E myvar\n", neknormvc(scrv, vel_fes));
 
-      // TODO check if we need partial integration here and use G^T
       D->Mult(FText, resp);
-      // G->MultTranspose(FText, resp);
       resp.Neg();
 
       // MvInv.Mult(uh, scrv);
@@ -932,9 +921,9 @@ int main(int argc, char *argv[])
       //
 
       G->Mult(pn, resu);
-      resu *= -1.0;
+      resu.Neg();
       Mv.Mult(Fext, tmp1);
-      resu += tmp1;
+      resu.Add(1.0, tmp1);
 
       //
       // Helmholtz
@@ -1000,8 +989,6 @@ int main(int argc, char *argv[])
                 p_inf);
          fflush(stdout);
       }
-
-      MFEM_ASSERT(u_gf.Normlinf() <= 5.0, "UNSTABLE");
    }
 
    return 0;
