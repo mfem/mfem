@@ -119,17 +119,19 @@ private:
   MPI_Comm m_comm;
 public:
 
-  InjectionOperator(ParFiniteElementSpace *subdomainSpace, ParFiniteElementSpace *interfaceSpace, int *a,
+  InjectionOperator(MPI_Comm comm, ParFiniteElementSpace *subdomainSpace, ParFiniteElementSpace *interfaceSpace, int *a,
 		    std::vector<int> const& gdofmap);
   
   ~InjectionOperator()
   {
   }
 
+  /*
   void SetComm(MPI_Comm comm)
   {
     m_comm = comm;
   }
+  */
   
   virtual void Mult(const Vector & x, Vector & y) const
   {
@@ -248,9 +250,9 @@ public:
     // those surface DOF's and DOF's on the individual interfaces.
     
     globalOp->Mult(x, y);
-
+    
     //BlockOperator *globalSubdomainOp
-    //m_globalSubdomainOp->Mult(x, y);
+    //globalSubdomainOp->Mult(x, y);
     //globalInterfaceOp->Mult(x, y);
   }  
 
@@ -728,6 +730,7 @@ private:
   std::vector<Array2D<double> > AsdRe_HypreBlockCoef;
   std::vector<Array2D<double> > AsdIm_HypreBlockCoef;
   std::vector<MPI_Comm> sd_com;
+  std::vector<bool> sd_nonempty;
 #endif
 #endif
   BlockOperator **AsdComplex;

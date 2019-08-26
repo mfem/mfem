@@ -419,8 +419,8 @@ int main(int argc, char *argv[])
    if (geometricPartition)
      {
        //int nxyzGlobal[3] = {1, 2, 1};
-       //int nxyzGlobal[3] = {2, 1, 2};
-       int nxyzGlobal[3] = {1, 1, 1};
+       int nxyzGlobal[3] = {2, 1, 2};
+       //int nxyzGlobal[3] = {1, 1, 1};
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
        
        pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition);
