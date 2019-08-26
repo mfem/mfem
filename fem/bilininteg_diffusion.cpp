@@ -780,7 +780,6 @@ static void PADiffusionAssembleDiagonal(const int dim,
       }
       else if (dim == 3)
       {
-         printf("\n[%x]\n", (D1D << 4 ) | Q1D);
          switch ((D1D << 4 ) | Q1D)
          {
             case 0x23: return SmemPADiffusionDiagonal3D<2,3>(NE,B,G,op,y);
