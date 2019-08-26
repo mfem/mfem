@@ -39,6 +39,9 @@
       } \
    } \
    while (0)
+#ifndef MFEM_CUDA_CHECK
+#define MFEM_CUDA_CHECK MFEM_GPU_CHECK
+#endif
 #define MFEM_DEVICE_SYNC MFEM_CUDA_CHECK(cudaDeviceSynchronize())
 #else
 #define MFEM_DEVICE
