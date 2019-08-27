@@ -76,7 +76,8 @@ private:
 class Multigrid : public Solver
 {
 public:
-    Multigrid(HypreParMatrix& Op, const Array<OperatorHandle>& P, Solver* CoarsePrec=NULL);
+    Multigrid(HypreParMatrix& op, const Array<OperatorHandle>& P,
+              Solver* coarse_prec=NULL);
 
     virtual void Mult(const Vector & x, Vector & y) const;
 
@@ -87,19 +88,19 @@ private:
 
     const Array<OperatorHandle>& P_;
 
-    Array<OperatorHandle> Ops_;
-    Array<OperatorHandle> Smoothers_;
+    Array<OperatorHandle> ops_;
+    Array<OperatorHandle> smoothers_;
 
     mutable int current_level;
 
-    mutable vector<Vector> correction;
-    mutable vector<Vector> residual;
+    mutable Array<Vector> correction;
+    mutable Array<Vector> residual;
 
     mutable Vector res_aux;
     mutable Vector cor_cor;
     mutable Vector cor_aux;
 
-    CGSolver *CoarseSolver;
-    Solver *CoarsePrec_;
+    OperatorHandle coarse_solver_;
+    const Solver *coarse_prec_;
 };
 
