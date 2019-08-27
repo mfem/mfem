@@ -627,9 +627,10 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
       */
       
       AMG_solver = new HypreBoomerAMG(T_s);
-      AMG_solver->SetAIROptions(AIR.distance, AIR.prerelax, AIR.postrelax,
-                                AIR.strength_tolC, AIR.strength_tolR, AIR.interp_type, AIR.relax_type,
-                                AIR.filterA_tol, AIR.coarsening, AIR.nodal, AIR.Sabs);
+      //AMG_solver->SetAIROptions(AIR.distance, AIR.prerelax, AIR.postrelax,
+      //                          AIR.strength_tolC, AIR.strength_tolR, AIR.interp_type, AIR.relax_type,
+      //                          AIR.filterA_tol, AIR.coarsening, AIR.nodal, AIR.Sabs);
+      AMG_solver->SetLAIROptions();
 
       /* set coordinates of the dofs */
       AMG_solver->SetCoord(AIR.coord_dim, AIR.coord);
