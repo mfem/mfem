@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
@@ -205,7 +204,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   dbg("dofs1D=%d, quad1D=%d",dofs1D,quad1D);
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
    ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
    MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
@@ -902,7 +900,6 @@ static void SmemPADiffusionApply3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   dbg("D1D=%d, Q1D=%d", D1D, Q1D);
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= Q1D, "");
