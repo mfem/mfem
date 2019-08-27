@@ -11,7 +11,6 @@
 
 // Implementation of Bilinear Form Integrators
 
-#include "../general/dbg.hpp"
 #include "fem.hpp"
 #include <cmath>
 #include <algorithm>
@@ -677,7 +676,6 @@ const IntegrationRule &DiffusionIntegrator::GetRule(
    int order;
    if (trial_fe.Space() == FunctionSpace::Pk)
    {
-      dbg("Pk");
       order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
    }
    else
@@ -685,10 +683,9 @@ const IntegrationRule &DiffusionIntegrator::GetRule(
       // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
       order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
    }
-   dbg("order=%d",order);
+
    if (trial_fe.Space() == FunctionSpace::rQk)
    {
-      dbg("rQk");
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
    return IntRules.Get(trial_fe.GetGeomType(), order);

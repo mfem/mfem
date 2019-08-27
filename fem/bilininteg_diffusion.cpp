@@ -1188,6 +1188,7 @@ static void PADiffusionApply(const int dim,
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
+
    if (Device::Allows(Backend::RAJA_CUDA))
    {
       if (dim == 2)
