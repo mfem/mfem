@@ -397,57 +397,54 @@ void InterpolationCollector::Collect()
     coarse_fes_.Update();
 }
 
-Multigrid::Multigrid(HypreParMatrix& Op,
+Multigrid::Multigrid(HypreParMatrix& op,
                      const Array<OperatorHandle>& P,
-                     Solver* CoarsePrec)
+                     Solver* coarse_prec)
     :
-      Solver(Op.GetNumRows()),
+      Solver(op.GetNumRows()),
       P_(P),
-      Ops_(P.Size()+1),
-      Smoothers_(Ops_.Size()),
-      current_level(Ops_.Size()-1),
-      correction(Ops_.Size()),
-      residual(Ops_.Size()),
-      CoarseSolver(NULL),
-      CoarsePrec_(CoarsePrec)
+      ops_(P.Size()+1),
+      smoothers_(ops_.Size()),
+      current_level(ops_.Size()-1),
+      correction(ops_.Size()),
+      residual(ops_.Size()),
+      coarse_prec_(coarse_prec)
 {
-    if (CoarsePrec)
+    ops_.Last().Reset(&op, false);
+    smoothers_.Last().Reset(new HypreSmoother(op));
+
+    for (int l = ops_.Size()-2; l >= 0; --l)
     {
-        CoarseSolver = new CGSolver(Op.GetComm());
-        CoarseSolver->SetRelTol(1e-8);
-        CoarseSolver->SetMaxIter(50);
-        CoarseSolver->SetPrintLevel(0);
-        CoarseSolver->SetOperator(*Ops_[0]);
-        CoarseSolver->SetPreconditioner(*CoarsePrec);
+        ops_[l].MakePtAP(ops_[l+1], const_cast<OperatorHandle&>(P_[l]));
+        smoothers_[l].Reset(new HypreSmoother(*ops_[l].As<HypreParMatrix>()));
+        residual[l].SetSize(ops_[l]->NumRows());
+        correction[l].SetSize(ops_[l]->NumRows());
     }
 
-    Ops_.Last().Reset(&Op, false);
-    for (int l = Ops_.Size()-1; l > 0; --l)
+    if (coarse_prec)
     {
-        Ops_[l-1].MakePtAP(Ops_[l], const_cast<OperatorHandle&>(P_[l-1]));
-    }
-
-    for (int l = 0; l < Ops_.Size(); ++l)
-    {
-        Smoothers_[l].Reset(new HypreSmoother(*Ops_[l].As<HypreParMatrix>()));
-        residual[l].SetSize(Ops_[l]->NumRows());
-        if (l < Ops_.Size()-1)
-            correction[l].SetSize(Ops_[l]->NumRows());
+        IterativeSolver* coarse_solver = new CGSolver(op.GetComm());
+        coarse_solver->SetRelTol(1e-8);
+        coarse_solver->SetMaxIter(50);
+        coarse_solver->SetPrintLevel(0);
+        coarse_solver->SetOperator(*ops_[0]);
+        coarse_solver->SetPreconditioner(*coarse_prec);
+        coarse_solver_.Reset(coarse_solver);
     }
 }
 
 void Multigrid::Mult(const Vector& x, Vector& y) const
 {
-    residual.back() = x;
-    correction.back().SetDataAndSize(y.GetData(), y.Size());
+    residual.Last() = x;
+    correction.Last().SetDataAndSize(y.GetData(), y.Size());
     MG_Cycle();
 }
 
 void Multigrid::MG_Cycle() const
 {
     // PreSmoothing
-    auto& Operator_l = *Ops_[current_level].As<HypreParMatrix>();
-    auto& Smoother_l = *Smoothers_[current_level].As<HypreSmoother>();
+    auto& Operator_l = *ops_[current_level].As<HypreParMatrix>();
+    auto& Smoother_l = *smoothers_[current_level].As<HypreSmoother>();
 
     Vector& residual_l = residual[current_level];
     Vector& correction_l = correction[current_level];
@@ -474,9 +471,9 @@ void Multigrid::MG_Cycle() const
     else
     {
         cor_cor.SetSize(residual_l.Size());
-        if (CoarseSolver)
+        if (coarse_prec_)
         {
-            CoarseSolver->Mult(residual_l, cor_cor);
+            coarse_solver_->Mult(residual_l, cor_cor);
             correction_l += cor_cor;
             Operator_l.Mult(-1.0, cor_cor, 1.0, residual_l);
         }
