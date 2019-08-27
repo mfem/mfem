@@ -1372,7 +1372,7 @@ void MixedBilinearForm::FormRectangularSystemMatrix(const Array<int> &trial_tdof
    Array<int> ess_trial_tdof_marker, ess_test_tdof_marker;
    FiniteElementSpace::ListToMarker(trial_tdof_list, trial_fes->GetTrueVSize(),
                                     ess_trial_tdof_marker);
-   FiniteElementSpace::ListToMarker(test_tdof_list, trial_fes->GetTrueVSize(),
+   FiniteElementSpace::ListToMarker(test_tdof_list, test_fes->GetTrueVSize(),
                                     ess_test_tdof_marker);
 
    mat_e = new SparseMatrix(mat->Height(), mat->Width());
