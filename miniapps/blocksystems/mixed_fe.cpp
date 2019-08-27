@@ -551,7 +551,7 @@ int main(int argc, char *argv[])
     }
 
     // 15. Save data in the VisIt format
-    VisItDataCollection visit_dc("Example5-Parallel", pmesh);
+    VisItDataCollection visit_dc("Mixed-FE-Parallel", pmesh);
     visit_dc.RegisterField("velocity", u);
     visit_dc.RegisterField("pressure", p);
     visit_dc.Save();

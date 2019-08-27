@@ -392,25 +392,10 @@ InterpolationCollector::InterpolationCollector(ParFiniteElementSpace& fes,
 
 void InterpolationCollector::Collect()
 {
-    //        auto P_loc = ((const SparseMatrix*)fes_.GetUpdateOperator());
-    //        auto d_td_coarse = coarse_fes_.Dof_TrueDof_Matrix();
-    //        auto RP_loc = Mult(*fes_.GetRestrictionMatrix(), *P_loc);
-
-    //        P_.Append(d_td_coarse->LeftDiagMult(*RP_loc, fes_.GetTrueDofOffsets()));
-    //        P_.Last()->CopyColStarts();
-    //        P_.Last()->CopyRowStarts();
-    //        delete RP_loc;
-
     fes_.Update();
     fes_.GetTrueTransferOperator(coarse_fes_, P_[ref_count_++]);
     coarse_fes_.Update();
 }
-
-//    InterpolationCollector::~InterpolationCollector()
-//    {
-//        for (auto& P_ptr : P_)
-//            delete P_ptr;
-//    }
 
 Multigrid::Multigrid(HypreParMatrix& Op,
                      const Array<OperatorHandle>& P,
@@ -440,11 +425,6 @@ Multigrid::Multigrid(HypreParMatrix& Op,
     for (int l = Ops_.Size()-1; l > 0; --l)
     {
         Ops_[l-1].MakePtAP(Ops_[l], const_cast<OperatorHandle&>(P_[l-1]));
-        // Two steps RAP
-        //            unique_ptr<HypreParMatrix> PT( P[l-1]->Transpose() );
-        //            unique_ptr<HypreParMatrix> AP( ParMult(Ops_[l], P[l-1]) );
-        //            Ops_[l-1] = ParMult(PT.get(), AP.get());
-        //            Ops_[l-1]->CopyRowStarts();
     }
 
     for (int l = 0; l < Ops_.Size(); ++l)
