@@ -82,15 +82,13 @@ public:
 
     virtual void SetOperator(const Operator &op) { }
 
-    ~Multigrid();
-
 private:
     void MG_Cycle() const;
 
     const Array<OperatorHandle>& P_;
 
     Array<OperatorHandle> Ops_;
-    Array<HypreSmoother*> Smoothers_;
+    Array<OperatorHandle> Smoothers_;
 
     mutable int current_level;
 
