@@ -399,7 +399,7 @@ void InterpolationCollector::Collect()
 
 Multigrid::Multigrid(HypreParMatrix& op,
                      const Array<OperatorHandle>& P,
-                     Solver* coarse_prec)
+                     OperatorHandle coarse_solver)
     :
       Solver(op.GetNumRows()),
       P_(P),
@@ -407,8 +407,7 @@ Multigrid::Multigrid(HypreParMatrix& op,
       smoothers_(ops_.Size()),
       current_level(ops_.Size()-1),
       correction(ops_.Size()),
-      residual(ops_.Size()),
-      coarse_prec_(coarse_prec)
+      residual(ops_.Size())
 {
     ops_.Last().Reset(&op, false);
     smoothers_.Last().Reset(new HypreSmoother(op));
@@ -421,16 +420,7 @@ Multigrid::Multigrid(HypreParMatrix& op,
         correction[l].SetSize(ops_[l]->NumRows());
     }
 
-    if (coarse_prec)
-    {
-        IterativeSolver* coarse_solver = new CGSolver(op.GetComm());
-        coarse_solver->SetRelTol(1e-8);
-        coarse_solver->SetMaxIter(50);
-        coarse_solver->SetPrintLevel(0);
-        coarse_solver->SetOperator(*ops_[0]);
-        coarse_solver->SetPreconditioner(*coarse_prec);
-        coarse_solver_.Reset(coarse_solver);
-    }
+    coarse_solver_.Reset(coarse_solver.Ptr(), false);
 }
 
 void Multigrid::Mult(const Vector& x, Vector& y) const
@@ -443,44 +433,42 @@ void Multigrid::Mult(const Vector& x, Vector& y) const
 void Multigrid::MG_Cycle() const
 {
     // PreSmoothing
-    auto& Operator_l = *ops_[current_level].As<HypreParMatrix>();
-    auto& Smoother_l = *smoothers_[current_level].As<HypreSmoother>();
+    auto& operator_l = *ops_[current_level].As<HypreParMatrix>();
+    auto& smoother_l = *smoothers_[current_level].As<HypreSmoother>();
 
     Vector& residual_l = residual[current_level];
     Vector& correction_l = correction[current_level];
 
-    Smoother_l.Mult(residual_l, correction_l);
-    Operator_l.Mult(-1.0, correction_l, 1.0, residual_l);
+    smoother_l.Mult(residual_l, correction_l);
+    operator_l.Mult(-1.0, correction_l, 1.0, residual_l);
 
     // Coarse grid correction
     if (current_level > 0)
     {
-        auto& P_l = *P_[current_level-1].As<HypreParMatrix>();
-
-        P_l.MultTranspose(residual_l, residual[current_level-1]);
+        P_[current_level-1]->MultTranspose(residual_l, residual[current_level-1]);
 
         current_level--;
         MG_Cycle();
         current_level++;
 
         cor_cor.SetSize(residual_l.Size());
-        P_l.Mult(correction[current_level-1], cor_cor);
+        P_[current_level-1]->Mult(correction[current_level-1], cor_cor);
         correction_l += cor_cor;
-        Operator_l.Mult(-1.0, cor_cor, 1.0, residual_l);
+        operator_l.Mult(-1.0, cor_cor, 1.0, residual_l);
     }
     else
     {
         cor_cor.SetSize(residual_l.Size());
-        if (coarse_prec_)
+        if (coarse_solver_.Ptr())
         {
             coarse_solver_->Mult(residual_l, cor_cor);
             correction_l += cor_cor;
-            Operator_l.Mult(-1.0, cor_cor, 1.0, residual_l);
+            operator_l.Mult(-1.0, cor_cor, 1.0, residual_l);
         }
     }
 
     // PostSmoothing
-    Smoother_l.Mult(residual_l, cor_cor);
+    smoother_l.Mult(residual_l, cor_cor);
     correction_l += cor_cor;
 }
 

@@ -77,12 +77,10 @@ class Multigrid : public Solver
 {
 public:
     Multigrid(HypreParMatrix& op, const Array<OperatorHandle>& P,
-              Solver* coarse_prec=NULL);
+              OperatorHandle coarse_solver=OperatorHandle());
 
     virtual void Mult(const Vector & x, Vector & y) const;
-
     virtual void SetOperator(const Operator &op) { }
-
 private:
     void MG_Cycle() const;
 
@@ -101,6 +99,5 @@ private:
     mutable Vector cor_aux;
 
     OperatorHandle coarse_solver_;
-    const Solver *coarse_prec_;
 };
 
