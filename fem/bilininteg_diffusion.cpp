@@ -435,6 +435,16 @@ void PADiffusionApply2D(const int NE,
 }
 
 // Indices computation for SmemPADiffusionApply2D
+// N even:               N odd:
+//   | 0 1 2 | 3 4 5       | 0 1 2 3 4
+// --+------+------      --+-----+----
+// 0 | B B B | B B B     0 | B B B B B
+// 1 | g B B | B B B     1 | G B B B B
+// 2 | g g B | B B B     2 | G G B B B
+// --+-------+------     3 | G G G G B
+// 3 | g g g | g B B     4 | G G G G G
+// 4 | g g g | g g B         G
+// 5 | g g g | g g g
 static inline int i2(const int q, const int d, const int N)
 {
    const int M = N>>1;
@@ -453,41 +463,21 @@ static inline int j2(const int q, const int d, const int N)
           (d<M) ? S:(q<d?d:S);
 }
 
-static inline int k2(const int q, const int d, const int N)
+static inline int k2(const int q, const int d, const int N, const bool t=false)
 {
    const int M = N>>1;
    const int S = N-1-q;
-   return  q==M && d==M && N&1 ? N-1 :
+   return  q==M && d==M && N&1 ? (t?N:N-1) :
            (q<M) ?
            (d<M) ? (q<=d)?S:q:S:
            (d<M) ? q:(q<d?S:q);
 }
 
-static inline int l2(const int q, const int d, const int N)
+static inline int l2(const int q, const int d, const int N, const bool t=false)
 {
    const int M = N>>1;
    const int S = N-1-d;
-   return q==M && d==M && N&1 ? N :
-          (q<M) ?
-          (d<M) ? (q<=d?S:d):S:
-          (d<M) ? d:(q<d?S:d);
-}
-
-static inline int k2t(const int q, const int d, const int N)
-{
-   const int M = N>>1;
-   const int S = N-1-q;
-   return  q==M && d==M && N&1 ? N :
-           (q<M) ?
-           (d<M) ? (q<=d)?S:q:S:
-           (d<M) ? q:(q<d?S:q);
-}
-
-static inline int l2t(const int q, const int d, const int N)
-{
-   const int M = N>>1;
-   const int S = N-1-d;
-   return q==M && d==M && N&1 ? N-1 :
+   return q==M && d==M && N&1 ? (t?N-1:N) :
           (q<M) ?
           (d<M) ? (q<=d?S:d):S:
           (d<M) ? d:(q<d?S:d);
@@ -516,184 +506,104 @@ static void SmemPADiffusionApply2D(const int NE,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
-   const double eps = 1.e-12;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D == Q1D, "");
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   //constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    constexpr int central = MQ1&1;
-   //dbg("central=%d", central);
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D*Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   {
-      /*
-            static bool printed = false;
-            if (!printed)
-            {
-               printed = true;
-               for (int d=0; d<D1D; d++)
-               {
-                  printf("\n");
-                  for (int q=0; q<Q1D; q++)
-                  {
-                     printf("\033[33m%+.6f ", b(q,d));
-                  }
-               }
-               for (int d=0; d<D1D; d++)
-               {
-                  for (int q=0; q<Q1D; q++)
-                  {
-                     const int i = i2(q,d,Q1D);
-                     const int j = j2(q,d,D1D);
-                     printf("\n(%d,%d)=>(%d,%d)", q,d,i,j);
-                  }
-               }
-               printf("\n");
-               for (int d=0; d<D1D; d++)
-               {
-                  printf("\n");
-                  for (int q=0; q<Q1D; q++)
-                  {
-                     printf("\033[37m%+.6f ", g(q,d));
-                  }
-               }
-               for (int d=0; d<D1D; d++)
-               {
-                  for (int q=0; q<Q1D; q++)
-                  {
-                     const int k = k2(q,d,Q1D);
-                     const int l = l2(q,d,D1D);
-                     //const double s = sign2(q,d,D1D);
-                     printf("\n(%d,%d)=>(%d,%d): +-%.6f", q,d,k,l, fabs(g(q,d)));
-                  }
-               }
-               printf("\033[m\n");
-               //exit(0);
-            }
-      */
-   }
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int N = T_D1D ? T_D1D : d1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      MFEM_SHARED double BG[2][MQ1*MD1];
-      double (*B)[MD1] = (double (*)[MD1]) (BG+0);
-      double (*G)[MD1] = (double (*)[MD1]) (BG+1);
-      double (*Bt)[MQ1] = (double (*)[MQ1]) (BG+0);
-      double (*Gt)[MQ1] = (double (*)[MQ1]) (BG+1);
-      MFEM_SHARED double BG2[MQ1*MD1 + central];
-      double (*B2)[MD1] = (double (*)[MD1]) (BG2);
-      double (*G2)[MD1] = (double (*)[MD1]) (BG2);
-      double (*Bt2)[MQ1] = (double (*)[MQ1]) (BG2);
-      double (*Gt2)[MQ1] = (double (*)[MQ1]) (BG2);
-      MFEM_SHARED double Xz[NBZ][MD1][MD1];
-      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
-      MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
-      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
-      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
-      double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
-      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
-      double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
-      MFEM_FOREACH_THREAD(dy,y,D1D)
+      MFEM_SHARED double BG[N*N + central];
+      double (*B)[N] = (double (*)[N]) (BG);
+      double (*G)[N] = (double (*)[N]) (BG);
+      double (*Bt)[N] = (double (*)[N]) (BG);
+      double (*Gt)[N] = (double (*)[N]) (BG);
+      MFEM_SHARED double Xz[NBZ][N][N];
+      MFEM_SHARED double GD[2][NBZ][N][N];
+      MFEM_SHARED double GQ[2][NBZ][N][N];
+      double (*X)[N] = (double (*)[N])(Xz + tidz);
+      double (*DQ0)[N] = (double (*)[N])(GD[0] + tidz);
+      double (*DQ1)[N] = (double (*)[N])(GD[1] + tidz);
+      double (*QQ0)[N] = (double (*)[N])(GQ[0] + tidz);
+      double (*QQ1)[N] = (double (*)[N])(GQ[1] + tidz);
+      MFEM_FOREACH_THREAD(dy,y,N)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         MFEM_FOREACH_THREAD(dx,x,N)
          {
             X[dy][dx] = x(dx,dy,e);
          }
       }
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(d,y,D1D)
+         MFEM_FOREACH_THREAD(d,y,N)
          {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
+            MFEM_FOREACH_THREAD(q,x,N)
             {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
-               const int i = i2(q,d,Q1D);
-               const int j = j2(q,d,D1D);
-               const int k = k2(q,d,Q1D);
-               const int l = l2(q,d,D1D);
-               B2[i][j] = b(q,d);
-               G2[k][l] = g(q,d) * sign2(q,d,Q1D);
+               const int i = i2(q,d,N);
+               const int j = j2(q,d,N);
+               const int k = k2(q,d,N);
+               const int l = l2(q,d,N);
+               B[i][j] = b(q,d);
+               G[k][l] = g(q,d) * sign2(q,d,N);
             }
          }
-         /*
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-         MFEM_FOREACH_THREAD(q,x,Q1D)
-         {
-         const int k = k2(q,d,Q1D);
-         const int l = l2(q,d,D1D);
-         const double sign = sign2(q,d,D1D);
-         printf("\n(%d,%d)=>(%d,%d): %+.6f", q,d,k,l, sign*G2[k][l]);
-         }
-         printf("\n");
-         }
-         if (central>0) { printf("central: %+.6f", G2[MQ1][MD1-1]); }
-               */
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
+      MFEM_FOREACH_THREAD(dy,y,N)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         MFEM_FOREACH_THREAD(qx,x,N)
          {
             double u = 0.0;
             double v = 0.0;
-            for (int dx = 0; dx < D1D; ++dx)
+            for (int dx = 0; dx < N; ++dx)
             {
-               const int i = i2(qx,dx,Q1D);
-               const int j = j2(qx,dx,D1D);
-               const int k = k2(qx,dx,Q1D);
-               const int l = l2(qx,dx,D1D);
+               const int i = i2(qx,dx,N);
+               const int j = j2(qx,dx,N);
+               const int k = k2(qx,dx,N);
+               const int l = l2(qx,dx,N);
                const double coords = X[dy][dx];
-               const double s = sign2(qx,dx,D1D);
-               u += B[qx][dx] * coords;
-               v += G[qx][dx] * coords;
-               if (fabs(B[qx][dx] - B2[i][j])>eps) { printf("\nB0: %f vs %f", B[qx][dx], B2[i][j]); }
-               if (fabs(G[qx][dx] - s*G2[k][l])>eps) { printf("\nG0(%d,%d): %f vs %f", qx,dx, G[qx][dx], s*G2[k][l]); }
+               u += coords * B[i][j];
+               v += coords * G[k][l] * sign2(qx,dx,N);
             }
             DQ0[dy][qx] = u;
             DQ1[dy][qx] = v;
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      MFEM_FOREACH_THREAD(qy,y,N)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         MFEM_FOREACH_THREAD(qx,x,N)
          {
             double u = 0.0;
             double v = 0.0;
-            for (int dy = 0; dy < D1D; ++dy)
+            for (int dy = 0; dy < N; ++dy)
             {
-               const int i = i2(qy,dy,Q1D);
-               const int j = j2(qy,dy,D1D);
-               const int k = k2(qy,dy,Q1D);
-               const int l = l2(qy,dy,D1D);
-               const double s = sign2(qy,dy,D1D);
-               if (fabs(B[qy][dy] - B2[i][j])>eps) { printf("\nB1: %f vs %f", B[qy][dy], B2[i][j]); }
-               if (fabs(G[qy][dy] - s*G2[k][l])>eps) { printf("\nG1(%d,%d): %f vs %f", qy,dy, G[qy][dy], s*G2[k][l]); }
-               u += DQ1[dy][qx] * B[qy][dy];
-               v += DQ0[dy][qx] * G[qy][dy];
+               const int i = i2(qy,dy,N);
+               const int j = j2(qy,dy,N);
+               const int k = k2(qy,dy,N);
+               const int l = l2(qy,dy,N);
+               u += DQ1[dy][qx] * B[i][j];
+               v += DQ0[dy][qx] * G[k][l] * sign2(qy,dy,N);
             }
             QQ0[qy][qx] = u;
             QQ1[qy][qx] = v;
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      MFEM_FOREACH_THREAD(qy,y,N)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         MFEM_FOREACH_THREAD(qx,x,N)
          {
-            const int q = (qx + ((qy) * Q1D));
+            const int q = (qx + ((qy) * N));
             const double O11 = op(q,0,e);
             const double O12 = op(q,1,e);
             const double O22 = op(q,2,e);
@@ -706,75 +616,54 @@ static void SmemPADiffusionApply2D(const int NE,
       MFEM_SYNC_THREAD;
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(d,y,D1D)
+         MFEM_FOREACH_THREAD(d,y,N)
          {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
+            MFEM_FOREACH_THREAD(q,x,N)
             {
-               Bt[d][q] = b(q,d);
-               Gt[d][q] = g(q,d);
-               const int i = i2(q,d,Q1D);
-               const int j = j2(q,d,D1D);
-               const int k = k2t(q,d,Q1D);
-               const int l = l2t(q,d,D1D);
-               Bt2[j][i] = b(q,d);
-               Gt2[l][k] = g(q,d) * sign2(q,d,Q1D);
+               const int i = i2(q,d,N);
+               const int j = j2(q,d,N);
+               const int k = k2(q,d,N,true);
+               const int l = l2(q,d,N,true);
+               Bt[j][i] = b(q,d);
+               Gt[l][k] = g(q,d) * sign2(q,d,N);
             }
-         }/*
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               const int k = k2t(q,d,Q1D);
-               const int l = l2t(q,d,D1D);
-               const double sign = sign2(q,d,D1D);
-               printf("\n(%d,%d)=>(%d,%d): %+.6f", q,d,k,l, sign*Gt2[l][k]);
-            }
-            printf("\n");
          }
-         if (central>0) { printf("central: %+.6f", Gt2[MD1][MQ1-1]); }
-                            */
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      MFEM_FOREACH_THREAD(qy,y,N)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         MFEM_FOREACH_THREAD(dx,x,N)
          {
             double u = 0.0;
             double v = 0.0;
-            for (int qx = 0; qx < Q1D; ++qx)
+            for (int qx = 0; qx < N; ++qx)
             {
-               const int i = i2(qx,dx,Q1D);
-               const int j = j2(qx,dx,D1D);
-               const int k = k2t(qx,dx,Q1D);
-               const int l = l2t(qx,dx,D1D);
-               const double s = sign2(qx,dx,Q1D);
-               if (fabs(Bt[dx][qx] - Bt2[j][i])>eps) { printf("\nBt0(%d,%d): %f vs %f", i,j, Bt[dx][qx], Bt2[j][i]); }
-               if (fabs(Gt[dx][qx] - s*Gt2[l][k])>eps) { printf("\nGt0: %f vs %f", Gt[dx][qx], s*Gt2[l][k]); }
-               u += Gt[dx][qx] * QQ0[qy][qx];
-               v += Bt[dx][qx] * QQ1[qy][qx];
+               const int i = i2(qx,dx,N);
+               const int j = j2(qx,dx,N);
+               const int k = k2(qx,dx,N,true);
+               const int l = l2(qx,dx,N,true);
+               u += Gt[l][k] * QQ0[qy][qx] * sign2(qx,dx,N);
+               v += Bt[j][i] * QQ1[qy][qx];
             }
             DQ0[qy][dx] = u;
             DQ1[qy][dx] = v;
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
+      MFEM_FOREACH_THREAD(dy,y,N)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         MFEM_FOREACH_THREAD(dx,x,N)
          {
             double u = 0.0;
             double v = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
+            for (int qy = 0; qy < N; ++qy)
             {
-               const int i = i2(qy,dy,Q1D);
-               const int j = j2(qy,dy,D1D);
-               const int k = k2t(qy,dy,Q1D);
-               const int l = l2t(qy,dy,D1D);
-               const double s = sign2(qy,dy,Q1D);
-               if (fabs(Bt[dy][qy] - Bt2[j][i])>eps) { printf("\nBt1(%d,%d): %f vs %f",i,j, B[dy][qy], Bt2[j][i]); }
-               if (fabs(Gt[dy][qy] - s*Gt2[l][k])>eps) { printf("\nGt1: %f vs %f", Gt[dy][qy], s*Gt2[l][k]); }
-               u += DQ0[qy][dx] * Bt[dy][qy];
-               v += DQ1[qy][dx] * Gt[dy][qy];
+               const int i = i2(qy,dy,N);
+               const int j = j2(qy,dy,N);
+               const int k = k2(qy,dy,N,true);
+               const int l = l2(qy,dy,N,true);
+               u += DQ0[qy][dx] * Bt[j][i];
+               v += DQ1[qy][dx] * Gt[l][k] * sign2(qy,dy,N);
             }
             y(dx,dy,e) += (u + v);
          }
@@ -1302,7 +1191,7 @@ static void PADiffusionApply(const int dim,
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-   /*if (Device::Allows(Backend::RAJA_CUDA))
+   if (Device::Allows(Backend::RAJA_CUDA))
    {
       if (dim == 2)
       {
@@ -1335,7 +1224,7 @@ static void PADiffusionApply(const int dim,
          }
       }
    }
-   else */if (dim == 2)
+   else if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {
@@ -1344,12 +1233,13 @@ static void PADiffusionApply(const int dim,
          case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,B,G,op,x,y);
          case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,B,G,op,x,y);
          case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,B,G,op,x,y);
-         //case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,op,x,y);
-         //case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,op,x,y);
-         //case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,op,x,y);
+         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,op,x,y);
+         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,op,x,y);
+         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,op,x,y);
+         case 0xAA: return SmemPADiffusionApply2D<10,10,2>(NE,B,G,op,x,y);
          default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
-   }/*
+   }
    else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
@@ -1364,7 +1254,7 @@ static void PADiffusionApply(const int dim,
          case 0x9A: return SmemPADiffusionApply3D<9,10>(NE,B,G,op,x,y);
          default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
-   }*/
+   }
    MFEM_ABORT("Unknown kernel.");
 }
 
