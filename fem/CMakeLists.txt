@@ -17,6 +17,7 @@ set(SRCS
   bilininteg_mass.cpp
   coefficient.cpp
   datacollection.cpp
+  doftrans.cpp
   eltrans.cpp
   estimators.cpp
   fe.cpp
@@ -40,6 +41,7 @@ set(HDRS
   bilininteg.hpp
   coefficient.hpp
   datacollection.hpp
+  doftrans.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
