@@ -305,8 +305,8 @@ int main(int argc, char *argv[])
 
    ThresholdRefiner refiner(estimator);
    //refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
-   refiner.SetTotalErrorGoal(1e-10);    // total error goal (stop criterion)
-   refiner.SetLocalErrorGoal(1e-10);    // local error goal (stop criterion)
+   refiner.SetTotalErrorGoal(1e-7);    // total error goal (stop criterion)
+   refiner.SetLocalErrorGoal(1e-7);    // local error goal (stop criterion)
    refiner.SetMaxElements(50000);
    refiner.SetMaximumRefinementLevel(ser_ref_levels+par_ref_levels+1);
    refiner.SetNCLimit(nc_limit);
@@ -574,7 +574,6 @@ int main(int argc, char *argv[])
               if (myid == 0) cout << "Derefined mesh..." << endl;
 
               AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
-
               pmesh->Rebalance();
 
               //---Update problem---

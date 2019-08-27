@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
    double ltol_amr=1e-5;
    bool visit = false;
    bool derefine = false;
+   bool derefineIt = false;
    int precision = 8;
    int icase = 1;
    int nc_limit = 3;         // maximum level of hanging nodes
@@ -458,19 +459,16 @@ int main(int argc, char *argv[])
          vis_j.precision(8);
          vis_j << "solution\n" << *mesh << j;
          vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
-         vis_j << "pause\n";
          vis_j << flush;
 
          vis_psi.precision(8);
          vis_psi << "solution\n" << *mesh << psi;
          vis_psi << "window_size 800 800\n"<< "window_title '" << "psi'" << "keys cm\n";
-         vis_psi << "pause\n";
          vis_psi << flush;
 
          vis_w.precision(8);
          vis_w << "solution\n" << *mesh << w;
          vis_w << "window_size 800 800\n"<< "window_title '" << "omega'" << "keys cm\n";
-         vis_w << "pause\n";
          vis_w << flush;
       }
    }
@@ -529,18 +527,16 @@ int main(int argc, char *argv[])
       else
           refineMesh=false;
 
-      if ( ((ti-ref_steps/2) % ref_steps)==0 ) 
-          derefine=true;
+      if ( derefine && ((ti-ref_steps/2) % ref_steps)==0 && ti >  ref_steps ) 
+      {
+          derefineIt=true;
+          derefiner.Reset();
+      }
       else
-          derefine=false;
+          derefineIt=false;
 
       if (refineMesh) refiner.Reset();
-      if (derefine) derefiner.Reset();
 
-      // 13. The inner refinement loop. At the end we want to have the current
-      //     time step resolved to the prescribed tolerance in each element.
-      //for (int ref_it = 1; ; ref_it++)
-      //int ref_it=1;
       {
         /*
         cout << "Number of unknowns: " << fespace.GetVSize() << endl;
@@ -569,7 +565,7 @@ int main(int argc, char *argv[])
         if (refineMesh)  refiner.Apply(*mesh);
         if (refiner.Refined()==false || (!refineMesh))
         {
-           if (derefine && derefiner.Apply(*mesh))
+           if (derefine && derefineIt && derefiner.Apply(*mesh))
            {
               cout << "Derefined mesh..." << endl;
 

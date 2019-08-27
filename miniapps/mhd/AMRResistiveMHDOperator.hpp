@@ -110,7 +110,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    GSSmoother *M_prec_gs = new GSSmoother(Mmat);
    M_prec=M_prec_gs;
    M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-10);
+   M_solver.SetRelTol(1e-7);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(200);
    M_solver.SetPrintLevel(0);
@@ -122,7 +122,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    GSSmoother *K_prec_gs = new GSSmoother(Kmat);
    K_prec=K_prec_gs;
    K_solver.iterative_mode = false;
-   K_solver.SetRelTol(1e-6);
+   K_solver.SetRelTol(1e-7);
    K_solver.SetAbsTol(0.0);
    K_solver.SetMaxIter(1000);
    K_solver.SetPrintLevel(0);
@@ -276,9 +276,6 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    //PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
    M_solver.Mult(B, X);
    M->RecoverFEMSolution(X, z, dw_dt);
-
-
-
 }
 
 void AMRResistiveMHDOperator::assembleNv(GridFunction *gf) 
