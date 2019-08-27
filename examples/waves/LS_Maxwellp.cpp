@@ -246,11 +246,11 @@ int main(int argc, char *argv[])
    HypreSolver *amsE = new HypreAMS(*A_EE,fespace);
    HypreSolver *amsH = new HypreAMS(*A_HH,fespace);
 
-   GMGSolver * gmgE = new GMGSolver(A_EE, P);
+   GMGSolver * gmgE = new GMGSolver(A_EE, P,GMGSolver::GMGSolver::PETSC);
    gmgE->SetTheta(0.5);
    gmgE->SetSmootherType(HypreSmoother::Jacobi);
 
-   GMGSolver * gmgH = new GMGSolver(A_HH, P);
+   GMGSolver * gmgH = new GMGSolver(A_HH, P,GMGSolver::GMGSolver::PETSC);
    gmgH->SetTheta(0.5);
    gmgH->SetSmootherType(HypreSmoother::Jacobi);
 

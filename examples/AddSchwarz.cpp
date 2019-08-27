@@ -64,9 +64,9 @@ AddSchwarzSmoother::AddSchwarzSmoother(SparseMatrix * A_, FiniteElementSpace *fe
    Pid.SetSize(nrvert);
    Array<int> dofoffset(nrvert);
    dofoffset = 0;
+   int height = fespace->GetVSize();
    for (int i=0; i<nrvert; i++)
    {
-      int height = fespace->GetVSize();
       Pid[i] = new SparseMatrix(height);
       // skip if its a dirichlet vertex
       // int m = vert_dofs[i];

@@ -1684,8 +1684,8 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
    : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
 
    NumGrids = P.size();
-   S.reserve(NumGrids);
-   A.reserve(NumGrids + 1);
+   S.resize(NumGrids);
+   A.resize(NumGrids + 1);
 
    A[NumGrids] = Af;
 
@@ -1832,8 +1832,8 @@ ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
    : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
 
    NumGrids = P.size();
-   S.reserve(NumGrids);
-   A.reserve(NumGrids + 1);
+   S.resize(NumGrids);
+   A.resize(NumGrids + 1);
    block_OffsetsI.SetSize(3);
    block_OffsetsJ.SetSize(3);
    block_OffsetsI[0]=0;
