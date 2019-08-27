@@ -429,18 +429,10 @@ Multigrid::Multigrid(HypreParMatrix& Op,
 
     for (int l = 0; l < Ops_.Size(); ++l)
     {
-        Smoothers_[l] = new HypreSmoother(*Ops_[l].As<HypreParMatrix>());
+        Smoothers_[l].Reset(new HypreSmoother(*Ops_[l].As<HypreParMatrix>()));
         residual[l].SetSize(Ops_[l]->NumRows());
         if (l < Ops_.Size()-1)
             correction[l].SetSize(Ops_[l]->NumRows());
-    }
-}
-
-Multigrid::~Multigrid()
-{
-    for (int l = 0; l < Ops_.Size(); ++l)
-    {
-        delete Smoothers_[l];
     }
 }
 
@@ -455,7 +447,7 @@ void Multigrid::MG_Cycle() const
 {
     // PreSmoothing
     auto& Operator_l = *Ops_[current_level].As<HypreParMatrix>();
-    const HypreSmoother& Smoother_l = *Smoothers_[current_level];
+    auto& Smoother_l = *Smoothers_[current_level].As<HypreSmoother>();
 
     Vector& residual_l = residual[current_level];
     Vector& correction_l = correction[current_level];
