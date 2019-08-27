@@ -25,9 +25,11 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
+   ConstrainedOperator *constrainedA;
+   FormConstrainedSystemOperator(ess_tdof_list, constrainedA);
+
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
-   Operator *rap;
 
    if (P)
    {
@@ -36,24 +38,18 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
       P->MultTranspose(b, B);
       X.SetSize(R->Height(), x);
       R->Mult(x, X);
-      rap = new RAPOperator(*P, *this, *P);
    }
    else
    {
       // rap, X and B point to the same data as this, x and b, respectively
       X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
       B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
-      rap = this;
    }
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
-   // Impose the boundary conditions through a ConstrainedOperator, which owns
-   // the rap operator when P and R are non-trivial
-   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
-                                                    rap != this);
-   A->EliminateRHS(X, B);
-   Aout = A;
+   constrainedA->EliminateRHS(X, B);
+   Aout = constrainedA;
 }
 
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
@@ -73,6 +69,44 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
       // to device memory) then we need to tell x about that.
       x.SyncMemory(X);
    }
+}
+
+void Operator::FormConstrainedSystemOperator(
+   const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
+{
+   const Operator *P = this->GetProlongation();
+   Operator *rap;
+
+   if (P)
+   {
+      // Variational restriction with P
+      rap = new RAPOperator(*P, *this, *P);
+   }
+   else
+   {
+      rap = this;
+   }
+
+   // Impose the boundary conditions through a ConstrainedOperator, which owns
+   // the rap operator when P and R are non-trivial
+   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
+                                                    rap != this);
+   Aout = A;
+}
+
+void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
+                                  Operator* &Aout)
+{
+   ConstrainedOperator *A;
+   FormConstrainedSystemOperator(ess_tdof_list, A);
+   Aout = A;
+}
+
+void Operator::FormDiscreteOperator(Operator* &Aout)
+{
+   const Operator *Pin  = this->GetProlongation();
+   const Operator *Rout = this->GetOutputRestriction();
+   Aout = new TripleProductOperator(Rout, this, Pin,false, false, false);
 }
 
 void Operator::PrintMatlab(std::ostream & out, int n, int m) const
@@ -171,6 +205,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
+   list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
    // typically z and w are large vectors, so store them on the device
    z.SetSize(height, mem_type); z.UseDevice(true);
