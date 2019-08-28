@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
    }
 
 
-   ComplexGMGSolver M(AZ, P,ComplexGMGSolver::ComplexGMGSolver::PETSC);
+   ComplexGMGSolver M(AZ, P,ComplexGMGSolver::CoarseSolver::PETSC);
    M.SetTheta(0.5);
    M.SetSmootherType(HypreSmoother::Jacobi);
 

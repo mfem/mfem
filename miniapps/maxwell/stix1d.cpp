@@ -413,7 +413,7 @@ int main(int argc, char *argv[])
       cout << "Size of fine grid system: "
            << Ah->GetGlobalNumRows() << " x " << Ah->GetGlobalNumCols() << endl;
    }
-   ComplexGMGSolver M(AZ, P);
+   ComplexGMGSolver M(AZ, P,ComplexGMGSolver::PETSC);
    M.SetTheta(0.5);
    M.SetSmootherType(HypreSmoother::Jacobi);
 

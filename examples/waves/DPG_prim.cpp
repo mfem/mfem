@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
    // HypreBoomerAMG *S0inv = new HypreBoomerAMG(*matS0);
    // S0inv->SetPrintLevel(0);
 
-   GMGSolver *S0inv = new GMGSolver(matS0, Pv,GMGSolver::GMGSolver::PETSC);
+   GMGSolver *S0inv = new GMGSolver(matS0, Pv,GMGSolver::CoarseSolver::PETSC);
    S0inv->SetTheta(0.5);
 
 
