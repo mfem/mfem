@@ -124,7 +124,6 @@ MFEM_USE_PUMI          = NO
 MFEM_USE_CUDA          = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
-MFEM_USE_MM            = NO
 MFEM_USE_X86INTRIN     = NO
 
 # Compile and link options for zlib.
@@ -137,7 +136,7 @@ LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 
 # HYPRE library configuration (needed to build the parallel version)
-HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
+HYPRE_DIR = @MFEM_DIR@/../hypre/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
@@ -301,19 +300,17 @@ PUMI_OPT = -I$(PUMI_DIR)/include
 PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
    -llion -lmth -lapf_zoltan -lspr
 
-# CUDA library configuration. Since we compile and link with nvcc (when CUDA is
-# enabled) we only need to explicitly link with the CUDA driver, libcuda.*,
-# which is usually in a system path.
+# CUDA library configuration (currently not needed)
 CUDA_OPT =
-CUDA_LIB = $(if $(NOTMAC),,-L/usr/local/cuda/lib) -lcuda
+CUDA_LIB =
 
 # OCCA library configuration
-OCCA_DIR ?= @MFEM_DIR@/../occa
+OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
 # RAJA library configuration
-RAJA_DIR ?= @MFEM_DIR@/../raja
+RAJA_DIR = @MFEM_DIR@/../raja
 RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
