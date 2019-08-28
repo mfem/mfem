@@ -396,14 +396,14 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      z = x;
+      w = x;
 
       auto idx = trial_constraints.Read();
-      // Use read+write access - we are modifying sub-vector of z
-      auto d_z = z.ReadWrite();
-      MFEM_FORALL(i, trial_csz, d_z[idx[i]] = 0.0;);
+      // Use read+write access - we are modifying sub-vector of w
+      auto d_w = w.ReadWrite();
+      MFEM_FORALL(i, trial_csz, d_w[idx[i]] = 0.0;);
 
-      A->Mult(z, y);
+      A->Mult(w, y);
    }
 
    if (test_csz != 0)
