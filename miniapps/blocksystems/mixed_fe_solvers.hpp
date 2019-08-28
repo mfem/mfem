@@ -43,8 +43,7 @@ Vector LocalSolution(const DenseMatrix& M,  const DenseMatrix& B, const Vector& 
 
 SparseMatrix ElemToDofs(const FiniteElementSpace& fes);
 
-Vector div_part(const unsigned int num_levels,
-                const SparseMatrix& M_fine,
+Vector div_part(const SparseMatrix& M_fine,
                 const SparseMatrix& B_fine,
                 const Vector& F_fine,
                 const vector<SparseMatrix>& agg_elem,
@@ -54,7 +53,7 @@ Vector div_part(const unsigned int num_levels,
                 const vector<SparseMatrix>& P_l2,
                 const HypreParMatrix& coarse_hdiv_d_td,
                 const HypreParMatrix& coarse_l2_d_td,
-                Array<int>& coarsest_ess_dofs);
+                const Array<int>& coarsest_ess_dofs);
 
 class InterpolationCollector
 {
@@ -82,21 +81,17 @@ public:
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
 private:
-    void MG_Cycle() const;
+    void MG_Cycle(int level) const;
 
     const Array<OperatorHandle>& P_;
 
     Array<OperatorHandle> ops_;
     Array<OperatorHandle> smoothers_;
 
-    mutable int current_level;
+    mutable Array<Vector> correct_;
+    mutable Array<Vector> resid_;
 
-    mutable Array<Vector> correction;
-    mutable Array<Vector> residual;
-
-    mutable Vector res_aux;
-    mutable Vector cor_cor;
-    mutable Vector cor_aux;
+    mutable Vector cor_cor_;
 
     OperatorHandle coarse_solver_;
 };

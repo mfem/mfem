@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
         Vector sol_particular(BT->GetNumRows());
         if (ML_particular)
         {
-            auto sol_part = div_part(par_ref_levels+1, SparseMatrix(0), bVarf->SpMat(),
+            auto sol_part = div_part(SparseMatrix(0), bVarf->SpMat(),
                                      *gform, agg_elem, elem_Rdofs, elem_Wdofs, P_R, P_W,
                                      *d_td_coarse_R, *d_td_coarse_W, coarsest_ess_dofs);
 
