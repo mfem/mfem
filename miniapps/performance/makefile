@@ -47,17 +47,13 @@ endif
 # MFEM_PERF_CXXFLAGS_gcc_common += -std=c++03
 MFEM_PERF_CXXFLAGS_gcc_common += -std=c++11
 MFEM_PERF_CXXFLAGS_gcc_common += -pedantic -Wall
-ifeq ($(MFEM_USE_X86INTRIN),NO)
+ifeq ($(MFEM_USE_SIMD),NO)
 MFEM_PERF_CXXFLAGS_gcc_common += --param max-completely-peel-times=3
 endif
 #MFEM_PERF_CXXFLAGS_gcc_common += -fdump-tree-optimized-blocks
 MFEM_PERF_CXXFLAGS_gcc_x86_64 = -march=native $(MFEM_PERF_CXXFLAGS_gcc_common)
-#MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
+MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
  $(MFEM_PERF_CXXFLAGS_gcc_common)
-MFEM_PERF_CXXFLAGS_gcc_ppc64 = $(MFEM_PERF_CXXFLAGS_gcc_common) 
-MFEM_PERF_CXXFLAGS_gcc_ppc64 += -qsimd=auto \
- $(MFEM_PERF_CXXFLAGS_gcc_common)
-#$(warning MFEM_PERF_CXXFLAGS_gcc_ppc64=$(MFEM_PERF_CXXFLAGS_gcc_ppc64))
 
 # - Clang extra options:
 MFEM_PERF_CXXFLAGS_clang += -march=native
@@ -72,7 +68,6 @@ MFEM_PERF_CXXFLAGS_clang += -ffp-contract=fast
 
 # - Intel C++ compiler extra options:
 MFEM_PERF_CXXFLAGS_icc += -xHost
-# MFEM_PERF_CXXFLAGS_icc += -std=c++03
 MFEM_PERF_CXXFLAGS_icc += -std=c++11
 
 # Choose MFEM_PERF_CXXFLAGS based on MFEM_PERF_SW:
@@ -100,25 +95,6 @@ endif
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(MINIAPPS)
-
-ex1rtc:ex1rtc.cpp
-	dbg=1 okrtc g++ -O3 -march=native -std=c++11 -pedantic -Wall \
-	-I/home/camier1/home/mfem/x86 \
-	-o ex1rtc ex1rtc.cpp \
-	-Wl,-rpath,/home/camier1/home/mfem/x86 \
-	-L/home/camier1/home/mfem/x86 -lmfem -lrt
-
-bprtc: bprtc.cpp
-	okrtc mpicxx -O3 -march=native -std=c++11 -pedantic -Wall \
-	-I/home/camier1/home/mfem/x86/ \
-	-I/home/camier1/usr/local/hypre/2.11.2/include \
-	-I/home/camier1/usr/local/metis/5.1.0/include \
-	-I/home/camier1/usr/local/openmpi/3.0.0/include \
-	-o $@ $< \
-	-L/home/camier1/home/mfem/x86 -lmfem \
-	-L/home/camier1/usr/local/hypre/2.11.2/lib -lHYPRE \
-	-L/home/camier1/usr/local/metis/5.1.0/lib -lmetis \
-	-lrt
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)

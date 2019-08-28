@@ -36,7 +36,6 @@ namespace mfem
 // elements are assumed to have the same number of dofs. Such an array is
 // constructed from the J array of an element-to-dof Table with optional local
 // renumbering to ensure tensor-product local dof ordering when needed.
-
 template <typename FE>
 class ElementDofIndexer
 {
