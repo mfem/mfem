@@ -3000,17 +3000,6 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       delete [] nbr_ldof.GetJ();
       nbr_ldof.LoseData();
    }
-   // If we are in device mode with a separate memory space (e.g. CUDA device)
-   // and the MPI library does not support buffers there, we allocate separate
-   // host buffers to use for the MPI communication.
-   if (Device::Allows(Backend::CUDA_MASK))
-   {
-      if (gc.GetGroupTopology().MyRank() == 0)
-      {
-         mfem::out << "\nConformingProlongation: CUDA-aware MPI: "
-                   << (mpi_gpu_aware ? "YES" : "NO") << "\n\n";
-      }
-   }
    const GroupTopology &gtopo = gc.GetGroupTopology();
    int req_counter = 0;
    for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
