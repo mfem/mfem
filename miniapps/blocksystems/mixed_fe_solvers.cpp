@@ -197,8 +197,7 @@ SparseMatrix ElemToDofs(const FiniteElementSpace& fes)
     return SparseMatrix(I, J, data, fes.GetNE(), fes.GetVSize());
 }
 
-Vector div_part(const unsigned int num_levels,
-                const SparseMatrix& M_fine,
+Vector div_part(const SparseMatrix& M_fine,
                 const SparseMatrix& B_fine,
                 const Vector& F_fine,
                 const vector<SparseMatrix>& agg_elem,
@@ -208,10 +207,11 @@ Vector div_part(const unsigned int num_levels,
                 const vector<SparseMatrix>& P_l2,
                 const HypreParMatrix& coarse_hdiv_d_td,
                 const HypreParMatrix& coarse_l2_d_td,
-                Array<int>& coarsest_ess_dofs)
+                const Array<int> &coarsest_ess_dofs)
 {
-    vector<Vector> sigma(num_levels);
+    const unsigned int num_levels = elem_hdivdofs.size() + 1;
 
+    vector<Vector> sigma(num_levels);
     Vector F_l, Pi_F_l, F_coarse, PT_F_l(F_fine);
     unique_ptr<SparseMatrix> B_l(new SparseMatrix(B_fine));
     unique_ptr<SparseMatrix> M_l(M_fine.NumRows() ? new SparseMatrix(M_fine) : nullptr);
@@ -287,6 +287,7 @@ Vector div_part(const unsigned int num_levels,
 
     // The coarse problem:
     B_l->EliminateCols(coarsest_ess_dofs);
+
     if (M_l)
     {
         for ( int k = 0; k < coarsest_ess_dofs.Size(); ++k)
@@ -318,7 +319,7 @@ Vector div_part(const unsigned int num_levels,
         coarseMatrix.SetBlock(1,0, B_Coarse.get());
 
         BlockVector trueX(block_offsets), trueRhs(block_offsets);
-        trueRhs =0;
+        trueRhs = 0.0;
         trueRhs.GetBlock(1)= PT_F_l;
 
         Vector Md;
@@ -383,17 +384,15 @@ Vector div_part(const unsigned int num_levels,
 
 InterpolationCollector::InterpolationCollector(ParFiniteElementSpace& fes,
                                                int num_refine)
-    : fes_(fes), coarse_fes_(fes.GetParMesh(), fes.FEColl()), ref_count_(0)
+    : fes_(fes), coarse_fes_(fes.GetParMesh(), fes.FEColl()), ref_count_(num_refine)
 {
     P_.SetSize(num_refine, OperatorHandle(Operator::Hypre_ParCSR));
-    fes_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
-    coarse_fes_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
 }
 
 void InterpolationCollector::Collect()
 {
     fes_.Update();
-    fes_.GetTrueTransferOperator(coarse_fes_, P_[ref_count_++]);
+    fes_.GetTrueTransferOperator(coarse_fes_, P_[--ref_count_]);
     coarse_fes_.Update();
 }
 
@@ -405,19 +404,18 @@ Multigrid::Multigrid(HypreParMatrix& op,
       P_(P),
       ops_(P.Size()+1),
       smoothers_(ops_.Size()),
-      current_level(ops_.Size()-1),
-      correction(ops_.Size()),
-      residual(ops_.Size())
+      correct_(ops_.Size()),
+      resid_(ops_.Size())
 {
-    ops_.Last().Reset(&op, false);
-    smoothers_.Last().Reset(new HypreSmoother(op));
+    ops_[0].Reset(&op, false);
+    smoothers_[0].Reset(new HypreSmoother(op));
 
-    for (int l = ops_.Size()-2; l >= 0; --l)
+    for (int l = 1; l < ops_.Size(); ++l)
     {
-        ops_[l].MakePtAP(ops_[l+1], const_cast<OperatorHandle&>(P_[l]));
+        ops_[l].MakePtAP(ops_[l-1], const_cast<OperatorHandle&>(P_[l-1]));
         smoothers_[l].Reset(new HypreSmoother(*ops_[l].As<HypreParMatrix>()));
-        residual[l].SetSize(ops_[l]->NumRows());
-        correction[l].SetSize(ops_[l]->NumRows());
+        resid_[l].SetSize(ops_[l]->NumRows());
+        correct_[l].SetSize(ops_[l]->NumRows());
     }
 
     coarse_solver_.Reset(coarse_solver.Ptr(), false);
@@ -425,50 +423,37 @@ Multigrid::Multigrid(HypreParMatrix& op,
 
 void Multigrid::Mult(const Vector& x, Vector& y) const
 {
-    residual.Last() = x;
-    correction.Last().SetDataAndSize(y.GetData(), y.Size());
-    MG_Cycle();
+    resid_[0] = x;
+    correct_[0].SetDataAndSize(y.GetData(), y.Size());
+    MG_Cycle(0);
 }
 
-void Multigrid::MG_Cycle() const
+void Multigrid::MG_Cycle(int level) const
 {
     // PreSmoothing
-    auto& operator_l = *ops_[current_level].As<HypreParMatrix>();
-    auto& smoother_l = *smoothers_[current_level].As<HypreSmoother>();
-
-    Vector& residual_l = residual[current_level];
-    Vector& correction_l = correction[current_level];
-
-    smoother_l.Mult(residual_l, correction_l);
-    operator_l.Mult(-1.0, correction_l, 1.0, residual_l);
+    smoothers_[level]->Mult(resid_[level], correct_[level]);
+    ops_[level].As<HypreParMatrix>()->Mult(-1., correct_[level], 1., resid_[level]);
 
     // Coarse grid correction
-    if (current_level > 0)
+    cor_cor_.SetSize(resid_[level].Size());
+    if (level < P_.Size())
     {
-        P_[current_level-1]->MultTranspose(residual_l, residual[current_level-1]);
-
-        current_level--;
-        MG_Cycle();
-        current_level++;
-
-        cor_cor.SetSize(residual_l.Size());
-        P_[current_level-1]->Mult(correction[current_level-1], cor_cor);
-        correction_l += cor_cor;
-        operator_l.Mult(-1.0, cor_cor, 1.0, residual_l);
+        P_[level]->MultTranspose(resid_[level], resid_[level+1]);
+        MG_Cycle(level+1);
+        cor_cor_.SetSize(resid_[level].Size());
+        P_[level]->Mult(correct_[level+1], cor_cor_);
+        correct_[level] += cor_cor_;
+        ops_[level].As<HypreParMatrix>()->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
     }
-    else
+    else if (coarse_solver_.Ptr())
     {
-        cor_cor.SetSize(residual_l.Size());
-        if (coarse_solver_.Ptr())
-        {
-            coarse_solver_->Mult(residual_l, cor_cor);
-            correction_l += cor_cor;
-            operator_l.Mult(-1.0, cor_cor, 1.0, residual_l);
-        }
+        coarse_solver_->Mult(resid_[level], cor_cor_);
+        correct_[level] += cor_cor_;
+        ops_[level].As<HypreParMatrix>()->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
     }
 
     // PostSmoothing
-    smoother_l.Mult(residual_l, cor_cor);
-    correction_l += cor_cor;
+    smoothers_[level]->Mult(resid_[level], cor_cor_);
+    correct_[level] += cor_cor_;
 }
 
