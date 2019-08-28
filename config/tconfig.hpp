@@ -46,8 +46,8 @@
 #define MFEM_ALIGN_AS(bytes)
 #endif
 
-// --- AutoSIMD or X86 intrinsics
-#ifndef MFEM_USE_X86INTRIN
+// --- AutoSIMD or intrinsics
+#ifndef MFEM_USE_SIMD
 #include "simd/auto.hpp"
 #else
 #ifdef __VSX__
@@ -61,7 +61,7 @@
 #endif
 
 // --- SIMD Traits
-#ifndef MFEM_USE_X86INTRIN
+#ifndef MFEM_USE_SIMD
 #define MFEM_SIMD_SIZE 32
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
 #else
@@ -89,9 +89,9 @@ struct AutoImplTraits
 
    typedef AutoSIMD<complex_t,simd_size,valign_size> vcomplex_t;
    typedef AutoSIMD<   real_t,simd_size,valign_size> vreal_t;
-#ifndef MFEM_USE_X86INTRIN
+#ifndef MFEM_USE_SIMD
    typedef AutoSIMD<      int,simd_size,valign_size> vint_t;
-#endif // MFEM_USE_X86INTRIN
+#endif // MFEM_USE_SIMD
 };
 
 #define MFEM_TEMPLATE_ENABLE_SERIALIZE

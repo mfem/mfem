@@ -37,9 +37,9 @@ using namespace std;
 using namespace mfem;
 
 // Define template parameters for optimized build.
-const Geometry::Type geom     = Geometry::SQUARE; // mesh elements  (default: hex)
-const int            mesh_p   = 8;              // mesh curvature (default: 3)
-const int            sol_p    = 8;              // solution order (default: 3)
+const Geometry::Type geom     = Geometry::CUBE; // mesh elements  (default: hex)
+const int            mesh_p   = 3;              // mesh curvature (default: 3)
+const int            sol_p    = 3;              // solution order (default: 3)
 const int            rdim     = Geometry::Constants<geom>::Dimension;
 const int            ir_order = 2*sol_p+rdim-1;
 
@@ -58,16 +58,14 @@ typedef TConstantCoefficient<>                coeff_t;
 typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 
 // Static bilinear form type, combining the above types
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,true> avx_HPCBilinearForm;
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,false> m64_HPCBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "../../data/fichera.mesh";
    int ref_levels = -1;
    int order = sol_p;
-   int max_iter = 2000;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
    const char *pc = "none";
@@ -135,7 +133,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   
+
    // 3. Check if the optimized version matches the given mesh
    if (perf)
    {
@@ -173,16 +171,6 @@ int main(int argc, char *argv[])
    {
       MFEM_VERIFY(pc_choice != LOR, "triangle and tet meshes do not support"
                   " the LOR preconditioner yet");
-   }
-   
-   const int NE = mesh->GetNE();
-   AutoImplTraits<double,double,true> simd_impl;
-   const bool simd = (NE > simd_impl.simd_size);
-   printf("\033[32m[ex1] GetNE()=%d\033[m\n",NE);
-   if (simd){
-     printf("\033[32m[ex1] SIMD!\033[m\n");
-   }else{
-     printf("\033[32m[ex1] SCALAR!\033[m\n");
    }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
@@ -282,8 +270,7 @@ int main(int argc, char *argv[])
    // Pre-allocate sparsity assuming dense element matrices
    a->UsePrecomputedSparsity();
 
-   avx_HPCBilinearForm *a_hpc_simd = NULL;
-   m64_HPCBilinearForm *a_hpc_scalar = NULL;
+   HPCBilinearForm *a_hpc = NULL;
    Operator *a_oper = NULL;
 
    if (!perf)
@@ -295,23 +282,14 @@ int main(int argc, char *argv[])
    else
    {
       // High-performance assembly/evaluation using the templated operator type
-      if (simd)
-        a_hpc_simd = new avx_HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
-      else
-        a_hpc_scalar = new m64_HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+      a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
       if (matrix_free)
       {
-        if (simd)
-         a_hpc_simd->Assemble(); // partial assembly
-        else
-         a_hpc_scalar->Assemble(); // partial assembly
+         a_hpc->Assemble(); // partial assembly
       }
       else
       {
-         if (simd)
-          a_hpc_simd->AssembleBilinearForm(*a); // full matrix assembly
-         else
-          a_hpc_scalar->AssembleBilinearForm(*a); // full matrix assembly
+         a_hpc->AssembleBilinearForm(*a); // full matrix assembly
       }
    }
    tic_toc.Stop();
@@ -325,13 +303,8 @@ int main(int argc, char *argv[])
    Vector B, X;
    if (perf && matrix_free)
    {
-     if (simd){
-       a_hpc_simd->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
-       cout << "Size of linear system: " << a_hpc_simd->Height() << endl;
-     }else{
-       a_hpc_scalar->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
-       cout << "Size of linear system: " << a_hpc_scalar->Height() << endl;
-     }
+      a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+      cout << "Size of linear system: " << a_hpc->Height() << endl;
    }
    else
    {
@@ -363,10 +336,7 @@ int main(int argc, char *argv[])
       else
       {
          a_pc->UsePrecomputedSparsity();
-         if (simd)
-           a_hpc_simd->AssembleBilinearForm(*a_pc);
-         else
-           a_hpc_scalar->AssembleBilinearForm(*a_pc);
+         a_hpc->AssembleBilinearForm(*a_pc);
          a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
       }
    }
@@ -375,8 +345,6 @@ int main(int argc, char *argv[])
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // Solve with CG or PCG, depending if the matrix A_pc is available
-   tic_toc.Clear();
-   tic_toc.Start();
    if (pc_choice != NONE)
    {
       GSSmoother M(A_pc);
@@ -384,37 +352,13 @@ int main(int argc, char *argv[])
    }
    else
    {
-      CGSolver *cg;
-      cg = new CGSolver;
-      cg->SetRelTol(1e-6);
-      cg->SetMaxIter(max_iter);
-      cg->SetPrintLevel(3);
-      cg->SetOperator(*a_oper);
-
-      tic_toc.Clear();
-      tic_toc.Start();
-      cg->Mult(B, X);
-      
-      double my_rt = tic_toc.RealTime();
-      cout << "\nTotal CG time:    " << my_rt << " sec." << endl;
-      cout << "Time per CG step: "
-           << my_rt / cg->GetNumIterations() << " sec." << endl;
-      cout << "\n\"DOFs/sec\" in CG: "
-           << 1e-6*a_oper->Height()*cg->GetNumIterations()/my_rt << " million.\n"
-           << endl;
-      delete cg;
-      //CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
+      CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
    }
-   tic_toc.Stop();
-   cout << "Solve time: " << tic_toc.RealTime() << "s." << endl;
 
    // 13. Recover the solution as a finite element grid function.
    if (perf && matrix_free)
    {
-     if (simd)
-       a_hpc_simd->RecoverFEMSolution(X, *b, x);
-     else
-       a_hpc_scalar->RecoverFEMSolution(X, *b, x);
+      a_hpc->RecoverFEMSolution(X, *b, x);
    }
    else
    {
@@ -442,10 +386,7 @@ int main(int argc, char *argv[])
 
    // 16. Free the used memory.
    delete a;
-   if (simd)
-     delete a_hpc_simd;
-   else
-     delete a_hpc_scalar;
+   delete a_hpc;
    if (a_oper != &A) { delete a_oper; }
    delete a_pc;
    delete b;
