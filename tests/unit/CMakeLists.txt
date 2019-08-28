@@ -27,6 +27,7 @@ set(UNIT_TESTS_SRCS
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
   fem/test_calcshape.cpp
+  fem/test_calcvshape.cpp
   fem/test_datacollection.cpp
   fem/test_fe.cpp
   fem/test_intrules.cpp
