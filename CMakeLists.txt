@@ -50,7 +50,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 3.4.1)
+set(${PROJECT_NAME}_VERSION 4.0.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -86,6 +86,13 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 
 # Enable languages.
 enable_language(CXX)
+if (MFEM_USE_CUDA)
+   # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
+   cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+   enable_language(CUDA)
+   message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
+endif()
+
 if (XSDK_ENABLE_C)
    enable_language(C)
 endif()
@@ -266,6 +273,31 @@ if (MFEM_USE_PUMI)
   endif()
 endif()
 
+# CUDA
+if (MFEM_USE_CUDA)
+   set(CMAKE_CUDA_STANDARD 11)
+   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+   set(CMAKE_CUDA_EXTENSIONS OFF)
+   set(CMAKE_CUDA_FLAGS "-arch=${CUDA_ARCH} --expt-extended-lambda"
+       CACHE STRING "CUDA flags set for MFEM" FORCE)
+   if (MFEM_USE_MPI)
+      set(CUDA_CCBIN_COMPILER ${MPI_CXX_COMPILER})
+   else()
+      set(CUDA_CCBIN_COMPILER ${CMAKE_CXX_COMPILER})
+   endif()
+   string(APPEND CMAKE_CUDA_FLAGS " -ccbin ${CUDA_CCBIN_COMPILER}")
+endif()
+
+# OCCA
+if (MFEM_USE_OCCA)
+   find_package(OCCA REQUIRED)
+endif()
+
+# RAJA
+if (MFEM_USE_RAJA)
+   find_package(RAJA REQUIRED)
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -291,7 +323,7 @@ endif()
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
     MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB)
+    POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -327,6 +359,13 @@ set(MFEM_SOURCE_DIRS general linalg mesh fem)
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
   add_subdirectory(${DIR})
 endforeach()
+
+if (MFEM_USE_CUDA)
+   foreach(file IN LISTS SOURCES)
+      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
+   endforeach()
+endif()
+
 add_subdirectory(config)
 set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
@@ -336,6 +375,11 @@ set(_lib_path "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
 set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
+
+set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
+    "The MFEM source directory" FORCE)
+set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
+    "The MFEM install directory" FORCE)
 
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
@@ -351,11 +395,11 @@ endif()
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
-# If building out-of-source, define MFEM_BUILD_DIR to point to the build
-# directory.
+# If building out-of-source, define MFEM_CONFIG_FILE to point to the config file
+# inside the build directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   target_compile_definitions(mfem PRIVATE
-    "MFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
+    "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
@@ -371,7 +415,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
       "Writing substitute header --> \"${Header}\"")
     file(WRITE "${PROJECT_BINARY_DIR}/${Header}"
 "// Auto-generated file.
-#define MFEM_BUILD_DIR ${PROJECT_BINARY_DIR}
+#define MFEM_CONFIG_FILE \"${PROJECT_BINARY_DIR}/config/_config.hpp\"
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
     # This version will be installed in the top include directory:
@@ -434,12 +478,12 @@ endif()
 # Add 'check' target - quick test
 if (NOT MFEM_USE_MPI)
   add_custom_target(check
-    ${CMAKE_CTEST_COMMAND} -R '^ex1_ser' -C ${CMAKE_CFG_INTDIR}
+    ${CMAKE_CTEST_COMMAND} -R \"^ex1_ser\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
   add_dependencies(check ex1)
 else()
   add_custom_target(check
-    ${CMAKE_CTEST_COMMAND} -R '^ex1p' -C ${CMAKE_CFG_INTDIR}
+    ${CMAKE_CTEST_COMMAND} -R \"^ex1p\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
   add_dependencies(check ex1p)
 endif()
@@ -483,6 +527,13 @@ install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
   FILES_MATCHING PATTERN "*.hpp")
+
+# Install the okl files
+if (MFEM_USE_OCCA)
+  install(DIRECTORY ${MFEM_SOURCE_DIRS}
+    DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
+    FILES_MATCHING PATTERN "*.okl")
+endif()
 
 # Install ${HEADERS}
 # ---
