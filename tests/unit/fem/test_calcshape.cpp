@@ -157,7 +157,10 @@ TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
 
 TEST_CASE("CalcShape for several H1 FiniteElement instances",
           "[H1_SegmentElement]"
+          "[H1_TriangleElement]"
           "[H1_QuadrilateralElement]"
+          "[H1_TetrahedronElement]"
+          "[H1_WedgeElement]"
           "[H1_HexahedronElement]")
 {
    int maxOrder = 5;
