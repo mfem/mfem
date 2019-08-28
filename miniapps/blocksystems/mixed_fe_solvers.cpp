@@ -35,74 +35,12 @@
 using namespace std;
 using namespace mfem;
 
-mfem::SparseMatrix GetSubMatrix(const SparseMatrix& A, const Array<int>& rows,
-                                const Array<int>& cols, mfem::Array<int>& col_marker)
+void SetOptions(IterativeSolver& solver, int print_lvl, int max_it, double atol, double rtol)
 {
-    if (rows.Size() == 0 || cols.Size() == 0)
-    {
-        SparseMatrix out(rows.Size(), cols.Size());
-        out.Finalize();
-        return out;
-    }
-
-    const int* i_A = A.GetI();
-    const int* j_A = A.GetJ();
-    const double* a_A = A.GetData();
-
-    assert(rows.Size() && rows.Max() < A.Height());
-    assert(cols.Size() && cols.Max() < A.Width());
-    assert(col_marker.Size() >= A.Width());
-
-    for (int jcol(0); jcol < cols.Size(); ++jcol)
-        col_marker[cols[jcol]] = jcol;
-
-    const int nrow_sub = rows.Size();
-    const int ncol_sub = cols.Size();
-
-    int* i_sub = new int[nrow_sub + 1];
-    i_sub[0] = 0;
-
-    // Find the number of nnz.
-    int nnz = 0;
-    for (int i = 0; i < nrow_sub; ++i)
-    {
-        const int current_row = rows[i];
-
-        for (int j = i_A[current_row]; j < i_A[current_row + 1]; ++j)
-        {
-            if (col_marker[j_A[j]] >= 0)
-                ++nnz;
-        }
-
-        i_sub[i + 1] = nnz;
-    }
-
-    // Allocate memory
-    int* j_sub = new int[nnz];
-    double* a_sub = new double[nnz];
-
-    // Fill in the matrix
-    int count = 0;
-    for (int i(0); i < nrow_sub; ++i)
-    {
-        const int current_row = rows[i];
-
-        for (int j = i_A[current_row]; j < i_A[current_row + 1]; ++j)
-        {
-            if (col_marker[j_A[j]] >= 0)
-            {
-                j_sub[count] = col_marker[j_A[j]];
-                a_sub[count] = a_A[j];
-                count++;
-            }
-        }
-    }
-
-    // Restore colMapper so it can be reused other times!
-    for (int jcol(0); jcol < cols.Size(); ++jcol)
-        col_marker[cols[jcol]] = -1;
-
-    return SparseMatrix(i_sub, j_sub, a_sub, nrow_sub, ncol_sub);
+    solver.SetPrintLevel(print_lvl);
+    solver.SetMaxIter(max_it);
+    solver.SetAbsTol(atol);
+    solver.SetRelTol(rtol);
 }
 
 SparseMatrix AggToIntDof(const SparseMatrix& agg_elem, const SparseMatrix& elem_dof)
@@ -160,10 +98,6 @@ Vector LocalSolution(const DenseMatrix& M,  const DenseMatrix& B, const Vector& 
     BMinvBT(0, 0) = 1.;
 
     DenseMatrixInverse BMinvBT_solver(BMinvBT);
-
-    //    unique_ptr<SparseMatrix> BT(Transpose(B));
-    //    unique_ptr<SparseMatrix> BMinvBT(Mult(B, *BT));
-    //    UMFPackSolver BMinvBT_solver(*BMinvBT);
 
     double F0 = F[0];
     const_cast<Vector&>(F)[0] = 0;
@@ -248,9 +182,6 @@ Vector div_part(const SparseMatrix& M_fine,
         Array<int> loc_hdivdofs;
         Array<int> loc_l2dofs;
 
-        Array<int> col_marker(B_l->NumCols());
-        col_marker = -1;
-
         sigma[l].SetSize(agg_hdivintdof.NumCols());
         sigma[l] = 0.0;
 
@@ -267,7 +198,6 @@ Vector div_part(const SparseMatrix& M_fine,
 
             sub_B.SetSize(loc_l2dofs.Size(), loc_hdivdofs.Size());
             B_l->GetSubMatrix(loc_l2dofs, loc_hdivdofs, sub_B);
-            //            auto sub_B = GetSubMatrix(*B_l, loc_l2dofs, loc_hdivdofs, col_marker);
 
             F_l.GetSubVector(loc_l2dofs, sub_F);
 
@@ -335,12 +265,9 @@ Vector div_part(const SparseMatrix& M_fine,
         darcyPr.SetDiagonalBlock(1, &invS);
 
         MINRESSolver solver(coarse_l2_d_td.GetComm());
-        solver.SetAbsTol(1.e-12);
-        solver.SetRelTol(1.e-9);
-        solver.SetMaxIter(500);
+        SetOptions(solver, 0, 500, 1e-12, 1e-9);
         solver.SetOperator(coarseMatrix);
         solver.SetPreconditioner(darcyPr);
-        solver.SetPrintLevel(0);
         trueX = 0.0;
         solver.Mult(trueRhs, trueX);
         true_sigma_c = trueX.GetBlock(0);
@@ -378,17 +305,24 @@ BBTSolver::BBTSolver(HypreParMatrix& B, int print_level, int max_iter,
       S_solver_(B.GetComm())
 {
     invS_.SetPrintLevel(0);
-    S_solver_.SetPrintLevel(print_level);
-    S_solver_.SetMaxIter(max_iter);
-    S_solver_.SetAbsTol(abs_tol);
-    S_solver_.SetRelTol(rel_tol);
+    SetOptions(S_solver_, print_level, max_iter, abs_tol, rel_tol);
     S_solver_.SetOperator(*S_.As<HypreParMatrix>());
     S_solver_.SetPreconditioner(invS_);
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &verbose_);
+    verbose_ = (print_level) >= 0 && (verbose_ == 0);
 }
 
 void BBTSolver::Mult(const Vector &x, Vector &y) const
 {
     S_solver_.Mult(x, y);
+
+    if (verbose_)
+    {
+        auto msg = S_solver_.GetConverged() ? "converged in" : "did not converge in";
+        std::cout << "CG " << msg << S_solver_.GetNumIterations() << " iterations "
+                  << "with a residual norm of " << S_solver_.GetFinalNorm() << ".\n";
+    }
 }
 
 MLDivFreeSolver::MLDivFreeSolver(ParFiniteElementSpace& hdiv_fes,
@@ -435,6 +369,8 @@ void MLDivFreeSolver::Mult(const Vector & x, Vector & y) const
     y = div_part(M_fine_, B_fine_, x, agg_el_, el_hdivdofs_, el_l2dofs_,
                  P_hdiv_, P_l2_, *coarse_hdiv_fes_.Dof_TrueDof_Matrix(),
                  *coarse_l2_fes_.Dof_TrueDof_Matrix(), coarse_ess_dofs_);
+
+
 }
 
 void MLDivFreeSolver::SetOperator(const Operator &op)

@@ -34,8 +34,7 @@
 using namespace std;
 using namespace mfem;
 
-mfem::SparseMatrix GetSubMatrix(const SparseMatrix& A, const Array<int>& rows,
-                                const Array<int>& cols, mfem::Array<int>& col_marker);
+void SetOptions(IterativeSolver& solver, int print_lvl, int max_it, double atol, double rtol);
 
 SparseMatrix AggToIntDof(const SparseMatrix& agg_elem, const SparseMatrix& elem_dof);
 
@@ -69,6 +68,7 @@ private:
     OperatorHandle S_;
     HypreBoomerAMG invS_;
     CGSolver S_solver_;
+    int verbose_;
 };
 
 class MLDivFreeSolver : public Solver
