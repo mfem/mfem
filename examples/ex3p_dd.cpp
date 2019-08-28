@@ -418,9 +418,10 @@ int main(int argc, char *argv[])
 
    if (geometricPartition)
      {
-       //int nxyzGlobal[3] = {1, 2, 1};
-       int nxyzGlobal[3] = {2, 1, 2};
        //int nxyzGlobal[3] = {1, 1, 1};
+       //int nxyzGlobal[3] = {1, 2, 1};
+       //int nxyzGlobal[3] = {2, 1, 2};
+       int nxyzGlobal[3] = {2, 8, 2};
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
        
        pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition);
@@ -567,7 +568,8 @@ int main(int argc, char *argv[])
      cout << "Number of finite element unknowns: " << size << endl;
      cout << "Root local number of finite element unknowns: " << fespace->TrueVSize() << endl;
    }
-   
+
+   /*
    if (myid == 0)
    { // Print the interface mesh
      ostringstream mesh_name;
@@ -577,6 +579,7 @@ int main(int argc, char *argv[])
      mesh_ofs.precision(8);
      pmeshInterfaces[0]->Print(mesh_ofs);
    }
+   */
    
    // 6.1. Create interface operator.
 

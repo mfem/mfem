@@ -786,6 +786,8 @@ private:
   //std::vector<std::vector<std::vector<int> > > InterfaceToSurfaceInjectionFullData;
   std::vector<std::vector<std::vector<int> > > InterfaceToSurfaceInjectionGlobalData;
 
+  std::vector<std::vector<std::vector<int> > > GlobalInterfaceToSurfaceInjectionGlobalData;
+
   std::vector<Array<int> > rowTrueOffsetsSD, colTrueOffsetsSD;
 #ifdef DDMCOMPLEX
   std::vector<Array<int> > rowTrueOffsetsComplexSD, colTrueOffsetsComplexSD;
@@ -799,6 +801,8 @@ private:
   std::vector<Array<int> > trueOffsetsSD;
   Array<int> rowSROffsetsSD, colSROffsetsSD;
 
+  std::vector<std::set<int> > allGlobalSubdomainInterfaces;
+  
 #ifdef EQUATE_REDUNDANT_VARS
   std::vector<Array<int> > rowTrueOffsetsIFRR, colTrueOffsetsIFRR;
 #endif
@@ -939,7 +943,7 @@ private:
 
   // Create operator C_{sd0,sd1} R_{sd1}^T. The operator returned here is of size n_{sd0} by n_{sd1}, where n_{sd} is the sum of
   // tdofsBdry[sd].size() and ifespace[interfaceIndex]->GetTrueVSize() and iH1fespace[interfaceIndex]->GetTrueVSize() for all interfaces of subdomain sd.
-  Operator* CreateInterfaceOperator(const int localInterfaceIndex, const int orientation);
+  Operator* CreateInterfaceOperator(const int sd0, const int sd1, const int localInterfaceIndex, const int interfaceIndex, const int orientation);
 
   void CreateSubdomainMatrices(const int subdomain);
 
