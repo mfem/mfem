@@ -10855,7 +10855,8 @@ void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
       {
          shape(i, 0) = 0.0;
          shape(i, 1) = 0.0;
-         shape(i, 2) = tl2_shape[t_dof[i]] * sh1_shape(s_dof[i]);
+         shape(i, 2) = (dof2nk[i]?1.0:-1.0) *
+                       tl2_shape[t_dof[i]] * sh1_shape(s_dof[i]);
       }
    }
 }
