@@ -79,7 +79,7 @@ public:
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
    void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
-
+   using VectorCoefficient::Eval;
 private:
    void Def1D(const Vector & u, Vector & v);
    void Def2D(const Vector & u, Vector & v);

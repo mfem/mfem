@@ -404,18 +404,12 @@ MFEM_USE_PUMI = YES/NO
    models and effectively supports automated adaptive analysis. PUMI enables
    support for parallel unstructured mesh modifications in MFEM.
 
-MFEM_USE_MM = YES/NO
-   Enables support for the MFEM's memory manager (MM), which is required to
-   support devices with different memory spaces. This option is required when
-   CUDA support is enabled, i.e. when MFEM_USE_CUDA=YES.
-
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
    platform and programming model for general computing on graphical processing
-   units (GPUs). This option requires MFEM_USE_MM. The variable CUDA_ARCH is
-   used to specify the CUDA compute capability used during compilation (by
-   default, CUDA_ARCH=sm_60). When enabled, this option uses the CUDA_* build
-   options, see below.
+   units (GPUs). The variable CUDA_ARCH is used to specify the CUDA compute
+   capability used during compilation (by default, CUDA_ARCH=sm_60). When
+   enabled, this option uses the CUDA_* build options, see below.
 
 MFEM_USE_RAJA = YES/NO
    Enable support for the RAJA performance portability layer in MFEM. RAJA
@@ -696,7 +690,6 @@ MFEM_USE_PUMI
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_RAJA
-MFEM_USE_MM
 
 The following options are CMake specific:
 

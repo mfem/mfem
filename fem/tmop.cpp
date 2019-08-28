@@ -956,13 +956,13 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
-   // FIXME: computing the coefficients 'coeff1' and 'coeff0' in physical
-   //        coordinates means that, generally, the gradient and Hessian of the
-   //        TMOP_Integrator will depend on the derivatives of the coefficients.
+   // TODO: computing the coefficients 'coeff1' and 'coeff0' in physical
+   //       coordinates means that, generally, the gradient and Hessian of the
+   //       TMOP_Integrator will depend on the derivatives of the coefficients.
    //
-   //        In some cases the coefficients are independent of any movement of
-   //        the physical coordinates (i.e. changes in 'elfun'), e.g. when the
-   //        coefficient is a ConstantCoefficient or a GridFunctionCoefficient.
+   //       In some cases the coefficients are independent of any movement of
+   //       the physical coordinates (i.e. changes in 'elfun'), e.g. when the
+   //       coefficient is a ConstantCoefficient or a GridFunctionCoefficient.
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {

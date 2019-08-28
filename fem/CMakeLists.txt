@@ -13,9 +13,11 @@ set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
-  bilininteg_ext.cpp
+  bilininteg_diffusion.cpp
+  bilininteg_mass.cpp
   coefficient.cpp
   datacollection.cpp
+  doftrans.cpp
   eltrans.cpp
   estimators.cpp
   fe.cpp
@@ -37,9 +39,9 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
-  bilininteg_ext.hpp
   coefficient.hpp
   datacollection.hpp
+  doftrans.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
