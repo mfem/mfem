@@ -382,6 +382,59 @@ Vector div_part(const SparseMatrix& M_fine,
     return sigma[0];
 }
 
+MLDivFreeSolver::MLDivFreeSolver(ParFiniteElementSpace& hdiv_fes,
+                                 ParFiniteElementSpace& l2_fes,
+                                 int num_refine,
+                                 const Array<int>& ess_bdr)
+    : hdiv_fes_(hdiv_fes),
+      l2_fes_(l2_fes),
+      coarse_hdiv_fes_(hdiv_fes.GetParMesh(), hdiv_fes.FEColl()),
+      coarse_l2_fes_(l2_fes.GetParMesh(), l2_fes.FEColl()),
+      l2_coll_0(0, l2_fes.GetParMesh()->SpaceDimension()),
+      l2_fes_0_(l2_fes.GetParMesh(), &l2_coll_0),
+      agg_el_(num_refine),
+      el_hdivdofs_(num_refine),
+      el_l2dofs_(num_refine),
+      P_hdiv_(num_refine),
+      P_l2_(num_refine),
+      ref_count_(num_refine)
+{
+    coarse_hdiv_fes_.GetEssentialVDofs(ess_bdr, coarse_ess_dofs_);
+    hdiv_fes_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+    l2_fes_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+    l2_fes_0_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+}
+
+void MLDivFreeSolver::Collect()
+{
+    P_hdiv_[--ref_count_] = (const SparseMatrix&)*hdiv_fes_.GetUpdateOperator();
+    P_l2_[ref_count_] = (const SparseMatrix&)*l2_fes_.GetUpdateOperator();
+    auto& elem_agg_l = (const SparseMatrix&)*l2_fes_0_.GetUpdateOperator();
+    OperatorHandle agg_elem_l(Transpose(elem_agg_l));
+    agg_el_[ref_count_].Swap(*agg_elem_l.As<SparseMatrix>());
+
+    P_hdiv_[ref_count_].Threshold(1e-16);
+    P_l2_[ref_count_].Threshold(1e-16);
+
+    el_hdivdofs_[ref_count_] = ElemToDofs(hdiv_fes_);
+    el_l2dofs_[ref_count_] = ElemToDofs(l2_fes_);
+}
+
+void MLDivFreeSolver::Mult(const Vector & x, Vector & y) const
+{
+    MFEM_VERIFY(B_fine_.NumRows() > 0, "MLDivFreeSolver: op is not set!");
+    y = div_part(M_fine_, B_fine_, x, agg_el_, el_hdivdofs_, el_l2dofs_,
+                 P_hdiv_, P_l2_, *coarse_hdiv_fes_.Dof_TrueDof_Matrix(),
+                 *coarse_l2_fes_.Dof_TrueDof_Matrix(), coarse_ess_dofs_);
+}
+
+void MLDivFreeSolver::SetOperator(const Operator &op)
+{
+    const SparseMatrix* mat = dynamic_cast<const SparseMatrix*>(&op);
+    MFEM_VERIFY(mat, "MLDivFreeSolver: op needs to be a SparseMatrix");
+    B_fine_.MakeRef(*mat);
+}
+
 InterpolationCollector::InterpolationCollector(ParFiniteElementSpace& fes,
                                                int num_refine)
     : fes_(fes), coarse_fes_(fes.GetParMesh(), fes.FEColl()), ref_count_(num_refine)
@@ -404,6 +457,7 @@ Multigrid::Multigrid(HypreParMatrix& op,
       P_(P),
       ops_(P.Size()+1),
       smoothers_(ops_.Size()),
+      coarse_solver_(coarse_solver.Ptr(), false),
       correct_(ops_.Size()),
       resid_(ops_.Size())
 {
@@ -417,8 +471,6 @@ Multigrid::Multigrid(HypreParMatrix& op,
         resid_[l].SetSize(ops_[l]->NumRows());
         correct_[l].SetSize(ops_[l]->NumRows());
     }
-
-    coarse_solver_.Reset(coarse_solver.Ptr(), false);
 }
 
 void Multigrid::Mult(const Vector& x, Vector& y) const
@@ -430,9 +482,11 @@ void Multigrid::Mult(const Vector& x, Vector& y) const
 
 void Multigrid::MG_Cycle(int level) const
 {
+    const HypreParMatrix* op_l = ops_[level].As<HypreParMatrix>();
+
     // PreSmoothing
     smoothers_[level]->Mult(resid_[level], correct_[level]);
-    ops_[level].As<HypreParMatrix>()->Mult(-1., correct_[level], 1., resid_[level]);
+    op_l->Mult(-1., correct_[level], 1., resid_[level]);
 
     // Coarse grid correction
     cor_cor_.SetSize(resid_[level].Size());
@@ -443,13 +497,13 @@ void Multigrid::MG_Cycle(int level) const
         cor_cor_.SetSize(resid_[level].Size());
         P_[level]->Mult(correct_[level+1], cor_cor_);
         correct_[level] += cor_cor_;
-        ops_[level].As<HypreParMatrix>()->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
+        op_l->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
     }
     else if (coarse_solver_.Ptr())
     {
         coarse_solver_->Mult(resid_[level], cor_cor_);
         correct_[level] += cor_cor_;
-        ops_[level].As<HypreParMatrix>()->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
+        op_l->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
     }
 
     // PostSmoothing

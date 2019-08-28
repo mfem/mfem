@@ -55,6 +55,39 @@ Vector div_part(const SparseMatrix& M_fine,
                 const HypreParMatrix& coarse_l2_d_td,
                 const Array<int>& coarsest_ess_dofs);
 
+class MLDivFreeSolver : public Solver
+{
+public:
+    MLDivFreeSolver(ParFiniteElementSpace& hdiv_fes,
+                    ParFiniteElementSpace& l2_fes,
+                    int num_refine, const Array<int>& ess_bdr);
+
+    void Collect();
+
+    virtual void Mult(const Vector & x, Vector & y) const;
+
+    virtual void SetOperator(const Operator &op);
+private:
+    ParFiniteElementSpace& hdiv_fes_;
+    ParFiniteElementSpace& l2_fes_;
+    ParFiniteElementSpace coarse_hdiv_fes_;
+    ParFiniteElementSpace coarse_l2_fes_;
+
+    L2_FECollection l2_coll_0;
+    ParFiniteElementSpace l2_fes_0_;
+
+    SparseMatrix M_fine_;
+    SparseMatrix B_fine_;
+    vector<SparseMatrix> agg_el_;
+    vector<SparseMatrix> el_hdivdofs_;
+    vector<SparseMatrix> el_l2dofs_;
+    vector<SparseMatrix> P_hdiv_;
+    vector<SparseMatrix> P_l2_;
+    Array<int> coarse_ess_dofs_;
+
+    int ref_count_;
+};
+
 class InterpolationCollector
 {
 public:
@@ -87,12 +120,10 @@ private:
 
     Array<OperatorHandle> ops_;
     Array<OperatorHandle> smoothers_;
+    OperatorHandle coarse_solver_;
 
     mutable Array<Vector> correct_;
     mutable Array<Vector> resid_;
-
     mutable Vector cor_cor_;
-
-    OperatorHandle coarse_solver_;
 };
 
