@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
         DiscreteCurl->Finalize();
     }
 
-    int maxIter(500);
+    int max_iter(500);
     double rtol(1.e-9);
     double atol(1.e-12);
 
@@ -302,15 +302,7 @@ int main(int argc, char *argv[])
             BT->Mult(trueX.GetBlock(1), sol_particular);
             chrono_local.Stop();
 
-//            if (verbose)
-//            {
-//                if (solver_particular.GetConverged())
-//                    cout << "CG converged in " << solver_particular.GetNumIterations()
-//                         << " iterations with a residual norm of " << solver_particular.GetFinalNorm() << ".\n";
-//                else
-//                    cout << "CG did not converge in " << solver_particular.GetNumIterations()
-//                         << " iterations. Residual norm is " << solver_particular.GetFinalNorm() << ".\n";
-//            }
+
         }
         if (verbose) cout << "Particular solution found in " << chrono_local.RealTime() << "s. \n";
 
@@ -337,12 +329,9 @@ int main(int argc, char *argv[])
 
         // Solve the divergence free solution
         CGSolver solver(M->GetComm());
-        solver.SetAbsTol(atol);
-        solver.SetRelTol(rtol);
-        solver.SetMaxIter(maxIter);
+        SetOptions(solver, 1, max_iter, atol, rtol);
         solver.SetOperator(*darcyOp);
         solver.SetPreconditioner(*darcyPr);
-        solver.SetPrintLevel(1);
 
         Vector sol_potential(darcyOp->Width());
         sol_potential = 0.0;
@@ -379,15 +368,8 @@ int main(int argc, char *argv[])
 
         chrono_local.Stop();
         if (verbose)
-        {
-//            if (solver_particular.GetConverged())
-//                cout << "CG converged in " << solver_particular.GetNumIterations()
-//                     << " iterations with a residual norm of " << solver_particular.GetFinalNorm() << ".\n";
-//            else
-//                cout << "CG did not converge in " << solver_particular.GetNumIterations()
-//                     << " iterations. Residual norm is " << solver_particular.GetFinalNorm() << ".\n";
             cout << "Pressure solution found in " << chrono_local.RealTime() << "s. \n";
-        }
+
         chrono.Stop();
         if (verbose)
             cout << "Divergence free solver overall took " << chrono.RealTime() << "s. \n";
@@ -432,12 +414,9 @@ int main(int argc, char *argv[])
         //     Check the norm of the unpreconditioned residual.
 
         MINRESSolver solver(MPI_COMM_WORLD);
-        solver.SetAbsTol(atol);
-        solver.SetRelTol(rtol);
-        solver.SetMaxIter(maxIter);
+        SetOptions(solver, 1, max_iter, atol, rtol);
         solver.SetOperator(*darcyOp);
         solver.SetPreconditioner(*darcyPr);
-        solver.SetPrintLevel(0);
         trueX = 0.0;
         solver.Mult(trueRhs, trueX);
         chrono.Stop();
