@@ -35,12 +35,28 @@
 using namespace std;
 using namespace mfem;
 
-void SetOptions(IterativeSolver& solver, int print_lvl, int max_it, double atol, double rtol)
+void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
+                double atol, double rtol, bool iter_mode)
 {
     solver.SetPrintLevel(print_lvl);
     solver.SetMaxIter(max_it);
     solver.SetAbsTol(atol);
     solver.SetRelTol(rtol);
+    solver.iterative_mode = iter_mode;
+}
+
+void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
+{
+    SetOptions(solver, param.print_level, param.max_iter, param.abs_tol,
+               param.rel_tol, param.iter_mode);
+}
+
+void PrintConvergence(const IterativeSolver& solver, bool verbose)
+{
+    if (!verbose) return;
+    auto msg = solver.GetConverged() ? "converged in " : "did not converge in ";
+    std::cout << "CG " << msg << solver.GetNumIterations() << " iterations. "
+              << "Final residual norm is " << solver.GetFinalNorm() << ".\n";
 }
 
 SparseMatrix AggToIntDof(const SparseMatrix& agg_elem, const SparseMatrix& elem_dof)
@@ -131,17 +147,17 @@ SparseMatrix ElemToDofs(const FiniteElementSpace& fes)
     return SparseMatrix(I, J, data, fes.GetNE(), fes.GetVSize());
 }
 
-Vector div_part(const SparseMatrix& M_fine,
-                const SparseMatrix& B_fine,
-                const Vector& F_fine,
-                const vector<SparseMatrix>& agg_elem,
-                const vector<SparseMatrix>& elem_hdivdofs,
-                const vector<SparseMatrix>& elem_l2dofs,
-                const vector<SparseMatrix>& P_hdiv,
-                const vector<SparseMatrix>& P_l2,
-                const HypreParMatrix& coarse_hdiv_d_td,
-                const HypreParMatrix& coarse_l2_d_td,
-                const Array<int> &coarsest_ess_dofs)
+Vector MLDivPart(const SparseMatrix& M_fine,
+                 const SparseMatrix& B_fine,
+                 const Vector& F_fine,
+                 const vector<SparseMatrix>& agg_elem,
+                 const vector<SparseMatrix>& elem_hdivdofs,
+                 const vector<SparseMatrix>& elem_l2dofs,
+                 const vector<SparseMatrix>& P_hdiv,
+                 const vector<SparseMatrix>& P_l2,
+                 const HypreParMatrix& coarse_hdiv_d_td,
+                 const HypreParMatrix& coarse_l2_d_td,
+                 const Array<int> &coarsest_ess_dofs)
 {
     const unsigned int num_levels = elem_hdivdofs.size() + 1;
 
@@ -296,8 +312,7 @@ Vector div_part(const SparseMatrix& M_fine,
     return sigma[0];
 }
 
-BBTSolver::BBTSolver(HypreParMatrix& B, int print_level, int max_iter,
-                     double abs_tol, double rel_tol)
+BBTSolver::BBTSolver(HypreParMatrix& B, IterSolveParameters param)
     : Solver(B.NumRows()),
       BT_(B.Transpose()),
       S_(ParMult(&B, BT_.As<HypreParMatrix>())),
@@ -305,30 +320,24 @@ BBTSolver::BBTSolver(HypreParMatrix& B, int print_level, int max_iter,
       S_solver_(B.GetComm())
 {
     invS_.SetPrintLevel(0);
-    SetOptions(S_solver_, print_level, max_iter, abs_tol, rel_tol);
+    SetOptions(S_solver_, param);
     S_solver_.SetOperator(*S_.As<HypreParMatrix>());
     S_solver_.SetPreconditioner(invS_);
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &verbose_);
-    verbose_ = (print_level) >= 0 && (verbose_ == 0);
+    MPI_Comm_rank(B.GetComm(), &verbose_);
+    verbose_ = (param.print_level) >= 0 && (verbose_ == 0);
 }
 
 void BBTSolver::Mult(const Vector &x, Vector &y) const
 {
     S_solver_.Mult(x, y);
-
-    if (verbose_)
-    {
-        auto msg = S_solver_.GetConverged() ? "converged in" : "did not converge in";
-        std::cout << "CG " << msg << S_solver_.GetNumIterations() << " iterations "
-                  << "with a residual norm of " << S_solver_.GetFinalNorm() << ".\n";
-    }
+    PrintConvergence(S_solver_, verbose_);
 }
 
-MLDivFreeSolver::MLDivFreeSolver(ParFiniteElementSpace& hdiv_fes,
-                                 ParFiniteElementSpace& l2_fes,
-                                 int num_refine,
-                                 const Array<int>& ess_bdr)
+DivL2Hierarchy::DivL2Hierarchy(ParFiniteElementSpace& hdiv_fes,
+                               ParFiniteElementSpace& l2_fes,
+                               int num_refine,
+                               const Array<int>& ess_bdr)
     : hdiv_fes_(hdiv_fes),
       l2_fes_(l2_fes),
       coarse_hdiv_fes_(hdiv_fes.GetParMesh(), hdiv_fes.FEColl()),
@@ -343,12 +352,12 @@ MLDivFreeSolver::MLDivFreeSolver(ParFiniteElementSpace& hdiv_fes,
       ref_count_(num_refine)
 {
     coarse_hdiv_fes_.GetEssentialVDofs(ess_bdr, coarse_ess_dofs_);
-    hdiv_fes_.SetUpdateOperatorType(MFEM_SPARSEMAT);
-    l2_fes_.SetUpdateOperatorType(MFEM_SPARSEMAT);
-    l2_fes_0_.SetUpdateOperatorType(MFEM_SPARSEMAT);
+    hdiv_fes_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+    l2_fes_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+    l2_fes_0_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
 }
 
-void MLDivFreeSolver::Collect()
+void DivL2Hierarchy::Collect()
 {
     P_hdiv_[--ref_count_] = (const SparseMatrix&)*hdiv_fes_.GetUpdateOperator();
     P_l2_[ref_count_] = (const SparseMatrix&)*l2_fes_.GetUpdateOperator();
@@ -363,14 +372,126 @@ void MLDivFreeSolver::Collect()
     el_l2dofs_[ref_count_] = ElemToDofs(l2_fes_);
 }
 
+MLDivFreeSolver::MLDivFreeSolver(DivL2Hierarchy& hierarchy, HypreParMatrix& M,
+                                 HypreParMatrix& B, HypreParMatrix& BT, HypreParMatrix& C,
+                                 MLDivFreeSolveParameters param)
+    : h_(hierarchy), M_(M), B_(B), BT_(BT), C_(C), CT_(C.Transpose()),
+      BBT_solver_(B, param.BBT_solve_param), CTMC_solver_(C.GetComm()),
+      param_(param), offsets_(3)
+{
+        offsets_[0] = 0;
+        offsets_[1] = h_.hdiv_fes_.TrueVSize();
+        offsets_[2] = offsets_[1] + h_.l2_fes_.TrueVSize();
+
+        unique_ptr<HypreParMatrix> MC(ParMult(&M_, &C));
+        CTMC_.Reset(ParMult(CT_.As<HypreParMatrix>(), MC.get()));
+        CTMC_solver_.SetOperator(*CTMC_);
+        SetOptions(CTMC_solver_, param.CTMC_solve_param);
+}
+
+void MLDivFreeSolver::SetupMG(const InterpolationCollector& P)
+{
+    CTMC_prec_.Reset(new Multigrid(*CTMC_.As<HypreParMatrix>(), P.GetP()));
+    CTMC_solver_.SetPreconditioner(*CTMC_prec_.As<Solver>());
+}
+
+void MLDivFreeSolver::SetupAMS(ParFiniteElementSpace& hcurl_fes)
+{
+    CTMC_prec_.Reset(new HypreAMS(*CTMC_.As<HypreParMatrix>(), &hcurl_fes));
+    CTMC_prec_.As<HypreAMS>()->SetSingularProblem();
+    CTMC_solver_.SetPreconditioner(*CTMC_prec_.As<Solver>());
+}
+
+void MLDivFreeSolver::SolveParticularSolution(const Vector& blk_rhs_1,
+                                              Vector& true_flux_part) const
+{
+    if (param_.ml_part)
+    {
+        MFEM_VERIFY(B_fine_.NumRows() > 0, "MLDivFreeSolver: op is not set!");
+        Vector sigma_part = MLDivPart(M_fine_, B_fine_, blk_rhs_1,
+                                      h_.agg_el_, h_.el_hdivdofs_, h_.el_l2dofs_,
+                                      h_.P_hdiv_, h_.P_l2_,
+                                      *h_.coarse_hdiv_fes_.Dof_TrueDof_Matrix(),
+                                      *h_.coarse_l2_fes_.Dof_TrueDof_Matrix(),
+                                      h_.coarse_ess_dofs_);
+
+        SparseMatrix true_hdiv_dof_restrict;
+        h_.hdiv_fes_.Dof_TrueDof_Matrix()->GetDiag(true_hdiv_dof_restrict);
+        true_hdiv_dof_restrict.MultTranspose(sigma_part, true_flux_part);
+    }
+    else
+    {
+        Vector potential(blk_rhs_1.Size());
+        BBT_solver_.Mult(blk_rhs_1, potential);
+        BT_.Mult(potential, true_flux_part);
+    }
+}
+
+void MLDivFreeSolver::SolveDivFreeSolution(const Vector& true_flux_part,
+                                           Vector& blk_rhs_0,
+                                           Vector& true_flux_divfree) const
+{
+    // Compute the right hand side for the divergence free solver problem
+    Vector rhs_divfree(CTMC_->NumRows());
+    M_.Mult(-1.0, true_flux_part, 1.0, blk_rhs_0);
+    CT_->Mult(blk_rhs_0, rhs_divfree);
+
+    // Solve the "potential" of divergence free solution
+    Vector potential_divfree(CTMC_->NumRows());
+    CTMC_solver_.Mult(rhs_divfree, potential_divfree);
+    PrintConvergence(CTMC_solver_, param_.verbose);
+
+    // Compute divergence free solution
+    C_.Mult(potential_divfree, true_flux_divfree);
+}
+
+void MLDivFreeSolver::SolvePotential(const Vector& true_flux_divfree,
+                                     Vector& blk_rhs_0,
+                                     Vector& potential) const
+{
+    Vector rhs_p(B_.NumRows());
+    M_.Mult(-1.0, true_flux_divfree, 1.0, blk_rhs_0);
+    B_.Mult(blk_rhs_0, rhs_p);
+    BBT_solver_.Mult(rhs_p, potential);
+}
+
 void MLDivFreeSolver::Mult(const Vector & x, Vector & y) const
 {
-    MFEM_VERIFY(B_fine_.NumRows() > 0, "MLDivFreeSolver: op is not set!");
-    y = div_part(M_fine_, B_fine_, x, agg_el_, el_hdivdofs_, el_l2dofs_,
-                 P_hdiv_, P_l2_, *coarse_hdiv_fes_.Dof_TrueDof_Matrix(),
-                 *coarse_l2_fes_.Dof_TrueDof_Matrix(), coarse_ess_dofs_);
+    MFEM_VERIFY(x.Size() == offsets_[2], "MLDivFreeSolver: x size mismatch");
+    MFEM_VERIFY(y.Size() == offsets_[2], "MLDivFreeSolver: y size mismatch");
 
+    StopWatch chrono;
+    chrono.Clear();
+    chrono.Start();
 
+    BlockVector blk_x(BlockVector(x.GetData(), offsets_));
+    BlockVector blk_y(y.GetData(), offsets_);
+
+    Vector& true_flux_part = blk_y.GetBlock(0);
+    SolveParticularSolution(blk_x.GetBlock(1), true_flux_part);
+
+    if (param_.verbose)
+        cout << "Particular solution found in " << chrono.RealTime() << "s.\n";
+
+    chrono.Clear();
+    chrono.Start();
+
+    Vector true_flux_divfree(C_.NumRows());
+    SolveDivFreeSolution(true_flux_part, blk_x.GetBlock(0), true_flux_divfree);
+
+    if (param_.verbose)
+        cout << "Divergence free solution found in " << chrono.RealTime() << "s.\n";
+
+    blk_y.GetBlock(0) += true_flux_divfree;
+
+    // Compute the right hand side for the pressure problem BB^T p = rhs_p
+    chrono.Clear();
+    chrono.Start();
+
+    SolvePotential(true_flux_divfree, blk_x.GetBlock(0), blk_y.GetBlock(1));
+
+    if (param_.verbose)
+        cout << "Pressure solution found in " << chrono.RealTime() << "s.\n";
 }
 
 void MLDivFreeSolver::SetOperator(const Operator &op)

@@ -126,14 +126,14 @@ int main(int argc, char *argv[])
 
     // Constructing multigrid hierarchy while refining the mesh (if GMG is true)
     InterpolationCollector* P_N;
-    MLDivFreeSolver* ml_df_solver;
+    DivL2Hierarchy* hdiv_l2_hierarchy;
 
     chrono.Clear();
     chrono.Start();
 
     if (divfree && ML_particular)
     {
-        ml_df_solver = new MLDivFreeSolver(*R_space, *W_space, par_ref_levels, ess_bdr);
+        hdiv_l2_hierarchy = new DivL2Hierarchy(*R_space, *W_space, par_ref_levels, ess_bdr);
     }
 
     if (divfree)
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
 
         if (divfree && ML_particular)
         {
-            ml_df_solver->Collect();
+            hdiv_l2_hierarchy->Collect();
         }
 
         if (divfree)
@@ -270,119 +270,29 @@ int main(int argc, char *argv[])
     double rtol(1.e-9);
     double atol(1.e-12);
 
-    Operator *darcyOp;
+    chrono.Clear();
+    chrono.Start();
+
+    BlockOperator darcyOp(block_trueOffsets);
     Solver *darcyPr;
+
     if (divfree)
     {
-        chrono.Clear();
-        chrono.Start();
-
-        StopWatch chrono_local;
-        chrono_local.Clear();
-        chrono_local.Start();
-
-        BBTSolver BBT_solver(*B);
-
-        // Find a particular solution for div sigma = f
-        Vector sol_particular(BT->GetNumRows());
-        if (ML_particular)
-        {
-            Vector sol_part;
-            ml_df_solver->SetOperator(bVarf->SpMat());
-            ml_df_solver->Mult(*gform, sol_part);
-
-            SparseMatrix true_Rdof_restrict;
-            R_space->Dof_TrueDof_Matrix()->GetDiag(true_Rdof_restrict);
-            true_Rdof_restrict.MultTranspose(sol_part, sol_particular);
-        }
-        else
-        {
-            trueX.GetBlock(1) = 0.0;
-            BBT_solver.Mult(trueRhs.GetBlock(1), trueX.GetBlock(1));
-            BT->Mult(trueX.GetBlock(1), sol_particular);
-            chrono_local.Stop();
-
-
-        }
-        if (verbose) cout << "Particular solution found in " << chrono_local.RealTime() << "s. \n";
-
-        chrono_local.Clear();
-        chrono_local.Start();
         unique_ptr<HypreParMatrix> C(DiscreteCurl->ParallelAssemble());
-        unique_ptr<HypreParMatrix> MC(ParMult(M, C.get()));
-        unique_ptr<HypreParMatrix> CT(C->Transpose());
-        darcyOp = ParMult(CT.get(), MC.get());
-        if (GMG)
-        {
-            darcyPr = new Multigrid(((HypreParMatrix&)*darcyOp), P_N->GetP());
-        }
-        else
-        {
-            darcyPr = new HypreAMS(((HypreParMatrix&)*darcyOp), N_space);
-            ((HypreAMS*)darcyPr)->SetSingularProblem();
-        }
 
-        // Compute the right hand side for the divergence free solver problem
-        Vector rhs_divfree(MC->GetNumCols());
-        M->Mult(-1.0, sol_particular, 1.0, trueRhs.GetBlock(0));
-        CT->Mult(trueRhs.GetBlock(0), rhs_divfree);
+        MLDivFreeSolveParameters param;
+//        param.verbose = verbose;
+        MLDivFreeSolver ml_df_solver(*hdiv_l2_hierarchy, *M, *B, *BT, *C, param);
+        if (GMG) ml_df_solver.SetupMG(*P_N); else ml_df_solver.SetupAMS(*N_space);
 
-        // Solve the divergence free solution
-        CGSolver solver(M->GetComm());
-        SetOptions(solver, 1, max_iter, atol, rtol);
-        solver.SetOperator(*darcyOp);
-        solver.SetPreconditioner(*darcyPr);
-
-        Vector sol_potential(darcyOp->Width());
-        sol_potential = 0.0;
-        solver.Mult(rhs_divfree, sol_potential);
-
-        Vector sol_divfree(C->GetNumRows());
-        C->Mult(sol_potential, sol_divfree);
-
-        // Combining the particular solution and the divergence free solution
-        trueX.GetBlock(0) = sol_particular;
-        trueX.GetBlock(0) += sol_divfree;
-
-        chrono_local.Stop();
-        if (verbose)
-        {
-            if (solver.GetConverged())
-                cout << "CG converged in " << solver.GetNumIterations()
-                     << " iterations with a residual norm of " << solver.GetFinalNorm() << ".\n";
-            else
-                cout << "CG did not converge in " << solver.GetNumIterations()
-                     << " iterations. Residual norm is " << solver.GetFinalNorm() << ".\n";
-            cout << "Divergence free solution found in " << chrono_local.RealTime() << "s. \n";
-        }
-
-        // Compute the right hand side for the pressure problem BB^T p = rhs_p
-        chrono_local.Clear();
-        chrono_local.Start();
-
-        M->Mult(-1.0, sol_divfree, 1.0, trueRhs.GetBlock(0));
-        Vector rhs_p(B->GetNumRows());
-        B->Mult(trueRhs.GetBlock(0), rhs_p);
-        trueX.GetBlock(1) = 0.0;
-        BBT_solver.Mult(rhs_p, trueX.GetBlock(1));
-
-        chrono_local.Stop();
-        if (verbose)
-            cout << "Pressure solution found in " << chrono_local.RealTime() << "s. \n";
-
-        chrono.Stop();
-        if (verbose)
-            cout << "Divergence free solver overall took " << chrono.RealTime() << "s. \n";
+        ml_df_solver.SetOperator(bVarf->SpMat());
+        ml_df_solver.Mult(trueRhs, trueX);
     }
     else
     {
-        chrono.Clear();
-        chrono.Start();
-
-        darcyOp = new BlockOperator(block_trueOffsets);
-        ((BlockOperator*)darcyOp)->SetBlock(0,0, M);
-        ((BlockOperator*)darcyOp)->SetBlock(0,1, BT);
-        ((BlockOperator*)darcyOp)->SetBlock(1,0, B);
+        darcyOp.SetBlock(0,0, M);
+        darcyOp.SetBlock(0,1, BT);
+        darcyOp.SetBlock(1,0, B);
 
         // 11. Construct the operators for preconditioner
         //
@@ -405,37 +315,30 @@ int main(int argc, char *argv[])
         invM->iterative_mode = false;
         invS->iterative_mode = false;
 
-        darcyPr = new BlockDiagonalPreconditioner(
-                    block_trueOffsets);
-        ((BlockDiagonalPreconditioner*)darcyPr)->SetDiagonalBlock(0, invM);
-        ((BlockDiagonalPreconditioner*)darcyPr)->SetDiagonalBlock(1, invS);
+        BlockDiagonalPreconditioner darcyPr(block_trueOffsets);
+        darcyPr.SetDiagonalBlock(0, invM);
+        darcyPr.SetDiagonalBlock(1, invS);
 
         // 12. Solve the linear system with MINRES.
         //     Check the norm of the unpreconditioned residual.
 
         MINRESSolver solver(MPI_COMM_WORLD);
-        SetOptions(solver, 1, max_iter, atol, rtol);
-        solver.SetOperator(*darcyOp);
-        solver.SetPreconditioner(*darcyPr);
+        SetOptions(solver, 0, max_iter, atol, rtol, false);
+        solver.SetOperator(darcyOp);
+        solver.SetPreconditioner(darcyPr);
         trueX = 0.0;
         solver.Mult(trueRhs, trueX);
         chrono.Stop();
 
-        if (verbose)
-        {
-            if (solver.GetConverged())
-                std::cout << "MINRES converged in " << solver.GetNumIterations()
-                          << " iterations with a residual norm of " << solver.GetFinalNorm() << ".\n";
-            else
-                std::cout << "MINRES did not converge in " << solver.GetNumIterations()
-                          << " iterations. Residual norm is " << solver.GetFinalNorm() << ".\n";
-            std::cout << "MINRES solver took " << chrono.RealTime() << "s. \n";
-        }
+        PrintConvergence(solver, verbose);
+
         delete invM;
         delete invS;
         delete S;
         delete MinvBt;
     }
+    string solver_name = divfree ? "Divergence free" : "Block-diagonal-preconditioned MINRES";
+    if (verbose) cout << solver_name << " solver took " << chrono.RealTime() << "s.\n";
 
     // 13. Extract the parallel grid function corresponding to the finite element
     //     approximation X. This is the local solution on each processor. Compute
@@ -517,8 +420,6 @@ int main(int argc, char *argv[])
     delete gform;
     delete u;
     delete p;
-    delete darcyOp;
-    delete darcyPr;
     delete BT;
     delete B;
     delete M;

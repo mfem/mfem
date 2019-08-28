@@ -34,7 +34,29 @@
 using namespace std;
 using namespace mfem;
 
-void SetOptions(IterativeSolver& solver, int print_lvl, int max_it, double atol, double rtol);
+struct IterSolveParameters
+{
+    int print_level = 0;
+    int max_iter = 500;
+    double abs_tol = 1e-12;
+    double rel_tol = 1e-9;
+    bool iter_mode = false;
+};
+
+struct MLDivFreeSolveParameters
+{
+    bool ml_part = true;
+    bool verbose = false;
+    IterSolveParameters CTMC_solve_param;
+    IterSolveParameters BBT_solve_param;
+};
+
+void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
+                double atol, double rtol, bool iter_mode=false);
+
+void SetOptions(IterativeSolver& solver, const IterSolveParameters& param);
+
+void PrintConvergence(const IterativeSolver& solver, bool verbose);
 
 SparseMatrix AggToIntDof(const SparseMatrix& agg_elem, const SparseMatrix& elem_dof);
 
@@ -42,23 +64,22 @@ Vector LocalSolution(const DenseMatrix& M,  const DenseMatrix& B, const Vector& 
 
 SparseMatrix ElemToDofs(const FiniteElementSpace& fes);
 
-Vector div_part(const SparseMatrix& M_fine,
-                const SparseMatrix& B_fine,
-                const Vector& F_fine,
-                const vector<SparseMatrix>& agg_elem,
-                const vector<SparseMatrix>& elem_hdivdofs,
-                const vector<SparseMatrix>& elem_l2dofs,
-                const vector<SparseMatrix>& P_hdiv,
-                const vector<SparseMatrix>& P_l2,
-                const HypreParMatrix& coarse_hdiv_d_td,
-                const HypreParMatrix& coarse_l2_d_td,
-                const Array<int>& coarsest_ess_dofs);
+Vector MLDivPart(const SparseMatrix& M_fine,
+                 const SparseMatrix& B_fine,
+                 const Vector& F_fine,
+                 const vector<SparseMatrix>& agg_elem,
+                 const vector<SparseMatrix>& elem_hdivdofs,
+                 const vector<SparseMatrix>& elem_l2dofs,
+                 const vector<SparseMatrix>& P_hdiv,
+                 const vector<SparseMatrix>& P_l2,
+                 const HypreParMatrix& coarse_hdiv_d_td,
+                 const HypreParMatrix& coarse_l2_d_td,
+                 const Array<int>& coarsest_ess_dofs);
 
 class BBTSolver : public Solver
 {
 public:
-    BBTSolver(HypreParMatrix& B, int print_level=0, int max_iter=500,
-              double abs_tol=1e-12, double rel_tol=1e-9);
+    BBTSolver(HypreParMatrix& B, IterSolveParameters param = IterSolveParameters());
 
     virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -69,39 +90,6 @@ private:
     HypreBoomerAMG invS_;
     CGSolver S_solver_;
     int verbose_;
-};
-
-class MLDivFreeSolver : public Solver
-{
-public:
-    MLDivFreeSolver(ParFiniteElementSpace& hdiv_fes,
-                    ParFiniteElementSpace& l2_fes,
-                    int num_refine, const Array<int>& ess_bdr);
-
-    void Collect();
-
-    virtual void Mult(const Vector & x, Vector & y) const;
-
-    virtual void SetOperator(const Operator &op);
-private:
-    ParFiniteElementSpace& hdiv_fes_;
-    ParFiniteElementSpace& l2_fes_;
-    ParFiniteElementSpace coarse_hdiv_fes_;
-    ParFiniteElementSpace coarse_l2_fes_;
-
-    L2_FECollection l2_coll_0;
-    ParFiniteElementSpace l2_fes_0_;
-
-    SparseMatrix M_fine_;
-    SparseMatrix B_fine_;
-    vector<SparseMatrix> agg_el_;
-    vector<SparseMatrix> el_hdivdofs_;
-    vector<SparseMatrix> el_l2dofs_;
-    vector<SparseMatrix> P_hdiv_;
-    vector<SparseMatrix> P_l2_;
-    Array<int> coarse_ess_dofs_;
-
-    int ref_count_;
 };
 
 class InterpolationCollector
@@ -118,6 +106,78 @@ private:
     ParFiniteElementSpace& fes_;
     ParFiniteElementSpace coarse_fes_;
     int ref_count_;
+};
+
+struct DivL2Hierarchy
+{
+    friend class MLDivFreeSolver;
+
+    DivL2Hierarchy(ParFiniteElementSpace& hdiv_fes,
+                   ParFiniteElementSpace& l2_fes,
+                   int num_refine, const Array<int>& ess_bdr);
+
+    void Collect();
+private:
+    ParFiniteElementSpace& hdiv_fes_;
+    ParFiniteElementSpace& l2_fes_;
+    ParFiniteElementSpace coarse_hdiv_fes_;
+    ParFiniteElementSpace coarse_l2_fes_;
+
+    L2_FECollection l2_coll_0;
+    ParFiniteElementSpace l2_fes_0_;
+
+    vector<SparseMatrix> agg_el_;
+    vector<SparseMatrix> el_hdivdofs_;
+    vector<SparseMatrix> el_l2dofs_;
+    vector<SparseMatrix> P_hdiv_;
+    vector<SparseMatrix> P_l2_;
+    Array<int> coarse_ess_dofs_;
+
+    int ref_count_;
+};
+
+class MLDivFreeSolver : public Solver
+{
+public:
+    MLDivFreeSolver(DivL2Hierarchy& hierarchy, HypreParMatrix& M,
+                    HypreParMatrix& B, HypreParMatrix& BT, HypreParMatrix& C,
+                    MLDivFreeSolveParameters param = MLDivFreeSolveParameters());
+
+    virtual void Mult(const Vector & x, Vector & y) const;
+
+    virtual void SetOperator(const Operator &op);
+
+    void SetupMG(const InterpolationCollector& P);
+    void SetupAMS(ParFiniteElementSpace& hcurl_fes);
+private:
+    // Find a particular solution for div sigma = f
+    void SolveParticularSolution(const Vector& blk_rhs_1,
+                                 Vector& true_flux_part) const;
+
+    void SolveDivFreeSolution(const Vector& true_flux_part,
+                              Vector& blk_rhs_0,
+                              Vector& true_flux_divfree) const;
+
+    void SolvePotential(const Vector& true_flux_divfree,
+                        Vector& blk_rhs_0,
+                        Vector& potential) const;
+
+    SparseMatrix M_fine_;
+    SparseMatrix B_fine_;
+    DivL2Hierarchy& h_;
+    HypreParMatrix& M_;
+    HypreParMatrix& B_;
+    HypreParMatrix& BT_;
+    HypreParMatrix& C_;
+    OperatorHandle CT_;
+
+    BBTSolver BBT_solver_;
+    OperatorHandle CTMC_;
+    OperatorHandle CTMC_prec_;
+    CGSolver CTMC_solver_;
+
+    MLDivFreeSolveParameters param_;
+    Array<int> offsets_;
 };
 
 // Geometric Multigrid
