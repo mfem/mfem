@@ -222,9 +222,7 @@ Vector div_part(const SparseMatrix& M_fine,
         auto agg_hdivintdof = AggToIntDof(agg_elem[l], elem_hdivdofs[l]);
 
         // Right hand side: F_l = F - P_l2[l] (P_l2[l]^T P_l2[l])^{-1} P_l2[l]^T F
-
         F_l = PT_F_l;
-
         PT_F_l.SetSize(P_l2[l].NumCols());
         P_l2[l].MultTranspose(F_l, PT_F_l);
 
@@ -349,22 +347,11 @@ Vector div_part(const SparseMatrix& M_fine,
     }
     else
     {
-        unique_ptr<HypreParMatrix> S(ParMult(B_Coarse.get(), BT_coarse.get()));
-        HypreBoomerAMG invS(*S);
-        invS.SetPrintLevel(0);
+        BBTSolver BBT_solver(*B_Coarse);
 
         Vector u_c(B_Coarse->Height());
         u_c = 0.0;
-
-        CGSolver solver(coarse_l2_d_td.GetComm());
-        solver.SetAbsTol(1.e-12);
-        solver.SetRelTol(1.e-9);
-        solver.SetMaxIter(500);
-        solver.SetOperator(*S);
-        solver.SetPreconditioner(invS);
-        solver.SetPrintLevel(0);
-
-        solver.Mult(PT_F_l, u_c);
+        BBT_solver.Mult(PT_F_l, u_c);
         BT_coarse->Mult(u_c, true_sigma_c);
     }
 
@@ -380,6 +367,28 @@ Vector div_part(const SparseMatrix& M_fine,
     }
 
     return sigma[0];
+}
+
+BBTSolver::BBTSolver(HypreParMatrix& B, int print_level, int max_iter,
+                     double abs_tol, double rel_tol)
+    : Solver(B.NumRows()),
+      BT_(B.Transpose()),
+      S_(ParMult(&B, BT_.As<HypreParMatrix>())),
+      invS_(*S_.As<HypreParMatrix>()),
+      S_solver_(B.GetComm())
+{
+    invS_.SetPrintLevel(0);
+    S_solver_.SetPrintLevel(print_level);
+    S_solver_.SetMaxIter(max_iter);
+    S_solver_.SetAbsTol(abs_tol);
+    S_solver_.SetRelTol(rel_tol);
+    S_solver_.SetOperator(*S_.As<HypreParMatrix>());
+    S_solver_.SetPreconditioner(invS_);
+}
+
+void BBTSolver::Mult(const Vector &x, Vector &y) const
+{
+    S_solver_.Mult(x, y);
 }
 
 MLDivFreeSolver::MLDivFreeSolver(ParFiniteElementSpace& hdiv_fes,
@@ -400,21 +409,21 @@ MLDivFreeSolver::MLDivFreeSolver(ParFiniteElementSpace& hdiv_fes,
       ref_count_(num_refine)
 {
     coarse_hdiv_fes_.GetEssentialVDofs(ess_bdr, coarse_ess_dofs_);
-    hdiv_fes_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
-    l2_fes_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
-    l2_fes_0_.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+    hdiv_fes_.SetUpdateOperatorType(MFEM_SPARSEMAT);
+    l2_fes_.SetUpdateOperatorType(MFEM_SPARSEMAT);
+    l2_fes_0_.SetUpdateOperatorType(MFEM_SPARSEMAT);
 }
 
 void MLDivFreeSolver::Collect()
 {
     P_hdiv_[--ref_count_] = (const SparseMatrix&)*hdiv_fes_.GetUpdateOperator();
     P_l2_[ref_count_] = (const SparseMatrix&)*l2_fes_.GetUpdateOperator();
+    P_hdiv_[ref_count_].Threshold(1e-16);
+    P_l2_[ref_count_].Threshold(1e-16);
+
     auto& elem_agg_l = (const SparseMatrix&)*l2_fes_0_.GetUpdateOperator();
     OperatorHandle agg_elem_l(Transpose(elem_agg_l));
     agg_el_[ref_count_].Swap(*agg_elem_l.As<SparseMatrix>());
-
-    P_hdiv_[ref_count_].Threshold(1e-16);
-    P_l2_[ref_count_].Threshold(1e-16);
 
     el_hdivdofs_[ref_count_] = ElemToDofs(hdiv_fes_);
     el_l2dofs_[ref_count_] = ElemToDofs(l2_fes_);

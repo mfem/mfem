@@ -136,7 +136,6 @@ int main(int argc, char *argv[])
         ml_df_solver = new MLDivFreeSolver(*R_space, *W_space, par_ref_levels, ess_bdr);
     }
 
-    unique_ptr<ParFiniteElementSpace> coarse_N_space;
     if (divfree)
     {
         N_space = new ParFiniteElementSpace(pmesh, &hcurl_coll);
@@ -282,17 +281,7 @@ int main(int argc, char *argv[])
         chrono_local.Clear();
         chrono_local.Start();
 
-        unique_ptr<HypreParMatrix> BBT(ParMult(B, BT));
-        HypreBoomerAMG prec_particular(*BBT);
-        prec_particular.SetPrintLevel(0);
-
-        CGSolver solver_particular(M->GetComm());
-        solver_particular.SetAbsTol(atol);
-        solver_particular.SetRelTol(rtol);
-        solver_particular.SetMaxIter(maxIter);
-        solver_particular.SetOperator(*BBT);
-        solver_particular.SetPreconditioner(prec_particular);
-        solver_particular.SetPrintLevel(0);
+        BBTSolver BBT_solver(*B);
 
         // Find a particular solution for div sigma = f
         Vector sol_particular(BT->GetNumRows());
@@ -309,19 +298,19 @@ int main(int argc, char *argv[])
         else
         {
             trueX.GetBlock(1) = 0.0;
-            solver_particular.Mult(trueRhs.GetBlock(1), trueX.GetBlock(1));
+            BBT_solver.Mult(trueRhs.GetBlock(1), trueX.GetBlock(1));
             BT->Mult(trueX.GetBlock(1), sol_particular);
             chrono_local.Stop();
 
-            if (verbose)
-            {
-                if (solver_particular.GetConverged())
-                    cout << "CG converged in " << solver_particular.GetNumIterations()
-                         << " iterations with a residual norm of " << solver_particular.GetFinalNorm() << ".\n";
-                else
-                    cout << "CG did not converge in " << solver_particular.GetNumIterations()
-                         << " iterations. Residual norm is " << solver_particular.GetFinalNorm() << ".\n";
-            }
+//            if (verbose)
+//            {
+//                if (solver_particular.GetConverged())
+//                    cout << "CG converged in " << solver_particular.GetNumIterations()
+//                         << " iterations with a residual norm of " << solver_particular.GetFinalNorm() << ".\n";
+//                else
+//                    cout << "CG did not converge in " << solver_particular.GetNumIterations()
+//                         << " iterations. Residual norm is " << solver_particular.GetFinalNorm() << ".\n";
+//            }
         }
         if (verbose) cout << "Particular solution found in " << chrono_local.RealTime() << "s. \n";
 
@@ -386,17 +375,17 @@ int main(int argc, char *argv[])
         Vector rhs_p(B->GetNumRows());
         B->Mult(trueRhs.GetBlock(0), rhs_p);
         trueX.GetBlock(1) = 0.0;
-        solver_particular.Mult(rhs_p, trueX.GetBlock(1));
+        BBT_solver.Mult(rhs_p, trueX.GetBlock(1));
 
         chrono_local.Stop();
         if (verbose)
         {
-            if (solver_particular.GetConverged())
-                cout << "CG converged in " << solver_particular.GetNumIterations()
-                     << " iterations with a residual norm of " << solver_particular.GetFinalNorm() << ".\n";
-            else
-                cout << "CG did not converge in " << solver_particular.GetNumIterations()
-                     << " iterations. Residual norm is " << solver_particular.GetFinalNorm() << ".\n";
+//            if (solver_particular.GetConverged())
+//                cout << "CG converged in " << solver_particular.GetNumIterations()
+//                     << " iterations with a residual norm of " << solver_particular.GetFinalNorm() << ".\n";
+//            else
+//                cout << "CG did not converge in " << solver_particular.GetNumIterations()
+//                     << " iterations. Residual norm is " << solver_particular.GetFinalNorm() << ".\n";
             cout << "Pressure solution found in " << chrono_local.RealTime() << "s. \n";
         }
         chrono.Stop();

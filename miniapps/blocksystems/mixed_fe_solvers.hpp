@@ -55,6 +55,22 @@ Vector div_part(const SparseMatrix& M_fine,
                 const HypreParMatrix& coarse_l2_d_td,
                 const Array<int>& coarsest_ess_dofs);
 
+class BBTSolver : public Solver
+{
+public:
+    BBTSolver(HypreParMatrix& B, int print_level=0, int max_iter=500,
+              double abs_tol=1e-12, double rel_tol=1e-9);
+
+    virtual void Mult(const Vector &x, Vector &y) const;
+
+    virtual void SetOperator(const Operator &op) { }
+private:
+    OperatorHandle BT_;
+    OperatorHandle S_;
+    HypreBoomerAMG invS_;
+    CGSolver S_solver_;
+};
+
 class MLDivFreeSolver : public Solver
 {
 public:
