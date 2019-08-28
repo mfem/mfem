@@ -432,65 +432,6 @@ void PADiffusionApply2D(const int NE,
    });
 }
 
-// Indices computation for SmemPADiffusionApply2D
-// N even:               N odd:
-//   | 0 1 2 | 3 4 5       | 0 1 2 3 4
-// --+------+------      --+-----+----
-// 0 | B B B | B B B     0 | B B B B B
-// 1 | g B B | B B B     1 | G B B B B
-// 2 | g g B | B B B     2 | G G B B B
-// --+-------+------     3 | G G G G B
-// 3 | g g g | g B B     4 | G G G G G
-// 4 | g g g | g g B         G
-// 5 | g g g | g g g
-static inline int i2(const int q, const int d, const int N)
-{
-   const int M = N>>1;
-   const int S = N-1-q;
-   return (q<M) ?
-          (d<M) ? (q<=d?q:S):q:
-          (d<M) ? S:(q<d?q:S);
-}
-
-static inline int j2(const int q, const int d, const int N)
-{
-   const int M = N>>1;
-   const int S = N-1-d;
-   return (q<M) ?
-          (d<M) ? (q<=d?d:S):d:
-          (d<M) ? S:(q<d?d:S);
-}
-
-static inline int k2(const int q, const int d, const int N, const bool t=false)
-{
-   const int M = N>>1;
-   const int S = N-1-q;
-   return  q==M && d==M && N&1 ? (t?N:N-1) :
-           (q<M) ?
-           (d<M) ? (q<=d)?S:q:S:
-           (d<M) ? q:(q<d?S:q);
-}
-
-static inline int l2(const int q, const int d, const int N, const bool t=false)
-{
-   const int M = N>>1;
-   const int S = N-1-d;
-   return q==M && d==M && N&1 ? (t?N-1:N) :
-          (q<M) ?
-          (d<M) ? (q<=d?S:d):S:
-          (d<M) ? d:(q<d?S:d);
-}
-
-static inline double sign2(const int q, const int d, const int N)
-{
-   const int M = N>>1;
-   const int S = -1.0;
-   return q==M && d==M && N&1 ? 1.0 :
-          (q<M) ?
-          (d<M) ? (q<=d?S:1.0):S:
-          (d<M) ? 1.0:(q<d?S:1.0);
-}
-
 // Shared memory PA Diffusion Apply 2D kernel
 template<const int T_D1D = 0,
          const int T_Q1D = 0,
@@ -506,10 +447,11 @@ static void SmemPADiffusionApply2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D == Q1D, "");
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int central = MQ1&1;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D*Q1D, 3, NE);
@@ -518,90 +460,81 @@ static void SmemPADiffusionApply2D(const int NE,
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
-      constexpr int N = T_D1D ? T_D1D : d1d;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      MFEM_SHARED double BG[N*N + central];
-      double (*B)[N] = (double (*)[N]) (BG);
-      double (*G)[N] = (double (*)[N]) (BG);
-      double (*Bt)[N] = (double (*)[N]) (BG);
-      double (*Gt)[N] = (double (*)[N]) (BG);
-      MFEM_SHARED double Xz[NBZ][N][N];
-      MFEM_SHARED double GD[2][NBZ][N][N];
-      MFEM_SHARED double GQ[2][NBZ][N][N];
-      double (*X)[N] = (double (*)[N])(Xz + tidz);
-      double (*DQ0)[N] = (double (*)[N])(GD[0] + tidz);
-      double (*DQ1)[N] = (double (*)[N])(GD[1] + tidz);
-      double (*QQ0)[N] = (double (*)[N])(GQ[0] + tidz);
-      double (*QQ1)[N] = (double (*)[N])(GQ[1] + tidz);
-      MFEM_FOREACH_THREAD(dy,y,N)
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      MFEM_SHARED double sBG[2][MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
+      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
+      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
+      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
+      MFEM_SHARED double Xz[NBZ][MD1][MD1];
+      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
+      MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
+      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
+      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
+      double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
+      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
+      double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
-         MFEM_FOREACH_THREAD(dx,x,N)
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             X[dy][dx] = x(dx,dy,e);
          }
       }
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(d,y,N)
+         MFEM_FOREACH_THREAD(d,y,D1D)
          {
-            MFEM_FOREACH_THREAD(q,x,N)
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               const int i = i2(q,d,N);
-               const int j = j2(q,d,N);
-               const int k = k2(q,d,N);
-               const int l = l2(q,d,N);
-               B[i][j] = b(q,d);
-               G[k][l] = g(q,d) * sign2(q,d,N);
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,N)
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
-         MFEM_FOREACH_THREAD(qx,x,N)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u = 0.0;
             double v = 0.0;
-            for (int dx = 0; dx < N; ++dx)
+            for (int dx = 0; dx < D1D; ++dx)
             {
-               const int i = i2(qx,dx,N);
-               const int j = j2(qx,dx,N);
-               const int k = k2(qx,dx,N);
-               const int l = l2(qx,dx,N);
                const double coords = X[dy][dx];
-               u += coords * B[i][j];
-               v += coords * G[k][l] * sign2(qx,dx,N);
+               u += B[qx][dx] * coords;
+               v += G[qx][dx] * coords;
             }
             DQ0[dy][qx] = u;
             DQ1[dy][qx] = v;
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,N)
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
-         MFEM_FOREACH_THREAD(qx,x,N)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u = 0.0;
             double v = 0.0;
-            for (int dy = 0; dy < N; ++dy)
+            for (int dy = 0; dy < D1D; ++dy)
             {
-               const int i = i2(qy,dy,N);
-               const int j = j2(qy,dy,N);
-               const int k = k2(qy,dy,N);
-               const int l = l2(qy,dy,N);
-               u += DQ1[dy][qx] * B[i][j];
-               v += DQ0[dy][qx] * G[k][l] * sign2(qy,dy,N);
+               u += DQ1[dy][qx] * B[qy][dy];
+               v += DQ0[dy][qx] * G[qy][dy];
             }
             QQ0[qy][qx] = u;
             QQ1[qy][qx] = v;
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,N)
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
-         MFEM_FOREACH_THREAD(qx,x,N)
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const int q = (qx + ((qy) * N));
+            const int q = (qx + ((qy) * Q1D));
             const double O11 = op(q,0,e);
             const double O12 = op(q,1,e);
             const double O22 = op(q,2,e);
@@ -614,54 +547,42 @@ static void SmemPADiffusionApply2D(const int NE,
       MFEM_SYNC_THREAD;
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(d,y,N)
+         MFEM_FOREACH_THREAD(d,y,D1D)
          {
-            MFEM_FOREACH_THREAD(q,x,N)
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               const int i = i2(q,d,N);
-               const int j = j2(q,d,N);
-               const int k = k2(q,d,N,true);
-               const int l = l2(q,d,N,true);
-               Bt[j][i] = b(q,d);
-               Gt[l][k] = g(q,d) * sign2(q,d,N);
+               Bt[d][q] = b(q,d);
+               Gt[d][q] = g(q,d);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,N)
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
-         MFEM_FOREACH_THREAD(dx,x,N)
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u = 0.0;
             double v = 0.0;
-            for (int qx = 0; qx < N; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
-               const int i = i2(qx,dx,N);
-               const int j = j2(qx,dx,N);
-               const int k = k2(qx,dx,N,true);
-               const int l = l2(qx,dx,N,true);
-               u += Gt[l][k] * QQ0[qy][qx] * sign2(qx,dx,N);
-               v += Bt[j][i] * QQ1[qy][qx];
+               u += Gt[dx][qx] * QQ0[qy][qx];
+               v += Bt[dx][qx] * QQ1[qy][qx];
             }
             DQ0[qy][dx] = u;
             DQ1[qy][dx] = v;
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,N)
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
-         MFEM_FOREACH_THREAD(dx,x,N)
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u = 0.0;
             double v = 0.0;
-            for (int qy = 0; qy < N; ++qy)
+            for (int qy = 0; qy < Q1D; ++qy)
             {
-               const int i = i2(qy,dy,N);
-               const int j = j2(qy,dy,N);
-               const int k = k2(qy,dy,N,true);
-               const int l = l2(qy,dy,N,true);
-               u += DQ0[qy][dx] * Bt[j][i];
-               v += DQ1[qy][dx] * Gt[l][k] * sign2(qy,dy,N);
+               u += DQ0[qy][dx] * Bt[dy][qy];
+               v += DQ1[qy][dx] * Gt[dy][qy];
             }
             y(dx,dy,e) += (u + v);
          }
@@ -860,28 +781,30 @@ void PADiffusionApply3D(const int NE,
    });
 }
 
+// For SmemPADiffusionApply3D, half of B and G are stored
+// in shared to get B, Bt, G and Gt.
 // Indices computation for SmemPADiffusionApply3D
-static inline int i3(const int q, const int d, const int Q)
+static inline int qi(const int q, const int d, const int Q)
 {
    return (q<=d) ? q : Q-1-q;
 }
 
-static inline int j3(const int q, const int d, const int D)
+static inline int dj(const int q, const int d, const int D)
 {
    return (q<=d) ? d : D-1-d;
 }
 
-static inline int k3(const int q, const int d, const int Q)
+static inline int qk(const int q, const int d, const int Q)
 {
    return (q<=d) ? Q-1-q : q;
 }
 
-static inline int l3(const int q, const int d, const int D)
+static inline int dl(const int q, const int d, const int D)
 {
    return (q<=d) ? D-1-d : d;
 }
 
-static inline double sign3(const int q, const int d)
+static inline double sign(const int q, const int d)
 {
    return (q<=d) ? -1.0 : 1.0;
 }
@@ -900,12 +823,7 @@ static void SmemPADiffusionApply3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= Q1D, "");
    MFEM_VERIFY(D1D+1 == Q1D, "");
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 6, NE);
@@ -957,12 +875,12 @@ static void SmemPADiffusionApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(d,y,D1D)
             {
-               const int i = i3(q,d,Q1D);
-               const int j = j3(q,d,D1D);
-               const int k = k3(q,d,Q1D);
-               const int l = l3(q,d,D1D);
+               const int i = qi(q,d,Q1D);
+               const int j = dj(q,d,D1D);
+               const int k = qk(q,d,Q1D);
+               const int l = dl(q,d,D1D);
                B[i][j] = b(q,d);
-               G[k][l] = g(q,d) * sign3(q,d);
+               G[k][l] = g(q,d) * sign(q,d);
             }
          }
       }
@@ -977,13 +895,13 @@ static void SmemPADiffusionApply3D(const int NE,
                double v = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const int i = i3(qx,dx,Q1D);
-                  const int j = j3(qx,dx,D1D);
-                  const int k = k3(qx,dx,Q1D);
-                  const int l = l3(qx,dx,D1D);
+                  const int i = qi(qx,dx,Q1D);
+                  const int j = dj(qx,dx,D1D);
+                  const int k = qk(qx,dx,Q1D);
+                  const int l = dl(qx,dx,D1D);
                   const double coords = X[dz][dy][dx];
                   u += coords * B[i][j];
-                  v += coords * G[k][l] * sign3(qx,dx);
+                  v += coords * G[k][l] * sign(qx,dx);
                }
                DDQ0[dz][dy][qx] = u;
                DDQ1[dz][dy][qx] = v;
@@ -1002,12 +920,12 @@ static void SmemPADiffusionApply3D(const int NE,
                double w = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
-                  const int i = i3(qy,dy,Q1D);
-                  const int j = j3(qy,dy,D1D);
-                  const int k = k3(qy,dy,Q1D);
-                  const int l = l3(qy,dy,D1D);
+                  const int i = qi(qy,dy,Q1D);
+                  const int j = dj(qy,dy,D1D);
+                  const int k = qk(qy,dy,Q1D);
+                  const int l = dl(qy,dy,D1D);
                   u += DDQ1[dz][dy][qx] * B[i][j];
-                  v += DDQ0[dz][dy][qx] * G[k][l] * sign3(qy,dy);
+                  v += DDQ0[dz][dy][qx] * G[k][l] * sign(qy,dy);
                   w += DDQ0[dz][dy][qx] * B[i][j];
                }
                DQQ0[dz][qy][qx] = u;
@@ -1028,13 +946,13 @@ static void SmemPADiffusionApply3D(const int NE,
                double w = 0.0;
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  const int i = i3(qz,dz,Q1D);
-                  const int j = j3(qz,dz,D1D);
-                  const int k = k3(qz,dz,Q1D);
-                  const int l = l3(qz,dz,D1D);
+                  const int i = qi(qz,dz,Q1D);
+                  const int j = dj(qz,dz,D1D);
+                  const int k = qk(qz,dz,Q1D);
+                  const int l = dl(qz,dz,D1D);
                   u += DQQ0[dz][qy][qx] * B[i][j];
                   v += DQQ1[dz][qy][qx] * B[i][j];
-                  w += DQQ2[dz][qy][qx] * G[k][l] * sign3(qz,dz);
+                  w += DQQ2[dz][qy][qx] * G[k][l] * sign(qz,dz);
                }
                QQQ0[qz][qy][qx] = u;
                QQQ1[qz][qy][qx] = v;
@@ -1072,12 +990,12 @@ static void SmemPADiffusionApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               const int i = i3(q,d,Q1D);
-               const int j = j3(q,d,D1D);
-               const int k = k3(q,d,Q1D);
-               const int l = l3(q,d,D1D);
+               const int i = qi(q,d,Q1D);
+               const int j = dj(q,d,D1D);
+               const int k = qk(q,d,Q1D);
+               const int l = dl(q,d,D1D);
                Bt[j][i] = b(q,d);
-               Gt[l][k] = g(q,d) * sign3(q,d);
+               Gt[l][k] = g(q,d) * sign(q,d);
             }
          }
       }
@@ -1093,11 +1011,11 @@ static void SmemPADiffusionApply3D(const int NE,
                double w = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const int i = i3(qx,dx,Q1D);
-                  const int j = j3(qx,dx,D1D);
-                  const int k = k3(qx,dx,Q1D);
-                  const int l = l3(qx,dx,D1D);
-                  u += QQQ0[qz][qy][qx] * Gt[l][k] * sign3(qx,dx);
+                  const int i = qi(qx,dx,Q1D);
+                  const int j = dj(qx,dx,D1D);
+                  const int k = qk(qx,dx,Q1D);
+                  const int l = dl(qx,dx,D1D);
+                  u += QQQ0[qz][qy][qx] * Gt[l][k] * sign(qx,dx);
                   v += QQQ1[qz][qy][qx] * Bt[j][i];
                   w += QQQ2[qz][qy][qx] * Bt[j][i];
                }
@@ -1119,12 +1037,12 @@ static void SmemPADiffusionApply3D(const int NE,
                double w = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const int i = i3(qy,dy,Q1D);
-                  const int j = j3(qy,dy,D1D);
-                  const int k = k3(qy,dy,Q1D);
-                  const int l = l3(qy,dy,D1D);
+                  const int i = qi(qy,dy,Q1D);
+                  const int j = dj(qy,dy,D1D);
+                  const int k = qk(qy,dy,Q1D);
+                  const int l = dl(qy,dy,D1D);
                   u += QQD0[qz][qy][dx] * Bt[j][i];
-                  v += QQD1[qz][qy][dx] * Gt[l][k] * sign3(qy,dy);
+                  v += QQD1[qz][qy][dx] * Gt[l][k] * sign(qy,dy);
                   w += QQD2[qz][qy][dx] * Bt[j][i];
                }
                QDD0[qz][dy][dx] = u;
@@ -1145,13 +1063,13 @@ static void SmemPADiffusionApply3D(const int NE,
                double w = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  const int i = i3(qz,dz,Q1D);
-                  const int j = j3(qz,dz,D1D);
-                  const int k = k3(qz,dz,Q1D);
-                  const int l = l3(qz,dz,D1D);
+                  const int i = qi(qz,dz,Q1D);
+                  const int j = dj(qz,dz,D1D);
+                  const int k = qk(qz,dz,Q1D);
+                  const int l = dl(qz,dz,D1D);
                   u += QDD0[qz][dy][dx] * Bt[j][i];
                   v += QDD1[qz][dy][dx] * Bt[j][i];
-                  w += QDD2[qz][dy][dx] * Gt[l][k] * sign3(qz,dz);
+                  w += QDD2[qz][dy][dx] * Gt[l][k] * sign(qz,dz);
                }
                y(dx,dy,dz,e) += (u + v + w);
             }
