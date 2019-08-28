@@ -21,56 +21,129 @@ using namespace mfem;
  * Utility function to generate IntegerationPoints, based on param ip
  * that are outside the unit interval.  Results are placed in output
  * parameter arr.
+ *
+ * Note: this is defined in test_calcshape.cpp
  */
 void GetRelatedIntegrationPoints(const IntegrationPoint& ip, int dim,
                                  Array<IntegrationPoint>& arr);
-/*
+
+/**
+ * Utility function to setup IsoparametricTransformations for reference
+ * elements of various types.
+ */
+void GetReferenceTransformation(const Element::Type ElemType,
+                                IsoparametricTransformation & T)
 {
-   IntegrationPoint pt = ip;
-   int idx = 0;
+   T.Attribute = 1;
+   T.ElementNo = 0;
 
-   switch (dim)
+   switch (ElemType)
    {
-      case 1:
-         arr.SetSize(3);
-
-         pt.x =   ip.x;    arr[idx++] = pt;
-         pt.x =  -ip.x;    arr[idx++] = pt;
-         pt.x = 1+ip.x;    arr[idx++] = pt;
+      case Element::POINT :
+         T.GetPointMat().SetSize(1, 1);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.SetFE(&PointFE);
          break;
-      case 2:
-         arr.SetSize(7);
-
-         pt.Set2(  ip.x,   ip.y); arr[idx++] = pt;
-         pt.Set2( -ip.x,   ip.y); arr[idx++] = pt;
-         pt.Set2(  ip.x,  -ip.y); arr[idx++] = pt;
-         pt.Set2( -ip.x,  -ip.y); arr[idx++] = pt;
-         pt.Set2(1+ip.x,   ip.y); arr[idx++] = pt;
-         pt.Set2(  ip.x, 1+ip.y); arr[idx++] = pt;
-         pt.Set2(1+ip.x, 1+ip.y); arr[idx++] = pt;
+      case Element::SEGMENT :
+         T.GetPointMat().SetSize(1, 2);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.GetPointMat()(0, 1) = 1.0;
+         T.SetFE(&SegmentFE);
          break;
-      case 3:
-         arr.SetSize(15);
-
-         pt.Set3(  ip.x,   ip.y,   ip.z );  arr[idx++] = pt;
-         pt.Set3( -ip.x,   ip.y,   ip.z );  arr[idx++] = pt;
-         pt.Set3(  ip.x,  -ip.y,   ip.z );  arr[idx++] = pt;
-         pt.Set3( -ip.x,  -ip.y,   ip.z );  arr[idx++] = pt;
-         pt.Set3(  ip.x,   ip.y,  -ip.z );  arr[idx++] = pt;
-         pt.Set3( -ip.x,   ip.y,  -ip.z );  arr[idx++] = pt;
-         pt.Set3(  ip.x,  -ip.y,  -ip.z );  arr[idx++] = pt;
-         pt.Set3( -ip.x,  -ip.y,  -ip.z );  arr[idx++] = pt;
-         pt.Set3(1+ip.x,   ip.y,   ip.z );  arr[idx++] = pt;
-         pt.Set3(  ip.x, 1+ip.y,   ip.z );  arr[idx++] = pt;
-         pt.Set3(1+ip.x, 1+ip.y,   ip.z );  arr[idx++] = pt;
-         pt.Set3(  ip.x,   ip.y, 1+ip.z );  arr[idx++] = pt;
-         pt.Set3(1+ip.x,   ip.y, 1+ip.z );  arr[idx++] = pt;
-         pt.Set3(  ip.x, 1+ip.y, 1+ip.z );  arr[idx++] = pt;
-         pt.Set3(1+ip.x, 1+ip.y, 1+ip.z );  arr[idx++] = pt;
+      case Element::TRIANGLE :
+         T.GetPointMat().SetSize(2, 3);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.GetPointMat()(1, 0) = 0.0;
+         T.GetPointMat()(0, 1) = 1.0;
+         T.GetPointMat()(1, 1) = 0.0;
+         T.GetPointMat()(0, 2) = 0.0;
+         T.GetPointMat()(1, 2) = 1.0;
+         T.SetFE(&TriangleFE);
+         break;
+      case Element::QUADRILATERAL :
+         T.GetPointMat().SetSize(2, 4);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.GetPointMat()(1, 0) = 0.0;
+         T.GetPointMat()(0, 1) = 1.0;
+         T.GetPointMat()(1, 1) = 0.0;
+         T.GetPointMat()(0, 2) = 1.0;
+         T.GetPointMat()(1, 2) = 1.0;
+         T.GetPointMat()(0, 3) = 0.0;
+         T.GetPointMat()(1, 3) = 1.0;
+         T.SetFE(&QuadrilateralFE);
+         break;
+      case Element::TETRAHEDRON :
+         T.GetPointMat().SetSize(3, 4);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.GetPointMat()(1, 0) = 0.0;
+         T.GetPointMat()(2, 0) = 0.0;
+         T.GetPointMat()(0, 1) = 1.0;
+         T.GetPointMat()(1, 1) = 0.0;
+         T.GetPointMat()(2, 1) = 0.0;
+         T.GetPointMat()(0, 2) = 0.0;
+         T.GetPointMat()(1, 2) = 1.0;
+         T.GetPointMat()(2, 2) = 0.0;
+         T.GetPointMat()(0, 3) = 0.0;
+         T.GetPointMat()(1, 3) = 0.0;
+         T.GetPointMat()(2, 3) = 1.0;
+         T.SetFE(&TetrahedronFE);
+         break;
+      case Element::HEXAHEDRON :
+         T.GetPointMat().SetSize(3, 8);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.GetPointMat()(1, 0) = 0.0;
+         T.GetPointMat()(2, 0) = 0.0;
+         T.GetPointMat()(0, 1) = 1.0;
+         T.GetPointMat()(1, 1) = 0.0;
+         T.GetPointMat()(2, 1) = 0.0;
+         T.GetPointMat()(0, 2) = 1.0;
+         T.GetPointMat()(1, 2) = 1.0;
+         T.GetPointMat()(2, 2) = 0.0;
+         T.GetPointMat()(0, 3) = 0.0;
+         T.GetPointMat()(1, 3) = 1.0;
+         T.GetPointMat()(2, 3) = 0.0;
+         T.GetPointMat()(0, 4) = 0.0;
+         T.GetPointMat()(1, 4) = 0.0;
+         T.GetPointMat()(2, 4) = 1.0;
+         T.GetPointMat()(0, 5) = 1.0;
+         T.GetPointMat()(1, 5) = 0.0;
+         T.GetPointMat()(2, 5) = 1.0;
+         T.GetPointMat()(0, 6) = 1.0;
+         T.GetPointMat()(1, 6) = 1.0;
+         T.GetPointMat()(2, 6) = 1.0;
+         T.GetPointMat()(0, 7) = 0.0;
+         T.GetPointMat()(1, 7) = 1.0;
+         T.GetPointMat()(2, 7) = 1.0;
+         T.SetFE(&HexahedronFE);
+         break;
+      case Element::WEDGE :
+         T.GetPointMat().SetSize(3, 6);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.GetPointMat()(1, 0) = 0.0;
+         T.GetPointMat()(2, 0) = 0.0;
+         T.GetPointMat()(0, 1) = 1.0;
+         T.GetPointMat()(1, 1) = 0.0;
+         T.GetPointMat()(2, 1) = 0.0;
+         T.GetPointMat()(0, 2) = 0.0;
+         T.GetPointMat()(1, 2) = 1.0;
+         T.GetPointMat()(2, 2) = 0.0;
+         T.GetPointMat()(0, 3) = 0.0;
+         T.GetPointMat()(1, 3) = 0.0;
+         T.GetPointMat()(2, 3) = 1.0;
+         T.GetPointMat()(0, 4) = 1.0;
+         T.GetPointMat()(1, 4) = 0.0;
+         T.GetPointMat()(2, 4) = 1.0;
+         T.GetPointMat()(0, 5) = 0.0;
+         T.GetPointMat()(1, 5) = 1.0;
+         T.GetPointMat()(2, 5) = 1.0;
+         T.SetFE(&WedgeFE);
+         break;
+      default:
+         MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
          break;
    }
+   T.FinalizeTransformation();
 }
-*/
 
 /**
  * Tests fe->CalcVShape() over a grid of IntegrationPoints
@@ -201,13 +274,7 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
    SECTION("ND_SegmentElement")
    {
       IsoparametricTransformation T;
-      T.Attribute = 1;
-      T.ElementNo = 0;
-      T.GetPointMat().SetSize(1, 2);
-      T.GetPointMat()(0, 0) = 0.0;
-      T.GetPointMat()(0, 1) = 1.0;
-      T.SetFE(&SegmentFE);
-      T.FinalizeTransformation();
+      GetReferenceTransformation(Element::SEGMENT, T);
 
       for (int order =1; order <= maxOrder; ++order)
       {
@@ -221,17 +288,7 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
    SECTION("ND_TriangleElement")
    {
       IsoparametricTransformation T;
-      T.Attribute = 1;
-      T.ElementNo = 0;
-      T.GetPointMat().SetSize(2, 3);
-      T.GetPointMat()(0, 0) = 0.0;
-      T.GetPointMat()(1, 0) = 0.0;
-      T.GetPointMat()(0, 1) = 1.0;
-      T.GetPointMat()(1, 1) = 0.0;
-      T.GetPointMat()(0, 2) = 0.0;
-      T.GetPointMat()(1, 2) = 1.0;
-      T.SetFE(&TriangleFE);
-      T.FinalizeTransformation();
+      GetReferenceTransformation(Element::TRIANGLE, T);
 
       for (int order =1; order <= maxOrder; ++order)
       {
@@ -245,19 +302,7 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
    SECTION("ND_QuadrilateralElement")
    {
       IsoparametricTransformation T;
-      T.Attribute = 1;
-      T.ElementNo = 0;
-      T.GetPointMat().SetSize(2, 4);
-      T.GetPointMat()(0, 0) = 0.0;
-      T.GetPointMat()(1, 0) = 0.0;
-      T.GetPointMat()(0, 1) = 1.0;
-      T.GetPointMat()(1, 1) = 0.0;
-      T.GetPointMat()(0, 2) = 1.0;
-      T.GetPointMat()(1, 2) = 1.0;
-      T.GetPointMat()(0, 3) = 0.0;
-      T.GetPointMat()(1, 3) = 1.0;
-      T.SetFE(&QuadrilateralFE);
-      T.FinalizeTransformation();
+      GetReferenceTransformation(Element::QUADRILATERAL, T);
 
       for (int order =1; order <= maxOrder; ++order)
       {
@@ -271,23 +316,7 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
    SECTION("ND_TetrahedronElement")
    {
       IsoparametricTransformation T;
-      T.Attribute = 1;
-      T.ElementNo = 0;
-      T.GetPointMat().SetSize(3, 4);
-      T.GetPointMat()(0, 0) = 0.0;
-      T.GetPointMat()(1, 0) = 0.0;
-      T.GetPointMat()(2, 0) = 0.0;
-      T.GetPointMat()(0, 1) = 1.0;
-      T.GetPointMat()(1, 1) = 0.0;
-      T.GetPointMat()(2, 1) = 0.0;
-      T.GetPointMat()(0, 2) = 0.0;
-      T.GetPointMat()(1, 2) = 1.0;
-      T.GetPointMat()(2, 2) = 0.0;
-      T.GetPointMat()(0, 3) = 0.0;
-      T.GetPointMat()(1, 3) = 0.0;
-      T.GetPointMat()(2, 3) = 1.0;
-      T.SetFE(&TetrahedronFE);
-      T.FinalizeTransformation();
+      GetReferenceTransformation(Element::TETRAHEDRON, T);
 
       for (int order =1; order <= maxOrder; ++order)
       {
@@ -301,29 +330,7 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
    SECTION("ND_WedgeElement")
    {
       IsoparametricTransformation T;
-      T.Attribute = 1;
-      T.ElementNo = 0;
-      T.GetPointMat().SetSize(3, 6);
-      T.GetPointMat()(0, 0) = 0.0;
-      T.GetPointMat()(1, 0) = 0.0;
-      T.GetPointMat()(2, 0) = 0.0;
-      T.GetPointMat()(0, 1) = 1.0;
-      T.GetPointMat()(1, 1) = 0.0;
-      T.GetPointMat()(2, 1) = 0.0;
-      T.GetPointMat()(0, 2) = 0.0;
-      T.GetPointMat()(1, 2) = 1.0;
-      T.GetPointMat()(2, 2) = 0.0;
-      T.GetPointMat()(0, 3) = 0.0;
-      T.GetPointMat()(1, 3) = 0.0;
-      T.GetPointMat()(2, 3) = 1.0;
-      T.GetPointMat()(0, 4) = 1.0;
-      T.GetPointMat()(1, 4) = 0.0;
-      T.GetPointMat()(2, 4) = 1.0;
-      T.GetPointMat()(0, 5) = 0.0;
-      T.GetPointMat()(1, 5) = 1.0;
-      T.GetPointMat()(2, 5) = 1.0;
-      T.SetFE(&WedgeFE);
-      T.FinalizeTransformation();
+      GetReferenceTransformation(Element::WEDGE, T);
 
       for (int order =1; order <= maxOrder; ++order)
       {
@@ -337,35 +344,7 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
    SECTION("ND_HexahedronElement")
    {
       IsoparametricTransformation T;
-      T.Attribute = 1;
-      T.ElementNo = 0;
-      T.GetPointMat().SetSize(3, 8);
-      T.GetPointMat()(0, 0) = 0.0;
-      T.GetPointMat()(1, 0) = 0.0;
-      T.GetPointMat()(2, 0) = 0.0;
-      T.GetPointMat()(0, 1) = 1.0;
-      T.GetPointMat()(1, 1) = 0.0;
-      T.GetPointMat()(2, 1) = 0.0;
-      T.GetPointMat()(0, 2) = 1.0;
-      T.GetPointMat()(1, 2) = 1.0;
-      T.GetPointMat()(2, 2) = 0.0;
-      T.GetPointMat()(0, 3) = 0.0;
-      T.GetPointMat()(1, 3) = 1.0;
-      T.GetPointMat()(2, 3) = 0.0;
-      T.GetPointMat()(0, 4) = 0.0;
-      T.GetPointMat()(1, 4) = 0.0;
-      T.GetPointMat()(2, 4) = 1.0;
-      T.GetPointMat()(0, 5) = 1.0;
-      T.GetPointMat()(1, 5) = 0.0;
-      T.GetPointMat()(2, 5) = 1.0;
-      T.GetPointMat()(0, 6) = 1.0;
-      T.GetPointMat()(1, 6) = 1.0;
-      T.GetPointMat()(2, 6) = 1.0;
-      T.GetPointMat()(0, 7) = 0.0;
-      T.GetPointMat()(1, 7) = 1.0;
-      T.GetPointMat()(2, 7) = 1.0;
-      T.SetFE(&HexahedronFE);
-      T.FinalizeTransformation();
+      GetReferenceTransformation(Element::HEXAHEDRON, T);
 
       for (int order =1; order <= maxOrder; ++order)
       {
