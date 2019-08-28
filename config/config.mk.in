@@ -44,7 +44,6 @@ MFEM_USE_PUMI          = @MFEM_USE_PUMI@
 MFEM_USE_CUDA          = @MFEM_USE_CUDA@
 MFEM_USE_RAJA          = @MFEM_USE_RAJA@
 MFEM_USE_OCCA          = @MFEM_USE_OCCA@
-MFEM_USE_MM            = @MFEM_USE_MM@
 
 # Compiler, compile options, and link options
 MFEM_CXX       = @MFEM_CXX@
