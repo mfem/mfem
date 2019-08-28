@@ -119,43 +119,21 @@ int main(int argc, char *argv[])
     ND_FECollection hcurl_coll(order+1, dim);
     RT_FECollection hdiv_coll(order, dim);
     L2_FECollection l2_coll(order, dim);
-    L2_FECollection l2_coll_0(0, dim);
 
     ParFiniteElementSpace* N_space;
-    ParFiniteElementSpace* E_space;;
     ParFiniteElementSpace* R_space = new ParFiniteElementSpace(pmesh, &hdiv_coll);
     ParFiniteElementSpace* W_space = new ParFiniteElementSpace(pmesh, &l2_coll);
 
-    ParFiniteElementSpace* coarse_R_space;
-    ParFiniteElementSpace* coarse_W_space;
-    HypreParMatrix* d_td_coarse_R;
-    HypreParMatrix* d_td_coarse_W;
-
     // Constructing multigrid hierarchy while refining the mesh (if GMG is true)
     InterpolationCollector* P_N;
-    vector<SparseMatrix> P_W(par_ref_levels);
-    vector<SparseMatrix> P_R(par_ref_levels);
-    vector<SparseMatrix> elem_Rdofs(par_ref_levels);
-    vector<SparseMatrix> elem_Wdofs(par_ref_levels);
-    vector<SparseMatrix> agg_elem(par_ref_levels);
-    Array<int> coarsest_ess_dofs;
+    MLDivFreeSolver* ml_df_solver;
 
     chrono.Clear();
     chrono.Start();
 
     if (divfree && ML_particular)
     {
-        coarse_R_space = new ParFiniteElementSpace(pmesh, &hdiv_coll);
-        coarse_W_space = new ParFiniteElementSpace(pmesh, &l2_coll);
-        E_space = new ParFiniteElementSpace(pmesh, &l2_coll_0);
-
-        d_td_coarse_R = coarse_R_space->Dof_TrueDof_Matrix();
-        d_td_coarse_W = coarse_W_space->Dof_TrueDof_Matrix();
-        coarse_R_space->GetEssentialVDofs(ess_bdr, coarsest_ess_dofs);
-
-        E_space->SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
-        R_space->SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
-        W_space->SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+        ml_df_solver = new MLDivFreeSolver(*R_space, *W_space, par_ref_levels, ess_bdr);
     }
 
     unique_ptr<ParFiniteElementSpace> coarse_N_space;
@@ -179,17 +157,7 @@ int main(int argc, char *argv[])
 
         if (divfree && ML_particular)
         {
-            P_R[par_ref_levels-l] = (const SparseMatrix&)*R_space->GetUpdateOperator();
-            P_W[par_ref_levels-l] = (const SparseMatrix&)*W_space->GetUpdateOperator();
-            auto& elem_agg_l = (const SparseMatrix&)*E_space->GetUpdateOperator();
-            unique_ptr<SparseMatrix> agg_elem_l(Transpose(elem_agg_l));
-            agg_elem[par_ref_levels-l].Swap(*agg_elem_l);
-
-            P_R[par_ref_levels-l].Threshold(1e-16);
-            P_W[par_ref_levels-l].Threshold(1e-16);
-
-            elem_Rdofs[par_ref_levels-l] = ElemToDofs(*R_space);
-            elem_Wdofs[par_ref_levels-l] = ElemToDofs(*W_space);
+            ml_df_solver->Collect();
         }
 
         if (divfree)
@@ -330,9 +298,9 @@ int main(int argc, char *argv[])
         Vector sol_particular(BT->GetNumRows());
         if (ML_particular)
         {
-            auto sol_part = div_part(SparseMatrix(0), bVarf->SpMat(),
-                                     *gform, agg_elem, elem_Rdofs, elem_Wdofs, P_R, P_W,
-                                     *d_td_coarse_R, *d_td_coarse_W, coarsest_ess_dofs);
+            Vector sol_part;
+            ml_df_solver->SetOperator(bVarf->SpMat());
+            ml_df_solver->Mult(*gform, sol_part);
 
             SparseMatrix true_Rdof_restrict;
             R_space->Dof_TrueDof_Matrix()->GetDiag(true_Rdof_restrict);
@@ -595,11 +563,6 @@ int main(int argc, char *argv[])
         delete DiscreteCurl;
         delete N_space;
         delete P_N;
-        if (ML_particular)
-        {
-            delete coarse_R_space;
-            delete coarse_W_space;
-        }
     }
 
     delete pmesh;
