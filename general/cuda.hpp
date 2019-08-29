@@ -59,7 +59,6 @@
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
-
 namespace mfem
 {
 
