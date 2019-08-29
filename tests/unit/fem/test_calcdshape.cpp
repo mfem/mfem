@@ -52,6 +52,7 @@ double test_grad_func(const Vector &x)
    {
       v += x[2];
    }
+   return v;
 }
 
 /**
