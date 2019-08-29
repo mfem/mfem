@@ -2422,7 +2422,7 @@ void NCMesh::CollectFaceVertices(int v0, int v1, int v2, int v3,
 void NCMesh::BuildElementToVertexTable()
 {
    int nrows = leaf_elements.Size();
-   int* I = mfem::New<int>(nrows + 1);
+   int* I = new int[nrows + 1];
    int** JJ = new int*[nrows];
 
    Array<int> indices;
@@ -2460,7 +2460,7 @@ void NCMesh::BuildElementToVertexTable()
       indices.Unique();
       int size = indices.Size();
       I[i] = size;
-      JJ[i] = mfem::New<int>(size);
+      JJ[i] = new int[size];
       std::memcpy(JJ[i], indices.GetData(), size * sizeof(int));
    }
 
@@ -2475,13 +2475,13 @@ void NCMesh::BuildElementToVertexTable()
    I[nrows] = nnz;
 
    // copy the temporarily stored rows into one J array
-   int *J = mfem::New<int>(nnz);
+   int *J = new int[nnz];
    nnz = 0;
    for (int i = 0; i < nrows; i++)
    {
       int cnt = I[i+1] - I[i];
       std::memcpy(J+nnz, JJ[i], cnt * sizeof(int));
-      mfem::Delete(JJ[i]);
+      delete [] JJ[i];
       nnz += cnt;
    }
 
