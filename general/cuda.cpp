@@ -134,7 +134,7 @@ int CuGetDeviceCount()
 {
    int num_gpus = -1;
 #ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaGetDeviceCount(&num_gpus));
+   MFEM_GPU_CHECK(cudaGetDeviceCount(&num_gpus));
 #endif
    return num_gpus;
 }
