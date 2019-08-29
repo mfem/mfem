@@ -1,34 +1,4 @@
-//                       MFEM Example 5 - Parallel Version
-//
-// Compile with: make ex5p
-//
-// Sample runs:  mpirun -np 4 ex5p -m ../data/square-disc.mesh
-//               mpirun -np 4 ex5p -m ../data/star.mesh
-//               mpirun -np 4 ex5p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex5p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex5p -m ../data/escher.mesh
-//               mpirun -np 4 ex5p -m ../data/fichera.mesh
-//
-// Description:  This example code solves a simple 2D/3D mixed Darcy problem
-//               corresponding to the saddle point system
-//                                 k*u + grad p = f
-//                                 - div u      = g
-//               with natural boundary condition -p = <given pressure>.
-//               Here, we use a given exact solution (u,p) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (velocity u) and piecewise discontinuous
-//               polynomials (pressure p).
-//
-//               The example demonstrates the use of the BlockMatrix class, as
-//               well as the collective saving of several grid functions in a
-//               VisIt (visit.llnl.gov) visualization format.
-//
-//               We recommend viewing examples 1-4 before viewing this example.
-
 #include "mfem.hpp"
-#include <fstream>
-#include <iostream>
-#include <assert.h>
 #include <memory>
 
 using namespace std;
@@ -53,8 +23,6 @@ struct MLDivFreeSolveParameters
 
 void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
                 double atol, double rtol, bool iter_mode=false);
-
-void SetOptions(IterativeSolver& solver, const IterSolveParameters& param);
 
 void PrintConvergence(const IterativeSolver& solver, bool verbose);
 
@@ -136,7 +104,7 @@ public:
     void SetupMG(const InterpolationCollector& P);
     void SetupAMS(ParFiniteElementSpace& hcurl_fes);
 private:
-    // Find a particular solution for div sigma = f
+    // Find a particular solution for div sigma_p = f
     void SolveParticular(const Vector& rhs, Vector& sol) const;
 
     void SolveDivFree(const Vector& rhs, Vector& sol) const;
