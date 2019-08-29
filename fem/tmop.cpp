@@ -923,7 +923,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec)
                               tspec.FESpace()->GetVDim());
 
    adapt_eval->SetInitialField
-         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
+   (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
 }
 #endif
 
@@ -941,7 +941,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec)
                                  tspec.FESpace()->GetVDim());
 
    adapt_eval->SetInitialField
-         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
+   (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
@@ -974,7 +974,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 
          const double min_size = tspec_vals.Min();
          MFEM_ASSERT(min_size > 0.0,
-                    "Non-positive size propagated in the target definition.");
+                     "Non-positive size propagated in the target definition.");
 
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
