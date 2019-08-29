@@ -10768,6 +10768,11 @@ RT_WedgeElement::RT_WedgeElement(const int p)
    trt_dshape.SetSize(RTTriangleFE.GetDof());
 #endif
 
+   const IntegrationRule &t2_n = L2TriangleFE.GetNodes();
+   const IntegrationRule &tr_n = RTTriangleFE.GetNodes();
+   const IntegrationRule &s1_n = H1SegmentFE.GetNodes();
+   const IntegrationRule &s2_n = L2SegmentFE.GetNodes();
+
    // faces
    int o = 0;
    int l = 0;
@@ -10776,32 +10781,47 @@ RT_WedgeElement::RT_WedgeElement(const int p)
       for (int i = 0; i + j <= p; i++)
       {
          l = j + i * (2 * p + 3 - i) / 2;
-         t_dof[o] = l; s_dof[o] = 0; dof2nk[o] = 0; o++;
+         t_dof[o] = l; s_dof[o] = 0; dof2nk[o] = 0;
+         const IntegrationPoint & t_ip = t2_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    // (3,4,5) -- top
    l = 0;
    for (int j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
       {
-         t_dof[o] = l; s_dof[o] = 1; dof2nk[o] = 1; l++; o++;
+         t_dof[o] = l; s_dof[o] = 1; dof2nk[o] = 1; l++;
+         const IntegrationPoint & t_ip = t2_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    // (0, 1, 4, 3) -- xz plane
    for (int j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)
       {
-         t_dof[o] = i; s_dof[o] = j; dof2nk[o] = 2; o++;
+         t_dof[o] = i; s_dof[o] = j; dof2nk[o] = 2;
+         const IntegrationPoint & t_ip = tr_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s2_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    // (1, 2, 5, 4) -- (y-x)z plane
    for (int j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)
       {
-         t_dof[o] = p + 1 + i; s_dof[o] = j; dof2nk[o] = 3; o++;
+         t_dof[o] = p + 1 + i; s_dof[o] = j; dof2nk[o] = 3;
+         const IntegrationPoint & t_ip = tr_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s2_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    // (2, 0, 3, 5) -- yz plane
    for (int j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)
       {
-         t_dof[o] = 2 * p + 2 + i; s_dof[o] = j; dof2nk[o] = 4; o++;
+         t_dof[o] = 2 * p + 2 + i; s_dof[o] = j; dof2nk[o] = 4;
+         const IntegrationPoint & t_ip = tr_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s2_n.IntPoint(s_dof[o]).x);
+         o++;
       }
 
    // interior
@@ -10812,16 +10832,25 @@ RT_WedgeElement::RT_WedgeElement(const int p)
          for (int i = 0; i + j <= pm1; i++)
          {
             t_dof[o] = 3 * (p + 1) + 2 * l;     s_dof[o] = k;
-            dof2nk[o] = 2; o++;
+            dof2nk[o] = 2;
+            const IntegrationPoint & t_ip0 = tr_n.IntPoint(t_dof[o]);
+            Nodes.IntPoint(o).Set3(t_ip0.x, t_ip0.y, s2_n.IntPoint(s_dof[o]).x);
+            o++;
             t_dof[o] = 3 * (p + 1) + 2 * l + 1; s_dof[o] = k;
-            dof2nk[o] = 4; l++; o++;
+            dof2nk[o] = 4; l++;
+            const IntegrationPoint & t_ip1 = tr_n.IntPoint(t_dof[o]);
+            Nodes.IntPoint(o).Set3(t_ip1.x, t_ip1.y, s2_n.IntPoint(s_dof[o]).x);
+            o++;
          }
    }
    for (int k = 2; k < H1SegmentFE.GetDof(); k++)
    {
       for (l = 0; l < L2TriangleFE.GetDof(); l++)
       {
-         t_dof[o] = l; s_dof[o] = k; dof2nk[o] = 1; o++;
+         t_dof[o] = l; s_dof[o] = k; dof2nk[o] = 1;
+         const IntegrationPoint & t_ip = t2_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    }
 }
@@ -10887,7 +10916,8 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
       }
       else
       {
-         divshape(i) = tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
+         divshape(i) = (dof2nk[i]?1.0:-1.0) *
+                       tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
       }
    }
 }
