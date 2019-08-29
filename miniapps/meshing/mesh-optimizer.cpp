@@ -84,7 +84,7 @@ double ind_values(const Vector &x)
       double val = 0.;
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
-      double r1 = 0.15;double r2 = 0.35;double sf=30.0;
+      double r1 = 0.15; double r2 = 0.35; double sf=30.0;
       val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
       if (val > 1.) {val = 1;}
 
@@ -112,20 +112,23 @@ double ind_values(const Vector &x)
       double sf = 10;
       val = 0.;
       // circle 1
-      r1= 0.25; r2 = 0.25;rval = 0.1;
+      r1= 0.25; r2 = 0.25; rval = 0.1;
       double xc = x(0) - r1, yc = x(1) - r2;
       double r = sqrt(xc*xc+yc*yc);
-      val =  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));// std::exp(val1);
+      val =  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
+                                                               (r-rval)));// std::exp(val1);
       // circle 2
       r1= 0.75; r2 = 0.75;
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
-      val +=  (0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval))));// std::exp(val1);
+      val +=  (0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
+                                                                 (r-rval))));// std::exp(val1);
       // circle 3
       r1= 0.75; r2 = 0.25;
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
-      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));// std::exp(val1);
+      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
+                                                                (r-rval)));// std::exp(val1);
       // circle 4
       r1= 0.25; r2 = 0.75;
       xc = x(0) - r1, yc = x(1) - r2;
@@ -148,7 +151,7 @@ double ind_values(const Vector &x)
       Xmod = X*std::cos(thval) + Y*std::sin(thval);
       Ymod= -X*std::sin(thval) + Y*std::cos(thval);
       X = Xmod+0.5; Y = Ymod+0.5;
-      double r1 = 0.45;double r2 = 0.55;double sf=30.0;
+      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
       val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
               + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
       if (rval > 0.4) {val = 0.;}
@@ -163,7 +166,7 @@ double ind_values(const Vector &x)
       double val = 0.;
       const double xc = x(0) - 0.0, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
-      double r1 = 0.45;double r2 = 0.55;double sf=30.0;
+      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
       val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
       if (val > 1.) {val = 1;}
       if (val < 0.) {val = 0;}

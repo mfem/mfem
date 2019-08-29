@@ -338,7 +338,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       {
 #ifdef MFEM_USE_MPI
          const ParNonlinearForm *nlf =
-               dynamic_cast<const ParNonlinearForm *>(oper);
+            dynamic_cast<const ParNonlinearForm *>(oper);
          Vector x_loc(nlf->ParFESpace()->GetVSize());
          nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
          discr_tc->UpdateTargetSpecification(x_loc);
@@ -458,7 +458,7 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
       {
 #ifdef MFEM_USE_MPI
          const ParNonlinearForm *nlf =
-               dynamic_cast<const ParNonlinearForm *>(oper);
+            dynamic_cast<const ParNonlinearForm *>(oper);
          Vector x_loc(nlf->ParFESpace()->GetVSize());
          nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
          discr_tc->UpdateTargetSpecification(x_loc);
