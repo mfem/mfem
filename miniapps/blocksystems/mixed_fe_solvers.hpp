@@ -58,20 +58,23 @@ void SetOptions(IterativeSolver& solver, const IterSolveParameters& param);
 
 void PrintConvergence(const IterativeSolver& solver, bool verbose);
 
+void GetDiagBlockSubMatrix(const HypreParMatrix& A, const Array<int> rows,
+                           const Array<int> cols, DenseMatrix& sub_A);
+
 SparseMatrix AggToIntDof(const SparseMatrix& agg_elem, const SparseMatrix& elem_dof);
 
 Vector LocalSolution(const DenseMatrix& M,  const DenseMatrix& B, const Vector& F);
 
-SparseMatrix ElemToDofs(const FiniteElementSpace& fes);
+SparseMatrix ElemToTrueDofs(const FiniteElementSpace& fes);
 
-Vector MLDivPart(const SparseMatrix& M_fine,
-                 const SparseMatrix& B_fine,
-                 const Vector& F_fine,
+Vector MLDivPart(const HypreParMatrix& M,
+                 const HypreParMatrix& B,
+                 const Vector& F,
                  const vector<SparseMatrix>& agg_elem,
                  const vector<SparseMatrix>& elem_hdivdofs,
                  const vector<SparseMatrix>& elem_l2dofs,
-                 const vector<SparseMatrix>& P_hdiv,
-                 const vector<SparseMatrix>& P_l2,
+                 const vector<OperatorHandle>& P_hdiv,
+                 const vector<OperatorHandle>& P_l2,
                  const HypreParMatrix& coarse_hdiv_d_td,
                  const HypreParMatrix& coarse_l2_d_td,
                  const Array<int>& coarsest_ess_dofs);
@@ -97,26 +100,25 @@ class InterpolationCollector
 public:
     InterpolationCollector(ParFiniteElementSpace& fes, int num_refine);
 
-    void Collect();
+    void CollectData(ParFiniteElementSpace& fes);
 
     const Array<OperatorHandle>& GetP() const { return P_; }
 
 private:
     Array<OperatorHandle> P_;
-    ParFiniteElementSpace& fes_;
     ParFiniteElementSpace coarse_fes_;
-    int ref_count_;
+    int refine_count_;
 };
 
-struct DivL2Hierarchy
+struct HdivL2Hierarchy
 {
     friend class MLDivFreeSolver;
 
-    DivL2Hierarchy(ParFiniteElementSpace& hdiv_fes,
-                   ParFiniteElementSpace& l2_fes,
-                   int num_refine, const Array<int>& ess_bdr);
+    HdivL2Hierarchy(ParFiniteElementSpace& hdiv_fes,
+                    ParFiniteElementSpace& l2_fes,
+                    int num_refine, const Array<int>& ess_bdr);
 
-    void Collect();
+    void CollectData();
 private:
     ParFiniteElementSpace& hdiv_fes_;
     ParFiniteElementSpace& l2_fes_;
@@ -129,17 +131,17 @@ private:
     vector<SparseMatrix> agg_el_;
     vector<SparseMatrix> el_hdivdofs_;
     vector<SparseMatrix> el_l2dofs_;
-    vector<SparseMatrix> P_hdiv_;
-    vector<SparseMatrix> P_l2_;
+    vector<OperatorHandle> P_hdiv_;
+    vector<OperatorHandle> P_l2_;
     Array<int> coarse_ess_dofs_;
 
-    int ref_count_;
+    int refine_count_;
 };
 
 class MLDivFreeSolver : public Solver
 {
 public:
-    MLDivFreeSolver(DivL2Hierarchy& hierarchy, HypreParMatrix& M,
+    MLDivFreeSolver(HdivL2Hierarchy& hierarchy, HypreParMatrix& M,
                     HypreParMatrix& B, HypreParMatrix& BT, HypreParMatrix& C,
                     MLDivFreeSolveParameters param = MLDivFreeSolveParameters());
 
@@ -164,7 +166,7 @@ private:
 
     SparseMatrix M_fine_;
     SparseMatrix B_fine_;
-    DivL2Hierarchy& h_;
+    HdivL2Hierarchy& h_;
     HypreParMatrix& M_;
     HypreParMatrix& B_;
     HypreParMatrix& BT_;
@@ -202,4 +204,22 @@ private:
     mutable Array<Vector> resid_;
     mutable Vector cor_cor_;
 };
+
+/* Block diagonal preconditioner of the form
+ *               P = [ diag(M)         0         ]
+ *                   [  0       B diag(M)^-1 B^T ]
+ *
+ *   Here we use Symmetric Gauss-Seidel to approximate the inverse of the
+ *   pressure Schur Complement.
+ */
+class L2H1Preconditioner : public BlockDiagonalPreconditioner
+{
+public:
+    L2H1Preconditioner(HypreParMatrix& M,
+                       HypreParMatrix& B,
+                       const Array<int>& offsets);
+private:
+    OperatorHandle S_;
+};
+
 
