@@ -126,14 +126,14 @@ int main(int argc, char *argv[])
 
     // Constructing multigrid hierarchy while refining the mesh (if GMG is true)
     InterpolationCollector* P_N;
-    DivL2Hierarchy* hdiv_l2_hierarchy;
+    HdivL2Hierarchy* hdiv_l2_hierarchy;
 
     chrono.Clear();
     chrono.Start();
 
     if (divfree && ML_particular)
     {
-        hdiv_l2_hierarchy = new DivL2Hierarchy(*R_space, *W_space, par_ref_levels, ess_bdr);
+        hdiv_l2_hierarchy = new HdivL2Hierarchy(*R_space, *W_space, par_ref_levels, ess_bdr);
     }
 
     if (divfree)
@@ -146,17 +146,12 @@ int main(int argc, char *argv[])
     {
         pmesh->UniformRefinement();
 
-//        if (l == par_ref_levels)
-//        {
-//            pmesh->ReorientTetMesh();
-//        }
-
         R_space->Update();
         W_space->Update();
 
         if (divfree && ML_particular)
         {
-            hdiv_l2_hierarchy->Collect();
+            hdiv_l2_hierarchy->CollectData();
         }
 
         if (divfree)
@@ -164,7 +159,7 @@ int main(int argc, char *argv[])
             N_space->Update();
             if (GMG)
             {
-                P_N->Collect();
+                P_N->CollectData(*N_space);
             }
         }
     }
@@ -177,13 +172,13 @@ int main(int argc, char *argv[])
 
     if (verbose)
     {
-        std::cout << "***********************************************************\n";
-        std::cout << "dim(R) = " << dimR << "\n";
-        std::cout << "dim(W) = " << dimW << "\n";
-        std::cout << "dim(R+W) = " << dimR + dimW << "\n";
+        cout << "***********************************************************\n";
+        cout << "dim(R) = " << dimR << "\n";
+        cout << "dim(W) = " << dimW << "\n";
+        cout << "dim(R+W) = " << dimR + dimW << "\n";
         if (divfree)
-            std::cout << "dim(N) = " << dimN << "\n";
-        std::cout << "***********************************************************\n";
+            cout << "dim(N) = " << dimN << "\n";
+        cout << "***********************************************************\n";
     }
 
     // 7. Define the two BlockStructure of the problem.  block_offsets is used
@@ -274,17 +269,15 @@ int main(int argc, char *argv[])
     chrono.Start();
 
     BlockOperator darcyOp(block_trueOffsets);
-    Solver *darcyPr;
-
     if (divfree)
     {
         unique_ptr<HypreParMatrix> C(DiscreteCurl->ParallelAssemble());
 
         MLDivFreeSolveParameters param;
-//        param.verbose = verbose;
+        param.verbose = verbose;
+        param.ml_part = ML_particular;
         MLDivFreeSolver ml_df_solver(*hdiv_l2_hierarchy, *M, *B, *BT, *C, param);
         if (GMG) ml_df_solver.SetupMG(*P_N); else ml_df_solver.SetupAMS(*N_space);
-
         ml_df_solver.SetOperator(bVarf->SpMat());
         ml_df_solver.Mult(trueRhs, trueX);
     }
@@ -294,48 +287,16 @@ int main(int argc, char *argv[])
         darcyOp.SetBlock(0,1, BT);
         darcyOp.SetBlock(1,0, B);
 
-        // 11. Construct the operators for preconditioner
-        //
-        //                 P = [ diag(M)         0         ]
-        //                     [  0       B diag(M)^-1 B^T ]
-        //
-        //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-        //     pressure Schur Complement.
-        HypreParMatrix *MinvBt = B->Transpose();
-        Vector Md(M->GetNumRows());
-        M->GetDiag(Md);
-        MinvBt->InvScaleRows(Md);
-        HypreParMatrix *S = ParMult(B, MinvBt);
-
-        HypreSolver *invM, *invS;
-        invM = new HypreDiagScale(*M);
-        invS = new HypreBoomerAMG(*S);
-        static_cast<HypreBoomerAMG*>(invS)->SetPrintLevel(0);
-
-        invM->iterative_mode = false;
-        invS->iterative_mode = false;
-
-        BlockDiagonalPreconditioner darcyPr(block_trueOffsets);
-        darcyPr.SetDiagonalBlock(0, invM);
-        darcyPr.SetDiagonalBlock(1, invS);
-
-        // 12. Solve the linear system with MINRES.
-        //     Check the norm of the unpreconditioned residual.
+        L2H1Preconditioner darcyPr(*M, *B, block_trueOffsets);
 
         MINRESSolver solver(MPI_COMM_WORLD);
-        SetOptions(solver, 0, max_iter, atol, rtol, false);
+        SetOptions(solver, 0, max_iter, atol, rtol);
         solver.SetOperator(darcyOp);
         solver.SetPreconditioner(darcyPr);
         trueX = 0.0;
         solver.Mult(trueRhs, trueX);
-        chrono.Stop();
 
         PrintConvergence(solver, verbose);
-
-        delete invM;
-        delete invS;
-        delete S;
-        delete MinvBt;
     }
     string solver_name = divfree ? "Divergence free" : "Block-diagonal-preconditioned MINRES";
     if (verbose) cout << solver_name << " solver took " << chrono.RealTime() << "s.\n";
@@ -364,8 +325,8 @@ int main(int argc, char *argv[])
 
     if (verbose)
     {
-        std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-        std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+        cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+        cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
     }
 
     // 14. Save the refined mesh and the solution in parallel. This output can be
@@ -429,6 +390,7 @@ int main(int argc, char *argv[])
     delete R_space;
     if (divfree)
     {
+        if (ML_particular) delete hdiv_l2_hierarchy;
         delete DiscreteCurl;
         delete N_space;
         delete P_N;
