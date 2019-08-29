@@ -86,7 +86,7 @@ double weight_fun(const Vector &x);
 
 double ind_values(const Vector &x)
 {
-   const int opt = 6;
+   const int opt = 7;
    const double small = 0.001, big = 0.01;
    
    // Sine wave.
@@ -214,9 +214,10 @@ double ind_values(const Vector &x)
       return val;
    }
 
+   // Sphere in cube
    if (opt == 8)
    {
-      // Circle in the middle.
+      
       double val = 0.;
       const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
       const double r = sqrt(xc*xc + yc*yc + zc*zc);
@@ -238,6 +239,20 @@ double ind_values(const Vector &x)
       if (val > 1.) {val = 1;}
       if (val < 0.) {val = 0;}
       //std::cout << "Val: " << val * small + (1.0 - val) * big << std::endl;
+      return val * small + (1.0 - val) * big;
+   }
+
+   if (opt == 10)
+   {
+      double val = 0.;
+      const double X = x(0); 
+      const double Y = x(1);
+      const double Z = x(2);
+      
+      
+      if (std::abs(Z-0.5) < 1e-8) {val = 1.0;}
+      else {val = 0.0;}
+      return val;
       return val * small + (1.0 - val) * big;
    }
 
@@ -305,7 +320,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-5;
+   double newton_rtol    = 1e-8;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -520,14 +535,18 @@ int main (int argc, char *argv[])
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
-   H1_FECollection ind_fec(3, dim);
+   H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
+   FiniteElementSpace ind_fes2(mesh, &ind_fec, 2);
+
    GridFunction size;
    double error = 0.0;
    GridFunction d_x;
    GridFunction d_y;
    GridFunction grad;
    GridFunction aspect_ratio;
+
+   
    
    switch (target_id)
    {
@@ -550,10 +569,10 @@ int main (int argc, char *argv[])
          tc->SetAdaptivityEvaluator(new InterpolatorFP);
          size.SetSpace(&ind_fes);
          
-         /*d_x.SetSpace(&ind_fes);
+         d_x.SetSpace(&ind_fes);
          d_y.SetSpace(&ind_fes);
          grad.SetSpace(&ind_fes);
-         aspect_ratio.SetSpace(&ind_fes);*/
+         aspect_ratio.SetSpace(&ind_fes);
          FunctionCoefficient ind_coeff(ind_values);
          
          size.ProjectCoefficient(ind_coeff);
@@ -561,14 +580,14 @@ int main (int argc, char *argv[])
          error = size.ComputeL1Error(ind_coeff);
 
          //Diffuse the interface
-         //DiffuseField(size,12);
+         DiffuseField(size,12);
         
          //Get  partials with respect to x and y of the grid function
-         //size.GetDerivative(1,0,d_x);
-         //size.GetDerivative(1,1,d_y);
+         size.GetDerivative(1,0,d_x);
+         size.GetDerivative(1,1,d_y);
 
          //Compute the squared magnitude of the gradient
-         /*for (int i = 0; i < grad.Size(); i++)
+         for (int i = 0; i < grad.Size(); i++)
          {
                grad(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
          }
@@ -580,8 +599,8 @@ int main (int argc, char *argv[])
                d_y(i) = std::abs(d_y(i));
          }
          const double eps = 0.05;
-         const double ratio = 10.0;
-         const double big_small_ratio = 10.0;
+         const double ratio = 50.0;
+         const double big_small_ratio = 50.0;
 
          for (int i = 0; i < grad.Size(); i++)
          {
@@ -590,10 +609,6 @@ int main (int argc, char *argv[])
                if (aspect_ratio(i) > ratio){aspect_ratio(i) = ratio;}
                if (aspect_ratio(i) < 1.0/ratio){aspect_ratio(i) = 1.0/ratio;}
          }
-
-
-      
-
          Vector vals;
          const int NE = mesh->GetNE();
          double volume = 0.0, volume_ind = 0.0;
@@ -606,10 +621,10 @@ int main (int argc, char *argv[])
             grad.GetValues(i, ir, vals);
             for (int j = 0; j < ir.GetNPoints(); j++)
             {
-                 const IntegrationPoint &ip = ir.IntPoint(j);
-                 Tr->SetIntPoint(&ip);
-                 volume     += ip.weight * Tr->Weight();
-                 volume_ind += vals(j) * ip.weight * Tr->Weight();
+               const IntegrationPoint &ip = ir.IntPoint(j);
+               Tr->SetIntPoint(&ip);
+               volume     += ip.weight * Tr->Weight();
+               volume_ind += vals(j) * ip.weight * Tr->Weight();
             }
          }
          const double avg_zone_size = volume / NE;
@@ -620,7 +635,7 @@ int main (int argc, char *argv[])
          const double small_zone_size = small_avg_ratio * avg_zone_size;
          const double big_zone_size   = big_small_ratio * small_zone_size;
 
-         std::cout << small_zone_size << " " << avg_zone_size << " " << big_zone_size << std::endl;
+         //std::cout << small_zone_size << " " << avg_zone_size << " " << big_zone_size << std::endl;
    
          for (int i = 0; i < grad.Size(); i++)
          {
@@ -628,8 +643,7 @@ int main (int argc, char *argv[])
              const double a = (big_zone_size - small_zone_size) / small_zone_size;
              grad(i) = big_zone_size / (1.0+a*val);
          }
-         DiffuseField(aspect_ratio, 50);*/
-         //DiffuseField(grad, 20);
+         
          
          if (visualization)
          {
@@ -643,16 +657,32 @@ int main (int argc, char *argv[])
                  << 0 << " " << 600 << " " << 600 << " " << 600 << "\n"
                  << "keys jRmclA" << endl;
          }     
-         //MFEM_ABORT("Done");    
-         if (aspect_ratio_flag == 0){
-             tc->SetSerialDiscreteTargetSpec(size,size);
-             target_c = tc;
+  
+         
+         if (aspect_ratio_flag)
+         {
+            DiffuseField(aspect_ratio, 70);
+            DiffuseField(grad, 4);
+            GridFunction combined;
+            combined.SetSpace(&ind_fes2);
+            for (int i = 0; i < size.Size(); i++)
+            {
+               combined(i) = grad(i);
+               combined(i+grad.Size()) = aspect_ratio(i);
+            
+            }
+            tc->SetSerialDiscreteTargetSpec(combined);
+            target_c = tc;
          }
-         /*
-         if (aspect_ratio_flag == 1){
-             tc->SetSerialDiscreteTargetSpec(grad,aspect_ratio);
-             target_c = tc;
-         }*/
+         else
+         {
+            tc->SetSerialDiscreteTargetSpec(grad);
+            target_c = tc;
+         }
+
+         
+         
+         
          break;
       }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;

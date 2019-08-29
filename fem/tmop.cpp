@@ -923,20 +923,22 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec)
                               tspec.FESpace()->GetVDim());
 
    adapt_eval->SetInitialField
-         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec, target_spec);
+         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
 }
 #endif
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec, GridFunction &tspec2)
+void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec)
 {
+   
    target_spec.SetSize(tspec.Size());
    target_spec = tspec;
    tspec_fes   = tspec.FESpace();
 
-   target_spec2.SetSize(tspec2.Size());
+   /*target_spec2.SetSize(tspec2.Size());
    target_spec2 = tspec2;
-   tspec_fes2   = tspec2.FESpace();
+   tspec_fes2   = tspec2.FESpace();*/
 
+   //std::cout << use_size_and_aspect_ratio << std::endl;
 
    // Default evaluator is based on CG advection.
    //if (adapt_eval == NULL) { adapt_eval = new AdvectorCG; }
@@ -947,7 +949,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec, GridFunct
                                  tspec.FESpace()->GetVDim());
 
    adapt_eval->SetInitialField
-         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec, target_spec2);
+         (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
 
 }
 
@@ -955,7 +957,7 @@ void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
 {
    MFEM_VERIFY(target_spec.Size() > 0, "Target specification is not set!");
 
-   adapt_eval->ComputeAtNewPosition(new_x, target_spec, target_spec2);
+   adapt_eval->ComputeAtNewPosition(new_x, target_spec);
    
 }
 
@@ -973,20 +975,35 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          const DenseMatrix &Wideal =
             Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
          const int dim = Wideal.Height(),
-                   ntspec_dofs = tspec_fes->GetFE(0)->GetDof();
+                   ntspec_dofs = tspec_fes->GetVDim()*tspec_fes->GetFE(0)->GetDof();
 
-         Vector shape(ntspec_dofs), tspec_vals(ntspec_dofs), tspec_vals2(ntspec_dofs);
+
+         Vector shape(ntspec_dofs/tspec_fes->GetVDim()), tspec_vals(ntspec_dofs); 
+         //tspec_vals2(ntspec_dofs);
          Array<int> dofs;
-         tspec_fes->GetElementDofs(e_id, dofs);
+         //getelvdofs
+         tspec_fes->GetElementVDofs(e_id, dofs);
          target_spec.GetSubVector(dofs, tspec_vals);
-
+         Vector size_vals;
+         
+         Vector aspect_ratio_vals;
          if (use_size_and_aspect_ratio)
-         {
-            target_spec2.GetSubVector(dofs, tspec_vals2);
+         { 
+            size_vals.SetDataAndSize(tspec_vals.GetData(),tspec_vals.Size()/2);
+            aspect_ratio_vals.SetDataAndSize(tspec_vals.GetData()+(tspec_vals.Size()/2),tspec_vals.Size()/2);
          }
-
-         const double min_size = tspec_vals.Min();
-         const double min_size2 = tspec_vals2.Min();
+         else
+         {
+            size_vals.SetDataAndSize(tspec_vals.GetData(),tspec_vals.Size());
+         }
+         
+         const double min_size = size_vals.Min();
+         const double min_size2 = aspect_ratio_vals.Min();
+         //std::cout << *size_vals << std::endl;
+         //std::cout << *aspect_ratio_vals << std::endl;
+         //std::cout << min_size << std::endl;
+         //std::cout << min_size2 << std::endl;
+         
          MFEM_VERIFY(min_size > 0.0,
                     "Non-positive size propagated in the target definition.");
 
@@ -994,24 +1011,44 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          {
             const IntegrationPoint &ip = ir.IntPoint(i);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-            const double size = std::max(shape * tspec_vals, min_size);
-
+            const double size = std::max(shape * size_vals, min_size);
             if (use_size_and_aspect_ratio == 0) 
             {
-                  Jtr(i).Set(std::pow(size / Wideal.Det(), 1.0/dim), Wideal);
+                Jtr(i).Set(std::pow(size / Wideal.Det(), (1.0)/dim), Wideal);
             }
             else
             {
-               const double dx_dy = std::max(shape * tspec_vals2, min_size2);
-               DenseMatrix t(2,2);
-               t(0,0) = 1.0;
-               t(1,0) = 0.0;
-               t(0,1) = 0.0;
-               t(1,1) = dx_dy;
-               double det = t.Det();
-               Jtr(i).Set(std::pow(size / det, 1.0/dim), t);
+               if (dim == 2)
+               {
+                  //std::cout << shape * aspect_ratio_vals << std::endl;
+                  const double dx_dy = std::max(shape * aspect_ratio_vals, min_size2);
+                  DenseMatrix t(2,2);
+                  t(0,0) = 1.0;
+                  t(0,1) = 0.0;
+                  t(1,0) = 0.0;
+                  t(1,1) = dx_dy;
+                  double det = t.Det();
+                  Jtr(i).Set(std::pow(size / det, 1.0/dim), t);
+               }
+               else
+               {
+                  const double dx_dy = std::max(shape * aspect_ratio_vals, min_size2);
+                  DenseMatrix t(3,3);
+                  t(0,0) = 1.0;
+                  t(0,1) = 0.0;
+                  t(0,2)  = 0.0;
+                  t(1,0) = 0.0;
+                  t(1,1) = 1.0;
+                  t(1,2) = 0.0;
+                  t(2,0) = 0.0;
+                  t(2,1) = 0.0;
+                  t(2,2) = dx_dy;
+                  double det = t.Det();
+                  Jtr(i).Set(std::pow(size / det, 1.0/dim), t);  
+               }
             }
          }
+        
 
          break;
       }
