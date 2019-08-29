@@ -22,6 +22,7 @@
 
 #ifdef MFEM_USE_RAJA
 #include "RAJA/RAJA.hpp"
+#include "raja.hpp"
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
 #error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
 #endif
@@ -85,14 +86,36 @@ void OmpWrap(const int N, HBODY &&h_body)
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 
 using RAJA::statement::Segs;
-using RAJA::statement::Offsets;
-using RAJA::statement::Params;
 
 template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
 void RajaCudaWrap1D(const int N, DBODY &&d_body)
 {
    RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N),d_body);
 }
+
+#define MFEM_USE_RAJA_FORALL_ND
+#if defined (MFEM_USE_RAJA_FORALL_ND)
+template <typename DBODY>
+void RajaCudaWrap2D(const int N, DBODY &&d_body,
+                    const int X, const int Y, const int BZ)
+{
+   if (N==0) { return; }
+   const dim3 GRID = (N+BZ-1)/BZ;
+   const dim3 BLCK(X,Y,BZ);
+   RAJA::cuda::forallND<true>(GRID,BLCK,RAJA::RangeSegment(0,N), d_body);
+}
+
+template <typename DBODY>
+void RajaCudaWrap3D(const int N, DBODY &&d_body,
+                    const int X, const int Y, const int Z)
+{
+   if (N==0) { return; }
+   const dim3 GRID = N;
+   const dim3 BLCK(X,Y,Z);
+   RAJA::cuda::forallND<false>(GRID,BLCK,RAJA::RangeSegment(0,N), d_body);
+}
+
+#else // MFEM_USE_RAJA_FORALL_ND
 
 template <typename DBODY>
 void RajaCudaWrap2D(const int N, DBODY &&d_body,
@@ -137,15 +160,15 @@ void RajaCudaWrap3D(const int N, DBODY &&d_body,
    [=] RAJA_DEVICE (const int k) { d_body(k); MFEM_SYNC_THREAD; });
    MFEM_CUDA_CHECK(cudaGetLastError());
 }
-#endif
+#endif // MFEM_USE_RAJA_FORALL_ND
+
+#endif // defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 
 
 /// RAJA OpenMP backend
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
 
 using RAJA::statement::Segs;
-using RAJA::statement::Offsets;
-using RAJA::statement::Params;
 
 template <typename HBODY>
 void RajaOmpWrap1D(const int N, HBODY &&h_body)
