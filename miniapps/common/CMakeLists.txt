@@ -27,3 +27,4 @@ endif()
 
 add_library(mfem_miniapps_common ${MFEM_MINIAPPS_COMMON_SOURCES}
             ${MFEM_MINIAPPS_COMMON_HEADERS})
+target_link_libraries(mfem_miniapps_common mfem)
