@@ -54,8 +54,11 @@ protected:
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
 
+   /// Creates an empty array
+   inline Array() : size(0) { data.Reset(); }
+
    /// Creates array of asize elements
-   explicit inline Array(int asize = 0)
+   explicit inline Array(int asize)
       : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
 
    /** Creates array using an existing c-array of asize elements;
