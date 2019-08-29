@@ -114,17 +114,39 @@ int main(int argc, char *argv[])
 
    Array<int> ess_vertices;
    Array<int> bdr_vertices;
-   for (int i = 0; i<cmesh->GetNBE(); i++)
+   for (int i = 0; i<cmesh->GetNE(); i++)
    {
       int bdr = cmesh->GetBdrAttribute(i);
+
       //check if it's essential;
-      if(ess_bdr[bdr] == 1)
+      if(ess_bdr[bdr-1] == 1)
       {
          cmesh->GetBdrElementVertices(i,bdr_vertices);
-         bdr_vertices.Print();
+         ess_vertices.Append(bdr_vertices);
+      }
+   }
+   // ess_vertices.Print();
+
+   ess_vertices.Sort(); ess_vertices.Unique();
+   // ess_vertices.Print();
+
+   Array<int> non_ess_vertices;
+   int m=0; 
+   int l=0;
+   for (int i=0; i<cmesh->GetNV(); i++)
+   {
+      if (i == ess_vertices[m])
+      {
+         m++;
+      }
+      else
+      {
+         Array<int> temp(1); temp[0] = i;
+         non_ess_vertices.Append(temp);
       }
    }
 
+   non_ess_vertices.Print();
 
 
    // 7. Set up the linear form b(.) 
@@ -205,21 +227,21 @@ int main(int argc, char *argv[])
 
 
 
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      if (dim == 2) 
-      {
-         sol_sock <<  "solution\n" << *mesh << x  << "keys rRljc\n" << flush;
-      }
-      else
-      {
-         sol_sock <<  "solution\n" << *mesh << x  << "keys lc\n" << flush;
-      }
-   }
+   // if (visualization)
+   // {
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+   //    socketstream sol_sock(vishost, visport);
+   //    sol_sock.precision(8);
+   //    if (dim == 2) 
+   //    {
+   //       sol_sock <<  "solution\n" << *mesh << x  << "keys rRljc\n" << flush;
+   //    }
+   //    else
+   //    {
+   //       sol_sock <<  "solution\n" << *mesh << x  << "keys lc\n" << flush;
+   //    }
+   // }
 
 
 
@@ -233,14 +255,14 @@ int main(int argc, char *argv[])
       sol_sock << "mesh\n" << *cmesh << flush;
    }
 
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "mesh\n" << *mesh << flush;
-   }
+   // if (visualization)
+   // {
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+   //    socketstream sol_sock(vishost, visport);
+   //    sol_sock.precision(8);
+   //    sol_sock << "mesh\n" << *mesh << flush;
+   // }
 
 
    // 15. Free the used memory.
