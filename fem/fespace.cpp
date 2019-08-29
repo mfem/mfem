@@ -2023,6 +2023,12 @@ void FiniteElementSpace::Destroy()
    }
    E2Q_array.SetSize(0);
 
+   for (int i = 0; i < DoFTrans.Size(); i++)
+   {
+      delete DoFTrans[i];
+   }
+   DoFTrans.SetSize(0);
+
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
 
