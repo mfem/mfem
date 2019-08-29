@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
    refiner.SetNCLimit(nc_limit);
 
    ThresholdDerefiner derefiner(estimator);
-   derefiner.SetThreshold(.15*ltol_amr);
+   derefiner.SetThreshold(.2*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
    //-----------------------------------AMR---------------------------------
 

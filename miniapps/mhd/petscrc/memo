@@ -33,6 +33,29 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+8/27
+revisit exAMR
+
+this seems working
+exAMRMHD -m Meshes/xperiodicR3.mesh -r 0 -o 3 -tf 8 -vs 10 -dt .0002 -i 3 -amrl 3 -ltol 1e-3
+
+o=3 derefine seems have very small impact;
+exAMRMHD -m Meshes/xperiodicR3.mesh -r 0 -o 3 -tf 8 -vs 10 -dt .0002 -i 3 -amrl 3 -ltol 1e-3 -derefine
+
+this is okay np=4,8 (it is possible because the previous AMR setup has some issue; it could be derefine was too aggressive):
+mpirun -np 4 exAMRMHDp -m Meshes/xperiodicR3.mesh -rs 0 -o 3 -tf 1 -vs 10 -dt .0002 -i 3 -amrl 3 -ltol 1e-3 -derefine
+
+this becomes strange (this is not the same because derefine is different!!)
+mpirun -np 4 exAMRMHDp -m Meshes/xperiodic.mesh -rs 3 -o 3 -tf 1 -vs 10 -dt .0002 -i 3 -amrl 3 -ltol 1e-3
+
+
+
+
+o2 is not working
+
+8/26
+exAMRMHD fails for o=3? Diverged pcg? time steps are probably too large
+
 8/17
 new tests:
 mpirun -n 4 exMHDp -m Meshes/xperiodic1.mesh -rs 4 -o 2 -tf 1 -vs 100 -dt .001 -i 3
