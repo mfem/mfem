@@ -227,6 +227,10 @@ ifeq ($(MFEM_USE_CUDA),YES)
    XCOMPILER = $(CUDA_XCOMPILER)
    XLINKER   = $(CUDA_XLINKER)
    # CUDA_OPT and CUDA_LIB are added below
+   # Compatibility test against MFEM_USE_HIP
+   ifeq ($(MFEM_USE_HIP),YES)
+      $(error Incompatible config: MFEM_USE_CUDA can not be combined with MFEM_USE_HIP)
+   endif
 endif
 
 # HIP configuration
@@ -234,6 +238,10 @@ ifeq ($(MFEM_USE_HIP),YES)
    MFEM_CXX ?= $(HIP_CXX)
    ALL_LIBS += $(HIP_FLAGS)
    # HIP_OPT and HIP_LIB are added below
+   # Compatibility test against MFEM_USE_CUDA
+   ifeq ($(MFEM_USE_CUDA),YES)
+      $(error Incompatible config: MFEM_USE_HIP can not be combined with MFEM_USE_CUDA)
+   endif
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
