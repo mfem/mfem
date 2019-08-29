@@ -46,11 +46,11 @@ double test_grad_func(const Vector &x)
    double v = x[0];
    if (dim > 1)
    {
-     v += x[1];
+      v += x[1];
    }
    if (dim > 2)
    {
-     v += x[2];
+      v += x[2];
    }
 }
 
@@ -96,10 +96,10 @@ void TestCalcDShape(FiniteElement* fe, ElementTransformation * T, int res)
 
          weights.MultTranspose(dofs, v);
          REQUIRE( v[0] == Approx(1.) );
-	 if (dim > 1)
-	 {
+         if (dim > 1)
+         {
             REQUIRE( v[1] == Approx(1.) );
-	 }
+         }
          if (dim > 2)
          {
             REQUIRE( v[2] == Approx(1.) );
