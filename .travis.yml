@@ -5,6 +5,25 @@ language: cpp
 matrix:
   include:
     #
+    - os: osx
+      # osx_image: xcode7.3
+      compiler: clang
+      env: DEBUG=NO
+           MPI=YES
+           CODECOV=YES
+           MFEM_TEST_TARGET=test
+           NPROCS=4
+           TMPDIR=/tmp
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+          - $HOME/local-cached
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+    #
     # Linux
     #
     - os: linux
@@ -104,25 +123,6 @@ matrix:
            MPI=YES
            CODECOV=NO
            MFEM_TEST_TARGET=check
-           NPROCS=4
-           TMPDIR=/tmp
-      cache:
-        directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
-          - $TRAVIS_BUILD_DIR/../metis-4.0
-          - $HOME/local-cached
-      before_cache:
-        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
-    - os: osx
-      # osx_image: xcode7.3
-      compiler: clang
-      env: DEBUG=NO
-           MPI=YES
-           CODECOV=YES
-           MFEM_TEST_TARGET=test
            NPROCS=4
            TMPDIR=/tmp
       cache:
