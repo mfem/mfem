@@ -84,15 +84,15 @@ void OmpWrap(const int N, HBODY &&h_body)
 /// RAJA Cuda backend
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 
-template <int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
+using RAJA::statement::Segs;
+using RAJA::statement::Offsets;
+using RAJA::statement::Params;
+
+template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
 void RajaCudaWrap1D(const int N, DBODY &&d_body)
 {
    RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N),d_body);
 }
-
-using RAJA::statement::Segs;
-using RAJA::statement::Offsets;
-using RAJA::statement::Params;
 
 template <typename DBODY>
 void RajaCudaWrap2D(const int N, DBODY &&d_body,
@@ -110,19 +110,12 @@ void RajaCudaWrap2D(const int N, DBODY &&d_body,
         RAJA::statement::Lambda<0, Segs<0>>>>>>>>>
         (RAJA::make_tuple(RAJA::RangeSegment(0,G), RAJA::RangeSegment(0,X),
                           RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,BZ)),
-         [=] RAJA_DEVICE (int e)
+         [=] RAJA_DEVICE (const int n)
    {
-      //const int k = blockDim.x*blockIdx.x + threadIdx.x;
-      const int k = blockIdx.x*BZ + threadIdx.z;
-      /*if (e!=k)
-      {
-         printf("\n[e:%d, k:%d, kx:%d, block(%dx%dx%d), thread(%dx%dx%d)] ",
-                e, k, kx,
-                blockIdx.x, blockIdx.y, blockIdx.z,
-                threadIdx.x, threadIdx.y, threadIdx.z);
-      }*/
+      const int k = n*BZ + threadIdx.z;
       if (k >= N) { return; }
       d_body(k);
+      MFEM_SYNC_THREAD;
    });
    MFEM_CUDA_CHECK(cudaGetLastError());
 }
@@ -141,12 +134,7 @@ void RajaCudaWrap3D(const int N, DBODY &&d_body,
         RAJA::statement::Lambda<0, Segs<0>>>>>>>>>
         (RAJA::make_tuple(RAJA::RangeSegment(0,N), RAJA::RangeSegment(0,X),
                           RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,Z)),
-         [=] RAJA_DEVICE (int)
-   {
-      const int k = blockIdx.x;
-      if (k >= N) { return; }
-      d_body(k);
-   });
+   [=] RAJA_DEVICE (const int k) { d_body(k); MFEM_SYNC_THREAD; });
    MFEM_CUDA_CHECK(cudaGetLastError());
 }
 #endif
@@ -167,15 +155,14 @@ void RajaOmpWrap1D(const int N, HBODY &&h_body)
 
 template <typename HBODY>
 void RajaOmpWrap2D(const int N, HBODY &&h_body,
-                   const int X, const int Y, const int B)
+                   const int X, const int Y, const int BZ)
 {
-   MFEM_VERIFY(B>0, "");
    RAJA::kernel<RAJA::KernelPolicy<
    RAJA::statement::For<0, RAJA::omp_parallel_for_exec,
         RAJA::statement::Lambda<0, Segs<0>>>>>
         (RAJA::make_tuple(RAJA::RangeSegment(0,N), RAJA::RangeSegment(0,X),
-                          RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,B)),
-   [=] (int k) {h_body(k);});
+                          RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,BZ)),
+   [=] (int k) { h_body(k); });
 }
 
 template <typename HBODY>
@@ -187,7 +174,7 @@ void RajaOmpWrap3D(const int N, HBODY &&h_body,
         RAJA::statement::Lambda<0, Segs<0>>>>>
         (RAJA::make_tuple(RAJA::RangeSegment(0,N), RAJA::RangeSegment(0,X),
                           RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,Z)),
-   [=] (int k) {h_body(k);});
+   [=] (int k) { h_body(k); });
 }
 
 #endif
