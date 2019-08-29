@@ -623,7 +623,7 @@ void PADiffusionApply3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      double grad[max_Q1D][max_Q1D][max_Q1D][4];
+      double grad[max_Q1D][max_Q1D][max_Q1D][3];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -638,7 +638,7 @@ void PADiffusionApply3D(const int NE,
       }
       for (int dz = 0; dz < D1D; ++dz)
       {
-         double gradXY[max_Q1D][max_Q1D][4];
+         double gradXY[max_Q1D][max_Q1D][3];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -719,7 +719,7 @@ void PADiffusionApply3D(const int NE,
       }
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double gradXY[max_D1D][max_D1D][4];
+         double gradXY[max_D1D][max_D1D][3];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -731,7 +731,7 @@ void PADiffusionApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double gradX[max_D1D][4];
+            double gradX[max_D1D][3];
             for (int dx = 0; dx < D1D; ++dx)
             {
                gradX[dx][0] = 0;
