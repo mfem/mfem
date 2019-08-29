@@ -59,13 +59,11 @@ void PrintConvergence(const IterativeSolver& solver, bool verbose)
          << "Final residual norm is " << solver.GetFinalNorm() << ".\n";
 }
 
-void GetSubMatrix(const HypreParMatrix& A, const Array<int>& rows,
+void GetSubMatrix(const SparseMatrix& A, const Array<int>& rows,
                   const Array<int>& cols, DenseMatrix& sub_A)
 {
     sub_A.SetSize(rows.Size(), cols.Size());
-    SparseMatrix A_diag_block;
-    A.GetDiag(A_diag_block);
-    A_diag_block.GetSubMatrix(rows, cols, sub_A);
+    A.GetSubMatrix(rows, cols, sub_A);
 }
 
 SparseMatrix AggToIntDof(const SparseMatrix& agg_elem, const SparseMatrix& elem_dof)
@@ -174,9 +172,10 @@ Vector MLDivPart(const HypreParMatrix& M,
     OperatorHandle M_l;//(M.NumRows() ? const_cast<HypreParMatrix*>(&M) : NULL, false);
 
     Array<Vector> sigma(num_levels);
-    Vector F_l, F_a, trash, Pi_F_l, F_coarse, PT_F_l(F);
-    DenseMatrix B_a, M_a;
+    Vector F_l, F_a, trash, Pi_F_l, F_coarse, PT_F_l;
     Array<int> loc_hdivdofs, loc_l2dofs;
+    SparseMatrix P_l2_l, B_l_diag, M_l_diag;
+    DenseMatrix B_a, M_a;
 
     for (unsigned int l = 0; l < num_levels - 1; ++l)
     {
@@ -184,27 +183,34 @@ Vector MLDivPart(const HypreParMatrix& M,
         auto agg_hdivintdof = AggToIntDof(agg_elem[l], elem_hdivdofs[l]);
 
         // Right hand side: F_l = F - P_l2[l] (P_l2[l]^T P_l2[l])^{-1} P_l2[l]^T F
-        F_l = PT_F_l;
+        F_l = l == 0 ? F : PT_F_l;
         PT_F_l.SetSize(P_l2[l]->NumCols());
         P_l2[l]->MultTranspose(F_l, PT_F_l);
 
-        SparseMatrix P_l2_l;
-        P_l2[l].As<HypreParMatrix>()->GetDiag(P_l2_l);
-        OperatorHandle PT_l2(Transpose(P_l2_l));
-        OperatorHandle PTP_l2(Mult(*PT_l2.As<SparseMatrix>(), P_l2_l));
-
-        F_coarse.SetSize(P_l2[l]->NumCols());
-        for(int m = 0; m < F_coarse.Size(); m++)
         {
-            F_coarse[m] = PT_F_l[m] / PTP_l2.As<SparseMatrix>()->Elem(m, m);
+            P_l2[l].As<HypreParMatrix>()->GetDiag(P_l2_l);
+            OperatorHandle PT_l2(Transpose(P_l2_l));
+            OperatorHandle PTP_l2(Mult(*PT_l2.As<SparseMatrix>(), P_l2_l));
+
+            F_coarse.SetSize(PT_F_l.Size());
+            for(int m = 0; m < F_coarse.Size(); m++)
+            {
+                F_coarse[m] = PT_F_l[m] / PTP_l2.As<SparseMatrix>()->Elem(m, m);
+            }
         }
 
-        Pi_F_l.SetSize(P_l2[l]->NumRows());
+        Pi_F_l.SetSize(F_l.Size());
         P_l2[l]->Mult(F_coarse, Pi_F_l);
         F_l -= Pi_F_l;
 
         sigma[l].SetSize(agg_hdivintdof.NumCols());
         sigma[l] = 0.0;
+
+        B_l.As<HypreParMatrix>()->GetDiag(B_l_diag);
+        if (M_l.Ptr())
+        {
+            M_l.As<HypreParMatrix>()->GetDiag(M_l_diag);
+        }
 
         for (int agg = 0; agg < agg_hdivintdof.NumRows(); agg++)
         {
@@ -213,16 +219,14 @@ Vector MLDivPart(const HypreParMatrix& M,
 
             if (M_l.Ptr())
             {
-                GetSubMatrix(*M_l.As<HypreParMatrix>(), loc_hdivdofs, loc_hdivdofs, M_a);
+                GetSubMatrix(M_l_diag, loc_hdivdofs, loc_hdivdofs, M_a);
             }
-
-            GetSubMatrix(*B_l.As<HypreParMatrix>(), loc_l2dofs, loc_hdivdofs, B_a);
-
+            GetSubMatrix(B_l_diag, loc_l2dofs, loc_hdivdofs, B_a);
             F_l.GetSubVector(loc_l2dofs, F_a);
-
             sigma[l].AddElementVector(loc_hdivdofs, LocalSolution(M_a, B_a, F_a));
         }  // loop over elements
 
+        // Coarsen problem
         OperatorHandle B_finer(B_l.As<HypreParMatrix>(), B_l.OwnsOperator());
         B_l.SetOperatorOwner(false);
         B_l.MakeRAP(const_cast<OperatorHandle&>(P_l2[l]), B_finer, const_cast<OperatorHandle&>(P_hdiv[l]));
@@ -245,10 +249,10 @@ Vector MLDivPart(const HypreParMatrix& M,
     //                M_l->EliminateRowCol(k);
     //    }
 
-    OperatorHandle BT_l(B_l.As<HypreParMatrix>()->Transpose());
-
     if (M_l.Ptr())
     {
+        OperatorHandle BT_l(B_l.As<HypreParMatrix>()->Transpose());
+
         Array<int> block_offsets(3);
         block_offsets[0] = 0;
         block_offsets[1] = M_l->NumRows();
@@ -270,10 +274,10 @@ Vector MLDivPart(const HypreParMatrix& M,
         solver.SetOperator(coarseMatrix);
         solver.SetPreconditioner(prec);
 
-        sigma[num_levels-1].SetSize(block_offsets[2]);
-        sigma[num_levels-1] = 0.0;
-        solver.Mult(true_rhs, sigma[num_levels-1]);
-        sigma[num_levels-1].SetSize(B_l->NumCols());
+        sigma.Last().SetSize(block_offsets[2]);
+        sigma.Last() = 0.0;
+        solver.Mult(true_rhs, sigma.Last());
+        sigma.Last().SetSize(B_l->NumCols());
     }
     else
     {
@@ -282,8 +286,8 @@ Vector MLDivPart(const HypreParMatrix& M,
         Vector u_c(B_l->NumRows());
         BBT_solver.Mult(PT_F_l, u_c);
 
-        sigma[num_levels-1].SetSize(B_l->NumCols());
-        BT_l->Mult(u_c, sigma[num_levels-1]);
+        sigma.Last().SetSize(B_l->NumCols());
+        B_l->MultTranspose(u_c, sigma.Last());
     }
 
     for (int k = num_levels-2; k>=0; k--)
@@ -328,6 +332,7 @@ InterpolationCollector::InterpolationCollector(const ParFiniteElementSpace& fes,
 void InterpolationCollector::CollectData(const ParFiniteElementSpace &fes)
 {
     fes.GetTrueTransferOperator(*coarse_fes_, P_[--refine_count_]);
+    P_[refine_count_].As<HypreParMatrix>()->Threshold(1e-16);
     if (refine_count_)
     {
         coarse_fes_->Update();
@@ -342,13 +347,13 @@ HdivL2Hierarchy::HdivL2Hierarchy(const ParFiniteElementSpace& hdiv_fes,
                                  const ParFiniteElementSpace& l2_fes,
                                  int num_refine,
                                  const Array<int>& ess_bdr)
-    : coarse_hdiv_fes_(new ParFiniteElementSpace(hdiv_fes)),
+    : agg_el_(num_refine),
+      el_hdivdofs_(num_refine),
+      el_l2dofs_(num_refine),
+      coarse_hdiv_fes_(new ParFiniteElementSpace(hdiv_fes)),
       coarse_l2_fes_(new ParFiniteElementSpace(l2_fes)),
       l2_coll_0(0, coarse_l2_fes_->GetParMesh()->SpaceDimension()),
       l2_fes_0_(new FiniteElementSpace(coarse_l2_fes_->GetParMesh(), &l2_coll_0)),
-      agg_el_(num_refine),
-      el_hdivdofs_(num_refine),
-      el_l2dofs_(num_refine),
       refine_count_(num_refine)
 {
     P_hdiv_.SetSize(num_refine, OperatorHandle(Operator::Hypre_ParCSR));
@@ -369,8 +374,8 @@ void HdivL2Hierarchy::CollectData(const ParFiniteElementSpace& hdiv_fes,
 
     hdiv_fes.GetTrueTransferOperator(*coarse_hdiv_fes_, P_hdiv_[refine_count_]);
     l2_fes.GetTrueTransferOperator(*coarse_l2_fes_, P_l2_[refine_count_]);
-    //    P_hdiv_[refine_count_].As<HypreParMatrix>()->Threshold(1e-16);
-    //    P_l2_[refine_count_].As<HypreParMatrix>()->Threshold(1e-16);
+    P_hdiv_[refine_count_].As<HypreParMatrix>()->Threshold(1e-16);
+    P_l2_[refine_count_].As<HypreParMatrix>()->Threshold(1e-16);
 
     if (refine_count_)
     {
@@ -386,18 +391,18 @@ void HdivL2Hierarchy::CollectData(const ParFiniteElementSpace& hdiv_fes,
 }
 
 MLDivFreeSolver::MLDivFreeSolver(HdivL2Hierarchy& hierarchy, HypreParMatrix& M,
-                                 HypreParMatrix& B, HypreParMatrix& BT, HypreParMatrix& C,
+                                 HypreParMatrix& B, HypreParMatrix& C,
                                  MLDivFreeSolveParameters param)
-    : h_(hierarchy), M_(M), B_(B), BT_(BT), C_(C), CT_(C.Transpose()),
-      BBT_solver_(B, param.BBT_solve_param), CTMC_solver_(C.GetComm()),
-      param_(param), offsets_(3)
+    : h_(hierarchy), M_(M), B_(B), C_(C), BBT_solver_(B, param.BBT_solve_param),
+      CTMC_solver_(C.GetComm()), param_(param), offsets_(3)
 {
     offsets_[0] = 0;
     offsets_[1] = M.NumCols();
     offsets_[2] = offsets_[1] + B.NumRows();
 
     OperatorHandle MC(ParMult(&M_, &C));
-    CTMC_.Reset(ParMult(CT_.As<HypreParMatrix>(), MC.As<HypreParMatrix>()));
+    OperatorHandle CT(C.Transpose());
+    CTMC_.Reset(ParMult(CT.As<HypreParMatrix>(), MC.As<HypreParMatrix>()));
     CTMC_solver_.SetOperator(*CTMC_);
     SetOptions(CTMC_solver_, param.CTMC_solve_param);
 }
@@ -415,30 +420,26 @@ void MLDivFreeSolver::SetupAMS(ParFiniteElementSpace& hcurl_fes)
     CTMC_solver_.SetPreconditioner(*CTMC_prec_.As<Solver>());
 }
 
-void MLDivFreeSolver::SolveParticularSolution(const Vector& blk_rhs_1,
-                                              Vector& true_flux_part) const
+void MLDivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
 {
     if (param_.ml_part)
     {
-        true_flux_part = MLDivPart(M_, B_, blk_rhs_1, h_.agg_el_, h_.el_hdivdofs_,
-                                   h_.el_l2dofs_, h_.P_hdiv_, h_.P_l2_, h_.coarse_ess_dofs_);
+        sol = MLDivPart(M_, B_, rhs, h_.agg_el_, h_.el_hdivdofs_, h_.el_l2dofs_,
+                        h_.P_hdiv_, h_.P_l2_, h_.coarse_ess_dofs_);
     }
     else
     {
-        Vector potential(blk_rhs_1.Size());
-        BBT_solver_.Mult(blk_rhs_1, potential);
-        BT_.Mult(potential, true_flux_part);
+        Vector potential(rhs.Size());
+        BBT_solver_.Mult(rhs, potential);
+        B_.MultTranspose(potential, sol);
     }
 }
 
-void MLDivFreeSolver::SolveDivFreeSolution(const Vector& true_flux_part,
-                                           Vector& blk_rhs_0,
-                                           Vector& true_flux_divfree) const
+void MLDivFreeSolver::SolveDivFree(const Vector &rhs, Vector& sol) const
 {
     // Compute the right hand side for the divergence free solver problem
     Vector rhs_divfree(CTMC_->NumRows());
-    M_.Mult(-1.0, true_flux_part, 1.0, blk_rhs_0);
-    CT_->Mult(blk_rhs_0, rhs_divfree);
+    C_.MultTranspose(rhs, rhs_divfree);
 
     // Solve the "potential" of divergence free solution
     Vector potential_divfree(CTMC_->NumRows());
@@ -446,17 +447,14 @@ void MLDivFreeSolver::SolveDivFreeSolution(const Vector& true_flux_part,
     PrintConvergence(CTMC_solver_, param_.verbose);
 
     // Compute divergence free solution
-    C_.Mult(potential_divfree, true_flux_divfree);
+    C_.Mult(potential_divfree, sol);
 }
 
-void MLDivFreeSolver::SolvePotential(const Vector& true_flux_divfree,
-                                     Vector& blk_rhs_0,
-                                     Vector& potential) const
+void MLDivFreeSolver::SolvePotential(const Vector& rhs, Vector& sol) const
 {
     Vector rhs_p(B_.NumRows());
-    M_.Mult(-1.0, true_flux_divfree, 1.0, blk_rhs_0);
-    B_.Mult(blk_rhs_0, rhs_p);
-    BBT_solver_.Mult(rhs_p, potential);
+    B_.Mult(rhs, rhs_p);
+    BBT_solver_.Mult(rhs_p, sol);
 }
 
 void MLDivFreeSolver::Mult(const Vector & x, Vector & y) const
@@ -471,8 +469,8 @@ void MLDivFreeSolver::Mult(const Vector & x, Vector & y) const
     BlockVector blk_x(BlockVector(x.GetData(), offsets_));
     BlockVector blk_y(y.GetData(), offsets_);
 
-    Vector& true_flux_part = blk_y.GetBlock(0);
-    SolveParticularSolution(blk_x.GetBlock(1), true_flux_part);
+    Vector& particular_flux = blk_y.GetBlock(0);
+    SolveParticular(blk_x.GetBlock(1), particular_flux);
 
     if (param_.verbose)
         cout << "Particular solution found in " << chrono.RealTime() << "s.\n";
@@ -480,19 +478,21 @@ void MLDivFreeSolver::Mult(const Vector & x, Vector & y) const
     chrono.Clear();
     chrono.Start();
 
-    Vector true_flux_divfree(C_.NumRows());
-    SolveDivFreeSolution(true_flux_part, blk_x.GetBlock(0), true_flux_divfree);
+    Vector divfree_flux(C_.NumRows());
+    M_.Mult(-1.0, particular_flux, 1.0, blk_x.GetBlock(0));
+    SolveDivFree(blk_x.GetBlock(0), divfree_flux);
 
     if (param_.verbose)
         cout << "Divergence free solution found in " << chrono.RealTime() << "s.\n";
 
-    blk_y.GetBlock(0) += true_flux_divfree;
+    blk_y.GetBlock(0) += divfree_flux;
 
     // Compute the right hand side for the pressure problem BB^T p = rhs_p
     chrono.Clear();
     chrono.Start();
 
-    SolvePotential(true_flux_divfree, blk_x.GetBlock(0), blk_y.GetBlock(1));
+    M_.Mult(-1.0, divfree_flux, 1.0, blk_x.GetBlock(0));
+    SolvePotential(blk_x.GetBlock(0), blk_y.GetBlock(1));
 
     if (param_.verbose)
         cout << "Scalar potential found in " << chrono.RealTime() << "s.\n";
