@@ -58,15 +58,6 @@ void SetOptions(IterativeSolver& solver, const IterSolveParameters& param);
 
 void PrintConvergence(const IterativeSolver& solver, bool verbose);
 
-void GetDiagBlockSubMatrix(const HypreParMatrix& A, const Array<int> rows,
-                           const Array<int> cols, DenseMatrix& sub_A);
-
-SparseMatrix AggToIntDof(const SparseMatrix& agg_elem, const SparseMatrix& elem_dof);
-
-Vector LocalSolution(const DenseMatrix& M,  const DenseMatrix& B, const Vector& F);
-
-SparseMatrix ElemToTrueDofs(const FiniteElementSpace& fes);
-
 Vector MLDivPart(const HypreParMatrix& M,
                  const HypreParMatrix& B,
                  const Vector& F,
@@ -135,7 +126,7 @@ class MLDivFreeSolver : public Solver
 {
 public:
     MLDivFreeSolver(HdivL2Hierarchy& hierarchy, HypreParMatrix& M,
-                    HypreParMatrix& B, HypreParMatrix& BT, HypreParMatrix& C,
+                    HypreParMatrix& B, HypreParMatrix& C,
                     MLDivFreeSolveParameters param = MLDivFreeSolveParameters());
 
     virtual void Mult(const Vector & x, Vector & y) const;
@@ -146,25 +137,18 @@ public:
     void SetupAMS(ParFiniteElementSpace& hcurl_fes);
 private:
     // Find a particular solution for div sigma = f
-    void SolveParticularSolution(const Vector& blk_rhs_1,
-                                 Vector& true_flux_part) const;
+    void SolveParticular(const Vector& rhs, Vector& sol) const;
 
-    void SolveDivFreeSolution(const Vector& true_flux_part,
-                              Vector& blk_rhs_0,
-                              Vector& true_flux_divfree) const;
+    void SolveDivFree(const Vector& rhs, Vector& sol) const;
 
-    void SolvePotential(const Vector& true_flux_divfree,
-                        Vector& blk_rhs_0,
-                        Vector& potential) const;
+    void SolvePotential(const Vector &rhs, Vector& sol) const;
 
     SparseMatrix M_fine_;
     SparseMatrix B_fine_;
     HdivL2Hierarchy& h_;
     HypreParMatrix& M_;
     HypreParMatrix& B_;
-    HypreParMatrix& BT_;
     HypreParMatrix& C_;
-    OperatorHandle CT_;
 
     BBTSolver BBT_solver_;
     OperatorHandle CTMC_;
