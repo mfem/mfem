@@ -102,7 +102,7 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
           "[RT_WedgeElement]"
           "[RT_HexahedronElement]")
 {
-   int maxOrder = 4;
+   int maxOrder = 5;
    int resolution = 10;
 
    SECTION("RT_TriangleElement")
@@ -110,11 +110,11 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::TRIANGLE, T);
 
-      for (int order =0; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
          std::cout << "Testing RT_TriangleElement::CalcDivShape() "
                    << "for order " << order << std::endl;
-         RT_TriangleElement fe(order);
+         RT_TriangleElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }
    }
@@ -124,11 +124,11 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::QUADRILATERAL, T);
 
-      for (int order =0; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
          std::cout << "Testing RT_QuadrilateralElement::CalcDivShape() "
                    << "for order " << order << std::endl;
-         RT_QuadrilateralElement fe(order);
+         RT_QuadrilateralElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }
    }
@@ -138,11 +138,11 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::TETRAHEDRON, T);
 
-      for (int order =0; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
          std::cout << "Testing RT_TetrahedronElement::CalcDivShape() "
                    << "for order " << order << std::endl;
-         RT_TetrahedronElement fe(order);
+         RT_TetrahedronElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }
    }
@@ -152,11 +152,11 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::WEDGE, T);
 
-      for (int order =0; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
          std::cout << "Testing RT_WedgeElement::CalcDivShape() "
                    << "for order " << order << std::endl;
-         RT_WedgeElement fe(order);
+         RT_WedgeElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }
    }
@@ -166,11 +166,11 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::HEXAHEDRON, T);
 
-      for (int order =0; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
          std::cout << "Testing RT_HexahedronElement::CalcDivShape() "
                    << "for order " << order << std::endl;
-         RT_HexahedronElement fe(order);
+         RT_HexahedronElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }
    }
