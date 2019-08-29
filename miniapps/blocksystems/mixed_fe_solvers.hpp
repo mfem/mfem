@@ -70,13 +70,11 @@ SparseMatrix ElemToTrueDofs(const FiniteElementSpace& fes);
 Vector MLDivPart(const HypreParMatrix& M,
                  const HypreParMatrix& B,
                  const Vector& F,
-                 const vector<SparseMatrix>& agg_elem,
-                 const vector<SparseMatrix>& elem_hdivdofs,
-                 const vector<SparseMatrix>& elem_l2dofs,
-                 const vector<OperatorHandle>& P_hdiv,
-                 const vector<OperatorHandle>& P_l2,
-                 const HypreParMatrix& coarse_hdiv_d_td,
-                 const HypreParMatrix& coarse_l2_d_td,
+                 const Array<SparseMatrix> &agg_elem,
+                 const Array<SparseMatrix> &elem_hdivdofs,
+                 const Array<SparseMatrix> &elem_l2dofs,
+                 const Array<OperatorHandle> &P_hdiv,
+                 const Array<OperatorHandle> &P_l2,
                  const Array<int>& coarsest_ess_dofs);
 
 class BBTSolver : public Solver
@@ -98,43 +96,38 @@ private:
 class InterpolationCollector
 {
 public:
-    InterpolationCollector(ParFiniteElementSpace& fes, int num_refine);
+    InterpolationCollector(const ParFiniteElementSpace &fes, int num_refine);
 
-    void CollectData(ParFiniteElementSpace& fes);
+    void CollectData(const ParFiniteElementSpace& fes);
 
     const Array<OperatorHandle>& GetP() const { return P_; }
 
 private:
     Array<OperatorHandle> P_;
-    ParFiniteElementSpace coarse_fes_;
+    unique_ptr<ParFiniteElementSpace> coarse_fes_;
     int refine_count_;
 };
 
 struct HdivL2Hierarchy
 {
-    friend class MLDivFreeSolver;
-
-    HdivL2Hierarchy(ParFiniteElementSpace& hdiv_fes,
-                    ParFiniteElementSpace& l2_fes,
-                    int num_refine, const Array<int>& ess_bdr);
-
-    void CollectData();
-private:
-    ParFiniteElementSpace& hdiv_fes_;
-    ParFiniteElementSpace& l2_fes_;
-    ParFiniteElementSpace coarse_hdiv_fes_;
-    ParFiniteElementSpace coarse_l2_fes_;
-
-    L2_FECollection l2_coll_0;
-    ParFiniteElementSpace l2_fes_0_;
-
-    vector<SparseMatrix> agg_el_;
-    vector<SparseMatrix> el_hdivdofs_;
-    vector<SparseMatrix> el_l2dofs_;
-    vector<OperatorHandle> P_hdiv_;
-    vector<OperatorHandle> P_l2_;
+    Array<SparseMatrix> agg_el_;
+    Array<SparseMatrix> el_hdivdofs_;
+    Array<SparseMatrix> el_l2dofs_;
+    Array<OperatorHandle> P_hdiv_;
+    Array<OperatorHandle> P_l2_;
     Array<int> coarse_ess_dofs_;
 
+    HdivL2Hierarchy(const ParFiniteElementSpace &hdiv_fes,
+                    const ParFiniteElementSpace &l2_fes,
+                    int num_refine, const Array<int>& ess_bdr);
+
+    void CollectData(const ParFiniteElementSpace& hdiv_fes,
+                     const ParFiniteElementSpace& l2_fes);
+private:
+    unique_ptr<ParFiniteElementSpace> coarse_hdiv_fes_;
+    unique_ptr<ParFiniteElementSpace> coarse_l2_fes_;
+    L2_FECollection l2_coll_0;
+    unique_ptr<FiniteElementSpace> l2_fes_0_;
     int refine_count_;
 };
 
@@ -147,7 +140,7 @@ public:
 
     virtual void Mult(const Vector & x, Vector & y) const;
 
-    virtual void SetOperator(const Operator &op);
+    virtual void SetOperator(const Operator &op) { }
 
     void SetupMG(const InterpolationCollector& P);
     void SetupAMS(ParFiniteElementSpace& hcurl_fes);

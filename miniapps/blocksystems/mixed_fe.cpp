@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
 
         if (divfree && ML_particular)
         {
-            hdiv_l2_hierarchy->CollectData();
+            hdiv_l2_hierarchy->CollectData(*R_space, *W_space);
         }
 
         if (divfree)
@@ -278,7 +278,6 @@ int main(int argc, char *argv[])
         param.ml_part = ML_particular;
         MLDivFreeSolver ml_df_solver(*hdiv_l2_hierarchy, *M, *B, *BT, *C, param);
         if (GMG) ml_df_solver.SetupMG(*P_N); else ml_df_solver.SetupAMS(*N_space);
-        ml_df_solver.SetOperator(bVarf->SpMat());
         ml_df_solver.Mult(trueRhs, trueX);
     }
     else
