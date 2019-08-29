@@ -5,6 +5,35 @@ language: cpp
 matrix:
   include:
     #
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          # sources:
+            # - ubuntu-toolchain-r-test
+          packages:
+            # GCC 4.9
+            # - g++-4.9
+            # MPICH
+            - mpich
+            - libmpich-dev
+            # OpenMPI
+            # - openmpi-bin
+            # - libopenmpi-dev
+      env: DEBUG=NO
+           MPI=YES
+           CODECOV=YES
+           MFEM_TEST_TARGET=test
+           NPROCS=2
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+    #
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
@@ -59,35 +88,6 @@ matrix:
            MPI=YES
            CODECOV=NO
            MFEM_TEST_TARGET=check
-           NPROCS=2
-      cache:
-        directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
-          - $TRAVIS_BUILD_DIR/../metis-4.0
-      before_cache:
-        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
-    - os: linux
-      compiler: gcc
-      addons:
-        apt:
-          # sources:
-            # - ubuntu-toolchain-r-test
-          packages:
-            # GCC 4.9
-            # - g++-4.9
-            # MPICH
-            - mpich
-            - libmpich-dev
-            # OpenMPI
-            # - openmpi-bin
-            # - libopenmpi-dev
-      env: DEBUG=NO
-           MPI=YES
-           CODECOV=YES
-           MFEM_TEST_TARGET=test
            NPROCS=2
       cache:
         directories:
