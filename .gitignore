@@ -147,6 +147,7 @@ miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
 miniapps/meshing/mesh-optimizer
+miniapps/meshing/extract_boundary_mesh
 miniapps/meshing/pmesh-optimizer
 
 miniapps/meshing/mobius-strip.mesh
@@ -158,6 +159,7 @@ miniapps/meshing/shaper.mesh
 miniapps/meshing/extruder.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
+miniapps/meshing/boundary.mesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
