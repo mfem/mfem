@@ -726,8 +726,19 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       HYPRE_Int gdof  = -1;
       HYPRE_Int gtdof = -1;
 
-      MPI_Allreduce(&ldof, &gdof, 1, HYPRE_MPI_INT, MPI_SUM, MyComm);
-      MPI_Allreduce(&ltdof, &gtdof, 1, HYPRE_MPI_INT, MPI_SUM, MyComm);
+      {
+         // This may not be necessary but on some platforms we are seeing
+         // failures in MPI_Allreduce which may have been caused by using
+         // different types for the input and output variables.
+         long lldof = (long)ldof;
+         long lltdof = (long)ltdof;
+         long lgdof = -1;
+         long lgtdof = -1;
+         MPI_Allreduce(&lldof, &lgdof, 1, MPI_LONG, MPI_SUM, MyComm);
+         MPI_Allreduce(&lltdof, &lgtdof, 1, MPI_LONG, MPI_SUM, MyComm);
+         gdof = (HYPRE_Int)lgdof;
+         gtdof = (HYPRE_Int)lgtdof;
+      }
 
       // Locate and count non-zeros in off-diagonal portion of P
       int nnz_offd = 0;
