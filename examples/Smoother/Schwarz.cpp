@@ -13,7 +13,7 @@ using namespace std;
 using namespace mfem;
 
 // constructor
-patch_nod_info::patch_nod_info(Mesh * mesh_, int ref_levels_,Array<int> ess_dof_list) 
+patch_nod_info::patch_nod_info(Mesh * mesh_, int ref_levels_) 
                : mesh(mesh_), ref_levels(ref_levels_) 
 {
 /* The patches are defined by all the "active" vertices of the coarse mesh
@@ -117,12 +117,11 @@ patch_nod_info::patch_nod_info(Mesh * mesh_, int ref_levels_,Array<int> ess_dof_
    delete fespace;
    delete fec;
 }
-
 // Constructor of patch local problems
-patch_assembly::patch_assembly(Mesh * cmesh_, int ref_levels_,FiniteElementSpace *fespace,Array<int> ess_dof_list) 
+patch_assembly::patch_assembly(Mesh * cmesh_, int ref_levels_,FiniteElementSpace *fespace) 
                : cmesh(*cmesh_), ref_levels(ref_levels_) 
 {
-   patch_nod_info *patches = new patch_nod_info(&cmesh,ref_levels,ess_dof_list);
+   patch_nod_info *patches = new patch_nod_info(&cmesh,ref_levels);
 
    nrpatch = patches->nrpatch;
    Pid.SetSize(nrpatch);
@@ -224,27 +223,30 @@ patch_assembly::patch_assembly(Mesh * cmesh_, int ref_levels_,FiniteElementSpace
 }
 
 // constructor
-SchwarzSmoother::SchwarzSmoother(Mesh * cmesh_, int ref_levels_, FiniteElementSpace *fespace_,SparseMatrix *A_,Array<int> ess_dof_list)
+SchwarzSmoother::SchwarzSmoother(Mesh * cmesh_, int ref_levels_, FiniteElementSpace *fespace_,SparseMatrix *A_,Array<int> ess_bdr)
    : Solver(A_->Height(), A_->Width()), A(A_) 
 {
-
    StopWatch chrono;
    chrono.Clear();
    chrono.Start();   
-   P = new patch_assembly(cmesh_,ref_levels_, fespace_, ess_dof_list);
+   P = new patch_assembly(cmesh_,ref_levels_, fespace_);
    chrono.Stop();
    cout << "Total patch dofs info time " << chrono.RealTime() << "s. \n";
 
-   nrpatch = P->nrpatch;
+   GetNonEssentialPatches(cmesh_, ess_bdr, patch_ids);
+
+
+   // nrpatch = P->nrpatch;
+   nrpatch = patch_ids.size();
    A_local.SetSize(nrpatch);
    invA_local.SetSize(nrpatch);
-
 
    chrono.Clear();
    chrono.Start();   
    for (int i=0; i< nrpatch; i++ )
    {
-      SparseMatrix * Pr = P->Pid[i];
+      int k = patch_ids[i];
+      SparseMatrix * Pr = P->Pid[k];
       // construct the local problems. Factor the patch matrices
       A_local[i] = RAP(*Pr,*A,*Pr);
       invA_local[i] = new UMFPackSolver;
@@ -253,13 +255,55 @@ SchwarzSmoother::SchwarzSmoother(Mesh * cmesh_, int ref_levels_, FiniteElementSp
    }
 
    chrono.Stop();
-   // cout << "Matrix extraction and setting up UMFPACK time " << chrono.RealTime() << "s. \n";
+   cout << "Matrix extraction and setting up UMFPACK time " << chrono.RealTime() << "s. \n";
 }
 
-bool SchwarzSmoother::IsEssential(int idof, Array<int> ess_dof_list)
+void SchwarzSmoother::GetNonEssentialPatches(Mesh* cmesh, const Array<int> & ess_bdr, vector<int> & patch_ids)
 {
-   int found = ess_dof_list.FindSorted(idof);
-   return !(found == -1);
+   Array<int> ess_vertices;
+   Array<int> bdr_vertices;
+   
+   for (int i = 0; i<cmesh->GetNBE(); i++)
+   {
+      int bdr = cmesh->GetBdrAttribute(i);
+      //check if it's essential;
+      if(ess_bdr[bdr-1] == 1)
+      {
+         cmesh->GetBdrElementVertices(i,bdr_vertices);
+         ess_vertices.Append(bdr_vertices);
+      }
+   }
+   ess_vertices.Sort(); ess_vertices.Unique();
+
+
+   int nrpatch = cmesh->GetNV() - ess_vertices.Size();
+   patch_ids.resize(nrpatch);
+
+   if (ess_vertices.Size() > 0)
+   {
+      int m=0; 
+      int l=0;
+      for (int i=0; i<cmesh->GetNV(); i++)
+      {
+         if (i == ess_vertices[m])
+         {
+            m++;
+         }
+         else
+         {
+            patch_ids[l] = i;
+            l++;
+         }
+      }
+   }
+   else
+   {
+      for (int i=0; i<cmesh->GetNV(); i++)
+      {
+         patch_ids[i] = i;
+      }
+   }
+   
 }
 
 void SchwarzSmoother::Mult(const Vector &r, Vector &z) const
@@ -276,7 +320,8 @@ void SchwarzSmoother::Mult(const Vector &r, Vector &z) const
       {
          for (int i=0; i< nrpatch; i++)
          {
-            SparseMatrix * Pr = P->Pid[i];
+            int k = patch_ids[i];
+            SparseMatrix * Pr = P->Pid[k];
             res_local[i].SetSize(Pr->NumCols()); 
             sol_local[i].SetSize(Pr->NumCols()); 
             Pr->MultTranspose(r,res_local[i]);
