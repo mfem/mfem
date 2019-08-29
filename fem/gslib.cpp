@@ -81,7 +81,7 @@ void FindPointsGSLib::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
       unsigned nr[3] = {dof1D, dof1D, dof1D};
       unsigned mr[3] = {2*dof1D, 2*dof1D, 2*dof1D};
       double * const elx[3] =
-         { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
+      { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
       fdata3D = findpts_setup_3(&gsl_comm, elx, nr, NE, mr, bb_t,
                                 pts_cnt, pts_cnt, npt_max, newt_tol);
    }
@@ -127,9 +127,9 @@ void FindPointsGSLib::FindPoints(Vector &point_pos, Array<uint> &codes,
 }
 
 void FindPointsGSLib::Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
-                                       Array<uint> &elem_ids, Vector &ref_pos,
-                                       const GridFunction &field_in,
-                                       Vector &field_out)
+                                  Array<uint> &elem_ids, Vector &ref_pos,
+                                  const GridFunction &field_in,
+                                  Vector &field_out)
 {
    Vector node_vals;
    GetNodeValues(field_in, node_vals);
@@ -160,7 +160,8 @@ void FindPointsGSLib::FreeData()
    (dim == 2) ? findpts_free_2(fdata2D) : findpts_free_3(fdata3D);
 }
 
-void FindPointsGSLib::GetNodeValues(const GridFunction &gf_in, Vector &node_vals)
+void FindPointsGSLib::GetNodeValues(const GridFunction &gf_in,
+                                    Vector &node_vals)
 {
    MFEM_ASSERT(gf_in.FESpace()->GetVDim() == 1, "Scalar function expected.");
 
