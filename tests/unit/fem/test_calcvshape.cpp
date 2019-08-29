@@ -147,7 +147,7 @@ void GetReferenceTransformation(const Element::Type ElemType,
 
 /**
  * Tests fe->CalcVShape() over a grid of IntegrationPoints
- * of resolution res. Also tests at integration poins
+ * of resolution res. Also tests at integration points
  * that are outside the element.
  */
 void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res)

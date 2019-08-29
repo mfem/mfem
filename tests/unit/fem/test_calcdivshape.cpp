@@ -53,7 +53,7 @@ void test_div_func(const Vector &x, Vector &v)
 
 /**
  * Tests fe->CalcDivShape() over a grid of IntegrationPoints
- * of resolution res. Also tests at integration poins
+ * of resolution res. Also tests at integration points
  * that are outside the element.
  */
 void TestCalcDivShape(FiniteElement* fe, ElementTransformation * T, int res)
