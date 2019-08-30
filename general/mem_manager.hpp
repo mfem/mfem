@@ -203,6 +203,9 @@ public:
    void ClearOwnerFlags() const
    { flags = flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL); }
 
+   void SetInternalOwner() const
+   { flags = flags | OWNS_INTERNAL; };
+
    /// Read the internal device flag.
    bool UseDevice() const { return flags & USE_DEVICE; }
 
