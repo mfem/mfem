@@ -109,6 +109,9 @@ public:
    /// Load the data from a stream.
    void Load(std::istream &in);
 
+   /// Copy
+   void Copy(GroupTopology & copy) const;
+
    virtual ~GroupTopology() {}
 };
 

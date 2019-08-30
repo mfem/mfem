@@ -291,7 +291,7 @@ void SuperLUSolver::Init()
    }
 
    npcol_ = (int)(numProcs_ / nprow_);
-   assert(nprow_ * npcol_ == numProcs_);
+   MFEM_ASSERT(nprow_ * npcol_ == numProcs_, "");
 
    PStatInit(stat); // Initialize the statistics variables.
 }
@@ -425,7 +425,7 @@ void SuperLUSolver::SetupGrid()
       }
 
       npcol_ = (int)(numProcs_ / nprow_);
-      assert(nprow_ * npcol_ == numProcs_);
+      MFEM_ASSERT(nprow_ * npcol_ == numProcs_, "");
    }
 
    superlu_gridinit(comm_, nprow_, npcol_, grid);

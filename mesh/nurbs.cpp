@@ -1198,6 +1198,9 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      edge_to_knot(orig.edge_to_knot),
      knotVectors(orig.knotVectors.Size()), // knotVectors are copied in the body
      weights(orig.weights),
+     d_to_d(orig.d_to_d),
+     master(orig.master),
+     slave(orig.slave),
      v_meshOffsets(orig.v_meshOffsets),
      e_meshOffsets(orig.e_meshOffsets),
      f_meshOffsets(orig.f_meshOffsets),
@@ -1349,9 +1352,20 @@ NURBSExtension::NURBSExtension(std::istream &input)
    }
 
    GenerateActiveVertices();
+   InitDofMap();
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
+
+   // periodic
+   if (ident == "periodic")
+   {
+      master.Load(input);
+      slave.Load(input);
+
+      skip_comment_lines(input, '#');
+      input >> ws >> ident;
+   }
 
    if (patches.Size() == 0)
    {
@@ -1366,6 +1380,9 @@ NURBSExtension::NURBSExtension(std::istream &input)
          weights = 1.0;
       }
    }
+
+   // periodic
+   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
@@ -1403,6 +1420,7 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
    NumOfActiveElems    = parent->NumOfActiveElems;
    NumOfActiveBdrElems = parent->NumOfActiveBdrElems;
    parent->activeVert.Copy(activeVert);
+   InitDofMap();
    parent->activeElem.Copy(activeElem);
    parent->activeBdrElem.Copy(activeBdrElem);
 
@@ -1411,6 +1429,11 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
 
    weights.SetSize(GetNDof());
    weights = 1.0;
+
+   // periodic
+   parent->master.Copy(master);
+   parent->slave.Copy(slave);
+   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent,
@@ -1452,6 +1475,7 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
    NumOfActiveElems    = parent->NumOfActiveElems;
    NumOfActiveBdrElems = parent->NumOfActiveBdrElems;
    parent->activeVert.Copy(activeVert);
+   InitDofMap();
    parent->activeElem.Copy(activeElem);
    parent->activeBdrElem.Copy(activeBdrElem);
 
@@ -1460,6 +1484,10 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
 
    weights.SetSize(GetNDof());
    weights = 1.0;
+
+   parent->master.Copy(master);
+   parent->slave.Copy(slave);
+   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
@@ -1497,6 +1525,7 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    activeElem = true;
 
    GenerateActiveVertices();
+   InitDofMap();
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
@@ -1592,6 +1621,226 @@ void NURBSExtension::PrintCharacteristics(std::ostream &out) const
       knotVectors[i]->Print(out);
    }
    out << endl;
+}
+
+void NURBSExtension::InitDofMap()
+{
+   master.SetSize(0);
+   slave.SetSize(0);
+   d_to_d.SetSize(0);
+}
+
+void NURBSExtension::ConnectBoundaries(Array<int> &bnds0, Array<int> &bnds1)
+{
+   bnds0.Copy(master);
+   bnds1.Copy(slave);
+   ConnectBoundaries();
+}
+
+void NURBSExtension::ConnectBoundaries()
+{
+   if (master.Size() != slave.Size())
+   {
+      mfem_error("NURBSExtension::ConnectBoundaries() boundary lists not of equal size");
+   }
+   if (master.Size() == 0 ) { return; }
+
+   // Connect
+   d_to_d.SetSize(NumOfDofs);
+   for (int i = 0; i < NumOfDofs; i++) { d_to_d[i] = i; }
+
+   for (int i = 0; i < master.Size(); i++)
+   {
+      if (Dimension() == 2)
+      {
+         ConnectBoundaries2D(master[i], slave[i]);
+      }
+      else
+      {
+         ConnectBoundaries3D(master[i], slave[i]);
+      }
+   }
+
+   // Finalize
+   GenerateElementDofTable();
+   GenerateBdrElementDofTable();
+}
+
+void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
+{
+   int idx0 = -1, idx1 = -1;
+   for (int b = 0; b < GetNBP(); b++)
+   {
+      if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
+      if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
+   }
+   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
+   MFEM_VERIFY(idx1 != -1,"Bdr 1 not found");
+
+   NURBSPatchMap p2g0(this);
+   NURBSPatchMap p2g1(this);
+
+   int okv0[1],okv1[1];
+   const KnotVector *kv0[1],*kv1[1];
+
+   p2g0.SetBdrPatchDofMap(idx0, kv0, okv0);
+   p2g1.SetBdrPatchDofMap(idx1, kv1, okv1);
+
+   int nx = p2g0.nx();
+   int nks0 = kv0[0]->GetNKS();
+
+#ifdef MFEM_DEBUG
+   bool compatible = true;
+   if (p2g0.nx() != p2g1.nx()) { compatible = false; }
+   if (kv0[0]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
+   if (kv0[0]->GetOrder() != kv1[0]->GetOrder()) { compatible = false; }
+
+   if (!compatible)
+   {
+      mfem::out<<p2g0.nx()<<" "<<p2g1.nx()<<endl;
+      mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
+      mfem_error("NURBS boundaries not compatible");
+   }
+#endif
+
+   for (int i = 0; i < nks0; i++)
+   {
+      if (kv0[0]->isElement(i))
+      {
+         if (!kv1[0]->isElement(i)) { mfem_error("isElement does not match"); }
+         for (int ii = 0; ii <= kv0[0]->GetOrder(); ii++)
+         {
+            int ii0 = (okv0[0] >= 0) ? (i+ii) : (nx-i-ii);
+            int ii1 = (okv1[0] >= 0) ? (i+ii) : (nx-i-ii);
+
+            d_to_d[p2g0(ii0)] = d_to_d[p2g1(ii1)];
+         }
+
+      }
+   }
+
+   // Clean d_to_d
+   Array<int> tmp(d_to_d.Size()+1);
+   tmp = 0;
+
+   for (int i = 0; i < d_to_d.Size(); i++)
+   {
+      tmp[d_to_d[i]] = 1;
+   }
+
+   int cnt = 0;
+   for (int i = 0; i < tmp.Size(); i++)
+   {
+      if (tmp[i] == 1) { tmp[i] = cnt++; }
+   }
+   NumOfDofs = cnt;
+
+   for (int i = 0; i < d_to_d.Size(); i++)
+   {
+      d_to_d[i] = tmp[d_to_d[i]];
+   }
+}
+
+void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
+{
+   int idx0 = -1, idx1 = -1;
+   for (int b = 0; b < GetNBP(); b++)
+   {
+      if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
+      if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
+   }
+   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
+   MFEM_VERIFY(idx1 != -1,"Bdr 1 not found");
+
+   NURBSPatchMap p2g0(this);
+   NURBSPatchMap p2g1(this);
+
+   int okv0[2],okv1[2];
+   const KnotVector *kv0[2],*kv1[2];
+
+   p2g0.SetBdrPatchDofMap(idx0, kv0, okv0);
+   p2g1.SetBdrPatchDofMap(idx1, kv1, okv1);
+
+   int nx = p2g0.nx();
+   int ny = p2g0.ny();
+
+   int nks0 = kv0[0]->GetNKS();
+   int nks1 = kv0[1]->GetNKS();
+
+#ifdef MFEM_DEBUG
+   bool compatible = true;
+   if (p2g0.nx() != p2g1.nx()) { compatible = false; }
+   if (p2g0.ny() != p2g1.ny()) { compatible = false; }
+
+   if (kv0[0]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
+   if (kv0[1]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
+
+   if (kv0[0]->GetOrder() != kv1[0]->GetOrder()) { compatible = false; }
+   if (kv0[1]->GetOrder() != kv1[1]->GetOrder()) { compatible = false; }
+
+   if (!compatible)
+   {
+      mfem::out<<p2g0.nx()<<" "<<p2g1.nx()<<endl;
+      mfem::out<<p2g0.ny()<<" "<<p2g1.ny()<<endl;
+
+      mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[1]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+
+      mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
+      mfem::out<<kv0[1]->GetOrder()<<" "<<kv1[1]->GetOrder()<<endl;
+      mfem_error("NURBS boundaries not compatible");
+   }
+#endif
+
+   for (int j = 0; j < nks1; j++)
+   {
+      if (kv0[1]->isElement(j))
+      {
+         if (!kv1[1]->isElement(j)) { mfem_error("isElement does not match #1"); }
+         for (int i = 0; i < nks0; i++)
+         {
+            if (kv0[0]->isElement(i))
+            {
+               if (!kv1[0]->isElement(i)) { mfem_error("isElement does not match #0"); }
+               for (int jj = 0; jj <= kv0[1]->GetOrder(); jj++)
+               {
+                  int jj0 = (okv0[1] >= 0) ? (j+jj) : (ny-j-jj);
+                  int jj1 = (okv1[1] >= 0) ? (j+jj) : (ny-j-jj);
+
+                  for (int ii = 0; ii <= kv0[0]->GetOrder(); ii++)
+                  {
+                     int ii0 = (okv0[0] >= 0) ? (i+ii) : (nx-i-ii);
+                     int ii1 = (okv1[0] >= 0) ? (i+ii) : (nx-i-ii);
+
+                     d_to_d[p2g0(ii0,jj0)] = d_to_d[p2g1(ii1,jj1)];
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   // Clean d_to_d
+   Array<int> tmp(d_to_d.Size()+1);
+   tmp = 0;
+
+   for (int i = 0; i < d_to_d.Size(); i++)
+   {
+      tmp[d_to_d[i]] = 1;
+   }
+
+   int cnt = 0;
+   for (int i = 0; i < tmp.Size(); i++)
+   {
+      if (tmp[i] == 1) { tmp[i] = cnt++; }
+   }
+   NumOfDofs = cnt;
+
+   for (int i = 0; i < d_to_d.Size(); i++)
+   {
+      d_to_d[i] = tmp[d_to_d[i]];
+   }
 }
 
 void NURBSExtension::GenerateActiveVertices()
@@ -2279,7 +2528,7 @@ void NURBSExtension::Generate2DElementDofTable()
                      {
                         for (int ii = 0; ii <= ord0; ii++)
                         {
-                           conn.to = p2g(i+ii,j+jj);
+                           conn.to = DofMap(p2g(i+ii,j+jj));
                            activeDof[conn.to] = 1;
                            el_dof_list.Append(conn);
                         }
@@ -2340,7 +2589,7 @@ void NURBSExtension::Generate3DElementDofTable()
                               {
                                  for (int ii = 0; ii <= ord0; ii++)
                                  {
-                                    conn.to = p2g(i+ii, j+jj, k+kk);
+                                    conn.to = DofMap(p2g(i+ii, j+jj, k+kk));
                                     activeDof[conn.to] = 1;
                                     el_dof_list.Append(conn);
                                  }
@@ -2413,7 +2662,7 @@ void NURBSExtension::Generate2DBdrElementDofTable()
                Connection conn(lbe,0);
                for (int ii = 0; ii <= ord0; ii++)
                {
-                  conn.to = p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)];
+                  conn.to = DofMap(p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)]);
                   bel_dof_list.Append(conn);
                }
                bel_to_patch[lbe] = b;
@@ -2467,7 +2716,7 @@ void NURBSExtension::Generate3DBdrElementDofTable()
                         for (int ii = 0; ii <= ord0; ii++)
                         {
                            const int _ii = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
-                           conn.to = p2g(_ii, _jj);
+                           conn.to = DofMap(p2g(_ii, _jj));
                            bel_dof_list.Append(conn);
                         }
                      }
@@ -2599,9 +2848,12 @@ void NURBSExtension::SetKnotsFromPatches()
    activeElem = true;
 
    GenerateActiveVertices();
+   InitDofMap();
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
+
+   ConnectBoundaries();
 }
 
 void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
@@ -2629,7 +2881,8 @@ void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
          {
             for (int i = 0; i < nx; i++)
             {
-               const int l = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               const int ll = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               const int l  = DofMap(ll);
                for (int vd = 0; vd < vdim; vd++)
                {
                   input >> sol(fes->DofToVDof(l,vd));
@@ -2664,7 +2917,8 @@ const
          {
             for (int i = 0; i < nx; i++)
             {
-               const int l = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               const int ll = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
+               const int l  = DofMap(ll);
                out << sol(fes->DofToVDof(l,0));
                for (int vd = 1; vd < vdim; vd++)
                {
@@ -2756,7 +3010,7 @@ void NURBSExtension::Get2DPatchNets(const Vector &coords, int vdim)
       {
          for (int i = 0; i < kv[0]->GetNCP(); i++)
          {
-            const int l = p2g(i,j);
+            const int l = DofMap(p2g(i,j));
             for (int d = 0; d < vdim; d++)
             {
                Patch(i,j,d) = coords(l*vdim + d)*weights(l);
@@ -2785,7 +3039,7 @@ void NURBSExtension::Get3DPatchNets(const Vector &coords, int vdim)
          {
             for (int i = 0; i < kv[0]->GetNCP(); i++)
             {
-               const int l = p2g(i,j,k);
+               const int l = DofMap(p2g(i,j,k));
                for (int d = 0; d < vdim; d++)
                {
                   Patch(i,j,k,d) = coords(l*vdim + d)*weights(l);
@@ -2986,6 +3240,10 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    Swap(e_spaceOffsets, parent->e_spaceOffsets);
    Swap(f_spaceOffsets, parent->f_spaceOffsets);
    Swap(p_spaceOffsets, parent->p_spaceOffsets);
+
+   Swap(d_to_d, parent->d_to_d);
+   Swap(master, parent->master);
+   Swap(slave,  parent->slave);
 
    NumOfActiveVertices = parent->NumOfActiveVertices;
    NumOfActiveElems    = parent->NumOfActiveElems;

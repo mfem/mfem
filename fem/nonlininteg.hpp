@@ -29,7 +29,7 @@ protected:
    const IntegrationRule *IntRule;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(NULL) { }
+      : IntRule(ir) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or

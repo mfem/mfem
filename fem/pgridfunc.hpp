@@ -32,12 +32,21 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm);
 class ParGridFunction : public GridFunction
 {
 protected:
-   ParFiniteElementSpace *pfes;
+   ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
+   /** @brief Vector used to store data from face-neighbor processors,
+       initialized by ExchangeFaceNbrData(). */
    Vector face_nbr_data;
+
+   void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
+                              Array<int> &attr);
 
 public:
    ParGridFunction() { pfes = NULL; }
+
+   /// Copy constructor. The internal vector #face_nbr_data is not copied.
+   ParGridFunction(const ParGridFunction &orig)
+      : GridFunction(orig), pfes(orig.pfes) { }
 
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
@@ -73,6 +82,15 @@ public:
        In the process, a ParFiniteElementSpace and a FiniteElementCollection are
        constructed. The new ParGridFunction assumes ownership of both. */
    ParGridFunction(ParMesh *pmesh, std::istream &input);
+
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
+       that have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignemnt operator. */
+   ParGridFunction &operator=(const ParGridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
 
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
@@ -138,7 +156,7 @@ public:
    /// Set the GridFunction from the given true-dof vector.
    virtual void SetFromTrueDofs(const Vector &tv) { Distribute(tv); }
 
-   /// Short semantic for Distribute
+   /// Short semantic for Distribute()
    ParGridFunction &operator=(const HypreParVector &tv)
    { Distribute(&tv); return (*this); }
 
@@ -196,6 +214,21 @@ public:
    virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);
 
    virtual void ProjectDiscCoefficient(VectorCoefficient &vcoeff, AvgType type);
+
+   using GridFunction::ProjectBdrCoefficient;
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                      Array<int> &attr)
+   { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
+   { ProjectBdrCoefficient(coeff, NULL, attr); }
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                             Array<int> &bdr_attr);
 
    virtual double ComputeL1Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const

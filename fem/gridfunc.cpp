@@ -30,6 +30,9 @@ using namespace std;
 GridFunction::GridFunction(Mesh *m, std::istream &input)
    : Vector()
 {
+   // Grid functions are stored on the device
+   UseDevice(true);
+
    fes = new FiniteElementSpace;
    fec = fes->Load(m, input);
 
@@ -60,6 +63,8 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
 {
+   UseDevice(true);
+
    // all GridFunctions must have the same FE collection, vdim, ordering
    int vdim, ordering;
 
@@ -163,6 +168,7 @@ void GridFunction::Update()
       Vector old_data;
       old_data.Swap(*this);
       SetSize(T->Height());
+      UseDevice(true);
       T->Mult(old_data, *this);
    }
    else
@@ -192,7 +198,9 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
    if (f != fes) { Destroy(); }
    fes = f;
-   NewDataAndSize((double *)v + v_offset, fes->GetVSize());
+   v.UseDevice(true);
+   NewMemoryAndSize(Memory<double>(v.GetMemory(), v_offset, fes->GetVSize()),
+                    fes->GetVSize(), true);
    sequence = fes->GetSequence();
 }
 
@@ -215,13 +223,16 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
    if (!f->GetProlongationMatrix())
    {
       MakeRef(f, tv, tv_offset);
-      t_vec.NewDataAndSize(data, size);
+      t_vec.NewMemoryAndSize(data, size, false);
    }
    else
    {
       MFEM_ASSERT(tv.Size() >= tv_offset + f->GetTrueVSize(), "");
       SetSpace(f); // works in parallel
-      t_vec.NewDataAndSize(&tv(tv_offset), f->GetTrueVSize());
+      tv.UseDevice(true);
+      const int tv_size = f->GetTrueVSize();
+      t_vec.NewMemoryAndSize(Memory<double>(tv.GetMemory(), tv_offset, tv_size),
+                             tv_size, true);
    }
 }
 
@@ -294,7 +305,7 @@ int GridFunction::VectorDim() const
    if (!fes->GetNE())
    {
       const FiniteElementCollection *fec = fes->FEColl();
-      static const int geoms[3] =
+      static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
       fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
@@ -302,7 +313,7 @@ int GridFunction::VectorDim() const
    {
       fe = fes->GetFE(0);
    }
-   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return fes->GetVDim();
    }
@@ -315,7 +326,7 @@ void GridFunction::GetTrueDofs(Vector &tv) const
    if (!R)
    {
       // R is identity -> make tv a reference to *this
-      tv.NewDataAndSize(data, size);
+      tv.NewDataAndSize(const_cast<double*>((const double*)data), size);
    }
    else
    {
@@ -915,9 +926,7 @@ double GridFunction::GetDivergence(ElementTransformation &tr) const
                   "invalid FE map type");
       DenseMatrix grad_hat;
       GetVectorGradientHat(tr, grad_hat);
-      const DenseMatrix &J = tr.Jacobian();
-      DenseMatrix Jinv(J.Width(), J.Height());
-      CalcInverse(J, Jinv);
+      const DenseMatrix &Jinv = tr.InverseJacobian();
       div_v = 0.0;
       for (int i = 0; i < Jinv.Width(); i++)
       {
@@ -950,9 +959,7 @@ void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
                   "invalid FE map type");
       DenseMatrix grad_hat;
       GetVectorGradientHat(tr, grad_hat);
-      const DenseMatrix &J = tr.Jacobian();
-      DenseMatrix Jinv(J.Width(), J.Height());
-      CalcInverse(J, Jinv);
+      const DenseMatrix &Jinv = tr.InverseJacobian();
       DenseMatrix grad(grad_hat.Height(), Jinv.Width()); // vdim x FElem->Dim
       Mult(grad_hat, Jinv, grad);
       MFEM_ASSERT(grad.Height() == grad.Width(), "");
@@ -999,7 +1006,7 @@ void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
    const FiniteElement *fe = fes->GetFE(elNo);
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
    int dim = fe->GetDim(), dof = fe->GetDof();
-   DenseMatrix dshape(dof, dim), Jinv(dim);
+   DenseMatrix dshape(dof, dim);
    Vector lval, gh(dim);
    Array<int> dofs;
 
@@ -1008,21 +1015,20 @@ void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
    GetSubVector(dofs, lval);
    fe->CalcDShape(tr.GetIntPoint(), dshape);
    dshape.MultTranspose(lval, gh);
-   CalcInverse(tr.Jacobian(), Jinv);
-   Jinv.MultTranspose(gh, grad);
+   tr.InverseJacobian().MultTranspose(gh, grad);
 }
 
-void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
+void GridFunction::GetGradients(ElementTransformation &tr,
+                                const IntegrationRule &ir,
                                 DenseMatrix &grad) const
 {
-   const FiniteElement *fe = fes->GetFE(elem);
+   int elNo = tr.ElementNo;
+   const FiniteElement *fe = fes->GetFE(elNo);
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
-   ElementTransformation *Tr = fes->GetElementTransformation(elem);
    DenseMatrix dshape(fe->GetDof(), fe->GetDim());
-   DenseMatrix Jinv(fe->GetDim());
    Vector lval, gh(fe->GetDim()), gcol;
    Array<int> dofs;
-   fes->GetElementDofs(elem, dofs);
+   fes->GetElementDofs(elNo, dofs);
    GetSubVector(dofs, lval);
    grad.SetSize(fe->GetDim(), ir.GetNPoints());
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -1030,9 +1036,9 @@ void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
       const IntegrationPoint &ip = ir.IntPoint(i);
       fe->CalcDShape(ip, dshape);
       dshape.MultTranspose(lval, gh);
-      Tr->SetIntPoint(&ip);
+      tr.SetIntPoint(&ip);
       grad.GetColumnReference(i, gcol);
-      CalcInverse(Tr->Jacobian(), Jinv);
+      const DenseMatrix &Jinv = tr.InverseJacobian();
       Jinv.MultTranspose(gh, gcol);
    }
 }
@@ -1044,9 +1050,7 @@ void GridFunction::GetVectorGradient(
                "invalid FE map type");
    DenseMatrix grad_hat;
    GetVectorGradientHat(tr, grad_hat);
-   const DenseMatrix &J = tr.Jacobian();
-   DenseMatrix Jinv(J.Width(), J.Height());
-   CalcInverse(J, Jinv);
+   const DenseMatrix &Jinv = tr.InverseJacobian();
    grad.SetSize(grad_hat.Height(), Jinv.Width());
    Mult(grad_hat, Jinv, grad);
 }
@@ -1083,26 +1087,37 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
 
 void GridFunction::ProjectGridFunction(const GridFunction &src)
 {
-   // Assuming that the projection matrix is the same for all elements
    Mesh *mesh = fes->GetMesh();
+   bool sameP = false;
    DenseMatrix P;
 
-   if (!fes->GetNE())
-   {
-      return;
-   }
+   if (!mesh->GetNE()) { return; }
 
-   fes->GetFE(0)->Project(*src.fes->GetFE(0),
-                          *mesh->GetElementTransformation(0), P);
-   int vdim = fes->GetVDim();
-   if (vdim != src.fes->GetVDim())
-      mfem_error("GridFunction::ProjectGridFunction() :"
-                 " incompatible vector dimensions!");
+   Geometry::Type geom, cached_geom = Geometry::INVALID;
+   if (mesh->GetNumGeometries(mesh->Dimension()) == 1)
+   {
+      // Assuming that the projection matrix is the same for all elements
+      sameP = true;
+      fes->GetFE(0)->Project(*src.fes->GetFE(0),
+                             *mesh->GetElementTransformation(0), P);
+   }
+   const int vdim = fes->GetVDim();
+   MFEM_VERIFY(vdim == src.fes->GetVDim(), "incompatible vector dimensions!");
+
    Array<int> src_vdofs, dest_vdofs;
    Vector src_lvec, dest_lvec(vdim*P.Height());
 
    for (int i = 0; i < mesh->GetNE(); i++)
    {
+      // Assuming the projection matrix P depends only on the element geometry
+      if ( !sameP && (geom = mesh->GetElementBaseGeometry(i)) != cached_geom )
+      {
+         fes->GetFE(i)->Project(*src.fes->GetFE(i),
+                                *mesh->GetElementTransformation(i), P);
+         dest_lvec.SetSize(vdim*P.Height());
+         cached_geom = geom;
+      }
+
       src.fes->GetElementVDofs(i, src_vdofs);
       src.GetSubVector(src_vdofs, src_lvec);
       for (int vd = 0; vd < vdim; vd++)
@@ -1288,6 +1303,194 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
    }
 }
 
+void GridFunction::AccumulateAndCountBdrValues(
+   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr,
+   Array<int> &values_counter)
+{
+   int i, j, fdof, d, ind, vdim;
+   double val;
+   const FiniteElement *fe;
+   ElementTransformation *transf;
+   Array<int> vdofs;
+   Vector vc;
+
+   values_counter.SetSize(Size());
+   values_counter = 0;
+
+   vdim = fes->GetVDim();
+   for (i = 0; i < fes->GetNBE(); i++)
+   {
+      if (attr[fes->GetBdrAttribute(i) - 1] == 0) { continue; }
+
+      fe = fes->GetBE(i);
+      fdof = fe->GetDof();
+      transf = fes->GetBdrElementTransformation(i);
+      const IntegrationRule &ir = fe->GetNodes();
+      fes->GetBdrElementVDofs(i, vdofs);
+
+      for (j = 0; j < fdof; j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         transf->SetIntPoint(&ip);
+         if (vcoeff) { vcoeff->Eval(vc, *transf, ip); }
+         for (d = 0; d < vdim; d++)
+         {
+            if (!vcoeff && !coeff[d]) { continue; }
+
+            val = vcoeff ? vc(d) : coeff[d]->Eval(*transf, ip);
+            if ( (ind = vdofs[fdof*d+j]) < 0 )
+            {
+               val = -val, ind = -1-ind;
+            }
+            if (++values_counter[ind] == 1)
+            {
+               (*this)(ind) = val;
+            }
+            else
+            {
+               (*this)(ind) += val;
+            }
+         }
+      }
+   }
+
+   // In the case of partially conforming space, i.e. (fes->cP != NULL), we need
+   // to set the values of all dofs on which the dofs set above depend.
+   // Dependency is defined from the matrix A = cP.cR: dof i depends on dof j
+   // iff A_ij != 0. It is sufficient to resolve just the first level of
+   // dependency, since A is a projection matrix: A^n = A due to cR.cP = I.
+   // Cases like these arise in 3D when boundary edges are constrained by
+   // (depend on) internal faces/elements. We use the virtual method
+   // GetBoundaryClosure from NCMesh to resolve the dependencies.
+
+   if (fes->Nonconforming() && fes->GetMesh()->Dimension() == 3)
+   {
+      Vector vals;
+      Mesh *mesh = fes->GetMesh();
+      NCMesh *ncmesh = mesh->ncmesh;
+      Array<int> bdr_edges, bdr_vertices;
+      ncmesh->GetBoundaryClosure(attr, bdr_vertices, bdr_edges);
+
+      for (i = 0; i < bdr_edges.Size(); i++)
+      {
+         int edge = bdr_edges[i];
+         fes->GetEdgeVDofs(edge, vdofs);
+         if (vdofs.Size() == 0) { continue; }
+
+         transf = mesh->GetEdgeTransformation(edge);
+         transf->Attribute = -1; // TODO: set the boundary attribute
+         fe = fes->GetEdgeElement(edge);
+         if (!vcoeff)
+         {
+            vals.SetSize(fe->GetDof());
+            for (d = 0; d < vdim; d++)
+            {
+               if (!coeff[d]) { continue; }
+
+               fe->Project(*coeff[d], *transf, vals);
+               for (int k = 0; k < vals.Size(); k++)
+               {
+                  ind = vdofs[d*vals.Size()+k];
+                  if (++values_counter[ind] == 1)
+                  {
+                     (*this)(ind) = vals(k);
+                  }
+                  else
+                  {
+                     (*this)(ind) += vals(k);
+                  }
+               }
+            }
+         }
+         else // vcoeff != NULL
+         {
+            vals.SetSize(vdim*fe->GetDof());
+            fe->Project(*vcoeff, *transf, vals);
+            for (int k = 0; k < vals.Size(); k++)
+            {
+               ind = vdofs[k];
+               if (++values_counter[ind] == 1)
+               {
+                  (*this)(ind) = vals(k);
+               }
+               else
+               {
+                  (*this)(ind) += vals(k);
+               }
+            }
+         }
+      }
+   }
+}
+
+static void accumulate_dofs(const Array<int> &dofs, const Vector &vals,
+                            Vector &gf, Array<int> &values_counter)
+{
+   for (int i = 0; i < dofs.Size(); i++)
+   {
+      int k = dofs[i];
+      double val = vals(i);
+      if (k < 0) { k = -1 - k; val = -val; }
+      if (++values_counter[k] == 1)
+      {
+         gf(k) = val;
+      }
+      else
+      {
+         gf(k) += val;
+      }
+   }
+}
+
+void GridFunction::AccumulateAndCountBdrTangentValues(
+   VectorCoefficient &vcoeff, Array<int> &bdr_attr,
+   Array<int> &values_counter)
+{
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Array<int> dofs;
+   Vector lvec;
+
+   values_counter.SetSize(Size());
+   values_counter = 0;
+
+   for (int i = 0; i < fes->GetNBE(); i++)
+   {
+      if (bdr_attr[fes->GetBdrAttribute(i)-1] == 0)
+      {
+         continue;
+      }
+      fe = fes->GetBE(i);
+      T = fes->GetBdrElementTransformation(i);
+      fes->GetBdrElementDofs(i, dofs);
+      lvec.SetSize(fe->GetDof());
+      fe->Project(vcoeff, *T, lvec);
+      accumulate_dofs(dofs, lvec, *this, values_counter);
+   }
+
+   if (fes->Nonconforming() && fes->GetMesh()->Dimension() == 3)
+   {
+      Mesh *mesh = fes->GetMesh();
+      NCMesh *ncmesh = mesh->ncmesh;
+      Array<int> bdr_edges, bdr_vertices;
+      ncmesh->GetBoundaryClosure(bdr_attr, bdr_vertices, bdr_edges);
+
+      for (int i = 0; i < bdr_edges.Size(); i++)
+      {
+         int edge = bdr_edges[i];
+         fes->GetEdgeDofs(edge, dofs);
+         if (dofs.Size() == 0) { continue; }
+
+         T = mesh->GetEdgeTransformation(edge);
+         T->Attribute = -1; // TODO: set the boundary attribute
+         fe = fes->GetEdgeElement(edge);
+         lvec.SetSize(fe->GetDof());
+         fe->Project(vcoeff, *T, lvec);
+         accumulate_dofs(dofs, lvec, *this, values_counter);
+      }
+   }
+}
+
 void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
 {
    switch (type)
@@ -1295,14 +1498,16 @@ void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
       case ARITHMETIC:
          for (int i = 0; i < size; i++)
          {
-            (*this)(i) /= zones_per_vdof[i];
+            const int nz = zones_per_vdof[i];
+            if (nz) { (*this)(i) /= nz; }
          }
          break;
 
       case HARMONIC:
          for (int i = 0; i < size; i++)
          {
-            (*this)(i) = zones_per_vdof[i]/(*this)(i);
+            const int nz = zones_per_vdof[i];
+            if (nz) { (*this)(i) = nz/(*this)(i); }
          }
          break;
 
@@ -1562,85 +1767,38 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
    ComputeMeans(type, zones_per_vdof);
 }
 
-void GridFunction::ProjectBdrCoefficient(
-   Coefficient *coeff[], Array<int> &attr)
+void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                         Array<int> &attr)
 {
-   int i, j, fdof, d, ind, vdim;
-   double val;
-   const FiniteElement *fe;
-   ElementTransformation *transf;
-   Array<int> vdofs;
-
-   vdim = fes->GetVDim();
-   for (i = 0; i < fes->GetNBE(); i++)
+   Array<int> values_counter;
+   AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   fes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
    {
-      if (attr[fes->GetBdrAttribute(i) - 1])
-      {
-         fe = fes->GetBE(i);
-         fdof = fe->GetDof();
-         transf = fes->GetBdrElementTransformation(i);
-         const IntegrationRule &ir = fe->GetNodes();
-         fes->GetBdrElementVDofs(i, vdofs);
-
-         for (j = 0; j < fdof; j++)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(j);
-            transf->SetIntPoint(&ip);
-            for (d = 0; d < vdim; d++)
-            {
-               if (!coeff[d]) { continue; }
-
-               val = coeff[d]->Eval(*transf, ip);
-               if ( (ind = vdofs[fdof*d+j]) < 0 )
-               {
-                  val = -val, ind = -1-ind;
-               }
-               (*this)(ind) = val;
-            }
-         }
-      }
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
    }
+#endif
+}
 
-   // In the case of partially conforming space, i.e. (fes->cP != NULL), we need
-   // to set the values of all dofs on which the dofs set above depend.
-   // Dependency is defined from the matrix A = cP.cR: dof i depends on dof j
-   // iff A_ij != 0. It is sufficient to resolve just the first level of
-   // dependency since A is a projection matrix: A^n = A due to cR.cP = I.
-   // Cases like this arise in 3D when boundary edges are constrained by (depend
-   // on) internal faces/elements.
-   // We use the virtual method GetBoundaryClosure from NCMesh to resolve the
-   // dependencies.
-
-   if (fes->Nonconforming() && fes->GetMesh()->Dimension() == 3)
+void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
+{
+   Array<int> values_counter;
+   this->HostReadWrite();
+   AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   fes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
    {
-      Vector vals;
-      Mesh *mesh = fes->GetMesh();
-      NCMesh *ncmesh = mesh->ncmesh;
-      Array<int> bdr_edges, bdr_vertices;
-      ncmesh->GetBoundaryClosure(attr, bdr_vertices, bdr_edges);
-
-      for (i = 0; i < bdr_edges.Size(); i++)
-      {
-         int edge = bdr_edges[i];
-         fes->GetEdgeVDofs(edge, vdofs);
-         if (vdofs.Size() == 0) { continue; }
-
-         transf = mesh->GetEdgeTransformation(edge);
-         transf->Attribute = -1; // FIXME: set the boundary attribute
-         fe = fes->GetEdgeElement(edge);
-         vals.SetSize(fe->GetDof());
-         for (d = 0; d < vdim; d++)
-         {
-            if (!coeff[d]) { continue; }
-
-            fe->Project(*coeff[d], *transf, vals);
-            for (int k = 0; k < vals.Size(); k++)
-            {
-               (*this)(vdofs[d*vals.Size()+k]) = vals(k);
-            }
-         }
-      }
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
    }
+#endif
 }
 
 void GridFunction::ProjectBdrCoefficientNormal(
@@ -1717,46 +1875,18 @@ void GridFunction::ProjectBdrCoefficientNormal(
 void GridFunction::ProjectBdrCoefficientTangent(
    VectorCoefficient &vcoeff, Array<int> &bdr_attr)
 {
-   const FiniteElement *fe;
-   ElementTransformation *T;
-   Array<int> dofs;
-   Vector lvec;
-
-   for (int i = 0; i < fes->GetNBE(); i++)
+   Array<int> values_counter;
+   AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   fes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
    {
-      if (bdr_attr[fes->GetBdrAttribute(i)-1] == 0)
-      {
-         continue;
-      }
-      fe = fes->GetBE(i);
-      T = fes->GetBdrElementTransformation(i);
-      fes->GetBdrElementDofs(i, dofs);
-      lvec.SetSize(fe->GetDof());
-      fe->Project(vcoeff, *T, lvec);
-      SetSubVector(dofs, lvec);
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
    }
-
-   if (fes->Nonconforming() && fes->GetMesh()->Dimension() == 3)
-   {
-      Mesh *mesh = fes->GetMesh();
-      NCMesh *ncmesh = mesh->ncmesh;
-      Array<int> bdr_edges, bdr_vertices;
-      ncmesh->GetBoundaryClosure(bdr_attr, bdr_vertices, bdr_edges);
-
-      for (int i = 0; i < bdr_edges.Size(); i++)
-      {
-         int edge = bdr_edges[i];
-         fes->GetEdgeDofs(edge, dofs);
-         if (dofs.Size() == 0) { continue; }
-
-         T = mesh->GetEdgeTransformation(edge);
-         T->Attribute = -1; // FIXME: set the boundary attribute
-         fe = fes->GetEdgeElement(edge);
-         lvec.SetSize(fe->GetDof());
-         fe->Project(vcoeff, *T, lvec);
-         SetSubVector(dofs, lvec);
-      }
-   }
+#endif
 }
 
 double GridFunction::ComputeL2Error(
@@ -2237,6 +2367,69 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
    return error;
 }
 
+void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
+                                          GridFunction &error,
+                                          Coefficient *weight,
+                                          const IntegrationRule *irs[]) const
+{
+   error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 1; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      GetValues(i, *ir, vals);
+      T = fes->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         double err = fabs(vals(j) - exsol.Eval(*T, ip));
+         if (p < infinity())
+         {
+            err = pow(err, p);
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error[i] += ip.weight * T->Weight() * err;
+         }
+         else
+         {
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error[i] = std::max(error[i], err);
+         }
+      }
+      if (p < infinity())
+      {
+         // negative quadrature weights may cause the error to be negative
+         if (error[i] < 0.)
+         {
+            error[i] = -pow(-error[i], 1./p);
+         }
+         else
+         {
+            error[i] = pow(error[i], 1./p);
+         }
+      }
+   }
+}
+
 double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
                                     Coefficient *weight,
                                     VectorCoefficient *v_weight,
@@ -2328,6 +2521,96 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
    return error;
 }
 
+void GridFunction::ComputeElementLpErrors(const double p,
+                                          VectorCoefficient &exsol,
+                                          GridFunction &error,
+                                          Coefficient *weight,
+                                          VectorCoefficient *v_weight,
+                                          const IntegrationRule *irs[]) const
+{
+   error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   DenseMatrix vals, exact_vals;
+   Vector loc_errs;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 1; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      T = fes->GetElementTransformation(i);
+      GetVectorValues(*T, *ir, vals);
+      exsol.Eval(exact_vals, *T, *ir);
+      vals -= exact_vals;
+      loc_errs.SetSize(vals.Width());
+      if (!v_weight)
+      {
+         // compute the lengths of the errors at the integration points
+         // thus the vector norm is rotationally invariant
+         vals.Norm2(loc_errs);
+      }
+      else
+      {
+         v_weight->Eval(exact_vals, *T, *ir);
+         // column-wise dot product of the vector error (in vals) and the
+         // vector weight (in exact_vals)
+         for (int j = 0; j < vals.Width(); j++)
+         {
+            double err = 0.0;
+            for (int d = 0; d < vals.Height(); d++)
+            {
+               err += vals(d,j)*exact_vals(d,j);
+            }
+            loc_errs(j) = fabs(err);
+         }
+      }
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         double err = loc_errs(j);
+         if (p < infinity())
+         {
+            err = pow(err, p);
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error[i] += ip.weight * T->Weight() * err;
+         }
+         else
+         {
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error[i] = std::max(error[i], err);
+         }
+      }
+      if (p < infinity())
+      {
+         // negative quadrature weights may cause the error to be negative
+         if (error[i] < 0.)
+         {
+            error[i] = -pow(-error[i], 1./p);
+         }
+         else
+         {
+            error[i] = pow(error[i], 1./p);
+         }
+      }
+   }
+}
+
 GridFunction & GridFunction::operator=(double value)
 {
    Vector::operator=(value);
@@ -2339,11 +2622,6 @@ GridFunction & GridFunction::operator=(const Vector &v)
    MFEM_ASSERT(fes && v.Size() == fes->GetVSize(), "");
    Vector::operator=(v);
    return *this;
-}
-
-GridFunction & GridFunction::operator=(const GridFunction &v)
-{
-   return this->operator=((const Vector &)v);
 }
 
 void GridFunction::Save(std::ostream &out) const
@@ -2489,11 +2767,11 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
                                              bbox[2][0] = bbox[2][1] = 0.0;
    for (i = 0; i < mesh->GetNE(); i++)
    {
-      n = fes->GetFE(i)->GetGeomType();
-      RefG = GlobGeometryRefiner.Refine(n, TimesToRefine);
+      Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+      RefG = GlobGeometryRefiner.Refine(geom, TimesToRefine);
       GetValues(i, RefG->RefPts, values, pointmat);
       Array<int> &RG = RefG->RefGeoms;
-      n = Geometries.NumBdr(n);
+      n = Geometries.NumBdr(geom);
       for (k = 0; k < RG.Size()/n; k++)
       {
          for (j = 0; j < n; j++)
@@ -2583,6 +2861,24 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
    Load(in, vdim*qspace->GetSize());
 }
 
+QuadratureFunction & QuadratureFunction::operator=(double value)
+{
+   Vector::operator=(value);
+   return *this;
+}
+
+QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
+{
+   MFEM_ASSERT(qspace && v.Size() == qspace->GetSize(), "");
+   Vector::operator=(v);
+   return *this;
+}
+
+QuadratureFunction & QuadratureFunction::operator=(const QuadratureFunction &v)
+{
+   return this->operator=((const Vector &)v);
+}
+
 void QuadratureFunction::Save(std::ostream &out) const
 {
    qspace->Save(out);
@@ -2627,11 +2923,7 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    int nsd = 1;
    if (with_subdomains)
    {
-      for (int i = 0; i < nfe; i++)
-      {
-         int attr = ufes->GetAttribute(i);
-         if (attr > nsd) { nsd = attr; }
-      }
+      nsd = ufes->GetMesh()->attributes.Max();
    }
 
    double total_error = 0.0;

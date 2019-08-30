@@ -8,11 +8,212 @@
                                http://mfem.org
 
 
-Version 3.3.3 (development)
+Version 4.0.1 (development)
 ===========================
 
-More efficient non-conforming adaptive mesh refinement
-------------------------------------------------------
+GPU support
+-----------
+- Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
+  language that can run on both AMD and NVIDIA hardware. The list of current
+  backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
+  "omp", "occa-cpu", "raja-cpu", and "cpu".
+
+
+Version 4.0, released on May 24, 2019
+=====================================
+
+Unlike previous MFEM releases, this version requires a C++11 compiler.
+
+GPU support
+-----------
+- Added initial support for hardware devices, such as GPUs, and programming
+  models, such as CUDA, OCCA, RAJA and OpenMP.
+
+- The GPU/device support is based on MFEM's new backends and kernels working
+  seamlessly with a new lightweight device/host memory manager. The kernels can
+  be implemented either in OCCA, or as a simple wrapper around for-loops, which
+  can then be dispatched to RAJA and native backends. See the files forall.hpp
+  and mem_manager.hpp in the general/ directory for more details.
+
+- Several of the MFEM example codes (ex1, ex1p, ex6, and ex6p) can now take
+  advantage of GPU acceleration with the backend selectable at runtime. Many of
+  the linear algebra and finite element operations (e.g. partially assembled
+  bilinear forms) have been extended to take advantage of kernel acceleration by
+  simply replacing loops with the MFEM_FORALL() macro.
+
+- In addition to native CUDA kernels, the library currently supports OCCA, RAJA
+  and OpenMP kernels, which could be mixed and matched in different parts of the
+  same application. We plan on adding support for more programming models and
+  devices in the future, without the need for significant modifications in user
+  code. The list of current backends is: "occa-cuda", "raja-cuda", "cuda",
+  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+
+- GPU-related limitations:
+  * Hypre preconditioners are not yet available in GPU mode, and in particular
+    hypre must be built in CPU mode.
+  * Only constant coefficients are currently supported on GPUs.
+  * Optimized element assembly, and matrix-free bilinear forms are not
+    implemented yet. Element batching is currently ignored.
+  * In device mode, full assembly is performed on the host (but the matvec
+    action is performed on the device).
+  * Partial assembly kernels are not implemented yet for simplices.
+
+Discretization improvements
+---------------------------
+
+- Partial assembled finite element operators are now available in the core
+  library, based on the new classes PABilinearFormExtension, ElementRestriction,
+  DofToQuad and GeometricFactors (associated with the classes BilinearForm,
+  FiniteElementSpace, FiniteElement and Mesh, respectively). The kernels for
+  partial assembled Setup/Assembly and Action/Mult are implemented in the
+  BilinearFormIntegrator methods AssemblePA and AddMultPA.
+
+- Added support for a general "low-order refined"-to-"high-order" transfer of
+  GridFunction data from a "low-order refined" (LOR) space defined on a refined
+  mesh to a "high-order" (HO) finite element space defined on a coarse mesh. See
+  the new classes InterpolationGridTransfer and L2ProjectionGridTransfer and the
+  new LOR Transfer miniapp: miniapps/tools/lor-transfer.cpp.
+
+- Added element flux, and flux energy computation in class ElasticityIntegrator,
+  allowing for the use of Zienkiewicz-Zhu type error estimators with the
+  integrator. For an illustration of this addition, see the new Example 21.
+
+- Added support for derefinement of vector (RT + ND) spaces.
+
+- Added a variety of coefficients which are sums or products of existing
+  coefficients as well as grid function coefficients which return the
+  divergence, gradient, or curl of their GridFunctions.
+
+Support for wedge elements and meshes with mixed element types
+--------------------------------------------------------------
+- Added support for wedge-shaped mesh elements of arbitrary order (with Geometry
+  type PRISM) which have two triangular faces and three quadrilateral faces.
+  Several examples of such meshes can be found in the data/ directory.
+
+- Added support for mixed meshes containing triangles and quadrilaterals in 2D
+  or tetrahedra, wedges, and hexahedra in 3D. This includes support for uniform
+  refinement of such meshes. Several examples of such meshes can be found in the
+  data/ directory.
+
+- Added H1 and L2 finite elements of arbitrary order for Wedge elements.
+
+- Added support for reading and writing linear and quadratic meshes containing
+  wedge elements in VTK mesh format. Several examples of such meshes can be
+  found in the data/ directory.
+
+Other meshing improvements
+--------------------------
+- Improved the uniform refinement of tetrahedral meshes (also part of the
+  uniform refinement of mixed 3D meshes). The previous refinement algorithm is
+  still available as an option in Mesh::UniformRefinement. Both can be used in
+  the updated Mesh Explorer miniapp.
+
+- The local tetrahedral mesh refinement algorithm in serial and in parallel now
+  follows precisely the paper:
+
+     D. Arnold, A. Mukherjee, and L. Pouly, "Locally Adapted Tetrahedral Meshes
+     Using Bisection", SIAM J. Sci. Comput. 22 (2000), 431–448.
+
+  This guarantees that the shape regularity of the elements will be preserved
+  under refinement.
+
+- The TMOP mesh optimization algorithms were extended to support user-defined
+  space-dependent limiting terms. Improved the TMOP objective functions by more
+  accurate normalization of the different terms.
+
+- Added support for parallel communication groups on non-conforming meshes.
+
+- Improved parallel partitioning of non-conforming meshes. If the coarse mesh
+  elements are ordered as a sequence of face-neighbors, the parallel partitions
+  are now guaranteed to be continuous. To that end, inline quadrilateral and
+  hexahedral meshes are now by default ordered along a space-filling curve.
+
+- A boundary in a NURBS mesh can now be connected with another boundary. Such a
+  periodic NURBS mesh is a simple way to impose periodic boundary conditions.
+
+- Added support for reading linear and quadratic 2D quadrilateral and triangular
+  Cubit meshes.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new meshing miniapp, Toroid, which can produce a variety of torus
+  shaped meshes by twisting a stack of wedges or hexahedra.
+
+- Added a new meshing miniapp, Extruder, that demonstrates the capability to
+  produce 3D meshes by extruding 2D meshes.
+
+- Added a simple miniapp, LOR Transfer, for visualizing the actions of the
+  transfer operators between a high-order and a low-order refined spaces.
+
+- Added a new example, Example 20/20p, that solves a system of 1D ODEs derived
+  from a Hamiltonian. The example demonstrates the use of the variable order,
+  symplectic integration algorithm implemented in class SIAVSolver.
+
+- Added a new example, Example 21/21p, that illustrates the use of AMR to solve
+  a linear elasticity problem. This is an extension of Example 2/2p.
+
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added support for parallel ILU preconditioning via hypre's Euclid solver.
+
+- Added support for STRUMPACK v3 with a small API change in the class
+  STRUMPACKSolver, see "API changes" below.
+
+Miscellaneous
+-------------
+- Added unit tests based on the Catch++ library in the test/ directory.
+
+- Renamed the option MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. This legacy
+  option is deprecated and planned for removal in a future release. The original
+  option name, MFEM_USE_OPENMP, is now used to enable the new OpenMP backends in
+  the new kernels.
+
+- In SparseMatrix added the option to perform MultTranspose() by matvec with
+  computed and stored transpose matrix. This is required for deterministic
+  results when using devices such as CUDA and OpenMP.
+
+- Altered the way FGMRES counts its iterations so that it matches GMRES.
+
+- Various other simplifications, extensions, and bugfixes in the code.
+
+- Construct abstract parallel rectangular truedof-to-truedof operators via
+  Operator::FormDiscreteOperator().
+
+API changes
+-----------
+- In multiple places, use Geometry::Type instead of int, where appropriate.
+- In multiple places, use Element::Type instead of int, where appropriate.
+- The Mesh methods GetElementBaseGeometry and GetBdrElementBaseGeometry no
+  longer have a default value for their parameter, they only work with an
+  explicitly given index.
+- In class Mesh, added methods useful for queries regarding the types of
+  elements present in the mesh: HasGeometry, GetNumGeometries, GetGeometries,
+  and class Mesh::GeometryList.
+- The struct CoarseFineTransformations (returned by the Mesh method
+  GetRefinementTransforms) now stores the embedding matrices separately for each
+  Geometry::Type.
+- In class ParMesh, replaced the method GroupNFaces with two new methods:
+  GroupNTriangles and GroupNQuadrilaterals. Also, replaced GroupFace with two
+  methods: GroupTriangle and GroupQuadrilateral.
+- In class ParMesh, made the two RefineGroups methods protected.
+- Removed the virtual method Element::GetRefinementFlag, it is only used by the
+  derived class Tetrahedron.
+- Added new methods: Array::CopyTo, Tetrahedron::Init.
+- In class STRUMPACKSolver, the method SetMC64Job() was replaced by the new
+  methods: DisableMatching(), EnableMatching(), and EnableParallelMatching().
+
+
+Version 3.4, released on May 29, 2018
+=====================================
+
+More general and efficient mesh adaptivity
+------------------------------------------
+- Added support for PUMI, the Parallel Unstructured Mesh Infrastructure from
+  https://scorec.rpi.edu/pumi. PUMI is an unstructured, distributed mesh data
+  management system that is capable of handling general non-manifold models and
+  effectively supports automated adaptive analysis. PUMI enables for the first
+  time support for parallel unstructured modifications of MFEM meshes.
+
 - Significantly reduced MPI communication in the construction of the parallel
   prolongation matrix in ParFiniteElementSpace, for much improved parallel
   scaling of non-conforming AMR on hundreds of thousands of MPI tasks. The
@@ -80,6 +281,11 @@ New and updated examples and miniapps
 - Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
   NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
   variable order NURBS versions of examples 1, 1p and 11p.
+
+- Added PUMI versions of examples ex1, ex1p, ex2 and ex6p in a new examples/pumi
+  directory. The new examples demonstrate the PUMI APIs for parallel and serial
+  mesh loading (ex1 and ex1p), applying BCs using classification (ex2), and
+  performing parallel mesh adaptation (ex6p).
 
 - Added two new miniapps related to DataCollection I/O in miniapps/tools:
   load-dc.cpp can be used to visualize fields saved via DataCollection classes;

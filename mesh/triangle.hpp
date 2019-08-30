@@ -39,10 +39,10 @@ public:
    Triangle(int ind1, int ind2, int ind3, int attr = 1);
 
    /// Return element's type.
-   virtual int GetType() const { return Element::TRIANGLE; }
+   virtual Type GetType() const { return Element::TRIANGLE; }
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const;
+   virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const;
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
@@ -50,10 +50,13 @@ public:
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
-   virtual void MarkEdge(DenseMatrix & pmat);
+   void MarkEdge(DenseMatrix & pmat);
+
+   static void MarkEdge(int *indices, const DSTable &v_to_v, const int *length);
 
    /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(const DSTable &v_to_v, const int *length);
+   virtual void MarkEdge(const DSTable &v_to_v, const int *length)
+   { MarkEdge(indices, v_to_v, length); }
 
    virtual void ResetTransform(int tr) { transform = tr; }
    virtual unsigned GetTransform() const { return transform; }
@@ -89,6 +92,7 @@ public:
    virtual ~Triangle() { }
 };
 
+// Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
 extern Linear2DFiniteElement TriangleFE;
 
 }

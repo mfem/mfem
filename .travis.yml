@@ -205,6 +205,7 @@ install:
         else
             echo "Reusing cached hypre-2.10.0b/";
         fi;
+        ln -s hypre-2.10.0b hypre;
      else
         echo "Serial build, not using hypre";
      fi

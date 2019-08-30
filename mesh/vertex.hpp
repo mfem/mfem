@@ -26,6 +26,8 @@ protected:
 public:
    Vertex() { }
 
+   // Trivial copy constructor and trivial copy assignment operator
+
    Vertex (double *xx, int dim);
    Vertex( double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
    Vertex( double x, double y, double z)
@@ -49,7 +51,7 @@ public:
    void SetCoords(int dim, const double *p)
    { for (int i = 0; i < dim; i++) { coord[i] = p[i]; } }
 
-   ~Vertex() { }
+   // Trivial destructor
 };
 
 }
