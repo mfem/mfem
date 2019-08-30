@@ -972,13 +972,16 @@ public:
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
-   void SetLAIROptions(float distance=2,  std::string prerelax="",
+   /* distance parameter takes on values {1,2,15} for lAIR, meaning R is built using
+   distance 1 neighbors, distance two neighbors, or distance two on processor and
+   distance 1 off processor (i.e., distance 1.5 --> 15).        */
+   void SetLAIROptions(int distance=15,  std::string prerelax="",
                       std::string postrelax="FFC", double strength_tol=0.1,
                       double strength_tolR=0.01, double filter_tolR=0.0,
                       int interp_type=100, int relax_type=3, double filterA_tol=0.0, 
                       int splitting=6, int blksize=0, int Sabs=0);
 
-   void SetNAIROptions(float neumann_degree=5,  std::string prerelax="A",
+   void SetNAIROptions(int neumann_degree=2,  std::string prerelax="A",
                       std::string postrelax="F", double strength_tol=0.1,
                       double strength_tolR=0.01, double filter_tolR=0.0,
                       int interp_type=100, int relax_type=10, double filterA_tol=0.0, 
@@ -1010,7 +1013,7 @@ public:
    void SetInterpolation(int interp_type)
    { HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type); }
 
-   void SetRestriction(float restrict_type)
+   void SetRestriction(int restrict_type)
    { HYPRE_BoomerAMGSetRestriction(amg_precond, restrict_type); }
 
    void SetCoarsening(int coarsen_type)
