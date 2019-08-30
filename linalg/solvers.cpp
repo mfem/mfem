@@ -164,23 +164,23 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (prec)
    {
       prec->Mult(r, z); // z = B r
-      nom0 = nom = Dot(z, r);
+      nom0 = nom = sqrt(Dot(z, z));
    }
    else
    {
-      nom0 = nom = Dot(r, r);
+      nom0 = nom = sqrt(Dot(r, r));
    }
 
    if (print_level == 1)
-      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+      mfem::out << "   Iteration : " << setw(3) << 0 << " ||r||_B = "
                 << nom << '\n';
 
-   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   r0 = std::max(nom*rel_tol, abs_tol);
    if (nom <= r0)
    {
       converged = 1;
       final_iter = 0;
-      final_norm = sqrt(nom);
+      final_norm = nom;
       return;
    }
 
@@ -204,16 +204,16 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       if (prec)
       {
          prec->Mult(r, z); //  z = B r
-         nom = Dot(z, r);
+         nom = sqrt(Dot(z, z));
       }
       else
       {
-         nom = Dot(r, r);
+         nom = sqrt(Dot(r, r));
       }
 
-      cf = sqrt(nom/nomold);
+      cf = nom/nomold;
       if (print_level == 1)
-         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+         mfem::out << "   Iteration : " << setw(3) << i << "  ||r||_B = "
                    << nom << "\tConv. rate: " << cf << '\n';
       nomold = nom;
 
@@ -240,8 +240,8 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (print_level >= 0 && !converged)
    {
       mfem::err << "SLI: No convergence!" << '\n';
-      mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
-                << "(B r_N, r_N) = " << nom << '\n'
+      mfem::out << "||r_0||_B = " << nom0 << '\n'
+                << "||r|_N|_B = " << nom << '\n'
                 << "Number of SLI iterations: " << final_iter << '\n';
    }
    if (print_level >= 1 || (print_level >= 0 && !converged))
