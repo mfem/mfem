@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     bool visualization = true;
     bool divfree = false;
     bool GMG = 0;
-    int par_ref_levels = 2;
+    int num_refines = 2;
     bool ML_particular = false;
 
     OptionsParser args(argc, argv);
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
     args.AddOption(&GMG, "-GMG", "--GeometricMG", "-AMG",
                    "--AlgebraicMG",
                    "whether to use goemetric or algebraic multigrid solver.");
-    args.AddOption(&par_ref_levels, "-r", "--ref",
+    args.AddOption(&num_refines, "-r", "--ref",
                    "Number of parallel refinement steps.");
     args.Parse();
     if (!args.Good())
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
     // 3. Read the (serial) mesh from the given mesh file on all processors.  We
     //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
     //    and volume meshes with the same code.
-    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::TETRAHEDRON, true);
+    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::HEXAHEDRON, true);
 
     int dim = mesh->Dimension();
 
@@ -116,59 +116,46 @@ int main(int argc, char *argv[])
 
     // 6. Define a parallel finite element space on the parallel mesh. Here we
     //    use the Raviart-Thomas finite elements of the specified order.
-    ND_FECollection hcurl_coll(order+1, dim);
     RT_FECollection hdiv_coll(order, dim);
     L2_FECollection l2_coll(order, dim);
 
-    ParFiniteElementSpace* N_space;
     ParFiniteElementSpace* R_space = new ParFiniteElementSpace(pmesh, &hdiv_coll);
     ParFiniteElementSpace* W_space = new ParFiniteElementSpace(pmesh, &l2_coll);
 
-    // Constructing multigrid hierarchy while refining the mesh (if GMG is true)
-    InterpolationCollector* P_N;
-    HdivL2Hierarchy* hdiv_l2_hierarchy;
+    DivFreeSolverParameters param;
+    param.verbose = verbose;
+    param.ml_particular = ML_particular;
+    param.MG_type = GMG ? GeometricMG : AlgebraicMG;
+
+    DivFreeSolverDataCollector* dfs_data_collector;
 
     chrono.Clear();
     chrono.Start();
 
-    if (divfree && ML_particular)
-    {
-        hdiv_l2_hierarchy = new HdivL2Hierarchy(*R_space, *W_space, par_ref_levels, ess_bdr);
-    }
-
     if (divfree)
     {
-        N_space = new ParFiniteElementSpace(pmesh, &hcurl_coll);
-        P_N = new InterpolationCollector(*N_space, par_ref_levels);
+        dfs_data_collector = new DivFreeSolverDataCollector(
+                    *R_space, *W_space, num_refines, ess_bdr, param);
     }
 
-    for (int l = 1; l < par_ref_levels+1; l++)
+    for (int l = 0; l < num_refines; l++)
     {
         pmesh->UniformRefinement();
 
         R_space->Update();
         W_space->Update();
 
-        if (divfree && ML_particular)
-        {
-            hdiv_l2_hierarchy->CollectData(*R_space, *W_space);
-        }
-
         if (divfree)
         {
-            N_space->Update();
-            if (GMG)
-            {
-                P_N->CollectData(*N_space);
-            }
+            dfs_data_collector->CollectData(*R_space, *W_space);
         }
+
     }
     if (verbose)
-        cout << "Divergence free hierarchy constructed in " << chrono.RealTime() << "\n";
+        cout << "FE spaces constructed in " << chrono.RealTime() << "\n";
 
     HYPRE_Int dimR = R_space->GlobalTrueVSize();
     HYPRE_Int dimW = W_space->GlobalTrueVSize();
-    HYPRE_Int dimN = divfree ? N_space->GlobalTrueVSize() : 0;
 
     if (verbose)
     {
@@ -177,7 +164,7 @@ int main(int argc, char *argv[])
         cout << "dim(W) = " << dimW << "\n";
         cout << "dim(R+W) = " << dimR + dimW << "\n";
         if (divfree)
-            cout << "dim(N) = " << dimN << "\n";
+            cout << "dim(N) = " << dfs_data_collector->GetData().P_curl[0]->NumRows() << "\n";
         cout << "***********************************************************\n";
     }
 
@@ -250,17 +237,6 @@ int main(int argc, char *argv[])
     bVarf->SpMat() *= -1.0;
     B = bVarf->ParallelAssemble();
 
-    HypreParMatrix *BT = B->Transpose();
-
-    ParDiscreteLinearOperator *DiscreteCurl;
-    if (divfree)
-    {
-        DiscreteCurl = new ParDiscreteLinearOperator(N_space, R_space);
-        DiscreteCurl->AddDomainInterpolator(new CurlInterpolator);
-        DiscreteCurl->Assemble();
-        DiscreteCurl->Finalize();
-    }
-
     int max_iter(500);
     double rtol(1.e-9);
     double atol(1.e-12);
@@ -271,19 +247,15 @@ int main(int argc, char *argv[])
     BlockOperator darcyOp(block_trueOffsets);
     if (divfree)
     {
-        unique_ptr<HypreParMatrix> C(DiscreteCurl->ParallelAssemble());
-
-        MLDivFreeSolveParameters param;
-        param.verbose = verbose;
-        param.ml_part = ML_particular;
-        MLDivFreeSolver ml_df_solver(*hdiv_l2_hierarchy, *M, *B, *C, param);
-        if (GMG) ml_df_solver.SetupMG(*P_N); else ml_df_solver.SetupAMS(*N_space);
+        DivFreeSolver ml_df_solver(*M, *B, dfs_data_collector->GetData());
         ml_df_solver.Mult(trueRhs, trueX);
     }
     else
     {
+        OperatorHandle BT(B->Transpose());
+
         darcyOp.SetBlock(0,0, M);
-        darcyOp.SetBlock(0,1, BT);
+        darcyOp.SetBlock(0,1, BT.As<HypreParMatrix>());
         darcyOp.SetBlock(1,0, B);
 
         L2H1Preconditioner darcyPr(*M, *B, block_trueOffsets);
@@ -380,7 +352,6 @@ int main(int argc, char *argv[])
     delete gform;
     delete u;
     delete p;
-    delete BT;
     delete B;
     delete M;
     delete mVarf;
@@ -389,10 +360,7 @@ int main(int argc, char *argv[])
     delete R_space;
     if (divfree)
     {
-        if (ML_particular) delete hdiv_l2_hierarchy;
-        delete DiscreteCurl;
-        delete N_space;
-        delete P_N;
+        delete dfs_data_collector;
     }
 
     delete pmesh;

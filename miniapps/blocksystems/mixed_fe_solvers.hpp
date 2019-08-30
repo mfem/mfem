@@ -4,6 +4,8 @@
 using namespace std;
 using namespace mfem;
 
+enum MG_Type { AlgebraicMG, GeometricMG };
+
 struct IterSolveParameters
 {
     int print_level = 0;
@@ -13,12 +15,26 @@ struct IterSolveParameters
     bool iter_mode = false;
 };
 
-struct MLDivFreeSolveParameters
+struct DivFreeSolverParameters
 {
-    bool ml_part = true;
+    bool ml_particular = true;
+    MG_Type MG_type = GeometricMG;
     bool verbose = false;
     IterSolveParameters CTMC_solve_param;
     IterSolveParameters BBT_solve_param;
+};
+
+struct DivFreeSolverData
+{
+    Array<SparseMatrix> agg_el;
+    Array<SparseMatrix> el_hdivdofs;
+    Array<SparseMatrix> el_l2dofs;
+    Array<OperatorHandle> P_hdiv;
+    Array<OperatorHandle> P_l2;
+    Array<OperatorHandle> P_curl;
+    Array<int> coarse_ess_dofs;
+    OperatorHandle discrete_curl;
+    DivFreeSolverParameters param;
 };
 
 void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
@@ -52,57 +68,43 @@ private:
     int verbose_;
 };
 
-class InterpolationCollector
+class DivFreeSolverDataCollector
 {
 public:
-    InterpolationCollector(const ParFiniteElementSpace &fes, int num_refine);
-
-    void CollectData(const ParFiniteElementSpace& fes);
-
-    const Array<OperatorHandle>& GetP() const { return P_; }
-
-private:
-    Array<OperatorHandle> P_;
-    unique_ptr<ParFiniteElementSpace> coarse_fes_;
-    int refine_count_;
-};
-
-struct HdivL2Hierarchy
-{
-    Array<SparseMatrix> agg_el_;
-    Array<SparseMatrix> el_hdivdofs_;
-    Array<SparseMatrix> el_l2dofs_;
-    Array<OperatorHandle> P_hdiv_;
-    Array<OperatorHandle> P_l2_;
-    Array<int> coarse_ess_dofs_;
-
-    HdivL2Hierarchy(const ParFiniteElementSpace &hdiv_fes,
-                    const ParFiniteElementSpace &l2_fes,
-                    int num_refine, const Array<int>& ess_bdr);
+    DivFreeSolverDataCollector(const ParFiniteElementSpace &hdiv_fes,
+                               const ParFiniteElementSpace &l2_fes,
+                               int num_refine, const Array<int>& ess_bdr,
+                               const DivFreeSolverParameters& param);
 
     void CollectData(const ParFiniteElementSpace& hdiv_fes,
                      const ParFiniteElementSpace& l2_fes);
+
+    const DivFreeSolverData& GetData() const { return data_; }
 private:
     unique_ptr<ParFiniteElementSpace> coarse_hdiv_fes_;
     unique_ptr<ParFiniteElementSpace> coarse_l2_fes_;
-    L2_FECollection l2_coll_0;
-    unique_ptr<FiniteElementSpace> l2_fes_0_;
-    int refine_count_;
+
+    ND_FECollection hcurl_fec_;
+    unique_ptr<ParFiniteElementSpace> hcurl_fes_;
+    unique_ptr<ParFiniteElementSpace> coarse_hcurl_fes_;
+
+    L2_FECollection l2_0_fec_;
+    unique_ptr<FiniteElementSpace> l2_0_fes_;
+
+    int level_;
+
+    DivFreeSolverData data_;
 };
 
-class MLDivFreeSolver : public Solver
+class DivFreeSolver : public Solver
 {
 public:
-    MLDivFreeSolver(HdivL2Hierarchy& hierarchy, HypreParMatrix& M,
-                    HypreParMatrix& B, HypreParMatrix& C,
-                    MLDivFreeSolveParameters param = MLDivFreeSolveParameters());
+    DivFreeSolver(HypreParMatrix& M, HypreParMatrix& B, const DivFreeSolverData& data);
 
     virtual void Mult(const Vector & x, Vector & y) const;
 
     virtual void SetOperator(const Operator &op) { }
 
-    void SetupMG(const InterpolationCollector& P);
-    void SetupAMS(ParFiniteElementSpace& hcurl_fes);
 private:
     // Find a particular solution for div sigma_p = f
     void SolveParticular(const Vector& rhs, Vector& sol) const;
@@ -111,20 +113,18 @@ private:
 
     void SolvePotential(const Vector &rhs, Vector& sol) const;
 
-    SparseMatrix M_fine_;
-    SparseMatrix B_fine_;
-    HdivL2Hierarchy& h_;
     HypreParMatrix& M_;
     HypreParMatrix& B_;
-    HypreParMatrix& C_;
+//    HypreParMatrix& C_;
 
     BBTSolver BBT_solver_;
     OperatorHandle CTMC_;
     OperatorHandle CTMC_prec_;
     CGSolver CTMC_solver_;
 
-    MLDivFreeSolveParameters param_;
     Array<int> offsets_;
+
+    const DivFreeSolverData& data_;
 };
 
 // Geometric Multigrid
