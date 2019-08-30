@@ -33,8 +33,15 @@ struct DivFreeSolverData
     Array<OperatorHandle> P_l2;
     Array<OperatorHandle> P_curl;
     Array<int> coarse_ess_dofs;
+
+    ND_FECollection hcurl_fec;
+    ParFiniteElementSpace hcurl_fes;
     OperatorHandle discrete_curl;
+
     DivFreeSolverParameters param;
+
+    DivFreeSolverData(int order, ParMesh* mesh)
+        : hcurl_fec(order, mesh->Dimension()), hcurl_fes(mesh, &hcurl_fec) { }
 };
 
 void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
@@ -55,7 +62,7 @@ Vector MLDivPart(const HypreParMatrix& M,
 class BBTSolver : public Solver
 {
 public:
-    BBTSolver(HypreParMatrix& B, IterSolveParameters param = IterSolveParameters());
+    BBTSolver(const HypreParMatrix &B, IterSolveParameters param=IterSolveParameters());
 
     virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -83,9 +90,6 @@ public:
 private:
     unique_ptr<ParFiniteElementSpace> coarse_hdiv_fes_;
     unique_ptr<ParFiniteElementSpace> coarse_l2_fes_;
-
-    ND_FECollection hcurl_fec_;
-    unique_ptr<ParFiniteElementSpace> hcurl_fes_;
     unique_ptr<ParFiniteElementSpace> coarse_hcurl_fes_;
 
     L2_FECollection l2_0_fec_;
@@ -99,7 +103,8 @@ private:
 class DivFreeSolver : public Solver
 {
 public:
-    DivFreeSolver(HypreParMatrix& M, HypreParMatrix& B, const DivFreeSolverData& data);
+    DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
+                  const DivFreeSolverData& data);
 
     virtual void Mult(const Vector & x, Vector & y) const;
 
@@ -113,9 +118,8 @@ private:
 
     void SolvePotential(const Vector &rhs, Vector& sol) const;
 
-    HypreParMatrix& M_;
-    HypreParMatrix& B_;
-//    HypreParMatrix& C_;
+    const HypreParMatrix& M_;
+    const HypreParMatrix& B_;
 
     BBTSolver BBT_solver_;
     OperatorHandle CTMC_;
