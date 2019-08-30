@@ -72,6 +72,10 @@ protected:
    Table group_stria;  // contains shared triangle indices
    Table group_squad;  // contains shared quadrilateral indices
 
+   // ADDED
+   Table group_sface;   // TODO - THIS IS NO LONGER USED IN PARMESH CLASS - bs
+   //ADDED
+
    /// Shared to local index mapping.
    Array<int> svert_lvert;
    Array<int> sedge_ledge;
@@ -116,7 +120,7 @@ protected:
    // ADDED //
    void GetGhostFaceTransformation(FaceElementTransformations* FETr, 
                                    IsoparametricTransformation &FaceTransformation,
-                                   int face_type, int face_geom);
+                                   Element::Type face_type, Geometry::Type face_geom);
    // ADDED //
 
    void UniformRefineGroups2D(int old_nv);

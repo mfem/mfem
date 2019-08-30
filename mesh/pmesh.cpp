@@ -2366,10 +2366,9 @@ GetSharedFaceTransformations(int sf, bool fill2)
 
 
 // ADDED //
-
 void ParMesh::GetGhostFaceTransformation(FaceElementTransformations* FETr, 
                                          IsoparametricTransformation &FaceTransformation,
-                                         int face_type, int face_geom)
+                                         Element::Type face_type, Geometry::Type face_geom)
 {
    // calculate composition of FETr->Loc1 and FETr->Elem1
    DenseMatrix &face_pm = FaceTransformation.GetPointMat();
@@ -2397,7 +2396,6 @@ void ParMesh::GetGhostFaceTransformation(FaceElementTransformations* FETr,
 }
 
 
-
 void ParMesh::GetSharedFaceTransformations(int sf, 
                                            FaceElementTransformations &FaceElemTr,
                                            IsoparametricTransformation &Transformation, 
@@ -2417,8 +2415,8 @@ void ParMesh::GetSharedFaceTransformations(int sf,
    if (is_slave) { nc_info = &nc_faces_info[face_info.NCFace]; }
 
    int local_face = is_ghost ? nc_info->MasterFace : FaceNo;
-   int face_type = GetFaceElementType(local_face);
-   int face_geom = GetFaceGeometryType(local_face);
+   Element::Type face_type = GetFaceElementType(local_face);
+   Geometry::Type face_geom = GetFaceGeometryType(local_face);
 
    // setup the transformation for the first element
    FaceElemTr.Elem1No = face_info.Elem1No;
@@ -2488,9 +2486,7 @@ void ParMesh::GetSharedFaceTransformations(int sf,
    }
 
 }
-
 // ADDED //
-
 
 
 int ParMesh::GetNSharedFaces() const

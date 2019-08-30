@@ -1799,7 +1799,7 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
     // ADDED //
-    void ResetVectorCoefficient(VectorCoefficient &q) { Q = q;  }
+    void ResetVectorCoefficient(VectorCoefficient &q) { Q = &q;  }
     // ADDED //
 };
 
