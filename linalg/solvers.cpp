@@ -223,8 +223,8 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "Number of SLI iterations: " << i << '\n'
                       << "Conv. rate: " << cf << '\n';
          else if (print_level == 3)
-            mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
-                      << "(B r_N, r_N) = " << nom << '\n'
+            mfem::out << "||r_0||_B = " << nom0 << '\n'
+                      << "||r_N||_B = " << nom << '\n'
                       << "Number of SLI iterations: " << i << '\n';
          converged = 1;
          final_iter = i;
@@ -249,7 +249,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "Average reduction factor = "
                 << pow (nom/nom0, 0.5/final_iter) << '\n';
    }
-   final_norm = sqrt(nom);
+   final_norm = nom;
 }
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
