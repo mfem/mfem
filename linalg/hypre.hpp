@@ -988,8 +988,8 @@ public:
    { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
 
    void SetRelaxCycle(int prerelax, int postrelax)
-   {  HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
-      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2); }
+   { HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
+     HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2); }
 
    void GetNumIterations(int &num_it)
    { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
@@ -1004,6 +1004,11 @@ public:
    void SetAggressiveCoarsening(int num_levels)
    { HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels); }
 
+   void SetTriangular()
+   { HYPRE_BoomerAMGSetIsTriangular(amg_precond, 1); }
+
+   void SetGMRESSwitchR(int gmres_switch)
+   { HYPRE_BoomerAMGSetGMRESSwitchR(amg_precond, gmres_switch); }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
