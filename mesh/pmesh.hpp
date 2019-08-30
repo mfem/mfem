@@ -38,6 +38,12 @@ protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
+   /// global_element_offset + local element number defines a global
+   /// numbering for elements
+   void ComputeGlobalElementOffset();
+   bool have_global_element_offset;
+   long global_element_offset;
+
    struct Vert3
    {
       int v[3];
@@ -223,6 +229,10 @@ public:
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
+
+   /// Map a global element number to a local element number.  If the
+   /// global element is not on this processor, return -1.
+   long GetLocalElementNum(int global_element_num);
 
    GroupTopology gtopo;
 

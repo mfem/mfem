@@ -34,7 +34,8 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
      group_sedge(pmesh.group_sedge),
      group_stria(pmesh.group_stria),
      group_squad(pmesh.group_squad),
-     gtopo(pmesh.gtopo)
+     gtopo(pmesh.gtopo),
+     have_global_element_offset(false)
 {
    MyComm = pmesh.MyComm;
    NRanks = pmesh.NRanks;
@@ -92,7 +93,8 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
-   : gtopo(comm)
+   : gtopo(comm),
+     have_global_element_offset(false)
 {
    int *partitioning = NULL;
    Array<bool> activeBdrElem;
@@ -835,10 +837,24 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    , MyRank(pncmesh.MyRank)
    , gtopo(MyComm)
    , pncmesh(NULL)
+   , have_global_element_offset(false)
 {
    Mesh::InitFromNCMesh(pncmesh);
    ReduceMeshGen();
    have_face_nbr_data = false;
+}
+
+void ParMesh::ComputeGlobalElementOffset()
+{
+   long local_elems = NumOfElements;
+   long total_elems = 0;
+   MPI_Allreduce(&local_elems, &total_elems, 1, MPI_LONG, MPI_SUM, MyComm);
+
+   global_element_offset = 0;
+   MPI_Scan(&local_elems, &global_element_offset, 1, MPI_LONG, MPI_SUM, MyComm);
+   global_element_offset -= local_elems;
+
+   have_global_element_offset = true;
 }
 
 void ParMesh::ReduceMeshGen()
@@ -885,7 +901,8 @@ void ParMesh::FinalizeParTopo()
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
-   : gtopo(comm)
+   : gtopo(comm),
+     have_global_element_offset(false)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -1064,7 +1081,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      MyRank(orig_mesh->GetMyRank()),
      gtopo(orig_mesh->gtopo),
      have_face_nbr_data(false),
-     pncmesh(NULL)
+     pncmesh(NULL),
+     have_global_element_offset(false)
 {
    // Need to initialize:
    // - shared_edges, shared_{trias,quads}
@@ -1290,6 +1308,16 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
 
    // Setup secondary parallel mesh data: sedge_ledge, sface_lface
    FinalizeParTopo();
+}
+
+long ParMesh::GetLocalElementNum(int global_element_num)
+{
+   if (!have_global_element_offset) {
+      ComputeGlobalElementOffset();
+   }
+   long local = global_element_num -global_element_offset;
+   if (local < 0 || local >= NumOfElements) return -1;
+   return local;
 }
 
 void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
@@ -2470,6 +2498,8 @@ void ParMesh::ReorientTetMesh()
 
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
+   have_global_element_offset = false;
+
    if (pncmesh)
    {
       MFEM_ABORT("Local and nonconforming refinements cannot be mixed.");
@@ -2988,6 +3018,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                  "serial Mesh)");
    }
 
+   have_global_element_offset = false;
+
    DeleteFaceNbrData();
 
    // NOTE: no check of !refinements.Size(), in parallel we would have to reduce
@@ -3030,6 +3062,8 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    MFEM_VERIFY(pncmesh, "Only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
                "Project the NURBS to Nodes first.");
+
+   have_global_element_offset = false;
 
    const Table &dt = pncmesh->GetDerefinementTable();
 
@@ -3589,6 +3623,8 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
 
 void ParMesh::UniformRefinement2D()
 {
+   have_global_element_offset = false;
+
    DeleteFaceNbrData();
 
    const int old_nv = NumOfVertices;
@@ -3609,6 +3645,8 @@ void ParMesh::UniformRefinement2D()
 
 void ParMesh::UniformRefinement3D()
 {
+   have_global_element_offset = false;
+
    DeleteFaceNbrData();
 
    const int old_nv = NumOfVertices;
@@ -3640,6 +3678,8 @@ void ParMesh::UniformRefinement3D()
 
 void ParMesh::NURBSUniformRefinement()
 {
+   have_global_element_offset = false;
+
    if (MyRank == 0)
    {
       mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
