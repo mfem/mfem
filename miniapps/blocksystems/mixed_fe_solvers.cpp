@@ -269,7 +269,7 @@ Vector MLDivPart(const HypreParMatrix& M,
     return sigma[0];
 }
 
-BBTSolver::BBTSolver(HypreParMatrix& B, IterSolveParameters param)
+BBTSolver::BBTSolver(const HypreParMatrix& B, IterSolveParameters param)
     : Solver(B.NumRows()),
       BT_(B.Transpose()),
       S_(ParMult(&B, BT_.As<HypreParMatrix>())),
@@ -294,17 +294,15 @@ void BBTSolver::Mult(const Vector &x, Vector &y) const
 DivFreeSolverDataCollector::
 DivFreeSolverDataCollector(const ParFiniteElementSpace& hdiv_fes,
                            const ParFiniteElementSpace& l2_fes,
-                           const int num_refine,
+                           int num_refine,
                            const Array<int>& ess_bdr,
                            const DivFreeSolverParameters& param)
     : coarse_hdiv_fes_(new ParFiniteElementSpace(hdiv_fes)),
       coarse_l2_fes_(new ParFiniteElementSpace(l2_fes)),
-      hcurl_fec_(hdiv_fes.GetOrder(0), l2_fes.GetMesh()->Dimension()),
-      hcurl_fes_(new ParFiniteElementSpace(coarse_l2_fes_->GetParMesh(), &hcurl_fec_)),
-      coarse_hcurl_fes_(new ParFiniteElementSpace(*hcurl_fes_)),
       l2_0_fec_(0, l2_fes.GetMesh()->Dimension()),
       l2_0_fes_(new FiniteElementSpace(l2_fes.GetMesh(), &l2_0_fec_)),
-      level_(num_refine)
+      level_(num_refine),
+      data_(hdiv_fes.GetOrder(0), coarse_l2_fes_->GetParMesh())
 {
     data_.param = param;
     if (data_.param.ml_particular)
@@ -320,6 +318,7 @@ DivFreeSolverDataCollector(const ParFiniteElementSpace& hdiv_fes,
 
     if (data_.param.MG_type == GeometricMG)
     {
+        coarse_hcurl_fes_.reset(new ParFiniteElementSpace(data_.hcurl_fes));
         data_.P_curl.SetSize(num_refine, OperatorHandle(Operator::Hypre_ParCSR));
     }
 }
@@ -343,10 +342,10 @@ void DivFreeSolverDataCollector::CollectData(const ParFiniteElementSpace& hdiv_f
         data_.P_l2[level_].As<HypreParMatrix>()->Threshold(1e-16);
     }
 
+    data_.hcurl_fes.Update();
     if (data_.param.MG_type == GeometricMG)
     {
-        hcurl_fes_->Update();
-        hcurl_fes_->GetTrueTransferOperator(*coarse_hcurl_fes_, data_.P_curl[level_]);
+        data_.hcurl_fes.GetTrueTransferOperator(*coarse_hcurl_fes_, data_.P_curl[level_]);
         data_.P_curl[level_].As<HypreParMatrix>()->Threshold(1e-16);
     }
 
@@ -361,7 +360,7 @@ void DivFreeSolverDataCollector::CollectData(const ParFiniteElementSpace& hdiv_f
     }
     else
     {
-        ParDiscreteLinearOperator curl(hcurl_fes_.get(),
+        ParDiscreteLinearOperator curl(&data_.hcurl_fes,
                                        const_cast<ParFiniteElementSpace*>(&hdiv_fes));
         curl.AddDomainInterpolator(new CurlInterpolator);
         curl.Assemble();
@@ -378,12 +377,11 @@ void DivFreeSolverDataCollector::CollectData(const ParFiniteElementSpace& hdiv_f
     }
 }
 
-DivFreeSolver::DivFreeSolver(HypreParMatrix& M, HypreParMatrix& B,
+DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              const DivFreeSolverData& data)
     : M_(M),
       B_(B),
-//      C_(*data.discrete_curl.As<HypreParMatrix>()),
-      BBT_solver_(B, data_.param.BBT_solve_param),
+      BBT_solver_(B, data.param.BBT_solve_param),
       CTMC_solver_(B_.GetComm()),
       offsets_(3),
       data_(data)
@@ -395,25 +393,22 @@ DivFreeSolver::DivFreeSolver(HypreParMatrix& M, HypreParMatrix& B,
     OperatorHandle MC(ParMult(&M_, data.discrete_curl.As<HypreParMatrix>()));
     OperatorHandle CT(data.discrete_curl.As<HypreParMatrix>()->Transpose());
     CTMC_.Reset(ParMult(CT.As<HypreParMatrix>(), MC.As<HypreParMatrix>()));
+    CTMC_.As<HypreParMatrix>()->CopyRowStarts();
     CTMC_solver_.SetOperator(*CTMC_);
-    SetOptions(CTMC_solver_, data_.param.CTMC_solve_param);
 
     if (data_.param.MG_type == AlgebraicMG)
     {
-
+        auto hcurl_fes = const_cast<ParFiniteElementSpace*>(&data_.hcurl_fes);
+        CTMC_prec_.Reset(new HypreAMS(*CTMC_.As<HypreParMatrix>(), hcurl_fes));
+        CTMC_prec_.As<HypreAMS>()->SetSingularProblem();
     }
     else
     {
         CTMC_prec_.Reset(new Multigrid(*CTMC_.As<HypreParMatrix>(), data_.P_curl));
     }
+    CTMC_solver_.SetPreconditioner(*CTMC_prec_.As<Solver>());
+    SetOptions(CTMC_solver_, data_.param.CTMC_solve_param);
 }
-
-//void MLDivFreeSolver::SetupAMS(ParFiniteElementSpace& hcurl_fes)
-//{
-//    CTMC_prec_.Reset(new HypreAMS(*CTMC_.As<HypreParMatrix>(), &hcurl_fes));
-//    CTMC_prec_.As<HypreAMS>()->SetSingularProblem();
-//    CTMC_solver_.SetPreconditioner(*CTMC_prec_.As<Solver>());
-//}
 
 void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
 {
@@ -436,13 +431,13 @@ void DivFreeSolver::SolveDivFree(const Vector &rhs, Vector& sol) const
     Vector rhs_divfree(CTMC_->NumRows());
     data_.discrete_curl->MultTranspose(rhs, rhs_divfree);
 
-    // Solve the "potential" of divergence free solution
+    // Compute divergence free solution
     Vector potential_divfree(CTMC_->NumRows());
     CTMC_solver_.Mult(rhs_divfree, potential_divfree);
     PrintConvergence(CTMC_solver_, data_.param.verbose);
 
-    // Compute divergence free solution
-    data_.discrete_curl.As<HypreParMatrix>()->Mult(potential_divfree, sol);
+    // Solve the "potential" of divergence free solution
+    data_.discrete_curl->Mult(potential_divfree, sol);
 }
 
 void DivFreeSolver::SolvePotential(const Vector& rhs, Vector& sol) const

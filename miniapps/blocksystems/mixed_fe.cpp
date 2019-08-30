@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
     // 3. Read the (serial) mesh from the given mesh file on all processors.  We
     //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
     //    and volume meshes with the same code.
-    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::HEXAHEDRON, true);
+    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::TETRAHEDRON, true);
 
     int dim = mesh->Dimension();
 
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
         cout << "dim(W) = " << dimW << "\n";
         cout << "dim(R+W) = " << dimR + dimW << "\n";
         if (divfree)
-            cout << "dim(N) = " << dfs_data_collector->GetData().P_curl[0]->NumRows() << "\n";
+            cout << "dim(N) = " << dfs_data_collector->GetData().hcurl_fes.GlobalTrueVSize() << "\n";
         cout << "***********************************************************\n";
     }
 
