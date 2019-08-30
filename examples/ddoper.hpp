@@ -594,8 +594,9 @@ public:
   void GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm, Vector & sourceReduced) const;
 
 #ifdef DDMCOMPLEX
-  void PrintSubdomainError(const int sd, Vector & u, Vector & eSD)
+  void PrintSubdomainError(const int sd, Vector const& u, Vector & eSD)
   {
+    eSD = 0.0;
     if (fespace[sd] == NULL)
       return;
     

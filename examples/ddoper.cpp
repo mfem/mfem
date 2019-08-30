@@ -1735,10 +1735,10 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
   //MPI_Allreduce(&iftSize, &ifgSize, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(&iftSize, &ifgSize, 1, MPI_INT, MPI_SUM, ifsdcomm);
 
-  std::vector<int> fdofmap; // TODO: remove
+  //std::vector<int> fdofmap; // TODO: remove
   
   dofmap.assign(ifSize, -1);
-  fdofmap.assign(ifSize, -1);
+  //fdofmap.assign(ifSize, -1);
   gdofmap.assign(ifgSize, -1);
 
   std::vector<int> ifpedge, maxifpedge;
@@ -2071,8 +2071,10 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 			  MFEM_VERIFY(sddofs[d] >= 0, "");
 			  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 
+			  /*
 			  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
 			  fdofmap[ifdofs[d]] = sddofs[d];
+			  */
 			  
 			  if (sdtdof >= 0)  // if this is a true DOF of fespace.
 			    {
@@ -2159,9 +2161,11 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 		  */
 
 		  const int ifdof_d = ifdofs[d];
-		  
+
+		  /*
 		  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
 		  fdofmap[ifdofs[d]] = sddofs[d];
+		  */
 		  
 		  if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		    {
@@ -2202,9 +2206,11 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 		}
 	      */
 
+	      /*
 	      MFEM_VERIFY(fdofmap[ifdof_d] == sddof_d || fdofmap[ifdof_d] == -1, "");
 	      fdofmap[ifdof_d] = sddof_d;
-			  
+	      */
+	      
 	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		{
 		  MFEM_VERIFY(dofmap[ifdof_d] == sdtdof || dofmap[ifdof_d] == -1, "");
@@ -2451,8 +2457,10 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 			  
 			  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 
+			  /*
 			  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
 			  fdofmap[ifdofs[d]] = sddofs[d];
+			  */
 			  
 			  if (sdtdof >= 0)  // if this is a true DOF of fespace.
 			    {
@@ -2514,11 +2522,13 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 		    }
 		}
 
+	      /*
 	      if (ifMeshEdge >= 0)
 		{ // Set local fdofmap
 		  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
 		  fdofmap[ifdofs[d]] = sddofs[d];
 		}
+	      */
 	    }
 	}
     }
@@ -2570,8 +2580,8 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 	      
 	      const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 
-	      MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
-	      fdofmap[ifdofs[d]] = sddofs[d];
+	      //MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
+	      //fdofmap[ifdofs[d]] = sddofs[d];
 	      
 	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		{
@@ -2661,6 +2671,8 @@ void SetDomainDofsFromSubdomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteE
 	  const int sddof_i = sddofs[i] >= 0 ? sddofs[i] : -1 - sddofs[i];
 	  const int ldof = fespaceDomain->GetLocalTDofNumber(dof_i);  // If the DOF is owned by the current processor, return its local tdof number, otherwise -1.
 
+	  MFEM_VERIFY(!((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0)), "TODO: flip the sign as in SetSubdomainDofsFromDomainDofs!");
+	  
 	  if (ldof >= 0)
 	    {
 	      s[ldof] = ssd_gf[sddof_i];
@@ -2701,11 +2713,99 @@ void SetSubdomainDofsFromDomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteE
 
 	  if (lsddof >= 0)
 	    {
+	      /*
+	      if ((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0))
+		{
+		  cout << "Flip applied" << endl;
+		  // Note that this occurs in parallel (1,2,1) for 4 SD's but the solution is the same as in serial. The flip seems correct.
+		}
+	      */
+	      
 	      const double flip = ((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0)) ? -1.0 : 1.0;
 	      ssd[lsddof] = s_gf[dof_i] * flip;
 	    }
 	}
     }
+
+  { // debugging
+    // Test orientations of the same DOF's in fespace[m] and ifespace[interfaceIndex] by comparing projections of the same analytic function.
+    VectorFunctionCoefficient E(3, test2_E_exact);
+
+    ParGridFunction gfsd(fespaceSD);
+
+    gfsd.ProjectCoefficient(E);
+    s_gf.ProjectCoefficient(E);
+
+    Vector vsd(fespaceSD->GetTrueVSize());
+    Vector vg(fespaceDomain->GetTrueVSize());
+
+    gfsd.GetTrueDofs(vsd);
+    s_gf.GetTrueDofs(vg);
+
+    for (int elId=0; elId<sdMesh->GetNE(); ++elId)
+      {
+	// The sdMesh element attribute is set as the local index of the corresponding pmesh element, which is unique since SD elements do not overlap.
+	const int domainElemId = sdMesh->GetAttribute(elId) - 1;  // 1 was added to ensure a positive attribute.
+      
+	Array<int> sddofs;
+	Array<int> dofs;
+	fespaceDomain->GetElementDofs(domainElemId, dofs);
+	fespaceSD->GetElementDofs(elId, sddofs);
+
+	MFEM_VERIFY(dofs.Size() == sddofs.Size(), "");
+      
+	for (int i=0; i<dofs.Size(); ++i)
+	  {
+	    const int dof_i = dofs[i] >= 0 ? dofs[i] : -1 - dofs[i];
+	    const int sddof_i = sddofs[i] >= 0 ? sddofs[i] : -1 - sddofs[i];
+	    const int lsddof = fespaceSD->GetLocalTDofNumber(sddof_i);  // If the DOF is owned by the current processor, return its local tdof number, otherwise -1.
+
+	    if (lsddof >= 0)
+	      {
+		const double flip = ((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0)) ? -1.0 : 1.0;
+
+		if (fabs(vsd[lsddof] - (flip * s_gf[dof_i])) > 1.0e-8)
+		  {
+		    cout << "DISCREPANCY in sd/global map" << endl;
+		  }
+	      }
+	  }
+      }
+
+    // Check whether all true SD DOF's get set.
+    vsd = 0.0;
+    for (int elId=0; elId<sdMesh->GetNE(); ++elId)
+      {
+	// The sdMesh element attribute is set as the local index of the corresponding pmesh element, which is unique since SD elements do not overlap.
+	const int domainElemId = sdMesh->GetAttribute(elId) - 1;  // 1 was added to ensure a positive attribute.
+      
+	Array<int> sddofs;
+	Array<int> dofs;
+	fespaceDomain->GetElementDofs(domainElemId, dofs);
+	fespaceSD->GetElementDofs(elId, sddofs);
+
+	MFEM_VERIFY(dofs.Size() == sddofs.Size(), "");
+      
+	for (int i=0; i<dofs.Size(); ++i)
+	  {
+	    const int dof_i = dofs[i] >= 0 ? dofs[i] : -1 - dofs[i];
+	    const int sddof_i = sddofs[i] >= 0 ? sddofs[i] : -1 - sddofs[i];
+	    const int lsddof = fespaceSD->GetLocalTDofNumber(sddof_i);  // If the DOF is owned by the current processor, return its local tdof number, otherwise -1.
+
+	    if (lsddof >= 0)
+	      {
+		vsd[lsddof] = 1.0;
+	      }
+	  }
+      }
+
+    for (int i=0; i<vsd.Size(); ++i)
+      {
+	if (fabs(vsd[i] - 1.0) > 1.0e-8)
+	  cout << "DISCREPANCY BUG: not all SD DOF's set." << endl;
+      }
+  }
+  
 }
 
 void GatherSetInt(MPI_Comm comm, std::vector<int> const& a, std::set<int>& allset)
@@ -3157,6 +3257,42 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 							       (i >= 0) ? &(InterfaceToSurfaceInjectionData[m][i][0]) : NULL,
 							       GlobalInterfaceToSurfaceInjectionGlobalData[m][interfaceIndex]);
 
+	      /*
+	      { // debugging
+		// Test orientations of the same DOF's in fespace[m] and ifespace[interfaceIndex] by comparing projections of the same analytic function.
+		VectorFunctionCoefficient E(3, test2_E_exact);
+
+		const int ifsize = (ifespace[interfaceIndex] != NULL) ? ifespace[interfaceIndex]->GetTrueVSize() : 0;
+		  
+		Vector injIF(ifsize);
+		Vector vif(ifsize);
+
+		if (ifespace[interfaceIndex] != NULL)
+		  {
+		    ParGridFunction gfif(ifespace[interfaceIndex]);
+		    gfif.ProjectCoefficient(E);
+		    gfif.GetTrueDofs(vif);
+		  }
+		  
+		Vector vsd((fespace[m] != NULL) ? fespace[m]->GetTrueVSize() : 0);
+
+		if (fespace[m] != NULL)
+		  {
+		    ParGridFunction gfsd(fespace[m]);
+		    gfsd.ProjectCoefficient(E);
+		    gfsd.GetTrueDofs(vsd);
+		  }
+		  
+		injOp->MultTranspose(vsd, injIF);
+
+		for (int j=0; j<ifsize; ++j)
+		  {
+		    if (fabs(injIF[j] - vif[j]) > 1.0e-8)
+		      cout << "DISCREPANCY sd " << m << ", entry " << j << endl;
+		  }
+	      }
+	      */
+	      
 	      /*
 	      if (i >= 0)
 		InterfaceToSurfaceInjection[m][i] = injOp;
@@ -3856,6 +3992,7 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 
 	  MFEM_VERIFY(AsdComplex[m]->Height() == block_ComplexOffsetsSD[m][2], "");
 	  MFEM_VERIFY(AsdComplex[m]->Height() == 2*block_ComplexOffsetsSD[m][1], "");
+	  MFEM_VERIFY(AsdComplex[m]->Height() > 0, "");
 
 	  cout << rank << ": Setting real subdomain DOFs, sd " << m << endl;
 	    
@@ -4007,18 +4144,21 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 
   // Now w = \sum_{j\neq i} C_{ij} R_j^T \overbar{u}_j
 
-  Vector domainError(3), eSD(3);
+  Vector domainError(3), eSD(3), maxeSD(3);
   domainError = 0.0;
   
   for (int m=0; m<numSubdomains; ++m)
     {
+      eSD = 0.0;
+      
       if (ySD[m] != NULL)
 	{
 #ifdef DDMCOMPLEX
 	  //MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets2[m+1] - block_trueOffsets2[m], "");  wrong
 	  //MFEM_VERIFY(ySD[m]->Size() > block_trueOffsets2[m+1] - block_trueOffsets2[m], "");
 	  MFEM_VERIFY(ySD[m]->Size() == AsdComplex[m]->Height(), "");
-
+	  MFEM_VERIFY(invAsdComplex[m] != NULL, "");
+  
 	  // Put the [u_m^s, f_m, \rho_m] entries of w (real and imaginary parts) into wSD.
 	  wSD.SetSize(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
 	  uSD.SetSize(AsdComplex[m]->Height());
@@ -4077,11 +4217,6 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	    invAsdComplex[m]->Mult(*(ySD[m]), uSD);
 
 	  PrintSubdomainError(m, uSD, eSD);
-	  if (m_rank == 0)
-	    {
-	      for (int i=0; i<3; ++i)
-		domainError[i] += eSD[i] * eSD[i];
-	    }
 #else
 	  MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets[m+1] - block_trueOffsets[m], "");
 
@@ -4101,9 +4236,18 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	  SetDomainDofsFromSubdomainDofs(fespace[m], fespaceGlobal, uSD, solDomain);
 #endif
 	}
+
+      maxeSD = 0.0;
+      MPI_Allreduce(eSD.GetData(), maxeSD.GetData(), 3, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      
+      if (m_rank == 0)
+	{
+	  for (int i=0; i<3; ++i)
+	    domainError[i] += maxeSD[i] * maxeSD[i];
+	}
     } // loop (m) over subdomains
 
-  //if (m_rank == 0)
+  if (m_rank == 0)
     {
       const double errRe = sqrt(domainError[0]);
       const double errIm = sqrt(domainError[1]);
@@ -5373,7 +5517,8 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 
       // In PengLee2012 A_m^{SF} corresponds to
       // -<\pi_{mn}(v_m), -\mu_r^{-1} f + <<\mu_r^{-1} f>> >_{S_{mn}}
-      // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{SF} block is 0.  TODO: verify this. The paper does not say this block is 0.
+      // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{SF} block is 0. The paper seems to confirm this in
+      // a remark about equation (2.25) on page A1274. 
 	
       // op->SetBlock(0, (2*i) + 1, new ProductOperator(InterfaceToSurfaceInjection[subdomain][i], ifNDmass[interfaceIndex], false, false), 1.0 / alpha);
 
@@ -5616,7 +5761,8 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 
       // In PengLee2012 A_m^{SF} corresponds to
       // -<\pi_{mn}(v_m), -\mu_r^{-1} f + <<\mu_r^{-1} f>> >_{S_{mn}}
-      // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{SF} block is 0.  TODO: verify this. The paper does not say this block is 0.
+      // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{SF} block is 0. The paper seems to confirm this in
+      // a remark about equation (2.25) on page A1274. 
 	
       // op->SetBlock(0, (2*i) + 1, new ProductOperator(InterfaceToSurfaceInjection[subdomain][i], ifNDmass[interfaceIndex], false, false), 1.0 / alpha);
 
@@ -5834,7 +5980,7 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperatorStrumpack(const int subdo
 
       // In PengLee2012 A_m^{SF} corresponds to
       // -<\pi_{mn}(v_m), -\mu_r^{-1} f + <<\mu_r^{-1} f>> >_{S_{mn}}
-      // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{SF} block is 0.  TODO: verify this. The paper does not say this block is 0.
+      // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{SF} block is 0. 
 	
       // op->SetBlock(0, (2*i) + 1, new ProductOperator(InterfaceToSurfaceInjection[subdomain][i], ifNDmass[interfaceIndex], false, false), 1.0 / alpha);
 

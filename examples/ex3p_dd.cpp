@@ -386,7 +386,11 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539
+      //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769
+      //(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385
+      //(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923
+      
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -406,6 +410,11 @@ int main(int argc, char *argv[])
        }
      delete subdomain;
    }
+
+   if (myid == 0)
+     {
+       cout << "Subdomain partition " << nxyzSubdomains[0] << ", " << nxyzSubdomains[1] << ", " << nxyzSubdomains[2] << endl;
+     }
    
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -419,14 +428,20 @@ int main(int argc, char *argv[])
    if (geometricPartition)
      {
        //int nxyzGlobal[3] = {1, 1, 1};
-       //int nxyzGlobal[3] = {1, 2, 1};
+       int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 1, 2};
-       int nxyzGlobal[3] = {2, 8, 2};
+       //int nxyzGlobal[3] = {4, 4, 4};
+       //int nxyzGlobal[3] = {8, 16, 8};
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
        
        pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition);
 
        // pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+
+       if (myid == 0)
+	 {
+	   cout << "Parallel partition " << nxyzGlobal[0] << ", " << nxyzGlobal[1] << ", " << nxyzGlobal[2] << endl;
+	 }
 
        /*
        std::vector<int> partition;
@@ -586,6 +601,8 @@ int main(int argc, char *argv[])
    DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, fespace, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
 			    &interfaces, &interfaceGlobalToLocalMap, -SIGMAVAL);  // PengLee2012 uses order 2 
 
+   //return 0;
+   
    //PrintDenseMatrixOfOperator(ddi, num_procs, myid);
    
    // 7. Determine the list of true (i.e. parallel conforming) essential
@@ -803,11 +820,15 @@ int main(int argc, char *argv[])
 
        gmres->SetOperator(ddi);
        gmres->SetRelTol(1e-8);
-       gmres->SetMaxIter(100);
+       gmres->SetMaxIter(500);
        gmres->SetPrintLevel(1);
 
        gmres->SetName("ddi");
 
+       StopWatch chronoSolver;
+       chronoSolver.Clear();
+       chronoSolver.Start();
+       
        xdd = 0.0;
        gmres->Mult(Bdd, xdd);
        //ddi.Mult(Bdd, xdd);
@@ -831,6 +852,10 @@ int main(int argc, char *argv[])
        */
        
        ddi.RecoverDomainSolution(fespace, xdd, X);
+
+       chronoSolver.Stop();
+       if (myid == 0)
+	 cout << myid << ": Solver and recovery only time " << chronoSolver.RealTime() << endl;
 
        delete gmres;
      }
@@ -922,7 +947,7 @@ int main(int argc, char *argv[])
      }
    
    chrono.Stop();
-   cout << myid << ": Solver time " << chrono.RealTime() << endl;
+   cout << myid << ": Total DDM time (setup, solver, recovery) " << chrono.RealTime() << endl;
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
