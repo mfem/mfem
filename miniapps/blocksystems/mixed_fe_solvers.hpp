@@ -95,6 +95,8 @@ private:
     L2_FECollection l2_0_fec_;
     unique_ptr<FiniteElementSpace> l2_0_fes_;
 
+    const Array<int>& ess_bdr_;
+
     int level_;
 
     DivFreeSolverData data_;
