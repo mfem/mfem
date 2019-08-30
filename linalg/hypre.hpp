@@ -117,6 +117,8 @@ public:
    /// MPI communicator
    MPI_Comm GetComm() { return x->comm; }
 
+   void WrapHypreParVector(hypre_ParVector *y);
+
    /// Returns the parallel row/column partitioning
    /** See @ref hypre_partitioning_descr "here" for a description of the
        partitioning array. */
@@ -234,6 +236,14 @@ private:
 public:
    /// An empty matrix to be used as a reference to an existing matrix
    HypreParMatrix();
+
+   void WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner = true)
+   {
+      A = a;
+      if (!owner) { ParCSROwner = 0; }
+      height = GetNumRows();
+      width = GetNumCols();
+   }
 
    /// Converts hypre's format to HypreParMatrix
    /** If @a owner is false, ownership of @a a is not transferred */
