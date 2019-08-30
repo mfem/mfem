@@ -84,6 +84,7 @@ private:
    inline void _SetDataAndSize_();
 
 public:
+
    /** @brief Creates vector with given global size and parallel partitioning of
        the rows/columns given by @a col. */
    /** @anchor hypre_partitioning_descr
@@ -961,13 +962,16 @@ public:
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
-   void SetLAIROptions(float distance=2,  std::string prerelax="",
+   /* distance parameter takes on values {1,2,15} for lAIR, meaning R is built using
+   distance 1 neighbors, distance two neighbors, or distance two on processor and
+   distance 1 off processor (i.e., distance 1.5 --> 15).        */
+   void SetLAIROptions(int distance=15,  std::string prerelax="",
                       std::string postrelax="FFC", double strength_tol=0.1,
                       double strength_tolR=0.01, double filter_tolR=0.0,
                       int interp_type=100, int relax_type=3, double filterA_tol=0.0, 
                       int splitting=6, int blksize=0, int Sabs=0);
 
-   void SetNAIROptions(float neumann_degree=5,  std::string prerelax="A",
+   void SetNAIROptions(int neumann_degree=2,  std::string prerelax="A",
                       std::string postrelax="F", double strength_tol=0.1,
                       double strength_tolR=0.01, double filter_tolR=0.0,
                       int interp_type=100, int relax_type=10, double filterA_tol=0.0, 
@@ -1009,14 +1013,27 @@ public:
    { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
 
    void SetRelaxCycle(int prerelax, int postrelax)
-   {  HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
-      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2); }
+   { HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
+     HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2); }
 
    void GetNumIterations(int &num_it)
    { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
 
    void SetCycleType(int cycle_type)
    { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
+
+   void SetNodal(int blocksize)
+   { HYPRE_BoomerAMGSetNumFunctions(amg_precond, blocksize);
+     HYPRE_BoomerAMGSetNodal(amg_precond, 1); }
+
+   void SetAggressiveCoarsening(int num_levels)
+   { HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels); }
+
+   void SetTriangular()
+   { HYPRE_BoomerAMGSetIsTriangular(amg_precond, 1); }
+
+   void SetGMRESSwitchR(int gmres_switch)
+   { HYPRE_BoomerAMGSetGMRESSwitchR(amg_precond, gmres_switch); }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
