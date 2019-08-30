@@ -8,17 +8,17 @@ namespace mfem
 {
 
 /// Class bundling a hierarchy of meshes, finite element spaces, and essential dof lists
-class SpaceHierarchy
+template<typename M, typename FES>
+class GeneralSpaceHierarchy
 {
 private:
-   Array<Mesh*> meshes;
-   Array<FiniteElementSpace*> fespaces;
-   Array<Array<int>*> ess_tdof_lists;
+   Array<M*> meshes;
+   Array<FES*> fespaces;
 
 public:
-   SpaceHierarchy(Mesh* mesh, FiniteElementSpace* fespace, Array<int>* ess_tdof_list)
+   GeneralSpaceHierarchy(M* mesh, FES* fespace)
    {
-      addLevel(mesh, fespace, ess_tdof_list);
+      addLevel(mesh, fespace);
    }
 
    unsigned GetNumLevels() const
@@ -31,80 +31,71 @@ public:
       return GetNumLevels() - 1;
    }
 
-   void addLevel(Mesh* mesh, FiniteElementSpace* fespace, Array<int>* ess_tdof_list)
+   void addLevel(M* mesh, FES* fespace)
    {
       meshes.Append(mesh);
       fespaces.Append(fespace);
-      ess_tdof_lists.Append(ess_tdof_list);
    }
 
-   Mesh* GetMesh(unsigned level) const
+   M* GetMesh(unsigned level) const
    {
       MFEM_ASSERT(meshes.Size() > level, "Mesh at given level does not exist.");
       return meshes[level];
    }
 
-   Mesh* GetFinestMesh() const
+   M* GetFinestMesh() const
    {
       return GetMesh(GetFinestLevel());
    }
 
-   FiniteElementSpace* GetFESpace(unsigned level) const
+   FES* GetFESpace(unsigned level) const
    {
       MFEM_ASSERT(fespaces.Size() > level, "FE space at given level does not exist.");
       return fespaces[level];
    }
 
-   FiniteElementSpace* GetFinestFESpace() const
+   FES* GetFinestFESpace() const
    {
       return GetFESpace(GetFinestLevel());
    }
-
-   Array<int>* GetEssentialDoFs(unsigned level) const
-   {
-      MFEM_ASSERT(ess_tdof_lists.Size() > level, "Ess. dofs at given level do not exist.");
-      return ess_tdof_lists[level];
-   }
 };
+
+using SpaceHierarchy = GeneralSpaceHierarchy<Mesh, FiniteElementSpace>;
+using ParSpaceHierarchy = GeneralSpaceHierarchy<ParMesh, ParFiniteElementSpace>;
 
 /// Multigrid operator
 class OperatorMultigrid : public Operator
 {
 private:
-   const SpaceHierarchy& spaceHierarchy;
-
    Array<Operator*> forms;
    Array<Operator*> operators;
    Array<Solver*> smoothers;
    Array<Operator*> prolongations;
+   Array<Array<int>*> ess_tdof_lists;
 
 public:
    /// Constructor
-   OperatorMultigrid(const SpaceHierarchy& sph, Operator* form, Operator* opr, Solver* coarseSolver)
-      : spaceHierarchy(sph)
+   OperatorMultigrid(Operator* form, Operator* opr, Solver* coarseSolver, Array<int>* ess_tdof_list)
    {
       forms.Append(form);
       operators.Append(opr);
       smoothers.Append(coarseSolver);
+      ess_tdof_lists.Append(ess_tdof_list);
    }
 
-   void AddLevel(Operator* form, Operator* opr, Solver* smoother, Operator* prolongation)
+   void AddLevel(Operator* form, Operator* opr, Solver* smoother, Operator* prolongation, Array<int>* ess_tdof_list)
    {
       forms.Append(form);
       operators.Append(opr);
       smoothers.Append(smoother);
       prolongations.Append(prolongation);
+      ess_tdof_lists.Append(ess_tdof_list);
    }
 
    /// Returns the number of levels
    int NumLevels() const
    {
       return operators.Size();
-   }
-
-   const SpaceHierarchy& GetSpaceHierarchy() const
-   {
-      return spaceHierarchy;
    }
 
    /// Matrix vector multiplication at given level
@@ -146,7 +137,14 @@ public:
    /// Returns form at given level
    Operator* GetFormAtLevel(unsigned level)
    {
+      MFEM_ASSERT(forms.Size() > level, "Form at given level do not exist.");
       return forms[level];
+   }
+
+   /// Returns form at finest level
+   Operator* GetFormAtFinestLevel()
+   {
+      return GetFormAtLevel(forms.Size() - 1);
    }
 
    /// Returns operator at given level
@@ -159,6 +157,17 @@ public:
    Solver* GetSmootherAtLevel(unsigned level)
    {
       return smoothers[level];
+   }
+
+   Array<int>* GetEssentialDoFsAtLevel(unsigned level) const
+   {
+      MFEM_ASSERT(ess_tdof_lists.Size() > level, "Ess. dofs at given level do not exist.");
+      return ess_tdof_lists[level];
+   }
+
+   Array<int>* GetEssentialDoFsAtFinestLevel() const
+   {
+      return GetEssentialDoFsAtLevel(ess_tdof_lists.Size() - 1);
    }
 };
 
@@ -202,7 +211,7 @@ private:
       // Prolongate
       opr.InterpolateFrom(level - 1, *Y[level - 1], *R[level]);
 
-      Array<int>& essentialDofs = *opr.GetSpaceHierarchy().GetEssentialDoFs(level);
+      Array<int>& essentialDofs = *opr.GetEssentialDoFsAtLevel(level);
       auto I = essentialDofs.Read();
       auto T = R[level]->Write();
       MFEM_FORALL(i, essentialDofs.Size(), T[I[i]] = 0.0; );
