@@ -35,7 +35,8 @@
 //   Adapted analytic Hessian:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Adapted discrete size:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     2D : mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     3D : mesh-optimizer -m 3Dbox.mesh -o 2 -rs 2 -mid 321 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -ar 1
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -599,8 +600,8 @@ int main (int argc, char *argv[])
                d_y(i) = std::abs(d_y(i));
          }
          const double eps = 0.05;
-         const double ratio = 50.0;
-         const double big_small_ratio = 50.0;
+         const double ratio = 40.0;
+         const double big_small_ratio = 40.0;
 
          for (int i = 0; i < grad.Size(); i++)
          {
@@ -639,9 +640,9 @@ int main (int argc, char *argv[])
    
          for (int i = 0; i < grad.Size(); i++)
          {
-             const double val = grad(i);
-             const double a = (big_zone_size - small_zone_size) / small_zone_size;
-             grad(i) = big_zone_size / (1.0+a*val);
+            const double val = grad(i);
+            const double a = (big_zone_size - small_zone_size) / small_zone_size;
+            grad(i) = big_zone_size / (1.0+a*val);
          }
          
          
@@ -679,10 +680,6 @@ int main (int argc, char *argv[])
             tc->SetSerialDiscreteTargetSpec(grad);
             target_c = tc;
          }
-
-         
-         
-         
          break;
       }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
@@ -966,7 +963,7 @@ int main (int argc, char *argv[])
            << "keys jRmclA" << endl;
          }*/
 
-    GridFunction c2;
+   GridFunction c2;
    c2.SetSpace(&ind_fes);
    FunctionCoefficient ind_coeff(ind_values);
    c2.ProjectCoefficient(ind_coeff);
