@@ -49,9 +49,6 @@ public:
    virtual double GetEnergy(const Vector &x) const
    { return GetParGridFunctionEnergy(Prolongate(x)); }
 
-   virtual double GetFunctional(const Vector &x) const
-   { return GetEnergy(x); }
-
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Return the local gradient matrix for the given true-dof vector x.

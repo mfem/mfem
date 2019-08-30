@@ -76,7 +76,6 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
-         // Should x be px = Prolongate(x)?
          x.GetSubVector(vdofs, el_x);
          for (int k = 0; k < dnfi.Size(); k++)
          {
@@ -99,13 +98,9 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
             fes->GetElementVDofs(tr->Elem1No, vdofs);
             fes->GetElementVDofs(tr->Elem2No, vdofs2);
             vdofs.Append (vdofs2);
-
-            //px.GetSubVector(vdofs, el_x);
             x.GetSubVector(vdofs, el_x);
-
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
-
             for (int k = 0; k < fnfi.Size(); k++)
             {
                energy += fnfi[k]->GetFaceEnergy(*fe1, *fe2, *tr, el_x);
@@ -149,7 +144,6 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
          if (tr != NULL)
          {
             fes->GetElementVDofs(tr->Elem1No, vdofs);
-            //px.GetSubVector(vdofs, el_x);
             x.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
@@ -167,7 +161,6 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
          }
       }
    }
-
    return energy;
 }
 

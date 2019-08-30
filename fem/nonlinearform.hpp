@@ -118,11 +118,6 @@ public:
    virtual double GetEnergy(const Vector &x) const
    { return GetGridFunctionEnergy(Prolongate(x)); }
 
-   /// Compute the functional corresponding to the state @a x.
-   /** This simply wraps GetEnergy */
-   virtual double GetFunctional(const Vector &x) const
-   { return GetEnergy(x); }
-
    /// Evaluate the action of the NonlinearForm.
    /** The input essential dofs in @a x will, generally, be non-zero. However,
        the output essential dofs in @a y will always be set to zero.
