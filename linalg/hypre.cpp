@@ -2847,7 +2847,7 @@ void HypreBoomerAMG::SetCoord(int coord_dim, float *coord)
 }
 
 
-void HypreBoomerAMG::SetLAIROptions(float distance,
+void HypreBoomerAMG::SetLAIROptions(int distance,
                                     std::string prerelax,
                                     std::string postrelax, 
                                     double strength_tolC,
@@ -2957,7 +2957,7 @@ void HypreBoomerAMG::SetLAIROptions(float distance,
 }
 
 
-void HypreBoomerAMG::SetNAIROptions(float neumann_degree,
+void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
                                     std::string prerelax,
                                     std::string postrelax, 
                                     double strength_tolC,
