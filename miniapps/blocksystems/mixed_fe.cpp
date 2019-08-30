@@ -100,11 +100,6 @@ int main(int argc, char *argv[])
 
     int dim = mesh->Dimension();
 
-    // 4. Refine the serial mesh on all processors to increase the resolution. In
-    //    this example we do 'ref_levels' of uniform refinement. We choose
-    //    'ref_levels' to be the largest number that gives a final mesh with no
-    //    more than 10,000 elements.
-
     // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
     //    this mesh further in parallel to increase the resolution. Once the
     //    parallel mesh is defined, the serial mesh can be deleted.
@@ -113,6 +108,7 @@ int main(int argc, char *argv[])
 
     Array<int> ess_bdr(pmesh->bdr_attributes.Max());
     ess_bdr = 0;
+    ess_bdr[1] = 1;
 
     // 6. Define a parallel finite element space on the parallel mesh. Here we
     //    use the Raviart-Thomas finite elements of the specified order.
@@ -144,18 +140,14 @@ int main(int argc, char *argv[])
 
         R_space->Update();
         W_space->Update();
-
-        if (divfree)
-        {
-            dfs_data_collector->CollectData(*R_space, *W_space);
-        }
-
+        if (divfree) dfs_data_collector->CollectData(*R_space, *W_space);
     }
     if (verbose)
         cout << "FE spaces constructed in " << chrono.RealTime() << "\n";
 
     HYPRE_Int dimR = R_space->GlobalTrueVSize();
     HYPRE_Int dimW = W_space->GlobalTrueVSize();
+    HYPRE_Int dimN = divfree ? dfs_data_collector->GetData().hcurl_fes.GlobalTrueVSize() : 0;
 
     if (verbose)
     {
@@ -163,8 +155,7 @@ int main(int argc, char *argv[])
         cout << "dim(R) = " << dimR << "\n";
         cout << "dim(W) = " << dimW << "\n";
         cout << "dim(R+W) = " << dimR + dimW << "\n";
-        if (divfree)
-            cout << "dim(N) = " << dfs_data_collector->GetData().hcurl_fes.GlobalTrueVSize() << "\n";
+        if (divfree) cout << "dim(N) = " << dimN << "\n";
         cout << "***********************************************************\n";
     }
 
@@ -199,6 +190,7 @@ int main(int argc, char *argv[])
     //    vector and rhs.
     BlockVector x(block_offsets), rhs(block_offsets);
     BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
+    x.GetBlock(0) = 0.0;
 
     ParLinearForm *fform(new ParLinearForm);
     fform->Update(R_space, rhs.GetBlock(0), 0);
@@ -228,11 +220,13 @@ int main(int argc, char *argv[])
 
     mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
     mVarf->Assemble();
+    mVarf->EliminateEssentialBC(ess_bdr);
     mVarf->Finalize();
     M = mVarf->ParallelAssemble();
 
     bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
     bVarf->Assemble();
+    bVarf->EliminateTrialDofs(ess_bdr, x.GetBlock(0), *gform);
     bVarf->Finalize();
     bVarf->SpMat() *= -1.0;
     B = bVarf->ParallelAssemble();
@@ -358,11 +352,7 @@ int main(int argc, char *argv[])
     delete bVarf;
     delete W_space;
     delete R_space;
-    if (divfree)
-    {
-        delete dfs_data_collector;
-    }
-
+    if (divfree) delete dfs_data_collector;
     delete pmesh;
 
     MPI_Finalize();
