@@ -45,7 +45,7 @@ struct DivFreeSolverData
 };
 
 void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
-                double atol, double rtol, bool iter_mode=false);
+                double atol, double rtol, bool iter_mode=true);
 
 void PrintConvergence(const IterativeSolver& solver, bool verbose);
 

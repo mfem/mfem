@@ -237,12 +237,11 @@ Vector MLDivPart(const HypreParMatrix& M,
         L2H1Preconditioner prec(*M_l.As<HypreParMatrix>(), *B_l.As<HypreParMatrix>(), block_offsets);
 
         MINRESSolver solver(B.GetComm());
-        SetOptions(solver, 0, 500, 1e-12, 1e-9);
+        SetOptions(solver, 0, 500, 1e-12, 1e-9, false);
         solver.SetOperator(coarseMatrix);
         solver.SetPreconditioner(prec);
 
         sigma.Last().SetSize(block_offsets[2]);
-        sigma.Last() = 0.0;
         solver.Mult(true_rhs, sigma.Last());
         sigma.Last().SetSize(B_l->NumCols());
     }
@@ -338,6 +337,8 @@ void DivFreeSolverDataCollector::CollectData(const ParFiniteElementSpace& hdiv_f
         l2_fes.GetTrueTransferOperator(*coarse_l2_fes_, data_.P_l2[level_]);
         data_.P_hdiv[level_].As<HypreParMatrix>()->Threshold(1e-16);
         data_.P_l2[level_].As<HypreParMatrix>()->Threshold(1e-16);
+        level_ ? coarse_hdiv_fes_->Update() : coarse_hdiv_fes_.reset();
+        level_ ? coarse_l2_fes_->Update() : coarse_l2_fes_.reset();
     }
 
     data_.hcurl_fes.Update();
@@ -345,18 +346,10 @@ void DivFreeSolverDataCollector::CollectData(const ParFiniteElementSpace& hdiv_f
     {
         data_.hcurl_fes.GetTrueTransferOperator(*coarse_hcurl_fes_, data_.P_curl[level_]);
         data_.P_curl[level_].As<HypreParMatrix>()->Threshold(1e-16);
+        level_ ? coarse_hcurl_fes_->Update() : coarse_hcurl_fes_.reset();
     }
 
-    if (level_)
-    {
-        if (data_.param.ml_particular)
-        {
-            coarse_hdiv_fes_->Update();
-            coarse_l2_fes_->Update();
-        }
-        if (data_.param.MG_type == GeometricMG) coarse_hcurl_fes_->Update();
-    }
-    else
+    if (level_ == 0)
     {
         Vector trash1(data_.hcurl_fes.GetVSize()), trash2(hdiv_fes.GetVSize());
         ParDiscreteLinearOperator curl(&data_.hcurl_fes,
@@ -367,24 +360,16 @@ void DivFreeSolverDataCollector::CollectData(const ParFiniteElementSpace& hdiv_f
         curl.Finalize();
         data_.discrete_curl.Reset(curl.ParallelAssemble());
 
-        if (data_.param.ml_particular)
-        {
-            coarse_hdiv_fes_.reset();
-            coarse_l2_fes_.reset();
-            l2_0_fes_.reset();
-        }
-        if (data_.param.MG_type == GeometricMG) coarse_hcurl_fes_.reset();
+        l2_0_fes_.reset();
     }
 }
 
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              const DivFreeSolverData& data)
-    : M_(M),
-      B_(B),
+    : Solver(M.NumRows()+B.NumRows()), M_(M), B_(B),
       BBT_solver_(B, data.param.BBT_solve_param),
       CTMC_solver_(B_.GetComm()),
-      offsets_(3),
-      data_(data)
+      offsets_(3), data_(data)
 {
     offsets_[0] = 0;
     offsets_[1] = M.NumCols();
@@ -428,16 +413,13 @@ void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
 
 void DivFreeSolver::SolveDivFree(const Vector &rhs, Vector& sol) const
 {
-    // Compute the right hand side for the divergence free solver problem
     Vector rhs_divfree(CTMC_->NumRows());
     data_.discrete_curl->MultTranspose(rhs, rhs_divfree);
 
-    // Compute divergence free solution
     Vector potential_divfree(CTMC_->NumRows());
     CTMC_solver_.Mult(rhs_divfree, potential_divfree);
     PrintConvergence(CTMC_solver_, data_.param.verbose);
 
-    // Solve the "potential" of divergence free solution
     data_.discrete_curl->Mult(potential_divfree, sol);
 }
 
@@ -450,8 +432,8 @@ void DivFreeSolver::SolvePotential(const Vector& rhs, Vector& sol) const
 
 void DivFreeSolver::Mult(const Vector & x, Vector & y) const
 {
-    MFEM_VERIFY(x.Size() == offsets_[2], "MLDivFreeSolver: x size mismatch");
-    MFEM_VERIFY(y.Size() == offsets_[2], "MLDivFreeSolver: y size mismatch");
+    MFEM_VERIFY(x.Size() == offsets_[2], "MLDivFreeSolver: x size is invalid");
+    MFEM_VERIFY(y.Size() == offsets_[2], "MLDivFreeSolver: y size is invalid");
 
     StopWatch chrono;
     chrono.Clear();
@@ -478,7 +460,6 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
 
     blk_y.GetBlock(0) += divfree_flux;
 
-    // Compute the right hand side for the pressure problem BB^T p = rhs_p
     chrono.Clear();
     chrono.Start();
 
@@ -492,8 +473,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
 Multigrid::Multigrid(HypreParMatrix& op,
                      const Array<OperatorHandle>& P,
                      OperatorHandle coarse_solver)
-    :
-      Solver(op.GetNumRows()),
+    : Solver(op.GetNumRows()),
       P_(P),
       ops_(P.Size()+1),
       smoothers_(ops_.Size()),

@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
     // 3. Read the (serial) mesh from the given mesh file on all processors.  We
     //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
     //    and volume meshes with the same code.
-    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::TETRAHEDRON, true);
+    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::HEXAHEDRON, true);
 
     int dim = mesh->Dimension();
 
@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
         L2H1Preconditioner darcyPr(*M, *B, block_trueOffsets);
 
         MINRESSolver solver(MPI_COMM_WORLD);
-        SetOptions(solver, 0, max_iter, atol, rtol);
+        SetOptions(solver, 0, max_iter, atol, rtol, false);
         solver.SetOperator(darcyOp);
         solver.SetPreconditioner(darcyPr);
         trueX = 0.0;
