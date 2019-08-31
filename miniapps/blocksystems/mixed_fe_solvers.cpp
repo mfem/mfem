@@ -23,8 +23,9 @@ void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
 void PrintConvergence(const IterativeSolver& solver, bool verbose)
 {
     if (!verbose) return;
+    auto name = dynamic_cast<const CGSolver*>(&solver) ? "CG " : "MINRES ";
     auto msg = solver.GetConverged() ? "converged in " : "did not converge in ";
-    cout << "CG " << msg << solver.GetNumIterations() << " iterations. "
+    cout << name << msg << solver.GetNumIterations() << " iterations. "
          << "Final residual norm is " << solver.GetFinalNorm() << ".\n";
 }
 
@@ -321,6 +322,28 @@ DivFreeSolverDataCollector(const ParFiniteElementSpace& hdiv_fes,
     }
 }
 
+void AddSharedTDofs(const HypreParMatrix& dof_tdof, Array<int>& bdr_tdofs)
+{
+    OperatorPtr tdof_dof(dof_tdof.Transpose());
+    OperatorPtr dof_tdof_dof(ParMult(&dof_tdof, tdof_dof.As<HypreParMatrix>()));
+
+    SparseMatrix dof_is_shared, dof_is_owned;
+    HYPRE_Int* trash;
+    dof_tdof_dof.As<HypreParMatrix>()->GetOffd(dof_is_shared, trash);
+    dof_tdof.GetDiag(dof_is_owned);
+
+    Array<int> shared_tdofs;
+    shared_tdofs.Reserve(dof_is_shared.NumNonZeroElems());
+    for (int i = 0; i < dof_is_shared.NumRows(); ++i)
+    {
+        if (dof_is_shared.RowSize(i) && dof_is_owned.RowSize(i))
+        {
+            shared_tdofs.Append(dof_is_owned.GetRowColumns(i)[0]);
+        }
+    }
+    bdr_tdofs.Append(shared_tdofs);
+}
+
 void DivFreeSolverDataCollector::CollectData(const ParFiniteElementSpace& hdiv_fes,
                                              const ParFiniteElementSpace& l2_fes)
 {
@@ -343,7 +366,8 @@ void DivFreeSolverDataCollector::CollectData(const ParFiniteElementSpace& hdiv_f
         data_.P_l2[level_].As<HypreParMatrix>()->Threshold(1e-16);
 
         hdiv_fes_ref.GetEssentialTrueDofs(all_bdr_, data_.bdr_hdivdofs[level_]);
-        // TODO:  include shared true dofs in bdr_hdivdofs
+        AddSharedTDofs(*hdiv_fes.Dof_TrueDof_Matrix(), data_.bdr_hdivdofs[level_]);
+
         level_ ? coarse_hdiv_fes_->Update() : coarse_hdiv_fes_.reset();
         level_ ? coarse_l2_fes_->Update() : coarse_l2_fes_.reset();
     }
