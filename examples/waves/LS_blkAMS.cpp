@@ -432,7 +432,7 @@ int main(int argc, char *argv[])
    // // 6. Set up the linear form
    VectorFunctionCoefficient sf_E(sdim,scaledf_exact_E);
    VectorFunctionCoefficient sf_H(sdim,scaledf_exact_H);
-   VectorFunctionCoefficient f_E(sdim,f_exact_H);
+   VectorFunctionCoefficient f_E(sdim,f_exact_E);
    VectorFunctionCoefficient f_H(sdim,f_exact_H);
 
    ParLinearForm *b_E = new ParLinearForm;

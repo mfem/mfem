@@ -632,4 +632,15 @@ BlockMatrix * Mult(const BlockMatrix & A, const BlockMatrix & B)
    return C;
 }
 
+BlockMatrix *RAP(const BlockMatrix &Rt, const BlockMatrix &A,
+                 const BlockMatrix &P)
+{
+   BlockMatrix *R = Transpose(Rt);
+   BlockMatrix *RA = Mult(*R, A);
+   delete R;
+   BlockMatrix *out = Mult(*RA, P);
+   delete RA;
+   return out;
+}
+
 }

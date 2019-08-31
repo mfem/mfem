@@ -32,6 +32,8 @@ int main(int argc, char *argv[])
    int initref    = 1;
    // number of wavelengths
    double k = 0.5;
+   double theta = 0.5;
+   double smth_maxit = 1;
    StopWatch chrono;
 
 
@@ -48,12 +50,14 @@ int main(int argc, char *argv[])
                   "Number of initial mesh refinements");
    args.AddOption(&k, "-k", "--wavelengths",
                   "Number of wavelengths.");
+   args.AddOption(&smth_maxit, "-sm", "--smoother-maxit",
+                  "Number of smoothing steps.");               
+   args.AddOption(&theta, "-th", "--theta",
+                  "Dumping parameter for the smoother.");               
    args.AddOption(&isol, "-sol", "--solution", 
                   "Exact Solution: 0) Polynomial, 1) Sinusoidal.");               
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -67,11 +71,6 @@ int main(int argc, char *argv[])
 
    // Angular frequency
    omega = 2.0 * M_PI * k;
-
-   // 2. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   device.Print();
 
    // 3. Read the mesh from the given mesh file. 
    // Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -147,7 +146,10 @@ int main(int argc, char *argv[])
    chrono.Start();
    SchwarzSmoother * prec = new SchwarzSmoother(cmesh,ref_levels, prec_fespace, &A, ess_bdr);
    prec->SetType(Schwarz::SmootherType::ADDITIVE);
+   prec->SetNumSmoothSteps(smth_maxit);
+   prec->SetDumpingParam(theta);
    chrono.Stop();
+
    // Need to invasticate the time scalings. TODO
    cout << "Smoother construction time " << chrono.RealTime() << "s. \n";
    
@@ -197,13 +199,17 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
+      socketstream ex_sock(vishost, visport);
+      ex_sock.precision(8);
       if (dim == 2) 
       {
          sol_sock <<  "solution\n" << *mesh << x  << "keys rRljc\n" << flush;
+         ex_sock <<  "solution\n" << *mesh << ugf  << "keys rRljc\n" << flush;
       }
       else
       {
          sol_sock <<  "solution\n" << *mesh << x  << "keys lc\n" << flush;
+         ex_sock <<  "solution\n" << *mesh << ugf  << "keys lc\n" << flush;
       }
    }
 
@@ -249,6 +255,26 @@ void get_solution(const Vector &x, double & u, double & d2u)
          u = x[0]*(1.0 - x[0]) * x[1]*(1.0 - x[1]);
          d2u = -2.0* ( x[1]*(1.0 - x[1]) + x[0]*(1.0 - x[0])); 
       }
+      else if (isol == 1)
+      {  // Point source
+         //shift to avoid singularity
+         double x0 = x(0) + 0.1;
+         double x1 = x(1) + 0.1;
+         //
+         double r = sqrt(x0 * x0 + x1 * x1);
+
+         u = cos(omega * r);
+
+         double r_x = x0 / r;
+         double r_y = x1 / r;
+         double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+         double r_yy = (1.0 / r) * (1.0 - r_y * r_y);
+
+         double u_xx = - omega * omega * u * r_x * r_x - omega * sin(omega * r) * r_xx;
+         double u_yy = - omega * omega * u * r_y * r_y - omega * sin(omega * r) * r_yy;
+
+         d2u = u_xx + u_yy;
+      }
       else
       {
          double alpha = omega / sqrt(2.0);
@@ -264,6 +290,30 @@ void get_solution(const Vector &x, double & u, double & d2u)
          d2u = -2.0*(-1.0 + x[0]) * x[0] * (-1.0 + x[1]) * x[1] 
             -2.0*(-1.0 + x[0]) * x[0] * (-1.0 + x[2]) * x[2] 
             -2.0*(-1.0 + x[1]) * x[1] * (-1.0 + x[2]) * x[2];
+      }
+      else if (isol == 1)
+      {  // Point source
+         // shift to avoid singularity
+         double x0 = x(0) + 0.1;
+         double x1 = x(1) + 0.1;
+         double x2 = x(2) + 0.1;
+         //
+         double r = sqrt(x0 * x0 + x1 * x1 + x2 * x2);
+
+         u = cos(omega * r);
+
+         double r_x = x0 / r;
+         double r_y = x1 / r;
+         double r_z = x2 / r;
+         double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+         double r_yy = (1.0 / r) * (1.0 - r_y * r_y);
+         double r_zz = (1.0 / r) * (1.0 - r_z * r_z);
+
+         double u_xx = - omega * omega * u * r_x * r_x - omega * sin(omega * r) * r_xx;
+         double u_yy = - omega * omega * u * r_y * r_y - omega * sin(omega * r) * r_yy;
+         double u_zz = - omega * omega * u * r_z * r_z - omega * sin(omega * r) * r_zz;
+
+         d2u = u_xx + u_yy + u_zz;
       }
       else
       {

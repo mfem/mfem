@@ -18,7 +18,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = helmholtz maxwell_real
+SEQ_EXAMPLES = helmholtz maxwell_real helmholtzPrimalDPG FOSLS_maxwell
 PAR_EXAMPLES = 
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
@@ -31,7 +31,7 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O=Schwarz.o
+COMMON_O=Schwarz.o util.o
 
 # Remove built-in rules
 %: %.cpp

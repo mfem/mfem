@@ -14,10 +14,6 @@ using namespace mfem;
 
 // #define DEFINITE
 
-// #ifndef MFEM_USE_PETSC
-// #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
-// #endif
-
 // Define exact solution
 void E_exact(const Vector & x, Vector & E);
 void f_exact(const Vector & x, Vector & f);

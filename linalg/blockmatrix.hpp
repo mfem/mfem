@@ -162,6 +162,10 @@ BlockMatrix * Transpose(const BlockMatrix & A);
 //! Multiply BlockMatrix matrices: result = A*B
 BlockMatrix * Mult(const BlockMatrix & A, const BlockMatrix & B);
 
+/// General RAP with given R^T, A and P
+BlockMatrix *RAP(const BlockMatrix &Rt, const BlockMatrix &A,
+                  const BlockMatrix &P);
+
 inline void BlockMatrix::findGlobalRow(int iglobal, int & iblock,
                                        int & iloc) const
 {
