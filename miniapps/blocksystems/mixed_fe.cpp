@@ -93,6 +93,10 @@ int main(int argc, char *argv[])
         args.PrintOptions(cout);
     }
 
+    int max_iter(500);
+    double rtol(1.e-12);
+    double atol(1.e-15);
+
     // 3. Read the (serial) mesh from the given mesh file on all processors.  We
     //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
     //    and volume meshes with the same code.
@@ -122,6 +126,10 @@ int main(int argc, char *argv[])
     param.verbose = verbose;
     param.ml_particular = ML_particular;
     param.MG_type = GMG ? GeometricMG : AlgebraicMG;
+    param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
+    param.CTMC_solve_param.max_iter = param.BBT_solve_param.max_iter = max_iter;
+    param.CTMC_solve_param.rel_tol = param.BBT_solve_param.rel_tol = rtol;
+    param.CTMC_solve_param.abs_tol = param.BBT_solve_param.abs_tol = atol;
 
     DivFreeSolverDataCollector* dfs_data_collector;
 
@@ -137,7 +145,6 @@ int main(int argc, char *argv[])
     for (int l = 0; l < num_refines; l++)
     {
         pmesh->UniformRefinement();
-
         R_space->Update();
         W_space->Update();
         if (divfree) dfs_data_collector->CollectData(*R_space, *W_space);
@@ -190,20 +197,25 @@ int main(int argc, char *argv[])
     //    vector and rhs.
     BlockVector x(block_offsets), rhs(block_offsets);
     BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
-    x.GetBlock(0) = 0.0;
+
+    ParGridFunction *u(new ParGridFunction);
+    ParGridFunction *p(new ParGridFunction);
+    u->MakeRef(R_space, x.GetBlock(0), 0);
+    p->MakeRef(W_space, x.GetBlock(1), 0);
+    *u = 0.0;
+    u->ProjectBdrCoefficientNormal(ucoeff, ess_bdr);
+    u->ParallelProject(trueX.GetBlock(0));
 
     ParLinearForm *fform(new ParLinearForm);
     fform->Update(R_space, rhs.GetBlock(0), 0);
     fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
     fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
     fform->Assemble();
-    fform->ParallelAssemble(trueRhs.GetBlock(0));
 
     ParLinearForm *gform(new ParLinearForm);
     gform->Update(W_space, rhs.GetBlock(1), 0);
     gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
     gform->Assemble();
-    gform->ParallelAssemble(trueRhs.GetBlock(1));
 
     // 10. Assemble the finite element matrices for the Darcy operator
     //
@@ -220,20 +232,19 @@ int main(int argc, char *argv[])
 
     mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
     mVarf->Assemble();
-    mVarf->EliminateEssentialBC(ess_bdr);
+    mVarf->EliminateEssentialBC(ess_bdr, *u, *fform);
     mVarf->Finalize();
     M = mVarf->ParallelAssemble();
 
     bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
     bVarf->Assemble();
-    bVarf->EliminateTrialDofs(ess_bdr, x.GetBlock(0), *gform);
-    bVarf->Finalize();
     bVarf->SpMat() *= -1.0;
+    bVarf->EliminateTrialDofs(ess_bdr, *u, *gform);
+    bVarf->Finalize();
     B = bVarf->ParallelAssemble();
 
-    int max_iter(500);
-    double rtol(1.e-9);
-    double atol(1.e-12);
+    fform->ParallelAssemble(trueRhs.GetBlock(0));
+    gform->ParallelAssemble(trueRhs.GetBlock(1));
 
     chrono.Clear();
     chrono.Start();
@@ -258,7 +269,6 @@ int main(int argc, char *argv[])
         SetOptions(solver, 0, max_iter, atol, rtol, false);
         solver.SetOperator(darcyOp);
         solver.SetPreconditioner(darcyPr);
-        trueX = 0.0;
         solver.Mult(trueRhs, trueX);
 
         PrintConvergence(solver, verbose);
@@ -269,10 +279,6 @@ int main(int argc, char *argv[])
     // 13. Extract the parallel grid function corresponding to the finite element
     //     approximation X. This is the local solution on each processor. Compute
     //     L2 error norms.
-    ParGridFunction *u(new ParGridFunction);
-    ParGridFunction *p(new ParGridFunction);
-    u->MakeRef(R_space, x.GetBlock(0), 0);
-    p->MakeRef(W_space, x.GetBlock(1), 0);
     u->Distribute(&(trueX.GetBlock(0)));
     p->Distribute(&(trueX.GetBlock(1)));
 
