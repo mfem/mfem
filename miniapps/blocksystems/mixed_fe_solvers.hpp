@@ -20,6 +20,7 @@ struct DivFreeSolverParameters
     bool ml_particular = true;
     MG_Type MG_type = GeometricMG;
     bool verbose = false;
+    bool B_has_nullity_one = false;
     IterSolveParameters CTMC_solve_param;
     IterSolveParameters BBT_solve_param;
 };
@@ -29,14 +30,14 @@ struct DivFreeSolverData
     Array<SparseMatrix> agg_el;
     Array<SparseMatrix> el_hdivdofs;
     Array<SparseMatrix> el_l2dofs;
-    Array<OperatorHandle> P_hdiv;
-    Array<OperatorHandle> P_l2;
-    Array<OperatorHandle> P_curl;
-    Array<int> coarse_ess_dofs;
+    Array<OperatorPtr> P_hdiv;
+    Array<OperatorPtr> P_l2;
+    Array<OperatorPtr> P_curl;
+    Array<Array<int> > bdr_hdivdofs;
 
     ND_FECollection hcurl_fec;
     ParFiniteElementSpace hcurl_fes;
-    OperatorHandle discrete_curl;
+    OperatorPtr discrete_curl;
 
     DivFreeSolverParameters param;
 
@@ -55,23 +56,25 @@ Vector MLDivPart(const HypreParMatrix& M,
                  const Array<SparseMatrix> &agg_elem,
                  const Array<SparseMatrix> &elem_hdivdofs,
                  const Array<SparseMatrix> &elem_l2dofs,
-                 const Array<OperatorHandle> &P_hdiv,
-                 const Array<OperatorHandle> &P_l2,
-                 const Array<int>& coarsest_ess_dofs);
+                 const Array<OperatorPtr> &P_hdiv,
+                 const Array<OperatorPtr> &P_l2,
+                 const Array<Array<int> > &bdr_hdivdofs);
 
 class BBTSolver : public Solver
 {
 public:
-    BBTSolver(const HypreParMatrix &B, IterSolveParameters param=IterSolveParameters());
+    BBTSolver(const HypreParMatrix &B, bool B_has_nullity_one=false,
+              IterSolveParameters param=IterSolveParameters());
 
     virtual void Mult(const Vector &x, Vector &y) const;
 
     virtual void SetOperator(const Operator &op) { }
 private:
-    OperatorHandle BT_;
-    OperatorHandle S_;
-    HypreBoomerAMG invS_;
+    OperatorPtr BT_;
+    OperatorPtr S_;
+    OperatorPtr invS_;
     CGSolver S_solver_;
+    bool B_has_nullity_one_;
     int verbose_;
 };
 
@@ -96,6 +99,7 @@ private:
     unique_ptr<FiniteElementSpace> l2_0_fes_;
 
     const Array<int>& ess_bdr_;
+    Array<int> all_bdr_;
 
     int level_;
 
@@ -124,8 +128,8 @@ private:
     const HypreParMatrix& B_;
 
     BBTSolver BBT_solver_;
-    OperatorHandle CTMC_;
-    OperatorHandle CTMC_prec_;
+    OperatorPtr CTMC_;
+    OperatorPtr CTMC_prec_;
     CGSolver CTMC_solver_;
 
     Array<int> offsets_;
@@ -137,19 +141,19 @@ private:
 class Multigrid : public Solver
 {
 public:
-    Multigrid(HypreParMatrix& op, const Array<OperatorHandle>& P,
-              OperatorHandle coarse_solver=OperatorHandle());
+    Multigrid(HypreParMatrix& op, const Array<OperatorPtr>& P,
+              OperatorPtr coarse_solver=OperatorPtr());
 
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
 private:
     void MG_Cycle(int level) const;
 
-    const Array<OperatorHandle>& P_;
+    const Array<OperatorPtr>& P_;
 
-    Array<OperatorHandle> ops_;
-    Array<OperatorHandle> smoothers_;
-    OperatorHandle coarse_solver_;
+    Array<OperatorPtr> ops_;
+    Array<OperatorPtr> smoothers_;
+    OperatorPtr coarse_solver_;
 
     mutable Array<Vector> correct_;
     mutable Array<Vector> resid_;
@@ -170,7 +174,7 @@ public:
                        HypreParMatrix& B,
                        const Array<int>& offsets);
 private:
-    OperatorHandle S_;
+    OperatorPtr S_;
 };
 
 
