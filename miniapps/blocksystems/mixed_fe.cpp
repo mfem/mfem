@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
 
     Array<int> ess_bdr(pmesh->bdr_attributes.Max());
     ess_bdr = 0;
-    ess_bdr[1] = 1;
+//    ess_bdr[1] = 1;
 
     // 6. Define a parallel finite element space on the parallel mesh. Here we
     //    use the Raviart-Thomas finite elements of the specified order.

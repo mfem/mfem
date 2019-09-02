@@ -28,16 +28,19 @@ struct DivFreeSolverParameters
 struct DivFreeSolverData
 {
     Array<SparseMatrix> agg_el;
-    Array<SparseMatrix> el_hdivdofs;
-    Array<SparseMatrix> el_l2dofs;
+    Array<SparseMatrix> el_hdivdof;
+    Array<SparseMatrix> el_l2dof;
     Array<OperatorPtr> P_hdiv;
     Array<OperatorPtr> P_l2;
     Array<OperatorPtr> P_curl;
-    Array<Array<int> > bdr_hdivdofs;
+    Array<Array<int> > bdr_hdivdofs; // processor bdr dofs (global bdr + shared)
+    Array<int> coarsest_ess_hdivdofs;
 
     ND_FECollection hcurl_fec;
     ParFiniteElementSpace hcurl_fes;
     OperatorPtr discrete_curl;
+
+    OperatorPtr mass_l2;
 
     DivFreeSolverParameters param;
 
@@ -52,13 +55,15 @@ void PrintConvergence(const IterativeSolver& solver, bool verbose);
 
 Vector MLDivPart(const HypreParMatrix& M,
                  const HypreParMatrix& B,
+                 const HypreParMatrix& W,
                  const Vector& F,
                  const Array<SparseMatrix> &agg_elem,
-                 const Array<SparseMatrix> &elem_hdivdofs,
-                 const Array<SparseMatrix> &elem_l2dofs,
+                 const Array<SparseMatrix> &elem_hdivdof,
+                 const Array<SparseMatrix> &elem_l2dof,
                  const Array<OperatorPtr> &P_hdiv,
                  const Array<OperatorPtr> &P_l2,
-                 const Array<Array<int> > &bdr_hdivdofs);
+                 const Array<Array<int> > &bdr_hdivdofs,
+                 const Array<int> &coarsest_ess_hdivdofs);
 
 class BBTSolver : public Solver
 {
