@@ -35,17 +35,9 @@ struct DivFreeSolverData
     Array<OperatorPtr> P_curl;
     Array<Array<int> > bdr_hdivdofs; // processor bdr dofs (global bdr + shared)
     Array<int> coarsest_ess_hdivdofs;
-
-    ND_FECollection hcurl_fec;
-    ParFiniteElementSpace hcurl_fes;
-    OperatorPtr discrete_curl;
-
-    OperatorPtr mass_l2;
-
+    OperatorPtr C;                   // discrete curl: ND -> RT
+    OperatorPtr W;                   // L2 FE space mass matrix
     DivFreeSolverParameters param;
-
-    DivFreeSolverData(int order, ParMesh* mesh)
-        : hcurl_fec(order, mesh->Dimension()), hcurl_fes(mesh, &hcurl_fec) { }
 };
 
 void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
@@ -85,43 +77,38 @@ private:
 
 class DivFreeSolverDataCollector
 {
-public:
-    DivFreeSolverDataCollector(const ParFiniteElementSpace &hdiv_fes,
-                               const ParFiniteElementSpace &l2_fes,
-                               int num_refine, const Array<int>& ess_bdr,
-                               const DivFreeSolverParameters& param);
+    RT_FECollection hdiv_fec_;
+    L2_FECollection l2_fec_;
+    ND_FECollection hcurl_fec_;
+    L2_FECollection l2_0_fec_;
 
-    void CollectData(const ParFiniteElementSpace& hdiv_fes,
-                     const ParFiniteElementSpace& l2_fes);
-
-    const DivFreeSolverData& GetData() const { return data_; }
-private:
     unique_ptr<ParFiniteElementSpace> coarse_hdiv_fes_;
     unique_ptr<ParFiniteElementSpace> coarse_l2_fes_;
     unique_ptr<ParFiniteElementSpace> coarse_hcurl_fes_;
-
-    L2_FECollection l2_0_fec_;
     unique_ptr<FiniteElementSpace> l2_0_fes_;
 
     const Array<int>& ess_bdr_;
     Array<int> all_bdr_;
 
     int level_;
-
+    int order_;
     DivFreeSolverData data_;
+public:
+    DivFreeSolverDataCollector(int order, int num_refine, ParMesh *mesh,
+                               const Array<int>& ess_bdr,
+                               const DivFreeSolverParameters& param);
+
+    void CollectData(ParMesh *mesh);
+
+    const DivFreeSolverData& GetData() const { return data_; }
+
+    unique_ptr<ParFiniteElementSpace> hdiv_fes_;
+    unique_ptr<ParFiniteElementSpace> l2_fes_;
+    unique_ptr<ParFiniteElementSpace> hcurl_fes_;
 };
 
 class DivFreeSolver : public Solver
 {
-public:
-    DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
-                  const DivFreeSolverData& data);
-
-    virtual void Mult(const Vector & x, Vector & y) const;
-
-    virtual void SetOperator(const Operator &op) { }
-
-private:
     // Find a particular solution for div sigma_p = f
     void SolveParticular(const Vector& rhs, Vector& sol) const;
 
@@ -140,18 +127,19 @@ private:
     Array<int> offsets_;
 
     const DivFreeSolverData& data_;
+public:
+    DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
+                  ParFiniteElementSpace* hcurl_fes,
+                  const DivFreeSolverData& data);
+
+    virtual void Mult(const Vector & x, Vector & y) const;
+
+    virtual void SetOperator(const Operator &op) { }
 };
 
 // Geometric Multigrid
 class Multigrid : public Solver
 {
-public:
-    Multigrid(HypreParMatrix& op, const Array<OperatorPtr>& P,
-              OperatorPtr coarse_solver=OperatorPtr());
-
-    virtual void Mult(const Vector & x, Vector & y) const;
-    virtual void SetOperator(const Operator &op) { }
-private:
     void MG_Cycle(int level) const;
 
     const Array<OperatorPtr>& P_;
@@ -163,6 +151,12 @@ private:
     mutable Array<Vector> correct_;
     mutable Array<Vector> resid_;
     mutable Vector cor_cor_;
+public:
+    Multigrid(HypreParMatrix& op, const Array<OperatorPtr>& P,
+              OperatorPtr coarse_solver=OperatorPtr());
+
+    virtual void Mult(const Vector & x, Vector & y) const;
+    virtual void SetOperator(const Operator &op) { }
 };
 
 /* Block diagonal preconditioner of the form
@@ -174,12 +168,11 @@ private:
  */
 class L2H1Preconditioner : public BlockDiagonalPreconditioner
 {
+    OperatorPtr S_;
 public:
     L2H1Preconditioner(HypreParMatrix& M,
                        HypreParMatrix& B,
                        const Array<int>& offsets);
-private:
-    OperatorPtr S_;
 };
 
 
