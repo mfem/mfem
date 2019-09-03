@@ -844,7 +844,7 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    have_face_nbr_data = false;
 }
 
-void ParMesh::ComputeGlobalElementOffset()
+void ParMesh::ComputeGlobalElementOffset() const
 {
    long local_elems = NumOfElements;
    long total_elems = 0;
@@ -1310,7 +1310,7 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
    FinalizeParTopo();
 }
 
-int ParMesh::GetLocalElementNum(long global_element_num)
+int ParMesh::GetLocalElementNum(long global_element_num) const
 {
    if (!have_global_element_offset) {
       ComputeGlobalElementOffset();
@@ -1320,7 +1320,7 @@ int ParMesh::GetLocalElementNum(long global_element_num)
    return local;
 }
 
-long ParMesh::GetGlobalElementNum(int local_element_num)
+long ParMesh::GetGlobalElementNum(int local_element_num) const
 {
    if (!have_global_element_offset) {
       ComputeGlobalElementOffset();
