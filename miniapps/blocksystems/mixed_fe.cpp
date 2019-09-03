@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     // 3. Read the (serial) mesh from the given mesh file on all processors.  We
     //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
     //    and volume meshes with the same code.
-    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::TETRAHEDRON, true);
+    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::HEXAHEDRON, true);
 
     int dim = mesh->Dimension();
 
