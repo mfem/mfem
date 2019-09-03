@@ -573,33 +573,37 @@ SparseMatrix* ReceiveSparseMatrix(MPI_Comm comm, const int source)
   int sizes[3];  // {matrix height, matrix width, number of nonzeros}
 
   MPI_Recv(sizes, 3, MPI_INT, source, 0, comm, MPI_STATUS_IGNORE);
-
-  MFEM_VERIFY(sizes[0] > 0 && sizes[1] > 0 && sizes[2] > 0, "");
   
-  int *I = new int[sizes[0]+1];
-  int *J = new int[sizes[2]];
-  double *data = new double[sizes[2]];
-
-  MPI_Recv(I, sizes[0]+1, MPI_INT, source, 1, comm, MPI_STATUS_IGNORE);
-  MPI_Recv(J, sizes[2], MPI_INT, source, 2, comm, MPI_STATUS_IGNORE);
-  MPI_Recv(data, sizes[2], MPI_DOUBLE, source, 3, comm, MPI_STATUS_IGNORE);
-
-  MFEM_VERIFY(sizes[2] == I[sizes[0]], "");
+  //MFEM_VERIFY(sizes[0] > 0 && sizes[1] > 0 && sizes[2] > 0, "");
+  MFEM_VERIFY(sizes[0] > 0 && sizes[1] > 0, "");
 
   SparseMatrix *S = new SparseMatrix(sizes[0], sizes[1]);
   
-  for (int k=0; k<sizes[0]; ++k)  // loop over rows
+  if (sizes[2] > 0)  // nnz
     {
-      for (int l=I[k]; l<I[k+1]; ++l)  // loop over nonzeros
+      int *I = new int[sizes[0]+1];
+      int *J = new int[sizes[2]];
+      double *data = new double[sizes[2]];
+
+      MPI_Recv(I, sizes[0]+1, MPI_INT, source, 1, comm, MPI_STATUS_IGNORE);
+      MPI_Recv(J, sizes[2], MPI_INT, source, 2, comm, MPI_STATUS_IGNORE);
+      MPI_Recv(data, sizes[2], MPI_DOUBLE, source, 3, comm, MPI_STATUS_IGNORE);
+
+      MFEM_VERIFY(sizes[2] == I[sizes[0]], "");
+  
+      for (int k=0; k<sizes[0]; ++k)  // loop over rows
 	{
-	  S->Set(k, J[l], data[l]);
+	  for (int l=I[k]; l<I[k+1]; ++l)  // loop over nonzeros
+	    {
+	      S->Set(k, J[l], data[l]);
+	    }
 	}
+
+      delete[] I;
+      delete[] J;
+      delete[] data;
     }
-
-  delete[] I;
-  delete[] J;
-  delete[] data;
-
+  
   S->Finalize();
 
   return S;
@@ -615,9 +619,12 @@ void SendSparseMatrix(MPI_Comm comm, SparseMatrix *S, const int dest)
   
   MPI_Send(sizes, 3, MPI_INT, dest, 0, comm);
 
-  MPI_Send(S->GetI(), sizes[0]+1, MPI_INT, dest, 1, comm);
-  MPI_Send(S->GetJ(), sizes[2], MPI_INT, dest, 2, comm);
-  MPI_Send(S->GetData(), sizes[2], MPI_DOUBLE, dest, 3, comm);
+  if (sizes[2] > 0)
+    {
+      MPI_Send(S->GetI(), sizes[0]+1, MPI_INT, dest, 1, comm);
+      MPI_Send(S->GetJ(), sizes[2], MPI_INT, dest, 2, comm);
+      MPI_Send(S->GetData(), sizes[2], MPI_DOUBLE, dest, 3, comm);
+    }
 }
 
 void GetStarts(MPI_Comm comm, const int rank, const int nprocs, const int n, std::vector<HYPRE_Int> & starts, int& g)
@@ -4083,9 +4090,27 @@ dc->Save();
 	//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplexCheck");
 
 	if (invAsdComplex[m] != NULL)
-	  invAsdComplex[m]->Mult(*(ySD[m]), wSD);
-	//AsdComplex[m]->Mult(*(ySD[m]), wSD);
+	  {
+	    invAsdComplex[m]->Mult(*(ySD[m]), wSD);
+	    //AsdComplex[m]->Mult(*(ySD[m]), wSD);
 
+	    /*
+	    {
+	      // Debugging: test residual of solution
+	      Vector rSD(wSD.Size());
+	      //AsdComplex[m]->Mult(wSD, rSD);
+	      HypreAsdComplex[m]->Mult(wSD, rSD);
+	      
+	      rSD -= (*(ySD[m]));
+
+	      const double rnrm = rSD.Norml2();
+	      const double ynrm = ySD[m]->Norml2();
+
+	      cout << rank << ": STRUMPACK residual for y on SD " << m << " absolute: " << rnrm << ", relative " << rnrm / ynrm << endl;
+	    }
+	    */
+	  }
+	
 	cout << rank << ": Done applying invAsdComplex[" << m << "], norm of wSD: " << wSD.Norml2() << endl;
 
 	// Extract only the [u_m^s, f_m, \rho_m] entries, real and imaginary parts.

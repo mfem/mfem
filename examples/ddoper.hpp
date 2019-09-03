@@ -876,6 +876,20 @@ private:
     gammaIm = kzTM / (k * (ktTM * ktTM));
 
     /*
+    // Robin TC
+
+    // Real part
+    alphaRe = 0.0;
+    betaRe = 0.0;
+    gammaRe = 0.0;
+
+    // Imaginary part
+    alphaIm = -k;
+    betaIm = 0.0;
+    gammaIm = 0.0;
+    */
+    
+    /*
     {
       //////////// Testing 
       alphaRe = 1.0;

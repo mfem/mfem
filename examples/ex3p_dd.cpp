@@ -388,7 +388,7 @@ int main(int argc, char *argv[])
       int ref_levels =
 	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769
-      //(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385
+	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385
       //(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923
       
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
@@ -427,10 +427,10 @@ int main(int argc, char *argv[])
 
    if (geometricPartition)
      {
-       //int nxyzGlobal[3] = {1, 1, 1};
-       int nxyzGlobal[3] = {1, 2, 1};
+       int nxyzGlobal[3] = {1, 1, 1};
+       //int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 1, 2};
-       //int nxyzGlobal[3] = {4, 4, 4};
+       //int nxyzGlobal[3] = {4, 16, 4};
        //int nxyzGlobal[3] = {8, 16, 8};
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
        
@@ -814,16 +814,18 @@ int main(int argc, char *argv[])
 
        cout << myid << ": Bdd norm " << Bdd.Norml2() << endl;
 
-       cout << "Solving DD system" << endl;
+       cout << "Solving DD system with gmres" << endl;
 
        GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
+       //MINRESSolver *gmres = new MINRESSolver(fespace->GetComm());
+       //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
 
        gmres->SetOperator(ddi);
        gmres->SetRelTol(1e-8);
        gmres->SetMaxIter(500);
        gmres->SetPrintLevel(1);
 
-       gmres->SetName("ddi");
+       //gmres->SetName("ddi");
 
        StopWatch chronoSolver;
        chronoSolver.Clear();
@@ -973,6 +975,7 @@ int main(int argc, char *argv[])
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   /*
    {
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
@@ -986,7 +989,8 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
-
+   */
+   
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
