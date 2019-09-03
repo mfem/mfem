@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "error.hpp"
 #include "cuda.hpp"
+#include "hip.hpp"
 #include "occa.hpp"
 #include "device.hpp"
 #include "mem_manager.hpp"
@@ -152,7 +153,7 @@ void CuWrap1D(const int N, DBODY &&d_body)
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
    CuKernel1D<<<GRID,BLCK>>>(N, d_body);
-   MFEM_CUDA_CHECK(cudaGetLastError());
+   MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 template <typename DBODY>
@@ -163,7 +164,7 @@ void CuWrap2D(const int N, DBODY &&d_body,
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
    CuKernel2D<<<GRID,BLCK>>>(N,d_body,BZ);
-   MFEM_CUDA_CHECK(cudaGetLastError());
+   MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 template <typename DBODY>
@@ -174,10 +175,71 @@ void CuWrap3D(const int N, DBODY &&d_body,
    const int GRID = N;
    const dim3 BLCK(X,Y,Z);
    CuKernel3D<<<GRID,BLCK>>>(N,d_body);
-   MFEM_CUDA_CHECK(cudaGetLastError());
+   MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 #endif // MFEM_USE_CUDA
+
+
+/// HIP backend
+#ifdef MFEM_USE_HIP
+
+template <typename BODY> __global__ static
+void HipKernel1D(const int N, BODY body)
+{
+   const int k = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
+   if (k >= N) { return; }
+   body(k);
+}
+
+template <typename BODY> __global__ static
+void HipKernel2D(const int N, BODY body, const int BZ)
+{
+   const int k = hipBlockIdx_x*BZ + hipThreadIdx_z;
+   if (k >= N) { return; }
+   body(k);
+}
+
+template <typename BODY> __global__ static
+void HipKernel3D(const int N, BODY body)
+{
+   const int k = hipBlockIdx_x;
+   if (k >= N) { return; }
+   body(k);
+}
+
+template <const int BLCK = MFEM_HIP_BLOCKS, typename DBODY>
+void HipWrap1D(const int N, DBODY &&d_body)
+{
+   if (N==0) { return; }
+   const int GRID = (N+BLCK-1)/BLCK;
+   hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,0,N,d_body);
+   MFEM_GPU_CHECK(hipGetLastError());
+}
+
+template <typename DBODY>
+void HipWrap2D(const int N, DBODY &&d_body,
+               const int X, const int Y, const int BZ)
+{
+   if (N==0) { return; }
+   const int GRID = (N+BZ-1)/BZ;
+   const dim3 BLCK(X,Y,BZ);
+   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body,BZ);
+   MFEM_GPU_CHECK(hipGetLastError());
+}
+
+template <typename DBODY>
+void HipWrap3D(const int N, DBODY &&d_body,
+               const int X, const int Y, const int Z)
+{
+   if (N==0) { return; }
+   const int GRID = N;
+   const dim3 BLCK(X,Y,Z);
+   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,0,N,d_body);
+   MFEM_GPU_CHECK(hipGetLastError());
+}
+
+#endif // MFEM_USE_HIP
 
 
 /// The forall kernel body wrapper
@@ -204,6 +266,18 @@ inline void ForallWrap(const bool use_dev, const int N,
 
    if (DIM == 3 && Device::Allows(Backend::CUDA_MASK))
    { return CuWrap3D(N, d_body, X, Y, Z); }
+#endif
+
+#ifdef MFEM_USE_HIP
+   // Handle all allowed HIP backends
+   if (DIM == 1 && Device::Allows(Backend::HIP_MASK))
+   { return HipWrap1D(N, d_body); }
+
+   if (DIM == 2 && Device::Allows(Backend::HIP_MASK))
+   { return HipWrap2D(N, d_body, X, Y, Z); }
+
+   if (DIM == 3 && Device::Allows(Backend::HIP_MASK))
+   { return HipWrap3D(N, d_body, X, Y, Z); }
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)

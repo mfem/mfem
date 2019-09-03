@@ -880,7 +880,7 @@ static double cuVectorMin(const int N, const double *X)
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
    double *d_min = buf.Write(MemoryClass::CUDA, min_sz);
    cuKernelMin<<<gridSize,blockSize>>>(N, d_min, X);
-   MFEM_CUDA_CHECK(cudaGetLastError());
+   MFEM_GPU_CHECK(cudaGetLastError());
    const double *h_min = buf.Read(MemoryClass::HOST, min_sz);
    double min = std::numeric_limits<double>::infinity();
    for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
@@ -923,7 +923,7 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
    double *d_dot = buf.Write(MemoryClass::CUDA, dot_sz);
    cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
-   MFEM_CUDA_CHECK(cudaGetLastError());
+   MFEM_GPU_CHECK(cudaGetLastError());
    const double *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
    double dot = 0.0;
    for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
@@ -957,6 +957,21 @@ double Vector::operator*(const Vector &v) const
    if (Device::Allows(Backend::CUDA_MASK))
    {
       return cuVectorDot(size, m_data, v_data);
+   }
+#endif
+
+#ifdef MFEM_USE_HIP
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      auto m_data = HostRead();
+      auto v_data = v.HostRead();
+      double prod = 0.0;
+      const int N = size;
+      for (int i = 0; i < N; i++)
+      {
+         prod += m_data[i] * v_data[i];
+      }
+      return prod;
    }
 #endif
 

@@ -186,11 +186,11 @@ static void OccaPAMassApply3D(const int D1D,
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void PAMassApply2D(const int NE,
-                          const Array<double> &_B,
-                          const Array<double> &_Bt,
-                          const Vector &_op,
-                          const Vector &_x,
-                          Vector &_y,
+                          const Array<double> &B_,
+                          const Array<double> &Bt_,
+                          const Vector &op_,
+                          const Vector &x_,
+                          Vector &y_,
                           const int d1d = 0,
                           const int q1d = 0)
 {
@@ -198,11 +198,11 @@ static void PAMassApply2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
-   auto Bt = Reshape(_Bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   auto B = Reshape(B_.Read(), Q1D, D1D);
+   auto Bt = Reshape(Bt_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
@@ -280,11 +280,11 @@ template<const int T_D1D = 0,
          const int T_Q1D = 0,
          const int T_NBZ = 0>
 static void SmemPAMassApply2D(const int NE,
-                              const Array<double> &_b,
-                              const Array<double> &_bt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Array<double> &b_,
+                              const Array<double> &bt_,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
                               const int d1d = 0,
                               const int q1d = 0)
 {
@@ -295,10 +295,10 @@ static void SmemPAMassApply2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(_b.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -403,11 +403,11 @@ static void SmemPAMassApply2D(const int NE,
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void PAMassApply3D(const int NE,
-                          const Array<double> &_B,
-                          const Array<double> &_Bt,
-                          const Vector &_op,
-                          const Vector &_x,
-                          Vector &_y,
+                          const Array<double> &B_,
+                          const Array<double> &Bt_,
+                          const Vector &op_,
+                          const Vector &x_,
+                          Vector &y_,
                           const int d1d = 0,
                           const int q1d = 0)
 {
@@ -415,11 +415,11 @@ static void PAMassApply3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
-   auto Bt = Reshape(_Bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto B = Reshape(B_.Read(), Q1D, D1D);
+   auto Bt = Reshape(Bt_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -545,11 +545,11 @@ static void PAMassApply3D(const int NE,
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,
-                              const Array<double> &_b,
-                              const Array<double> &_bt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Array<double> &b_,
+                              const Array<double> &bt_,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
                               const int d1d = 0,
                               const int q1d = 0)
 {
@@ -559,10 +559,10 @@ static void SmemPAMassApply3D(const int NE,
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
-   auto b = Reshape(_b.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);
