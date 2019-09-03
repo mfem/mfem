@@ -57,8 +57,13 @@ Vector MLDivPart(const HypreParMatrix& M,
                  const Array<Array<int> > &bdr_hdivdofs,
                  const Array<int> &coarsest_ess_hdivdofs);
 
-class BBTSolver : public Solver
+class BBTSolver : public Solver // TODO: make it a template?
 {
+    OperatorPtr BBT_;
+    OperatorPtr BBT_prec_;
+    CGSolver BBT_solver_;
+    bool B_has_nullity_one_;
+    int verbose_;
 public:
     BBTSolver(const HypreParMatrix &B, bool B_has_nullity_one=false,
               IterSolveParameters param=IterSolveParameters());
@@ -66,13 +71,30 @@ public:
     virtual void Mult(const Vector &x, Vector &y) const;
 
     virtual void SetOperator(const Operator &op) { }
-private:
-    OperatorPtr BT_;
-    OperatorPtr S_;
-    OperatorPtr invS_;
-    CGSolver S_solver_;
-    bool B_has_nullity_one_;
-    int verbose_;
+};
+
+class LocalSolver : public Solver // TODO: make it a template?
+{
+    DenseMatrix BT_;
+    DenseMatrix BBT_;
+    DenseMatrixInverse BBT_solver_;
+public:
+    LocalSolver(const DenseMatrix &B);
+    virtual void Mult(const Vector &x, Vector &y) const;
+    virtual void SetOperator(const Operator &op) { }
+};
+
+class BlockDiagSolver : public Solver
+{
+    SparseMatrix& block_dof_ref_;
+    Array<DenseMatrixInverse> block_solver_;
+    mutable Array<int> local_dofs_;
+    mutable Vector sub_rhs_;
+    mutable Vector sub_sol_;
+public:
+    BlockDiagSolver(const OperatorPtr& A, const SparseMatrix& block_dof);
+    virtual void Mult(const Vector &x, Vector &y) const;
+    virtual void SetOperator(const Operator &op) { }
 };
 
 class DivFreeSolverDataCollector
@@ -107,18 +129,35 @@ public:
     unique_ptr<ParFiniteElementSpace> hcurl_fes_;
 };
 
+class MLDivSolver : public Solver
+{
+    const DivFreeSolverData& data_;
+    Array<OperatorPtr> agg_hdivdof_;
+    Array<OperatorPtr> agg_l2dof_;
+    Array<Array<OperatorPtr> > agg_solver_;
+    Array<OperatorHandle> W_;
+    Array<OperatorHandle> coarser_W_inv_;
+    OperatorPtr coarsest_B_;
+    OperatorPtr coarsest_solver_;
+public:
+    MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B,
+                const OperatorPtr& W, const DivFreeSolverData& data);
+
+    virtual void Mult(const Vector & x, Vector & y) const;
+    virtual void SetOperator(const Operator &op) { }
+};
+
 class DivFreeSolver : public Solver
 {
     // Find a particular solution for div sigma_p = f
     void SolveParticular(const Vector& rhs, Vector& sol) const;
-
     void SolveDivFree(const Vector& rhs, Vector& sol) const;
-
     void SolvePotential(const Vector &rhs, Vector& sol) const;
 
     const HypreParMatrix& M_;
     const HypreParMatrix& B_;
 
+    OperatorPtr particular_solver_;
     BBTSolver BBT_solver_;
     OperatorPtr CTMC_;
     OperatorPtr CTMC_prec_;
@@ -137,7 +176,6 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
-// Geometric Multigrid
 class Multigrid : public Solver
 {
     void MG_Cycle(int level) const;
