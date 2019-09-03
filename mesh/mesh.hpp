@@ -692,7 +692,7 @@ public:
 
    /// Map a global element number to a local element number.  (For a
    /// serial mesh, the numberings are the same.)
-   virtual long GetLocalElementNum(long global_element_num) const
+   virtual int GetLocalElementNum(long global_element_num) const
    { return global_element_num; }
 
    /// Map a local element number to a global element number.  (For a

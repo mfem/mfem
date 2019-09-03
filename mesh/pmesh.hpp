@@ -40,9 +40,9 @@ protected:
 
    /// global_element_offset + local element number defines a global
    /// numbering for elements
-   void ComputeGlobalElementOffset();
-   bool have_global_element_offset;
-   long global_element_offset;
+   void ComputeGlobalElementOffset() const;
+   mutable bool have_global_element_offset;
+   mutable long global_element_offset;
 
    struct Vert3
    {
@@ -232,10 +232,10 @@ public:
 
    /// Map a global element number to a local element number.  If the
    /// global element is not on this processor, return -1.
-   int GetLocalElementNum(long global_element_num);
+   int GetLocalElementNum(long global_element_num) const;
 
    /// Map a local element number to a global element number.
-   long GetGlobalElementNum(int local_element_num);
+   long GetGlobalElementNum(int local_element_num) const;
 
    GroupTopology gtopo;
 
