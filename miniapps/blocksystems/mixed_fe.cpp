@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     // 3. Read the (serial) mesh from the given mesh file on all processors.  We
     //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
     //    and volume meshes with the same code.
-    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::HEXAHEDRON, true);
+    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::TETRAHEDRON, true);
 
     int dim = mesh->Dimension();
 
@@ -112,25 +112,10 @@ int main(int argc, char *argv[])
 
     Array<int> ess_bdr(pmesh->bdr_attributes.Max());
     ess_bdr = 0;
-//    ess_bdr[1] = 1;
+    ess_bdr[1] = 1;
 
     // 6. Define a parallel finite element space on the parallel mesh. Here we
     //    use the Raviart-Thomas finite elements of the specified order.
-    RT_FECollection hdiv_coll(order, dim);
-    L2_FECollection l2_coll(order, dim);
-
-    ParFiniteElementSpace* R_space = new ParFiniteElementSpace(pmesh, &hdiv_coll);
-    ParFiniteElementSpace* W_space = new ParFiniteElementSpace(pmesh, &l2_coll);
-
-    DivFreeSolverParameters param;
-    param.verbose = verbose;
-    param.ml_particular = ML_particular;
-    param.MG_type = GMG ? GeometricMG : AlgebraicMG;
-    param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
-    param.CTMC_solve_param.max_iter = param.BBT_solve_param.max_iter = max_iter;
-    param.CTMC_solve_param.rel_tol = param.BBT_solve_param.rel_tol = rtol;
-    param.CTMC_solve_param.abs_tol = param.BBT_solve_param.abs_tol = atol;
-
     DivFreeSolverDataCollector* dfs_data_collector;
 
     chrono.Clear();
@@ -138,23 +123,39 @@ int main(int argc, char *argv[])
 
     if (divfree)
     {
+        DivFreeSolverParameters param;
+        param.verbose = verbose;
+        param.ml_particular = ML_particular;
+        param.MG_type = GMG ? GeometricMG : AlgebraicMG;
+        param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
+        param.CTMC_solve_param.max_iter = param.BBT_solve_param.max_iter = max_iter;
+        param.CTMC_solve_param.rel_tol = param.BBT_solve_param.rel_tol = rtol;
+        param.CTMC_solve_param.abs_tol = param.BBT_solve_param.abs_tol = atol;
+
         dfs_data_collector = new DivFreeSolverDataCollector(
-                    *R_space, *W_space, num_refines, ess_bdr, param);
+                    order, num_refines, pmesh, ess_bdr, param);
     }
 
     for (int l = 0; l < num_refines; l++)
     {
         pmesh->UniformRefinement();
-        R_space->Update();
-        W_space->Update();
-        if (divfree) dfs_data_collector->CollectData(*R_space, *W_space);
+        if (divfree) dfs_data_collector->CollectData(pmesh);
     }
-    if (verbose)
-        cout << "FE spaces constructed in " << chrono.RealTime() << "\n";
+
+    RT_FECollection hdiv_coll(order, dim);
+    L2_FECollection l2_coll(order, dim);
+
+    auto R_space = divfree ? dfs_data_collector->hdiv_fes_.get() :
+                             new ParFiniteElementSpace(pmesh, &hdiv_coll);
+
+    auto W_space = divfree ? dfs_data_collector->l2_fes_.get() :
+                             new ParFiniteElementSpace(pmesh, &l2_coll);
+
+    if (verbose) cout << "FE spaces constructed in " << chrono.RealTime() << "\n";
 
     HYPRE_Int dimR = R_space->GlobalTrueVSize();
     HYPRE_Int dimW = W_space->GlobalTrueVSize();
-    HYPRE_Int dimN = divfree ? dfs_data_collector->GetData().hcurl_fes.GlobalTrueVSize() : 0;
+    HYPRE_Int dimN = divfree ? dfs_data_collector->hcurl_fes_->GlobalTrueVSize() : 0;
 
     if (verbose)
     {
@@ -246,19 +247,26 @@ int main(int argc, char *argv[])
     fform->ParallelAssemble(trueRhs.GetBlock(0));
     gform->ParallelAssemble(trueRhs.GetBlock(1));
 
-    chrono.Clear();
-    chrono.Start();
-
-    BlockOperator darcyOp(block_trueOffsets);
     if (divfree)
     {
-        DivFreeSolver ml_df_solver(*M, *B, dfs_data_collector->GetData());
+        chrono.Clear();
+        chrono.Start();
+
+        DivFreeSolver ml_df_solver(*M, *B, dfs_data_collector->hcurl_fes_.get(),
+                                   dfs_data_collector->GetData());
+
+        if (verbose) cout << "Div free solver constructed in " << chrono.RealTime() << "s.\n";
+
+        chrono.Clear();
+        chrono.Start();
+
         ml_df_solver.Mult(trueRhs, trueX);
     }
     else
     {
         OperatorHandle BT(B->Transpose());
 
+        BlockOperator darcyOp(block_trueOffsets);
         darcyOp.SetBlock(0,0, M);
         darcyOp.SetBlock(0,1, BT.As<HypreParMatrix>());
         darcyOp.SetBlock(1,0, B);
@@ -269,6 +277,10 @@ int main(int argc, char *argv[])
         SetOptions(solver, 0, max_iter, atol, rtol, false);
         solver.SetOperator(darcyOp);
         solver.SetPreconditioner(darcyPr);
+
+        chrono.Clear();
+        chrono.Start();
+
         solver.Mult(trueRhs, trueX);
 
         PrintConvergence(solver, verbose);
@@ -300,53 +312,6 @@ int main(int argc, char *argv[])
         cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
     }
 
-    // 14. Save the refined mesh and the solution in parallel. This output can be
-    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol_*".
-    {
-        ostringstream mesh_name, u_name, p_name;
-        mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-        u_name << "sol_u." << setfill('0') << setw(6) << myid;
-        p_name << "sol_p." << setfill('0') << setw(6) << myid;
-
-        ofstream mesh_ofs(mesh_name.str().c_str());
-        mesh_ofs.precision(8);
-        pmesh->Print(mesh_ofs);
-
-        ofstream u_ofs(u_name.str().c_str());
-        u_ofs.precision(8);
-        u->Save(u_ofs);
-
-        ofstream p_ofs(p_name.str().c_str());
-        p_ofs.precision(8);
-        p->Save(p_ofs);
-    }
-
-    // 15. Save data in the VisIt format
-    VisItDataCollection visit_dc("Mixed-FE-Parallel", pmesh);
-    visit_dc.RegisterField("velocity", u);
-    visit_dc.RegisterField("pressure", p);
-    visit_dc.Save();
-
-    // 16. Send the solution by socket to a GLVis server.
-    if (visualization)
-    {
-        char vishost[] = "localhost";
-        int  visport   = 19916;
-        socketstream u_sock(vishost, visport);
-        u_sock << "parallel " << num_procs << " " << myid << "\n";
-        u_sock.precision(8);
-        u_sock << "solution\n" << *pmesh << *u << "window_title 'Velocity'"
-               << endl;
-        // Make sure all ranks have sent their 'u' solution before initiating
-        // another set of GLVis connections (one from each rank):
-        MPI_Barrier(pmesh->GetComm());
-        socketstream p_sock(vishost, visport);
-        p_sock << "parallel " << num_procs << " " << myid << "\n";
-        p_sock.precision(8);
-        p_sock << "solution\n" << *pmesh << *p << "window_title 'Pressure'"
-               << endl;
-    }
-
     // 17. Free the used memory.
     delete fform;
     delete gform;
@@ -356,8 +321,8 @@ int main(int argc, char *argv[])
     delete M;
     delete mVarf;
     delete bVarf;
-    delete W_space;
-    delete R_space;
+    if (!divfree) delete W_space;
+    if (!divfree) delete R_space;
     if (divfree) delete dfs_data_collector;
     delete pmesh;
 
