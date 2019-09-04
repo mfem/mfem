@@ -518,11 +518,12 @@ protected: // implementation
    // refinement/derefinement
 
    Array<Refinement> ref_queue; ///< stack of scheduled refinements (temporary)
+   Array<Refinement> postponed; ///< list of postponed refinements (temporary)
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
-   void RefineElement(int elem, char ref_type);
+   bool RefineElement(int elem, char ref_type);
    void DerefineElement(int elem);
 
    int AddElement(const Element &el)
@@ -565,7 +566,7 @@ protected: // implementation
 
    bool TriFaceSplit(int v1, int v2, int v3, int mid[3] = NULL) const;
 
-   void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
+   bool ForceRefinement(int vn1, int vn2, int vn3, int vn4);
 
    void FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
                          Array<MeshId> &prisms) const;
@@ -573,9 +574,9 @@ protected: // implementation
    void CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                         const Refinement *refs, int nref);
 
-   int CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
-                      int mid12, int mid34, int level = 0);
-   void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
+   bool CheckAnisoFace(int vn1, int vn2, int vn3, int vn4, int mid12, int mid34,
+                       int level = 0, int *nrefined = NULL);
+   bool CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
 
    void ReparentNode(int node, int new_p1, int new_p2);

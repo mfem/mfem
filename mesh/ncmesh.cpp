@@ -611,7 +611,7 @@ inline bool PrismFaceTop(int node, int* n)
 { return node == n[3] || node == n[4] || node == n[5]; }
 
 
-void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
+bool NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 {
    // get the element this face belongs to
    Face* face = faces.Find(vn1, vn2, vn3, vn4);
@@ -619,7 +619,8 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    {
       /*mfem::out << "Face (" << vn1 << ", " << vn2 << ", "
                             << vn3 << ", " << vn4 << ") not found." << std::endl;*/
-      return;
+      // TODO: explain
+      return false;
    }
 
    int elem = face->GetSingleElement();
@@ -627,7 +628,7 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    MFEM_ASSERT(!el.ref_type, "element already refined.");
 
    // in parallel, don't propagate forced refinements into the ghost layer
-   if (IsGhost(el)) { return; }
+   if (IsGhost(el)) { return true; }
    // TODO: ?
 
    // select the right split depending on face orientation
@@ -679,6 +680,8 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 
    // schedule the refinement
    ref_queue.Append(Refinement(elem, ref_type));
+
+   return true;
 }
 
 
@@ -754,8 +757,8 @@ void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
 }
 
 
-int NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
-                           int mid12, int mid34, int level)
+bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
+                            int mid12, int mid34, int level, int *nrefined)
 {
    // TODO: update this documentation
    //
@@ -788,68 +791,20 @@ int NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    if (mid23 >= 0 && mid41 >= 0)
    {
       int midf = nodes.FindId(mid23, mid41);
-      if (midf >= 0 /*&& !nodes[midf1].Shadow()*/)
+      if (midf >= 0)
       {
-#if 0 // par-aniso-ref-dev
-         int midf2 = nodes.FindId(mid12, mid34);
-         if (midf2 < 0)
-         {
-            nodes.Reparent(midf1, mid12, mid34);
-
-            // leave a shadow node in place of the original 'midf1'
-            // and link it to 'midf1'
-            midf2 = nodes.GetId(mid23, mid41);
-            nodes[midf2].SetShadow(midf1);
-            nodes[midf1].SetShadowed();
-         }
-         else
-         {
-            MFEM_ASSERT(nodes[midf2].Shadow(), midf1 << " " << midf2);
-
-            // just swap the shadow and shadowed node pair
-            nodes.Reparent(midf1, mid12, mid34);
-            nodes.Reparent(midf2, mid23, mid41);
-         }
-
-         bool horizontal = false;
-         if (!CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf1, level+1))
-         {
-            // forced refinements will happen later (see 'ref_queue'), but we
-            // need to make an empty node here to keep the data structure
-            // consistent
-            GetMidEdgeNode(mid12, midf1);
-            horizontal = true;
-         }
-
-         if (!CheckAnisoFace(mid41, mid23, vn3, vn4, midf1, mid34, level+1))
-         {
-            // same as above
-            GetMidEdgeNode(midf1, mid34);
-            horizontal = true;
-         }
-
-         if (horizontal)
-         {
-            // at least one forced refinement needed, prepare also the
-            // 'horizontal' nodes
-            GetMidEdgeNode(mid41, midf1);
-            GetMidEdgeNode(midf1, mid23);
-
-            // problem run with RandomRefinement(0.5, true) in ex1p.cpp:
-            // mpirun -np 2 ex1p -m ../data/inline-hex.mesh -o 1 -r 3 -s 1
-         }
-         return 1;
-#endif
-
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
 
          int rs = ref_queue.Size();
 
-         int refined =
-            CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1) +
-            CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1);
+         int nr = 0;
+         if (!CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1, &nr) ||
+             !CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1, &nr))
+         {
+            return false;
+         }
 
-         if (refined)
+         if (nr)
          {
             // if at least one forced refinement was needed, prepare also
             // the 'horizontal' nodes
@@ -884,7 +839,7 @@ int NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             reparents.DeleteAll();
          }
 
-         return 0;
+         return true;
       }
    }
 
@@ -908,16 +863,20 @@ int NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
 
    if (level > 0)
    {
-      ForceRefinement(vn1, vn2, vn3, vn4);
+      if (!ForceRefinement(vn1, vn2, vn3, vn4))
+      {
+         return false;
+      }
+      (*nrefined)++;
 
       // prepare an empty node consistent with the future forced refinement
       // (since forced refinements are merely scheduled at this point)
       GetMidEdgeNode(mid12, mid34);
    }
-   return 1;
+   return true;
 }
 
-void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
+bool NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                           int en1, int en2, int en3, int en4, int midf)
 {
    if (!Iso)
@@ -926,18 +885,19 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
          isotropically split faces as well, see second comment in
          CheckAnisoFace above. */
 
-      CheckAnisoFace(vn1, vn2, en2, en4, en1, midf);
-      CheckAnisoFace(en4, en2, vn3, vn4, midf, en3);
-      CheckAnisoFace(vn4, vn1, en1, en3, en4, midf);
-      CheckAnisoFace(en3, en1, vn2, vn3, midf, en2);
+      return CheckAnisoFace(vn1, vn2, en2, en4, en1, midf) &&
+             CheckAnisoFace(en4, en2, vn3, vn4, midf, en3) &&
+             CheckAnisoFace(vn4, vn1, en1, en3, en4, midf) &&
+             CheckAnisoFace(en3, en1, vn2, vn3, midf, en2);
    }
+   return true;
 }
 
-void NCMesh::RefineElement(int elem, char ref_type)
+bool NCMesh::RefineElement(int elem, char ref_type)
 {
    Element &el = elements[elem];
 
-   if (!ref_type) { return; }
+   if (!ref_type) { return true; }
 
    // handle elements that may have been (force-) refined already
    if (el.ref_type)
@@ -947,9 +907,12 @@ void NCMesh::RefineElement(int elem, char ref_type)
       // do the remaining splits on the children
       for (int i = 0; i < 8; i++)
       {
-         if (el.child[i] >= 0) { RefineElement(el.child[i], remaining); }
+         if (el.child[i] >= 0)
+         {
+            if (!RefineElement(el.child[i], remaining)) { return false; }
+         }
       }
-      return;
+      return true;
    }
 
    /*std::cout << "Refining element " << elem << " ("
@@ -999,18 +962,23 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int mid45 = GetMidEdgeNode(no[4], no[5]);
          int mid67 = GetMidEdgeNode(no[6], no[7]);
 
-         child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
-                                  no[4], mid45, mid67, no[7], attr,
-                                  fa[0], fa[1], -1, fa[3], fa[4], fa[5]);
+         if (CheckAnisoFace(no[0], no[1], no[5], no[4], mid01, mid45) &&
+             CheckAnisoFace(no[2], no[3], no[7], no[6], mid23, mid67) &&
+             CheckAnisoFace(no[4], no[5], no[6], no[7], mid45, mid67) &&
+             CheckAnisoFace(no[3], no[2], no[1], no[0], mid23, mid01))
+         {
+            child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
+                                     no[4], mid45, mid67, no[7], attr,
+                                     fa[0], fa[1], -1, fa[3], fa[4], fa[5]);
 
-         child[1] = NewHexahedron(mid01, no[1], no[2], mid23,
-                                  mid45, no[5], no[6], mid67, attr,
-                                  fa[0], fa[1], fa[2], fa[3], -1, fa[5]);
-
-         CheckAnisoFace(no[0], no[1], no[5], no[4], mid01, mid45);
-         CheckAnisoFace(no[2], no[3], no[7], no[6], mid23, mid67);
-         CheckAnisoFace(no[4], no[5], no[6], no[7], mid45, mid67);
-         CheckAnisoFace(no[3], no[2], no[1], no[0], mid23, mid01);
+            child[1] = NewHexahedron(mid01, no[1], no[2], mid23,
+                                     mid45, no[5], no[6], mid67, attr,
+                                     fa[0], fa[1], fa[2], fa[3], -1, fa[5]);
+         }
+         else
+         {
+            return false;
+         }
       }
       else if (ref_type == 2) // split along Y axis
       {
@@ -1019,18 +987,23 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int mid56 = GetMidEdgeNode(no[5], no[6]);
          int mid74 = GetMidEdgeNode(no[7], no[4]);
 
-         child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
-                                  no[4], no[5], mid56, mid74, attr,
-                                  fa[0], fa[1], fa[2], -1, fa[4], fa[5]);
+         if (CheckAnisoFace(no[1], no[2], no[6], no[5], mid12, mid56) &&
+             CheckAnisoFace(no[3], no[0], no[4], no[7], mid30, mid74) &&
+             CheckAnisoFace(no[5], no[6], no[7], no[4], mid56, mid74) &&
+             CheckAnisoFace(no[0], no[3], no[2], no[1], mid30, mid12))
+         {
+            child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
+                                     no[4], no[5], mid56, mid74, attr,
+                                     fa[0], fa[1], fa[2], -1, fa[4], fa[5]);
 
-         child[1] = NewHexahedron(mid30, mid12, no[2], no[3],
-                                  mid74, mid56, no[6], no[7], attr,
-                                  fa[0], -1, fa[2], fa[3], fa[4], fa[5]);
-
-         CheckAnisoFace(no[1], no[2], no[6], no[5], mid12, mid56);
-         CheckAnisoFace(no[3], no[0], no[4], no[7], mid30, mid74);
-         CheckAnisoFace(no[5], no[6], no[7], no[4], mid56, mid74);
-         CheckAnisoFace(no[0], no[3], no[2], no[1], mid30, mid12);
+            child[1] = NewHexahedron(mid30, mid12, no[2], no[3],
+                                     mid74, mid56, no[6], no[7], attr,
+                                     fa[0], -1, fa[2], fa[3], fa[4], fa[5]);
+         }
+         else
+         {
+            return false;
+         }
       }
       else if (ref_type == 4) // split along Z axis
       {
@@ -1039,18 +1012,23 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int mid26 = GetMidEdgeNode(no[2], no[6]);
          int mid37 = GetMidEdgeNode(no[3], no[7]);
 
-         child[0] = NewHexahedron(no[0], no[1], no[2], no[3],
-                                  mid04, mid15, mid26, mid37, attr,
-                                  fa[0], fa[1], fa[2], fa[3], fa[4], -1);
+         if (CheckAnisoFace(no[4], no[0], no[1], no[5], mid04, mid15) &&
+             CheckAnisoFace(no[5], no[1], no[2], no[6], mid15, mid26) &&
+             CheckAnisoFace(no[6], no[2], no[3], no[7], mid26, mid37) &&
+             CheckAnisoFace(no[7], no[3], no[0], no[4], mid37, mid04))
+         {
+            child[0] = NewHexahedron(no[0], no[1], no[2], no[3],
+                                     mid04, mid15, mid26, mid37, attr,
+                                     fa[0], fa[1], fa[2], fa[3], fa[4], -1);
 
-         child[1] = NewHexahedron(mid04, mid15, mid26, mid37,
-                                  no[4], no[5], no[6], no[7], attr,
-                                  -1, fa[1], fa[2], fa[3], fa[4], fa[5]);
-
-         CheckAnisoFace(no[4], no[0], no[1], no[5], mid04, mid15);
-         CheckAnisoFace(no[5], no[1], no[2], no[6], mid15, mid26);
-         CheckAnisoFace(no[6], no[2], no[3], no[7], mid26, mid37);
-         CheckAnisoFace(no[7], no[3], no[0], no[4], mid37, mid04);
+            child[1] = NewHexahedron(mid04, mid15, mid26, mid37,
+                                     no[4], no[5], no[6], no[7], attr,
+                                     -1, fa[1], fa[2], fa[3], fa[4], fa[5]);
+         }
+         else
+         {
+            return false;
+         }
       }
       else if (ref_type == 3) // XY split
       {
@@ -1067,29 +1045,36 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int midf0 = GetMidFaceNode(mid23, mid12, mid01, mid30);
          int midf5 = GetMidFaceNode(mid45, mid56, mid67, mid74);
 
-         child[0] = NewHexahedron(no[0], mid01, midf0, mid30,
-                                  no[4], mid45, midf5, mid74, attr,
-                                  fa[0], fa[1], -1, -1, fa[4], fa[5]);
+         if (CheckAnisoFace(no[0], no[1], no[5], no[4], mid01, mid45) &&
+             CheckAnisoFace(no[1], no[2], no[6], no[5], mid12, mid56) &&
+             CheckAnisoFace(no[2], no[3], no[7], no[6], mid23, mid67) &&
+             CheckAnisoFace(no[3], no[0], no[4], no[7], mid30, mid74) &&
 
-         child[1] = NewHexahedron(mid01, no[1], mid12, midf0,
-                                  mid45, no[5], mid56, midf5, attr,
-                                  fa[0], fa[1], fa[2], -1, -1, fa[5]);
+             CheckIsoFace(no[3], no[2], no[1], no[0],
+                          mid23, mid12, mid01, mid30, midf0) &&
+             CheckIsoFace(no[4], no[5], no[6], no[7],
+                          mid45, mid56, mid67, mid74, midf5))
+         {
+            child[0] = NewHexahedron(no[0], mid01, midf0, mid30,
+                                     no[4], mid45, midf5, mid74, attr,
+                                     fa[0], fa[1], -1, -1, fa[4], fa[5]);
 
-         child[2] = NewHexahedron(midf0, mid12, no[2], mid23,
-                                  midf5, mid56, no[6], mid67, attr,
-                                  fa[0], -1, fa[2], fa[3], -1, fa[5]);
+            child[1] = NewHexahedron(mid01, no[1], mid12, midf0,
+                                     mid45, no[5], mid56, midf5, attr,
+                                     fa[0], fa[1], fa[2], -1, -1, fa[5]);
 
-         child[3] = NewHexahedron(mid30, midf0, mid23, no[3],
-                                  mid74, midf5, mid67, no[7], attr,
-                                  fa[0], -1, -1, fa[3], fa[4], fa[5]);
+            child[2] = NewHexahedron(midf0, mid12, no[2], mid23,
+                                     midf5, mid56, no[6], mid67, attr,
+                                     fa[0], -1, fa[2], fa[3], -1, fa[5]);
 
-         CheckAnisoFace(no[0], no[1], no[5], no[4], mid01, mid45);
-         CheckAnisoFace(no[1], no[2], no[6], no[5], mid12, mid56);
-         CheckAnisoFace(no[2], no[3], no[7], no[6], mid23, mid67);
-         CheckAnisoFace(no[3], no[0], no[4], no[7], mid30, mid74);
-
-         CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid30, midf0);
-         CheckIsoFace(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74, midf5);
+            child[3] = NewHexahedron(mid30, midf0, mid23, no[3],
+                                     mid74, midf5, mid67, no[7], attr,
+                                     fa[0], -1, -1, fa[3], fa[4], fa[5]);
+         }
+         else
+         {
+            return false;
+         }
       }
       else if (ref_type == 5) // XZ split
       {
@@ -1106,29 +1091,36 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int midf1 = GetMidFaceNode(mid01, mid15, mid45, mid04);
          int midf3 = GetMidFaceNode(mid23, mid37, mid67, mid26);
 
-         child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
-                                  mid04, midf1, midf3, mid37, attr,
-                                  fa[0], fa[1], -1, fa[3], fa[4], -1);
+         if (CheckAnisoFace(no[3], no[2], no[1], no[0], mid23, mid01) &&
+             CheckAnisoFace(no[2], no[6], no[5], no[1], mid26, mid15) &&
+             CheckAnisoFace(no[6], no[7], no[4], no[5], mid67, mid45) &&
+             CheckAnisoFace(no[7], no[3], no[0], no[4], mid37, mid04) &&
 
-         child[1] = NewHexahedron(mid01, no[1], no[2], mid23,
-                                  midf1, mid15, mid26, midf3, attr,
-                                  fa[0], fa[1], fa[2], fa[3], -1, -1);
+             CheckIsoFace(no[0], no[1], no[5], no[4],
+                          mid01, mid15, mid45, mid04, midf1) &&
+             CheckIsoFace(no[2], no[3], no[7], no[6],
+                          mid23, mid37, mid67, mid26, midf3))
+         {
+            child[0] = NewHexahedron(no[0], mid01, mid23, no[3],
+                                     mid04, midf1, midf3, mid37, attr,
+                                     fa[0], fa[1], -1, fa[3], fa[4], -1);
 
-         child[2] = NewHexahedron(midf1, mid15, mid26, midf3,
-                                  mid45, no[5], no[6], mid67, attr,
-                                  -1, fa[1], fa[2], fa[3], -1, fa[5]);
+            child[1] = NewHexahedron(mid01, no[1], no[2], mid23,
+                                     midf1, mid15, mid26, midf3, attr,
+                                     fa[0], fa[1], fa[2], fa[3], -1, -1);
 
-         child[3] = NewHexahedron(mid04, midf1, midf3, mid37,
-                                  no[4], mid45, mid67, no[7], attr,
-                                  -1, fa[1], -1, fa[3], fa[4], fa[5]);
+            child[2] = NewHexahedron(midf1, mid15, mid26, midf3,
+                                     mid45, no[5], no[6], mid67, attr,
+                                     -1, fa[1], fa[2], fa[3], -1, fa[5]);
 
-         CheckAnisoFace(no[3], no[2], no[1], no[0], mid23, mid01);
-         CheckAnisoFace(no[2], no[6], no[5], no[1], mid26, mid15);
-         CheckAnisoFace(no[6], no[7], no[4], no[5], mid67, mid45);
-         CheckAnisoFace(no[7], no[3], no[0], no[4], mid37, mid04);
-
-         CheckIsoFace(no[0], no[1], no[5], no[4], mid01, mid15, mid45, mid04, midf1);
-         CheckIsoFace(no[2], no[3], no[7], no[6], mid23, mid37, mid67, mid26, midf3);
+            child[3] = NewHexahedron(mid04, midf1, midf3, mid37,
+                                     no[4], mid45, mid67, no[7], attr,
+                                     -1, fa[1], -1, fa[3], fa[4], fa[5]);
+         }
+         else
+         {
+            return false;
+         }
       }
       else if (ref_type == 6) // YZ split
       {
@@ -1145,29 +1137,36 @@ void NCMesh::RefineElement(int elem, char ref_type)
          int midf2 = GetMidFaceNode(mid12, mid26, mid56, mid15);
          int midf4 = GetMidFaceNode(mid30, mid04, mid74, mid37);
 
-         child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
-                                  mid04, mid15, midf2, midf4, attr,
-                                  fa[0], fa[1], fa[2], -1, fa[4], -1);
+         if (CheckAnisoFace(no[4], no[0], no[1], no[5], mid04, mid15) &&
+             CheckAnisoFace(no[0], no[3], no[2], no[1], mid30, mid12) &&
+             CheckAnisoFace(no[3], no[7], no[6], no[2], mid37, mid26) &&
+             CheckAnisoFace(no[7], no[4], no[5], no[6], mid74, mid56) &&
 
-         child[1] = NewHexahedron(mid30, mid12, no[2], no[3],
-                                  midf4, midf2, mid26, mid37, attr,
-                                  fa[0], -1, fa[2], fa[3], fa[4], -1);
+             CheckIsoFace(no[1], no[2], no[6], no[5],
+                          mid12, mid26, mid56, mid15, midf2) &&
+             CheckIsoFace(no[3], no[0], no[4], no[7],
+                          mid30, mid04, mid74, mid37, midf4))
+         {
+            child[0] = NewHexahedron(no[0], no[1], mid12, mid30,
+                                     mid04, mid15, midf2, midf4, attr,
+                                     fa[0], fa[1], fa[2], -1, fa[4], -1);
 
-         child[2] = NewHexahedron(mid04, mid15, midf2, midf4,
-                                  no[4], no[5], mid56, mid74, attr,
-                                  -1, fa[1], fa[2], -1, fa[4], fa[5]);
+            child[1] = NewHexahedron(mid30, mid12, no[2], no[3],
+                                     midf4, midf2, mid26, mid37, attr,
+                                     fa[0], -1, fa[2], fa[3], fa[4], -1);
 
-         child[3] = NewHexahedron(midf4, midf2, mid26, mid37,
-                                  mid74, mid56, no[6], no[7], attr,
-                                  -1, -1, fa[2], fa[3], fa[4], fa[5]);
+            child[2] = NewHexahedron(mid04, mid15, midf2, midf4,
+                                     no[4], no[5], mid56, mid74, attr,
+                                     -1, fa[1], fa[2], -1, fa[4], fa[5]);
 
-         CheckAnisoFace(no[4], no[0], no[1], no[5], mid04, mid15);
-         CheckAnisoFace(no[0], no[3], no[2], no[1], mid30, mid12);
-         CheckAnisoFace(no[3], no[7], no[6], no[2], mid37, mid26);
-         CheckAnisoFace(no[7], no[4], no[5], no[6], mid74, mid56);
-
-         CheckIsoFace(no[1], no[2], no[6], no[5], mid12, mid26, mid56, mid15, midf2);
-         CheckIsoFace(no[3], no[0], no[4], no[7], mid30, mid04, mid74, mid37, midf4);
+            child[3] = NewHexahedron(midf4, midf2, mid26, mid37,
+                                     mid74, mid56, no[6], no[7], attr,
+                                     -1, -1, fa[2], fa[3], fa[4], fa[5]);
+         }
+         else
+         {
+            return false;
+         }
       }
       else if (ref_type == 7) // full isotropic refinement
       {
@@ -1195,49 +1194,61 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
          int midel = GetMidEdgeNode(midf1, midf3);
 
-         child[0] = NewHexahedron(no[0], mid01, midf0, mid30,
-                                  mid04, midf1, midel, midf4, attr,
-                                  fa[0], fa[1], -1, -1, fa[4], -1);
+         if (CheckIsoFace(no[3], no[2], no[1], no[0],
+                          mid23, mid12, mid01, mid30, midf0) &&
+             CheckIsoFace(no[0], no[1], no[5], no[4],
+                          mid01, mid15, mid45, mid04, midf1) &&
+             CheckIsoFace(no[1], no[2], no[6], no[5],
+                          mid12, mid26, mid56, mid15, midf2) &&
+             CheckIsoFace(no[2], no[3], no[7], no[6],
+                          mid23, mid37, mid67, mid26, midf3) &&
+             CheckIsoFace(no[3], no[0], no[4], no[7],
+                          mid30, mid04, mid74, mid37, midf4) &&
+             CheckIsoFace(no[4], no[5], no[6], no[7],
+                          mid45, mid56, mid67, mid74, midf5))
+         {
+            child[0] = NewHexahedron(no[0], mid01, midf0, mid30,
+                                     mid04, midf1, midel, midf4, attr,
+                                     fa[0], fa[1], -1, -1, fa[4], -1);
 
-         child[1] = NewHexahedron(mid01, no[1], mid12, midf0,
-                                  midf1, mid15, midf2, midel, attr,
-                                  fa[0], fa[1], fa[2], -1, -1, -1);
+            child[1] = NewHexahedron(mid01, no[1], mid12, midf0,
+                                     midf1, mid15, midf2, midel, attr,
+                                     fa[0], fa[1], fa[2], -1, -1, -1);
 
-         child[2] = NewHexahedron(midf0, mid12, no[2], mid23,
-                                  midel, midf2, mid26, midf3, attr,
-                                  fa[0], -1, fa[2], fa[3], -1, -1);
+            child[2] = NewHexahedron(midf0, mid12, no[2], mid23,
+                                     midel, midf2, mid26, midf3, attr,
+                                     fa[0], -1, fa[2], fa[3], -1, -1);
 
-         child[3] = NewHexahedron(mid30, midf0, mid23, no[3],
-                                  midf4, midel, midf3, mid37, attr,
-                                  fa[0], -1, -1, fa[3], fa[4], -1);
+            child[3] = NewHexahedron(mid30, midf0, mid23, no[3],
+                                     midf4, midel, midf3, mid37, attr,
+                                     fa[0], -1, -1, fa[3], fa[4], -1);
 
-         child[4] = NewHexahedron(mid04, midf1, midel, midf4,
-                                  no[4], mid45, midf5, mid74, attr,
-                                  -1, fa[1], -1, -1, fa[4], fa[5]);
+            child[4] = NewHexahedron(mid04, midf1, midel, midf4,
+                                     no[4], mid45, midf5, mid74, attr,
+                                     -1, fa[1], -1, -1, fa[4], fa[5]);
 
-         child[5] = NewHexahedron(midf1, mid15, midf2, midel,
-                                  mid45, no[5], mid56, midf5, attr,
-                                  -1, fa[1], fa[2], -1, -1, fa[5]);
+            child[5] = NewHexahedron(midf1, mid15, midf2, midel,
+                                     mid45, no[5], mid56, midf5, attr,
+                                     -1, fa[1], fa[2], -1, -1, fa[5]);
 
-         child[6] = NewHexahedron(midel, midf2, mid26, midf3,
-                                  midf5, mid56, no[6], mid67, attr,
-                                  -1, -1, fa[2], fa[3], -1, fa[5]);
+            child[6] = NewHexahedron(midel, midf2, mid26, midf3,
+                                     midf5, mid56, no[6], mid67, attr,
+                                     -1, -1, fa[2], fa[3], -1, fa[5]);
 
-         child[7] = NewHexahedron(midf4, midel, midf3, mid37,
-                                  mid74, midf5, mid67, no[7], attr,
-                                  -1, -1, -1, fa[3], fa[4], fa[5]);
-
-         CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid30, midf0);
-         CheckIsoFace(no[0], no[1], no[5], no[4], mid01, mid15, mid45, mid04, midf1);
-         CheckIsoFace(no[1], no[2], no[6], no[5], mid12, mid26, mid56, mid15, midf2);
-         CheckIsoFace(no[2], no[3], no[7], no[6], mid23, mid37, mid67, mid26, midf3);
-         CheckIsoFace(no[3], no[0], no[4], no[7], mid30, mid04, mid74, mid37, midf4);
-         CheckIsoFace(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74, midf5);
+            child[7] = NewHexahedron(midf4, midel, midf3, mid37,
+                                     mid74, midf5, mid67, no[7], attr,
+                                     -1, -1, -1, fa[3], fa[4], fa[5]);
+         }
+         else
+         {
+            return false;
+         }
       }
       else
       {
          MFEM_ABORT("invalid refinement type.");
       }
+
       if (ref_type != 7) { Iso = false; }
    }
    else if (el.Geom() == Geometry::PRISM)
@@ -1475,6 +1486,8 @@ void NCMesh::RefineElement(int elem, char ref_type)
    // finish the refinement
    el.ref_type = ref_type;
    std::memcpy(el.child, child, sizeof(el.child));
+
+   return true;
 }
 
 void NCMesh::Refine(const Array<Refinement>& refinements)
@@ -1520,8 +1533,19 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
                    : " force refining ") << ref.index
                 << " (ref_type " << int(ref.ref_type) << ")" << std::endl;*/
 
-      RefineElement(ref.index, ref.ref_type);
-      total++;
+      if (RefineElement(ref.index, ref.ref_type))
+      {
+         total++;
+      }
+      else
+      {
+         // could not refine element at this time (forced refinement failed),
+         // schedule the refinement for later
+         postponed.Append(ref);
+
+         std::cout << "Postponed refinement of element " << ref.index
+                   << " (type " << ref.ref_type << ")." << std::endl;
+      }
 
       /*{char fname[100];
       sprintf(fname, "ncmesh-%03d.dbg", iter++);
@@ -1529,6 +1553,11 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       Update();
       DebugDump(f);}
       DebugCheckConsistency();*/
+
+      if (!ref_queue.Size() && postponed.Size())
+      {
+         postponed.Copy(ref_queue);
+      }
    }
 #endif
 
