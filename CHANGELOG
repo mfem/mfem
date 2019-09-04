@@ -10,6 +10,7 @@
 
 Version 4.0.1 (development)
 ===========================
+- Improved multi-GPU MPI communication.
 
 GPU support
 -----------
