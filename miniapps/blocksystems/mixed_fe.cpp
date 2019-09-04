@@ -191,6 +191,8 @@ int main(int argc, char *argv[])
 
     auto elem_type = use_tet_mesh ? Element::TETRAHEDRON : Element::HEXAHEDRON;
     Mesh mesh(2, 2, 2, elem_type, true);
+    for (int i = 0; i < (int)(log(num_procs)/log(8)); ++i)
+         mesh.UniformRefinement();
 
     Array<int> ess_bdr(mesh.bdr_attributes.Max());
     ess_bdr = 0;
