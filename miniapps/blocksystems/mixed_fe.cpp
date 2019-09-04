@@ -45,6 +45,7 @@ double f_natural(const Vector & x);
 int main(int argc, char *argv[])
 {
     StopWatch chrono;
+    auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
 
     // 1. Initialize MPI.
     int num_procs, myid;
@@ -100,7 +101,7 @@ int main(int argc, char *argv[])
     // 3. Read the (serial) mesh from the given mesh file on all processors.  We
     //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
     //    and volume meshes with the same code.
-    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::HEXAHEDRON, true);
+    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::TETRAHEDRON, true);
 
     int dim = mesh->Dimension();
 
@@ -116,14 +117,13 @@ int main(int argc, char *argv[])
 
     // 6. Define a parallel finite element space on the parallel mesh. Here we
     //    use the Raviart-Thomas finite elements of the specified order.
-    DivFreeSolverDataCollector* dfs_data_collector;
+    DFSDataCollector* collector;
 
-    chrono.Clear();
-    chrono.Start();
+    ResetTimer();
 
     if (divfree)
     {
-        DivFreeSolverParameters param;
+        DFSParameters param;
         param.verbose = verbose;
         param.ml_particular = ML_particular;
         param.MG_type = GMG ? GeometricMG : AlgebraicMG;
@@ -132,30 +132,29 @@ int main(int argc, char *argv[])
         param.CTMC_solve_param.rel_tol = param.BBT_solve_param.rel_tol = rtol;
         param.CTMC_solve_param.abs_tol = param.BBT_solve_param.abs_tol = atol;
 
-        dfs_data_collector = new DivFreeSolverDataCollector(
-                    order, num_refines, pmesh, ess_bdr, param);
+        collector = new DFSDataCollector(order, num_refines, pmesh, ess_bdr, param);
     }
 
     for (int l = 0; l < num_refines; l++)
     {
         pmesh->UniformRefinement();
-        if (divfree) dfs_data_collector->CollectData(pmesh);
+        if (divfree) collector->CollectData(pmesh);
     }
 
     RT_FECollection hdiv_coll(order, dim);
     L2_FECollection l2_coll(order, dim);
 
-    auto R_space = divfree ? dfs_data_collector->hdiv_fes_.get() :
+    auto R_space = divfree ? collector->hdiv_fes_.get() :
                              new ParFiniteElementSpace(pmesh, &hdiv_coll);
 
-    auto W_space = divfree ? dfs_data_collector->l2_fes_.get() :
+    auto W_space = divfree ? collector->l2_fes_.get() :
                              new ParFiniteElementSpace(pmesh, &l2_coll);
 
     if (verbose) cout << "FE spaces constructed in " << chrono.RealTime() << "\n";
 
     HYPRE_Int dimR = R_space->GlobalTrueVSize();
     HYPRE_Int dimW = W_space->GlobalTrueVSize();
-    HYPRE_Int dimN = divfree ? dfs_data_collector->hcurl_fes_->GlobalTrueVSize() : 0;
+    HYPRE_Int dimN = divfree ? collector->hcurl_fes_->GlobalTrueVSize() : 0;
 
     if (verbose)
     {
@@ -167,8 +166,7 @@ int main(int argc, char *argv[])
         cout << "***********************************************************\n";
     }
 
-    chrono.Clear();
-    chrono.Start();
+    ResetTimer();
 
     // 7. Define the two BlockStructure of the problem.  block_offsets is used
     //    for Vector based on dof (like ParGridFunction or ParLinearForm),
@@ -251,26 +249,20 @@ int main(int argc, char *argv[])
     gform->ParallelAssemble(trueRhs.GetBlock(1));
 
     if (verbose) cout << "Algebraic system assembled in " << chrono.RealTime() << "s.\n";
+    ResetTimer();
 
     if (divfree)
     {
-        chrono.Clear();
-        chrono.Start();
-
-        DivFreeSolver ml_df_solver(*M, *B, dfs_data_collector->hcurl_fes_.get(),
-                                   dfs_data_collector->GetData());
+        DivFreeSolver ml_df_solver(*M, *B, collector->hcurl_fes_.get(), collector->GetData());
 
         if (verbose) cout << "Div free solver constructed in " << chrono.RealTime() << "s.\n";
-
-        chrono.Clear();
-        chrono.Start();
+        ResetTimer();
 
         ml_df_solver.Mult(trueRhs, trueX);
     }
     else
     {
         OperatorHandle BT(B->Transpose());
-
         BlockOperator darcyOp(block_trueOffsets);
         darcyOp.SetBlock(0,0, M);
         darcyOp.SetBlock(0,1, BT.As<HypreParMatrix>());
@@ -283,8 +275,8 @@ int main(int argc, char *argv[])
         solver.SetOperator(darcyOp);
         solver.SetPreconditioner(darcyPr);
 
-        chrono.Clear();
-        chrono.Start();
+        if (verbose) cout << "Div free solver constructed in " << chrono.RealTime() << "s.\n";
+        ResetTimer();
 
         solver.Mult(trueRhs, trueX);
 
@@ -328,7 +320,7 @@ int main(int argc, char *argv[])
     delete bVarf;
     if (!divfree) delete W_space;
     if (!divfree) delete R_space;
-    if (divfree) delete dfs_data_collector;
+    if (divfree) delete collector;
     delete pmesh;
 
     MPI_Finalize();
