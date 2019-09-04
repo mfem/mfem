@@ -48,6 +48,8 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
+#define protected public // DEBUG
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -55,11 +57,65 @@
 using namespace std;
 using namespace mfem;
 
+
+void TestContinuity(const GridFunction &gf, int depth, double tol)
+{
+   const FiniteElementSpace* fes = gf.FESpace();
+
+   int n = 1 << depth;
+   double value[n+1][n+1][n+1];
+
+   for (int i = 0; i < (n+1)*(n+1)*(n+1); i++)
+   {
+      ((double*) value)[i] = INFINITY;
+   }
+
+   Vector phys(3);
+   IntegrationPoint ip;
+
+   for (int k = 0; k <= n; k++)
+   for (int j = 0; j <= n; j++)
+   for (int i = 0; i <= n; i++)
+   {
+      phys(0) = (double) i / n;
+      phys(1) = (double) j / n;
+      phys(2) = (double) k / n;
+
+      for (int m = 0; m < fes->GetNE(); m++)
+      {
+         ElementTransformation* tr = fes->GetElementTransformation(m);
+         if (tr->TransformBack(phys, ip) == 0)
+         {
+            double v_new = gf.GetValue(m, ip);
+            double &v_old = value[i][j][k];
+
+            if (!std::isfinite(v_old))
+            {
+               v_old = v_new;
+            }
+            else
+            {
+               MFEM_VERIFY(std::abs(v_new - v_old) < tol,
+                           "Discontinuous solution at ["
+                           << phys(0) << ", "
+                           << phys(1) << ", "
+                           << phys(2) << "], element " << m);
+            }
+         }
+      }
+   }
+}
+
+
+
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int ref_levels = 3;
+   int seed = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -68,6 +124,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh.");
+   args.AddOption(&seed, "-s", "--seed",
+                  "Random seed.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -98,19 +158,75 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+   mesh->EnsureNCMesh(true);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+#if 1
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      srand(seed);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         //mesh->UniformRefinement();
+         mesh->RandomRefinement(0.7, true);
       }
    }
+#else
+   {
+      Array<Refinement> refs;
+      refs.Append(Refinement(1, 1));
+      mesh->GeneralRefinement(refs);
+
+      refs.DeleteAll();
+      refs.Append(Refinement(0, 2));
+      refs.Append(Refinement(2, 1));
+      mesh->GeneralRefinement(refs);
+
+      refs.DeleteAll();
+      refs.Append(Refinement(0, 1));
+      mesh->GeneralRefinement(refs);
+   }
+#endif
+
+   /*{
+      ofstream ofs("debug.mesh");
+      mesh->ncmesh->DebugDump(ofs);
+   }*/
+
+   // Test neighbor calculation
+#if 0
+   srand(seed);
+   int query = rand() % mesh->GetNE();
+
+   const Array<int> &leaf_map = mesh->ncmesh->leaf_elements;
+
+   Array<int> neighbors;
+   mesh->ncmesh->FastFindNeighbors(leaf_map[query], neighbors);
+
+   for (int i = 0; i < neighbors.Size(); i++)
+   { neighbors[i] = leaf_map.Find(neighbors[i]); }
+
+   DG_FECollection dgfec(0, dim);
+   FiniteElementSpace dgspace(mesh, &dgfec);
+   GridFunction dgfn(&dgspace);
+
+   Array<int> dofs;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      dgspace.GetElementDofs(i, dofs);
+      dgfn(dofs[0]) = (i == query) ? 2 : ((neighbors.Find(i) >= 0) ? 1 : 0);
+   }
+
+   {
+      ofstream omesh("neighbors.mesh");
+      mesh->Print(omesh);
+      ofstream osol("neighbors.gf");
+      dgfn.Save(osol);
+   }
+   exit(1);
+#endif
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -144,6 +260,8 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+
+   exit(EXIT_SUCCESS);
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -204,12 +322,15 @@ int main(int argc, char *argv[])
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
+   /*ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   x.Save(sol_ofs);*/
+
+
+   //mesh->ncmesh = NULL;
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -219,6 +340,10 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
+   }
+   else
+   {
+      //TestContinuity(x, ref_levels + 1, 1e-12);
    }
 
    // 15. Free the used memory.

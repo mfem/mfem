@@ -64,6 +64,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
+   int ref_levels = 3;
+   int seed = 1;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -74,6 +76,10 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh.");
+   args.AddOption(&seed, "-s", "--seed",
+                  "Random seed.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -109,18 +115,21 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   mesh->EnsureNCMesh(true);
+   mesh->UniformRefinement();
+
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
-   {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
-   }
+//   {
+//      int ref_levels =
+//         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+//      for (int l = 0; l < ref_levels; l++)
+//      {
+//         mesh->UniformRefinement();
+//      }
+//   }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -128,12 +137,59 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
-      for (int l = 0; l < par_ref_levels; l++)
+#if 1
+      srand(seed+myid);
+      for (int l = 0; l < ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+         //pmesh->UniformRefinement();
+         pmesh->RandomRefinement(0.5, true);
+         /*Array<Refinement> refs;
+         refs.Append(Refinement(rand() % pmesh->GetNE(), rand() % 7 + 1));
+         pmesh->GeneralRefinement(refs);*/
+
+         /*{
+            Mesh debug;
+            pmesh->pncmesh->GetDebugMesh(debug);
+            char fname[100];
+            sprintf(fname, "debug%03d-%02d.mesh", myid, l);
+            ofstream f(fname);
+            debug.Print(f);
+         }*/
       }
+#else
+      Array<Refinement> refs;
+      refs.Append(Refinement(0, myid == 0 ? 4 : 2));
+      pmesh->GeneralRefinement(refs);
+#endif
    }
+   //pmesh->Rebalance();
+
+   {
+      char fname[100];
+      sprintf(fname, "ncmesh%03d.dbg", myid);
+      ofstream f(fname);
+      pmesh->pncmesh->DebugDump(f);
+   }
+
+   /*{
+      Mesh debug;
+      pmesh->pncmesh->GetDebugMesh(debug);
+      char fname[100];
+      sprintf(fname, "debug%03d.mesh", myid);
+      ofstream f(fname);
+      debug.Print(f);
+   }*/
+
+   /*{
+      Array<Refinement> refs;
+      if (myid == 0) { refs.Append(Refinement(0, 4)); }
+      pmesh->GeneralRefinement(refs);
+   }
+   {
+      Array<Refinement> refs;
+      if (myid == 1) { refs.Append(Refinement(0, 2)); }
+      pmesh->GeneralRefinement(refs);
+   }*/
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -173,6 +229,8 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+
+   MPI_Finalize(); exit(EXIT_SUCCESS);
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
@@ -226,7 +284,7 @@ int main(int argc, char *argv[])
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   {
+   /*{
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
       sol_name << "sol." << setfill('0') << setw(6) << myid;
@@ -238,7 +296,7 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
-   }
+   }*/
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
