@@ -190,7 +190,7 @@ private:
       }
 
       // Pre-smooth
-      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, 1);
+      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, 3);
 
       // Compute residual
       opr.GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]);
@@ -220,7 +220,7 @@ private:
       *Y[level] += *R[level];
 
       // Post-smooth
-      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, 1);
+      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, 3);
    }
 
 public:

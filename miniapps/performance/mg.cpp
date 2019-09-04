@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "multigrid.hpp"
+#include "eigenvalue.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -97,6 +98,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    // Mesh *mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0, false);
+   // Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
    int dim = mesh->Dimension();
 
    if (myid == 0)
@@ -199,12 +201,23 @@ int main(int argc, char *argv[])
       paform.AddDomainIntegrator(new DiffusionIntegrator(one));
       paform.Assemble();
       paform.AssembleDiagonal(diag);
-      OperatorJacobiSmoother* pa_smoother = new OperatorJacobiSmoother(diag, *essentialTrueDoFs, 2.0/3.0);
+      OperatorJacobiSmoother* pa_smoother_one = new OperatorJacobiSmoother(diag, *essentialTrueDoFs, 1.0);
 
       // Prolongation
       OperatorHandle* P = new OperatorHandle(Operator::Hypre_ParCSR);
       spaceHierarchy.GetFESpace(level)->GetTrueTransferOperator(*spaceHierarchy.GetFESpace(level - 1), *P);
       Operator* prolongation = P->Ptr();
+
+      ParGridFunction ev(spaceHierarchy.GetFinestFESpace());
+
+      ProductOperator DinvA(pa_smoother_one, opr, false, false);
+      double eigval = PowerMethod::EstimateLargestEigenvalue(DinvA, ev, 20, 1e-8);
+      double omega = 2.0 / (1.3 * eigval * 1.2);
+
+      std::cout << "Level " << level << " rho(DinvA) = " << eigval << std::endl;
+      std::cout << "Level " << level << " omega = " << omega << std::endl;
+
+      OperatorJacobiSmoother* pa_smoother = new OperatorJacobiSmoother(diag, *essentialTrueDoFs, omega);
 
       oprMultigrid.AddLevel(form, opr, pa_smoother, prolongation, essentialTrueDoFs);
    }
