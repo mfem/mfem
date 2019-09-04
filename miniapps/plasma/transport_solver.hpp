@@ -928,12 +928,16 @@ private:
       mutable Vector locdvec_;
       // mutable Vector vec_;
 
-      Array<BilinearFormIntegrator*> dbfi_m_;  // Domain Integrators
+      // Domain integrators for time derivatives of field variables
+      Array<Array<BilinearFormIntegrator*> > dbfi_m_;  // Domain Integrators
+
+      // Domain integrators for field variables at next time step
       Array<BilinearFormIntegrator*> dbfi_;  // Domain Integrators
       Array<BilinearFormIntegrator*> fbfi_;  // Interior Face Integrators
       Array<BilinearFormIntegrator*> bfbfi_; // Boundary Face Integrators
       Array<Array<int>*>             bfbfi_marker_; ///< Entries are not owned.
 
+      // Domain integrators for source terms
       Array<LinearFormIntegrator*> dlfi_;  // Domain Integrators
 
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
@@ -1085,11 +1089,8 @@ private:
 
       ProductCoefficient nnizCoef_;
       ProductCoefficient niizCoef_;
-      ProductCoefficient dtdSndnnCoef_;
-      ProductCoefficient dtdSndniCoef_;
-
-      // mutable DiffusionIntegrator   diff_;
-      // mutable DGDiffusionIntegrator dg_diff_;
+      // ProductCoefficient dtdSndnnCoef_;
+      // ProductCoefficient dtdSndniCoef_;
 
    public:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
@@ -1101,12 +1102,71 @@ private:
       virtual void SetTimeStep(double dt);
 
       void Update();
-
-      // void Mult(const Vector &k, Vector &y) const;
-
-      // Operator *GetGradientBlock(int i);
    };
 
+   class IonMomentumOp : public NLOperator
+   {
+   private:
+      int    z_i_;
+      double m_i_;
+      double DPerpConst_;
+      ConstantCoefficient DPerpCoef_;
+     
+      GridFunctionCoefficient nn0Coef_;
+      GridFunctionCoefficient ni0Coef_;
+      GridFunctionCoefficient vi0Coef_;
+      GridFunctionCoefficient Ti0Coef_;
+      GridFunctionCoefficient Te0Coef_;
+
+      GridFunctionCoefficient dnnCoef_;
+      GridFunctionCoefficient dniCoef_;
+      GridFunctionCoefficient dviCoef_;
+      GridFunctionCoefficient dTiCoef_;
+      GridFunctionCoefficient dTeCoef_;
+
+      mutable SumCoefficient  nn1Coef_;
+      mutable SumCoefficient  ni1Coef_;
+      mutable SumCoefficient  vi1Coef_;
+      mutable SumCoefficient  Ti1Coef_;
+      mutable SumCoefficient  Te1Coef_;
+
+      ProductCoefficient      ne0Coef_;
+      ProductCoefficient      ne1Coef_;
+
+      ProductCoefficient    mini1Coef_;
+      ProductCoefficient    mivi1Coef_;
+
+      IonMomentumDiffusionCoef EtaCoef_;
+      ScalarMatrixProductCoefficient dtEtaCoef_;
+     
+      GradPressureCoefficient gradPCoef_;
+     
+      ApproxIonizationRate     izCoef_;
+
+      VectorCoefficient * B3Coef_;
+      VectorCoefficient * bHatCoef_;
+      ScalarVectorProductCoefficient ViCoef_;
+      ScalarVectorProductCoefficient dtViCoef_;
+
+      IonSourceCoef           SizCoef_;
+      ProductCoefficient   negSizCoef_;
+
+      ProductCoefficient nnizCoef_;
+      ProductCoefficient niizCoef_;
+
+   public:
+      IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,
+		    ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
+		    int ion_charge, double ion_mass, double DPerp,
+		    VectorCoefficient & B3Coef,
+		    VectorCoefficient & bHatCoef,
+		    MatrixCoefficient & PerpCoef);
+
+      virtual void SetTimeStep(double dt);
+
+      void Update();
+   };
+  
    class DummyOp : public NLOperator
    {
    public:
@@ -1124,8 +1184,6 @@ private:
       }
 
       void Update();
-
-      // void Mult(const Vector &k, Vector &y) const;
    };
 
    class CombinedOp : public Operator
@@ -1156,8 +1214,10 @@ private:
       CombinedOp(const MPI_Session & mpi, const DGParams & dg,
                  ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                  Array<int> & offsets,
-                 int ion_charge, double neutral_mass, double neutral_temp,
+                 int ion_charge, double ion_mass,
+		 double neutral_mass, double neutral_temp,
                  double DiPerp,
+                 VectorCoefficient & B3Coef,
                  VectorCoefficient & bHatCoef,
                  MatrixCoefficient & PerpCoef,
                  unsigned int op_flag = 31, int logging = 0);
@@ -1200,9 +1260,11 @@ public:
                   ParGridFunctionArray &pgf,
                   ParGridFunctionArray &dpgf,
                   int ion_charge,
+		  double ion_mass,
                   double neutral_mass,
                   double neutral_temp,
                   double Di_perp,
+                  VectorCoefficient & B3Coef,
                   VectorCoefficient & bHatCoef,
                   MatrixCoefficient & perpCoef,
                   Coefficient &MomCCoef,

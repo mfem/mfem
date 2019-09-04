@@ -898,9 +898,11 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                ParGridFunctionArray &pgf,
                                ParGridFunctionArray &dpgf,
                                int ion_charge,
+			       double ion_mass,
                                double neutral_mass,
                                double neutral_temp,
                                double Di_perp,
+                               VectorCoefficient &B3Coef,
                                VectorCoefficient &bHatCoef,
                                MatrixCoefficient &perpCoef,
                                Coefficient &MomCCoef,
@@ -920,8 +922,8 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
      op_(mpi, dg, pgf, dpgf, offsets_,
-         ion_charge, neutral_mass, neutral_temp, Di_perp,
-         bHatCoef, perpCoef, op_flag, logging)//,
+         ion_charge, ion_mass, neutral_mass, neutral_temp, Di_perp,
+         B3Coef, bHatCoef, perpCoef, op_flag, logging)//,
      // oneCoef_(1.0),
      // n_n_oper_(dg, fes, pgf, oneCoef_, imex),
      // n_i_oper_(dg, fes, pgf, oneCoef_, imex),
@@ -1401,6 +1403,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      fes_(pgf[0]->ParFESpace()),
      pmesh_(fes_->GetParMesh()),
      pgf_(&pgf), dpgf_(&dpgf),
+     dbfi_m_(5),
      blf_(5)
 {
    blf_ = NULL;
@@ -1432,40 +1435,41 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
    // cout << "| u[" << index_ << "]| : " << (*pgf_)[index_]->Norml2() << endl;
    // cout << "|du[" << index_ << "]| : " << (*dpgf_)[index_]->Norml2() << endl;
 
-   if (dbfi_m_.Size())
+   ElementTransformation *eltrans = NULL;
+
+   for (int i=0; i < fes_->GetNE(); i++)
    {
-      ElementTransformation *eltrans = NULL;
+      fes_->GetElementVDofs(i, vdofs_);
 
-      for (int i=0; i < fes_->GetNE(); i++)
+      const FiniteElement &fe = *fes_->GetFE(i);
+      eltrans = fes_->GetElementTransformation(i);
+
+      int ndof = vdofs_.Size();
+
+      elvec_.SetSize(ndof);
+      locdvec_.SetSize(ndof);
+
+      elvec_ = 0.0;
+	 
+      for (int j=0; j<5; j++)
       {
-         fes_->GetElementVDofs(i, vdofs_);
+	 if (dbfi_m_[j].Size() > 0)
+	 {
+	    (*dpgf_)[j]->GetSubVector(vdofs_, locdvec_);
 
-         const FiniteElement &fe = *fes_->GetFE(i);
-         eltrans = fes_->GetElementTransformation(i);
-
-         int ndof = vdofs_.Size();
-
-         elvec_.SetSize(ndof);
-         // locvec_.SetSize(ndof);
-         locdvec_.SetSize(ndof);
-
-         // (*pgf_)[0]->GetSubVector(vdofs_, locvec_);
-         (*dpgf_)[index_]->GetSubVector(vdofs_, locdvec_);
-
-         // locvec_.Add(dt_, locdvec_);
-
-         dbfi_m_[0]->AssembleElementMatrix(fe, *eltrans, elmat_);
-         for (int k = 1; k < dbfi_m_.Size(); k++)
-         {
-            dbfi_m_[k]->AssembleElementMatrix(fe, *eltrans, elmat_k_);
-            elmat_ += elmat_k_;
-         }
-
-         elmat_.Mult(locdvec_, elvec_);
-
-         y.AddElementVector(vdofs_, elvec_);
+	    dbfi_m_[j][0]->AssembleElementMatrix(fe, *eltrans, elmat_);
+	    for (int k = 1; k < dbfi_m_[j].Size(); k++)
+	    {
+	       dbfi_m_[j][k]->AssembleElementMatrix(fe, *eltrans, elmat_k_);
+	       elmat_ += elmat_k_;
+	    }
+	    
+	    elmat_.AddMult(locdvec_, elvec_);
+	 }
+	 y.AddElementVector(vdofs_, elvec_);
       }
    }
+
    // cout << "|y| after dbfi_m: " << y.Norml2() << endl;
    if (mpi_.Root() && logging_)
    {
@@ -1796,9 +1800,10 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        ParGridFunctionArray & pgf,
                                        ParGridFunctionArray & dpgf,
                                        Array<int> & offsets,
-                                       int ion_charge,
+                                       int ion_charge, double ion_mass,
                                        double neutral_mass, double neutral_temp,
                                        double DiPerp,
+                                       VectorCoefficient &B3Coef,
                                        VectorCoefficient &bHatCoef,
                                        MatrixCoefficient &PerpCoef,
                                        unsigned int op_flag, int logging)
@@ -1846,12 +1851,22 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
       op_[1]->SetLogging(logging, "n_i (dummy): ");
    }
 
-   op_[2] = new DummyOp(mpi, dg, pgf, dpgf, 2);
+   if ((op_flag >> 2) & 1)
+   {
+      op_[2] = new IonMomentumOp(mpi, dg, pgf, dpgf, ion_charge, ion_mass,
+				 DiPerp, B3Coef, bHatCoef, PerpCoef);
+      op_[2]->SetLogging(logging, "v_i: ");
+   }
+   else
+   {
+      op_[2] = new DummyOp(mpi, dg, pgf, dpgf, 2);
+      op_[2]->SetLogging(logging, "v_i (dummy): ");
+   }
+   
    op_[3] = new DummyOp(mpi, dg, pgf, dpgf, 3);
-   op_[4] = new DummyOp(mpi, dg, pgf, dpgf, 4);
-
-   op_[2]->SetLogging(logging, "v_i (dummy): ");
    op_[3]->SetLogging(logging, "T_i (dummy): ");
+   
+   op_[4] = new DummyOp(mpi, dg, pgf, dpgf, 4);
    op_[4]->SetLogging(logging, "T_e (dummy): ");
    /*
    op_[0] = &n_n_op_;
@@ -2044,7 +2059,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      // diff_(DCoef_),
      // dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
 {
-   dbfi_m_.Append(new MassIntegrator);
+   dbfi_m_[0].Append(new MassIntegrator);
    dbfi_.Append(new DiffusionIntegrator(DCoef_));
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
                                           dg_.sigma,
@@ -2255,21 +2270,25 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
-     niizCoef_(ni1Coef_, izCoef_),
-     dtdSndnnCoef_(0.0, niizCoef_),
-     dtdSndniCoef_(0.0, nnizCoef_)//,
-     // diff_(DCoef_), dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
+     niizCoef_(ni1Coef_, izCoef_)//,
+     // dtdSndnnCoef_(0.0, niizCoef_),
+     // dtdSndniCoef_(0.0, nnizCoef_)
 {
-   dbfi_m_.Append(new MassIntegrator);
+   // dn_i / dt
+   dbfi_m_[1].Append(new MassIntegrator);
+
+   // -Div(D Grad n_i)
    dbfi_.Append(new DiffusionIntegrator(DCoef_));
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
 
+   // Div(v_i n_i)
    dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
    fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
    // bfbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
 
+   // -S_{iz}
    dlfi_.Append(new DomainLFIntegrator(negSizCoef_));
 
    // blf_[0] = new ParBilinearForm((*pgf_)[0]->ParFESpace());
@@ -2303,8 +2322,8 @@ void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
 
    dtDCoef_.SetAConst(dt);
    dtViCoef_.SetAConst(dt);
-   dtdSndnnCoef_.SetAConst(-dt);
-   dtdSndniCoef_.SetAConst(-dt * z_i_);
+   // dtdSndnnCoef_.SetAConst(-dt);
+   // dtdSndniCoef_.SetAConst(-dt * z_i_);
 }
 
 void DGTransportTDO::IonDensityOp::Update()
@@ -2461,13 +2480,113 @@ Operator *DGTransportTDO::IonDensityOp::GetGradientBlock(int i)
 }
 */
 
+DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
+					     const DGParams & dg,
+					     ParGridFunctionArray & pgf,
+					     ParGridFunctionArray & dpgf,
+					     int ion_charge,
+					     double ion_mass,
+					     double DPerp,
+					     VectorCoefficient & B3Coef,
+					     VectorCoefficient & bHatCoef,
+					     MatrixCoefficient & PerpCoef)
+   : NLOperator(mpi, dg, 2, pgf, dpgf), z_i_(ion_charge), m_i_(ion_mass),
+     DPerpConst_(DPerp),
+     DPerpCoef_(DPerp),
+     nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]),
+     Ti0Coef_(pgf[3]), Te0Coef_(pgf[4]),
+     dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dviCoef_(dpgf[2]),
+     dTiCoef_(dpgf[3]), dTeCoef_(dpgf[4]),
+     nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
+     vi1Coef_(vi0Coef_, dviCoef_),
+     Ti1Coef_(Ti0Coef_, dTiCoef_), Te1Coef_(Te0Coef_, dTeCoef_),
+     ne0Coef_(z_i_, ni0Coef_),
+     ne1Coef_(z_i_, ni1Coef_),
+     mini1Coef_(m_i_, ni1Coef_),
+     mivi1Coef_(m_i_, vi1Coef_),
+     EtaCoef_(ion_charge, ion_mass, DPerpCoef_, ni1Coef_, Ti1Coef_, B3Coef),
+     dtEtaCoef_(0.0, EtaCoef_),
+     gradPCoef_(pgf, dpgf, ion_charge, bHatCoef),
+     izCoef_(Te1Coef_),
+     // PerpCoef_(&PerpCoef), DCoef_(DPerpCoef_, *PerpCoef_),
+     // dtDCoef_(0.0, DCoef_),
+     B3Coef_(&B3Coef),
+     bHatCoef_(&bHatCoef),
+     ViCoef_(vi1Coef_, *bHatCoef_), dtViCoef_(0.0, ViCoef_),
+     SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     negSizCoef_(-1.0, SizCoef_),
+     nnizCoef_(nn1Coef_, izCoef_),
+     niizCoef_(ni1Coef_, izCoef_)
+{
+   // m_i v_i dn_i/dt
+   dbfi_m_[1].Append(new MassIntegrator(mivi1Coef_));
+
+   // m_i n_i dv_i/dt
+   dbfi_m_[2].Append(new MassIntegrator(mini1Coef_));
+
+   // -Div(eta Grad v_i)
+   dbfi_.Append(new DiffusionIntegrator(EtaCoef_));
+   fbfi_.Append(new DGDiffusionIntegrator(EtaCoef_,
+                                          dg_.sigma,
+                                          dg_.kappa));
+
+   // b . Grad(p_i + p_e)
+   dlfi_.Append(new DomainLFIntegrator(gradPCoef_));
+   /*
+   dbfi_.Append(new DiffusionIntegrator(DCoef_));
+   fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
+                                          dg_.sigma,
+                                          dg_.kappa));
+
+   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
+   fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
+
+   dlfi_.Append(new DomainLFIntegrator(negSizCoef_));
+
+   blf_[2] = new ParBilinearForm((*pgf_)[2]->ParFESpace());
+   blf_[2]->AddDomainIntegrator(new MassIntegrator);
+   blf_[2]->AddDomainIntegrator(new DiffusionIntegrator(dtDCoef_));
+   blf_[2]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
+                                                                dg_.sigma,
+                                                                dg_.kappa));
+   blf_[2]->AddDomainIntegrator(
+      new MixedScalarWeakDivergenceIntegrator(dtViCoef_));
+   blf_[2]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtViCoef_,
+                                                            1.0, -0.5));
+   */
+}
+
+
+void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
+{
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time step: " << dt << " in IonMomentumOp" << endl;
+   }
+   NLOperator::SetTimeStep(dt);
+
+   nn1Coef_.SetBeta(dt);
+   ni1Coef_.SetBeta(dt);
+   vi1Coef_.SetBeta(dt);
+   Ti1Coef_.SetBeta(dt);
+   Te1Coef_.SetBeta(dt);
+
+   dtEtaCoef_.SetAConst(dt);
+   dtViCoef_.SetAConst(dt);
+}
+
+void DGTransportTDO::IonMomentumOp::Update()
+{
+   NLOperator::Update();
+}
+
 DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
                                  ParGridFunctionArray & pgf,
                                  ParGridFunctionArray & dpgf,
                                  int index)
    : NLOperator(mpi, dg, index, pgf, dpgf)
 {
-   dbfi_m_.Append(new MassIntegrator);
+   dbfi_m_[index].Append(new MassIntegrator);
 
    blf_[index_] = new ParBilinearForm((*pgf_)[index_]->ParFESpace());
    blf_[index_]->AddDomainIntegrator(new MassIntegrator);
