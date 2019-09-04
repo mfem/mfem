@@ -58,13 +58,13 @@ class DarcyProblem
     Vector ess_data_;
     ParGridFunction u_;
     ParGridFunction p_;
-    DFSDataCollector collector_;
+    ParMesh mesh_;
     VectorFunctionCoefficient ucoeff_;
     FunctionCoefficient pcoeff_;
+    DFSDataCollector collector_;
     const IntegrationRule *irs_[Geometry::NumGeom];
-    bool verbose_;
 public:
-    DarcyProblem(ParMesh* mesh, int num_refines, int order, bool verbose,
+    DarcyProblem(Mesh& mesh, int num_refines, int order,
                  Array<int>& ess_bdr, DFSParameters param);
 
     HypreParMatrix& GetM() { return *M_.As<HypreParMatrix>(); }
@@ -73,22 +73,22 @@ public:
     const Vector& GetBC() { return ess_data_; }
     const DFSDataCollector& GetDFSDataCollector() const { return collector_; }
 
-    void ShowError(const Vector& sol, ParMesh* mesh);
+    void ShowError(const Vector& sol, bool verbose);
 };
 
-DarcyProblem::DarcyProblem(ParMesh* mesh, int num_refines, int order, bool verbose,
+DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
                            Array<int>& ess_bdr, DFSParameters dfs_param)
-    : collector_(order, num_refines, mesh, ess_bdr, dfs_param),
-      ucoeff_(mesh->Dimension(), uFun_ex), pcoeff_(pFun_ex), verbose_(verbose)
+    : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), uFun_ex),
+      pcoeff_(pFun_ex), collector_(order, num_refines, &mesh_, ess_bdr, dfs_param)
 {
     for (int l = 0; l < num_refines; l++)
     {
-        mesh->UniformRefinement();
-        collector_.CollectData(mesh);
+        mesh_.UniformRefinement();
+        collector_.CollectData(&mesh_);
     }
 
     // 8. Define the coefficients, analytical solution, and rhs of the PDE.
-    VectorFunctionCoefficient fcoeff(mesh->Dimension(), fFun);
+    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), fFun);
     FunctionCoefficient fnatcoeff(f_natural);
     FunctionCoefficient gcoeff(gFun);
 
@@ -132,15 +132,6 @@ DarcyProblem::DarcyProblem(ParMesh* mesh, int num_refines, int order, bool verbo
     Vector ess_data_block0(ess_data_.GetData(), M_->NumRows());
     u_.ParallelProject(ess_data_block0);
 
-    if (verbose)
-    {
-        cout << "***********************************************************\n";
-        cout << "dim(R) = " << M_.As<HypreParMatrix>()->M() << ", ";
-        cout << "dim(W) = " << B_.As<HypreParMatrix>()->M() << ", ";
-        cout << "dim(N) = " << collector_.hcurl_fes_->GlobalTrueVSize() << "\n";
-        cout << "***********************************************************\n";
-    }
-
     int order_quad = max(2, 2*order+1);
     for (int i=0; i < Geometry::NumGeom; ++i)
     {
@@ -148,18 +139,18 @@ DarcyProblem::DarcyProblem(ParMesh* mesh, int num_refines, int order, bool verbo
     }
 }
 
-void DarcyProblem::ShowError(const Vector &sol, ParMesh* mesh)
+void DarcyProblem::ShowError(const Vector &sol, bool verbose)
 {
     u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
     p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
 
     double err_u  = u_.ComputeL2Error(ucoeff_, irs_);
-    double norm_u = ComputeGlobalLpNorm(2, ucoeff_, *mesh, irs_);
+    double norm_u = ComputeGlobalLpNorm(2, ucoeff_, mesh_, irs_);
     double err_p  = p_.ComputeL2Error(pcoeff_, irs_);
-    double norm_p = ComputeGlobalLpNorm(2, pcoeff_, *mesh, irs_);
+    double norm_p = ComputeGlobalLpNorm(2, pcoeff_, mesh_, irs_);
 
-    if (!verbose_) return;
-    cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+    if (!verbose) return;
+    cout << "\n|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
     cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 }
 
@@ -178,89 +169,87 @@ int main(int argc, char *argv[])
     // 2. Parse command-line options.
     int order = 0;
     int num_refines = 2;
+    bool use_tet_mesh = false;
     bool show_error = false;
-
     OptionsParser args(argc, argv);
     args.AddOption(&order, "-o", "--order",
                    "Finite element order (polynomial degree).");
     args.AddOption(&num_refines, "-r", "--ref",
                    "Number of parallel refinement steps.");
+    args.AddOption(&use_tet_mesh, "-tet", "--tet-mesh", "-hex", "--hex-mesh",
+                   "Use a tetrahedral or hexahedral mesh (on unit cube).");
     args.AddOption(&show_error, "-se", "--show-error", "-no-se", "--no-show-error",
-                   "Show approximation error with respect to exact solution.");
+                   "Show or not show approximation error.");
     args.Parse();
     if (!args.Good())
     {
-        if (verbose)
-        {
-            args.PrintUsage(cout);
-        }
+        if (verbose) args.PrintUsage(cout);
         MPI_Finalize();
         return 1;
     }
-    if (verbose)
-    {
-        args.PrintOptions(cout);
-    }
+    if (verbose) args.PrintOptions(cout);
 
-    Mesh *mesh = new Mesh(2, 2, 2, mfem::Element::HEXAHEDRON, true);
-    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-    delete mesh;
+    auto elem_type = use_tet_mesh ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+    Mesh mesh(2, 2, 2, elem_type, true);
 
-    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+    Array<int> ess_bdr(mesh.bdr_attributes.Max());
     ess_bdr = 0;
     ess_bdr[1] = 1;
 
-    bool is_tet = pmesh->GetElementType(0) == Element::TETRAHEDRON;
     IterSolveParameters param;
     DFSParameters dfs_param;
-    dfs_param.MG_type = order > 0 && is_tet ? AlgebraicMG : GeometricMG;
+    dfs_param.MG_type = order > 0 && use_tet_mesh ? AlgebraicMG : GeometricMG;
     dfs_param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
+    if (order > 0 && use_tet_mesh) dfs_param.ml_particular = false;
 
-    ResetTimer();
-    DarcyProblem* darcy_problem = new DarcyProblem(pmesh, num_refines, order,
-                                                   verbose, ess_bdr, dfs_param);
-    if (verbose) cout << "Algebraic system assembled in " << chrono.RealTime() << "s.\n";
-
-    HypreParMatrix& M = darcy_problem->GetM();
-    HypreParMatrix& B = darcy_problem->GetB();
-    const DFSDataCollector& collector = darcy_problem->GetDFSDataCollector();
-
-    std::map<const DarcySolver*, double> solver_setup_time;
-
-    ResetTimer();
-    DarcySolver* dfs = new DivFreeSolver(M, B, collector.hcurl_fes_.get(),
-                                         collector.GetData());
-    solver_setup_time[dfs] = chrono.RealTime();
-
-    ResetTimer();
-    DarcySolver* bdp = new BDPMinresSolver(M, B, param);
-    solver_setup_time[dfs] = chrono.RealTime();
-
-    std::map<const DarcySolver*, std::string> solver_to_name;
-    solver_to_name[dfs] = "Divergence free";
-    solver_to_name[bdp] = "Block-diagonal-preconditioned MINRES";
-
-    for (const auto& solver_pair : solver_to_name)
+    string line = "\n*******************************************************\n";
     {
-        auto& solver = solver_pair.first;
-        auto& name = solver_pair.second;
-
-        if (verbose) cout << name << " solver:\n";
-
-        const Vector& rhs = darcy_problem->GetRHS();
-        Vector sol = darcy_problem->GetBC();
         ResetTimer();
-        solver->Mult(rhs, sol);
+        DarcyProblem darcy(mesh, num_refines, order, ess_bdr, dfs_param);
+        HypreParMatrix& M = darcy.GetM();
+        HypreParMatrix& B = darcy.GetB();
+        const DFSDataCollector& collector = darcy.GetDFSDataCollector();
 
-        if (verbose) cout << "  setup time: " << solver_setup_time[solver] << "s.\n";
-        if (verbose) cout << "  solve time: " << chrono.RealTime() << "s.\n";
-        if (show_error) darcy_problem->ShowError(sol, pmesh);
+        if (verbose)
+        {
+            cout << line << "dim(R) = " << M.M() << ", dim(W) = " << B.M() << ", ";
+            cout << "dim(N) = " << collector.hcurl_fes_->GlobalTrueVSize() << "\n";
+            cout << "System assembled in " << chrono.RealTime() << "s.\n";
+        }
+
+        std::map<const DarcySolver*, double> setup_time;
+        ResetTimer();
+        DivFreeSolver dfs(M, B, collector.hcurl_fes_.get(), collector.GetData());
+        setup_time[&dfs] = chrono.RealTime();
+
+        ResetTimer();
+        BDPMinresSolver bdp(M, B, param);
+        setup_time[&bdp] = chrono.RealTime();
+
+        std::map<const DarcySolver*, std::string> solver_to_name;
+        solver_to_name[&dfs] = "Divergence free";
+        solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
+
+        for (const auto& solver_pair : solver_to_name)
+        {
+            auto& solver = solver_pair.first;
+            auto& name = solver_pair.second;
+
+            if (verbose) cout << line << name << " solver:\n";
+            if (verbose) cout << "  setup time: " << setup_time[solver] << "s.\n";
+
+            const Vector& rhs = darcy.GetRHS();
+            Vector sol = darcy.GetBC();
+            ResetTimer();
+            solver->Mult(rhs, sol);
+
+            if (verbose) cout << "  solve time: " << chrono.RealTime() << "s.\n";
+            if (verbose) cout << "  iteration count: "
+                              << solver->GetNumIterations() <<"\n";
+            if (show_error) darcy.ShowError(sol, verbose);
+        }
     }
 
-    delete dfs;
-    delete bdp;
-    delete darcy_problem;
-    delete pmesh;
     MPI_Finalize();
     return 0;
 }
