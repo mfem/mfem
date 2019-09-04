@@ -15,7 +15,7 @@ struct IterSolveParameters
     bool iter_mode = false;
 };
 
-struct DivFreeSolverParameters
+struct DFSParameters
 {
     bool ml_particular = true;
     MG_Type MG_type = GeometricMG;
@@ -25,7 +25,7 @@ struct DivFreeSolverParameters
     IterSolveParameters BBT_solve_param;
 };
 
-struct DivFreeSolverData
+struct DFSData
 {
     Array<OperatorPtr> agg_hdivdof;
     Array<OperatorPtr> agg_l2dof;
@@ -35,7 +35,7 @@ struct DivFreeSolverData
     Array<OperatorPtr> Q_l2;            // Q_l2[l] = W_l P_l2[l] (W_{l+1})^{-1}
     Array<int> coarsest_ess_hdivdofs;
     OperatorPtr C;                      // discrete curl: ND -> RT
-    DivFreeSolverParameters param;
+    DFSParameters param;
 };
 
 void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
@@ -83,7 +83,7 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
-class DivFreeSolverDataCollector
+class DFSDataCollector
 {
     RT_FECollection hdiv_fec_;
     L2_FECollection l2_fec_;
@@ -101,18 +101,17 @@ class DivFreeSolverDataCollector
 
     int level_;
     int order_;
-    DivFreeSolverData data_;
+    DFSData data_;
 
     void MakeDofRelationTables(int level);
     void DataFinalize(ParMesh* mesh);
 public:
-    DivFreeSolverDataCollector(int order, int num_refine, ParMesh *mesh,
-                               const Array<int>& ess_bdr_attr,
-                               const DivFreeSolverParameters& param);
+    DFSDataCollector(int order, int num_refine, ParMesh *mesh,
+                     const Array<int>& ess_attr, const DFSParameters& param);
 
     void CollectData(ParMesh *mesh);
 
-    const DivFreeSolverData& GetData() const { return data_; }
+    const DFSData& GetData() const { return data_; }
 
     unique_ptr<ParFiniteElementSpace> hdiv_fes_;
     unique_ptr<ParFiniteElementSpace> l2_fes_;
@@ -121,13 +120,12 @@ public:
 
 class MLDivSolver : public Solver
 {
-    const DivFreeSolverData& data_;
+    const DFSData& data_;
     Array<Array<OperatorPtr> > agg_solver_;
     OperatorPtr coarsest_B_;
     OperatorPtr coarsest_solver_;
 public:
-    MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B,
-                const DivFreeSolverData& data);
+    MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const DFSData& data);
 
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
@@ -146,7 +144,7 @@ class DivFreeSolver : public Solver
 
     Array<int> offsets_;
 
-    const DivFreeSolverData& data_;
+    const DFSData& data_;
 
     // Find a particular solution for div sigma_p = f
     void SolveParticular(const Vector& rhs, Vector& sol) const;
@@ -154,8 +152,7 @@ class DivFreeSolver : public Solver
     void SolvePotential(const Vector &rhs, Vector& sol) const;
 public:
     DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
-                  ParFiniteElementSpace* hcurl_fes,
-                  const DivFreeSolverData& data);
+                  ParFiniteElementSpace* hcurl_fes, const DFSData& data);
 
     virtual void Mult(const Vector & x, Vector & y) const;
 

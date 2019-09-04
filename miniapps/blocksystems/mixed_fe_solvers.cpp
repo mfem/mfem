@@ -228,18 +228,17 @@ SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
     return SparseMatrix(I, J, D, fes.GetNE(), fes.GetVSize());
 }
 
-DivFreeSolverDataCollector::
-DivFreeSolverDataCollector(int order, int num_refine, ParMesh *mesh,
-                           const Array<int>& ess_bdr_attr,
-                           const DivFreeSolverParameters& param)
+DFSDataCollector::
+DFSDataCollector(int order, int num_refine, ParMesh *mesh,
+                 const Array<int>& ess_attr, const DFSParameters& param)
     : hdiv_fec_(order, mesh->Dimension()), l2_fec_(order, mesh->Dimension()),
       hcurl_fec_(order+1, mesh->Dimension()), l2_0_fec_(0, mesh->Dimension()),
-      ess_bdr_attr_(ess_bdr_attr), level_(num_refine), order_(order)
+      ess_bdr_attr_(ess_attr), level_(num_refine), order_(order)
 {
     data_.param = param;
     if (data_.param.ml_particular)
     {
-        all_bdr_attr_.SetSize(ess_bdr_attr.Size(), 1);
+        all_bdr_attr_.SetSize(ess_attr.Size(), 1);
         hdiv_fes_.reset(new ParFiniteElementSpace(mesh, &hdiv_fec_));
         l2_fes_.reset(new ParFiniteElementSpace(mesh, &l2_fec_));
         coarse_hdiv_fes_.reset(new ParFiniteElementSpace(*hdiv_fes_));
@@ -254,7 +253,7 @@ DivFreeSolverDataCollector(int order, int num_refine, ParMesh *mesh,
         data_.P_hdiv.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
         data_.P_l2.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
         data_.Q_l2.SetSize(num_refine);
-        hdiv_fes_->GetEssentialTrueDofs(ess_bdr_attr_, data_.coarsest_ess_hdivdofs);
+        hdiv_fes_->GetEssentialTrueDofs(ess_attr, data_.coarsest_ess_hdivdofs);
     }
 
     if (data_.param.MG_type == GeometricMG)
@@ -302,7 +301,7 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
     return Transpose(intdof_agg);
 }
 
-void DivFreeSolverDataCollector::MakeDofRelationTables(int level)
+void DFSDataCollector::MakeDofRelationTables(int level)
 {
     Array<int> agg_starts(Array<int>(l2_0_fes_->GetDofOffsets(), 2));
     auto& elem_agg = (const SparseMatrix&)*l2_0_fes_->GetUpdateOperator();
@@ -319,7 +318,7 @@ void DivFreeSolverDataCollector::MakeDofRelationTables(int level)
     data_.agg_hdivdof[level].Reset(tmp);
 }
 
-void DivFreeSolverDataCollector::DataFinalize(ParMesh* mesh)
+void DFSDataCollector::DataFinalize(ParMesh* mesh)
 {
     if (data_.param.MG_type == AlgebraicMG)
     {
@@ -363,7 +362,7 @@ void DivFreeSolverDataCollector::DataFinalize(ParMesh* mesh)
     l2_0_fes_.reset();
 }
 
-void DivFreeSolverDataCollector::CollectData(ParMesh* mesh)
+void DFSDataCollector::CollectData(ParMesh* mesh)
 {
     --level_;
 
@@ -389,8 +388,7 @@ void DivFreeSolverDataCollector::CollectData(ParMesh* mesh)
     if (level_ == 0) DataFinalize(mesh);
 }
 
-MLDivSolver::MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B,
-                         const DivFreeSolverData& data)
+MLDivSolver::MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const DFSData& data)
     : data_(data), agg_solver_(data.P_l2.Size())
 {
     const unsigned int num_levels = agg_solver_.Size()+1;
@@ -476,8 +474,7 @@ void MLDivSolver::Mult(const Vector & x, Vector & y) const
 }
 
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
-                             ParFiniteElementSpace* hcurl_fes,
-                             const DivFreeSolverData& data)
+                             ParFiniteElementSpace* hcurl_fes, const DFSData& data)
     : Solver(M.NumRows()+B.NumRows()), M_(M), B_(B),
       BBT_solver_(B, data.param.B_has_nullity_one, data.param.BBT_solve_param),
       CTMC_solver_(B_.GetComm()),
