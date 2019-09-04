@@ -167,6 +167,9 @@ int main(int argc, char *argv[])
         cout << "***********************************************************\n";
     }
 
+    chrono.Clear();
+    chrono.Start();
+
     // 7. Define the two BlockStructure of the problem.  block_offsets is used
     //    for Vector based on dof (like ParGridFunction or ParLinearForm),
     //    block_trueOffstes is used for Vector based on trueDof (HypreParVector
@@ -246,6 +249,8 @@ int main(int argc, char *argv[])
 
     fform->ParallelAssemble(trueRhs.GetBlock(0));
     gform->ParallelAssemble(trueRhs.GetBlock(1));
+
+    if (verbose) cout << "Algebraic system assembled in " << chrono.RealTime() << "s.\n";
 
     if (divfree)
     {
