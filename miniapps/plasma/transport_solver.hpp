@@ -204,6 +204,52 @@ inline double eta_i_para(double ma, double Ta,
 }
 */
 
+class ParGridFunctionArray : public Array<ParGridFunction*>
+{
+public:
+   ParGridFunctionArray() {}
+   ParGridFunctionArray(int size) : Array<ParGridFunction*>(size) {}
+   ParGridFunctionArray(int size, ParFiniteElementSpace *pf)
+      : Array<ParGridFunction*>(size)
+   {
+      for (int i=0; i<size; i++)
+      {
+         data[i] = new ParGridFunction(pf);
+      }
+   }
+
+   void ProjectCoefficient(Array<Coefficient*> &coeff)
+   {
+      for (int i=0; i<size; i++)
+      {
+         if (coeff[i] != NULL)
+         {
+            data[i]->ProjectCoefficient(*coeff[i]);
+         }
+         else
+         {
+            *data[i] = 0.0;
+         }
+      }
+   }
+
+   void Update()
+   {
+      for (int i=0; i<size; i++)
+      {
+         data[i]->Update();
+      }
+   }
+
+   void ExchangeFaceNbrData()
+   {
+      for (int i=0; i<size; i++)
+      {
+         data[i]->ExchangeFaceNbrData();
+      }
+   }
+};
+
 class StateVariableFunc
 {
 public:
@@ -522,56 +568,223 @@ public:
    }
 };
 
+class IonMomentumDiffusionCoef : public StateVariableMatCoef
+{
+private:
+   double zi_;
+   double mi_;
+   const double lnLambda_;
+   const double a_;
+  
+   Coefficient       * Dperp_;
+   Coefficient       * niCoef_;
+   Coefficient       * TiCoef_;
+   VectorCoefficient * B3_;
+
+   mutable Vector B_;
+
+public:
+  IonMomentumDiffusionCoef(int ion_charge, double ion_mass,
+			   Coefficient &DperpCoef,
+			   Coefficient &niCoef, Coefficient &TiCoef,
+			   VectorCoefficient &B3Coef)
+    : StateVariableMatCoef(2), zi_((double)ion_charge), mi_(ion_mass),
+      lnLambda_(17.0),
+      a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+	 sqrt(mi_ * amu_ * pow(eV_, 5) / M_PI) /
+	 (lnLambda_ * pow(q_ * zi_, 4))),
+      Dperp_(&DperpCoef), niCoef_(&niCoef), TiCoef_(&TiCoef),
+      B3_(&B3Coef), B_(3) {}
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   void Eval_Func(DenseMatrix & M,
+                  ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      M.SetSize(2);
+
+      double Dperp = Dperp_->Eval(T, ip);
+      
+      double ni = niCoef_->Eval(T, ip);
+      double Ti = TiCoef_->Eval(T, ip);
+      
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+
+      double EtaPerp = mi_ * ni * Dperp;
+      
+      M(0,0) = (B_[1] * B_[1] + B_[2] * B_[2]) * EtaPerp / Bmag2;
+      M(0,1) = -B_[0] * B_[1] * EtaPerp / Bmag2;
+      M(1,0) = M(0,1);
+      M(1,1) = (B_[0] * B_[0] + B_[2] * B_[2]) * EtaPerp / Bmag2;
+
+      double EtaPara = a_ * sqrt(pow(Ti, 5));
+
+      M(0,0) += B_[0] * B_[0] * EtaPara / Bmag2;
+      M(0,1) += B_[0] * B_[1] * EtaPara / Bmag2;
+      M(1,0) += B_[0] * B_[1] * EtaPara / Bmag2;
+      M(1,1) += B_[1] * B_[1] * EtaPara / Bmag2;
+   }
+
+};
+
+class GradPressureCoefficient : public StateVariableCoef
+{
+private:
+   double zi_; // Stored as a double to avoid type casting in Eval methods
+   double dt_;
+
+   GridFunctionCoefficient ni0_;
+   GridFunctionCoefficient Ti0_;
+   GridFunctionCoefficient Te0_;
+
+   GridFunctionCoefficient dni0_;
+   GridFunctionCoefficient dTi0_;
+   GridFunctionCoefficient dTe0_;
+
+   GradientGridFunctionCoefficient grad_ni0_;
+   GradientGridFunctionCoefficient grad_Ti0_;
+   GradientGridFunctionCoefficient grad_Te0_;
+
+   GradientGridFunctionCoefficient grad_dni0_;
+   GradientGridFunctionCoefficient grad_dTi0_;
+   GradientGridFunctionCoefficient grad_dTe0_;
+
+   VectorCoefficient * bHatCoef_;
+
+   mutable Vector gni0_;
+   mutable Vector gTi0_;
+   mutable Vector gTe0_;
+
+   mutable Vector gdni0_;
+   mutable Vector gdTi0_;
+   mutable Vector gdTe0_;
+
+   mutable Vector gni1_;
+   mutable Vector gTi1_;
+   mutable Vector gTe1_;
+
+   mutable Vector b_;
+  
+public:
+  GradPressureCoefficient(ParGridFunctionArray &pgf,
+			  ParGridFunctionArray &dpgf,
+			  int zi, VectorCoefficient & bHatCoef)
+    : zi_((double)zi), dt_(0.0),
+      ni0_(pgf[1]), Ti0_(pgf[3]), Te0_(pgf[4]),
+      dni0_(dpgf[1]), dTi0_(dpgf[3]), dTe0_(dpgf[4]),
+      grad_ni0_(pgf[1]), grad_Ti0_(pgf[3]), grad_Te0_(pgf[4]),
+      grad_dni0_(dpgf[1]), grad_dTi0_(dpgf[3]), grad_dTe0_(dpgf[4]),
+      bHatCoef_(&bHatCoef) {}
+  
+   void SetTimeStep(double dt) { dt_ = dt; }
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+     return (deriv == INVALID ||
+	     deriv == ION_DENSITY || deriv == ION_TEMPERATURE ||
+	     deriv == ELECTRON_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+     double ni0 = ni0_.Eval(T, ip);
+     double Ti0 = Ti0_.Eval(T, ip);
+     double Te0 = Te0_.Eval(T, ip);
+
+     double dni0 = dni0_.Eval(T, ip);
+     double dTi0 = dTi0_.Eval(T, ip);
+     double dTe0 = dTe0_.Eval(T, ip);
+
+     double ni1 = ni0 + dt_ * dni0;
+     double Ti1 = Ti0 + dt_ * dTi0;
+     double Te1 = Te0 + dt_ * dTe0;
+     
+     grad_ni0_.Eval(gni0_, T, ip);
+     grad_Ti0_.Eval(gTi0_, T, ip);
+     grad_Te0_.Eval(gTe0_, T, ip);
+
+     grad_dni0_.Eval(gdni0_, T, ip);
+     grad_dTi0_.Eval(gdTi0_, T, ip);
+     grad_dTe0_.Eval(gdTe0_, T, ip);
+
+     gni1_.SetSize(gni0_.Size());
+     gTi1_.SetSize(gTi0_.Size());
+     gTe1_.SetSize(gTe0_.Size());
+
+     add(gni0_, dt_, gdni0_, gni1_);
+     add(gTi0_, dt_, gdTi0_, gTi1_);
+     add(gTe0_, dt_, gdTe0_, gTe1_);
+     
+     bHatCoef_->Eval(b_, T, ip);
+     
+     return eV_ * ((zi_ * Te1 + Ti1) * (b_ * gni1_) +
+		   (zi_ * (b_ * gTe1_) + (b_ * gTi1_)) * ni1);
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+		   const IntegrationPoint &ip)
+  {
+     grad_Ti0_.Eval(gTi0_, T, ip);
+     grad_Te0_.Eval(gTe0_, T, ip);
+
+     grad_dTi0_.Eval(gdTi0_, T, ip);
+     grad_dTe0_.Eval(gdTe0_, T, ip);
+
+     gTi1_.SetSize(gTi0_.Size());
+     gTe1_.SetSize(gTe0_.Size());
+
+     add(gTi0_, dt_, gdTi0_, gTi1_);
+     add(gTe0_, dt_, gdTe0_, gTe1_);
+     
+     bHatCoef_->Eval(b_, T, ip);
+     
+     return eV_ * (dt_ * zi_ * (b_ * gTe1_) + (b_ * gTi1_));
+  }
+
+   double Eval_dTi(ElementTransformation &T,
+		   const IntegrationPoint &ip)
+  {
+     grad_ni0_.Eval(gni0_, T, ip);
+
+     grad_dni0_.Eval(gdni0_, T, ip);
+
+     gni1_.SetSize(gni0_.Size());
+
+     add(gni0_, dt_, gdni0_, gni1_);
+     
+     bHatCoef_->Eval(b_, T, ip);
+     
+     return eV_ * dt_ * (b_ * gni1_);
+  }
+
+   double Eval_dTe(ElementTransformation &T,
+		   const IntegrationPoint &ip)
+  {
+     grad_ni0_.Eval(gni0_, T, ip);
+
+     grad_dni0_.Eval(gdni0_, T, ip);
+
+     gni1_.SetSize(gni0_.Size());
+
+     add(gni0_, dt_, gdni0_, gni1_);
+     
+     bHatCoef_->Eval(b_, T, ip);
+     
+     return eV_ * dt_ * zi_ * (b_ * gni1_);
+  }
+};
+
 struct DGParams
 {
    double sigma;
    double kappa;
-};
-
-class ParGridFunctionArray : public Array<ParGridFunction*>
-{
-public:
-   ParGridFunctionArray() {}
-   ParGridFunctionArray(int size) : Array<ParGridFunction*>(size) {}
-   ParGridFunctionArray(int size, ParFiniteElementSpace *pf)
-      : Array<ParGridFunction*>(size)
-   {
-      for (int i=0; i<size; i++)
-      {
-         data[i] = new ParGridFunction(pf);
-      }
-   }
-
-   void ProjectCoefficient(Array<Coefficient*> &coeff)
-   {
-      for (int i=0; i<size; i++)
-      {
-         if (coeff[i] != NULL)
-         {
-            data[i]->ProjectCoefficient(*coeff[i]);
-         }
-         else
-         {
-            *data[i] = 0.0;
-         }
-      }
-   }
-
-   void Update()
-   {
-      for (int i=0; i<size; i++)
-      {
-         data[i]->Update();
-      }
-   }
-
-   void ExchangeFaceNbrData()
-   {
-      for (int i=0; i<size; i++)
-      {
-         data[i]->ExchangeFaceNbrData();
-      }
-   }
 };
 
 class DGAdvectionDiffusionTDO : public TimeDependentOperator
