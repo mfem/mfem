@@ -83,6 +83,15 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
+class DarcySolver : public Solver
+{
+protected:
+    Array<int> offsets_;
+public:
+    DarcySolver(int size0, int size1) : Solver(size0 + size1), offsets_(3)
+    { offsets_[0] = 0; offsets_[1] = size0; offsets_[2] = height; }
+};
+
 class DFSDataCollector
 {
     RT_FECollection hdiv_fec_;
@@ -131,7 +140,7 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
-class DivFreeSolver : public Solver
+class DivFreeSolver : public DarcySolver
 {
     const HypreParMatrix& M_;
     const HypreParMatrix& B_;
@@ -141,8 +150,6 @@ class DivFreeSolver : public Solver
     OperatorPtr CTMC_;
     OperatorPtr CTMC_prec_;
     CGSolver CTMC_solver_;
-
-    Array<int> offsets_;
 
     const DFSData& data_;
 
@@ -180,14 +187,18 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
-/// Wrapper for the block diagonal preconditioner defined in ex5p.cpp
-class L2H1Preconditioner : public BlockDiagonalPreconditioner
+/// Wrapper for the block diagonally preconditioned solver defined in ex5p.cpp
+class BDPMinresSolver : public DarcySolver
 {
-    OperatorPtr S_;
+    BlockOperator op_;
+    BlockDiagonalPreconditioner prec_;
+    OperatorPtr BT_;
+    OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
+    MINRESSolver solver_;
 public:
-    L2H1Preconditioner(HypreParMatrix& M,
-                       HypreParMatrix& B,
-                       const Array<int>& offsets);
+    BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param);
+    virtual void Mult(const Vector & x, Vector & y) const;
+    virtual void SetOperator(const Operator &op) { }
 };
 
 

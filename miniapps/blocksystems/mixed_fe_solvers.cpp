@@ -160,7 +160,7 @@ void BBTSolver::Mult(const Vector &x, Vector &y) const
     if (B_has_nullity_one_) const_cast<Vector&>(x)[0] = 0.0;
     BBT_solver_.Mult(x, y);
     if (B_has_nullity_one_) const_cast<Vector&>(x)[0] = x_0;
-    PrintConvergence(BBT_solver_, verbose_);
+    PrintConvergence(BBT_solver_, false);
 }
 
 LocalSolver::LocalSolver(const DenseMatrix& B)
@@ -475,15 +475,10 @@ void MLDivSolver::Mult(const Vector & x, Vector & y) const
 
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              ParFiniteElementSpace* hcurl_fes, const DFSData& data)
-    : Solver(M.NumRows()+B.NumRows()), M_(M), B_(B),
+    : DarcySolver(M.NumRows(), B.NumRows()), M_(M), B_(B),
       BBT_solver_(B, data.param.B_has_nullity_one, data.param.BBT_solve_param),
-      CTMC_solver_(B_.GetComm()),
-      offsets_(3), data_(data)
+      CTMC_solver_(B_.GetComm()), data_(data)
 {
-    offsets_[0] = 0;
-    offsets_[1] = M.NumCols();
-    offsets_[2] = offsets_[1] + B.NumRows();
-
     if (data.param.ml_particular)
         particular_solver_.Reset(new MLDivSolver(M, B, data));
 
@@ -637,22 +632,34 @@ void Multigrid::MG_Cycle(int level) const
     correct_[level] += cor_cor_;
 }
 
-L2H1Preconditioner::L2H1Preconditioner(HypreParMatrix& M,
-                                       HypreParMatrix& B,
-                                       const Array<int>& offsets)
-    : BlockDiagonalPreconditioner(offsets)
+BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
+                                 IterSolveParameters param)
+    : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
+      BT_(B.Transpose()), solver_(M.GetComm())
 {
+    op_.SetBlock(0,0, &M);
+    op_.SetBlock(0,1, BT_.As<HypreParMatrix>());
+    op_.SetBlock(1,0, &B);
+
     Vector Md;
     M.GetDiag(Md);
-    OperatorPtr MinvBt(B.Transpose());
-    MinvBt.As<HypreParMatrix>()->InvScaleRows(Md);
-    S_.Reset(ParMult(&B, MinvBt.As<HypreParMatrix>()));
-    S_.As<HypreParMatrix>()->CopyRowStarts();
-    S_.As<HypreParMatrix>()->CopyColStarts();
+    BT_.As<HypreParMatrix>()->InvScaleRows(Md);
+    S_.Reset(ParMult(&B, BT_.As<HypreParMatrix>()));
+    BT_.As<HypreParMatrix>()->ScaleRows(Md);
 
-    SetDiagonalBlock(0, new HypreDiagScale(M));
-    SetDiagonalBlock(1, new HypreBoomerAMG(*S_.As<HypreParMatrix>()));
-    static_cast<HypreBoomerAMG&>(GetDiagonalBlock(1)).SetPrintLevel(0);
-    owns_blocks = true;
+    prec_.SetDiagonalBlock(0, new HypreDiagScale(M));
+    prec_.SetDiagonalBlock(1, new HypreBoomerAMG(*S_.As<HypreParMatrix>()));
+    static_cast<HypreBoomerAMG&>(prec_.GetDiagonalBlock(1)).SetPrintLevel(0);
+    prec_.owns_blocks = true;
+
+    SetOptions(solver_, param);
+    solver_.SetOperator(op_);
+    solver_.SetPreconditioner(prec_);
+}
+
+void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
+{
+    solver_.Mult(x, y);
+    PrintConvergence(solver_, false);
 }
 
