@@ -2383,6 +2383,23 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
 
    // b . Grad(p_i + p_e)
    dlfi_.Append(new DomainLFIntegrator(gradPCoef_));
+
+   // dOp / dn_i
+   blf_[1] = new ParBilinearForm((*pgf_)[1]->ParFESpace());
+   blf_[1]->AddDomainIntegrator(new MassIntegrator(mivi1Coef_));
+   // ToDo: add d(gradPCoef)/dn_i
+   
+   // dOp / dv_i
+   blf_[2] = new ParBilinearForm((*pgf_)[2]->ParFESpace());
+   blf_[2]->AddDomainIntegrator(new MassIntegrator(mini1Coef_));
+   blf_[2]->AddDomainIntegrator(new DiffusionIntegrator(dtEtaCoef_));
+   blf_[2]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtEtaCoef_,
+                                                                dg_.sigma,
+                                                                dg_.kappa));
+
+   // ToDo: add d(gradPCoef)/dT_i
+   // ToDo: add d(gradPCoef)/dT_e
+   
    /*
    dbfi_.Append(new DiffusionIntegrator(DCoef_));
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
