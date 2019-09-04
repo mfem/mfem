@@ -90,6 +90,7 @@ protected:
 public:
     DarcySolver(int size0, int size1) : Solver(size0 + size1), offsets_(3)
     { offsets_[0] = 0; offsets_[1] = size0; offsets_[2] = height; }
+    virtual int GetNumIterations() const = 0;
 };
 
 class DFSDataCollector
@@ -160,10 +161,9 @@ class DivFreeSolver : public DarcySolver
 public:
     DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
                   ParFiniteElementSpace* hcurl_fes, const DFSData& data);
-
     virtual void Mult(const Vector & x, Vector & y) const;
-
     virtual void SetOperator(const Operator &op) { }
+    virtual int GetNumIterations() const { return CTMC_solver_.GetNumIterations(); }
 };
 
 class Multigrid : public Solver
@@ -199,6 +199,7 @@ public:
     BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param);
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
+    virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
 };
 
 

@@ -538,8 +538,8 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
 
     StopWatch ch;
     ch.Start();
-
-    BlockVector blk_x(BlockVector(x.GetData(), offsets_));
+    BlockVector blk_x(x.GetData(), offsets_);
+    Vector x_blk0_copy(blk_x.GetBlock(0));
     BlockVector blk_y(y.GetData(), offsets_);
 
     Vector particular_flux(blk_y.BlockSize(0));
@@ -553,8 +553,8 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
     ch.Start();
 
     Vector divfree_flux(blk_y.BlockSize(0));
-    M_.Mult(-1.0, particular_flux, 1.0, blk_x.GetBlock(0));
-    SolveDivFree(blk_x.GetBlock(0), divfree_flux);
+    M_.Mult(-1.0, particular_flux, 1.0, x_blk0_copy);
+    SolveDivFree(x_blk0_copy, divfree_flux);
     blk_y.GetBlock(0) += divfree_flux;
 
     if (data_.param.verbose)
@@ -563,8 +563,8 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
     ch.Clear();
     ch.Start();
 
-    M_.Mult(-1.0, divfree_flux, 1.0, blk_x.GetBlock(0));
-    SolvePotential(blk_x.GetBlock(0), blk_y.GetBlock(1));
+    M_.Mult(-1.0, divfree_flux, 1.0, x_blk0_copy);
+    SolvePotential(x_blk0_copy, blk_y.GetBlock(1));
 
     if (data_.param.verbose)
         cout << "Scalar potential found in " << ch.RealTime() << "s.\n";
