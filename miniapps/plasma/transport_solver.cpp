@@ -898,7 +898,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                ParGridFunctionArray &pgf,
                                ParGridFunctionArray &dpgf,
                                int ion_charge,
-			       double ion_mass,
+                               double ion_mass,
                                double neutral_mass,
                                double neutral_temp,
                                double Di_perp,
@@ -1450,23 +1450,23 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       locdvec_.SetSize(ndof);
 
       elvec_ = 0.0;
-	 
+
       for (int j=0; j<5; j++)
       {
-	 if (dbfi_m_[j].Size() > 0)
-	 {
-	    (*dpgf_)[j]->GetSubVector(vdofs_, locdvec_);
+         if (dbfi_m_[j].Size() > 0)
+         {
+            (*dpgf_)[j]->GetSubVector(vdofs_, locdvec_);
 
-	    dbfi_m_[j][0]->AssembleElementMatrix(fe, *eltrans, elmat_);
-	    for (int k = 1; k < dbfi_m_[j].Size(); k++)
-	    {
-	       dbfi_m_[j][k]->AssembleElementMatrix(fe, *eltrans, elmat_k_);
-	       elmat_ += elmat_k_;
-	    }
-	    
-	    elmat_.AddMult(locdvec_, elvec_);
-	 }
-	 y.AddElementVector(vdofs_, elvec_);
+            dbfi_m_[j][0]->AssembleElementMatrix(fe, *eltrans, elmat_);
+            for (int k = 1; k < dbfi_m_[j].Size(); k++)
+            {
+               dbfi_m_[j][k]->AssembleElementMatrix(fe, *eltrans, elmat_k_);
+               elmat_ += elmat_k_;
+            }
+
+            elmat_.AddMult(locdvec_, elvec_);
+         }
+         y.AddElementVector(vdofs_, elvec_);
       }
    }
 
@@ -1854,7 +1854,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    if ((op_flag >> 2) & 1)
    {
       op_[2] = new IonMomentumOp(mpi, dg, pgf, dpgf, ion_charge, ion_mass,
-				 DiPerp, B3Coef, bHatCoef, PerpCoef);
+                                 DiPerp, B3Coef, bHatCoef, PerpCoef);
       op_[2]->SetLogging(logging, "v_i: ");
    }
    else
@@ -1862,10 +1862,10 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
       op_[2] = new DummyOp(mpi, dg, pgf, dpgf, 2);
       op_[2]->SetLogging(logging, "v_i (dummy): ");
    }
-   
+
    op_[3] = new DummyOp(mpi, dg, pgf, dpgf, 3);
    op_[3]->SetLogging(logging, "T_i (dummy): ");
-   
+
    op_[4] = new DummyOp(mpi, dg, pgf, dpgf, 4);
    op_[4]->SetLogging(logging, "T_e (dummy): ");
    /*
@@ -2481,15 +2481,15 @@ Operator *DGTransportTDO::IonDensityOp::GetGradientBlock(int i)
 */
 
 DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
-					     const DGParams & dg,
-					     ParGridFunctionArray & pgf,
-					     ParGridFunctionArray & dpgf,
-					     int ion_charge,
-					     double ion_mass,
-					     double DPerp,
-					     VectorCoefficient & B3Coef,
-					     VectorCoefficient & bHatCoef,
-					     MatrixCoefficient & PerpCoef)
+                                             const DGParams & dg,
+                                             ParGridFunctionArray & pgf,
+                                             ParGridFunctionArray & dpgf,
+                                             int ion_charge,
+                                             double ion_mass,
+                                             double DPerp,
+                                             VectorCoefficient & B3Coef,
+                                             VectorCoefficient & bHatCoef,
+                                             MatrixCoefficient & PerpCoef)
    : NLOperator(mpi, dg, 2, pgf, dpgf), z_i_(ion_charge), m_i_(ion_mass),
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
