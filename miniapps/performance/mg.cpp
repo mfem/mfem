@@ -293,10 +293,29 @@ int main(int argc, char *argv[])
 
    double beginRes = r * r;
    double prevRes = beginRes;
+   const int printWidth = 11;
+
+   if (myid == 0)
+   {
+      cout << std::setw(3) << "It";
+      cout << std::setw(printWidth) << "Absres";
+      cout << std::setw(printWidth) << "Relres";
+      cout << std::setw(printWidth) << "Conv";
+      cout << std::setw(printWidth) << "Time [s]" << endl;
+
+      cout << std::setw(3) << 0;
+      cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << beginRes;
+      cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 1.0;
+      cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 0.0;
+      cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 0.0 << endl;
+   }
 
    for (int iter = 0; iter < 10; ++iter)
    {
+      tic_toc.Clear();
+      tic_toc.Start();
       vCycle.Mult(B, X);
+      tic_toc.Stop();
 
       oprMultigrid.Mult(X, r);
       subtract(B, r, r);
@@ -304,7 +323,11 @@ int main(int argc, char *argv[])
       double res = r * r;
       if (myid == 0)
       {
-         cout << "abs/rel/conv " << std::scientific << std::setprecision(3) << res << "\t" << res/beginRes << "\t" << res/prevRes << endl;
+         cout << std::setw(3) << iter + 1;
+         cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res;
+         cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res/beginRes;
+         cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res/prevRes;
+         cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << tic_toc.RealTime() << endl;
       }
 
       if (res < 1e-10 * beginRes)
