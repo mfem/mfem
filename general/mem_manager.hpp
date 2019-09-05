@@ -557,7 +557,7 @@ template <typename T>
 inline void Memory<T>::Delete()
 {
    if (!(flags & REGISTERED) ||
-       MemoryManager::Delete_(h_ptr, flags) == MemoryType::HOST)
+       MemoryManager::Delete_((void*)h_ptr, flags) == MemoryType::HOST)
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
