@@ -9,6 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
@@ -455,6 +456,7 @@ static void SmemPADiffusionApply2D(const int NE,
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(_b.Read(), Q1D, D1D);
+   //dbg("b: %p", b);
    auto g = Reshape(_g.Read(), Q1D, D1D);
    auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
    auto x = Reshape(_x.Read(), D1D, D1D, NE);
@@ -1025,135 +1027,39 @@ static void SmemPADiffusionApply3D(const int NE,
    });
 }
 
-__jit __kernel
-static void JitSmemPADiffusionApply3D(const int Q1D,
-                                      const int D1D,
+__attribute ((hot))
+static void JitSmemPADiffusionApply2D(const int D1D,
+                                      const int Q1D,
                                       const int NBZ,
                                       const int NE,
-                                      const double *b,
-                                      const double *g,
-                                      const double *op,
-                                      const double *x,
-                                      double *y)
+                                      const Array<double> &b_,
+                                      const Array<double> &g_,
+                                      const Vector &op_,
+                                      const Vector &x_,
+                                      Vector &y_)
 {
-   // empty for now
-}
-
-static void PADiffusionApply(const int dim,
-                             const int D1D,
-                             const int Q1D,
-                             const int NE,
-                             const Array<double> &B,
-                             const Array<double> &G,
-                             const Array<double> &Bt,
-                             const Array<double> &Gt,
-                             const Vector &op,
-                             const Vector &x,
-                             Vector &y)
-{
-#ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      if (dim == 2)
-      {
-         OccaPADiffusionApply2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
-         return;
-      }
-      if (dim == 3)
-      {
-         OccaPADiffusionApply3D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
-         return;
-      }
-      MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
-   }
-#endif // MFEM_USE_OCCA
-   {
-      const int NBZ = 1;
-      auto b = Reshape(B.Read(), Q1D, D1D);
-      auto g = Reshape(G.Read(), Q1D, D1D);
-      auto q = Reshape(op.Read(), Q1D*Q1D, 3, NE);
-      auto X = Reshape(x.Read(), D1D, D1D, NE);
-      auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-      JitSmemPADiffusionApply3D(D1D, Q1D, NBZ, NE, b, g, q, X, Y);
-   }
-   return;
-   /*
-   if (dim == 2)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-      }
-   }
-   else if (dim == 3)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-      }
-   }*/
-   MFEM_ABORT("Unknown kernel.");
-}
-
-// PA Diffusion Apply kernel
-void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   PADiffusionApply(dim, dofs1D, quad1D, ne,
-                    maps->B, maps->G, maps->Bt, maps->Gt,
-                    pa_data, x, y);
-}
-
-__jit __kernel
-static void kernel(const int Q1D,
-                   const int D1D,
-                   const int NBZ,
-                   const int NE,
-                   const Array<double> &b_,
-                   const Array<double> &g_,
-                   const Array<double> &op_,
-                   const Vector &x_,
-                   Vector &y_)
-{
-   const int MQ1 = Q1D;
-   const int MD1 = D1D;
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D*Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int MQ1 = Q1D;
-      const int MD1 = D1D;
-      MFEM_SHARED double sBG[2][MQ1*MD1];
-      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
-      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
-      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
-      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
-      MFEM_SHARED double Xz[NBZ][MD1][MD1];
-      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
-      MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
-      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
-      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
-      double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
-      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
-      double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
+      MFEM_SHARED double sBG[2][Q1D*D1D];
+      double (*B)[D1D] = (double (*)[D1D]) (sBG+0);
+      double (*G)[D1D] = (double (*)[D1D]) (sBG+1);
+      double (*Bt)[Q1D] = (double (*)[Q1D]) (sBG+0);
+      double (*Gt)[Q1D] = (double (*)[Q1D]) (sBG+1);
+      MFEM_SHARED double Xz[NBZ][D1D][D1D];
+      MFEM_SHARED double GD[2][NBZ][D1D][Q1D];
+      MFEM_SHARED double GQ[2][NBZ][D1D][Q1D];
+      double (*X)[D1D] = (double (*)[D1D])(Xz + tidz);
+      double (*DQ0)[D1D] = (double (*)[D1D])(GD[0] + tidz);
+      double (*DQ1)[D1D] = (double (*)[D1D])(GD[1] + tidz);
+      double (*QQ0)[D1D] = (double (*)[D1D])(GQ[0] + tidz);
+      double (*QQ1)[D1D] = (double (*)[D1D])(GQ[1] + tidz);
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -1264,6 +1170,316 @@ static void kernel(const int Q1D,
          }
       }
    });
+}
+
+__attribute__ ((hot))
+static void JitSmemPADiffusionApply3D(const int D1D,
+                                      const int Q1D,
+                                      const int NE,
+                                      const Array<double> &_b,
+                                      const Array<double> &_g,
+                                      const Vector &_op,
+                                      const Vector &_x,
+                                      Vector &_y)
+{
+   auto b = Reshape(_b.Read(), Q1D, D1D);
+   auto g = Reshape(_g.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      const int MDQ = Q1D > D1D ? Q1D : D1D;
+      MFEM_SHARED double sBG[2][Q1D*D1D];
+      double (*B)[D1D] = (double (*)[D1D]) (sBG+0);
+      double (*G)[D1D] = (double (*)[D1D]) (sBG+1);
+      double (*Bt)[Q1D] = (double (*)[Q1D]) (sBG+0);
+      double (*Gt)[Q1D] = (double (*)[Q1D]) (sBG+1);
+      MFEM_SHARED double sm0[3][MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[3][MDQ*MDQ*MDQ];
+      double (*X)[D1D][D1D]    = (double (*)[D1D][D1D]) (sm0+2);
+      double (*DDQ0)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+0);
+      double (*DDQ1)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+1);
+      double (*DQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+0);
+      double (*DQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+1);
+      double (*DQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+2);
+      double (*QQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+0);
+      double (*QQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+1);
+      double (*QQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+2);
+      double (*QQD0)[Q1D][D1D] = (double (*)[Q1D][D1D]) (sm1+0);
+      double (*QQD1)[Q1D][D1D] = (double (*)[Q1D][D1D]) (sm1+1);
+      double (*QQD2)[Q1D][D1D] = (double (*)[Q1D][D1D]) (sm1+2);
+      double (*QDD0)[D1D][D1D] = (double (*)[D1D][D1D]) (sm0+0);
+      double (*QDD1)[D1D][D1D] = (double (*)[D1D][D1D]) (sm0+1);
+      double (*QDD2)[D1D][D1D] = (double (*)[D1D][D1D]) (sm0+2);
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               X[dz][dy][dx] = x(dx,dy,dz,e);
+            }
+         }
+      }
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double coords = X[dz][dy][dx];
+                  u += coords * B[qx][dx];
+                  v += coords * G[qx][dx];
+               }
+               DDQ0[dz][dy][qx] = u;
+               DDQ1[dz][dy][qx] = v;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  u += DDQ1[dz][dy][qx] * B[qy][dy];
+                  v += DDQ0[dz][dy][qx] * G[qy][dy];
+                  w += DDQ0[dz][dy][qx] * B[qy][dy];
+               }
+               DQQ0[dz][qy][qx] = u;
+               DQQ1[dz][qy][qx] = v;
+               DQQ2[dz][qy][qx] = w;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  u += DQQ0[dz][qy][qx] * B[qz][dz];
+                  v += DQQ1[dz][qy][qx] * B[qz][dz];
+                  w += DQQ2[dz][qy][qx] * G[qz][dz];
+               }
+               QQQ0[qz][qy][qx] = u;
+               QQQ1[qz][qy][qx] = v;
+               QQQ2[qz][qy][qx] = w;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               const int q = qx + ((qy*Q1D) + (qz*Q1D*Q1D));
+               const double O11 = op(q,0,e);
+               const double O12 = op(q,1,e);
+               const double O13 = op(q,2,e);
+               const double O22 = op(q,3,e);
+               const double O23 = op(q,4,e);
+               const double O33 = op(q,5,e);
+               const double gX = QQQ0[qz][qy][qx];
+               const double gY = QQQ1[qz][qy][qx];
+               const double gZ = QQQ2[qz][qy][qx];
+               QQQ0[qz][qy][qx] = (O11*gX) + (O12*gY) + (O13*gZ);
+               QQQ1[qz][qy][qx] = (O12*gX) + (O22*gY) + (O23*gZ);
+               QQQ2[qz][qy][qx] = (O13*gX) + (O23*gY) + (O33*gZ);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bt[d][q] = b(q,d);
+               Gt[d][q] = g(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  u += QQQ0[qz][qy][qx] * Gt[dx][qx];
+                  v += QQQ1[qz][qy][qx] * Bt[dx][qx];
+                  w += QQQ2[qz][qy][qx] * Bt[dx][qx];
+               }
+               QQD0[qz][qy][dx] = u;
+               QQD1[qz][qy][dx] = v;
+               QQD2[qz][qy][dx] = w;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  u += QQD0[qz][qy][dx] * Bt[dy][qy];
+                  v += QQD1[qz][qy][dx] * Gt[dy][qy];
+                  w += QQD2[qz][qy][dx] * Bt[dy][qy];
+               }
+               QDD0[qz][dy][dx] = u;
+               QDD1[qz][dy][dx] = v;
+               QDD2[qz][dy][dx] = w;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  u += QDD0[qz][dy][dx] * Bt[dz][qz];
+                  v += QDD1[qz][dy][dx] * Bt[dz][qz];
+                  w += QDD2[qz][dy][dx] * Gt[dz][qz];
+               }
+               y(dx,dy,dz,e) += (u + v + w);
+            }
+         }
+      }
+   });
+}
+
+static void PADiffusionApply(const int dim,
+                             const int D1D,
+                             const int Q1D,
+                             const int NE,
+                             const Array<double> &B,
+                             const Array<double> &G,
+                             const Array<double> &Bt,
+                             const Array<double> &Gt,
+                             const Vector &op,
+                             const Vector &x,
+                             Vector &y)
+{
+#ifdef MFEM_USE_OCCA
+   if (DeviceCanUseOcca())
+   {
+      if (dim == 2)
+      {
+         OccaPADiffusionApply2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
+         return;
+      }
+      if (dim == 3)
+      {
+         OccaPADiffusionApply3D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
+         return;
+      }
+      MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
+   }
+#endif // MFEM_USE_OCCA
+   if (getenv("JIT"))
+   {
+      if (dim == 2)
+      {
+         const int NBZ = 16;
+         return JitSmemPADiffusionApply2D(D1D,Q1D,NBZ,NE,B,G,op,x,y);
+      }
+      else if (dim == 3)
+      {
+         return JitSmemPADiffusionApply3D(D1D,Q1D,NE,B,G,op,x,y);
+      }
+   }
+
+   if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,Bt,Gt,op,x,y);
+         default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+      }
+   }
+   else if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
+         default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+      }
+   }
+   MFEM_ABORT("Unknown kernel.");
+}
+
+// PA Diffusion Apply kernel
+void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   PADiffusionApply(dim, dofs1D, quad1D, ne,
+                    maps->B, maps->G, maps->Bt, maps->Gt,
+                    pa_data, x, y);
 }
 
 } // namespace mfem

@@ -123,7 +123,7 @@ void *lookup(const bool dbg, const size_t hash, const char *xcc,
 {
    char soName[21] = "k0000000000000000.so";
    uint64str(hash,soName,1);
-   const int flag = RTLD_LAZY | RTLD_LOCAL;
+   const int flag = RTLD_LAZY;// | RTLD_LOCAL;
    void *handle = dlopen(soName, flag);
    if (!handle && !jit::compile(dbg,hash,xcc,src,incs,args...)) { return NULL; }
    if (!(handle=dlopen(soName, flag))) { return NULL; }
@@ -134,11 +134,11 @@ void *lookup(const bool dbg, const size_t hash, const char *xcc,
 // * getSymbol
 // *****************************************************************************
 template<typename kernel_t>
-static kernel_t getSymbol(const size_t hash,void *handle)
+static kernel_t getSymbol(const size_t hash, void *handle)
 {
    char symbol[18] = "k0000000000000000";
    uint64str(hash,symbol,1);
-   //printf("\n[getSymbol] dlsym '%s'",symbol);fflush(0);
+   printf("\n[getSymbol] dlsym '%s'",symbol); fflush(0);
    kernel_t address = (kernel_t) dlsym(handle, symbol);
    assert(address);
    return address;

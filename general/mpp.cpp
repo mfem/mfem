@@ -83,6 +83,7 @@ struct kernel
    string static_tmplt;
    string any_pointer_params;
    string any_pointer_args;
+   string any_pointer_args_jit;
    string d2u;
    string u2d;
    bool T;
@@ -97,7 +98,7 @@ struct context
 #ifdef MFEM_USE_MM
    const bool mm = true;
 #else
-   const bool mm = false;
+   const bool mm = true; // setting to true to force &=>*=>&
 #endif
 #ifdef MFEM_USE_JIT
    const bool jit = true;
@@ -406,6 +407,7 @@ void jitKernelArgs(context &pp)
    pp.ker.static_format.clear();
    pp.ker.any_pointer_args.clear();
    pp.ker.any_pointer_params.clear();
+   pp.ker.any_pointer_args_jit.clear();
    pp.ker.d2u.clear();
    pp.ker.u2d.clear();
 
@@ -419,7 +421,7 @@ void jitKernelArgs(context &pp)
       const bool is_pointer = is_ptr || is_amp;
       const char *type = arg.type.c_str();
       const char *name = arg.name.c_str();
-      const bool underscore = pp.mm;
+      const bool underscore = pp.mm && is_pointer;
       // const + !(*|&) => add it to the template args
       if (is_const && ! is_pointer)
       {
@@ -469,9 +471,18 @@ void jitKernelArgs(context &pp)
       }
       if (is_const && is_pointer)
       {
-         if (! pp.ker.any_pointer_args.empty()) { pp.ker.any_pointer_args += ","; }
-         pp.ker.any_pointer_args += underscore?"_":"";
-         pp.ker.any_pointer_args += name;
+         {
+            if (! pp.ker.any_pointer_args.empty()) { pp.ker.any_pointer_args += ","; }
+            pp.ker.any_pointer_args += is_amp?"&":"";
+            pp.ker.any_pointer_args += underscore?"_":"";
+            pp.ker.any_pointer_args += name;
+         }
+         {
+            if (! pp.ker.any_pointer_args_jit.empty()) { pp.ker.any_pointer_args_jit += ","; }
+            //pp.ker.any_pointer_args_jit += is_amp?"&":"";
+            pp.ker.any_pointer_args_jit += underscore?"_":"";
+            pp.ker.any_pointer_args_jit += name;
+         }
          if (! pp.ker.any_pointer_params.empty())
          {
             pp.ker.any_pointer_params += ",";
@@ -479,23 +490,32 @@ void jitKernelArgs(context &pp)
          {
             pp.ker.any_pointer_params += "const ";
             pp.ker.any_pointer_params += type;
-            pp.ker.any_pointer_params += is_ptr?" *":" &";
+            pp.ker.any_pointer_params += " *";//is_ptr?" *":" &";
             pp.ker.any_pointer_params += underscore?"_":"";
             pp.ker.any_pointer_params += name;
          }
       }
       if (! is_const && is_pointer)
       {
-         if (! pp.ker.any_pointer_args.empty()) { pp.ker.any_pointer_args += ","; }
-         pp.ker.any_pointer_args += underscore?"_":"";
-         pp.ker.any_pointer_args += name;
+         {
+            if (! pp.ker.any_pointer_args.empty()) { pp.ker.any_pointer_args += ","; }
+            pp.ker.any_pointer_args += is_amp?"&":"";
+            pp.ker.any_pointer_args += underscore?"_":"";
+            pp.ker.any_pointer_args += name;
+         }
+         {
+            if (! pp.ker.any_pointer_args_jit.empty()) { pp.ker.any_pointer_args_jit += ","; }
+            //pp.ker.any_pointer_args_jit += is_amp?"&":"";
+            pp.ker.any_pointer_args_jit += underscore?"_":"";
+            pp.ker.any_pointer_args_jit += name;
+         }
          if (! pp.ker.any_pointer_params.empty())
          {
             pp.ker.any_pointer_params += ",";
          }
          {
             pp.ker.any_pointer_params += type;
-            pp.ker.any_pointer_params += is_ptr?" *":" &";
+            pp.ker.any_pointer_params += " *";//is_ptr?" *":" &";
             pp.ker.any_pointer_params += underscore?"_":"";
             pp.ker.any_pointer_params += name;
          }
@@ -507,17 +527,20 @@ void jitKernelArgs(context &pp)
 void jitPrefix(context &pp)
 {
    if (not pp.jit or not pp.ker.jit) { return; }
-   pp.out << "\n\tconst char *src=R\"_(\n";
+   pp.out << "\n\tconst char *src=R\"_(";
    pp.out << "#include <cstdint>";
    pp.out << "\n#include <limits>";
    pp.out << "\n#include <cstring>";
    pp.out << "\n#include <stdbool.h>";
+   pp.out << "\n#include \"mfem.hpp\"";
    pp.out << "\n#include \"general/jit.hpp\"";
    pp.out << "\n#include \"general/forall.hpp\"";
    pp.out << "\n#pragma push";
    pp.out << "\n#pragma diag_suppress 177\n"; // declared but never referenced
    pp.out << pp.ker.embed.c_str();
    pp.out << "#pragma pop\n";
+   pp.out << "using namespace mfem;\n";
+   //pp.out << "namespace mfem{\n";
    //pp.out << "\ntypedef union {double d; uint64_t u;} union_du;";
    pp.out << "\ntemplate<" << pp.ker.static_tmplt << ">";
    pp.out << "\nvoid jit_" << pp.ker.name << "(";
@@ -535,12 +558,15 @@ void jitPostfix(context &pp)
    if (pp.compound_statements>=0 && pp.in.peek() == '}') { pp.compound_statements--; }
    if (pp.compound_statements!=-1) { return; }
    pp.out << "}";
-   pp.out << "\nextern \"C\" void k%016lx("
+   pp.out << "\nextern \"C\"";
+   pp.out << "\nvoid k%016lx("
           << pp.ker.any_pointer_params << "){";
    pp.out << "jit_"<<pp.ker.name
           << "<" << pp.ker.static_format<<">"
-          << "(" << pp.ker.any_pointer_args << ");";
-   pp.out << "})_\";";
+          << "(" << pp.ker.any_pointer_args_jit << ");";
+   pp.out << "\n}";
+   //pp.out << "\n} // namespace mfem";
+   pp.out << ")_\";";
    // typedef, hash map and launch
    pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.any_pointer_params<<");";
    pp.out << "\n\tstatic std::unordered_map<size_t,mfem::jit::kernel<kernel_t>*> __kernels;";
@@ -554,8 +580,9 @@ void jitPostfix(context &pp)
    pp.out << "\n\t\t__kernels[args_hash] = new mfem::jit::kernel<kernel_t>"
           << "(xcc,src," << "\"-I" << pp.ker.dirname << "\","
           << pp.ker.static_args << ");";
-   pp.out << "}\n\t(__kernels[args_hash]->operator_void("
-          << pp.ker.any_pointer_args << "));\n";
+   pp.out << "\n\t}";
+   pp.out << "\n\t__kernels[args_hash]->operator_void("
+          << pp.ker.any_pointer_args << ");\n";
    // Stop counting the compound statements and flush the JIT status
    pp.compound_statements--;
    pp.ker.jit = false;
@@ -685,7 +712,9 @@ static bool get_args(context &pp)
          continue;
       }
       if (id=="Vector") { pp.out << id; arg.type = id; continue; }
-      const bool underscore = pp.mm;
+
+      const bool is_pointer = arg.is_ptr || arg.is_amp;
+      const bool underscore = pp.mm && is_pointer;
       pp.out << (underscore?"_":"") << id;
       // focus on the name, we should have qual & type
       arg.name = id;
@@ -704,6 +733,44 @@ static bool get_args(context &pp)
    // Prepare the JIT strings from the arguments
    jitKernelArgs(pp);
    return empty;
+}
+
+// *****************************************************************************
+void genPtrOkina(context &pp)
+{
+   // Generate the GET_* code
+   for (argument_it ia = pp.args.begin();
+        ia != pp.args.end() ; ia++)
+   {
+      const argument a = *ia;
+      const bool is_const = a.is_const;
+      //const bool is_restrict = a.restrict;
+      const bool is_ptr = a.is_ptr;
+      const bool is_amp = a.is_amp;
+      const bool is_pointer = is_ptr || is_amp;
+      const char *type = a.type.c_str();
+      const char *name = a.name.c_str();
+      const bool underscore = pp.mm && is_pointer;
+      /*if (is_const && ! is_pointer)
+      {
+         pp.out << "\n\tconst " << type << " " << name
+                << " = (" << type << ")"
+                << " (_" << name << ");";
+
+      }*/
+      if (is_const && underscore)
+      {
+         pp.out << "\n\tconst " << type << (is_amp?"& ":"* ") << name
+                << " = " <<  (is_amp?"* ":" ")
+                << " _" << name << ";";
+      }
+      if (!is_const && underscore)
+      {
+         pp.out << "\n\t" << type << (is_amp?"& ":"* ") << name
+                << " = " <<  (is_amp?"* ":" ")
+                << " _" << name << ";";
+      }
+   }
 }
 
 // *****************************************************************************
@@ -741,7 +808,11 @@ void __kernel(context &pp)
    // Generate the JIT prefix for this kernel
    jitPrefix(pp);
    // If we are using the memory manager, generate the calls
-   //if (pp.mm) { genPtrOkina(pp); }
+   if (pp.mm) { genPtrOkina(pp); }
+   else
+   {
+      assert(false);
+   }
 }
 
 // *****************************************************************************
@@ -757,15 +828,41 @@ void __jit(context &pp)
    __kernel(pp);
 }
 
+// *****************************************************************************
+void attribute(context &pp)
+{
+   // Skip "__attribute__"
+   pp.out << "           ";
+   skip_space(pp);
+   comments(pp);
+   check(pp,pp.in.peek()=='(',"No 1st '(' in __attribute__");
+   get(pp);
+   check(pp,pp.in.peek()=='(',"No 2nd '(' in __attribute__");
+   get(pp);
+   string attr = get_id(pp);
+   if (attr != "hot") { return; }
+   skip_space(pp);
+   check(pp,pp.in.peek()==')',"No 1st ')' in __attribute__");
+   get(pp);
+   check(pp,pp.in.peek()==')',"No 2nd ')' in __attribute__");
+   get(pp);
+   pp.ker.jit = true;
+   skip_space(pp);
+   comments(pp);
+   __kernel(pp);
+}
+
 
 // *****************************************************************************
 void tokens(context &pp)
 {
    if (pp.in.peek() != '_') { return; }
    string id = get_id(pp);
-   if (id=="__jit") { return __jit(pp); }
-   //if (id=="__embed") { return __embed(pp); }
-   if (id=="__kernel") { return __kernel(pp); }
+   if (id == "__attribute") { return attribute(pp); }
+   if (id == "__attribute__") { return attribute(pp); }
+   if (id == "__jit") { return __jit(pp); }
+   //if (id == "__embed") { return __embed(pp); }
+   if (id == "__kernel") { return __kernel(pp); }
    //if (id=="__template") { return __template(pp); }
    pp.out << id;
    if (pp.ker.embedding) { pp.ker.embed += id; }
