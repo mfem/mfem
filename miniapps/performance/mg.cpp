@@ -230,15 +230,15 @@ int main(int argc, char *argv[])
       tic_toc.Start();
       if (myid == 0)
       {
-         cout << "Constructing prolongation matrix on level " << level << "..." << flush;
+         cout << "Create matrix-free P/R operator on " << level << "..." << flush;
       }
-      OperatorHandle* P = new OperatorHandle(Operator::Hypre_ParCSR);
+      OperatorHandle* P = new OperatorHandle(Operator::ANY_TYPE);
       spaceHierarchy.GetFESpace(level)->GetTrueTransferOperator(*spaceHierarchy.GetFESpace(level - 1), *P);
       Operator* prolongation = P->Ptr();
       tic_toc.Stop();
       if (myid == 0)
       {
-         cout << "\tdone, " << tic_toc.RealTime() << "s." << endl;
+         cout << "\t\tdone, " << tic_toc.RealTime() << "s." << endl;
       }
 
       tic_toc.Clear();
