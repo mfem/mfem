@@ -317,6 +317,64 @@ protected:
    StateVariableCoef(DerivType deriv = INVALID) : StateVariableFunc(deriv) {}
 };
 
+class StateVariableVecCoef : public StateVariableFunc, public VectorCoefficient
+{
+public:
+   virtual void Eval(Vector &V,
+                     ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      V.SetSize(vdim);
+
+      switch (derivType_)
+      {
+         case INVALID:
+            return Eval_Func(V, T, ip);
+         case NEUTRAL_DENSITY:
+            return Eval_dNn(V, T, ip);
+         case ION_DENSITY:
+            return Eval_dNi(V, T, ip);
+         case ION_PARA_VELOCITY:
+            return Eval_dVi(V, T, ip);
+         case ION_TEMPERATURE:
+            return Eval_dTi(V, T, ip);
+         case ELECTRON_TEMPERATURE:
+            return Eval_dTe(V, T, ip);
+         default:
+            V = 0.0;
+            return;
+      }
+   }
+
+   virtual void Eval_Func(Vector &V,
+                          ElementTransformation &T,
+                          const IntegrationPoint &ip) { V = 0.0; }
+
+   virtual void Eval_dNn(Vector &V,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { V = 0.0; }
+
+   virtual void Eval_dNi(Vector &V,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { V = 0.0; }
+
+   virtual void Eval_dVi(Vector &V,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { V = 0.0; }
+
+   virtual void Eval_dTi(Vector &V,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { V = 0.0; }
+
+   virtual void Eval_dTe(Vector &V,
+                         ElementTransformation &T,
+                         const IntegrationPoint &ip) { V = 0.0; }
+
+protected:
+   StateVariableVecCoef(int dim, DerivType deriv = INVALID)
+      : StateVariableFunc(deriv), VectorCoefficient(dim) {}
+};
+
 class StateVariableMatCoef : public StateVariableFunc, public MatrixCoefficient
 {
 public:
