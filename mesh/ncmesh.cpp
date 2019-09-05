@@ -801,6 +801,8 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
          if (!CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1, &nr) ||
              !CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1, &nr))
          {
+            // mesh temporarily inconsistent, abort refinement
+            reparents.DeleteAll();
             return false;
          }
 
@@ -1558,6 +1560,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       if (!ref_queue.Size() && postponed.Size())
       {
          postponed.Copy(ref_queue);
+         postponed.DeleteAll();
       }
    }
 #endif
