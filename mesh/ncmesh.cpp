@@ -810,7 +810,6 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
              !CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1, &nr))
          {
             // mesh temporarily inconsistent, abort refinement
-            reparents.DeleteAll();
             return false;
          }
 
@@ -836,17 +835,6 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             {
                CheckAnisoPrism(mid23, vn3, vn4, mid41, NULL, 0);
             }
-         }
-
-         // perform the reparents all at once at the end
-         if (level == 0)
-         {
-            for (int i = 0; i < reparents.Size(); i++)
-            {
-               const Triple<int, int, int> &tr = reparents[i];
-               ReparentNode(tr.one, tr.two, tr.three);
-            }
-            reparents.DeleteAll();
          }
 
          return true;
@@ -950,6 +938,8 @@ bool NCMesh::RefineElement(int elem, char ref_type)
       Face* face = faces.Find(no[fv[0]], no[fv[1]], no[fv[2]], no[fv[3]]);
       fa[i] = face->attribute;
    }
+
+   reparents.DeleteAll();
 
    // create child elements
    if (el.Geom() == Geometry::CUBE)
@@ -1466,6 +1456,15 @@ bool NCMesh::RefineElement(int elem, char ref_type)
       MFEM_ABORT("Unsupported element geometry.");
    }
 
+   // perform node reparents from CheckAnisoFace
+   for (int i = 0; i < reparents.Size(); i++)
+   {
+      const Triple<int, int, int> &tr = reparents[i];
+      ReparentNode(tr.one, tr.two, tr.three);
+   }
+   reparents.DeleteAll();
+
+
    // start using the nodes of the children, create edges & faces
    for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
@@ -1500,6 +1499,7 @@ bool NCMesh::RefineElement(int elem, char ref_type)
    el.ref_type = ref_type;
    std::memcpy(el.child, child, sizeof(el.child));
 
+   // clear the flag that prevents multiple forced refinements
    el.flag = 0;
 
    return true;
@@ -1562,8 +1562,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       std::ofstream f(fname);
       Update();
       DebugDump(f);}
-      DebugCheckConsistency();
-      //if (iter > 100) { break; }*/
+      DebugCheckConsistency();*/
 
       if (!ref_queue.Size() && postponed.Size())
       {
