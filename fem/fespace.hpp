@@ -173,6 +173,7 @@ protected:
       RefinementOperator(const FiniteElementSpace *fespace,
                          const FiniteElementSpace *coarse_fes);
       virtual void Mult(const Vector &x, Vector &y) const;
+      virtual void MultTranspose(const Vector &x, Vector &y) const;
       virtual ~RefinementOperator();
    };
 
