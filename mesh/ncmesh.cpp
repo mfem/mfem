@@ -627,6 +627,13 @@ bool NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    Element &el = elements[elem];
    MFEM_ASSERT(!el.ref_type, "element already refined.");
 
+   if (el.flag)
+   {
+      // element already flagged for forced refinenement, we need to abort
+      // the current refinement and wait
+      return false;
+   }
+
    // in parallel, don't propagate forced refinements into the ghost layer
    if (IsGhost(el)) { return true; }
    // TODO: ?
@@ -680,6 +687,7 @@ bool NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 
    // schedule the refinement
    ref_queue.Append(Refinement(elem, ref_type));
+   el.flag = 1;
 
    return true;
 }
@@ -816,7 +824,7 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
 
          if (HavePrisms() && nodes[midf].HasEdge())
          {
-            // Check if there is a prism with edge (mid23, mid41) that we may
+            // check if there is a prism with edge (mid23, mid41) that we may
             // have missed in 'CheckAnisoFace', and force-refine it if present.
 
             if (ref_queue.Size() > rs)
@@ -867,8 +875,11 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    {
       if (!ForceRefinement(vn1, vn2, vn3, vn4))
       {
-         return false;
+         return false; // abort refinement of the original element
       }
+
+      // inform caller that we scheduled a refinement
+      MFEM_ASSERT(nrefined != NULL, "can't happen");
       (*nrefined)++;
 
       // prepare an empty node consistent with the future forced refinement
@@ -917,12 +928,12 @@ bool NCMesh::RefineElement(int elem, char ref_type)
       return true;
    }
 
-   std::cout << "Refining element " << elem << " ("
+   /*std::cout << "Refining element " << elem << " ("
              << el.node[0] << ", " << el.node[1] << ", "
              << el.node[2] << ", " << el.node[3] << ", "
              << el.node[4] << ", " << el.node[5] << ", "
              << el.node[6] << ", " << el.node[7] << "), "
-             << "ref_type " << int(ref_type) << std::endl;
+             << "ref_type " << int(ref_type) << std::endl;*/
 
    int* no = el.node;
    int attr = el.attribute;
@@ -1489,6 +1500,8 @@ bool NCMesh::RefineElement(int elem, char ref_type)
    el.ref_type = ref_type;
    std::memcpy(el.child, child, sizeof(el.child));
 
+   el.flag = 0;
+
    return true;
 }
 
@@ -1522,18 +1535,12 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_queue.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
-   static int iter = 0;
-
    // keep refining as long as the queue contains something
    int total = 0;
    while (ref_queue.Size())
    {
       Refinement ref = ref_queue[0];
       ref_queue.DeleteFirst(); // TODO: fix O(N) time
-
-      /*std::cout << iter << ((total < refinements.Size()) ? " refining element "
-                   : " force refining ") << ref.index
-                << " (ref_type " << int(ref.ref_type) << ")" << std::endl;*/
 
       if (RefineElement(ref.index, ref.ref_type))
       {
@@ -1549,13 +1556,14 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
                    << " (type " << int(ref.ref_type) << ")." << std::endl;
       }
 
+      /*static int iter = 0;
       {char fname[100];
       sprintf(fname, "ncmesh-%03d.dbg", iter++);
       std::ofstream f(fname);
       Update();
       DebugDump(f);}
       DebugCheckConsistency();
-      if (iter > 100) { break; }
+      //if (iter > 100) { break; }*/
 
       if (!ref_queue.Size() && postponed.Size())
       {
