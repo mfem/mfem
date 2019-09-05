@@ -186,14 +186,31 @@ int main(int argc, char *argv[])
    for(int level = 1; level < spaceHierarchy.GetNumLevels(); ++level)
    {
       // Operator
+      tic_toc.Clear();
+      tic_toc.Start();
+      if (myid == 0)
+      {
+         cout << "Partially assemble HPC form on level " << level << "..." << flush;
+      }
       HPCBilinearForm* form = new HPCBilinearForm(integ_t(coeff_t(1.0)), *spaceHierarchy.GetFESpace(level));
       form->Assemble();
       Operator* opr = nullptr;
       essentialTrueDoFs = new Array<int>();
       getEssentialTrueDoFs(spaceHierarchy.GetMesh(level), spaceHierarchy.GetFESpace(level), *essentialTrueDoFs);
       form->FormSystemOperator(*essentialTrueDoFs, opr);
+      tic_toc.Stop();
+      if (myid == 0)
+      {
+         cout << "\tdone, " << tic_toc.RealTime() << "s." << endl;
+      }
 
       // Smoother
+      tic_toc.Clear();
+      tic_toc.Start();
+      if (myid == 0)
+      {
+         cout << "Partially assemble diagonal on level " << level << "..." << flush;
+      }
       Vector diag(spaceHierarchy.GetFESpace(level)->GetTrueVSize());
       ParBilinearForm paform(spaceHierarchy.GetFESpace(level));
       paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -202,22 +219,44 @@ int main(int argc, char *argv[])
       paform.Assemble();
       paform.AssembleDiagonal(diag);
       OperatorJacobiSmoother* pa_smoother_one = new OperatorJacobiSmoother(diag, *essentialTrueDoFs, 1.0);
+      tic_toc.Stop();
+      if (myid == 0)
+      {
+         cout << "\tdone, " << tic_toc.RealTime() << "s." << endl;
+      }
 
       // Prolongation
+      tic_toc.Clear();
+      tic_toc.Start();
+      if (myid == 0)
+      {
+         cout << "Constructing prolongation matrix on level " << level << "..." << flush;
+      }
       OperatorHandle* P = new OperatorHandle(Operator::Hypre_ParCSR);
       spaceHierarchy.GetFESpace(level)->GetTrueTransferOperator(*spaceHierarchy.GetFESpace(level - 1), *P);
       Operator* prolongation = P->Ptr();
+      tic_toc.Stop();
+      if (myid == 0)
+      {
+         cout << "\tdone, " << tic_toc.RealTime() << "s." << endl;
+      }
 
+      tic_toc.Clear();
+      tic_toc.Start();
+      if (myid == 0)
+      {
+         cout << "Estimating eigenvalues on level " << level << "..." << flush;
+      }
       ParGridFunction ev(spaceHierarchy.GetFinestFESpace());
-
       ProductOperator DinvA(pa_smoother_one, opr, false, false);
       double eigval = PowerMethod::EstimateLargestEigenvalue(DinvA, ev, 20, 1e-8);
-      double omega = 2.0 / (1.3 * eigval * 1.2);
+      tic_toc.Stop();
+      if (myid == 0)
+      {
+         cout << "\t\tdone, " << tic_toc.RealTime() << "s." << endl;
+      }
 
-      std::cout << "Level " << level << " rho(DinvA) = " << eigval << std::endl;
-      std::cout << "Level " << level << " omega = " << omega << std::endl;
-
-      OperatorJacobiSmoother* pa_smoother = new OperatorJacobiSmoother(diag, *essentialTrueDoFs, omega);
+      OperatorChebyshevSmoother* pa_smoother = new OperatorChebyshevSmoother(opr, diag, *essentialTrueDoFs, 5, eigval);
 
       oprMultigrid.AddLevel(form, opr, pa_smoother, prolongation, essentialTrueDoFs);
    }
@@ -225,10 +264,21 @@ int main(int argc, char *argv[])
    ParGridFunction x(spaceHierarchy.GetFinestFESpace());
    x = 0.0;
 
+   if (myid == 0)
+   {
+      cout << "Assembling rhs..." << flush;
+   }
+   tic_toc.Clear();
+   tic_toc.Start();
    ParLinearForm b(spaceHierarchy.GetFinestFESpace());
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
+   tic_toc.Stop();
+   if (myid == 0)
+   {
+      cout << "\t\t\t\tdone, " << tic_toc.RealTime() << "s." << endl;
+   }
 
    Vector X, B;
    Operator* dummy = nullptr;
@@ -254,7 +304,12 @@ int main(int argc, char *argv[])
       double res = r * r;
       if (myid == 0)
       {
-         cout << "abs/rel/conv " << res << "\t" << res/beginRes << "\t" << res/prevRes << endl;
+         cout << "abs/rel/conv " << std::scientific << std::setprecision(3) << res << "\t" << res/beginRes << "\t" << res/prevRes << endl;
+      }
+
+      if (res < 1e-10 * beginRes)
+      {
+         break;
       }
 
       prevRes = res;
