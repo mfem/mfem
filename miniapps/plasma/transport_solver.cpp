@@ -2059,14 +2059,20 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      // diff_(DCoef_),
      // dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
 {
+   // Time derivative term: dn_n / dt
    dbfi_m_[0].Append(new MassIntegrator);
+
+   // Diffusion term: -Div(D_n Grad n_n)
    dbfi_.Append(new DiffusionIntegrator(DCoef_));
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
 
+   // Source term: S_{iz}
    dlfi_.Append(new DomainLFIntegrator(SizCoef_));
 
+   // Gradient of non-linear operator
+   // dOp / dn_n
    blf_[0] = new ParBilinearForm((*pgf_)[0]->ParFESpace());
    blf_[0]->AddDomainIntegrator(new MassIntegrator);
    blf_[0]->AddDomainIntegrator(new DiffusionIntegrator(dtDCoef_));
@@ -2274,25 +2280,25 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      // dtdSndnnCoef_(0.0, niizCoef_),
      // dtdSndniCoef_(0.0, nnizCoef_)
 {
-   // dn_i / dt
+   // Time derivative term: dn_i / dt
    dbfi_m_[1].Append(new MassIntegrator);
 
-   // -Div(D Grad n_i)
+   // Diffusion term: -Div(D_i Grad n_i)
    dbfi_.Append(new DiffusionIntegrator(DCoef_));
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
 
-   // Div(v_i n_i)
+   // Advection term: Div(v_i n_i)
    dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
    fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
    // bfbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
 
-   // -S_{iz}
+   // Source term: -S_{iz}
    dlfi_.Append(new DomainLFIntegrator(negSizCoef_));
 
-   // blf_[0] = new ParBilinearForm((*pgf_)[0]->ParFESpace());
-   // blf_[0]->AddDomainIntegrator(new MassIntegrator(dtdSndnnCoef_));
+   // Gradient of non-linear operator
+   // dOp / dn_i
    blf_[1] = new ParBilinearForm((*pgf_)[1]->ParFESpace());
    blf_[1]->AddDomainIntegrator(new MassIntegrator);
    blf_[1]->AddDomainIntegrator(new DiffusionIntegrator(dtDCoef_));
@@ -2357,33 +2363,40 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      mivi1Coef_(m_i_, vi1Coef_),
      EtaCoef_(ion_charge, ion_mass, DPerpCoef_, ni1Coef_, Ti1Coef_, B3Coef),
      dtEtaCoef_(0.0, EtaCoef_),
+     miniViCoef_(pgf, dpgf, ion_mass, DPerpCoef_, B3Coef),
+     dtminiViCoef_(0.0, miniViCoef_),
      gradPCoef_(pgf, dpgf, ion_charge, bHatCoef),
      izCoef_(Te1Coef_),
      // PerpCoef_(&PerpCoef), DCoef_(DPerpCoef_, *PerpCoef_),
      // dtDCoef_(0.0, DCoef_),
      B3Coef_(&B3Coef),
      bHatCoef_(&bHatCoef),
-     ViCoef_(vi1Coef_, *bHatCoef_), dtViCoef_(0.0, ViCoef_),
+     // ViCoef_(vi1Coef_, *bHatCoef_), dtViCoef_(0.0, ViCoef_),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
      niizCoef_(ni1Coef_, izCoef_)
 {
-   // m_i v_i dn_i/dt
+   // Time derivative term: m_i v_i dn_i/dt
    dbfi_m_[1].Append(new MassIntegrator(mivi1Coef_));
 
-   // m_i n_i dv_i/dt
+   // Time derivative term: m_i n_i dv_i/dt
    dbfi_m_[2].Append(new MassIntegrator(mini1Coef_));
 
-   // -Div(eta Grad v_i)
+   // Diffusion term: -Div(eta Grad v_i)
    dbfi_.Append(new DiffusionIntegrator(EtaCoef_));
    fbfi_.Append(new DGDiffusionIntegrator(EtaCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
 
-   // b . Grad(p_i + p_e)
+   // Advection term: Div(m_i n_i V_i v_i)
+   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(miniViCoef_));
+   fbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
+
+   // Source term: b . Grad(p_i + p_e)
    dlfi_.Append(new DomainLFIntegrator(gradPCoef_));
 
+   // Gradient of non-linear operator
    // dOp / dn_i
    blf_[1] = new ParBilinearForm((*pgf_)[1]->ParFESpace());
    blf_[1]->AddDomainIntegrator(new MassIntegrator(mivi1Coef_));
@@ -2396,6 +2409,11 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    blf_[2]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtEtaCoef_,
                                                                 dg_.sigma,
                                                                 dg_.kappa));
+
+   blf_[2]->AddDomainIntegrator(
+      new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
+   blf_[2]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
+                                                            1.0, -0.5));
 
    // ToDo: add d(gradPCoef)/dT_i
    // ToDo: add d(gradPCoef)/dT_e
@@ -2440,7 +2458,8 @@ void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
    Te1Coef_.SetBeta(dt);
 
    dtEtaCoef_.SetAConst(dt);
-   dtViCoef_.SetAConst(dt);
+   miniViCoef_.SetTimeStep(dt);
+   dtminiViCoef_.SetAConst(dt);
 }
 
 void DGTransportTDO::IonMomentumOp::Update()
