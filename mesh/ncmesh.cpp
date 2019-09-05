@@ -861,7 +861,7 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    //
    // Element 'c' needs to be refined vertically for the mesh to remain valid.
 
-   if (level > 0)
+   if (level > 0 && nodes.FindId(mid12, mid34) < 0)
    {
       if (!ForceRefinement(vn1, vn2, vn3, vn4))
       {
@@ -915,12 +915,12 @@ bool NCMesh::RefineElement(int elem, char ref_type)
       return true;
    }
 
-   /*std::cout << "Refining element " << elem << " ("
+   std::cout << "Refining element " << elem << " ("
              << el.node[0] << ", " << el.node[1] << ", "
              << el.node[2] << ", " << el.node[3] << ", "
              << el.node[4] << ", " << el.node[5] << ", "
              << el.node[6] << ", " << el.node[7] << "), "
-             << "ref_type " << int(ref_type) << std::endl;*/
+             << "ref_type " << int(ref_type) << std::endl;
 
    int* no = el.node;
    int attr = el.attribute;
@@ -1520,7 +1520,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_queue.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
-   //static int iter = 0;
+   static int iter = 0;
 
    // keep refining as long as the queue contains something
    int total = 0;
@@ -1543,16 +1543,17 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
          // schedule the refinement for later
          postponed.Append(ref);
 
-         std::cout << "Postponed refinement of element " << ref.index
-                   << " (type " << ref.ref_type << ")." << std::endl;
+         std::cout << "Postponing refinement of element " << ref.index
+                   << " (type " << int(ref.ref_type) << ")." << std::endl;
       }
 
-      /*{char fname[100];
+      {char fname[100];
       sprintf(fname, "ncmesh-%03d.dbg", iter++);
       std::ofstream f(fname);
       Update();
       DebugDump(f);}
-      DebugCheckConsistency();*/
+      DebugCheckConsistency();
+      if (iter > 100) { break; }
 
       if (!ref_queue.Size() && postponed.Size())
       {
