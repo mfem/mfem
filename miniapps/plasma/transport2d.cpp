@@ -1418,9 +1418,6 @@ int main(int argc, char *argv[])
       coefNrm[4] = bnXeb / bMb;
    }
 
-   // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
-   cout << "calling DGTransportTDO with " << pgf[0]->GetData() << " and " <<
-        dpgf[0]->GetData() << endl;
    DGTransportTDO oper(mpi, dg, fes, ffes, offsets, pgf, dpgf,
                        ion_charge, ion_mass, neutral_mass, neutral_temp,
                        Di_perp, B3Coef, bHatCoef, perpCoef,
