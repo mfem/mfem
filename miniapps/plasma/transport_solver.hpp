@@ -691,6 +691,90 @@ public:
 
 };
 
+class IonMomentumAdvectionCoef : public StateVariableVecCoef
+{
+private:
+   double mi_;
+   double dt_;
+  
+   GridFunctionCoefficient ni0_;
+   GridFunctionCoefficient vi0_;
+
+   GridFunctionCoefficient dni0_;
+   GridFunctionCoefficient dvi0_;
+
+   GradientGridFunctionCoefficient grad_ni0_;
+   GradientGridFunctionCoefficient grad_dni0_;
+  
+   Coefficient       * Dperp_;
+   VectorCoefficient * B3_;
+
+   mutable Vector gni0_;
+   mutable Vector gdni0_;
+   mutable Vector gni1_;
+  
+   mutable Vector B_;
+
+public:
+   IonMomentumAdvectionCoef(ParGridFunctionArray &pgf,
+			    ParGridFunctionArray &dpgf,
+			    double ion_mass,
+                            Coefficient &DperpCoef,
+                            VectorCoefficient &B3Coef)
+     : StateVariableVecCoef(2),
+       mi_(ion_mass),
+       dt_(0.0),
+       ni0_(pgf[1]), vi0_(pgf[2]), 
+       dni0_(dpgf[1]), dvi0_(dpgf[2]),
+       grad_ni0_(pgf[1]), grad_dni0_(dpgf[1]),
+       Dperp_(&DperpCoef),
+       B3_(&B3Coef), B_(3)
+  {}
+
+   void SetTimeStep(double dt) { dt_ = dt; }
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   void Eval_Func(Vector & V,
+                  ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      double ni0 = ni0_.Eval(T, ip);
+      double vi0 = vi0_.Eval(T, ip);
+
+      double dni0 = dni0_.Eval(T, ip);
+      double dvi0 = dvi0_.Eval(T, ip);
+
+      double ni1 = ni0 + dt_ * dni0;
+      double vi1 = vi0 + dt_ * dvi0;
+      
+      grad_ni0_.Eval(gni0_, T, ip);
+      grad_dni0_.Eval(gdni0_, T, ip);
+
+      gni1_.SetSize(gni0_.Size());
+      add(gni0_, dt_, gdni0_, gni1_);	    
+	    
+      double Dperp = Dperp_->Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+      double Bmag = sqrt(Bmag2);
+      
+      V[0] = mi_ * (ni1 * vi1 * B_[0] / Bmag +
+		    Dperp * ((B_[1] * B_[1] + B_[2] * B_[2]) * gni1_[0] -
+			     B_[0] * B_[1] * gni1_[1]) / Bmag2);
+      V[1] = mi_ * (ni1 * vi1 * B_[1] / Bmag +
+		    Dperp * ((B_[0] * B_[0] + B_[2] * B_[2]) * gni1_[1] -
+			     B_[0] * B_[1] * gni1_[0]) / Bmag2);
+   }
+};
+  
 class GradPressureCoefficient : public StateVariableCoef
 {
 private:
@@ -1197,14 +1281,17 @@ private:
       IonMomentumDiffusionCoef EtaCoef_;
       ScalarMatrixProductCoefficient dtEtaCoef_;
 
+      IonMomentumAdvectionCoef miniViCoef_;
+      ScalarVectorProductCoefficient dtminiViCoef_;
+     
       GradPressureCoefficient gradPCoef_;
 
       ApproxIonizationRate     izCoef_;
 
       VectorCoefficient * B3Coef_;
       VectorCoefficient * bHatCoef_;
-      ScalarVectorProductCoefficient ViCoef_;
-      ScalarVectorProductCoefficient dtViCoef_;
+      // ScalarVectorProductCoefficient ViCoef_;
+      // ScalarVectorProductCoefficient dtViCoef_;
 
       IonSourceCoef           SizCoef_;
       ProductCoefficient   negSizCoef_;
