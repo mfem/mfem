@@ -1425,7 +1425,7 @@ void DGTransportTDO::NLOperator::SetLogging(int logging, const string & prefix)
 
 void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 {
-   if (mpi_.Root() && logging_)
+   if (mpi_.Root() && logging_ > 1)
    {
       cout << log_prefix_ << "DGTransportTDO::NLOperator::Mult" << endl;
    }
@@ -1511,7 +1511,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       }
    }
    // cout << "|y| after dbfi: " << y.Norml2() << endl;
-   if (mpi_.Root() && logging_)
+   if (mpi_.Root() && logging_ > 2)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult element loop done" << endl;
@@ -1637,7 +1637,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
    }
    // cout << "|y| after fbfi: " << y.Norml2() << endl;
-   if (mpi_.Root() && logging_)
+   if (mpi_.Root() && logging_ > 2)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult face loop done" << endl;
@@ -1730,7 +1730,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       }
    }
 
-   if (mpi_.Root() && logging_)
+   if (mpi_.Root() && logging_ > 1)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult done" << endl;
