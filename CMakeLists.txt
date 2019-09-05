@@ -395,11 +395,11 @@ endif()
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
-# If building out-of-source, define MFEM_BUILD_DIR to point to the build
-# directory.
+# If building out-of-source, define MFEM_CONFIG_FILE to point to the config file
+# inside the build directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   target_compile_definitions(mfem PRIVATE
-    "MFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
+    "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
@@ -415,7 +415,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
       "Writing substitute header --> \"${Header}\"")
     file(WRITE "${PROJECT_BINARY_DIR}/${Header}"
 "// Auto-generated file.
-#define MFEM_BUILD_DIR ${PROJECT_BINARY_DIR}
+#define MFEM_CONFIG_FILE \"${PROJECT_BINARY_DIR}/config/_config.hpp\"
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
     # This version will be installed in the top include directory:
