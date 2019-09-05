@@ -1141,7 +1141,7 @@ int main(int argc, char *argv[])
 
    // Determine the minimum element size.
    double hmin;
-   if (cfl > 0)
+   if (cfl > 0 && dt < 0.0)
    {
       double my_hmin = pmesh.GetElementSize(0, 1);
       for (int i = 1; i < pmesh.GetNE(); i++)
