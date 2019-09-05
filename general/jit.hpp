@@ -138,7 +138,6 @@ static kernel_t getSymbol(const size_t hash, void *handle)
 {
    char symbol[18] = "k0000000000000000";
    uint64str(hash,symbol,1);
-   printf("\n[getSymbol] dlsym '%s'",symbol); fflush(0);
    kernel_t address = (kernel_t) dlsym(handle, symbol);
    assert(address);
    return address;

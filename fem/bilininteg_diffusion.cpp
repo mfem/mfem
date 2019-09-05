@@ -1172,7 +1172,7 @@ static void JitSmemPADiffusionApply2D(const int D1D,
    });
 }
 
-__attribute__ ((hot))
+__attribute ((hot))
 static void JitSmemPADiffusionApply3D(const int D1D,
                                       const int Q1D,
                                       const int NE,
@@ -1429,6 +1429,18 @@ static void PADiffusionApply(const int dim,
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
+
+#ifdef MFEM_USE_JIT
+   if (dim == 2)
+   {
+      const int NBZ = 16;
+      return JitSmemPADiffusionApply2D(D1D,Q1D,NBZ,NE,B,G,op,x,y);
+   }
+   else if (dim == 3)
+   {
+      return JitSmemPADiffusionApply3D(D1D,Q1D,NE,B,G,op,x,y);
+   }
+#else
    if (getenv("JIT"))
    {
       if (dim == 2)
@@ -1472,6 +1484,7 @@ static void PADiffusionApply(const int dim,
       }
    }
    MFEM_ABORT("Unknown kernel.");
+#endif
 }
 
 // PA Diffusion Apply kernel

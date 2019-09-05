@@ -840,7 +840,7 @@ void attribute(context &pp)
    check(pp,pp.in.peek()=='(',"No 2nd '(' in __attribute__");
    get(pp);
    string attr = get_id(pp);
-   if (attr != "hot") { return; }
+   if (attr != "hot") { dbg("nop hot"); return; }
    skip_space(pp);
    check(pp,pp.in.peek()==')',"No 1st ')' in __attribute__");
    get(pp);
@@ -859,7 +859,7 @@ void tokens(context &pp)
    if (pp.in.peek() != '_') { return; }
    string id = get_id(pp);
    if (id == "__attribute") { return attribute(pp); }
-   if (id == "__attribute__") { return attribute(pp); }
+   //if (id == "__attribute__") { return attribute(pp); }
    if (id == "__jit") { return __jit(pp); }
    //if (id == "__embed") { return __embed(pp); }
    if (id == "__kernel") { return __kernel(pp); }
