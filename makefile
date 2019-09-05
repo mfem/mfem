@@ -244,6 +244,11 @@ ifeq ($(MFEM_USE_HIP),YES)
    endif
 endif
 
+# JIT configuration
+ifeq ($(MFEM_USE_JIT),YES)
+   MFEM_EXT_LIBS += -ldl #$(if $(NOTMAC),-ldl,)
+endif
+
 DEP_CXX ?= $(MFEM_CXX)
 
 # Check legacy OpenMP configuration
@@ -413,7 +418,8 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF)
 
 # Rules for compiling all source files.
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) mpp
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) #mpp
+#	./mpp $(<) | $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(abspath $(dir $(<))) -c -o $(@) -x c++ -
 	./mpp $(<) | $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(<)) -c -o $(@) -x c++ -
 
 # Rule for compiling kernel source file generator.
@@ -421,8 +427,7 @@ KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
 MPP_MFEMS  = -DMFEM_CXX="$(MFEM_CXX)"
 MPP_MFEMS += -DMFEM_SRC="$(MFEM_REAL_DIR)"
 MPP_MFEMS += -DMFEM_BUILD_FLAGS="$(KER_FLAGS)"
-MPP_FLAGS  = $(if $(MFEM_USE_MM:YES=),,-DMFEM_USE_MM)
-MPP_FLAGS += $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
+MPP_FLAGS = $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
 mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEMS) $(MPP_FLAGS)
 
