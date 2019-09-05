@@ -1030,6 +1030,94 @@ void FiniteElementSpace::RefinementOperator
    }
 }
 
+void FiniteElementSpace::RefinementOperator
+::MultTranspose(const Vector &x, Vector &y) const
+{
+   y = 0.0;
+
+   Mesh* mesh = fespace->GetMesh();
+   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+
+   /// first, we invert the embedding, coarse-fine map (hack)
+   /// (is not *terribly* slow, but we could do it once and save)
+   std::vector<Array<int> > inverse_embeddings(old_elem_dof->Size());
+   for (int k = 0; k < mesh->GetNE(); k++)
+   {
+      const Embedding &emb = rtrans.embeddings[k];
+      inverse_embeddings[emb.parent].Append(k);
+   }
+
+   Array<int> dofs, old_dofs, old_vdofs;
+
+   Array<char> processed(fespace->GetVSize());
+   processed = 0;
+
+   int vdim = fespace->GetVDim();
+   double rsign, osign;
+
+   // what I actually want is for (old dofs) { for (new dofs) { stuff; } }
+   // the element loops and processed arrays are just ways to fake that
+
+   MFEM_VERIFY(vdim == 1, "Not implemented for vector finite elements!");
+   /// this transpose is not terribly slow, but should probably only happen once
+   Table * old_dof_elem = Transpose(*old_elem_dof);
+   const int vd = 0;
+   osign = 1.0;
+   // loop over old (coarse) dofs, globally
+   // okay, this takes forever!!
+   // you are visiting each fine-grid element multiple (maybe four!) times!
+
+   // could do a Panayot-style table mult, ie coarsedof_coarseelem * coarseelem_finelem * fineelem_finedof
+
+   for (int o = 0; o < old_dof_elem->Size(); ++o) // number old dofs
+   {
+      // std::cout << ".";
+      processed = 0;
+      Array<int> old_elems;
+      old_dof_elem->GetRow(o, old_elems);
+      for (int mi = 0; mi < old_elems.Size(); ++mi) // old elements containing o (4)
+      {
+         int m = old_elems[mi];
+
+         // hacky way to find local index of global index o
+         // (is this taking too much time?)
+         old_elem_dof->GetRow(m, old_dofs);
+         int j;
+         for (int q = 0; q < old_dofs.Size(); ++q) // dofs in old element (4)
+         {
+            if (old_dofs[q] == o)
+            {
+               j = q;
+               break;
+            }
+         }
+
+         for (int ki = 0; ki < inverse_embeddings[m].Size(); ++ki) // fine elements in old element (4)
+         {
+            int k = inverse_embeddings[m][ki];
+            fespace->GetElementDofs(k, dofs);
+            const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+            const DenseMatrix &lP = localP[geom](rtrans.embeddings[k].matrix);
+            double value = 0.0;
+            for (int i = 0; i < dofs.Size(); ++i) // dofs in fine element (4)
+            {
+               int r = fespace->DofToVDof(dofs[i], vd);
+               r = DecodeDof(r, rsign);
+               if (!processed[r])
+               {
+                  value += x[r] * lP(i, j) * rsign;
+                  processed[r] = 1;
+               }
+            }
+            y[o] += value * osign;
+         }
+      }
+   }
+
+   delete old_dof_elem;
+   // std::cout << std::endl;
+}
+
 FiniteElementSpace::DerefinementOperator::DerefinementOperator(
    const FiniteElementSpace *f_fes, const FiniteElementSpace *c_fes,
    BilinearFormIntegrator *mass_integ)
