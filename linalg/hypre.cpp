@@ -1020,6 +1020,44 @@ HypreParMatrix * HypreParMatrix::Transpose() const
    return new HypreParMatrix(At);
 }
 
+HypreParMatrix * HypreParMatrix::ExtractSubmatrix(Array<int> &indices,
+                                                  double threshhold) const
+{
+    hypre_ParCSRMatrix *submat;
+
+    // Get number of rows stored on this processor
+    int local_num_vars = hypre_CSRMatrixNumRows(hypre_ParCSRMatrixDiag(A));
+
+    std::cout << "local rows = " << local_num_vars << "\n";
+
+    // Form hypre CF-splitting array designating submatrix as F-points (-1)
+    int *CF_marker = new int[local_num_vars];
+    std::fill_n(CF_marker, local_num_vars, 1);
+    for (int j=0; j<indices.Size(); j++) {
+        CF_marker[indices[j]] = -1;
+    }
+
+    std::cout << "CF marker built\n";
+
+    // Construct cpts_global array on hypre matrix structure
+    int *cpts_global;
+    hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
+                               CF_marker, NULL, &cpts_global);
+
+    std::cout << "cpts array built\n";
+
+
+    // Extract submatrix into *submat
+    hypre_ParCSRMatrixExtractSubmatrixFC(A, CF_marker, cpts_global,
+                                         "FF", &submat, threshhold);
+
+    std::cout << "submatrix extracted\n";
+
+    delete[] CF_marker;
+    delete[] cpts_global;
+    return new HypreParMatrix(submat);
+}
+
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b)
 {

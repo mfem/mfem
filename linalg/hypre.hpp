@@ -373,6 +373,10 @@ public:
    /// Returns the transpose of *this
    HypreParMatrix * Transpose() const;
 
+   /// Returns principle submatrix of *this, given by array of indices
+   HypreParMatrix * ExtractSubmatrix(Array<int> &indices,
+                                     double threshhold=0.0) const;
+
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
    int GetNumRows() const
    {
