@@ -1466,12 +1466,12 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
             elmat_.AddMult(locdvec_, elvec_);
          }
-         y.AddElementVector(vdofs_, elvec_);
       }
+      y.AddElementVector(vdofs_, elvec_);
    }
 
    // cout << "|y| after dbfi_m: " << y.Norml2() << endl;
-   if (mpi_.Root() && logging_)
+   if (mpi_.Root() && logging_ > 2)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult element loop done" << endl;
