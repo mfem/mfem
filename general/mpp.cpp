@@ -124,7 +124,7 @@ struct error
 const char* strrnc(const char* s, const unsigned char c, int n=1)
 {
    size_t len = strlen(s);
-   char* p = (char*)s+len-1;
+   char* p = const_cast<char*>(s)+len-1;
    for (; n; n--,p--,len--)
    {
       for (; len; p--,len--)
@@ -163,7 +163,7 @@ inline int put(const char c, context &pp)
 {
    if (is_newline(c)) { pp.line++; }
    pp.out.put(c);
-   if (pp.ker.embedding) pp.ker.embed += c;
+   if (pp.ker.embedding) { pp.ker.embed += c; }
    return c;
 }
 
@@ -430,7 +430,7 @@ void jitKernelArgs(context &pp)
                pp.ker.d2u += underscore?"_":"";
                pp.ker.d2u += name;
                pp.ker.d2u += "};";
-               
+
                pp.ker.d2u += "\n\tconst double ";
                pp.ker.d2u += underscore?"_":"";
                pp.ker.d2u += name;
@@ -551,17 +551,20 @@ inline void get_dims(context &pp)
    skip_space(pp);
    if (pp.in.peek() != '[') { return; }
    dbg("<");
-   while (pp.in.peek() == '[') {
-      while (true){
+   while (pp.in.peek() == '[')
+   {
+      while (true)
+      {
          skip_space(pp);
          const int c = get(pp); // eat [, *, +, ( or )
          dbg("%c",c);
          int digit;
          if (is_digit(pp)) { digit = get_digit(pp); dbg("%d",digit);}
          string id;
-         if (is_id(pp)) {
+         if (is_id(pp))
+         {
             id = get_id(pp);
-            dbg("%s",id.c_str()); 
+            dbg("%s",id.c_str());
             const argument_it begin = pp.args.begin();
             const argument_it end = pp.args.end();
             const argument_it it = std::find(begin, end, argument(id));
@@ -571,7 +574,7 @@ inline void get_dims(context &pp)
          if (pp.in.peek()=='+') { continue; }
          if (pp.in.peek()=='(') { continue; }
          if (pp.in.peek()==')') { continue; }
-         if (pp.in.peek()==']') { dbg("]");break; }
+         if (pp.in.peek()==']') { dbg("]"); break; }
          dbg("?:%c",pp.in.peek());
          assert(false);
       }
@@ -670,7 +673,7 @@ void genPtrOkina(context &pp)
          pp.out << "\n\tconst " << type << " " << name
                 << " = (" << type << ")"
                 << " (_" << name << ");";
-         
+
       }
       if (is_const && is_pointer)
       {
@@ -1009,7 +1012,7 @@ void tokens(context &pp)
    if (id=="__kernel") { return __kernel(pp); }
    if (id=="__template") { return __template(pp); }
    pp.out << id;
-   if (pp.ker.embedding) pp.ker.embed += id;
+   if (pp.ker.embedding) { pp.ker.embed += id; }
 }
 
 // *****************************************************************************

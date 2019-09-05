@@ -786,4 +786,11 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
 }
 
+__jit __kernel
+void tryJit(const int N, const int M,
+            const double *x, double *y)
+{
+   // try
+}
+
 } // namespace mfem
