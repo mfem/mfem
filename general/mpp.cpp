@@ -1,3 +1,13 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
 #include <list>
 #include <string>
 #include <cstring>
@@ -6,19 +16,23 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+
 using namespace std;
+
+namespace mfem
+{
 
 // *****************************************************************************
 #define STR(...) #__VA_ARGS__
 #define STRINGIFY(...) STR(__VA_ARGS__)
 #define DBG(...) { printf("\033[1;33m"); \
-                   printf(__VA_ARGS__);\
-                   printf("\033[m");fflush(0);}
+                   printf(__VA_ARGS__);  \
+                   printf("\033[m");fflush(0); }
 
 // *****************************************************************************
-// * Hashing, used here and embedded in the code
+// * Hashing, used here as well as embedded in the code
 // *****************************************************************************
-#define HASH_SRC                                                        \
+#define HASH_COMBINE_ARGS_SRC                                           \
    template <typename T> struct __hash {                                \
       size_t operator()(const T& h) const noexcept {                    \
          return std::hash<T>{}(h); }                                    \
@@ -37,88 +51,93 @@ using namespace std;
    }
 
 // *****************************************************************************
-// * Dump the hashing source here to use it
+// * Dump the hashing source here to be able to use it
 // *****************************************************************************
-HASH_SRC
+HASH_COMBINE_ARGS_SRC
 
 // *****************************************************************************
-// * STRUCTS: argument, tpl_t, kernel, context, error
+// * STRUCTS: argument_t, template_t, kernel_t, context_t and error_t
 // *****************************************************************************
-struct argument
+struct argument_t
 {
    int default_value;
    string type, name;
    bool is_ptr = false, is_amp = false, is_const = false,
         is_restrict = false, is_tpl = false, has_default_value = false;
    std::list<int> range;
-   bool operator==(const argument &a) { return name == a.name; }
-   argument() {}
-   argument(string id): name(id) {}
+   bool operator==(const argument_t &a) { return name == a.name; }
+   argument_t() {}
+   argument_t(string id): name(id) {}
 };
-typedef std::list<argument>::iterator argument_it;
+typedef std::list<argument_t>::iterator argument_it;
 
 // *****************************************************************************
-struct tpl_t
+struct template_t
 {
-   string std_args;
-   string std_parameters;
-   string template_parameters;
-   string template_args;
+   string args, params;
+   string Targs, Tparams;
    list<list<int> > ranges;
-   string return_type;
-   string signature;
+   string return_t, signature;
 };
 
 // *****************************************************************************
-struct kernel
+struct kernel_t
 {
-   bool __jit;
    bool __embed;
+   bool __kernel;
    bool __template;
    bool __single_source;
-   string xcc;
-   string dirname;
-   string name;
-   string static_format;      // template format, as in printf
-   string static_arguments;   // template arguments, for hash and call
-   string static_parameters;  // template parameter, for the declaration
-   string other_parameters;
-   // args are different for jit because of the & <=> * transformation
-   string other_arguments;
-   string other_arguments_wo_amp;
-   string single_source_template_parameters;
-   string d2u;
-   string u2d;
-   struct tpl_t tpl;
-   string embed;
+   string xcc;                // compiler command, which holds MFEM_CXX
+   string dirname;            // MFEM_SRC, which holds MFEM_REAL_DIR
+   string name;               // kernel name
+   // format, arguments and parameter strings for the template
+   string Tformat;            // template format, as in printf
+   string Targs;              // template arguments, for hash and call
+   string Tparams;            // template parameter, for the declaration
+   string Tparams_src;        // template parameter from original source
+   // arguments and parameter strings for the standard calls
+   // we need two kind of arguments because of the '& <=> *' transformation
+   string params;
+   string args;
+   string args_wo_amp;
+   string d2u, u2d;           // double to unsigned place holders
+   struct template_t tpl;     // source of the instanciated templates
+   string embed;              // source of the embed function
 };
 
 // *****************************************************************************
-struct context
+struct context_t
 {
-   int line;
-   int compound_statements;
-   string& file;
+   kernel_t ker;
    istream& in;
    ostream& out;
-   std::list<argument> args;
-   kernel ker;
+   string& file;
+   list<argument_t> args;
+   int line, block;
 public:
-   context(istream& i, ostream& o, string &f)
-      : line(1), compound_statements(-2), file(f), in(i), out(o) {}
+   context_t(istream& i, ostream& o, string &f)
+      : in(i), out(o), file(f), line(1), block(-2) {}
 };
 
 // *****************************************************************************
-struct error
+struct error_t
 {
    int line;
    string file;
    const char *msg;
-   error(int l, string f, const char *m): line(l), file(f), msg(m) {}
+   error_t(int l, string f, const char *m): line(l), file(f), msg(m) {}
 };
 
 // *****************************************************************************
-const char* strrnc(const char* s, const unsigned char c, int n=1)
+int help(char* argv[])
+{
+   cout << "MFEM preprocessor:";
+   cout << argv[0] << " -o output input" << endl;
+   return ~0;
+}
+
+// *****************************************************************************
+const char* strrnc(const char *s, const unsigned char c, int n =1)
 {
    size_t len = strlen(s);
    char* p = const_cast<char*>(s)+len-1;
@@ -133,30 +152,21 @@ const char* strrnc(const char* s, const unsigned char c, int n=1)
 }
 
 // *****************************************************************************
-inline void check(context &pp, const bool test, const char *msg = NULL)
-{
-   if (not test) { throw error(pp.line,pp.file,msg); }
-}
+void check(context_t &pp, const bool test, const char *msg =NULL)
+{ if (not test) { throw error_t(pp.line,pp.file,msg); } }
 
 // *****************************************************************************
-int help(char* argv[])
-{
-   cout << "MFEM preprocessor:";
-   cout << argv[0] << " -o output input" << endl;
-   return ~0;
-}
+bool is_newline(const int ch)
+{ return static_cast<unsigned char>(ch) == '\n'; }
 
 // *****************************************************************************
-inline bool is_newline(const int ch)
-{
-   return static_cast<unsigned char>(ch) == '\n';
-}
+bool good(context_t &pp) { pp.in.peek(); return pp.in.good(); }
 
 // *****************************************************************************
-inline char get(context &pp) { return static_cast<char>(pp.in.get()); }
+char get(context_t &pp) { return static_cast<char>(pp.in.get()); }
 
 // *****************************************************************************
-inline int put(const char c, context &pp)
+int put(const char c, context_t &pp)
 {
    if (is_newline(c)) { pp.line++; }
    pp.out.put(c);
@@ -165,28 +175,28 @@ inline int put(const char c, context &pp)
 }
 
 // *****************************************************************************
-inline int put(context &pp) { return put(get(pp),pp); }
+int put(context_t &pp) { return put(get(pp),pp); }
 
 // *****************************************************************************
-inline void skip_space(context &pp, string &out)
+void skip_space(context_t &pp, string &out)
 {
    while (isspace(pp.in.peek())) { out += get(pp); }
 }
 
 // *****************************************************************************
-inline void skip_space(context &pp)
+void skip_space(context_t &pp)
 {
    while (isspace(pp.in.peek())) { put(pp); }
 }
 
 // *****************************************************************************
-inline void drop_space(context &pp)
+void drop_space(context_t &pp)
 {
    while (isspace(pp.in.peek())) { get(pp); }
 }
 
 // *****************************************************************************
-bool is_comments(context &pp)
+bool is_comments(context_t &pp)
 {
    if (pp.in.peek() != '/') { return false; }
    pp.in.get();
@@ -198,13 +208,13 @@ bool is_comments(context &pp)
 }
 
 // *****************************************************************************
-void singleLineComments(context &pp)
+void singleLineComments(context_t &pp)
 {
-   while (not is_newline(pp.in.peek())) { put(pp); }
+   while (!is_newline(pp.in.peek())) { put(pp); }
 }
 
 // *****************************************************************************
-void blockComments(context &pp)
+void blockComments(context_t &pp)
 {
    for (char c; pp.in.get(c);)
    {
@@ -219,7 +229,7 @@ void blockComments(context &pp)
 }
 
 // *****************************************************************************
-void comments(context &pp)
+void comments(context_t &pp)
 {
    if (not is_comments(pp)) { return; }
    put(pp);
@@ -228,78 +238,63 @@ void comments(context &pp)
 }
 
 // *****************************************************************************
-void next(context &pp)
+void next(context_t &pp)
 {
    skip_space(pp);
    comments(pp);
 }
 
 // *****************************************************************************
-inline bool is_id(context &pp)
+bool is_id(context_t &pp)
 {
    const int c = pp.in.peek();
    return isalnum(c) or c == '_';
 }
 
 // *****************************************************************************
-string get_id(context &pp)
+string get_id(context_t &pp)
 {
-   string str;
-   check(pp,is_id(pp),"Name w/o alnum 1st letter");
-   while (is_id(pp)) { str += get(pp); }
-   return str;
+   string id;
+   check(pp,is_id(pp),"name w/o alnum 1st letter");
+   while (is_id(pp)) { id += get(pp); }
+   return id;
 }
 
 // *****************************************************************************
-bool is_digit(context &pp)
+bool is_digit(context_t &pp)
+{ return isdigit(static_cast<char>(pp.in.peek())); }
+
+// *****************************************************************************
+int get_digit(context_t &pp)
 {
-   const char c = static_cast<char>(pp.in.peek());
-   return isdigit(c);
+   string digit;
+   check(pp,is_digit(pp),"unknown number");
+   while (is_digit(pp)) { digit += get(pp); }
+   return atoi(digit.c_str());
 }
 
 // *****************************************************************************
-int get_digit(context &pp)
-{
-   string str;
-   check(pp,is_digit(pp),"Unknown number");
-   while (is_digit(pp)) { str += get(pp); }
-   return atoi(str.c_str());
-}
-
-// *****************************************************************************
-string get_directive(context &pp)
-{
-   string str;
-   while (is_id(pp)) { str += get(pp); }
-   return str;
-}
-
-// *****************************************************************************
-string peekn(context &pp, const int n)
+string peekn(context_t &pp, const int n)
 {
    int k = 0;
    assert(n<64);
    static char c[64];
-   for (k=0; k<=n; k+=1) { c[k] = 0; }
-   for (k=0; k<n; k+=1)
-   {
-      c[k] = get(pp);
-      if (pp.in.eof()) { break; }
-   }
-   string rtn = c;
-   for (int l=0; l<k; l+=1) { pp.in.unget(); }
+   for (k=0; k<=n; k++) { c[k] = 0; }
+   for (k=0; k<n && good(pp); k++) { c[k] = get(pp); }
+   string rtn(c);
    assert(!pp.in.fail());
+   for (int l=0; l<k; l++) { pp.in.unget(); }
    return rtn;
 }
 
 // *****************************************************************************
-string peekID(context &pp)
+string peekid(context_t &pp)
 {
    int k = 0;
    const int n = 64;
    static char c[64];
-   for (k=0; k<n; k+=1) { c[k] = 0; }
-   for (k=0; k<n; k+=1)
+   for (k=0; k<n; k++) { c[k] = 0; }
+   for (k=0; k<n; k++)
    {
       if (! is_id(pp)) { break; }
       c[k] = get(pp);
@@ -311,13 +306,11 @@ string peekID(context &pp)
 }
 
 // *****************************************************************************
-inline void drop_name(context &pp)
-{
-   while (is_id(pp)) { get(pp); }
-}
+void drop_name(context_t &pp)
+{ while (is_id(pp)) { get(pp); } }
 
 // *****************************************************************************
-bool isvoid(context &pp)
+bool isvoid(context_t &pp)
 {
    skip_space(pp);
    const string void_peek = peekn(pp,4);
@@ -327,7 +320,7 @@ bool isvoid(context &pp)
 }
 
 // *****************************************************************************
-bool isstatic(context &pp)
+bool isstatic(context_t &pp)
 {
    skip_space(pp);
    const string void_peek = peekn(pp,6);
@@ -337,7 +330,7 @@ bool isstatic(context &pp)
 }
 
 // *****************************************************************************
-bool istemplate(context &pp)
+bool istemplate(context_t &pp)
 {
    skip_space(pp);
    const string void_peek = peekn(pp,8);
@@ -347,7 +340,7 @@ bool istemplate(context &pp)
 }
 
 // *****************************************************************************
-bool is_star(context &pp)
+bool is_star(context_t &pp)
 {
    skip_space(pp);
    if (pp.in.peek() == '*') { return true; }
@@ -355,7 +348,7 @@ bool is_star(context &pp)
 }
 
 // *****************************************************************************
-bool is_amp(context &pp)
+bool is_amp(context_t &pp)
 {
    skip_space(pp);
    if (pp.in.peek() == '&') { return true; }
@@ -363,7 +356,7 @@ bool is_amp(context &pp)
 }
 
 // *****************************************************************************
-bool is_open_parenthesis(context &pp)
+bool is_left_parenthesis(context_t &pp)
 {
    skip_space(pp);
    if (pp.in.peek() == '(') { return true; }
@@ -371,7 +364,7 @@ bool is_open_parenthesis(context &pp)
 }
 
 // *****************************************************************************
-bool is_close_parenthesis(context &pp)
+bool is_right_parenthesis(context_t &pp)
 {
    skip_space(pp);
    if (pp.in.peek() == ')') { return true; }
@@ -379,7 +372,7 @@ bool is_close_parenthesis(context &pp)
 }
 
 // *****************************************************************************
-bool is_coma(context &pp)
+bool is_coma(context_t &pp)
 {
    skip_space(pp);
    if (pp.in.peek() == ',') { return true; }
@@ -387,7 +380,7 @@ bool is_coma(context &pp)
 }
 
 // *****************************************************************************
-bool is_eq(context &pp)
+bool is_eq(context_t &pp)
 {
    skip_space(pp);
    if (pp.in.peek() == '=') { return true; }
@@ -395,53 +388,34 @@ bool is_eq(context &pp)
 }
 
 // *****************************************************************************
-static inline void hashHeader(context &pp)
+// * MFEM_KERNEL
+// *****************************************************************************
+void kerHeader(context_t &pp)
 {
+   pp.out << "#include \"general/kernel.hpp\"\n";
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";
-   pp.out << STRINGIFY(HASH_SRC) << "\n";
+   pp.out << STRINGIFY(HASH_COMBINE_ARGS_SRC) << "\n";
    pp.out << "#line 1 \"" << pp.file <<"\"\n";
 }
 
 // *****************************************************************************
-// * JIT
-// *****************************************************************************
-void jitHeader(context &pp)
+void kerArgs(context_t &pp)
 {
-   pp.out << "#include \"general/jit.hpp\"\n";
-}
-
-// *****************************************************************************
-void jitKernelArgsSingleSource(context &pp)
-{
-   pp.ker.static_parameters = "\033[33mstatic_parameters\033[m";
-   pp.ker.static_arguments = "\033[33mstatic_arguments\033[m";
-   pp.ker.static_format = "\033[33mstatic_format\033[m";
-   pp.ker.other_arguments = "\033[33mother_arguments\033[m";
-   pp.ker.other_parameters = "\033[33mother_parameters\033[m";
-   pp.ker.other_arguments_wo_amp = "\033[33mother_arguments_wo_amp\033[m";
-}
-
-// *****************************************************************************
-void jitKernelArgs(context &pp)
-{
-   if (not pp.ker.__jit) { return; }
+   if (! pp.ker.__kernel) { return; }
    pp.ker.xcc = STRINGIFY(MFEM_CXX) " " STRINGIFY(MFEM_BUILD_FLAGS);
    pp.ker.dirname = STRINGIFY(MFEM_SRC);
-   pp.ker.static_arguments.clear();
-   pp.ker.static_parameters.clear();
-   pp.ker.static_format.clear();
-   pp.ker.other_arguments.clear();
-   pp.ker.other_parameters.clear();
-   pp.ker.other_arguments_wo_amp.clear();
+   pp.ker.Targs.clear();
+   pp.ker.Tparams.clear();
+   pp.ker.Tformat.clear();
+   pp.ker.args.clear();
+   pp.ker.params.clear();
+   pp.ker.args_wo_amp.clear();
    pp.ker.d2u.clear();
    pp.ker.u2d.clear();
-
-   //if (pp.ker.__single_source) { jitKernelArgsSingleSource(pp);}
-
    for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
    {
-      const argument &arg = *ia;
+      const argument_t &arg = *ia;
       const bool is_const = arg.is_const;
       const bool is_amp = arg.is_amp;
       const bool is_ptr = arg.is_ptr;
@@ -450,36 +424,35 @@ void jitKernelArgs(context &pp)
       const char *name = arg.name.c_str();
       const bool underscore = is_pointer;
       const bool has_default_value = arg.has_default_value;
-
       // const + !(*|&) => add it to the template args
       if (is_const && ! is_pointer)
       {
          const bool is_double = strcmp(type,"double")==0;
          // static_format
-         if (! pp.ker.static_format.empty()) { pp.ker.static_format += ","; }
+         if (! pp.ker.Tformat.empty()) { pp.ker.Tformat += ","; }
          if (! has_default_value)
          {
-            pp.ker.static_format += is_double?"0x%lx":"%ld";
+            pp.ker.Tformat += is_double?"0x%lx":"%ld";
          }
          else
          {
-            pp.ker.static_format += "%ld";
+            pp.ker.Tformat += "%ld";
          }
          // static_arguments
-         if (! pp.ker.static_arguments.empty()) { pp.ker.static_arguments += ","; }
-         pp.ker.static_arguments += is_double?"u":"";
-         pp.ker.static_arguments += underscore?"_":"";
-         pp.ker.static_arguments += name;
+         if (! pp.ker.Targs.empty()) { pp.ker.Targs += ","; }
+         pp.ker.Targs += is_double?"u":"";
+         pp.ker.Targs += underscore?"_":"";
+         pp.ker.Targs += name;
          // static_parameters
          if (!has_default_value)
          {
-            if (! pp.ker.static_parameters.empty()) { pp.ker.static_parameters += ","; }
-            pp.ker.static_parameters += "const ";
-            pp.ker.static_parameters += is_double?"uint64_t":type;
-            pp.ker.static_parameters += " ";
-            pp.ker.static_parameters += is_double?"t":"";
-            pp.ker.static_parameters += underscore?"_":"";
-            pp.ker.static_parameters += name;
+            if (! pp.ker.Tparams.empty()) { pp.ker.Tparams += ","; }
+            pp.ker.Tparams += "const ";
+            pp.ker.Tparams += is_double?"uint64_t":type;
+            pp.ker.Tparams += " ";
+            pp.ker.Tparams += is_double?"t":"";
+            pp.ker.Tparams += underscore?"_":"";
+            pp.ker.Tparams += name;
          }
          if (is_double)
          {
@@ -494,8 +467,6 @@ void jitKernelArgs(context &pp)
                pp.ker.d2u += "\n\tconst double ";
                pp.ker.d2u += underscore?"_":"";
                pp.ker.d2u += name;
-               //pp.ker.d2u += " = (union_du){/*u:*/t";
-               //pp.ker.d2u += underscore?"_":"";
                pp.ker.d2u += " = union_";
                pp.ker.d2u += name;
                pp.ker.d2u += ".d;";
@@ -511,224 +482,179 @@ void jitKernelArgs(context &pp)
             }
          }
       }
-
       // !const && !pointer => std args
       if (!is_const && !is_pointer)
       {
-         if (! pp.ker.other_arguments.empty())
+         if (! pp.ker.args.empty())
          {
-            pp.ker.other_arguments += ",";
+            pp.ker.args += ",";
          }
-         pp.ker.other_arguments += name;
-         if (! pp.ker.other_arguments_wo_amp.empty())
+         pp.ker.args += name;
+         if (! pp.ker.args_wo_amp.empty())
          {
-            pp.ker.other_arguments_wo_amp += ",";
+            pp.ker.args_wo_amp += ",";
          }
-         pp.ker.other_arguments_wo_amp += name;
+         pp.ker.args_wo_amp += name;
 
-         if (! pp.ker.other_parameters.empty())
+         if (! pp.ker.params.empty())
          {
-            pp.ker.other_parameters += ",";
+            pp.ker.params += ",";
          }
-         pp.ker.other_parameters += type;
-         pp.ker.other_parameters += " ";
-         pp.ker.other_parameters += name;
+         pp.ker.params += type;
+         pp.ker.params += " ";
+         pp.ker.params += name;
       }
-
       if (is_const && !is_pointer && has_default_value)
       {
          // other_parameters
-         if (! pp.ker.other_parameters.empty())
+         if (! pp.ker.params.empty())
          {
-            pp.ker.other_parameters += ",";
+            pp.ker.params += ",";
          }
-         pp.ker.other_parameters += " const ";
-         pp.ker.other_parameters += type;
-         pp.ker.other_parameters += " ";
-         pp.ker.other_parameters += name;
+         pp.ker.params += " const ";
+         pp.ker.params += type;
+         pp.ker.params += " ";
+         pp.ker.params += name;
          //pp.ker.other_parameters += " =0";
          // other_arguments_wo_amp
-         if (! pp.ker.other_arguments_wo_amp.empty())
+         if (! pp.ker.args_wo_amp.empty())
          {
-            pp.ker.other_arguments_wo_amp += ",";
+            pp.ker.args_wo_amp += ",";
          }
-         pp.ker.other_arguments_wo_amp += "0";
+         pp.ker.args_wo_amp += "0";
          // other_arguments
-         if (! pp.ker.other_arguments.empty())
+         if (! pp.ker.args.empty())
          {
-            pp.ker.other_arguments += ",";
+            pp.ker.args += ",";
          }
-         pp.ker.other_arguments += "0";
+         pp.ker.args += "0";
       }
-
       // pointer
       if (is_pointer)
       {
          // other_arguments
-         if (! pp.ker.other_arguments.empty())
+         if (! pp.ker.args.empty())
          {
-            pp.ker.other_arguments += ",";
+            pp.ker.args += ",";
          }
-         pp.ker.other_arguments += is_amp?"&":"";
-         pp.ker.other_arguments += underscore?"_":"";
-         pp.ker.other_arguments += name;
+         pp.ker.args += is_amp?"&":"";
+         pp.ker.args += underscore?"_":"";
+         pp.ker.args += name;
          // other_arguments_wo_amp
-         if (! pp.ker.other_arguments_wo_amp.empty())
+         if (! pp.ker.args_wo_amp.empty())
          {
-            pp.ker.other_arguments_wo_amp += ",";
+            pp.ker.args_wo_amp += ",";
          }
-         pp.ker.other_arguments_wo_amp += underscore?"_":"";
-         pp.ker.other_arguments_wo_amp += name;
+         pp.ker.args_wo_amp += underscore?"_":"";
+         pp.ker.args_wo_amp += name;
          // other_parameters
-         if (! pp.ker.other_parameters.empty())
+         if (! pp.ker.params.empty())
          {
-            pp.ker.other_parameters += ",";
+            pp.ker.params += ",";
          }
-         pp.ker.other_parameters += is_const?"const ":"";
-         pp.ker.other_parameters += type;
-         pp.ker.other_parameters += " *";
-         pp.ker.other_parameters += underscore?"_":"";
-         pp.ker.other_parameters += name;
+         pp.ker.params += is_const?"const ":"";
+         pp.ker.params += type;
+         pp.ker.params += " *";
+         pp.ker.params += underscore?"_":"";
+         pp.ker.params += name;
       }
    }
-
    if (pp.ker.__single_source)
    {
-      if (! pp.ker.static_parameters.empty()) { pp.ker.static_parameters += ","; }
-      pp.ker.static_parameters += pp.ker.single_source_template_parameters;
+      if (! pp.ker.Tparams.empty()) { pp.ker.Tparams += ","; }
+      pp.ker.Tparams += pp.ker.Tparams_src;
    }
 }
 
 // *****************************************************************************
-void jitPrefix(context &pp)
+void kerPrefix(context_t &pp)
 {
-   if (not pp.ker.__jit) { return; }
+   if (not pp.ker.__kernel) { return; }
    pp.out << "\n\tconst char *src=R\"_(";
    pp.out << "#include <cstdint>";
    pp.out << "\n#include <limits>";
    pp.out << "\n#include <cstring>";
    pp.out << "\n#include <stdbool.h>";
    pp.out << "\n#include \"mfem.hpp\"";
-   pp.out << "\n#include \"general/jit.hpp\"";
+   pp.out << "\n#include \"general/kernel.hpp\"";
    pp.out << "\n#include \"general/forall.hpp\"";
-   pp.out << "\n#pragma push";
-   pp.out << "\n#pragma diag_suppress 177\n"; // declared but never referenced
-   pp.out << pp.ker.embed.c_str();
-   pp.out << "#pragma pop\n";
-   pp.out << "using namespace mfem;\n";
-   pp.out << "\ntemplate<" << pp.ker.static_parameters << ">";
-   pp.out << "\nvoid jit_" << pp.ker.name << "(";
-   pp.out << pp.ker.other_parameters << "){";
+   if (not pp.ker.embed.empty())
+   {
+      // push to suppress 'declared but never referenced' warnings
+      pp.out << "\n#pragma push";
+      pp.out << "\n#pragma diag_suppress 177\n";
+      pp.out << pp.ker.embed.c_str();
+      pp.out << "\n#pragma pop";
+   }
+   pp.out << "\nusing namespace mfem;\n";
+   pp.out << "\ntemplate<" << pp.ker.Tparams << ">";
+   pp.out << "\nvoid ker_" << pp.ker.name << "(";
+   pp.out << pp.ker.params << "){";
    if (not pp.ker.d2u.empty()) { pp.out << "\n\t" << pp.ker.d2u; }
-   // Starts counting the compound statements
-   pp.compound_statements = 0;
+   // Starts counting the block depth
+   pp.block = 0;
 }
 
 // *****************************************************************************
-void jitPostfix(context &pp)
+void kerPostfix(context_t &pp)
 {
-   if (not pp.ker.__jit) { return; }
-   if (pp.compound_statements>=0 && pp.in.peek() == '{') { pp.compound_statements++; }
-   if (pp.compound_statements>=0 && pp.in.peek() == '}') { pp.compound_statements--; }
-   if (pp.compound_statements!=-1) { return; }
-   pp.out << "}";
-   pp.out << "\nextern \"C\"";
-   pp.out << "\nvoid k%016lx("
-          << pp.ker.other_parameters << "){";
-   pp.out << "jit_"<<pp.ker.name
-          << "<" << pp.ker.static_format<<">"
-          << "(" << pp.ker.other_arguments_wo_amp << ");";
-   pp.out << "\n}";
-   pp.out << ")_\";";
+   if (not pp.ker.__kernel) { return; }
+   if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
+   if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
+   if (pp.block!=-1) { return; }
+   pp.out << "}\nextern \"C\"\nvoid k%016lx(" << pp.ker.params << "){";
+   pp.out << "ker_" << pp.ker.name
+          << "<" << pp.ker.Tformat << ">"
+          << "(" << pp.ker.args_wo_amp << ");";
+   pp.out << "\n})_\";";
    // typedef, hash map and launch
-   pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.other_parameters<<");";
-   pp.out << "\n\tstatic std::unordered_map<size_t,mfem::jit::kernel<kernel_t>*> __kernels;";
+   pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.params<<");";
+   pp.out << "\n\tstatic unordered_map<size_t,kernel::kernel<kernel_t>*> ks;";
    if (not pp.ker.u2d.empty()) { pp.out << "\n\t" << pp.ker.u2d; }
-
    pp.out << "\n\tconst char *xcc = \"" << pp.ker.xcc << "\";";
    pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
-   pp.out << "\n\tconst size_t args_hash = mfem::jit::hash_args(args_seed,"
-          << pp.ker.static_arguments << ");";
-   pp.out << "\n\tif (!__kernels[args_hash]){";
-   pp.out << "\n\t\t__kernels[args_hash] = new mfem::jit::kernel<kernel_t>"
+   pp.out << "\n\tconst size_t args_hash = kernel::hash_args(args_seed,"
+          << pp.ker.Targs << ");";
+   pp.out << "\n\tif (!ks[args_hash]){";
+   pp.out << "\n\t\tks[args_hash] = new kernel::kernel<kernel_t>"
           << "(xcc,src," << "\"-I" << pp.ker.dirname << "\","
-          << pp.ker.static_arguments << ");";
+          << pp.ker.Targs << ");";
    pp.out << "\n\t}";
-   pp.out << "\n\t__kernels[args_hash]->operator_void("
-          << pp.ker.other_arguments << ");\n";
-   // Stop counting the compound statements and flush the JIT status
-   pp.compound_statements--;
-   pp.ker.__jit = false;
+   pp.out << "\n\tks[args_hash]->operator_void(" << pp.ker.args << ");\n";
+   // Stop counting the blocks and flush the kernel status
+   pp.block--;
+   pp.ker.__kernel = false;
 }
 
 // *****************************************************************************
-inline void get_dims(context &pp)
-{
-   skip_space(pp);
-   if (pp.in.peek() != '[') { return; }
-   while (pp.in.peek() == '[')
-   {
-      while (true)
-      {
-         skip_space(pp);
-         //const int c = get(pp); // eat [, *, +, ( or )
-         int digit;
-         if (is_digit(pp)) { digit = get_digit(pp); }
-         string id;
-         if (is_id(pp))
-         {
-            id = get_id(pp);
-            const argument_it begin = pp.args.begin();
-            const argument_it end = pp.args.end();
-            const argument_it it = std::find(begin, end, argument(id));
-            assert(it!=end);
-         }
-         if (pp.in.peek()=='*') { continue; }
-         if (pp.in.peek()=='+') { continue; }
-         if (pp.in.peek()=='(') { continue; }
-         if (pp.in.peek()==')') { continue; }
-         if (pp.in.peek()==']') { break; }
-         assert(false);
-      }
-      skip_space(pp);
-      check(pp,pp.in.peek()==']',"No ] while in get_dims");
-      get(pp); // eat ']'
-      skip_space(pp);
-   }
-}
-
-// *****************************************************************************
-static string get_array_type(context &pp)
+string get_array_type(context_t &pp)
 {
    string type;
    skip_space(pp);
-   check(pp,pp.in.peek()=='<',"No < while in get_array_type");
+   check(pp,pp.in.peek()=='<',"no '<' while in get_array_type");
    put(pp);
    type += "<";
-
    skip_space(pp);
-   check(pp,is_id(pp),"No <type> found while in get_array_type");
+   check(pp,is_id(pp),"no type found while in get_array_type");
    string id = get_id(pp);
    pp.out << id.c_str();
    type += id;
-
    skip_space(pp);
-   check(pp,pp.in.peek()=='>',"No > while in get_array_type");
+   check(pp,pp.in.peek()=='>',"no '>' while in get_array_type");
    put(pp);
    type += ">";
    return type;
 }
 
 // *****************************************************************************
-static bool get_args(context &pp)
+bool kerGetArgs(context_t &pp)
 {
    bool empty = true;
-   argument arg;
+   argument_t arg;
    pp.args.clear();
-
    // Go to first possible argument
    skip_space(pp);
-   if (isvoid(pp))   // if it is 'void' drop it
+   if (isvoid(pp))
    {
       drop_name(pp);
       return true;
@@ -752,13 +678,13 @@ static bool get_args(context &pp)
          put(pp);
          continue;
       }
-      if (is_open_parenthesis(pp))
+      if (is_left_parenthesis(pp))
       {
          p+=1;
          put(pp);
          continue;
       }
-      const string &id = peekID(pp);
+      const string &id = peekid(pp);
       drop_name(pp);
       // Qualifiers
       if (id=="const") { pp.out << id; arg.is_const = true; continue; }
@@ -784,7 +710,6 @@ static bool get_args(context &pp)
       const bool underscore = is_pointer;
       pp.out << (underscore?"_":"") << id;
       // focus on the name, we should have qual & type
-      //DBG("name='%s'",id.c_str());
       arg.name = id;
       // now check for a possible default value
       next(pp);
@@ -795,33 +720,27 @@ static bool get_args(context &pp)
          arg.has_default_value = true;
          arg.default_value = get_digit(pp);
          pp.out << arg.default_value;
-         // we dont want them in the static_parameters
-         //arg.is_const = false;
       }
-      //get_dims(pp);
       pp.args.push_back(arg);
-      arg = argument();
+      arg = argument_t();
       int c = pp.in.peek();
       assert(not pp.in.eof());
-      //if (c == '(') { put(pp); p+=1; }
-      if (c == ')') { p-=1; if (p>=0) { put(pp); get_dims(pp); continue; } }
+      if (c == ')') { p-=1; if (p>=0) { put(pp); continue; } }
       if (p<0) { break; }
-      check(pp,pp.in.peek()==',',"No coma while in args");
+      check(pp,pp.in.peek()==',',"no coma while in args");
       put(pp);
    }
-   // Prepare the JIT strings from the arguments
-   jitKernelArgs(pp);
+   // Prepare the kernel strings from the arguments
+   kerArgs(pp);
    return empty;
 }
 
 // *****************************************************************************
-static void jitAmpFromPtr(context &pp)
+void kerAmpFromPtr(context_t &pp)
 {
-   // Generate the GET_* code
-   for (argument_it ia = pp.args.begin();
-        ia != pp.args.end() ; ia++)
+   for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
    {
-      const argument a = *ia;
+      const argument_t a = *ia;
       const bool is_const = a.is_const;
       const bool is_ptr = a.is_ptr;
       const bool is_amp = a.is_amp;
@@ -831,30 +750,29 @@ static void jitAmpFromPtr(context &pp)
       const bool underscore = is_pointer;
       if (is_const && underscore)
       {
-         pp.out << "\n\tconst " << type << (is_amp?"& ":"* ") << name
-                << " = " <<  (is_amp?"* ":" ")
+         pp.out << "\n\tconst " << type << (is_amp?"&":"*") << name
+                << " = " <<  (is_amp?"*":" ")
                 << " _" << name << ";";
       }
       if (!is_const && underscore)
       {
-         pp.out << "\n\t" << type << (is_amp?"& ":"* ") << name
-                << " = " <<  (is_amp?"* ":" ")
+         pp.out << "\n\t" << type << (is_amp?"&":"*") << name
+                << " = " << (is_amp?"*":" ")
                 << " _" << name << ";";
       }
    }
 }
 
 // *****************************************************************************
-void __kernel(context &pp)
+void __kernel(context_t &pp)
 {
-   // Skip   "__kernel"
-   pp.out << "        ";
+   pp.ker.__kernel = true;
    next(pp);
    // return type should be void for now, or we could hit a 'static'
    // or even a 'template' which triggers the '__single_source' case
    const bool check_next_id = isvoid(pp) or isstatic(pp) or istemplate(pp);
    // first check for the template
-   check(pp,  check_next_id, "Kernel w/o void, static or template");
+   check(pp,  check_next_id, "kernel w/o void, static or template");
    if (istemplate(pp))
    {
       // get rid of the 'template'
@@ -862,13 +780,13 @@ void __kernel(context &pp)
       // tag our kernel as a '__single_source' one
       pp.ker.__single_source = true;
       next(pp);
-      check(pp, pp.in.peek()=='<',"No '<' in single source kernel!");
+      check(pp, pp.in.peek()=='<',"no '<' in single source kernel!");
       get(pp); // eat '<'
-      pp.ker.single_source_template_parameters.clear();
+      pp.ker.Tparams_src.clear();
       while (pp.in.peek() != '>')
       {
          assert(not pp.in.eof());
-         pp.ker.single_source_template_parameters += get(pp);
+         pp.ker.Tparams_src += get(pp);
       }
       get(pp); // eat '>'
    }
@@ -884,205 +802,58 @@ void __kernel(context &pp)
    pp.ker.name = name;
    next(pp);
    // check we are at the left parenthesis
-   check(pp,pp.in.peek()=='(',"No 1st '(' in kernel");
+   check(pp,pp.in.peek()=='(',"no 1st '(' in kernel");
    put(pp);
    // Get the arguments
-   get_args(pp);
+   kerGetArgs(pp);
    // Make sure we have hit the last ')' of the arguments
-   check(pp,pp.in.peek()==')',"No last ')' in kernel");
+   check(pp,pp.in.peek()==')',"no last ')' in kernel");
    put(pp);
    next(pp);
    // Make sure we are about to start a compound statement
-   check(pp,pp.in.peek()=='{',"No compound statement found");
+   check(pp,pp.in.peek()=='{',"no compound statement found");
    put(pp);
-   // Generate the JIT prefix for this kernel
-   jitPrefix(pp);
+   // Generate the kernel prefix for this kernel
+   kerPrefix(pp);
    // Generate the & <=> * transformations
-   jitAmpFromPtr(pp);
+   kerAmpFromPtr(pp);
 }
 
 // *****************************************************************************
-void __jit(context &pp)
+// * MFEM_EMBED
+// *****************************************************************************
+void __embed(context_t &pp)
 {
-   // Skip "__jit"
-   pp.out << "   ";
-   next(pp);
-   string id = get_id(pp);
-   check(pp,id=="__kernel","No 'kernel' keyword after 'jit' qualifier");
-   pp.ker.__jit = true;
-   __kernel(pp);
+   pp.ker.__embed = true;
+   // Goto first '{'
+   while ('{' != put(pp));
+   // Starts counting the compound statements
+   pp.block = 0;
 }
 
 // *****************************************************************************
-void attribute(context &pp)
+void embedPostfix(context_t &pp)
 {
-   // Skip "__attribute__"
-   pp.out << "           ";
-   next(pp);
-   check(pp,pp.in.peek()=='(',"No 1st '(' in __attribute__");
-   get(pp);
-   check(pp,pp.in.peek()=='(',"No 2nd '(' in __attribute__");
-   get(pp);
-   string attr = get_id(pp);
-   if (attr != "hot") { return; }
-   next(pp);
-   check(pp,pp.in.peek()==')',"No 1st ')' in __attribute__");
-   get(pp);
-   check(pp,pp.in.peek()==')',"No 2nd ')' in __attribute__");
-   get(pp);
-   pp.ker.__jit = true;
-   next(pp);
-   __kernel(pp);
-}
-
-
-// *****************************************************************************
-void tokens(context &pp)
-{
-   if (pp.in.peek() != '_') { return; }
-   const string id = get_id(pp);
-   if (id == "__jit") { return __jit(pp); }
-   if (id == "__kernel") { return __kernel(pp); }
-   if (id == "__attribute") { return attribute(pp); }
-   if (id == "__attribute__") { return attribute(pp); }
-   //if (id == "__embed") { return __embed(pp); }
-   //if (id=="__template") { return __template(pp); }
-   pp.out << id;
-   if (pp.ker.__embed) { pp.ker.embed += id; }
-}
-
-// *****************************************************************************
-bool eof(context &pp)
-{
-   const char c = get(pp);//pp.in.get();
-   if (pp.in.eof()) { return true; }
-   put(c,pp);
-   return false;
-}
-
-// *****************************************************************************
-int process(context &pp)
-{
-   jitHeader(pp);
-   hashHeader(pp);
-   pp.ker.__jit = false;
+   if (not pp.ker.__embed) { return; }
+   if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
+   if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
+   if (pp.block!=-1) { return; }
+   check(pp,pp.in.peek()=='}',"no compound statements found");
+   put(pp);
+   pp.block--;
    pp.ker.__embed = false;
-   pp.ker.__template = false;
-   pp.ker.__single_source = false;
-   do
-   {
-      tokens(pp);
-      comments(pp);
-      jitPostfix(pp);
-      //tplPostfix(pp);
-      //embedPostfix(pp);
-   }
-   while (not eof(pp));
-   return 0;
+   pp.ker.embed += "\n";
 }
 
 // *****************************************************************************
-int main(const int argc, char* argv[])
-{
-   string input, output, file;
-   if (argc<=1) { return help(argv); }
-   for (int i=1; i<argc; i+=1)
-   {
-      // -h lauches help
-      if (argv[i] == string("-h"))
-      {
-         return help(argv);
-      }
-      // -o fills output
-      if (argv[i] == string("-o"))
-      {
-         output = argv[i+1];
-         i+=1;
-         continue;
-      }
-      // should give input file
-      const char* last_dot = strrnc(argv[i],'.');
-      const size_t ext_size = last_dot?strlen(last_dot):0;
-      if (last_dot && ext_size>0)
-      {
-         assert(file.size()==0);
-         file = input = argv[i];
-      }
-   }
-   assert(! input.empty());
-   const bool output_file = ! output.empty();
-   ifstream in(input.c_str(), ios::in | std::ios::binary);
-   ofstream out(output.c_str(), ios::out | std::ios::binary | ios::trunc);
-   assert(!in.fail());
-   assert(in.is_open());
-   if (output_file) {assert(out.is_open());}
-   context pp(in,output_file?out:cout,file);
-   try
-   {
-      process(pp);
-   }
-   catch (error err)
-   {
-      cerr << endl
-           << err.file << ":" << err.line << ":"
-           << " mpp error"
-           << (err.msg?": ":"")
-           << (err.msg?err.msg:"")
-           << endl;
-      remove(output.c_str());
-      return ~0;
-   }
-   in.close();
-   out.close();
-   return 0;
-}
-
-#if 0
-
+// * MFEM_TEMPLATE and MFEM_RANGE
 // *****************************************************************************
-void genPtrOkina(context &pp)
-{
-   // Generate the GET_* code
-   for (argument_it ia = pp.args.begin();
-        ia != pp.args.end() ; ia++)
-   {
-      const argument a = *ia;
-      const bool is_const = a.is_const;
-      //const bool is_restrict = a.restrict;
-      const bool is_pointer = a.is_ptr;
-      const char *type = a.type.c_str();
-      const char *name = a.name.c_str();
-      if (is_const && ! is_pointer)
-      {
-         pp.out << "\n\tconst " << type << " " << name
-                << " = (" << type << ")"
-                << " (_" << name << ");";
-
-      }
-      if (is_const && is_pointer)
-      {
-         pp.out << "\n\tconst " << type << "* " << name
-                << " = (" << type << "*)"
-                << " mfem::mm::ptr(_" << name << ");";
-      }
-      if (!is_const && is_pointer)
-      {
-         pp.out << "\n\t" << type << "* " << name
-                << " = (" << type << "*)"
-                << " mfem::mm::ptr(_" << name << ");";
-      }
-   }
-}
-
-// *****************************************************************************
-// * Template generation
-// *****************************************************************************
-void __range(context &pp, argument &arg)
+void __range(context_t &pp, argument_t &arg)
 {
    char c;
    bool dash = false;
    // Verify and eat '('
-   check(pp,get(pp)=='(',"__template should declare its range");
+   check(pp,get(pp)=='(',"templated kernel should declare the range");
    do
    {
       const int n = get_digit(pp);
@@ -1097,7 +868,7 @@ void __range(context &pp, argument &arg)
       arg.range.push_back(n);
       c = get(pp);
       assert(not pp.in.eof());
-      check(pp, c==',' or c=='-' or  c==')', "Unknown __template range");
+      check(pp, c==',' or c=='-' or  c==')', "unknown MFEM_TEMPLATE range");
       if (c=='-')
       {
          dash = true;
@@ -1107,11 +878,11 @@ void __range(context &pp, argument &arg)
 }
 
 // *****************************************************************************
-void get_targs(context &pp)
+void templateGetArgs(context_t &pp)
 {
    int nargs = 0;
    int targs = 0;
-   argument arg;
+   argument_t arg;
    pp.args.clear();
    // Go to first possible argument
    drop_space(pp);
@@ -1134,12 +905,11 @@ void get_targs(context &pp)
          current_arg += get(pp);
          continue;
       }
-      const string &id = peekID(pp);
+      const string &id = peekid(pp);
       drop_name(pp);
       // Qualifiers
-      if (id=="__range") { __range(pp,arg); arg.is_tpl = true; continue; }
+      if (id=="MFEM_RANGE") { __range(pp,arg); arg.is_tpl = true; continue; }
       if (id=="const") { current_arg += id; arg.is_const = true; continue; }
-      if (id=="__restrict") { current_arg += id; arg.is_restrict = true; continue; }
       // Types
       if (id=="char") { current_arg += id; arg.type = id; continue; }
       if (id=="int") { current_arg += id; arg.type = id; continue; }
@@ -1155,29 +925,26 @@ void get_targs(context &pp)
       if (not arg.is_tpl)
       {
          pp.args.push_back(arg);
-         pp.ker.tpl.signature += current_arg + (not pp.mm?"":"_") + id;
+         pp.ker.tpl.signature += current_arg + id;
          {
-            pp.ker.tpl.std_args += (nargs==0)?"":", ";
-            pp.ker.tpl.std_args +=  arg.name;
+            pp.ker.tpl.args += (nargs==0)?"":", ";
+            pp.ker.tpl.args +=  arg.name;
          }
          nargs += 1;
       }
       else
       {
-         pp.ker.tpl.template_parameters += (targs==0)?"":", ";
-         pp.ker.tpl.template_parameters += "const " + arg.type + " " + arg.name;
+         pp.ker.tpl.Tparams += (targs==0)?"":", ";
+         pp.ker.tpl.Tparams += "const " + arg.type + " " + arg.name;
          pp.ker.tpl.ranges.push_back(arg.range);
-         //pp.ker.tpl.template_parameters += "/*";
-         //for (int n : arg.range) { pp.ker.tpl.template_parameters += std::to_string(n) + " "; }
-         //pp.ker.tpl.template_parameters += "*/";
          {
-            pp.ker.tpl.template_args += (targs==0)?"":", ";
-            pp.ker.tpl.template_args += arg.name;
+            pp.ker.tpl.Targs += (targs==0)?"":", ";
+            pp.ker.tpl.Targs += arg.name;
          }
          targs += 1;
       }
-      pp.ker.tpl.std_parameters += current_arg + id + (nargs==0 and targs>0?",":"");
-      arg = argument();
+      pp.ker.tpl.params += current_arg + id + (nargs==0 and targs>0?",":"");
+      arg = argument_t();
       current_arg = string();
       const int c = pp.in.peek();
       assert(not pp.in.eof());
@@ -1186,62 +953,58 @@ void get_targs(context &pp)
       if (p<0) { break; }
       skip_space(pp,current_arg);
       comments(pp);
-      check(pp,pp.in.peek()==',',"<__template> No coma while in args");
+      check(pp,pp.in.peek()==',',"no coma while in args");
       get(pp);
       if (nargs>0) { current_arg += ","; }
    }
 }
 
 // *****************************************************************************
-void __template(context &pp)
+void __template(context_t &pp)
 {
-   pp.ker.T = true;
-   pp.ker.tpl = tpl_t();
+   pp.ker.__template = true;
+   pp.ker.tpl = template_t();
    drop_space(pp);
    comments(pp);
-   string id = get_id(pp);
-   check(pp,id=="__kernel","No 'kernel' keyword after 'template' qualifier");
-   check(pp,isvoid(pp) or isstatic(pp),"Templated kernel w/o void or static");
+   check(pp, isvoid(pp) or isstatic(pp),"template w/o void or static");
    if (isstatic(pp))
    {
-      pp.ker.tpl.return_type += get_id(pp);
-      skip_space(pp,pp.ker.tpl.return_type);
+      pp.ker.tpl.return_t += get_id(pp);
+      skip_space(pp,pp.ker.tpl.return_t);
    }
    const string void_return_type = get_id(pp);
-   pp.ker.tpl.return_type += void_return_type;
+   pp.ker.tpl.return_t += void_return_type;
    // Get kernel's name
-   skip_space(pp,pp.ker.tpl.return_type);
+   skip_space(pp,pp.ker.tpl.return_t);
    const string name = get_id(pp);
    pp.ker.name = name;
-   skip_space(pp, pp.ker.tpl.return_type);
+   skip_space(pp, pp.ker.tpl.return_t);
    // check we are at the left parenthesis
-   check(pp,pp.in.peek()=='(',"No 1st '(' in kernel");
+   check(pp,pp.in.peek()=='(',"no 1st '(' in kernel");
    get(pp);
    // Get the arguments
-   get_targs(pp);
+   templateGetArgs(pp);
    // Make sure we have hit the last ')' of the arguments
-   check(pp,pp.in.peek()==')',"No last ')' in kernel");
+   check(pp,pp.in.peek()==')',"no last ')' in kernel");
    pp.ker.tpl.signature += get(pp);
    // Now dump the templated kernel needs before the body
    pp.out << "template<";
-   pp.out << pp.ker.tpl.template_parameters;
+   pp.out << pp.ker.tpl.Tparams;
    pp.out << ">\n";
-   pp.out << pp.ker.tpl.return_type;
+   pp.out << pp.ker.tpl.return_t;
    pp.out << "__" << pp.ker.name;
    pp.out << "(" << pp.ker.tpl.signature;
    // Std body dump to pp.out
    skip_space(pp);
    // Make sure we are about to start a compound statement
-   check(pp,pp.in.peek()=='{',"<>No compound statement found");
+   check(pp,pp.in.peek()=='{',"no compound statement found");
    put(pp);
-   // If we are using the memory manager, generate the calls
-   if (pp.mm) { genPtrOkina(pp); }
    // Starts counting the compound statements
-   pp.compound_statements = 0;
+   pp.block = 0;
 }
 
 // *****************************************************************************
-static list<list<int> > outer_product(const list<list<int> > &v)
+static list<list<int> > templateOuterProduct(const list<list<int> > &v)
 {
    list<list<int> > s = {{}};
    for (const auto &u : v)
@@ -1258,42 +1021,38 @@ static list<list<int> > outer_product(const list<list<int> > &v)
       s = std::move(r);
    }
    return s;
-}*
+}
 
 // *****************************************************************************
-void tplPostfix(context &pp)
+void templatePostfix(context_t &pp)
 {
-   if (not pp.ker.T) { return; }
-   if (pp.compound_statements>=0 && pp.in.peek() == '{') { pp.compound_statements++; }
-   if (pp.compound_statements>=0 && pp.in.peek() == '}') { pp.compound_statements--; }
-   if (pp.compound_statements!=-1) { return; }
-   check(pp,pp.in.peek()=='}',"<>No compound statements found");
+   if (not pp.ker.__template) { return; }
+   if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
+   if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
+   if (pp.block!=-1) { return; }
+   check(pp,pp.in.peek()=='}',"no compound statements found");
    put(pp);
    // Stop counting the compound statements and flush the T status
-   pp.compound_statements--;
-   pp.ker.T = false;
+   pp.block--;
+   pp.ker.__template = false;
    // Now push template kernel launcher
-   pp.out << "\n// *****************************************************************************\n";
-   pp.out << pp.ker.tpl.return_type;
-   pp.out << pp.ker.name;
-   pp.out << "(" << pp.ker.tpl.std_parameters;
-   pp.out << "){";
+   pp.out << "\n" << pp.ker.tpl.return_t << pp.ker.name;
+   pp.out << "(" << pp.ker.tpl.params << "){";
    pp.out << "\n\ttypedef ";
-   pp.out << pp.ker.tpl.return_type << "(*__T" << pp.ker.name << ")";
+   pp.out << pp.ker.tpl.return_t << "(*__T" << pp.ker.name << ")";
    pp.out << "(" << pp.ker.tpl.signature << ";";
    pp.out << "\n\tconst size_t id = hash_args(std::hash<size_t>()(0), "
-          << pp.ker.tpl.template_args
-          << ");";
+          << pp.ker.tpl.Targs << ");";
    pp.out << "\n\tstatic std::unordered_map<size_t, "
           << "__T" << pp.ker.name << "> call = {";
-   for (list<int> range : outer_product(pp.ker.tpl.ranges))
+   for (list<int> range : templateOuterProduct(pp.ker.tpl.ranges))
    {
       pp.out << "\n\t\t{";
-      int i=1;
-      const int n = range.size();
+      size_t i=1;
+      const size_t n = range.size();
       size_t hash = 0;
       for (int r : range) { hash = hash_args(hash,r); }
-      pp.out << std::hex << "0x" << hash ;// <<"ul";
+      pp.out << std::hex << "0x" << hash;
       pp.out << ",&__"<<pp.ker.name<<"<";
       for (int r : range)
       {
@@ -1305,33 +1064,97 @@ void tplPostfix(context &pp)
    pp.out << "\n\t};";
    pp.out << "\n\tassert(call[id]);";
    pp.out << "\n\tcall[id](";
-   pp.out << pp.ker.tpl.std_args;
+   pp.out << pp.ker.tpl.args;
    pp.out << ");";
    pp.out << "\n}";
 }
 
 // *****************************************************************************
-void __embed(context &pp)
-{
-   // Skip "__embed"
-   pp.out << "       ";
-   pp.ker.embedding = true;
-   // Goto first '{'
-   while ('{' != put(pp));
-   // Starts counting the compound statements
-   pp.compound_statements = 0;
-}
+// * MFEM preprocessor
 // *****************************************************************************
-void embedPostfix(context &pp)
+void tokens(context_t &pp)
 {
-   if (not pp.ker.embedding) { return; }
-   if (pp.compound_statements>=0 && pp.in.peek() == '{') { pp.compound_statements++; }
-   if (pp.compound_statements>=0 && pp.in.peek() == '}') { pp.compound_statements--; }
-   if (pp.compound_statements!=-1) { return; }
-   check(pp,pp.in.peek()=='}',"<>No compound statements found");
-   put(pp);
-   pp.compound_statements--;
-   pp.ker.embedding = false;
-   pp.ker.embed += "\n";
+   if (peekn(pp,4) != "MFEM") { return; }
+   const string id = get_id(pp);
+   if (id == "MFEM_EMBED") { return __embed(pp); }
+   if (id == "MFEM_KERNEL") { return __kernel(pp); }
+   if (id == "MFEM_TEMPLATE") { return __template(pp); }
+   pp.out << id;
+   if (pp.ker.__embed) { pp.ker.embed += id; }
 }
-#endif
+
+// *****************************************************************************
+inline bool eof(context_t &pp)
+{
+   const char c = get(pp);
+   if (pp.in.eof()) { return true; }
+   put(c,pp);
+   return false;
+}
+
+// *****************************************************************************
+int preprocess(context_t &pp)
+{
+   kerHeader(pp);
+   pp.ker.__embed = false;
+   pp.ker.__kernel = false;
+   pp.ker.__template = false;
+   pp.ker.__single_source = false;
+   do
+   {
+      tokens(pp);
+      comments(pp);
+      kerPostfix(pp);
+      embedPostfix(pp);
+      templatePostfix(pp);
+   }
+   while (not eof(pp));
+   return 0;
+}
+
+} // namespace mfem
+
+// *****************************************************************************
+int main(const int argc, char* argv[])
+{
+   string input, output, file;
+   if (argc<=1) { return mfem::help(argv); }
+   for (int i=1; i<argc; i+=1)
+   {
+      // -h lauches help
+      if (argv[i] == string("-h")) { return mfem::help(argv); }
+      // -o fills output
+      if (argv[i] == string("-o"))
+      {
+         output = argv[i+=1];
+         continue;
+      }
+      // should give input file
+      const char* last_dot = mfem::strrnc(argv[i],'.');
+      const size_t ext_size = last_dot?strlen(last_dot):0;
+      if (last_dot && ext_size>0)
+      {
+         assert(file.size()==0);
+         file = input = argv[i];
+      }
+   }
+   assert(!input.empty());
+   const bool output_file = !output.empty();
+   ifstream in(input.c_str(), ios::in | ios::binary);
+   ofstream out(output.c_str(), ios::out | ios::binary | ios::trunc);
+   assert(!in.fail());
+   assert(in.is_open());
+   if (output_file) {assert(out.is_open());}
+   mfem::context_t pp(in,output_file?out:cout,file);
+   try { mfem::preprocess(pp); }
+   catch (mfem::error_t err)
+   {
+      cerr << endl << err.file << ":" << err.line << ":"
+           << " mpp error" << (err.msg?": ":"") << (err.msg?err.msg:"") << endl;
+      remove(output.c_str());
+      return ~0;
+   }
+   in.close();
+   out.close();
+   return 0;
+}

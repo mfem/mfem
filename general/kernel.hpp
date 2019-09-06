@@ -1,5 +1,5 @@
-#ifndef MFEM_JIT_HPP
-#define MFEM_JIT_HPP
+#ifndef MFEM_KER_HPP
+#define MFEM_KER_HPP
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -17,10 +17,10 @@ typedef union {double d; uint64_t u;} union_du;
 // *****************************************************************************
 namespace mfem
 {
-namespace jit
+namespace kernel
 {
 
-// default jit::hash ⇒ std::hash ************************************************
+// default kernel::hash to std::hash *******************************************
 template <typename T> struct hash
 {
    size_t operator()(const T& obj) const noexcept
@@ -32,7 +32,8 @@ template <typename T> struct hash
 static size_t hash_bytes(const char *data, size_t i) noexcept
 {
    size_t hash = 0xcbf29ce484222325ull;
-   for (; i; i--) { hash = (hash*0x100000001b3ull)^data[i]; }
+   constexpr size_t shift = 0x100000001b3ull;
+   for (; i; i--) { hash = (hash*shift)^static_cast<size_t>(data[i]); }
    return hash;
 }
 template <> struct hash<const char*>
@@ -48,7 +49,7 @@ template <> struct hash<const char*>
 template <class T>
 inline size_t hash_combine(const size_t &seed, const T &v) noexcept
 {
-   return seed^(mfem::jit::hash<T> {}(v)+0x9e3779b9ull+(seed<<6)+(seed>>2));
+   return seed^(mfem::kernel::hash<T> {}(v)+0x9e3779b9ull+(seed<<6)+(seed>>2));
 }
 template<typename T>
 size_t hash_args(const size_t &seed, const T &that) noexcept
@@ -88,7 +89,7 @@ const char *compile(const bool dbg, const size_t hash, const char *xcc,
 {
    char soName[21] = "k0000000000000000.so";
    char ccName[21] = "k0000000000000000.cc";
-   jit::uint64str(hash,soName,1);
+   kernel::uint64str(hash,soName,1);
    uint64str(hash,ccName,1);
    const int fd = open(ccName,O_CREAT|O_RDWR,S_IRUSR|S_IWUSR);
    assert(fd>=0);
@@ -125,7 +126,7 @@ void *lookup(const bool dbg, const size_t hash, const char *xcc,
    uint64str(hash,soName,1);
    const int flag = RTLD_LAZY;// | RTLD_LOCAL;
    void *handle = dlopen(soName, flag);
-   if (!handle && !jit::compile(dbg,hash,xcc,src,incs,args...)) { return NULL; }
+   if (!handle && !kernel::compile(dbg,hash,xcc,src,incs,args...)) { return NULL; }
    if (!(handle=dlopen(soName, flag))) { return NULL; }
    return handle;
 }
@@ -158,7 +159,7 @@ public:
    kernel(const char *xcc, const char *src,
           const char* incs, Args... args):
       dbg(!!getenv("DBG")||!!getenv("dbg")),
-      seed(mfem::jit::hash<const char*>()(src)),
+      seed(mfem::kernel::hash<const char*>()(src)),
       hash(hash_args(seed,xcc,incs,args...)),
       handle(lookup(dbg,hash,xcc,src,incs,args...)),
       __kernel(getSymbol<kernel_t>(hash,handle))
@@ -174,7 +175,8 @@ public:
    ~kernel() { dlclose(handle); }
 };
 
-} // namespace jit
+} // namespace kernel
+
 } // namespace mfem
 
-#endif // MFEM_JIT_HPP
+#endif // MFEM_KERNEL_HPP

@@ -428,7 +428,7 @@ MPP_MFEMS  = -DMFEM_CXX="$(MFEM_CXX)"
 MPP_MFEMS += -DMFEM_SRC="$(MFEM_REAL_DIR)"
 MPP_MFEMS += -DMFEM_BUILD_FLAGS="$(KER_FLAGS)"
 MPP_FLAGS = $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
-mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
+mpp: $(BLD)general/mpp.cpp $(BLD)general/kernel.hpp $(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEMS) $(MPP_FLAGS)
 
 all: examples miniapps $(TEST_DIRS)

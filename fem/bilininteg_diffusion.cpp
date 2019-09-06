@@ -313,41 +313,177 @@ static void OccaPADiffusionApply3D(const int D1D,
 #endif // MFEM_USE_OCCA
 
 
-// Shared memory PA Diffusion Apply 2D kernel
-//__jit __kernel
-__attribute__ ((hot))
-static void SmemPADiffusionApply2D(const int D1D,
-                                   const int Q1D,
-                                   const int NBZ,
-                                   int NE,
-                                   const Array<double> &b_,
-                                   const Array<double> &g_,
-                                   const Vector &op_,
-                                   const Vector &x_,
-                                   Vector &y_)
+// PA Diffusion Apply 2D kernel
+#ifndef MFEM_USE_JIT
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void PADiffusionApply2D(const int NE,
+                               const Array<double> &b,
+                               const Array<double> &g,
+                               const Array<double> &bt,
+                               const Array<double> &gt,
+                               const Vector &_op,
+                               const Vector &_x,
+                               Vector &_y,
+                               const int d1d = 0,
+                               const int q1d = 0)
 {
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D*Q1D, 3, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
+      double grad[max_Q1D][max_Q1D][2];
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            grad[qy][qx][0] = 0.0;
+            grad[qy][qx][1] = 0.0;
+         }
+      }
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         double gradX[max_Q1D][2];
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            gradX[qx][0] = 0.0;
+            gradX[qx][1] = 0.0;
+         }
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double s = x(dx,dy,e);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               gradX[qx][0] += s * B(qx,dx);
+               gradX[qx][1] += s * G(qx,dx);
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double wy  = B(qy,dy);
+            const double wDy = G(qy,dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               grad[qy][qx][0] += gradX[qx][1] * wy;
+               grad[qy][qx][1] += gradX[qx][0] * wDy;
+            }
+         }
+      }
+      // Calculate Dxy, xDy in plane
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const int q = qx + qy * Q1D;
+
+            const double O11 = op(q,0,e);
+            const double O12 = op(q,1,e);
+            const double O22 = op(q,2,e);
+
+            const double gradX = grad[qy][qx][0];
+            const double gradY = grad[qy][qx][1];
+
+            grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+            grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
+         }
+      }
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         double gradX[max_D1D][2];
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            gradX[dx][0] = 0;
+            gradX[dx][1] = 0;
+         }
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double gX = grad[qy][qx][0];
+            const double gY = grad[qy][qx][1];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double wx  = Bt(dx,qx);
+               const double wDx = Gt(dx,qx);
+               gradX[dx][0] += gX * wDx;
+               gradX[dx][1] += gY * wx;
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            const double wy  = Bt(dy,qy);
+            const double wDy = Gt(dy,qy);
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+            }
+         }
+      }
+   });
+}
+#endif
+
+// Shared memory PA Diffusion Apply 2D kernel
+MFEM_KERNEL
+template<const int T_D1D = 0,
+         const int T_Q1D = 0,
+         const int T_NBZ = 0>
+static void SmemPADiffusionApply2D(const int NE,
+                                   const Array<double> &_b,
+                                   const Array<double> &_g,
+                                   const Vector &_op,
+                                   const Vector &_x,
+                                   Vector &_y,
+                                   const int d1d = 0,
+                                   const int q1d = 0,
+                                   const int nbz = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   auto b = Reshape(_b.Read(), Q1D, D1D);
+   auto g = Reshape(_g.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double sBG[2][Q1D*D1D];
-      double (*B)[D1D] = (double (*)[D1D]) (sBG+0);
-      double (*G)[D1D] = (double (*)[D1D]) (sBG+1);
-      double (*Bt)[Q1D] = (double (*)[Q1D]) (sBG+0);
-      double (*Gt)[Q1D] = (double (*)[Q1D]) (sBG+1);
-      MFEM_SHARED double Xz[NBZ][D1D][D1D];
-      MFEM_SHARED double GD[2][NBZ][D1D][Q1D];
-      MFEM_SHARED double GQ[2][NBZ][D1D][Q1D];
-      double (*X)[D1D] = (double (*)[D1D])(Xz + tidz);
-      double (*DQ0)[D1D] = (double (*)[D1D])(GD[0] + tidz);
-      double (*DQ1)[D1D] = (double (*)[D1D])(GD[1] + tidz);
-      double (*QQ0)[D1D] = (double (*)[D1D])(GQ[0] + tidz);
-      double (*QQ1)[D1D] = (double (*)[D1D])(GQ[1] + tidz);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      MFEM_SHARED double sBG[2][MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
+      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
+      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
+      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
+      MFEM_SHARED double Xz[NBZ][MD1][MD1];
+      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
+      MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
+      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
+      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
+      double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
+      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
+      double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -460,49 +596,254 @@ static void SmemPADiffusionApply2D(const int D1D,
    });
 }
 
-// Shared memory PA Diffusion Apply 3D kernel
-__jit __kernel static
-void SmemPADiffusionApply3D(const int D1D,
-                            const int Q1D,
-                            int NE,
-                            const Array<double> &_b,
-                            const Array<double> &_g,
-                            const Vector &_op,
-                            const Vector &_x,
-                            Vector &_y)
+
+// PA Diffusion Apply 3D kernel
+#ifndef MFEM_USE_JIT
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void PADiffusionApply3D(const int NE,
+                               const Array<double> &b,
+                               const Array<double> &g,
+                               const Array<double> &bt,
+                               const Array<double> &gt,
+                               const Vector &_op,
+                               const Vector &_x,
+                               Vector &_y,
+                               const int d1d = 0,
+                               const int q1d = 0)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      double grad[max_Q1D][max_Q1D][max_Q1D][3];
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               grad[qz][qy][qx][0] = 0.0;
+               grad[qz][qy][qx][1] = 0.0;
+               grad[qz][qy][qx][2] = 0.0;
+            }
+         }
+      }
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         double gradXY[max_Q1D][max_Q1D][3];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               gradXY[qy][qx][0] = 0.0;
+               gradXY[qy][qx][1] = 0.0;
+               gradXY[qy][qx][2] = 0.0;
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            double gradX[max_Q1D][2];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               gradX[qx][0] = 0.0;
+               gradX[qx][1] = 0.0;
+            }
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double s = x(dx,dy,dz,e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  gradX[qx][0] += s * B(qx,dx);
+                  gradX[qx][1] += s * G(qx,dx);
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy  = B(qy,dy);
+               const double wDy = G(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double wx  = gradX[qx][0];
+                  const double wDx = gradX[qx][1];
+                  gradXY[qy][qx][0] += wDx * wy;
+                  gradXY[qy][qx][1] += wx  * wDy;
+                  gradXY[qy][qx][2] += wx  * wy;
+               }
+            }
+         }
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            const double wz  = B(qz,dz);
+            const double wDz = G(qz,dz);
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
+                  grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
+                  grad[qz][qy][qx][2] += gradXY[qy][qx][2] * wDz;
+               }
+            }
+         }
+      }
+      // Calculate Dxyz, xDyz, xyDz in plane
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const int q = qx + (qy + qz * Q1D) * Q1D;
+               const double O11 = op(q,0,e);
+               const double O12 = op(q,1,e);
+               const double O13 = op(q,2,e);
+               const double O22 = op(q,3,e);
+               const double O23 = op(q,4,e);
+               const double O33 = op(q,5,e);
+               const double gradX = grad[qz][qy][qx][0];
+               const double gradY = grad[qz][qy][qx][1];
+               const double gradZ = grad[qz][qy][qx][2];
+               grad[qz][qy][qx][0] = (O11*gradX)+(O12*gradY)+(O13*gradZ);
+               grad[qz][qy][qx][1] = (O12*gradX)+(O22*gradY)+(O23*gradZ);
+               grad[qz][qy][qx][2] = (O13*gradX)+(O23*gradY)+(O33*gradZ);
+            }
+         }
+      }
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         double gradXY[max_D1D][max_D1D][3];
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               gradXY[dy][dx][0] = 0;
+               gradXY[dy][dx][1] = 0;
+               gradXY[dy][dx][2] = 0;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            double gradX[max_D1D][3];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               gradX[dx][0] = 0;
+               gradX[dx][1] = 0;
+               gradX[dx][2] = 0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double gX = grad[qz][qy][qx][0];
+               const double gY = grad[qz][qy][qx][1];
+               const double gZ = grad[qz][qy][qx][2];
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double wx  = Bt(dx,qx);
+                  const double wDx = Gt(dx,qx);
+                  gradX[dx][0] += gX * wDx;
+                  gradX[dx][1] += gY * wx;
+                  gradX[dx][2] += gZ * wx;
+               }
+            }
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double wy  = Bt(dy,qy);
+               const double wDy = Gt(dy,qy);
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  gradXY[dy][dx][0] += gradX[dx][0] * wy;
+                  gradXY[dy][dx][1] += gradX[dx][1] * wDy;
+                  gradXY[dy][dx][2] += gradX[dx][2] * wy;
+               }
+            }
+         }
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            const double wz  = Bt(dz,qz);
+            const double wDz = Gt(dz,qz);
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  y(dx,dy,dz,e) +=
+                     ((gradXY[dy][dx][0] * wz) +
+                      (gradXY[dy][dx][1] * wz) +
+                      (gradXY[dy][dx][2] * wDz));
+               }
+            }
+         }
+      }
+   });
+}
+#endif
+
+// Shared memory PA Diffusion Apply 3D kernel
+MFEM_KERNEL
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void SmemPADiffusionApply3D(const int NE,
+                                   const Array<double> &_b,
+                                   const Array<double> &_g,
+                                   const Vector &_op,
+                                   const Vector &_x,
+                                   Vector &_y,
+                                   const int d1d = 0,
+                                   const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(_b.Read(), Q1D, D1D);
    auto g = Reshape(_g.Read(), Q1D, D1D);
    auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
    auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
-
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int MDQ = Q1D > D1D ? Q1D : D1D;
-      MFEM_SHARED double sBG[2][Q1D*D1D];
-      double (*B)[D1D] = (double (*)[D1D]) (sBG+0);
-      double (*G)[D1D] = (double (*)[D1D]) (sBG+1);
-      double (*Bt)[Q1D] = (double (*)[Q1D]) (sBG+0);
-      double (*Gt)[Q1D] = (double (*)[Q1D]) (sBG+1);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+      MFEM_SHARED double sBG[2][MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
+      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
+      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
+      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
       MFEM_SHARED double sm0[3][MDQ*MDQ*MDQ];
       MFEM_SHARED double sm1[3][MDQ*MDQ*MDQ];
-      double (*X)[D1D][D1D]    = (double (*)[D1D][D1D]) (sm0+2);
-      double (*DDQ0)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+0);
-      double (*DDQ1)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+1);
-      double (*DQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+0);
-      double (*DQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+1);
-      double (*DQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+2);
-      double (*QQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+0);
-      double (*QQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+1);
-      double (*QQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+2);
-      double (*QQD0)[Q1D][D1D] = (double (*)[Q1D][D1D]) (sm1+0);
-      double (*QQD1)[Q1D][D1D] = (double (*)[Q1D][D1D]) (sm1+1);
-      double (*QQD2)[Q1D][D1D] = (double (*)[Q1D][D1D]) (sm1+2);
-      double (*QDD0)[D1D][D1D] = (double (*)[D1D][D1D]) (sm0+0);
-      double (*QDD1)[D1D][D1D] = (double (*)[D1D][D1D]) (sm0+1);
-      double (*QDD2)[D1D][D1D] = (double (*)[D1D][D1D]) (sm0+2);
+      double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
+      double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
+      double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);
+      double (*DQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+0);
+      double (*DQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+1);
+      double (*DQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+2);
+      double (*QQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+0);
+      double (*QQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+1);
+      double (*QQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+2);
+      double (*QQD0)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+0);
+      double (*QQD1)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+1);
+      double (*QQD2)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+2);
+      double (*QDD0)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+0);
+      double (*QDD1)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+1);
+      double (*QDD2)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+2);
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -719,18 +1060,50 @@ static void PADiffusionApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
 
+#ifndef MFEM_USE_JIT
+   if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,Bt,Gt,op,x,y);
+         default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+      }
+   }
+   else if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
+         default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+      }
+   }
+#else // MFEM_USE_JIT
    if (dim == 2)
    {
       const int NBZ = (D1D==2||D1D==3) ? 16:
                       (D1D==4||D1D==5) ? 8 :
                       (D1D==6||D1D==7) ? 4 :
                       (D1D==8||D1D==9) ? 2 : 1;
-      return SmemPADiffusionApply2D(D1D,Q1D,NBZ,NE,B,G,op,x,y);
+      return SmemPADiffusionApply2D(NE, B, G, op, x, y, D1D, Q1D, NBZ);
    }
    if (dim == 3)
    {
-      return SmemPADiffusionApply3D(D1D,Q1D,NE,B,G,op,x,y);
+      return SmemPADiffusionApply3D(NE, B, G, op, x, y, D1D, Q1D);
    }
+#endif
    MFEM_ABORT("Unknown kernel.");
 }
 
