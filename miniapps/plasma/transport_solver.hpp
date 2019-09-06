@@ -797,7 +797,7 @@ private:
    GradientGridFunctionCoefficient grad_dTi0_;
    GradientGridFunctionCoefficient grad_dTe0_;
 
-   VectorCoefficient * bHatCoef_;
+   VectorCoefficient * B3_;
 
    mutable Vector gni0_;
    mutable Vector gTi0_;
@@ -811,18 +811,18 @@ private:
    mutable Vector gTi1_;
    mutable Vector gTe1_;
 
-   mutable Vector b_;
+   mutable Vector B_;
 
 public:
    GradPressureCoefficient(ParGridFunctionArray &pgf,
                            ParGridFunctionArray &dpgf,
-                           int zi, VectorCoefficient & bHatCoef)
+                           int zi, VectorCoefficient & B3Coef)
       : zi_((double)zi), dt_(0.0),
         ni0_(pgf[1]), Ti0_(pgf[3]), Te0_(pgf[4]),
         dni0_(dpgf[1]), dTi0_(dpgf[3]), dTe0_(dpgf[4]),
         grad_ni0_(pgf[1]), grad_Ti0_(pgf[3]), grad_Te0_(pgf[4]),
         grad_dni0_(dpgf[1]), grad_dTi0_(dpgf[3]), grad_dTe0_(dpgf[4]),
-        bHatCoef_(&bHatCoef) {}
+        B3_(&B3Coef), B_(3) {}
 
    void SetTimeStep(double dt) { dt_ = dt; }
 
@@ -864,10 +864,13 @@ public:
       add(gTi0_, dt_, gdTi0_, gTi1_);
       add(gTe0_, dt_, gdTe0_, gTe1_);
 
-      bHatCoef_->Eval(b_, T, ip);
+      B3_->Eval(B_, T, ip);
 
-      return eV_ * ((zi_ * Te1 + Ti1) * (b_ * gni1_) +
-                    (zi_ * (b_ * gTe1_) + (b_ * gTi1_)) * ni1);
+      double Bmag = sqrt(B_ * B_);
+      
+      return eV_ * ((zi_ * Te1 + Ti1) * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) +
+                    (zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
+		     (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) * ni1) / Bmag;
    }
 
    double Eval_dNi(ElementTransformation &T,
@@ -885,9 +888,12 @@ public:
       add(gTi0_, dt_, gdTi0_, gTi1_);
       add(gTe0_, dt_, gdTe0_, gTe1_);
 
-      bHatCoef_->Eval(b_, T, ip);
+      B3_->Eval(B_, T, ip);
 
-      return eV_ * (dt_ * zi_ * (b_ * gTe1_) + (b_ * gTi1_));
+      double Bmag = sqrt(B_ * B_);
+      
+      return eV_ * (dt_ * zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
+		    (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) / Bmag;
    }
 
    double Eval_dTi(ElementTransformation &T,
@@ -901,9 +907,11 @@ public:
 
       add(gni0_, dt_, gdni0_, gni1_);
 
-      bHatCoef_->Eval(b_, T, ip);
+      B3_->Eval(B_, T, ip);
 
-      return eV_ * dt_ * (b_ * gni1_);
+      double Bmag = sqrt(B_ * B_);
+
+      return eV_ * dt_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -917,9 +925,11 @@ public:
 
       add(gni0_, dt_, gdni0_, gni1_);
 
-      bHatCoef_->Eval(b_, T, ip);
+      B3_->Eval(B_, T, ip);
 
-      return eV_ * dt_ * zi_ * (b_ * gni1_);
+      double Bmag = sqrt(B_ * B_);
+
+      return eV_ * dt_ * zi_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
    }
 };
 
@@ -1289,9 +1299,6 @@ private:
       ApproxIonizationRate     izCoef_;
 
       VectorCoefficient * B3Coef_;
-      VectorCoefficient * bHatCoef_;
-      // ScalarVectorProductCoefficient ViCoef_;
-      // ScalarVectorProductCoefficient dtViCoef_;
 
       IonSourceCoef           SizCoef_;
       ProductCoefficient   negSizCoef_;
@@ -1303,9 +1310,7 @@ private:
       IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,
                     ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                     int ion_charge, double ion_mass, double DPerp,
-                    VectorCoefficient & B3Coef,
-                    VectorCoefficient & bHatCoef,
-                    MatrixCoefficient & PerpCoef);
+                    VectorCoefficient & B3Coef);
 
       virtual void SetTimeStep(double dt);
 

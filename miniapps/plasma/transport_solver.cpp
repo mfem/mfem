@@ -1854,7 +1854,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    if ((op_flag >> 2) & 1)
    {
       op_[2] = new IonMomentumOp(mpi, dg, pgf, dpgf, ion_charge, ion_mass,
-                                 DiPerp, B3Coef, bHatCoef, PerpCoef);
+                                 DiPerp, B3Coef);
       op_[2]->SetLogging(logging, "v_i: ");
    }
    else
@@ -2344,9 +2344,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              int ion_charge,
                                              double ion_mass,
                                              double DPerp,
-                                             VectorCoefficient & B3Coef,
-                                             VectorCoefficient & bHatCoef,
-                                             MatrixCoefficient & PerpCoef)
+                                             VectorCoefficient & B3Coef)
    : NLOperator(mpi, dg, 2, pgf, dpgf), z_i_(ion_charge), m_i_(ion_mass),
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
@@ -2365,13 +2363,9 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      dtEtaCoef_(0.0, EtaCoef_),
      miniViCoef_(pgf, dpgf, ion_mass, DPerpCoef_, B3Coef),
      dtminiViCoef_(0.0, miniViCoef_),
-     gradPCoef_(pgf, dpgf, ion_charge, bHatCoef),
+     gradPCoef_(pgf, dpgf, ion_charge, B3Coef),
      izCoef_(Te1Coef_),
-     // PerpCoef_(&PerpCoef), DCoef_(DPerpCoef_, *PerpCoef_),
-     // dtDCoef_(0.0, DCoef_),
      B3Coef_(&B3Coef),
-     bHatCoef_(&bHatCoef),
-     // ViCoef_(vi1Coef_, *bHatCoef_), dtViCoef_(0.0, ViCoef_),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
