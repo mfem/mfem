@@ -1477,10 +1477,7 @@ public:
                   double neutral_temp,
                   double Di_perp,
                   VectorCoefficient & B3Coef,
-                  Coefficient &MomCCoef,
-                  Coefficient &TiCCoef,
-                  Coefficient &TeCCoef,
-                  bool imex = true,
+		  bool imex = true,
                   unsigned int op_flag = 31,
                   int logging = 0);
 

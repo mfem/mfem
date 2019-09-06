@@ -1421,7 +1421,6 @@ int main(int argc, char *argv[])
    DGTransportTDO oper(mpi, dg, fes, ffes, offsets, pgf, dpgf,
                        ion_charge, ion_mass, neutral_mass, neutral_temp,
                        Di_perp, B3Coef,
-                       mnCoef, niCoef, neCoef,
                        imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));

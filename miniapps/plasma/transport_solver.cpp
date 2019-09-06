@@ -903,10 +903,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                double neutral_temp,
                                double Di_perp,
                                VectorCoefficient &B3Coef,
-                               Coefficient &MomCCoef,
-                               Coefficient &TiCCoef,
-                               Coefficient &TeCCoef,
-                               bool imex, unsigned int op_flag, int logging)
+			       bool imex, unsigned int op_flag, int logging)
    : TimeDependentOperator(ffes.GetVSize()),
      mpi_(mpi),
      logging_(logging),
