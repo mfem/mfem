@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
@@ -456,7 +455,6 @@ static void SmemPADiffusionApply2D(const int NE,
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(_b.Read(), Q1D, D1D);
-   //dbg("b: %p", b);
    auto g = Reshape(_g.Read(), Q1D, D1D);
    auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
    auto x = Reshape(_x.Read(), D1D, D1D, NE);
@@ -1029,17 +1027,15 @@ static void SmemPADiffusionApply3D(const int NE,
 
 
 __jit __kernel
-//__attribute__ ((hot))
-static // single line comment
-void JitSmemPADiffusionApply2D(const int D1D,
-                               const int Q1D,
-                               const int NBZ,
-                               int NE,
-                               const Array<double> &b_,
-                               const Array<double> &g_,
-                               const Vector &op_,
-                               const Vector &x_,
-                               Vector &y_)
+static void JitSmemPADiffusionApply2D(const int D1D,
+                                      const int Q1D,
+                                      const int NBZ,
+                                      int NE,
+                                      const Array<double> &b_,
+                                      const Array<double> &g_,
+                                      const Vector &op_,
+                                      const Vector &x_,
+                                      Vector &y_)
 {
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
