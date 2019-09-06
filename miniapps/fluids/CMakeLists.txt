@@ -12,8 +12,8 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(flow
     MAIN flow.cpp
-    EXTRA_SOURCES flow_solver.cpp 
-    EXTRA_HEADERS flow_solver.hpp
+    EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp
+    EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
     LIBRARIES mfem)
 
   # Add the corresponding tests to the "test" target

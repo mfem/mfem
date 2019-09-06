@@ -10,13 +10,13 @@ void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
    Array<BilinearFormIntegrator *> *bffis = src->GetDBFI();
    for (int i = 0; i < bffis->Size(); ++i)
    {
-      dst->AddDomainIntegrator(*bffis[i]);
+      dst->AddDomainIntegrator((*bffis)[i]);
    }
 }
 
 FlowSolver::FlowSolver(ParMesh *mesh, int order, double kin_vis)
-   : pmesh(mesh), partial_assembly(false), order(order), kin_vis(kin_vis),
-     vfec(nullptr), pfec(nullptr), vfes(nullptr), pfes(nullptr)
+   : pmesh(mesh), order(order), kin_vis(kin_vis), vfec(nullptr), pfec(nullptr),
+     vfes(nullptr), pfes(nullptr)
 {
    vfec = new H1_FECollection(order, pmesh->Dimension());
    pfec = new H1_FECollection(order);
@@ -64,16 +64,22 @@ FlowSolver::FlowSolver(ParMesh *mesh, int order, double kin_vis)
 
    cur_step = 0;
 
-   partial_assembly = true;
-
    PrintInfo();
 }
 
 void FlowSolver::Setup(double dt)
 {
-   if (pmesh->GetMyRank() == 0)
+   if (verbose && pmesh->GetMyRank() == 0)
    {
-      out << "Setup" << std::endl;
+      std::cout << "Setup" << std::endl;
+      if (partial_assembly)
+      {
+         std::cout << "Using Partial Assembly" << std::endl;
+      }
+      else
+      {
+         std::cout << "Using FULL Assembly" << std::endl;
+      }
    }
 
    sw_setup.Start();
@@ -203,6 +209,8 @@ void FlowSolver::Setup(double dt)
       HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
       HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
       SpInvPC->SetPrintLevel(0);
+      SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC->SetOperator(*SpInvPC);
    }
    else
    {
@@ -214,11 +222,13 @@ void FlowSolver::Setup(double dt)
       HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
       HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
       SpInvPC->SetPrintLevel(0);
+      SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC->SetOperator(*SpInvPC);
    }
-   SpInv = new GMRESSolver(MPI_COMM_WORLD);
+   SpInv = new CGSolver(MPI_COMM_WORLD);
    SpInv->iterative_mode = false;
    SpInv->SetOperator(*Sp);
-   SpInv->SetPreconditioner(*SpInvPC);
+   SpInv->SetPreconditioner(*SpInvOrthoPC);
    SpInv->SetPrintLevel(0);
    SpInv->SetRelTol(1e-12);
    SpInv->SetMaxIter(500);
@@ -226,16 +236,22 @@ void FlowSolver::Setup(double dt)
    if (partial_assembly)
    {
       H_form_lor = new ParBilinearForm(vfes_lor);
-      CopyDBFIntegrators(Mv_form, H_form_lor);
+      CopyDBFIntegrators(H_form, H_form_lor);
       H_form_lor->Assemble();
       H_form_lor->FormSystemMatrix(empty, H_lor);
-      HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
-      static_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
+      HInvPC = new HypreBoomerAMG(*H_lor.As<HypreParMatrix>());
+      HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
+      HYPRE_BoomerAMGSetCoarsenType(amg_precond, 6);
+      HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
+      HYPRE_BoomerAMGSetRelaxType(amg_precond, 6);
+      HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
+      HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
+      HInvPC->SetPrintLevel(0);
    }
    else
    {
-      HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
-      static_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
+      HInvPC = new HypreBoomerAMG(*H.As<HypreParMatrix>());
+      HInvPC->SetPrintLevel(0);
    }
    HInv = new CGSolver(MPI_COMM_WORLD);
    HInv->iterative_mode = false;
@@ -278,8 +294,14 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
          HInv->ClearPreconditioner();
          HInv->SetOperator(*H);
          delete HInvPC;
-         HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
-         static_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
+         HInvPC = new HypreBoomerAMG(*H_lor.As<HypreParMatrix>());
+         HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
+         HYPRE_BoomerAMGSetCoarsenType(amg_precond, 6);
+         HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
+         HYPRE_BoomerAMGSetRelaxType(amg_precond, 6);
+         HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
+         HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
+         HInvPC->SetPrintLevel(0);
          HInv->SetPreconditioner(*HInvPC);
       }
       else
@@ -378,6 +400,7 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    sw_spsolve.Start();
    SpInv->Mult(B1, X1);
    sw_spsolve.Stop();
+   iter_spsolve = SpInv->GetNumIterations();
    Sp_form->RecoverFEMSolution(X1, resp_gf, pn_gf);
 
    if (pres_dbcs.empty())
@@ -421,11 +444,17 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    sw_hsolve.Start();
    HInv->Mult(B2, X2);
    sw_hsolve.Stop();
+   iter_hsolve = HInv->GetNumIterations();
    H_form->RecoverFEMSolution(X2, resu_gf, un_gf);
 
    un_gf.GetTrueDofs(un);
 
    sw_step.Stop();
+
+   if (verbose && pmesh->GetMyRank() == 0)
+   {
+      printf("%d %d\n", iter_spsolve, iter_hsolve);
+   }
 }
 
 void FlowSolver::MeanZero(ParGridFunction &v)
@@ -504,7 +533,7 @@ void FlowSolver::AddVelDirichetBC(
                        attr,
                        VectorFunctionCoefficient(pmesh->Dimension(), f)));
 
-   if (pmesh->GetMyRank() == 0)
+   if (verbose && pmesh->GetMyRank() == 0)
    {
       out << "Adding Velocity Dirichlet BC to attributes ";
       for (int i = 0; i < attr.Size(); ++i)

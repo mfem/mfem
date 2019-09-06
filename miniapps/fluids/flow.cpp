@@ -6,10 +6,10 @@ using namespace flow;
 
 struct s_FlowContext
 {
-   int order = 8;
+   int order = 6;
    double kin_vis = 1.0;
-   double t_final = 10e-4;
-   double dt = 1e-4;
+   double t_final = 10e-3;
+   double dt = 1e-3;
 } ctx;
 
 void vel_tgv(const Vector &x, double t, Vector &u)
@@ -50,6 +50,11 @@ int main(int argc, char *argv[])
    for (int i = 0; i < serial_refinements; ++i)
    {
       mesh->UniformRefinement();
+   }
+
+   if (mpi.Root())
+   {
+      std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
    }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);

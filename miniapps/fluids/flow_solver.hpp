@@ -1,7 +1,7 @@
 #pragma once
 
-#include "flow_types.hpp"
 #include "mfem.hpp"
+#include "ortho_solver.hpp"
 
 namespace mfem
 {
@@ -59,9 +59,10 @@ protected:
                      Vector &B,
                      int copy_interior = 0);
 
-   ParMesh *pmesh;
+   bool verbose = true;
+   bool partial_assembly = true;
 
-   bool partial_assembly;
+   ParMesh *pmesh;
 
    double order;
    double kin_vis;
@@ -97,9 +98,10 @@ protected:
    CGSolver *MvInv;
 
    HypreBoomerAMG *SpInvPC;
-   GMRESSolver *SpInv;
+   OrthoSolver *SpInvOrthoPC;
+   CGSolver *SpInv;
 
-   Solver *HInvPC;
+   HypreBoomerAMG *HInvPC;
    CGSolver *HInv;
 
    Vector fn, un, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext, resu;
@@ -142,6 +144,9 @@ protected:
 
    // Timers
    StopWatch sw_setup, sw_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
+
+   // Iteration counts
+   int iter_spsolve, iter_hsolve;
 
    // LOR PC related
    ParMesh *pmesh_lor;
