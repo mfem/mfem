@@ -72,7 +72,9 @@ struct tpl_t
 // *****************************************************************************
 struct kernel
 {
-   bool jit;
+   bool __jit;
+   bool __embed;
+   bool __template;
    string xcc;
    string dirname;
    string name;
@@ -84,9 +86,7 @@ struct kernel
    string any_pointer_args_jit;
    string d2u;
    string u2d;
-   bool T;
    struct tpl_t tpl;
-   bool embedding;
    string embed;
 };
 
@@ -155,14 +155,14 @@ inline bool is_newline(const int ch)
 }
 
 // *****************************************************************************
-inline int get(context &pp) { return pp.in.get(); }
+inline char get(context &pp) { return static_cast<char>(pp.in.get()); }
 
 // *****************************************************************************
 inline int put(const char c, context &pp)
 {
    if (is_newline(c)) { pp.line++; }
    pp.out.put(c);
-   if (pp.ker.embedding) { pp.ker.embed += c; }
+   if (pp.ker.__embed) { pp.ker.embed += c; }
    return c;
 }
 
@@ -241,7 +241,7 @@ void next(context &pp)
 // *****************************************************************************
 inline bool is_id(context &pp)
 {
-   const unsigned char c = pp.in.peek();
+   const int c = pp.in.peek();
    return isalnum(c) or c == '_';
 }
 
@@ -250,14 +250,14 @@ string get_id(context &pp)
 {
    string str;
    check(pp,is_id(pp),"Name w/o alnum 1st letter");
-   while (is_id(pp)) { str += pp.in.get(); }
+   while (is_id(pp)) { str += get(pp); } //static_cast<char>(pp.in.get()); }
    return str;
 }
 
 // *****************************************************************************
 bool is_digit(context &pp)
 {
-   const unsigned char c = pp.in.peek();
+   const char c = static_cast<char>(pp.in.peek());
    return isdigit(c);
 }
 
@@ -266,7 +266,7 @@ int get_digit(context &pp)
 {
    string str;
    check(pp,is_digit(pp),"Unknown number");
-   while (is_digit(pp)) { str += pp.in.get(); }
+   while (is_digit(pp)) { str += get(pp); }//static_cast<char>(pp.in.get()); }
    return atoi(str.c_str());
 }
 
@@ -274,7 +274,7 @@ int get_digit(context &pp)
 string get_directive(context &pp)
 {
    string str;
-   while (is_id(pp)) { str += pp.in.get(); }
+   while (is_id(pp)) { str += get(pp); } //pp.in.get(); }
    return str;
 }
 
@@ -287,7 +287,7 @@ string peekn(context &pp, const int n)
    for (k=0; k<=n; k+=1) { c[k] = 0; }
    for (k=0; k<n; k+=1)
    {
-      c[k] = pp.in.get();
+      c[k] = get(pp); // pp.in.get();
       if (pp.in.eof()) { break; }
    }
    string rtn = c;
@@ -306,7 +306,7 @@ string peekID(context &pp)
    for (k=0; k<n; k+=1)
    {
       if (! is_id(pp)) { break; }
-      c[k] = pp.in.get();
+      c[k] = get(pp); // pp.in.get();
       assert(not pp.in.eof());
    }
    string rtn(c);
@@ -401,7 +401,7 @@ void jitHeader(context &pp)
 // *****************************************************************************
 void jitKernelArgs(context &pp)
 {
-   if (not pp.jit or not pp.ker.jit) { return; }
+   if (not pp.jit or not pp.ker.__jit) { return; }
    pp.ker.xcc = STRINGIFY(MFEM_CXX) " " STRINGIFY(MFEM_BUILD_FLAGS);
    pp.ker.dirname = STRINGIFY(MFEM_SRC);
    pp.ker.static_args.clear();
@@ -534,7 +534,7 @@ void jitKernelArgs(context &pp)
 // *****************************************************************************
 void jitPrefix(context &pp)
 {
-   if (not pp.jit or not pp.ker.jit) { return; }
+   if (not pp.jit or not pp.ker.__jit) { return; }
    pp.out << "\n\tconst char *src=R\"_(";
    pp.out << "#include <cstdint>";
    pp.out << "\n#include <limits>";
@@ -559,7 +559,7 @@ void jitPrefix(context &pp)
 // *****************************************************************************
 void jitPostfix(context &pp)
 {
-   if (not pp.jit or not pp.ker.jit) { return; }
+   if (not pp.jit or not pp.ker.__jit) { return; }
    if (pp.compound_statements>=0 && pp.in.peek() == '{') { pp.compound_statements++; }
    if (pp.compound_statements>=0 && pp.in.peek() == '}') { pp.compound_statements--; }
    if (pp.compound_statements!=-1) { return; }
@@ -590,7 +590,7 @@ void jitPostfix(context &pp)
           << pp.ker.any_pointer_args << ");\n";
    // Stop counting the compound statements and flush the JIT status
    pp.compound_statements--;
-   pp.ker.jit = false;
+   pp.ker.__jit = false;
 }
 
 // *****************************************************************************
@@ -603,7 +603,7 @@ inline void get_dims(context &pp)
       while (true)
       {
          skip_space(pp);
-         const int c = get(pp); // eat [, *, +, ( or )
+         //const int c = get(pp); // eat [, *, +, ( or )
          int digit;
          if (is_digit(pp)) { digit = get_digit(pp); }
          string id;
@@ -807,7 +807,7 @@ void __jit(context &pp)
    next(pp);
    string id = get_id(pp);
    check(pp,id=="__kernel","No 'kernel' keyword after 'jit' qualifier");
-   pp.ker.jit = true;
+   pp.ker.__jit = true;
    __kernel(pp);
 }
 
@@ -828,7 +828,7 @@ void attribute(context &pp)
    get(pp);
    check(pp,pp.in.peek()==')',"No 2nd ')' in __attribute__");
    get(pp);
-   pp.ker.jit = true;
+   pp.ker.__jit = true;
    next(pp);
    __kernel(pp);
 }
@@ -839,20 +839,20 @@ void tokens(context &pp)
 {
    if (pp.in.peek() != '_') { return; }
    const string id = get_id(pp);
+   if (id == "__jit") { return __jit(pp); }
+   if (id == "__kernel") { return __kernel(pp); }
    if (id == "__attribute") { return attribute(pp); }
    if (id == "__attribute__") { return attribute(pp); }
-   if (id == "__jit") { return __jit(pp); }
    //if (id == "__embed") { return __embed(pp); }
-   if (id == "__kernel") { return __kernel(pp); }
    //if (id=="__template") { return __template(pp); }
    pp.out << id;
-   if (pp.ker.embedding) { pp.ker.embed += id; }
+   if (pp.ker.__embed) { pp.ker.embed += id; }
 }
 
 // *****************************************************************************
 bool eof(context &pp)
 {
-   const int c = pp.in.get();
+   const char c = get(pp);//pp.in.get();
    if (pp.in.eof()) { return true; }
    put(c,pp);
    return false;
@@ -863,9 +863,9 @@ int process(context &pp)
 {
    jitHeader(pp);
    hashHeader(pp);
-   pp.ker.T = false;
-   pp.ker.jit = false;
-   pp.ker.embedding = false;
+   pp.ker.__jit = false;
+   pp.ker.__embed = false;
+   pp.ker.__template = false;
    do
    {
       tokens(pp);
