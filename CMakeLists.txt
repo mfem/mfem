@@ -393,10 +393,6 @@ set_target_properties(mpp PROPERTIES COMPILE_FLAGS
     -DMFEM_SRC="${PROJECT_SOURCE_DIR}"
     -DMFEM_BUILD_FLAGS="${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}}"
 )
-if (MFEM_USE_MM)
-    set_property(TARGET mpp APPEND_STRING
-        PROPERTY COMPILE_FLAGS " -DMFEM_USE_MM")
-endif()
 if (MFEM_USE_JIT)
     set_property(TARGET mpp APPEND_STRING 
         PROPERTY COMPILE_FLAGS " -DMFEM_USE_JIT")
@@ -406,10 +402,6 @@ endif()
 # Scan all 'kernels' subdirectories
 #-------------------------------------------------------------------------------
 set(KERNELS "")
-set(MFEM_KERNELS_DIRS linalg mesh fem)
-foreach(DIR IN LISTS MFEM_KERNELS_DIRS)
-  add_subdirectory(${DIR}/kernels)
-endforeach()
 add_custom_target(MFEM_KERNELS)
 foreach(kernel IN LISTS KERNELS)
    get_filename_component(kername ${kernel} NAME_WE)

@@ -295,7 +295,6 @@ template<const int T_D1D = 0,
          const int T_NBZ = 0>
 static void SmemPAMassApply2D(const int NE,
                               const Array<double> &b_,
-                              const Array<double> &bt_,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_,
@@ -564,7 +563,6 @@ template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,
                               const Array<double> &b_,
-                              const Array<double> &bt_,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_,
@@ -762,14 +760,14 @@ static void PAMassApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
-         case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
-         case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
-         case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, Bt, op, x, y);
-         case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, Bt, op, x, y);
-         case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, Bt, op, x, y);
-         case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, Bt, op, x, y);
-         case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, Bt, op, x, y);
+         case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, op, x, y);
+         case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, op, x, y);
+         case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, op, x, y);
+         case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, op, x, y);
+         case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, op, x, y);
+         case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, op, x, y);
+         case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, op, x, y);
+         case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, op, x, y);
          default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
    }
@@ -777,13 +775,13 @@ static void PAMassApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-         case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-         case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-         case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-         case 0x67: return SmemPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
-         case 0x78: return SmemPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
-         case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
+         case 0x23: return SmemPAMassApply3D<2,3>(NE, B, op, x, y);
+         case 0x34: return SmemPAMassApply3D<3,4>(NE, B, op, x, y);
+         case 0x45: return SmemPAMassApply3D<4,5>(NE, B, op, x, y);
+         case 0x56: return SmemPAMassApply3D<5,6>(NE, B, op, x, y);
+         case 0x67: return SmemPAMassApply3D<6,7>(NE, B, op, x, y);
+         case 0x78: return SmemPAMassApply3D<7,8>(NE, B, op, x, y);
+         case 0x89: return SmemPAMassApply3D<8,9>(NE, B, op, x, y);
          default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
    }
