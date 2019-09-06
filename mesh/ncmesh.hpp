@@ -520,6 +520,7 @@ protected: // implementation
    Array<Refinement> ref_queue; ///< stack of scheduled refinements (temporary)
    Array<Refinement> postponed; ///< list of postponed refinements (temporary)
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
+   Array<Pair<int, int> > prepare_nodes;
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 

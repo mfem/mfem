@@ -11,13 +11,12 @@
 
 #include "mesh_headers.hpp"
 
-#include <fstream>
+#include <fstream> // debug
+#include <set> // debug
 
 #include <string>
 #include <climits> // INT_MAX
 #include <map>
-
-#include <fstream> // debug
 
 #include "ncmesh_tables.hpp"
 
@@ -817,8 +816,10 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
          {
             // if at least one forced refinement was needed, prepare also
             // the 'horizontal' nodes
-            GetMidEdgeNode(mid41, midf);
-            GetMidEdgeNode(midf, mid23);
+            prepare_nodes.Append(Pair<int, int>(mid41, midf));
+            prepare_nodes.Append(Pair<int, int>(midf, mid23));
+            //GetMidEdgeNode(mid41, midf);
+            //GetMidEdgeNode(midf, mid23);
          }
 
          if (HavePrisms() && nodes[midf].HasEdge())
@@ -872,7 +873,8 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
 
       // prepare an empty node consistent with the future forced refinement
       // (since forced refinements are merely scheduled at this point)
-      GetMidEdgeNode(mid12, mid34);
+      prepare_nodes.Append(Pair<int, int>(mid12, mid34));
+      //GetMidEdgeNode(mid12, mid34);
    }
    return true;
 }
@@ -940,6 +942,7 @@ bool NCMesh::RefineElement(int elem, char ref_type)
    }
 
    reparents.DeleteAll();
+   prepare_nodes.DeleteAll();
 
    // create child elements
    if (el.Geom() == Geometry::CUBE)
@@ -1195,8 +1198,6 @@ bool NCMesh::RefineElement(int elem, char ref_type)
          int midf4 = GetMidFaceNode(mid30, mid04, mid74, mid37);
          int midf5 = GetMidFaceNode(mid45, mid56, mid67, mid74);
 
-         int midel = GetMidEdgeNode(midf1, midf3);
-
          if (CheckIsoFace(no[3], no[2], no[1], no[0],
                           mid23, mid12, mid01, mid30, midf0) &&
              CheckIsoFace(no[0], no[1], no[5], no[4],
@@ -1210,6 +1211,8 @@ bool NCMesh::RefineElement(int elem, char ref_type)
              CheckIsoFace(no[4], no[5], no[6], no[7],
                           mid45, mid56, mid67, mid74, midf5))
          {
+            int midel = GetMidEdgeNode(midf1, midf3);
+
             child[0] = NewHexahedron(no[0], mid01, midf0, mid30,
                                      mid04, midf1, midel, midf4, attr,
                                      fa[0], fa[1], -1, -1, fa[4], -1);
@@ -1459,11 +1462,18 @@ bool NCMesh::RefineElement(int elem, char ref_type)
    // perform node reparents from CheckAnisoFace
    for (int i = 0; i < reparents.Size(); i++)
    {
-      const Triple<int, int, int> &tr = reparents[i];
+      const auto &tr = reparents[i];
       ReparentNode(tr.one, tr.two, tr.three);
    }
    reparents.DeleteAll();
 
+   // prepare empty nodes for forced refinements
+   for (int i = 0; i < prepare_nodes.Size(); i++)
+   {
+      const auto &pn = prepare_nodes[i];
+      GetMidEdgeNode(pn.one, pn.two);
+   }
+   prepare_nodes.DeleteAll();
 
    // start using the nodes of the children, create edges & faces
    for (int i = 0; i < 8 && child[i] >= 0; i++)
@@ -1505,6 +1515,11 @@ bool NCMesh::RefineElement(int elem, char ref_type)
    return true;
 }
 
+bool operator!=(const Refinement &a, const Refinement &b)
+{
+   return (a.index != b.index) || (a.ref_type != b.ref_type);
+}
+
 void NCMesh::Refine(const Array<Refinement>& refinements)
 {
 #if 0
@@ -1535,8 +1550,10 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_queue.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
-   // keep refining as long as the queue contains something
    int total = 0;
+   Array<Refinement> last_p;
+
+   // keep refining as long as the queue contains something
    while (ref_queue.Size())
    {
       Refinement ref = ref_queue[0];
@@ -1561,11 +1578,17 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       sprintf(fname, "ncmesh-%03d.dbg", iter++);
       std::ofstream f(fname);
       Update();
-      DebugDump(f);}
-      DebugCheckConsistency();*/
+      DebugDump(f);}*/
+      //DebugCheckConsistency();
 
       if (!ref_queue.Size() && postponed.Size())
       {
+         /*if (last_p.Size() && postponed == last_p)
+         {
+            MFEM_ABORT("Repeated postponed refinements, something is wrong.");
+         }
+         last_p = postponed;*/
+
          postponed.Copy(ref_queue);
          postponed.DeleteAll();
       }
@@ -5433,13 +5456,11 @@ struct CheckPt
 
 void NCMesh::DebugCheckConsistency() const
 {
-#if 0
    // check double nodes
    tmp_vertex = new TmpVertex[nodes.NumIds()];
    std::set<CheckPt> points;
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
-      if (node->Shadow()) { continue; }
       CheckPt pt(CalcVertexPos(node.index()), node.index());
       if (points.find(pt) == points.end())
       {
@@ -5452,7 +5473,6 @@ void NCMesh::DebugCheckConsistency() const
       }
    }
    delete [] tmp_vertex;
-#endif
 }
 #endif
 
