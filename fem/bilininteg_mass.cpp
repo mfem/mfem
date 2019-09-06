@@ -194,6 +194,7 @@ static void OccaPAMassApply3D(const int D1D,
 }
 #endif // MFEM_USE_OCCA
 
+__jit __kernel
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void PAMassApply2D(const int NE,
@@ -287,6 +288,7 @@ static void PAMassApply2D(const int NE,
    });
 }
 
+__jit __kernel
 template<const int T_D1D = 0,
          const int T_Q1D = 0,
          const int T_NBZ = 0>
@@ -297,11 +299,12 @@ static void SmemPAMassApply2D(const int NE,
                               const Vector &x_,
                               Vector &y_,
                               const int d1d = 0,
-                              const int q1d = 0)
+                              const int q1d = 0,
+                              const int nbz = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int NBZ = T_NBZ ? T_NBZ : nbz;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
@@ -315,7 +318,7 @@ static void SmemPAMassApply2D(const int NE,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int NBZ = T_NBZ ? T_NBZ : nbz;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -411,6 +414,7 @@ static void SmemPAMassApply2D(const int NE,
    });
 }
 
+__jit __kernel
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void PAMassApply3D(const int NE,
@@ -553,6 +557,7 @@ static void PAMassApply3D(const int NE,
    });
 }
 
+__jit __kernel
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,
@@ -749,6 +754,7 @@ static void PAMassApply(const int dim,
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
+#ifndef MFEM_USE_JIT
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
@@ -778,6 +784,20 @@ static void PAMassApply(const int dim,
          default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
    }
+#else
+   if (dim == 2)
+   {
+      const int NBZ = (D1D==2||D1D==3) ? 16:
+                      (D1D==4||D1D==5) ? 8 :
+                      (D1D==6||D1D==7) ? 4 :
+                      (D1D==8||D1D==9) ? 2 : 1;
+      return SmemPAMassApply2D(NE, B, Bt, op, x, y,D1D,Q1D,NBZ);
+   }
+   if (dim == 3)
+   {
+      return SmemPAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+   }
+#endif
    MFEM_ABORT("Unknown kernel.");
 }
 

@@ -11,7 +11,9 @@ using namespace std;
 // *****************************************************************************
 #define STR(...) #__VA_ARGS__
 #define STRINGIFY(...) STR(__VA_ARGS__)
-#define DBG(...) {printf(__VA_ARGS__);fflush(0);}
+#define DBG(...) { printf("\033[1;33m"); \
+                   printf(__VA_ARGS__);\
+                   printf("\033[m");fflush(0);}
 
 // *****************************************************************************
 // * Hashing, used here and embedded in the code
@@ -44,16 +46,14 @@ HASH_SRC
 // *****************************************************************************
 struct argument
 {
+   int default_value;
    string type, name;
-   bool is_ptr, is_amp, is_const, is_restrict, is_tpl;
+   bool is_ptr = false, is_amp = false, is_const = false,
+        is_restrict = false, is_tpl = false, has_default_value = false;
    std::list<int> range;
    bool operator==(const argument &a) { return name == a.name; }
-   argument():
-      is_ptr(false), is_amp(false), is_const(false),
-      is_restrict(false),is_tpl(false) {}
-   argument(string id):
-      name(id), is_ptr(false), is_amp(false), is_const(false),
-      is_restrict(false), is_tpl(false) {}
+   argument() {}
+   argument(string id): name(id) {}
 };
 typedef std::list<argument>::iterator argument_it;
 
@@ -75,15 +75,18 @@ struct kernel
    bool __jit;
    bool __embed;
    bool __template;
+   bool __single_source;
    string xcc;
    string dirname;
    string name;
-   string static_format;
-   string static_args;
-   string static_tmplt;
-   string any_pointer_params;
-   string any_pointer_args;
-   string any_pointer_args_jit;
+   string static_format;      // template format, as in printf
+   string static_arguments;   // template arguments, for hash and call
+   string static_parameters;  // template parameter, for the declaration
+   string other_parameters;
+   // args are different for jit because of the & <=> * transformation
+   string other_arguments;
+   string other_arguments_wo_amp;
+   string single_source_template_parameters;
    string d2u;
    string u2d;
    struct tpl_t tpl;
@@ -93,11 +96,6 @@ struct kernel
 // *****************************************************************************
 struct context
 {
-#ifdef MFEM_USE_JIT
-   const bool jit = true;
-#else
-   const bool jit = false;
-#endif
    int line;
    int compound_statements;
    string& file;
@@ -203,8 +201,6 @@ bool is_comments(context &pp)
 void singleLineComments(context &pp)
 {
    while (not is_newline(pp.in.peek())) { put(pp); }
-   check(pp,pp.in.peek()=='\n',"Single line comment w/o \n");
-   //put(pp);
 }
 
 // *****************************************************************************
@@ -250,7 +246,7 @@ string get_id(context &pp)
 {
    string str;
    check(pp,is_id(pp),"Name w/o alnum 1st letter");
-   while (is_id(pp)) { str += get(pp); } //static_cast<char>(pp.in.get()); }
+   while (is_id(pp)) { str += get(pp); }
    return str;
 }
 
@@ -266,7 +262,7 @@ int get_digit(context &pp)
 {
    string str;
    check(pp,is_digit(pp),"Unknown number");
-   while (is_digit(pp)) { str += get(pp); }//static_cast<char>(pp.in.get()); }
+   while (is_digit(pp)) { str += get(pp); }
    return atoi(str.c_str());
 }
 
@@ -274,7 +270,7 @@ int get_digit(context &pp)
 string get_directive(context &pp)
 {
    string str;
-   while (is_id(pp)) { str += get(pp); } //pp.in.get(); }
+   while (is_id(pp)) { str += get(pp); }
    return str;
 }
 
@@ -287,7 +283,7 @@ string peekn(context &pp, const int n)
    for (k=0; k<=n; k+=1) { c[k] = 0; }
    for (k=0; k<n; k+=1)
    {
-      c[k] = get(pp); // pp.in.get();
+      c[k] = get(pp);
       if (pp.in.eof()) { break; }
    }
    string rtn = c;
@@ -306,7 +302,7 @@ string peekID(context &pp)
    for (k=0; k<n; k+=1)
    {
       if (! is_id(pp)) { break; }
-      c[k] = get(pp); // pp.in.get();
+      c[k] = get(pp);
       assert(not pp.in.eof());
    }
    string rtn(c);
@@ -337,6 +333,16 @@ bool isstatic(context &pp)
    const string void_peek = peekn(pp,6);
    assert(not pp.in.eof());
    if (void_peek == "static") { return true; }
+   return false;
+}
+
+// *****************************************************************************
+bool istemplate(context &pp)
+{
+   skip_space(pp);
+   const string void_peek = peekn(pp,8);
+   assert(not pp.in.eof());
+   if (void_peek == "template") { return true; }
    return false;
 }
 
@@ -381,6 +387,14 @@ bool is_coma(context &pp)
 }
 
 // *****************************************************************************
+bool is_eq(context &pp)
+{
+   skip_space(pp);
+   if (pp.in.peek() == '=') { return true; }
+   return false;
+}
+
+// *****************************************************************************
 static inline void hashHeader(context &pp)
 {
    pp.out << "#include <cstddef>\n";
@@ -394,54 +408,79 @@ static inline void hashHeader(context &pp)
 // *****************************************************************************
 void jitHeader(context &pp)
 {
-   if (not pp.jit) { return; }
    pp.out << "#include \"general/jit.hpp\"\n";
+}
+
+// *****************************************************************************
+void jitKernelArgsSingleSource(context &pp)
+{
+   pp.ker.static_parameters = "\033[33mstatic_parameters\033[m";
+   pp.ker.static_arguments = "\033[33mstatic_arguments\033[m";
+   pp.ker.static_format = "\033[33mstatic_format\033[m";
+   pp.ker.other_arguments = "\033[33mother_arguments\033[m";
+   pp.ker.other_parameters = "\033[33mother_parameters\033[m";
+   pp.ker.other_arguments_wo_amp = "\033[33mother_arguments_wo_amp\033[m";
 }
 
 // *****************************************************************************
 void jitKernelArgs(context &pp)
 {
-   if (not pp.jit or not pp.ker.__jit) { return; }
+   if (not pp.ker.__jit) { return; }
    pp.ker.xcc = STRINGIFY(MFEM_CXX) " " STRINGIFY(MFEM_BUILD_FLAGS);
    pp.ker.dirname = STRINGIFY(MFEM_SRC);
-   pp.ker.static_args.clear();
-   pp.ker.static_tmplt.clear();
+   pp.ker.static_arguments.clear();
+   pp.ker.static_parameters.clear();
    pp.ker.static_format.clear();
-   pp.ker.any_pointer_args.clear();
-   pp.ker.any_pointer_params.clear();
-   pp.ker.any_pointer_args_jit.clear();
+   pp.ker.other_arguments.clear();
+   pp.ker.other_parameters.clear();
+   pp.ker.other_arguments_wo_amp.clear();
    pp.ker.d2u.clear();
    pp.ker.u2d.clear();
+
+   //if (pp.ker.__single_source) { jitKernelArgsSingleSource(pp);}
 
    for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
    {
       const argument &arg = *ia;
       const bool is_const = arg.is_const;
-      //const bool is_restrict = arg.is_restrict;
       const bool is_amp = arg.is_amp;
       const bool is_ptr = arg.is_ptr;
       const bool is_pointer = is_ptr || is_amp;
       const char *type = arg.type.c_str();
       const char *name = arg.name.c_str();
-      const bool underscore = pp.jit && is_pointer;
+      const bool underscore = is_pointer;
+      const bool has_default_value = arg.has_default_value;
 
       // const + !(*|&) => add it to the template args
       if (is_const && ! is_pointer)
       {
          const bool is_double = strcmp(type,"double")==0;
+         // static_format
          if (! pp.ker.static_format.empty()) { pp.ker.static_format += ","; }
-         pp.ker.static_format += is_double?"0x%lx":"%ld";
-         if (! pp.ker.static_args.empty()) { pp.ker.static_args += ","; }
-         pp.ker.static_args += is_double?"u":"";
-         pp.ker.static_args += underscore?"_":"";
-         pp.ker.static_args += name;
-         if (! pp.ker.static_tmplt.empty()) { pp.ker.static_tmplt += ","; }
-         pp.ker.static_tmplt += "const ";
-         pp.ker.static_tmplt += is_double?"uint64_t":type;
-         pp.ker.static_tmplt += " ";
-         pp.ker.static_tmplt += is_double?"t":"";
-         pp.ker.static_tmplt += underscore?"_":"";
-         pp.ker.static_tmplt += name;
+         if (! has_default_value)
+         {
+            pp.ker.static_format += is_double?"0x%lx":"%ld";
+         }
+         else
+         {
+            pp.ker.static_format += "%ld";
+         }
+         // static_arguments
+         if (! pp.ker.static_arguments.empty()) { pp.ker.static_arguments += ","; }
+         pp.ker.static_arguments += is_double?"u":"";
+         pp.ker.static_arguments += underscore?"_":"";
+         pp.ker.static_arguments += name;
+         // static_parameters
+         if (!has_default_value)
+         {
+            if (! pp.ker.static_parameters.empty()) { pp.ker.static_parameters += ","; }
+            pp.ker.static_parameters += "const ";
+            pp.ker.static_parameters += is_double?"uint64_t":type;
+            pp.ker.static_parameters += " ";
+            pp.ker.static_parameters += is_double?"t":"";
+            pp.ker.static_parameters += underscore?"_":"";
+            pp.ker.static_parameters += name;
+         }
          if (is_double)
          {
             {
@@ -476,65 +515,94 @@ void jitKernelArgs(context &pp)
       // !const && !pointer => std args
       if (!is_const && !is_pointer)
       {
-         if (! pp.ker.any_pointer_args.empty())
+         if (! pp.ker.other_arguments.empty())
          {
-            pp.ker.any_pointer_args += ",";
+            pp.ker.other_arguments += ",";
          }
-         pp.ker.any_pointer_args += name;
-         if (! pp.ker.any_pointer_args_jit.empty())
+         pp.ker.other_arguments += name;
+         if (! pp.ker.other_arguments_wo_amp.empty())
          {
-            pp.ker.any_pointer_args_jit += ",";
+            pp.ker.other_arguments_wo_amp += ",";
          }
-         pp.ker.any_pointer_args_jit += name;
+         pp.ker.other_arguments_wo_amp += name;
 
-         if (! pp.ker.any_pointer_params.empty())
+         if (! pp.ker.other_parameters.empty())
          {
-            pp.ker.any_pointer_params += ",";
+            pp.ker.other_parameters += ",";
          }
-         pp.ker.any_pointer_params += type;
-         pp.ker.any_pointer_params += " ";
-         pp.ker.any_pointer_params += name;
+         pp.ker.other_parameters += type;
+         pp.ker.other_parameters += " ";
+         pp.ker.other_parameters += name;
+      }
 
+      if (is_const && !is_pointer && has_default_value)
+      {
+         // other_parameters
+         if (! pp.ker.other_parameters.empty())
+         {
+            pp.ker.other_parameters += ",";
+         }
+         pp.ker.other_parameters += " const ";
+         pp.ker.other_parameters += type;
+         pp.ker.other_parameters += " ";
+         pp.ker.other_parameters += name;
+         //pp.ker.other_parameters += " =0";
+         // other_arguments_wo_amp
+         if (! pp.ker.other_arguments_wo_amp.empty())
+         {
+            pp.ker.other_arguments_wo_amp += ",";
+         }
+         pp.ker.other_arguments_wo_amp += "0";
+         // other_arguments
+         if (! pp.ker.other_arguments.empty())
+         {
+            pp.ker.other_arguments += ",";
+         }
+         pp.ker.other_arguments += "0";
       }
 
       // pointer
       if (is_pointer)
       {
-         // any_pointer_args
-         if (! pp.ker.any_pointer_args.empty())
+         // other_arguments
+         if (! pp.ker.other_arguments.empty())
          {
-            pp.ker.any_pointer_args += ",";
+            pp.ker.other_arguments += ",";
          }
-         pp.ker.any_pointer_args += is_amp?"&":"";
-         pp.ker.any_pointer_args += underscore?"_":"";
-         pp.ker.any_pointer_args += name;
-         // any_pointer_args_jit
-         if (! pp.ker.any_pointer_args_jit.empty())
+         pp.ker.other_arguments += is_amp?"&":"";
+         pp.ker.other_arguments += underscore?"_":"";
+         pp.ker.other_arguments += name;
+         // other_arguments_wo_amp
+         if (! pp.ker.other_arguments_wo_amp.empty())
          {
-            pp.ker.any_pointer_args_jit += ",";
+            pp.ker.other_arguments_wo_amp += ",";
          }
-         pp.ker.any_pointer_args_jit += underscore?"_":"";
-         pp.ker.any_pointer_args_jit += name;
-         // any_pointer_params
-         if (! pp.ker.any_pointer_params.empty())
+         pp.ker.other_arguments_wo_amp += underscore?"_":"";
+         pp.ker.other_arguments_wo_amp += name;
+         // other_parameters
+         if (! pp.ker.other_parameters.empty())
          {
-            pp.ker.any_pointer_params += ",";
+            pp.ker.other_parameters += ",";
          }
-         {
-            pp.ker.any_pointer_params += is_const?"const ":"";
-            pp.ker.any_pointer_params += type;
-            pp.ker.any_pointer_params += " *";
-            pp.ker.any_pointer_params += underscore?"_":"";
-            pp.ker.any_pointer_params += name;
-         }
+         pp.ker.other_parameters += is_const?"const ":"";
+         pp.ker.other_parameters += type;
+         pp.ker.other_parameters += " *";
+         pp.ker.other_parameters += underscore?"_":"";
+         pp.ker.other_parameters += name;
       }
+   }
+
+   if (pp.ker.__single_source)
+   {
+      if (! pp.ker.static_parameters.empty()) { pp.ker.static_parameters += ","; }
+      pp.ker.static_parameters += pp.ker.single_source_template_parameters;
    }
 }
 
 // *****************************************************************************
 void jitPrefix(context &pp)
 {
-   if (not pp.jit or not pp.ker.__jit) { return; }
+   if (not pp.ker.__jit) { return; }
    pp.out << "\n\tconst char *src=R\"_(";
    pp.out << "#include <cstdint>";
    pp.out << "\n#include <limits>";
@@ -548,9 +616,9 @@ void jitPrefix(context &pp)
    pp.out << pp.ker.embed.c_str();
    pp.out << "#pragma pop\n";
    pp.out << "using namespace mfem;\n";
-   pp.out << "\ntemplate<" << pp.ker.static_tmplt << ">";
+   pp.out << "\ntemplate<" << pp.ker.static_parameters << ">";
    pp.out << "\nvoid jit_" << pp.ker.name << "(";
-   pp.out << pp.ker.any_pointer_params << "){";
+   pp.out << pp.ker.other_parameters << "){";
    if (not pp.ker.d2u.empty()) { pp.out << "\n\t" << pp.ker.d2u; }
    // Starts counting the compound statements
    pp.compound_statements = 0;
@@ -559,35 +627,35 @@ void jitPrefix(context &pp)
 // *****************************************************************************
 void jitPostfix(context &pp)
 {
-   if (not pp.jit or not pp.ker.__jit) { return; }
+   if (not pp.ker.__jit) { return; }
    if (pp.compound_statements>=0 && pp.in.peek() == '{') { pp.compound_statements++; }
    if (pp.compound_statements>=0 && pp.in.peek() == '}') { pp.compound_statements--; }
    if (pp.compound_statements!=-1) { return; }
    pp.out << "}";
    pp.out << "\nextern \"C\"";
    pp.out << "\nvoid k%016lx("
-          << pp.ker.any_pointer_params << "){";
+          << pp.ker.other_parameters << "){";
    pp.out << "jit_"<<pp.ker.name
           << "<" << pp.ker.static_format<<">"
-          << "(" << pp.ker.any_pointer_args_jit << ");";
+          << "(" << pp.ker.other_arguments_wo_amp << ");";
    pp.out << "\n}";
    pp.out << ")_\";";
    // typedef, hash map and launch
-   pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.any_pointer_params<<");";
+   pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.other_parameters<<");";
    pp.out << "\n\tstatic std::unordered_map<size_t,mfem::jit::kernel<kernel_t>*> __kernels;";
    if (not pp.ker.u2d.empty()) { pp.out << "\n\t" << pp.ker.u2d; }
 
    pp.out << "\n\tconst char *xcc = \"" << pp.ker.xcc << "\";";
    pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
    pp.out << "\n\tconst size_t args_hash = mfem::jit::hash_args(args_seed,"
-          << pp.ker.static_args << ");";
+          << pp.ker.static_arguments << ");";
    pp.out << "\n\tif (!__kernels[args_hash]){";
    pp.out << "\n\t\t__kernels[args_hash] = new mfem::jit::kernel<kernel_t>"
           << "(xcc,src," << "\"-I" << pp.ker.dirname << "\","
-          << pp.ker.static_args << ");";
+          << pp.ker.static_arguments << ");";
    pp.out << "\n\t}";
    pp.out << "\n\t__kernels[args_hash]->operator_void("
-          << pp.ker.any_pointer_args << ");\n";
+          << pp.ker.other_arguments << ");\n";
    // Stop counting the compound statements and flush the JIT status
    pp.compound_statements--;
    pp.ker.__jit = false;
@@ -713,10 +781,23 @@ static bool get_args(context &pp)
       }
       if (id=="Vector") { pp.out << id; arg.type = id; continue; }
       const bool is_pointer = arg.is_ptr || arg.is_amp;
-      const bool underscore = pp.jit && is_pointer;
+      const bool underscore = is_pointer;
       pp.out << (underscore?"_":"") << id;
       // focus on the name, we should have qual & type
+      //DBG("name='%s'",id.c_str());
       arg.name = id;
+      // now check for a possible default value
+      next(pp);
+      if (is_eq(pp))
+      {
+         put(pp);
+         next(pp);
+         arg.has_default_value = true;
+         arg.default_value = get_digit(pp);
+         pp.out << arg.default_value;
+         // we dont want them in the static_parameters
+         //arg.is_const = false;
+      }
       //get_dims(pp);
       pp.args.push_back(arg);
       arg = argument();
@@ -725,7 +806,6 @@ static bool get_args(context &pp)
       //if (c == '(') { put(pp); p+=1; }
       if (c == ')') { p-=1; if (p>=0) { put(pp); get_dims(pp); continue; } }
       if (p<0) { break; }
-      skip_space(pp);
       check(pp,pp.in.peek()==',',"No coma while in args");
       put(pp);
    }
@@ -735,7 +815,7 @@ static bool get_args(context &pp)
 }
 
 // *****************************************************************************
-static void genAmpFromPtr(context &pp)
+static void jitAmpFromPtr(context &pp)
 {
    // Generate the GET_* code
    for (argument_it ia = pp.args.begin();
@@ -748,7 +828,7 @@ static void genAmpFromPtr(context &pp)
       const bool is_pointer = is_ptr || is_amp;
       const char *type = a.type.c_str();
       const char *name = a.name.c_str();
-      const bool underscore = pp.jit && is_pointer;
+      const bool underscore = is_pointer;
       if (is_const && underscore)
       {
          pp.out << "\n\tconst " << type << (is_amp?"& ":"* ") << name
@@ -770,7 +850,29 @@ void __kernel(context &pp)
    // Skip   "__kernel"
    pp.out << "        ";
    next(pp);
-   check(pp, isvoid(pp)||isstatic(pp), "Kernel w/o void or static");
+   // return type should be void for now, or we could hit a 'static'
+   // or even a 'template' which triggers the '__single_source' case
+   const bool check_next_id = isvoid(pp) or isstatic(pp) or istemplate(pp);
+   // first check for the template
+   check(pp,  check_next_id, "Kernel w/o void, static or template");
+   if (istemplate(pp))
+   {
+      // get rid of the 'template'
+      get_id(pp);
+      // tag our kernel as a '__single_source' one
+      pp.ker.__single_source = true;
+      next(pp);
+      check(pp, pp.in.peek()=='<',"No '<' in single source kernel!");
+      get(pp); // eat '<'
+      pp.ker.single_source_template_parameters.clear();
+      while (pp.in.peek() != '>')
+      {
+         assert(not pp.in.eof());
+         pp.ker.single_source_template_parameters += get(pp);
+      }
+      get(pp); // eat '>'
+   }
+   // 'static' check
    if (isstatic(pp)) { pp.out << get_id(pp); }
    next(pp);
    const string void_return_type = get_id(pp);
@@ -795,8 +897,8 @@ void __kernel(context &pp)
    put(pp);
    // Generate the JIT prefix for this kernel
    jitPrefix(pp);
-   // Generate the & <=> * tramsformations
-   genAmpFromPtr(pp);
+   // Generate the & <=> * transformations
+   jitAmpFromPtr(pp);
 }
 
 // *****************************************************************************
@@ -866,6 +968,7 @@ int process(context &pp)
    pp.ker.__jit = false;
    pp.ker.__embed = false;
    pp.ker.__template = false;
+   pp.ker.__single_source = false;
    do
    {
       tokens(pp);
