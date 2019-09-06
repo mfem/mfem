@@ -1027,16 +1027,19 @@ static void SmemPADiffusionApply3D(const int NE,
    });
 }
 
-__attribute ((hot))
-static void JitSmemPADiffusionApply2D(const int D1D,
-                                      const int Q1D,
-                                      const int NBZ,
-                                      const int NE,
-                                      const Array<double> &b_,
-                                      const Array<double> &g_,
-                                      const Vector &op_,
-                                      const Vector &x_,
-                                      Vector &y_)
+
+__jit __kernel
+//__attribute__ ((hot))
+static // single line comment
+void JitSmemPADiffusionApply2D(const int D1D,
+                               const int Q1D,
+                               const int NBZ,
+                               int NE,
+                               const Array<double> &b_,
+                               const Array<double> &g_,
+                               const Vector &op_,
+                               const Vector &x_,
+                               Vector &y_)
 {
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
@@ -1172,10 +1175,11 @@ static void JitSmemPADiffusionApply2D(const int D1D,
    });
 }
 
-__attribute ((hot))
+__jit __kernel
+//__attribute__ ((hot))
 static void JitSmemPADiffusionApply3D(const int D1D,
                                       const int Q1D,
-                                      const int NE,
+                                      int NE,
                                       const Array<double> &_b,
                                       const Array<double> &_g,
                                       const Vector &_op,
