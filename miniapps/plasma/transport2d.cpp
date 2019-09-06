@@ -1420,7 +1420,7 @@ int main(int argc, char *argv[])
 
    DGTransportTDO oper(mpi, dg, fes, ffes, offsets, pgf, dpgf,
                        ion_charge, ion_mass, neutral_mass, neutral_temp,
-                       Di_perp, B3Coef, bHatCoef, perpCoef,
+                       Di_perp, B3Coef,
                        mnCoef, niCoef, neCoef,
                        imex, op_flag, logging);
 

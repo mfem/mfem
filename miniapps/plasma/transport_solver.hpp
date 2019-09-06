@@ -566,6 +566,66 @@ public:
 
 };
 
+class IonAdvectionCoef : public StateVariableVecCoef
+{
+private:
+   double dt_;
+
+   GridFunctionCoefficient vi0_;
+   GridFunctionCoefficient dvi0_;
+
+   VectorCoefficient * B3_;
+
+   mutable Vector B_;
+
+public:
+   IonAdvectionCoef(ParGridFunctionArray &pgf,
+		    ParGridFunctionArray &dpgf,
+		    VectorCoefficient &B3Coef)
+      : StateVariableVecCoef(2),
+	dt_(0.0),
+	vi0_(pgf[2]), dvi0_(dpgf[2]),
+        B3_(&B3Coef), B_(3) {}
+
+   void SetTimeStep(double dt) { dt_ = dt; }
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID || deriv == ION_PARA_VELOCITY);
+   }
+
+   void Eval_Func(Vector & V,
+                  ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+     
+      double vi0 = vi0_.Eval(T, ip);
+      double dvi0 = dvi0_.Eval(T, ip);
+      double vi1 = vi0 + dt_ * dvi0;
+      
+      B3_->Eval(B_, T, ip);
+
+      double Bmag = sqrt(B_ * B_);
+
+      V[0] = vi1 * B_[0] / Bmag; 
+      V[1] = vi1 * B_[1] / Bmag; 
+   }
+
+   void Eval_dVi(Vector &V, ElementTransformation &T,
+		 const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag = sqrt(B_ * B_);
+
+      V[0] = dt_ * B_[0] / Bmag; 
+      V[1] = dt_ * B_[1] / Bmag; 
+   }
+};
+
 class IonSourceCoef : public StateVariableCoef
 {
 private:
@@ -1228,12 +1288,14 @@ private:
       ApproxIonizationRate     izCoef_;
 
       ConstantCoefficient DPerpCoef_;
-      MatrixCoefficient * PerpCoef_;
-      ScalarMatrixProductCoefficient DCoef_;
+      // MatrixCoefficient * PerpCoef_;
+      // ScalarMatrixProductCoefficient DCoef_;
+      IonDiffusionCoef DCoef_;
       ScalarMatrixProductCoefficient dtDCoef_;
 
-      VectorCoefficient * bHatCoef_;
-      ScalarVectorProductCoefficient ViCoef_;
+      // VectorCoefficient * B3Coef_;
+      IonAdvectionCoef ViCoef_;
+      // ScalarVectorProductCoefficient ViCoef_;
       ScalarVectorProductCoefficient dtViCoef_;
 
       IonSourceCoef           SizCoef_;
@@ -1248,8 +1310,8 @@ private:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
                    ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                    int ion_charge, double DPerp,
-                   VectorCoefficient & bHatCoef,
-                   MatrixCoefficient & PerpCoef);
+                   VectorCoefficient & B3Coef/*,
+					       MatrixCoefficient & PerpCoef*/);
 
       virtual void SetTimeStep(double dt);
 
@@ -1368,8 +1430,8 @@ private:
                  double neutral_mass, double neutral_temp,
                  double DiPerp,
                  VectorCoefficient & B3Coef,
-                 VectorCoefficient & bHatCoef,
-                 MatrixCoefficient & PerpCoef,
+		 // VectorCoefficient & bHatCoef,
+		 // MatrixCoefficient & PerpCoef,
                  unsigned int op_flag = 31, int logging = 0);
 
       ~CombinedOp();
@@ -1415,8 +1477,6 @@ public:
                   double neutral_temp,
                   double Di_perp,
                   VectorCoefficient & B3Coef,
-                  VectorCoefficient & bHatCoef,
-                  MatrixCoefficient & perpCoef,
                   Coefficient &MomCCoef,
                   Coefficient &TiCCoef,
                   Coefficient &TeCCoef,

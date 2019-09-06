@@ -903,15 +903,12 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                double neutral_temp,
                                double Di_perp,
                                VectorCoefficient &B3Coef,
-                               VectorCoefficient &bHatCoef,
-                               MatrixCoefficient &perpCoef,
                                Coefficient &MomCCoef,
                                Coefficient &TiCCoef,
                                Coefficient &TeCCoef,
                                bool imex, unsigned int op_flag, int logging)
    : TimeDependentOperator(ffes.GetVSize()),
      mpi_(mpi),
-     // MyRank_(fes.GetMyRank()),
      logging_(logging),
      fes_(&fes),
      ffes_(&ffes),
@@ -923,7 +920,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
      newton_solver_(fes.GetComm()),
      op_(mpi, dg, pgf, dpgf, offsets_,
          ion_charge, ion_mass, neutral_mass, neutral_temp, Di_perp,
-         B3Coef, bHatCoef, perpCoef, op_flag, logging)//,
+         B3Coef, op_flag, logging)//,
      // oneCoef_(1.0),
      // n_n_oper_(dg, fes, pgf, oneCoef_, imex),
      // n_i_oper_(dg, fes, pgf, oneCoef_, imex),
@@ -1804,8 +1801,8 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        double neutral_mass, double neutral_temp,
                                        double DiPerp,
                                        VectorCoefficient &B3Coef,
-                                       VectorCoefficient &bHatCoef,
-                                       MatrixCoefficient &PerpCoef,
+				       // VectorCoefficient &bHatCoef,
+				       // MatrixCoefficient &PerpCoef,
                                        unsigned int op_flag, int logging)
    : mpi_(mpi),
      neq_(5),
@@ -1842,7 +1839,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    if ((op_flag >> 1) & 1)
    {
       op_[1] = new IonDensityOp(mpi, dg, pgf, dpgf, ion_charge, DiPerp,
-                                bHatCoef, PerpCoef);
+                                B3Coef /*bHatCoef, PerpCoef*/);
       op_[1]->SetLogging(logging, "n_i: ");
    }
    else
@@ -2258,8 +2255,9 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            ParGridFunctionArray & dpgf,
                                            int ion_charge,
                                            double DPerp,
+                                           VectorCoefficient & B3Coef/*,
                                            VectorCoefficient & bHatCoef,
-                                           MatrixCoefficient & PerpCoef)
+                                           MatrixCoefficient & PerpCoef*/)
    : NLOperator(mpi, dg, 1, pgf, dpgf), z_i_(ion_charge), DPerpConst_(DPerp),
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]), Te0Coef_(pgf[4]),
      dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dviCoef_(dpgf[2]), dTeCoef_(dpgf[4]),
@@ -2269,10 +2267,9 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      ne1Coef_(z_i_, ni1Coef_),
      izCoef_(Te1Coef_),
      DPerpCoef_(DPerp),
-     PerpCoef_(&PerpCoef), DCoef_(DPerpCoef_, *PerpCoef_),
+     DCoef_(DPerpCoef_, B3Coef),
      dtDCoef_(0.0, DCoef_),
-     bHatCoef_(&bHatCoef),
-     ViCoef_(vi1Coef_, *bHatCoef_), dtViCoef_(0.0, ViCoef_),
+     ViCoef_(pgf, dpgf, B3Coef), dtViCoef_(0.0, ViCoef_),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
@@ -2327,6 +2324,8 @@ void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
    Te1Coef_.SetBeta(dt);
 
    dtDCoef_.SetAConst(dt);
+
+   ViCoef_.SetTimeStep(dt);
    dtViCoef_.SetAConst(dt);
    // dtdSndnnCoef_.SetAConst(-dt);
    // dtdSndniCoef_.SetAConst(-dt * z_i_);
