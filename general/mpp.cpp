@@ -204,7 +204,7 @@ void singleLineComments(context &pp)
 {
    while (not is_newline(pp.in.peek())) { put(pp); }
    check(pp,pp.in.peek()=='\n',"Single line comment w/o \n");
-   put(pp);
+   //put(pp);
 }
 
 // *****************************************************************************
@@ -838,7 +838,7 @@ void attribute(context &pp)
 void tokens(context &pp)
 {
    if (pp.in.peek() != '_') { return; }
-   string id = get_id(pp);
+   const string id = get_id(pp);
    if (id == "__attribute") { return attribute(pp); }
    if (id == "__attribute__") { return attribute(pp); }
    if (id == "__jit") { return __jit(pp); }
