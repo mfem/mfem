@@ -35,6 +35,7 @@ SparseMatrix *GetSparseMatrixFromOperator(Operator *op)
     S->Finalize();
     return S;
 }
+  
 
 SparseMatrix *GetSparseMatrixFromBlockMatrix(BlockMatrix * blk_mat)
 {

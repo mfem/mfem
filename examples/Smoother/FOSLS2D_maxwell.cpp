@@ -14,12 +14,11 @@ using namespace mfem;
 
 // Define exact solution
 void E_exact(const Vector &x, Vector &E);
-void H_exact(const Vector &x, Vector &H);
-double H_exact_2D(const Vector &x);
+double H_exact(const Vector &x);
 void scaledf_exact_H(const Vector &x, Vector &f_H);
 void f_exact_H(const Vector &x, Vector &f_H);
 void rotatedf_exact_H(const Vector &x, Vector &f_H);
-void get_maxwell_solution(const Vector &x, double E[], double curlE[], double curl2E[]);
+void get_maxwell_solution(const Vector &x, double E[], double curlE, double curl2E[]);
 
 int dim;
 double omega;
@@ -89,25 +88,12 @@ int main(int argc, char *argv[])
 
    Mesh *mesh;
    // Define a simple square or cubic mesh
-   if (sdim == 2)
-   {
-      MFEM_ABORT("FOSLS formulation not yet supported for 2D Maxwell");
-      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
-      // mesh = new Mesh(1, 1, Element::TRIANGLE, true,1.0, 1.0,false);
-   }
-   else
-   {
-      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0, false);
-   }
+   mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
+
    dim = mesh->Dimension();
+   if (dim == 3) {MFEM_ABORT("This is 2D Maxwell")};
+
    for (int i = 0; i < initref; i++)
-   {
-      mesh->UniformRefinement();
-   }
-
-   Mesh *cmesh = new Mesh(*mesh);
-
-   for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
@@ -117,23 +103,9 @@ int main(int argc, char *argv[])
    FiniteElementSpace *NDfespace = new FiniteElementSpace(mesh, NDfec);
 
    FiniteElementSpace *H1fespace;
-   if (dim == 2){
-      FiniteElementCollection *H1fec = new H1_FECollection(order,dim);
-      H1fespace = new FiniteElementSpace(mesh, H1fec);
-   }
+   FiniteElementCollection *H1fec = new H1_FECollection(order,dim);
+   H1fespace = new FiniteElementSpace(mesh, H1fec);
 
-   Array<FiniteElementSpace * > fespace(2);
-
-   fespace[0] = NDfespace;
-   if (dim == 2)
-   {
-      fespace[1] = H1fespace;
-   }
-   else
-   {
-      fespace[1] = NDfespace;
-   }
-   
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
    if (mesh->bdr_attributes.Size())
@@ -141,58 +113,27 @@ int main(int argc, char *argv[])
       ess_bdr.SetSize(mesh->bdr_attributes.Max());
       ess_bdr = 1;
       // Essential BC on E. Nothing on H
-      fespace[0]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      NDfespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
    Array<int> block_offsets(3);
    block_offsets[0] = 0;
-   block_offsets[1] = fespace[0]->GetVSize();
-   block_offsets[2] = fespace[1]->GetVSize();
+   block_offsets[1] = NDfespace->GetVSize();
+   block_offsets[2] = H1fespace->GetVSize();
    block_offsets.PartialSum();
-
-   //    _           _    _  _       _  _
-   //   |             |  |    |     |    |
-   //   |  A00   A01  |  | E  |     |F_E |
-   //   |             |  |    |  =  |    |
-   //   |  A10   A11  |  | H  |     |F_G |
-   //   |_           _|  |_  _|     |_  _|
-   //
-   // A00 = (curl E, curl F) + \omega^2 (E,F)
-   // A01 = - \omega *( (curl E, F) + (E,curl F)
-   // A10 = - \omega *( (curl H, G) + (H,curl G)
-   // A11 = (curl H, curl H) + \omega^2 (H,G)
 
    BlockVector x(block_offsets), b(block_offsets);
    x = 0.0;
    b = 0.0;
 
-
    VectorFunctionCoefficient * Eex = new VectorFunctionCoefficient(sdim, E_exact);
    GridFunction *E_gf = new GridFunction;
-   E_gf->MakeRef(fespace[0], x.GetBlock(0));
+   E_gf->MakeRef(NDfespace, x.GetBlock(0));
    E_gf->ProjectCoefficient(*Eex);
 
-   FunctionCoefficient * Hex2D;
-   VectorFunctionCoefficient * Hex;
-   if (dim == 2)
-   {
-      Hex2D = new FunctionCoefficient(H_exact_2D);
-   }
-   else
-   {
-      Hex = new VectorFunctionCoefficient(sdim, H_exact);
-   }
-   
+   FunctionCoefficient * Hex = new FunctionCoefficient(H_exact);
    GridFunction *H_gf = new GridFunction;
-   H_gf->MakeRef(fespace[1], x.GetBlock(1));
-   if (dim == 2)
-   {
-      H_gf->ProjectCoefficient(*Hex2D);
-   }
-   else
-   {
-      H_gf->ProjectCoefficient(*Hex);
-   }
-   
+   H_gf->MakeRef(H1fespace, x.GetBlock(1));
+   H_gf->ProjectCoefficient(*Hex);
 
    // 6. Set up the linear form
    VectorFunctionCoefficient sf_H(sdim, scaledf_exact_H);
@@ -200,29 +141,20 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient rotatedf_H(sdim, rotatedf_exact_H);
 
 
-
    LinearForm *b_E = new LinearForm;
-   b_E->Update(fespace[0], b.GetBlock(0), 0);
-   // b_E->AddDomainIntegrator(new VectorFEDomainLFIntegrator(sf_H));
+   b_E->Update(NDfespace, b.GetBlock(0), 0);
+   b_E->AddDomainIntegrator(new VectorFEDomainLFIntegrator(sf_H));
    b_E->Assemble();
 
    LinearForm *b_H = new LinearForm;
-   b_H->Update(fespace[1], b.GetBlock(1), 0);
-   if (dim == 2)
-   {
-      // b_H->AddDomainIntegrator(new VectorFEDomainLFGradIntegrator(rotatedf_H));
-   }
-   else
-   {
-      b_H->AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(f_H));
-   }
+   b_H->Update(H1fespace, b.GetBlock(1), 0);
+   b_H->AddDomainIntegrator(new VectorFEDomainLFGradIntegrator(rotatedf_H));
    b_H->Assemble();
 
    // 7. Bilinear form a(.,.) on the finite element space
    ConstantCoefficient one(1.0);
    ConstantCoefficient sigma(pow(omega, 2));
    ConstantCoefficient neg(-abs(omega));
-   ConstantCoefficient pos(abs(omega));
    DenseMatrix mat(2);
    mat(0,0) = 0.0; mat(0,1) = omega;
    mat(1,0) = -omega; mat(1,1) = 0.0;
@@ -234,7 +166,7 @@ int main(int argc, char *argv[])
    IdentityMatrixCoefficient id(2);
 
    //
-   BilinearForm *a_EE = new BilinearForm(fespace[0]);
+   BilinearForm *a_EE = new BilinearForm(NDfespace);
    a_EE->AddDomainIntegrator(new CurlCurlIntegrator(one));
    a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
    a_EE->Assemble();
@@ -242,34 +174,17 @@ int main(int argc, char *argv[])
    a_EE->Finalize();
    SparseMatrix &A_EE = a_EE->SpMat();
 
-   MixedBilinearForm *a_EH = new MixedBilinearForm(fespace[0], fespace[1]);
-   if (dim == 2)
-   {
-      a_EH->AddDomainIntegrator(new MixedScalarCurlIntegrator(neg));
-      a_EH->AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(rott));
-   }
-   else
-   {
-      a_EH->AddDomainIntegrator(new MixedVectorCurlIntegrator(neg));
-      a_EH->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(neg));
-   }
+   MixedBilinearForm *a_EH = new MixedBilinearForm(NDfespace, H1fespace);
+   a_EH->AddDomainIntegrator(new MixedScalarCurlIntegrator(neg));
+   a_EH->AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(rott));
    a_EH->Assemble();
    a_EH->EliminateTrialDofs(ess_bdr, x.GetBlock(0), b.GetBlock(1));
    a_EH->Finalize();
    SparseMatrix &A_EH = a_EH->SpMat();
 
-   MixedBilinearForm *a_HE = new MixedBilinearForm(fespace[1], fespace[0]);
-   if (dim == 2)
-   {
-
-      a_HE->AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(neg));
-      a_HE->AddDomainIntegrator(new MixedVectorGradientIntegrator(rott));
-   }
-   else
-   {
-      a_HE->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(neg));
-      a_HE->AddDomainIntegrator(new MixedVectorCurlIntegrator(neg));
-   }
+   MixedBilinearForm *a_HE = new MixedBilinearForm(H1fespace, NDfespace);
+   a_HE->AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(neg));
+   a_HE->AddDomainIntegrator(new MixedVectorGradientIntegrator(rot));
    a_HE->Assemble();
    a_HE->EliminateTestDofs(ess_bdr);
    a_HE->Finalize();
@@ -277,17 +192,9 @@ int main(int argc, char *argv[])
    // SparseMatrix &A_HE = *Transpose(A_EH);
 
 
-   BilinearForm *a_HH = new BilinearForm(fespace[1]);
-   if (dim == 2)
-   {
-      a_HH->AddDomainIntegrator(new DiffusionIntegrator(one)); // one is the coeff
-      a_HH->AddDomainIntegrator(new MassIntegrator(sigma)); // one is the coeff
-   }
-   else
-   {
-      a_HH->AddDomainIntegrator(new CurlCurlIntegrator(one)); // one is the coeff
-      a_HH->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
-   }
+   BilinearForm *a_HH = new BilinearForm(H1fespace);
+   a_HH->AddDomainIntegrator(new DiffusionIntegrator(one)); // one is the coeff
+   a_HH->AddDomainIntegrator(new MassIntegrator(sigma)); // one is the coeff
    a_HH->Assemble();
    a_HH->Finalize();
    SparseMatrix &A_HH = a_HH->SpMat();
@@ -297,9 +204,6 @@ int main(int argc, char *argv[])
    LS_Maxwellop->SetBlock(0, 1, &A_HE);
    LS_Maxwellop->SetBlock(1, 0, &A_EH);
    LS_Maxwellop->SetBlock(1, 1, &A_HH);
-
-
-   // SparseMatrix * S = GetSparseMatrixFromBlockMatrix(LS_Maxwellop);
 
 
    UMFPackSolver *invE = new UMFPackSolver;
@@ -314,13 +218,6 @@ int main(int argc, char *argv[])
    prec->SetDiagonalBlock(0, invE);
    prec->SetDiagonalBlock(1, invH);
 
-   // BlkSchwarzSmoother * M = new BlkSchwarzSmoother(cmesh,ref_levels, NDfespace, S);
-   // M->SetNumSmoothSteps(smth_maxit);
-   // M->SetDumpingParam(theta);
-
-
-   cout << "Size of fine grid system: "
-        << 2.0 * A_EE.NumRows() << " x " << 2.0 * A_EE.NumCols() << endl;
    int maxit(5000);
    double rtol(1.e-8);
    double atol(0.0);
@@ -332,14 +229,12 @@ int main(int argc, char *argv[])
    pcg.SetRelTol(rtol);
    pcg.SetMaxIter(maxit);
    pcg.SetOperator(*LS_Maxwellop);
-   // pcg.SetOperator(*S);
    pcg.SetPreconditioner(*prec);
-   // pcg.SetPreconditioner(*M);
    pcg.SetPrintLevel(1);
    pcg.Mult(b, x);
 
-   E_gf->MakeRef(fespace[0], x.GetBlock(0), 0);
-   H_gf->MakeRef(fespace[1], x.GetBlock(1), 0);
+   E_gf->MakeRef(NDfespace, x.GetBlock(0), 0);
+   H_gf->MakeRef(H1fespace, x.GetBlock(1), 0);
 
    int order_quad = max(2, 2 * order + 1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -349,25 +244,17 @@ int main(int argc, char *argv[])
    }
 
    double Error_E = E_gf->ComputeL2Error(*Eex, irs);
-   double Error_H;
-   if (dim == 2 )
-   {
-      Error_H = H_gf->ComputeL2Error(*Hex2D, irs);
-   }
-   else
-   {
-      Error_H = H_gf->ComputeL2Error(*Hex, irs);
-   }
+   double Error_H = H_gf->ComputeL2Error(*Hex, irs);
+   
    cout << "|| E_h - E || = " << Error_E << "\n";
    cout << "|| H_h - H || = " << Error_H << "\n";
    cout << "Total error = " << sqrt(Error_H*Error_H+Error_E*Error_E) << "\n";
 
-   GridFunction *E_exgf = new GridFunction(fespace[0]);
+   GridFunction *E_exgf = new GridFunction(NDfespace);
    E_exgf->ProjectCoefficient(*Eex);
 
-
-   GridFunction *H_exgf = new GridFunction(fespace[1]);
-   H_exgf->ProjectCoefficient(*Hex2D);
+   GridFunction *H_exgf = new GridFunction(H1fespace);
+   H_exgf->ProjectCoefficient(*Hex);
 
    if (visualization)
    {
@@ -423,159 +310,72 @@ int main(int argc, char *argv[])
 //define exact solution
 void E_exact(const Vector &x, Vector &E)
 {
-   double curlE[3], curl2E[3];
+   double curlE, curl2E[2];
    get_maxwell_solution(x, E, curlE, curl2E);
 }
 
-void H_exact(const Vector &x, Vector &H)
+double H_exact(const Vector &x)
 {
-   double E[3], curlE[3], curl2E[3];
+   double E[2], curlE, curl2E[2];
    get_maxwell_solution(x, E, curlE, curl2E);
-   for (int i = 0; i < dim; i++)
-   {
-   H(i) = curlE[i] / omega;
-   }
-}
-
-double H_exact_2D(const Vector &x)
-{
-   double E[3], curlE[3], curl2E[3];
-   get_maxwell_solution(x, E, curlE, curl2E);
-   return curlE[2]/omega;  //Scalar
+   return curlE/omega;  //Scalar
 }
 
 
 void f_exact_H(const Vector &x, Vector &f)
 {
-   double E[3], curlE[3], curl2E[3];
+   double E[2], curlE, curl2E[2];
 
    get_maxwell_solution(x, E, curlE, curl2E);
 
-   // curl H - omega E = f
-   // = curl (curl E / omega) - omega E
    f(0) = curl2E[0] / omega - omega * E[0];
    f(1) = curl2E[1] / omega - omega * E[1];
-   if (dim == 3)
-   {
-      f(2) = curl2E[2] / omega - omega * E[2];
-   }
 }
 
 void rotatedf_exact_H(const Vector &x, Vector &f)
 {
-   double E[3], curlE[3], curl2E[3];
+   double E[2], curlE, curl2E[2];
 
    get_maxwell_solution(x, E, curlE, curl2E);
 
-   // curl H - omega E = f
-   // = curl (curl E / omega) - omega E
-   // f(0) = curl2E[0] / omega - omega * E[0];
-   // f(1) = curl2E[1] / omega - omega * E[1];
    f(0) = -(curl2E[1] / omega - omega * E[1]);
    f(1) = (curl2E[0] / omega - omega * E[0]);
 }
 
 void scaledf_exact_H(const Vector &x, Vector &f)
 {
-   double E[3], curlE[3], curl2E[3];
+   double E[2], curlE, curl2E[2];
 
    get_maxwell_solution(x, E, curlE, curl2E);
 
    // curl H - omega E = f
    // = - omega *( curl (curl E / omega) - omega E)
-
    f(0) = -omega * (curl2E[0] / omega - omega * E[0]);
    f(1) = -omega * (curl2E[1] / omega - omega * E[1]);
-   if (dim == 3)
-   {
-      f(2) = -omega * (curl2E[2] / omega - omega * E[2]);
-   }
 }
 
-void get_maxwell_solution(const Vector &X, double E[], double curlE[], double curl2E[])
+void get_maxwell_solution(const Vector &X, double E[], double curlE, double curl2E[])
 {
    double x = X[0];
    double y = X[1];
-   double z;
-   if (dim == 3)
-   {
-      z = X[2];
-   }
    if (isol == 0) // polynomial
    {
-      if (dim == 2)
-      {  // Curl is the scalar. Store it at curlE[2]
-         E[0] = x * (1.0 - x) * y * (1.0 - y);
-         E[1] = 0.0;
-         //
-         curlE[0] = 0.0;
-         curlE[1] = 0.0;
-         curlE[2] = x*(1.0-x)*(2.0*y-1.0);
-
-         curl2E[0] = -2.0 * x * (x - 1.0);
-         curl2E[1] = (2.0*x-1.0)*(2.0*y-1.0);
-      }
-      else
-      {
-         // Polynomial vanishing on the boundary
-         E[0] = y * z * (1.0 - y) * (1.0 - z);
-         E[1] = (1.0 - x) * x * y * (1.0 - z) * z;
-         E[2] = (1.0 - x) * x * (1.0 - y) * y;
-         //
-         curlE[0] = -(-1.0 + x) * x * (1.0 + y * (-3.0 + 2.0 * z));
-         curlE[1] = -2.0 * (-1.0 + y) * y * (x - z);
-         curlE[2] = (1.0 + (-3.0 + 2.0 * x) * y) * (-1.0 + z) * z;
-
-         curl2E[0] = -2.0 * (-1.0 + y) * y + (-3.0 + 2.0 * x) * (-1.0 + z) * z;
-         curl2E[1] = -2.0 * y * (-x + x * x + (-1.0 + z) * z);
-         curl2E[2] = -2.0 * (-1.0 + y) * y + (-1.0 + x) * x * (-3.0 + 2.0 * z);
-      }
-   }
-
-   else if (isol == 1) // sinusoidal
-   {
-      E[0] = sin(omega * y);
-      E[1] = sin(omega * z);
-      E[2] = sin(omega * x);
-
-      curlE[0] = -omega * cos(omega * z);
-      curlE[1] = -omega * cos(omega * x);
-      curlE[2] = -omega * cos(omega * y);
-
-      curl2E[0] = omega * omega * E[0];
-      curl2E[1] = omega * omega * E[1];
-      curl2E[2] = omega * omega * E[2];
-   }
-   else if (isol == 2) // point source
-   {
-      MFEM_ABORT("Case unfinished");
-   }
-   else if (isol == 3) // plane wave
-   {
-      double coeff = omega / sqrt(3.0);
-      E[0] = cos(coeff * (x + y + z));
+      E[0] = x * (1.0 - x) * y * (1.0 - y);
       E[1] = 0.0;
-      E[2] = 0.0;
+      //
+      curlE = x*(1.0-x)*(2.0*y-1.0);
 
-      curlE[0] = 0.0;
-      curlE[1] = -coeff * sin(coeff * (x + y + z));
-      curlE[2] = coeff * sin(coeff * (x + y + z));
-
-      curl2E[0] = 2.0 * coeff * coeff * E[0];
-      curl2E[1] = -coeff * coeff * E[0];
-      curl2E[2] = -coeff * coeff * E[0];
+      curl2E[0] = -2.0 * x * (x - 1.0);
+      curl2E[1] = (2.0*x-1.0)*(2.0*y-1.0);
    }
    else if (isol == -1) 
    {
       E[0] = cos(omega * y);
       E[1] = 0.0;
 
-      curlE[0] = 0.0;
-      curlE[1] = 0.0;
-      curlE[2] = -omega * sin(omega * y);
+      curlE = -omega * sin(omega * y);
 
       curl2E[0] = omega*omega * cos(omega*y);  
       curl2E[1] = 0.0;
-      curl2E[2] = 0.0;
    }
 }
