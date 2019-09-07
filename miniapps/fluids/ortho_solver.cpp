@@ -3,7 +3,7 @@
 using namespace mfem;
 using namespace flow;
 
-OrthoSolver::OrthoSolver(MPI_Comm comm) : Solver(0, true), comm(comm) {}
+OrthoSolver::OrthoSolver() : Solver(0, true) {}
 
 void OrthoSolver::SetOperator(const Operator &op)
 {

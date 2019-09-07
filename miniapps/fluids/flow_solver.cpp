@@ -209,7 +209,7 @@ void FlowSolver::Setup(double dt)
       HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
       HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
       SpInvPC->SetPrintLevel(0);
-      SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
    else
@@ -222,7 +222,7 @@ void FlowSolver::Setup(double dt)
       HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
       HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
       SpInvPC->SetPrintLevel(0);
-      SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
    SpInv = new CGSolver(MPI_COMM_WORLD);

@@ -6,7 +6,7 @@ using namespace flow;
 
 struct s_FlowContext
 {
-   int order = 6;
+   int order = 5;
    double kin_vis = 1.0;
    double t_final = 10e-3;
    double dt = 1e-3;
@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int serial_refinements = 3;
+   int serial_refinements = 1;
 
    Mesh *mesh = new Mesh("../data/inline-quad.mesh");
 

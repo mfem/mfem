@@ -16,6 +16,19 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(flow_foc
+    MAIN flow_foc.cpp
+    EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp
+    EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(flow_vortex
+    MAIN flow_vortex.cpp
+    EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp
+    EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
+    LIBRARIES mfem)
+
+
   # Add the corresponding tests to the "test" target
   add_test(NAME flow_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}

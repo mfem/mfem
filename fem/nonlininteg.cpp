@@ -1292,6 +1292,7 @@ void VectorConvectionNLFIntegrator::MultPA(const Vector &x, Vector &y) const
          case 0x7F: return PAConvectionNLApply3D<7,15>(NE,B,G,Bt,Q,x,y);
          case 0x92: return PAConvectionNLApply3D<8,18>(NE,B,G,Bt,Q,x,y);
          case 0x94: return PAConvectionNLApply3D<9,20>(NE,B,G,Bt,Q,x,y);
+         case 0x58: return PAConvectionNLApply3D<5,8>(NE,B,G,Bt,Q,x,y);
          default: printf ("%x, %x(%d): %X", D1D, Q1D, Q1D, DQ);
       }
    }
