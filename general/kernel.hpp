@@ -19,14 +19,13 @@
 #include <sys/mman.h>
 #include <unordered_map>
 
-using namespace std;
-
 // *****************************************************************************
 typedef union {double d; uint64_t u;} union_du;
 
 // *****************************************************************************
 namespace mfem
 {
+   
 namespace kernel
 {
 
@@ -107,7 +106,7 @@ const char *compile(const bool dbg, const size_t hash, const char *xcc,
    close(fd);
    const size_t cmd_sz = 4096;
    char xccCommand[cmd_sz];
-   const char *CCFLAGS = "-fPIC";
+   const char *CCFLAGS = "-lmfem";
    const char *NVFLAGS = "";
 #if defined(__clang__) && (__clang_major__ > 6)
    const char *CLANG_FLAGS = "-Wno-gnu-designator -fPIC -L.. -lmfem";
@@ -119,7 +118,7 @@ const char *compile(const bool dbg, const size_t hash, const char *xcc,
    const char *xflags = nvcc?NVFLAGS:clang?CLANG_FLAGS:CCFLAGS;
    if (snprintf(xccCommand,cmd_sz, "%s -shared %s -o %s %s %s",
                 xcc,incs,soName,ccName,xflags)<0) { return NULL; }
-   /*if (dbg)*/ printf("\033[32;1m%s\033[m\n",xccCommand);
+   if (dbg) printf("\033[32;1m%s\033[m\n",xccCommand);
    if (system(xccCommand)<0) { return NULL; }
    if (!dbg) { unlink(ccName); }
    return src;
