@@ -2888,13 +2888,13 @@ void QuadratureInterpolator::Eval2D(
 MFEM_KERNEL
 template<const int T_VDIM, const int T_ND, const int T_NQ>
 void QuadratureInterpolator::Eval3D(
-   int NE,
+   const int NE,
    const DofToQuad &maps,
    const Vector &e_vec,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
-   int eval_flags,
+   const int eval_flags,
    const int vdim,
    const int nd,
    const int nq)
@@ -2998,13 +2998,15 @@ void QuadratureInterpolator::Mult(
 #ifndef MFEM_USE_JIT
    void (*eval_func)(
       const int NE,
-      const int vdim,
       const DofToQuad &maps,
       const Vector &e_vec,
       Vector &q_val,
       Vector &q_der,
       Vector &q_det,
-      const int eval_flags) = NULL;
+      const int eval_flags,
+      const int vdim,
+      const int nd,
+      const int nq) = NULL;
    if (vdim == 1)
    {
       if (dim == 2)
@@ -3115,7 +3117,7 @@ void QuadratureInterpolator::Mult(
    }
    if (eval_func)
    {
-      eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, eval_flags);
+      eval_func(ne, maps, e_vec, q_val, q_der, q_det, eval_flags, vdim, nd, nq);
    }
    else
    {
