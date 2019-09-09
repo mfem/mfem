@@ -34,6 +34,10 @@
 #ifdef MFEM_USE_MPI
 #include "general/communication.hpp"
 #endif
+#ifdef MFEM_USE_JIT
+#include "general/jit.hpp"
+#endif
+
 
 #include "linalg/linalg.hpp"
 #include "mesh/mesh_headers.hpp"

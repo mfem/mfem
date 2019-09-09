@@ -25,7 +25,7 @@ typedef union {double d; uint64_t u;} union_du;
 // *****************************************************************************
 namespace mfem
 {
-   
+
 namespace kernel
 {
 
@@ -84,43 +84,46 @@ static void uint32str(uint64_t x, char *s, const size_t offset)
    x+=0x27ull*mask;
    *(uint64_t*)(s+offset)=x;
 }
-static void uint64str(uint64_t num, char *s, const size_t offset)
+static void uint64str(uint64_t num, char *s, const size_t offset =1)
 {
-   uint32str(num>>32,s,offset); uint32str(num&0xFFFFFFFFull,s+8,offset);
+   uint32str(num>>32, s, offset); uint32str(num&0xFFFFFFFFull, s+8, offset);
 }
 
 // *****************************************************************************
 // * compile
 // *****************************************************************************
 template<typename... Args>
-const char *compile(const bool dbg, const size_t hash, const char *xcc,
-                    const char *src, const char *incs, Args... args)
+const char *compile(const bool dbg, const size_t hash, const char *cxx,
+                    const char *src, const char *mfem_build_flags,
+                    const char *mfem_install_dir, Args... args)
 {
-   char soName[21] = "k0000000000000000.so";
-   char ccName[21] = "k0000000000000000.cc";
-   kernel::uint64str(hash,soName,1);
-   uint64str(hash,ccName,1);
-   const int fd = open(ccName,O_CREAT|O_RDWR,S_IRUSR|S_IWUSR);
+   char so[21] = "k0000000000000000.so";
+   char cc[21] = "k0000000000000000.cc";
+   kernel::uint64str(hash, so);
+   kernel::uint64str(hash, cc);
+   const int fd = open(cc,O_CREAT|O_RDWR,S_IRUSR|S_IWUSR);
    assert(fd>=0);
-   dprintf(fd,src,hash,args...);
+   dprintf(fd, src, hash, args...);
    close(fd);
-   const size_t cmd_sz = 4096;
-   char xccCommand[cmd_sz];
-   const char *CCFLAGS = "-lmfem";
-   const char *NVFLAGS = "";
+   constexpr size_t SZ = 4096;
+   char command[SZ];
+   const char *CCFLAGS = mfem_build_flags;
+   const char *NVFLAGS = mfem_build_flags;
 #if defined(__clang__) && (__clang_major__ > 6)
    const char *CLANG_FLAGS = "-Wno-gnu-designator -fPIC -L.. -lmfem";
 #else
    const char *CLANG_FLAGS = "-fPIC";
 #endif
-   const bool clang = !strncmp("clang",xcc,5);
-   const bool nvcc = !strncmp("nvcc",xcc,4);
-   const char *xflags = nvcc?NVFLAGS:clang?CLANG_FLAGS:CCFLAGS;
-   if (snprintf(xccCommand,cmd_sz, "%s -shared %s -o %s %s %s",
-                xcc,incs,soName,ccName,xflags)<0) { return NULL; }
-   if (dbg) printf("\033[32;1m%s\033[m\n",xccCommand);
-   if (system(xccCommand)<0) { return NULL; }
-   if (!dbg) { unlink(ccName); }
+   const bool clang = !strncmp("clang",cxx,5);
+   const bool nvcc = !strncmp("nvcc",cxx,4);
+   const char *xflags = nvcc ? NVFLAGS : clang ? CLANG_FLAGS : CCFLAGS;
+   if (snprintf(command, SZ,
+                "%s %s -shared -I%s/include -o %s %s -L%s/lib -lmfem",
+                cxx, xflags, mfem_install_dir, so, cc, mfem_install_dir)<0)
+   { return NULL; }
+   if (dbg) { printf("\033[32;1m%s\033[m\n", command); }
+   if (system(command)<0) { return NULL; }
+   if (!dbg) { unlink(cc); }
    return src;
 }
 
@@ -128,15 +131,18 @@ const char *compile(const bool dbg, const size_t hash, const char *xcc,
 // * lookup
 // *****************************************************************************
 template<typename... Args>
-void *lookup(const bool dbg, const size_t hash, const char *xcc,
-             const char *src, const char* incs, Args... args)
+void *lookup(const bool dbg, const size_t hash, const char *cxx,
+             const char *src, const char *mfem_build_flags,
+             const char *mfem_install_dir,Args... args)
 {
    char soName[21] = "k0000000000000000.so";
    uint64str(hash,soName,1);
-   const int flag = RTLD_LAZY;// | RTLD_LOCAL;
-   void *handle = dlopen(soName, flag);
-   if (!handle && !kernel::compile(dbg,hash,xcc,src,incs,args...)) { return NULL; }
-   if (!(handle=dlopen(soName, flag))) { return NULL; }
+   const int dlflags = RTLD_LAZY;// | RTLD_LOCAL;
+   void *handle = dlopen(soName, dlflags);
+   if (!handle &&
+       !kernel::compile(dbg, hash, cxx, src, mfem_build_flags,
+                        mfem_install_dir, args...)) { return NULL; }
+   if (!(handle=dlopen(soName, dlflags))) { return NULL; }
    return handle;
 }
 
@@ -165,13 +171,14 @@ private:
    kernel_t __kernel;
 public:
    template<typename... Args>
-   kernel(const char *xcc, const char *src,
-          const char* incs, Args... args):
+   kernel(const char *cxx, const char *src, const char *mfem_build_flags,
+          const char* mfem_install_dir, Args... args):
       dbg(!!getenv("DBG")||!!getenv("dbg")),
       seed(mfem::kernel::hash<const char*>()(src)),
-      hash(hash_args(seed,xcc,incs,args...)),
-      handle(lookup(dbg,hash,xcc,src,incs,args...)),
-      __kernel(getSymbol<kernel_t>(hash,handle))
+      hash(hash_args(seed, cxx, mfem_build_flags, mfem_install_dir, args...)),
+      handle(lookup(dbg, hash, cxx, src,
+                    mfem_build_flags, mfem_install_dir, args...)),
+      __kernel(getSymbol<kernel_t>(hash, handle))
    {
    }
    template<typename... Args>

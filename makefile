@@ -246,7 +246,10 @@ endif
 
 # JIT configuration
 ifeq ($(MFEM_USE_JIT),YES)
-   MFEM_EXT_LIBS += -ldl #$(if $(NOTMAC),-ldl,)
+   MFEM_EXT_LIBS += -ldl
+   ifneq ($(MFEM_SHARED),YES)
+      $(error Incompatible config: MFEM_USE_JIT requires MFEM_SHARED)
+   endif
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -418,23 +421,22 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF)
 
 # Rules for compiling all source files.
+# nvcc needs the MFEM_SOURCE_DIR ('-I.') to compile from stdin
 ifeq ($(MFEM_USE_JIT),YES)
 MPP_LANG = $(if $(MFEM_USE_CUDA:YES=),-x c++)
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) mpp
-	./mpp $(<) | $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(MFEM_INC_DIR) -I$(dir $(<)) -c -o $(@) $(MPP_LANG) -
+	./mpp $(<) | $(MFEM_CXX) $(MPP_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
 else
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 endif
 
 # Rule for compiling kernel source file generator.
-KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
-MPP_MFEMS  = -DMFEM_CXX="$(MFEM_CXX)"
-MPP_MFEMS += -DMFEM_SRC="$(MFEM_REAL_DIR)"
-MPP_MFEMS += -DMFEM_BUILD_FLAGS="$(KER_FLAGS)"
-MPP_FLAGS = $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
-mpp: $(BLD)general/mpp.cpp $(BLD)general/kernel.hpp $(THIS_MK)
-	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEMS) $(MPP_FLAGS)
+MPP_MFEM_CONFIG  = -DMFEM_CXX="$(MFEM_CXX)"
+MPP_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
+MPP_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
+mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
+	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEM_CONFIG)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -542,7 +544,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
-INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
+INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 

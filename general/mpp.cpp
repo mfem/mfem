@@ -87,8 +87,9 @@ struct kernel_t
    bool __kernel;
    bool __template;
    bool __single_source;
-   string xcc;                // compiler command, which holds MFEM_CXX
-   string dirname;            // MFEM_SRC, which holds MFEM_REAL_DIR
+   string mfem_cxx;           // holds MFEM_CXX
+   string mfem_build_flags;   // holds MFEM_BUILD_FLAGS
+   string mfem_install_dir;   // holds MFEM_INSTALL_DIR
    string name;               // kernel name
    // format, arguments and parameter strings for the template
    string Tformat;            // template format, as in printf
@@ -392,7 +393,7 @@ bool is_eq(context_t &pp)
 // *****************************************************************************
 void kerHeader(context_t &pp)
 {
-   pp.out << "#include \"general/kernel.hpp\"\n";
+   pp.out << "#include \"general/jit.hpp\"\n";
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";
    pp.out << STRINGIFY(HASH_COMBINE_ARGS_SRC) << "\n";
@@ -403,8 +404,9 @@ void kerHeader(context_t &pp)
 void kerArgs(context_t &pp)
 {
    if (! pp.ker.__kernel) { return; }
-   pp.ker.xcc = STRINGIFY(MFEM_CXX) " " STRINGIFY(MFEM_BUILD_FLAGS);
-   pp.ker.dirname = STRINGIFY(MFEM_SRC);
+   pp.ker.mfem_cxx = STRINGIFY(MFEM_CXX);
+   pp.ker.mfem_build_flags = STRINGIFY(MFEM_BUILD_FLAGS);
+   pp.ker.mfem_install_dir = STRINGIFY(MFEM_INSTALL_DIR);
    pp.ker.Targs.clear();
    pp.ker.Tparams.clear();
    pp.ker.Tformat.clear();
@@ -576,8 +578,7 @@ void kerPrefix(context_t &pp)
    pp.out << "\n#include <cstring>";
    pp.out << "\n#include <stdbool.h>";
    pp.out << "\n#include \"mfem.hpp\"";
-   pp.out << "\n#include \"general/kernel.hpp\"";
-   pp.out << "\n#include \"general/forall.hpp\"";
+   pp.out << "\n#include \"mfem/general/forall.hpp\"";
    if (not pp.ker.embed.empty())
    {
       // push to suppress 'declared but never referenced' warnings
@@ -611,13 +612,17 @@ void kerPostfix(context_t &pp)
    pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.params<<");";
    pp.out << "\n\tstatic unordered_map<size_t,kernel::kernel<kernel_t>*> ks;";
    if (not pp.ker.u2d.empty()) { pp.out << "\n\t" << pp.ker.u2d; }
-   pp.out << "\n\tconst char *xcc = \"" << pp.ker.xcc << "\";";
+   pp.out << "\n\tconst char *cxx = \"" << pp.ker.mfem_cxx << "\";";
+   pp.out << "\n\tconst char *mfem_build_flags = \""
+          << pp.ker.mfem_build_flags <<  "\";";
+   pp.out << "\n\tconst char *mfem_install_dir = \""
+          << pp.ker.mfem_install_dir <<  "\";";
    pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
    pp.out << "\n\tconst size_t args_hash = kernel::hash_args(args_seed,"
           << pp.ker.Targs << ");";
    pp.out << "\n\tif (!ks[args_hash]){";
    pp.out << "\n\t\tks[args_hash] = new kernel::kernel<kernel_t>"
-          << "(xcc,src," << "\"-I" << pp.ker.dirname << "\","
+          << "(cxx, src, mfem_build_flags, mfem_install_dir, "
           << pp.ker.Targs << ");";
    pp.out << "\n\t}";
    pp.out << "\n\tks[args_hash]->operator_void(" << pp.ker.args << ");\n";
