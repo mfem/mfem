@@ -91,6 +91,7 @@ struct kernel_t
    string mfem_build_flags;   // holds MFEM_BUILD_FLAGS
    string mfem_install_dir;   // holds MFEM_INSTALL_DIR
    string name;               // kernel name
+   string space;              // kernel namespace
    // format, arguments and parameter strings for the template
    string Tformat;            // template format, as in printf
    string Targs;              // template arguments, for hash and call
@@ -317,6 +318,16 @@ bool isvoid(context_t &pp)
    const string void_peek = peekn(pp,4);
    assert(not pp.in.eof());
    if (void_peek == "void") { return true; }
+   return false;
+}
+
+// *****************************************************************************
+bool isnamespace(context_t &pp)
+{
+   skip_space(pp);
+   const string namespace_peek = peekn(pp,2);
+   assert(not pp.in.eof());
+   if (namespace_peek == "::") { return true; }
    return false;
 }
 
@@ -588,6 +599,10 @@ void kerPrefix(context_t &pp)
       pp.out << "\n#pragma pop";
    }
    pp.out << "\nusing namespace mfem;\n";
+   if (not pp.ker.space.empty())
+   {
+      pp.out << "\n//using namespace mfem::" << pp.ker.space << ";\n";
+   }
    pp.out << "\ntemplate<" << pp.ker.Tparams << ">";
    pp.out << "\nvoid ker_" << pp.ker.name << "(";
    pp.out << pp.ker.params << "){";
@@ -711,6 +726,7 @@ bool kerGetArgs(context_t &pp)
          continue;
       }
       if (id=="Vector") { pp.out << id; arg.type = id; continue; }
+      if (id=="DofToQuad") { pp.out << id; arg.type = id; continue; }
       const bool is_pointer = arg.is_ptr || arg.is_amp;
       const bool underscore = is_pointer;
       pp.out << (underscore?"_":"") << id;
@@ -725,6 +741,19 @@ bool kerGetArgs(context_t &pp)
          arg.has_default_value = true;
          arg.default_value = get_digit(pp);
          pp.out << arg.default_value;
+      }
+      else
+      {
+         // check if id has a T_id in pp.ker.Tparams_src
+         string t_id("t_");
+         t_id += id;
+         std::transform(t_id.begin(), t_id.end(), t_id.begin(), ::toupper);
+         // if we have a hit, fake it has_default_value to trig the args to <>
+         if (pp.ker.Tparams_src.find(t_id) != string::npos)
+         {
+            arg.has_default_value = true;
+            arg.default_value = 0;
+         }
       }
       pp.args.push_back(arg);
       arg = argument_t();
@@ -780,31 +809,46 @@ void __kernel(context_t &pp)
    check(pp,  check_next_id, "kernel w/o void, static or template");
    if (istemplate(pp))
    {
-      // get rid of the 'template'
-      get_id(pp);
+      // copy the 'template<...>' in Tparams_src
+      pp.out << get_id(pp);
       // tag our kernel as a '__single_source' one
       pp.ker.__single_source = true;
       next(pp);
       check(pp, pp.in.peek()=='<',"no '<' in single source kernel!");
-      get(pp); // eat '<'
+      put(pp);
       pp.ker.Tparams_src.clear();
       while (pp.in.peek() != '>')
       {
          assert(not pp.in.eof());
-         pp.ker.Tparams_src += get(pp);
+         char c = get(pp);
+         put(c,pp);
+         pp.ker.Tparams_src += c;
       }
-      get(pp); // eat '>'
+      put(pp);
    }
    // 'static' check
    if (isstatic(pp)) { pp.out << get_id(pp); }
    next(pp);
    const string void_return_type = get_id(pp);
    pp.out << void_return_type;
-   // Get kernel's name
+   // Get kernel's name or namespace
+   pp.ker.name.clear();
+   pp.ker.space.clear();
    next(pp);
    const string name = get_id(pp);
    pp.out << name;
    pp.ker.name = name;
+   if  (isnamespace(pp))
+   {
+      check(pp,pp.in.peek()==':',"no 1st ':' in namespaced kernel");
+      put(pp);
+      check(pp,pp.in.peek()==':',"no 2st ':' in namespaced kernel");
+      put(pp);
+      const string real_name = get_id(pp);
+      pp.out << real_name;
+      pp.ker.name = real_name;
+      pp.ker.space = name;
+   }
    next(pp);
    // check we are at the left parenthesis
    check(pp,pp.in.peek()=='(',"no 1st '(' in kernel");
