@@ -408,7 +408,7 @@ void kerHeader(context_t &pp)
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";
    pp.out << STRINGIFY(HASH_COMBINE_ARGS_SRC) << "\n";
-   pp.out << "#line 1 \"" << pp.file <<"\"\n";
+   //pp.out << "#line 1 \"" << pp.file <<"\"\n";
 }
 
 // *****************************************************************************

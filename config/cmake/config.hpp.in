@@ -120,6 +120,9 @@
 // Enable MFEM functionality based on the OCCA library
 #cmakedefine MFEM_USE_OCCA
 
+// Enable MFEM functionality based on JIT
+#cmakedefine MFEM_USE_JIT
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.

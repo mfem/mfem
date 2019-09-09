@@ -381,29 +381,19 @@ set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
 set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
-#-------------------------------------------------------------------------------
-# Add MPP target
-#-------------------------------------------------------------------------------
+if (MFEM_USE_JIT)
+message(STATUS "MFEM uses JIT")
+include_directories("${MFEM_SOURCE_DIR}")
 add_executable(mpp general/mpp.cpp)
 set_target_properties(mpp PROPERTIES
-    CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF
-)
-set_target_properties(mpp PROPERTIES COMPILE_FLAGS
-    -DMFEM_CXX="${CMAKE_CXX_COMPILER}"
-    -DMFEM_SRC="${PROJECT_SOURCE_DIR}"
-    -DMFEM_BUILD_FLAGS="${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}}"
-)
-if (MFEM_USE_JIT)
-    set_property(TARGET mpp APPEND_STRING 
-        PROPERTY COMPILE_FLAGS " -DMFEM_USE_JIT")
-endif()
-
-#-------------------------------------------------------------------------------
-# Scan all 'kernels' subdirectories
-#-------------------------------------------------------------------------------
+                      CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+set(MFEM_JIT_FLAGS "-O3 -Wall -fPIC")
+target_compile_options(mpp PRIVATE -DMFEM_CXX=${CMAKE_CXX_COMPILER}
+                       -DMFEM_INSTALL_DIR=${MFEM_INSTALL_DIR}
+                       -DMFEM_BUILD_FLAGS=${MFEM_JIT_FLAGS})
 set(KERNELS "")
 add_custom_target(MFEM_KERNELS)
-foreach(kernel IN LISTS KERNELS)
+foreach(kernel IN LISTS SOURCES)
    get_filename_component(kername ${kernel} NAME_WE)
    get_filename_component(dirname ${kernel} DIRECTORY)
    file(RELATIVE_PATH relpath ${CMAKE_CURRENT_SOURCE_DIR} ${dirname})
@@ -412,21 +402,26 @@ foreach(kernel IN LISTS KERNELS)
    add_custom_command(
        OUTPUT ${kernel_cpp}
        COMMAND ${CMAKE_COMMAND} -E make_directory ${KER_RELPATH}
-       COMMAND  mpp ${kernel} -o ${kernel_cpp}
+       COMMAND mpp ${kernel} -o ${kernel_cpp}
        DEPENDS mpp ${kernel}
    )
-   set(SOURCES ${SOURCES} ${kernel_cpp})
+   set(KERNELS ${KERNELS} ${kernel_cpp})
    string(REPLACE " " "_" kernel_d ${relpath}/${kername})
-   string(REPLACE "/" "_" kernel_d ${kernel_d})
+   string(REPLACE "/" "_" kernel_d ${kernel_d})   
    add_custom_target(${kernel_d} DEPENDS ${kernel_cpp})
    add_dependencies(MFEM_KERNELS ${kernel_d})
-   set_source_files_properties(${kernel_cpp} PROPERTIES 
-       COMPILE_FLAGS -I${dirname})
+   set_source_files_properties(${kernel_cpp} PROPERTIES
+                               COMPILE_OPTIONS -I${dirname} COMPILE_FLAGS -fPIC)
 endforeach()
+set(SOURCES ${KERNELS})
+endif() # MFEM_USE_JIT
 
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-add_dependencies(mfem MFEM_KERNELS)
+if (MFEM_USE_JIT)
+   add_dependencies(mfem MFEM_KERNELS)
+   target_link_libraries(mfem -ldl)
+endif() # MFEM_USE_JIT
 
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
