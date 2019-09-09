@@ -219,7 +219,8 @@ protected:
                                const Mesh &mesh, int *partitioning,
                                const STable4D *faces_tbl_4d,
                                const Array<int> &face_group,
-                               const Array<int> &vert_global_local);
+                               const Array<int> &vert_global_local,
+                               const std::map<int,char> &vert_to_type);
 
    void BuildSharedPlanarElems(int ntri_planars, int nquad_planars,
                                const Mesh &mesh, const Array<int>& vert_global_local,

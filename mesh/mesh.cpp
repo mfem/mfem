@@ -1109,7 +1109,6 @@ void Mesh::Destroy()
    be_to_face.DeleteAll();
 
    planars.DeleteAll();
-   swappedElements.DeleteAll();
    swappedFaces.DeleteAll();
    swappedBdr.DeleteAll();
 
@@ -1184,7 +1183,6 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
 
    NumOfElements = 0;
    elements.SetSize(NElem);  // just allocate space for Element *
-   swappedElements.SetSize(NElem);
 
    NumOfBdrElements = 0;
    boundary.SetSize(NBdrElem);  // just allocate space for Element *
@@ -1756,7 +1754,7 @@ void Mesh::MakeReflectedPentMesh()
          for(j = 0; j < 4; ++j)
             tet[j] = vert[fv[j]];
          if (k % 2 == 1)
-            swap(tet[0], tet[1]);
+            swap(tet[2], tet[1]);
 
          tet_cent = centroids.FindId(tet[0],tet[1],tet[2],tet[3], NumOfVertices);
          if (tet_cent == -1)
@@ -1814,7 +1812,6 @@ void Mesh::MakeReflectedPentMesh()
 
    MFEM_VERIFY(60*NumOfElements == elements.Size(), "");
    NumOfElements = elements.Size();
-   swappedElements.SetSize(NumOfElements, false);
 
    for (i = 0; i < NumOfBdrElements; ++i)
    {
@@ -1858,6 +1855,51 @@ void Mesh::MakeReflectedPentMesh()
    MFEM_VERIFY(12*NumOfBdrElements == boundary.Size(), "i=" << i << '\n' << 12*NumOfBdrElements << " != " << boundary.Size());
    NumOfBdrElements = boundary.Size(); // FIXME
    swappedBdr.SetSize(NumOfBdrElements, false);
+
+#ifdef MFEM_DEBUG_FACES2
+    if (faces2.Size())
+    {
+        int nof2 = faces2.Size();
+        for (i = 0; i < nof2; ++i)
+        {
+           o = 0;
+           Tetrahedron *bdr_tet = (Tetrahedron*)faces2[i];
+
+           vert = bdr_tet->GetVertices();
+           attr = bdr_tet->GetAttribute();
+
+           tet_cent = centroids.FindId(vert[0], vert[1], vert[2], vert[3], NumOfVertices);
+           MFEM_ASSERT(tet_cent >= 0, "Tetrahedron centroid not found.");
+           new_vert[2] = NumOfVertices + tet_cent;
+
+           for (j = 0; j < 4; ++j)
+           {
+              const int* fv = bdr_tet->GetFaceVertices(j);
+              for (k = 0; k < 3; ++k)
+                 tri[k] = vert[fv[k]];
+
+              tri_cent = centroids.FindId(tri[0], tri[1], tri[2], NumOfVertices, NumOfVertices);
+              MFEM_ASSERT(tri_cent >= 0, "Tetrahedron face centroid not found.");
+              new_vert[1] = NumOfVertices + tri_cent;
+
+              new_vert[0] = tri[0]; new_vert[3] = tri[1];
+              faces2.Append(new Tetrahedron(new_vert, attr)); ((Tetrahedron*)faces2.Last())->SetRefinementFlag(2);o++;
+              new_vert[0] = tri[1]; new_vert[3] = tri[2];
+              faces2.Append(new Tetrahedron(new_vert, attr)); ((Tetrahedron*)faces2.Last())->SetRefinementFlag(2);o++;
+              new_vert[0] = tri[2]; new_vert[3] = tri[0];
+              if (o == 11)
+              {
+                  faces2[i]->SetVertices(new_vert);
+                 ((Tetrahedron*) faces2[i])->SetRefinementFlag(2);
+              }
+              else
+              {
+                  faces2.Append(new Tetrahedron(new_vert, attr)); ((Tetrahedron*)faces2.Last())->SetRefinementFlag(2);o++;
+              }
+           }
+        }
+    }
+#endif
 
    NumOfVertices = vertices.Size();
 #if 0
@@ -2322,8 +2364,6 @@ void Mesh::FinalizeTopology()
       }
       if (Dim == 4)
       {
-         //ReplaceBoundaryFromFaces();
-
          GetElementToPlanarTable();
          GeneratePlanars();
       }
@@ -3204,7 +3244,6 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 
    // copy the swapping arrays
-   mesh.swappedElements.Copy(swappedElements);
    mesh.swappedBdr.Copy(swappedBdr);
    mesh.swappedFaces.Copy(swappedFaces);
 
@@ -3585,41 +3624,6 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }
 
    //for a 4d mesh sort the element and boundary element indices by the node numbers
-   if (spaceDim==4)
-   {
-      swappedElements.SetSize(NumOfElements);
-      DenseMatrix J(4,4);
-      for (int j = 0; j < NumOfElements; j++)
-      {
-         if (elements[j]->GetType() == Element::PENTATOPE)
-         {
-            int *v = elements[j]->GetVertices();
-//            Sort5(v[0], v[1], v[2], v[3], v[4]);
-
-            //                        GetElementJacobian(j, J);
-            //                        if (J.Det() < 0.0)
-            //                        {
-            //                           swappedElements[j] = true;
-            //                           Swap(v);
-            //                        }
-            //                        else
-            {
-               swappedElements[j] = false;
-            }
-         }
-
-      }
-      for (int j = 0; j < NumOfBdrElements; j++)
-      {
-         if (boundary[j]->GetType() == Element::TETRAHEDRON)
-         {
-            int *v = boundary[j]->GetVertices();
-//            Sort4(v[0], v[1], v[2], v[3]);
-         }
-      }
-   }
-
-
 
    // at this point the following should be defined:
    //  1) Dim
@@ -4635,7 +4639,7 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
       }
    }
 
-   if (Dim == 3)
+   if (Dim >= 3)
    {
       for (int i = 0; i < NumOfBdrElements; i++)
       {
@@ -4662,6 +4666,11 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
             {
                orientation = GetQuadOrientation(fv, bv);
                break;
+            }
+            case Element::TETRAHEDRON:
+            {
+                orientation = GetTetOrientation(fv,bv);
+                break;
             }
             default:
                MFEM_ABORT("Invalid 2D boundary element type \""
@@ -4696,6 +4705,19 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
                   int *be = bel_to_edge->GetRow(i);
                   mfem::Swap<int>(be[0], be[1]);
                   mfem::Swap<int>(be[2], be[3]);
+               }
+               break;
+            }
+            case Element::TETRAHEDRON:
+            {
+               // swap vertices 0 and 3 so that we don't change the marked edge:
+               // (0,1,2,3) -> (3,1,2,0)
+               mfem::Swap<int>(bv[0], bv[3]);
+               if (bel_to_edge)
+               {
+                  int *be = bel_to_edge->GetRow(i);
+                  mfem::Swap<int>(be[0], be[4]);
+                  mfem::Swap<int>(be[1], be[5]);
                }
                break;
             }
@@ -4964,6 +4986,8 @@ Table *Mesh::GetFacePlanarTable() const
                face_planar->Push(i,(*trig_tbl)(v[fv[0]],v[fv[1]],v[fv[2]]) );
             }
             break;
+         default:
+             MFEM_ABORT("Invalid face element type " << GetFaceElementType(i) << ".");
       }
    }
    face_planar->Finalize();
@@ -5777,7 +5801,7 @@ void Mesh::GenerateFaces()
 
                }
 #else
-               bool swapped = swappedElements[i];
+               bool swapped = false;
 
                int filter[5] = {0,1,2,3,4};
                if (swapped)
@@ -6060,11 +6084,6 @@ STable4D * Mesh::GetElementToFaceTable4D(int ret_ftbl)
    {
       v = elements[i]->GetVertices();
 
-      bool swapped = swappedElements[i];
-      int tempv[5];
-      for (int j=0; j<5; j++) { tempv[j] = v[j]; }
-      //      if(swapped) Swap(tempv);
-
       switch (GetElementType(i))
       {
          case Element::PENTATOPE:
@@ -6072,7 +6091,7 @@ STable4D * Mesh::GetElementToFaceTable4D(int ret_ftbl)
             {
                const int *fv = pent_t::FaceVert[j];
                el_to_face->Push(
-                  i, faces_tbl->Push(tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]));
+                  i, faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]));
             }
             break;
 #ifdef MFEM_DEBUG
@@ -6101,6 +6120,18 @@ STable4D * Mesh::GetElementToFaceTable4D(int ret_ftbl)
 #endif
       }
    }
+
+#ifdef MFEM_DEBUG_FACES2
+    if (faces2.Size())
+    {
+        face_to_face2.SetSize(NumOfFaces);
+        for (int k = 0; k < faces2.Size(); ++k)
+        {
+            v = faces2[k]->GetVertices();
+            face_to_face2[(*faces_tbl)(v[0], v[1], v[2], v[3])] = k;
+        }
+    }
+#endif
 
    if (ret_ftbl) { return faces_tbl; }
    delete faces_tbl;
@@ -8216,7 +8247,6 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          }
          while (need_refinement == 1);
 
-         swappedElements.SetSize(NumOfElements, false);
          break;
       default: // Freudenthal
          // 2. Do the red refinement.
@@ -8426,7 +8456,6 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    if (Dim == 4)
    {
       //ncmesh.GetSwappedElementFlags(swappedElements);// TODO
-      swappedElements.SetSize(elements.Size(), false);
    }
 
    NumOfVertices = vertices.Size();
@@ -8970,7 +8999,7 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
       pent->ParseFlag(type, swapped);
 
       if (swapped)
-         swap(vert[0], vert[1]);
+         swap(vert[0], vert[4]);
 
       // 1. Get the index for the new vertex in v_new.
       bisect = v_to_v.FindId(vert[0], vert[4]);
@@ -9027,10 +9056,11 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
       default:
          MFEM_ABORT("Invalid simplex type " << type << ".");
       }
+//      swaps[0]= swaps[1] = false;
       if (swaps[0])
-         swap(v[0][0], v[0][1]);
+         swap(v[0][0], v[0][4]);
       if (swaps[1])
-         swap(v[1][0], v[1][1]);
+         swap(v[1][0], v[1][4]);
 
       int attr = el->GetAttribute();
       pent->SetVertices(v[0]);
@@ -9089,22 +9119,15 @@ void Mesh::BdrBisection(int i, const HashTable<Hashed2> &v_to_v)
    {
       Tetrahedron *tet = (Tetrahedron *) bdr_el;
       char type, new_type;
-      bool swapped = swappedBdr[i];
 
       vert = tet->GetVertices();
       type = tet->GetRefinementFlag(); // using refinement_flag to indicate simplex type
-      if (swapped)
-            swap(vert[0], vert[1]);
-
-//      printf("bdr[%d] = (%d, %d, %d, %d)_%d is%s swapped\n", i, vert[0], vert[1], vert[2], vert[3], type, (swapped) ? "" : " not");
 
       // 1. Get the index for the new vertex in v_new.
       bisect = v_to_v.FindId(vert[0], vert[3]);
       MFEM_ASSERT(bisect >= 0, "");
       v_new = NumOfVertices + bisect;
       MFEM_ASSERT(v_new != -1, "");
-
-//      printf("v_new = %d\n", v_new);
 
       // 2. Set the node indices for the new elements in v[0] and v[1] so that
 
@@ -9133,12 +9156,8 @@ void Mesh::BdrBisection(int i, const HashTable<Hashed2> &v_to_v)
       tet->SetVertices(v[0]);
       tet->SetRefinementFlag(new_type);
 
-//      printf("child1 = (%d, %d, %d, %d)\n", v[0][0], v[0][1], v[0][2], v[0][3]);
-//      printf("child2 = (%d, %d, %d, %d)\n", v[1][0], v[1][1], v[1][2], v[1][3]);
-
       boundary.Append(new Tetrahedron(v[1], tet->GetAttribute()));
       ((Tetrahedron*)boundary.Last())->SetRefinementFlag(new_type);
-      swappedBdr[i] = false;
       swappedBdr.Append(false);
 
       NumOfBdrElements++;
@@ -9159,10 +9178,10 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
    const int *ei;
    Vertex V;
 
-   bool swapped = swappedElements[i];
+   bool swapped = false;
 
    int *v = elements[i]->GetVertices();
-   if (swappedElements[i]) { Swap(v); }
+   if (swapped) { Swap(v); }
    //printf("pent[%d]: (%d %d %d %d %d) is %s\n", i,v[0],v[1],v[2],v[3],v[4] ,(swapped) ? "swapped" : "not swapped");
 
    for (int j = 0; j < 10; j++)
@@ -9196,100 +9215,100 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
    w[4] = v_new[3]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[0]; w[1] = v[1];     w[2] = v_new[4]; w[3] = v_new[5];
    w[4] = v_new[6]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v[2];     w[3] = v_new[7];
    w[4] = v_new[8]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[7]; w[3] = v[3];
    w[4] = v_new[9]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[3]; w[1] = v_new[6]; w[2] = v_new[8]; w[3] = v_new[9]; w[4] = v[4];
    mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
 
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[4]; w[3] = v_new[5];
    w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[5];
    w[4] = v_new[6]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[3];
    w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
 
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[7];
    w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[6];
    w[4] = v_new[8]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[5]; w[3] = v_new[7];
    w[4] = v_new[8]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[5]; w[3] = v_new[6];
    w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[3]; w[3] = v_new[6];
    w[4] = v_new[8]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
-   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
+//   swappedElements.Append(mySwaped);
+//   printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
 
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[7]; w[3] = v_new[8];
    w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[6]; w[3] = v_new[8];
    w[4] = v_new[9]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
-   swappedElements.Append(mySwaped);
+//   swappedElements.Append(mySwaped);
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[2]; w[1] = v_new[3]; w[2] = v_new[6]; w[3] = v_new[8];
    w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements[i]->SetVertices(w);
    elements[i]->ResetTransform(o);
-   swappedElements[i] = mySwaped;
+//   swappedElements[i] = mySwaped;
    //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
 
    int coarse = FindCoarseElement(i);
@@ -11153,8 +11172,6 @@ printf("UNUSED VERTICES!!!!!\n");
       // generate el_to_face, be_to_face
       if (Dim > 3)
       {
-         if (!swappedElements.Size())
-            swappedElements.SetSize(elements.Size(), false);
          GetElementToFaceTable4D();
       }
       else

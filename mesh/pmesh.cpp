@@ -149,65 +149,24 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       else
       {
          partitioning = mesh.GeneratePartitioning(NRanks, part_method);
-         if (false && mesh.Dim == 4 && mesh.is_reflected)
-         {
-            // Modify the partioning such that all children of one original element are on the same processor
-            // Assumptions:
-            //    - mesh has been only once subdivided to obtain reflected neighbors
-            //    - no element reordering
-
-            int NumOfSuperElements = mesh.NumOfElements / 60;
-            Array<int> elem_per_proc(NRanks), num_procs;
-            for (int i = 0; i < NumOfSuperElements; ++i)
-            {
-//               //printf("superElement[%d]: ", i);
-               elem_per_proc = 0;
-               num_procs.SetSize(0);
-               elem_per_proc[partitioning[i]]++;
-               for (int j = 0; j < 59; ++j)
-               {
-                  elem_per_proc[partitioning[NumOfSuperElements + i*59 + j]]++;
-               }
-               int maxElem = 0, maxElemProc = 0;
-               for (int p = 0; p < NRanks; p++)
-               {
-//                  //printf("proc %d: %d Elements ", p, elem_per_proc[p]);
-                  if (elem_per_proc[p] > maxElem)
-                  {
-                     maxElem = elem_per_proc[p];
-                     maxElemProc = p;
-                  }
-                  if (elem_per_proc[p] > 0)
-                     num_procs.Append(p);
-               }
-               if (num_procs.Size() > 1)
-               {
-//                  //printf("shuffling everthing to processor %d\n", maxElemProc);
-                  partitioning[i] = maxElemProc;
-                  for (int j = 0; j < 59; ++j)
-                  {
-                     partitioning[NumOfSuperElements + i*59 + j] = maxElemProc;
-                  }
-               }
-            }
-         }
       }
 
-      if (false && mesh.Dim == 4)
-      {
-          int *temp = partitioning;
-          partitioning = new int[60*mesh.NumOfElements];
-          mesh.is_reflected = false;
-          mesh.MakeReflectedPentMesh();
-          for (int k = 0, o = mesh.NumOfElements/60; k < mesh.NumOfElements/60; ++k)
-          {
-              partitioning[k] = temp[k];
-              for (int m = 0; m < 59; ++m)
-                  partitioning[o++] = temp[k];
-          }
-      }
-      int num_of_shifts = 0;
+      std::map<int, char> vert2type;
       if(mesh.Dim == 4)
+      {
+          int ref;
+          if ((ref = mesh.sequence))
+          {
+              MFEM_ASSERT(ref <= 4, "");
+              Array<int> pv;
+              mesh.GetElement(0)->GetVertices(pv);
+              do
+              {
+                 vert2type[pv[ref]] = (ref + 2) % 3;
+              }while(--ref);
+          }
+          int num_of_shifts = 0;
+          Array<int> lock(mesh.GetNE()); lock = 0;
           for (int i = 0; i < mesh.NumOfFaces; ++i)
           {
               int el1, el2, el1f, el2f;
@@ -215,13 +174,28 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
               if (el2 != -1 && partitioning[el1] != partitioning[el2])
               {
                   mesh.GetFaceInfos(i, &el1f, &el2f);
-                  if (el1f/64 != el2f/64){
-                      partitioning[el2] = partitioning[el1]; num_of_shifts++; }
+
+                  if (el1f/64 != el2f/64 || el1f/64 == 0 || el1f/64 == 4)
+                  {
+                      if (!lock[el2])
+                      {
+                          partitioning[el2] = partitioning[el1];
+                          lock[el2]++;
+                      }
+                      else if (!lock[el1])
+                      {    partitioning[el1] = partitioning[el2];lock[el1]++;
+                      }
+                      else
+                      {
+                          continue;
+                      }
+                      num_of_shifts++;
+                  }
               }
           }
-
-      if (MyRank == 0)
-          mfem::out << "num_of_shifts = " << num_of_shifts << endl;
+          if (MyRank == 0)
+              mfem::out << "num_of_shifts = " << num_of_shifts << endl;
+      }
       // re-enumerate the partitions to better map to actual processor
       // interconnect topology !?
 
@@ -302,7 +276,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
       BuildFaceGroup4D(ngroups, mesh, face_group, nstets, nshexs);
 
-
       BuildEdgeGroup(ngroups, *edge_element);
       BuildVertexGroup(ngroups, *vert_element);
 
@@ -316,7 +289,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       else
       {
          BuildSharedFaceElems4D(nstets, nshexs, mesh, partitioning, faces4d_tbl,
-                                face_group, vert_global_local);
+                                face_group, vert_global_local, vert2type);
          delete faces4d_tbl;
 
          BuildSharedPlanarElems(nstris, nsquads, mesh, vert_global_local, planar_tbl,
@@ -448,7 +421,6 @@ int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
    }
 
    elements.SetSize(nelems);
-   swappedElements.SetSize(nelems);
 
    // Determine elements, enumerating the local elements to preserve the global
    // order. This is used, e.g. by the ParGridFunction ctor that takes a global
@@ -459,7 +431,6 @@ int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
       if (partitioning[i] == MyRank)
       {
          elements[element_counter] = mesh.GetElement(i)->Duplicate(this);
-         if (Dim==4) { swappedElements[element_counter] = mesh.getSwappedElementInfo(i); }
          int *v = elements[element_counter]->GetVertices();
          int nv = elements[element_counter]->GetNVertices();
          for (int j = 0; j < nv; j++)
@@ -1014,7 +985,8 @@ void ParMesh::BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
                                      const Mesh &mesh, int *partitioning,
                                      const STable4D *faces_tbl_4d,
                                      const Array<int> &face_group,
-                                     const Array<int> &vert_global_local)
+                                     const Array<int> &vert_global_local,
+                                     const std::map<int,char> &vert_to_type)
 {
    shared_tetra.SetSize(ntet_faces);
    sface_lface. SetSize(ntet_faces);
@@ -1030,7 +1002,13 @@ void ParMesh::BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
       {
          case Element::TETRAHEDRON:
          {
-            shared_tetra[stetr_counter].Set(fv, 2);
+            char init_tag = 2;
+            for (auto v2t : vert_to_type)
+            {
+                if (fv[0] >= v2t.first || fv[1] >= v2t.first || fv[2] >= v2t.first || fv[3] >= v2t.first)
+                    init_tag = v2t.second;
+            }
+            shared_tetra[stetr_counter].Set(fv, init_tag);
             int *v = shared_tetra[stetr_counter].v;
             for (int j = 0; j <4 ; j++) { v[j] = vert_global_local[v[j]]; }
             sface_lface[stetr_counter] =
@@ -1039,15 +1017,58 @@ void ParMesh::BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
             // flip the shared face info in the processor that owns the
             // second element (in 'mesh')
             {
-                Pentatope *tet = dynamic_cast<Pentatope *>
+                Pentatope *pent = dynamic_cast<Pentatope *>
                                    (elements[faces_info[lface].Elem1No]);
                 // mark the shared face for refinement by reorienting
                 // it according to the refinement flag in the tetrahedron
                 // to which this shared face belongs to.
 //                if (tet->GetRefinementFlag())
                 {
-//                   printf("v={%d,%d,%d,%d}\n", v[0],v[1],v[2],v[3]);
-                   tet->GetFace(faces_info[lface].Elem1Inf/64, v);
+//                    printf("shared face %d: i=%d, local=%d\n", stetr_counter, i, lface);
+//                   printf("v={{%d,%d,% d,%d}, %d}\n", v[0],v[1],v[2],v[3], shared_tetra[stetr_counter].tag);
+                   pent->GetFace(faces_info[lface].Elem1Inf/64, v);
+//                   printf("v={{%d,%d,%d,%d}, %d}\n", v[0],v[1],v[2],v[3], shared_tetra[stetr_counter].tag);
+
+
+                   int lf = faces_info[lface].Elem1Inf / 64;
+//                   if (mesh.faces_info[i].Elem1Inf/64 == 4)
+//                       shared_tetra[stetr_counter].tag = 2;
+                   char t; bool sw;
+                   int tmp;
+                   pent->ParseFlag(t, sw);
+//                   if (!sw)
+//                   {
+                       if (lf % 2 == 1)
+                           std::swap(v[1], v[2]);
+//                   }
+//                   else
+//                   {
+//                       switch(lf)
+//                       {
+//                       case 0:
+//                           tmp = v[0]; v[0] = v[1]; v[1] = v[2]; v[2] = v[3]; v[3] = tmp;
+//                           break;
+//                       case 1:
+//                       case 3:
+//                           std::swap(v[0], v[3]); std::swap(v[1], v[2]);
+//                           break;
+//                       case 2:
+//                           std::swap(v[0], v[3]);
+//                           break;
+//                       case 4:
+//                           tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = v[0]; v[0] = tmp;
+//                           break;
+//                       }
+//                   }
+//                   int *pentv=mesh.elements[mesh.faces_info[i].Elem1No]->GetVertices();
+//                   ((Pentatope*)mesh.elements[mesh.faces_info[i].Elem1No])->ParseFlag(t, sw);
+//                   printf("face %d of global%selement %d (%d,%d,%d,%d,%d) of type %d\n", mesh.faces_info[i].Elem1Inf/64, (sw) ? " swapped " : " ", mesh.faces_info[i].Elem1No,pentv[0], pentv[1],pentv[2],pentv[3],pentv[4],   (int)t);
+//                   pentv=mesh.elements[mesh.faces_info[i].Elem2No]->GetVertices();
+//                   ((Pentatope*)mesh.elements[mesh.faces_info[i].Elem2No])->ParseFlag(t, sw);
+//                   printf("face %d of global%selement %d (%d,%d,%d,%d,%d) of type %d\n", mesh.faces_info[i].Elem2Inf/64, (sw) ? " swapped " : " ", mesh.faces_info[i].Elem2No,pentv[0], pentv[1],pentv[2],pentv[3],pentv[4],   (int)t);
+//                   pentv=pent->GetVertices();
+//                   pent->ParseFlag(t, sw);
+//                   printf("face %d of local%selement %d (%d,%d,%d,%d,%d) of type %d\n", faces_info[lface].Elem1Inf/64, (sw) ? " swapped " : " ",faces_info[lface].Elem1No,pentv[0], pentv[1],pentv[2],pentv[3],pentv[4],   (int)t);
 
                    // flip the shared face in the processor that owns the
                    // second element (in 'mesh')
@@ -1055,12 +1076,19 @@ void ParMesh::BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
                    mesh.GetFaceElements(i, &gl_el1, &gl_el2);
                    if (MyRank == partitioning[gl_el2])
                    {
-                      std::swap(v[0], v[3]);
+                      if (init_tag > 0)
+                      {
+                          std::swap(v[0], v[3]);
+                      }
+                      else
+                      {
+                          std::swap(v[0], v[3]); std::swap(v[1], v[2]);
+                      }
                    }
 //                   if (mesh.faces_info[i].Elem2Inf/64 != mesh.faces_info[i].Elem1Inf/64)
 //                       printf("\e[7mv={%d,%d,%d,%d}, lf1=%d, m.lf1=%d, m.lf2=%d\e[0m\n", v[0],v[1],v[2],v[3],faces_info[lface].Elem1Inf/64, mesh.faces_info[i].Elem1Inf/64, mesh.faces_info[i].Elem2Inf/64);
 //                   else
-//                       printf("v={%d,%d,%d,%d}, lf1=%d, m.lf1=%d, m.lf2=%d\n", v[0],v[1],v[2],v[3],faces_info[lface].Elem1Inf/64, mesh.faces_info[i].Elem1Inf/64, mesh.faces_info[i].Elem2Inf/64);
+//                       printf("v={%d,%d,%d,%d}, lf1=%d, m.lf1=%d, m.lf2=%d\n",v[0],v[1],v[2],v[3],faces_info[lface].Elem1Inf/64, mesh.faces_info[i].Elem1Inf/64, mesh.faces_info[i].Elem2Inf/64);
                 }
             }
 
@@ -1899,33 +1927,33 @@ void ParMesh::GetFaceSplittings4D(const Vert4 &_f, const HashTable<Hashed2> &v_t
       }
       else if (mid[1] != -1 && ((edges(mid[1] + NumOfVertices, f.v[0]) != -1) || (v_to_v.FindId(mid[1] + NumOfVertices, f.v[0]) != -1)))
       {
-          ind = mid[1]; bit = 1;
-          tmp = f.v[3]; f.v[3] = f.v[2]; f.v[2] = f.v[1]; f.v[1] = f.v[0]; f.v[0] = tmp;
-          mfem::out << "This is horrible (" << bit << ")." << endl;
+          mfem_warning("This is horrible (1).");
+//          ind = mid[1]; bit = 1;
+//          tmp = f.v[3]; f.v[3] = f.v[2]; f.v[2] = f.v[0]; f.v[0] = tmp;
       }
       else if (mid[2] != -1 && ((edges(mid[2] + NumOfVertices, f.v[3]) != -1) || (v_to_v.FindId(mid[2] + NumOfVertices, f.v[3]) != -1)))
       {
-          ind = mid[2]; bit = 2;
-          tmp = f.v[3]; f.v[3] = f.v[1]; f.v[1] = tmp; tmp = f.v[0]; f.v[0] = f.v[2]; f.v[2] = tmp;
-          mfem::out << "This is horrible (" << bit << ")." << endl;
+          mfem_warning("This is horrible (2).");
+//          ind = mid[2]; bit = 2;
+//          tmp = f.v[3]; f.v[3] = f.v[1]; f.v[1] = tmp; tmp = f.v[0]; f.v[0] = f.v[2]; f.v[2] = tmp;
       }
       else if (mid[3] != -1 && ((edges(mid[3] + NumOfVertices, f.v[2]) != -1) || (v_to_v.FindId(mid[3] + NumOfVertices, f.v[2]) != -1)))
       {
-          ind = mid[3]; bit = 3;
-          tmp = f.v[3]; f.v[3] = f.v[2]; f.v[2] = f.v[1]; f.v[1] = f.v[0]; f.v[0] = tmp;
-          mfem::out << "This is horrible (" << bit << ")." << endl;
+          mfem_warning("This is horrible (3).");
+//          ind = mid[3]; bit = 3;
+//          tmp = f.v[3]; f.v[3] = f.v[2]; f.v[2] = f.v[1]; f.v[1] = f.v[0]; f.v[0] = tmp;
       }
       else if (mid[4] != -1 && ((edges(mid[4] + NumOfVertices, f.v[2]) != -1) || (v_to_v.FindId(mid[4] + NumOfVertices, f.v[2]) != -1)))
       {
-          ind = mid[4]; bit = 4;
-          tmp = f.v[2]; f.v[2] = f.v[0]; f.v[0] = f.v[1]; f.v[1] = tmp;
-          mfem::out << "This is horrible (" << bit << ")." << endl;
+          mfem_warning("This is horrible (4).");
+//          ind = mid[4]; bit = 4;
+//          tmp = f.v[2]; f.v[2] = f.v[0]; f.v[0] = f.v[1]; f.v[1] = tmp;
       }
       else if (mid[5] != -1 && ((edges(mid[5] + NumOfVertices, f.v[3]) != -1) || (v_to_v.FindId(mid[5] + NumOfVertices, f.v[3]) != -1)))
       {
-          ind = mid[5]; bit = 5;
-          tmp = f.v[3]; f.v[3] = f.v[2]; f.v[2] = f.v[1]; f.v[1] = tmp;
-          mfem::out << "This is horrible (" << bit << ")." << endl;
+          mfem_warning("This is horrible (5).");
+//          ind = mid[5]; bit = 5;
+//          tmp = f.v[3]; f.v[3] = f.v[2]; f.v[2] = tmp;
       }
 
       if (ind == -1)
@@ -3151,9 +3179,11 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
             // MPI_Barrier(MyComm);
             const int tag = 293;
-
-//            DSTable edges(vertices.Size());
-//            GetVertexToVertexTable(edges);
+#define OLD 1
+#if !OLD
+            DSTable edges(vertices.Size());
+            GetVertexToVertexTable(edges);
+#endif
             // (a) send the type of interface splitting
             int req_count = 0;
             for (int i = 0; i < GetNGroups()-1; i++)
@@ -3166,10 +3196,13 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                face_splittings[i].SetSize(0);
                for (int j = 0; j < faces_in_group; j++)
                {
-//                  GetFaceSplittings4D(shared_tetra[group_faces[j]], v_to_v,
-//                                      edges, face_splittings[i]);
+#if !OLD
+                  GetFaceSplittings4D(shared_tetra[group_faces[j]], v_to_v,
+                                      edges, face_splittings[i]);
+#else
                   GetFaceSplittings4D_old(shared_tetra[group_faces[j]], v_to_v,
                                           face_splittings[i]);
+#endif
                }
                const int *nbs = gtopo.GetGroup(i+1);
                neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
@@ -3196,8 +3229,11 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                for (int j = 0, pos = 0; j < faces_in_group; j++)
                {
                   const Vert4 &v = shared_tetra[group_faces[j]];
-//                  need_refinement |= DecodeFaceSplittings4D(v_to_v, v, iBuf, pos);
+#if !OLD
+                  need_refinement |= DecodeFaceSplittings4D(v_to_v, v, iBuf, pos);
+#else
                   need_refinement |= DecodeFaceSplittings4D_old(v_to_v, v, iBuf, pos);
+#endif
                }
             }
 
@@ -3246,8 +3282,6 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          mfem_error("ParMesh::LocalRefinement :"
                     " (NumOfBdrElements != boundary.Size())");
       }
-
-      swappedElements.SetSize(NumOfElements, false);
 
       const int old_nv = NumOfVertices;
       NumOfVertices = vertices.Size();
@@ -4696,7 +4730,7 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
                  v_to_v.FindId(v[1], v[0]),
                  v_to_v.FindId(v[1], v[3]),
                  v_to_v.FindId(v[0], v[2])};
-         int ind; // = v_to_v.FindId(v[0], v[3]);
+         int ind = -1; // = v_to_v.FindId(v[0], v[3]);
          //if (ind == -1) { continue; }
          if (mid[0] != -1 && ((edges(mid[0] + old_nv, v[1]) != -1) || (v_to_v.FindId(mid[0] + old_nv, v[1]) != -1)))
          {
@@ -4704,35 +4738,35 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
          }
          else if (mid[1] != -1 && ((edges(mid[1] + old_nv, v[0]) != -1) || (v_to_v.FindId(mid[1] + old_nv, v[0]) != -1)))
          {
-             mfem::out << "I (" << 1 << ") should never appear!" << endl;
-             ind = mid[1];
-             tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = v[0]; v[0] = tmp;
+             mfem_warning("I (1) should never appear!");
+//             ind = mid[1];
+//             tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = v[0]; v[0] = tmp;
          }
          else if (mid[2] != -1 && ((edges(mid[2] + old_nv, v[3]) != -1) || (v_to_v.FindId(mid[2] + old_nv, v[3]) != -1)))
          {
-             mfem::out << "I (" << 2 << ") should never appear!" << endl;
-             ind = mid[2];
-             tmp = v[3]; v[3] = v[1]; v[1] = tmp; tmp = v[0]; v[0] = v[2]; v[2] = tmp;
+             mfem_warning("I (2) should never appear!");
+//             ind = mid[2];
+//             tmp = v[3]; v[3] = v[1]; v[1] = tmp; tmp = v[0]; v[0] = v[2]; v[2] = tmp;
          }
          else if (mid[3] != -1 && ((edges(mid[3] + old_nv, v[2]) != -1) || (v_to_v.FindId(mid[3] + old_nv, v[2]) != -1)))
          {
-             mfem::out << "I (" << 3 << ") should never appear!" << endl;
-             ind = mid[3];
-             tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = v[0]; v[0] = tmp;
+             mfem_warning("I (3) should never appear!");
+//             ind = mid[3];
+//             tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = v[0]; v[0] = tmp;
          }
          else if (mid[4] != -1 && ((edges(mid[4] + old_nv, v[2]) != -1) || (v_to_v.FindId(mid[4] + old_nv, v[2]) != -1)))
          {
-             mfem::out << "I (" << 4 << ") should never appear!" << endl;
-             ind = mid[4];
-             tmp = v[2]; v[2] = v[0]; v[0] = v[1]; v[1] = tmp;
+             mfem_warning("I (4) should never appear!");
+//             ind = mid[4];
+//             tmp = v[2]; v[2] = v[0]; v[0] = v[1]; v[1] = tmp;
          }
          else if (mid[5] != -1 && ((edges(mid[5] + old_nv, v[3]) != -1) || (v_to_v.FindId(mid[5] + old_nv, v[3]) != -1)))
          {
-             mfem::out << "I (" << 5 << ") should never appear!" << endl;
-             ind = mid[5];
-             tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = tmp;
+             mfem_warning("I (5) should never appear!");
+//             ind = mid[5];
+//             tmp = v[3]; v[3] = v[2]; v[2] = v[1]; v[1] = tmp;
          }
-         else
+         if (ind == -1)
          {
              continue;
          }
@@ -4749,17 +4783,14 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
                 int mid[3] = {v_to_v.FindId(v[1], v[2]), v_to_v.FindId(ind, v[2]), v_to_v.FindId(v[1], ind)};
                 if (mid[0] != -1 && ( (edges(mid[0] + old_nv, ind) != -1) || (v_to_v.FindId(mid[0] + old_nv, ind) != -1) ))
                 {
-//                    mfem::out << "Take this!" << endl;
                     splan_stack.Append(Vert3(v[1], ind, v[2]));
                 }
                 else if (mid[1] != -1 && ( (edges(mid[1] + old_nv, v[1]) != -1) || (v_to_v.FindId(mid[1] + old_nv, v[1]) != -1) ))
                 {
-//                    mfem::out << "Take that!" << endl;
                     splan_stack.Append(Vert3(ind, v[1], v[2]));
                 }
-                else if (mid[2] != -1 && ( (edges(mid[0] + old_nv, v[2]) != -1) || (v_to_v.FindId(mid[0] + old_nv, v[2]) != -1) ))
+                else if (mid[2] != -1 && ( (edges(mid[2] + old_nv, v[2]) != -1) || (v_to_v.FindId(mid[2] + old_nv, v[2]) != -1) ))
                 {
-//                    mfem::out << "And that!" << endl;
                     splan_stack.Append(Vert3(v[1], v[2], ind));
                 }
                 else
@@ -4798,7 +4829,24 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
                // The tetrahedron 'sf' is refined
                ind += old_nv;
                // Add the interior refinement triangle to the planar stack
-               splan_stack.Append(Vert3(v[1], ind, v[2])); // TODO check if orientation matters
+               {
+                   int mid[3] = {v_to_v.FindId(v[1], v[2]), v_to_v.FindId(ind, v[2]), v_to_v.FindId(v[1], ind)};
+                   if (mid[0] != -1 && ( (edges(mid[0] + old_nv, ind) != -1) || (v_to_v.FindId(mid[0] + old_nv, ind) != -1) ))
+                   {
+                       splan_stack.Append(Vert3(v[1], ind, v[2]));
+                   }
+                   else if (mid[1] != -1 && ( (edges(mid[1] + old_nv, v[1]) != -1) || (v_to_v.FindId(mid[1] + old_nv, v[1]) != -1) ))
+                   {
+                       splan_stack.Append(Vert3(ind, v[1], v[2]));
+                   }
+                   else if (mid[2] != -1 && ( (edges(mid[2] + old_nv, v[2]) != -1) || (v_to_v.FindId(mid[2] + old_nv, v[2]) != -1) ))
+                   {
+                       splan_stack.Append(Vert3(v[1], v[2], ind));
+                   }
+                   else
+                       splan_stack.Append(Vert3(v[1], ind, v[2]));
+               }
+//               splan_stack.Append(Vert3(v[1], ind, v[2])); // TODO check if orientation matters
                // Put the lower sub-tetrahedron on top of the face stack
                sface_stack.Append(Vert4(v[0], ind, v[1], v[2], (tag + 1) % 3));
                // Note that the above Append() may invalidate 'v'

@@ -1660,6 +1660,10 @@ IntegrationRule *IntegrationRules::PentatopeIntegrationRule(int Order)
 {
    IntegrationRule *ir;
 
+#ifdef MFEM_DEBUG_INTRULES
+   mfem::out << "requesting integration rules for pentatopes ( order = " << Order << " )!" << endl;
+#endif
+
    switch (Order)
    {
       case 0:  // 1 point - degree 1
@@ -1673,26 +1677,22 @@ IntegrationRule *IntegrationRules::PentatopeIntegrationRule(int Order)
       //         PentatopeIntRules[2] = PentatopeIntRules[3] = ir = new IntegrationRule(5);
       //         ir->AddPentPoints5(0,0.118350341907227374, 0.526598632371090503, 1/120.);
       //         return ir;
-
-      default:
+      case 2:
+      case 5:
+      case 6:
       {
-         int i = (Order / 2) * 2 + 1;   // Get closest odd # >= Order
-         AllocIntRule(PentatopeIntRules, i);
-         ir = new IntegrationRule;
-         ir->GrundmannMollerSimplexRule(i/2,4);
-         PentatopeIntRules[i-1] = PentatopeIntRules[i] = ir;
-         return ir;
-         /*
          //construct the higher integration rules with the duffy transformation --> 1d integral in time and a tet quad-rule w.r.t space
 
-         IntegrationRule *timeIR = SegmentIntegrationRule(Order+3);
+         IntegrationRule *timeIR = SegmentIntegrationRule(Order + 2);
          IntegrationRule *tetIR = TetrahedronIntegrationRule(Order);
 
          int NIP = timeIR->GetNPoints() * tetIR->GetNPoints();
          AllocIntRule(PentatopeIntRules, Order);
          PentatopeIntRules[Order] = ir = new IntegrationRule(NIP);
 
-         //    cout << "higher integration rules for pentatopes implemented with duffy ( order = " << Order << " ) --> " << NIP << " int. points!" << endl;
+#ifdef MFEM_DEBUG
+         mfem::out << "higher integration rules for pentatopes implemented with duffy ( order = " << Order << " ) --> " << NIP << " int. points!" << endl;
+#endif
 
          double xi,yi,zi,ti, weight;
 
@@ -1703,18 +1703,39 @@ IntegrationRule *IntegrationRules::PentatopeIntegrationRule(int Order)
 
             for (int j=0; j<tetIR->GetNPoints(); j++)
             {
-               xi = (1.-ti)*tetIR->IntPoint(j).x;
-               yi = (1.-ti)*tetIR->IntPoint(j).y;
-               zi = (1.-ti)*tetIR->IntPoint(j).z;
+               xi = (1. - ti) * tetIR->IntPoint(j).x;
+               yi = (1. - ti) * tetIR->IntPoint(j).y;
+               zi = (1. - ti) * tetIR->IntPoint(j).z;
                weight = timeIR->IntPoint(i).weight * tetIR->IntPoint(j).weight * (1.-ti) *
                         (1.-ti) * (1.-ti);
-               //          if(weight<0) cout << "warning weight is negative!" << endl;
-
+#ifdef MFEM_DEBUG
+               if(weight<0) mfem::out << "warning weight is negative!" << endl;
+#endif
                ir->AddPentPoint(pos, xi,yi,zi,ti,weight);
 
                pos++;
             }
-         } */
+         }
+#ifdef MFEM_DEBUG_INTRULES
+         char str[256];
+         mfem::out << "The points and weights are:" << endl;
+         for (int k = 0; k < ir->Size(); ++k)
+         {
+             const IntegrationPoint &ip = ir->IntPoint(k);
+             sprintf(str, "{%.16f, {%.16f, %.16f, %.16f, %.16f}},", ip.weight, ip.x, ip.y, ip.z, ip.t);
+             mfem::out << str << endl;
+         }
+#endif
+         break;
+      }
+      default:
+      {
+         int i = (Order / 2) * 2 + 1;   // Get closest odd # >= Order
+         AllocIntRule(PentatopeIntRules, i);
+         ir = new IntegrationRule;
+         ir->GrundmannMollerSimplexRule(i/2,4);
+         PentatopeIntRules[i-1] = PentatopeIntRules[i] = ir;
+         return ir;
       }
    }
 

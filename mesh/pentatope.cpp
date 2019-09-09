@@ -174,14 +174,17 @@ void Pentatope::ParseFlag(char& t, bool& swap)
 
 void Pentatope::GetFace(int fi, int *fv)
 {
-    const int *v = GetFaceVertices(fi);
+    const int faces[5][4] = { {0, 1, 2, 3}, {0, 1, 2, 4},
+            {0, 1, 3, 4}, {0, 2, 3, 4},
+            {1, 2, 3, 4}};
+    const int *v = geom_p::FaceVert[fi];
     for (int k = 0; k < 4; ++k)
     {
         fv[k] = indices[v[k]];
     }
 
-    if (fi % 2 == 1)
-        std::swap(fv[1], fv[2]);
+//    if (fi % 2 == 1)
+//        std::swap(fv[1], fv[2]);
 }
 
 

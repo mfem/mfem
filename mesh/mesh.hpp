@@ -75,7 +75,6 @@ protected:
    Array<Element *> faces;
    Array<Element *> planars; //only for 4d meshes
 
-   Array<bool> swappedElements; //only for 4d meshes
    Array<bool> swappedFaces; //only for 4d meshes
    Array<bool> swappedBdr; //only for 4d meshes
 
@@ -780,7 +779,7 @@ public:
 
    Element *GetElement(int i) { return elements[i]; }
 
-   bool getSwappedElementInfo(int i) const { return swappedElements[i]; }
+   bool getSwappedElementInfo(int i) const { return false; }
    bool getSwappedFaceElementInfo(int i) const { return swappedFaces[i]; }
    bool getSwappedBdrElementInfo(int i) const { return swappedBdr[i]; }
 
