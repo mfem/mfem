@@ -6,46 +6,36 @@ using namespace flow;
 
 struct s_FlowContext
 {
-   int order = 5;
-   double kin_vis = 1.0;
-   double t_final = 10e-5;
-   double dt = 1e-5;
+   int order = 7;
+   double kin_vis = 1.0 / 1600.0;
+   double t_final = 10.0e-3;
+   double dt = 1e-3;
 } ctx;
 
 void vel_tgv(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
+   double zi = x(2);
 
-   double F = exp(-2.0 * ctx.kin_vis * t);
-
-   u(0) = cos(xi) * sin(yi) * F;
-   u(1) = -sin(xi) * cos(yi) * F;
-}
-
-double p_tgv(const Vector &x, double t)
-{
-   double xi = x(0);
-   double yi = x(1);
-
-   double F = exp(-2.0 * ctx.kin_vis * t);
-
-   return -0.25 * (cos(2.0 * xi) + cos(2.0 * yi)) * pow(F, 2.0);
+   u(0) = sin(xi) * cos(yi) * cos(zi);
+   u(1) = -cos(xi) * sin(yi) * cos(zi);
+   u(2) = 0.0;
 }
 
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int serial_refinements = 5;
+   int serial_refinements = 0;
 
-   Mesh *mesh = new Mesh("../data/inline-quad.mesh");
+   Mesh *mesh = new Mesh("../data/inline-hex.mesh");
 
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
    *nodes *= 2.0;
    *nodes -= 1.0;
-   *nodes *= 0.5 * M_PI;
+   *nodes *= M_PI;
 
    for (int i = 0; i < serial_refinements; ++i)
    {
@@ -69,8 +59,6 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_tgv);
    u_ic->ProjectCoefficient(u_excoeff);
 
-   FunctionCoefficient p_excoeff(p_tgv);
-
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
    Array<int> attr(pmesh->bdr_attributes.Max());
@@ -84,8 +72,16 @@ int main(int argc, char *argv[])
 
    flowsolver.Setup(dt);
 
-   double err_u = 0.0;
-   double err_p = 0.0;
+   ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
+   ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
+
+   VisItDataCollection visit_dc("ins", pmesh);
+   visit_dc.SetPrefixPath("output");
+   visit_dc.SetCycle(0);
+   visit_dc.SetTime(t);
+   visit_dc.RegisterField("velocity", u_gf);
+   visit_dc.RegisterField("pressure", p_gf);
+   visit_dc.Save();
 
    for (int step = 0; !last_step; ++step)
    {
@@ -96,17 +92,15 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      // Compare against exact solution of velocity and pressure.
-      ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
-      ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
-      u_excoeff.SetTime(t);
-      p_excoeff.SetTime(t);
-      err_u = u_gf->ComputeL2Error(u_excoeff);
-      err_p = p_gf->ComputeL2Error(p_excoeff);
-
+      if ((step + 1) % 100 == 0 || last_step)
+      {
+         visit_dc.SetCycle(step);
+         visit_dc.SetTime(t);
+         visit_dc.Save();
+      }
       if (mpi.Root())
       {
-         printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
+         printf("%.5E %.5E\n", t, dt);
          fflush(stdout);
       }
    }

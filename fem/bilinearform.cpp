@@ -609,6 +609,19 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
+
+void BilinearForm::AssembleDiagonal(Vector& diag) const
+{
+   if (ext)
+   {
+      ext->AssembleDiagonal(diag);
+   }
+   else
+   {
+      mfem_error("Not implemented, maybe assemble your bilinear form into a matrix an use SparseMatrix::GetDiag?");
+   }
+}
+
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                     Vector &b, OperatorHandle &A, Vector &X,
                                     Vector &B, int copy_interior)

@@ -194,9 +194,12 @@ int main(int argc, char *argv[])
       umf_solver.Mult(B, X);
 #endif
    }
-   else // No preconditioning for now in partial assembly mode.
+   else // Jacobi preconditioning in partial assembly mode
    {
-      CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+      Vector diag_pa(fespace->GetTrueVSize());
+      a->AssembleDiagonal(diag_pa);
+      OperatorJacobiSmoother M(diag_pa, ess_tdof_list);
+      PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
    }
 
    // 12. Recover the solution as a finite element grid function.

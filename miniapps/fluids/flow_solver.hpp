@@ -61,6 +61,7 @@ protected:
 
    bool verbose = true;
    bool partial_assembly = true;
+   bool numerical_integ = true;
 
    ParMesh *pmesh;
 
@@ -84,6 +85,10 @@ protected:
 
    ParLinearForm *g_bdr_form;
 
+   ParLinearForm *mass_lf = nullptr;
+   ConstantCoefficient onecoeff;
+   double volume;
+
    ConstantCoefficient nlcoeff;
    ConstantCoefficient H_lincoeff;
    ConstantCoefficient H_bdfcoeff;
@@ -99,9 +104,9 @@ protected:
 
    HypreBoomerAMG *SpInvPC;
    OrthoSolver *SpInvOrthoPC;
-   CGSolver *SpInv;
+   GMRESSolver *SpInv;
 
-   HypreBoomerAMG *HInvPC;
+   Solver *HInvPC;
    CGSolver *HInv;
 
    Vector fn, un, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext, resu;

@@ -22,8 +22,8 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
     LIBRARIES mfem)
 
-  add_mfem_miniapp(flow_vortex
-    MAIN flow_vortex.cpp
+  add_mfem_miniapp(flow_tgv
+    MAIN flow_tgv.cpp
     EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp
     EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
     LIBRARIES mfem)

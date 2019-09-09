@@ -20,6 +20,30 @@ using namespace std;
 namespace mfem
 {
 
+void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::Assemble (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleDiagonalPA(Vector&) const
+{
+   mfem_error ("BilinearFormIntegrator::AssembleDiagonalPA (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
+{
+   mfem_error ("BilinearFormIntegrator::MultAssembled (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
+{
+   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose (...)\n"
+               "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
    DenseMatrix &elmat )

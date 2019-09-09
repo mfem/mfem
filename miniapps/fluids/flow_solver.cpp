@@ -1,5 +1,5 @@
 #include "flow_solver.hpp"
-
+#include "../../general/forall.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -23,11 +23,15 @@ FlowSolver::FlowSolver(ParMesh *mesh, int order, double kin_vis)
    vfes = new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
    pfes = new ParFiniteElementSpace(pmesh, pfec);
 
-   vel_ess_attr.SetSize(pmesh->bdr_attributes.Max());
-   vel_ess_attr = 0;
+   // Check if fully periodic mesh
+   if (!(pmesh->bdr_attributes.Size() == 0))
+   {
+      vel_ess_attr.SetSize(pmesh->bdr_attributes.Max());
+      vel_ess_attr = 0;
 
-   pres_ess_attr.SetSize(pmesh->bdr_attributes.Max());
-   pres_ess_attr = 0;
+      pres_ess_attr.SetSize(pmesh->bdr_attributes.Max());
+      pres_ess_attr = 0;
+   }
 
    int vfes_truevsize = vfes->GetTrueVSize();
    int pfes_truevsize = pfes->GetTrueVSize();
@@ -60,6 +64,7 @@ FlowSolver::FlowSolver(ParMesh *mesh, int order, double kin_vis)
    resu_gf.SetSpace(vfes);
 
    pn_gf.SetSpace(pfes);
+   pn_gf = 0.0;
    resp_gf.SetSpace(pfes);
 
    cur_step = 0;
@@ -98,6 +103,11 @@ void FlowSolver::Setup(double dt)
 
    Array<int> empty;
 
+   // GLL integration rule (Numerical Integration)
+   IntegrationRules rules_ni(0, Quadrature1D::GaussLobatto);
+   const IntegrationRule &ir_ni = rules_ni.Get(vfes->GetFE(0)->GetGeomType(),
+                                               2 * order - 1);
+
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
    N->AddDomainIntegrator(new VectorConvectionNLFIntegrator(nlcoeff));
@@ -108,7 +118,12 @@ void FlowSolver::Setup(double dt)
    }
 
    Mv_form = new ParBilinearForm(vfes);
-   Mv_form->AddDomainIntegrator(new VectorMassIntegrator);
+   BilinearFormIntegrator *blfi = new VectorMassIntegrator;
+   if (numerical_integ)
+   {
+      blfi->SetIntRule(&ir_ni);
+   }
+   Mv_form->AddDomainIntegrator(blfi);
    if (partial_assembly)
    {
       Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -117,7 +132,12 @@ void FlowSolver::Setup(double dt)
    Mv_form->FormSystemMatrix(empty, Mv);
 
    Sp_form = new ParBilinearForm(pfes);
-   Sp_form->AddDomainIntegrator(new DiffusionIntegrator);
+   blfi = new DiffusionIntegrator;
+   if (numerical_integ)
+   {
+      // blfi->SetIntRule(&ir_ni);
+   }
+   Sp_form->AddDomainIntegrator(blfi);
    if (partial_assembly)
    {
       Sp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -159,6 +179,7 @@ void FlowSolver::Setup(double dt)
    // Assuming we only set one function for dirichlet on the whole boundary.
    // FText_bdr_form has to be set only on the attributes where there are velocity dirichlet bcs.
    // Maybe use vel_ess_attr?
+   // Needs github PR #936 https://github.com/mfem/mfem/pull/936
    FText_gfcoeff = new VectorGridFunctionCoefficient(&FText_gf);
    FText_bdr_form = new ParLinearForm(pfes);
    FText_bdr_form->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(
@@ -192,8 +213,8 @@ void FlowSolver::Setup(double dt)
    MvInv->SetOperator(*Mv);
    MvInv->SetPreconditioner(*MvInvPC);
    MvInv->SetPrintLevel(0);
-   MvInv->SetRelTol(1e-12);
-   MvInv->SetMaxIter(500);
+   MvInv->SetRelTol(1e-10);
+   MvInv->SetMaxIter(200);
 
    if (partial_assembly)
    {
@@ -203,35 +224,30 @@ void FlowSolver::Setup(double dt)
       Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
       SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
       HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
-      HYPRE_BoomerAMGSetCoarsenType(amg_precond, 6);
+      // HYPRE_BoomerAMGSetCoarsenType(amg_precond, 10);
       HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-      HYPRE_BoomerAMGSetRelaxType(amg_precond, 6);
-      HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
-      HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
-      SpInvPC->SetPrintLevel(0);
+      // HYPRE_BoomerAMGSetStrongThreshold(amg_precond, 0.8);
+      HYPRE_BoomerAMGSetRelaxType(amg_precond, 3);
+      SpInvPC->SetPrintLevel(1);
+      SpInvPC->Mult(resp, pn);
       SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
    else
    {
       SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
-      HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
-      HYPRE_BoomerAMGSetCoarsenType(amg_precond, 6);
-      HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-      HYPRE_BoomerAMGSetRelaxType(amg_precond, 6);
-      HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
-      HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
       SpInvPC->SetPrintLevel(0);
       SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
-   SpInv = new CGSolver(MPI_COMM_WORLD);
-   SpInv->iterative_mode = false;
+   SpInv = new GMRESSolver(MPI_COMM_WORLD);
+   SpInv->iterative_mode = true;
    SpInv->SetOperator(*Sp);
    SpInv->SetPreconditioner(*SpInvOrthoPC);
-   SpInv->SetPrintLevel(0);
-   SpInv->SetRelTol(1e-12);
-   SpInv->SetMaxIter(500);
+   SpInv->SetPrintLevel(1);
+   SpInv->SetRelTol(1e-10);
+   // SpInv->SetKDim(30);
+   SpInv->SetMaxIter(200);
 
    if (partial_assembly)
    {
@@ -239,27 +255,37 @@ void FlowSolver::Setup(double dt)
       CopyDBFIntegrators(H_form, H_form_lor);
       H_form_lor->Assemble();
       H_form_lor->FormSystemMatrix(empty, H_lor);
-      HInvPC = new HypreBoomerAMG(*H_lor.As<HypreParMatrix>());
-      HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
-      HYPRE_BoomerAMGSetCoarsenType(amg_precond, 6);
-      HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-      HYPRE_BoomerAMGSetRelaxType(amg_precond, 6);
-      HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
-      HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
-      HInvPC->SetPrintLevel(0);
+      HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
    }
    else
    {
-      HInvPC = new HypreBoomerAMG(*H.As<HypreParMatrix>());
-      HInvPC->SetPrintLevel(0);
+      HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
    }
    HInv = new CGSolver(MPI_COMM_WORLD);
-   HInv->iterative_mode = false;
+   HInv->iterative_mode = true;
    HInv->SetOperator(*H);
    HInv->SetPreconditioner(*HInvPC);
-   HInv->SetPrintLevel(0);
-   HInv->SetRelTol(1e-12);
-   HInv->SetMaxIter(500);
+   HInv->SetPrintLevel(1);
+   HInv->SetRelTol(1e-10);
+   HInv->SetMaxIter(200);
+
+   {
+      // Timing test
+      StopWatch t0, t1;
+      int numit = 10;
+      for (int i = 0; i < numit; ++i)
+      {
+         t0.Start();
+         SpInvPC->Mult(resp, pn);
+         t0.Stop();
+
+         t1.Start();
+         Sp->Mult(resp, pn);
+         t1.Stop();
+      }
+      std::cout << "PREC MULT: " << t0.RealTime() / numit << std::endl;
+      std::cout << "OP MULT: " << t1.RealTime() / numit << std::endl;
+   }
 
    un_gf.GetTrueDofs(un);
 
@@ -268,6 +294,10 @@ void FlowSolver::Setup(double dt)
 
 void FlowSolver::Step(double &time, double dt, int cur_step)
 {
+   if (verbose && pmesh->GetMyRank() == 0)
+   {
+      std::cout << "Step" << std::endl;
+   }
    sw_step.Start();
 
    time += dt;
@@ -294,14 +324,7 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
          HInv->ClearPreconditioner();
          HInv->SetOperator(*H);
          delete HInvPC;
-         HInvPC = new HypreBoomerAMG(*H_lor.As<HypreParMatrix>());
-         HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
-         HYPRE_BoomerAMGSetCoarsenType(amg_precond, 6);
-         HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-         HYPRE_BoomerAMGSetRelaxType(amg_precond, 6);
-         HYPRE_BoomerAMGSetInterpType(amg_precond, 0);
-         HYPRE_BoomerAMGSetPMaxElmts(amg_precond, 0);
-         HInvPC->SetPrintLevel(0);
+         HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
          HInv->SetPreconditioner(*HInvPC);
       }
       else
@@ -326,9 +349,15 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
 
    N->Mult(un, Nun);
    Nun.Add(1.0, fn);
-   Fext.Set(ab1, Nun);
-   Fext.Add(ab2, Nunm1);
-   Fext.Add(ab3, Nunm2);
+
+   // TEST
+   // Fext.Set(ab1, Nun);
+   // Fext.Add(ab2, Nunm1);
+   // Fext.Add(ab3, Nunm2);
+   MFEM_FORALL_SWITCH(false,
+                      i,
+                      Fext.Size(),
+                      Fext[i] = ab1 * Nun[i] + ab2 * Nunm1[i] + ab3 * Nunm2[i];);
 
    Nunm2 = Nunm1;
    Nunm1 = Nun;
@@ -338,9 +367,17 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    Fext.Set(1.0, tmp1);
 
    // BDF terms
-   Fext.Add(-bd1 / dt, un);
-   Fext.Add(-bd2 / dt, unm1);
-   Fext.Add(-bd3 / dt, unm2);
+   // Fext.Add(-bd1 / dt, un);
+   // Fext.Add(-bd2 / dt, unm1);
+   // Fext.Add(-bd3 / dt, unm2);
+   double bd1idt = -bd1 / dt;
+   double bd2idt = -bd2 / dt;
+   double bd3idt = -bd3 / dt;
+   MFEM_FORALL_SWITCH(false,
+                      i,
+                      Fext.Size(),
+                      Fext[i] += bd1idt * un[i] + bd2idt * unm1[i]
+                                 + bd3idt * unm2[i];);
 
    sw_extrap.Stop();
 
@@ -350,9 +387,14 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
 
    sw_curlcurl.Start();
 
-   Lext.Set(ab1, un);
-   Lext.Add(ab2, unm1);
-   Lext.Add(ab3, unm2);
+   // Lext.Set(ab1, un);
+   // Lext.Add(ab2, unm1);
+   // Lext.Add(ab3, unm2);
+   MFEM_FORALL_SWITCH(false,
+                      i,
+                      Lext.Size(),
+                      Lext[i] = ab1 * un[i] + ab2 * unm1[i] + ab3 * unm2[i];);
+
    Lext_gf.SetFromTrueDofs(Lext);
    ComputeCurlCurl(Lext_gf, curlcurlu_gf);
    curlcurlu_gf.GetTrueDofs(Lext);
@@ -383,7 +425,7 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
       Orthogonalize(resp);
    }
 
-   pn_gf = 0.0;
+   // pn_gf = 0.0;
 
    pfes->GetRestrictionMatrix()->MultTranspose(resp, resp_gf);
 
@@ -391,11 +433,11 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    if (partial_assembly)
    {
       ConstrainedOperator *SpC = Sp.As<ConstrainedOperator>();
-      EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, X1, B1);
+      EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, X1, B1, 1);
    }
    else
    {
-      Sp_form->FormLinearSystem(pres_ess_tdof, pn_gf, resp_gf, Sp, X1, B1);
+      Sp_form->FormLinearSystem(pres_ess_tdof, pn_gf, resp_gf, Sp, X1, B1, 1);
    }
    sw_spsolve.Start();
    SpInv->Mult(B1, X1);
@@ -419,7 +461,8 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    Mv->Mult(Fext, tmp1);
    resu.Add(1.0, tmp1);
 
-   un_gf = 0.0;
+   // un_gf = 0.0;
+
    for (auto vdbc = vel_dbcs.begin(); vdbc != vel_dbcs.end(); ++vdbc)
    {
       un_gf.ProjectBdrCoefficient(vdbc->coeff, vdbc->attr);
@@ -434,13 +477,12 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    if (partial_assembly)
    {
       ConstrainedOperator *HC = H.As<ConstrainedOperator>();
-      EliminateRHS(*H_form, *HC, vel_ess_tdof, un_gf, resu_gf, X2, B2);
+      EliminateRHS(*H_form, *HC, vel_ess_tdof, un_gf, resu_gf, X2, B2, 1);
    }
    else
    {
-      H_form->FormLinearSystem(vel_ess_tdof, un_gf, resu_gf, H, X2, B2);
+      H_form->FormLinearSystem(vel_ess_tdof, un_gf, resu_gf, H, X2, B2, 1);
    }
-   X2 = 0.0;
    sw_hsolve.Start();
    HInv->Mult(B2, X2);
    sw_hsolve.Stop();
@@ -459,16 +501,20 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
 
 void FlowSolver::MeanZero(ParGridFunction &v)
 {
-   ConstantCoefficient one(1.0);
-   ParLinearForm mass_lf(v.ParFESpace());
-   mass_lf.AddDomainIntegrator(new DomainLFIntegrator(one));
-   mass_lf.Assemble();
+   if (mass_lf == nullptr)
+   {
+      onecoeff.constant = 1.0;
+      mass_lf = new ParLinearForm(v.ParFESpace());
+      mass_lf->AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
+      mass_lf->Assemble();
 
-   ParGridFunction one_gf(v.ParFESpace());
-   one_gf.ProjectCoefficient(one);
+      ParGridFunction one_gf(v.ParFESpace());
+      one_gf.ProjectCoefficient(onecoeff);
 
-   double volume = mass_lf(one_gf);
-   double integ = mass_lf(v);
+      volume = mass_lf->operator()(one_gf);
+   }
+
+   double integ = mass_lf->operator()(v);
 
    v -= integ / volume;
 }

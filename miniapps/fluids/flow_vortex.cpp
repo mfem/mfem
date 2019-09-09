@@ -6,8 +6,7 @@ using namespace flow;
 
 struct s_FlowContext
 {
-   int order = 4;
-   // int order = 7;
+   int order = 7;
    double kin_vis = 1.0 / 1854.0;
    double t_final = 5.0;
    double dt = 1e-3;
