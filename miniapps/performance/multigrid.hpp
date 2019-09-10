@@ -67,7 +67,7 @@ using ParSpaceHierarchy = GeneralSpaceHierarchy<ParMesh, ParFiniteElementSpace>;
 class OperatorMultigrid : public Operator
 {
 private:
-   Array<Operator*> forms;
+   Array<BilinearForm*> forms;
    Array<Operator*> operators;
    Array<Solver*> smoothers;
    Array<Operator*> prolongations;
@@ -75,7 +75,7 @@ private:
 
 public:
    /// Constructor
-   OperatorMultigrid(Operator* form, Operator* opr, Solver* coarseSolver, Array<int>* ess_tdof_list)
+   OperatorMultigrid(BilinearForm* form, Operator* opr, Solver* coarseSolver, Array<int>* ess_tdof_list)
    {
       forms.Append(form);
       operators.Append(opr);
@@ -83,7 +83,7 @@ public:
       ess_tdof_lists.Append(ess_tdof_list);
    }
 
-   void AddLevel(Operator* form, Operator* opr, Solver* smoother, Operator* prolongation, Array<int>* ess_tdof_list)
+   void AddLevel(BilinearForm* form, Operator* opr, Solver* smoother, Operator* prolongation, Array<int>* ess_tdof_list)
    {
       forms.Append(form);
       operators.Append(opr);
@@ -114,12 +114,22 @@ public:
 
    void RestrictTo(unsigned level, const Vector &x, Vector &y) const
    {
+      StopWatch tic_toc;
+      tic_toc.Clear();
+      tic_toc.Start();
       prolongations[level]->MultTranspose(x, y);
+      tic_toc.Stop();
+      std::cout << "Restriction to level " << level << " took " << tic_toc.RealTime() << "s" << std::endl;
    }
 
    void InterpolateFrom(unsigned level, const Vector &x, Vector &y) const
    {
+      StopWatch tic_toc;
+      tic_toc.Clear();
+      tic_toc.Start();
       prolongations[level]->Mult(x, y);
+      tic_toc.Stop();
+      std::cout << "Prolongation from level " << level << " took " << tic_toc.RealTime() << "s" << std::endl;
    }
 
    /// Apply Smoother on given level
@@ -135,14 +145,14 @@ public:
    }
 
    /// Returns form at given level
-   Operator* GetFormAtLevel(unsigned level)
+   BilinearForm* GetFormAtLevel(unsigned level)
    {
       MFEM_ASSERT(forms.Size() > level, "Form at given level do not exist.");
       return forms[level];
    }
 
    /// Returns form at finest level
-   Operator* GetFormAtFinestLevel()
+   BilinearForm* GetFormAtFinestLevel()
    {
       return GetFormAtLevel(forms.Size() - 1);
    }
@@ -151,6 +161,12 @@ public:
    const Operator* GetOperatorAtLevel(unsigned level) const
    {
       return operators[level];
+   }
+
+   /// Returns operator at finest level
+   const Operator* GetOperatorAtFinestLevel() const
+   {
+      return GetOperatorAtLevel(operators.Size() - 1);
    }
 
    /// Returns operator at given level
