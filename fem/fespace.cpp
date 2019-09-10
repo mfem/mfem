@@ -988,17 +988,18 @@ void FiniteElementSpace::RefinementOperator
 
    Array<int> dofs, old_dofs, old_vdofs;
 
-   Array<char> processed(fespace->GetVSize());
-   processed = 0;
-
    int vdim = fespace->GetVDim();
    int old_ndofs = width / vdim;
+
+   Vector subY, subX;
 
    for (int k = 0; k < mesh->GetNE(); k++)
    {
       const Embedding &emb = rtrans.embeddings[k];
       const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
+
+      subY.SetSize(lP.Height());
 
       fespace->GetElementDofs(k, dofs);
       old_elem_dof->GetRow(emb.parent, old_dofs);
@@ -1007,25 +1008,9 @@ void FiniteElementSpace::RefinementOperator
       {
          old_dofs.Copy(old_vdofs);
          fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
-
-         for (int i = 0; i < dofs.Size(); i++)
-         {
-            double rsign, osign;
-            int r = fespace->DofToVDof(dofs[i], vd);
-            r = DecodeDof(r, rsign);
-
-            if (!processed[r])
-            {
-               double value = 0.0;
-               for (int j = 0; j < old_vdofs.Size(); j++)
-               {
-                  int o = DecodeDof(old_vdofs[j], osign);
-                  value += x[o] * lP(i, j) * osign;
-               }
-               y[r] = value * rsign;
-               processed[r] = 1;
-            }
-         }
+         x.GetSubVector(old_vdofs, subX);
+         lP.Mult(subX, subY);
+         y.SetSubVector(dofs, subY);
       }
    }
 }
