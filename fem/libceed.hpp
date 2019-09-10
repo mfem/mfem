@@ -17,8 +17,6 @@
 
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
-#else
-typedef void* Ceed;
 #endif
 
 namespace mfem
