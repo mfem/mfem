@@ -14,7 +14,12 @@
 
 #include "gridfunc.hpp"
 #include "fespace.hpp"
-#include "../general/ceed.hpp"
+
+#ifdef MFEM_USE_CEED
+#include <ceed.h>
+#else
+typedef void* Ceed;
+#endif
 
 namespace mfem
 {
