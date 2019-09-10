@@ -171,7 +171,7 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
       default:
          MFEM_ABORT("This coeff_type is not handled");
    }
-   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", mesh->SpaceDimension(),
+   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", mesh->SpaceDimension()*mesh->SpaceDimension(),
                          CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
    CeedQFunctionAddOutput(ceedData.build_qfunc, "rho", 1, CEED_EVAL_NONE);

@@ -266,7 +266,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
       default:
          MFEM_ABORT("This coeff_type is not handled");
    }
-   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", dim, CEED_EVAL_GRAD);
+   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
    CeedQFunctionAddOutput(ceedData.build_qfunc, "rho", dim * (dim + 1) / 2,
                           CEED_EVAL_NONE);
@@ -312,10 +312,10 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    CeedQFunctionCreateInterior(ceed, 1, f_apply_diff,
                                MFEM_SOURCE_DIR"/fem/libceed_diffusion.h:f_apply_diff",
                                &ceedData.apply_qfunc);
-   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", 1, CEED_EVAL_GRAD);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dim, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "rho", dim * (dim + 1) / 2,
                          CEED_EVAL_NONE);
-   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", 1, CEED_EVAL_GRAD);
+   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dim, CEED_EVAL_GRAD);
    CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
                            sizeof(ceedData.build_ctx));
 
