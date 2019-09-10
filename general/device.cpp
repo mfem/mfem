@@ -12,7 +12,9 @@
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
-#include "ceed.hpp"
+#ifdef MFEM_USE_CEED
+#include <ceed.h>
+#endif
 
 #include <string>
 #include <map>

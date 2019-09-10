@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "libceed.hpp"
-#include "../general/ceed.hpp"
 #include "../general/device.hpp"
 
 #include "libceed_diffusion.h"
