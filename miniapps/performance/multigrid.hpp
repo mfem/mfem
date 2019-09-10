@@ -114,22 +114,12 @@ public:
 
    void RestrictTo(unsigned level, const Vector &x, Vector &y) const
    {
-      StopWatch tic_toc;
-      tic_toc.Clear();
-      tic_toc.Start();
       prolongations[level]->MultTranspose(x, y);
-      tic_toc.Stop();
-      std::cout << "Restriction to level " << level << " took " << tic_toc.RealTime() << "s" << std::endl;
    }
 
    void InterpolateFrom(unsigned level, const Vector &x, Vector &y) const
    {
-      StopWatch tic_toc;
-      tic_toc.Clear();
-      tic_toc.Start();
       prolongations[level]->Mult(x, y);
-      tic_toc.Stop();
-      std::cout << "Prolongation from level " << level << " took " << tic_toc.RealTime() << "s" << std::endl;
    }
 
    /// Apply Smoother on given level
