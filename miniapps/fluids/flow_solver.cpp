@@ -196,12 +196,15 @@ void FlowSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      Mv_form_lor = new ParBilinearForm(vfes_lor);
-      CopyDBFIntegrators(Mv_form, Mv_form_lor);
-      Mv_form_lor->Assemble();
-      Mv_form_lor->FormSystemMatrix(empty, Mv_lor);
-      MvInvPC = new HypreSmoother(*Mv_lor.As<HypreParMatrix>());
-      static_cast<HypreSmoother *>(MvInvPC)->SetType(HypreSmoother::Jacobi, 1);
+      // Mv_form_lor = new ParBilinearForm(vfes_lor);
+      // CopyDBFIntegrators(Mv_form, Mv_form_lor);
+      // Mv_form_lor->Assemble();
+      // Mv_form_lor->FormSystemMatrix(empty, Mv_lor);
+      // MvInvPC = new HypreSmoother(*Mv_lor.As<HypreParMatrix>());
+      // static_cast<HypreSmoother *>(MvInvPC)->SetType(HypreSmoother::Jacobi, 1);
+      Vector diag_pa(vfes->GetTrueVSize());
+      Mv_form->AssembleDiagonal(diag_pa);
+      MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
    }
    else
    {
@@ -212,7 +215,7 @@ void FlowSolver::Setup(double dt)
    MvInv->iterative_mode = false;
    MvInv->SetOperator(*Mv);
    MvInv->SetPreconditioner(*MvInvPC);
-   MvInv->SetPrintLevel(0);
+   MvInv->SetPrintLevel(pl_mvsolve);
    MvInv->SetRelTol(1e-10);
    MvInv->SetMaxIter(200);
 
@@ -224,11 +227,9 @@ void FlowSolver::Setup(double dt)
       Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
       SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
       HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
-      // HYPRE_BoomerAMGSetCoarsenType(amg_precond, 10);
       HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-      // HYPRE_BoomerAMGSetStrongThreshold(amg_precond, 0.8);
       HYPRE_BoomerAMGSetRelaxType(amg_precond, 3);
-      SpInvPC->SetPrintLevel(1);
+      SpInvPC->SetPrintLevel(pl_amg);
       SpInvPC->Mult(resp, pn);
       SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
@@ -244,32 +245,37 @@ void FlowSolver::Setup(double dt)
    SpInv->iterative_mode = true;
    SpInv->SetOperator(*Sp);
    SpInv->SetPreconditioner(*SpInvOrthoPC);
-   SpInv->SetPrintLevel(1);
-   SpInv->SetRelTol(1e-10);
-   // SpInv->SetKDim(30);
+   SpInv->SetPrintLevel(pl_spsolve);
+   SpInv->SetRelTol(rtol_spsolve);
+   SpInv->SetKDim(30);
    SpInv->SetMaxIter(200);
 
    if (partial_assembly)
    {
-      H_form_lor = new ParBilinearForm(vfes_lor);
-      CopyDBFIntegrators(H_form, H_form_lor);
-      H_form_lor->Assemble();
-      H_form_lor->FormSystemMatrix(empty, H_lor);
-      HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
+      // H_form_lor = new ParBilinearForm(vfes_lor);
+      // CopyDBFIntegrators(H_form, H_form_lor);
+      // H_form_lor->Assemble();
+      // H_form_lor->FormSystemMatrix(empty, H_lor);
+      // HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
+      // static_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
+      Vector diag_pa(vfes->GetTrueVSize());
+      H_form->AssembleDiagonal(diag_pa);
+      HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
    }
    else
    {
       HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
+      static_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
    }
    HInv = new CGSolver(MPI_COMM_WORLD);
    HInv->iterative_mode = true;
    HInv->SetOperator(*H);
    HInv->SetPreconditioner(*HInvPC);
-   HInv->SetPrintLevel(1);
-   HInv->SetRelTol(1e-10);
+   HInv->SetPrintLevel(pl_hsolve);
+   HInv->SetRelTol(rtol_hsolve);
    HInv->SetMaxIter(200);
 
-   {
+   if (0) {
       // Timing test
       StopWatch t0, t1;
       int numit = 10;
@@ -318,13 +324,17 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
 
       if (partial_assembly)
       {
-         H_form_lor->Update();
-         H_form_lor->Assemble();
-         H_form_lor->FormSystemMatrix(vel_ess_tdof, H_lor);
+         // H_form_lor->Update();
+         // H_form_lor->Assemble();
+         // H_form_lor->FormSystemMatrix(vel_ess_tdof, H_lor);
          HInv->ClearPreconditioner();
          HInv->SetOperator(*H);
          delete HInvPC;
-         HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
+         // HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
+         // static_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
+         Vector diag_pa(vfes->GetTrueVSize());
+         H_form->AssembleDiagonal(diag_pa);
+         HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
          HInv->SetPreconditioner(*HInvPC);
       }
       else
@@ -443,6 +453,7 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    SpInv->Mult(B1, X1);
    sw_spsolve.Stop();
    iter_spsolve = SpInv->GetNumIterations();
+   res_spsolve = SpInv->GetFinalNorm();
    Sp_form->RecoverFEMSolution(X1, resp_gf, pn_gf);
 
    if (pres_dbcs.empty())
@@ -487,6 +498,7 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    HInv->Mult(B2, X2);
    sw_hsolve.Stop();
    iter_hsolve = HInv->GetNumIterations();
+   res_hsolve = HInv->GetFinalNorm();
    H_form->RecoverFEMSolution(X2, resu_gf, un_gf);
 
    un_gf.GetTrueDofs(un);
@@ -495,7 +507,8 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      printf("%d %d\n", iter_spsolve, iter_hsolve);
+      printf("PRES %d %.2E %.2E\n", iter_spsolve, res_spsolve, rtol_spsolve);
+      printf("HELM %d %.2E %.2E\n", iter_hsolve, res_hsolve, rtol_hsolve);
    }
 }
 

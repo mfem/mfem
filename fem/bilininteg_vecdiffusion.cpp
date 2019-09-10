@@ -148,6 +148,110 @@ void VectorDiffusionIntegrator::Setup(const FiniteElementSpace &fes)
                           coeff, pa_data);
 }
 
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAVectorDiffusionDiagonal2D(const int NE,
+                                                const Array<double> &b,
+                                                const Array<double> &g,
+                                                const Vector &op,
+                                                Vector &diag,
+                                                const int d1d = 0,
+                                                const int q1d = 0)
+{
+   // see eg PADiffusionApply2D
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int VDIM = 2;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   // note different shape for op, this is a (symmetric) matrix,
+   // we only store necessary entries
+   auto Q = Reshape(op.Read(), Q1D * Q1D, 3, NE);
+   auto Y = Reshape(diag.ReadWrite(), D1D, D1D, VDIM, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      double temp01[max_Q1D][max_D1D];
+      double temp02[max_Q1D][max_D1D];
+      double temp03[max_Q1D][max_D1D];
+      double temp04[max_Q1D][max_D1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            temp01[qx][dy] = 0.0;
+            temp02[qx][dy] = 0.0;
+            temp03[qx][dy] = 0.0;
+            temp04[qx][dy] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const int q = qx + qy * Q1D;
+               const double O11 = Q(q,0,e);
+               const double O12 = Q(q,1,e);
+               const double O22 = Q(q,2,e);
+               temp01[qx][dy]   += B(qy, dy) * B(qy, dy) * O11;
+               temp02[qx][dy]   += B(qy, dy) * G(qy, dy) * O12;
+               temp03[qx][dy] += G(qy, dy) * B(qy, dy) * O12;
+               temp04[qx][dy]  += G(qy, dy) * G(qy, dy) * O22;
+            }
+         }
+      }
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               Y(dx,dy,0,e) += G(qx, dx) * G(qx, dx) * temp01[qx][dy];
+               Y(dx,dy,0,e) += G(qx, dx) * B(qx, dx) * temp02[qx][dy];
+               Y(dx,dy,0,e) += B(qx, dx) * G(qx, dx) * temp03[qx][dy];
+               Y(dx,dy,0,e) += B(qx, dx) * B(qx, dx) * temp04[qx][dy];
+            }
+            Y(dx,dy,1,e) = Y(dx,dy,0,e);
+         }
+      }
+   });
+}
+
+static void PAVectorDiffusionAssembleDiagonal(const int dim,
+                                              const int D1D,
+                                              const int Q1D,
+                                              const int NE,
+                                              const Array<double> &B,
+                                              const Array<double> &Bt,
+                                              const Vector &op,
+                                              Vector &y)
+{
+   const int DQ = (D1D << 4) | Q1D;
+   if (dim == 2)
+   {
+      switch ((D1D << 4) | Q1D)
+      {
+      case 0x66:
+         return PAVectorDiffusionDiagonal2D<6, 6>(NE, B, Bt, op, y, D1D, Q1D);
+      default:
+         printf("%x, %x(%d): %X", D1D, Q1D, Q1D, DQ);
+      }
+   }
+   MFEM_ABORT("Unknown kernel.");
+}
+
+void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag) const
+{
+   PAVectorDiffusionAssembleDiagonal(dim,
+                                     dofs1D,
+                                     quad1D,
+                                     ne,
+                                     maps->B,
+                                     maps->Bt,
+                                     pa_data,
+                                     diag);
+}
+
 // PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PAVectorDiffusionApply2D(const int NE,

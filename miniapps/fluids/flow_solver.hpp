@@ -150,8 +150,21 @@ protected:
    // Timers
    StopWatch sw_setup, sw_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
 
+   // Printlevels
+   int pl_mvsolve = 0;
+   int pl_spsolve = 0;
+   int pl_hsolve = 0;
+   int pl_amg = 0;
+
+   // Tolerances
+   double rtol_spsolve = 1e-10;
+   double rtol_hsolve = 1e-10;
+
    // Iteration counts
    int iter_spsolve, iter_hsolve;
+
+   // Residuals
+   double res_spsolve, res_hsolve;
 
    // LOR PC related
    ParMesh *pmesh_lor;

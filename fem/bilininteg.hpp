@@ -1931,6 +1931,7 @@ public:
                                        DenseMatrix &elmat);
    using BilinearFormIntegrator::Setup;
    virtual void Setup(const FiniteElementSpace &fes);
+   virtual void AssembleDiagonalPA(Vector &diag) const;
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
@@ -2245,6 +2246,7 @@ public:
                                       const Vector &elfun, Vector &elvect);
    using BilinearFormIntegrator::Setup;
    virtual void Setup(const FiniteElementSpace &fes);
+   virtual void AssembleDiagonalPA(Vector &diag) const;
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
