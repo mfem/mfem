@@ -903,7 +903,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                double neutral_temp,
                                double Di_perp,
                                VectorCoefficient &B3Coef,
-			       bool imex, unsigned int op_flag, int logging)
+                               bool imex, unsigned int op_flag, int logging)
    : TimeDependentOperator(ffes.GetVSize()),
      mpi_(mpi),
      logging_(logging),
@@ -1798,8 +1798,8 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        double neutral_mass, double neutral_temp,
                                        double DiPerp,
                                        VectorCoefficient &B3Coef,
-				       // VectorCoefficient &bHatCoef,
-				       // MatrixCoefficient &PerpCoef,
+                                       // VectorCoefficient &bHatCoef,
+                                       // MatrixCoefficient &PerpCoef,
                                        unsigned int op_flag, int logging)
    : mpi_(mpi),
      neq_(5),
@@ -2391,7 +2391,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    blf_[1] = new ParBilinearForm((*pgf_)[1]->ParFESpace());
    blf_[1]->AddDomainIntegrator(new MassIntegrator(mivi1Coef_));
    // ToDo: add d(gradPCoef)/dn_i
-   
+
    // dOp / dv_i
    blf_[2] = new ParBilinearForm((*pgf_)[2]->ParFESpace());
    blf_[2]->AddDomainIntegrator(new MassIntegrator(mini1Coef_));
@@ -2407,7 +2407,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
 
    // ToDo: add d(gradPCoef)/dT_i
    // ToDo: add d(gradPCoef)/dT_e
-   
+
    /*
    dbfi_.Append(new DiffusionIntegrator(DCoef_));
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
