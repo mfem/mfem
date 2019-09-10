@@ -625,7 +625,7 @@ void kerPostfix(context_t &pp)
    pp.out << "\n})_\";";
    // typedef, hash map and launch
    pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.params<<");";
-   pp.out << "\n\tstatic unordered_map<size_t,kernel::kernel<kernel_t>*> ks;";
+   pp.out << "\n\tstatic std::unordered_map<size_t,kernel::kernel<kernel_t>*> ks;";
    if (not pp.ker.u2d.empty()) { pp.out << "\n\t" << pp.ker.u2d; }
    pp.out << "\n\tconst char *cxx = \"" << pp.ker.mfem_cxx << "\";";
    pp.out << "\n\tconst char *mfem_build_flags = \""
