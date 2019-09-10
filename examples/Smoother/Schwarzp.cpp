@@ -107,13 +107,12 @@ int main(int argc, char *argv[])
    delete mesh;
    // for (int l = 0; l < par_ref_levels; l++) {pmesh->UniformRefinement();}
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
+   // 7. Define a parallel finite element space on the parallel mesh. 
    FiniteElementCollection *fec;
-   fec = new H1_FECollection(order, dim);
+   fec = new H1_FECollection(1, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
+   int mycdofoffset = fespace->GetMyDofOffset();
 
    // Constract an array of dof offsets on all processors
    // cout << "my rank, offset, true offset = " << fespace->GetMyRank() << ", " 
@@ -130,16 +129,8 @@ int main(int argc, char *argv[])
    MPI_Allgather(&dof_offsets[myid],1,MPI_INT,dof_offsets,1,MPI_INT,MPI_COMM_WORLD);
    MPI_Allgather(&tdof_offsets[myid],1,MPI_INT,tdof_offsets,1,MPI_INT,MPI_COMM_WORLD);
 
-
-   cout << "myid, dofoffsets = " << myid << ": " ; dof_offsets.Print() ;
-   cout << "myid, tdofoffsets = " << myid << ": " ; tdof_offsets.Print() ;
-
-
-
-   // if (mpi.Root())
-   // {
-   //    cout << "Number of finite element unknowns: " << size << endl;
-   // }
+   // cout << "myid, dofoffsets = " << myid << ": " ; dof_offsets.Print() ;
+   // cout << "myid, tdofoffsets = " << myid << ": " ; tdof_offsets.Print() ;
 
    HypreParMatrix *Pr = nullptr;
    ParMesh *cpmesh = new ParMesh(*pmesh);
@@ -169,36 +160,155 @@ int main(int argc, char *argv[])
    HypreParMatrix *DofTrueDof;
    DofTrueDof = fespace->Dof_TrueDof_Matrix();
 
-   cout << "myid, DtD size, cDtD size, Pr Size: " << myid <<  ", " 
-                                       << DofTrueDof->Height() << " x " << DofTrueDof->Width() <<  ", " 
-                                       << Pr->Height() << " x " << Pr->Width() << ", " 
-                                       << cDofTrueDof->Height() << " x " << cDofTrueDof->Width() << endl; 
+   // cout << "myid, DtD size, cDtD size, Pr Size: " << myid <<  ", " 
+   //                                     << DofTrueDof->Height() << " x " << DofTrueDof->Width() <<  ", " 
+   //                                     << Pr->Height() << " x " << Pr->Width() << ", " 
+   //                                     << cDofTrueDof->Height() << " x " << cDofTrueDof->Width() << endl; 
 
 
    HypreParMatrix * A = ParMult(DofTrueDof,Pr);
    HypreParMatrix * B = ParMult(A,cDofTrueDof->Transpose());
 
 
-   Pr->Transpose()->Print("H1prTdof_Tdof.mat");
-   A->Transpose()->Print("H1prTDof_Dof.mat");
-   B->Transpose()->Print("H1prDof_Dof.mat");
+   // Pr->Transpose()->Print("H1prTdof_Tdof.mat");
+   // A->Transpose()->Print("H1prTDof_Dof.mat");
+   // B->Transpose()->Print("H1prDof_Dof.mat");
+
+   // Construct the information for the patches. The construction will always use tdofs unless otherwise stated (required)
+
+   // --------------------------------------------------
+   // Step 0: Each rank identifies the number of patches and their unique identifier
+   int mynrpatch = Pr->Width();
+   int mynrvertices = cpmesh->GetNV();
+
+   // The unique identifier should be given in terms of global dofs numbering (not true dofs)
+   // Collect vertex identifiers for each patch and convert them to local numbering. 
+   Array<int> patch_true_ids(mynrpatch);
+   for (int i=0; i<mynrpatch; i++)
+   {
+      int k = tdof_offsets[myid]+i;
+      patch_true_ids[i] = k; 
+   }
+
+   // cout << "rank id: " << myid << ", " << "patch_true_ids: " ; patch_true_ids.Print();
+
+   // Now convert this to global dof numbering
+   Array<int> patch_global_dof_ids(mynrpatch);
+   SparseMatrix diag;
+   cDofTrueDof->Transpose()->GetDiag(diag);
+   for (int i=0; i<mynrpatch; i++)
+   {
+      int *col = diag.GetRowColumns(i);
+      int k = dof_offsets[myid]+*col;
+      patch_global_dof_ids[i] = k; 
+   }
+   cout << "rank id: " << myid << ", " << "patch_global_dof_ids: " ; patch_global_dof_ids.Print();
+
+   // Now we build the list of geometric entities 
+   // For this we use the H1 low order prolongation combined with Dof_TDof matrix (B matrix built above)
+   SparseMatrix H1pr_diag, H1pr_offd;
+   B->Transpose()->GetDiag(H1pr_diag);
+   HYPRE_Int *cmap;
+   B->Transpose()->GetOffd(H1pr_offd,cmap);
+
+   vector<Array<int>> myvertex_contr(mynrpatch);
+   // The non zero columns of the diag matrices are the vertex contributions from this processor
+   int mydofoffset = fespace->GetMyDofOffset();
+   for (int i=0; i<mynrpatch; i++)
+   {
+      // Pickup the row index
+      int row = patch_global_dof_ids[i] - mycdofoffset;
+      int row_size = H1pr_diag.RowSize(row);
+      if (row_size != 0)
+      {
+         myvertex_contr[i].SetSize(row_size);
+         int *col = H1pr_diag.GetRowColumns(row);
+         for (int j = 0; j < row_size; j++)
+         {
+            myvertex_contr[i][j] = col[j] + mydofoffset ;
+         }
+      }
+   }
+
+   vector<Array<int>> vertex_contr(mynrpatch);
+   // The non zero columns of the diag matrices are the vertex contributions from this processor
+   for (int i=0; i<mynrpatch; i++)
+   {
+      // Pickup the row index
+      int row = patch_global_dof_ids[i] - mycdofoffset;
+      int row_size = H1pr_offd.RowSize(row);
+      if (row_size != 0)
+      {
+         vertex_contr[i].SetSize(row_size);
+         int *col = H1pr_offd.GetRowColumns(row);
+         for (int j = 0; j < row_size; j++)
+         {
+            vertex_contr[i][j] = cmap[col[j]] ;
+         }
+      }
+   }
 
 
 
-   // if (myid == 0)
+   // // Finally print the vertices corresponding to each patch
+   // if (myid == 0) 
    // {
-   //    for (int i=0; i<num_procs; i++)
+   //    cout << "my id = " << myid << endl;
+   //    for (int i=0; i<mynrpatch; i++)
    //    {
-   //       cout << dofoffsets[i] << ", ";
+   //    int size = myvertex_contr[i].Size() + vertex_contr[i].Size();
+   //    if (size != 0) 
+   //        cout << "patch no, vertices = " << patch_global_dof_ids[i] << "," ; myvertex_contr[i].Print(); cout << " and " ; vertex_contr[i].Print();
    //    }
-   //    cout << endl;
-   //    for (int i=0; i<num_procs; i++)
-   //    {
-   //       cout << Tdofoffsets[i] << ", ";
-   //    }
-   //    cout << endl;
    // }
-   
+   // MPI_Barrier(MPI_COMM_WORLD);
+   // if (myid == 1) 
+   // {
+   //    cout << "my id = " << myid << endl;
+   //    for (int i=0; i<mynrpatch; i++)
+   //    {
+   //    int size = myvertex_contr[i].Size() + vertex_contr[i].Size();
+   //    if (size != 0) 
+   //        cout << "patch no, vertices = " << patch_global_dof_ids[i] << "," ; myvertex_contr[i].Print(); cout << " and " ; vertex_contr[i].Print();
+   //    }
+   // }
+   // MPI_Barrier(MPI_COMM_WORLD);
+   // if (myid == 2) 
+   // {
+   //    cout << "my id = " << myid << endl;
+   //    for (int i=0; i<mynrpatch; i++)
+   //    {
+   //    int size = myvertex_contr[i].Size() + vertex_contr[i].Size();
+   //    if (size != 0) 
+   //        cout << "patch no, vertices = " << patch_global_dof_ids[i] << "," ; myvertex_contr[i].Print(); cout << " and " ; vertex_contr[i].Print();
+   //    }
+   // }
+
+   // MPI_Barrier(MPI_COMM_WORLD);
+
+
+   // if we want to remove the dublicated (common vertices from the patches) we can use the diag Dof_Tdof matrix
+   DofTrueDof->GetDiag(diag);
+   Array<int> own_vertices;
+   int nv=0;
+   for (int k=0; k<diag.Height(); k++)
+   {
+      int nz = diag.RowSize(k);
+      int i = mydofoffset + k;
+      if (nz != 0)
+      {
+         nv++;
+         own_vertices.SetSize(nv);
+         own_vertices[nv-1] = i;
+      }
+   }
+   cout << "myid = " << myid << " my vertices : "; own_vertices.Print();
+
+   // Array<int> vertex_dofs;
+   // if(myid == 1)
+   // {
+   //    cout << fespace->GetGlobalTDofNumber(0) << endl;
+   // }
 
    // SparseMatrix temp;
    // B->GetDiag(temp);
