@@ -12,8 +12,8 @@
 #ifndef MFEM_LIBCEED_MASS_HPP
 #define MFEM_LIBCEED_MASS_HPP
 
-#include "libceed.hpp"
-#include "fespace.hpp"
+#include "ceed.hpp"
+#include "../fespace.hpp"
 
 namespace mfem
 {

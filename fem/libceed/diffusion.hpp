@@ -12,8 +12,8 @@
 #ifndef MFEM_LIBCEED_DIFF_HPP
 #define MFEM_LIBCEED_DIFF_HPP
 
-#include "libceed.hpp"
-#include "fespace.hpp"
+#include "ceed.hpp"
+#include "../fespace.hpp"
 
 namespace mfem
 {

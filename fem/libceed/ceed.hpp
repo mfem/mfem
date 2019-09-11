@@ -12,8 +12,8 @@
 #ifndef MFEM_LIBCEED_HPP
 #define MFEM_LIBCEED_HPP
 
-#include "gridfunc.hpp"
-#include "fespace.hpp"
+#include "../gridfunc.hpp"
+#include "../fespace.hpp"
 
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
