@@ -114,8 +114,8 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
 #else
    const char *CLANG_FLAGS = "-fPIC";
 #endif
-   const bool clang = !strncmp("clang",cxx,5);
-   const bool nvcc = !strncmp("nvcc",cxx,4);
+   const bool clang = strstr(cxx, "clang");
+   const bool nvcc = strstr(cxx, "nvcc");
    const char *xflags = nvcc ? NVFLAGS : clang ? CLANG_FLAGS : CCFLAGS;
    const char *xlinker = nvcc ? "-Xlinker=" : "-Wl,";
    if (snprintf(command, SZ,
