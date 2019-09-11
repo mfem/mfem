@@ -309,6 +309,7 @@ public:
    void MakeRef(const HypreParMatrix &master);
 
    /// MPI communicator
+   void BuildComm() const { hypre_MatvecCommPkgCreate(A); }
    MPI_Comm GetComm() const { return A->comm; }
 
    /// Typecasting to hypre's hypre_ParCSRMatrix*
