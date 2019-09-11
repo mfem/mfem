@@ -117,9 +117,11 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
    const bool clang = !strncmp("clang",cxx,5);
    const bool nvcc = !strncmp("nvcc",cxx,4);
    const char *xflags = nvcc ? NVFLAGS : clang ? CLANG_FLAGS : CCFLAGS;
+   const char *xlinker = nvcc ? "-Xlinker=" : "-Wl,";
    if (snprintf(command, SZ,
-                "%s %s -shared -I%s/include -o %s %s -L%s/lib -lmfem",
-                cxx, xflags, mfem_install_dir, so, cc, mfem_install_dir)<0)
+                "%s %s -shared -I%s/include -o %s %s -L%s/lib %s-rpath,%s/lib -lmfem",
+                cxx, xflags, mfem_install_dir, so, cc,
+                mfem_install_dir, xlinker, mfem_install_dir)<0)
    { return NULL; }
    if (dbg) { printf("\033[32;1m%s\033[m\n", command); }
    if (system(command)<0) { return NULL; }
