@@ -1370,6 +1370,8 @@ void ParNCMesh::Prune()
 #if 1
 void ParNCMesh::Refine(const Array<Refinement> &refinements)
 {
+   enum { InitRef = 0, NormalRef = 1, GhostRef = 2 };
+
    UpdateLayers();
 
    Array<int> ranks;
@@ -1383,12 +1385,12 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    NeighborRefinementMessage recv_msg;
    recv_msg.SetNCMesh(this);
 
-   // push all refinements in the queue
+   // schedule all initial refinements
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement& ref = refinements[i];
       int elem = leaf_elements[ref.index];
-      ref_queue.Append(Refinement(elem, -ref.ref_type));
+      ref_queue.Append(Refinement(elem, ref.ref_type, InitRef));
 
       // refinements in the boundary layer must be reported to neighbors
       if (element_type[ref.index] == 3)
@@ -1425,29 +1427,44 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          recv_msg.Recv(rank, size, MyComm);
          my_recvd++;
 
+#if 0
          // do the ghost refinements here, and only here
          for (int i = 0; i < recv_msg.Size(); i++)
          {
             RefineElement(recv_msg.elements[i], recv_msg.values[i]);
             DebugRefineDump("ghost");
          }
+#else
+         // schedule ghost refinements
+         for (int i = 0; i < recv_msg.Size(); i++)
+         {
+            ref_queue.Append(
+               Refinement(recv_msg.elements[i], recv_msg.values[i], GhostRef));
+         }
+#endif
       }
 
       send_msg.push_back(NeighborRefinementMessage::Map());
 
       // refine elements
+      int post_cnt = 0;
       while (ref_queue.Size())
       {
+#if 0
          Refinement ref = ref_queue[0];
          ref_queue.DeleteFirst(); // TODO: fix O(N) time
+#else
+         Refinement ref = ref_queue.Last();
+         ref_queue.DeleteLast();
+#endif
 
-         if (ref.ref_type < 0)
+         /*if (ref.ref_type < 0)
          {
             // this is one of the original refinements, message already sent
             RefineElement(ref.index, -ref.ref_type);
             DebugRefineDump("initial");
             continue;
-         }
+         }*/
 
          // if 'ref.index' is a new element, get one of its parents
          int base = ref.index;
@@ -1460,26 +1477,53 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          int type = element_type[base_el->index];
 
          // the rule is: each processor can only touch its own elements
-         if (type & 1)
+         if (ref.flag != GhostRef)
          {
-            RefineElement(ref.index, ref.ref_type);
-            DebugRefineDump("normal");
+            MFEM_ASSERT(type & 1, "type=" << type);
+         }
+         else // GhostRef refinements belong in the ghost layer only
+         {
+            MFEM_ASSERT(type == 2, "type=" << type);
          }
 
-         // refinements in the boundary layer must be reported to neighbors
-         // because our type 3 element is their ghost element
-         if (type == 3)
+         // try to perform the refinement
+         if (RefineElement(ref.index, ref.ref_type))
          {
-            ElementNeighborProcessors(base, ranks);
-            for (int j = 0; j < ranks.Size(); j++)
-            {
-               NeighborRefinementMessage &msg = send_msg.back()[ranks[j]];
-               msg.AddRefinement(ref.index, ref.ref_type);
-               msg.SetNCMesh(this);
+            DebugRefineDump((ref.flag == InitRef) ? "initial" :
+                            (ref.flag == NormalRef) ? "normal" :
+                            (ref.flag == GhostRef) ? "ghost" : "invalid");
 
-               /*std::cout << MyRank << ": sending ref_type " << int(ref.ref_type)
-                         << " to " << ranks[j] << std::endl;*/
+            // refinements in the boundary layer must be reported to neighbors
+            // because our type 3 element is their ghost element
+            if (type == 3 && ref.flag == NormalRef)
+            {
+               ElementNeighborProcessors(base, ranks);
+               for (int j = 0; j < ranks.Size(); j++)
+               {
+                  NeighborRefinementMessage &msg = send_msg.back()[ranks[j]];
+                  msg.AddRefinement(ref.index, ref.ref_type);
+                  msg.SetNCMesh(this);
+
+                  /*std::cout << MyRank << ": sending ref_type " << int(ref.ref_type)
+                            << " to " << ranks[j] << std::endl;*/
+               }
             }
+         }
+         else // forced refinement failed: schedule the refinement for later
+         {
+            postponed.Append(ref);
+
+            std::cout << "Postponing refinement of element " << ref.index
+                      << " (ref_type " << int(ref.ref_type)
+                      << ", flag " << int(ref.flag) << ")." << std::endl;
+         }
+
+         // check if it's time to retry postponed refinements
+         if (!ref_queue.Size() && postponed.Size() && post_cnt == 0)
+         {
+            postponed.Copy(ref_queue);
+            postponed.DeleteAll();
+            post_cnt++;
          }
       }
 

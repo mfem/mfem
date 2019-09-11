@@ -38,8 +38,10 @@ struct Refinement
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
    Refinement() = default;
+   Refinement(int index, char type = 7) : index(index), ref_type(type), flag(0) {}
+   Refinement(int index, char type, int flag) : index(index), ref_type(type), flag(flag) {}
 
-   Refinement(int index, int type = 7) : index(index), ref_type(type) {}
+   char flag; ///< for internal use (TODO: move to implementation)
 };
 
 /// Defines the position of a fine element within a coarse element.
@@ -52,7 +54,6 @@ struct Embedding
    int matrix;
 
    Embedding() = default;
-
    Embedding(int elem, int matrix = 0) : parent(elem), matrix(matrix) {}
 };
 
