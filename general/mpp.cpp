@@ -645,10 +645,6 @@ void jitPrefix(context_t &pp)
       pp.out << "\n#pragma pop";
    }
    pp.out << "\nusing namespace mfem;\n";
-   if (not pp.ker.space.empty())
-   {
-      pp.out << "\n//using namespace mfem::" << pp.ker.space << ";\n";
-   }
    pp.out << "\ntemplate<" << pp.ker.Tparams << ">";
    pp.out << "\nvoid ker_" << pp.ker.name << "(";
    pp.out << pp.ker.params << "){";
@@ -671,7 +667,7 @@ void jitPostfix(context_t &pp)
    pp.out << "\n})_\";";
    // typedef, hash map and launch
    pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.params<<");";
-   pp.out << "\n\tstatic std::unordered_map<size_t,kernel::kernel<kernel_t>*> ks;";
+   pp.out << "\n\tstatic std::unordered_map<size_t,jit::kernel<kernel_t>*> ks;";
    if (not pp.ker.u2d.empty()) { pp.out << "\n\t" << pp.ker.u2d; }
    pp.out << "\n\tconst char *cxx = \"" << pp.ker.mfem_cxx << "\";";
    pp.out << "\n\tconst char *mfem_build_flags = \""
@@ -679,10 +675,10 @@ void jitPostfix(context_t &pp)
    pp.out << "\n\tconst char *mfem_install_dir = \""
           << pp.ker.mfem_install_dir <<  "\";";
    pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
-   pp.out << "\n\tconst size_t args_hash = kernel::hash_args(args_seed,"
+   pp.out << "\n\tconst size_t args_hash = jit::hash_args(args_seed,"
           << pp.ker.Targs << ");";
    pp.out << "\n\tif (!ks[args_hash]){";
-   pp.out << "\n\t\tks[args_hash] = new kernel::kernel<kernel_t>"
+   pp.out << "\n\t\tks[args_hash] = new jit::kernel<kernel_t>"
           << "(cxx, src, mfem_build_flags, mfem_install_dir, "
           << pp.ker.Targs << ");";
    pp.out << "\n\t}";

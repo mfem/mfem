@@ -26,55 +26,44 @@ typedef union {double d; uint64_t u;} union_du;
 namespace mfem
 {
 
-namespace kernel
+namespace jit
 {
 
-// default kernel::hash to std::hash *******************************************
-template <typename T> struct hash
-{
-   size_t operator()(const T& obj) const noexcept
-   {
-      return std::hash<T> {}(obj);
-   }
-};
+// default jit::hash ***********************************************************
+template<typename T> struct hash
+{ size_t operator()(const T &o) const noexcept { return std::hash<T> {}(o); } };
+
 // const char* specialization **************************************************
-static size_t hash_bytes(const char *data, size_t i) noexcept
+static size_t hash_bytes(const char *s, size_t i) noexcept
 {
    size_t hash = 0xcbf29ce484222325ull;
-   constexpr size_t shift = 0x100000001b3ull;
-   for (; i; i--) { hash = (hash*shift)^static_cast<size_t>(data[i]); }
+   constexpr size_t prime = 0x100000001b3ull;
+   for (; i; i--) { hash = (hash*prime)^static_cast<size_t>(s[i]); }
    return hash;
 }
-template <> struct hash<const char*>
+template<> struct hash<const char*>
 {
    size_t operator()(const char *s) const noexcept
-   {
-      return hash_bytes(s, strlen(s));
-   }
+   { return hash_bytes(s, strlen(s)); }
 };
+
 // *****************************************************************************
 // * Hash functions to combine the arguments
 // *****************************************************************************
 template <class T>
 inline size_t hash_combine(const size_t &seed, const T &v) noexcept
-{
-   return seed^(mfem::kernel::hash<T> {}(v)+0x9e3779b9ull+(seed<<6)+(seed>>2));
-}
+{ return seed^(jit::hash<T> {}(v)+0x9e3779b9ull+(seed<<6)+(seed>>2)); }
 template<typename T>
 size_t hash_args(const size_t &seed, const T &that) noexcept
-{
-   return hash_combine(seed,that);
-}
+{ return hash_combine(seed, that); }
 template<typename T, typename... Args>
 size_t hash_args(const size_t &seed, const T &first, Args... args) noexcept
-{
-   return hash_args(hash_combine(seed,first), args...);
-}
+{ return hash_args(hash_combine(seed, first), args...); }
 
 // *****************************************************************************
-// * uint64 ⇒ char*
+// * Fast uint64 to char*
 // *****************************************************************************
-static void uint32str(uint64_t x, char *s, const size_t offset)
+inline void uint32str(uint64_t x, char *s, const size_t offset)
 {
    x=((x&0xFFFFull)<<32)|((x&0xFFFF0000ull)>>16);
    x=((x&0x0000FF000000FF00ull)>>8)|(x&0x000000FF000000FFull)<<16;
@@ -82,12 +71,10 @@ static void uint32str(uint64_t x, char *s, const size_t offset)
    const uint64_t mask = ((x+0x0606060606060606ull)>>4)&0x0101010101010101ull;
    x|=0x3030303030303030ull;
    x+=0x27ull*mask;
-   *(uint64_t*)(s+offset)=x;
+   memcpy(s+offset,&x,sizeof(x));
 }
-static void uint64str(uint64_t num, char *s, const size_t offset =1)
-{
-   uint32str(num>>32, s, offset); uint32str(num&0xFFFFFFFFull, s+8, offset);
-}
+inline void uint64str(uint64_t num, char *s, const size_t offset =1)
+{ uint32str(num>>32, s, offset); uint32str(num&0xFFFFFFFFull, s+8, offset); }
 
 // *****************************************************************************
 // * compile
@@ -99,9 +86,9 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
 {
    char so[21] = "k0000000000000000.so";
    char cc[21] = "k0000000000000000.cc";
-   kernel::uint64str(hash, so);
-   kernel::uint64str(hash, cc);
-   const int fd = open(cc,O_CREAT|O_RDWR,S_IRUSR|S_IWUSR);
+   uint64str(hash, so);
+   uint64str(hash, cc);
+   const int fd = open(cc, O_CREAT|O_RDWR,S_IRUSR|S_IWUSR);
    assert(fd>=0);
    dprintf(fd, src, hash, args...);
    close(fd);
@@ -134,17 +121,15 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
 // *****************************************************************************
 template<typename... Args>
 void *lookup(const bool dbg, const size_t hash, const char *cxx,
-             const char *src, const char *mfem_build_flags,
-             const char *mfem_install_dir,Args... args)
+             const char *src, const char *flags, const char *dir, Args... args)
 {
-   char soName[21] = "k0000000000000000.so";
-   uint64str(hash,soName,1);
-   const int dlflags = RTLD_LAZY;// | RTLD_LOCAL;
-   void *handle = dlopen(soName, dlflags);
-   if (!handle &&
-       !kernel::compile(dbg, hash, cxx, src, mfem_build_flags,
-                        mfem_install_dir, args...)) { return NULL; }
-   if (!(handle=dlopen(soName, dlflags))) { return NULL; }
+   char so[21] = "k0000000000000000.so";
+   uint64str(hash, so);
+   const int dlflags = RTLD_LAZY; // | RTLD_LOCAL;
+   void *handle = dlopen(so, dlflags);
+   if (!handle && !compile(dbg, hash, cxx, src, flags, dir, args...))
+   { return NULL; }
+   if (!(handle=dlopen(so, dlflags))) { return NULL; }
    return handle;
 }
 
@@ -152,17 +137,18 @@ void *lookup(const bool dbg, const size_t hash, const char *cxx,
 // * getSymbol
 // *****************************************************************************
 template<typename kernel_t>
-static kernel_t getSymbol(const size_t hash, void *handle)
+inline kernel_t getSymbol(const bool dbg, const size_t hash, void *handle)
 {
    char symbol[18] = "k0000000000000000";
-   uint64str(hash,symbol,1);
+   uint64str(hash, symbol);
    kernel_t address = (kernel_t) dlsym(handle, symbol);
+   if (dbg && !address) { fprintf(stderr, "%s\n", dlerror()); fflush(0); }
    assert(address);
    return address;
 }
 
 // *****************************************************************************
-// * MFEM RunTime Compilation
+// * MFEM JIT Compilation
 // *****************************************************************************
 template<typename kernel_t> class kernel
 {
@@ -170,30 +156,25 @@ private:
    bool dbg;
    size_t seed, hash;
    void *handle;
-   kernel_t __kernel;
+   kernel_t code;
 public:
    template<typename... Args>
-   kernel(const char *cxx, const char *src, const char *mfem_build_flags,
-          const char* mfem_install_dir, Args... args):
-      dbg(!!getenv("DBG")||!!getenv("dbg")),
-      seed(mfem::kernel::hash<const char*>()(src)),
-      hash(hash_args(seed, cxx, mfem_build_flags, mfem_install_dir, args...)),
-      handle(lookup(dbg, hash, cxx, src,
-                    mfem_build_flags, mfem_install_dir, args...)),
-      __kernel(getSymbol<kernel_t>(hash, handle))
-   {
-   }
+   kernel(const char *cxx, const char *src, const char *flags,
+          const char* dir, Args... args):
+      dbg(!!getenv("MFEM_DBG")||!!getenv("DBG")||!!getenv("dbg")),
+      seed(jit::hash<const char*>()(src)),
+      hash(hash_args(seed, cxx, flags, dir, args...)),
+      handle(lookup(dbg, hash, cxx, src, flags, dir, args...)),
+      code(getSymbol<kernel_t>(dbg, hash, handle)) { }
    template<typename... Args>
-   void operator_void(Args... args) { __kernel(args...); }
+   void operator_void(Args... args) { code(args...); }
    template<typename return_t,typename... Args>
    return_t operator()(const return_t rtn, Args... args)
-   {
-      return __kernel(rtn,args...);
-   }
+   { return code(rtn,args...); }
    ~kernel() { dlclose(handle); }
 };
 
-} // namespace kernel
+} // namespace jit
 
 } // namespace mfem
 
