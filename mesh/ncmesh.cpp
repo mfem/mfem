@@ -626,13 +626,6 @@ bool NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    Element &el = elements[elem];
    MFEM_ASSERT(!el.ref_type, "element already refined.");
 
-   if (el.flag)
-   {
-      // element already flagged for forced refinenement, we need to abort
-      // the current refinement and wait
-      return false;
-   }
-
    // in parallel, don't propagate forced refinements into the ghost layer
    if (IsGhost(el)) { return true; }
    // TODO: ?
@@ -684,9 +677,19 @@ bool NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
       MFEM_ABORT("Unsupported geometry.")
    }
 
+   if (el.flag && el.flag != ref_type) // TODO: check subset
+   {
+      // element already flagged for a different refinenement!
+      // we need to abort the current refinement and postpone it
+      return false;
+   }
+
    // schedule the refinement
-   ref_queue.Append(Refinement(elem, ref_type));
-   el.flag = 1;
+   if (!el.flag)
+   {
+      ref_queue.Append(Refinement(elem, ref_type));
+      el.flag = ref_type;
+   }
 
    return true;
 }
@@ -1550,14 +1553,25 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_queue.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
+   // clear all flags
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      elements[i].flag = 0;
+   }
+
    int total = 0;
    Array<Refinement> last_p;
 
    // keep refining as long as the queue contains something
    while (ref_queue.Size())
    {
+#if 1
       Refinement ref = ref_queue[0];
       ref_queue.DeleteFirst(); // TODO: fix O(N) time
+#else
+      Refinement ref = ref_queue.Last();
+      ref_queue.DeleteLast();
+#endif
 
       if (RefineElement(ref.index, ref.ref_type))
       {
@@ -1578,8 +1592,8 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       sprintf(fname, "ncmesh-%03d.dbg", iter++);
       std::ofstream f(fname);
       Update();
-      DebugDump(f);}*/
-      //DebugCheckConsistency();
+      DebugDump(f);}
+      DebugCheckConsistency();*/
 
       if (!ref_queue.Size() && postponed.Size())
       {
