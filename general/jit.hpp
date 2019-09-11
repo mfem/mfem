@@ -142,7 +142,7 @@ inline kernel_t getSymbol(const bool dbg, const size_t hash, void *handle)
    char symbol[18] = "k0000000000000000";
    uint64str(hash, symbol);
    kernel_t address = (kernel_t) dlsym(handle, symbol);
-   if (dbg && !address) { fprintf(stderr, "%s\n", dlerror()); fflush(0); }
+   if (dbg && !address) { printf("\033[31;1m%s\033[m\n",dlerror()); fflush(0); }
    assert(address);
    return address;
 }
