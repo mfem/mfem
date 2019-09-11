@@ -2794,7 +2794,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                "Only scalar finite elements are supported");
 }
 
-MFEM_KERNEL
+MFEM_JIT
 template<const int T_VDIM, const int T_ND, const int T_NQ>
 void QuadratureInterpolator::Eval2D(
    const int NE,
@@ -2885,7 +2885,7 @@ void QuadratureInterpolator::Eval2D(
    });
 }
 
-MFEM_KERNEL
+MFEM_JIT
 template<const int T_VDIM, const int T_ND, const int T_NQ>
 void QuadratureInterpolator::Eval3D(
    const int NE,

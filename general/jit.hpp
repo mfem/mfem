@@ -8,8 +8,8 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-#ifndef MFEM_KER_HPP
-#define MFEM_KER_HPP
+#ifndef MFEM_JIT_HPP
+#define MFEM_JIT_HPP
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -195,4 +195,4 @@ public:
 
 } // namespace mfem
 
-#endif // MFEM_KERNEL_HPP
+#endif // MFEM_JIT_HPP

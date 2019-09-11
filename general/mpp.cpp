@@ -23,8 +23,8 @@ namespace mfem
 {
 
 // *****************************************************************************
-#define STR(...) #__VA_ARGS__
-#define STRINGIFY(...) STR(__VA_ARGS__)
+#define JIT_STR(...) #__VA_ARGS__
+#define JIT_STRINGIFY(...) JIT_STR(__VA_ARGS__)
 #define DBG(...) { printf("\033[1;33m"); \
                    printf(__VA_ARGS__);  \
                    printf("\033[m");fflush(0); }
@@ -32,7 +32,7 @@ namespace mfem
 // *****************************************************************************
 // * Hashing, used here as well as embedded in the code
 // *****************************************************************************
-#define HASH_COMBINE_ARGS_SRC                                           \
+#define JIT_HASH_COMBINE_ARGS_SRC                                           \
    template <typename T> struct __hash {                                \
       size_t operator()(const T& h) const noexcept {                    \
          return std::hash<T>{}(h); }                                    \
@@ -53,7 +53,7 @@ namespace mfem
 // *****************************************************************************
 // * Dump the hashing source here to be able to use it
 // *****************************************************************************
-HASH_COMBINE_ARGS_SRC
+JIT_HASH_COMBINE_ARGS_SRC
 
 // *****************************************************************************
 // * STRUCTS: argument_t, template_t, kernel_t, context_t and error_t
@@ -83,8 +83,8 @@ struct template_t
 // *****************************************************************************
 struct kernel_t
 {
+   bool __jit;
    bool __embed;
-   bool __kernel;
    bool __template;
    bool __single_source;
    string mfem_cxx;           // holds MFEM_CXX
@@ -400,24 +400,24 @@ bool is_eq(context_t &pp)
 }
 
 // *****************************************************************************
-// * MFEM_KERNEL
+// * MFEM_JIT
 // *****************************************************************************
-void kerHeader(context_t &pp)
+void jitHeader(context_t &pp)
 {
    pp.out << "#include \"general/jit.hpp\"\n";
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";
-   pp.out << STRINGIFY(HASH_COMBINE_ARGS_SRC) << "\n";
+   pp.out << JIT_STRINGIFY(JIT_HASH_COMBINE_ARGS_SRC) << "\n";
    //pp.out << "#line 1 \"" << pp.file <<"\"\n";
 }
 
 // *****************************************************************************
-void kerArgs(context_t &pp)
+void jitArgs(context_t &pp)
 {
-   if (! pp.ker.__kernel) { return; }
-   pp.ker.mfem_cxx = STRINGIFY(MFEM_CXX);
-   pp.ker.mfem_build_flags = STRINGIFY(MFEM_BUILD_FLAGS);
-   pp.ker.mfem_install_dir = STRINGIFY(MFEM_INSTALL_DIR);
+   if (! pp.ker.__jit) { return; }
+   pp.ker.mfem_cxx = JIT_STRINGIFY(MFEM_CXX);
+   pp.ker.mfem_build_flags = JIT_STRINGIFY(MFEM_BUILD_FLAGS);
+   pp.ker.mfem_install_dir = JIT_STRINGIFY(MFEM_INSTALL_DIR);
    pp.ker.Targs.clear();
    pp.ker.Tparams.clear();
    pp.ker.Tformat.clear();
@@ -580,9 +580,9 @@ void kerArgs(context_t &pp)
 }
 
 // *****************************************************************************
-void kerPrefix(context_t &pp)
+void jitPrefix(context_t &pp)
 {
-   if (not pp.ker.__kernel) { return; }
+   if (not pp.ker.__jit) { return; }
    pp.out << "\n\tconst char *src=R\"_(";
    pp.out << "#include <cstdint>";
    pp.out << "\n#include <limits>";
@@ -612,9 +612,9 @@ void kerPrefix(context_t &pp)
 }
 
 // *****************************************************************************
-void kerPostfix(context_t &pp)
+void jitPostfix(context_t &pp)
 {
-   if (not pp.ker.__kernel) { return; }
+   if (not pp.ker.__jit) { return; }
    if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
    if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
    if (pp.block!=-1) { return; }
@@ -643,11 +643,11 @@ void kerPostfix(context_t &pp)
    pp.out << "\n\tks[args_hash]->operator_void(" << pp.ker.args << ");\n";
    // Stop counting the blocks and flush the kernel status
    pp.block--;
-   pp.ker.__kernel = false;
+   pp.ker.__jit = false;
 }
 
 // *****************************************************************************
-string get_array_type(context_t &pp)
+string arg_get_array_type(context_t &pp)
 {
    string type;
    skip_space(pp);
@@ -667,7 +667,7 @@ string get_array_type(context_t &pp)
 }
 
 // *****************************************************************************
-bool kerGetArgs(context_t &pp)
+bool jitGetArgs(context_t &pp)
 {
    bool empty = true;
    argument_t arg;
@@ -722,7 +722,7 @@ bool kerGetArgs(context_t &pp)
       if (id=="Array")
       {
          pp.out << id; arg.type = id;
-         arg.type += get_array_type(pp);
+         arg.type += arg_get_array_type(pp);
          continue;
       }
       if (id=="Vector") { pp.out << id; arg.type = id; continue; }
@@ -765,12 +765,12 @@ bool kerGetArgs(context_t &pp)
       put(pp);
    }
    // Prepare the kernel strings from the arguments
-   kerArgs(pp);
+   jitArgs(pp);
    return empty;
 }
 
 // *****************************************************************************
-void kerAmpFromPtr(context_t &pp)
+void jitAmpFromPtr(context_t &pp)
 {
    for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
    {
@@ -785,22 +785,22 @@ void kerAmpFromPtr(context_t &pp)
       if (is_const && underscore)
       {
          pp.out << "\n\tconst " << type << (is_amp?"&":"*") << name
-                << " = " <<  (is_amp?"*":" ")
+                << " = " <<  (is_amp?"*":"")
                 << " _" << name << ";";
       }
       if (!is_const && underscore)
       {
          pp.out << "\n\t" << type << (is_amp?"&":"*") << name
-                << " = " << (is_amp?"*":" ")
+                << " = " << (is_amp?"*":"")
                 << " _" << name << ";";
       }
    }
 }
 
 // *****************************************************************************
-void __kernel(context_t &pp)
+void __jit(context_t &pp)
 {
-   pp.ker.__kernel = true;
+   pp.ker.__jit = true;
    next(pp);
    // return type should be void for now, or we could hit a 'static'
    // or even a 'template' which triggers the '__single_source' case
@@ -854,7 +854,7 @@ void __kernel(context_t &pp)
    check(pp,pp.in.peek()=='(',"no 1st '(' in kernel");
    put(pp);
    // Get the arguments
-   kerGetArgs(pp);
+   jitGetArgs(pp);
    // Make sure we have hit the last ')' of the arguments
    check(pp,pp.in.peek()==')',"no last ')' in kernel");
    put(pp);
@@ -863,9 +863,9 @@ void __kernel(context_t &pp)
    check(pp,pp.in.peek()=='{',"no compound statement found");
    put(pp);
    // Generate the kernel prefix for this kernel
-   kerPrefix(pp);
+   jitPrefix(pp);
    // Generate the & <=> * transformations
-   kerAmpFromPtr(pp);
+   jitAmpFromPtr(pp);
 }
 
 // *****************************************************************************
@@ -1125,8 +1125,8 @@ void tokens(context_t &pp)
 {
    if (peekn(pp,4) != "MFEM") { return; }
    const string id = get_id(pp);
+   if (id == "MFEM_JIT") { return __jit(pp); }
    if (id == "MFEM_EMBED") { return __embed(pp); }
-   if (id == "MFEM_KERNEL") { return __kernel(pp); }
    if (id == "MFEM_TEMPLATE") { return __template(pp); }
    pp.out << id;
    if (pp.ker.__embed) { pp.ker.embed += id; }
@@ -1144,16 +1144,16 @@ inline bool eof(context_t &pp)
 // *****************************************************************************
 int preprocess(context_t &pp)
 {
-   kerHeader(pp);
+   jitHeader(pp);
    pp.ker.__embed = false;
-   pp.ker.__kernel = false;
+   pp.ker.__jit = false;
    pp.ker.__template = false;
    pp.ker.__single_source = false;
    do
    {
       tokens(pp);
       comments(pp);
-      kerPostfix(pp);
+      jitPostfix(pp);
       embedPostfix(pp);
       templatePostfix(pp);
    }

@@ -289,7 +289,7 @@ static void PAMassApply2D(const int NE,
 }
 #endif
 
-MFEM_KERNEL
+MFEM_JIT
 template<const int T_D1D = 0,
          const int T_Q1D = 0,
          const int T_NBZ = 0>
@@ -558,7 +558,7 @@ static void PAMassApply3D(const int NE,
 }
 #endif
 
-MFEM_KERNEL
+MFEM_JIT
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,

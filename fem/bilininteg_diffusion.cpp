@@ -437,7 +437,7 @@ static void PADiffusionApply2D(const int NE,
 #endif
 
 // Shared memory PA Diffusion Apply 2D kernel
-MFEM_KERNEL
+MFEM_JIT
 template<const int T_D1D = 0,
          const int T_Q1D = 0,
          const int T_NBZ = 0>
@@ -791,7 +791,7 @@ static void PADiffusionApply3D(const int NE,
 #endif
 
 // Shared memory PA Diffusion Apply 3D kernel
-MFEM_KERNEL
+MFEM_JIT
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void SmemPADiffusionApply3D(const int NE,
