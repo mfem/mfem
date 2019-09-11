@@ -986,7 +986,7 @@ void FiniteElementSpace::RefinementOperator
    Mesh* mesh = fespace->GetMesh();
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
 
-   Array<int> dofs, old_dofs, old_vdofs;
+   Array<int> dofs, vdofs, old_dofs, old_vdofs;
 
    int vdim = fespace->GetVDim();
    int old_ndofs = width / vdim;
@@ -1006,11 +1006,13 @@ void FiniteElementSpace::RefinementOperator
 
       for (int vd = 0; vd < vdim; vd++)
       {
+         dofs.Copy(vdofs);
+         fespace->DofsToVDofs(vd, vdofs);
          old_dofs.Copy(old_vdofs);
          fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
          x.GetSubVector(old_vdofs, subX);
          lP.Mult(subX, subY);
-         y.SetSubVector(dofs, subY);
+         y.SetSubVector(vdofs, subY);
       }
    }
 }
