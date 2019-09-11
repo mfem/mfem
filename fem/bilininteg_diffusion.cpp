@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed_diffusion.hpp"
+#include "libceed/diffusion.hpp"
 
 using namespace std;
 
