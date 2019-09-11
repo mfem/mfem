@@ -412,6 +412,17 @@ void jitHeader(context_t &pp)
 }
 
 // *****************************************************************************
+void ppKerDbg(context_t &pp)
+{
+   pp.ker.Targs += "\033[33mTargs\033[m";
+   pp.ker.Tparams += "\033[33mTparams\033[m";
+   pp.ker.Tformat += "\033[33mTformat\033[m";
+   pp.ker.args += "\033[33margs\033[m";
+   pp.ker.params += "\033[33mparams\033[m";
+   pp.ker.args_wo_amp += "\033[33margs_wo_amp\033[m";
+}
+
+// *****************************************************************************
 void jitArgs(context_t &pp)
 {
    if (! pp.ker.__jit) { return; }
@@ -426,22 +437,26 @@ void jitArgs(context_t &pp)
    pp.ker.args_wo_amp.clear();
    pp.ker.d2u.clear();
    pp.ker.u2d.clear();
+   const bool single_source = pp.ker.__single_source;
+   //ppKerDbg(pp);
+   //DBG("%s",single_source?"single_source":"");
    for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
    {
       const argument_t &arg = *ia;
       const bool is_const = arg.is_const;
       const bool is_amp = arg.is_amp;
       const bool is_ptr = arg.is_ptr;
-      const bool is_pointer = is_ptr || is_amp;
+      const bool is_pointer = is_ptr or is_amp;
       const char *type = arg.type.c_str();
       const char *name = arg.name.c_str();
-      const bool underscore = is_pointer;
       const bool has_default_value = arg.has_default_value;
-      // const + !(*|&) => add it to the template args
-      if (is_const && ! is_pointer)
+      //DBG("\narg: %s %s %s%s", is_const?"const":"", type, is_pointer?"*|& ":"",name)
+      // const and not is_pointer => add it to the template args
+      if (is_const and not is_pointer and (has_default_value or not single_source))
       {
+         //DBG(" => 1")
          const bool is_double = strcmp(type,"double")==0;
-         // static_format
+         // Tformat
          if (! pp.ker.Tformat.empty()) { pp.ker.Tformat += ","; }
          if (! has_default_value)
          {
@@ -451,12 +466,12 @@ void jitArgs(context_t &pp)
          {
             pp.ker.Tformat += "%ld";
          }
-         // static_arguments
+         // Targs
          if (! pp.ker.Targs.empty()) { pp.ker.Targs += ","; }
          pp.ker.Targs += is_double?"u":"";
-         pp.ker.Targs += underscore?"_":"";
+         pp.ker.Targs += is_pointer?"_":"";
          pp.ker.Targs += name;
-         // static_parameters
+         // Tparams
          if (!has_default_value)
          {
             if (! pp.ker.Tparams.empty()) { pp.ker.Tparams += ","; }
@@ -464,7 +479,7 @@ void jitArgs(context_t &pp)
             pp.ker.Tparams += is_double?"uint64_t":type;
             pp.ker.Tparams += " ";
             pp.ker.Tparams += is_double?"t":"";
-            pp.ker.Tparams += underscore?"_":"";
+            pp.ker.Tparams += is_pointer?"_":"";
             pp.ker.Tparams += name;
          }
          if (is_double)
@@ -473,12 +488,12 @@ void jitArgs(context_t &pp)
                pp.ker.d2u += "\n\tconst union_du union_";
                pp.ker.d2u += name;
                pp.ker.d2u += " = (union_du){u:t";
-               pp.ker.d2u += underscore?"_":"";
+               pp.ker.d2u += is_pointer?"_":"";
                pp.ker.d2u += name;
                pp.ker.d2u += "};";
 
                pp.ker.d2u += "\n\tconst double ";
-               pp.ker.d2u += underscore?"_":"";
+               pp.ker.d2u += is_pointer?"_":"";
                pp.ker.d2u += name;
                pp.ker.d2u += " = union_";
                pp.ker.d2u += name;
@@ -486,18 +501,45 @@ void jitArgs(context_t &pp)
             }
             {
                pp.ker.u2d += "\n\tconst uint64_t u";
-               pp.ker.u2d += underscore?"_":"";
+               pp.ker.u2d += is_pointer?"_":"";
                pp.ker.u2d += name;
                pp.ker.u2d += " = (union_du){";
-               pp.ker.u2d += underscore?"_":"";
+               pp.ker.u2d += is_pointer?"_":"";
                pp.ker.u2d += name;
                pp.ker.u2d += "}.u;";
             }
          }
       }
-      // !const && !pointer => std args
-      if (!is_const && !is_pointer)
+
+      //
+      if (is_const and not is_pointer and not has_default_value and single_source)
       {
+         //DBG(" => 2")
+         if (! pp.ker.args.empty())
+         {
+            pp.ker.args += ",";
+         }
+         pp.ker.args += name;
+         if (! pp.ker.args_wo_amp.empty())
+         {
+            pp.ker.args_wo_amp += ",";
+         }
+         pp.ker.args_wo_amp += name;
+
+         if (! pp.ker.params.empty())
+         {
+            pp.ker.params += ",";
+         }
+         pp.ker.params += "const ";
+         pp.ker.params += type;
+         pp.ker.params += " ";
+         pp.ker.params += name;
+      }
+
+      // !const && !pointer => std args
+      if (not is_const and not is_pointer)
+      {
+         //DBG(" => 3")
          if (! pp.ker.args.empty())
          {
             pp.ker.args += ",";
@@ -517,8 +559,10 @@ void jitArgs(context_t &pp)
          pp.ker.params += " ";
          pp.ker.params += name;
       }
-      if (is_const && !is_pointer && has_default_value)
+      //
+      if (is_const and not is_pointer and has_default_value)
       {
+         //DBG(" => 4")
          // other_parameters
          if (! pp.ker.params.empty())
          {
@@ -528,7 +572,6 @@ void jitArgs(context_t &pp)
          pp.ker.params += type;
          pp.ker.params += " ";
          pp.ker.params += name;
-         //pp.ker.other_parameters += " =0";
          // other_arguments_wo_amp
          if (! pp.ker.args_wo_amp.empty())
          {
@@ -542,23 +585,25 @@ void jitArgs(context_t &pp)
          }
          pp.ker.args += "0";
       }
+
       // pointer
       if (is_pointer)
       {
+         //DBG(" => 5")
          // other_arguments
          if (! pp.ker.args.empty())
          {
             pp.ker.args += ",";
          }
          pp.ker.args += is_amp?"&":"";
-         pp.ker.args += underscore?"_":"";
+         pp.ker.args += is_pointer?"_":"";
          pp.ker.args += name;
          // other_arguments_wo_amp
          if (! pp.ker.args_wo_amp.empty())
          {
             pp.ker.args_wo_amp += ",";
          }
-         pp.ker.args_wo_amp += underscore?"_":"";
+         pp.ker.args_wo_amp += is_pointer?"_":"";
          pp.ker.args_wo_amp += name;
          // other_parameters
          if (! pp.ker.params.empty())
@@ -568,13 +613,14 @@ void jitArgs(context_t &pp)
          pp.ker.params += is_const?"const ":"";
          pp.ker.params += type;
          pp.ker.params += " *";
-         pp.ker.params += underscore?"_":"";
+         pp.ker.params += is_pointer?"_":"";
          pp.ker.params += name;
       }
    }
    if (pp.ker.__single_source)
    {
-      if (! pp.ker.Tparams.empty()) { pp.ker.Tparams += ","; }
+      //DBG(" => 6")
+      if (not pp.ker.Tparams.empty()) { pp.ker.Tparams += ","; }
       pp.ker.Tparams += pp.ker.Tparams_src;
    }
 }
