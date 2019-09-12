@@ -17,6 +17,10 @@
 
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
+#else
+typedef void* Ceed;
+typedef int CeedInt;
+typedef double CeedScalar;
 #endif
 
 namespace mfem
