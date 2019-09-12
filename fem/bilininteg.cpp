@@ -1874,17 +1874,18 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       int test_dof = test_fe.GetDof();
       double w;
 
-      if (VQ || MQ)
-         mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
-                    "   is not implemented for vector/tensor permeability");
-
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof, dim);
       DenseMatrix test_vshape(test_dof,dim);
+      Vector D(VQ ? VQ->GetVDim() : 0);
+      DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #else
       trial_vshape.SetSize(trial_dof, dim);
       test_vshape.SetSize(test_dof,dim);
+      D.SetSize(VQ ? VQ->GetVDim() : 0);
+      K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
+      DenseMatrix tmp(trial_vshape.Height(), K.Width());
 
       elmat.SetSize (test_dof, trial_dof);
 
@@ -1906,20 +1907,26 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          test_fe.CalcVShape(Trans, test_vshape);
 
          w = ip.weight * Trans.Weight();
-         if (Q)
+         if (MQ)
          {
-            w *= Q -> Eval (Trans, ip);
+            MQ->Eval(K, Trans, ip);
+            K *= w;
+            Mult(test_vshape,K,tmp);
+            AddMultABt(tmp,trial_vshape,elmat);
          }
-
-         for (int d = 0; d < dim; d++)
+         else if (VQ)
          {
-            for (int j = 0; j < test_dof; j++)
+            VQ->Eval(D, Trans, ip);
+            D *= w;
+            AddMultADBt(test_vshape,D,trial_vshape,elmat);
+         }
+         else
+         {
+            if (Q)
             {
-               for (int k = 0; k < trial_dof; k++)
-               {
-                  elmat(j, k) += w * test_vshape(j, d) * trial_vshape(k, d);
-               }
+               w *= Q -> Eval (Trans, ip);
             }
+            AddMult_a_ABt(w,test_vshape,trial_vshape,elmat);
          }
       }
    }
