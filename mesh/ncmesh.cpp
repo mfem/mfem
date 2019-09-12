@@ -1629,7 +1629,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
 //// Derefinement //////////////////////////////////////////////////////////////
 
-int NCMesh::RetrieveNode(const Element &el, int index)
+int NCMesh::RetrieveNode(const Element &el, int index) const
 {
    if (!el.ref_type) { return el.node[index]; }
 
@@ -5487,6 +5487,16 @@ void NCMesh::DebugCheckConsistency() const
       }
    }
    delete [] tmp_vertex;
+}
+
+void NCMesh::PrintElementNodes(std::ostream &os, int elem) const
+{
+   const Element &el = elements[elem];
+   for (int i = 0; i < GI[el.Geom()].nv; i++)
+   {
+      if (i) { os << ", "; }
+      os << RetrieveNode(el, i);
+   }
 }
 #endif
 

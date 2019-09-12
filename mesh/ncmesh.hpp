@@ -598,7 +598,7 @@ protected: // implementation
    void CollectDerefinements(int elem, Array<Connection> &list);
 
    /// Return el.node[index] correctly, even if the element is refined.
-   int RetrieveNode(const Element &el, int index);
+   int RetrieveNode(const Element &el, int index) const;
 
    /// Extended version of find_node: works if 'el' is refined.
    int FindNodeExt(const Element &el, int node, bool abort = true);
@@ -849,6 +849,8 @@ public:
 
    /// Check data structure consistency.
    void DebugCheckConsistency() const;
+
+   void PrintElementNodes(std::ostream &os, int elem) const;
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet

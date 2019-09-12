@@ -1370,7 +1370,7 @@ void ParNCMesh::Prune()
 #if 1
 void ParNCMesh::Refine(const Array<Refinement> &refinements)
 {
-   enum { InitRef = 0, NormalRef = 1, GhostRef = 2 };
+   enum { NormalRef = 0, InitRef = 1, GhostRef = 2 };
 
    UpdateLayers();
 
@@ -1533,7 +1533,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       // get the global status
       MPI_Allreduce(my_cnt, glob_cnt, 2, MPI_INT, MPI_SUM, MyComm);
    }
-   while (glob_sent > glob_recvd);
+   while (glob_sent > glob_recvd || postponed.Size());
 
    Update();
 
@@ -2393,9 +2393,26 @@ void ParNCMesh::ElementSet::Encode(const Array<int> &elements)
    UnflagElements(elements);
 }
 
+#ifdef MFEM_DEBUG
+std::string ParNCMesh::ElementSet::RefPath() const
+{
+   std::ostringstream oss;
+   for (int i = 0; i < ref_path.Size(); i++)
+   {
+      oss << "     elem " << ref_path[i] << " (";
+      ncmesh->PrintElementNodes(oss, ref_path[i]);
+      oss << ")\n";
+   }
+   return oss.str();
+}
+#endif
+
 void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
                                        Array<int> &elements) const
 {
+#ifdef MFEM_DEBUG
+   ref_path.Append(elem);
+#endif
    int is_in_set = data[pos++];
    if (is_in_set)
    {
@@ -2410,13 +2427,25 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
       char ref_type = data[pos++];
       if (!el.ref_type)
       {
-         ncmesh->RefineElement(elem, ref_type);
+         if (!ncmesh->RefineElement(elem, ref_type))
+         {
+            std::cout << "Refinement of element " << elem << " (";
+            ncmesh->PrintElementNodes(std::cout, elem);
+            std::cout << ") failed (ref_type = " << ref_type << ")."
+                      << std::endl;
+         }
       }
-      else { MFEM_ASSERT(ref_type == el.ref_type, "") }
+      else
+      {
+         MFEM_ASSERT(ref_type == el.ref_type, "Path:\n" << RefPath()
+                     << "     ref_type = " << int(ref_type)
+                     << "\n     el.ref_type = " << int(el.ref_type))
+      }
    }
    else if (mask)
    {
-      MFEM_ASSERT(el.ref_type != 0, "missing subtree");
+      MFEM_ASSERT(el.ref_type != 0, "Path not found:\n"
+                  << RefPath() << "     mask = " << mask);
    }
 
    if (mask)
@@ -2429,6 +2458,9 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
          }
       }
    }
+#ifdef MFEM_DEBUG
+   ref_path.DeleteLast();
+#endif
 }
 
 void ParNCMesh::ElementSet::Decode(Array<int> &elements) const

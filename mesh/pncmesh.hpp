@@ -377,6 +377,11 @@ protected: // implementation
 
       void FlagElements(const Array<int> &elements);
       void UnflagElements(const Array<int> &elements);
+
+#ifdef MFEM_DEBUG
+      mutable Array<int> ref_path;
+      std::string RefPath() const;
+#endif
    };
 
    /** Adjust some of the MeshIds before encoding for recipient 'rank', so that
@@ -534,7 +539,9 @@ protected: // implementation
 
    friend class NeighborRowMessage;
 
+#ifdef MFEM_DEBUG
    void DebugRefineDump(const char* text);
+#endif
 };
 
 
