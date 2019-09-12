@@ -1,120 +1,32 @@
 
 #include "mfem.hpp"
+#include "Schwarzp.hpp"
+
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
 
-void get_solution(const Vector &x, double &u, double &d2u);
-double u_exact(const Vector &x);
-double f_exact(const Vector &x);
-
-int isol = 0;
-int dim;
-double omega;
-
-bool its_a_patch(int iv, Array<int> patch_ids);
-
-int main(int argc, char *argv[])
+par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
+    : pmesh(*cpmesh_), ref_levels(ref_levels_)
 {
-   // 1. Initialise MPI
-   MPI_Session mpi(argc, argv);
+   int dim = pmesh.Dimension();
+   // 1. Define an auxiliary parallel H1 finite element space on the parallel mesh. 
+   FiniteElementCollection *fec = new H1_FECollection(1, dim);
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(&pmesh, fec);
+   int mycdofoffset = fespace->GetMyDofOffset(); // dof offset for the coarse mesh
 
-   int num_procs, myid;
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   const char *mesh_file = "../data/one-hex.mesh";
-   int order = 1;
-   int sdim = 2;
-   bool static_cond = false;
-   const char *device_config = "cpu";
-   bool visualization = true;
-   int ref_levels = 1;
-   int par_ref_levels = 1;
-   int initref = 1;
-   // number of wavelengths
-   double k = 0.5;
-   double theta = 0.5;
-   double smth_maxit = 1;
-   StopWatch chrono;
 
-   OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
-   args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
-   args.AddOption(&sdim, "-d", "--dimension", "Dimension");
-   args.AddOption(&ref_levels, "-sr", "--serial-refinements",
-                  "Number of mesh refinements");
-   args.AddOption(&par_ref_levels, "-pr", "--parallel-refinements",
-                  "Number of parallel mesh refinements");
-   args.AddOption(&initref, "-iref", "--init-refinements",
-                  "Number of initial mesh refinements");
-   args.AddOption(&k, "-k", "--wavelengths",
-                  "Number of wavelengths.");
-   args.AddOption(&smth_maxit, "-sm", "--smoother-maxit",
-                  "Number of smoothing steps.");
-   args.AddOption(&theta, "-th", "--theta",
-                  "Dumping parameter for the smoother.");
-   args.AddOption(&isol, "-sol", "--solution",
-                  "Exact Solution: 0) Polynomial, 1) Sinusoidal.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (mpi.Root())
-      {
-         args.PrintUsage(cout);
-      }
-      MPI_Finalize();
-      return 1;
-   }
-   if (mpi.Root())
-   {
-      args.PrintOptions(cout);
-   }
-   omega = 2.0 * M_PI * k;
+   // 2. Store the cDofTrueDof Matrix. Required after the refinements
+   HypreParMatrix * cDofTrueDof = new HypreParMatrix(*fespace->Dof_TrueDof_Matrix());
 
-   Mesh *mesh;
-   // Define a simple square or cubic mesh
-   if (sdim == 2)
-   {
-      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
-      // mesh = new Mesh(1, 1, Element::TRIANGLE, true,1.0, 1.0,false);
-   }
-   else
-   {
-      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0, false);
-   }
-   dim = mesh->Dimension();
+   // 3. Perform the refinements and Get the final Prolongation operator
+   HypreParMatrix *Pr = nullptr;
    for (int i = 0; i < ref_levels; i++)
    {
-      mesh->UniformRefinement();
-   }
-
-   // 6. Define a parallel mesh 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-
-   // 7. Define a parallel finite element space on the parallel mesh. 
-   FiniteElementCollection *fec = new H1_FECollection(1, dim);
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   int mycdofoffset = fespace->GetMyDofOffset();
-
-   HypreParMatrix *Pr = nullptr;
-   ParMesh *cpmesh = new ParMesh(*pmesh);
-   HypreParMatrix *cDofTrueDof;
-   for (int i = 0; i < par_ref_levels; i++)
-   {
       const ParFiniteElementSpace cfespace(*fespace);
-      cDofTrueDof = new HypreParMatrix(*fespace->Dof_TrueDof_Matrix());
-      pmesh->UniformRefinement();
+      pmesh.UniformRefinement();
       // Update fespace
       fespace->Update();
       OperatorHandle Tr(Operator::Hypre_ParCSR);
@@ -132,12 +44,14 @@ int main(int argc, char *argv[])
       }
    }
    Pr->Threshold(0.0);
-   HypreParMatrix *DofTrueDof;
-   DofTrueDof = fespace->Dof_TrueDof_Matrix();
+
+   // 4. Get the DofTrueDof map on this mesh and convert the prolongation matrix
+   // to correspond to global dof numbering (from true dofs to dofs)
+   HypreParMatrix *DofTrueDof = fespace->Dof_TrueDof_Matrix();
    HypreParMatrix * A = ParMult(DofTrueDof,Pr);
-   HypreParMatrix * B = ParMult(A,cDofTrueDof->Transpose());
+   HypreParMatrix * B = ParMult(A,cDofTrueDof->Transpose()); // This should be changed to RAP
 
-
+   // 5. Now we compute the vertice that are owned by the process
 
    SparseMatrix cdiag, coffd;
    cDofTrueDof->GetDiag(cdiag);
@@ -155,17 +69,19 @@ int main(int argc, char *argv[])
       }
    }
 
+   // 6. Compute total number of patches 
+   MPI_Comm comm = pmesh.GetComm(); 
    int mynrpatch = cown_vertices.Size();
    int nrpatch;
    // Compute total number of patches.
-   MPI_Allreduce(&mynrpatch,&nrpatch,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+   MPI_Allreduce(&mynrpatch,&nrpatch,1,MPI_INT,MPI_SUM,comm);
    Array <int> patch_global_dofs_ids(nrpatch);
    // Create a list of patches identifiers to all procs
-   MPI_Gather(&cown_vertices[0],mynrpatch,MPI_INT,&patch_global_dofs_ids[0],mynrpatch,MPI_INT,0,MPI_COMM_WORLD);
-   MPI_Bcast(&patch_global_dofs_ids[0],nrpatch,MPI_INT,0,MPI_COMM_WORLD);
+   // This has to be changed to MPI_allGather
+   MPI_Gather(&cown_vertices[0],mynrpatch,MPI_INT,&patch_global_dofs_ids[0],mynrpatch,MPI_INT,0,comm);
+   MPI_Bcast(&patch_global_dofs_ids[0],nrpatch,MPI_INT,0,comm);
 
-   
-   // Now on each processor we identify the vertices that it owns (fine grid)
+   // On each processor identify the vertices that it owns (fine grid)
    SparseMatrix diag;
    DofTrueDof->GetDiag(diag);
    Array<int> own_vertices;
@@ -182,15 +98,12 @@ int main(int argc, char *argv[])
       }
    }
 
+   // For each vertex construct the list of patches that belongs to
+   // First the patches that are already on the processor
    int mynrvertices = own_vertices.Size();
-   vector<Array<int>> vertex_contr(mynrvertices);
+   vector<Array<int>> own_vertex_contr(mynrvertices);
    SparseMatrix H1pr_diag;
-   SparseMatrix H1pr_offd;
-   int *cmap;
    B->GetDiag(H1pr_diag);
-   B->GetOffd(H1pr_offd,cmap);
-   /* each process will go through its owned vertices and create a list of the patches 
-   that contributes to. First the for the patches that are owned ny the processor */
    for (int i = 0; i<mynrvertices; i++)
    {
       int kv = 0;
@@ -204,15 +117,18 @@ int main(int argc, char *argv[])
          if (its_a_patch(jv,patch_global_dofs_ids))
          {
             kv++;
-            vertex_contr[i].SetSize(kv);
-            vertex_contr[i][kv-1] = jv; 
+            own_vertex_contr[i].SetSize(kv);
+            own_vertex_contr[i][kv-1] = jv; 
          }
       }
    }
    // Next for the patches which are not owned by the processor.
+   SparseMatrix H1pr_offd;
+   int *cmap;
+   B->GetOffd(H1pr_offd,cmap);
    for (int i = 0; i<mynrvertices; i++)
    {
-      int kv = vertex_contr[i].Size();
+      int kv = own_vertex_contr[i].Size();
       int iv = own_vertices[i];
       int row = iv - fespace->GetMyDofOffset();
       int row_size = H1pr_offd.RowSize(row);
@@ -223,91 +139,81 @@ int main(int argc, char *argv[])
          if (its_a_patch(jv,patch_global_dofs_ids))
          {
             kv++;
-            vertex_contr[i].SetSize(kv);
-            vertex_contr[i][kv-1] = jv; 
+            own_vertex_contr[i].SetSize(kv);
+            own_vertex_contr[i][kv-1] = jv; 
          }
       }
    }
-   
-
-   if (myid == 2)
+   // Include also the vertices an each processor that are not owned 
+   // This will be helpfull when creating the list for edges, faces, elements. 
+   // Have to modify above to do this at once
+   int allmyvert = pmesh.GetNV();
+   vert_contr.resize(allmyvert);
+   for (int i = 0; i<mynrvertices; i++)
    {
-      for (int i = 0; i<mynrvertices; i++)
-      {
-         cout << "vertex number, vertex id: " << i << ", " << own_vertices[i] << endl; 
-         cout << "contributes to: " ; vertex_contr[i].Print(); 
-         Array<int> vertex_contr_index(vertex_contr[i].Size());
-         for (int j = 0; j<vertex_contr[i].Size(); j++)
-         {
-            vertex_contr_index[j] = patch_global_dofs_ids.FindSorted(vertex_contr[i][j]);
-         }
-         cout << "contributes to: " ; vertex_contr_index.Print(); 
-      }
-      // cout << "vertex patches no = "; patch_global_dofs_ids.Print();
+      int idx = own_vertices[i]-fespace->GetMyDofOffset();
+      int size = own_vertex_contr[i].Size();
+      vert_contr[idx].SetSize(size);
+      vert_contr[idx] = own_vertex_contr[i];
    }
-
-   ParGridFunction x(fespace);
-   x = 0.0;
-
-   // 16. Send the solution by socket to a GLVis server.
-   if (visualization)
+   // -----------------------------------------------------------------------
+   // done with vertices. Now the edges
+   // -----------------------------------------------------------------------
+   Array<int> edge_vertices;
+   int nedge = pmesh.GetNEdges();
+   edge_contr.resize(nedge);
+   for (int ie = 0; ie < nedge; ie++)
    {
-      int num_procs, myid;
-      MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-      char vishost[] = "localhost";
-      int visport = 19916;
-      // socketstream cmesh_sock(vishost, visport);
-      // cmesh_sock << "parallel " << num_procs << " " << myid << "\n";
-      // cmesh_sock.precision(8);
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock << "parallel " << num_procs << " " << myid << "\n";
-      mesh_sock.precision(8);
-      // socketstream sol_sock(vishost, visport);
-      // sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      // sol_sock.precision(8);
-
-      if (dim == 2)
+      pmesh.GetEdgeVertices(ie, edge_vertices);
+      int nv = edge_vertices.Size(); // always 2 but ok
+      // The edge will contribute to the same patches as its vertices
+      for (int iv = 0; iv < nv; iv++)
       {
-         mesh_sock << "mesh\n"
-                   << *pmesh << "keys nn\n"
-                   << flush;
-         // cmesh_sock << "mesh\n"
-         //            << *cpmesh << "keys nn\n"
-         //            << flush;
-         // sol_sock << "solution\n" << *pmesh << x << "keys mrRljc\n" << flush;
+         int ivert = edge_vertices[iv];
+         edge_contr[ie].Append(vert_contr[ivert]);
       }
-      else
-      {
-         mesh_sock << "mesh\n"
-                   << *pmesh << flush;
-         // sol_sock << "solution\n"
-         //          << *pmesh << x << flush;
-      }
+      edge_contr[ie].Sort();
+      edge_contr[ie].Unique();
    }
-
-   if (visualization)
+   // -----------------------------------------------------------------------
+   // done with edges. Now the faces
+   // -----------------------------------------------------------------------
+   Array<int> face_vertices;
+   int nface = pmesh.GetNFaces();
+   face_contr.resize(nface);
+   for (int ifc = 0; ifc < nface; ifc++)
    {
-      int num_procs, myid;
-      MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-      char vishost[] = "localhost";
-      int visport = 19916;
-      socketstream cmesh_sock(vishost, visport);
-      cmesh_sock << "parallel " << num_procs << " " << myid << "\n";
-      cmesh_sock.precision(8);
-
-      cmesh_sock << "mesh\n" << *cpmesh << "keys nn\n"  << flush;
+      pmesh.GetFaceVertices(ifc, face_vertices);
+      int nv = face_vertices.Size(); 
+      // The face will contribute to the same patches as its vertices
+      for (int iv = 0; iv < nv; iv++)
+      {
+         int ivert = face_vertices[iv];
+         face_contr[ifc].Append(vert_contr[ivert]);
+      }
+      face_contr[ifc].Sort();
+      face_contr[ifc].Unique();
    }
-
-   // 17. Free the used memory.
-   delete fespace;
-   delete fec;
-   delete pmesh;
-
-   return 0;
+   // -----------------------------------------------------------------------
+   // Finally the elements
+   // -----------------------------------------------------------------------
+   Array<int> elem_vertices;
+   int nelem = pmesh.GetNE();
+   elem_contr.resize(nelem);
+   for (int iel = 0; iel < nelem; iel++)
+   {
+      pmesh.GetElementVertices(iel, elem_vertices);
+      int nv = elem_vertices.Size(); 
+      // The element will contribute to the same patches as its vertices
+      for (int iv = 0; iv < nv; iv++)
+      {
+         int ivert = elem_vertices[iv];
+         elem_contr[iel].Append(vert_contr[ivert]);
+      }
+      elem_contr[iel].Sort();
+      elem_contr[iel].Unique();
+   }
 }
-
 
 bool its_a_patch(int iv, Array<int> patch_ids)
 {
