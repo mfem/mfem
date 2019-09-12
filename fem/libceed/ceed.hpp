@@ -21,6 +21,7 @@
 typedef void* Ceed;
 typedef int CeedInt;
 typedef double CeedScalar;
+#define CEED_QFUNCTION(name) int name
 #endif
 
 namespace mfem
