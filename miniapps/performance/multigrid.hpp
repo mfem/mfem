@@ -7,18 +7,32 @@
 namespace mfem
 {
 
-/// Class bundling a hierarchy of meshes, finite element spaces, and essential dof lists
+/// Class bundling a hierarchy of meshes and finite element spaces
 template<typename M, typename FES>
 class GeneralSpaceHierarchy
 {
 private:
    Array<M*> meshes;
    Array<FES*> fespaces;
+   Array<bool> ownedMeshes;
+   Array<bool> ownedFES;
 
 public:
-   GeneralSpaceHierarchy(M* mesh, FES* fespace)
+   GeneralSpaceHierarchy(M* mesh, FES* fespace, bool ownM, bool ownFES)
    {
-      addLevel(mesh, fespace);
+      AddLevel(mesh, fespace, ownM, ownFES);
+   }
+
+   ~GeneralSpaceHierarchy()
+   {
+      for (int i = meshes.Size() - 1; i >= 0; --i)
+      {
+         if (ownedFES[i]) { delete fespaces[i]; }
+         if (ownedMeshes[i]) { delete meshes[i]; }
+      }
+
+      fespaces.DeleteAll();
+      meshes.DeleteAll();
    }
 
    unsigned GetNumLevels() const
@@ -26,80 +40,144 @@ public:
       return meshes.Size();
    }
 
-   unsigned GetFinestLevel() const
+   unsigned GetFinestLevelIndex() const
    {
       return GetNumLevels() - 1;
    }
 
-   void addLevel(M* mesh, FES* fespace)
+   void AddLevel(M* mesh, FES* fespace, bool ownM, bool ownFES)
    {
       meshes.Append(mesh);
       fespaces.Append(fespace);
+      ownedMeshes.Append(ownM);
+      ownedFES.Append(ownFES);
    }
 
-   M* GetMesh(unsigned level) const
+   void AddUniformlyRefinedLevel()
    {
-      MFEM_ASSERT(meshes.Size() > level, "Mesh at given level does not exist.");
-      return meshes[level];
+      M* mesh = new M(*meshes[GetFinestLevelIndex()]);
+      mesh->UniformRefinement();
+      FES* coarseFEspace = fespaces[GetFinestLevelIndex()];
+      FES* fineFEspace = new FES(mesh, coarseFEspace->FEColl());
+      AddLevel(mesh, fineFEspace, true, true);
    }
 
-   M* GetFinestMesh() const
+   void AddOrderRefinedLevel(FiniteElementCollection* fec)
    {
-      return GetMesh(GetFinestLevel());
+      M* mesh = &GetFinestMesh();
+      FES* newFEspace = new FES(mesh, fec);
+      AddLevel(mesh, newFEspace, false, true);
    }
 
-   FES* GetFESpace(unsigned level) const
+   const M& GetMeshAtLevel(unsigned level) const
    {
-      MFEM_ASSERT(fespaces.Size() > level, "FE space at given level does not exist.");
-      return fespaces[level];
+      MFEM_ASSERT(level < meshes.Size(), "Mesh at given level does not exist.");
+      return *meshes[level];
    }
 
-   FES* GetFinestFESpace() const
+   M& GetMeshAtLevel(unsigned level)
    {
-      return GetFESpace(GetFinestLevel());
+      return const_cast<M&>(const_cast<const GeneralSpaceHierarchy*>(this)->GetMeshAtLevel(level));
+   }
+
+   const M& GetFinestMesh() const
+   {
+      return GetMeshAtLevel(GetFinestLevelIndex());
+   }
+
+   M& GetFinestMesh()
+   {
+      return const_cast<M&>(const_cast<const GeneralSpaceHierarchy*>(this)->GetFinestMesh());
+   }
+
+   const FES& GetFESpaceAtLevel(unsigned level) const
+   {
+      MFEM_ASSERT(level < fespaces.Size(), "FE space at given level does not exist.");
+      return *fespaces[level];
+   }
+
+   FES& GetFESpaceAtLevel(unsigned level)
+   {
+      return const_cast<FES&>(const_cast<const GeneralSpaceHierarchy*>(this)->GetFESpaceAtLevel(level));
+   }
+
+   const FES& GetFinestFESpace() const
+   {
+      return GetFESpaceAtLevel(GetFinestLevelIndex());
+   }
+
+   FES& GetFinestFESpace()
+   {
+      return const_cast<FES&>(const_cast<const GeneralSpaceHierarchy*>(this)->GetFinestFESpace());
    }
 };
 
 using SpaceHierarchy = GeneralSpaceHierarchy<Mesh, FiniteElementSpace>;
 using ParSpaceHierarchy = GeneralSpaceHierarchy<ParMesh, ParFiniteElementSpace>;
 
-/// Multigrid operator
-class OperatorMultigrid : public Operator
+/// Abstract multigrid operator
+class MultigridOperator : public Operator
 {
-private:
-   Array<BilinearForm*> forms;
+protected:
    Array<Operator*> operators;
    Array<Solver*> smoothers;
    Array<Operator*> prolongations;
-   Array<Array<int>*> ess_tdof_lists;
+
+   Array<bool> ownedOperators;
+   Array<bool> ownedSmoothers;
+   Array<bool> ownedProlongations;
 
 public:
    /// Constructor
-   OperatorMultigrid(BilinearForm* form, Operator* opr, Solver* coarseSolver, Array<int>* ess_tdof_list)
+   MultigridOperator(Operator* opr, Solver* coarseSolver, bool ownOperator, bool ownSolver)
    {
-      forms.Append(form);
       operators.Append(opr);
       smoothers.Append(coarseSolver);
-      ess_tdof_lists.Append(ess_tdof_list);
+      ownedOperators.Append(ownOperator);
+      ownedSmoothers.Append(ownSolver);
    }
 
-   void AddLevel(BilinearForm* form, Operator* opr, Solver* smoother, Operator* prolongation, Array<int>* ess_tdof_list)
+   ~MultigridOperator()
    {
-      forms.Append(form);
+      for (int i = operators.Size() - 1; i >= 0; --i)
+      {
+         if (ownedOperators[i]) { delete operators[i]; }
+         if (ownedSmoothers[i]) { delete smoothers[i]; }
+      }
+
+      for (int i = prolongations.Size() - 1; i >= 0; --i)
+      {
+         if (ownedProlongations[i]) { delete prolongations[i]; }
+      }
+
+      operators.DeleteAll();
+      smoothers.DeleteAll();
+   }
+
+   virtual void AddLevel(Operator* opr, Solver* smoother, Operator* prolongation, bool ownOperator, bool ownSmoother, bool ownProlongation)
+   {
       operators.Append(opr);
       smoothers.Append(smoother);
       prolongations.Append(prolongation);
-      ess_tdof_lists.Append(ess_tdof_list);
+      ownedOperators.Append(ownOperator);
+      ownedSmoothers.Append(ownSmoother);
+      ownedProlongations.Append(ownProlongation);
    }
 
    /// Returns the number of levels
-   int NumLevels() const
+   unsigned NumLevels() const
    {
       return operators.Size();
    }
 
+   /// Returns the index of the finest level
+   unsigned GetFinestLevelIndex() const
+   {
+      return NumLevels() - 1;
+   }
+
    /// Matrix vector multiplication at given level
-   virtual void MultAtLevel(unsigned level, const Vector &x, Vector &y) const
+   void MultAtLevel(unsigned level, const Vector &x, Vector &y) const
    {
       MFEM_ASSERT(level < NumLevels(), "Level does not exist.");
       operators[level]->Mult(x, y);
@@ -122,7 +200,7 @@ public:
       prolongations[level]->Mult(x, y);
    }
 
-   /// Apply Smoother on given level
+   /// Apply Smoother at given level
    void ApplySmoother(unsigned level, const Vector &x, Vector &y) const
    {
       smoothers[level]->Mult(x, y);
@@ -134,21 +212,14 @@ public:
       ApplySmoother(0, x, y);
    }
 
-   /// Returns form at given level
-   BilinearForm* GetFormAtLevel(unsigned level)
+   /// Returns operator at given level
+   const Operator* GetOperatorAtLevel(unsigned level) const
    {
-      MFEM_ASSERT(forms.Size() > level, "Form at given level do not exist.");
-      return forms[level];
-   }
-
-   /// Returns form at finest level
-   BilinearForm* GetFormAtFinestLevel()
-   {
-      return GetFormAtLevel(forms.Size() - 1);
+      return operators[level];
    }
 
    /// Returns operator at given level
-   const Operator* GetOperatorAtLevel(unsigned level) const
+   Operator* GetOperatorAtLevel(unsigned level)
    {
       return operators[level];
    }
@@ -159,35 +230,36 @@ public:
       return GetOperatorAtLevel(operators.Size() - 1);
    }
 
-   /// Returns operator at given level
-   Solver* GetSmootherAtLevel(unsigned level)
+   /// Returns operator at finest level
+   Operator* GetOperatorAtFinestLevel()
+   {
+      return GetOperatorAtLevel(operators.Size() - 1);
+   }
+
+   /// Returns smoother at given level
+   const Solver* GetSmootherAtLevel(unsigned level) const
    {
       return smoothers[level];
    }
 
-   Array<int>* GetEssentialDoFsAtLevel(unsigned level) const
+   /// Returns smoother at given level
+   Solver* GetSmootherAtLevel(unsigned level)
    {
-      MFEM_ASSERT(ess_tdof_lists.Size() > level, "Ess. dofs at given level do not exist.");
-      return ess_tdof_lists[level];
-   }
-
-   Array<int>* GetEssentialDoFsAtFinestLevel() const
-   {
-      return GetEssentialDoFsAtLevel(ess_tdof_lists.Size() - 1);
+      return smoothers[level];
    }
 };
 
 // Multigrid solver
-class SolverMultigrid : public Solver
+class MultigridSolver : public Solver
 {
 private:
-   OperatorMultigrid& opr;
+   MultigridOperator& opr;
 
    mutable Array<Vector*> X;
    mutable Array<Vector*> Y;
    mutable Array<Vector*> R;
 
-   void cycle(unsigned level) const
+   void Cycle(unsigned level) const
    {
       if (level == 0)
       {
@@ -211,16 +283,16 @@ private:
       // Corrections
       for (int correction = 0; correction < 1; ++correction)
       {
-         cycle(level - 1);
+         Cycle(level - 1);
       }
 
       // Prolongate
       opr.InterpolateFrom(level - 1, *Y[level - 1], *R[level]);
 
-      Array<int>& essentialDofs = *opr.GetEssentialDoFsAtLevel(level);
-      auto I = essentialDofs.Read();
-      auto T = R[level]->Write();
-      MFEM_FORALL(i, essentialDofs.Size(), T[I[i]] = 0.0; );
+      // Array<int>& essentialDofs = *opr.GetEssentialDoFsAtLevel(level);
+      // auto I = essentialDofs.Read();
+      // auto T = R[level]->Write();
+      // MFEM_FORALL(i, essentialDofs.Size(), T[I[i]] = 0.0; );
 
       // Add update
       *Y[level] += *R[level];
@@ -230,7 +302,7 @@ private:
    }
 
 public:
-   SolverMultigrid(OperatorMultigrid &opr_)
+   MultigridSolver(MultigridOperator &opr_)
       : opr(opr_)
    {
       for (unsigned level = 0; level < opr.NumLevels(); ++level)
@@ -242,27 +314,24 @@ public:
       }
    }
 
-   ~SolverMultigrid()
+   ~MultigridSolver()
    {
       for (unsigned i = 0; i < X.Size(); ++i)
       {
          delete X[i];
          X[i] = nullptr;
-         
          delete Y[i];
          Y[i] = nullptr;
-
          delete R[i];
          R[i] = nullptr;
       }
    }
 
-   /// Matrix vector multiplication on finest level
    virtual void Mult(const Vector &x, Vector &y) const override
    {
       *X.Last() = x;
       *Y.Last() = y;
-      cycle(opr.NumLevels() - 1);
+      Cycle(opr.NumLevels() - 1);
       y = *Y.Last();
    }
 
