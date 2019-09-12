@@ -59,6 +59,7 @@ FlowSolver::FlowSolver(ParMesh *mesh, int order, double kin_vis)
    un_gf = 0.0;
 
    Lext_gf.SetSpace(vfes);
+   curlu_gf.SetSpace(vfes);
    curlcurlu_gf.SetSpace(vfes);
    FText_gf.SetSpace(vfes);
    resu_gf.SetSpace(vfes);
@@ -216,7 +217,7 @@ void FlowSolver::Setup(double dt)
    MvInv->SetOperator(*Mv);
    MvInv->SetPreconditioner(*MvInvPC);
    MvInv->SetPrintLevel(pl_mvsolve);
-   MvInv->SetRelTol(1e-10);
+   MvInv->SetRelTol(1e-12);
    MvInv->SetMaxIter(200);
 
    if (partial_assembly)
@@ -241,13 +242,13 @@ void FlowSolver::Setup(double dt)
       SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
-   SpInv = new GMRESSolver(MPI_COMM_WORLD);
+   SpInv = new CGSolver(MPI_COMM_WORLD);
    SpInv->iterative_mode = true;
    SpInv->SetOperator(*Sp);
    SpInv->SetPreconditioner(*SpInvOrthoPC);
    SpInv->SetPrintLevel(pl_spsolve);
    SpInv->SetRelTol(rtol_spsolve);
-   SpInv->SetKDim(30);
+   // SpInv->SetKDim(30);
    SpInv->SetMaxIter(200);
 
    if (partial_assembly)
@@ -275,7 +276,8 @@ void FlowSolver::Setup(double dt)
    HInv->SetRelTol(rtol_hsolve);
    HInv->SetMaxIter(200);
 
-   if (0) {
+   if (0)
+   {
       // Timing test
       StopWatch t0, t1;
       int numit = 10;
@@ -364,10 +366,9 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    // Fext.Set(ab1, Nun);
    // Fext.Add(ab2, Nunm1);
    // Fext.Add(ab3, Nunm2);
-   MFEM_FORALL_SWITCH(false,
-                      i,
-                      Fext.Size(),
-                      Fext[i] = ab1 * Nun[i] + ab2 * Nunm1[i] + ab3 * Nunm2[i];);
+   MFEM_FORALL(i,
+               Fext.Size(),
+               Fext[i] = ab1 * Nun[i] + ab2 * Nunm1[i] + ab3 * Nunm2[i];);
 
    Nunm2 = Nunm1;
    Nunm1 = Nun;
@@ -383,11 +384,9 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    double bd1idt = -bd1 / dt;
    double bd2idt = -bd2 / dt;
    double bd3idt = -bd3 / dt;
-   MFEM_FORALL_SWITCH(false,
-                      i,
-                      Fext.Size(),
-                      Fext[i] += bd1idt * un[i] + bd2idt * unm1[i]
-                                 + bd3idt * unm2[i];);
+   MFEM_FORALL(i,
+               Fext.Size(),
+               Fext[i] += bd1idt * un[i] + bd2idt * unm1[i] + bd3idt * unm2[i];);
 
    sw_extrap.Stop();
 
@@ -400,13 +399,15 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    // Lext.Set(ab1, un);
    // Lext.Add(ab2, unm1);
    // Lext.Add(ab3, unm2);
-   MFEM_FORALL_SWITCH(false,
-                      i,
-                      Lext.Size(),
-                      Lext[i] = ab1 * un[i] + ab2 * unm1[i] + ab3 * unm2[i];);
+   MFEM_FORALL(i,
+               Lext.Size(),
+               Lext[i] = ab1 * un[i] + ab2 * unm1[i] + ab3 * unm2[i];);
 
    Lext_gf.SetFromTrueDofs(Lext);
-   ComputeCurlCurl(Lext_gf, curlcurlu_gf);
+   // ComputeCurlCurl(Lext_gf, curlcurlu_gf);
+   ComputeCurl2D(Lext_gf, curlu_gf);
+   ComputeCurl2D(curlu_gf, curlcurlu_gf, true);
+
    curlcurlu_gf.GetTrueDofs(Lext);
    Lext *= kin_vis;
 
@@ -582,6 +583,108 @@ void FlowSolver::ComputeCurlCurl(ParGridFunction &u, ParGridFunction &ccu)
    cu_gfcoeff.SetGridFunction(&cu);
    cu_gfcoeff.assume_scalar = true;
    ccu.ProjectDiscCoefficient(cu_gfcoeff, GridFunction::AvgType::ARITHMETIC);
+}
+
+void FlowSolver::ComputeCurl2D(ParGridFunction &u,
+                                   ParGridFunction &cu,
+                                   bool assume_scalar)
+{
+   FiniteElementSpace *fes = u.FESpace();
+
+   // AccumulateAndCountZones
+   Array<int> zones_per_vdof;
+   zones_per_vdof.SetSize(fes->GetVSize());
+   zones_per_vdof = 0;
+
+   cu = 0.0;
+
+   // Local interpolation
+   int elndofs;
+   Array<int> vdofs;
+   Vector vals;
+   Vector loc_data;
+   int vdim = fes->GetVDim();
+   DenseMatrix grad_hat;
+   DenseMatrix dshape;
+   DenseMatrix grad;
+   Vector curl;
+
+   for (int e = 0; e < fes->GetNE(); ++e)
+   {
+      fes->GetElementVDofs(e, vdofs);
+      u.GetSubVector(vdofs, loc_data);
+      vals.SetSize(vdofs.Size());
+      ElementTransformation *tr = fes->GetElementTransformation(e);
+      const FiniteElement *el = fes->GetFE(e);
+      elndofs = el->GetDof();
+      int dim = el->GetDim();
+      dshape.SetSize(elndofs, dim);
+
+      for (int dof = 0; dof < elndofs; ++dof)
+      {
+         // Project
+         const IntegrationPoint &ip = el->GetNodes().IntPoint(dof);
+         tr->SetIntPoint(&ip);
+
+         // Eval
+         // GetVectorGradientHat
+         el->CalcDShape(tr->GetIntPoint(), dshape);
+         grad_hat.SetSize(vdim, dim);
+         DenseMatrix loc_data_mat(loc_data.GetData(), elndofs, vdim);
+         MultAtB(loc_data_mat, dshape, grad_hat);
+
+         const DenseMatrix &Jinv = tr->InverseJacobian();
+         grad.SetSize(grad_hat.Height(), Jinv.Width());
+         Mult(grad_hat, Jinv, grad);
+
+         if (assume_scalar)
+         {
+            curl.SetSize(2);
+            curl(0) = grad(0, 1);
+            curl(1) = -grad(0, 0);
+         }
+         else
+         {
+            curl.SetSize(2);
+            curl(0) = grad(1, 0) - grad(0, 1);
+            curl(1) = 0.0;
+         }
+
+         for (int j = 0; j < curl.Size(); ++j)
+         {
+            vals(elndofs * j + dof) = curl(j);
+         }
+      }
+
+      // Accumulate values in all dofs, count the zones.
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         int ldof = vdofs[j];
+         cu(ldof) += vals[j];
+         zones_per_vdof[ldof]++;
+      }
+   }
+
+   // Communication
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = u.ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(zones_per_vdof);
+
+   // Accumulate for all vdofs.
+   gcomm.Reduce<double>(cu.GetData(), GroupCommunicator::Sum);
+   gcomm.Bcast<double>(cu.GetData());
+
+   // Compute means
+   for (int i = 0; i < cu.Size(); i++)
+   {
+      const int nz = zones_per_vdof[i];
+      if (nz)
+      {
+         cu(i) /= nz;
+      }
+   }
 }
 
 void FlowSolver::AddVelDirichetBC(

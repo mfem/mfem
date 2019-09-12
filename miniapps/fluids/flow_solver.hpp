@@ -47,6 +47,7 @@ protected:
    void PrintInfo();
    void SetTimeIntegrationCoefficients(int step);
    void ComputeCurlCurl(ParGridFunction &u, ParGridFunction &ccu);
+   void ComputeCurl2D(ParGridFunction &u, ParGridFunction &cu, bool assume_scalar = false);
    void Orthogonalize(Vector &v);
    void MeanZero(ParGridFunction &v);
 
@@ -104,7 +105,7 @@ protected:
 
    HypreBoomerAMG *SpInvPC;
    OrthoSolver *SpInvOrthoPC;
-   GMRESSolver *SpInv;
+   CGSolver *SpInv;
 
    Solver *HInvPC;
    CGSolver *HInv;
@@ -114,7 +115,7 @@ protected:
 
    Vector pn, resp, FText_bdr, g_bdr;
 
-   ParGridFunction un_gf, curlcurlu_gf, Lext_gf, FText_gf, resu_gf;
+   ParGridFunction un_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf, resu_gf;
 
    ParGridFunction pn_gf, resp_gf;
 
