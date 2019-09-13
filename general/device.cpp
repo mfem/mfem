@@ -292,7 +292,7 @@ void Device::Setup(const int device)
    {
       if (!ceed_option)
       {
-         CeedDeviceSetup("/cpu/self/ref/blocked");
+         CeedDeviceSetup("/cpu/self/opt/blocked");
       }
       else
       {
