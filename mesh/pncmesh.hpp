@@ -456,30 +456,30 @@ protected: // implementation
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
     *  the processor boundary. This keeps their ghost layers synchronized.
     */
-   class NeighborRefinementMessage : public ElementValueMessage<char, true, 289>
+   class RefinementMessage : public ElementValueMessage<char, true, 289>
    {
    public:
       void AddRefinement(int elem, char ref_type) { Add(elem, ref_type); }
-      typedef std::map<int, NeighborRefinementMessage> Map;
+      typedef std::map<int, RefinementMessage> Map;
    };
 
    /** Used by ParNCMesh::Derefine() to keep the ghost layers synchronized.
     */
-   class NeighborDerefinementMessage : public ElementValueMessage<int, false, 290>
+   class DerefinementMessage : public ElementValueMessage<int, false, 290>
    {
    public:
       void AddDerefinement(int elem, int rank) { Add(elem, rank); }
-      typedef std::map<int, NeighborDerefinementMessage> Map;
+      typedef std::map<int, DerefinementMessage> Map;
    };
 
    /** Used in Step 2 of Rebalance() to synchronize new rank assignments in
     *  the ghost layer.
     */
-   class NeighborElementRankMessage : public ElementValueMessage<int, false, 156>
+   class ElementRankMessage : public ElementValueMessage<int, false, 156>
    {
    public:
       void AddElementRank(int elem, int rank) { Add(elem, rank); }
-      typedef std::map<int, NeighborElementRankMessage> Map;
+      typedef std::map<int, ElementRankMessage> Map;
    };
 
    /** Used by Rebalance() to send elements and their ranks. Note that

@@ -1378,11 +1378,11 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    ranks.Reserve(64);
 
    // big container for all messages we send (the list is for iterations)
-   std::list<NeighborRefinementMessage::Map> send_msg;
-   send_msg.push_back(NeighborRefinementMessage::Map());
+   std::list<RefinementMessage::Map> send_msg;
+   send_msg.push_back(RefinementMessage::Map());
 
    // a single instance is reused for all incoming messages
-   NeighborRefinementMessage recv_msg;
+   RefinementMessage recv_msg;
    recv_msg.SetNCMesh(this);
 
    // schedule all initial refinements
@@ -1398,7 +1398,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          ElementNeighborProcessors(elem, ranks);
          for (int j = 0; j < ranks.Size(); j++)
          {
-            NeighborRefinementMessage &msg = send_msg.back()[ranks[j]];
+            RefinementMessage &msg = send_msg.back()[ranks[j]];
             msg.AddRefinement(elem, ref.ref_type);
             msg.SetNCMesh(this);
 
@@ -1415,15 +1415,18 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    my_sent = my_recvd = 0;
 
    // send the initial batch of messages
-   NeighborRefinementMessage::IsendAll(send_msg.back(), MyComm);
+   RefinementMessage::IsendAll(send_msg.back(), MyComm);
    my_sent += send_msg.back().size();
 
    do
    {
       // check for incoming refinement messages
       int rank, size;
-      while (NeighborRefinementMessage::IProbe(rank, size, MyComm))
+      while (RefinementMessage::IProbe(rank, size, MyComm))
       {
+         std::cout << "Rank " << MyRank << " received message from " << rank
+                   << ", size " << size << std::endl;
+
          recv_msg.Recv(rank, size, MyComm);
          my_recvd++;
 
@@ -1444,7 +1447,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
 #endif
       }
 
-      send_msg.push_back(NeighborRefinementMessage::Map());
+      send_msg.push_back(RefinementMessage::Map());
 
       // refine elements
       int post_cnt = 0;
@@ -1500,7 +1503,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
                ElementNeighborProcessors(base, ranks);
                for (int j = 0; j < ranks.Size(); j++)
                {
-                  NeighborRefinementMessage &msg = send_msg.back()[ranks[j]];
+                  RefinementMessage &msg = send_msg.back()[ranks[j]];
                   msg.AddRefinement(ref.index, ref.ref_type);
                   msg.SetNCMesh(this);
 
@@ -1527,7 +1530,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          }
       }
 
-      NeighborRefinementMessage::IsendAll(send_msg.back(), MyComm);
+      RefinementMessage::IsendAll(send_msg.back(), MyComm);
       my_sent += send_msg.back().size();
 
       // get the global status
@@ -1540,7 +1543,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    // make sure we can delete the send buffers
    for (auto it = send_msg.begin(); it != send_msg.end(); ++it)
    {
-      NeighborRefinementMessage::WaitAllSent(*it);
+      RefinementMessage::WaitAllSent(*it);
    }
 
    if (MyRank == 0)
@@ -1715,7 +1718,7 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
 
    // *** STEP 2: derefine now, communication similar to Refine() ***
 
-   NeighborDerefinementMessage::Map send_deref;
+   DerefinementMessage::Map send_deref;
 
    // create derefinement messages to all neighbors (NOTE: some may be empty)
    Array<int> neighbors;
@@ -1744,7 +1747,7 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
          }
       }
    }
-   NeighborDerefinementMessage::IsendAll(send_deref, MyComm);
+   DerefinementMessage::IsendAll(send_deref, MyComm);
 
    // restore old (pre-redistribution) element indices, for SetDerefMatrixCodes
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -1774,9 +1777,9 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
    for (int j = 0; j < neighbors.Size(); j++)
    {
       int rank, size;
-      NeighborDerefinementMessage::Probe(rank, size, MyComm);
+      DerefinementMessage::Probe(rank, size, MyComm);
 
-      NeighborDerefinementMessage msg;
+      DerefinementMessage msg;
       msg.SetNCMesh(this);
       msg.Recv(rank, size, MyComm);
 
@@ -1825,7 +1828,7 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
    }
 
    // make sure we can delete all send buffers
-   NeighborDerefinementMessage::WaitAllSent(send_deref);
+   DerefinementMessage::WaitAllSent(send_deref);
 }
 
 
@@ -2021,7 +2024,7 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
    // *** STEP 1: communicate new rank assignments for the ghost layer ***
 
-   NeighborElementRankMessage::Map send_ghost_ranks, recv_ghost_ranks;
+   ElementRankMessage::Map send_ghost_ranks, recv_ghost_ranks;
 
    ghost_layer.Sort([&](const int a, const int b)
    {
@@ -2048,7 +2051,7 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
          NeighborExpand(rank_elems, rank_neighbors, &boundary_layer);
 
          // send a message with new rank assignments within 'rank_neighbors'
-         NeighborElementRankMessage& msg = send_ghost_ranks[rank];
+         ElementRankMessage& msg = send_ghost_ranks[rank];
          msg.SetNCMesh(this);
 
          msg.Reserve(rank_neighbors.Size());
@@ -2068,13 +2071,13 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
       }
    }
 
-   NeighborElementRankMessage::RecvAll(recv_ghost_ranks, MyComm);
+   ElementRankMessage::RecvAll(recv_ghost_ranks, MyComm);
 
    // read new ranks for the ghost layer from messages received
-   NeighborElementRankMessage::Map::iterator it;
+   ElementRankMessage::Map::iterator it;
    for (it = recv_ghost_ranks.begin(); it != recv_ghost_ranks.end(); ++it)
    {
-      NeighborElementRankMessage &msg = it->second;
+      ElementRankMessage &msg = it->second;
       for (int i = 0; i < msg.Size(); i++)
       {
          int ghost_index = elements[msg.elements[i]].index;
@@ -2204,8 +2207,8 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
    Update();
 
    // make sure we can delete all send buffers
-   NeighborElementRankMessage::WaitAllSent(send_ghost_ranks);
-   NeighborElementRankMessage::WaitAllSent(send_elems);
+   ElementRankMessage::WaitAllSent(send_ghost_ranks);
+   ElementRankMessage::WaitAllSent(send_elems);
 }
 
 
@@ -2427,13 +2430,14 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
       char ref_type = data[pos++];
       if (!el.ref_type)
       {
-         if (!ncmesh->RefineElement(elem, ref_type))
-         {
-            std::cout << "Refinement of element " << elem << " (";
-            ncmesh->PrintElementNodes(std::cout, elem);
-            std::cout << ") failed (ref_type = " << ref_type << ")."
-                      << std::endl;
-         }
+         bool ret = ncmesh->RefineElement(elem, ref_type);
+
+         ParNCMesh* pncmesh = (ParNCMesh*) ncmesh;
+         std::cout << "Rank " << pncmesh->MyRank
+                   << ": refinement of element " << elem << " (";
+         ncmesh->PrintElementNodes(std::cout, elem);
+         std::cout << ") " << (ret ? "succeeded" : "FAILED")
+                   << " (ref_type = " << int(ref_type) << ")." << std::endl;
       }
       else
       {
