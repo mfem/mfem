@@ -231,6 +231,7 @@ void ParGridFunction::ExchangeFaceNbrData()
       send_data[i] = h_data[send_ldof[i]];
    }
 
+   double *h_face_nbr_data = face_nbr_data.HostWrite();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
@@ -240,7 +241,7 @@ void ParGridFunction::ExchangeFaceNbrData()
                 send_offset[fn+1] - send_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
 
-      MPI_Irecv(&face_nbr_data(recv_offset[fn]),
+      MPI_Irecv(&h_face_nbr_data[recv_offset[fn]],
                 recv_offset[fn+1] - recv_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
    }
