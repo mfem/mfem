@@ -10,15 +10,41 @@ using namespace mfem;
 struct par_patch_nod_info 
 {
    int mynrpatch;
+   int nrpatch;
    vector<Array<int>> vert_contr;
    vector<Array<int>> edge_contr;
    vector<Array<int>> face_contr;
    vector<Array<int>> elem_contr;
+   Array<int> patch_natural_order_idx;
+   Array<int> patch_global_dofs_ids;
    // constructor
    par_patch_nod_info(ParMesh * cpmesh_, int ref_levels_);
+   // Print
+   void Print(int rank_id);
 private:
    int ref_levels=0;;
    ParMesh pmesh;
+   FiniteElementCollection *aux_fec=nullptr;
+   ParFiniteElementSpace *aux_fespace=nullptr;
+};
+struct par_patch_dof_info 
+{
+   MPI_Comm comm = MPI_COMM_WORLD;
+   int mynrpatch;
+   int nrpatch;
+   vector<Array<int>> patch_tdofs;
+   // constructor
+   par_patch_dof_info(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace);
+   void Print();
+};
+
+struct par_patch_assembly
+{
+   int mynrpatch;
+   int nrpatch;
+   vector<Array<int>> patch_tdofs;
+   // constructor
+   par_patch_assembly(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace);
 };
 
 

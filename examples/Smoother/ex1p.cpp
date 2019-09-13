@@ -106,57 +106,22 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-   par_patch_nod_info * test = new par_patch_nod_info(&cpmesh,par_ref_levels);
-
-
 
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
+   // FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    int mycdofoffset = fespace->GetMyDofOffset();
 
+   // par_patch_dof_info * test = new par_patch_dof_info(&cpmesh,par_ref_levels, fespace);
+
+   par_patch_assembly * test = new par_patch_assembly(&cpmesh,par_ref_levels, fespace);
    
-   if (myid == 1)
-   {
-      for (int i = 0; i<pmesh->GetNV(); i++)
-      {
-         cout << "vertex number, vertex id: " << i << ", " << i+fespace->GetMyDofOffset() << endl; 
-         cout << "contributes to: " ; test->vert_contr[i].Print(); 
-      }
-   }
-
-   if (myid == 1)
-   {
-      Array<int>edge_vertices;
-      for (int i = 0; i<pmesh->GetNEdges(); i++)
-      {
-         pmesh->GetEdgeVertices(i, edge_vertices);
-         cout << "edge vertices are: " << edge_vertices[0]+fespace->GetMyDofOffset() << " and " <<  edge_vertices[1]+fespace->GetMyDofOffset() << endl;
-         cout << "edge number: " << i; 
-         cout << " contributes to: " ; test->edge_contr[i].Print(); cout << endl;
-      }
-   }
-   int elem_offset;
-   int nelem = pmesh->GetNE();
-   MPI_Scan(&nelem, &elem_offset, 1, MPI_INT, MPI_SUM,MPI_COMM_WORLD);
-   elem_offset -= nelem;
-   if (myid == 1)
-   {
-      for (int i = 0; i<nelem; i++)
-      {
-         cout << "Element number: " << i+elem_offset;
-         cout << " contributes to: " ; test->elem_contr[i].Print(); cout << endl;
-      }
-   }
-
    ParGridFunction x(fespace);
    x = 0.0;
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
-      int num_procs, myid;
-      MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
       char vishost[] = "localhost";
       int visport = 19916;
       socketstream mesh_sock(vishost, visport);
@@ -178,9 +143,6 @@ int main(int argc, char *argv[])
 
    if (visualization)
    {
-      int num_procs, myid;
-      MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
       char vishost[] = "localhost";
       int visport = 19916;
       socketstream cmesh_sock(vishost, visport);
@@ -189,6 +151,9 @@ int main(int argc, char *argv[])
 
       cmesh_sock << "mesh\n" << cpmesh << "keys nn\n"  << flush;
    }
+
+
+   
 
    // 17. Free the used memory.
    delete fespace;
