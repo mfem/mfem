@@ -12,14 +12,17 @@ void OrthoSolver::SetOperator(const Operator &op)
 
 void OrthoSolver::Mult(const Vector &b, Vector &x) const
 {
-   // Apply operator.
-   oper->Mult(b, x);
+   // Orthoganlize input.
+   Orthoganalize(b, b_ortho);
 
-   // Orthoganlize residual.
-   Orthoganalize(x);
+   // Apply operator.
+   oper->Mult(b_ortho, x);
+
+   // Orthoganlize output.
+   Orthoganalize(x, x);
 }
 
-void OrthoSolver::Orthoganalize(Vector &v) const
+void OrthoSolver::Orthoganalize(const Vector &v, Vector &v_ortho) const
 {
    double loc_sum = v.Sum();
    double global_sum = 0.0;
@@ -29,5 +32,10 @@ void OrthoSolver::Orthoganalize(Vector &v) const
    MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
    MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-   v -= global_sum / static_cast<double>(global_size);
+   double ratio = global_sum / static_cast<double>(global_size);
+   v_ortho.SetSize(v.Size());
+   for (int i = 0; i < v_ortho.Size(); ++i)
+   {
+      v_ortho(i) = v(i) - ratio;
+   }
 }

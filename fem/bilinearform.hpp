@@ -535,6 +535,9 @@ public:
    /// Sets diagonal policy used upon construction of the linear system
    void SetDiagonalPolicy(DiagonalPolicy policy);
 
+   /// Indicate that integrators are not owned by the BilinearForm
+   void SetExternBFS(int e = 1) { extern_bfs = e; };
+
    /// Destroys bilinear form.
    virtual ~BilinearForm();
 };

@@ -29,12 +29,12 @@ int main(int argc, char *argv[])
 
    int serial_refinements = 0;
 
-   Mesh *mesh = new Mesh("../data/inline-hex.mesh");
+   Mesh *mesh = new Mesh("../data/periodic-cube.mesh");
 
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
-   *nodes *= 2.0;
-   *nodes -= 1.0;
+   // *nodes *= 2.0;
+   // *nodes -= 1.0;
    *nodes *= M_PI;
 
    for (int i = 0; i < serial_refinements; ++i)
@@ -58,12 +58,6 @@ int main(int argc, char *argv[])
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_tgv);
    u_ic->ProjectCoefficient(u_excoeff);
-
-   // Add Dirichlet boundary conditions to velocity space restricted to
-   // selected attributes on the mesh.
-   Array<int> attr(pmesh->bdr_attributes.Max());
-   attr = 1;
-   flowsolver.AddVelDirichetBC(vel_tgv, attr);
 
    double t = 0.0;
    double dt = ctx.dt;
@@ -92,7 +86,7 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      if ((step + 1) % 100 == 0 || last_step)
+      if ((step + 1) % 10 == 0 || last_step)
       {
          visit_dc.SetCycle(step);
          visit_dc.SetTime(t);

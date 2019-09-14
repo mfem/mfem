@@ -24,6 +24,20 @@ public:
    VectorFunctionCoefficient coeff;
 };
 
+class PresDirichletBC_T
+{
+public:
+   PresDirichletBC_T(double (*f)(const Vector &x, double t),
+                    Array<int> attr,
+                    FunctionCoefficient coeff)
+      : f(f), attr(attr), coeff(coeff)
+   {}
+
+   double (*f)(const Vector &x, double t);
+   Array<int> attr;
+   FunctionCoefficient coeff;
+};
+
 class FlowSolver
 {
 public:
@@ -36,8 +50,11 @@ public:
 
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
-   void AddVelDirichetBC(void (*f)(const Vector &x, double t, Vector &u),
+   void AddVelDirichletBC(void (*f)(const Vector &x, double t, Vector &u),
                          Array<int> &attr);
+
+   void AddPresDirichletBC(double (*f)(const Vector &x, double t),
+                          Array<int> &attr);
 
    void PrintTimingData();
 
@@ -47,7 +64,9 @@ protected:
    void PrintInfo();
    void SetTimeIntegrationCoefficients(int step);
    void ComputeCurlCurl(ParGridFunction &u, ParGridFunction &ccu);
-   void ComputeCurl2D(ParGridFunction &u, ParGridFunction &cu, bool assume_scalar = false);
+   void ComputeCurl2D(ParGridFunction &u,
+                      ParGridFunction &cu,
+                      bool assume_scalar = false);
    void Orthogonalize(Vector &v);
    void MeanZero(ParGridFunction &v);
 
@@ -131,8 +150,7 @@ protected:
    std::vector<VelDirichletBC_T> vel_dbcs;
 
    // Bookkeeping for pressure dirichlet bcs
-   std::vector<std::pair<double (*)(const Vector &x, double t), Array<int>>>
-      pres_dbcs;
+   std::vector<PresDirichletBC_T> pres_dbcs;
 
    // Bookkeeping for forcing (acceleration) terms
    // std::vector<void (*)(const Vector &x, double t, Vector &u)> acc_terms;
@@ -158,8 +176,8 @@ protected:
    int pl_amg = 0;
 
    // Tolerances
-   double rtol_spsolve = 1e-10;
-   double rtol_hsolve = 1e-10;
+   double rtol_spsolve = 1e-5;
+   double rtol_hsolve = 1e-6;
 
    // Iteration counts
    int iter_spsolve, iter_hsolve;

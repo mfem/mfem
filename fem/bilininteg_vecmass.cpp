@@ -141,11 +141,88 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
    });
 }
 
-static void PAVectorMassAssembleDiagonal(
-   const int dim, const int D1D,
-   const int Q1D, const int NE,
-   const Array<double> &B, const Array<double> &Bt,
-   const Vector &op, Vector &y)
+template<const int T_D1D = 0, const int T_Q1D = 0>
+static void PAVectorMassAssembleDiagonal3D(const int NE,
+                                           const Array<double> &_B,
+                                           const Array<double> &_Bt,
+                                           const Vector &_op,
+                                           Vector &_diag,
+                                           const int d1d = 0,
+                                           const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int VDIM = 3;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(_B.Read(), Q1D, D1D);
+   // auto Bt = Reshape(_Bt.Read(), D1D, Q1D); // ?? (TODO atb@llnl.gov)
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
+   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   MFEM_FORALL(e, NE, {
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double temp[max_Q1D][max_Q1D][max_D1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               temp[qx][qy][dz] = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  temp[qx][qy][dz] += B(qz, dz) * B(qz, dz) * op(qx, qy, qz, e);
+               }
+            }
+         }
+      }
+      double temp2[max_Q1D][max_D1D][max_D1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               temp2[qx][dy][dz] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  temp2[qx][dy][dz] += B(qy, dy) * B(qy, dy) * temp[qx][qy][dz];
+               }
+            }
+         }
+      }
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  y(dx, dy, dz, 0, e) += B(qx, dx) * B(qx, dx)
+                                         * temp2[qx][dy][dz];
+               }
+               y(dx, dy, dz, 1, e) = y(dx, dy, dz, 0, e);
+               y(dx, dy, dz, 2, e) = y(dx, dy, dz, 0, e);
+            }
+         }
+      }
+   });
+}
+
+static void PAVectorMassAssembleDiagonal(const int dim,
+                                         const int D1D,
+                                         const int Q1D,
+                                         const int NE,
+                                         const Array<double> &B,
+                                         const Array<double> &Bt,
+                                         const Vector &op,
+                                         Vector &y)
 {
    const int DQ = (D1D << 4) | Q1D;
    if (dim == 2)
@@ -155,6 +232,21 @@ static void PAVectorMassAssembleDiagonal(
       case 0x66:
          return PAVectorMassAssembleDiagonal2D<6, 6>(NE, B, Bt, op, y, D1D, Q1D);
       default:
+         printf("%x, %x(%d): %X", D1D, Q1D, Q1D, DQ);
+      }
+   }
+   else if (dim == 3)
+   {
+      switch ((D1D << 4) | Q1D)
+      {
+      /* case 0x55: */
+      /*    return PAVectorMassAssembleDiagonal3D<5, 5>(NE, B, Bt, op, y, D1D, Q1D); */
+      /* case 0x88: */
+      /*    return PAVectorMassAssembleDiagonal3D<8, 8>(NE, B, Bt, op, y, D1D, Q1D); */
+      /* case 0x89: */
+      /*    return PAVectorMassAssembleDiagonal3D<8, 9>(NE, B, Bt, op, y, D1D, Q1D); */
+      default:
+         return PAVectorMassAssembleDiagonal3D(NE, B, Bt, op, y, D1D, Q1D);
          printf("%x, %x(%d): %X", D1D, Q1D, Q1D, DQ);
       }
    }

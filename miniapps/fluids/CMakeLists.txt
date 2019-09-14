@@ -22,6 +22,12 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(flow_foc3d
+    MAIN flow_foc3d.cpp
+    EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp
+    EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
+    LIBRARIES mfem)
+
   add_mfem_miniapp(flow_tgv
     MAIN flow_tgv.cpp
     EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp

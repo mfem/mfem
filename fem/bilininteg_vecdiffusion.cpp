@@ -217,6 +217,170 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
    });
 }
 
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAVectorDiffusionDiagonal3D(const int NE,
+                                  const Array<double> &b,
+                                  const Array<double> &g,
+                                  const Vector &op,
+                                  Vector &y,
+                                  const int d1d = 0,
+                                  const int q1d = 0)
+{
+   // see eg PADiffusionApply3D
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int VDIM = 3;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Q = Reshape(op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      // gradphi \cdot OP \gradphi has nine terms
+      // nine terms might be too many, but for proof of concept that's what I'll do
+      // (you could use symmetry to only have six?)
+
+      // nine terms:
+      // one   Gx By Bz O11 Gx By Bz;
+      // two   Gx By Bz O12 Bx Gy Bz;
+      // three Gx By Bz O13 Bx By Gz;
+      // four  Bx Gy Bz O21 Gx By Bz;
+      // five  Bx Gy Bz O22 Bx Gy Bz;
+      // six   Bx Gy Bz O23 Bx By Gz;
+      // seven Bx By Gz O31 Gx By Bz;
+      // eight Bx By Gz O32 Bx Gy Bz;
+      // nine  Bx By Gz O33 Bx By Gz;
+
+      double ztemp01[max_Q1D][max_Q1D][max_D1D];
+      double ztemp02[max_Q1D][max_Q1D][max_D1D];
+      double ztemp03[max_Q1D][max_Q1D][max_D1D];
+      double ztemp04[max_Q1D][max_Q1D][max_D1D];
+      double ztemp05[max_Q1D][max_Q1D][max_D1D];
+      double ztemp06[max_Q1D][max_Q1D][max_D1D];
+      double ztemp07[max_Q1D][max_Q1D][max_D1D];
+      double ztemp08[max_Q1D][max_Q1D][max_D1D];
+      double ztemp09[max_Q1D][max_Q1D][max_D1D];
+
+      // first tensor contraction, along z direction
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               ztemp01[qx][qy][dz] = 0.0;
+               ztemp02[qx][qy][dz] = 0.0;
+               ztemp03[qx][qy][dz] = 0.0;
+               ztemp04[qx][qy][dz] = 0.0;
+               ztemp05[qx][qy][dz] = 0.0;
+               ztemp06[qx][qy][dz] = 0.0;
+               ztemp07[qx][qy][dz] = 0.0;
+               ztemp08[qx][qy][dz] = 0.0;
+               ztemp09[qx][qy][dz] = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  const int q = qx + (qy + qz * Q1D) * Q1D;
+                  const double O11 = Q(q,0,e);
+                  const double O12 = Q(q,1,e);
+                  const double O13 = Q(q,2,e);
+                  const double O22 = Q(q,3,e);
+                  const double O23 = Q(q,4,e);
+                  const double O33 = Q(q,5,e);
+
+                  ztemp01[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O11;
+                  ztemp02[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O12;
+                  ztemp03[qx][qy][dz] += B(qz, dz) * G(qz, dz) * O13;
+                  ztemp04[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O12;
+                  ztemp05[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O22;
+                  ztemp06[qx][qy][dz] += B(qz, dz) * G(qz, dz) * O23;
+                  ztemp07[qx][qy][dz] += G(qz, dz) * B(qz, dz) * O13;
+                  ztemp08[qx][qy][dz] += G(qz, dz) * B(qz, dz) * O23;
+                  ztemp09[qx][qy][dz] += G(qz, dz) * G(qz, dz) * O33;
+               }
+            }
+         }
+      }
+
+      double ytemp01[max_Q1D][max_D1D][max_D1D];
+      double ytemp02[max_Q1D][max_D1D][max_D1D];
+      double ytemp03[max_Q1D][max_D1D][max_D1D];
+      double ytemp04[max_Q1D][max_D1D][max_D1D];
+      double ytemp05[max_Q1D][max_D1D][max_D1D];
+      double ytemp06[max_Q1D][max_D1D][max_D1D];
+      double ytemp07[max_Q1D][max_D1D][max_D1D];
+      double ytemp08[max_Q1D][max_D1D][max_D1D];
+      double ytemp09[max_Q1D][max_D1D][max_D1D];
+
+      // second tensor contraction, along y direction
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               ytemp01[qx][dy][dz] = 0.0;
+               ytemp02[qx][dy][dz] = 0.0;
+               ytemp03[qx][dy][dz] = 0.0;
+               ytemp04[qx][dy][dz] = 0.0;
+               ytemp05[qx][dy][dz] = 0.0;
+               ytemp06[qx][dy][dz] = 0.0;
+               ytemp07[qx][dy][dz] = 0.0;
+               ytemp08[qx][dy][dz] = 0.0;
+               ytemp09[qx][dy][dz] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  ytemp01[qx][dy][dz] += B(qy, dy) * B(qy, dy) * ztemp01[qx][qy][dz];
+                  ytemp02[qx][dy][dz] += B(qy, dy) * G(qy, dy) * ztemp02[qx][qy][dz];
+                  ytemp03[qx][dy][dz] += B(qy, dy) * B(qy, dy) * ztemp03[qx][qy][dz];
+                  ytemp04[qx][dy][dz] += G(qy, dy) * B(qy, dy) * ztemp04[qx][qy][dz];
+                  ytemp05[qx][dy][dz] += G(qy, dy) * G(qy, dy) * ztemp05[qx][qy][dz];
+                  ytemp06[qx][dy][dz] += G(qy, dy) * B(qy, dy) * ztemp06[qx][qy][dz];
+                  ytemp07[qx][dy][dz] += B(qy, dy) * B(qy, dy) * ztemp07[qx][qy][dz];
+                  ytemp08[qx][dy][dz] += B(qy, dy) * G(qy, dy) * ztemp08[qx][qy][dz];
+                  ytemp09[qx][dy][dz] += B(qy, dy) * B(qy, dy) * ztemp09[qx][qy][dz];
+               }
+            }
+         }
+      }
+
+      // third tensor contraction, along x direction
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  Y(dx, dy, dz, 0, e) += G(qx, dx) * G(qx, dx) * ytemp01[qx][dy][dz];
+                  Y(dx, dy, dz, 0, e) += G(qx, dx) * B(qx, dx) * ytemp02[qx][dy][dz];
+                  Y(dx, dy, dz, 0, e) += G(qx, dx) * B(qx, dx) * ytemp03[qx][dy][dz];
+                  Y(dx, dy, dz, 0, e) += B(qx, dx) * G(qx, dx) * ytemp04[qx][dy][dz];
+                  Y(dx, dy, dz, 0, e) += B(qx, dx) * B(qx, dx) * ytemp05[qx][dy][dz];
+                  Y(dx, dy, dz, 0, e) += B(qx, dx) * B(qx, dx) * ytemp06[qx][dy][dz];
+                  Y(dx, dy, dz, 0, e) += B(qx, dx) * G(qx, dx) * ytemp07[qx][dy][dz];
+                  Y(dx, dy, dz, 0, e) += B(qx, dx) * B(qx, dx) * ytemp08[qx][dy][dz];
+                  Y(dx, dy, dz, 0, e) += B(qx, dx) * B(qx, dx) * ytemp09[qx][dy][dz];
+               }
+              Y(dx,dy,dz,1,e) = Y(dx,dy,dz,0,e);
+              Y(dx,dy,dz,2,e) = Y(dx,dy,dz,0,e);
+            }
+         }
+      }
+
+   });
+}
+
+
 static void PAVectorDiffusionAssembleDiagonal(const int dim,
                                               const int D1D,
                                               const int Q1D,
@@ -236,6 +400,18 @@ static void PAVectorDiffusionAssembleDiagonal(const int dim,
       default:
          printf("%x, %x(%d): %X", D1D, Q1D, Q1D, DQ);
       }
+   }
+   else if (dim == 3)
+   {
+     switch ((D1D << 4) | Q1D)
+     {
+       case 0x34:
+         return PAVectorDiffusionDiagonal3D<3, 4>(NE, B, Bt, op, y, D1D, Q1D);
+       case 0x89:
+         return PAVectorDiffusionDiagonal3D<8, 9>(NE, B, Bt, op, y, D1D, Q1D);
+       default:
+         printf("%x, %x(%d): %X", D1D, Q1D, Q1D, DQ);
+     }
    }
    MFEM_ABORT("Unknown kernel.");
 }

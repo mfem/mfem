@@ -791,8 +791,14 @@ const Operator *FiniteElementSpace::GetElementRestriction(
 {
    // Check if we have a discontinuous space using the FE collection:
    const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
-   if (dg_space) { return NULL; }
-   // TODO: support other DG collections.
+   if (dg_space)
+   {
+      if (L2E_nat.Ptr() == NULL)
+      {
+         L2E_nat.Reset(new L2ElementRestriction(*this));
+      }
+      return L2E_nat.Ptr();
+   }
    if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
    {
       if (L2E_lex.Ptr() == NULL)
@@ -2637,6 +2643,36 @@ const Operator &L2ProjectionGridTransfer::BackwardOperator()
    return *B;
 }
 
+L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
+   : ne(fes.GetNE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndof(ne > 0 ? fes.GetFE(0)->GetDof() : 0)
+{ }
+
+void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
+{
+   for (int iel=0; iel<ne; ++iel)
+   {
+      for (int vd=0; vd<vdim; ++vd)
+      {
+         for (int idof=0; idof<ndof; ++idof)
+         {
+            int yidx = iel*vdim*ndof + vd*ndof + idof;
+            int xidx;
+            if (byvdim)
+            {
+               xidx = iel*ndof*vdim + idof*vdim + vd;
+            }
+            else
+            {
+               xidx = vd*ne*ndof + iel*ndof + idof;
+            }
+            y[yidx] = x[xidx];
+         }
+      }
+   }
+}
 
 ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
                                        ElementDofOrdering e_ordering)

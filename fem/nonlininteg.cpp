@@ -1285,6 +1285,7 @@ void VectorConvectionNLFIntegrator::MultPA(const Vector &x, Vector &y) const
       switch (DQ)
       {
          case 0x23: return PAConvectionNLApply3D<2,3>(NE,B,G,Bt,Q,x,y);
+         case 0x34: return PAConvectionNLApply3D<3,4>(NE,B,G,Bt,Q,x,y);
          case 0x35: return PAConvectionNLApply3D<3,5>(NE,B,G,Bt,Q,x,y);
          case 0x48: return PAConvectionNLApply3D<4,8>(NE,B,G,Bt,Q,x,y);
          case 0x5A: return PAConvectionNLApply3D<5,10>(NE,B,G,Bt,Q,x,y);

@@ -37,12 +37,18 @@ FlowSolver::FlowSolver(ParMesh *mesh, int order, double kin_vis)
    int pfes_truevsize = pfes->GetTrueVSize();
 
    un.SetSize(vfes_truevsize);
+   un = 0.0;
    unm1.SetSize(vfes_truevsize);
+   unm1 = 0.0;
    unm2.SetSize(vfes_truevsize);
+   unm2 = 0.0;
    fn.SetSize(vfes_truevsize);
    Nun.SetSize(vfes_truevsize);
+   Nun = 0.0;
    Nunm1.SetSize(vfes_truevsize);
+   Nunm1 = 0.0;
    Nunm2.SetSize(vfes_truevsize);
+   Nunm2 = 0.0;
    Fext.SetSize(vfes_truevsize);
    FText.SetSize(vfes_truevsize);
    Lext.SetSize(vfes_truevsize);
@@ -91,12 +97,12 @@ void FlowSolver::Setup(double dt)
    sw_setup.Start();
 
    pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
-   vfec_lor = new H1_FECollection(1, pmesh->Dimension());
+   // vfec_lor = new H1_FECollection(1, pmesh->Dimension());
    pfec_lor = new H1_FECollection(1);
-   vfes_lor = new ParFiniteElementSpace(pmesh_lor, vfec_lor, pmesh->Dimension());
+   // vfes_lor = new ParFiniteElementSpace(pmesh_lor, vfec_lor, pmesh->Dimension());
    pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
 
-   vgt = new InterpolationGridTransfer(*vfes, *vfes_lor);
+   // vgt = new InterpolationGridTransfer(*vfes, *vfes_lor);
    pgt = new InterpolationGridTransfer(*pfes, *pfes_lor);
 
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
@@ -119,12 +125,12 @@ void FlowSolver::Setup(double dt)
    }
 
    Mv_form = new ParBilinearForm(vfes);
-   BilinearFormIntegrator *blfi = new VectorMassIntegrator;
+   BilinearFormIntegrator *mv_blfi = new VectorMassIntegrator;
    if (numerical_integ)
    {
-      blfi->SetIntRule(&ir_ni);
+      mv_blfi->SetIntRule(&ir_ni);
    }
-   Mv_form->AddDomainIntegrator(blfi);
+   Mv_form->AddDomainIntegrator(mv_blfi);
    if (partial_assembly)
    {
       Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -133,12 +139,12 @@ void FlowSolver::Setup(double dt)
    Mv_form->FormSystemMatrix(empty, Mv);
 
    Sp_form = new ParBilinearForm(pfes);
-   blfi = new DiffusionIntegrator;
+   BilinearFormIntegrator *sp_blfi = new DiffusionIntegrator;
    if (numerical_integ)
    {
       // blfi->SetIntRule(&ir_ni);
    }
-   Sp_form->AddDomainIntegrator(blfi);
+   Sp_form->AddDomainIntegrator(sp_blfi);
    if (partial_assembly)
    {
       Sp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -223,6 +229,7 @@ void FlowSolver::Setup(double dt)
    if (partial_assembly)
    {
       Sp_form_lor = new ParBilinearForm(pfes_lor);
+      Sp_form_lor->SetExternBFS(1);
       CopyDBFIntegrators(Sp_form, Sp_form_lor);
       Sp_form_lor->Assemble();
       Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
@@ -245,10 +252,16 @@ void FlowSolver::Setup(double dt)
    SpInv = new CGSolver(MPI_COMM_WORLD);
    SpInv->iterative_mode = true;
    SpInv->SetOperator(*Sp);
-   SpInv->SetPreconditioner(*SpInvOrthoPC);
+   if (pres_dbcs.empty())
+   {
+     SpInv->SetPreconditioner(*SpInvOrthoPC);
+   }
+   else
+   {
+     SpInv->SetPreconditioner(*SpInvPC);
+   }
    SpInv->SetPrintLevel(pl_spsolve);
    SpInv->SetRelTol(rtol_spsolve);
-   // SpInv->SetKDim(30);
    SpInv->SetMaxIter(200);
 
    if (partial_assembly)
@@ -405,8 +418,15 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
 
    Lext_gf.SetFromTrueDofs(Lext);
    // ComputeCurlCurl(Lext_gf, curlcurlu_gf);
-   ComputeCurl2D(Lext_gf, curlu_gf);
-   ComputeCurl2D(curlu_gf, curlcurlu_gf, true);
+   if (pmesh->Dimension() == 2)
+   {
+     ComputeCurl2D(Lext_gf, curlu_gf);
+     ComputeCurl2D(curlu_gf, curlcurlu_gf, true);
+   }
+   else 
+   {
+     MFEM_ABORT("3D Curl not implemented");
+   }
 
    curlcurlu_gf.GetTrueDofs(Lext);
    Lext *= kin_vis;
@@ -687,7 +707,7 @@ void FlowSolver::ComputeCurl2D(ParGridFunction &u,
    }
 }
 
-void FlowSolver::AddVelDirichetBC(
+void FlowSolver::AddVelDirichletBC(
    void (*f)(const Vector &x, double t, Vector &u), Array<int> &attr)
 {
    vel_dbcs.push_back(
@@ -715,6 +735,38 @@ void FlowSolver::AddVelDirichetBC(
       if (attr[i] == 1)
       {
          vel_ess_attr[i] = 1;
+      }
+   }
+}
+
+void FlowSolver::AddPresDirichletBC(
+   double (*f)(const Vector &x, double t), Array<int> &attr)
+{
+   pres_dbcs.push_back(
+      PresDirichletBC_T(f,
+                       attr,
+                       FunctionCoefficient(f)));
+
+   if (verbose && pmesh->GetMyRank() == 0)
+   {
+      out << "Adding Pressure Dirichlet BC to attributes ";
+      for (int i = 0; i < attr.Size(); ++i)
+      {
+         if (attr[i] == 1)
+         {
+            out << i << " ";
+         }
+      }
+      out << std::endl;
+   }
+
+   for (int i = 0; i < attr.Size(); ++i)
+   {
+      MFEM_ASSERT((pres_ess_attr[i] && attr[i]) == 0,
+                  "Duplicate boundary definition deteceted.");
+      if (attr[i] == 1)
+      {
+         pres_ess_attr[i] = 1;
       }
    }
 }
@@ -810,6 +862,28 @@ void FlowSolver::PrintInfo()
 
 FlowSolver::~FlowSolver()
 {
+   delete FText_gfcoeff;
+   delete g_bdr_form;
+   delete FText_bdr_form;
+   delete mass_lf;
+   delete Mv_form;
+   delete N;
+   delete Sp_form;
+   delete D_form;
+   delete G_form;
+   delete HInvPC;
+   delete HInv;
+   delete H_form;
+   delete SpInv;
+   delete MvInvPC;
+   delete Sp_form_lor; 
+   delete pfes_lor;
+   delete pfec_lor;
+   delete pgt;
+   delete pmesh_lor;
+   delete SpInvOrthoPC;
+   delete SpInvPC;
+   delete MvInv;
    delete vfec;
    delete pfec;
    delete vfes;

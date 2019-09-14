@@ -6,7 +6,7 @@ using namespace flow;
 
 struct s_FlowContext
 {
-   int order = 3;
+   int order = 2;
    double kin_vis = 0.001;
    double t_final = 5.0;
    double dt = 1e-3;
@@ -16,18 +16,26 @@ void vel(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
+   double zi = x(2);
 
-   double U = 1.5;
+   // Re = 100.0 with nu = 0.001
+   double U = 2.25;
 
-   if (xi == 0.0)
+   if (xi <= 1e-8)
    {
-      u(0) = 4.0 * U * yi * (0.41 - yi) / (pow(0.41, 2.0));
+      u(0) = 16.0 * U * yi * zi * (0.41 - yi) * (0.41 - zi) / pow(0.41, 4.0);
    }
    else
    {
       u(0) = 0.0;
    }
    u(1) = 0.0;
+   u(2) = 0.0;
+}
+
+double pres(const Vector &x, double t)
+{
+  return 0.0;
 }
 
 int main(int argc, char *argv[])
@@ -36,7 +44,7 @@ int main(int argc, char *argv[])
 
    int serial_refinements = 0;
 
-   Mesh *mesh = new Mesh("../miniapps/fluids/twocyl.msh");
+   Mesh *mesh = new Mesh("../miniapps/fluids/3dfoc.e");
 
    for (int i = 0; i < serial_refinements; ++i)
    {
@@ -65,9 +73,13 @@ int main(int argc, char *argv[])
    Array<int> attr(pmesh->bdr_attributes.Max());
    attr = 0;
    attr[0] = 1;
-   attr[1] = 1;
+   /* attr[1] = 0; */
    attr[2] = 1;
    flowsolver.AddVelDirichletBC(vel, attr);
+
+   attr = 0;
+   attr[1] = 1;
+   flowsolver.AddPresDirichletBC(pres, attr);
 
    double t = 0.0;
    double dt = ctx.dt;

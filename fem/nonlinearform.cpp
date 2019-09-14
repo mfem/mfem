@@ -440,6 +440,7 @@ NonlinearForm::~NonlinearForm()
    for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
    for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
    for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+   delete ext;
 }
 
 

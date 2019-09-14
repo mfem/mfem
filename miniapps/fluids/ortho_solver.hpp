@@ -18,7 +18,9 @@ public:
 private:
    const Operator *oper;
 
-   void Orthoganalize(Vector &v) const;
+   mutable Vector b_ortho;
+
+   void Orthoganalize(const Vector &v, Vector &v_ortho) const;
 };
 } // namespace flow
 } // namespace mfem
