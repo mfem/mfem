@@ -704,7 +704,8 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);
 }
 
-int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size, unsigned flags)
+int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
+                                         unsigned flags)
 {
    void *d_ptr = (flags & Mem::ALIAS) ?
                  mm.GetAliasDevicePtr(h_ptr, size, false) :
