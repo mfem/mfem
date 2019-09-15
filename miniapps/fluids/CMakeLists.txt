@@ -28,6 +28,16 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(flow_instest
+    MAIN ins_transient_projection.cpp
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(flow_kovasznay
+    MAIN flow_kovasznay.cpp
+    EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp
+    EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
+    LIBRARIES mfem)
+
   add_mfem_miniapp(flow_tgv
     MAIN flow_tgv.cpp
     EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp
