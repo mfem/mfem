@@ -397,7 +397,7 @@ public:
       K.Add(X_perp, perp_);
    }
 };
-
+/*
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
 {
 private:
@@ -472,6 +472,49 @@ public:
             u0_.SetDataAndSize(&u0[i * size_], size_);
             u1_.SetDataAndSize(&u1[i * size_], size_);
             m += w_[i] * msr_[i]->Eval(u0_, u1_);
+         }
+      }
+      return m;
+   }
+};
+*/
+class VectorRelativeErrorMeasure : public ODERelativeErrorMeasure
+{
+private:
+   Vector w_;
+   Array<ODERelativeErrorMeasure*> msr_;
+
+   int size_;
+   Vector u_, e_;
+
+public:
+   VectorRelativeErrorMeasure(MPI_Comm comm, Vector & weights)
+      : w_(weights),
+        msr_(w_.Size()),
+        size_(0),
+        u_(NULL, 0),
+        e_(NULL, 0)
+   {
+      msr_ = NULL;
+      for (int i=0; i<w_.Size(); i++)
+      {
+         if (w_[i] != 0.0)
+         {
+            msr_[i] = new ParMaxAbsRelDiffMeasure(comm, 1.0);
+         }
+      }
+   }
+
+   double Eval(Vector &u, Vector &e)
+   {
+      double m = 0.0;
+      for (int i=0; i<w_.Size(); i++)
+      {
+         if (w_[i] != 0.0)
+         {
+            u_.SetDataAndSize(&u[i * size_], size_);
+            e_.SetDataAndSize(&e[i * size_], size_);
+            m = std::max(m, w_[i] * msr_[i]->Eval(u_, e_));
          }
       }
       return m;
@@ -665,7 +708,7 @@ int main(int argc, char *argv[])
    dg.sigma = -1.0;
    dg.kappa = -1.0;
 
-   int ode_solver_type = 12;
+   int ode_solver_type = 2;
    int logging = 0;
    bool   imex = true;
    int    op_flag = 31;
@@ -1170,6 +1213,7 @@ int main(int argc, char *argv[])
    IAdjFactor   dt_rej(kI_rej);
    MaxLimiter   dt_max(lim_max);
 
+   /*
    ODESolver * ode_solver = NULL;
    switch (ode_solver_type)
    {
@@ -1192,12 +1236,19 @@ int main(int argc, char *argv[])
          }
          return 3;
    }
-
+   */
+   ODEEmbeddedSolver * ode_solver   = NULL;
+   switch (ode_solver_type)
+   {
+      case 1: ode_solver = new SDIRK212Solver; break;
+      case 2: ode_solver = new SDIRK534Solver; break;
+   }
+   /*
    ParBilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
    m.Assemble();
    m.Finalize();
-
+   */
    // Density, Velocity, and Energy grid functions on for visualization.
    ParGridFunction  neu_density (&fes, u.GetData());
    ParGridFunction  ion_density (&fes, u.GetData() + offsets[1]);
@@ -1228,8 +1279,8 @@ int main(int argc, char *argv[])
    // weights = 1.0;
    // weights[0] = 1.0;
    // weights[4] = 0.0;
-   VectorNormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD, ode_weights);
-   ode_diff_msr.SetOperator(m);
+   VectorRelativeErrorMeasure ode_diff_msr(MPI_COMM_WORLD, ode_weights);
+   // ode_diff_msr.SetOperator(m);
 
    // Coefficients representing primary fields
    GridFunctionCoefficient nnCoef(&neu_density);
@@ -1746,8 +1797,8 @@ int main(int argc, char *argv[])
                   elec_energy.MakeRef(&fes, u, offsets[4]);
                }
             }
-            m.Update(); m.Assemble(); m.Finalize();
-            ode_diff_msr.SetOperator(m);
+            // m.Update(); m.Assemble(); m.Finalize();
+            // ode_diff_msr.SetOperator(m);
             oper.Update();
             ode_solver->Init(oper);
          }
@@ -1781,8 +1832,8 @@ int main(int argc, char *argv[])
                elec_energy.MakeRef(&fes, u, offsets[4]);
             }
             // cout << "m.Update();" << endl;
-            m.Update(); m.Assemble(); m.Finalize();
-            ode_diff_msr.SetOperator(m);
+            // m.Update(); m.Assemble(); m.Finalize();
+            // ode_diff_msr.SetOperator(m);
             // cout << "oper.Update();" << endl;
             oper.Update();
             ode_solver->Init(oper);

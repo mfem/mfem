@@ -44,19 +44,23 @@ public:
 int main(int argc, char *argv[])
 {
    int prob = 1;
-   int ode_solver_type = 3;
+   int ode_solver_type = 5;
    int ode_msr_type = 1;
-   int ode_acc_type = 2;
-   int ode_rej_type = 1;
-   int ode_lim_type = 1;
+   int ode_acc_type = 3;
+   int ode_rej_type = 2;
+   int ode_lim_type = 2;
+
+   bool epus = true;
 
    double t_init  = 0.0;
    double t_final = 1.0;;
    double dt = -1.0;
+   double min_dt = -1.0;
    double tol = 1e-2;
    double rho = 1.2;
 
-   double diff_eta = 1.0;
+   double etaScl = 1.0;
+   Vector etaVec;
 
    double gamma_acc = 0.9;
    double kI_acc = 1.0 / 15.0;
@@ -80,30 +84,39 @@ int main(int argc, char *argv[])
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
                   "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
-   args.AddOption(&ode_msr_type, "-err", "-error-measure",
+   args.AddOption(&ode_msr_type, "-err", "--error-measure",
                   "Error measure:\n"
                   "\t   1 - Absolute/Relative Error with Infinity-Norm\n"
                   "\t   2 - Absolute/Relative Error with 2-Norm\n");
-   args.AddOption(&ode_acc_type, "-acc", "-accept-factor",
+   args.AddOption(&ode_acc_type, "-acc", "--accept-factor",
                   "Adjustment factor after accepted steps:\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
                   "\t   4 - Proportional, Integrated, and Derivative errors\n");
-   args.AddOption(&ode_rej_type, "-rej", "-reject-factor",
+   args.AddOption(&ode_rej_type, "-rej", "--reject-factor",
                   "Adjustment factor after rejected steps:\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
                   "\t   4 - Proportional, Integrated, and Derivative errors\n");
-   args.AddOption(&ode_lim_type, "-lim", "-limiter",
+   args.AddOption(&ode_lim_type, "-lim", "--limiter",
                   "Adjustment limiter:\n"
                   "\t   1 - Dead zone limiter\n"
                   "\t   2 - Maximum limiter");
+   args.AddOption(&etaScl, "-eta", "--eta-scalar",
+                  "Constant for denominator of relative error measure.");
+   args.AddOption(&etaVec, "-eta-vec", "--eta-vector",
+                  "Vector for denominator of relative error measure.");
+   args.AddOption(&epus, "-epus", "--err-per-unit-step",
+                  "-eps", "--err-per-step",
+                  "Select EPUS or EPS mode.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Initial time step size.");
+   args.AddOption(&min_dt, "-min-dt", "--min-time-step",
+                  "Minimum time step size.");
    args.AddOption(&tol, "-tol", "--tolerance",
                   "Tolerance.");
    args.AddOption(&rho, "-rho", "--rejection",
@@ -130,12 +143,22 @@ int main(int argc, char *argv[])
 
    ODEController ode_controller;
 
-   ODESolver                * ode_solver   = NULL;
-   ODEDifferenceMeasure     * ode_diff_msr = NULL;
+   ODEEmbeddedSolver        * ode_solver   = NULL;
+   ODERelativeErrorMeasure  * ode_err_msr  = NULL;
    ODEStepAdjustmentFactor  * ode_step_acc = NULL;
    ODEStepAdjustmentFactor  * ode_step_rej = NULL;
    ODEStepAdjustmentLimiter * ode_step_lim = NULL;
 
+   switch (ode_solver_type)
+   {
+      case 0: ode_solver = new HeunEulerSolver; break;
+      case 1: ode_solver = new FehlbergRK12Solver; break;
+      case 2: ode_solver = new BogackiShampineSolver; break;
+      case 3: ode_solver = new FehlbergRK45Solver; break;
+      case 4: ode_solver = new CashKarpSolver; break;
+      case 5: ode_solver = new DormandPrinceSolver; break;
+   }
+   /*
    switch (ode_solver_type)
    {
       // Implicit L-stable methods
@@ -156,13 +179,18 @@ int main(int argc, char *argv[])
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
+   */
    switch (ode_msr_type)
    {
       case 1:
-         ode_diff_msr = new MaxAbsRelDiffMeasure(diff_eta);
+         ode_err_msr = (etaVec.Size() == 0) ?
+                       new MaxAbsRelDiffMeasure(etaScl) :
+                       new MaxAbsRelDiffMeasure(etaVec);
          break;
       case 2:
-         ode_diff_msr = new L2AbsRelDiffMeasure(diff_eta);
+         ode_err_msr = (etaVec.Size() == 0) ?
+                       new L2AbsRelDiffMeasure(etaScl) :
+                       new L2AbsRelDiffMeasure(etaVec);
          break;
       default:
          cout << "Unknown difference measure type: " << ode_msr_type << '\n';
@@ -220,12 +248,15 @@ int main(int argc, char *argv[])
    ExampleTDO tdo(prob);
    ode_solver->Init(tdo);
 
-   ode_controller.Init(*ode_solver, *ode_diff_msr,
+   ode_controller.Init(*ode_solver, *ode_err_msr,
                        *ode_step_acc, *ode_step_rej, *ode_step_lim);
 
    ode_controller.SetTimeStep(dt);
+   if (min_dt > 0.0) { ode_controller.SetMinTimeStep(min_dt); }
+   if (epus) { ode_controller.SetErrorPerUnitStep(); }
    ode_controller.SetTolerance(tol);
    ode_controller.SetRejectionLimit(rho);
+   ode_controller.SetMaxRejectCount(1000);
    if (gnuplot) { ode_controller.SetOutput(ofs); }
 
    Vector y;
@@ -233,19 +264,21 @@ int main(int argc, char *argv[])
 
    if (gnuplot)
    {
-      ofs << t_init << "\t" << dt;
+      ofs << t_init << '\t' << 0 << '\t' << 0.0 << '\t' << dt;
       for (int i=0; i<y.Size(); i++)
       {
-         ofs << "\t" << y(i);
+         ofs << '\t' << y(i);
       }
       ofs << endl;
 
       ofstream ofs_inp("gnuplot_ex2x.inp");
-      ofs_inp << "plot 'ex2x.dat' using 1:2 w l t 'dt';\npause -1;\n";
+      ofs_inp << "plot 'ex2x.dat' using 1:2 w l t 'nsteps';\npause -1;\n";
+      ofs_inp << "plot 'ex2x.dat' using 1:3 w l t 'error';\npause -1;\n";
+      ofs_inp << "plot 'ex2x.dat' using 1:4 w l t 'dt';\npause -1;\n";
       ofs_inp << "plot ";
       for (int i=0; i<y.Size(); i++)
       {
-         ofs_inp << "'ex2x.dat' using 1:" << i + 3
+         ofs_inp << "'ex2x.dat' using 1:" << i + 5
                  << " w l t 'y" << i + 1 << "'";
          if (i < y.Size() - 1)
          {
@@ -256,14 +289,14 @@ int main(int argc, char *argv[])
       ofs_inp.close();
    }
 
-   ode_controller.SetOutput(ofs);
+   ode_controller.SetOutput(ofs, true);
 
    ode_controller.Run(y, t_init, t_final);
 
    ofs.close();
 
    delete ode_solver;
-   delete ode_diff_msr;
+   delete ode_err_msr;
    delete ode_step_acc;
    delete ode_step_rej;
    delete ode_step_lim;
