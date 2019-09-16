@@ -289,11 +289,6 @@ private:
       // Prolongate
       opr.InterpolateFrom(level - 1, *Y[level - 1], *R[level]);
 
-      // Array<int>& essentialDofs = *opr.GetEssentialDoFsAtLevel(level);
-      // auto I = essentialDofs.Read();
-      // auto T = R[level]->Write();
-      // MFEM_FORALL(i, essentialDofs.Size(), T[I[i]] = 0.0; );
-
       // Add update
       *Y[level] += *R[level];
 
@@ -316,6 +311,11 @@ public:
 
    ~MultigridSolver()
    {
+      Reset();
+   }
+
+   void Reset()
+   {
       for (unsigned i = 0; i < X.Size(); ++i)
       {
          delete X[i];
@@ -325,6 +325,10 @@ public:
          delete R[i];
          R[i] = nullptr;
       }
+
+      X.DeleteAll();
+      Y.DeleteAll();
+      R.DeleteAll();
    }
 
    virtual void Mult(const Vector &x, Vector &y) const override
@@ -338,7 +342,12 @@ public:
    /// Set/update the solver for the given operator.
    virtual void SetOperator(const Operator &op) override
    {
-      MFEM_ABORT("Not implemented.");
+      if (!dynamic_cast<const MultigridOperator*>(&op))
+      {
+         MFEM_ABORT("Unsupported operator for MultigridSolver");
+      }
+
+      // TODO
    }
 
 };
