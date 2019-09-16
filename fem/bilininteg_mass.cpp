@@ -723,6 +723,187 @@ static void SmemPAMassApply3D(const int NE,
    });
 }
 
+
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void OccaPAMassApply3D(const int NE,
+                              const Array<double> &b_,
+                              const Array<double> &bt_,
+                              const Vector &d_,
+                              const Vector &x_,
+                              Vector &y_,
+                              const int d1d = 0,
+                              const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MDQ = (M1Q > M1D) ? M1Q : M1D;
+
+   MFEM_VERIFY(D1D <= M1D, "");
+   MFEM_VERIFY(Q1D <= M1Q, "");
+
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
+   auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+
+   // Iterate over elements
+   MFEM_FORALL_3D(e, NE, MDQ, MDQ, 1,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+
+      // Store dof <--> quad mappings
+      MFEM_SHARED double s_B[MDQ*MDQ];
+      double (*B)[MD1] = (double (*)[MD1]) s_B;
+      MFEM_SHARED double s_Bt[MDQ*MDQ];
+      double (*Bt)[MQ1] = (double (*)[MQ1]) s_Bt;
+
+      // Store xy planes in @shared memory
+      MFEM_SHARED double s_xy[MDQ][MDQ];
+
+      // Store z axis as registers
+      double MFEM_EXCLUSIVE(r_qz)[Q1D];
+      double MFEM_EXCLUSIVE(r_dz)[D1D];
+
+      MFEM_FOREACH_THREAD(y,y,MDQ)
+      {
+         MFEM_FOREACH_THREAD(x,x,MDQ)
+         {
+            if ((x < D1D) && (y < Q1D))
+            {
+               B[y][x] = b(y,x);
+               Bt[x][y] = b(y,x);
+            }
+            // Initialize our Z axis
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               MFEM_EXCLUSIVE_GET(r_qz)[qz] = 0.0;
+            }
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               MFEM_EXCLUSIVE_GET(r_dz)[dz] = 0.0;
+            }
+            MFEM_EXCLUSIVE_INC;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(dy,y,MDQ)
+      {
+         MFEM_FOREACH_THREAD(dx,x,MDQ)
+         {
+            if ((dx < D1D) && (dy < D1D))
+            {
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  const double s = X(dx, dy, dz, e);
+                  // Calculate D -> Q in the Z axis
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     MFEM_EXCLUSIVE_GET(r_qz)[qz] += s * B[qz][dz];
+                  }
+               }
+            }
+            MFEM_EXCLUSIVE_INC;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // For each xy plane
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         // Fill xy plane at given z position
+         MFEM_FOREACH_THREAD(dy,y,MDQ)
+         {
+            MFEM_FOREACH_THREAD(dx,x,MDQ)
+            {
+               if ((dx < D1D) && (dy < D1D))
+               {
+                  s_xy[dx][dy] = MFEM_EXCLUSIVE_GET(r_qz)[qz];
+               }
+               MFEM_EXCLUSIVE_INC;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         // Calculate Dxyz, xDyz, xyDz in plane
+         MFEM_FOREACH_THREAD(qy,y,MDQ)
+         {
+            MFEM_FOREACH_THREAD(qx,x,MDQ)
+            {
+               if ((qx < Q1D) && (qy < Q1D))
+               {
+                  double s = 0.0;
+                  for (int dy = 0; dy < D1D; ++dy)
+                  {
+                     const double wy = B[qy][dy];
+                     for (int dx = 0; dx < D1D; ++dx)
+                     {
+                        const double wx = B[qx][dx];
+                        s += wx * wy * s_xy[dx][dy];
+                     }
+                  }
+
+                  s *= D(qx, qy, qz, e);
+
+                  for (int dz = 0; dz < D1D; ++dz)
+                  {
+                     const double wz  = Bt[dz][qz];
+                     MFEM_EXCLUSIVE_GET(r_dz)[dz] += wz * s;
+                  }
+               }
+               MFEM_EXCLUSIVE_INC;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+      // Iterate over xy planes to compute solution
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         // Place xy plane in @shared memory
+         MFEM_FOREACH_THREAD(qy,y,MDQ)
+         {
+            MFEM_FOREACH_THREAD(qx,x,MDQ)
+            {
+               if ((qx < Q1D) && (qy < Q1D))
+               {
+                  s_xy[qx][qy] = MFEM_EXCLUSIVE_GET(r_dz)[dz];
+               }
+               MFEM_EXCLUSIVE_INC;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         // Finalize solution in xy plane
+         MFEM_FOREACH_THREAD(dy,y,MDQ)
+         {
+            MFEM_FOREACH_THREAD(dx,x,MDQ)
+            {
+               if ((dx < D1D) && (dy < D1D))
+               {
+                  double solZ = 0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const double wy = Bt[dy][qy];
+                     for (int qx = 0; qx < Q1D; ++qx)
+                     {
+                        const double wx = Bt[dx][qx];
+                        solZ += wx * wy * s_xy[qx][qy];
+                     }
+                  }
+                  Y(dx, dy, dz, e) += solZ;
+               }
+               MFEM_EXCLUSIVE_INC;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
 static void PAMassApply(const int dim,
                         const int D1D,
                         const int Q1D,
@@ -766,16 +947,34 @@ static void PAMassApply(const int dim,
    }
    else if (dim == 3)
    {
-      switch ((D1D << 4 ) | Q1D)
+      static const bool occa = (printf("\033[33m[init]\033[m"), getenv("OCCA"));
+      if (occa)
       {
-         case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-         case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-         case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-         case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-         case 0x67: return SmemPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
-         case 0x78: return SmemPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
-         case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
-         default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+         switch ((D1D << 4 ) | Q1D)
+         {
+            case 0x23: return OccaPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
+            case 0x34: return OccaPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
+            case 0x45: return OccaPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
+            case 0x56: return OccaPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
+            case 0x67: return OccaPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
+            case 0x78: return OccaPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
+            case 0x89: return OccaPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
+               //default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+         }
+      }
+      else
+      {
+         switch ((D1D << 4 ) | Q1D)
+         {
+            case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
+            case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
+            case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
+            case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
+            case 0x67: return SmemPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
+            case 0x78: return SmemPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
+            case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
+               //default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+         }
       }
    }
    MFEM_ABORT("Unknown kernel.");
