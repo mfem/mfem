@@ -10,13 +10,15 @@ using namespace mfem;
 
 class TransferOperator : public Operator
 {
+private:
    const FiniteElementSpace& hFESpace;
    const FiniteElementSpace& lFESpace;
 
 public:
-   TransferOperator(const FiniteElementSpace& hFESpace_, const FiniteElementSpace& lFESpace_)
-      : hFESpace(hFESpace_), lFESpace(lFESpace_)
-   {}
+   TransferOperator(const FiniteElementSpace& hFESpace_,
+                    const FiniteElementSpace& lFESpace_)
+      : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), hFESpace(hFESpace_), lFESpace(lFESpace_)
+   { }
 
    virtual ~TransferOperator() {}
 
@@ -60,7 +62,7 @@ public:
 
       Mesh* mesh = hFESpace.GetMesh();
       Array<int> l_dofs, h_dofs;
-      DenseMatrix loc_restr;
+      DenseMatrix loc_prol;
       Vector subY, subX;
 
       Array<char> processed(hFESpace.GetVSize());
@@ -82,8 +84,8 @@ public:
             h_fe = hFESpace.GetFE(i);
             l_fe = lFESpace.GetFE(i);
             T.SetIdentityTransformation(h_fe->GetGeomType());
-            l_fe->Project(*h_fe, T, loc_restr);
-            subY.SetSize(loc_restr.Height());
+            h_fe->Project(*l_fe, T, loc_prol);
+            subY.SetSize(loc_prol.Width());
             cached_geom = geom;
          }
 
@@ -100,9 +102,43 @@ public:
             }
          }
 
-         loc_restr.Mult(subX, subY);
+         loc_prol.MultTranspose(subX, subY);
          y.AddElementVector(l_dofs, subY);
       }
+   }
+};
+
+class TrueTransferOperator : public Operator
+{
+ private:
+   TransferOperator *transferOperator;
+   TripleProductOperator *opr;
+
+ public:
+   TrueTransferOperator(const FiniteElementSpace &hFESpace_,
+                        const FiniteElementSpace &lFESpace_)
+   {
+      transferOperator = new TransferOperator(hFESpace_, lFESpace_);
+
+      opr = new TripleProductOperator(
+          hFESpace_.GetRestrictionMatrix(), transferOperator,
+          lFESpace_.GetProlongationMatrix(), false, false, false);
+   }
+
+   ~TrueTransferOperator()
+   {
+      delete opr;
+      delete transferOperator;
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const override
+   {
+      opr->Mult(x, y);
+   }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      opr->MultTranspose(x, y);
    }
 };
 
@@ -117,9 +153,11 @@ int main(int argc, char *argv[])
    // const char *mesh_file = "../../data/fichera.mesh";
    int ref_levels = 2;
    int mg_levels = 2;
-   int order = 3;
+   int order = 1;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool visualization = 1;
+   const bool partialAssembly = false;
+   const bool pMultigrid = false;
 
    OptionsParser args(argc, argv);
    // args.AddOption(&mesh_file, "-m", "--mesh",
@@ -163,8 +201,8 @@ int main(int argc, char *argv[])
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    // Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   // Mesh *mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0, false);
-   Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
+   Mesh *mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0, false);
+   // Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
    int dim = mesh->Dimension();
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -188,20 +226,20 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      cout << "Number of finite element unknowns on level 0: " << size << endl;
+      cout << "Number of finite element unknowns on level 0: " << size << "; FE order: " << order << endl;
    }
 
-   Array<int> essentialTrueDoFs;
-   fespace->GetEssentialTrueDofs(ess_bdr, essentialTrueDoFs);
+   Array<int>* essentialTrueDoFs = new Array<int>();
+   fespace->GetEssentialTrueDofs(ess_bdr, *essentialTrueDoFs);
 
    ParBilinearForm* coarseForm = new ParBilinearForm(fespace);
-   // coarseForm->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   if (partialAssembly) { coarseForm->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient one(1.0);
    coarseForm->AddDomainIntegrator(new DiffusionIntegrator(one));
    coarseForm->Assemble();
 
    OperatorPtr coarseOpr;
-   coarseForm->FormSystemMatrix(essentialTrueDoFs, coarseOpr);
+   coarseForm->FormSystemMatrix(*essentialTrueDoFs, coarseOpr);
    coarseOpr.SetOperatorOwner(false);
 
    CGSolver* coarseSolver = new CGSolver(MPI_COMM_WORLD);
@@ -217,64 +255,83 @@ int main(int argc, char *argv[])
    ParSpaceHierarchy spaceHierarchy(pmesh, fespace, true, true);
    MultigridOperator oprMultigrid(coarseOpr.Ptr(), coarseSolver, true, true);
 
-   // for(int level = 1; level < mg_levels; ++level)
-   // {
-   //    spaceHierarchy.AddUniformlyRefinedLevel();
-
-         // size = spaceHierarchy.GetFinestFESpace().GlobalTrueVSize();
-         // if (myid == 0)
-         // {
-         //    cout << "Number of finite element unknowns on level " << level << ": " << size << endl;
-         // }
-
-   //    // Create form and operator on next level
-   //    ParBilinearForm* form = new ParBilinearForm(&spaceHierarchy.GetFinestFESpace(), forms[level - 1]);
-   //    form->Assemble();
-   //    forms.Append(form);
-
-   //    // Create operator with eliminated essential dofs
-   //    OperatorPtr opr(Operator::Hypre_ParCSR);
-   //    essentialTrueDoFs.DeleteAll();
-   //    spaceHierarchy.GetFinestFESpace().GetEssentialTrueDofs(ess_bdr, essentialTrueDoFs);
-   //    opr.SetOperatorOwner(false);
-   //    form->FormSystemMatrix(essentialTrueDoFs, opr);
-
-   //    // Create smoother
-   //    HypreSmoother* smoother = new HypreSmoother(*opr.As<HypreParMatrix>());
-
-   //    // Create prolongation
-   //    OperatorPtr P(Operator::ANY_TYPE);
-   //    spaceHierarchy.GetFinestFESpace().GetTrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1), P);
-   //    P.SetOperatorOwner(false);
-
-   //    oprMultigrid.AddLevel(opr.Ptr(), smoother, P.Ptr(), true, true, true);
-   // }
-
    for(int level = 1; level < mg_levels; ++level)
    {
-      FiniteElementCollection *fecHighOrder = new H1_FECollection(order + std::pow(2.0, level), dim, basis);
-      spaceHierarchy.AddOrderRefinedLevel(fecHighOrder);
-      size = spaceHierarchy.GetFinestFESpace().GlobalTrueVSize();
+      int newOrder = order;
 
-      if (myid == 0)
+      if (pMultigrid)
       {
-         cout << "Number of finite element unknowns on level " << level << ": " << size << endl;
+         newOrder = std::pow(2, level);
+         FiniteElementCollection *fecHighOrder = new H1_FECollection(newOrder, dim, basis);
+         spaceHierarchy.AddOrderRefinedLevel(fecHighOrder);
+      }
+      else
+      {
+         spaceHierarchy.AddUniformlyRefinedLevel();
       }
 
-      ParBilinearForm* form = new ParBilinearForm(&spaceHierarchy.GetFinestFESpace(), forms[level - 1]);
+      size = spaceHierarchy.GetFinestFESpace().GlobalTrueVSize();
+      if (myid == 0)
+      {
+         cout << "Number of finite element unknowns on level " << level << ": " << size << "; FE order: " << newOrder << endl;
+      }
+
+      // Create form and operator on next level
+      ParBilinearForm* form = new ParBilinearForm(&spaceHierarchy.GetFinestFESpace());
+      if (partialAssembly) { form->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      form->AddDomainIntegrator(new DiffusionIntegrator(one));
       form->Assemble();
       forms.Append(form);
 
-      OperatorPtr opr(Operator::Hypre_ParCSR);
-      essentialTrueDoFs.DeleteAll();
-      spaceHierarchy.GetFinestFESpace().GetEssentialTrueDofs(ess_bdr, essentialTrueDoFs);
+      // Create operator with eliminated essential dofs
+      OperatorPtr opr;
+      essentialTrueDoFs = new Array<int>();
+      spaceHierarchy.GetFinestFESpace().GetEssentialTrueDofs(ess_bdr, *essentialTrueDoFs);
+
+      if (partialAssembly)
+      {
+         opr.SetType(Operator::ANY_TYPE);
+      }
+      else
+      {
+         opr.SetType(Operator::Hypre_ParCSR);
+      }
+
+      form->FormSystemMatrix(*essentialTrueDoFs, opr);
       opr.SetOperatorOwner(false);
-      form->FormSystemMatrix(essentialTrueDoFs, opr);
 
-      HypreSmoother* smoother = new HypreSmoother(*opr.As<HypreParMatrix>());
-      Operator* P = new TransferOperator(spaceHierarchy.GetFinestFESpace(), spaceHierarchy.GetFESpaceAtLevel(level - 1));
+      // Create prolongation
+      OperatorPtr P;
 
-      oprMultigrid.AddLevel(opr.Ptr(), smoother, P, true, true, true);
+      if (pMultigrid)
+      {
+         Operator* Pt = new TrueTransferOperator(spaceHierarchy.GetFinestFESpace(), spaceHierarchy.GetFESpaceAtLevel(level - 1));
+         P.SetType(Operator::ANY_TYPE);
+         P.Reset(Pt, false);
+      }
+      else
+      {
+         P.SetType(Operator::ANY_TYPE);
+         spaceHierarchy.GetFinestFESpace().GetTrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1), P);
+
+         P.SetOperatorOwner(false);
+      }
+
+      // Create smoother
+      Solver* smoother = nullptr;
+
+      if (partialAssembly)
+      {
+         Vector diag(spaceHierarchy.GetFinestFESpace().GetTrueVSize());
+         form->AssembleDiagonal(diag);
+         smoother = new OperatorJacobiSmoother(diag, *essentialTrueDoFs, 2.0/3.0);
+      }
+      else
+      {
+         smoother = new HypreSmoother(*opr.As<HypreParMatrix>());
+      }
+
+      oprMultigrid.AddLevel(opr.Ptr(), smoother, P.Ptr(), true, true, true);
    }
 
    ParGridFunction x(&spaceHierarchy.GetFinestFESpace());
@@ -297,7 +354,7 @@ int main(int argc, char *argv[])
 
    Vector X, B;
    OperatorPtr dummy;
-   forms[spaceHierarchy.GetFinestLevelIndex()]->FormLinearSystem(essentialTrueDoFs, x, b, dummy, X, B);
+   forms[spaceHierarchy.GetFinestLevelIndex()]->FormLinearSystem(*essentialTrueDoFs, x, b, dummy, X, B);
 
    Vector r(X.Size());
    MultigridSolver vCycle(oprMultigrid);
@@ -314,7 +371,7 @@ int main(int argc, char *argv[])
    oprMultigrid.Mult(X, r);
    subtract(B, r, r);
 
-   double beginRes = r * r;
+   double beginRes = InnerProduct(MPI_COMM_WORLD, r, r);
    double prevRes = beginRes;
    const int printWidth = 11;
 
@@ -343,7 +400,7 @@ int main(int argc, char *argv[])
       oprMultigrid.Mult(X, r);
       subtract(B, r, r);
 
-      double res = r * r;
+      double res = InnerProduct(MPI_COMM_WORLD, r, r);
       if (myid == 0)
       {
          cout << std::setw(3) << iter + 1;
