@@ -150,13 +150,13 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 1. Parse command-line options.
-   // const char *mesh_file = "../../data/fichera.mesh";
+   const char *mesh_file = "../../data/fichera.mesh";
    int ref_levels = 2;
    int mg_levels = 2;
    int order = 3;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool visualization = 1;
-   const bool partialAssembly = true;
+   const bool partialAssembly = false;
    const bool pMultigrid = false;
 
    OptionsParser args(argc, argv);
@@ -200,8 +200,8 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   Mesh *mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0, false);
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh *mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0, false);
    // Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
    int dim = mesh->Dimension();
 
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
    fespace->GetEssentialTrueDofs(ess_bdr, *essentialTrueDoFs);
 
    ParBilinearForm* coarseForm = new ParBilinearForm(fespace);
-   if (partialAssembly) { coarseForm->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   // if (partialAssembly) { coarseForm->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient one(1.0);
    coarseForm->AddDomainIntegrator(new DiffusionIntegrator(one));
    coarseForm->Assemble();
@@ -242,12 +242,14 @@ int main(int argc, char *argv[])
    coarseForm->FormSystemMatrix(*essentialTrueDoFs, coarseOpr);
    coarseOpr.SetOperatorOwner(false);
 
-   CGSolver* coarseSolver = new CGSolver(MPI_COMM_WORLD);
+   HypreParMatrix& hypreCoarseMat = dynamic_cast<HypreParMatrix&>(*coarseOpr);
+   HypreBoomerAMG *amg = new HypreBoomerAMG(hypreCoarseMat);
+   amg->SetPrintLevel(-1);
+   HyprePCG *coarseSolver = new HyprePCG(hypreCoarseMat);
+   coarseSolver->SetTol(1e-8);
+   coarseSolver->SetMaxIter(500);
    coarseSolver->SetPrintLevel(-1);
-   coarseSolver->SetMaxIter(100);
-   coarseSolver->SetRelTol(1e-4);
-   coarseSolver->SetAbsTol(0.0);
-   coarseSolver->SetOperator(*coarseOpr);
+   coarseSolver->SetPreconditioner(*amg);
 
    Array<ParBilinearForm*> forms;
    forms.Append(coarseForm);
@@ -362,7 +364,16 @@ int main(int argc, char *argv[])
    forms[spaceHierarchy.GetFinestLevelIndex()]->FormLinearSystem(*essentialTrueDoFs, x, b, dummy, X, B);
 
    Vector r(X.Size());
-   MultigridSolver vCycle(oprMultigrid);
+   MultigridSolver mgCycle(oprMultigrid, MultigridSolver::CycleType::VCYCLE, 3, 3);
+
+   // HypreParMatrix& hypreMat = dynamic_cast<HypreParMatrix&>(*oprMultigrid.GetOperatorAtFinestLevel());
+   // HypreBoomerAMG *amg = new HypreBoomerAMG(hypreMat);
+   // HyprePCG *pcg = new HyprePCG(hypreMat);
+   // pcg->SetTol(1e-8);
+   // pcg->SetMaxIter(500);
+   // pcg->SetPrintLevel(2);
+   // pcg->SetPreconditioner(*amg);
+   // pcg->Mult(B, X);
 
    // CGSolver pcg(MPI_COMM_WORLD);
    // pcg.SetPrintLevel(1);
@@ -370,7 +381,7 @@ int main(int argc, char *argv[])
    // pcg.SetRelTol(1e-5);
    // pcg.SetAbsTol(0.0);
    // pcg.SetOperator(*oprMultigrid.GetOperatorAtFinestLevel());
-   // pcg.SetPreconditioner(vCycle);
+   // pcg.SetPreconditioner(mgCycle);
    // pcg.Mult(B, X);
 
    oprMultigrid.Mult(X, r);
@@ -399,7 +410,7 @@ int main(int argc, char *argv[])
    {
       tic_toc.Clear();
       tic_toc.Start();
-      vCycle.Mult(B, X);
+      mgCycle.Mult(B, X);
       tic_toc.Stop();
 
       oprMultigrid.Mult(X, r);
