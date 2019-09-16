@@ -749,40 +749,7 @@ static void PAMassApply(const int dim,
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-
-   if (Device::Allows(Backend::RAJA_CUDA))
-   {
-      if (dim == 2)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x22: return PAMassApply2D<2,2>(NE, B, Bt, op, x, y);
-            case 0x33: return PAMassApply2D<3,3>(NE, B, Bt, op, x, y);
-            case 0x44: return PAMassApply2D<4,4>(NE, B, Bt, op, x, y);
-            case 0x55: return PAMassApply2D<5,5>(NE, B, Bt, op, x, y);
-            case 0x66: return PAMassApply2D<6,6>(NE, B, Bt, op, x, y);
-            case 0x77: return PAMassApply2D<7,7>(NE, B, Bt, op, x, y);
-            case 0x88: return PAMassApply2D<8,8>(NE, B, Bt, op, x, y);
-            case 0x99: return PAMassApply2D<9,9>(NE, B, Bt, op, x, y);
-            default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
-         }
-      }
-      if (dim == 3)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x23: return PAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-            case 0x34: return PAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-            case 0x45: return PAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-            case 0x56: return PAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-            case 0x67: return PAMassApply3D<6,7>(NE, B, Bt, op, x, y);
-            case 0x78: return PAMassApply3D<7,8>(NE, B, Bt, op, x, y);
-            case 0x89: return PAMassApply3D<8,9>(NE, B, Bt, op, x, y);
-            default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
-         }
-      }
-   }
-   else if (dim == 2)
+   if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {
