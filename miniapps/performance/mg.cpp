@@ -153,10 +153,10 @@ int main(int argc, char *argv[])
    // const char *mesh_file = "../../data/fichera.mesh";
    int ref_levels = 2;
    int mg_levels = 2;
-   int order = 1;
+   int order = 3;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool visualization = 1;
-   const bool partialAssembly = false;
+   const bool partialAssembly = true;
    const bool pMultigrid = false;
 
    OptionsParser args(argc, argv);
@@ -324,7 +324,12 @@ int main(int argc, char *argv[])
       {
          Vector diag(spaceHierarchy.GetFinestFESpace().GetTrueVSize());
          form->AssembleDiagonal(diag);
-         smoother = new OperatorJacobiSmoother(diag, *essentialTrueDoFs, 2.0/3.0);
+         
+         Vector ev(opr->Width());
+         OperatorJacobiSmoother invDiagOperator(diag, *essentialTrueDoFs, 1.0);
+         ProductOperator diagPrecond(&invDiagOperator, opr.Ptr(), false, false);
+         double estLargestEigenvalue = PowerMethod::EstimateLargestEigenvalue(MPI_COMM_WORLD, diagPrecond, ev, 10, 1e-8);
+         smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag, *essentialTrueDoFs, 3, estLargestEigenvalue);
       }
       else
       {
