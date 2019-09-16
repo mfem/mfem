@@ -252,8 +252,19 @@ public:
 // Multigrid solver
 class MultigridSolver : public Solver
 {
+public:
+   enum class CycleType
+   {
+      VCYCLE,
+      WCYCLE
+   };
+
 private:
    MultigridOperator& opr;
+   CycleType cycleType;
+
+   mutable Array<unsigned> preSmoothingSteps;
+   mutable Array<unsigned> postSmoothingSteps;
 
    mutable Array<Vector*> X;
    mutable Array<Vector*> Y;
@@ -268,7 +279,7 @@ private:
       }
 
       // Pre-smooth
-      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, 3);
+      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, preSmoothingSteps[level]);
 
       // Compute residual
       opr.GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]);
@@ -281,7 +292,9 @@ private:
       *Y[level - 1] = 0.0;
 
       // Corrections
-      for (int correction = 0; correction < 1; ++correction)
+      unsigned corrections = 1;
+      if (cycleType == CycleType::WCYCLE) { corrections = 2; }
+      for (unsigned correction = 0; correction < corrections; ++correction)
       {
          Cycle(level - 1);
       }
@@ -293,25 +306,39 @@ private:
       *Y[level] += *R[level];
 
       // Post-smooth
-      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, 3);
+      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, postSmoothingSteps[level]);
    }
 
 public:
-   MultigridSolver(MultigridOperator &opr_)
-      : opr(opr_)
+   MultigridSolver(MultigridOperator &opr_,
+                   CycleType cycleType_ = CycleType::VCYCLE,
+                   unsigned preSmoothingSteps_ = 3,
+                   unsigned postSmoothingSteps_ = 3)
+      : opr(opr_), cycleType(cycleType_)
    {
-      for (unsigned level = 0; level < opr.NumLevels(); ++level)
-      {
-         int vectorSize = opr.GetOperatorAtLevel(level)->Height();
-         X.Append(new Vector(vectorSize));
-         Y.Append(new Vector(vectorSize));
-         R.Append(new Vector(vectorSize));
-      }
+     for (unsigned level = 0; level < opr.NumLevels(); ++level)
+     {
+        int vectorSize = opr.GetOperatorAtLevel(level)->Height();
+        X.Append(new Vector(vectorSize));
+        Y.Append(new Vector(vectorSize));
+        R.Append(new Vector(vectorSize));
+     }
+
+     preSmoothingSteps.SetSize(opr.NumLevels());
+     postSmoothingSteps.SetSize(opr.NumLevels());
+
+     preSmoothingSteps = preSmoothingSteps_;
+     postSmoothingSteps = postSmoothingSteps_;
    }
 
    ~MultigridSolver()
    {
       Reset();
+   }
+
+   void SetCycleType(CycleType cycleType_)
+   {
+      cycleType = cycleType_;
    }
 
    void Reset()
