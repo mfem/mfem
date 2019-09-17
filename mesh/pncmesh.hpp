@@ -423,6 +423,26 @@ protected: // implementation
    bool PruneTree(int elem);
 
 
+   /** A parallel refinement stores the complete path from a root element.
+    *  The last item of 'path' is the desired refinement of a leaf element.
+    */
+   struct ParRefinement
+   {
+      enum Kind { Unknown = -1, Initial, Normal, Ghost };
+
+      int base; ///< index of a root element
+      Kind kind;
+      std::string path; ///< refinement path from 'base', plus ref_type
+
+      ParRefinement() : base(), kind(Unknown), path() {}
+      ParRefinement(int elem, char ref_type, Kind kind,
+                    const ParNCMesh* ncmesh);
+   };
+
+   std::vector<ParRefinement> par_ref_stack; // temporary, used by Refine()
+   std::vector<ParRefinement> par_postponed; //  "
+
+
    /** A base for internal messages used by Refine(), Derefine() and Rebalance().
     *  Allows sending values associated with elements in a set.
     *  If RefType == true, the element set is recreated on the receiving end.
@@ -453,6 +473,7 @@ protected: // implementation
       virtual void Decode(int);
    };
 
+#if 0
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
     *  the processor boundary. This keeps their ghost layers synchronized.
     */
@@ -462,6 +483,20 @@ protected: // implementation
       void AddRefinement(int elem, char ref_type) { Add(elem, ref_type); }
       typedef std::map<int, RefinementMessage> Map;
    };
+#else
+   /**
+    */
+   class RefinementMessage : public VarMessage<289>
+   {
+   public:
+      std::vector<ParRefinement> refinements;
+      typedef std::map<int, RefinementMessage> Map;
+
+   protected:
+      virtual void Encode(int);
+      virtual void Decode(int);
+   };
+#endif
 
    /** Used by ParNCMesh::Derefine() to keep the ghost layers synchronized.
     */

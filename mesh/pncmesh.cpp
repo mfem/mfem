@@ -1296,7 +1296,7 @@ void ParNCMesh::ClearAuxPM()
 }
 
 
-//// Prune, Refine /////////////////////////////////////////////////////////////
+//// Prune /////////////////////////////////////////////////////////////////////
 
 bool ParNCMesh::PruneTree(int elem)
 {
@@ -1367,11 +1367,31 @@ void ParNCMesh::Prune()
    Update();
 }
 
+
+//// Refine ////////////////////////////////////////////////////////////////////
+
+ParNCMesh::ParRefinement::ParRefinement(int elem, char ref_type, Kind kind,
+                                        const ParNCMesh *pncmesh)
+   : base(elem), kind(kind)
+{
+   // make sure 'base' is one of the root elements
+   while (1)
+   {
+      const Element &el = pncmesh->elements[base];
+      if (el.parent < 0) { break; }
+
+      path.push_back(el.ref_type);
+      base = el.parent;
+   }
+
+   // append the new refinement type to the path from the root
+   std::reverse(path.begin(), path.end());
+   path.push_back(ref_type);
+}
+
 #if 1
 void ParNCMesh::Refine(const Array<Refinement> &refinements)
 {
-   enum { NormalRef = 0, InitRef = 1, GhostRef = 2 };
-
    UpdateLayers();
 
    Array<int> ranks;
@@ -1390,7 +1410,9 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    {
       const Refinement& ref = refinements[i];
       int elem = leaf_elements[ref.index];
-      ref_queue.Append(Refinement(elem, ref.ref_type, InitRef));
+      //ref_queue.Append(Refinement(elem, ref.ref_type, InitRef));
+      par_ref_stack.Append(
+         ParRefinement(elem, ref.ref_type, ParRefinement::Initial));
 
       // refinements in the boundary layer must be reported to neighbors
       if (element_type[ref.index] == 3)
@@ -1430,21 +1452,12 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          recv_msg.Recv(rank, size, MyComm);
          my_recvd++;
 
-#if 0
-         // do the ghost refinements here, and only here
-         for (int i = 0; i < recv_msg.Size(); i++)
-         {
-            RefineElement(recv_msg.elements[i], recv_msg.values[i]);
-            DebugRefineDump("ghost");
-         }
-#else
          // schedule ghost refinements
          for (int i = 0; i < recv_msg.Size(); i++)
          {
             ref_queue.Append(
                Refinement(recv_msg.elements[i], recv_msg.values[i], GhostRef));
          }
-#endif
       }
 
       send_msg.push_back(RefinementMessage::Map());
@@ -1514,7 +1527,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          }
          else // forced refinement failed: schedule the refinement for later
          {
-            postponed.Append(ref);
+            par_postponed.Append(pref);
 
             std::cout << "Postponing refinement of element " << ref.index
                       << " (ref_type " << int(ref.ref_type)
@@ -1522,10 +1535,10 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          }
 
          // check if it's time to retry postponed refinements
-         if (!ref_queue.Size() && postponed.Size() && post_cnt == 0)
+         if (!par_ref_stack.Size() && par_postponed.Size() && post_cnt == 0)
          {
-            postponed.Copy(ref_queue);
-            postponed.DeleteAll();
+            par_ref_stack = par_postponed;
+            par_postponed.DeleteAll();
             post_cnt++;
          }
       }
@@ -2852,6 +2865,36 @@ void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Decode(int)
    {
       elements[i] = tmp_elements[read<int>(istream)];
       values[i] = read<ValueType>(istream);
+   }
+
+   // no longer need the raw data
+   data.clear();
+}
+
+void ParNCMesh::RefinementMessage::Encode(int)
+{
+   std::ostringstream oss;
+
+   write<int>(oss, refinements.size());
+   for (const ParRefinement &pref : refinements)
+   {
+      write<int>(oss, pref.base);
+      write<short>(oss, pref.path.size());
+      oss.write(pref.path.data(), pref.path.size());
+   }
+
+   oss.str().swap(data);
+}
+
+void ParNCMesh::RefinementMessage::Decode(int)
+{
+   std::istringstream iss(data);
+
+   refinements.resize(read<int>(iss));
+   for (ParRefinement &pref : refinements)
+   {
+      pref.base = read<int>(iss);
+      pref.path.resize(
    }
 
    // no longer need the raw data
