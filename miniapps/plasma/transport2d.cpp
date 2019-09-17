@@ -1515,7 +1515,13 @@ int main(int argc, char *argv[])
    ode_controller.SetTolerance(tol_ode);
    ode_controller.SetRejectionLimit(rej_ode);
 
-
+   ofstream ofs_controller;
+   if (mpi.Root())
+     {
+       ofs_controller.open("transport2d_cntrl.dat");
+       ode_controller.SetOutput(ofs_controller);
+     }
+   
    L2_FECollection fec_l2_o0(0, dim);
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes_l2_o0(&pmesh, &fec_l2_o0);
@@ -1894,6 +1900,7 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { cout << "Solution error: " << error << endl; }
    }
    */
+   if (mpi.Root()) ofs_controller.close();
    // Free the used memory.
    delete ode_solver;
    // delete ode_imp_solver;
