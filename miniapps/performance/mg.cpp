@@ -8,140 +8,6 @@
 using namespace std;
 using namespace mfem;
 
-class TransferOperator : public Operator
-{
-private:
-   const FiniteElementSpace& hFESpace;
-   const FiniteElementSpace& lFESpace;
-
-public:
-   TransferOperator(const FiniteElementSpace& hFESpace_,
-                    const FiniteElementSpace& lFESpace_)
-      : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), hFESpace(hFESpace_), lFESpace(lFESpace_)
-   { }
-
-   virtual ~TransferOperator() {}
-
-   virtual void Mult(const Vector &x, Vector &y) const
-   {
-      Mesh* mesh = hFESpace.GetMesh();
-      Array<int> l_dofs, h_dofs;
-      DenseMatrix loc_prol;
-      Vector subY, subX;
-
-      Geometry::Type cached_geom = Geometry::INVALID;
-      const FiniteElement *h_fe = NULL;
-      const FiniteElement *l_fe = NULL;
-      IsoparametricTransformation T;
-
-      for (int i = 0; i < mesh->GetNE(); i++)
-      {
-         hFESpace.GetElementDofs(i, h_dofs);
-         lFESpace.GetElementDofs(i, l_dofs);
-
-         const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-         if (geom != cached_geom)
-         {
-            h_fe = hFESpace.GetFE(i);
-            l_fe = lFESpace.GetFE(i);
-            T.SetIdentityTransformation(h_fe->GetGeomType());
-            h_fe->Project(*l_fe, T, loc_prol);
-            subY.SetSize(loc_prol.Height());
-            cached_geom = geom;
-         }
-
-         x.GetSubVector(l_dofs, subX);
-         loc_prol.Mult(subX, subY);
-         y.SetSubVector(h_dofs, subY);
-      }
-   }
-
-   virtual void MultTranspose(const Vector &x, Vector &y) const
-   {
-      y = 0.0;
-
-      Mesh* mesh = hFESpace.GetMesh();
-      Array<int> l_dofs, h_dofs;
-      DenseMatrix loc_prol;
-      Vector subY, subX;
-
-      Array<char> processed(hFESpace.GetVSize());
-      processed = 0;
-
-      Geometry::Type cached_geom = Geometry::INVALID;
-      const FiniteElement *h_fe = NULL;
-      const FiniteElement *l_fe = NULL;
-      IsoparametricTransformation T;
-
-      for (int i = 0; i < mesh->GetNE(); i++)
-      {
-         hFESpace.GetElementDofs(i, h_dofs);
-         lFESpace.GetElementDofs(i, l_dofs);
-
-         const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-         if (geom != cached_geom)
-         {
-            h_fe = hFESpace.GetFE(i);
-            l_fe = lFESpace.GetFE(i);
-            T.SetIdentityTransformation(h_fe->GetGeomType());
-            h_fe->Project(*l_fe, T, loc_prol);
-            subY.SetSize(loc_prol.Width());
-            cached_geom = geom;
-         }
-
-         x.GetSubVector(h_dofs, subX);
-         for (int p = 0; p < h_dofs.Size(); ++p)
-         {
-            if (processed[h_dofs[p]])
-            {
-               subX[p] = 0.0;
-            }
-            else
-            {
-               processed[h_dofs[p]] = 1;
-            }
-         }
-
-         loc_prol.MultTranspose(subX, subY);
-         y.AddElementVector(l_dofs, subY);
-      }
-   }
-};
-
-class TrueTransferOperator : public Operator
-{
- private:
-   TransferOperator *transferOperator;
-   TripleProductOperator *opr;
-
- public:
-   TrueTransferOperator(const FiniteElementSpace &hFESpace_,
-                        const FiniteElementSpace &lFESpace_)
-   {
-      transferOperator = new TransferOperator(hFESpace_, lFESpace_);
-
-      opr = new TripleProductOperator(
-          hFESpace_.GetRestrictionMatrix(), transferOperator,
-          lFESpace_.GetProlongationMatrix(), false, false, false);
-   }
-
-   ~TrueTransferOperator()
-   {
-      delete opr;
-      delete transferOperator;
-   }
-
-   virtual void Mult(const Vector &x, Vector &y) const override
-   {
-      opr->Mult(x, y);
-   }
-
-   virtual void MultTranspose(const Vector &x, Vector &y) const override
-   {
-      opr->MultTranspose(x, y);
-   }
-};
-
 int main(int argc, char *argv[])
 {
    int num_procs, myid;
@@ -309,21 +175,7 @@ int main(int argc, char *argv[])
       opr.SetOperatorOwner(false);
 
       // Create prolongation
-      OperatorPtr P;
-
-      if (pMultigrid)
-      {
-         Operator* Pt = new TrueTransferOperator(spaceHierarchy.GetFinestFESpace(), spaceHierarchy.GetFESpaceAtLevel(level - 1));
-         P.SetType(Operator::ANY_TYPE);
-         P.Reset(Pt, false);
-      }
-      else
-      {
-         P.SetType(Operator::ANY_TYPE);
-         spaceHierarchy.GetFinestFESpace().GetTrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1), P);
-
-         P.SetOperatorOwner(false);
-      }
+      Operator* P = new TrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1), spaceHierarchy.GetFinestFESpace());
 
       // Create smoother
       Solver* smoother = nullptr;
@@ -344,7 +196,7 @@ int main(int argc, char *argv[])
          smoother = new HypreSmoother(*opr.As<HypreParMatrix>());
       }
 
-      oprMultigrid.AddLevel(opr.Ptr(), smoother, P.Ptr(), true, true, true);
+      oprMultigrid.AddLevel(opr.Ptr(), smoother, P, true, true, true);
    }
 
    ParGridFunction x(&spaceHierarchy.GetFinestFESpace());
