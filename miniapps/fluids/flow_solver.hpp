@@ -28,8 +28,8 @@ class PresDirichletBC_T
 {
 public:
    PresDirichletBC_T(double (*f)(const Vector &x, double t),
-                    Array<int> attr,
-                    FunctionCoefficient coeff)
+                     Array<int> attr,
+                     FunctionCoefficient coeff)
       : f(f), attr(attr), coeff(coeff)
    {}
 
@@ -51,10 +51,14 @@ public:
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
    void AddVelDirichletBC(void (*f)(const Vector &x, double t, Vector &u),
-                         Array<int> &attr);
+                          Array<int> &attr);
 
    void AddPresDirichletBC(double (*f)(const Vector &x, double t),
-                          Array<int> &attr);
+                           Array<int> &attr);
+
+   void EnablePA(bool pa) { partial_assembly = pa; }
+
+   void EnableNI(bool ni) { numerical_integ = ni; }
 
    void PrintTimingData();
 
@@ -67,6 +71,7 @@ protected:
    void ComputeCurl2D(ParGridFunction &u,
                       ParGridFunction &cu,
                       bool assume_scalar = false);
+   void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
    void Orthogonalize(Vector &v);
    void MeanZero(ParGridFunction &v);
 
@@ -79,9 +84,10 @@ protected:
                      Vector &B,
                      int copy_interior = 0);
 
+   bool debug = true;
    bool verbose = true;
-   bool partial_assembly = true;
-   bool numerical_integ = true;
+   bool partial_assembly = false;
+   bool numerical_integ = false;
 
    ParMesh *pmesh;
 
@@ -110,6 +116,7 @@ protected:
    double volume;
 
    ConstantCoefficient nlcoeff;
+   ConstantCoefficient Sp_coeff;
    ConstantCoefficient H_lincoeff;
    ConstantCoefficient H_bdfcoeff;
 
@@ -176,14 +183,14 @@ protected:
    int pl_amg = 0;
 
    // Tolerances
-   double rtol_spsolve = 1e-5;
-   double rtol_hsolve = 1e-6;
+   double rtol_spsolve = 1e-6;
+   double rtol_hsolve = 1e-8;
 
    // Iteration counts
-   int iter_spsolve, iter_hsolve;
+   int iter_mvsolve, iter_spsolve, iter_hsolve;
 
    // Residuals
-   double res_spsolve, res_hsolve;
+   double res_mvsolve, res_spsolve, res_hsolve;
 
    // LOR PC related
    ParMesh *pmesh_lor;

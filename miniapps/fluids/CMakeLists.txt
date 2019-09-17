@@ -44,6 +44,9 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(flow_poisson
+    MAIN poisson.cpp
+    LIBRARIES mfem)
 
   # Add the corresponding tests to the "test" target
   add_test(NAME flow_np=4

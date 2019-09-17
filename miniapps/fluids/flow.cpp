@@ -8,7 +8,7 @@ struct s_FlowContext
 {
    int order = 5;
    double kin_vis = 1.0;
-   double t_final = 1e-3;
+   double t_final = 1;
    double dt = 1e-3;
 } ctx;
 
@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int serial_refinements = 0;
+   int serial_refinements = 3;
 
    // Mesh *mesh = new Mesh("../data/inline-quad.mesh");
    Mesh *mesh = new Mesh("../data/periodic-square.mesh");
@@ -63,6 +63,8 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    FlowSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
+   flowsolver.EnablePA(true);
+   flowsolver.EnableNI(false);
 
    // Set the initial condition.
    // This is completely user customizeable.

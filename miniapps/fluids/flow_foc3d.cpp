@@ -7,9 +7,11 @@ using namespace flow;
 struct s_FlowContext
 {
    int order = 2;
-   double kin_vis = 0.001;
-   double t_final = 5.0;
+   double kin_vis = 0.01;
+   double t_final = 1.0;
    double dt = 1e-3;
+   bool pa = false;
+   bool ni = false;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -42,11 +44,49 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int serial_refinements = 0;
+   int ser_ref_levels = 0;
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&ser_ref_levels,
+                  "-rs",
+                  "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&ctx.order,
+                  "-o",
+                  "--order",
+                  "Order (degree) of the finite elements.");
+   args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
+   args.AddOption(&ctx.pa,
+                  "-pa",
+                  "--enable-pa",
+                  "-no-pi",
+                  "--disable-pi",
+                  "Enable partial assembly.");
+   args.AddOption(&ctx.ni,
+                  "-ni",
+                  "--enable-ni",
+                  "-no-ni",
+                  "--disable-ni",
+                  "Enable numerical integration rules.");
+   args.Parse();
+   if (!args.Good())
+   {
+      if (mpi.Root())
+      {
+         args.PrintUsage(std::cout);
+      }
+      MPI_Finalize();
+      return 1;
+   }
+   if (mpi.Root())
+   {
+      args.PrintOptions(std::cout);
+   }
 
    Mesh *mesh = new Mesh("../miniapps/fluids/3dfoc.e");
 
-   for (int i = 0; i < serial_refinements; ++i)
+   for (int i = 0; i < ser_ref_levels; ++i)
    {
       mesh->UniformRefinement();
    }
@@ -61,6 +101,8 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    FlowSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
+   flowsolver.EnablePA(ctx.pa);
+   flowsolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    // This is completely user customizeable.
@@ -108,16 +150,26 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      if ((step + 1) % 100 == 0 || last_step)
+      if ((step + 1) % 10 == 0 || last_step)
       {
          visit_dc.SetCycle(step);
          visit_dc.SetTime(t);
          visit_dc.Save();
       }
+
+      double u_inf_loc = u_gf->Normlinf();
+      double p_inf_loc = p_gf->Normlinf();
+      double u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
+      double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
       if (mpi.Root())
       {
-         printf("%.5E %.5E\n", t, dt);
+         printf("%.5E %.5E %.5E %.5E \n", t, dt, u_inf, p_inf);
          fflush(stdout);
+      }
+
+      if (u_inf > 1.0E3)
+      {
+         MFEM_ABORT("UNSTABLE");
       }
    }
 

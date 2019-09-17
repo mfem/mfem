@@ -806,6 +806,8 @@ static void PAVectorDivergenceApply(const int dim,
 
    //if (Device::Allows(Backend::RAJA_CUDA))
    //{
+   const int DQ = (TR_D1D << 4) | TE_D1D;
+
    if (dim == 2)
    {
       switch ((TR_D1D << 4) | TE_D1D)
@@ -1001,16 +1003,16 @@ static void PAVectorDivergenceApply(const int dim,
                }
             }
             break;
-         default:
-            break;
-      }
-      if (transpose)
-      {
-         return PAVectorDivergenceApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
-      }
-      else
-      {
-         return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+
+         case 0x33:
+            if (Q1D == 4)
+            {
+               return PAVectorDivergenceApply3D<3,3,4>(NE,B,G,Bt,op,x,y);
+            }
+
+         default: 
+            // printf ("%x, %x, %d, %X\n", TR_D1D, TE_D1D, Q1D, DQ);
+            return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
    }
    /*}

@@ -97,12 +97,8 @@ void FlowSolver::Setup(double dt)
    sw_setup.Start();
 
    pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
-   // vfec_lor = new H1_FECollection(1, pmesh->Dimension());
    pfec_lor = new H1_FECollection(1);
-   // vfes_lor = new ParFiniteElementSpace(pmesh_lor, vfec_lor, pmesh->Dimension());
    pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
-
-   // vgt = new InterpolationGridTransfer(*vfes, *vfes_lor);
    pgt = new InterpolationGridTransfer(*pfes, *pfes_lor);
 
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
@@ -234,9 +230,9 @@ void FlowSolver::Setup(double dt)
       Sp_form_lor->Assemble();
       Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
       SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
-      HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
-      HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-      HYPRE_BoomerAMGSetRelaxType(amg_precond, 3);
+      // HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
+      // HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
+      // HYPRE_BoomerAMGSetRelaxType(amg_precond, 3);
       SpInvPC->SetPrintLevel(pl_amg);
       SpInvPC->Mult(resp, pn);
       SpInvOrthoPC = new OrthoSolver();
@@ -254,11 +250,11 @@ void FlowSolver::Setup(double dt)
    SpInv->SetOperator(*Sp);
    if (pres_dbcs.empty())
    {
-     SpInv->SetPreconditioner(*SpInvOrthoPC);
+      SpInv->SetPreconditioner(*SpInvOrthoPC);
    }
    else
    {
-     SpInv->SetPreconditioner(*SpInvPC);
+      SpInv->SetPreconditioner(*SpInvPC);
    }
    SpInv->SetPrintLevel(pl_spsolve);
    SpInv->SetRelTol(rtol_spsolve);
@@ -322,6 +318,8 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    sw_step.Start();
 
    time += dt;
+
+   // TODO: update pressure bcs and acceleration terms
 
    for (auto vdbc = vel_dbcs.begin(); vdbc != vel_dbcs.end(); ++vdbc)
    {
@@ -388,6 +386,8 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
 
    // Fext = M^{-1} (F(u^{n}) + f^{n+1})
    MvInv->Mult(Fext, tmp1);
+   iter_mvsolve = MvInv->GetNumIterations();
+   res_mvsolve = MvInv->GetFinalNorm();
    Fext.Set(1.0, tmp1);
 
    // BDF terms
@@ -420,12 +420,13 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    // ComputeCurlCurl(Lext_gf, curlcurlu_gf);
    if (pmesh->Dimension() == 2)
    {
-     ComputeCurl2D(Lext_gf, curlu_gf);
-     ComputeCurl2D(curlu_gf, curlcurlu_gf, true);
+      ComputeCurl2D(Lext_gf, curlu_gf);
+      ComputeCurl2D(curlu_gf, curlcurlu_gf, true);
    }
-   else 
+   else
    {
-     MFEM_ABORT("3D Curl not implemented");
+      ComputeCurl3D(Lext_gf, curlu_gf);
+      ComputeCurl3D(curlu_gf, curlcurlu_gf);
    }
 
    curlcurlu_gf.GetTrueDofs(Lext);
@@ -456,7 +457,10 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
       Orthogonalize(resp);
    }
 
-   // pn_gf = 0.0;
+   for (auto pdbc = pres_dbcs.begin(); pdbc != pres_dbcs.end(); ++pdbc)
+   {
+      pn_gf.ProjectBdrCoefficient(pdbc->coeff, pdbc->attr);
+   }
 
    pfes->GetRestrictionMatrix()->MultTranspose(resp, resp_gf);
 
@@ -528,8 +532,12 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      printf("PRES %d %.2E %.2E\n", iter_spsolve, res_spsolve, rtol_spsolve);
-      printf("HELM %d %.2E %.2E\n", iter_hsolve, res_hsolve, rtol_hsolve);
+      if (!numerical_integ)
+      {
+         printf("MVIN %3d %.2E %.2E\n", iter_mvsolve, res_mvsolve, 1e-12);
+      }
+      printf("PRES %3d %.2E %.2E\n", iter_spsolve, res_spsolve, rtol_spsolve);
+      printf("HELM %3d %.2E %.2E\n", iter_hsolve, res_hsolve, rtol_hsolve);
    }
 }
 
@@ -605,9 +613,102 @@ void FlowSolver::ComputeCurlCurl(ParGridFunction &u, ParGridFunction &ccu)
    ccu.ProjectDiscCoefficient(cu_gfcoeff, GridFunction::AvgType::ARITHMETIC);
 }
 
+void FlowSolver::ComputeCurl3D(ParGridFunction &u,
+                               ParGridFunction &cu) 
+{
+   FiniteElementSpace *fes = u.FESpace();
+
+   // AccumulateAndCountZones
+   Array<int> zones_per_vdof;
+   zones_per_vdof.SetSize(fes->GetVSize());
+   zones_per_vdof = 0;
+
+   cu = 0.0;
+
+   // Local interpolation
+   int elndofs;
+   Array<int> vdofs;
+   Vector vals;
+   Vector loc_data;
+   int vdim = fes->GetVDim();
+   DenseMatrix grad_hat;
+   DenseMatrix dshape;
+   DenseMatrix grad;
+   Vector curl;
+
+   for (int e = 0; e < fes->GetNE(); ++e)
+   {
+      fes->GetElementVDofs(e, vdofs);
+      u.GetSubVector(vdofs, loc_data);
+      vals.SetSize(vdofs.Size());
+      ElementTransformation *tr = fes->GetElementTransformation(e);
+      const FiniteElement *el = fes->GetFE(e);
+      elndofs = el->GetDof();
+      int dim = el->GetDim();
+      dshape.SetSize(elndofs, dim);
+
+      for (int dof = 0; dof < elndofs; ++dof)
+      {
+         // Project
+         const IntegrationPoint &ip = el->GetNodes().IntPoint(dof);
+         tr->SetIntPoint(&ip);
+
+         // Eval
+         // GetVectorGradientHat
+         el->CalcDShape(tr->GetIntPoint(), dshape);
+         grad_hat.SetSize(vdim, dim);
+         DenseMatrix loc_data_mat(loc_data.GetData(), elndofs, vdim);
+         MultAtB(loc_data_mat, dshape, grad_hat);
+
+         const DenseMatrix &Jinv = tr->InverseJacobian();
+         grad.SetSize(grad_hat.Height(), Jinv.Width());
+         Mult(grad_hat, Jinv, grad);
+
+         curl.SetSize(3);
+         curl(0) = grad(2,1) - grad(1,2);
+         curl(1) = grad(0,2) - grad(2,0);
+         curl(2) = grad(1,0) - grad(0,1);
+
+         for (int j = 0; j < curl.Size(); ++j)
+         {
+            vals(elndofs * j + dof) = curl(j);
+         }
+      }
+
+      // Accumulate values in all dofs, count the zones.
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         int ldof = vdofs[j];
+         cu(ldof) += vals[j];
+         zones_per_vdof[ldof]++;
+      }
+   }
+
+   // Communication
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = u.ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(zones_per_vdof);
+
+   // Accumulate for all vdofs.
+   gcomm.Reduce<double>(cu.GetData(), GroupCommunicator::Sum);
+   gcomm.Bcast<double>(cu.GetData());
+
+   // Compute means
+   for (int i = 0; i < cu.Size(); i++)
+   {
+      const int nz = zones_per_vdof[i];
+      if (nz)
+      {
+         cu(i) /= nz;
+      }
+   }
+}
+
 void FlowSolver::ComputeCurl2D(ParGridFunction &u,
-                                   ParGridFunction &cu,
-                                   bool assume_scalar)
+                               ParGridFunction &cu,
+                               bool assume_scalar)
 {
    FiniteElementSpace *fes = u.FESpace();
 
@@ -739,13 +840,10 @@ void FlowSolver::AddVelDirichletBC(
    }
 }
 
-void FlowSolver::AddPresDirichletBC(
-   double (*f)(const Vector &x, double t), Array<int> &attr)
+void FlowSolver::AddPresDirichletBC(double (*f)(const Vector &x, double t),
+                                    Array<int> &attr)
 {
-   pres_dbcs.push_back(
-      PresDirichletBC_T(f,
-                       attr,
-                       FunctionCoefficient(f)));
+   pres_dbcs.push_back(PresDirichletBC_T(f, attr, FunctionCoefficient(f)));
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
@@ -876,7 +974,7 @@ FlowSolver::~FlowSolver()
    delete H_form;
    delete SpInv;
    delete MvInvPC;
-   delete Sp_form_lor; 
+   delete Sp_form_lor;
    delete pfes_lor;
    delete pfec_lor;
    delete pgt;

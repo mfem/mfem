@@ -8,8 +8,10 @@ struct s_FlowContext
 {
    int order = 7;
    double kin_vis = 1.0 / 1600.0;
-   double t_final = 10.0e-3;
+   double t_final = 10e-3;
    double dt = 1e-3;
+   bool pa = false;
+   bool ni = false;
 } ctx;
 
 void vel_tgv(const Vector &x, double t, Vector &u)
@@ -27,9 +29,48 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int serial_refinements = 0;
+   int ser_ref_levels = 1;
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&ser_ref_levels,
+                  "-rs",
+                  "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&ctx.order,
+                  "-o",
+                  "--order",
+                  "Order (degree) of the finite elements.");
+   args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
+   args.AddOption(&ctx.pa,
+                  "-pa",
+                  "--enable-pa",
+                  "-no-pi",
+                  "--disable-pi",
+                  "Enable partial assembly.");
+   args.AddOption(&ctx.ni,
+                  "-ni",
+                  "--enable-ni",
+                  "-no-ni",
+                  "--disable-ni",
+                  "Enable numerical integration rules.");
+   args.Parse();
+   if (!args.Good())
+   {
+      if (mpi.Root())
+      {
+         args.PrintUsage(std::cout);
+      }
+      MPI_Finalize();
+      return 1;
+   }
+   if (mpi.Root())
+   {
+      args.PrintOptions(std::cout);
+   }
 
    Mesh *mesh = new Mesh("../data/periodic-cube.mesh");
+   // Mesh *mesh = new Mesh("../data/inline-hex.mesh");
 
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
@@ -37,7 +78,7 @@ int main(int argc, char *argv[])
    // *nodes -= 1.0;
    *nodes *= M_PI;
 
-   for (int i = 0; i < serial_refinements; ++i)
+   for (int i = 0; i < ser_ref_levels; ++i)
    {
       mesh->UniformRefinement();
    }
@@ -52,6 +93,8 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    FlowSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
+   flowsolver.EnablePA(ctx.pa);
+   flowsolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    // This is completely user customizeable.
@@ -92,9 +135,14 @@ int main(int argc, char *argv[])
          visit_dc.SetTime(t);
          visit_dc.Save();
       }
+
+      double u_inf_loc = u_gf->Normlinf();
+      double p_inf_loc = p_gf->Normlinf();
+      double u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
+      double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
       if (mpi.Root())
       {
-         printf("%.5E %.5E\n", t, dt);
+         printf("%.5E %.5E %.5E %.5E \n", t, dt, u_inf, p_inf);
          fflush(stdout);
       }
    }

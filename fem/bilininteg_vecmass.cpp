@@ -229,6 +229,8 @@ static void PAVectorMassAssembleDiagonal(const int dim,
    {
       switch ((D1D << 4) | Q1D)
       {
+      case 0x44:
+         return PAVectorMassAssembleDiagonal2D<4, 4>(NE, B, Bt, op, y, D1D, Q1D);
       case 0x66:
          return PAVectorMassAssembleDiagonal2D<6, 6>(NE, B, Bt, op, y, D1D, Q1D);
       default:

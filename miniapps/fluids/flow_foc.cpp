@@ -8,7 +8,7 @@ struct s_FlowContext
 {
    int order = 3;
    double kin_vis = 0.001;
-   double t_final = 5.0;
+   double t_final = 1.0;
    double dt = 1e-3;
 } ctx;
 
@@ -28,6 +28,11 @@ void vel(const Vector &x, double t, Vector &u)
       u(0) = 0.0;
    }
    u(1) = 0.0;
+}
+
+double pres(const Vector &x, double t)
+{
+  return 0.0;
 }
 
 int main(int argc, char *argv[])
@@ -68,6 +73,10 @@ int main(int argc, char *argv[])
    attr[1] = 1;
    attr[2] = 1;
    flowsolver.AddVelDirichletBC(vel, attr);
+
+   attr = 0;
+   attr[3] = 1;
+   flowsolver.AddPresDirichletBC(pres, attr);
 
    double t = 0.0;
    double dt = ctx.dt;
