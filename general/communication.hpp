@@ -179,6 +179,12 @@ public:
    /// Get a const reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() const { return gtopo; }
 
+   /// Dofs to be sent to communication neighbors
+   void GetNeighborLTDofTable(Table &nbr_ltdof) const;
+
+   /// Dofs to be received from communication neighbors
+   void GetNeighborLDofTable(Table &nbr_ldof) const;
+
    /** @brief Data structure on which we define reduce operations.
 
      The data is associated with (and the operation is performed on) one group
