@@ -8,17 +8,16 @@ namespace mfem
 {
 
 /// Class bundling a hierarchy of meshes and finite element spaces
-template<typename M, typename FES>
-class GeneralSpaceHierarchy
+template <typename M, typename FES> class GeneralSpaceHierarchy
 {
-private:
-   Array<M*> meshes;
-   Array<FES*> fespaces;
+ private:
+   Array<M *> meshes;
+   Array<FES *> fespaces;
    Array<bool> ownedMeshes;
    Array<bool> ownedFES;
 
-public:
-   GeneralSpaceHierarchy(M* mesh, FES* fespace, bool ownM, bool ownFES)
+ public:
+   GeneralSpaceHierarchy(M *mesh, FES *fespace, bool ownM, bool ownFES)
    {
       AddLevel(mesh, fespace, ownM, ownFES);
    }
@@ -27,25 +26,25 @@ public:
    {
       for (int i = meshes.Size() - 1; i >= 0; --i)
       {
-         if (ownedFES[i]) { delete fespaces[i]; }
-         if (ownedMeshes[i]) { delete meshes[i]; }
+         if (ownedFES[i])
+         {
+            delete fespaces[i];
+         }
+         if (ownedMeshes[i])
+         {
+            delete meshes[i];
+         }
       }
 
       fespaces.DeleteAll();
       meshes.DeleteAll();
    }
 
-   unsigned GetNumLevels() const
-   {
-      return meshes.Size();
-   }
+   unsigned GetNumLevels() const { return meshes.Size(); }
 
-   unsigned GetFinestLevelIndex() const
-   {
-      return GetNumLevels() - 1;
-   }
+   unsigned GetFinestLevelIndex() const { return GetNumLevels() - 1; }
 
-   void AddLevel(M* mesh, FES* fespace, bool ownM, bool ownFES)
+   void AddLevel(M *mesh, FES *fespace, bool ownM, bool ownFES)
    {
       meshes.Append(mesh);
       fespaces.Append(fespace);
@@ -55,60 +54,67 @@ public:
 
    void AddUniformlyRefinedLevel()
    {
-      M* mesh = new M(*meshes[GetFinestLevelIndex()]);
+      M *mesh = new M(*meshes[GetFinestLevelIndex()]);
       mesh->UniformRefinement();
-      FES* coarseFEspace = fespaces[GetFinestLevelIndex()];
-      FES* fineFEspace = new FES(mesh, coarseFEspace->FEColl());
+      FES *coarseFEspace = fespaces[GetFinestLevelIndex()];
+      FES *fineFEspace = new FES(mesh, coarseFEspace->FEColl());
       AddLevel(mesh, fineFEspace, true, true);
    }
 
-   void AddOrderRefinedLevel(FiniteElementCollection* fec)
+   void AddOrderRefinedLevel(FiniteElementCollection *fec)
    {
-      M* mesh = &GetFinestMesh();
-      FES* newFEspace = new FES(mesh, fec);
+      M *mesh = &GetFinestMesh();
+      FES *newFEspace = new FES(mesh, fec);
       AddLevel(mesh, newFEspace, false, true);
    }
 
-   const M& GetMeshAtLevel(unsigned level) const
+   const M &GetMeshAtLevel(unsigned level) const
    {
       MFEM_ASSERT(level < meshes.Size(), "Mesh at given level does not exist.");
       return *meshes[level];
    }
 
-   M& GetMeshAtLevel(unsigned level)
+   M &GetMeshAtLevel(unsigned level)
    {
-      return const_cast<M&>(const_cast<const GeneralSpaceHierarchy*>(this)->GetMeshAtLevel(level));
+      return const_cast<M &>(
+          const_cast<const GeneralSpaceHierarchy *>(this)->GetMeshAtLevel(
+              level));
    }
 
-   const M& GetFinestMesh() const
+   const M &GetFinestMesh() const
    {
       return GetMeshAtLevel(GetFinestLevelIndex());
    }
 
-   M& GetFinestMesh()
+   M &GetFinestMesh()
    {
-      return const_cast<M&>(const_cast<const GeneralSpaceHierarchy*>(this)->GetFinestMesh());
+      return const_cast<M &>(
+          const_cast<const GeneralSpaceHierarchy *>(this)->GetFinestMesh());
    }
 
-   const FES& GetFESpaceAtLevel(unsigned level) const
+   const FES &GetFESpaceAtLevel(unsigned level) const
    {
-      MFEM_ASSERT(level < fespaces.Size(), "FE space at given level does not exist.");
+      MFEM_ASSERT(level < fespaces.Size(),
+                  "FE space at given level does not exist.");
       return *fespaces[level];
    }
 
-   FES& GetFESpaceAtLevel(unsigned level)
+   FES &GetFESpaceAtLevel(unsigned level)
    {
-      return const_cast<FES&>(const_cast<const GeneralSpaceHierarchy*>(this)->GetFESpaceAtLevel(level));
+      return const_cast<FES &>(
+          const_cast<const GeneralSpaceHierarchy *>(this)->GetFESpaceAtLevel(
+              level));
    }
 
-   const FES& GetFinestFESpace() const
+   const FES &GetFinestFESpace() const
    {
       return GetFESpaceAtLevel(GetFinestLevelIndex());
    }
 
-   FES& GetFinestFESpace()
+   FES &GetFinestFESpace()
    {
-      return const_cast<FES&>(const_cast<const GeneralSpaceHierarchy*>(this)->GetFinestFESpace());
+      return const_cast<FES &>(
+          const_cast<const GeneralSpaceHierarchy *>(this)->GetFinestFESpace());
    }
 };
 
@@ -118,18 +124,19 @@ using ParSpaceHierarchy = GeneralSpaceHierarchy<ParMesh, ParFiniteElementSpace>;
 /// Abstract multigrid operator
 class MultigridOperator : public Operator
 {
-protected:
-   Array<const Operator*> operators;
-   Array<Solver*> smoothers;
-   Array<const Operator*> prolongations;
+ protected:
+   Array<const Operator *> operators;
+   Array<Solver *> smoothers;
+   Array<const Operator *> prolongations;
 
    Array<bool> ownedOperators;
    Array<bool> ownedSmoothers;
    Array<bool> ownedProlongations;
 
-public:
+ public:
    /// Constructor
-   MultigridOperator(const Operator* opr, Solver* coarseSolver, bool ownOperator, bool ownSolver)
+   MultigridOperator(const Operator *opr, Solver *coarseSolver,
+                     bool ownOperator, bool ownSolver)
    {
       operators.Append(opr);
       smoothers.Append(coarseSolver);
@@ -141,13 +148,22 @@ public:
    {
       for (int i = operators.Size() - 1; i >= 0; --i)
       {
-         if (ownedOperators[i]) { delete operators[i]; }
-         if (ownedSmoothers[i]) { delete smoothers[i]; }
+         if (ownedOperators[i])
+         {
+            delete operators[i];
+         }
+         if (ownedSmoothers[i])
+         {
+            delete smoothers[i];
+         }
       }
 
       for (int i = prolongations.Size() - 1; i >= 0; --i)
       {
-         if (ownedProlongations[i]) { delete prolongations[i]; }
+         if (ownedProlongations[i])
+         {
+            delete prolongations[i];
+         }
       }
 
       operators.DeleteAll();
@@ -167,16 +183,10 @@ public:
    }
 
    /// Returns the number of levels
-   unsigned NumLevels() const
-   {
-      return operators.Size();
-   }
+   unsigned NumLevels() const { return operators.Size(); }
 
    /// Returns the index of the finest level
-   unsigned GetFinestLevelIndex() const
-   {
-      return NumLevels() - 1;
-   }
+   unsigned GetFinestLevelIndex() const { return NumLevels() - 1; }
 
    /// Matrix vector multiplication at given level
    void MultAtLevel(unsigned level, const Vector &x, Vector &y) const
@@ -215,62 +225,56 @@ public:
    }
 
    /// Returns operator at given level
-   const Operator* GetOperatorAtLevel(unsigned level) const
+   const Operator *GetOperatorAtLevel(unsigned level) const
    {
       return operators[level];
    }
 
    /// Returns operator at given level
-   const Operator* GetOperatorAtLevel(unsigned level)
+   const Operator *GetOperatorAtLevel(unsigned level)
    {
       return operators[level];
    }
 
    /// Returns operator at finest level
-   const Operator* GetOperatorAtFinestLevel() const
+   const Operator *GetOperatorAtFinestLevel() const
    {
       return GetOperatorAtLevel(operators.Size() - 1);
    }
 
    /// Returns operator at finest level
-   const Operator* GetOperatorAtFinestLevel()
+   const Operator *GetOperatorAtFinestLevel()
    {
       return GetOperatorAtLevel(operators.Size() - 1);
    }
 
    /// Returns smoother at given level
-   Solver* GetSmootherAtLevel(unsigned level) const
-   {
-      return smoothers[level];
-   }
+   Solver *GetSmootherAtLevel(unsigned level) const { return smoothers[level]; }
 
    /// Returns smoother at given level
-   Solver* GetSmootherAtLevel(unsigned level)
-   {
-      return smoothers[level];
-   }
+   Solver *GetSmootherAtLevel(unsigned level) { return smoothers[level]; }
 };
 
 // Multigrid solver
 class MultigridSolver : public Solver
 {
-public:
+ public:
    enum class CycleType
    {
       VCYCLE,
       WCYCLE
    };
 
-private:
-   const MultigridOperator* opr;
+ private:
+   const MultigridOperator *opr;
    CycleType cycleType;
 
    mutable Array<unsigned> preSmoothingSteps;
    mutable Array<unsigned> postSmoothingSteps;
 
-   mutable Array<Vector*> X;
-   mutable Array<Vector*> Y;
-   mutable Array<Vector*> R;
+   mutable Array<Vector *> X;
+   mutable Array<Vector *> Y;
+   mutable Array<Vector *> R;
 
    void Cycle(unsigned level) const
    {
@@ -281,7 +285,8 @@ private:
       }
 
       // Pre-smooth
-      SLI(*opr->GetOperatorAtLevel(level), *opr->GetSmootherAtLevel(level), *X[level], *Y[level], -1, preSmoothingSteps[level]);
+      SLI(*opr->GetOperatorAtLevel(level), *opr->GetSmootherAtLevel(level),
+          *X[level], *Y[level], -1, preSmoothingSteps[level]);
 
       // Compute residual
       opr->GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]);
@@ -295,7 +300,10 @@ private:
 
       // Corrections
       unsigned corrections = 1;
-      if (cycleType == CycleType::WCYCLE) { corrections = 2; }
+      if (cycleType == CycleType::WCYCLE)
+      {
+         corrections = 2;
+      }
       for (unsigned correction = 0; correction < corrections; ++correction)
       {
          Cycle(level - 1);
@@ -308,7 +316,8 @@ private:
       *Y[level] += *R[level];
 
       // Post-smooth
-      SLI(*opr->GetOperatorAtLevel(level), *opr->GetSmootherAtLevel(level), *X[level], *Y[level], -1, postSmoothingSteps[level]);
+      SLI(*opr->GetOperatorAtLevel(level), *opr->GetSmootherAtLevel(level),
+          *X[level], *Y[level], -1, postSmoothingSteps[level]);
    }
 
    void Setup(unsigned preSmoothingSteps_ = 3, unsigned postSmoothingSteps_ = 3)
@@ -345,32 +354,23 @@ private:
       postSmoothingSteps.DeleteAll();
    }
 
-public:
+ public:
    MultigridSolver(const MultigridOperator *opr_,
                    CycleType cycleType_ = CycleType::VCYCLE,
                    unsigned preSmoothingSteps_ = 3,
                    unsigned postSmoothingSteps_ = 3)
-      : opr(opr_), cycleType(cycleType_)
+       : opr(opr_), cycleType(cycleType_)
    {
       Setup(preSmoothingSteps_, postSmoothingSteps_);
    }
 
-   ~MultigridSolver()
-   {
-      Reset();
-   }
+   ~MultigridSolver() { Reset(); }
 
-   void SetCycleType(CycleType cycleType_)
-   {
-      cycleType = cycleType_;
-   }
+   void SetCycleType(CycleType cycleType_) { cycleType = cycleType_; }
 
-   void SetPreSmoothingSteps(unsigned steps)
-   {
-      preSmoothingSteps = steps;
-   }
+   void SetPreSmoothingSteps(unsigned steps) { preSmoothingSteps = steps; }
 
-   void SetPreSmoothingSteps(const Array<unsigned>& steps)
+   void SetPreSmoothingSteps(const Array<unsigned> &steps)
    {
       MFEM_VERIFY(
           steps.Size() == preSmoothingSteps.Size(),
@@ -378,12 +378,9 @@ public:
       preSmoothingSteps = steps;
    }
 
-   void SetPostSmoothingSteps(unsigned steps)
-   {
-      postSmoothingSteps = steps;
-   }
+   void SetPostSmoothingSteps(unsigned steps) { postSmoothingSteps = steps; }
 
-   void SetPostSmoothingSteps(const Array<unsigned>& steps)
+   void SetPostSmoothingSteps(const Array<unsigned> &steps)
    {
       MFEM_VERIFY(
           steps.Size() == postSmoothingSteps.Size(),
@@ -397,7 +394,7 @@ public:
       SetPostSmoothingSteps(steps);
    }
 
-   void SetSmoothingSteps(const Array<unsigned>& steps)
+   void SetSmoothingSteps(const Array<unsigned> &steps)
    {
       SetPreSmoothingSteps(steps);
       SetPostSmoothingSteps(steps);
@@ -414,16 +411,15 @@ public:
    /// Set/update the solver for the given operator.
    virtual void SetOperator(const Operator &op) override
    {
-      if (!dynamic_cast<const MultigridOperator*>(&op))
+      if (!dynamic_cast<const MultigridOperator *>(&op))
       {
          MFEM_ABORT("Unsupported operator for MultigridSolver");
       }
 
       Reset();
-      opr = static_cast<const MultigridOperator*>(&op);
+      opr = static_cast<const MultigridOperator *>(&op);
       Setup();
    }
-
 };
 
 } // namespace mfem
