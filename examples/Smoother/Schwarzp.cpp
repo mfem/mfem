@@ -445,50 +445,123 @@ void par_patch_dof_info::Print()
                << ", patch_tdofs: "; patch_tdofs[i].Print(cout, 20);
             }
          }
-      // MPI_Barrier(comm);
       }
    }
 
 }
 
-par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace, HypreParMatrix * A)
+par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace_, HypreParMatrix * A_) 
+   : fespace(fespace_), A(A_)
 {
-   par_patch_dof_info *patch_tdof_info = new par_patch_dof_info(cpmesh_, ref_levels_,fespace);
+   comm = A->GetComm();
    int num_procs, myid;
-   MPI_Comm comm = patch_tdof_info->comm;
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
    A->Threshold(0.0);
    int num_ranks = fespace->GetNRanks();
-   A->Print("A.mat");
+   compute_trueoffsets();
+   A->Print("A.mat");   
+   
+   par_patch_dof_info *patch_tdof_info = new par_patch_dof_info(cpmesh_, ref_levels_,fespace);
 
-   if (myid == 0)
+   nrpatch = patch_tdof_info->nrpatch; 
+   Array<SparseMatrix * > PatchMat(nrpatch);
+   // Assemble a SparseMatrix for each patch. 
+   // simplicity we do the patch no 1 now only (involving ranks 0 and 1).
+   // for (int i = 0; i < nrpatch; i++)
+   for (int ip = 0; ip < nrpatch; ip++)
    {
-      Array<int> patch_tdofs(patch_tdof_info->patch_tdofs[2]);
+      // Get patch_tdofs on each processor
+      Array<int> patch_tdofs(patch_tdof_info->patch_tdofs[ip]);
+      // Identify the rank that will construct the patch by examining the patch_tdofs
+      // First of all only the patch_tdofs that have no zero size are involved
       int ndof = patch_tdofs.Size();
-      Array<int> cols(ndof); cols = 0;
-      Array<double> vals(ndof); vals = 0.0;
-      GetColumnValues(patch_tdofs[2],patch_tdofs, A, cols, vals);
 
-
-      cout << "patch_tdofs = " ; patch_tdofs.Print(cout,20);
-      cout << "column index = " ; cols.Print(cout,20);
-      cout << "values       = " ; vals.Print(cout,20);
+      if (ndof != 0) 
+      {
+         int host_rank = get_rank(patch_tdofs[0]);
+         // loop through the tdofs. The whole row is owned either by the host_rank or
+         // by one of the other ranks that entered this loop. 
+         // loop through the tdofs
+         PatchMat[ip] = new SparseMatrix(ndof,ndof);
+         for (int i=0; i<ndof; i++)
+         {
+            Array<int> cols(ndof); cols = 0;
+            Array<double> vals(ndof); vals = 0.0;
+            // pick up the tdof and find its rank
+            int tdof = patch_tdofs[i];
+            int tdof_rank = get_rank(tdof);
+            // The rank know will get the column list and values
+            if(myid == tdof_rank)
+            {
+               GetColumnValues(tdof,patch_tdofs,A,cols,vals);
+            }
+            if (host_rank != tdof_rank)
+            {
+               if(myid == tdof_rank)
+               {
+                  // Send to host_rank
+                  MPI_Send(&vals[0],ndof,MPI_DOUBLE,host_rank,myid,MPI_COMM_WORLD);
+               }
+               if(myid == host_rank)
+               {
+                  // Receive from to tdof_rank
+                  MPI_Status status;
+                  MPI_Recv(&vals[0],ndof,MPI_DOUBLE,tdof_rank,tdof_rank,MPI_COMM_WORLD, &status);
+               }
+            }
+            // Now the host index has the row and is ready to fill in the SparseMatrix
+            if(myid == host_rank)
+            {
+               // loop through the column indices
+               for (int j =0; j<ndof; j++)
+               {
+                  if(vals[j] != 0.0)
+                  {
+                     PatchMat[ip]->Set(i,j,vals[j]);
+                  }
+               }         
+            }
+         }
+         if(myid == host_rank)
+         {
+         // check the matrix for correctness
+            PatchMat[ip]->Finalize();
+            UMFPackSolver * inv = new UMFPackSolver;
+            inv->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+            inv->SetOperator(*PatchMat[ip]);
+            Vector b(ndof); b=1.0;
+            Vector x(ndof);
+            inv->Mult(b,x);
+            x.Print(cout, 20);
+         }
+      }
    }
-
 }
 
-
-int get_rank(int tdof, Array<int> offset)
+int par_patch_assembly::compute_trueoffsets()
 {
-   int size = offset.Size();
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+   tdof_offsets.SetSize(num_procs);
+   int mytoffset = fespace->GetMyTDofOffset();
+   MPI_Allgather(&mytoffset,1,MPI_INT,tdof_offsets,1,MPI_INT,MPI_COMM_WORLD);
+}
+
+int par_patch_assembly::get_rank(int tdof)
+{
+   int size = tdof_offsets.Size();
+   if (size == 1) {return 0;}
    for (int i=1; i<size; i++)
    {
-      if(tdof < offset[i])
+      if(tdof < tdof_offsets[i])
       {
          return i-1;
       }
    }
+   // if the function did not return then the tdof is owned by the last rank 
+   return size-1;
 }
 
 
@@ -518,23 +591,20 @@ void GetColumnValues(int tdof_i,Array<int> tdof_j, HypreParMatrix * A, Array<int
    A->GetOffd(offd,cmap);
    int row = tdof_i - row_start[0];
    int row_size = diag.RowSize(row);
+
    int *col = diag.GetRowColumns(row);
    double *cval = diag.GetRowEntries(row);
    for (int j = 0; j < row_size; j++)
    {
-      int icol = j + col_start[0];
-      // int jj = tdof_i - col_start[0]+j;
-      int jj = tdof_j.FindSorted(col[icol]);
+      int icol = col[j]+ row_start[0];
+      int jj = tdof_j.FindSorted(icol);
       if (jj != -1)
       {
          double dval = cval[j];
-         cols[jj] = col[icol];
+         cols[jj] = icol;
          vals[jj] = dval;
-         // cols.Append(col[icol]);
-         // vals.Append(dval);
       }
    }
-
    int crow_size = offd.RowSize(row);
    int *ccol = offd.GetRowColumns(row);
    double *ccval = offd.GetRowEntries(row);
@@ -547,8 +617,6 @@ void GetColumnValues(int tdof_i,Array<int> tdof_j, HypreParMatrix * A, Array<int
          double dval = ccval[j];
          cols[jj] = icol;
          vals[jj] = dval;
-         // cols.Append(icol);
-         // vals.Append(dval);
       }
    }
 }

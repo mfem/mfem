@@ -41,16 +41,22 @@ struct par_patch_dof_info
 
 struct par_patch_assembly
 {
+   MPI_Comm comm;
    int mynrpatch;
    int nrpatch;
+   Array<int>tdof_offsets;
    vector<Array<int>> patch_tdofs;
+   HypreParMatrix * A = nullptr;
+   ParFiniteElementSpace *fespace=nullptr;
    // constructor
-   par_patch_assembly(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace, HypreParMatrix * A);
+   par_patch_assembly(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
+   int get_rank(int tdof);
+   int compute_trueoffsets();
+
 };
 
 
 bool its_a_patch(int iv, Array<int> patch_ids);
-int get_rank(int tdof, Array<int> offset);
 void GetColumnValues(int tdof_i,Array<int> tdof_j, HypreParMatrix * A, 
                      Array<int> & cols, Array<double> & vals);
 

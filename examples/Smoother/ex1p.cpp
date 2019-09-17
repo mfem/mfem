@@ -134,9 +134,8 @@ int main(int argc, char *argv[])
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-
    par_patch_assembly * test = new par_patch_assembly(&cpmesh,par_ref_levels, fespace, &A);
-   
+
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -166,18 +165,12 @@ int main(int argc, char *argv[])
       socketstream cmesh_sock(vishost, visport);
       cmesh_sock << "parallel " << num_procs << " " << myid << "\n";
       cmesh_sock.precision(8);
-
       cmesh_sock << "mesh\n" << cpmesh << "keys nn\n"  << flush;
    }
-
-
-   
-
    // 17. Free the used memory.
    delete fespace;
    delete fec;
    delete pmesh;
-
    return 0;
 }
 
