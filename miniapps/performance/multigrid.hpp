@@ -119,9 +119,9 @@ using ParSpaceHierarchy = GeneralSpaceHierarchy<ParMesh, ParFiniteElementSpace>;
 class MultigridOperator : public Operator
 {
 protected:
-   Array<Operator*> operators;
+   Array<const Operator*> operators;
    Array<Solver*> smoothers;
-   Array<Operator*> prolongations;
+   Array<const Operator*> prolongations;
 
    Array<bool> ownedOperators;
    Array<bool> ownedSmoothers;
@@ -129,7 +129,7 @@ protected:
 
 public:
    /// Constructor
-   MultigridOperator(Operator* opr, Solver* coarseSolver, bool ownOperator, bool ownSolver)
+   MultigridOperator(const Operator* opr, Solver* coarseSolver, bool ownOperator, bool ownSolver)
    {
       operators.Append(opr);
       smoothers.Append(coarseSolver);
@@ -154,7 +154,9 @@ public:
       smoothers.DeleteAll();
    }
 
-   virtual void AddLevel(Operator* opr, Solver* smoother, Operator* prolongation, bool ownOperator, bool ownSmoother, bool ownProlongation)
+   virtual void AddLevel(const Operator *opr, Solver *smoother,
+                         const Operator *prolongation, bool ownOperator,
+                         bool ownSmoother, bool ownProlongation)
    {
       operators.Append(opr);
       smoothers.Append(smoother);
@@ -219,7 +221,7 @@ public:
    }
 
    /// Returns operator at given level
-   Operator* GetOperatorAtLevel(unsigned level)
+   const Operator* GetOperatorAtLevel(unsigned level)
    {
       return operators[level];
    }
@@ -231,13 +233,13 @@ public:
    }
 
    /// Returns operator at finest level
-   Operator* GetOperatorAtFinestLevel()
+   const Operator* GetOperatorAtFinestLevel()
    {
       return GetOperatorAtLevel(operators.Size() - 1);
    }
 
    /// Returns smoother at given level
-   const Solver* GetSmootherAtLevel(unsigned level) const
+   Solver* GetSmootherAtLevel(unsigned level) const
    {
       return smoothers[level];
    }
@@ -260,7 +262,7 @@ public:
    };
 
 private:
-   MultigridOperator& opr;
+   const MultigridOperator* opr;
    CycleType cycleType;
 
    mutable Array<unsigned> preSmoothingSteps;
@@ -274,19 +276,19 @@ private:
    {
       if (level == 0)
       {
-         opr.ApplyCoarseSolver(*X[level], *Y[level]);
+         opr->ApplyCoarseSolver(*X[level], *Y[level]);
          return;
       }
 
       // Pre-smooth
-      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, preSmoothingSteps[level]);
+      SLI(*opr->GetOperatorAtLevel(level), *opr->GetSmootherAtLevel(level), *X[level], *Y[level], -1, preSmoothingSteps[level]);
 
       // Compute residual
-      opr.GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]);
+      opr->GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]);
       subtract(*X[level], *R[level], *R[level]);
 
       // Restrict residual
-      opr.RestrictTo(level - 1, *R[level], *X[level - 1]);
+      opr->RestrictTo(level - 1, *R[level], *X[level - 1]);
 
       // Init zeros
       *Y[level - 1] = 0.0;
@@ -300,35 +302,57 @@ private:
       }
 
       // Prolongate
-      opr.InterpolateFrom(level - 1, *Y[level - 1], *R[level]);
+      opr->InterpolateFrom(level - 1, *Y[level - 1], *R[level]);
 
       // Add update
       *Y[level] += *R[level];
 
       // Post-smooth
-      SLI(*opr.GetOperatorAtLevel(level), *opr.GetSmootherAtLevel(level), *X[level], *Y[level], -1, postSmoothingSteps[level]);
+      SLI(*opr->GetOperatorAtLevel(level), *opr->GetSmootherAtLevel(level), *X[level], *Y[level], -1, postSmoothingSteps[level]);
+   }
+
+   void Setup(unsigned preSmoothingSteps_ = 3, unsigned postSmoothingSteps_ = 3)
+   {
+      for (unsigned level = 0; level < opr->NumLevels(); ++level)
+      {
+         int vectorSize = opr->GetOperatorAtLevel(level)->Height();
+         X.Append(new Vector(vectorSize));
+         Y.Append(new Vector(vectorSize));
+         R.Append(new Vector(vectorSize));
+      }
+
+      preSmoothingSteps.SetSize(opr->NumLevels());
+      postSmoothingSteps.SetSize(opr->NumLevels());
+
+      preSmoothingSteps = preSmoothingSteps_;
+      postSmoothingSteps = postSmoothingSteps_;
+   }
+
+   void Reset()
+   {
+      for (unsigned i = 0; i < X.Size(); ++i)
+      {
+         delete X[i];
+         delete Y[i];
+         delete R[i];
+      }
+
+      X.DeleteAll();
+      Y.DeleteAll();
+      R.DeleteAll();
+
+      preSmoothingSteps.DeleteAll();
+      postSmoothingSteps.DeleteAll();
    }
 
 public:
-   MultigridSolver(MultigridOperator &opr_,
+   MultigridSolver(const MultigridOperator *opr_,
                    CycleType cycleType_ = CycleType::VCYCLE,
                    unsigned preSmoothingSteps_ = 3,
                    unsigned postSmoothingSteps_ = 3)
       : opr(opr_), cycleType(cycleType_)
    {
-     for (unsigned level = 0; level < opr.NumLevels(); ++level)
-     {
-        int vectorSize = opr.GetOperatorAtLevel(level)->Height();
-        X.Append(new Vector(vectorSize));
-        Y.Append(new Vector(vectorSize));
-        R.Append(new Vector(vectorSize));
-     }
-
-     preSmoothingSteps.SetSize(opr.NumLevels());
-     postSmoothingSteps.SetSize(opr.NumLevels());
-
-     preSmoothingSteps = preSmoothingSteps_;
-     postSmoothingSteps = postSmoothingSteps_;
+      Setup(preSmoothingSteps_, postSmoothingSteps_);
    }
 
    ~MultigridSolver()
@@ -341,28 +365,49 @@ public:
       cycleType = cycleType_;
    }
 
-   void Reset()
+   void SetPreSmoothingSteps(unsigned steps)
    {
-      for (unsigned i = 0; i < X.Size(); ++i)
-      {
-         delete X[i];
-         X[i] = nullptr;
-         delete Y[i];
-         Y[i] = nullptr;
-         delete R[i];
-         R[i] = nullptr;
-      }
+      preSmoothingSteps = steps;
+   }
 
-      X.DeleteAll();
-      Y.DeleteAll();
-      R.DeleteAll();
+   void SetPreSmoothingSteps(const Array<unsigned>& steps)
+   {
+      MFEM_VERIFY(
+          steps.Size() == preSmoothingSteps.Size(),
+          "Number of step sizes needs to be the same as the number of levels");
+      preSmoothingSteps = steps;
+   }
+
+   void SetPostSmoothingSteps(unsigned steps)
+   {
+      postSmoothingSteps = steps;
+   }
+
+   void SetPostSmoothingSteps(const Array<unsigned>& steps)
+   {
+      MFEM_VERIFY(
+          steps.Size() == postSmoothingSteps.Size(),
+          "Number of step sizes needs to be the same as the number of levels");
+      postSmoothingSteps = steps;
+   }
+
+   void SetSmoothingSteps(unsigned steps)
+   {
+      SetPreSmoothingSteps(steps);
+      SetPostSmoothingSteps(steps);
+   }
+
+   void SetSmoothingSteps(const Array<unsigned>& steps)
+   {
+      SetPreSmoothingSteps(steps);
+      SetPostSmoothingSteps(steps);
    }
 
    virtual void Mult(const Vector &x, Vector &y) const override
    {
       *X.Last() = x;
       *Y.Last() = y;
-      Cycle(opr.NumLevels() - 1);
+      Cycle(opr->NumLevels() - 1);
       y = *Y.Last();
    }
 
@@ -374,7 +419,9 @@ public:
          MFEM_ABORT("Unsupported operator for MultigridSolver");
       }
 
-      // TODO
+      Reset();
+      opr = static_cast<const MultigridOperator*>(&op);
+      Setup();
    }
 
 };
