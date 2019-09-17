@@ -859,7 +859,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    {
       if (!Pconf)
       {
-         if (!Device::Allows(Backend::CUDA))
+         if (!Device::Allows(Backend::DEVICE_MASK))
          {
             Pconf = new ConformingProlongationOperator(*this);
          }
