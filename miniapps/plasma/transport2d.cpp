@@ -507,6 +507,8 @@ public:
 
    double Eval(Vector &u, Vector &e)
    {
+      size_ = u.Size() / w_.Size();
+
       double m = 0.0;
       for (int i=0; i<w_.Size(); i++)
       {
