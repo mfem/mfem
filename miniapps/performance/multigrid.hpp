@@ -322,13 +322,18 @@ class MultigridSolver : public Solver
 
    void Setup(unsigned preSmoothingSteps_ = 3, unsigned postSmoothingSteps_ = 3)
    {
-      for (unsigned level = 0; level < opr->NumLevels(); ++level)
+      for (unsigned level = 0; level < opr->NumLevels() - 1; ++level)
       {
          int vectorSize = opr->GetOperatorAtLevel(level)->Height();
          X.Append(new Vector(vectorSize));
          Y.Append(new Vector(vectorSize));
          R.Append(new Vector(vectorSize));
       }
+
+      // X and Y at the finest level will be filled by Mult
+      X.Append(nullptr);
+      Y.Append(nullptr);
+      R.Append(new Vector(opr->GetOperatorAtFinestLevel()->Height()));
 
       preSmoothingSteps.SetSize(opr->NumLevels());
       postSmoothingSteps.SetSize(opr->NumLevels());
@@ -402,10 +407,12 @@ class MultigridSolver : public Solver
 
    virtual void Mult(const Vector &x, Vector &y) const override
    {
-      *X.Last() = x;
-      *Y.Last() = y;
+      // Safe const_cast, since x at the finest level will never be modified
+      X.Last() = const_cast<Vector*>(&x);
+      Y.Last() = &y;
       Cycle(opr->NumLevels() - 1);
-      y = *Y.Last();
+      X.Last() = nullptr;
+      Y.Last() = nullptr;
    }
 
    /// Set/update the solver for the given operator.
