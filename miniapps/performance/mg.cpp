@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
    forms[spaceHierarchy->GetFinestLevelIndex()]->FormLinearSystem(*essentialTrueDoFs.Last(), x, *b, dummy, X, B);
 
    Vector r(X.Size());
-   MultigridSolver* mgCycle = new MultigridSolver(*oprMultigrid, MultigridSolver::CycleType::VCYCLE, 3, 3);
+   MultigridSolver* mgCycle = new MultigridSolver(oprMultigrid, MultigridSolver::CycleType::VCYCLE, 3, 3);
 
    // HypreParMatrix& hypreMat = dynamic_cast<HypreParMatrix&>(*oprMultigrid.GetOperatorAtFinestLevel());
    // HypreBoomerAMG *amg = new HypreBoomerAMG(hypreMat);
