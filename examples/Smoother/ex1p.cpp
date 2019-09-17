@@ -108,17 +108,35 @@ int main(int argc, char *argv[])
    }
 
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
-   // FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   int mycdofoffset = fespace->GetMyDofOffset();
 
-   // par_patch_dof_info * test = new par_patch_dof_info(&cpmesh,par_ref_levels, fespace);
+   Array<int> ess_tdof_list;
+   if (pmesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 0;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
 
-   par_patch_assembly * test = new par_patch_assembly(&cpmesh,par_ref_levels, fespace);
-   
+   ParLinearForm *b = new ParLinearForm(fespace);
+   ConstantCoefficient one(1.0);
+   b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   b->Assemble();
+
    ParGridFunction x(fespace);
    x = 0.0;
 
+   ParBilinearForm *a = new ParBilinearForm(fespace);
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   a->Assemble();
+
+   HypreParMatrix A;
+   Vector B, X;
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+
+   par_patch_assembly * test = new par_patch_assembly(&cpmesh,par_ref_levels, fespace, &A);
+   
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {

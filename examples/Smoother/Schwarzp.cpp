@@ -74,8 +74,6 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
    MPI_Allreduce(&mynrpatch, &nrpatch, 1, MPI_INT, MPI_SUM, comm);
    patch_global_dofs_ids.SetSize(nrpatch);
    // Create a list of patches identifiers to all procs
-   // This has to be changed to MPI_allGather
-
    int num_procs, myid;
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
@@ -289,7 +287,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    // Build a list on each processor identifying the truedofs in each patch
    // First the vertices
    nrpatch = patch_nodes->nrpatch;
-   vector<Array<int>> patch_dofs(nrpatch);
+   vector<Array<int>> patch_local_tdofs(nrpatch);
 
    int nrvert = fespace->GetNV();
    for (int i = 0; i < nrvert; i++)
@@ -309,9 +307,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(vertex_dofs[l]);
-            Array<int> temp(1);
-            temp[0] = m;
-            patch_dofs[kk].Append(temp);
+            patch_local_tdofs[kk].Append(m);
          }
       }
    }
@@ -319,10 +315,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    for (int i = 0; i < nedge; i++)
    {
       int np = patch_nodes->edge_contr[i].Size();
-      if (np == 0)
-      {
-         continue;
-      }
+      if (np == 0) {continue;}
       Array<int> edge_dofs;
       fespace->GetEdgeInteriorDofs(i, edge_dofs);
       int nv = edge_dofs.Size();
@@ -333,9 +326,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(edge_dofs[l]);
-            Array<int> temp(1);
-            temp[0] = m;
-            patch_dofs[kk].Append(temp);
+            patch_local_tdofs[kk].Append(m);
          }
       }
    }
@@ -357,9 +348,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(face_dofs[l]);
-            Array<int> temp(1);
-            temp[0] = m;
-            patch_dofs[kk].Append(temp);
+            patch_local_tdofs[kk].Append(m);
          }
       }
    }
@@ -378,9 +367,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(elem_dofs[l]);
-            Array<int> temp(1);
-            temp[0] = m;
-            patch_dofs[kk].Append(temp);
+            patch_local_tdofs[kk].Append(m);
          }
       }
    }
@@ -389,7 +376,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    for (int i = 0; i < nrpatch; i++)
    {
       Array<int> count(num_procs);
-      int size = patch_dofs[i].Size();
+      int size = patch_local_tdofs[i].Size();
 
       count[myid] = size;
       MPI_Allgather(&size, 1, MPI_INT, &count[0], 1, MPI_INT, comm);
@@ -409,7 +396,6 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
       MPI_Group new_group_id;
       MPI_Comm_group (comm, &world_group_id);
       //
-      //  List the even processes, and create their group.
       // count the ranks that does not have zero length
       int num_ranks = 0;
       for (int i = 0; i<num_procs; i++)
@@ -419,24 +405,24 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
       Array<int> new_count(num_ranks);
       Array<int> new_displs(num_ranks);
 
-      int including_ranks[num_ranks];
+      int sub_comm_ranks[num_ranks];
       num_ranks = 0;
       for (int j = 0; j <num_procs ; j++ )
       {
          if (count[j] != 0)
          {
-            including_ranks[num_ranks] = j;
+            sub_comm_ranks[num_ranks] = j;
             new_count[num_ranks] = count[j];
             new_displs[num_ranks] = displs[j];
             num_ranks++;
          }
       }
-      MPI_Group_incl(world_group_id, num_ranks, including_ranks, &new_group_id);
+      MPI_Group_incl(world_group_id, num_ranks, sub_comm_ranks, &new_group_id);
       MPI_Comm_create(comm, new_group_id, &new_comm);
       if (size != 0)
       {
          patch_tdofs[i].SetSize(tot_size);
-         MPI_Allgatherv(&patch_dofs[i][0],size,MPI_INT,
+         MPI_Allgatherv(&patch_local_tdofs[i][0],size,MPI_INT,
                      &patch_tdofs[i][0],new_count,new_displs,MPI_INT,new_comm);
       }
    }
@@ -447,7 +433,6 @@ void par_patch_dof_info::Print()
    int num_procs, myid;
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
-
    for (int i = 0; i < nrpatch; i++)
    {
       for (int ii = 0; ii<num_procs; ii++)
@@ -460,17 +445,50 @@ void par_patch_dof_info::Print()
                << ", patch_tdofs: "; patch_tdofs[i].Print(cout, 20);
             }
          }
-      MPI_Barrier(comm);
+      // MPI_Barrier(comm);
       }
    }
+
+}
+
+par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace, HypreParMatrix * A)
+{
+   par_patch_dof_info *patch_tdof_info = new par_patch_dof_info(cpmesh_, ref_levels_,fespace);
+   int num_procs, myid;
+   MPI_Comm comm = patch_tdof_info->comm;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+   A->Threshold(0.0);
+   int num_ranks = fespace->GetNRanks();
+   A->Print("A.mat");
+
+   if (myid == 0)
+   {
+      Array<int> patch_tdofs(patch_tdof_info->patch_tdofs[2]);
+      int ndof = patch_tdofs.Size();
+      Array<int> cols(ndof); cols = 0;
+      Array<double> vals(ndof); vals = 0.0;
+      GetColumnValues(patch_tdofs[2],patch_tdofs, A, cols, vals);
+
+
+      cout << "patch_tdofs = " ; patch_tdofs.Print(cout,20);
+      cout << "column index = " ; cols.Print(cout,20);
+      cout << "values       = " ; vals.Print(cout,20);
+   }
+
 }
 
 
-par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace)
+int get_rank(int tdof, Array<int> offset)
 {
-   par_patch_dof_info *patch_tdof_info = new par_patch_dof_info(cpmesh_, ref_levels_,fespace);
-
-   patch_tdof_info->Print();
+   int size = offset.Size();
+   for (int i=1; i<size; i++)
+   {
+      if(tdof < offset[i])
+      {
+         return i-1;
+      }
+   }
 }
 
 
@@ -483,5 +501,54 @@ bool its_a_patch(int iv, Array<int> patch_ids)
    else
    {
       return true;
+   }
+}
+
+// Given row index on the processor (return the entries corresponding to the column array tdof_j)
+// For now this implementation will be extremely inefficient. (we do this with find sorted (for now))
+void GetColumnValues(int tdof_i,Array<int> tdof_j, HypreParMatrix * A, Array<int> &cols, Array<double> &vals)
+{
+   int *row_start = A->GetRowStarts();
+   int *col_start = A->GetColStarts();
+
+   SparseMatrix diag;
+   SparseMatrix offd;
+   int *cmap;
+   A->GetDiag(diag);
+   A->GetOffd(offd,cmap);
+   int row = tdof_i - row_start[0];
+   int row_size = diag.RowSize(row);
+   int *col = diag.GetRowColumns(row);
+   double *cval = diag.GetRowEntries(row);
+   for (int j = 0; j < row_size; j++)
+   {
+      int icol = j + col_start[0];
+      // int jj = tdof_i - col_start[0]+j;
+      int jj = tdof_j.FindSorted(col[icol]);
+      if (jj != -1)
+      {
+         double dval = cval[j];
+         cols[jj] = col[icol];
+         vals[jj] = dval;
+         // cols.Append(col[icol]);
+         // vals.Append(dval);
+      }
+   }
+
+   int crow_size = offd.RowSize(row);
+   int *ccol = offd.GetRowColumns(row);
+   double *ccval = offd.GetRowEntries(row);
+   for (int j = 0; j < crow_size; j++)
+   {
+      int icol = cmap[ccol[j]];
+      int jj = tdof_j.FindSorted(icol);
+      if (jj != -1)
+      {
+         double dval = ccval[j];
+         cols[jj] = icol;
+         vals[jj] = dval;
+         // cols.Append(icol);
+         // vals.Append(dval);
+      }
    }
 }

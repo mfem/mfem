@@ -33,6 +33,7 @@ struct par_patch_dof_info
    int mynrpatch;
    int nrpatch;
    vector<Array<int>> patch_tdofs;
+   vector<Array<int>> patch_ldofs;
    // constructor
    par_patch_dof_info(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace);
    void Print();
@@ -44,8 +45,12 @@ struct par_patch_assembly
    int nrpatch;
    vector<Array<int>> patch_tdofs;
    // constructor
-   par_patch_assembly(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace);
+   par_patch_assembly(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace, HypreParMatrix * A);
 };
 
 
 bool its_a_patch(int iv, Array<int> patch_ids);
+int get_rank(int tdof, Array<int> offset);
+void GetColumnValues(int tdof_i,Array<int> tdof_j, HypreParMatrix * A, 
+                     Array<int> & cols, Array<double> & vals);
+
