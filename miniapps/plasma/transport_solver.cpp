@@ -1679,10 +1679,10 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             elmat_.SetSize(ndof);
             elmat_ = 0.0;
 
-            for (int k = 0; k < fbfi_.Size(); k++)
+            for (int k = 0; k < bfbfi_.Size(); k++)
             {
-               if (bfbfi_marker_[k] &&
-                   (*bfbfi_marker_[k])[bdr_attr-1] == 0) { continue; }
+               if (bfbfi_marker_[k] != NULL)
+                  if ((*bfbfi_marker_[k])[bdr_attr-1] == 0) { continue; }
 
                bfbfi_[k]->AssembleFaceMatrix(fe1, fe2, *ftrans, elmat_k_);
                elmat_ += elmat_k_;
@@ -2382,6 +2382,8 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    // Advection term: Div(m_i n_i V_i v_i)
    dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(miniViCoef_));
    fbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
+   bfbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
+   bfbfi_marker_.Append(NULL);
 
    // Source term: b . Grad(p_i + p_e)
    dlfi_.Append(new DomainLFIntegrator(gradPCoef_));
@@ -2404,6 +2406,8 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
       new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
    blf_[2]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
                                                             1.0, -0.5));
+   blf_[2]->AddBdrFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
+                                                       1.0, -0.5));
 
    // ToDo: add d(gradPCoef)/dT_i
    // ToDo: add d(gradPCoef)/dT_e
