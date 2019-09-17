@@ -156,12 +156,12 @@ int main(int argc, char *argv[])
    int order = 3;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool visualization = 1;
-   const bool partialAssembly = false;
-   const bool pMultigrid = false;
+   bool partialAssembly = false;
+   bool pMultigrid = false;
 
    OptionsParser args(argc, argv);
-   // args.AddOption(&mesh_file, "-m", "--mesh",
-   //                "Mesh file to use.");
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Order of the finite element spaces");
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -173,6 +173,12 @@ int main(int argc, char *argv[])
                   "Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&partialAssembly, "-pa", "--partialassembly", "-no-pa",
+                  "--no-partialassembly",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&pMultigrid, "-pmg", "--pmultigrid", "-no-pmg",
+                  "--no-pmultigrid",
                   "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
