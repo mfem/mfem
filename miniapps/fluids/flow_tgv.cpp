@@ -25,6 +25,76 @@ void vel_tgv(const Vector &x, double t, Vector &u)
    u(2) = 0.0;
 }
 
+class QOI
+{
+public:
+   QOI(ParMesh *pmesh)
+   {
+      H1_FECollection h1fec(1);
+      ParFiniteElementSpace h1fes(pmesh, &h1fec);
+
+      onecoeff.constant = 1.0;
+      mass_lf = new ParLinearForm(&h1fes);
+      mass_lf->AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
+      mass_lf->Assemble();
+
+      ParGridFunction one_gf(&h1fes);
+      one_gf.ProjectCoefficient(onecoeff);
+
+      volume = mass_lf->operator()(one_gf);
+   };
+
+   double ComputeKineticEnergy(ParGridFunction &v)
+   {
+      Vector velx, vely, velz;
+      double integ = 0.0;
+      const FiniteElement *fe;
+      ElementTransformation *T;
+      FiniteElementSpace *fes = v.FESpace();
+
+      for (int i = 0; i < fes->GetNE(); i++)
+      {
+         fe = fes->GetFE(i);
+         double intorder = 2 * fe->GetOrder();
+         const IntegrationRule *ir = &(
+            IntRules.Get(fe->GetGeomType(), intorder));
+
+         v.GetValues(i, *ir, velx, 1);
+         v.GetValues(i, *ir, vely, 2);
+         v.GetValues(i, *ir, velz, 3);
+
+         T = fes->GetElementTransformation(i);
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            T->SetIntPoint(&ip);
+
+            double vel2 = velx(j) * velx(j) + vely(j) * vely(j)
+                          + velz(j) * velz(j);
+
+            integ += ip.weight * T->Weight() * vel2;
+         }
+      }
+
+      double global_integral = 0.0;
+      MPI_Allreduce(&integ,
+                    &global_integral,
+                    1,
+                    MPI_DOUBLE,
+                    MPI_SUM,
+                    MPI_COMM_WORLD);
+
+      return 0.5 * global_integral / volume;
+   };
+
+   ~QOI() { delete mass_lf; };
+
+private:
+   ConstantCoefficient onecoeff;
+   ParLinearForm *mass_lf;
+   double volume;
+};
+
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
@@ -112,6 +182,8 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
 
+   QOI kin_energy(pmesh);
+
    VisItDataCollection visit_dc("ins", pmesh);
    visit_dc.SetPrefixPath("output");
    visit_dc.SetCycle(0);
@@ -119,6 +191,17 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("velocity", u_gf);
    visit_dc.RegisterField("pressure", p_gf);
    visit_dc.Save();
+
+   double u_inf_loc = u_gf->Normlinf();
+   double p_inf_loc = p_gf->Normlinf();
+   double u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
+   double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
+   double ke = kin_energy.ComputeKineticEnergy(*u_gf);
+   if (mpi.Root())
+   {
+     printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
+     fflush(stdout);
+   }
 
    for (int step = 0; !last_step; ++step)
    {
@@ -129,7 +212,7 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      if ((step + 1) % 10 == 0 || last_step)
+      if ((step + 1) % 100 == 0 || last_step)
       {
          visit_dc.SetCycle(step);
          visit_dc.SetTime(t);
@@ -140,9 +223,10 @@ int main(int argc, char *argv[])
       double p_inf_loc = p_gf->Normlinf();
       double u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
       double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
+      double ke = kin_energy.ComputeKineticEnergy(*u_gf);
       if (mpi.Root())
       {
-         printf("%.5E %.5E %.5E %.5E \n", t, dt, u_inf, p_inf);
+         printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
          fflush(stdout);
       }
    }
