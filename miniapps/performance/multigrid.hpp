@@ -213,15 +213,16 @@ class MultigridOperator : public Operator
    }
 
    /// Apply Smoother at given level
-   void ApplySmoother(unsigned level, const Vector &x, Vector &y) const
+   void ApplySmootherAtLevel(unsigned level, const Vector &x, Vector &y) const
    {
+      MFEM_VERIFY(level > 0, "Smoother at level 0 is the coarse solver. Please use ApplyCoarseSolver.");
       smoothers[level]->Mult(x, y);
    }
 
    /// Apply coarse solver
    void ApplyCoarseSolver(const Vector &x, Vector &y) const
    {
-      ApplySmoother(0, x, y);
+      smoothers[0]->Mult(x, y);
    }
 
    /// Returns operator at given level
@@ -275,6 +276,15 @@ class MultigridSolver : public Solver
    mutable Array<Vector *> X;
    mutable Array<Vector *> Y;
    mutable Array<Vector *> R;
+   mutable Array<Vector *> Z;
+
+   void SmoothingStep(int level) const
+   {
+      opr->MultAtLevel(level, *Y[level], *R[level]); // r = A x
+      subtract(*X[level], *R[level], *R[level]); // r = b - A x
+      opr->ApplySmootherAtLevel(level, *R[level], *Z[level]); // z = S r
+      add(*Y[level], 1.0, *Z[level], *Y[level]); // x = x + B (b - A x)
+   }
 
    void Cycle(unsigned level) const
    {
@@ -284,9 +294,10 @@ class MultigridSolver : public Solver
          return;
       }
 
-      // Pre-smooth
-      SLI(*opr->GetOperatorAtLevel(level), *opr->GetSmootherAtLevel(level),
-          *X[level], *Y[level], -1, preSmoothingSteps[level]);
+      for (int i = 0; i < preSmoothingSteps[level]; i++)
+      {
+         SmoothingStep(level);
+      }
 
       // Compute residual
       opr->GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]);
@@ -316,8 +327,10 @@ class MultigridSolver : public Solver
       *Y[level] += *R[level];
 
       // Post-smooth
-      SLI(*opr->GetOperatorAtLevel(level), *opr->GetSmootherAtLevel(level),
-          *X[level], *Y[level], -1, postSmoothingSteps[level]);
+      for (int i = 0; i < postSmoothingSteps[level]; i++)
+      {
+         SmoothingStep(level);
+      }
    }
 
    void Setup(unsigned preSmoothingSteps_ = 3, unsigned postSmoothingSteps_ = 3)
@@ -328,12 +341,14 @@ class MultigridSolver : public Solver
          X.Append(new Vector(vectorSize));
          Y.Append(new Vector(vectorSize));
          R.Append(new Vector(vectorSize));
+         Z.Append(new Vector(vectorSize));
       }
 
       // X and Y at the finest level will be filled by Mult
       X.Append(nullptr);
       Y.Append(nullptr);
       R.Append(new Vector(opr->GetOperatorAtFinestLevel()->Height()));
+      Z.Append(new Vector(opr->GetOperatorAtFinestLevel()->Height()));
 
       preSmoothingSteps.SetSize(opr->NumLevels());
       postSmoothingSteps.SetSize(opr->NumLevels());
@@ -349,11 +364,13 @@ class MultigridSolver : public Solver
          delete X[i];
          delete Y[i];
          delete R[i];
+         delete Z[i];
       }
 
       X.DeleteAll();
       Y.DeleteAll();
       R.DeleteAll();
+      Z.DeleteAll();
 
       preSmoothingSteps.DeleteAll();
       postSmoothingSteps.DeleteAll();
