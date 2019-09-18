@@ -229,12 +229,11 @@ int main(int argc, char *argv[])
    {
       tic_toc.Clear();
       tic_toc.Start();
-      int newOrder = order;
 
       if (pMultigrid)
       {
-         newOrder = std::pow(2, level);
-         feCollectons.Append(new H1_FECollection(newOrder, dim, basis));
+         order = std::pow(2, level);
+         feCollectons.Append(new H1_FECollection(order, dim, basis));
          spaceHierarchy->AddOrderRefinedLevel(feCollectons.Last());
       }
       else
@@ -245,7 +244,7 @@ int main(int argc, char *argv[])
       size = spaceHierarchy->GetFinestFESpace().GlobalTrueVSize();
       if (myid == 0)
       {
-         cout << "Number of finite element unknowns on level " << level << ": " << size << "; FE order: " << newOrder << endl;
+         cout << "Number of finite element unknowns on level " << level << ": " << size << "; FE order: " << order << endl;
       }
       
       essentialTrueDoFs.Append(new Array<int>());
@@ -286,28 +285,58 @@ int main(int argc, char *argv[])
 
    tic_toc.Clear();
    tic_toc.Start();
+
+   ParMesh* pmesh_lor = nullptr;
+   H1_FECollection* fec_lor = nullptr;
+   ParFiniteElementSpace* fespace_lor = nullptr;
+   ParBilinearForm* a_pc = nullptr;
+   HypreBoomerAMG* amg = nullptr;
+
    if (boomerAMG)
    {
-      HypreParMatrix& hypreMat = dynamic_cast<HypreParMatrix&>(*oprMultigrid->GetOperatorAtFinestLevel());
-      HypreBoomerAMG *amg = new HypreBoomerAMG(hypreMat);
-      HyprePCG *pcg = new HyprePCG(hypreMat);
-      pcg->SetPrintLevel(2);
-      pcg->SetMaxIter(100);
-      pcg->SetTol(1e-8);
-      pcg->SetPreconditioner(*amg);
-      pcg->Mult(B, X);
+      int basis_lor = basis;
+      if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
+      pmesh_lor = new ParMesh(&spaceHierarchy->GetFinestMesh(), order, basis_lor);
+      fec_lor = new H1_FECollection(1, dim);
+      fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
+
+      a_pc = new ParBilinearForm(fespace_lor);
+      HypreParMatrix A_pc;
+      a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+      a_pc->UsePrecomputedSparsity();
+      a_pc->Assemble();
+      a_pc->FormSystemMatrix(*essentialTrueDoFs.Last(), A_pc);
+
+      amg = new HypreBoomerAMG(A_pc);
+   }
+
+   CGSolver pcg(MPI_COMM_WORLD);
+   pcg.SetPrintLevel(1);
+   pcg.SetMaxIter(100);
+   pcg.SetRelTol(1e-8);
+   pcg.SetAbsTol(0.0);
+   pcg.SetOperator(*oprMultigrid->GetOperatorAtFinestLevel());
+
+   if (boomerAMG)
+   {
+      pcg.SetPreconditioner(*amg);
    }
    else
    {
-      CGSolver pcg(MPI_COMM_WORLD);
-      pcg.SetPrintLevel(1);
-      pcg.SetMaxIter(100);
-      pcg.SetRelTol(1e-8);
-      pcg.SetAbsTol(0.0);
-      pcg.SetOperator(*oprMultigrid->GetOperatorAtFinestLevel());
       pcg.SetPreconditioner(*mgCycle);
-      pcg.Mult(B, X);
    }
+   
+   pcg.Mult(B, X);
+
+   if (boomerAMG)
+   {
+      delete amg;
+      delete a_pc;
+      delete fespace_lor;
+      delete fec_lor;
+      delete pmesh_lor;
+   }
+
    tic_toc.Stop();
 
    if (myid == 0)
