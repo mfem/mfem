@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
    oprMultigrid->Mult(X, r);
    subtract(B, r, r);
 
-   double beginRes = InnerProduct(MPI_COMM_WORLD, r, r);
+   double beginRes = sqrt(InnerProduct(MPI_COMM_WORLD, r, r));
    double prevRes = beginRes;
    const int printWidth = 11;
 
@@ -277,7 +277,7 @@ int main(int argc, char *argv[])
       oprMultigrid->Mult(X, r);
       subtract(B, r, r);
 
-      double res = InnerProduct(MPI_COMM_WORLD, r, r);
+      double res = sqrt(InnerProduct(MPI_COMM_WORLD, r, r));
       if (myid == 0)
       {
          cout << std::setw(3) << iter + 1;
