@@ -136,6 +136,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool partialAssembly = false;
    bool pMultigrid = false;
+   bool boomerAMG = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -154,10 +155,13 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&partialAssembly, "-pa", "--partialassembly", "-no-pa",
                   "--no-partialassembly",
-                  "Enable or disable GLVis visualization.");
+                  "Enable or disable partial assembly.");
    args.AddOption(&pMultigrid, "-pmg", "--pmultigrid", "-no-pmg",
                   "--no-pmultigrid",
-                  "Enable or disable GLVis visualization.");
+                  "Enable or p multigrid.");
+   args.AddOption(&boomerAMG, "-boomeramg", "--boomeramg", "-no-boomeramg",
+                  "--no-boomeramg",
+                  "Enable or disable usage of BoomerAMG at finest level");
    args.Parse();
    if (!args.Good())
    {
@@ -223,6 +227,8 @@ int main(int argc, char *argv[])
 
    for(int level = 1; level < mg_levels; ++level)
    {
+      tic_toc.Clear();
+      tic_toc.Start();
       int newOrder = order;
 
       if (pMultigrid)
@@ -246,6 +252,11 @@ int main(int argc, char *argv[])
       spaceHierarchy->GetFinestFESpace().GetEssentialTrueDofs(ess_bdr, *essentialTrueDoFs.Last());
 
       oprMultigrid->AddLevel(&spaceHierarchy->GetFESpaceAtLevel(level - 1), &spaceHierarchy->GetFinestFESpace(), *essentialTrueDoFs.Last());
+      tic_toc.Stop();
+      if (myid == 0)
+      {
+         cout << "Assembly time on level " << level << ": " << tic_toc.RealTime() << "s" << endl;
+      }
    }
 
    ParGridFunction x(&spaceHierarchy->GetFinestFESpace());
@@ -273,73 +284,86 @@ int main(int argc, char *argv[])
    Vector r(X.Size());
    MultigridSolver* mgCycle = new MultigridSolver(oprMultigrid, MultigridSolver::CycleType::VCYCLE, 3, 3);
 
-   // HypreParMatrix& hypreMat = dynamic_cast<HypreParMatrix&>(*oprMultigrid.GetOperatorAtFinestLevel());
-   // HypreBoomerAMG *amg = new HypreBoomerAMG(hypreMat);
-   // HyprePCG *pcg = new HyprePCG(hypreMat);
-   // pcg->SetTol(1e-8);
-   // pcg->SetMaxIter(500);
-   // pcg->SetPrintLevel(2);
-   // pcg->SetPreconditioner(*amg);
-   // pcg->Mult(B, X);
-
-   // CGSolver pcg(MPI_COMM_WORLD);
-   // pcg.SetPrintLevel(1);
-   // pcg.SetMaxIter(10);
-   // pcg.SetRelTol(1e-5);
-   // pcg.SetAbsTol(0.0);
-   // pcg.SetOperator(*oprMultigrid.GetOperatorAtFinestLevel());
-   // pcg.SetPreconditioner(mgCycle);
-   // pcg.Mult(B, X);
-
-   oprMultigrid->Mult(X, r);
-   subtract(B, r, r);
-
-   double beginRes = sqrt(InnerProduct(MPI_COMM_WORLD, r, r));
-   double prevRes = beginRes;
-   const int printWidth = 11;
+   tic_toc.Clear();
+   tic_toc.Start();
+   if (boomerAMG)
+   {
+      HypreParMatrix& hypreMat = dynamic_cast<HypreParMatrix&>(*oprMultigrid->GetOperatorAtFinestLevel());
+      HypreBoomerAMG *amg = new HypreBoomerAMG(hypreMat);
+      HyprePCG *pcg = new HyprePCG(hypreMat);
+      pcg->SetPrintLevel(2);
+      pcg->SetMaxIter(100);
+      pcg->SetTol(1e-8);
+      pcg->SetPreconditioner(*amg);
+      pcg->Mult(B, X);
+   }
+   else
+   {
+      CGSolver pcg(MPI_COMM_WORLD);
+      pcg.SetPrintLevel(1);
+      pcg.SetMaxIter(100);
+      pcg.SetRelTol(1e-8);
+      pcg.SetAbsTol(0.0);
+      pcg.SetOperator(*oprMultigrid->GetOperatorAtFinestLevel());
+      pcg.SetPreconditioner(*mgCycle);
+      pcg.Mult(B, X);
+   }
+   tic_toc.Stop();
 
    if (myid == 0)
    {
-      cout << std::setw(3) << "It";
-      cout << std::setw(printWidth) << "Absres";
-      cout << std::setw(printWidth) << "Relres";
-      cout << std::setw(printWidth) << "Conv";
-      cout << std::setw(printWidth) << "Time [s]" << endl;
-
-      cout << std::setw(3) << 0;
-      cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << beginRes;
-      cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 1.0;
-      cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 0.0;
-      cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 0.0 << endl;
+      cout << "Time to solution: " << tic_toc.RealTime() << "s" << endl;
    }
 
-   for (int iter = 0; iter < 10; ++iter)
-   {
-      tic_toc.Clear();
-      tic_toc.Start();
-      mgCycle->Mult(B, X);
-      tic_toc.Stop();
+   // oprMultigrid->Mult(X, r);
+   // subtract(B, r, r);
 
-      oprMultigrid->Mult(X, r);
-      subtract(B, r, r);
+   // double beginRes = sqrt(InnerProduct(MPI_COMM_WORLD, r, r));
+   // double prevRes = beginRes;
+   // const int printWidth = 11;
 
-      double res = sqrt(InnerProduct(MPI_COMM_WORLD, r, r));
-      if (myid == 0)
-      {
-         cout << std::setw(3) << iter + 1;
-         cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res;
-         cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res/beginRes;
-         cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res/prevRes;
-         cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << tic_toc.RealTime() << endl;
-      }
+   // if (myid == 0)
+   // {
+   //    cout << std::setw(3) << "It";
+   //    cout << std::setw(printWidth) << "Absres";
+   //    cout << std::setw(printWidth) << "Relres";
+   //    cout << std::setw(printWidth) << "Conv";
+   //    cout << std::setw(printWidth) << "Time [s]" << endl;
 
-      if (res < 1e-10 * beginRes)
-      {
-         break;
-      }
+   //    cout << std::setw(3) << 0;
+   //    cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << beginRes;
+   //    cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 1.0;
+   //    cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 0.0;
+   //    cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 0.0 << endl;
+   // }
 
-      prevRes = res;
-   }
+   // for (int iter = 0; iter < 10; ++iter)
+   // {
+   //    tic_toc.Clear();
+   //    tic_toc.Start();
+   //    mgCycle->Mult(B, X);
+   //    tic_toc.Stop();
+
+   //    oprMultigrid->Mult(X, r);
+   //    subtract(B, r, r);
+
+   //    double res = sqrt(InnerProduct(MPI_COMM_WORLD, r, r));
+   //    if (myid == 0)
+   //    {
+   //       cout << std::setw(3) << iter + 1;
+   //       cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res;
+   //       cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res/beginRes;
+   //       cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res/prevRes;
+   //       cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << tic_toc.RealTime() << endl;
+   //    }
+
+   //    if (res < 1e-10 * beginRes)
+   //    {
+   //       break;
+   //    }
+
+   //    prevRes = res;
+   // }
 
    oprMultigrid->RecoverFEMSolution(X, *b, x);
 
