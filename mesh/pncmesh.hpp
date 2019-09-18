@@ -428,19 +428,25 @@ protected: // implementation
     */
    struct ParRefinement
    {
-      enum Kind { Unknown = -1, Initial, Normal, Ghost };
+      enum Kind { Invalid = -1, Initial, Normal, Ghost };
 
       int base; ///< index of a root element
       Kind kind;
       std::string path; ///< refinement path from 'base', plus ref_type
 
-      ParRefinement() : base(), kind(Unknown), path() {}
+      typedef std::vector<ParRefinement> List;
+
+      ParRefinement() : base(), kind(Invalid), path() {}
       ParRefinement(int elem, char ref_type, Kind kind,
-                    const ParNCMesh* ncmesh);
+                    const ParNCMesh *pncmesh);
+
+      bool Perform(ParNCMesh *pncmesh) const;
+      int LeafIndex(const ParNCMesh *pncmesh) const;
+      const char* KindName() const;
    };
 
-   std::vector<ParRefinement> par_ref_stack; // temporary, used by Refine()
-   std::vector<ParRefinement> par_postponed; //  "
+   ParRefinement::List par_ref_stack; // temporary, used by Refine()
+   ParRefinement::List par_postponed; //  "
 
 
    /** A base for internal messages used by Refine(), Derefine() and Rebalance().
@@ -489,7 +495,7 @@ protected: // implementation
    class RefinementMessage : public VarMessage<289>
    {
    public:
-      std::vector<ParRefinement> refinements;
+      ParRefinement::List refinements;
       typedef std::map<int, RefinementMessage> Map;
 
    protected:

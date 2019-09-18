@@ -38,10 +38,7 @@ struct Refinement
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
    Refinement() = default;
-   Refinement(int index, char type = 7) : index(index), ref_type(type), flag(0) {}
-   Refinement(int index, char type, int flag) : index(index), ref_type(type), flag(flag) {}
-
-   char flag; ///< for internal use (TODO: move to implementation)
+   Refinement(int index, char type = 7) : index(index), ref_type(type) {}
 };
 
 /// Defines the position of a fine element within a coarse element.
@@ -518,10 +515,11 @@ protected: // implementation
 
    // refinement/derefinement
 
-   Array<Refinement> ref_queue; ///< stack of scheduled refinements (temporary)
+   Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
    Array<Refinement> postponed; ///< list of postponed refinements (temporary)
+
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
-   Array<Pair<int, int> > prepare_nodes;
+   Array<Pair<int, int> > prepare_nodes; ///< forced refinement empty nodes (tmp)
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 

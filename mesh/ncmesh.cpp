@@ -687,7 +687,7 @@ bool NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    // schedule the refinement
    if (!el.flag)
    {
-      ref_queue.Append(Refinement(elem, ref_type));
+      ref_stack.Append(Refinement(elem, ref_type));
       el.flag = ref_type;
    }
 
@@ -761,7 +761,7 @@ void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
       {
          // schedule prism refinement along Z axis
          MFEM_ASSERT(elements[elem].Geom() == Geometry::PRISM, "");
-         ref_queue.Append(Refinement(elem, 4));
+         ref_stack.Append(Refinement(elem, 4));
       }
    }
 }
@@ -805,7 +805,7 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
       {
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
 
-         int rs = ref_queue.Size();
+         int rs = ref_stack.Size();
 
          int nr = 0;
          if (!CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1, &nr) ||
@@ -830,10 +830,10 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             // check if there is a prism with edge (mid23, mid41) that we may
             // have missed in 'CheckAnisoFace', and force-refine it if present.
 
-            if (ref_queue.Size() > rs)
+            if (ref_stack.Size() > rs)
             {
                CheckAnisoPrism(mid23, vn3, vn4, mid41,
-                               &ref_queue[rs], ref_queue.Size() - rs);
+                               &ref_stack[rs], ref_stack.Size() - rs);
             }
             else
             {
@@ -1525,7 +1525,6 @@ bool operator!=(const Refinement &a, const Refinement &b)
 
 void NCMesh::Refine(const Array<Refinement>& refinements)
 {
-#if 0
    // push all refinements on the stack in reverse order
    ref_stack.Reserve(refinements.Size());
    for (int i = refinements.Size()-1; i >= 0; i--)
@@ -1534,6 +1533,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
+#if 0
    // keep refining as long as the stack contains something
    int total = 0;
    while (ref_stack.Size())
@@ -1545,15 +1545,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       total++;
    }
 #else
-   // push all refinements in a FIFO
-   ref_queue.Reserve(refinements.Size());
-   for (int i = 0; i < refinements.Size(); i++)
-   {
-      const Refinement& ref = refinements[i];
-      ref_queue.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
-   }
-
-   // clear all flags
+   // clear all flags - FIXME?
    for (int i = 0; i < elements.Size(); i++)
    {
       elements[i].flag = 0;
@@ -1563,15 +1555,10 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    Array<Refinement> last_p;
 
    // keep refining as long as the queue contains something
-   while (ref_queue.Size())
+   while (ref_stack.Size())
    {
-#if 1
-      Refinement ref = ref_queue[0];
-      ref_queue.DeleteFirst(); // TODO: fix O(N) time
-#else
-      Refinement ref = ref_queue.Last();
-      ref_queue.DeleteLast();
-#endif
+      Refinement ref = ref_stack.Last();
+      ref_stack.DeleteLast();
 
       if (RefineElement(ref.index, ref.ref_type))
       {
@@ -1595,7 +1582,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       DebugDump(f);}
       DebugCheckConsistency();*/
 
-      if (!ref_queue.Size() && postponed.Size())
+      if (!ref_stack.Size() && postponed.Size())
       {
          /*if (last_p.Size() && postponed == last_p)
          {
@@ -1603,7 +1590,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
          }
          last_p = postponed;*/
 
-         postponed.Copy(ref_queue);
+         postponed.Copy(ref_stack);
          postponed.DeleteAll();
       }
    }
@@ -1619,11 +1606,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 #ifdef MFEM_DEBUG
    DebugCheckConsistency();
 #endif
-
-   /*{
-      std::ofstream ofs("debug.mesh");
-      DebugDump(ofs);
-   }*/
 }
 
 
@@ -5263,7 +5245,7 @@ long NCMesh::MemoryUsage() const
           vertex_list.MemoryUsage() +
           boundary_faces.MemoryUsage() +
           element_vertex.MemoryUsage() +
-          ref_queue.MemoryUsage() +
+          ref_stack.MemoryUsage() +
           derefinements.MemoryUsage() +
           transforms.MemoryUsage() +
           coarse_elements.MemoryUsage() +
@@ -5286,7 +5268,7 @@ int NCMesh::PrintMemoryDetail() const
              << vertex_list.MemoryUsage() << " vertex_list\n"
              << boundary_faces.MemoryUsage() << " boundary_faces\n"
              << element_vertex.MemoryUsage() << " element_vertex\n"
-             << ref_queue.MemoryUsage() << " ref_stack\n"
+             << ref_stack.MemoryUsage() << " ref_stack\n"
              << derefinements.MemoryUsage() << " derefinements\n"
              << transforms.MemoryUsage() << " transforms\n"
              << coarse_elements.MemoryUsage() << " coarse_elements\n"

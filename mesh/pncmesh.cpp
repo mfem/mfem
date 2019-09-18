@@ -1384,9 +1384,20 @@ ParNCMesh::ParRefinement::ParRefinement(int elem, char ref_type, Kind kind,
       base = el.parent;
    }
 
-   // append the new refinement type to the path from the root
+   // append new refinement type to the path from the root
    std::reverse(path.begin(), path.end());
    path.push_back(ref_type);
+}
+
+const char* ParNCMesh::ParRefinement::KindName() const
+{
+   switch (kind)
+   {
+      case Initial: return "initial";
+      case Normal: return "normal";
+      case Ghost: return "ghost";
+      default: return "invalid";
+   }
 }
 
 #if 1
@@ -1401,18 +1412,14 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    std::list<RefinementMessage::Map> send_msg;
    send_msg.push_back(RefinementMessage::Map());
 
-   // a single instance is reused for all incoming messages
-   RefinementMessage recv_msg;
-   recv_msg.SetNCMesh(this);
-
    // schedule all initial refinements
-   for (int i = 0; i < refinements.Size(); i++)
+   for (int i = refinements.Size()-1; i >= 0; i--)
    {
       const Refinement& ref = refinements[i];
       int elem = leaf_elements[ref.index];
-      //ref_queue.Append(Refinement(elem, ref.ref_type, InitRef));
-      par_ref_stack.Append(
-         ParRefinement(elem, ref.ref_type, ParRefinement::Initial));
+
+      ParRefinement pref(elem, ref.ref_type, ParRefinement::Initial, this);
+      par_ref_stack.push_back(pref);
 
       // refinements in the boundary layer must be reported to neighbors
       if (element_type[ref.index] == 3)
@@ -1421,8 +1428,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          for (int j = 0; j < ranks.Size(); j++)
          {
             RefinementMessage &msg = send_msg.back()[ranks[j]];
-            msg.AddRefinement(elem, ref.ref_type);
-            msg.SetNCMesh(this);
+            msg.refinements.push_back(pref);
 
             /*std::cout << MyRank << ": sending initial " << int(ref.ref_type)
                       << " to " << ranks[j] << std::endl;*/
@@ -1440,6 +1446,15 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    RefinementMessage::IsendAll(send_msg.back(), MyComm);
    my_sent += send_msg.back().size();
 
+   // clear all flags - FIXME?
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      elements[i].flag = 0;
+   }
+
+   // a single instance is reused for all incoming messages
+   RefinementMessage recv_msg;
+
    do
    {
       // check for incoming refinement messages
@@ -1453,10 +1468,9 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          my_recvd++;
 
          // schedule ghost refinements
-         for (int i = 0; i < recv_msg.Size(); i++)
+         for (int i = recv_msg.refinements.size()-1; i >= 0; i--)
          {
-            ref_queue.Append(
-               Refinement(recv_msg.elements[i], recv_msg.values[i], GhostRef));
+            par_ref_stack.push_back(recv_msg.refinements[i]);
          }
       }
 
@@ -1464,26 +1478,13 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
 
       // refine elements
       int post_cnt = 0;
-      while (ref_queue.Size())
+      while (par_ref_stack.size())
       {
-#if 0
-         Refinement ref = ref_queue[0];
-         ref_queue.DeleteFirst(); // TODO: fix O(N) time
-#else
-         Refinement ref = ref_queue.Last();
-         ref_queue.DeleteLast();
-#endif
+         ParRefinement ref = par_ref_stack.back();
+         par_ref_stack.pop_back();
 
-         /*if (ref.ref_type < 0)
-         {
-            // this is one of the original refinements, message already sent
-            RefineElement(ref.index, -ref.ref_type);
-            DebugRefineDump("initial");
-            continue;
-         }*/
-
-         // if 'ref.index' is a new element, get one of its parents
-         int base = ref.index;
+         // if refining a new element, get one of its parents and their layer type
+         int base = ref.LeafIndex(this);
          Element *base_el = &elements[base];
          while (base_el->index < 0)
          {
@@ -1492,53 +1493,63 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          }
          int type = element_type[base_el->index];
 
+         MFEM_ASSERT(ref.kind != ParRefinement::Invalid, "");
+
          // the rule is: each processor can only touch its own elements
-         if (ref.flag != GhostRef)
+         if (ref.kind != ParRefinement::Ghost)
          {
-            MFEM_ASSERT(type & 1, "type=" << type);
+            MFEM_ASSERT(type & 1, "Not own element! (type = " << type << ")");
          }
-         else // GhostRef refinements belong in the ghost layer only
+         else // 'Ghost' refinements belong in the ghost layer only
          {
-            MFEM_ASSERT(type == 2, "type=" << type);
+            MFEM_ASSERT(type == 2, "Not ghost layer! (type = " << type << ")");
          }
 
          // try to perform the refinement
-         if (RefineElement(ref.index, ref.ref_type))
+         if (ref.Perform(this))
          {
-            DebugRefineDump((ref.flag == InitRef) ? "initial" :
-                            (ref.flag == NormalRef) ? "normal" :
-                            (ref.flag == GhostRef) ? "ghost" : "invalid");
+            // import forced refinements from the serial code
+            for (int i = 0; i < ref_stack.Size(); i++)
+            {
+               const Refinement &forced = ref_stack[i];
+               par_ref_stack.push_back(
+                  ParRefinement(forced.index, forced.ref_type,
+                                ParRefinement::Normal, this));
+            }
 
             // refinements in the boundary layer must be reported to neighbors
             // because our type 3 element is their ghost element
-            if (type == 3 && ref.flag == NormalRef)
+            if (type == 3 && ref.kind == ParRefinement::Normal)
             {
                ElementNeighborProcessors(base, ranks);
                for (int j = 0; j < ranks.Size(); j++)
                {
                   RefinementMessage &msg = send_msg.back()[ranks[j]];
-                  msg.AddRefinement(ref.index, ref.ref_type);
-                  msg.SetNCMesh(this);
+                  msg.refinements.push_back(ref);
 
                   /*std::cout << MyRank << ": sending ref_type " << int(ref.ref_type)
                             << " to " << ranks[j] << std::endl;*/
                }
             }
-         }
-         else // forced refinement failed: schedule the refinement for later
-         {
-            par_postponed.Append(pref);
 
-            std::cout << "Postponing refinement of element " << ref.index
-                      << " (ref_type " << int(ref.ref_type)
-                      << ", flag " << int(ref.flag) << ")." << std::endl;
+            DebugRefineDump(ref.KindName());
          }
+         else // refinement failed: schedule it for later
+         {
+            par_postponed.push_back(ref);
+
+            std::cout << "Postponing refinement of element "
+                      << ref.LeafIndex(this) << std::endl;
+         }
+
+         // clean serial code refinement stack
+         ref_stack.DeleteAll();
 
          // check if it's time to retry postponed refinements
-         if (!par_ref_stack.Size() && par_postponed.Size() && post_cnt == 0)
+         if (!par_ref_stack.size() && par_postponed.size() && post_cnt == 0)
          {
-            par_ref_stack = par_postponed;
-            par_postponed.DeleteAll();
+            par_ref_stack.swap(par_postponed);
+            std::reverse(par_ref_stack.begin(), par_ref_stack.end());
             post_cnt++;
          }
       }
@@ -2876,11 +2887,11 @@ void ParNCMesh::RefinementMessage::Encode(int)
    std::ostringstream oss;
 
    write<int>(oss, refinements.size());
-   for (const ParRefinement &pref : refinements)
+   for (const ParRefinement &ref : refinements)
    {
-      write<int>(oss, pref.base);
-      write<short>(oss, pref.path.size());
-      oss.write(pref.path.data(), pref.path.size());
+      write<int>(oss, ref.base);
+      write<short>(oss, ref.path.size());
+      oss.write(ref.path.data(), ref.path.size());
    }
 
    oss.str().swap(data);
@@ -2891,10 +2902,11 @@ void ParNCMesh::RefinementMessage::Decode(int)
    std::istringstream iss(data);
 
    refinements.resize(read<int>(iss));
-   for (ParRefinement &pref : refinements)
+   for (ParRefinement &ref : refinements)
    {
-      pref.base = read<int>(iss);
-      pref.path.resize(
+      ref.base = read<int>(iss);
+      ref.path.resize(read<short>(iss));
+      iss.read((char*) ref.path.data(), ref.path.size());
    }
 
    // no longer need the raw data
