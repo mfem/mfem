@@ -8,6 +8,118 @@
 using namespace std;
 using namespace mfem;
 
+class PoissonMultigridOperator : public MultigridOperator
+{
+private:
+   HypreBoomerAMG* amg;
+   Array<ParBilinearForm*> forms;
+   bool partialAssembly;
+
+   Operator* ConstructOperator(ParFiniteElementSpace* fespace, const Array<int>& essentialDofs)
+   {
+      ParBilinearForm* form = new ParBilinearForm(fespace);
+      if (NumLevels() != 0 && partialAssembly)
+      {
+         form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
+      ConstantCoefficient one(1.0);
+      form->AddDomainIntegrator(new DiffusionIntegrator(one));
+      form->Assemble();
+
+      OperatorPtr opr;
+      
+      if (NumLevels() != 0 && partialAssembly)
+      {
+         opr.SetType(Operator::ANY_TYPE);
+      }
+      else
+      {
+         opr.SetType(Operator::Hypre_ParCSR);
+      }
+
+      form->FormSystemMatrix(essentialDofs, opr);
+      opr.SetOperatorOwner(false);
+
+      forms.Append(form);
+
+      return opr.Ptr();
+   }
+
+   Solver* ConstructCoarseSolver(Operator* opr)
+   {
+      HypreParMatrix& hypreCoarseMat = dynamic_cast<HypreParMatrix&>(*opr);
+      amg = new HypreBoomerAMG(hypreCoarseMat);
+      amg->SetPrintLevel(-1);
+      HyprePCG *coarseSolver = new HyprePCG(hypreCoarseMat);
+      coarseSolver->SetTol(1e-8);
+      coarseSolver->SetMaxIter(500);
+      coarseSolver->SetPrintLevel(-1);
+      coarseSolver->SetPreconditioner(*amg);
+      return coarseSolver;
+   }
+
+   Solver* ConstructSmoother(ParFiniteElementSpace* fespace, Operator* opr, const Array<int>& essentialDofs)
+   {
+      Solver* smoother = nullptr;
+
+      if (partialAssembly)
+      {
+         Vector diag(fespace->GetTrueVSize());
+         forms.Last()->AssembleDiagonal(diag);
+         
+         Vector ev(opr->Width());
+         OperatorJacobiSmoother invDiagOperator(diag, essentialDofs, 1.0);
+         ProductOperator diagPrecond(&invDiagOperator, opr, false, false);
+         double estLargestEigenvalue = PowerMethod::EstimateLargestEigenvalue(MPI_COMM_WORLD, diagPrecond, ev, 10, 1e-8);
+         smoother = new OperatorChebyshevSmoother(opr, diag, essentialDofs, 3, estLargestEigenvalue);
+      }
+      else
+      {
+         smoother = new HypreSmoother(static_cast<HypreParMatrix&>(*opr));
+      }
+
+      return smoother;
+   }
+
+public:
+   PoissonMultigridOperator(ParFiniteElementSpace* fespace, const Array<int>& essentialDofs, bool partialAssembly_)
+      : MultigridOperator(), amg(nullptr), partialAssembly(partialAssembly_)
+   {
+      Operator* coarseOpr = ConstructOperator(fespace, essentialDofs);
+      Solver* coarseSolver = ConstructCoarseSolver(coarseOpr);
+
+      AddCoarseLevel(coarseOpr, coarseSolver, false, true);
+   }
+
+   ~PoissonMultigridOperator()
+   {
+      delete amg;
+      MFEM_FORALL(i, forms.Size(), delete forms[i]; );
+   }
+
+   void AddLevel(ParFiniteElementSpace* lFEspace, ParFiniteElementSpace* hFEspace, const Array<int>& essentialDofs)
+   {
+      Operator* opr = ConstructOperator(hFEspace, essentialDofs);
+      Solver* smoother = ConstructSmoother(hFEspace, opr, essentialDofs);
+      Operator* P = new TrueTransferOperator(*lFEspace, *hFEspace);
+      MultigridOperator::AddLevel(opr, smoother, P, partialAssembly, true, true);
+   }
+
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         Vector &X, Vector &B,
+                         int copy_interior = 0)
+   {
+      OperatorPtr dummy;
+      forms.Last()->FormLinearSystem(ess_tdof_list, x, b, dummy, X, B, copy_interior);
+   }
+
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
+   {
+      forms.Last()->RecoverFEMSolution(X, b, x);
+   }
+};
+
 int main(int argc, char *argv[])
 {
    int num_procs, myid;
@@ -104,33 +216,10 @@ int main(int argc, char *argv[])
 
    Array<Array<int>*> essentialTrueDoFs;
    essentialTrueDoFs.Append(new Array<int>());
-
    fespace->GetEssentialTrueDofs(ess_bdr, *essentialTrueDoFs.Last());
 
-   ParBilinearForm* coarseForm = new ParBilinearForm(fespace);
-   // if (partialAssembly) { coarseForm->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   ConstantCoefficient one(1.0);
-   coarseForm->AddDomainIntegrator(new DiffusionIntegrator(one));
-   coarseForm->Assemble();
-
-   OperatorPtr coarseOpr(Operator::Hypre_ParCSR);
-   coarseForm->FormSystemMatrix(*essentialTrueDoFs.Last(), coarseOpr);
-   coarseOpr.SetOperatorOwner(false);
-
-   HypreParMatrix& hypreCoarseMat = dynamic_cast<HypreParMatrix&>(*coarseOpr);
-   HypreBoomerAMG *amg = new HypreBoomerAMG(hypreCoarseMat);
-   amg->SetPrintLevel(-1);
-   HyprePCG *coarseSolver = new HyprePCG(hypreCoarseMat);
-   coarseSolver->SetTol(1e-8);
-   coarseSolver->SetMaxIter(500);
-   coarseSolver->SetPrintLevel(-1);
-   coarseSolver->SetPreconditioner(*amg);
-
-   Array<ParBilinearForm*> forms;
-   forms.Append(coarseForm);
-
    ParSpaceHierarchy* spaceHierarchy = new ParSpaceHierarchy(pmesh, fespace, true, true);
-   MultigridOperator* oprMultigrid = new MultigridOperator(coarseOpr.Ptr(), coarseSolver, false, true);
+   PoissonMultigridOperator* oprMultigrid = new PoissonMultigridOperator(fespace, *essentialTrueDoFs.Last(), partialAssembly);
 
    for(int level = 1; level < mg_levels; ++level)
    {
@@ -152,54 +241,11 @@ int main(int argc, char *argv[])
       {
          cout << "Number of finite element unknowns on level " << level << ": " << size << "; FE order: " << newOrder << endl;
       }
-
-      // Create form and operator on next level
-      ParBilinearForm* form = new ParBilinearForm(&spaceHierarchy->GetFinestFESpace());
-      if (partialAssembly) { form->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      form->AddDomainIntegrator(new DiffusionIntegrator(one));
-      form->Assemble();
-      forms.Append(form);
-
-      // Create operator with eliminated essential dofs
-      OperatorPtr opr;
+      
       essentialTrueDoFs.Append(new Array<int>());
       spaceHierarchy->GetFinestFESpace().GetEssentialTrueDofs(ess_bdr, *essentialTrueDoFs.Last());
 
-      if (partialAssembly)
-      {
-         opr.SetType(Operator::ANY_TYPE);
-      }
-      else
-      {
-         opr.SetType(Operator::Hypre_ParCSR);
-      }
-
-      form->FormSystemMatrix(*essentialTrueDoFs.Last(), opr);
-      opr.SetOperatorOwner(false);
-
-      // Create prolongation
-      Operator* P = new TrueTransferOperator(spaceHierarchy->GetFESpaceAtLevel(level - 1), spaceHierarchy->GetFinestFESpace());
-
-      // Create smoother
-      Solver* smoother = nullptr;
-
-      if (partialAssembly)
-      {
-         Vector diag(spaceHierarchy->GetFinestFESpace().GetTrueVSize());
-         form->AssembleDiagonal(diag);
-         
-         Vector ev(opr->Width());
-         OperatorJacobiSmoother invDiagOperator(diag, *essentialTrueDoFs.Last(), 1.0);
-         ProductOperator diagPrecond(&invDiagOperator, opr.Ptr(), false, false);
-         double estLargestEigenvalue = PowerMethod::EstimateLargestEigenvalue(MPI_COMM_WORLD, diagPrecond, ev, 10, 1e-8);
-         smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag, *essentialTrueDoFs.Last(), 3, estLargestEigenvalue);
-      }
-      else
-      {
-         smoother = new HypreSmoother(*opr.As<HypreParMatrix>());
-      }
-
-      oprMultigrid->AddLevel(opr.Ptr(), smoother, P, partialAssembly, true, true);
+      oprMultigrid->AddLevel(&spaceHierarchy->GetFESpaceAtLevel(level - 1), &spaceHierarchy->GetFinestFESpace(), *essentialTrueDoFs.Last());
    }
 
    ParGridFunction x(&spaceHierarchy->GetFinestFESpace());
@@ -212,6 +258,7 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
    ParLinearForm* b = new ParLinearForm(&spaceHierarchy->GetFinestFESpace());
+   ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
    tic_toc.Stop();
@@ -221,8 +268,7 @@ int main(int argc, char *argv[])
    }
 
    Vector X, B;
-   OperatorPtr dummy;
-   forms[spaceHierarchy->GetFinestLevelIndex()]->FormLinearSystem(*essentialTrueDoFs.Last(), x, *b, dummy, X, B);
+   oprMultigrid->FormLinearSystem(*essentialTrueDoFs.Last(), x, *b, X, B);
 
    Vector r(X.Size());
    MultigridSolver* mgCycle = new MultigridSolver(oprMultigrid, MultigridSolver::CycleType::VCYCLE, 3, 3);
@@ -295,7 +341,7 @@ int main(int argc, char *argv[])
       prevRes = res;
    }
 
-   forms[spaceHierarchy->GetFinestLevelIndex()]->RecoverFEMSolution(X, *b, x);
+   oprMultigrid->RecoverFEMSolution(X, *b, x);
 
    if (visualization)
    {
@@ -311,9 +357,7 @@ int main(int argc, char *argv[])
    delete mgCycle;
    delete oprMultigrid;
    delete spaceHierarchy;
-   delete amg;
-
-   MFEM_FORALL(i, forms.Size(), delete forms[i]; );
+   
    MFEM_FORALL(i, essentialTrueDoFs.Size(), delete essentialTrueDoFs[i]; );
    MFEM_FORALL(i, feCollectons.Size(), delete feCollectons[i]; );
 
