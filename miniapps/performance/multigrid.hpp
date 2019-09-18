@@ -52,19 +52,20 @@ template <typename M, typename FES> class GeneralSpaceHierarchy
       ownedFES.Append(ownFES);
    }
 
-   void AddUniformlyRefinedLevel()
+   void AddUniformlyRefinedLevel(int dim = 1, int ordering = Ordering::byVDIM)
    {
       M *mesh = new M(*meshes[GetFinestLevelIndex()]);
       mesh->UniformRefinement();
       FES *coarseFEspace = fespaces[GetFinestLevelIndex()];
-      FES *fineFEspace = new FES(mesh, coarseFEspace->FEColl());
+      FES *fineFEspace = new FES(mesh, coarseFEspace->FEColl(), dim, ordering);
       AddLevel(mesh, fineFEspace, true, true);
    }
 
-   void AddOrderRefinedLevel(FiniteElementCollection *fec)
+   void AddOrderRefinedLevel(FiniteElementCollection *fec, int dim = 1,
+                             int ordering = Ordering::byVDIM)
    {
       M *mesh = &GetFinestMesh();
-      FES *newFEspace = new FES(mesh, fec);
+      FES *newFEspace = new FES(mesh, fec, dim, ordering);
       AddLevel(mesh, newFEspace, false, true);
    }
 
@@ -125,7 +126,7 @@ using ParSpaceHierarchy = GeneralSpaceHierarchy<ParMesh, ParFiniteElementSpace>;
 class MultigridOperator : public Operator
 {
  protected:
-   Array<const Operator *> operators;
+   Array<Operator *> operators;
    Array<Solver *> smoothers;
    Array<const Operator *> prolongations;
 
@@ -136,8 +137,8 @@ class MultigridOperator : public Operator
  public:
    MultigridOperator() {}
 
-   MultigridOperator(const Operator *opr, Solver *coarseSolver,
-                     bool ownOperator, bool ownSolver)
+   MultigridOperator(Operator *opr, Solver *coarseSolver, bool ownOperator,
+                     bool ownSolver)
    {
       AddCoarseLevel(opr, coarseSolver, ownOperator, ownSolver);
    }
@@ -168,7 +169,7 @@ class MultigridOperator : public Operator
       smoothers.DeleteAll();
    }
 
-   void AddCoarseLevel(const Operator *opr, Solver *solver, bool ownOperator,
+   void AddCoarseLevel(Operator *opr, Solver *solver, bool ownOperator,
                        bool ownSolver)
    {
       MFEM_VERIFY(NumLevels() == 0, "Coarse level already exists");
@@ -178,9 +179,8 @@ class MultigridOperator : public Operator
       ownedSmoothers.Append(ownSolver);
    }
 
-   void AddLevel(const Operator *opr, Solver *smoother,
-                 const Operator *prolongation, bool ownOperator,
-                 bool ownSmoother, bool ownProlongation)
+   void AddLevel(Operator *opr, Solver *smoother, const Operator *prolongation,
+                 bool ownOperator, bool ownSmoother, bool ownProlongation)
    {
       MFEM_VERIFY(NumLevels() > 0, "Please add a coarse level first");
       operators.Append(opr);
@@ -242,10 +242,7 @@ class MultigridOperator : public Operator
    }
 
    /// Returns operator at given level
-   const Operator *GetOperatorAtLevel(unsigned level)
-   {
-      return operators[level];
-   }
+   Operator *GetOperatorAtLevel(unsigned level) { return operators[level]; }
 
    /// Returns operator at finest level
    const Operator *GetOperatorAtFinestLevel() const
@@ -254,7 +251,7 @@ class MultigridOperator : public Operator
    }
 
    /// Returns operator at finest level
-   const Operator *GetOperatorAtFinestLevel()
+   Operator *GetOperatorAtFinestLevel()
    {
       return GetOperatorAtLevel(operators.Size() - 1);
    }
