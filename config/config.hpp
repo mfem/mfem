@@ -15,12 +15,27 @@
 //
 // Otherwise, use the local file: _config.hpp.
 
+#ifndef MFEM_CONFIG_HPP
+#define MFEM_CONFIG_HPP
+
 #ifdef MFEM_BUILD_DIR
 #define MFEM_QUOTE(a) #a
 #define MFEM_MAKE_PATH(x,y) MFEM_QUOTE(x/y)
 #include MFEM_MAKE_PATH(MFEM_BUILD_DIR,config/_config.hpp)
 #else
 #include "_config.hpp"
+#endif
+
+// Common configuration macros
+
+#if (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)) || defined(__clang__)
+#define MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#endif
+
+// Windows specific options
+#ifdef _WIN32
+// Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
+#define _USE_MATH_DEFINES
 #endif
 
 // Check dependencies:
@@ -40,3 +55,5 @@
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
 #endif // MFEM_USE_MPI not defined
+
+#endif // MFEM_CONFIG_HPP

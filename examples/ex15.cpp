@@ -135,6 +135,8 @@ int main(int argc, char *argv[])
    {
       mesh.UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   mesh.Finalize(true);
 
    // 4. All boundary attributes will be used for essential (Dirichlet) BC.
    MFEM_VERIFY(mesh.bdr_attributes.Size() > 0,

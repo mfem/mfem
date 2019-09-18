@@ -15,6 +15,7 @@
 #include "config/config.hpp"
 
 #include "general/error.hpp"
+#include "general/device.hpp"
 #include "general/array.hpp"
 #include "general/sets.hpp"
 #include "general/hash.hpp"

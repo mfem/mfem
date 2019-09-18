@@ -26,17 +26,61 @@ namespace mfem
 class ParLinearForm : public LinearForm
 {
 protected:
-   ParFiniteElementSpace *pfes;
+   ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
+
+private:
+   /// Copy construction is not supported; body is undefined.
+   ParLinearForm(const ParLinearForm &);
 
 public:
+   /** @brief Create an empty ParLinearForm without an associated
+       ParFiniteElementSpace.
+
+       The associated ParFiniteElementSpace can be set later using one of the
+       methods: Update(ParFiniteElementSpace *) or
+       Update(ParFiniteElementSpace *, Vector &, int). */
    ParLinearForm() : LinearForm() { pfes = NULL; }
 
+   /// Create a ParLinearForm on the FE space @a *pf.
+   /** The pointer @a pf is not owned by the newly constructed object. */
    ParLinearForm(ParFiniteElementSpace *pf) : LinearForm(pf) { pfes = pf; }
+
+   /** @brief Create a ParLinearForm on the ParFiniteElementSpace @a *pf, using
+       the same integrators as the ParLinearForm @a *plf.
+
+       The pointer @a pf is not owned by the newly constructed object.
+
+       The integrators in @a plf are copied as pointers and they are not owned
+       by the newly constructed LinearForm. */
+   ParLinearForm(ParFiniteElementSpace *pf, ParLinearForm * plf)
+      : LinearForm(pf, plf) { pfes = pf; }
+
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
+       that have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignemnt operator. */
+   ParLinearForm &operator=(const ParLinearForm &rhs)
+   { return operator=((const Vector &)rhs); }
 
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
+   /// Update the object according to the given new FE space @a *pf.
+   /** If the pointer @a pf is NULL (this is the default value), the FE space
+       already associated with this object is used.
+
+       This method should be called when the asscociated FE space #fes has been
+       updated, e.g. after its associated Mesh object has been refined.
+
+       @note This method does not perform assembly. */
    void Update(ParFiniteElementSpace *pf = NULL);
 
+   /** @brief Associate a new FE space, @a *pf, with this object and use the
+       data of @a v, offset by @a v_offset, to initialize this object's
+       Vector::data.
+
+       @note This method does not perform assembly. */
    void Update(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
    /// Assemble the vector on the true dofs, i.e. P^t v.
@@ -54,6 +98,14 @@ public:
    {
       return InnerProduct(pfes->GetComm(), *this, gf);
    }
+
+   /// Assign constant values to the ParLinearForm data.
+   ParLinearForm &operator=(double value)
+   { LinearForm::operator=(value); return *this; }
+
+   /// Copy the data from a Vector to the ParLinearForm data.
+   ParLinearForm &operator=(const Vector &v)
+   { LinearForm::operator=(v); return *this; }
 };
 
 }

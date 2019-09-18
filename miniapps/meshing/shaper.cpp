@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
 
          // Sample materials in each element using "sd" sub-divisions
          Vector pt;
-         int geom = mesh.GetElementBaseGeometry(i);
+         Geometry::Type geom = mesh.GetElementBaseGeometry(i);
          ElementTransformation *T = mesh.GetElementTransformation(i);
          RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
          IntegrationRule &ir = RefG->RefPts;

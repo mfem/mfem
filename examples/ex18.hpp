@@ -509,8 +509,7 @@ bool StateIsPhysical(const Vector &state, const int dim)
 // Initial condition
 void InitialCondition(const Vector &x, Vector &y)
 {
-   const int dim = x.Size();
-   MFEM_ASSERT(dim == 2, "");
+   MFEM_ASSERT(x.Size() == 2, "");
 
    double radius = 0, Minf = 0, beta = 0;
    if (problem == 1)

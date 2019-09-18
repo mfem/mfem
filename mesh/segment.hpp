@@ -39,7 +39,7 @@ public:
    virtual void SetVertices(const int *ind);
 
    /// Return element's type.
-   virtual int GetType() const { return Element::SEGMENT; }
+   virtual Type GetType() const { return Element::SEGMENT; }
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices(Array<int> &v) const;

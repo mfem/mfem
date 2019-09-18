@@ -51,6 +51,13 @@ endif
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
 
+ifneq (,$(filter test%,$(MAKECMDGOALS)))
+   ifeq (,$(wildcard ../../data/pumi))
+      $(info PUMI data directory not found. The PUMI tests will be SKIPPED.)
+      mfem-test = printf "   $(3) [$(2) $(1) ... ]: "; $(PRINT_SKIP)
+   endif
+endif
+
 # Testing: Parallel vs. serial runs
 RUN_MPI_NP = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 RUN_MPI = $(RUN_MPI_NP) $(MFEM_MPI_NP)
