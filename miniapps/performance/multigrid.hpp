@@ -134,14 +134,12 @@ class MultigridOperator : public Operator
    Array<bool> ownedProlongations;
 
  public:
-   /// Constructor
+   MultigridOperator() {}
+
    MultigridOperator(const Operator *opr, Solver *coarseSolver,
                      bool ownOperator, bool ownSolver)
    {
-      operators.Append(opr);
-      smoothers.Append(coarseSolver);
-      ownedOperators.Append(ownOperator);
-      ownedSmoothers.Append(ownSolver);
+      AddCoarseLevel(opr, coarseSolver, ownOperator, ownSolver);
    }
 
    ~MultigridOperator()
@@ -170,10 +168,21 @@ class MultigridOperator : public Operator
       smoothers.DeleteAll();
    }
 
-   virtual void AddLevel(const Operator *opr, Solver *smoother,
-                         const Operator *prolongation, bool ownOperator,
-                         bool ownSmoother, bool ownProlongation)
+   void AddCoarseLevel(const Operator *opr, Solver *solver, bool ownOperator,
+                       bool ownSolver)
    {
+      MFEM_VERIFY(NumLevels() == 0, "Coarse level already exists");
+      operators.Append(opr);
+      smoothers.Append(solver);
+      ownedOperators.Append(ownOperator);
+      ownedSmoothers.Append(ownSolver);
+   }
+
+   void AddLevel(const Operator *opr, Solver *smoother,
+                 const Operator *prolongation, bool ownOperator,
+                 bool ownSmoother, bool ownProlongation)
+   {
+      MFEM_VERIFY(NumLevels() > 0, "Please add a coarse level first");
       operators.Append(opr);
       smoothers.Append(smoother);
       prolongations.Append(prolongation);
@@ -196,7 +205,7 @@ class MultigridOperator : public Operator
    }
 
    /// Matrix vector multiplication on finest level
-   virtual void Mult(const Vector &x, Vector &y) const override
+   void Mult(const Vector &x, Vector &y) const override
    {
       MFEM_ASSERT(NumLevels() > 0, "At least one level needs to exist.");
       MultAtLevel(NumLevels() - 1, x, y);
@@ -215,7 +224,8 @@ class MultigridOperator : public Operator
    /// Apply Smoother at given level
    void ApplySmootherAtLevel(unsigned level, const Vector &x, Vector &y) const
    {
-      MFEM_VERIFY(level > 0, "Smoother at level 0 is the coarse solver. Please use ApplyCoarseSolver.");
+      MFEM_VERIFY(level > 0, "Smoother at level 0 is the coarse solver. Please "
+                             "use ApplyCoarseSolver.");
       smoothers[level]->Mult(x, y);
    }
 
@@ -280,8 +290,8 @@ class MultigridSolver : public Solver
 
    void SmoothingStep(int level) const
    {
-      opr->MultAtLevel(level, *Y[level], *R[level]); // r = A x
-      subtract(*X[level], *R[level], *R[level]); // r = b - A x
+      opr->MultAtLevel(level, *Y[level], *R[level]);          // r = A x
+      subtract(*X[level], *R[level], *R[level]);              // r = b - A x
       opr->ApplySmootherAtLevel(level, *R[level], *Z[level]); // z = S r
       add(*Y[level], 1.0, *Z[level], *Y[level]); // x = x + B (b - A x)
    }
@@ -425,7 +435,7 @@ class MultigridSolver : public Solver
    virtual void Mult(const Vector &x, Vector &y) const override
    {
       // Safe const_cast, since x at the finest level will never be modified
-      X.Last() = const_cast<Vector*>(&x);
+      X.Last() = const_cast<Vector *>(&x);
       Y.Last() = &y;
       Cycle(opr->NumLevels() - 1);
       X.Last() = nullptr;
