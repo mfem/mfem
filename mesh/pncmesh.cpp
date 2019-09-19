@@ -1479,10 +1479,11 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       }
    }
 
-   // messages sent/received counters
-   int my_cnt[2], glob_cnt[2];
-   int &my_sent = my_cnt[0], &my_recvd = my_cnt[1];
-   int &glob_sent = glob_cnt[0], &glob_recvd = glob_cnt[1];
+   // messages sent/received/postponed counters
+   int my_cnt[3], glob_cnt[3];
+   int &my_sent  = my_cnt[0], &glob_sent  = glob_cnt[0];
+   int &my_recvd = my_cnt[1], &glob_recvd = glob_cnt[1];
+   int &my_post  = my_cnt[2], &glob_post  = glob_cnt[2];
    my_sent = my_recvd = 0;
 
    // send the initial batch of messages
@@ -1500,15 +1501,21 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
 
    do
    {
+      //MPI_Barrier(MyComm);
+      std::cout << MyRank << ": stack size " << par_ref_stack.size() << " + "
+                << par_postponed.size() << std::endl;
+
+
       // check for incoming refinement messages
       int rank, size;
       while (RefinementMessage::IProbe(rank, size, MyComm))
       {
-         std::cout << "Rank " << MyRank << " received message from " << rank
-                   << ", size " << size << std::endl;
-
          recv_msg.Recv(rank, size, MyComm);
          my_recvd++;
+
+         std::cout << "Rank " << MyRank << " received message from " << rank
+                   << ", size " << size << ", " << recv_msg.refinements.size()
+                   << " refinements" << std::endl;
 
          // schedule ghost refinements
          for (int i = recv_msg.refinements.size()-1; i >= 0; i--)
@@ -1516,8 +1523,14 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
             par_ref_stack.push_back(recv_msg.refinements[i]);
          }
       }
+      // TODO: reverse
 
       send_msg.push_back(RefinementMessage::Map());
+
+      if (!par_ref_stack.size() && par_postponed.size())
+      {
+         par_ref_stack.swap(par_postponed);
+      }
 
       // refine elements
       int post_cnt = 0;
@@ -1526,8 +1539,15 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          ParRefinement ref = par_ref_stack.back();
          par_ref_stack.pop_back();
 
-         // if refining a new element, get one of its parents and their layer type
          int base = ref.Index(this);
+         if (base < 0)
+         {
+            std::cout << MyRank << ": postponing refinement of element -1" << std::endl;
+            par_postponed.push_back(ref);
+            continue;
+         }
+
+         // if refining a new element, get one of its parents and their layer type
          Element *base_el = &elements[base];
          while (base_el->index < 0)
          {
@@ -1551,6 +1571,9 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          // try to perform the refinement
          if (ref.Perform(this))
          {
+            std::cout << MyRank << ": success refining element "
+                      << ref.Index(this) << std::endl;
+
             // import forced refinements from the serial code
             for (int i = 0; i < ref_stack.Size(); i++)
             {
@@ -1582,7 +1605,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          {
             par_postponed.push_back(ref);
 
-            std::cout << "Postponing refinement of element "
+            std::cout << MyRank << ": postponing refinement of element "
                       << ref.Index(this) << std::endl;
          }
 
@@ -1602,9 +1625,12 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       my_sent += send_msg.back().size();
 
       // get the global status
-      MPI_Allreduce(my_cnt, glob_cnt, 2, MPI_INT, MPI_SUM, MyComm);
+      my_post = par_postponed.size();
+      MPI_Allreduce(my_cnt, glob_cnt, 3, MPI_INT, MPI_SUM, MyComm);
+
+      if (MyRank == 0) { std::cout << "---------------" << std::endl; }
    }
-   while (glob_sent > glob_recvd || postponed.Size());
+   while (glob_sent > glob_recvd || glob_post);
 
    Update();
 
