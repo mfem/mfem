@@ -25,9 +25,9 @@ namespace mfem
 // *****************************************************************************
 #define JIT_STR(...) #__VA_ARGS__
 #define JIT_STRINGIFY(...) JIT_STR(__VA_ARGS__)
-#define DBG(...) { printf("\033[1;33m"); \
+#define DBG(...) { printf("\033[33m"); \
                    printf(__VA_ARGS__);  \
-                   printf("\033[m");fflush(0); }
+                   printf(" \033[m");fflush(0); }
 
 // *****************************************************************************
 // * Hashing, used here as well as embedded in the code
@@ -81,10 +81,17 @@ struct template_t
 };
 
 // *****************************************************************************
+struct forall_t
+{
+   string e,N,X,Y,Z,body;
+};
+
+// *****************************************************************************
 struct kernel_t
 {
    bool __jit;
    bool __embed;
+   bool __forall;
    bool __template;
    bool __single_source;
    string mfem_cxx;           // holds MFEM_CXX
@@ -105,6 +112,7 @@ struct kernel_t
    string d2u, u2d;           // double to unsigned place holders
    struct template_t tpl;     // source of the instanciated templates
    string embed;              // source of the embed function
+   struct forall_t forall;    // source of the lambda forall
 };
 
 // *****************************************************************************
@@ -115,10 +123,10 @@ struct context_t
    ostream& out;
    string& file;
    list<argument_t> args;
-   int line, block;
+   int line, block, parenthesis;
 public:
    context_t(istream& i, ostream& o, string &f)
-      : in(i), out(o), file(f), line(1), block(-2) {}
+      : in(i), out(o), file(f), line(1), block(-2), parenthesis(-2) {}
 };
 
 // *****************************************************************************
@@ -171,8 +179,10 @@ char get(context_t &pp) { return static_cast<char>(pp.in.get()); }
 int put(const char c, context_t &pp)
 {
    if (is_newline(c)) { pp.line++; }
-   pp.out.put(c);
    if (pp.ker.__embed) { pp.ker.embed += c; }
+   // if we are storing the lbody, just save it w/o output
+   if (pp.ker.__forall) { pp.ker.forall.body += c; return c;}
+   pp.out.put(c);
    return c;
 }
 
@@ -186,9 +196,9 @@ void skip_space(context_t &pp, string &out)
 }
 
 // *****************************************************************************
-void skip_space(context_t &pp)
+void skip_space(context_t &pp, bool keep=true)
 {
-   while (isspace(pp.in.peek())) { put(pp); }
+   while (isspace(pp.in.peek())) { keep?put(pp):get(pp); }
 }
 
 // *****************************************************************************
@@ -210,40 +220,46 @@ bool is_comments(context_t &pp)
 }
 
 // *****************************************************************************
-void singleLineComments(context_t &pp)
+void singleLineComments(context_t &pp, bool keep=true)
 {
-   while (!is_newline(pp.in.peek())) { put(pp); }
+   while (!is_newline(pp.in.peek())) { keep?put(pp):get(pp); }
 }
 
 // *****************************************************************************
-void blockComments(context_t &pp)
+void blockComments(context_t &pp, bool keep=true)
 {
    for (char c; pp.in.get(c);)
    {
-      put(c,pp);
+      if (keep) { put(c,pp); }
       if (c == '*' && pp.in.peek() == '/')
       {
-         put(pp);
-         skip_space(pp);
+         keep?put(pp):get(pp);
+         skip_space(pp, keep);
          return;
       }
    }
 }
 
 // *****************************************************************************
-void comments(context_t &pp)
+void comments(context_t &pp, bool keep=true)
 {
    if (not is_comments(pp)) { return; }
-   put(pp);
-   if (put(pp) == '/') { return singleLineComments(pp); }
-   return blockComments(pp);
+   keep?put(pp):get(pp);
+   if (keep?put(pp):get(pp) == '/') { return singleLineComments(pp,keep); }
+   return blockComments(pp,keep);
 }
 
 // *****************************************************************************
-void next(context_t &pp)
+void next(context_t &pp, bool keep=true)
 {
-   skip_space(pp);
-   comments(pp);
+   keep?skip_space(pp):drop_space(pp);
+   comments(pp,keep);
+}
+
+// *****************************************************************************
+void drop(context_t &pp)
+{
+   next(pp, false);
 }
 
 // *****************************************************************************
@@ -251,6 +267,14 @@ bool is_id(context_t &pp)
 {
    const int c = pp.in.peek();
    return isalnum(c) or c == '_';
+}
+
+// *****************************************************************************
+bool is_semicolon(context_t &pp)
+{
+   skip_space(pp);
+   const int c = pp.in.peek();
+   return c == ';';
 }
 
 // *****************************************************************************
@@ -408,7 +432,7 @@ void jitHeader(context_t &pp)
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";
    pp.out << JIT_STRINGIFY(JIT_HASH_COMBINE_ARGS_SRC) << "\n";
-   //pp.out << "#line 1 \"" << pp.file <<"\"\n";
+   pp.out << "#line 1 \"" << pp.file <<"\"\n";
 }
 
 // *****************************************************************************
@@ -1160,6 +1184,113 @@ void templatePostfix(context_t &pp)
    pp.out << "\n}";
 }
 
+
+// *****************************************************************************
+// * MFEM_UNROLL
+// *****************************************************************************
+void __unroll(context_t &pp)
+{
+   //DBG("__unroll")
+   while ('(' != get(pp)) {assert(not pp.in.eof());}
+   drop(pp);
+   string depth = get_id(pp);
+   //DBG("(%s)",depth.c_str());
+   drop(pp);
+   check(pp,is_right_parenthesis(pp),"no last right parenthesis found");
+   get(pp);
+   drop(pp);
+   check(pp,is_semicolon(pp),"no last semicolon found");
+   get(pp);
+   // only if we are in a forall, we push the unrolling
+   if (pp.ker.__forall)
+   {
+      pp.ker.forall.body += "#pragma unroll ";
+      pp.ker.forall.body += depth.c_str();
+   }
+}
+
+// *****************************************************************************
+// * MFEM_FORALL_2D
+// *****************************************************************************
+void __forall2D(context_t &pp)
+{
+   //DBG("__forall2D")
+   pp.ker.__forall = true;
+   pp.ker.forall.body.clear();
+
+   check(pp,is_left_parenthesis(pp),"no 1st '(' in forall 2D");
+   get(pp); // drop '('
+   pp.ker.forall.e = get_id(pp);
+   //DBG("iterator:'%s'", pp.ker.forall.e.c_str());
+
+   check(pp,is_coma(pp),"no 1st coma in forall 2D");
+   get(pp); // drop ','
+
+   drop(pp);
+   check(pp,is_id(pp),"no 1st id(N) in forall 2D");
+   pp.ker.forall.N = get_id(pp);
+   //DBG("N:'%s'", pp.ker.forall.N.c_str());
+   drop(pp);
+   check(pp,is_coma(pp),"no 2nd coma in forall 2D");
+   get(pp); // drop ','
+
+   drop(pp);
+   check(pp,is_id(pp),"no 2st id (X) in forall 2D");
+   pp.ker.forall.X = get_id(pp);
+   //DBG("X:'%s'", pp.ker.forall.X.c_str());
+   drop(pp);
+   //DBG(">%c<", put(pp));
+   check(pp,is_coma(pp),"no 3rd coma in forall 2D");
+   get(pp); // drop ','
+
+   drop(pp);
+   check(pp,is_id(pp),"no 3rd id (Y) in forall 2D");
+   pp.ker.forall.Y = get_id(pp);
+   //DBG("Y:'%s'", pp.ker.forall.Y.c_str());
+   drop(pp);
+   check(pp,is_coma(pp),"no 4th coma in forall 2D");
+   get(pp); // drop ','
+
+   drop(pp);
+   check(pp,is_id(pp),"no 4th id (Y) in forall 2D");
+   pp.ker.forall.Z = get_id(pp);
+   //DBG("Z:'%s'", pp.ker.forall.Z.c_str());
+   drop(pp);
+   check(pp,is_coma(pp),"no last coma in forall 2D");
+   get(pp); // drop ','
+
+   // Starts counting the parentheses
+   pp.parenthesis = 0;
+}
+// *****************************************************************************
+void forall2DPostfix(context_t &pp)
+{
+   if (not pp.ker.__forall) { return; }
+   //DBG("forall2DPostfix 1")
+   if (pp.parenthesis>=0 && pp.in.peek() == '(') { pp.parenthesis++; }
+   if (pp.parenthesis>=0 && pp.in.peek() == ')') { pp.parenthesis--; }
+   if (pp.parenthesis!=-1) { return; }
+   //DBG("forall2DPostfix 2")
+   drop(pp);
+   check(pp,is_right_parenthesis(pp),"no last right parenthesis found");
+   get(pp);
+   drop(pp);
+   check(pp,is_semicolon(pp),"no last semicolon found");
+   get(pp);
+   pp.parenthesis--;
+   pp.ker.__forall = false;
+   //DBG("%s",pp.ker.forall.body.c_str());
+   pp.out << "\nForallWrap<2>(true, " << pp.ker.forall.N.c_str() << ",";
+   pp.out << "\n[=] MFEM_DEVICE (int " << pp.ker.forall.e <<")";
+   pp.out << pp.ker.forall.body.c_str() << ",";
+   pp.out << "\n[&] (int " << pp.ker.forall.e <<")";
+   pp.out << pp.ker.forall.body.c_str() << ",";
+   pp.out << "\n" ;
+   pp.out << pp.ker.forall.X.c_str() << ",";
+   pp.out << pp.ker.forall.Y.c_str() << ",";
+   pp.out << pp.ker.forall.Z.c_str() << ");";
+}
+
 // *****************************************************************************
 // * MFEM preprocessor
 // *****************************************************************************
@@ -1167,11 +1298,15 @@ void tokens(context_t &pp)
 {
    if (peekn(pp,4) != "MFEM") { return; }
    const string id = get_id(pp);
+   //DBG(id.c_str());
    if (id == "MFEM_JIT") { return __jit(pp); }
    if (id == "MFEM_EMBED") { return __embed(pp); }
+   if (id == "MFEM_UNROLL") { return __unroll(pp); }
    if (id == "MFEM_TEMPLATE") { return __template(pp); }
+   if (id == "MFEM_FORALL_2D") { return __forall2D(pp); }
+   if (pp.ker.__embed ) { pp.ker.embed += id; }
+   if (pp.ker.__forall) { pp.ker.forall.body += id; return;}
    pp.out << id;
-   if (pp.ker.__embed) { pp.ker.embed += id; }
 }
 
 // *****************************************************************************
@@ -1187,8 +1322,9 @@ inline bool eof(context_t &pp)
 int preprocess(context_t &pp)
 {
    jitHeader(pp);
-   pp.ker.__embed = false;
    pp.ker.__jit = false;
+   pp.ker.__embed = false;
+   pp.ker.__forall = false;
    pp.ker.__template = false;
    pp.ker.__single_source = false;
    do
@@ -1197,6 +1333,7 @@ int preprocess(context_t &pp)
       comments(pp);
       jitPostfix(pp);
       embedPostfix(pp);
+      forall2DPostfix(pp);
       templatePostfix(pp);
    }
    while (not eof(pp));

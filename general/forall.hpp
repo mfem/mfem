@@ -34,6 +34,7 @@ namespace mfem
 // MFEM kernel attributes used by the mpp preprocessor
 #define MFEM_JIT
 #define MFEM_EMBED
+#define MFEM_UNROLL(...)
 #define MFEM_TEMPLATE
 #define MFEM_RANGE(...)
 
