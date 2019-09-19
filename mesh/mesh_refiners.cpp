@@ -63,6 +63,22 @@ int MaximumMarkingRefiner::ApplyImpl(Mesh &mesh)
    return CONTINUE + REFINED;
 }
 
+DoerflerMarkingRefiner::DoerflerMarkingRefiner(ErrorEstimator &est) :
+   estimator( est )
+{
+   gamma = .5;
+   max_elements = std::numeric_limits<long>::max();
+
+   threshold = 0.0;
+   num_marked_elements = 0L;
+   current_sequence = -1;
+
+   non_conforming = -1;
+   nc_limit = 0;
+};
+
+
+
 /* Implementation from Pfeiler and Praetorius ( arXiv:1907.13078 ) 
  * with minor tweak to work with mfem::Vector as the original data structure.
  */
