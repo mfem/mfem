@@ -423,25 +423,29 @@ protected: // implementation
    bool PruneTree(int elem);
 
 
-   /** A parallel refinement stores the complete path from a root element.
-    *  The last item of 'path' is the desired refinement of a leaf element.
+   /** A parallel refinement stores the complete path from a root element to
+    *  a leaf element. The last item of 'path' is the desired refinement of the
+    *  leaf element. This representation can be sent verbatim to any rank.
     */
    struct ParRefinement
    {
-      enum Kind { Invalid = -1, Initial, Normal, Ghost };
+      enum Kind { Invalid = -1, Initial, Forced, Ghost };
 
-      int base; ///< index of a root element
       Kind kind;
-      std::string path; ///< refinement path from 'base', plus ref_type
+      int root; ///< index of a root element
+      std::vector<char> path; ///< path from 'root': (ref_type, child) pairs
+      char ref_type; ///< refinement type of the leaf element
 
       typedef std::vector<ParRefinement> List;
 
-      ParRefinement() : base(), kind(Invalid), path() {}
-      ParRefinement(int elem, char ref_type, Kind kind,
-                    const ParNCMesh *pncmesh);
+      ParRefinement() : kind(Invalid), root(), path(), ref_type() {}
+      ParRefinement(int elem, char ref_type, Kind kind, const ParNCMesh *pncmesh);
 
+      /// Get the index of the leaf element.
+      int Index(const ParNCMesh *pncmesh) const;
+      /// Perform as many refinements along the path as possible.
       bool Perform(ParNCMesh *pncmesh) const;
-      int LeafIndex(const ParNCMesh *pncmesh) const;
+      /// Debug helper: return a string with the name of the current 'kind'.
       const char* KindName() const;
    };
 

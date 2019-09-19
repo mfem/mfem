@@ -2331,6 +2331,16 @@ int NCMesh::find_node(const Element &el, int node)
    return -1;
 }
 
+int NCMesh::find_child(const Element &el, int child)
+{
+   for (int i = 0; i < 8; i++)
+   {
+      if (el.child[i] == child) { return i; }
+   }
+   MFEM_ABORT("Node not found.");
+   return -1;
+}
+
 int NCMesh::FindNodeExt(const Element &el, int node, bool abort)
 {
    for (int i = 0; i < GI[el.Geom()].nv; i++)

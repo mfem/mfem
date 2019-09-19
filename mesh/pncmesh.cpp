@@ -1372,21 +1372,64 @@ void ParNCMesh::Prune()
 
 ParNCMesh::ParRefinement::ParRefinement(int elem, char ref_type, Kind kind,
                                         const ParNCMesh *pncmesh)
-   : base(elem), kind(kind)
+   : kind(kind), ref_type(ref_type)
 {
-   // make sure 'base' is one of the root elements
-   while (1)
+   // build the path from the root
+   int parent;
+   while ((parent = pncmesh->elements[elem].parent) >= 0)
    {
-      const Element &el = pncmesh->elements[base];
-      if (el.parent < 0) { break; }
-
+      const Element &el = pncmesh->elements[parent];
+      path.push_back(find_child(el, elem));
       path.push_back(el.ref_type);
-      base = el.parent;
+      elem = parent;
+   }
+   std::reverse(path.begin(), path.end());
+   root = elem;
+}
+
+int ParNCMesh::ParRefinement::Index(const ParNCMesh *pncmesh) const
+{
+   int index = root;
+   for (unsigned i = 0; i < path.size(); i += 2)
+   {
+      const Element &el = pncmesh->elements[index];
+      if (!el.ref_type) { return  -1; } // tree incomplete
+
+      int ref_type = path[i];
+      MFEM_ASSERT(el.ref_type == ref_type, "path conflict");
+
+      int child = path[i+1];
+      index = el.child[child];
+   }
+   return index;
+}
+
+bool ParNCMesh::ParRefinement::Perform(ParNCMesh *pncmesh) const
+{
+   // refine elements along the path if they don't exist yet
+   int elem = root;
+   for (unsigned i = 0; i < path.size(); i += 2)
+   {
+      int ref_type = path[i];
+      int child = path[i+1];
+
+      const Element &el = pncmesh->elements[elem];
+      if (!el.ref_type)
+      {
+         if (!pncmesh->RefineElement(elem, ref_type))
+         {
+            return false;
+         }
+      }
+      else
+      {
+         MFEM_ASSERT(el.ref_type == ref_type, "path conflict");
+      }
+      elem = el.child[child];
    }
 
-   // append new refinement type to the path from the root
-   std::reverse(path.begin(), path.end());
-   path.push_back(ref_type);
+   // perform the actual refinement
+   return pncmesh->RefineElement(elem, ref_type);
 }
 
 const char* ParNCMesh::ParRefinement::KindName() const
@@ -1394,7 +1437,7 @@ const char* ParNCMesh::ParRefinement::KindName() const
    switch (kind)
    {
       case Initial: return "initial";
-      case Normal: return "normal";
+      case Forced: return "forced";
       case Ghost: return "ghost";
       default: return "invalid";
    }
@@ -1484,7 +1527,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          par_ref_stack.pop_back();
 
          // if refining a new element, get one of its parents and their layer type
-         int base = ref.LeafIndex(this);
+         int base = ref.Index(this);
          Element *base_el = &elements[base];
          while (base_el->index < 0)
          {
@@ -1514,12 +1557,12 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
                const Refinement &forced = ref_stack[i];
                par_ref_stack.push_back(
                   ParRefinement(forced.index, forced.ref_type,
-                                ParRefinement::Normal, this));
+                                ParRefinement::Forced, this));
             }
 
             // refinements in the boundary layer must be reported to neighbors
             // because our type 3 element is their ghost element
-            if (type == 3 && ref.kind == ParRefinement::Normal)
+            if (type == 3 && ref.kind == ParRefinement::Forced)
             {
                ElementNeighborProcessors(base, ranks);
                for (int j = 0; j < ranks.Size(); j++)
@@ -1527,8 +1570,9 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
                   RefinementMessage &msg = send_msg.back()[ranks[j]];
                   msg.refinements.push_back(ref);
 
-                  /*std::cout << MyRank << ": sending ref_type " << int(ref.ref_type)
-                            << " to " << ranks[j] << std::endl;*/
+                  std::cout << MyRank << ": sending elem " << ref.Index(this)
+                            << ", ref_type " << int(ref.ref_type)
+                            << ", to rank " << ranks[j] << std::endl;
                }
             }
 
@@ -1539,7 +1583,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
             par_postponed.push_back(ref);
 
             std::cout << "Postponing refinement of element "
-                      << ref.LeafIndex(this) << std::endl;
+                      << ref.Index(this) << std::endl;
          }
 
          // clean serial code refinement stack
@@ -2889,9 +2933,10 @@ void ParNCMesh::RefinementMessage::Encode(int)
    write<int>(oss, refinements.size());
    for (const ParRefinement &ref : refinements)
    {
-      write<int>(oss, ref.base);
+      write<int>(oss, ref.root);
       write<short>(oss, ref.path.size());
       oss.write(ref.path.data(), ref.path.size());
+      write<char>(oss, ref.ref_type);
    }
 
    oss.str().swap(data);
@@ -2904,9 +2949,11 @@ void ParNCMesh::RefinementMessage::Decode(int)
    refinements.resize(read<int>(iss));
    for (ParRefinement &ref : refinements)
    {
-      ref.base = read<int>(iss);
+      ref.kind = ParRefinement::Ghost;
+      ref.root = read<int>(iss);
       ref.path.resize(read<short>(iss));
       iss.read((char*) ref.path.data(), ref.path.size());
+      ref.ref_type = read<char>(iss);
    }
 
    // no longer need the raw data

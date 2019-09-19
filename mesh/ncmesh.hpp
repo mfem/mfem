@@ -605,6 +605,7 @@ protected: // implementation
    // face/edge lists
 
    static int find_node(const Element &el, int node);
+   static int find_child(const Element &el, int child);
    static int find_element_edge(const Element &el, int vn0, int vn1,
                                 bool abort = true);
    static int find_local_face(int geom, int a, int b, int c);
