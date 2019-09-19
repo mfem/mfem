@@ -17,7 +17,8 @@
 #include <numeric>
 #include <iterator>
 
-namespace mfem {
+namespace mfem
+{
 
 MaximumMarkingRefiner::MaximumMarkingRefiner(ErrorEstimator &est) :
    estimator( est )
@@ -46,7 +47,7 @@ int MaximumMarkingRefiner::ApplyImpl(Mesh &mesh)
    const Vector &local_err = estimator.GetLocalErrors();
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
-   threshold = gamma * local_err.Max();	
+   threshold = gamma * local_err.Max();
 
    for (int el = 0; el < NE; el++)
    {
@@ -79,14 +80,15 @@ DoerflerMarkingRefiner::DoerflerMarkingRefiner(ErrorEstimator &est) :
 
 
 
-/* Implementation from Pfeiler and Praetorius ( arXiv:1907.13078 ) 
+/* Implementation from Pfeiler and Praetorius ( arXiv:1907.13078 )
  * with minor tweak to work with mfem::Vector as the original data structure.
  */
 
-const double DoerflerMarkingRefiner::xStarKernel( Iterator_t subX_begin, Iterator_t subX_end, double goal )
+const double DoerflerMarkingRefiner::xStarKernel( Iterator_t subX_begin,
+                                                  Iterator_t subX_end, double goal )
 {
    // QuickMark , step ( i )-( ii ): partition by median element
-   auto length { std::distance( subX_begin , subX_end )};
+   auto length { std::distance( subX_begin, subX_end )};
    auto subX_middle { subX_begin + length /2 };
    std::nth_element( subX_begin, subX_middle, subX_end, std::greater<double>());
    auto pivot_val {* subX_middle };
@@ -94,18 +96,23 @@ const double DoerflerMarkingRefiner::xStarKernel( Iterator_t subX_begin, Iterato
    auto sigma_g = std::accumulate( subX_begin, subX_middle, ( double )0.0);
    // QuickMark , step ( iv ), ( v ) and ( vi )
    if ( sigma_g >= goal )
+   {
       return xStarKernel( subX_begin, subX_middle, goal );
+   }
    if ( sigma_g + pivot_val >= goal )
+   {
       return pivot_val ;
+   }
    return xStarKernel(++subX_middle, subX_end, goal - sigma_g - pivot_val );
 }
 
-const double DoerflerMarkingRefiner::compute_threshold ( const mfem::Vector & eta , double theta )
+const double DoerflerMarkingRefiner::compute_threshold (
+   const mfem::Vector & eta, double theta )
 {
    std::vector<double> x { eta.GetData(), eta.GetData() + eta.Size() };
    double goal = theta * std ::accumulate( x.cbegin(), x.cend(), ( double )0.0);
    return xStarKernel( x.begin(), x.end(), goal);
-} 
+}
 
 int DoerflerMarkingRefiner::ApplyImpl(Mesh &mesh)
 {
