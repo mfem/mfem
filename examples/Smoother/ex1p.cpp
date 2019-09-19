@@ -101,6 +101,9 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
+   chrono.Clear();
+   chrono.Start();
+
    ParMesh cpmesh(*pmesh);
    for (int i = 0; i < par_ref_levels; i++)
    {
@@ -132,9 +135,29 @@ int main(int argc, char *argv[])
 
    HypreParMatrix A;
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   chrono.Stop();
+
+   // if (myid == 0)
+   // {
+      cout << "Assembly time " << chrono.RealTime() << "s. \n";
+   // }
+
+
+   chrono.Clear();
+   chrono.Start();
    par_patch_assembly * test = new par_patch_assembly(&cpmesh,par_ref_levels, fespace, &A);
+   chrono.Stop();
+
+   // if (myid == 0)
+   // {
+      cout << "myid, Preconditioner construction time " <<myid << ", " << chrono.RealTime() << "s. \n";
+   // }
+   MPI_Barrier(MPI_COMM_WORLD);
+
+
+
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
