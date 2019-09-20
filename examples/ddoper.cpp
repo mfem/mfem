@@ -219,6 +219,7 @@ void test2_E_exact(const Vector &x, Vector &E)
   */
 }
 
+// Note that test2_f has zero tangential components on the exterior boundary.
 void test2_f_exact_0(const Vector &x, Vector &f)
 {
   const double pi = M_PI;
@@ -2844,6 +2845,41 @@ void GatherSetInt(MPI_Comm comm, std::vector<int> const& a, std::set<int>& allse
     allset.insert(i);
 }
 
+void CompareOperators(Operator *A, Operator *B, MPI_Comm comm)
+{
+  MPI_Barrier(comm);
+
+  const int n = A->Width();
+  
+  MFEM_VERIFY(A->Height() == n && B->Height() == n && B->Width() == n, "");
+
+  Vector ej(n);
+  Vector Aej(n);
+  Vector Bej(n);
+  
+  for (int j=0; j<n; ++j)
+    {
+      ej = 0.0;
+      ej[j] = 1.0;
+
+      A->Mult(ej, Aej);
+      B->Mult(ej, Bej);
+
+      const double nrmA = Aej.Norml2();
+      const double nrmB = Bej.Norml2();
+      const double nrm = std::max(nrmA, nrmB);
+
+      MFEM_VERIFY((nrm > 1.0e-8), "");
+
+      Bej -= Aej;
+
+      const double err = Bej.Norml2();
+
+      if (err / nrm > 1.0e-8)
+	cout << "WARNING: large operator diff " << err << " relative to " << nrm << endl;
+    }
+}
+
 DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_,
 					   ParFiniteElementSpace *fespaceGlobal, ParMesh **pmeshSD_, ParMesh **pmeshIF_,
 					   const int orderND, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
@@ -2918,6 +2954,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   sdNDPenSp = new SparseMatrix*[numSubdomains];
   bf_sdND = new ParBilinearForm*[numSubdomains];
   ySD = new Vector*[numSubdomains];
+  rhsSD = new Vector*[numSubdomains];
+  srcSD = new Vector*[numSubdomains];
 
   ifespace = numInterfaces > 0 ? new ParFiniteElementSpace*[numInterfaces] : NULL;
   iH1fespace = numInterfaces > 0 ? new ParFiniteElementSpace*[numInterfaces] : NULL;
@@ -3857,6 +3895,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		
 	    //invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
 	    invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), sd_com[m]);
+	    //invAsdComplex[m] = HypreAsdComplex[m];
 	  }
 	else
 	  {
@@ -3879,7 +3918,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	*/
 
 	HypreAsdComplex[m] = new HypreParMatrix(MPI_COMM_WORLD, SpAsdComplex[m]->Size(), SpAsdComplexRowSizes[m], SpAsdComplex[m]);  // constructor with 4 arguments, v1
-	    
+
+	CompareOperators(HypreAsdComplex[m], AsdComplex[m], sd_com[m]);
+	
 	invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
 #endif // HYPRE_PARALLEL_ASDCOMPLEX
 	//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex");
@@ -3985,6 +4026,7 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
   for (int m=0; m<numSubdomains; ++m)
     {
       ySD[m] = NULL;
+      rhsSD[m] = NULL;
 	
       //if (pmeshSD[m] != NULL)
       if (sd_nonempty[m])
@@ -4004,6 +4046,7 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 	  cout << rank << ": Setting real subdomain DOFs, sd " << m << endl;
 	    
 	  ySD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
+	  rhsSD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
 
 	  wSD.SetSize(AsdComplex[m]->Height());
 	  wSD = 0.0;
@@ -4061,8 +4104,18 @@ dc->Save();
 */
 
   (*(ySD[m])) = 0.0;
-  for (int i=0; i<sourceSD.Size(); ++i)
-    (*(ySD[m]))[i] = sourceSD[i];  // Set the u_m block of ySD, real part
+
+if (sdsize > 0)
+  {
+  MFEM_VERIFY(sourceSD.Size() == srcSD[m]->Size(), "");
+  
+  for (int i=0; i<sdsize; ++i)
+    {
+      // Set the u_m block of ySD, real part    
+      (*(ySD[m]))[i] = (*(srcSD[m]))[i];
+      //(*(ySD[m]))[i] = sourceSD[i];
+    }
+  }
 
   cout << rank << ": Setting imaginary subdomain DOFs, sd " << m << endl;
   if (sdsize > 0)
@@ -4075,8 +4128,10 @@ dc->Save();
     if (explicitRHS)
       sourceSD = 0.0;
 
+    /* // TODO: set imaginary part!
     for (int i=0; i<sourceSD.Size(); ++i)
       (*(ySD[m]))[block_ComplexOffsetsSD[m][1] + i] = sourceSD[i];  // Set the u_m block of ySD, imaginary part
+    */
 	} // if pmeshSD[m] != null
 
       //MPI_Barrier(MPI_COMM_WORLD);  // TODO: remove this barrier. The subdomain computations should be parallel.
@@ -4152,9 +4207,117 @@ dc->Save();
 
       //MPI_Barrier(MPI_COMM_WORLD);
 }  // loop (m) over subdomains
+
+#ifdef DEBUG_RECONSTRUCTION
+dsourcered.SetSize(sourceReduced.Size());
+dsourcered = sourceReduced;
+#endif
 }
 
-void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceGlobal, const Vector & solReduced, Vector & solDomain)
+void DDMInterfaceOperator::CheckContinuityOfUS(const Vector & solReduced, const bool imag)
+{
+  for (int i=0; i<numInterfaces; ++i)
+    {
+      const int ili = (*interfaceLocalIndex)[i];
+
+      int sd0 = -1;
+      int sd1 = -1;
+
+      if (ili >= 0)
+	{
+	  MFEM_VERIFY(globalInterfaceIndex[ili] == i, "");
+	  sd0 = (*localInterfaces)[ili].FirstSubdomain();
+	  sd1 = (*localInterfaces)[ili].SecondSubdomain();
+	}
+      else
+	continue;
+      
+      //const int sd0 = (*localInterfaces)[ili].FirstSubdomain();
+      //const int sd1 = (*localInterfaces)[ili].SecondSubdomain();
+
+      cout << m_rank << ": CheckContinuityOfUS for interface " << i << " sd " << sd0 << ", " << sd1 << endl;
+	
+      MFEM_VERIFY(0 <= sd0 && sd0 < sd1, "");
+
+      Vector uS0(tdofsBdry[sd0].size());
+      Vector uS1(tdofsBdry[sd1].size());
+
+      const int offsetImag0 = imag ? (block_trueOffsets2[sd0+1] - block_trueOffsets2[sd0]) / 2 : 0;
+      const int offsetImag1 = imag ? (block_trueOffsets2[sd1+1] - block_trueOffsets2[sd1]) / 2 : 0;
+      
+      for (int j=0; j<tdofsBdry[sd0].size(); ++j)
+	uS0[j] = solReduced[block_trueOffsets2[sd0] + offsetImag0 + j];
+      
+      for (int j=0; j<tdofsBdry[sd1].size(); ++j)
+	uS1[j] = solReduced[block_trueOffsets2[sd1] + offsetImag1 + j];
+
+      Vector u0(fespace[sd0]->GetTrueVSize());
+      Vector u1(fespace[sd1]->GetTrueVSize());
+      
+      tdofsBdryInjection[sd0]->Mult(uS0, u0);
+      tdofsBdryInjection[sd1]->Mult(uS1, u1);
+
+      Vector uI0(ifNDtrue[i]);
+      Vector uI1(ifNDtrue[i]);
+
+      Vector f0(ifNDtrue[i]);
+      Vector f1(ifNDtrue[i]);
+
+      int osf0 = tdofsBdry[sd0].size();
+      int osf1 = tdofsBdry[sd1].size();
+      
+      for (int j=0; j<subdomainLocalInterfaces[sd0].size(); ++j)
+	{
+	  if (subdomainLocalInterfaces[sd0][j] == i)
+	    break;
+	  else
+	    osf0 += ifNDtrue[subdomainLocalInterfaces[sd0][j]] + ifH1true[subdomainLocalInterfaces[sd0][j]];
+	}
+      
+      for (int j=0; j<subdomainLocalInterfaces[sd1].size(); ++j)
+	{
+	  if (subdomainLocalInterfaces[sd1][j] == i)
+	    break;
+	  else
+	    osf1 += ifNDtrue[subdomainLocalInterfaces[sd1][j]] + ifH1true[subdomainLocalInterfaces[sd1][j]];
+	}
+      
+      for (int j=0; j<ifNDtrue[i]; ++j)
+	{
+	  f0[j] = solReduced[block_trueOffsets2[sd0] + offsetImag0 + osf0 + j];
+	  f1[j] = solReduced[block_trueOffsets2[sd1] + offsetImag1 + osf1 + j];
+	}
+      
+      InterfaceToSurfaceInjection[sd0][i]->MultTranspose(u0, uI0);
+      InterfaceToSurfaceInjection[sd1][i]->MultTranspose(u1, uI1);
+
+      const double nrm0 = uI0.Norml2();
+      const double nrm1 = uI1.Norml2();
+
+      const double fnrm0 = f0.Norml2();
+      const double fnrm1 = f1.Norml2();
+
+      const double nrm = std::max(nrm0, nrm1);
+      const double fnrm = std::max(fnrm0, fnrm1);
+
+      uI0 -= uI1;
+      const double err = uI0.Norml2();
+
+      f0 += f1;
+      
+      cout << "Size of u discontinuity for ";
+
+      if (imag)
+	cout << "imaginary";
+      else
+	cout << "real";
+
+      cout << " part: " << err << " relative to " << nrm << "; for f: " << f0.Norml2() << " relative to " << fnrm << endl;
+    }
+}
+
+void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceGlobal, const Vector & solReduced,
+						 Vector const& femSol, Vector & solDomain)
 {
   MFEM_VERIFY(solReduced.Size() == this->Height(), "");
   Vector w(this->Height());
@@ -4162,6 +4325,21 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 
   MFEM_VERIFY(this->Height() == block_trueOffsets2[numSubdomains], "");
 
+#ifdef DEBUG_RECONSTRUCTION
+  dsolred.SetSize(this->Height());
+  dsolred = 0.0;
+  
+  dsolSD = new Vector*[numSubdomains];
+
+  dcopysol.SetSize(this->Height());
+  dcopysol = solReduced;
+
+  double maxdsrcIm = 0.0;
+
+  CheckContinuityOfUS(solReduced, false);  // real part
+  CheckContinuityOfUS(solReduced, true);   // imaginary part
+#endif
+  
   // Assuming GetReducedSource has been called, ySD stores y_m (with full components [u_m f_m \rho_m]) for each subdomain m.
 
   // globalInterfaceOp represents the off-diagonal blocks C_{ij} R_j^T
@@ -4171,10 +4349,24 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 
   Vector domainError(3), eSD(3), maxeSD(3);
   domainError = 0.0;
+
+#ifdef TESTFEMSOL
+  std::vector<Vector> uReSD(numSubdomains);
+  Vector uReReduced(this->Height());
+  Vector CuReReduced(this->Height());
+  Vector CfReReduced(this->Height());
+  
+  uReReduced = 0.0;
+  CfReReduced = 0.0;
+#endif
   
   for (int m=0; m<numSubdomains; ++m)
     {
       eSD = 0.0;
+
+#ifdef DEBUG_RECONSTRUCTION      
+      dsolSD[m] = NULL;
+#endif
       
       if (ySD[m] != NULL)
 	{
@@ -4183,7 +4375,11 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	  //MFEM_VERIFY(ySD[m]->Size() > block_trueOffsets2[m+1] - block_trueOffsets2[m], "");
 	  MFEM_VERIFY(ySD[m]->Size() == AsdComplex[m]->Height(), "");
 	  MFEM_VERIFY(invAsdComplex[m] != NULL, "");
-  
+
+#ifdef DEBUG_RECONSTRUCTION
+	  dsolSD[m] = new Vector(AsdComplex[m]->Height());
+#endif
+	  
 	  // Put the [u_m^s, f_m, \rho_m] entries of w (real and imaginary parts) into wSD.
 	  wSD.SetSize(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
 	  uSD.SetSize(AsdComplex[m]->Height());
@@ -4196,7 +4392,16 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	    Vector wIm(imsize);
 
 	    for (int i=0; i<imsize; ++i)
-	      wIm[i] = wSD[imsize + i];
+	      {
+		wIm[i] = wSD[imsize + i];
+
+#ifdef DEBUG_RECONSTRUCTION		
+		maxdsrcIm = std::max(maxdsrcIm, fabs(dsourcered[block_trueOffsets2[m] + imsize + i]));
+		if (fabs(dsourcered[block_trueOffsets2[m] + imsize + i]) > 0.616)
+		  cout << "dsourcered[" << block_trueOffsets2[m] + imsize + i << "] = "
+		       << dsourcered[block_trueOffsets2[m] + imsize + i] << endl;
+#endif
+	      }
 
 	    const double normIm = wIm.Norml2();
 	    const double normIm2 = normIm*normIm;
@@ -4236,12 +4441,43 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	  
 	  injComplexSD[m]->Mult(wSD, uSD);
 
+	  *(rhsSD[m]) = *(ySD[m]);
+	  
 	  *(ySD[m]) -= uSD;
 	  uSD = 0.0;
 	  if (invAsdComplex[m] != NULL)
 	    invAsdComplex[m]->Mult(*(ySD[m]), uSD);
 
-	  PrintSubdomainError(m, uSD, eSD);
+	  PrintSubdomainError(m, uSD, eSD, *(rhsSD[m]));
+	  PrintInterfaceError(m, uSD);
+	  
+#ifdef TESTFEMSOL
+	  {
+	    const int tds = tdofsBdry[m].size();
+	    
+	    Vector femSolSD(fespace[m]->GetTrueVSize());
+	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, femSol, femSolSD);
+	    Vector eSDtmp(3);
+	    PrintSubdomainInteriorError(m, femSolSD);
+
+	    uReSD[m].SetSize(AsdComplex[m]->Height());
+	    uReSD[m] = 0.0;
+	    	    
+	    for (int i=0; i<fespace[m]->GetTrueVSize(); ++i)
+	      uReSD[m][i] = femSolSD[i];  // Set the real part of u
+
+	    // Set real part of f on each interface of this subdomain
+	    const int osIm = JustComputeF(m, femSolSD, *(rhsSD[m]), uReSD[m], CfReReduced);
+
+	    MFEM_VERIFY(2*osIm == AsdComplex[m]->Height(), "");
+
+	    Vector r_uReSD(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
+	    injComplexSD[m]->MultTranspose(uReSD[m], r_uReSD);
+
+	    for (int i=0; i<r_uReSD.Size(); ++i)
+	      uReReduced[block_trueOffsets2[m] + i] = r_uReSD[i];
+	  }
+#endif
 #else
 	  MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets[m+1] - block_trueOffsets[m], "");
 
@@ -4272,6 +4508,102 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	}
     } // loop (m) over subdomains
 
+#ifdef TESTFEMSOL
+#ifdef DEBUG_RECONSTRUCTION
+  {
+    hypre_CSRMatrix* mcsr = GetHypreParMatrixData(*(ifNDmass[0]));
+    cout << "mcsr start " << mcsr->i[5] << " end " << mcsr->i[6] << endl;
+  }
+  
+  CuReReduced = 0.0;
+  globalInterfaceOp->Mult(uReReduced, CuReReduced);
+
+  {
+    cout << "Maximum imaginary entry of reduced source " << maxdsrcIm << endl;
+    
+    Vector DDuReReduced(this->Height());
+    this->Mult(uReReduced, DDuReReduced);
+    
+    const double ddnrm = DDuReReduced.Norml2();
+    const double srcnrm = dsourcered.Norml2();
+
+    DDuReReduced -= dsourcered;
+
+    int imax = 0;
+    double dmax = fabs(DDuReReduced[0]);
+    for (int i=1; i<DDuReReduced.Size(); ++i)
+      {
+	const double d = fabs(DDuReReduced[i]);
+	if (d > dmax)
+	  {
+	    dmax = d;
+	    imax = i;
+	  }
+      }
+    
+    cout << "Reduced residual norm " << DDuReReduced.Norml2() << " relative to " << std::max(ddnrm, srcnrm) << ", max entry "
+	 << dmax << " at " << imax << endl;
+  }
+  
+  Vector CuReReduced_Re(this->Height());
+  CuReReduced_Re = CuReReduced;
+  
+  // Zero out the imaginary parts of CuReReduced_Re, which come from the real parts of uReReduced multiplied by imaginary operators.
+  {
+    for (int m=0; m<numSubdomains; ++m)
+      {
+	const int osIm = (block_trueOffsets2[m+1] - block_trueOffsets2[m]) / 2;
+	for (int i=0; i<osIm; ++i)
+	  CuReReduced_Re[block_trueOffsets2[m] + osIm + i] = 0.0;
+      }
+  }
+  
+  const double Cfnrm = CfReReduced.Norml2();
+  const double Cunrm = CuReReduced_Re.Norml2();
+
+  CfReReduced -= CuReReduced_Re;
+
+  cout << m_rank << ": CfReReduced error " << CfReReduced.Norml2() << " relative to " << std::max(Cfnrm, Cunrm) << endl;
+  
+  for (int m=0; m<numSubdomains; ++m)
+    {
+      Vector CuReSD(AsdComplex[m]->Height());
+      Vector r_CuReSD(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
+
+      for (int i=0; i<r_CuReSD.Size(); ++i)
+	r_CuReSD[i] = CuReReduced[block_trueOffsets2[m] + i];
+      
+      injComplexSD[m]->Mult(r_CuReSD, CuReSD);
+      
+      Vector AuReSD(AsdComplex[m]->Height());
+      AuReSD = 0.0;
+
+      AsdComplex[m]->Mult(uReSD[m], AuReSD);
+
+      AuReSD += CuReSD;
+      
+      Vector resSD(fespace[m]->GetTrueVSize());
+
+      resSD = *(rhsSD[m]);
+
+      for (int i=0; i<fespace[m]->GetTrueVSize(); ++i)
+	resSD[i] -= AuReSD[i];
+
+      const double diffRe = resSD.Norml2();
+
+      const int osIm = AsdComplex[m]->Height() / 2;
+      
+      for (int i=0; i<fespace[m]->GetTrueVSize(); ++i)
+	resSD[i] = AuReSD[osIm + i];
+
+      const double diffIm = resSD.Norml2();
+
+      cout << m_rank << ": FEMSOL res SD " << m << " Re " << diffRe << " relative to " << rhsSD[m]->Norml2()
+	   << ", Im " << diffIm << endl;
+    }
+#endif
+#endif
+  
   if (m_rank == 0)
     {
       const double errRe = sqrt(domainError[0]);
@@ -4285,6 +4617,89 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
       cout << m_rank << ": global domain rel err Re " << errRe / normE << endl;
       cout << m_rank << ": global domain rel err tot " << errTotal / normE << endl;
     }
+
+#ifdef DEBUG_RECONSTRUCTION
+  Vector Asol(dsolred.Size());
+  this->Mult(dsolred, Asol);
+  //this->Mult(solReduced, Asol);
+
+  const double nrmsrc = dsourcered.Norml2();
+  const double nrmas = Asol.Norml2();
+  cout << "Norm of source " << nrmsrc << ", norm of A*sol " << nrmas << endl;
+
+  int os = 0;
+  for (int sd=0; sd<numSubdomains; ++sd)
+    {
+      // Real part
+      double nrm = 0.0;
+      double nrmerr = 0.0;
+      for (int i=0; i<tdofsBdry[sd].size(); ++i)
+	{
+	  nrm += dsourcered[i]*dsourcered[i];
+	  nrmerr += (dsourcered[i] - Asol[i]) * (dsourcered[i] - Asol[i]);
+	}
+
+      cout << "REDUCED error on subdomain " << sd << ", real part " << sqrt(nrmerr) << " relative to " << sqrt(nrm) << endl;
+      
+      os += tdofsBdry[sd].size();
+
+      for (int i=0; i<subdomainLocalInterfaces[sd].size(); ++i)
+	{
+	  const int interfaceIndex = subdomainLocalInterfaces[sd][i];
+	  if (ifespace[interfaceIndex] != NULL && ifNDtrue[interfaceIndex] > 0)
+	    {
+	      nrm = 0.0;
+	      nrmerr = 0.0;
+	      
+	      for (int j=0; j<ifNDtrue[interfaceIndex]; ++j)
+		{
+		  nrm += dsourcered[os+j]*dsourcered[os+j];
+		  nrmerr += (dsourcered[os+j] - Asol[os+j]) * (dsourcered[os+j] - Asol[os+j]);
+		}
+
+	      cout << "REDUCED error on subdomain " << sd << " interface " << interfaceIndex << ", real part " << sqrt(nrmerr)
+		   << " relative to " << sqrt(nrm) << endl;
+
+	      os += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
+	    }
+	}
+
+      // Imaginary part
+      nrm = 0.0;
+      nrmerr = 0.0;
+      for (int i=0; i<tdofsBdry[sd].size(); ++i)
+	{
+	  nrm += dsourcered[i]*dsourcered[i];
+	  nrmerr += (dsourcered[i] - Asol[i]) * (dsourcered[i] - Asol[i]);
+	}
+
+      cout << "REDUCED error on subdomain " << sd << ", imag part " << sqrt(nrmerr) << " relative to " << sqrt(nrm) << endl;
+      
+      os += tdofsBdry[sd].size();
+
+      for (int i=0; i<subdomainLocalInterfaces[sd].size(); ++i)
+	{
+	  const int interfaceIndex = subdomainLocalInterfaces[sd][i];
+	  if (ifespace[interfaceIndex] != NULL && ifNDtrue[interfaceIndex] > 0)
+	    {
+	      nrm = 0.0;
+	      nrmerr = 0.0;
+	      
+	      for (int j=0; j<ifNDtrue[interfaceIndex]; ++j)
+		{
+		  nrm += dsourcered[os+j]*dsourcered[os+j];
+		  nrmerr += (dsourcered[os+j] - Asol[os+j]) * (dsourcered[os+j] - Asol[os+j]);
+		}
+
+	      cout << "REDUCED error on subdomain " << sd << " interface " << interfaceIndex << ", imag part " << sqrt(nrmerr)
+		   << " relative to " << sqrt(nrm) << endl;
+
+	      os += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
+	    }
+	}
+    }
+  
+#endif
 }
 
 void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
@@ -4976,7 +5391,7 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain)
     fespace[subdomain]->MarkerToList(true_ess_dofs, ess_tdof_list);
   }
 
-  bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdND[subdomain]));
+  //bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdND[subdomain]));
   bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdNDcopy[subdomain]));  // TODO: is there a way to avoid making a copy of this matrix?
 
   /*
@@ -4986,23 +5401,31 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain)
     cout << csrsdND->num_rows << endl;
     }
   */
-  /*
+
+  if (fespace[subdomain] != NULL)
     {
-    Vector zero(3);
-    zero = 0.0;
-    VectorConstantCoefficient vcc(zero);
-    ParLinearForm *b = new ParLinearForm(fespace[subdomain]);
-    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcc));
-    b->Assemble();
+      Vector zero(3);
+      zero = 0.0;
+      VectorConstantCoefficient vcc(zero);
+      ParLinearForm *b = new ParLinearForm(fespace[subdomain]);
+      const int sdim = pmeshSD[subdomain]->SpaceDimension();
+      VectorFunctionCoefficient f(sdim, test2_RHS_exact);
+      b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      //b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcc));
+      b->Assemble();
       
-    ParGridFunction xsd(fespace[subdomain]);
-    xsd.ProjectCoefficient(vcc);
+      ParGridFunction xsd(fespace[subdomain]);
+      xsd.ProjectCoefficient(vcc);
       
-    Vector sdB, sdX;
-    a.FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, sdB);
-    delete b;
+      Vector sdB, sdX;
+      srcSD[subdomain] = new Vector(fespace[subdomain]->GetTrueVSize());
+    
+      //a.FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, sdB);
+      //bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, sdB);
+      bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, *(srcSD[subdomain]));
+      delete b;
     }
-  */
+
     
   // Add sum over all interfaces of 
   // -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m)>_{S_{mn}} - beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{mn}(u_m)>_{S_{mn}}
@@ -5618,7 +6041,9 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 	  if (realPart)
 #endif
 	    {
+#ifndef ROBIN_TC
 	      op->SetBlock((2*i) + 2, (2*i) + 1, ifNDH1gradT[interfaceIndex]);
+#endif
 	    }
 	}
 
@@ -5770,7 +6195,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 							 //InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 							 dofmap,
 							 GlobalInterfaceToSurfaceInjectionGlobalData[subdomain][interfaceIndex],
-							 ifespace[interfaceIndex], NULL, true, 0.0, sdNDcoef);
+							 ifespace[interfaceIndex], NULL, true, 0.0, 1.0);
 
 	  delete previousSum;
 	}
@@ -5923,7 +6348,9 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       if (realPart)
 #endif
 	{
+#ifndef ROBIN_TC	  
 	  block((2*i) + 2, (2*i) + 1) = ifNDH1gradT[interfaceIndex];
+#endif
 	}
 
       // Diagonal blocks
@@ -6076,4 +6503,486 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperatorStrumpack(const int subdo
 
   return CreateStrumpackMatrixFromHypreBlocks(fespace[subdomain]->GetComm(), trueOffsetsSD[subdomain],
 					      blocks, blockLeftInjection, blockRightInjection, blockCoefficient);
+}
+
+void DDMInterfaceOperator::TestProjectionError()
+{
+  // Reduced vectors
+  Vector yr(height);
+  Vector xr(width);
+
+  xr = 0.0;
+  yr = 0.0;
+
+  /*
+  Vector yA(height);
+  yA = 0.0;
+  */
+  
+  VectorFunctionCoefficient E(3, test2_E_exact);
+  VectorFunctionCoefficient f(3, test2_f_exact_0);
+  FunctionCoefficient rho(test2_rho_exact_0);
+
+  // Test the full system, not reduced, but first set the reduced x to multiply by C_{ij} via globalInterfaceOp. 
+  
+  for (int m=0; m<numSubdomains; ++m)
+    {
+      if (pmeshSD[m] != NULL)
+	{
+	  ParGridFunction gfsd(fespace[m]);
+	  gfsd.ProjectCoefficient(E);
+
+	  Vector vsd(fespace[m]->GetTrueVSize());
+	  gfsd.GetTrueDofs(vsd);
+
+	  Vector vbdry(tdofsBdry[m].size());
+	  
+	  tdofsBdryInjection[m]->MultTranspose(vsd, vbdry);
+
+	  for (int i=0; i<tdofsBdry[m].size(); ++i)
+	    xr[block_trueOffsets2[m] + i] = vbdry[i];  // real part
+	}
+    }
+  
+  for (int i=0; i<numInterfaces; ++i)
+    {
+      const int ili = (*interfaceLocalIndex)[i];
+
+      int sd0 = -1;
+      int sd1 = -1;
+
+      if (ili >= 0)
+	{
+	  MFEM_VERIFY(globalInterfaceIndex[ili] == i, "");
+	  sd0 = (*localInterfaces)[ili].FirstSubdomain();
+	  sd1 = (*localInterfaces)[ili].SecondSubdomain();
+	}
+      else
+	continue;
+      
+      //const int sd0 = (*localInterfaces)[ili].FirstSubdomain();
+      //const int sd1 = (*localInterfaces)[ili].SecondSubdomain();
+
+      cout << m_rank << ": Interface " << ili << " sd " << sd0 << ", " << sd1 << endl;
+	
+      MFEM_VERIFY(0 <= sd0 && sd0 < sd1, "");
+      
+      if (ifNDtrue[i] > 0)
+	{
+	  // Set f_{sd0,sd1} = n_{sd0,sd1} \times \nabla\times u_{sd0}.
+
+	  ParGridFunction gfi(ifespace[i]);
+	  gfi.ProjectCoefficient(f);  // with normal (0, 1, 0)
+
+	  Vector vi(ifNDtrue[i]);
+	  gfi.GetTrueDofs(vi);
+
+	  for (int isd=0; isd<2; ++isd)
+	    {
+	      const int sd = (isd == 0) ? sd0 : sd1;
+	      int os = block_trueOffsets2[sd];  // real part
+	      if (pmeshSD[sd] != NULL)
+		os += tdofsBdry[sd].size();
+
+	      const double flip = (isd == 0) ? 1.0 : -1.0;
+	      
+	      for (int j=0; j<ifNDtrue[i]; ++j)
+		{
+		  xr[os + j] = flip * vi[j];
+		}
+	    }
+	}
+      
+      if (ifH1true[i] > 0)
+	{
+	  // Set f_{sd0,sd1} = n_{sd0,sd1} \times \nabla\times u_{sd0}.
+
+	  ParGridFunction gfi(iH1fespace[i]);
+	  gfi.ProjectCoefficient(rho);  // with normal (0, 1, 0)
+
+	  Vector vi(ifH1true[i]);
+	  gfi.GetTrueDofs(vi);
+
+	  for (int isd=0; isd<2; ++isd)
+	    {
+	      const int sd = (isd == 0) ? sd0 : sd1;
+	      int os = block_trueOffsets2[sd] + ifNDtrue[i];  // real part
+	      if (pmeshSD[sd] != NULL)
+		os += tdofsBdry[sd].size();
+
+	      const double flip = (isd == 0) ? 1.0 : -1.0;
+	      
+	      for (int j=0; j<ifH1true[i]; ++j)
+		{
+		  xr[os + j] = flip * vi[j];
+		}
+	    }
+	}
+    }
+
+  globalInterfaceOp->Mult(xr, yr);
+
+  for (int m=0; m<numSubdomains; ++m)
+    {
+      if (sd_nonempty[m])
+	{
+	  Vector xm(xr.GetData() + block_trueOffsets2[m], injComplexSD[m]->Width());
+	  //Vector ym(HypreAsdComplex[m]->Height());
+	  Vector ym(yr.GetData() + block_trueOffsets2[m], injComplexSD[m]->Width());
+	  
+	  Vector u(HypreAsdComplex[m]->Width());
+	  Vector v(HypreAsdComplex[m]->Height());
+	  Vector vC(HypreAsdComplex[m]->Height());
+
+	  u = 0.0;
+	  v = 0.0;
+	  
+	  injComplexSD[m]->Mult(xm, u);
+	  // Now u has [u_S, f, rho] set correctly, but not u_I. Next, overwrite [u_I, u_S] with the projection to u_m.
+	  if (fespace[m] != NULL && fespace[m]->GetTrueVSize() > 0)
+	    {
+	      ParGridFunction gfsd(fespace[m]);
+	      gfsd.ProjectCoefficient(E);
+
+	      Vector vsd(fespace[m]->GetTrueVSize());
+	      Vector Avsd(fespace[m]->GetTrueVSize());
+	      gfsd.GetTrueDofs(vsd);
+
+	      for (int j=0; j<fespace[m]->GetTrueVSize(); ++j)
+		u[j] = vsd[j];  // real part
+
+	      Avsd = 0.0;
+	      sdND[m]->Mult(vsd, Avsd);
+	      cout << "Norm of Avsd " << Avsd.Norml2() << endl;
+	    }
+	  
+	  HypreAsdComplex[m]->Mult(u, v);
+	  //injComplexSD[m]->MultTranspose(v, ym);
+
+	  injComplexSD[m]->Mult(ym, vC);
+
+	  v += vC;
+
+	  // Now v is the full operator times the full solution, on subdomain m.
+	  // Compare v against the full source.
+
+	  const double ynorm = ySD[m]->Norml2();
+
+	  v -= *(ySD[m]);
+	  
+	  const double enorm = v.Norml2();
+
+	  cout << m_rank << ": subdomain " << m << " full projected error " << enorm << " relative to " << ynorm << endl;
+	}
+    }
+}
+
+int DDMInterfaceOperator::JustComputeF(const int sd, Vector const& u, Vector const& rhs, Vector& uFullSD, Vector& Cf)
+{
+  Vector Au(fespace[sd]->GetTrueVSize());
+  Vector Rtu(fespace[sd]->GetTrueVSize());
+  Vector Ru(tdofsBdry[sd].size());
+  
+  sdND[sd]->Mult(u, Au);
+
+  for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
+    {
+      Au[i] = rhs[i] - Au[i];
+    }
+  
+  VectorFunctionCoefficient f(3, test2_f_exact_0);
+
+  int osf_i = tdofsBdry[sd].size();  // offset for f variable in ifespace on this interface, within the real part for this subdomain.
+  int oss = (fespace[sd] == NULL) ? 0 : fespace[sd]->GetTrueVSize();
+
+  for (int i=0; i<subdomainLocalInterfaces[sd].size(); ++i)
+    {
+      const int interfaceIndex = subdomainLocalInterfaces[sd][i];
+      // In the Robin TC case, beta = 0, and the A_m^{FS} block reduces to <w_m, \pi_{mn}(u_m)>_{S_{mn}} which is just ifNDmass[interfaceIndex] (coefficient 1).
+
+      if (ifespace[interfaceIndex] != NULL && ifNDtrue[interfaceIndex] > 0)
+	{
+	  // Now compute LHS terms (A_m^{FS} + C^{FS}) u_S + C^{FF} f
+	  // C_{mn}^{FF} is the mass matrix ifNDmass corresponding to alpha^{-1} <w_m, \mu_{rn}^{-1} f_{nm}>_{S_{mn}}
+	  // In the Robin case, alpha^{-1} is purely imaginary. 
+
+	  // C_{mn}^{FS} is an interface mass plus curl-curl stiffness matrix corresponding to
+	  // -<w_m, \pi_{nm}(u_n)>_{S_{mn}} - beta/alpha <curl_\tau w_m, curl_\tau \pi_{nm}(u_n)>_{S_{mn}}
+	  // In the Robin case, beta = 0, and this reduces to the mass matrix -<w_m, \pi_{nm}(u_n)>_{S_{mn}}.
+
+	  // Also in the Robin case, A_m^{FS} reduces to <w_m, \pi_{mn}(u_m)>_{S_{mn}}.
+	  
+	  // If u is real, then since (A_m^{FS} + C^{FS}) is also real, the real terms (A_m^{FS} + C^{FS}) u_S do not affect the imaginary terms
+	  // A_m^{FF} f_{mn} + C_{mn}^{FF} f_{nm}, which must sum to zero.
+
+	  // Note that A_m^{FF} is 1/alpha <w_m^s, \mu_{rm}^{-1} f_{mn} >_{S_{mn}}. Thus A_m^{FF} f_{mn} + C_{mn}^{FF} f_{nm} = 0 just reduces to
+	  // ifNDmass[interfaceIndex] (f_{mn} + f_{nm}) = 0. This does not uniquely determine f, but f is also in the u_S equation. That is,
+	  // we must determine f_{nm} from the equation
+	  // (Au)_S + C_{mn}^{SS} u_n^S + C_{mn}^{SF} f_{nm} = y_m^S,
+	  // f_{nm} = (C_{mn}^{SF})^{-1} [y_m^S - (Au)_S - C_{mn}^{SS} u_n^S]
+
+	  // C_{mn}^{SF} is an interface mass matrix corresponding to -<\pi_{mn}(v_m), \mu_{rn}^{-1} f_{nm}>_{S_{mn}}
+
+	  // C_{mn}^{SS} corresponds to alpha <\pi_{mn}(v_m), \pi_{nm}(u_n)>_{S_{mn}} + beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{nm}(u_n)>_{S_{mn}}
+	  // In the Robin case, C_{mn}^{SS} = alpha <\pi_{mn}(v_m), \pi_{nm}(u_n)>_{S_{mn}} is a mass matrix scaled by alpha.
+
+	  // Note that the imaginary term C_{mn}^{SS} u_n^S is balanced by the imaginary term -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m>_{S_{mn}} in (Au)_S.
+	  // Considering only the real parts, we can drop C_{mn}^{SS} u_n^S and just compute (provided u is real)
+	  // f_{nm} = (C_{mn}^{SF})^{-1} [y_m^S - (Au)_S]_{Re} = -ifNDmass^{-1} [y_m^S - (Au)_S]_{Re}
+	  // f_{mn} = ifNDmass^{-1} [y_m^S - (Au)_S]_{Re}
+
+	  Vector rS(ifNDtrue[interfaceIndex]);
+	  Vector fS(ifNDtrue[interfaceIndex]);
+	  Vector uS(ifNDtrue[interfaceIndex]);
+
+	  InterfaceToSurfaceInjection[sd][interfaceIndex]->MultTranspose(Au, rS);
+
+	  // C^{FS} is -M_f, so we compute C_{mn}^{FS} u_S = -ifNDmass u_S. Here, we use continuity of u_S. 
+	  InterfaceToSurfaceInjection[sd][interfaceIndex]->MultTranspose(u, uS);
+	  ifNDmass[interfaceIndex]->Mult(uS, fS);
+
+	  for (int j=0; j<ifNDtrue[interfaceIndex]; ++j)
+	    {
+	      Cf[block_trueOffsets2[sd] + osf_i + j] -= fS[j];
+	    }
+
+	  // C^{SF} is -M_f, so C_{mn}^{SF} f_{nm} = [y_m^S - (Au)_S]_{Re} (real part only).
+	  // In order to get the contribution only from this interface, first restrict to the interface (stored in rS now), then
+	  // inject to the entire subdomain, then restrict to the surface.
+	  Ru = 0.0;
+	  Rtu = 0.0;
+	  InterfaceToSurfaceInjection[sd][interfaceIndex]->Mult(rS, Rtu);
+	  tdofsBdryInjection[sd]->MultTranspose(Rtu, Ru);
+	  
+	  for (int j=0; j<tdofsBdry[sd].size(); ++j)
+	    {
+	      Cf[block_trueOffsets2[sd] + j] += Ru[j];
+	    }
+	  
+	  ifNDmassInv[interfaceIndex]->Mult(rS, fS);
+
+	  {
+	    Vector Mf(ifNDtrue[interfaceIndex]);
+	    ifNDmass[interfaceIndex]->Mult(fS, Mf);
+
+	    Mf -= rS;
+	    cout << "Mf norm " << Mf.Norml2() << endl;
+	  }
+
+	  ParGridFunction gf(ifespace[interfaceIndex]);
+	  gf.SetFromTrueDofs(fS);
+
+	  const double err = gf.ComputeL2Error(f);
+	  gf *= -1.0;
+	  const double errm = gf.ComputeL2Error(f);
+	  
+	  gf = 0.0;
+	  const double fL2 = gf.ComputeL2Error(f);
+
+	  cout << m_rank << ": JustComputeF subdomain " << sd << " interface " << interfaceIndex << " f error " << err << " -f error " << errm
+	       << " relative to " << fL2 << endl;
+
+	  const double flip = (err < errm) ? 1.0 : -1.0;
+	  
+	  for (int j=0; j<ifNDtrue[interfaceIndex]; ++j)
+	    uFullSD[oss + j] = fS[j]; // flip * fS[j];
+	  
+	  osf_i += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
+	  oss += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
+	}
+    }
+
+  return oss;
+}
+
+#ifdef DEBUG_RECONSTRUCTION
+void DDMInterfaceOperator::ComputeF(const int sd, Vector const& u, Vector const& ufull, Vector const& rhs)
+{
+  Vector Au(fespace[sd]->GetTrueVSize());
+  Vector Bd(fespace[sd]->GetTrueVSize());
+  sdND[sd]->Mult(u, Au);
+
+  *(dsolSD[sd]) = 0.0;
+
+  Bd = Au;
+  
+  for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
+    {
+      Au[i] = rhs[i] - Au[i];
+      (*(dsolSD[sd]))[i] = u[i];  // real part only
+    }
+
+  { // Set dsolred, u_{sd}^S real part
+    const int os = block_trueOffsets2[sd];  // offset for real part of u_{sd}^S
+    Vector u_S(tdofsBdryInjection[sd]->Width());
+
+    // Also, compare against the reduced solution stored in dcopysol
+    double nrm = 0.0;
+    double err = 0.0;
+    
+    tdofsBdryInjection[sd]->MultTranspose(u, u_S);
+    for (int j=0; j<tdofsBdryInjection[sd]->Width(); ++j)
+      {
+	dsolred[os + j] = u_S[j];
+
+	nrm += dcopysol[os + j] * dcopysol[os + j];
+	err += (dcopysol[os + j] - dsolred[os + j]) * (dcopysol[os + j] - dsolred[os + j]);
+      }
+
+    cout << "Subdomain " << sd << " error in real part of u_S after local full solution and restriction: " << sqrt(err) << " relative to " << sqrt(nrm) << endl;
+  }
+  
+  VectorFunctionCoefficient f(3, test2_f_exact_0);
+  
+  int osf_i = tdofsBdry[sd].size();  // offset for f variable in ifespace on this interface, within the real part for this subdomain.
+  int oss = (fespace[sd] == NULL) ? 0 : fespace[sd]->GetTrueVSize();
+
+  for (int i=0; i<subdomainLocalInterfaces[sd].size(); ++i)
+    {
+      const int interfaceIndex = subdomainLocalInterfaces[sd][i];
+      // In the Robin TC case, beta = 0, and the A_m^{FS} block reduces to <w_m, \pi_{mn}(u_m)>_{S_{mn}} which is just ifNDmass[interfaceIndex] (coefficient 1).
+
+      if (ifespace[interfaceIndex] != NULL && ifNDtrue[interfaceIndex] > 0)
+	{
+	  // Now compute LHS terms (A_m^{FS} + C^{FS}) u_S + C^{FF} f
+	  // C_{mn}^{FF} is the mass matrix ifNDmass corresponding to alpha^{-1} <w_m, \mu_{rn}^{-1} f_{nm}>_{S_{mn}}
+	  // In the Robin case, alpha^{-1} is purely imaginary. 
+
+	  // C_{mn}^{FS} is an interface mass plus curl-curl stiffness matrix corresponding to
+	  // -<w_m, \pi_{nm}(u_n)>_{S_{mn}} - beta/alpha <curl_\tau w_m, curl_\tau \pi_{nm}(u_n)>_{S_{mn}}
+	  // In the Robin case, beta = 0, and this reduces to the mass matrix -<w_m, \pi_{nm}(u_n)>_{S_{mn}}.
+
+	  // Also in the Robin case, A_m^{FS} reduces to <w_m, \pi_{mn}(u_m)>_{S_{mn}}.
+	  
+	  // If u is real, then since (A_m^{FS} + C^{FS}) is also real, the real terms (A_m^{FS} + C^{FS}) u_S do not affect the imaginary terms
+	  // A_m^{FF} f_{mn} + C_{mn}^{FF} f_{nm}, which must sum to zero.
+
+	  // Note that A_m^{FF} is 1/alpha <w_m^s, \mu_{rm}^{-1} f_{mn} >_{S_{mn}}. Thus A_m^{FF} f_{mn} + C_{mn}^{FF} f_{nm} = 0 just reduces to
+	  // ifNDmass[interfaceIndex] (f_{mn} + f_{nm}) = 0. This does not uniquely determine f, but f is also in the u_S equation. That is,
+	  // we must determine f_{nm} from the equation
+	  // (Au)_S + C_{mn}^{SS} u_n^S + C_{mn}^{SF} f_{nm} = y_m^S,
+	  // f_{nm} = (C_{mn}^{SF})^{-1} [y_m^S - (Au)_S - C_{mn}^{SS} u_n^S]
+
+	  // C_{mn}^{SF} is an interface mass matrix corresponding to -<\pi_{mn}(v_m), \mu_{rn}^{-1} f_{nm}>_{S_{mn}}
+
+	  // C_{mn}^{SS} corresponds to alpha <\pi_{mn}(v_m), \pi_{nm}(u_n)>_{S_{mn}} + beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{nm}(u_n)>_{S_{mn}}
+	  // In the Robin case, C_{mn}^{SS} = alpha <\pi_{mn}(v_m), \pi_{nm}(u_n)>_{S_{mn}} is a mass matrix scaled by alpha.
+
+	  // Note that the imaginary term C_{mn}^{SS} u_n^S is balanced by the imaginary term -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m>_{S_{mn}} in (Au)_S.
+	  // Considering only the real parts, we can drop C_{mn}^{SS} u_n^S and just compute (provided u is real)
+	  // f_{nm} = (C_{mn}^{SF})^{-1} [y_m^S - (Au)_S]_{Re} = -ifNDmass^{-1} [y_m^S - (Au)_S]_{Re}
+	  // f_{mn} = ifNDmass^{-1} [y_m^S - (Au)_S]_{Re}
+
+	  Vector rS(ifNDtrue[interfaceIndex]);
+	  InterfaceToSurfaceInjection[sd][interfaceIndex]->MultTranspose(Au, rS);
+
+	  Vector fS(ifNDtrue[interfaceIndex]);
+
+	  ifNDmassInv[interfaceIndex]->Mult(rS, fS);
+
+	  {
+	    Vector tmpI(ifNDtrue[interfaceIndex]);
+	    Vector tmpS(fespace[sd]->GetTrueVSize());
+	    
+	    ifNDmass[interfaceIndex]->Mult(fS, tmpI);
+	    InterfaceToSurfaceInjection[sd][interfaceIndex]->Mult(tmpI, tmpS);
+
+	    Bd += tmpS;
+	  }
+
+	  ParGridFunction gf(ifespace[interfaceIndex]);
+	  gf.SetFromTrueDofs(fS);
+
+	  const double err = gf.ComputeL2Error(f);
+	  gf *= -1.0;
+	  const double errm = gf.ComputeL2Error(f);
+	  
+	  gf = 0.0;
+	  const double fL2 = gf.ComputeL2Error(f);
+
+	  cout << m_rank << ": ComputeF subdomain " << sd << " interface " << interfaceIndex << " f error " << err << " -f error " << errm
+	       << " relative to " << fL2 << endl;
+
+	  // Also, check error between f taken from full solution and reduced solution.
+	  double fnrm = 0.0;
+	  double ferr = 0.0;
+	  
+	  // Set dsolred, f_{mn} real part
+	  const int os = block_trueOffsets2[sd];  // offset for real part of u_{sd}^S
+	  for (int j=0; j<ifNDtrue[interfaceIndex]; ++j)
+	    {
+	      //dsolred[os + osf_i + j] = fS[j];  // Set to reconstructed f
+	      dsolred[os + osf_i + j] = ufull[oss + j];  // Set to original solution for f
+
+	      fnrm += dcopysol[os + osf_i + j] * dcopysol[os + osf_i + j];
+	      ferr += (ufull[oss + j] - dcopysol[os + osf_i + j]) * (ufull[oss + j] - dcopysol[os + osf_i + j]);
+	      
+	      (*(dsolSD[sd]))[oss + j] = fS[j];
+	    }
+
+	  cout << "Subdomain " << sd << ", interface " << interfaceIndex << " error in real part of f after local inversion " << sqrt(ferr)
+	       << ", relative to " << sqrt(fnrm) << endl;
+	  
+	  osf_i += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
+	  oss += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
+	}
+    }
+
+  Vector Ad(AsdComplex[sd]->Height());
+  AsdComplex[sd]->Mult(*(dsolSD[sd]), Ad);
+
+  // At this point, the first real block of Ad of size fespace[sd]->GetTrueVSize() should equal rhs up to round-off, except it excludes the C blocks.
+  // Instead, Bd should equal the first real block of rhs.
+  
+  Ad -= (*(rhsSD[sd]));
+
+  double err = 0.0;
+  double nrm = 0.0;
+  
+  oss = (fespace[sd] == NULL) ? 0 : fespace[sd]->GetTrueVSize();
+  for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
+    {
+      nrm += (*(rhsSD[sd]))[i] * (*(rhsSD[sd]))[i];
+      //err += Ad[i]*Ad[i];
+      err += (Bd[i] - (*(rhsSD[sd]))[i])*(Bd[i] - (*(rhsSD[sd]))[i]);
+    }
+
+  cout << "SERIAL ComputeF subdomain " << sd << " reconstructed real u error " << sqrt(err) << " relative to " << sqrt(nrm) << endl;
+  
+  for (int i=0; i<subdomainLocalInterfaces[sd].size(); ++i)
+    {
+      const int interfaceIndex = subdomainLocalInterfaces[sd][i];
+      // In the Robin TC case, beta = 0, and the A_m^{FS} block reduces to <w_m, \pi_{mn}(u_m)>_{S_{mn}} which is just ifNDmass[interfaceIndex] (coefficient 1).
+
+      if (ifespace[interfaceIndex] != NULL && ifNDtrue[interfaceIndex] > 0)
+	{
+	  err = 0.0;
+	  nrm = 0.0;
+	  
+	  for (int j=0; j<ifNDtrue[interfaceIndex]; ++j)
+	    {
+	      nrm += (*(rhsSD[sd]))[oss + j] * (*(rhsSD[sd]))[oss + j];
+	      err += Ad[oss + j] * Ad[oss + j];
+	    }
+	  
+  	  oss += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
+
+	  // This is pointless. Ad neglects the C term multiplying u and f variables on neighboring subdomains.
+	  cout << "SERIAL ComputeF subdomain " << sd << " interface " << interfaceIndex << " reconstructed real f error " << sqrt(err)
+	       << " relative to " << sqrt(nrm) << endl;
+	}
+    }
+}
+#endif
+
+void DDMInterfaceOperator::TestReconstructedFullDDSolution()
+{
+  // Reduced vectors
+  Vector yr(height);
+  Vector xr(width);
+
+  xr = 0.0;
+  yr = 0.0;
+  
+  globalInterfaceOp->Mult(xr, yr);
 }

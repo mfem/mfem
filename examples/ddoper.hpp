@@ -18,6 +18,11 @@ using namespace std;
 #define SPARSE_ASDCOMPLEX
 #define HYPRE_PARALLEL_ASDCOMPLEX
 
+//#define DEBUG_RECONSTRUCTION
+
+//#define ROBIN_TC
+
+//#define TESTFEMSOL
 
 #define PENALTY_U_S 0.0
 
@@ -593,27 +598,108 @@ public:
 
   void GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm, Vector & sourceReduced) const;
 
+#ifdef DEBUG_RECONSTRUCTION
+  void ComputeF(const int sd, Vector const& u, Vector const& ufull, Vector const& rhs);
+#endif
+  
+  int JustComputeF(const int sd, Vector const& u, Vector const& rhs, Vector& uFullSD, Vector& Cf);
+  
 #ifdef DDMCOMPLEX
-  void PrintSubdomainError(const int sd, Vector const& u, Vector & eSD)
+  void PrintInterfaceError(const int sd, Vector const& u)
   {
-    eSD = 0.0;
+    VectorFunctionCoefficient f(3, test2_f_exact_0);
+    ConstantCoefficient zero(0.0);
+    
+    int osf_i = tdofsBdry[sd].size();  // offset for f variable in ifespace on this interface, within the real part for this subdomain.
+    for (int i=0; i<subdomainLocalInterfaces[sd].size(); ++i)
+      {
+	const int interfaceIndex = subdomainLocalInterfaces[sd][i];
+	// In the Robin TC case, beta = 0, and the A_m^{FS} block reduces to <w_m, \pi_{mn}(u_m)>_{S_{mn}} which is just ifNDmass[interfaceIndex] (coefficient 1).
+
+	if (ifespace[interfaceIndex] != NULL && ifNDtrue[interfaceIndex] > 0)
+	  {
+	    Vector fS(ifNDtrue[interfaceIndex]);
+	    
+	    for (int j=0; j<ifNDtrue[interfaceIndex]; ++j)
+	      {
+		fS[j] = u[osf_i + j];
+	      }
+
+	    ParGridFunction gf(ifespace[interfaceIndex]);
+	    gf.SetFromTrueDofs(fS);
+
+	    const double err = gf.ComputeL2Error(f);
+	    gf *= -1.0;
+	    const double errm = gf.ComputeL2Error(f);
+	  
+	    gf = 0.0;
+	    const double fL2 = gf.ComputeL2Error(f);
+
+	    Vector rhoS(ifH1true[interfaceIndex]);
+	    
+	    for (int j=0; j<ifH1true[interfaceIndex]; ++j)
+	      {
+		rhoS[j] = u[osf_i + ifNDtrue[interfaceIndex] + j];
+	      }
+
+	    ParGridFunction gr(iH1fespace[interfaceIndex]);
+	    gr.SetFromTrueDofs(rhoS);
+
+	    const double errRho = gr.ComputeL2Error(zero);
+	    
+	    cout << m_rank << ": PrintInterfaceError subdomain " << sd << " interface " << interfaceIndex << " f error " << err << " -f error " << errm
+		 << " relative to " << fL2 << ", rho L2 norm " << errRho << endl;
+	    
+	    osf_i += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
+	  }
+      }
+  }
+
+  void PrintSubdomainInteriorError(const int sd, Vector const& u)
+  {
     if (fespace[sd] == NULL)
       return;
     
     ParGridFunction x(fespace[sd]);
     VectorFunctionCoefficient E(3, test2_E_exact);
-    //x.ProjectCoefficient(E);
 
-    Vector uSD(fespace[sd]->GetTrueVSize());
+    x.SetFromTrueDofs(u);
 
     Vector zeroVec(3);
     zeroVec = 0.0;
     VectorConstantCoefficient vzero(zeroVec);
 
+    double err = x.ComputeL2Error(E);
+    double normX = x.ComputeL2Error(vzero);
+
+    cout << m_rank << ": Interior SD " << sd << " u error " << err << " relative to " << normX << endl;
+  }
+  
+  void PrintSubdomainError(const int sd, Vector const& u, Vector & eSD, Vector const& rhs)
+  {
+    eSD = 0.0;
+
+    if (fespace[sd] == NULL)
+      return;
+    
+    Vector uSD(fespace[sd]->GetTrueVSize());
+
     for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
       uSD[i] = u[i];
 
+#ifdef DEBUG_RECONSTRUCTION
+    ComputeF(sd, uSD, u, rhs);
+#endif
+    
+    ParGridFunction x(fespace[sd]);
+    VectorFunctionCoefficient E(3, test2_E_exact);
+    //x.ProjectCoefficient(E);
+
     x.SetFromTrueDofs(uSD);
+
+    Vector zeroVec(3);
+    zeroVec = 0.0;
+    VectorConstantCoefficient vzero(zeroVec);
 
     double errRe = x.ComputeL2Error(E);
     double normXRe = x.ComputeL2Error(vzero);
@@ -687,8 +773,13 @@ public:
   }
 #endif
 
-  void RecoverDomainSolution(ParFiniteElementSpace *fespaceGlobal, const Vector & solReduced, Vector & solDomain);
-    
+  void RecoverDomainSolution(ParFiniteElementSpace *fespaceGlobal, const Vector & solReduced, Vector const& femSol,
+			     Vector & solDomain);
+
+  void TestProjectionError();
+
+  void TestReconstructedFullDDSolution();
+  
 private:
 
   int m_rank;
@@ -746,6 +837,13 @@ private:
   // TODO: it may be possible to eliminate ifND_FS. It is assembled as a convenience, to avoid summing entries input to ASPsd.
   
   Vector **ySD;
+  Vector **rhsSD;
+  Vector **srcSD;
+
+#ifdef DEBUG_RECONSTRUCTION
+  mutable Vector dsolred, dsourcered, dcopysol;
+  Vector **dsolSD;
+#endif
   
   BlockOperator **injSD;
   
@@ -826,6 +924,9 @@ private:
     //const double h = 0.5;
     const double feOrder = 1.0;
 
+    if (m_rank == 0)
+      cout << "Set paramaters with k = " << k << ", h = " << h << endl;
+
     const double ktTE = cTE * M_PI * feOrder / h;
     const double ktTM = cTM * M_PI * feOrder / h;
 
@@ -875,7 +976,7 @@ private:
     betaIm = k / (ktTE * ktTE);
     gammaIm = kzTM / (k * (ktTM * ktTM));
 
-    /*
+#ifdef ROBIN_TC
     // Robin TC
 
     // Real part
@@ -887,7 +988,7 @@ private:
     alphaIm = -k;
     betaIm = 0.0;
     gammaIm = 0.0;
-    */
+#endif
     
     /*
     {
@@ -991,7 +1092,8 @@ private:
   
   // This is the same operator as CreateSubdomainOperator, except it is stored as a strumpack matrix rather than a block operator. 
   Operator* CreateSubdomainOperatorStrumpack(const int subdomain);
-    
+  
+  void CheckContinuityOfUS(const Vector & solReduced, const bool imag);
 };
   
 #endif  // DDOPER_HPP

@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 
-#define HYPRE_DYLAN
+//#define HYPRE_DYLAN
 
 #ifdef MFEM_USE_STRUMPACK
 #include "strumpack.hpp"

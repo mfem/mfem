@@ -386,8 +386,8 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539
-      //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769
+	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539
+	(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769
 	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385
       //(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923
       
@@ -427,10 +427,11 @@ int main(int argc, char *argv[])
 
    if (geometricPartition)
      {
-       int nxyzGlobal[3] = {1, 1, 1};
+       //int nxyzGlobal[3] = {1, 1, 1};
        //int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 1, 2};
-       //int nxyzGlobal[3] = {4, 16, 4};
+       //int nxyzGlobal[3] = {2, 2, 2};
+       int nxyzGlobal[3] = {8, 4, 8};
        //int nxyzGlobal[3] = {8, 16, 8};
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
        
@@ -534,6 +535,20 @@ int main(int argc, char *argv[])
 	 }
      }
 
+   /*
+   { // debugging
+     for (int i=0; i<numSubdomains; ++i)
+       {
+	 cout << "SD " << i << " y coordinate for vertex 0 " << pmeshSD[i]->GetVertex(0)[1] << endl;
+       }
+
+     for (int i=0; i<numInterfaces; ++i)
+       {
+	 cout << "IF " << i << " y coordinate for vertex 0 " << pmeshInterfaces[i]->GetVertex(0)[1] << endl;
+       }
+   }
+   */
+   
    // Note that subdomains do not overlap element-wise, and the parallel mesh of an individual subdomain has no element overlap on different processes.
    // However, the parallel mesh of an individual interface may have element (face) overlap on different processes, for the purpose of communication.
    // It is even possible (if an interface lies on a process boundary) for an entire interface to be duplicated on two processes, with zero true DOF's
@@ -601,6 +616,8 @@ int main(int argc, char *argv[])
    DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, fespace, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
 			    &interfaces, &interfaceGlobalToLocalMap, -SIGMAVAL);  // PengLee2012 uses order 2 
 
+   cout << "DDI size " << ddi.Height() << " by " << ddi.Width() << endl;
+   
    //return 0;
    
    //PrintDenseMatrixOfOperator(ddi, num_procs, myid);
@@ -644,7 +661,7 @@ int main(int argc, char *argv[])
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
    Coefficient *sigma = new ConstantCoefficient(SIGMAVAL);
-   Coefficient *sigmaAbs = new ConstantCoefficient(fabs(SIGMAVAL));
+   //Coefficient *sigmaAbs = new ConstantCoefficient(fabs(SIGMAVAL));
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
@@ -659,19 +676,39 @@ int main(int argc, char *argv[])
    a->Assemble();
    a->Finalize();
 
+   /*
+   Vector exactSol(fespace->GetTrueVSize());
+   x.GetTrueDofs(exactSol);
+   */
+   
    HypreParMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
    //a->FormSystemMatrix(ess_tdof_list, A);
 
-   //HypreParMatrix *Apa = a->ParallelAssemble();
    /*
+   {
+     Vector Ax(fespace->GetTrueVSize());
+     A.Mult(exactSol, Ax);
+
+     Ax -= B;
+     cout << "Global projected error " << Ax.Norml2() << " relative to " << B.Norml2() << endl;
+   }
+   */
+   
+   //HypreParMatrix *Apa = a->ParallelAssemble();
+   DenseMatrixInverse dddinv;
+   
    if (false)
    { // Output ddi as a DenseMatrix
      const int Ndd = ddi.Height();
      Vector ej(Ndd);
      Vector Aej(Ndd);
      DenseMatrix ddd(Ndd);
+
+     ofstream sp("ddisparse.txt");
+
+     const bool writeFile = true;
      
      for (int j=0; j<Ndd; ++j)
        {
@@ -684,13 +721,30 @@ int main(int argc, char *argv[])
 	 for (int i=0; i<Ndd; ++i)
 	   {
 	     ddd(i,j) = Aej[i];
+	     
+	     if (writeFile)
+	       {
+		 if (fabs(Aej[i]) > 1.0e-15)
+		   sp << i+1 << " " << j+1 << " " << Aej[i] << endl;
+	       }
 	   }
        }
 
-     ofstream ost("ddimat.mat", std::ofstream::out);
-     ddd.PrintMatlab(ost);
+     sp.close();
+
+     /*
+     cout << "Factoring dense matrix" << endl;
+     dddinv.Factor(ddd);
+     cout << "Done factoring dense matrix" << endl;
+
+     if (writeFile)
+       {
+	 ofstream ost("ddimat5.mat", std::ofstream::out);
+	 ddd.PrintMatlab(ost);
+       }
+     */
    }
-   */
+
    if (false)
    { // Test projection as solution
      ParBilinearForm *mbf = new ParBilinearForm(fespace);
@@ -795,6 +849,9 @@ int main(int argc, char *argv[])
        //B = 0.0;
        
        ddi.GetReducedSource(fespace, B, B_Im, Bdd);
+
+       //ddi.TestProjectionError();
+       
        //ddi.FullSystemAnalyticTest();
 
        //Bdd = 1.0;
@@ -822,7 +879,7 @@ int main(int argc, char *argv[])
 
        gmres->SetOperator(ddi);
        gmres->SetRelTol(1e-8);
-       gmres->SetMaxIter(500);
+       gmres->SetMaxIter(100);
        gmres->SetPrintLevel(1);
 
        //gmres->SetName("ddi");
@@ -835,26 +892,46 @@ int main(int argc, char *argv[])
        gmres->Mult(Bdd, xdd);
        //ddi.Mult(Bdd, xdd);
 
-       {
-       //ifstream ddsolfile("xddEss2");
-	 //for (int i=0; i<xdd.Size(); ++i)
-	   //ddsolfile >> xdd[i];
-
-	 //xdd.Load(ddsolfile);
-       }
-
-       cout << myid << ": xdd norm " << xdd.Norml2() << endl;
-
+       //dddinv.Mult(Bdd, xdd);
        /*
-       if (myid == 1)
        {
-	 ofstream ddsolfile("xddtmp1");
-	 xdd.Print(ddsolfile);
+	 cout << "Reading FEM solution from file" << endl;
+	 ifstream ddsolfile("xfemsp");
+	 //ifstream ddsolfile("xfemsp2sd");
+	 for (int i=0; i<X.Size(); ++i)
+	   ddsolfile >> X[i];
+       }
+       */
+       /*       
+       {
+	 cout << "Reading solution from file" << endl;
+	 //ifstream ddsolfile("xddd4sd");
+	 ifstream ddsolfile("xgm4sd0rho");
+	 for (int i=0; i<xdd.Size(); ++i)
+	   ddsolfile >> xdd[i];
+	 
+	 //xdd.Load(ddsolfile);
        }
        */
        
-       ddi.RecoverDomainSolution(fespace, xdd, X);
+       cout << myid << ": xdd norm " << xdd.Norml2() << endl;
 
+       /*
+       if (myid == 0)
+       {
+	 ofstream ddsolfile("xgm4sd");
+	 xdd.Print(ddsolfile);
+       }
+       */
+
+       Vector Xfem(X.Size());
+       Xfem = X;
+       X = 0.0;
+       
+       ddi.RecoverDomainSolution(fespace, xdd, Xfem, X);
+
+       //ddi.TestReconstructedFullDDSolution();
+       
        chronoSolver.Stop();
        if (myid == 0)
 	 cout << myid << ": Solver and recovery only time " << chronoSolver.RealTime() << endl;
@@ -886,7 +963,13 @@ int main(int argc, char *argv[])
 	   //Solver * precond = strumpack;
 
 	   strumpack->Mult(B, X);
-       
+
+	   if (myid == -10)
+	     {
+	       ofstream solfile("xfemtmp");
+	       X.Print(solfile);
+	     }
+	   
 	   delete strumpack;
 	   delete Arow;
 	   */
