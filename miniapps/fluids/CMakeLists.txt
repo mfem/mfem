@@ -10,7 +10,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(flow
+  add_mfem_miniapp(flow_tgv2d
     MAIN flow.cpp
     EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp
     EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
@@ -38,7 +38,7 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
     LIBRARIES mfem)
 
-  add_mfem_miniapp(flow_tgv
+  add_mfem_miniapp(flow_tgv3d
     MAIN flow_tgv.cpp
     EXTRA_SOURCES flow_solver.cpp ortho_solver.cpp
     EXTRA_HEADERS flow_solver.hpp ortho_solver.hpp
@@ -47,6 +47,12 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(flow_poisson
     MAIN poisson.cpp
     LIBRARIES mfem)
+
+  add_library(flow flow_solver.cpp flow_solver.hpp ortho_solver.cpp ortho_solver.hpp)
+  target_link_libraries(flow mfem)
+  add_custom_command(TARGET flow POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/flow_solver.hpp $<TARGET_FILE_DIR:flow>/flow_solver.hpp)
 
   # Add the corresponding tests to the "test" target
   add_test(NAME flow_np=4
