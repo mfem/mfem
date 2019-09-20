@@ -903,6 +903,111 @@ static void OccaPADiffusionApply3D(const int D1D,
 }
 #endif // MFEM_USE_OCCA
 
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PADiffusionApply2DElement(int e,
+                               DeviceTensor<2,const double> B,
+                               DeviceTensor<2,const double> G,
+                               DeviceTensor<2,const double> Bt,
+                               DeviceTensor<2,const double> Gt,
+                               DeviceTensor<3,const double> op,
+                               DeviceTensor<3,const double> x,
+                               DeviceTensor<3,double> y,
+                               const int d1d=0,
+                               const int q1d=0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   // the following variables are evaluated at compile time
+   constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+   double grad[max_Q1D][max_Q1D][2];
+   for (int qy = 0; qy < Q1D; ++qy)
+   {
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         grad[qy][qx][0] = 0.0;
+         grad[qy][qx][1] = 0.0;
+      }
+   }
+   for (int dy = 0; dy < D1D; ++dy)
+   {
+      double gradX[max_Q1D][2];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         gradX[qx][0] = 0.0;
+         gradX[qx][1] = 0.0;
+      }
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         const double s = x(dx,dy,e);
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            gradX[qx][0] += s * B(qx,dx);
+            gradX[qx][1] += s * G(qx,dx);
+         }
+      }
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         const double wy  = B(qy,dy);
+         const double wDy = G(qy,dy);
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            grad[qy][qx][0] += gradX[qx][1] * wy;
+            grad[qy][qx][1] += gradX[qx][0] * wDy;
+         }
+      }
+   }
+   // Calculate Dxy, xDy in plane
+   for (int qy = 0; qy < Q1D; ++qy)
+   {
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         const int q = qx + qy * Q1D;
+
+         const double O11 = op(q,0,e);
+         const double O12 = op(q,1,e);
+         const double O22 = op(q,2,e);
+
+         const double gradX = grad[qy][qx][0];
+         const double gradY = grad[qy][qx][1];
+
+         grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
+         grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
+      }
+   }
+   for (int qy = 0; qy < Q1D; ++qy)
+   {
+      double gradX[max_D1D][2];
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         gradX[dx][0] = 0;
+         gradX[dx][1] = 0;
+      }
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         const double gX = grad[qy][qx][0];
+         const double gY = grad[qy][qx][1];
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double wx  = Bt(dx,qx);
+            const double wDx = Gt(dx,qx);
+            gradX[dx][0] += gX * wDx;
+            gradX[dx][1] += gY * wx;
+         }
+      }
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         const double wy  = Bt(dy,qy);
+         const double wDy = Gt(dy,qy);
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+         }
+      }
+   }
+}
+
 // PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADiffusionApply2D(const int NE,
@@ -929,97 +1034,7 @@ void PADiffusionApply2D(const int NE,
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
-      double grad[max_Q1D][max_Q1D][2];
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            grad[qy][qx][0] = 0.0;
-            grad[qy][qx][1] = 0.0;
-         }
-      }
-      for (int dy = 0; dy < D1D; ++dy)
-      {
-         double gradX[max_Q1D][2];
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            gradX[qx][0] = 0.0;
-            gradX[qx][1] = 0.0;
-         }
-         for (int dx = 0; dx < D1D; ++dx)
-         {
-            const double s = x(dx,dy,e);
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               gradX[qx][0] += s * B(qx,dx);
-               gradX[qx][1] += s * G(qx,dx);
-            }
-         }
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            const double wy  = B(qy,dy);
-            const double wDy = G(qy,dy);
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               grad[qy][qx][0] += gradX[qx][1] * wy;
-               grad[qy][qx][1] += gradX[qx][0] * wDy;
-            }
-         }
-      }
-      // Calculate Dxy, xDy in plane
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            const int q = qx + qy * Q1D;
-
-            const double O11 = op(q,0,e);
-            const double O12 = op(q,1,e);
-            const double O22 = op(q,2,e);
-
-            const double gradX = grad[qy][qx][0];
-            const double gradY = grad[qy][qx][1];
-
-            grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
-            grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
-         }
-      }
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         double gradX[max_D1D][2];
-         for (int dx = 0; dx < D1D; ++dx)
-         {
-            gradX[dx][0] = 0;
-            gradX[dx][1] = 0;
-         }
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            const double gX = grad[qy][qx][0];
-            const double gY = grad[qy][qx][1];
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               const double wx  = Bt(dx,qx);
-               const double wDx = Gt(dx,qx);
-               gradX[dx][0] += gX * wDx;
-               gradX[dx][1] += gY * wx;
-            }
-         }
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            const double wy  = Bt(dy,qy);
-            const double wDy = Gt(dy,qy);
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
-            }
-         }
-      }
+      PADiffusionApply2DElement<T_D1D,T_Q1D>(e, B, G, Bt, Gt, op, x, y, d1d, q1d);
    });
 }
 
