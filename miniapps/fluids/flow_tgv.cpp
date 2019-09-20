@@ -139,23 +139,18 @@ int main(int argc, char *argv[])
       args.PrintOptions(std::cout);
    }
 
-   Mesh *mesh = new Mesh("../data/periodic-cube.mesh");
-   // Mesh *mesh = new Mesh("../data/inline-hex.mesh");
+   Mesh *orig_mesh = new Mesh("../../data/periodic-cube.mesh");
+   Mesh *mesh = new Mesh(orig_mesh, ser_ref_levels, BasisType::ClosedUniform);
+   delete orig_mesh;
 
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
-   // *nodes *= 2.0;
-   // *nodes -= 1.0;
    *nodes *= M_PI;
 
-   for (int i = 0; i < ser_ref_levels; ++i)
-   {
-      mesh->UniformRefinement();
-   }
-
+   int nel = mesh->GetNE();
    if (mpi.Root())
    {
-      std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
+      std::cout << "Number of elements: " << nel << std::endl;
    }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -197,10 +192,22 @@ int main(int argc, char *argv[])
    double u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
    double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
    double ke = kin_energy.ComputeKineticEnergy(*u_gf);
+
+   FILE *f = fopen("tgv_out.txt", "w");
    if (mpi.Root())
    {
-     printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
-     fflush(stdout);
+      int nel1d = std::round(pow(nel, 1.0/3.0));
+      int ngridpts = p_gf->ParFESpace()->GlobalVSize();
+      printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
+      fprintf(f, "3D Taylor Green Vortex\n");
+      fprintf(f, "order = %d\n", ctx.order);
+      fprintf(f, "grid = %d x %d x %d\n", nel1d, nel1d, nel1d);
+      fprintf(f, "dofs per component = %d\n", ngridpts);
+      fprintf(f, "=================================================\n");
+      fprintf(f, "        time                   kinetic energy\n");
+      fprintf(f, "%20.16e     %20.16e\n", t, ke);
+      fflush(f);
+      fflush(stdout);
    }
 
    for (int step = 0; !last_step; ++step)
@@ -227,6 +234,8 @@ int main(int argc, char *argv[])
       if (mpi.Root())
       {
          printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
+         fprintf(f, "%20.16e     %20.16e\n", t, ke);
+         fflush(f);
          fflush(stdout);
       }
    }

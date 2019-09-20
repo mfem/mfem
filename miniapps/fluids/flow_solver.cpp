@@ -974,13 +974,16 @@ FlowSolver::~FlowSolver()
    delete H_form;
    delete SpInv;
    delete MvInvPC;
-   delete Sp_form_lor;
+   if (partial_assembly)
+   {
+      delete Sp_form_lor;
+      delete SpInvOrthoPC;
+      delete SpInvPC;
+   }
    delete pfes_lor;
    delete pfec_lor;
    delete pgt;
    delete pmesh_lor;
-   delete SpInvOrthoPC;
-   delete SpInvPC;
    delete MvInv;
    delete vfec;
    delete pfec;
