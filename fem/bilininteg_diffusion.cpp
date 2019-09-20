@@ -1310,8 +1310,8 @@ static int CeedHouseholderReflect(double *A, const double *v,
 //******************************************************************************
 static int CeedHouseholderApplyQ(double *A, const double *Q,
                                  const double *tau,
-                                 int m, int n, int k,
-                                 int row, int col)
+                                 const int m, const int n, const int k,
+                                 const int row, const int col)
 {
    double v[m];
    for (int ii=0; ii<k; ii++)
@@ -1325,11 +1325,11 @@ static int CeedHouseholderApplyQ(double *A, const double *Q,
 }
 
 //******************************************************************************
-static int CeedQRFactorization(double *mat, double *tau, int m, int n)
+static int CeedQRFactorization(double *mat, double *tau,
+                               const int m, const  int n)
 {
    double v[m];
-   // Check m >= n
-   if (n > m) { MFEM_VERIFY(false,""); }
+   MFEM_VERIFY(n > m,"");
    for (int i=0; i<n; i++)
    {
       // Calculate Householder vector, magnitude
@@ -1348,7 +1348,6 @@ static int CeedQRFactorization(double *mat, double *tau, int m, int n)
       //   tau = 2 / (norm*norm)
       tau[i] = 2 * v[i]*v[i] / (v[i]*v[i] + sigma);
       for (int j=i+1; j<m; j++) { v[j] /= v[i]; }
-
       // Apply Householder reflector to lower right panel
       CeedHouseholderReflect(&mat[i*n+i+1], &v[i], tau[i], m-i, n-i-1, n, 1);
       // Save v
