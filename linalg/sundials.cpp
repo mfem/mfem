@@ -835,7 +835,7 @@ void ARKStepSolver::SetIRKTableNum(int table_num)
 
 void ARKStepSolver::SetIMEXTableNum(int etable_num, int itable_num)
 {
-   flag = ARKStepSetTableNum(sundials_mem, itable_num, itable_num);
+   flag = ARKStepSetTableNum(sundials_mem, itable_num, etable_num);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
 }
 
