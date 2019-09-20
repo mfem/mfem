@@ -50,12 +50,7 @@ private:
       HypreParMatrix& hypreCoarseMat = dynamic_cast<HypreParMatrix&>(*opr);
       amg = new HypreBoomerAMG(hypreCoarseMat);
       amg->SetPrintLevel(-1);
-      HyprePCG *coarseSolver = new HyprePCG(hypreCoarseMat);
-      coarseSolver->SetTol(1e-8);
-      coarseSolver->SetMaxIter(500);
-      coarseSolver->SetPrintLevel(-1);
-      coarseSolver->SetPreconditioner(*amg);
-      return coarseSolver;
+      return amg;
    }
 
    Solver* ConstructSmoother(ParFiniteElementSpace* fespace, Operator* opr, const Array<int>& essentialDofs)
@@ -93,7 +88,6 @@ public:
 
    ~PoissonMultigridOperator()
    {
-      delete amg;
       MFEM_FORALL(i, forms.Size(), delete forms[i]; );
    }
 
@@ -189,8 +183,6 @@ int main(int argc, char *argv[])
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   // Mesh *mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0, false);
-   // Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
    int dim = mesh->Dimension();
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -313,7 +305,7 @@ int main(int argc, char *argv[])
    CGSolver pcg(MPI_COMM_WORLD);
    pcg.SetPrintLevel(1);
    pcg.SetMaxIter(100);
-   pcg.SetRelTol(1e-8);
+   pcg.SetRelTol(1e-6);
    pcg.SetAbsTol(0.0);
    pcg.SetOperator(*oprMultigrid->GetOperatorAtFinestLevel());
 

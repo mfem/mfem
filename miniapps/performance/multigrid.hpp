@@ -224,15 +224,7 @@ class MultigridOperator : public Operator
    /// Apply Smoother at given level
    void ApplySmootherAtLevel(unsigned level, const Vector &x, Vector &y) const
    {
-      MFEM_VERIFY(level > 0, "Smoother at level 0 is the coarse solver. Please "
-                             "use ApplyCoarseSolver.");
       smoothers[level]->Mult(x, y);
-   }
-
-   /// Apply coarse solver
-   void ApplyCoarseSolver(const Vector &x, Vector &y) const
-   {
-      smoothers[0]->Mult(x, y);
    }
 
    /// Returns operator at given level
@@ -297,7 +289,10 @@ class MultigridSolver : public Solver
    {
       if (level == 0)
       {
-         opr->ApplyCoarseSolver(*X[level], *Y[level]);
+         for (int i = 0; i < preSmoothingSteps[level]; i++)
+         {
+            SmoothingStep(level);
+         }
          return;
       }
 
