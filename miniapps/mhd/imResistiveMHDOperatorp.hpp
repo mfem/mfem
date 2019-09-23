@@ -32,7 +32,7 @@ private:
    HypreParMatrix &Mmat, &Kmat, *DRematpr, *DSlmatpr;
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl;
-   mutable HypreParMatrix *ScFull, *AReFull, *NbFull, *PwMat, Mmatlp;
+   mutable HypreParMatrix *ScFull, *AReFull, *NbFull, *PwMat, Mmatlp, *NbMat;
    bool initialMdt, useFull;
    HypreParVector *E0Vec;
    ParGridFunction *j0;
@@ -676,7 +676,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
             J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
          pnewton_solver->SetPreconditionerFactory(J_factory);
       }
-      pnewton_solver->SetPrintLevel(1); // print Newton iterations
+      pnewton_solver->SetPrintLevel(0); // print Newton iterations
       pnewton_solver->SetRelTol(rel_tol);
       pnewton_solver->SetAbsTol(0.0);
       pnewton_solver->SetMaxIter(20);
@@ -930,7 +930,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     DRematpr = DRemat_;
     DSlmatpr = DSlmat_;
 
-    AReFull=NULL; ScFull=NULL; NbFull=NULL; PwMat=NULL;
+    AReFull=NULL; ScFull=NULL; NbFull=NULL; PwMat=NULL; NbMat=NULL;
 
     MassIntegrator *mass = new MassIntegrator;
     Mlp = new ParBilinearForm(&fespace);
@@ -1113,6 +1113,7 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete ScFull;
    delete NbFull;
    delete PwMat;
+   delete NbMat;
    delete Jacobian;
    delete Nv;
    delete Nb;
@@ -1221,7 +1222,17 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       MyCoefficient Bfield(&psiGf, 2);   //we update B
       Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
       Nb->Assemble();
-      Nb->TrueAddMult(J, y3, -1.); 
+      if (true)
+         Nb->TrueAddMult(J, y3, -1.); 
+      else
+      {
+          delete NbMat;
+          Nb->Finalize();
+          NbMat=Nb->ParallelAssemble();
+          //NbMat->Mult(-1., J, 1., y3);
+          NbMat->MultTranspose(1., J, 1., y3);
+      }
+ 
    }
    else
    {

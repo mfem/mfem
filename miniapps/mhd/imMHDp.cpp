@@ -122,8 +122,8 @@ int main(int argc, char *argv[])
    int ode_solver_type = 2;
    double t_final = 5.0;
    double dt = 0.0001;
-   double visc = 0.0;
-   double resi = 0.0;
+   double visc = 1e-3;
+   double resi = 1e-3;
    bool visit = false;
    bool use_petsc = false;
    bool use_factory = false;
@@ -188,16 +188,17 @@ int main(int argc, char *argv[])
    }
    if (icase==2)
    {
-      resi=.001;
-      visc=.001;
       resiG=resi;
    }
    else if (icase==3)
    {
       lambda=.5/M_PI;
-      resi=.001;
-      visc=.001;
       resiG=resi;
+   }
+   else if (icase==1)
+   {
+       resi=.0;
+       visc=.0;
    }
    else if (icase!=1)
    {

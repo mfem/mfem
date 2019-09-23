@@ -33,6 +33,22 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+9/16
+for sl=10^3 and o=3, I cannot solve preconditioner too tight:
+    for r=6, 7, 8
+    mffd 1e-3
+    rtol=1e-3 in small matrices is better than 1e-5 
+    mass matrix should always be 1e-6
+
+    for r=7, resi=1e-4
+    it is more important to use 1e-2 in mffd
+    for r=8, resi=1e-4
+    I cannot find a working parameter set so far
+    what if I recuded mffd to 5e-2
+
+I am wondering if it could help o=2 s=10 case
+1e-3 is okay for r=7, r=8, not okay for r=9
+
 8/27
 revisit exAMR
 
