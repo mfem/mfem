@@ -25,7 +25,16 @@ double LaghosRho0(const double problem, const double *x)
 {
    if (problem == -2.0) { return (x[0] < 0.5) ? 1.0 : 0.1; }
    if (problem == -3.0) { return (x[0] > 1.0 && x[1] > 1.5) ? 0.125 : 1.0; }
-   return 1.0;
+   if (problem == -5.0)
+   {
+      return
+         (x[0] >= 0.5 && x[1] >= 0.5) ? 0.5313 : // 1
+         (x[0] <  0.5 && x[1] >= 0.5) ? 1.0 : // 2
+         (x[0] <  0.5 && x[1] <  0.5) ? 0.8 : // 3
+         (x[0] >= 0.5 && x[1] <  0.5) ? 1.0 : // 4
+         -1.0;
+   }
+   return -1.0;
 }
 
 // PA Mass Assemble kernel
