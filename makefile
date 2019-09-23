@@ -27,6 +27,7 @@ MFEM makefile targets:
    make debug
    make pdebug
    make cuda
+   make hip
    make pcuda
    make cudebug
    make pcudebug
@@ -67,6 +68,14 @@ make cudebug
    A shortcut to configure and build the serial GPU/CUDA debug version of the library.
 make pcudebug
    A shortcut to configure and build the parallel GPU/CUDA debug version of the library.
+make hip
+   A shortcut to configure and build the serial GPU/HIP optimized version of the library.
+make phip
+   A shortcut to configure and build the parallel GPU/HIP optimized version of the library.
+make hipdebug
+   A shortcut to configure and build the serial GPU/HIP debug version of the library.
+make phipdebug
+   A shortcut to configure and build the parallel GPU/HIP debug version of the library.
 make test
    Verify the build by checking the results from running all examples, miniapps,
    and tests.
@@ -159,7 +168,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda pcuda cudebug pcudebug hpc style
+ cuda hip pcuda cudebug pcudebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -205,17 +214,34 @@ else
    ALL_LIBS += $(HYPRE_LIB)
 endif
 
-# CUDA configuration
-ifneq ($(MFEM_USE_CUDA),YES)
+# Default configuration
+ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
    MFEM_CXX ?= $(CXX_OR_MPICXX)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
-else
+endif
+
+ifeq ($(MFEM_USE_CUDA),YES)
    MFEM_CXX ?= $(CUDA_CXX)
    CXXFLAGS += $(CUDA_FLAGS) -ccbin $(CXX_OR_MPICXX)
    XCOMPILER = $(CUDA_XCOMPILER)
    XLINKER   = $(CUDA_XLINKER)
    # CUDA_OPT and CUDA_LIB are added below
+   # Compatibility test against MFEM_USE_HIP
+   ifeq ($(MFEM_USE_HIP),YES)
+      $(error Incompatible config: MFEM_USE_CUDA can not be combined with MFEM_USE_HIP)
+   endif
+endif
+
+# HIP configuration
+ifeq ($(MFEM_USE_HIP),YES)
+   MFEM_CXX ?= $(HIP_CXX)
+   ALL_LIBS += $(HIP_FLAGS)
+   # HIP_OPT and HIP_LIB are added below
+   # Compatibility test against MFEM_USE_CUDA
+   ifeq ($(MFEM_USE_CUDA),YES)
+      $(error Incompatible config: MFEM_USE_HIP can not be combined with MFEM_USE_CUDA)
+   endif
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -248,7 +274,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -293,8 +319,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO\
  MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF\
  MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
- MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR\
- MFEM_USE_SIMD
+ MFEM_USE_CUDA MFEM_USE_HIP MFEM_USE_OCCA MFEM_USE_RAJA MFEM_USE_SIMD\
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -368,7 +394,7 @@ OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
-	debug pdebug cuda pcuda cudebug pcudebug hpc style check test unittest \
+	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
 	deprecation-warnings
 
 .SUFFIXES:
@@ -420,11 +446,12 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
-serial debug cuda cudebug:      M_MPI=NO
-parallel pdebug pcuda pcudebug: M_MPI=YES
-serial parallel cuda pcuda:     M_DBG=NO
-debug pdebug cudebug pcudebug:  M_DBG=YES
-cuda pcuda cudebug pcudebug:    M_CUDA=YES
+serial debug cuda hip cudebug hipdebug:           M_MPI=NO
+parallel pdebug pcuda pcudebug phip phipdebug:    M_MPI=YES
+serial parallel cuda pcuda hip phip:              M_DBG=NO
+debug pdebug cudebug pcudebug hipdebug phipdebug: M_DBG=YES
+cuda pcuda cudebug pcudebug:                      M_CUDA=YES
+hip phip hipdebug phipdebug:                      M_HIP=YES
 
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
@@ -434,6 +461,11 @@ serial parallel debug pdebug:
 cuda pcuda cudebug pcudebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	   MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
+
+hip phip hipdebug phipdebug:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	MFEM_USE_HIP=$(M_HIP) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 # Build with MPI and all Device backends enabled (requires OCCA and RAJA)
@@ -594,6 +626,7 @@ status info:
 	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
 	$(info MFEM_USE_CUDA          = $(MFEM_USE_CUDA))
+	$(info MFEM_USE_HIP           = $(MFEM_USE_HIP))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
 	$(info MFEM_CXX               = $(value MFEM_CXX))

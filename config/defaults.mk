@@ -46,6 +46,14 @@ CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
+# HIP configuration options
+HIP_CXX = hipcc
+# The HIP_ARCH option specifies the AMD GPU processor, similar to CUDA_ARCH. For
+# example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
+# gfx900, gfx1010, etc.
+HIP_ARCH = gfx900
+HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
@@ -122,6 +130,7 @@ MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_CUDA          = NO
+MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_SIMD          = NO
@@ -303,6 +312,10 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 # CUDA library configuration (currently not needed)
 CUDA_OPT =
 CUDA_LIB =
+
+# HIP library configuration (currently not needed)
+HIP_OPT =
+HIP_LIB =
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
