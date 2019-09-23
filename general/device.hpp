@@ -12,6 +12,7 @@
 #ifndef MFEM_DEVICE_HPP
 #define MFEM_DEVICE_HPP
 
+#include "cuda.hpp"
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
@@ -35,23 +36,25 @@ struct Backend
       OMP = 1 << 1,
       /// [device] CUDA backend. Enabled when MFEM_USE_CUDA = YES.
       CUDA = 1 << 2,
+      /// [device] HIP backend. Enabled when MFEM_USE_HIP = YES.
+      HIP = 1 << 3,
       /** @brief [host] RAJA CPU backend: sequential execution on each MPI rank.
           Enabled when MFEM_USE_RAJA = YES. */
-      RAJA_CPU = 1 << 3,
+      RAJA_CPU = 1 << 4,
       /** @brief [host] RAJA OpenMP backend. Enabled when MFEM_USE_RAJA = YES
           and MFEM_USE_OPENMP = YES. */
-      RAJA_OMP = 1 << 4,
+      RAJA_OMP = 1 << 5,
       /** @brief [device] RAJA CUDA backend. Enabled when MFEM_USE_RAJA = YES
           and MFEM_USE_CUDA = YES. */
-      RAJA_CUDA = 1 << 5,
+      RAJA_CUDA = 1 << 6,
       /** @brief [host] OCCA CPU backend: sequential execution on each MPI rank.
           Enabled when MFEM_USE_OCCA = YES. */
-      OCCA_CPU = 1 << 6,
+      OCCA_CPU = 1 << 7,
       /// [host] OCCA OpenMP backend. Enabled when MFEM_USE_OCCA = YES.
-      OCCA_OMP = 1 << 7,
+      OCCA_OMP = 1 << 8,
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
-      OCCA_CUDA = 1 << 8
+      OCCA_CUDA = 1 << 9
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -59,16 +62,18 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 9,
+      NUM_BACKENDS = 10,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
+      /// Biwise-OR of all HIP backends
+      HIP_MASK = HIP,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK,
 
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
@@ -106,6 +111,7 @@ private:
    unsigned long backends; ///< Bitwise-OR of all configured backends.
    /// Set to true during configuration, except in 'device_singleton'.
    bool destroy_mm;
+   bool mpi_gpu_aware;
 
    MemoryType mem_type;    ///< Current Device MemoryType
    MemoryClass mem_class;  ///< Current Device MemoryClass
@@ -143,6 +149,7 @@ public:
       : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
         destroy_mm(false),
+        mpi_gpu_aware(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
    { }
@@ -157,6 +164,7 @@ public:
       : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
         destroy_mm(false),
+        mpi_gpu_aware(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
    { Configure(device, dev); }
@@ -174,7 +182,7 @@ public:
          string name of 'RAJA_CPU' is 'raja-cpu'.
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is: 'occa-cuda',
-         'raja-cuda', 'cuda', 'occa-omp', 'raja-omp', 'omp', 'occa-cpu',
+         'raja-cuda', 'cuda', 'hip', 'occa-omp', 'raja-omp', 'omp', 'occa-cpu',
          'raja-cpu', 'cpu'.
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
@@ -212,6 +220,13 @@ public:
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
    static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
+
+   static void SetGPUAwareMPI(const bool force = true)
+   { Get().mpi_gpu_aware = force; }
+
+   static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
+
+   static void Synchronize() { MFEM_DEVICE_SYNC; }
 };
 
 
