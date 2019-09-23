@@ -1158,7 +1158,7 @@ void BP3Global_v0(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      _Pragma("unroll MQ1")
+      MFEM_UNROLL(Q1D);
       for (int k = 0; k < Q1D; k++)
       {
          MFEM_SYNC_THREAD;
@@ -1168,7 +1168,7 @@ void BP3Global_v0(const int NE,
             {
                double qr = 0.0, qs = 0.0;
                MFEM_REGISTER_2D(r_qt,j,i) = 0.0;
-               _Pragma("unroll MQ1")
+               MFEM_UNROLL(Q1D);
                for (int m = 0; m < Q1D; m++)
                {
                   double Dim = s_D[i][m];
@@ -1197,7 +1197,7 @@ void BP3Global_v0(const int NE,
             MFEM_FOREACH_THREAD(i,x,Q1D)
             {
                double Aqtmp = 0;
-               _Pragma("unroll MQ1")
+               MFEM_UNROLL(Q1D);
                for (int m = 0; m < Q1D; m++)
                {
                   double Dmi = s_D[m][i];
@@ -1281,7 +1281,7 @@ void BP3Global_v0(const int NE,
          {
             if (i<D1D && j<D1D)
             {
-               _Pragma("unroll MD1")
+               MFEM_UNROLL(D1D);
                for (int k = 0; k < D1D; k++)
                {
                   y(i,j,k,e) = s_Iq[k][j][i];
