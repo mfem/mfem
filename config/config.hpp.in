@@ -121,9 +121,13 @@
 // Enable MFEM functionality based on the PUMI library
 // #define MFEM_USE_PUMI
 
-// Build the GPU/CUDA-enabled version of the MFEM library.
+// Build the NVIDIA GPU/CUDA-enabled version of the MFEM library.
 // Requires a CUDA compiler (nvcc).
 // #define MFEM_USE_CUDA
+
+// Build the AMD GPU/HIP-enabled version of the MFEM library.
+// Requires a HIP compiler (hipcc).
+// #define MFEM_USE_HIP
 
 // Enable functionality based on the RAJA library.
 // #define MFEM_USE_RAJA

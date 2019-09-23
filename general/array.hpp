@@ -54,8 +54,11 @@ protected:
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
 
+   /// Creates an empty array
+   inline Array() : size(0) { data.Reset(); }
+
    /// Creates array of asize elements
-   explicit inline Array(int asize = 0)
+   explicit inline Array(int asize)
       : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
 
    /** Creates array using an existing c-array of asize elements;
@@ -250,6 +253,10 @@ public:
 
    template <typename U>
    inline void CopyTo(U *dest) { std::copy(begin(), end(), dest); }
+
+   template <typename U>
+   inline void CopyFrom(const U *src)
+   { std::memcpy(begin(), src, MemoryUsage()); }
 
    // STL-like begin/end
    inline T* begin() { return data; }

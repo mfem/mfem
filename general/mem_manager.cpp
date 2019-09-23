@@ -31,6 +31,12 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_HIP
+#define MFEM_GPU(...) Hip ## __VA_ARGS__
+#else
+#define MFEM_GPU(...) Cu ## __VA_ARGS__
+#endif
+
 MemoryType GetMemoryType(MemoryClass mc)
 {
    switch (mc)
@@ -156,6 +162,10 @@ public:
       const internal::Memory &base = maps->memories.at(ptr);
       if (base.d_type == MemoryType::CUDA_UVM) { CuMemFree(ptr); }
       else { std::free(ptr); }
+      /*
+      internal::Memory &mem = n.second;
+      if (mem.d_ptr) { MFEM_GPU(MemFree)(mem.d_ptr); }
+      */
    }
 };
 
@@ -636,6 +646,40 @@ bool MemoryManager::IsKnown(const void *ptr)
 {
    return maps->memories.find(ptr) != maps->memories.end();
 }
+
+// *****************************************************************************
+/*
+static void PullKnown(internal::Ledger *maps,
+                      const void *ptr, const std::size_t bytes, bool copy_data)
+{
+   internal::Memory &base = maps->memories.at(ptr);
+   MFEM_ASSERT(base.h_ptr == ptr, "internal error");
+   // There are cases where it is OK if base.d_ptr is not allocated yet:
+   // for example, when requesting read-write access on host to memory created
+   // as device memory.
+   if (copy_data && base.d_ptr)
+   {
+      MFEM_GPU(MemcpyDtoH)(base.h_ptr, base.d_ptr, bytes);
+      base.host = true;
+   }
+}
+
+static void PullAlias(const internal::Ledger *maps,
+                      const void *ptr, const std::size_t bytes, bool copy_data)
+{
+   const internal::Alias *alias = maps->aliases.at(ptr);
+   MFEM_ASSERT((char*)alias->mem->h_ptr + alias->offset == ptr,
+               "internal error");
+   // There are cases where it is OK if alias->mem->d_ptr is not allocated yet:
+   // for example, when requesting read-write access on host to memory created
+   // as device memory.
+   if (copy_data && alias->mem->d_ptr)
+   {
+      MFEM_GPU(MemcpyDtoH)(const_cast<void*>(ptr),
+                           static_cast<char*>(alias->mem->d_ptr) + alias->offset,
+                           bytes);
+   }
+   }*/
 
 //*****************************************************************************
 void MemoryManager::RegisterCheck(void *ptr)

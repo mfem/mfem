@@ -32,6 +32,7 @@ occa::device occaDevice;
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
+   Backend::HIP,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::DEBUG,
    Backend::CPU
@@ -40,10 +41,8 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "cuda",
-   "occa-omp", "raja-omp", "omp",
-   "occa-cpu", "raja-cpu", "debug",
-   "cpu"
+   "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp", "omp",
+   "occa-cpu", "raja-cpu", "debug", "cpu"
 };
 
 } // namespace mfem::internal
@@ -116,7 +115,7 @@ void Device::Print(std::ostream &out)
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   if (Device::Allows(Backend::CUDA_MASK))
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
       dbg("[Device::UpdateMemoryTypeAndClass] CUDA_MASK");
       mem_type = MemoryType::CUDA;
@@ -151,9 +150,9 @@ void Device::Enable()
 #ifdef MFEM_USE_CUDA
 static void DeviceSetup(const int dev, int &ngpu)
 {
-   MFEM_CUDA_CHECK(cudaGetDeviceCount(&ngpu));
+   ngpu = CuGetDeviceCount();
    MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
-   MFEM_CUDA_CHECK(cudaSetDevice(dev));
+   MFEM_GPU_CHECK(cudaSetDevice(dev));
 }
 #endif
 
@@ -161,6 +160,25 @@ static void CudaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
    DeviceSetup(dev, ngpu);
+#endif
+}
+
+static void HipDeviceSetup(const int dev, int &ngpu)
+{
+#ifdef MFEM_USE_HIP
+   int deviceId;
+   MFEM_GPU_CHECK(hipGetDevice(&deviceId));
+   hipDeviceProp_t props;
+   MFEM_GPU_CHECK(hipGetDeviceProperties(&props, deviceId));
+   MFEM_VERIFY(dev==deviceId,"");
+   ngpu = 1;
+#endif
+}
+
+static void RajaDeviceSetup(const int dev, int &ngpu)
+{
+#ifdef MFEM_USE_CUDA
+   if (ngpu <= 0) { DeviceSetup(dev, ngpu); }
 #endif
 }
 
@@ -235,6 +253,10 @@ void Device::Setup(const int device)
    MFEM_VERIFY(!cuda,
                "the CUDA backends require MFEM built with MFEM_USE_CUDA=YES");
 #endif
+#ifndef MFEM_USE_HIP
+   MFEM_VERIFY(!Allows(Backend::HIP_MASK),
+               "the HIP backends require MFEM built with MFEM_USE_HIP=YES");
+#endif
 #ifndef MFEM_USE_RAJA
    MFEM_VERIFY(!raja,
                "the RAJA backends require MFEM built with MFEM_USE_RAJA=YES");
@@ -244,6 +266,9 @@ void Device::Setup(const int device)
                "the OpenMP and RAJA OpenMP backends require MFEM built with"
                " MFEM_USE_OPENMP=YES");
 #endif
+   if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
 
    // Device backends setup
