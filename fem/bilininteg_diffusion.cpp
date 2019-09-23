@@ -1293,9 +1293,9 @@ void BP3Global_v0(const int NE,
 }
 
 //******************************************************************************
-static int CeedHouseholderReflect(double *A, const double *v,
-                                  const double b, const int m, const int n,
-                                  const int row, const int col)
+static void CeedHouseholderReflect(double *A, const double *v,
+                                   const double b, const int m, const int n,
+                                   const int row, const int col)
 {
    for (int j=0; j<n; j++)
    {
@@ -1304,16 +1304,15 @@ static int CeedHouseholderReflect(double *A, const double *v,
       A[0*row + j*col] -= b * w;
       for (int i=1; i<m; i++) { A[i*row + j*col] -= b * w * v[i]; }
    }
-   return 0;
 }
 
 //******************************************************************************
-static int CeedHouseholderApplyQ(double *A, const double *Q,
-                                 const double *tau,
-                                 const int m, const int n, const int k,
-                                 const int row, const int col)
+static void CeedHouseholderApplyQ(double *A, const double *Q,
+                                  const double *tau,
+                                  const int m, const int n, const int k,
+                                  const int row, const int col)
 {
-   double v[m];
+   double v[MAX_Q1D];
    for (int ii=0; ii<k; ii++)
    {
       const int i = k-1-ii;
@@ -1321,23 +1320,22 @@ static int CeedHouseholderApplyQ(double *A, const double *Q,
       // Apply Householder reflector (I - tau v v^T) coG^T
       CeedHouseholderReflect(&A[i*row], &v[i], tau[i], m-i, n, row, col);
    }
-   return 0;
 }
 
 //******************************************************************************
-static int CeedQRFactorization(double *mat, double *tau,
-                               const int m, const  int n)
+static void CeedQRFactorization(double *mat, double *tau,
+                                const int Q1D, const  int D1D)
 {
-   double v[m];
-   MFEM_VERIFY(n > m,"");
-   for (int i=0; i<n; i++)
+   double v[MAX_Q1D];
+   MFEM_VERIFY(D1D > Q1D,"");
+   for (int i=0; i<D1D; i++)
    {
       // Calculate Householder vector, magnitude
       double sigma = 0.0;
-      v[i] = mat[i+n*i];
-      for (int j=i+1; j<m; j++)
+      v[i] = mat[i+D1D*i];
+      for (int j=i+1; j<Q1D; j++)
       {
-         v[j] = mat[i+n*j];
+         v[j] = mat[i+D1D*j];
          sigma += v[j] * v[j];
       }
       double norm = sqrt(v[i]*v[i] + sigma); // norm of v[i:m]
@@ -1347,27 +1345,26 @@ static int CeedQRFactorization(double *mat, double *tau,
       //   norm = sqrt(v[i]*v[i] + sigma) / v[i];
       //   tau = 2 / (norm*norm)
       tau[i] = 2 * v[i]*v[i] / (v[i]*v[i] + sigma);
-      for (int j=i+1; j<m; j++) { v[j] /= v[i]; }
+      for (int j=i+1; j<Q1D; j++) { v[j] /= v[i]; }
       // Apply Householder reflector to lower right panel
-      CeedHouseholderReflect(&mat[i*n+i+1], &v[i], tau[i], m-i, n-i-1, n, 1);
+      CeedHouseholderReflect(&mat[i*D1D+i+1], &v[i], tau[i], Q1D-i, D1D-i-1, D1D, 1);
       // Save v
-      mat[i+n*i] = Rii;
-      for (int j=i+1; j<m; j++)
+      mat[i+D1D*i] = Rii;
+      for (int j=i+1; j<Q1D; j++)
       {
-         mat[i+n*j] = v[j];
+         mat[i+D1D*j] = v[j];
       }
    }
-   return 0;
 }
 
 //******************************************************************************
-static int CeedBasisGetCollocatedGrad(const int P1d,
-                                      const int Q1d,
-                                      const Array<double> &B,
-                                      const Array<double> &G,
-                                      Array<double> &colograd1d)
+static void CeedBasisGetCollocatedGrad(const int P1d,
+                                       const int Q1d,
+                                       const Array<double> &B,
+                                       const Array<double> &G,
+                                       Array<double> &colograd1d)
 {
-   double tau[Q1d];
+   double tau[MAX_Q1D];
    Array<double> interp1d(Q1d*P1d);
    Array<double> grad1d(Q1d*P1d);
    interp1d.HostReadWrite();
@@ -1401,7 +1398,6 @@ static int CeedBasisGetCollocatedGrad(const int P1d,
    }
    // Apply Qtranspose, colograd = colograd Qtranspose
    CeedHouseholderApplyQ(colograd1d, interp1d, tau, Q1d, Q1d, P1d, 1, Q1d);
-   return 0;
 }
 
 static void PADiffusionApply(const int dim,
