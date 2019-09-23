@@ -20,6 +20,10 @@
 #include "tcoefficient.hpp"
 #include "fespace.hpp"
 
+#ifdef _WIN32
+#define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ?0
+#endif
+
 namespace mfem
 {
 
