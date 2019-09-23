@@ -28,12 +28,15 @@ The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
 
 MFEM also includes support for devices such as GPUs, and programming models such
-as CUDA, OCCA, OpenMP and RAJA.
+as CUDA, HIP, OCCA, OpenMP and RAJA.
 
 - Starting with version 4.0, MFEM requires a C++11 compiler
 
 - CUDA support requires an NVIDIA GPU and an installation of the CUDA Toolkit
   https://developer.nvidia.com/cuda-toolkit
+
+- HIP support requires an AMD GPU and an installation of the ROCm software stack
+  https://rocm.github.io/ROCmInstall.html#installing-from-amd-rocm-repositories
 
 - OCCA support requires the OCCA library
   https://libocca.org
@@ -74,6 +77,10 @@ Parallel build:
 CUDA build:
    make cuda -j 4
    (build for a specific compute capability: 'make cuda -j 4 CUDA_ARCH=sm_30')
+
+HIP build:
+   make hip -j 4
+   (build for a specific AMD GPU chip: 'make hip -j 4 HIP_ARCH=gfx900')
 
 Example codes (serial/parallel, depending on the build):
    cd examples
@@ -161,14 +168,18 @@ Note that re-configuration is only needed to change the currently configured
 options. Several shortcut targets combining (re-)configuration and compilation
 are also defined:
 
-   make serial   -> Builds serial optimized version of the library
-   make parallel -> Builds parallel optimized version of the library
-   make debug    -> Builds serial debug version of the library
-   make pdebug   -> Builds parallel debug version of the library
-   make cuda     -> Builds serial cuda optimized version of the library
-   make pcuda    -> Builds parallel cuda optimized version of the library
-   make cudebug  -> Builds serial cuda debug version of the library
-   make pcudebug -> Builds parallel cuda debug version of the library
+   make serial    -> Builds serial optimized version of the library
+   make parallel  -> Builds parallel optimized version of the library
+   make debug     -> Builds serial debug version of the library
+   make pdebug    -> Builds parallel debug version of the library
+   make cuda      -> Builds serial cuda optimized version of the library
+   make pcuda     -> Builds parallel cuda optimized version of the library
+   make cudebug   -> Builds serial cuda debug version of the library
+   make pcudebug  -> Builds parallel cuda debug version of the library
+   make hip       -> Builds serial hip optimized version of the library
+   make phip      -> Builds parallel hip optimized version of the library
+   make hipdebug  -> Builds serial hip debug version of the library
+   make phipdebug -> Builds parallel hip debug version of the library
 
 Note that any of the above shortcuts accept configuration options, either at the
 command line or through a user configuration file.
@@ -415,6 +426,13 @@ MFEM_USE_CUDA = YES/NO
    capability used during compilation (by default, CUDA_ARCH=sm_60). When
    enabled, this option uses the CUDA_* build options, see below.
 
+MFEM_USE_HIP = YES/NO
+   Enables support for AMD devices in MFEM. HIP is a heterogeneous-compute
+   interface for portability developed by AMD that can target both AMD and
+   NVIDIA GPUs. The variable HIP_ARCH is used to specify the AMD GPU processor
+   used during compilation (by default, HIP_ARCH=gfx900).  When enabled, this
+   option uses the HIP_* build options, see below.
+
 MFEM_USE_RAJA = YES/NO
    Enable support for the RAJA performance portability layer in MFEM. RAJA
    provides a portable abstraction for loops, supporting different programming
@@ -546,6 +564,10 @@ The specific libraries and their options are:
 - CUDA, used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
   Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
+
+- HIP, used when MFEM_USE_HIP = YES.
+  URL: https://rocm.github.io/ROCmInstall.html
+  Options: HIP_CXX, HIP_ARCH, HIP_OPT, HIP_LIB.
 
 - OCCA, used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org
