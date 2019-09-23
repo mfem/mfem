@@ -23,8 +23,8 @@ namespace mfem
 static inline MFEM_HOST_DEVICE
 double LaghosRho0(const double problem, const double *x)
 {
-   if (problem == -2.0) return (x[0] < 0.5) ? 1.0 : 0.1;
-   if (problem == -3.0) return (x[0] > 1.0 && x[1] > 1.5) ? 0.125 : 1.0;
+   if (problem == -2.0) { return (x[0] < 0.5) ? 1.0 : 0.1; }
+   if (problem == -3.0) { return (x[0] > 1.0 && x[1] > 1.5) ? 0.125 : 1.0; }
    return 1.0;
 }
 
@@ -764,17 +764,25 @@ static void PAMassApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
-         case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
-         case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
-         case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, Bt, op, x, y);
-         case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, Bt, op, x, y);
-         case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, Bt, op, x, y);
-         case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, Bt, op, x, y);
-         case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, Bt, op, x, y);
-         default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
+         case 0x24: return SmemPAMassApply2D<2,4,16>(NE, B, Bt, op, x, y);
+         case 0x34: return SmemPAMassApply2D<3,4,16>(NE, B, Bt, op, x, y);
+         case 0x36: return SmemPAMassApply2D<3,6,16>(NE, B, Bt, op, x, y);
+         case 0x46: return SmemPAMassApply2D<4,6,4>(NE, B, Bt, op, x, y);
+         case 0x48: return SmemPAMassApply2D<4,8,4>(NE, B, Bt, op, x, y);
+         case 0x58: return SmemPAMassApply2D<5,8,2>(NE, B, Bt, op, x, y);
+            /*
+                     case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
+                     case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
+                     case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
+                     case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, Bt, op, x, y);
+                     case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, Bt, op, x, y);
+                     case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, Bt, op, x, y);
+                     case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, Bt, op, x, y);
+                     case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, Bt, op, x, y);
+                     */
+            //default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
-   }
+   }/*
    else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
@@ -788,7 +796,8 @@ static void PAMassApply(const int dim,
          case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
          default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
-   }
+}*/
+   printf("\033[33;1m[PAMassApply] %x \033[m", (D1D<<4)|Q1D); fflush(0);
    MFEM_ABORT("Unknown kernel.");
 }
 
