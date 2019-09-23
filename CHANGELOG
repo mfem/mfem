@@ -10,6 +10,15 @@
 
 Version 4.0.1 (development)
 ===========================
+- Improved RAJA backend
+- Improved multi-GPU MPI communication.
+
+GPU support
+-----------
+- Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
+  language that can run on both AMD and NVIDIA hardware. The list of current
+  backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
+  "omp", "occa-cpu", "raja-cpu", and "cpu".
 
 
 Version 4.0, released on May 24, 2019

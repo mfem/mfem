@@ -573,7 +573,7 @@ inline void Memory<T>::Delete()
    //dbg("Memory<T>::Delete %p", h_ptr);
    //dbg("%sREGISTERED",flags & REGISTERED ? "":"NOT ");
    if (!(flags & REGISTERED) ||
-       MemoryManager::Delete_(h_ptr, flags) == MemoryType::HOST)
+       MemoryManager::Delete_((void*)h_ptr, flags) == MemoryType::HOST)
    {
       if (flags & OWNS_HOST)
       {
