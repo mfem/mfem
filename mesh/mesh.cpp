@@ -460,9 +460,9 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
                                               GetBdrElementBaseGeometry(i));
 
          IntegrationRule eir(face_el->GetDof());
+         FaceElemTr.Loc1.Transf.ElementNo = elem_id;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
-         // 'Transformation' is not used
-         Nodes->GetVectorValues(Transformation, eir, pm);
+         Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
          ElTr->SetFE(face_el);
       }
@@ -523,9 +523,9 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
                                                      face_geom);
 
          IntegrationRule eir(face_el->GetDof());
+         FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
-         // 'Transformation' is not used
-         Nodes->GetVectorValues(Transformation, eir, pm);
+         Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
          FTr->SetFE(face_el);
       }
@@ -2021,7 +2021,7 @@ void Mesh::FinalizeMesh(int refine, bool fix_orientation)
    Finalize(refine, fix_orientation);
 }
 
-void Mesh::FinalizeTopology()
+void Mesh::FinalizeTopology(bool generate_bdr)
 {
    // Requirements: the following should be defined:
    //   1) Dim
@@ -2046,7 +2046,7 @@ void Mesh::FinalizeTopology()
    {
       GetElementToFaceTable();
       GenerateFaces();
-      if (NumOfBdrElements == 0)
+      if (NumOfBdrElements == 0 && generate_bdr)
       {
          GenerateBoundaryElements();
          GetElementToFaceTable(); // update be_to_face
@@ -2066,7 +2066,7 @@ void Mesh::FinalizeTopology()
       if (Dim == 2)
       {
          GenerateFaces(); // 'Faces' in 2D refers to the edges
-         if (NumOfBdrElements == 0)
+         if (NumOfBdrElements == 0 && generate_bdr)
          {
             GenerateBoundaryElements();
          }
@@ -3370,7 +3370,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
    }
 
-   FinalizeTopology();
+   FinalizeTopology(false);
    sequence = orig_mesh->GetSequence() + 1;
    last_operation = Mesh::REFINE;
 
