@@ -2,33 +2,60 @@
 #include <fstream>
 #include <iostream>
 
-#include "multigrid.hpp"
 #include "eigenvalue.hpp"
+#include "multigrid.hpp"
 
 using namespace std;
 using namespace mfem;
 
 class PoissonMultigridOperator : public MultigridOperator
 {
-private:
-   HypreBoomerAMG* amg;
-   Array<ParBilinearForm*> forms;
+ private:
+   Array<ParBilinearForm *> forms;
    bool partialAssembly;
+   ConstantCoefficient one;
 
-   Operator* ConstructOperator(ParFiniteElementSpace* fespace, const Array<int>& essentialDofs)
+ public:
+   PoissonMultigridOperator(bool partialAssembly_)
+       : MultigridOperator(), partialAssembly(partialAssembly_), one(1.0)
    {
-      ParBilinearForm* form = new ParBilinearForm(fespace);
-      if (NumLevels() != 0 && partialAssembly)
+   }
+
+   PoissonMultigridOperator(ParMesh *mesh, ParFiniteElementSpace *fespace,
+                            const Array<int> &essentialDofs, int coarseOrder,
+                            bool partialAssembly_)
+       : MultigridOperator(), partialAssembly(partialAssembly_), one(1.0)
+   {
+      Operator *coarseOpr = ConstructOperator(fespace, essentialDofs);
+      Solver *coarseSolver =
+          ConstructCoarseSolver(mesh, coarseOpr, essentialDofs, coarseOrder);
+
+      AddCoarseLevel(coarseOpr, coarseSolver, false, true);
+   }
+
+   ~PoissonMultigridOperator()
+   {
+      MFEM_FORALL(i, forms.Size(), delete forms[i];);
+   }
+
+   Operator *ConstructOperator(ParFiniteElementSpace *fespace,
+                               const Array<int> &essentialDofs)
+   {
+      ParBilinearForm *form = new ParBilinearForm(fespace);
+      if (partialAssembly)
       {
          form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       }
-      ConstantCoefficient one(1.0);
       form->AddDomainIntegrator(new DiffusionIntegrator(one));
+      if (!partialAssembly)
+      {
+         form->UsePrecomputedSparsity();
+      }
       form->Assemble();
 
       OperatorPtr opr;
-      
-      if (NumLevels() != 0 && partialAssembly)
+
+      if (partialAssembly)
       {
          opr.SetType(Operator::ANY_TYPE);
       }
@@ -45,67 +72,100 @@ private:
       return opr.Ptr();
    }
 
-   Solver* ConstructCoarseSolver(Operator* opr)
+   Solver *ConstructCoarseSolver(ParMesh *mesh, Operator *opr,
+                                 const Array<int> &essentialDofs,
+                                 int coarseOrder)
    {
-      HypreParMatrix& hypreCoarseMat = dynamic_cast<HypreParMatrix&>(*opr);
-      amg = new HypreBoomerAMG(hypreCoarseMat);
+      HypreParMatrix *hypreCoarseMat = nullptr;
+
+      // Reuse matrix for AMG
+      if (!partialAssembly && coarseOrder == 1)
+      {
+         hypreCoarseMat = dynamic_cast<HypreParMatrix *>(opr);
+      }
+      else
+      {
+         ParBilinearForm *a_pc = nullptr;
+
+         if (coarseOrder > 1)
+         {
+            ParMesh *pmesh_lor =
+                new ParMesh(mesh, coarseOrder, BasisType::GaussLobatto);
+            H1_FECollection *fec_lor = new H1_FECollection(
+                1, mesh->Dimension(), BasisType::GaussLobatto);
+            ParFiniteElementSpace *fespace_lor =
+                new ParFiniteElementSpace(pmesh_lor, fec_lor);
+            a_pc = new ParBilinearForm(fespace_lor);
+         }
+         else
+         {
+            H1_FECollection *fec_lor = new H1_FECollection(
+                1, mesh->Dimension(), BasisType::GaussLobatto);
+            ParFiniteElementSpace *fespace_lor =
+                new ParFiniteElementSpace(mesh, fec_lor);
+            a_pc = new ParBilinearForm(fespace_lor);
+         }
+
+         a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+         a_pc->UsePrecomputedSparsity();
+         a_pc->Assemble();
+
+         hypreCoarseMat = new HypreParMatrix();
+         a_pc->FormSystemMatrix(essentialDofs, *hypreCoarseMat);
+      }
+
+      HypreBoomerAMG *amg = new HypreBoomerAMG(*hypreCoarseMat);
       amg->SetPrintLevel(-1);
+      amg->SetMaxIter(2);
       return amg;
    }
 
-   Solver* ConstructSmoother(ParFiniteElementSpace* fespace, Operator* opr, const Array<int>& essentialDofs)
+   Solver *ConstructSmoother(ParFiniteElementSpace *fespace,
+                             Operator *solveOperator,
+                             const Array<int> &essentialDofs)
    {
-      Solver* smoother = nullptr;
+      Solver *smoother = nullptr;
 
       if (partialAssembly)
       {
          Vector diag(fespace->GetTrueVSize());
          forms.Last()->AssembleDiagonal(diag);
-         
-         Vector ev(opr->Width());
+
+         Vector ev(solveOperator->Width());
          OperatorJacobiSmoother invDiagOperator(diag, essentialDofs, 1.0);
-         ProductOperator diagPrecond(&invDiagOperator, opr, false, false);
-         double estLargestEigenvalue = PowerMethod::EstimateLargestEigenvalue(MPI_COMM_WORLD, diagPrecond, ev, 10, 1e-8);
-         smoother = new OperatorChebyshevSmoother(opr, diag, essentialDofs, 3, estLargestEigenvalue);
+         ProductOperator diagPrecond(&invDiagOperator, solveOperator, false,
+                                     false);
+         double estLargestEigenvalue = PowerMethod::EstimateLargestEigenvalue(
+             MPI_COMM_WORLD, diagPrecond, ev, 10, 1e-8);
+         smoother = new OperatorChebyshevSmoother(
+             solveOperator, diag, essentialDofs, 3, estLargestEigenvalue);
       }
       else
       {
-         smoother = new HypreSmoother(static_cast<HypreParMatrix&>(*opr));
+         smoother =
+             new HypreSmoother(static_cast<HypreParMatrix &>(*solveOperator));
       }
 
       return smoother;
    }
 
-public:
-   PoissonMultigridOperator(ParFiniteElementSpace* fespace, const Array<int>& essentialDofs, bool partialAssembly_)
-      : MultigridOperator(), amg(nullptr), partialAssembly(partialAssembly_)
+   void AddLevel(ParFiniteElementSpace *lFEspace,
+                 ParFiniteElementSpace *hFEspace,
+                 const Array<int> &essentialDofs)
    {
-      Operator* coarseOpr = ConstructOperator(fespace, essentialDofs);
-      Solver* coarseSolver = ConstructCoarseSolver(coarseOpr);
-
-      AddCoarseLevel(coarseOpr, coarseSolver, false, true);
+      Operator *opr = ConstructOperator(hFEspace, essentialDofs);
+      Solver *smoother = ConstructSmoother(hFEspace, opr, essentialDofs);
+      Operator *P = new TrueTransferOperator(*lFEspace, *hFEspace);
+      MultigridOperator::AddLevel(opr, smoother, P, partialAssembly, true,
+                                  true);
    }
 
-   ~PoissonMultigridOperator()
-   {
-      MFEM_FORALL(i, forms.Size(), delete forms[i]; );
-   }
-
-   void AddLevel(ParFiniteElementSpace* lFEspace, ParFiniteElementSpace* hFEspace, const Array<int>& essentialDofs)
-   {
-      Operator* opr = ConstructOperator(hFEspace, essentialDofs);
-      Solver* smoother = ConstructSmoother(hFEspace, opr, essentialDofs);
-      Operator* P = new TrueTransferOperator(*lFEspace, *hFEspace);
-      MultigridOperator::AddLevel(opr, smoother, P, partialAssembly, true, true);
-   }
-
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         Vector &X, Vector &B,
-                         int copy_interior = 0)
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         Vector &X, Vector &B, int copy_interior = 0)
    {
       OperatorPtr dummy;
-      forms.Last()->FormLinearSystem(ess_tdof_list, x, b, dummy, X, B, copy_interior);
+      forms.Last()->FormLinearSystem(ess_tdof_list, x, b, dummy, X, B,
+                                     copy_interior);
    }
 
    void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
@@ -122,40 +182,44 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/fichera.mesh";
-   int ref_levels = 2;
-   int mg_levels = 2;
+   const char *mesh_file = "../../data/inline-hex.mesh";
+   int ref_levels = 0;
    int order = 1;
-   const char *basis_type = "G"; // Gauss-Lobatto
+   int h_levels = 1;
+   int o_levels = 1;
    bool visualization = 1;
-   bool partialAssembly = false;
-   bool pMultigrid = false;
-   bool boomerAMG = false;
+   bool partialAssembly = true;
+   const char *precondInput = "LOR";
+
+   enum class Method
+   {
+      MG = 0,
+      LOR = 1,
+      LORS = 2
+   } method;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
+   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(
+       &ref_levels, "-r", "--refine",
+       "Number of times to refine the initial mesh uniformly;"
+       "This mesh will be the coarse mesh in the multigrid hierarchy");
    args.AddOption(&order, "-o", "--order",
                   "Order of the finite element spaces");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the initial mesh uniformly;"
-                  "This mesh will be the coarse mesh in the multigrid hierarchy");
-   args.AddOption(&mg_levels, "-l", "--levels",
-                  "Number of levels in the multigrid hierarchy;");
-   args.AddOption(&basis_type, "-b", "--basis-type",
-                  "Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
+   args.AddOption(&h_levels, "-hl", "--hlevels",
+                  "Number of geometric levels in the multigrid hierarchy");
+   args.AddOption(&o_levels, "-ol", "--orderlevels",
+                  "Number of order levels in the multigrid hierarchy");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&partialAssembly, "-pa", "--partialassembly", "-no-pa",
                   "--no-partialassembly",
                   "Enable or disable partial assembly.");
-   args.AddOption(&pMultigrid, "-pmg", "--pmultigrid", "-no-pmg",
-                  "--no-pmultigrid",
-                  "Enable or p multigrid.");
-   args.AddOption(&boomerAMG, "-boomeramg", "--boomeramg", "-no-boomeramg",
-                  "--no-boomeramg",
-                  "Enable or disable usage of BoomerAMG at finest level");
+   args.AddOption(&precondInput, "-p", "--precond",
+                  "Preconditioner: MG - Multigrid, LOR = Low-order refined, "
+                  "LORS = Low-order refined with smoothing");
+
    args.Parse();
    if (!args.Good())
    {
@@ -172,8 +236,26 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   if (o_levels > 1 && order > 1)
+   {
+      MFEM_ABORT("Order refinements are not supported with order > 1");
+   }
+
+   std::map<std::string, Method> mapInputToPrecond = {
+       {"MG", Method::MG},
+       {"LOR", Method::LOR},
+       {"LORS", Method::LORS},
+   };
+
+   auto it = mapInputToPrecond.find(std::string(precondInput));
+   if (it == mapInputToPrecond.end())
+   {
+      MFEM_ABORT("Method " << precondInput << " not found");
+   }
+   method = it->second;
+
    // See class BasisType in fem/fe_coll.hpp for available basis types
-   int basis = BasisType::GetType(basis_type[0]);
+   int basis = BasisType::GaussLobatto;
    if (myid == 0)
    {
       cout << "Using " << BasisType::Name(basis) << " basis ..." << endl;
@@ -198,56 +280,120 @@ int main(int argc, char *argv[])
    delete mesh;
    mesh = nullptr;
 
-   Array<FiniteElementCollection*> feCollectons;
+   Array<int> orders;
+   Array<FiniteElementCollection *> feCollectons;
+   orders.Append(order);
    feCollectons.Append(new H1_FECollection(order, dim, basis));
 
    // Set up coarse grid finite element space
-   ParFiniteElementSpace* fespace = new ParFiniteElementSpace(pmesh, feCollectons.Last());
+   ParFiniteElementSpace *fespace =
+       new ParFiniteElementSpace(pmesh, feCollectons.Last());
    HYPRE_Int size = fespace->GlobalTrueVSize();
 
    if (myid == 0)
    {
-      cout << "Number of finite element unknowns on level 0: " << size << "; FE order: " << order << endl;
+      cout << "Number of finite element unknowns on level 0: " << size << endl;
    }
 
-   Array<Array<int>*> essentialTrueDoFs;
+   Array<Array<int> *> essentialTrueDoFs;
    essentialTrueDoFs.Append(new Array<int>());
    fespace->GetEssentialTrueDofs(ess_bdr, *essentialTrueDoFs.Last());
 
-   ParSpaceHierarchy* spaceHierarchy = new ParSpaceHierarchy(pmesh, fespace, true, true);
-   PoissonMultigridOperator* oprMultigrid = new PoissonMultigridOperator(fespace, *essentialTrueDoFs.Last(), partialAssembly);
-
-   for(int level = 1; level < mg_levels; ++level)
+   // Build hierarchy of meshes and spaces
+   // Geometric refinements
+   ParSpaceHierarchy *spaceHierarchy =
+       new ParSpaceHierarchy(pmesh, fespace, true, true);
+   for (int level = 1; level < h_levels; ++level)
    {
-      tic_toc.Clear();
-      tic_toc.Start();
-
-      if (pMultigrid)
-      {
-         order = std::pow(2, level);
-         feCollectons.Append(new H1_FECollection(order, dim, basis));
-         spaceHierarchy->AddOrderRefinedLevel(feCollectons.Last());
-      }
-      else
-      {
-         spaceHierarchy->AddUniformlyRefinedLevel();
-      }
-
-      size = spaceHierarchy->GetFinestFESpace().GlobalTrueVSize();
+      spaceHierarchy->AddUniformlyRefinedLevel();
+      orders.Append(order);
       if (myid == 0)
       {
-         cout << "Number of finite element unknowns on level " << level << ": " << size << "; FE order: " << order << endl;
+         cout << "h refinement" << endl;
       }
-      
+   }
+
+   // Order refinements
+   for (int level = 1; level < o_levels; ++level)
+   {
+      int newOrder = std::pow(2, level);
+      feCollectons.Append(new H1_FECollection(newOrder, dim, basis));
+      spaceHierarchy->AddOrderRefinedLevel(feCollectons.Last());
+      orders.Append(newOrder);
+      if (myid == 0)
+      {
+         cout << "p refinement from order " << std::pow(2, level - 1) << " to "
+              << newOrder << endl;
+      }
+   }
+
+   // Collect essential dofs
+   for (int level = 1; level < spaceHierarchy->GetNumLevels(); ++level)
+   {
       essentialTrueDoFs.Append(new Array<int>());
-      spaceHierarchy->GetFinestFESpace().GetEssentialTrueDofs(ess_bdr, *essentialTrueDoFs.Last());
+      spaceHierarchy->GetFESpaceAtLevel(level).GetEssentialTrueDofs(
+          ess_bdr, *essentialTrueDoFs[level]);
 
-      oprMultigrid->AddLevel(&spaceHierarchy->GetFESpaceAtLevel(level - 1), &spaceHierarchy->GetFinestFESpace(), *essentialTrueDoFs.Last());
-      tic_toc.Stop();
+      size = spaceHierarchy->GetFESpaceAtLevel(level).GlobalTrueVSize();
       if (myid == 0)
       {
-         cout << "Assembly time on level " << level << ": " << tic_toc.RealTime() << "s" << endl;
+         cout << "Number of finite element unknowns on level " << level << ": "
+              << size << endl;
       }
+   }
+
+   PoissonMultigridOperator *solveOperator = nullptr;
+
+   if (myid == 0)
+   {
+      cout << "Setting up operators..." << flush;
+   }
+
+   tic_toc.Clear();
+   tic_toc.Start();
+
+   // Construct multigrid operator depending on method
+   if (method == Method::LOR || method == Method::LORS)
+   {
+      solveOperator = new PoissonMultigridOperator(
+          &spaceHierarchy->GetFinestMesh(), &spaceHierarchy->GetFinestFESpace(),
+          *essentialTrueDoFs.Last(), orders.Last(), partialAssembly);
+
+      if (method == Method::LORS)
+      {
+         Operator *opr = solveOperator->GetOperatorAtLevel(0);
+         Operator *identityProlongation =
+             new IdentityOperator(solveOperator->Height());
+         Solver *smoother = solveOperator->ConstructSmoother(
+             &spaceHierarchy->GetFinestFESpace(), opr,
+             *essentialTrueDoFs.Last());
+
+         solveOperator->MultigridOperator::AddLevel(
+             opr, smoother, identityProlongation, false, true, true);
+      }
+   }
+   else
+   {
+      solveOperator = new PoissonMultigridOperator(
+          &spaceHierarchy->GetMeshAtLevel(0),
+          &spaceHierarchy->GetFESpaceAtLevel(0), *essentialTrueDoFs[0],
+          orders[0], partialAssembly);
+
+      for (int level = 1; level < spaceHierarchy->GetNumLevels(); ++level)
+      {
+         solveOperator->AddLevel(&spaceHierarchy->GetFESpaceAtLevel(level - 1),
+                                 &spaceHierarchy->GetFESpaceAtLevel(level),
+                                 *essentialTrueDoFs[level]);
+      }
+   }
+
+   MultigridSolver *preconditioner = new MultigridSolver(
+       solveOperator, MultigridSolver::CycleType::VCYCLE, 3, 3);
+
+   tic_toc.Stop();
+   if (myid == 0)
+   {
+      cout << " done. Setup time: " << tic_toc.RealTime() << "s" << endl;
    }
 
    ParGridFunction x(&spaceHierarchy->GetFinestFESpace());
@@ -259,75 +405,30 @@ int main(int argc, char *argv[])
    }
    tic_toc.Clear();
    tic_toc.Start();
-   ParLinearForm* b = new ParLinearForm(&spaceHierarchy->GetFinestFESpace());
+   ParLinearForm *b = new ParLinearForm(&spaceHierarchy->GetFinestFESpace());
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
    tic_toc.Stop();
    if (myid == 0)
    {
-      cout << "\t\t\t\tdone, " << tic_toc.RealTime() << "s." << endl;
+      cout << " done, " << tic_toc.RealTime() << "s" << endl;
    }
 
    Vector X, B;
-   oprMultigrid->FormLinearSystem(*essentialTrueDoFs.Last(), x, *b, X, B);
-
-   Vector r(X.Size());
-   MultigridSolver* mgCycle = new MultigridSolver(oprMultigrid, MultigridSolver::CycleType::VCYCLE, 3, 3);
+   solveOperator->FormLinearSystem(*essentialTrueDoFs.Last(), x, *b, X, B);
 
    tic_toc.Clear();
    tic_toc.Start();
-
-   ParMesh* pmesh_lor = nullptr;
-   H1_FECollection* fec_lor = nullptr;
-   ParFiniteElementSpace* fespace_lor = nullptr;
-   ParBilinearForm* a_pc = nullptr;
-   HypreBoomerAMG* amg = nullptr;
-
-   if (boomerAMG)
-   {
-      int basis_lor = basis;
-      if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
-      pmesh_lor = new ParMesh(&spaceHierarchy->GetFinestMesh(), order, basis_lor);
-      fec_lor = new H1_FECollection(1, dim);
-      fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
-
-      a_pc = new ParBilinearForm(fespace_lor);
-      HypreParMatrix A_pc;
-      a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
-      a_pc->UsePrecomputedSparsity();
-      a_pc->Assemble();
-      a_pc->FormSystemMatrix(*essentialTrueDoFs.Last(), A_pc);
-
-      amg = new HypreBoomerAMG(A_pc);
-   }
 
    CGSolver pcg(MPI_COMM_WORLD);
    pcg.SetPrintLevel(1);
    pcg.SetMaxIter(100);
    pcg.SetRelTol(1e-6);
    pcg.SetAbsTol(0.0);
-   pcg.SetOperator(*oprMultigrid->GetOperatorAtFinestLevel());
-
-   if (boomerAMG)
-   {
-      pcg.SetPreconditioner(*amg);
-   }
-   else
-   {
-      pcg.SetPreconditioner(*mgCycle);
-   }
-   
+   pcg.SetOperator(*solveOperator);
+   pcg.SetPreconditioner(*preconditioner);
    pcg.Mult(B, X);
-
-   if (boomerAMG)
-   {
-      delete amg;
-      delete a_pc;
-      delete fespace_lor;
-      delete fec_lor;
-      delete pmesh_lor;
-   }
 
    tic_toc.Stop();
 
@@ -336,62 +437,15 @@ int main(int argc, char *argv[])
       cout << "Time to solution: " << tic_toc.RealTime() << "s" << endl;
    }
 
-   // oprMultigrid->Mult(X, r);
-   // subtract(B, r, r);
+   solveOperator->RecoverFEMSolution(X, *b, x);
 
-   // double beginRes = sqrt(InnerProduct(MPI_COMM_WORLD, r, r));
-   // double prevRes = beginRes;
-   // const int printWidth = 11;
-
-   // if (myid == 0)
-   // {
-   //    cout << std::setw(3) << "It";
-   //    cout << std::setw(printWidth) << "Absres";
-   //    cout << std::setw(printWidth) << "Relres";
-   //    cout << std::setw(printWidth) << "Conv";
-   //    cout << std::setw(printWidth) << "Time [s]" << endl;
-
-   //    cout << std::setw(3) << 0;
-   //    cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << beginRes;
-   //    cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 1.0;
-   //    cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 0.0;
-   //    cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << 0.0 << endl;
-   // }
-
-   // for (int iter = 0; iter < 10; ++iter)
-   // {
-   //    tic_toc.Clear();
-   //    tic_toc.Start();
-   //    mgCycle->Mult(B, X);
-   //    tic_toc.Stop();
-
-   //    oprMultigrid->Mult(X, r);
-   //    subtract(B, r, r);
-
-   //    double res = sqrt(InnerProduct(MPI_COMM_WORLD, r, r));
-   //    if (myid == 0)
-   //    {
-   //       cout << std::setw(3) << iter + 1;
-   //       cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res;
-   //       cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res/beginRes;
-   //       cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << res/prevRes;
-   //       cout << std::scientific << std::setprecision(3) << std::setw(printWidth) << tic_toc.RealTime() << endl;
-   //    }
-
-   //    if (res < 1e-10 * beginRes)
-   //    {
-   //       break;
-   //    }
-
-   //    prevRes = res;
-   // }
-
-   oprMultigrid->RecoverFEMSolution(X, *b, x);
+   delete preconditioner;
+   delete solveOperator;
 
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
+      int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
@@ -399,12 +453,10 @@ int main(int argc, char *argv[])
    }
 
    delete b;
-   delete mgCycle;
-   delete oprMultigrid;
    delete spaceHierarchy;
-   
-   MFEM_FORALL(i, essentialTrueDoFs.Size(), delete essentialTrueDoFs[i]; );
-   MFEM_FORALL(i, feCollectons.Size(), delete feCollectons[i]; );
+
+   MFEM_FORALL(i, essentialTrueDoFs.Size(), delete essentialTrueDoFs[i];);
+   MFEM_FORALL(i, feCollectons.Size(), delete feCollectons[i];);
 
    MPI_Finalize();
 
