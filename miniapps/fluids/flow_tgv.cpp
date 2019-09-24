@@ -95,6 +95,96 @@ private:
    double volume;
 };
 
+template <typename T> T sq(T x) { return x*x; }
+
+void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
+{
+   FiniteElementSpace *v_fes = u.FESpace();
+   FiniteElementSpace *fes = q.FESpace();
+
+   // AccumulateAndCountZones
+   Array<int> zones_per_vdof;
+   zones_per_vdof.SetSize(fes->GetVSize());
+   zones_per_vdof = 0;
+
+   q = 0.0;
+
+   // Local interpolation
+   int elndofs;
+   Array<int> v_dofs, dofs;
+   Vector vals;
+   Vector loc_data;
+   int vdim = v_fes->GetVDim();
+   DenseMatrix grad_hat;
+   DenseMatrix dshape;
+   DenseMatrix grad;
+
+   for (int e = 0; e < fes->GetNE(); ++e)
+   {
+      fes->GetElementVDofs(e, dofs);
+      v_fes->GetElementVDofs(e, v_dofs);
+      u.GetSubVector(v_dofs, loc_data);
+      vals.SetSize(dofs.Size());
+      ElementTransformation *tr = fes->GetElementTransformation(e);
+      const FiniteElement *el = fes->GetFE(e);
+      elndofs = el->GetDof();
+      int dim = el->GetDim();
+      dshape.SetSize(elndofs, dim);
+
+      for (int dof = 0; dof < elndofs; ++dof)
+      {
+         // Project
+         const IntegrationPoint &ip = el->GetNodes().IntPoint(dof);
+         tr->SetIntPoint(&ip);
+
+         // Eval
+         // GetVectorGradientHat
+         el->CalcDShape(tr->GetIntPoint(), dshape);
+         grad_hat.SetSize(vdim, dim);
+         DenseMatrix loc_data_mat(loc_data.GetData(), elndofs, vdim);
+         MultAtB(loc_data_mat, dshape, grad_hat);
+
+         const DenseMatrix &Jinv = tr->InverseJacobian();
+         grad.SetSize(grad_hat.Height(), Jinv.Width());
+         Mult(grad_hat, Jinv, grad);
+
+         double q_val = 0.5*(sq(grad(0,0)) + sq(grad(1,1)) + sq(grad(2,2)))
+            + grad(0,1)*grad(1,0) + grad(0,2)*grad(2,0) + grad(1,2)*grad(2,1);
+
+         vals(dof) = q_val;
+      }
+
+      // Accumulate values in all dofs, count the zones.
+      for (int j = 0; j < dofs.Size(); j++)
+      {
+         int ldof = dofs[j];
+         q(ldof) += vals[j];
+         zones_per_vdof[ldof]++;
+      }
+   }
+
+   // Communication
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = q.ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(zones_per_vdof);
+
+   // Accumulate for all vdofs.
+   gcomm.Reduce<double>(q.GetData(), GroupCommunicator::Sum);
+   gcomm.Bcast<double>(q.GetData());
+
+   // Compute means
+   for (int i = 0; i < q.Size(); i++)
+   {
+      const int nz = zones_per_vdof[i];
+      if (nz)
+      {
+         q(i) /= nz;
+      }
+   }
+}
+
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
@@ -177,14 +267,21 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
 
+   ParGridFunction w_gf(*u_gf);
+   ParGridFunction q_gf(*p_gf);
+   flowsolver.ComputeCurl3D(*u_gf, w_gf);
+   ComputeQCriterion(*u_gf, q_gf);
+
    QOI kin_energy(pmesh);
 
    VisItDataCollection visit_dc("ins", pmesh);
-   visit_dc.SetPrefixPath("output");
+   visit_dc.SetPrefixPath("/g/g20/pazner1/workspace/tgv_output_vis");
    visit_dc.SetCycle(0);
    visit_dc.SetTime(t);
    visit_dc.RegisterField("velocity", u_gf);
    visit_dc.RegisterField("pressure", p_gf);
+   visit_dc.RegisterField("vorticity", &w_gf);
+   visit_dc.RegisterField("qcriterion", &q_gf);
    visit_dc.Save();
 
    double u_inf_loc = u_gf->Normlinf();
@@ -193,12 +290,16 @@ int main(int argc, char *argv[])
    double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
    double ke = kin_energy.ComputeKineticEnergy(*u_gf);
 
-   FILE *f = fopen("tgv_out.txt", "w");
+   std::string fname = "tgv_out_p_" + std::to_string(ctx.order) + ".txt";
+   FILE *f;
+
    if (mpi.Root())
    {
       int nel1d = std::round(pow(nel, 1.0/3.0));
       int ngridpts = p_gf->ParFESpace()->GlobalVSize();
       printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
+
+      f = fopen(fname.c_str(), "w");
       fprintf(f, "3D Taylor Green Vortex\n");
       fprintf(f, "order = %d\n", ctx.order);
       fprintf(f, "grid = %d x %d x %d\n", nel1d, nel1d, nel1d);
@@ -221,6 +322,8 @@ int main(int argc, char *argv[])
 
       if ((step + 1) % 100 == 0 || last_step)
       {
+         flowsolver.ComputeCurl3D(*u_gf, w_gf);
+         ComputeQCriterion(*u_gf, q_gf);
          visit_dc.SetCycle(step);
          visit_dc.SetTime(t);
          visit_dc.Save();
