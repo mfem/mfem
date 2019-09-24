@@ -177,6 +177,8 @@ class MultigridOperator : public Operator
       smoothers.Append(solver);
       ownedOperators.Append(ownOperator);
       ownedSmoothers.Append(ownSolver);
+      width = opr->Width();
+      height = opr->Height();
    }
 
    void AddLevel(Operator *opr, Solver *smoother, const Operator *prolongation,
@@ -189,6 +191,8 @@ class MultigridOperator : public Operator
       ownedOperators.Append(ownOperator);
       ownedSmoothers.Append(ownSmoother);
       ownedProlongations.Append(ownProlongation);
+      width = opr->Width();
+      height = opr->Height();
    }
 
    /// Returns the number of levels
@@ -282,17 +286,14 @@ class MultigridSolver : public Solver
       opr->MultAtLevel(level, *Y[level], *R[level]);          // r = A x
       subtract(*X[level], *R[level], *R[level]);              // r = b - A x
       opr->ApplySmootherAtLevel(level, *R[level], *Z[level]); // z = S r
-      add(*Y[level], 1.0, *Z[level], *Y[level]); // x = x + B (b - A x)
+      add(*Y[level], 1.0, *Z[level], *Y[level]); // x = x + S (b - A x)
    }
 
    void Cycle(unsigned level) const
    {
       if (level == 0)
       {
-         for (int i = 0; i < preSmoothingSteps[level]; i++)
-         {
-            SmoothingStep(level);
-         }
+         opr->ApplySmootherAtLevel(level, *X[level], *Y[level]);
          return;
       }
 
@@ -341,16 +342,22 @@ class MultigridSolver : public Solver
       {
          int vectorSize = opr->GetOperatorAtLevel(level)->Height();
          X.Append(new Vector(vectorSize));
+         *X.Last() = 0.0;
          Y.Append(new Vector(vectorSize));
+         *Y.Last() = 0.0;
          R.Append(new Vector(vectorSize));
+         *R.Last() = 0.0;
          Z.Append(new Vector(vectorSize));
+         *Z.Last() = 0.0;
       }
 
       // X and Y at the finest level will be filled by Mult
       X.Append(nullptr);
       Y.Append(nullptr);
       R.Append(new Vector(opr->GetOperatorAtFinestLevel()->Height()));
+      *R.Last() = 0.0;
       Z.Append(new Vector(opr->GetOperatorAtFinestLevel()->Height()));
+      *Z.Last() = 0.0;
 
       preSmoothingSteps.SetSize(opr->NumLevels());
       postSmoothingSteps.SetSize(opr->NumLevels());
