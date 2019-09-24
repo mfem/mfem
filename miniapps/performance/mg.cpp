@@ -12,31 +12,14 @@ class PoissonMultigridOperator : public MultigridOperator
 {
  private:
    Array<ParBilinearForm *> forms;
-   bool partialAssembly;
-   ConstantCoefficient one;
-
- public:
-   PoissonMultigridOperator(bool partialAssembly_)
-       : MultigridOperator(), partialAssembly(partialAssembly_), one(1.0)
-   {
-   }
-
-   PoissonMultigridOperator(ParMesh *mesh, ParFiniteElementSpace *fespace,
-                            const Array<int> &essentialDofs, int coarseOrder,
-                            bool partialAssembly_)
-       : MultigridOperator(), partialAssembly(partialAssembly_), one(1.0)
-   {
-      Operator *coarseOpr = ConstructOperator(fespace, essentialDofs);
-      Solver *coarseSolver =
-          ConstructCoarseSolver(mesh, coarseOpr, essentialDofs, coarseOrder);
-
-      AddCoarseLevel(coarseOpr, coarseSolver, false, true);
-   }
-
-   ~PoissonMultigridOperator()
-   {
-      MFEM_FORALL(i, forms.Size(), delete forms[i];);
-   }
+   bool partialAssembly{true};
+   bool ownLORMatrix{false};
+   ConstantCoefficient one{1.0};
+   HypreParMatrix *hypreCoarseMat{nullptr};
+   ParBilinearForm *a_pc{nullptr};
+   ParMesh *pmesh_lor{nullptr};
+   H1_FECollection *fec_lor{nullptr};
+   ParFiniteElementSpace *fespace_lor{nullptr};
 
    Operator *ConstructOperator(ParFiniteElementSpace *fespace,
                                const Array<int> &essentialDofs)
@@ -76,8 +59,6 @@ class PoissonMultigridOperator : public MultigridOperator
                                  const Array<int> &essentialDofs,
                                  int coarseOrder)
    {
-      HypreParMatrix *hypreCoarseMat = nullptr;
-
       // Reuse matrix for AMG
       if (!partialAssembly && coarseOrder == 1)
       {
@@ -85,24 +66,19 @@ class PoissonMultigridOperator : public MultigridOperator
       }
       else
       {
-         ParBilinearForm *a_pc = nullptr;
-
          if (coarseOrder > 1)
          {
-            ParMesh *pmesh_lor =
-                new ParMesh(mesh, coarseOrder, BasisType::GaussLobatto);
-            H1_FECollection *fec_lor = new H1_FECollection(
-                1, mesh->Dimension(), BasisType::GaussLobatto);
-            ParFiniteElementSpace *fespace_lor =
-                new ParFiniteElementSpace(pmesh_lor, fec_lor);
+            pmesh_lor = new ParMesh(mesh, coarseOrder, BasisType::GaussLobatto);
+            fec_lor = new H1_FECollection(1, mesh->Dimension(),
+                                          BasisType::GaussLobatto);
+            fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
             a_pc = new ParBilinearForm(fespace_lor);
          }
          else
          {
-            H1_FECollection *fec_lor = new H1_FECollection(
-                1, mesh->Dimension(), BasisType::GaussLobatto);
-            ParFiniteElementSpace *fespace_lor =
-                new ParFiniteElementSpace(mesh, fec_lor);
+            fec_lor = new H1_FECollection(1, mesh->Dimension(),
+                                          BasisType::GaussLobatto);
+            fespace_lor = new ParFiniteElementSpace(mesh, fec_lor);
             a_pc = new ParBilinearForm(fespace_lor);
          }
 
@@ -112,12 +88,44 @@ class PoissonMultigridOperator : public MultigridOperator
 
          hypreCoarseMat = new HypreParMatrix();
          a_pc->FormSystemMatrix(essentialDofs, *hypreCoarseMat);
+         ownLORMatrix = true;
       }
 
       HypreBoomerAMG *amg = new HypreBoomerAMG(*hypreCoarseMat);
       amg->SetPrintLevel(-1);
       amg->SetMaxIter(2);
       return amg;
+   }
+
+ public:
+   PoissonMultigridOperator(bool partialAssembly_)
+       : MultigridOperator(), partialAssembly(partialAssembly_)
+   {
+   }
+
+   PoissonMultigridOperator(ParMesh *mesh, ParFiniteElementSpace *fespace,
+                            const Array<int> &essentialDofs, int coarseOrder,
+                            bool partialAssembly_)
+       : MultigridOperator(), partialAssembly(partialAssembly_)
+   {
+      Operator *coarseOpr = ConstructOperator(fespace, essentialDofs);
+      Solver *coarseSolver =
+          ConstructCoarseSolver(mesh, coarseOpr, essentialDofs, coarseOrder);
+
+      AddCoarseLevel(coarseOpr, coarseSolver, partialAssembly, true);
+   }
+
+   ~PoissonMultigridOperator()
+   {
+      MFEM_FORALL(i, forms.Size(), delete forms[i];);
+      if (ownLORMatrix)
+      {
+         delete hypreCoarseMat;
+      }
+      delete a_pc;
+      delete pmesh_lor;
+      delete fespace_lor;
+      delete fec_lor;
    }
 
    Solver *ConstructSmoother(ParFiniteElementSpace *fespace,
@@ -189,7 +197,7 @@ int main(int argc, char *argv[])
    int o_levels = 1;
    bool visualization = 1;
    bool partialAssembly = true;
-   const char *precondInput = "LOR";
+   const char *precondInput = "MG";
 
    enum class Method
    {
