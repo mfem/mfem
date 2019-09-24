@@ -64,6 +64,8 @@ public:
 
    ~FlowSolver();
 
+   void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
+
 protected:
    void PrintInfo();
    void SetTimeIntegrationCoefficients(int step);
@@ -71,7 +73,6 @@ protected:
    void ComputeCurl2D(ParGridFunction &u,
                       ParGridFunction &cu,
                       bool assume_scalar = false);
-   void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
    void Orthogonalize(Vector &v);
    void MeanZero(ParGridFunction &v);
 
