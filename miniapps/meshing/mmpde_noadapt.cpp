@@ -99,10 +99,11 @@ int main (int argc, char *argv[])
    //const char *mesh_file = "icf.mesh";
    const char *mesh_file = "../../data/star.mesh";
    int mesh_poly_deg     = 2;
-   int rs_levels         = 1;
+   int rs_levels         = 2;
    double jitter         = 0.1;
-   int metric_id         = 2;
+   int metric_id         = 7;
    int target_id         = 1;
+
 
    double lim_const      = 0.0;
    int quad_type         = 1;
@@ -114,14 +115,9 @@ int main (int argc, char *argv[])
    int verbosity_level   = 0;   
 
    double rel_tol        = 1e-7;
-   double dt             = 1e-5;
-   int max_it            = 5000;
+   double dt             = 1e-6;
+   int max_it            = 10000;
    int ode_mode          = 1;
-   double diff_norm_tol  = 1e-2; // if difference of norm increases more that diff_norm_tol -> decrease dt
-   double percent_tol    = 1e-4; // if percent change < percent_tol for 5 iter. -> increase dt
-   double dt_mult_inc    = 1.1;
-   double dt_mult_dec    = 0.7;
-
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -365,7 +361,7 @@ int main (int argc, char *argv[])
 
 
       // Weight of the original metric.
-   ConstantCoefficient *coeff1 = new ConstantCoefficient(1.0);
+ /*  ConstantCoefficient *coeff1 = new ConstantCoefficient(1.0);
    he_nlf_integ->SetCoefficient(*coeff1);
 
    TMOP_QualityMetric *metric2 = new TMOP_Metric_077;
@@ -380,8 +376,8 @@ int main (int argc, char *argv[])
    FunctionCoefficient coeff2(weight_fun);
    he_nlf_integ2->SetCoefficient(coeff2);
    MMPDEOperatorCombo oper(fespace, he_nlf_integ, he_nlf_integ2, ess_bdr, visc, ode_mode, move_bnd);
-   
-   //MMPDEOperator oper(fespace, he_nlf_integ, ess_bdr, visc, ode_mode, move_bnd);
+*/
+   MMPDEOperator oper(fespace, he_nlf_integ, ess_bdr, visc, ode_mode, move_bnd);
 
 
       if (visualization)
@@ -475,23 +471,13 @@ int main (int argc, char *argv[])
              << 0 << ".png" << endl;
    }
 
-   // initialize values
    double old_t = t, old_delta_te = 0.0;
    Vector old_vx(vx);
-   int steps_dt = 0;
-
-   double initial_norm = x.Norml2();
-   double F_initial_value = oper.GetEnergy(x);
-
-   ode_solver->Step(vx, t, dt);
-   vx = old_vx;
-
+   double old_diff_norm = 10000.0;
    double old_norm = x.Norml2();
-   double old_diff_norm = fabs(initial_norm - old_norm);
-   double F_value_old = oper.GetEnergy(x);
 
-   double F_diff = fabs(F_initial_value - F_value_old);
-   double percent_old = 100*F_diff;
+   double F_initial_value = oper.GetEnergy(x);
+   double F_value_old = 100.0;
 
    for (int i = 1; i < max_it; i++)
    {
@@ -501,69 +487,28 @@ int main (int argc, char *argv[])
       double F_value = oper.GetEnergy(x);
       double diff_norm = fabs(old_norm - new_norm);
 
-      F_diff = fabs(F_value_old - F_value);
-      double percent = 100*F_diff/F_value_old;
-      cout << "percent" << percent << endl;
-
       cout.precision(10);
-
-      // if different norm begins to increase, decrease dt
-      if ( diff_norm - old_diff_norm > diff_norm_tol )
-      {
-         cout << "ΔDN increased. Recovering previous state. "
-                  << "Decreasing dt: " << dt << " --> ";
-               dt *= dt_mult_dec;
-               cout << dt << endl;
-
-         i--;
-         t = old_t;
-         
-         new_norm = old_norm;
-         vx = old_vx;
-         F_value = F_value_old;
-         percent = percent_old;
-         diff_norm = old_diff_norm;
-         continue;
-      }
-
-      // convergence condition
+      
       if ( diff_norm < rel_tol )
       {
          std::cout << "Converged!" << std::endl;
-         std::cout << "Final difference norm: " << F_diff << std::endl;
+         std::cout << "Final difference norm: " << diff_norm << std::endl;
          std::clock_t c_end = std::clock();
          double time_elapsed_ms = 1000.0 * (c_end-c_start) / CLOCKS_PER_SEC;
          std::cout << "CPU time used: " << time_elapsed_ms / 1000.0 << " s\n";
          std::cout << "Initial F: " << F_initial_value << std::endl;
          std::cout << "Final F: " << F_value << std::endl;
-         std::cout << "Final dt: " << dt << std::endl;
          break;
       }
-      // norm did not increase or converge
       else
       {
          std::cout << i << ": " << diff_norm << std::endl;
-
-         // if percent is less than given size for a number of steps, increase dt by dt_mult
-         if (percent < percent_tol)
-         {
-            if (steps_dt == 10)
-            {
-               cout << "(increasing dt: " << dt << " --> ";
-               dt *= dt_mult_inc;
-               cout << dt << ')' << endl;
-               steps_dt = 0;
-            }
-            else
-               steps_dt++;
-         }
 
          old_norm = new_norm;
          old_vx = vx;
          old_t = t;
          old_diff_norm = diff_norm;
          F_value_old = F_value;
-         percent_old = percent;
          continue;
       }
 
@@ -584,22 +529,23 @@ int main (int argc, char *argv[])
       vis_metric(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
    }
 
-   // Print initial determinant.
     cout << "Minimum det(J) of the initial mesh is " << tauval_initial << endl;
 
-   // Calculate and print final determinant.
-   tauval = infinity();
-   const int NE2 = mesh->GetNE();
-   for (int i = 0; i < NE2; i++)
-   {
-      ElementTransformation *transf = mesh->GetElementTransformation(i);
-      for (int j = 0; j < ir->GetNPoints(); j++)
+
+      tauval = infinity();
+      const int NE2 = mesh->GetNE();
+      for (int i = 0; i < NE2; i++)
       {
-         transf->SetIntPoint(&ir->IntPoint(j));
-         tauval = min(tauval, transf->Jacobian().Det());
+         ElementTransformation *transf = mesh->GetElementTransformation(i);
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            transf->SetIntPoint(&ir->IntPoint(j));
+            tauval = min(tauval, transf->Jacobian().Det());
+         }
       }
-   }
-   cout << "Minimum det(J) of the final mesh is " << tauval << endl;
+      cout << "Minimum det(J) of the final mesh is " << tauval << endl;
+
+
 
    // Visualize the mesh displacement.
    if (visualization)
@@ -617,7 +563,7 @@ int main (int argc, char *argv[])
            << "keys jRmclA" << endl;
    }
 
-   // Free the used memory.
+   // 24. Free the used memory.
    delete target_c;
    delete metric;
    delete mesh;
@@ -636,7 +582,7 @@ double weight_fun(const Vector &x)
    return l2;
 }
 
-// MMPDEOperator details.
+// MMPDEOperator Details
 MMPDEOperator::MMPDEOperator(FiniteElementSpace &f,
                                           TMOP_Integrator *he_nlf_integ,
                                            Array<int> &ess_bdr,
@@ -720,7 +666,6 @@ MMPDEOperator::MMPDEOperator(FiniteElementSpace &f,
    ode_mode = _ode_mode;
 }
 
-//MMPDEOperatorCombo details.
 MMPDEOperatorCombo::MMPDEOperatorCombo(FiniteElementSpace &f,
                                           TMOP_Integrator *he_nlf_integ, TMOP_Integrator *he_nlf_integ2,
                                            Array<int> &ess_bdr,
@@ -834,7 +779,7 @@ void MMPDEOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 }
 
 
-// MMPDEComboOperator Mult
+// MMPDEOperator Mult
 void MMPDEOperatorCombo::Mult(const Vector &vx, Vector &dvx_dt) const
 {
    int sc = height/2;
@@ -862,13 +807,11 @@ void MMPDEOperatorCombo::Mult(const Vector &vx, Vector &dvx_dt) const
    }
 }
 
-// Get F value for MMPDEOperator
 double MMPDEOperator::GetEnergy(Vector &x) const
 {
    return F.GetEnergy(x);
 }
 
-// Get F value for MMPDEOperatorCombo
 double MMPDEOperatorCombo::GetEnergy(Vector &x) const
 {
    return F.GetEnergy(x);
