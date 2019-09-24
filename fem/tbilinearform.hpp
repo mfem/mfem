@@ -202,8 +202,8 @@ public:
       {
          void* result;
          const int size = ((NE+TE-1)/TE)*BE*sizeof(p_assembled_t);
-         const auto alloc_failed = posix_memalign(&result, 32, size);
-         if (alloc_failed) { throw ::std::bad_alloc(); }
+         posix_memalign(&result, 32, size);
+         if (!result) { throw ::std::bad_alloc(); }
          assembled_data = (p_assembled_t*) result;
       }
       for (int el = 0; el < NE; el += TE)
