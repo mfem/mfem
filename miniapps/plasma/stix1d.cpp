@@ -137,7 +137,7 @@ void B_func(const Vector &x, Vector &E);
 // any function could be used.
 void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
-
+/*
 class StixLCoefficient : public Coefficient
 {
 private:
@@ -146,19 +146,26 @@ private:
    const Vector & number_;
    const Vector & charge_;
    const Vector & mass_;
+   const Vector & temp_;
    mutable Vector BVec_;
+
+  bool realPart_;
 
 public:
    StixLCoefficient(double omega, VectorCoefficient &B,
                     const Vector & number,
                     const Vector & charge,
-                    const Vector & mass)
+                    const Vector & mass,
+                    const Vector & temp,
+          bool realPart = true)
       : omega_(omega),
         B_(B),
         number_(number),
         charge_(charge),
         mass_(mass),
-        BVec_(3)
+        temp_(temp),
+        BVec_(3),
+   realPart_(realPart)
    {}
 
    double Eval(ElementTransformation &T,
@@ -166,10 +173,12 @@ public:
    {
       B_.Eval(BVec_, T, ip);
       double BMag = BVec_.Norml2();
-      return L_cold_plasma(omega_, BMag, number_, charge_, mass_);
+      complex<double> L = L_cold_plasma(omega_, BMag, number_, charge_,
+               mass_, temp_);
+      return realPart_ ? L.real() : L.imag();
    }
 };
-
+*/
 class ColdPlasmaPlaneWave: public VectorCoefficient
 {
 public:
@@ -179,6 +188,7 @@ public:
                        const Vector & number,
                        const Vector & charge,
                        const Vector & mass,
+                       const Vector & temp,
                        bool realPart = true);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
@@ -204,22 +214,30 @@ private:
    const Vector & numbers_;
    const Vector & charges_;
    const Vector & masses_;
+   const Vector & temps_;
 
-   double S_;
-   double D_;
-   double P_;
+   complex<double> S_;
+   complex<double> D_;
+   complex<double> P_;
 };
 
-void Update(ParFiniteElementSpace & HCurlFESpace,
+void Update(ParFiniteElementSpace & H1FESpace,
+            ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
             VectorCoefficient & BCoef,
+            Coefficient & TCoef,
+            Coefficient & rhoCoef,
+            int & size_h1,
             int & size_l2,
             const Vector & numbers,
             Array<int> & density_offsets,
+            Array<int> & temperature_offsets,
             BlockVector & density,
-            ParGridFunction & density_gf);
+            BlockVector & temperature,
+            ParGridFunction & density_gf,
+            ParGridFunction & temperature_gf);
 
 //static double freq_ = 1.0e9;
 
@@ -263,6 +281,12 @@ int main(int argc, char *argv[])
    Vector numbers;
    Vector charges;
    Vector masses;
+   Vector temps;
+
+   PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   Vector dpp;
+   Vector tpp;
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbcs; // Sheath BC attributes
@@ -283,6 +307,26 @@ int main(int argc, char *argv[])
    //               "Number of ion species.");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
+   args.AddOption((int*)&dpt, "-dp", "--density-profile",
+                  "Density Profile Type (for ions): \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyperbolic Tangent.");
+   args.AddOption(&dpp, "-dpp", "--density-profile-params",
+                  "Density Profile Parameters: \n"
+                  "   CONSTANT: density value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient.");
+   args.AddOption((int*)&tpt, "-tp", "--temperature-profile",
+                  "Temperature Profile Type: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyperbolic Tangent.");
+   args.AddOption(&tpp, "-tpp", "--temperature-profile-params",
+                  "Temperature Profile Parameters: \n"
+                  "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -370,8 +414,38 @@ int main(int argc, char *argv[])
    if (numbers.Size() == 0)
    {
       numbers.SetSize(2);
-      numbers[0] = 1.0e19;
-      numbers[1] = 1.0e19;
+      if (dpp.Size() == 0)
+      {
+         numbers[0] = 1.0e19;
+         numbers[1] = 1.0e19;
+      }
+      else
+      {
+         switch (dpt)
+         {
+            case PlasmaProfile::CONSTANT:
+               numbers[0] = dpp[0];
+               numbers[1] = dpp[0];
+               break;
+            case PlasmaProfile::GRADIENT:
+               numbers[0] = dpp[0];
+               numbers[1] = dpp[0];
+               break;
+            case PlasmaProfile::TANH:
+               numbers[0] = dpp[1];
+               numbers[1] = dpp[1];
+               break;
+            default:
+               numbers[0] = 1.0e19;
+               numbers[1] = 1.0e19;
+               break;
+         }
+      }
+   }
+   if (dpp.Size() == 0)
+   {
+      dpp.SetSize(1);
+      dpp[0] = 1.0e19;
    }
    if (charges.Size() == 0)
    {
@@ -384,6 +458,39 @@ int main(int argc, char *argv[])
       masses.SetSize(2);
       masses[0] = me_u_;
       masses[1] = 2.01410178;
+   }
+   if (temps.Size() == 0)
+   {
+      temps.SetSize(2);
+      if (tpp.Size() == 0)
+      {
+         tpp.SetSize(1);
+         tpp[0] = 1.0e3;
+         temps[0] = tpp[0];
+         temps[1] = tpp[0];
+      }
+      else
+      {
+         switch (tpt)
+         {
+            case PlasmaProfile::CONSTANT:
+               temps[0] = tpp[0];
+               temps[1] = tpp[0];
+               break;
+            case PlasmaProfile::GRADIENT:
+               temps[0] = tpp[0];
+               temps[1] = tpp[0];
+               break;
+            case PlasmaProfile::TANH:
+               temps[0] = tpp[1];
+               temps[1] = tpp[1];
+               break;
+            default:
+               temps[0] = 1.0e3;
+               temps[1] = 1.0e3;
+               break;
+         }
+      }
    }
    if (num_elements <= 0)
    {
@@ -425,13 +532,18 @@ int main(int argc, char *argv[])
 
    if (mpi.Root())
    {
-      double lam0 = c0_ / freq;
+      // double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
-      double S = S_cold_plasma(omega, Bmag, numbers, charges, masses);
-      double P = P_cold_plasma(omega, numbers, charges, masses);
-      double D = D_cold_plasma(omega, Bmag, numbers, charges, masses);
-      double R = R_cold_plasma(omega, Bmag, numbers, charges, masses);
-      double L = L_cold_plasma(omega, Bmag, numbers, charges, masses);
+      std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
+                                             charges, masses, temps);
+      std::complex<double> P = P_cold_plasma(omega, numbers,
+                                             charges, masses, temps);
+      std::complex<double> D = D_cold_plasma(omega, Bmag, numbers,
+                                             charges, masses, temps);
+      std::complex<double> R = R_cold_plasma(omega, Bmag, numbers,
+                                             charges, masses, temps);
+      std::complex<double> L = L_cold_plasma(omega, Bmag, numbers,
+                                             charges, masses, temps);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -449,7 +561,7 @@ int main(int argc, char *argv[])
               << '\t'
               << omega_c(Bmag, charges[i], masses[i]) / (2.0e9 * M_PI) << '\n';
       }
-
+      /*
       cout << "\nWavelengths (meters):\n";
       cout << "   Free Space Wavelength: " << lam0 << '\n';
       if (S < D)
@@ -486,6 +598,7 @@ int main(int argc, char *argv[])
          cout << "   Oscillating X mode:    " << lam0 * sqrt(S/(S*S-D*D))
               << '\n';
       }
+      */
       cout << endl;
    }
 
@@ -620,7 +733,7 @@ int main(int argc, char *argv[])
    }
    VectorConstantCoefficient kCoef(kVec);
 
-   StixLCoefficient LCoef(omega, *BCoef, numbers, charges, masses);
+   // StixLCoefficient LCoef(omega, *BCoef, numbers, charges, masses);
    /*
    double ion_frac = 0.0;
    ConstantCoefficient rhoCoef1(rho1);
@@ -628,35 +741,50 @@ int main(int argc, char *argv[])
    ConstantCoefficient rhoCoef3(rhoCoef1.constant * ion_frac);
    ConstantCoefficient tempCoef(10.0 * q_);
    */
-   // H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
+   H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
 
    ParGridFunction BField(&HDivFESpace);
-   ParGridFunction LField(&L2FESpace);
-   // ParGridFunction temperature_gf;
+   // ParGridFunction LField(&L2FESpace);
+   ParGridFunction temperature_gf;
    ParGridFunction density_gf;
 
    BField.ProjectCoefficient(*BCoef);
-   LField.ProjectCoefficient(LCoef);
+   // LField.ProjectCoefficient(LCoef);
 
-   // int size_h1 = H1FESpace.GetVSize();
+   int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
 
    Array<int> density_offsets(numbers.Size() + 1);
-   // Array<int> temperature_offsets(nspecies + 2);
+   Array<int> temperature_offsets(numbers.Size() + 2);
 
    density_offsets[0] = 0;
-   // temperature_offsets[0] = 0;
+   temperature_offsets[0] = 0;
    for (int i=1; i<=numbers.Size(); i++)
    {
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
-      // temperature_offsets[i + 1] = temperature_offsets[i] + size_h1;
+      temperature_offsets[i + 1] = temperature_offsets[i] + size_h1;
    }
 
    BlockVector density(density_offsets);
-   // BlockVector temperature(temperature_offsets);
+   BlockVector temperature(temperature_offsets);
+
+   PlasmaProfile rhoCoef(dpt, dpp);
+   PlasmaProfile tempCoef(tpt, tpp);
+
+   for (int i=0; i<numbers.Size(); i++)
+   {
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.ProjectCoefficient(rhoCoef);
+   }
+
+   for (int i=0; i<=numbers.Size(); i++)
+   {
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.ProjectCoefficient(tempCoef);
+   }
    /*
    for (int i=0; i<=nspecies; i++)
    {
@@ -674,12 +802,6 @@ int main(int argc, char *argv[])
    density_gf.MakeRef(&L2FESpace, density.GetBlock(2));
    density_gf.ProjectCoefficient(rhoCoef3);
    */
-   for (int i=0; i<numbers.Size(); i++)
-   {
-      ConstantCoefficient rhoCoef(numbers[i]);
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
-      density_gf.ProjectCoefficient(rhoCoef);
-   }
 
    // Create a coefficient describing the magnetic permeability
    ConstantCoefficient muInvCoef(1.0 / mu0_);
@@ -692,20 +814,20 @@ int main(int argc, char *argv[])
    SetupComplexAdmittanceCoefs(pmesh, sbcs, etaInvReCoef, etaInvImCoef);
 
    // Create tensor coefficients describing the dielectric permittivity
-   DielectricTensor epsilon_real(BField, density,
-                                 L2FESpace,
+   DielectricTensor epsilon_real(BField, density, temperature,
+                                 L2FESpace, H1FESpace,
                                  omega, charges, masses, true);
-   DielectricTensor epsilon_imag(BField, density,
-                                 L2FESpace,
+   DielectricTensor epsilon_imag(BField, density, temperature,
+                                 L2FESpace, H1FESpace,
                                  omega, charges, masses, false);
-   SPDDielectricTensor epsilon_abs(BField, density,
-                                   L2FESpace,
+   SPDDielectricTensor epsilon_abs(BField, density, temperature,
+                                   L2FESpace, H1FESpace,
                                    omega, charges, masses);
 
    ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
-                               numbers, charges, masses, true);
+                               numbers, charges, masses, temps, true);
    ColdPlasmaPlaneWave EImCoef(wave_type[0], omega, BVec,
-                               numbers, charges, masses, false);
+                               numbers, charges, masses, temps, false);
 
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
    {
@@ -739,11 +861,11 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      socketstream sock_Er, sock_Ei, sock_B, sock_L;
+      socketstream sock_Er, sock_Ei, sock_B;//, sock_L;
       sock_Er.precision(8);
       sock_Ei.precision(8);
       sock_B.precision(8);
-      sock_L.precision(8);
+      // sock_L.precision(8);
 
       Wx += 2 * offx;
       VisualizeField(sock_Er, vishost, visport,
@@ -761,8 +883,8 @@ int main(int argc, char *argv[])
       VisualizeField(sock_B, vishost, visport,
                      BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
 
-      VisualizeField(sock_L, vishost, visport,
-                     LField, "L", Wx, Wy, Ww, Wh);
+      // VisualizeField(sock_L, vishost, visport,
+      //                LField, "L", Wx, Wy, Ww, Wh);
    }
 
    // Setup coefficients for Dirichlet BC
@@ -798,7 +920,7 @@ int main(int argc, char *argv[])
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
-      visit_dc.RegisterField("L", &LField);
+      // visit_dc.RegisterField("L", &LField);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
@@ -912,8 +1034,10 @@ int main(int argc, char *argv[])
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
-      Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
-             size_l2, numbers, density_offsets, density, density_gf);
+      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
+             tempCoef, rhoCoef, size_h1, size_l2, numbers, density_offsets,
+             temperature_offsets, density, temperature, density_gf,
+             temperature_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -922,8 +1046,10 @@ int main(int argc, char *argv[])
          pmesh.Rebalance();
 
          // Update again after rebalancing
-         Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
-                size_l2, numbers, density_offsets, density, density_gf);
+         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
+                tempCoef, rhoCoef, size_h1, size_l2, numbers, density_offsets,
+                temperature_offsets, density, temperature, density_gf,
+                temperature_gf);
          CPD.Update();
       }
    }
@@ -941,17 +1067,25 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void Update(ParFiniteElementSpace & HCurlFESpace,
+void Update(ParFiniteElementSpace & H1FESpace,
+            ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
             VectorCoefficient & BCoef,
+            Coefficient & TCoef,
+            Coefficient & rhoCoef,
+            int & size_h1,
             int & size_l2,
             const Vector & numbers,
             Array<int> & density_offsets,
+            Array<int> & temperature_offsets,
             BlockVector & density,
-            ParGridFunction & density_gf)
+            BlockVector & temperature,
+            ParGridFunction & density_gf,
+            ParGridFunction & temperature_gf)
 {
+   H1FESpace.Update();
    HCurlFESpace.Update();
    HDivFESpace.Update();
    L2FESpace.Update();
@@ -970,6 +1104,18 @@ void Update(ParFiniteElementSpace & HCurlFESpace,
       ConstantCoefficient rhoCoef(numbers[i]);
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
+   }
+
+   size_h1 = H1FESpace.GetVSize();
+   for (int i=1; i<=numbers.Size(); i++)
+   {
+      temperature_offsets[i] = temperature_offsets[i - 1] + size_h1;
+   }
+   temperature.Update(temperature_offsets);
+   for (int i=0; i<numbers.Size(); i++)
+   {
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.ProjectCoefficient(TCoef);
    }
 }
 
@@ -1123,6 +1269,7 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
                                          const Vector & number,
                                          const Vector & charge,
                                          const Vector & mass,
+                                         const Vector & temp,
                                          bool realPart)
    : VectorCoefficient(3),
      type_(type),
@@ -1136,11 +1283,12 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
      B_(B),
      numbers_(number),
      charges_(charge),
-     masses_(mass)
+     masses_(mass),
+     temps_(temp)
 {
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_);
+   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
+   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
+   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_);
 }
 
 void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
@@ -1152,12 +1300,17 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
    Vector x(x_data, 3);
    T.Transform(ip, x);
 
+   /// For now we'll assume S, P, and D are real-valued. Fix this
+   double S = S_.real();
+   double D = D_.real();
+   double P = P_.real();
+
    switch (type_)
    {
       case 'L':
       {
-         bool osc = S_ - D_ > 0.0;
-         double kL = omega_ * sqrt(fabs(S_-D_)) / c0_;
+         bool osc = S - D > 0.0;
+         double kL = omega_ * sqrt(fabs(S-D)) / c0_;
 
          if (realPart_)
          {
@@ -1175,8 +1328,8 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
       break;
       case 'R':
       {
-         bool osc = S_ + D_ > 0.0;
-         double kR = omega_ * sqrt(fabs(S_+D_)) / c0_;
+         bool osc = S + D > 0.0;
+         double kR = omega_ * sqrt(fabs(S+D)) / c0_;
 
          if (realPart_)
          {
@@ -1194,8 +1347,8 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
       break;
       case 'O':
       {
-         bool osc = P_ > 0.0;
-         double kO = omega_ * sqrt(fabs(P_)) / c0_;
+         bool osc = P > 0.0;
+         double kO = omega_ * sqrt(fabs(P)) / c0_;
 
          if (realPart_)
          {
@@ -1213,30 +1366,30 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
       break;
       case 'X':
       {
-         bool osc = (S_ * S_ - D_ * D_) / S_ > 0.0;
-         double kE = omega_ * sqrt(fabs((S_ * S_ - D_ * D_) / S_)) / c0_;
+         bool osc = (S * S - D * D) / S > 0.0;
+         double kE = omega_ * sqrt(fabs((S * S - D * D) / S)) / c0_;
 
          if (realPart_)
          {
-            V[0] = osc ? -D_ * sin(kE * x[0]) : 0.0;
+            V[0] = osc ? -D * sin(kE * x[0]) : 0.0;
             V[1] = 0.0;
-            V[2] = osc ?  S_ * cos(kE * x[0]) : S_ * exp(-kE * x[0]);
+            V[2] = osc ?  S * cos(kE * x[0]) : S * exp(-kE * x[0]);
          }
          else
          {
-            V[0] = osc ? -D_ * cos(kE * x[0]) : -D_ * exp(-kE * x[0]);
+            V[0] = osc ? -D * cos(kE * x[0]) : -D * exp(-kE * x[0]);
             V[1] = 0.0;
-            V[2] = osc ? -S_ * sin(kE * x[0]) : 0.0;
+            V[2] = osc ? -S * sin(kE * x[0]) : 0.0;
          }
-         V /= sqrt(S_ * S_ + D_ * D_);
+         V /= sqrt(S * S + D * D);
       }
       break;
       case 'J':
       {
          if (k_.Size() == 0)
          {
-            bool osc = (S_ * S_ - D_ * D_) / S_ > 0.0;
-            double kE = omega_ * sqrt(fabs((S_ * S_ - D_ * D_) / S_)) / c0_;
+            bool osc = (S * S - D * D) / S > 0.0;
+            double kE = omega_ * sqrt(fabs((S * S - D * D) / S)) / c0_;
 
             double (*sfunc)(double) = osc ?
                                       static_cast<double (*)(double)>(&sin) :
@@ -1250,7 +1403,7 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
 
             if (realPart_)
             {
-               V[0] = D_ / S_;
+               V[0] = D / S;
                V[1] = 0.0;
                V[2] = 0.0;
             }
