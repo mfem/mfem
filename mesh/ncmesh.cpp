@@ -757,6 +757,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
       int midf = nodes.FindId(mid23, mid41);
       if (midf >= 0)
       {
+#if 0
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
 
          int rs = ref_stack.Size();
@@ -791,6 +792,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             reparents.DeleteAll();
          }
          return;
+#endif
       }
    }
 
