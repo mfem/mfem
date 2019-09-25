@@ -22,7 +22,7 @@ struct par_patch_nod_info
    // Print
    void Print(int rank_id);
 private:
-   int ref_levels=0;;
+   int ref_levels=0;
    ParMesh pmesh;
    FiniteElementCollection *aux_fec=nullptr;
    ParFiniteElementSpace *aux_fespace=nullptr;
@@ -33,6 +33,7 @@ struct par_patch_dof_info
    int mynrpatch;
    int nrpatch;
    vector<Array<int>> patch_tdofs;
+   vector<Array<int>> patch_local_tdofs;
    // constructor
    par_patch_dof_info(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace);
    void Print();
@@ -44,7 +45,7 @@ struct par_patch_assembly
    int mynrpatch;
    int nrpatch;
    Array<int>tdof_offsets;
-   vector<Array<int>> mypatch_tdofs;
+   vector<Array<int>> patch_other_tdofs;
    HypreParMatrix * A = nullptr;
    ParFiniteElementSpace *fespace=nullptr;
    // constructor
@@ -56,7 +57,22 @@ struct par_patch_assembly
 
 
 bool its_a_patch(int iv, Array<int> patch_ids);
-// void GetColumnValues(int tdof_i,Array<int> tdof_j, HypreParMatrix * A, 
-//                      Array<int> & cols, Array<double> & vals);
-void GetColumnValues(int tdof_i,Array<int> tdof_j, SparseMatrix & diag ,
-SparseMatrix & offd, int * cmap, int * row_start, Array<int> &cols, Array<double> &vals);
+
+SparseMatrix * GetDiagColumnValues(const Array<int> & tdof_i, SparseMatrix & diag,
+const int * row_start);
+
+void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j, SparseMatrix & offd, const int * cmap, 
+                         const int * row_start, SparseMatrix * PatchMat);
+
+void GetArrayIntersection(const Array<int> & A, const Array<int> & B, Array<int>  & C); 
+
+void GetColumnValues(const int tdof_i,const Array<int> & tdof_j, SparseMatrix & diag ,
+SparseMatrix & offd, const int *cmap, const int * row_start, Array<int> &cols, Array<double> &vals);
+
+
+int GetNumColumns(const int tdof_i, const Array<int> & tdof_j, SparseMatrix & diag,
+SparseMatrix & offd, const int * cmap, const int * row_start);
+
+void GetColumnValues2(const int tdof_i,const Array<int> & tdof_j, SparseMatrix & diag ,
+SparseMatrix & offd, const int *cmap, const int * row_start, Array<int> &cols, Array<double> &vals);
+

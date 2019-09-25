@@ -1,7 +1,8 @@
 
 #include "mfem.hpp"
 #include "Schwarzp.hpp"
-
+#include "util.hpp"
+#include <iterator>
 #include <fstream>
 #include <iostream>
 
@@ -288,7 +289,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    // First the vertices
    nrpatch = patch_nodes->nrpatch;
    mynrpatch = patch_nodes->mynrpatch;
-   vector<Array<int>> patch_local_tdofs(nrpatch);
+   patch_local_tdofs.resize(nrpatch);
 
    int nrvert = fespace->GetNV();
    for (int i = 0; i < nrvert; i++)
@@ -427,6 +428,9 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
                      &patch_tdofs[i][0],new_count,new_displs,MPI_INT,new_comm);
       }
    }
+
+   // Alterative implementation with alltoallv and only the original comm
+   // each process needs to send it's tdof info to the appropriate ranks
 }
 
 void par_patch_dof_info::Print()
@@ -454,152 +458,275 @@ void par_patch_dof_info::Print()
 par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace_, HypreParMatrix * A_) 
    : fespace(fespace_), A(A_)
 {
+
+   //TODO: 
+   // 1. Avoid sending zeros
+   /* In order to avoid zeros the following have to be implemented 
+     a. the patch list has to be splitted into two lists, the one will
+     contain the values that are owned by the processor and the other the ones
+     that are not. This is for deciding to search in diag or offd
+     b. After these lists are constructed then for the diag part there is no 
+        need for searching cause the diag can be sorted and the indices can be found
+        using the row_starts
+     c. For the offd there is still need for searching but only through the list that
+        containes the dofs not owned by the processor*/
+   // 2. Avoid sending to itself(a rank)
    comm = A->GetComm();
    int num_procs, myid;
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
    A->Threshold(0.0);
    compute_trueoffsets();
-
-   par_patch_dof_info *patch_tdof_info = new par_patch_dof_info(cpmesh_, ref_levels_,fespace);
-
    SparseMatrix diag;
    SparseMatrix offd;
    int *cmap;
    A->GetDiag(diag);
    A->GetOffd(offd,cmap);
    int *row_start = A->GetRowStarts();
-   nrpatch = patch_tdof_info->nrpatch; 
+   // diag.SortColumnIndices();
 
+   par_patch_dof_info *patch_tdof_info = new par_patch_dof_info(cpmesh_, ref_levels_,fespace);
+   nrpatch = patch_tdof_info->nrpatch; 
+   Array<int> host_rank(nrpatch); host_rank = -1;
+   // This can be changed later. For now the required lists are
+   // constructed from the whole list 
+   patch_other_tdofs.resize(nrpatch);
+   vector<Array<int>> patch_owned_other_tdofs(nrpatch);
+   for (int ip = 0; ip < nrpatch; ip++)
+   {
+      int ndof = patch_tdof_info->patch_tdofs[ip].Size();
+
+      if (ndof !=0 )
+      {
+         host_rank[ip] = get_rank(patch_tdof_info->patch_tdofs[ip][0]);
+         for (int i=0; i<ndof; i++)
+         {
+            int tdof = patch_tdof_info->patch_tdofs[ip][i];
+            int tdof_rank = get_rank(tdof);
+            if (tdof_rank != host_rank[ip])
+            {
+               patch_other_tdofs[ip].Append(tdof);
+            }
+         }
+      GetArrayIntersection(patch_other_tdofs[ip], patch_tdof_info->patch_local_tdofs[ip], patch_owned_other_tdofs[ip]);
+      }
+   }
+
+
+   // // For the construction of the matrix of a patch we follow the following procedure. 
+   // // The matrix will be split to a 2x2 block matrix where: 
+   // // Block (0,0) is constructed by the dofs owned by the processor (using diag and RAP)
+   // // Block (0,1) is constructed by the dofs owned by the processor (using offd) 
+   // // Block (1,0) is the Transpose of (0,1) (for now the support is only for symmetric matrices)
+   // // Block (1,1) has to be communicated among processors. Its constructed by the dofs not owned by the processor.
+
+   Array<SparseMatrix * > PatchMat00(nrpatch);
+
+   //--------------------------------------------------------------------------------------
+   // Construction of (0,0): This is done with RAP
+   //--------------------------------------------------------------------------------------
+   for (int ip = 0; ip < nrpatch; ip++)
+   {
+      if (myid == host_rank[ip])
+      {
+         int ndof = patch_tdof_info->patch_local_tdofs[ip].Size();
+         // PatchMat00[ip] = new SparseMatrix(ndof,ndof);
+         // loop through rows
+         PatchMat00[ip] =
+         GetDiagColumnValues(patch_tdof_info->patch_local_tdofs[ip],diag, row_start);
+      }  
+   }
+
+   //--------------------------------------------------------------------------------------
+   // Construction of (0,1) and its transpose
+   //--------------------------------------------------------------------------------------
+   // This is done with out communication
+   // loop through patches
+   Array<SparseMatrix * > PatchMat01(nrpatch);
+   Array<SparseMatrix * > PatchMat10(nrpatch);
+   for (int ip = 0; ip < nrpatch; ip++)
+   {
+      if (myid == host_rank[ip])
+      {
+         int num_rows = patch_tdof_info->patch_local_tdofs[ip].Size();
+         int num_cols = patch_other_tdofs[ip].Size();
+         PatchMat01[ip] = new SparseMatrix(num_rows, num_cols);
+         GetOffdColumnValues(patch_tdof_info->patch_local_tdofs[ip],patch_other_tdofs[ip],offd, cmap,row_start, PatchMat01[ip]);
+         PatchMat01[ip]->Finalize();
+         PatchMat10[ip] = new SparseMatrix(num_cols, num_rows);
+         PatchMat10[ip] = Transpose(*PatchMat01[ip]);
+      }  
+   }
+
+   //--------------------------------------------------------------------------------------
+   // Construction of (1,1)
+   //--------------------------------------------------------------------------------------
    // 1. Send info (sendbuff, sentcounts, send sdispls)
    // Each proccess computes and groups together an array of sendbuff. There will be
    // one sendbuff for all patches
-   
-   // all processes loop through all the patches. For now allow a rank to send to itself
-   // need a counter of sends to each rank
+   // all processes loop through all the patches. 
    Array<int> send_count(num_procs);
    Array<int> send_displ(num_procs);
    Array<int> recv_count(num_procs);
    Array<int> recv_displ(num_procs);
    send_count = 0; send_displ = 0;
    recv_count = 0; recv_displ = 0;
+
    for (int ip = 0; ip < nrpatch; ip++)
    {
-      int ndof = patch_tdof_info->patch_tdofs[ip].Size();
       // loop through the dofs and identify their ranks
-      if (ndof != 0) 
+      int sendnum_rows = patch_owned_other_tdofs[ip].Size();
+      int send_ndof = patch_other_tdofs[ip].Size();
+      for (int i =0; i<sendnum_rows; i++)
       {
-         int host_rank = get_rank(patch_tdof_info->patch_tdofs[ip][0]);
-         for (int i = 0; i<ndof; i++)
+         int tdof = patch_owned_other_tdofs[ip][i];
+         int tdof_rank = get_rank(tdof);
+         if (myid == tdof_rank)
          {
-            int tdof = patch_tdof_info->patch_tdofs[ip][i];
-            // find its rank
-            int tdof_rank = get_rank(tdof);
-            if (myid == tdof_rank) send_count[host_rank] += ndof;  
-            if (myid == host_rank) recv_count[tdof_rank] += ndof;  
+            int k = GetNumColumns(tdof,patch_other_tdofs[ip],diag, offd, cmap, row_start);
+            // send_count[host_rank[ip]] += k+1;
+            // pass one more that holds how many
+            send_count[host_rank[ip]] += k+2;
          }
-      }
+      } 
    }
+
+   // comunicate so that recv_count is constructed
+   MPI_Alltoall(&send_count[0],1,MPI_INT,&recv_count[0],1,MPI_INT,comm);
    for (int k=0; k<num_procs-1; k++)
    {
       send_displ[k+1] = send_displ[k] + send_count[k];
       recv_displ[k+1] = recv_displ[k] + recv_count[k];
    }
-
    int sbuff_size = send_count.Sum();
    int rbuff_size = recv_count.Sum();
    // now allocate space for the send buffer
-   Array<double> sendbuf(sbuff_size);
-   sendbuf = 0;
-   Array<int> soffs(num_procs);
-   soffs = 0;
-   // construct the data now the data will be placed according to process offsets and
+   Array<double> sendbuf(sbuff_size);  sendbuf = 0;
+   Array<int> sendmap(sbuff_size);  sendmap = 0;
+   Array<int> soffs(num_procs); soffs = 0;
+
+   // now the data will be placed according to process offsets
    for (int ip = 0; ip < nrpatch; ip++)
    {
-      int ndof = patch_tdof_info->patch_tdofs[ip].Size();
       // loop through the dofs and identify their ranks
-      if (ndof != 0) 
+      int sendnum_rows = patch_owned_other_tdofs[ip].Size();
+      for (int i = 0; i<sendnum_rows; i++)
       {
-         int host_rank = get_rank(patch_tdof_info->patch_tdofs[ip][0]);
-         for (int i = 0; i<ndof; i++)
+         int tdof = patch_owned_other_tdofs[ip][i];
+         // find its rank
+         int tdof_rank = get_rank(tdof);
+         if (myid == tdof_rank)
          {
-            int tdof = patch_tdof_info->patch_tdofs[ip][i];
-            // find its rank
-            int tdof_rank = get_rank(tdof);
-            if (myid == tdof_rank)
+            Array<int>cols;
+            Array<double>vals;
+            GetColumnValues2(tdof,patch_other_tdofs[ip],diag,offd, cmap,row_start, cols,vals);
+            int j = send_displ[host_rank[ip]] + soffs[host_rank[ip]];
+            int size = cols.Size();
+            // soffs[host_rank[ip]] += size;
+            // Pass one more to hold the size
+            soffs[host_rank[ip]] += size+1;
+            // need to save and communicate these offsets for extraction from recv_buff
+            // // For now we do the copy (will be changed later)
+            sendbuf[j] = 0.0;
+            sendmap[j] = size;
+            for (int k=0; k<size ; k++)
             {
-               Array<int>cols(ndof);
-               Array<double>vals(ndof);
-               vals = 0.0; 
-               // This will have to change not to include zeros (no need to communicate zeros)
-               GetColumnValues(tdof,patch_tdof_info->patch_tdofs[ip],diag,offd,
-                               cmap,row_start, cols,vals);
-               int j = send_displ[host_rank] + soffs[host_rank];
-               soffs[host_rank] += ndof;
-               // For now we do the copy (will be changed later)
-               for (int k=0; k<ndof ; k++)
-               {
-                  sendbuf[j+k] = vals[k];
-               }
+               sendbuf[j+k+1] = vals[k];
+               sendmap[j+k+1] = cols[k];
             }
          }
       }
    }
+
    // communication
    Array<double> recvbuf(rbuff_size);
-
-   int err = MPI_Alltoallv(&sendbuf[0], send_count, send_displ, MPI_DOUBLE, &recvbuf[0],
+   Array<int> recvmap(rbuff_size);
+   // Need to create a new comm to exclude the non-contributing processes
+   // This is crashing in debug mode because sendbuf is empty
+   MPI_Alltoallv(&sendbuf[0], send_count, send_displ, MPI_DOUBLE, &recvbuf[0],
                  recv_count, recv_displ, MPI_DOUBLE, comm);
 
+   MPI_Alltoallv(&sendmap[0], send_count, send_displ, MPI_INT, &recvmap[0],
+                 recv_count, recv_displ, MPI_INT, comm);
 
-   Array<SparseMatrix * > PatchMat(nrpatch);
+
+   Array<SparseMatrix * > PatchMat11(nrpatch);
 
    Array<int> roffs(num_procs);
    roffs = 0;
-   // Now each process will comstruct the SparseMatrix
+   // Now each process will construct the SparseMatrix
    for (int ip = 0; ip < nrpatch; ip++)
    {
-      int ndof = patch_tdof_info->patch_tdofs[ip].Size();
-      // loop through the dofs and identify their ranks
-      if (ndof != 0) 
+      if(myid == host_rank[ip]) 
       {
-         int host_rank = get_rank(patch_tdof_info->patch_tdofs[ip][0]);
-         if(myid == host_rank) 
+         int ndof = patch_other_tdofs[ip].Size();
+         PatchMat11[ip] = new SparseMatrix(ndof,ndof);
+         // extract the data from receiv buffer
+         // loop through rows
+         for (int i=0; i<ndof; i++)
          {
-            PatchMat[ip] = new SparseMatrix(ndof,ndof);
-            // extract from receiv buffer the data
-            // loop through rows
-            for (int i=0; i<ndof; i++)
+            // pick up the dof and find its tdof_rank
+            int tdof = patch_other_tdofs[ip][i];
+            int tdof_rank= get_rank(tdof);
+            // offset
+            int k = recv_displ[tdof_rank] + roffs[tdof_rank];
+            roffs[tdof_rank] += recvmap[k]+1;
+            // copy to the matrix
+            for (int j =0; j<recvmap[k]; j++)
             {
-               // pick up the dof and find its tdof_rank
-               int tdof = patch_tdof_info->patch_tdofs[ip][i];
-               int tdof_rank= get_rank(tdof);
-               // offset
-               int k = recv_displ[tdof_rank] + roffs[tdof_rank];
-               roffs[tdof_rank] += ndof;
-               // copy to the matrix
-               for (int j =0; j<ndof; j++)
-               {
-                  if(recvbuf[k+j] != 0.0)
-                  {
-                     PatchMat[ip]->Set(i,j,recvbuf[k+j]);
-                  }
-               } 
-
-            }   
-            PatchMat[ip]->Finalize();
-            // check for correctness
-            // UMFPackSolver * inv = new UMFPackSolver;
-            // inv->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-            // inv->SetOperator(*PatchMat[ip]);
-            // Vector b(ndof); b=1.0;
-            // Vector x(ndof);
-            // inv->Mult(b,x);
-            // cout << ip << ", " ; x.Print(cout, 20); cout << endl;
-         }
+                  int jj = recvmap[k+j+1];
+                  PatchMat11[ip]->Set(i,jj,recvbuf[k+j+1]);
+            } 
+         }   
+         PatchMat11[ip]->Finalize();
       }
    }
 
+
+   // need to change the block structure (no need for copying)
+
+   // Array<BlockMatrix * > BlkPatchMat(nrpatch);
+   // Array<SparseMatrix * > PatchMat(nrpatch);
+   // for (int ip = 0; ip < nrpatch; ip++)
+   // {
+   //    if (myid == host_rank[ip])
+   //    {
+   //       if (PatchMat11[ip]->Height() !=0)
+   //       {
+   //          Array<int>block_offsets(3);
+   //          block_offsets[0] = 0;
+   //          block_offsets[1] = PatchMat00[ip]->Height();
+   //          block_offsets[2] = PatchMat11[ip]->Height();
+   //          block_offsets.PartialSum();
+   //          BlkPatchMat[ip] = new BlockMatrix(block_offsets);
+   //          BlkPatchMat[ip]->SetBlock(0,0,PatchMat00[ip]);   
+   //          BlkPatchMat[ip]->SetBlock(0,1,PatchMat01[ip]);   
+   //          BlkPatchMat[ip]->SetBlock(1,0,PatchMat10[ip]);   
+   //          BlkPatchMat[ip]->SetBlock(1,1,PatchMat11[ip]);   
+   //          // Convert to sparse
+   //          PatchMat[ip] = new SparseMatrix(*GetSparseMatrixFromBlockMatrix(BlkPatchMat[ip]));
+   //       }
+   //       else
+   //       {
+   //          PatchMat[ip] = new SparseMatrix(*PatchMat00[ip]);
+   //       }
+   //    }
+   // }
+   // check for correctness
+   // for (int ip = 0; ip < nrpatch; ip++)
+   // {
+   //    if (myid == host_rank[ip])
+   //    {
+   //       UMFPackSolver * inv = new UMFPackSolver;
+   //       inv->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   //       inv->SetOperator(*PatchMat[ip]);
+   //       int ndof = PatchMat[ip]->Height();
+   //       Vector b(ndof); b=1.0;
+   //       Vector x(ndof);
+   //       inv->Mult(b,x);
+   //       cout << ip << ", " ; x.Print(cout, 20); cout << endl;
+   //    }
+   // }
 }
 
 void par_patch_assembly::compute_trueoffsets()
@@ -642,8 +769,8 @@ bool its_a_patch(int iv, Array<int> patch_ids)
 // Given row index on the processor (return the entries corresponding to the column array tdof_j)
 // For now this implementation will be extremely inefficient. (we do this with find sorted (for now))
 // void GetColumnValues(int tdof_i,Array<int> tdof_j, HypreParMatrix * A, Array<int> &cols, Array<double> &vals)
-void GetColumnValues(int tdof_i,Array<int> tdof_j, SparseMatrix & diag ,
-SparseMatrix & offd, int * cmap, int * row_start,  Array<int> &cols, Array<double> &vals)
+void GetColumnValues(const int tdof_i, const Array<int> & tdof_j, SparseMatrix & diag,
+SparseMatrix & offd, const int * cmap, const int * row_start,  Array<int> &cols, Array<double> &vals)
 {
    int row = tdof_i - row_start[0];
    int row_size = diag.RowSize(row);
@@ -677,3 +804,136 @@ SparseMatrix & offd, int * cmap, int * row_start,  Array<int> &cols, Array<doubl
    }
 }
 
+void GetColumnValues2(const int tdof_i, const Array<int> & tdof_j, SparseMatrix & diag,
+SparseMatrix & offd, const int * cmap, const int * row_start,  Array<int> &cols, Array<double> &vals)
+{
+   int row = tdof_i - row_start[0];
+   int row_size = diag.RowSize(row);
+
+   int *col = diag.GetRowColumns(row);
+   double *cval = diag.GetRowEntries(row);
+   for (int j = 0; j < row_size; j++)
+   {
+      int icol = col[j]+ row_start[0];
+      int jj = tdof_j.FindSorted(icol);
+      if (jj != -1)
+      {
+         double dval = cval[j];
+         cols.Append(jj);
+         vals.Append(dval);
+      }
+   }
+   int crow_size = offd.RowSize(row);
+   int *ccol = offd.GetRowColumns(row);
+   double *ccval = offd.GetRowEntries(row);
+   for (int j = 0; j < crow_size; j++)
+   {
+      int icol = cmap[ccol[j]];
+      int jj = tdof_j.FindSorted(icol);
+      if (jj != -1)
+      {
+         double dval = ccval[j];
+         cols.Append(jj);
+         vals.Append(dval);
+      }
+   }
+}
+
+
+int GetNumColumns(const int tdof_i, const Array<int> & tdof_j, SparseMatrix & diag,
+SparseMatrix & offd, const int * cmap, const int * row_start)
+{
+   int row = tdof_i - row_start[0];
+   int row_size = diag.RowSize(row);
+
+   int *col = diag.GetRowColumns(row);
+   double *cval = diag.GetRowEntries(row);
+   int k = -1;
+   for (int j = 0; j < row_size; j++)
+   {
+      int icol = col[j]+ row_start[0];
+      int jj = tdof_j.FindSorted(icol);
+      if (jj != -1)
+      {
+         k++;
+      }
+   }
+   int crow_size = offd.RowSize(row);
+   int *ccol = offd.GetRowColumns(row);
+   double *ccval = offd.GetRowEntries(row);
+   for (int j = 0; j < crow_size; j++)
+   {
+      int icol = cmap[ccol[j]];
+      int jj = tdof_j.FindSorted(icol);
+      if (jj != -1)
+      {
+         k++;
+      }
+   }
+   return k;
+}
+
+
+void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j, SparseMatrix & offd, const int * cmap, 
+                         const int * row_start , SparseMatrix * PatchMat)
+{
+   int ndof = tdof_i.Size();
+   for (int i = 0; i<ndof; i++)
+   {
+      int row = tdof_i[i] - row_start[0];
+      int row_size = offd.RowSize(row);
+      int *ccol = offd.GetRowColumns(row);
+      double *ccval = offd.GetRowEntries(row);
+      for (int j = 0; j < row_size; j++)
+      {
+         int icol = cmap[ccol[j]];
+         int jj = tdof_j.FindSorted(icol);
+         if (jj != -1)
+         {
+            double dval = ccval[j];
+            PatchMat->Set(i,jj,dval);
+         }
+      }
+   }
+}
+
+
+SparseMatrix * GetDiagColumnValues(const Array<int> & tdof_i, SparseMatrix & diag,
+const int * row_start)
+{
+   int num_rows = diag.Height();
+   int num_cols = tdof_i.Size();
+
+   SparseMatrix * Pr = new SparseMatrix(num_rows,num_cols);
+   for (int i=0; i<num_cols; i++)
+   {
+         int ii = tdof_i[i] - row_start[0];
+         Pr->Set(ii,i,1.0);
+   }
+   Pr->Finalize();
+   return RAP(*Pr,diag,*Pr);
+}
+
+
+
+void GetArrayIntersection(const Array<int> & A, const Array<int> & B, Array<int>  & C) 
+{
+   int i = 0, j = 0;
+   while (i != A.Size() && j != B.Size() )
+   {
+        if (A[i] == B[j]) 
+        {
+            C.Append(A[i]);
+            i++;
+            j++;
+        }
+      else if (A[i] > B[j]) 
+      {
+         j++;
+      } 
+      else 
+      {
+         i++;
+      }
+   }
+}  

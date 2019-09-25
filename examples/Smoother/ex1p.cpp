@@ -131,6 +131,7 @@ int main(int argc, char *argv[])
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
    HypreParMatrix A;
@@ -147,7 +148,9 @@ int main(int argc, char *argv[])
 
    chrono.Clear();
    chrono.Start();
-   par_patch_assembly * test = new par_patch_assembly(&cpmesh,par_ref_levels, fespace, &A);
+
+   ParFiniteElementSpace *prec_fespace = (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+   par_patch_assembly * test = new par_patch_assembly(&cpmesh,par_ref_levels, prec_fespace, &A);
    chrono.Stop();
 
    // if (myid == 0)
