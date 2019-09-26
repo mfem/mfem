@@ -281,7 +281,7 @@ void NCMesh::ReparentNode(int node, int new_p1, int new_p2)
 int NCMesh::FindMidEdgeNode(int node1, int node2) const
 {
    int mid = nodes.FindId(node1, node2);
-   if (mid < 0 && shadow.Size())
+/*   if (mid < 0 && shadow.Size())
    {
       // if (anisotropic) refinement is underway, some nodes may temporarily
       // be available under alternate parents (see ReparentNode)
@@ -290,7 +290,7 @@ int NCMesh::FindMidEdgeNode(int node1, int node2) const
       {
          mid = shadow[mid].vert_index; // index of the original node
       }
-   }
+   }*/
    return mid;
 }
 
@@ -910,10 +910,14 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                   mid45, no[5], no[6], mid67, attr,
                                   fa[0], fa[1], fa[2], fa[3], -1, fa[5]);
 
-         CheckAnisoFace(no[0], no[1], no[5], no[4], mid01, mid45);
+         /*CheckAnisoFace(no[0], no[1], no[5], no[4], mid01, mid45);
          CheckAnisoFace(no[2], no[3], no[7], no[6], mid23, mid67);
          CheckAnisoFace(no[4], no[5], no[6], no[7], mid45, mid67);
-         CheckAnisoFace(no[3], no[2], no[1], no[0], mid23, mid01);
+         CheckAnisoFace(no[3], no[2], no[1], no[0], mid23, mid01);*/
+         AddAnisoFaceCheck(no[0], no[1], no[5], no[4]);
+         AddAnisoFaceCheck(no[2], no[3], no[7], no[6]);
+         AddAnisoFaceCheck(no[4], no[5], no[6], no[7]);
+         AddAnisoFaceCheck(no[3], no[2], no[1], no[0]);
       }
       else if (ref_type == 2) // split along Y axis
       {
@@ -930,10 +934,14 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                   mid74, mid56, no[6], no[7], attr,
                                   fa[0], -1, fa[2], fa[3], fa[4], fa[5]);
 
-         CheckAnisoFace(no[1], no[2], no[6], no[5], mid12, mid56);
+         /*CheckAnisoFace(no[1], no[2], no[6], no[5], mid12, mid56);
          CheckAnisoFace(no[3], no[0], no[4], no[7], mid30, mid74);
          CheckAnisoFace(no[5], no[6], no[7], no[4], mid56, mid74);
-         CheckAnisoFace(no[0], no[3], no[2], no[1], mid30, mid12);
+         CheckAnisoFace(no[0], no[3], no[2], no[1], mid30, mid12);*/
+         AddAnisoFaceCheck(no[1], no[2], no[6], no[5]);
+         AddAnisoFaceCheck(no[3], no[0], no[4], no[7]);
+         AddAnisoFaceCheck(no[5], no[6], no[7], no[4]);
+         AddAnisoFaceCheck(no[0], no[3], no[2], no[1]);
       }
       else if (ref_type == 4) // split along Z axis
       {
@@ -950,10 +958,14 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                   no[4], no[5], no[6], no[7], attr,
                                   -1, fa[1], fa[2], fa[3], fa[4], fa[5]);
 
-         CheckAnisoFace(no[4], no[0], no[1], no[5], mid04, mid15);
+         /*CheckAnisoFace(no[4], no[0], no[1], no[5], mid04, mid15);
          CheckAnisoFace(no[5], no[1], no[2], no[6], mid15, mid26);
          CheckAnisoFace(no[6], no[2], no[3], no[7], mid26, mid37);
-         CheckAnisoFace(no[7], no[3], no[0], no[4], mid37, mid04);
+         CheckAnisoFace(no[7], no[3], no[0], no[4], mid37, mid04);*/
+         AddAnisoFaceCheck(no[4], no[0], no[1], no[5]);
+         AddAnisoFaceCheck(no[5], no[1], no[2], no[6]);
+         AddAnisoFaceCheck(no[6], no[2], no[3], no[7]);
+         AddAnisoFaceCheck(no[7], no[3], no[0], no[4]);
       }
       else if (ref_type == 3) // XY split
       {
@@ -986,13 +998,19 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                   mid74, midf5, mid67, no[7], attr,
                                   fa[0], -1, -1, fa[3], fa[4], fa[5]);
 
-         CheckAnisoFace(no[0], no[1], no[5], no[4], mid01, mid45);
+         /*CheckAnisoFace(no[0], no[1], no[5], no[4], mid01, mid45);
          CheckAnisoFace(no[1], no[2], no[6], no[5], mid12, mid56);
          CheckAnisoFace(no[2], no[3], no[7], no[6], mid23, mid67);
-         CheckAnisoFace(no[3], no[0], no[4], no[7], mid30, mid74);
+         CheckAnisoFace(no[3], no[0], no[4], no[7], mid30, mid74);*/
+         AddAnisoFaceCheck(no[0], no[1], no[5], no[4]);
+         AddAnisoFaceCheck(no[1], no[2], no[6], no[5]);
+         AddAnisoFaceCheck(no[2], no[3], no[7], no[6]);
+         AddAnisoFaceCheck(no[3], no[0], no[4], no[7]);
 
-         CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid30, midf0);
-         CheckIsoFace(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74, midf5);
+         /*CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid30, midf0);
+         CheckIsoFace(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74, midf5);*/
+         AddIsoFaceCheck(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid30);
+         AddIsoFaceCheck(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74);
       }
       else if (ref_type == 5) // XZ split
       {
@@ -1025,13 +1043,19 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                   no[4], mid45, mid67, no[7], attr,
                                   -1, fa[1], -1, fa[3], fa[4], fa[5]);
 
-         CheckAnisoFace(no[3], no[2], no[1], no[0], mid23, mid01);
+         /*CheckAnisoFace(no[3], no[2], no[1], no[0], mid23, mid01);
          CheckAnisoFace(no[2], no[6], no[5], no[1], mid26, mid15);
          CheckAnisoFace(no[6], no[7], no[4], no[5], mid67, mid45);
-         CheckAnisoFace(no[7], no[3], no[0], no[4], mid37, mid04);
+         CheckAnisoFace(no[7], no[3], no[0], no[4], mid37, mid04);*/
+         AddAnisoFaceCheck(no[3], no[2], no[1], no[0]);
+         AddAnisoFaceCheck(no[2], no[6], no[5], no[1]);
+         AddAnisoFaceCheck(no[6], no[7], no[4], no[5]);
+         AddAnisoFaceCheck(no[7], no[3], no[0], no[4]);
 
-         CheckIsoFace(no[0], no[1], no[5], no[4], mid01, mid15, mid45, mid04, midf1);
-         CheckIsoFace(no[2], no[3], no[7], no[6], mid23, mid37, mid67, mid26, midf3);
+         /*CheckIsoFace(no[0], no[1], no[5], no[4], mid01, mid15, mid45, mid04, midf1);
+         CheckIsoFace(no[2], no[3], no[7], no[6], mid23, mid37, mid67, mid26, midf3);*/
+         AddIsoFaceCheck(no[0], no[1], no[5], no[4], mid01, mid15, mid45, mid04);
+         AddIsoFaceCheck(no[2], no[3], no[7], no[6], mid23, mid37, mid67, mid26);
       }
       else if (ref_type == 6) // YZ split
       {
@@ -1064,13 +1088,19 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                   mid74, mid56, no[6], no[7], attr,
                                   -1, -1, fa[2], fa[3], fa[4], fa[5]);
 
-         CheckAnisoFace(no[4], no[0], no[1], no[5], mid04, mid15);
+         /*CheckAnisoFace(no[4], no[0], no[1], no[5], mid04, mid15);
          CheckAnisoFace(no[0], no[3], no[2], no[1], mid30, mid12);
          CheckAnisoFace(no[3], no[7], no[6], no[2], mid37, mid26);
-         CheckAnisoFace(no[7], no[4], no[5], no[6], mid74, mid56);
+         CheckAnisoFace(no[7], no[4], no[5], no[6], mid74, mid56);*/
+         AddAnisoFaceCheck(no[4], no[0], no[1], no[5]);
+         AddAnisoFaceCheck(no[0], no[3], no[2], no[1]);
+         AddAnisoFaceCheck(no[3], no[7], no[6], no[2]);
+         AddAnisoFaceCheck(no[7], no[4], no[5], no[6]);
 
-         CheckIsoFace(no[1], no[2], no[6], no[5], mid12, mid26, mid56, mid15, midf2);
-         CheckIsoFace(no[3], no[0], no[4], no[7], mid30, mid04, mid74, mid37, midf4);
+         /*CheckIsoFace(no[1], no[2], no[6], no[5], mid12, mid26, mid56, mid15, midf2);
+         CheckIsoFace(no[3], no[0], no[4], no[7], mid30, mid04, mid74, mid37, midf4);*/
+         AddIsoFaceCheck(no[1], no[2], no[6], no[5], mid12, mid26, mid56, mid15);
+         AddIsoFaceCheck(no[3], no[0], no[4], no[7], mid30, mid04, mid74, mid37);
       }
       else if (ref_type == 7) // full isotropic refinement
       {
@@ -1130,12 +1160,18 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                   mid74, midf5, mid67, no[7], attr,
                                   -1, -1, -1, fa[3], fa[4], fa[5]);
 
-         CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid30, midf0);
+         /*CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid30, midf0);
          CheckIsoFace(no[0], no[1], no[5], no[4], mid01, mid15, mid45, mid04, midf1);
          CheckIsoFace(no[1], no[2], no[6], no[5], mid12, mid26, mid56, mid15, midf2);
          CheckIsoFace(no[2], no[3], no[7], no[6], mid23, mid37, mid67, mid26, midf3);
          CheckIsoFace(no[3], no[0], no[4], no[7], mid30, mid04, mid74, mid37, midf4);
-         CheckIsoFace(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74, midf5);
+         CheckIsoFace(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74, midf5);*/
+         AddIsoFaceCheck(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid30);
+         AddIsoFaceCheck(no[0], no[1], no[5], no[4], mid01, mid15, mid45, mid04);
+         AddIsoFaceCheck(no[1], no[2], no[6], no[5], mid12, mid26, mid56, mid15);
+         AddIsoFaceCheck(no[2], no[3], no[7], no[6], mid23, mid37, mid67, mid26);
+         AddIsoFaceCheck(no[3], no[0], no[4], no[7], mid30, mid04, mid74, mid37);
+         AddIsoFaceCheck(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74);
       }
       else
       {
@@ -1402,17 +1438,16 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       int size = ref_stack.Size();
       RefineElement(ref.index, ref.ref_type);
       nforced += ref_stack.Size() - size;
+
+      static int iter = 0;
+      {
+         char fname[200];
+         sprintf(fname, "ncmesh-%03d.dump", iter++);
+         std::ofstream f(fname);
+         DebugDump(f);
+      }
    }
 
-   /* TODO: the current algorithm of forced refinements is not optimal. As
-      forced refinements spread through the mesh, some may not be necessary
-      in the end, since the affected elements may still be scheduled for
-      refinement that could stop the propagation. We should introduce the
-      member Element::ref_pending that would show the intended refinement in
-      the batch. A forced refinement would be combined with ref_pending to
-      (possibly) stop the propagation earlier.
-
-      Update: what about a FIFO instead of ref_stack? */
 
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
    mfem::out << "Refined " << refinements.Size() << " + " << nforced

@@ -517,7 +517,7 @@ protected: // implementation
    // refinement/derefinement
 
    Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
-   HashTable<Node> shadow; ///< temporary storage for reparented nodes
+   //HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable

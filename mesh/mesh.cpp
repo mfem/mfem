@@ -3892,7 +3892,8 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
             mfem::err << " " << test[k];
          }
          mfem::err << " ]" << endl;
-         mfem_error();
+         //mfem_error();
+         MFEM_WARNING("Inconsistent face orientations");
       }
 #endif
 
