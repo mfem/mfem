@@ -430,7 +430,7 @@ int main (int argc, char *argv[])
    newton->SetOperator(MA);
    newton->Mult(b, P.GetTrueVector());
    cout << "Before set" << endl;
-   x->SetFromTrueVector();
+   P.SetFromTrueVector();
    if (newton->GetConverged() == false)
    {
       cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
@@ -474,17 +474,11 @@ int main (int argc, char *argv[])
    return 0;
 }
 
-// inline void MA_Integrator::SetSpace(const FiniteElementSpace &fespace_scalar)
-// {
-//    GridFunction P(fespace_scalar); 
-// }
-
 double MA_Integrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
    double c = 0.0;
    return c;
-   //return integ->GetElementEnergy(el, T, elfun);
 }
 
 void MA_Integrator::AssembleElementVector(
@@ -517,8 +511,6 @@ void MA_Integrator::AssembleElementGrad(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, DenseMatrix &elmat)
 {
-   //J.SetSize(dof,dof); //Monge Ampere Jacobian (N x N)
-   
    int dof = el.GetDof();
    //int dim = el.GetDim();
    int dim = 1;
@@ -540,6 +532,7 @@ void MA_Integrator::AssembleElementGrad(
       MAvalue(i) = Pxx(i)*Pyy(i) - Pxy(i)*Pxy(i) - 1;
    }
 
-   GridFunction J(fespace);
-   J.GetGradient(Tr, MAvalue);
+   GridFunction Jg(fespace);
+   Jg.GetGradient(Tr, MAvalue);
+
 }
