@@ -56,6 +56,9 @@ public:
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   /// Method for partially assembled action of an element matrix.
+   virtual void AddMultElementPA(int element, const Vector &x, Vector &y) const;
+
    /// Method for partially assembled transposed action.
    /** Perform the transpose action of integrator on the input @a x and add the
        result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
@@ -1725,6 +1728,8 @@ public:
    virtual void AssembleDiagonalPA(Vector& diag) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AddMultElementPA(int element, const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);

@@ -910,8 +910,8 @@ void PADiffusionApply2DElement(int e,
                                DeviceTensor<2,const double> Bt,
                                DeviceTensor<2,const double> Gt,
                                DeviceTensor<3,const double> op,
-                               DeviceTensor<3,const double> x,
-                               DeviceTensor<3,double> y,
+                               DeviceTensor<2,const double> x,
+                               DeviceTensor<2,double> y,
                                const int d1d=0,
                                const int q1d=0)
 {
@@ -940,7 +940,9 @@ void PADiffusionApply2DElement(int e,
       }
       for (int dx = 0; dx < D1D; ++dx)
       {
-         const double s = x(dx,dy,e);
+         // todo: local version of x
+         // const double s = x(dx,dy,e);
+         const double s = x(dx,dy);
          for (int qx = 0; qx < Q1D; ++qx)
          {
             gradX[qx][0] += s * B(qx,dx);
@@ -1002,7 +1004,9 @@ void PADiffusionApply2DElement(int e,
          const double wDy = Gt(dy,qy);
          for (int dx = 0; dx < D1D; ++dx)
          {
-            y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+            // todo: local use of y?
+            // y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+            y(dx,dy) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
          }
       }
    }
@@ -1032,9 +1036,17 @@ void PADiffusionApply2D(const int NE,
    auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
    auto x = Reshape(_x.Read(), D1D, D1D, NE);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+
    MFEM_FORALL(e, NE,
    {
-      PADiffusionApply2DElement<T_D1D,T_Q1D>(e, B, G, Bt, Gt, op, x, y, d1d, q1d);
+      auto x_element = DeviceTensor<2, const double>(
+         (const double*) x + e * D1D * D1D,
+         D1D, D1D);
+      auto y_element = DeviceTensor<2, double>(
+         (double*) y + e * D1D * D1D,
+         D1D, D1D);
+      PADiffusionApply2DElement<T_D1D,T_Q1D>(e, B, G, Bt, Gt, op,
+                                             x_element, y_element, d1d, q1d);
    });
 }
 
@@ -1073,7 +1085,7 @@ static void SmemPADiffusionApply2DElement(int e,
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         X[dy][dx] = x(dx,dy,e);
+         X[dy][dx] = x(dx,dy,e); // TODO localize?
       }
    }
    if (tidz == 0)
@@ -1175,7 +1187,7 @@ static void SmemPADiffusionApply2DElement(int e,
             u += DQ0[qy][dx] * Bt[dy][qy];
             v += DQ1[qy][dx] * Gt[dy][qy];
          }
-         y(dx,dy,e) += (u + v);
+         y(dx,dy,e) += (u + v); // TODO localize
       }
    }
 }
@@ -1210,6 +1222,7 @@ static void SmemPADiffusionApply2D(const int NE,
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      // TODO localize x, y
       SmemPADiffusionApply2DElement<T_D1D, T_Q1D, T_NBZ>(e,
                                                          b,
                                                          g,
@@ -1720,6 +1733,39 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    PADiffusionApply(dim, dofs1D, quad1D, ne,
                     maps->B, maps->G, maps->Bt, maps->Gt,
                     pa_data, x, y);
+}
+
+
+/**
+   as written this wants a global e-vector for x and a local
+   element vector for y
+
+   not sure that's the right interface
+*/
+void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
+                                           Vector &y) const
+{
+   if (dim == 2)
+   {
+      auto B = Reshape(maps->Bt.Read(), quad1D, dofs1D);
+      auto G = Reshape(maps->G.Read(), quad1D, dofs1D);
+      auto Bt = Reshape(maps->Bt.Read(), dofs1D, quad1D);
+      auto Gt = Reshape(maps->Gt.Read(), dofs1D, quad1D);
+      auto op = Reshape(pa_data.Read(), quad1D*quad1D, 3, ne);
+      auto _x = Reshape(x.Read(), dofs1D, dofs1D, ne);
+      auto _y = Reshape(y.ReadWrite(), dofs1D, dofs1D);
+
+      auto x_element = DeviceTensor<2, const double>(
+         (const double*) _x + element * dofs1D * dofs1D,
+         dofs1D, dofs1D);
+
+      PADiffusionApply2DElement<0, 0>(element, B, G, Bt, Gt,
+                                      op, x_element, _y, dofs1D, quad1D);
+   }
+   else
+   {
+      mfem_error("Not implemented!");
+   }
 }
 
 } // namespace mfem

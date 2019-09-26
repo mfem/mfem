@@ -53,6 +53,13 @@ public:
                                  OperatorHandle &A, Vector &X, Vector &B,
                                  int copy_interior = 0) = 0;
    virtual void Update() = 0;
+
+   /// Here x is local-to-processor but contains all elements
+   /// (it's an l-vector), while y_element is striclty local to an element
+   virtual void ElementMatrixMult(int i, const Vector &x, Vector &y_element)
+   {
+      mfem_error("Not implemented!");
+   }
 };
 
 /// Data and methods for fully-assembled bilinear forms
@@ -117,6 +124,7 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
+   void ElementMatrixMult(int i, const Vector &x, Vector &y_element);
 };
 
 /// Data and methods for matrix-free bilinear forms

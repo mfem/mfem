@@ -173,4 +173,30 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
+/// TODO this needs some work
+void PABilinearFormExtension::ElementMatrixMult(int i, const Vector &x,
+                                                Vector &y_element)
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
+   const int iSz = integrators.Size();
+   if (elem_restrict_lex)
+   {
+      elem_restrict_lex->Mult(x, localX);
+      // localY = 0.0;
+      for (int j = 0; j < iSz; ++j)
+      {
+         integrators[j]->AddMultElementPA(i, localX, y_element);
+      }
+   }
+   else
+   {
+      y_element = 0.0; // TODO: do I want this?
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultElementPA(i, x, y_element);
+      }
+   }
+}
+
 } // namespace mfem

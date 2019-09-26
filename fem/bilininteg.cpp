@@ -34,13 +34,20 @@ void BilinearFormIntegrator::AssembleDiagonalPA(Vector&) const
 
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembled (...)\n"
+   mfem_error ("BilinearFormIntegrator::AddMultPA (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultElementPA(int element,
+                                              const Vector &, Vector &) const
+{
+   mfem_error ("BilinearFormIntegrator::AddMultElementPA (...)\n"
                "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose (...)\n"
+   mfem_error ("BilinearFormIntegrator::AddMultTransposePA (...)\n"
                "   is not implemented for this class.");
 }
 
