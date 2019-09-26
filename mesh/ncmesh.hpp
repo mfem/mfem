@@ -516,7 +516,8 @@ protected: // implementation
 
    // refinement/derefinement
 
-   Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
+   std::map<int, char> ref_list; ///< list of scheduled refinements
+   //Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
    //HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
 
@@ -573,13 +574,27 @@ protected: // implementation
    void CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                         const Refinement *refs, int nref);
 
-   void CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
-                       int mid12, int mid34, int level = 0);
+   bool CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
+                       int mid12 = -1, int mid34 = -1, int level = 0);
 
-   void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
-                     int en1, int en2, int en3, int en4, int midf);
+   /*void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
+                     int en1, int en2, int en3, int en4, int midf);*/
 
-   void ReparentNode(int node, int new_p1, int new_p2);
+   struct AnisoFace
+   {
+      int v[4];
+      AnisoFace() {}
+      AnisoFace(int vn1, int vn2, int vn3, int vn4)
+      { v[0] = vn1, v[1] = vn2, v[2] = vn3, v[3] = vn4; }
+   };
+
+   Array<AnisoFace> aniso_checks;
+
+   void AddAnisoFaceCheck(int vn1, int vn2, int vn3, int vn4);
+   void AddIsoFaceCheck(int vn1, int vn2, int vn3, int vn4,
+                        int en1, int en2, int en3, int en4);
+
+   //void ReparentNode(int node, int new_p1, int new_p2);
 
    int FindMidEdgeNode(int node1, int node2) const;
    int GetMidEdgeNode(int node1, int node2);
