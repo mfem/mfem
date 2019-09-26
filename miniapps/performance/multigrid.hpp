@@ -435,6 +435,7 @@ class MultigridSolver : public Solver
    {
       // Safe const_cast, since x at the finest level will never be modified
       X.Last() = const_cast<Vector *>(&x);
+      y = 0.0;
       Y.Last() = &y;
       Cycle(opr->NumLevels() - 1);
       X.Last() = nullptr;
