@@ -5,25 +5,36 @@
 using namespace mfem;
 using namespace std;
 
-// Metric values are visualized by creating an L2 finite element functions and
-// computing the metric values at the nodes.
-void vis_metric(int order, TMOP_QualityMetric &qm, const TargetConstructor &tc,
-                Mesh &mesh, char *title, int position)
+
+class MA_Integrator : public NonlinearFormIntegrator
 {
-   L2_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
-   FiniteElementSpace fes(&mesh, &fec, 1);
-   GridFunction metric(&fes);
-   InterpolateTMOP_QualityMetric(qm, tc, mesh, metric);
-   osockstream sock(19916, "localhost");
-   sock << "solution\n";
-   mesh.Print(sock);
-   metric.Save(sock);
-   sock.send();
-   sock << "window_title '"<< title << "'\n"
-        << "window_geometry "
-        << position << " " << 0 << " " << 600 << " " << 600 << "\n"
-        << "keys jRmclA" << endl;
-}
+protected:
+   FiniteElementSpace *fespace;
+   GridFunction *P;
+   Geometry::Type geom; 
+   int own_integ;
+   LinearFECollection lfec;
+   IsoparametricTransformation T;
+   NonlinearFormIntegrator *integ;
+
+   Vector M;
+   DenseMatrix J;
+
+public:
+   MA_Integrator(FiniteElementSpace *fespace = NULL, GridFunction P = NULL, int _own_integ = 1)
+      : geom(Geometry::INVALID), own_integ(_own_integ) { }
+
+   virtual double GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &Tr,
+                                   const Vector &elfun);
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      const Vector &elfun, Vector &elvect);
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &Tr,
+                                    const Vector &elfun, DenseMatrix &elmat);
+};
+
 
 class RelaxedNewtonSolver : public NewtonSolver
 {
@@ -189,20 +200,13 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    return scale;
 }
 
-// Additional IntegrationRules that can be used with the --quad-type option.
-IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
-IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
-
-
 int main (int argc, char *argv[])
 {
-   // 0. Set the method's default parameters.
+   // Set the method's default parameters.
    const char *mesh_file = "../../data/beam-quad.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    double jitter         = 0.0;
-   int metric_id         = 1;
-   int target_id         = 2;
    double lim_const      = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
@@ -223,18 +227,7 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&jitter, "-ji", "--jitter",
                   "Random perturbation scaling factor.");
-   args.AddOption(&metric_id, "-mid", "--metric-id",
-                  "Mesh optimization metric:\n\t"
-                  "1  : |T|^2                          -- 2D shape\n\t");
-   args.AddOption(&target_id, "-tid", "--target-id",
-                  "Target (ideal element) type:\n\t"
-                  "2: Ideal shape, equal size\n\t");
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
-   args.AddOption(&quad_type, "-qt", "--quad-type",
-                  "Quadrature rule type:\n\t"
-                  "1: Gauss-Lobatto\n\t"
-                  "2: Gauss-Legendre\n\t"
-                  "3: Closed uniform points");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
    args.AddOption(&newton_iter, "-ni", "--newton-iters",
@@ -258,7 +251,7 @@ int main (int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Initialize and refine the starting mesh.
+   // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
@@ -267,10 +260,7 @@ int main (int argc, char *argv[])
    else { cout << "(NONE)"; }
    cout << endl;
 
-   // 3. Define a finite element space on the mesh. Here we use vector finite
-   //    elements which are tensor products of quadratic finite elements. The
-   //    number of components in the vector finite element space is specified by
-   //    the last parameter of the FiniteElementSpace constructor.
+   // Define a finite element space on the mesh.
    FiniteElementCollection *fec;
    if (mesh_poly_deg <= 0)
    {
@@ -280,24 +270,17 @@ int main (int argc, char *argv[])
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
 
-   // 4. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
+   // Make the mesh curved based on the above finite element space.
    mesh->SetNodalFESpace(fespace);
 
-   // 5. Set up an empty right-hand side vector b, which is equivalent to b=0.
+   // Set up an empty right-hand side vector b, which is equivalent to b=0.
    Vector b(0);
 
-   // 6. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace. Note that
-   //    changing x automatically changes the shapes of the mesh elements.
+   // Get the mesh nodes as a finite element grid function in fespace.
    GridFunction *x = mesh->GetNodes();
 
-   // 7. Define a vector representing the minimal local mesh size in the mesh
-   //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in pfespace. Note: this is partition-dependent.
-   //
-   //    In addition, compute average mesh size and total volume.
+   // Define a vector representing the minimal local mesh size in the mesh
+   //    nodes. In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
    h0 = infinity();
    double volume = 0.0;
@@ -316,11 +299,7 @@ int main (int argc, char *argv[])
    }
    const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
 
-   // 8. Add a random perturbation to the nodes in the interior of the domain.
-   //    We define a random grid function of fespace and make sure that it is
-   //    zero on the boundary and its values are locally of the order of h0.
-   //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in fespace.
+   // Add a random perturbation to the nodes in the interior of the domain.
    GridFunction rdm(fespace);
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
@@ -346,14 +325,13 @@ int main (int argc, char *argv[])
    x->SetTrueVector();
    x->SetFromTrueVector();
 
-   // 9. Save the starting (prior to the optimization) mesh to a file. This
-   //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
+   // Save the starting (prior to the optimization) mesh to a file. 
    {
       ofstream mesh_ofs("perturbed.mesh");
       mesh->Print(mesh_ofs);
    }
 
-   // 10. Store the starting (prior to the optimization) positions.
+   // Store the starting (prior to the optimization) positions.
    GridFunction x0(fespace);
    x0 = *x;
 
@@ -361,119 +339,33 @@ int main (int argc, char *argv[])
    GridFunction Q(fespace);
    Q = *x;
 
-   GridFunction P(fespace);
+   // Define fespace to defined P
+   FiniteElementSpace *fespace_scalar = new FiniteElementSpace(mesh, fec, 1);
+   GridFunction P(fespace_scalar);
 
    for (int i = 0; i < p; i++)
    {
       P(i) = 0.5*(std::pow(Q(i),2)+std::pow(Q(i+p),2));
    }
+   P.SetTrueVector();
+   P.SetFromTrueVector();
 
-   GridFunction dP_x(fespace);
-   GridFunction dP_y(fespace);
-   GridFunction dP_xx(fespace);
-   GridFunction dP_xy(fespace);
-   GridFunction dP_yy(fespace);
+   // Set up integrator.
+   const int geom_type = fespace_scalar->GetFE(0)->GetGeomType();
+   const IntegrationRule *ir = &IntRules.Get(geom_type, quad_order);
 
-   P.GetDerivative(1,0,dP_x);
-   P.GetDerivative(1,1,dP_y);
-   dP_x.GetDerivative(1,0,dP_xx);
-   dP_x.GetDerivative(1,1,dP_xy);
-   dP_y.GetDerivative(1,1,dP_yy);
-
-   // for (int i = 0; i < d_x.Size(); i++)
-   // {
-   //    MA(i) = d_xx(i)*d_yy(i) - d_xy(i)*d_xy(i) - 1;
-   // }
-
-   // 11. Form the integrator that uses the chosen metric and target.
-   double tauval = -0.1;
-   TMOP_QualityMetric *metric = NULL;
-   switch (metric_id)
-   {
-      case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break;
-      case 7: metric = new TMOP_Metric_007; break;
-      case 9: metric = new TMOP_Metric_009; break;
-      case 22: metric = new TMOP_Metric_022(tauval); break;
-      case 50: metric = new TMOP_Metric_050; break;
-      case 55: metric = new TMOP_Metric_055; break;
-      case 56: metric = new TMOP_Metric_056; break;
-      case 58: metric = new TMOP_Metric_058; break;
-      case 77: metric = new TMOP_Metric_077; break;
-      case 211: metric = new TMOP_Metric_211; break;
-      case 252: metric = new TMOP_Metric_252(tauval); break;
-      case 301: metric = new TMOP_Metric_301; break;
-      case 302: metric = new TMOP_Metric_302; break;
-      case 303: metric = new TMOP_Metric_303; break;
-      case 315: metric = new TMOP_Metric_315; break;
-      case 316: metric = new TMOP_Metric_316; break;
-      case 321: metric = new TMOP_Metric_321; break;
-      case 352: metric = new TMOP_Metric_352(tauval); break;
-      default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
-   }
-   TargetConstructor::TargetType target_t;
-   switch (target_id)
-   {
-      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
-      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
-      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-      default: cout << "Unknown target_id: " << target_id << endl;
-         delete metric; return 3;
-   }
-   TargetConstructor *target_c = new TargetConstructor(target_t);
-   target_c->SetNodes(x0);
-   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-
-   // 12. Setup the quadrature rule for the non-linear form integrator.
-   const IntegrationRule *ir = NULL;
-   const int geom_type = fespace->GetFE(0)->GetGeomType();
-   switch (quad_type)
-   {
-      case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
-      case 2: ir = &IntRules.Get(geom_type, quad_order); break;
-      case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
-      default: cout << "Unknown quad_type: " << quad_type << endl;
-         delete he_nlf_integ; return 3;
-   }
-   cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
-   he_nlf_integ->SetIntegrationRule(*ir);
-
-   // 13. Limit the node movement.
-   // The limiting distances can be given by a general function of space.
-   GridFunction dist(fespace);
-   dist = 1.0;
-   ConstantCoefficient lim_coeff(lim_const);
-   if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
-
-   // 14. Setup the final NonlinearForm (which defines the integral of interest,
-   //     its first and second derivatives). Here we can use a combination of
-   //     metrics, i.e., optimize the sum of two integrals, where both are
-   //     scaled by used-defined space-dependent weights. Note that there are no
-   //     command-line options for the weights and the type of the second
-   //     metric; one should update those in the code.
-
-   NonlinearForm MA(fespace);
-   MA.AddDomainIntegrator(he_nlf_integ);
-
-   //const double init_energy = MA.GetGridFunctionEnergy(*x);
+   // Setup the final NonlinearForm.
+   NonlinearForm MA(fespace_scalar);
+   MA.AddDomainIntegrator(new MA_Integrator(fespace_scalar, P, 0));
    const double init_energy = 0.0;
 
-   // 15. Visualize the starting mesh and metric values.
-   if (visualization)
-   {
-      char title[] = "Initial metric values";
-      vis_metric(mesh_poly_deg, *metric, *target_c, *mesh, title, 0);
-   }
-
-   // 16. Fix all boundary nodes
-
+   // Fix all boundary nodes
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
    MA.SetEssentialBC(ess_bdr);
 
-
-   // 17. As we use the Newton method to solve the resulting nonlinear system,
-   //     here we setup the linear solver for the system's Jacobian.
+   // As we use the Newton method to solve the resulting nonlinear system,
+   //  here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
@@ -499,8 +391,8 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
-   // 18. Compute the minimum det(J) of the starting mesh.
-   tauval = infinity();
+   // Compute the minimum det(J) of the starting mesh.
+   double tauval = infinity();
    const int NE = mesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
@@ -513,7 +405,7 @@ int main (int argc, char *argv[])
    }
    cout << "Minimum det(J) of the original mesh is " << tauval << endl;
 
-   // 19. Finally, perform the nonlinear optimization.
+   // Finally, perform the nonlinear optimization.
    NewtonSolver *newton = NULL;
    if (tauval > 0.0)
    {
@@ -523,23 +415,21 @@ int main (int argc, char *argv[])
    }
    else
    {
-      if ( (dim == 2 && metric_id != 22 && metric_id != 252) ||
-           (dim == 3 && metric_id != 352) )
-      {
-         cout << "The mesh is inverted. Use an untangling metric." << endl;
-         return 3;
-      }
+      cout << "The mesh is inverted. Use an untangling metric." << endl;
+      return 3;
       tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
       newton = new DescentNewtonSolver(*ir, fespace);
       cout << "The DescentNewtonSolver is used (as some det(J)<0)." << endl;
    }
+   
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
    newton->SetRelTol(newton_rtol);
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(MA);
-   newton->Mult(b, x->GetTrueVector());
+   newton->Mult(b, P.GetTrueVector());
+   cout << "Before set" << endl;
    x->SetFromTrueVector();
    if (newton->GetConverged() == false)
    {
@@ -548,40 +438,18 @@ int main (int argc, char *argv[])
    }
    delete newton;
 
-   // 20. Save the optimized mesh to a file. This output can be viewed later
-   //     using GLVis: "glvis -m optimized.mesh".
+   // Save the optimized mesh to a file.
    {
       ofstream mesh_ofs("optimized.mesh");
       mesh_ofs.precision(14);
       mesh->Print(mesh_ofs);
    }
 
-   // 21. Compute the amount of energy decrease.
+   // Compute the amount of energy decrease.
    const double fin_energy = MA.GetGridFunctionEnergy(*x);
    double metric_part = fin_energy;
-   if (lim_const != 0.0)
-   {
-      lim_coeff.constant = 0.0;
-      metric_part = MA.GetGridFunctionEnergy(*x);
-      lim_coeff.constant = lim_const;
-   }
-   cout << "Initial strain energy: " << init_energy
-        << " = metrics: " << init_energy
-        << " + limiting term: " << 0.0 << endl;
-   cout << "  Final strain energy: " << fin_energy
-        << " = metrics: " << metric_part
-        << " + limiting term: " << fin_energy - metric_part << endl;
-   cout << "The strain energy decreased by: " << setprecision(12)
-        << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
-   // 22. Visualize the final mesh and metric values.
-   if (visualization)
-   {
-      char title[] = "Final metric values";
-      vis_metric(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
-   }
-
-   // 23. Visualize the mesh displacement.
+   // Visualize the mesh displacement.
    if (visualization)
    {
       x0 -= *x;
@@ -596,13 +464,82 @@ int main (int argc, char *argv[])
            << "keys jRmclA" << endl;
    }
 
-   // 24. Free the used memory.
+   // Free the used memory.
    delete S;
-   delete target_c;
-   delete metric;
    delete fespace;
+   delete fespace_scalar;
    delete fec;
    delete mesh;
 
    return 0;
+}
+
+// inline void MA_Integrator::SetSpace(const FiniteElementSpace &fespace_scalar)
+// {
+//    GridFunction P(fespace_scalar); 
+// }
+
+double MA_Integrator::GetElementEnergy(
+   const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
+{
+   double c = 0.0;
+   return c;
+   //return integ->GetElementEnergy(el, T, elfun);
+}
+
+void MA_Integrator::AssembleElementVector(
+   const FiniteElement &el, ElementTransformation &Tr,
+   const Vector &elfun, Vector &elvect)
+{
+   int dof = el.GetDof();
+   //int dim = el.GetDim();
+   int dim = 1;
+
+   //GridFunction MAvalue(fespace);
+   Vector MAvalue;
+   MAvalue.SetSize(dof);
+   GridFunction Px(fespace), Py(fespace), Pxx(fespace), Pxy(fespace), Pyy(fespace);
+
+   P->GetDerivative(1,0,Px);
+   P->GetDerivative(1,1,Py);
+   Px.GetDerivative(1,0,Pxx);
+   Px.GetDerivative(1,1,Pxy);
+   Py.GetDerivative(1,1,Pyy);
+
+
+   for (int i = 0; i < dof; i++)
+   {
+      MAvalue(i) = Pxx(i)*Pyy(i) - Pxy(i)*Pxy(i) - 1;
+   }
+}
+
+void MA_Integrator::AssembleElementGrad(
+   const FiniteElement &el, ElementTransformation &Tr,
+   const Vector &elfun, DenseMatrix &elmat)
+{
+   //J.SetSize(dof,dof); //Monge Ampere Jacobian (N x N)
+   
+   int dof = el.GetDof();
+   //int dim = el.GetDim();
+   int dim = 1;
+
+   //GridFunction MAvalue(fespace);
+   Vector MAvalue;
+   MAvalue.SetSize(dof);
+   GridFunction Px(fespace), Py(fespace), Pxx(fespace), Pxy(fespace), Pyy(fespace);
+
+   P->GetDerivative(1,0,Px);
+   P->GetDerivative(1,1,Py);
+   Px.GetDerivative(1,0,Pxx);
+   Px.GetDerivative(1,1,Pxy);
+   Py.GetDerivative(1,1,Pyy);
+
+
+   for (int i = 0; i < dof; i++)
+   {
+      MAvalue(i) = Pxx(i)*Pyy(i) - Pxy(i)*Pxy(i) - 1;
+   }
+
+   GridFunction J(fespace);
+   J.GetGradient(Tr, MAvalue);
 }
