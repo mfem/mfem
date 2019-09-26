@@ -294,6 +294,7 @@ void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
    }
 }
 
+
 void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
 {
    if (bbfi.Size())
@@ -319,6 +320,27 @@ void BilinearForm::AssembleElementMatrix(
    int i, const DenseMatrix &elmat, int skip_zeros)
 {
    AssembleElementMatrix(i, elmat, vdofs, skip_zeros);
+}
+
+
+/// in is global, out is local to the element
+/// (this will set the size of out_element)
+void BilinearForm::ElementMatrixMult(int i, const Vector& in, Vector& out_element)
+{
+   Array<int> dofs;
+   FESpace()->GetElementDofs(i, dofs);
+   out_element.SetSize(dofs.Size());
+   out_element = 0.0;
+   if (ext)
+   {
+      ext->ElementMatrixMult(i, in, out_element);
+      return;
+   }
+   DenseMatrix elmat;
+   ComputeElementMatrix(i, elmat);
+   Vector subvec;
+   in.GetSubVector(dofs, subvec);
+   elmat.Mult(subvec, out_element);
 }
 
 void BilinearForm::AssembleElementMatrix(

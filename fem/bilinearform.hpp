@@ -462,6 +462,14 @@ public:
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &vdofs, int skip_zeros = 1);
 
+   /**
+      Multiply element-matrix by vector.
+
+      in is an l-vector (local to processor, but assembled across
+      elements), while out_element is local to the particular element.
+   */
+   void ElementMatrixMult(int i, const Vector& in, Vector& out_element);
+
    /// Eliminate essential boundary DOFs from the system.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
        the essential part of the boundary. By default, the diagonal at the
