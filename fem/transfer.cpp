@@ -47,8 +47,8 @@ void TransferOperator::MultTranspose(const Vector &x, Vector &y) const
 
 OrderTransferOperator::OrderTransferOperator(
     const FiniteElementSpace &lFESpace_, const FiniteElementSpace &hFESpace_)
-    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), hFESpace(hFESpace_),
-      lFESpace(lFESpace_)
+    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
+      hFESpace(hFESpace_)
 {
 }
 
