@@ -940,7 +940,6 @@ void PADiffusionApply2DElement(int e,
       }
       for (int dx = 0; dx < D1D; ++dx)
       {
-         // todo: local version of x
          // const double s = x(dx,dy,e);
          const double s = x(dx,dy);
          for (int qx = 0; qx < Q1D; ++qx)
@@ -1004,7 +1003,6 @@ void PADiffusionApply2DElement(int e,
          const double wDy = Gt(dy,qy);
          for (int dx = 0; dx < D1D; ++dx)
          {
-            // todo: local use of y?
             // y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
             y(dx,dy) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
          }
@@ -1057,8 +1055,8 @@ static void SmemPADiffusionApply2DElement(int e,
                                           DeviceTensor<2,const double> b,
                                           DeviceTensor<2,const double> g,
                                           DeviceTensor<3,const double> op,
-                                          DeviceTensor<3,const double> x,
-                                          DeviceTensor<3,double> y,
+                                          DeviceTensor<2,const double> x,
+                                          DeviceTensor<2,double> y,
                                           const int d1d=0,
                                           const int q1d=0)
 {
@@ -1085,7 +1083,8 @@ static void SmemPADiffusionApply2DElement(int e,
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         X[dy][dx] = x(dx,dy,e); // TODO localize?
+         // X[dy][dx] = x(dx,dy,e);
+         X[dy][dx] = x(dx,dy);
       }
    }
    if (tidz == 0)
@@ -1187,7 +1186,8 @@ static void SmemPADiffusionApply2DElement(int e,
             u += DQ0[qy][dx] * Bt[dy][qy];
             v += DQ1[qy][dx] * Gt[dy][qy];
          }
-         y(dx,dy,e) += (u + v); // TODO localize
+         // y(dx,dy,e) += (u + v);
+         y(dx,dy) += (u + v);
       }
    }
 }
@@ -1222,13 +1222,18 @@ static void SmemPADiffusionApply2D(const int NE,
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      // TODO localize x, y
+      auto x_element = DeviceTensor<2, const double>(
+         (const double*) x + e * D1D * D1D,
+         D1D, D1D);
+      auto y_element = DeviceTensor<2, double>(
+         (double*) y + e * D1D * D1D,
+         D1D, D1D);
       SmemPADiffusionApply2DElement<T_D1D, T_Q1D, T_NBZ>(e,
                                                          b,
                                                          g,
                                                          op,
-                                                         x,
-                                                         y,
+                                                         x_element,
+                                                         y_element,
                                                          d1d,
                                                          q1d);
    });
@@ -1759,8 +1764,21 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
          (const double*) _x + element * dofs1D * dofs1D,
          dofs1D, dofs1D);
 
-      PADiffusionApply2DElement<0, 0>(element, B, G, Bt, Gt,
-                                      op, x_element, _y, dofs1D, quad1D);
+      /// this one gets four corners correct, everything else
+      /// wrong, for some input vectors
+      PADiffusionApply2DElement(element, B, G, Bt, Gt,
+                                op, x_element, _y, dofs1D, quad1D);
+
+      /// this one always gets everything wrong
+      // SmemPADiffusionApply2DElement(element,
+      //                            B,
+      //                            G,
+      //                            op,
+      //                            x_element,
+      //                            _y,
+      //                            dofs1D,
+      //                            quad1D);
+
    }
    else
    {
