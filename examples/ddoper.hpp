@@ -21,8 +21,12 @@ using namespace std;
 //#define DEBUG_RECONSTRUCTION
 
 //#define ROBIN_TC
+//#define PENGLEE12_SOTC
+//#define RL_DDMXXI
 
 //#define TESTFEMSOL
+
+//#define TEST_SD_SOLVER
 
 #define PENALTY_U_S 0.0
 
@@ -97,6 +101,8 @@ public:
 
   virtual void MultTranspose(const Vector &x, Vector &y) const
   {
+    y = 0.0;
+
     int i = 0;
     for (std::set<int>::const_iterator it = id->begin(); it != id->end(); ++it, ++i)
       y[i] = x[*it];
@@ -189,6 +195,8 @@ public:
     // Given an input vector x of local true SD DOF's, set the output vector y of local true interface DOF's, which may require values from other processes.
     MFEM_VERIFY(y.Size() == m_send.size(), "");
 
+    y = 0.0;
+
     for (int i=0; i<m_recv.size(); ++i)
       {
 	m_recv[i] = x[m_alltrueSD[i]];
@@ -235,7 +243,7 @@ class DDMInterfaceOperator : public Operator
 public:
   DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_, ParFiniteElementSpace *fespaceGlobal, ParMesh **pmeshSD_, ParMesh **pmeshIF_,
 		       const int orderND, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
-		       std::vector<int> *interfaceLocalIndex_, const double k2_);
+		       std::vector<int> *interfaceLocalIndex_, const double k2_, const double h_);
 
   
   virtual void Mult(const Vector & x, Vector & y) const
@@ -787,6 +795,7 @@ private:
   mutable bool testing;
   
   const double k2;
+  const double hmin;
 
   bool realPart;
   
@@ -912,24 +921,48 @@ private:
   {
     const double k = sqrt(k2);
 
+#ifdef PENGLEE12_SOTC
+    const double cTM = 4.0;
+    const double cTE = 1.5 * cTM;
+#else
     const double cTE = 0.5;  // From RawatLee2010
     const double cTM = 4.0;  // From RawatLee2010
+#endif
     
     // Note that PengLee2012 recommends cTE = 1.5 * cTM. 
 
     // TODO: take these parameters from the mesh and finite element space.
     //const double h = 0.0350769;
     //const double h = 0.0175385;
-    const double h = 1.4e-1;
-    //const double h = 0.5;
+    //const double h = 1.4e-1;
+    //const double h = 0.00877;
+
+    const double h = hmin;
+
     const double feOrder = 1.0;
 
     if (m_rank == 0)
-      cout << "Set paramaters with k = " << k << ", h = " << h << endl;
-
+      {
+	cout << "Set parameters with k = " << k << ", h = " << h << ", kh " << k*h << ", cTE " << cTE << ", cTM " << cTM << ", FEM order " << feOrder << endl;
+#ifdef ROBIN_TC
+	cout << "Using Robin TC" << endl;
+#else
+#ifdef PENGLEE12_SOTC
+	cout << "Using PL12 SOTC" << endl;
+#else
+	cout << "Using RL10 SOTC" << endl;
+#endif
+#endif
+      }
+    
+#ifdef RL_DDMXXI
+    const double ktTE = 0.5 * ((10.0*feOrder / h) + k);
+    const double ktTM = 0.5 * ((20.0 * feOrder / (3.0 * h)) + k);
+#else
     const double ktTE = cTE * M_PI * feOrder / h;
     const double ktTM = cTM * M_PI * feOrder / h;
-
+#endif
+    
     /*    
     const double ktTE = 3.0 * k; // From PengLee2012
     const double ktTM = 2.0 * k; // From PengLee2012
@@ -941,6 +974,7 @@ private:
     const double kzTE = sqrt((ktTE*ktTE) - k2);
     const double kzTM = sqrt((ktTM*ktTM) - k2);
 
+#ifdef PENGLEE12_SOTC
     // PengLee2012
     // alpha = ik
     // beta = i / (k + i kzTE) = i * (k - i kzTE) / (k^2 + kzTE^2) = (kzTE + ik) / (k^2 + kzTE^2)
@@ -955,8 +989,7 @@ private:
     alphaIm = k;
     betaIm = k / (k2 + (kzTE * kzTE));
     gammaIm = -kzTM / (k * (k2 + (kzTM * kzTM)));
-
-
+#else
     // RawatLee2010
     // alpha = -ik
     // beta = i / (k + kzTE) = i / (k - i sqrt((k_tau^{max,te})^2 - k^2)) = i / (k - i sqrt(ktTE^2 - k^2))
@@ -975,7 +1008,8 @@ private:
     alphaIm = -k;
     betaIm = k / (ktTE * ktTE);
     gammaIm = kzTM / (k * (ktTM * ktTM));
-
+#endif
+    
 #ifdef ROBIN_TC
     // Robin TC
 

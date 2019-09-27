@@ -53,8 +53,10 @@ void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
-//#define SIGMAVAL -250.0
 #define SIGMAVAL -2.0
+//#define SIGMAVAL -191.0
+//#define SIGMAVAL -1009.0
+//#define SIGMAVAL -511.0
 
 void test1_RHS_exact(const Vector &x, Vector &f)
 {
@@ -334,7 +336,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
-   bool visit = true;   
+   bool visit = false;
 #ifdef MFEM_USE_STRUMPACK
    bool use_strumpack = false;
 #endif
@@ -386,10 +388,11 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539
-	(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769
-	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385
-      //(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923
+	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
+	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
+	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains
       
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
@@ -400,7 +403,7 @@ int main(int argc, char *argv[])
 
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {1, 2, 1};
+   int nxyzSubdomains[3] = {1, 1, 2};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -427,11 +430,11 @@ int main(int argc, char *argv[])
 
    if (geometricPartition)
      {
-       //int nxyzGlobal[3] = {1, 1, 1};
+       int nxyzGlobal[3] = {1, 1, 1};
        //int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 1, 2};
-       //int nxyzGlobal[3] = {2, 2, 2};
-       int nxyzGlobal[3] = {8, 4, 8};
+       //int nxyzGlobal[3] = {6, 6, 8};  // 288
+       //int nxyzGlobal[3] = {8, 4, 8};
        //int nxyzGlobal[3] = {8, 16, 8};
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
        
@@ -474,6 +477,7 @@ int main(int argc, char *argv[])
    }
    pmesh->ReorientTetMesh();
 
+   double hmin = 0.0;   
    {
      double minsize = pmesh->GetElementSize(0);
      double maxsize = minsize;
@@ -485,6 +489,8 @@ int main(int argc, char *argv[])
        }
 
      cout << myid << ": Element size range: (" << minsize << ", " << maxsize << ")" << endl;
+
+     MPI_Allreduce(&minsize, &hmin, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
    }
 
    // 5.1. Determine subdomain interfaces, and for each interface create a set of local vertex indices in pmesh.
@@ -535,6 +541,30 @@ int main(int argc, char *argv[])
 	 }
      }
 
+   /*
+   {
+     // Print the first vertex on each process, in order of rank.
+     // This shows that as rank increases, the x-coordinate increases fastest, z slowest.
+     // Consequently, partitioning the subdomains in the z direction will ensure that 
+     // different subdomains are on different nodes, so that matrix memory is distributed.
+
+     if (myid > 0)
+       {
+	 MPI_Status stat;
+	 int num;
+	 MPI_Recv(&num, 1, MPI_INT, myid-1, myid-1, MPI_COMM_WORLD, &stat);
+       }
+     
+     cout << myid << ": first vertex " << pmesh->GetVertex(0)[0] << " " << pmesh->GetVertex(0)[1] << " "  << pmesh->GetVertex(0)[2] << endl;
+
+     if (myid < num_procs-1)
+       {
+	 MPI_Send(&myid, 1, MPI_INT, myid+1, myid, MPI_COMM_WORLD);
+       }
+     
+     return;
+   }
+   */
    /*
    { // debugging
      for (int i=0; i<numSubdomains; ++i)
@@ -614,7 +644,7 @@ int main(int argc, char *argv[])
    // 6.1. Create interface operator.
 
    DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, fespace, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
-			    &interfaces, &interfaceGlobalToLocalMap, -SIGMAVAL);  // PengLee2012 uses order 2 
+			    &interfaces, &interfaceGlobalToLocalMap, -SIGMAVAL, hmin);  // PengLee2012 uses order 2 
 
    cout << "DDI size " << ddi.Height() << " by " << ddi.Width() << endl;
    
@@ -880,6 +910,7 @@ int main(int argc, char *argv[])
        gmres->SetOperator(ddi);
        gmres->SetRelTol(1e-8);
        gmres->SetMaxIter(100);
+       gmres->SetKDim(100);
        gmres->SetPrintLevel(1);
 
        //gmres->SetName("ddi");
@@ -1084,7 +1115,9 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
-
+  
+   //cout << "Final element 0 size " << pmesh->GetElementSize(0) << ", number of elements " << pmesh->GetGlobalNE() << endl;
+   
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
    DataCollection *dc = NULL;

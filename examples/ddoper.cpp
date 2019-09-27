@@ -2875,19 +2875,19 @@ void CompareOperators(Operator *A, Operator *B, MPI_Comm comm)
 
       const double err = Bej.Norml2();
 
-      if (err / nrm > 1.0e-8)
-	cout << "WARNING: large operator diff " << err << " relative to " << nrm << endl;
+      if (err / nrm > 1.0e-8 || j % 100 == 0)
+	cout << "WARNING: large operator diff " << err << " relative to " << nrm << ", " << j << " of " << n << endl;
     }
 }
 
 DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_,
 					   ParFiniteElementSpace *fespaceGlobal, ParMesh **pmeshSD_, ParMesh **pmeshIF_,
 					   const int orderND, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
-					   std::vector<int> *interfaceLocalIndex_, const double k2_) :
+					   std::vector<int> *interfaceLocalIndex_, const double k2_, const double h_) :
   numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), pmeshSD(pmeshSD_), pmeshIF(pmeshIF_), fec(orderND, spaceDim),
   fecbdry(orderND, spaceDim-1), fecbdryH1(orderND, spaceDim-1), localInterfaces(localInterfaces_), interfaceLocalIndex(interfaceLocalIndex_),
   subdomainLocalInterfaces(numSubdomains_), pmeshGlobal(pmesh_),
-  k2(k2_), realPart(true),
+  k2(k2_), hmin(h_), realPart(true),
   alpha(1.0), beta(1.0), gamma(1.0)  // TODO: set these to the right values
 {
   int num_procs, rank;
@@ -3124,8 +3124,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    }
 	  */
 
-	  if (m == 0)
-	    cout << rank << ": sd 0 ND space true size " << fespace[m]->GetTrueVSize() << ", full size " << fespace[m]->GetVSize() << endl;
+	  //if (m == 0)
+	  cout << rank << ": sd " << m << " ND space true size " << fespace[m]->GetTrueVSize() << ", full size " << fespace[m]->GetVSize() << endl;
 
 	}
 
@@ -3847,6 +3847,59 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    HypreParMatrix *HypreAsdComplexIm = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], AsdIm_HypreBlocks[m], AsdIm_HypreBlockCoef[m],
 									       blockGI, blockProcOffsets, all_block_num_loc_rows);
 
+	    if (m == 2)
+	      {
+		/*
+		const int Nm = HypreAsdComplexRe->Height();
+		MFEM_VERIFY(Nm > 0, "");
+
+		Vector ej(Nm);
+		Vector Aej(Nm);
+
+		for (int j=120; j<121; ++j)
+		  {
+		    ej = 0.0;
+
+		    if (sdrank == 0)
+		      {
+			MFEM_VERIFY(j < Nm, "");
+			if (j >= Nm)
+			  cout << "ERROR out of bounds" << endl;
+		    
+			ej[j] = 1.0;
+		      }
+		
+		    HypreAsdComplexRe->Mult(ej, Aej);
+
+		    if (sdrank == 0)
+		      {
+			ofstream tmpfile("rank36out3");
+			Aej.Print(tmpfile);
+			tmpfile.close();
+		      }
+		  }
+		*/
+		/*		
+		Vector ej(std::max(ifH1true[1], 1));
+		Vector Aej(std::max(ifNDtrue[1], 1));
+		ej = 0.0;
+		if (sdrank == 0)
+		  ej[0] = 1.0;
+
+		if (ifNDtrue[1] > 0)
+		  ifNDH1grad[1]->Mult(ej, Aej);
+
+		Aej *= gammaOverAlpha;
+		
+		if (sdrank == 0)
+		  {
+		    ofstream tmpfile("rank36out5");
+		    Aej.Print(tmpfile);
+		    tmpfile.close();
+		  }
+		*/
+	      }
+	    
 	    ComplexHypreParMatrix tmpComplex(HypreAsdComplexRe, HypreAsdComplexIm, false, false);
 	    HypreAsdComplex[m] = tmpComplex.GetSystemMatrix();
 
@@ -3919,7 +3972,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
 	HypreAsdComplex[m] = new HypreParMatrix(MPI_COMM_WORLD, SpAsdComplex[m]->Size(), SpAsdComplexRowSizes[m], SpAsdComplex[m]);  // constructor with 4 arguments, v1
 
-	CompareOperators(HypreAsdComplex[m], AsdComplex[m], sd_com[m]);
+	//CompareOperators(HypreAsdComplex[m], AsdComplex[m], sd_com[m]);
 	
 	invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
 #endif // HYPRE_PARALLEL_ASDCOMPLEX
@@ -3941,6 +3994,125 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	invAsdComplex[m] = gmres;
 #endif // SPARSE_ASDCOMPLEX
 
+#ifdef TEST_SD_SOLVER
+	if (m == 2 && invAsdComplex[m] != NULL)
+	  {
+	    //CompareOperators(HypreAsdComplex[m], AsdComplex[m], sd_com[m]);
+
+	    int sdrank = -1;
+	    MPI_Comm_rank(sd_com[m], &sdrank);
+  
+	    const int Nm = AsdComplex[m]->Height();
+	    MFEM_VERIFY(Nm > 0, "");
+	    MFEM_VERIFY(Nm == AsdComplex[m]->Width(), "");
+
+	    Vector ej(Nm);
+	    Vector Aej(Nm);
+	    Vector rej(Nm);
+
+	    for (int j=0; j<300; ++j)
+	      {
+		ej = 0.0;
+
+		if (sdrank == 0)
+		  {
+		    if (j >= Nm)
+		      cout << "ERROR out of bounds" << endl;
+		    
+		    MFEM_VERIFY(j < Nm, "");
+
+		    ej[j] = 1.0;
+		  }
+	    
+		//AsdComplex[m]->Mult(ej, Aej);
+		
+		//AsdComplex[m]->Mult(ej, rej);
+		//double opnrm = rej.Norml2();
+		double opnrm = 0.0;
+		
+		HypreAsdComplex[m]->Mult(ej, Aej);
+		const double Anrm = Aej.Norml2();
+
+		/*
+		if (sdrank == 0)
+		  {
+		    ofstream tmpfile("rank36out2");
+		    rej.Print(tmpfile);
+		    Aej.Print(tmpfile);
+		    tmpfile.close();
+		  }
+		*/
+		
+		rej -= Aej;
+		double diffnrm = rej.Norml2();
+
+		invAsdComplex[m]->Mult(Aej, rej);
+
+		double rnrm = rej.Norml2();
+		double rnrm2 = rnrm*rnrm;
+		double sumnrm2 = 0.0;
+
+		const double locrnrm = rnrm;
+		
+		MPI_Allreduce(&rnrm2, &sumnrm2, 1, MPI_DOUBLE, MPI_SUM, sd_com[m]);
+
+		rej -= ej;
+		
+		rnrm = rej.Norml2();
+		rnrm2 = rnrm*rnrm;
+		double sumdnrm2 = 0.0;
+		
+		MPI_Allreduce(&rnrm2, &sumdnrm2, 1, MPI_DOUBLE, MPI_SUM, sd_com[m]);
+
+		if (sumdnrm2 > 1.0e-18 || j % 100 == 0)
+		  cout << m_rank << ": j " << j << " of " << Nm << ", norm of rej " << sqrt(sumnrm2) << ", norm of diff " << sqrt(sumdnrm2)
+		       << ", local rej norm " << locrnrm << ", local Aej norm " << Anrm << ", local op*ej norm " << opnrm << ", local (op-H)*ej norm "
+		       << diffnrm << ", sdrank " << sdrank << endl;
+	      }
+	    
+	    /*
+	    {
+	      Vector uj(AsdIm[m]->Width());
+	      Vector Auj(AsdIm[m]->Width());
+
+	      uj = 0.0;
+	      if (sdrank == 0)
+		uj[120] = 1.0;
+
+	      Vector uju(trueOffsetsSD[m][1]);
+	      for (int l=trueOffsetsSD[m][0]; l<trueOffsetsSD[m][1]; ++l)
+		uju[l] = uj[l];
+
+	      Vector ujSIF(ifNDtrue[1]);
+	      InterfaceToSurfaceInjection[m][1]->MultTranspose(uju, ujSIF);
+	      const double ujSIFnrm = (ifNDtrue[1] > 0) ? ujSIF.Norml2() : 0.0;
+	      
+	      cout << m_rank << ": uju norm " << uju.Norml2() << ", restriction norm " << ujSIFnrm << endl;
+	      
+	      AsdIm[m]->Mult(uj, Auj);
+
+	      if (sdrank == -1)
+		{
+		  ofstream tmpfile("rank36out6");
+		  Auj.Print(tmpfile);
+		  tmpfile.close();
+		}
+	      
+	      if (sdrank == 0)
+		{
+		  cout << m_rank << ": trueOffsetsSD[" << m << "] size " << trueOffsetsSD[m].Size() << endl;
+
+		  for (int j=0; j<subdomainLocalInterfaces[m].size(); ++j)
+		    {
+		      const int interfaceIndex = subdomainLocalInterfaces[m][j];
+		      cout << m_rank << ": global interfaces for sd " << m << ": " << interfaceIndex << endl;
+		    }
+		    }
+	  }
+	    */
+	  }
+#endif
+	
 	if (invAsdComplex[m] != NULL)
 	  {
 	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injComplexSD[m]), invAsdComplex[m], injComplexSD[m],
@@ -5977,8 +6149,10 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
       // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
 
       if (ifNDtrue[interfaceIndex] == 0)
-	continue;
+	continue;  // TODO: this seems to be a bug. In the empty case, an empty operator should be used, so that the injection operators can do their communication.
 
+      // Note that this bug has gone unnoticed, since the hypre matrices are used rather than this block operator.
+      
 #ifdef SCHURCOMPSD
       // Modify the A_m^{SF} block by subtracting A_m^{S\rho} A_m^{\rho\rho}^{-1} A_m^{\rho F}; drop the A_m^{S\rho} block
       op->SetBlock(0, (2*i) + 1, new TripleProductOperator(new ProductOperator(InterfaceToSurfaceInjection[subdomain][interfaceIndex], ifNDH1grad[interfaceIndex],
