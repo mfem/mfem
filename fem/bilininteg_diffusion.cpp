@@ -1084,12 +1084,6 @@ static void SmemPADiffusionApply2DElement(int e,
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   std::cout << "      tidz = " << tidz
-             << ", D1D = " << D1D
-             << ", Q1D = " << Q1D
-             << ", NBZ = " << NBZ
-             << ", MQ1 = " << MQ1
-             << ", MD1 = " << MD1 << std::endl;
    MFEM_SHARED double sBG[2][MQ1*MD1];
    double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
    double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
@@ -1253,37 +1247,6 @@ static void SmemPADiffusionApply2D(const int NE,
          (double*) y + e * D1D * D1D,
          D1D, D1D);
 
-      /*
-        // fine?
-      std::cout << "multielement x in:" << std::endl;
-      for (int k = 0; k < D1D * D1D; ++k)
-      {
-         std::cout << "  " << k << ": " << x_element[k] << std::endl;
-      }
-      */
-      /*
-        // fine
-      std::cout << "multielement y in:" << std::endl;
-      for (int k = 0; k < D1D * D1D; ++k)
-      {
-         std::cout << "  " << k << ": " << y_element[k] << std::endl;
-      }
-      */
-      /*
-        // fine?
-      std::cout << "multelement op in:" << std::endl;
-      for (int k = 0; k < Q1D * Q1D * 3; ++k)
-      {
-         std::cout << "  " << k << ": " << op[k] << std::endl;
-      }
-      */
-      // not fine!
-      std::cout << "multielement B in:" << std::endl;
-      for (int k = 0; k < D1D * Q1D; ++k)
-      {
-         std::cout << "  " << k << ": " << b[k] << std::endl;
-      }
-
       SmemPADiffusionApply2DElement<T_D1D, T_Q1D, T_NBZ>(e,
                                                          b,
                                                          g,
@@ -1292,11 +1255,6 @@ static void SmemPADiffusionApply2D(const int NE,
                                                          y_element,
                                                          d1d,
                                                          q1d);
-      std::cout << "multielement y out:" << std::endl;
-      for (int k = 0; k < D1D * D1D; ++k)
-      {
-         std::cout << "  " << k << ": " << y_element[k] << std::endl;
-      }
    });
 }
 
@@ -1815,8 +1773,8 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
    {
       auto B = Reshape(maps->B.Read(), quad1D, dofs1D);
       auto G = Reshape(maps->G.Read(), quad1D, dofs1D);
-      auto Bt = Reshape(maps->Bt.Read(), dofs1D, quad1D);
-      auto Gt = Reshape(maps->Gt.Read(), dofs1D, quad1D);
+      // auto Bt = Reshape(maps->Bt.Read(), dofs1D, quad1D);
+      // auto Gt = Reshape(maps->Gt.Read(), dofs1D, quad1D);
       auto op = Reshape(pa_data.Read(), quad1D*quad1D, 3, ne);
       auto _x = Reshape(x.Read(), dofs1D, dofs1D, ne);
       auto _y = Reshape(y.ReadWrite(), dofs1D, dofs1D);
@@ -1825,43 +1783,9 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
          (const double*) _x + element * dofs1D * dofs1D,
          dofs1D, dofs1D);
 
-      /// this one gets four corners correct, everything else
-      /// wrong, for some input vectors
       // PADiffusionApply2DElement(element, B, G, Bt, Gt,
       //                        op, x_element, _y, dofs1D, quad1D);
 
-
-      /// this one always gets everything wrong
-      /*
-        // seems okay?
-      std::cout << "element x in:" << std::endl;
-      for (int k = 0; k < dofs1D * dofs1D; ++k)
-      {
-         std::cout << "  " << k << ": " << x_element[k] << std::endl;
-      }
-      */
-      /*
-        // not okay!
-      std::cout << "element y in:" << std::endl;
-      for (int k = 0; k < dofs1D * dofs1D; ++k)
-      {
-         std::cout << "  " << k << ": " << _y[k] << std::endl;
-      }
-      */
-      /*
-        // fine?
-      std::cout << "element op in:" << std::endl;
-      for (int k = 0; k < quad1D * quad1D * 3; ++k)
-      {
-         std::cout << "  " << k << ": " << op[k] << std::endl;
-      }
-      */
-      // not fine!
-      std::cout << "element B in:" << std::endl;
-      for (int k = 0; k < dofs1D * quad1D; ++k)
-      {
-         std::cout << "  " << k << ": " << B[k] << std::endl;
-      }
       SmemPADiffusionApply2DElement(element,
                                     B,
                                     G,
@@ -1870,12 +1794,6 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
                                     _y,
                                     dofs1D,
                                     quad1D);
-      std::cout << "element y out:" << std::endl;
-      for (int k = 0; k < dofs1D * dofs1D; ++k)
-      {
-         std::cout << "  " << k << ": " << _y[k] << std::endl;
-      }
-
    }
    else
    {
