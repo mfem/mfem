@@ -178,6 +178,7 @@ void PABilinearFormExtension::ElementMatrixMult(int i, const Vector &x,
                                                 Vector &y_element)
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   Vector yelem_preorder(y_element);
 
    const int iSz = integrators.Size();
    if (elem_restrict_lex)
@@ -186,8 +187,23 @@ void PABilinearFormExtension::ElementMatrixMult(int i, const Vector &x,
       // localY = 0.0;
       for (int j = 0; j < iSz; ++j)
       {
-         integrators[j]->AddMultElementPA(i, localX, y_element);
+         integrators[j]->AddMultElementPA(i, localX, yelem_preorder);
       }
+
+      // reorder... (kinda like the transpose of elem_restrict_lex)
+      const FiniteElement *fe = trialFes->GetFE(i);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      MFEM_VERIFY(el, "Not a tensor element!");
+      const Array<int> &fe_dof_map = el->GetDofMap();
+      MFEM_VERIFY(fe_dof_map.Size() == yelem_preorder.Size(),
+                  "Sizes don't match!");
+      for (int j = 0; j < yelem_preorder.Size(); ++j)
+      {
+         // y_element[j] = yelem_preorder[fe_dof_map[j]];
+         y_element[fe_dof_map[j]] = yelem_preorder[j];
+      }
+
    }
    else
    {
