@@ -190,6 +190,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/inline-hex.mesh";
    int ref_levels = 0;
+   int pref_levels = 0;
    int order = 1;
    int h_levels = 1;
    int o_levels = 1;
@@ -212,6 +213,10 @@ int main(int argc, char *argv[])
    args.AddOption(
        &ref_levels, "-r", "--refine",
        "Number of times to refine the initial mesh uniformly;"
+       "This mesh will be the coarse mesh in the multigrid hierarchy");
+   args.AddOption(
+       &pref_levels, "-pr", "--parallelrefine",
+       "Number of times to refine the serially refined mesh in parallel;"
        "This mesh will be the coarse mesh in the multigrid hierarchy");
    args.AddOption(&order, "-o", "--order",
                   "Order of the finite element spaces");
@@ -295,6 +300,12 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    mesh = nullptr;
+
+   // Parallel refinements of the serially refined mesh
+   for (int i = 0; i < pref_levels; ++i)
+   {
+      pmesh->UniformRefinement();
+   }
 
    Array<int> orders;
    Array<FiniteElementCollection *> feCollectons;
