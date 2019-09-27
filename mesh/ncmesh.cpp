@@ -299,7 +299,7 @@ int NCMesh::FindMidEdgeNode(int node1, int node2) const
    return mid;
 }
 
-int NCMesh::FindValidNode(int node)
+int NCMesh::GetValidNode(int node)
 {
    const Node &nd = nodes[node];
    if (nd.flag) { return nd.vert_index; } // merged node, return target
@@ -766,10 +766,10 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    // the middle vertical edge. The function calls itself again for the bottom
    // and upper half of the above picture.
 
-   vn1 = FindValidNode(vn1);
-   vn2 = FindValidNode(vn2);
-   vn3 = FindValidNode(vn3);
-   vn4 = FindValidNode(vn4);
+   vn1 = GetValidNode(vn1);
+   vn2 = GetValidNode(vn2);
+   vn3 = GetValidNode(vn3);
+   vn4 = GetValidNode(vn4);
 
    if (mid12 < 0)
    {
@@ -1524,7 +1524,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_list[elem] = refinements[i].ref_type;
    }
 
-
    static int epoch = 0;
    int round = 0, nforced = 0;
    while (ref_list.size())
@@ -1593,6 +1592,12 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    //shadow.DeleteAll();
 
    Update();
+
+   {
+      std::ofstream f("ncmesh-updated.dump");
+      DebugDump(f);
+   }
+
 }
 
 void NCMesh::MergeNodes()
@@ -1600,11 +1605,14 @@ void NCMesh::MergeNodes()
    // adjust node parents if the parents are to be merged
    for (auto it = nodes.begin(); it.good(); ++it)
    {
-      int p1 = FindValidNode(it->p1);
-      int p2 = FindValidNode(it->p2);
+      int p1 = GetValidNode(it->p1);
+      int p2 = GetValidNode(it->p2);
 
       if (p1 != it->p1 || p2 != it->p2)
       {
+         // TODO: node with p1, p2 might already exist, need to merge to existing
+         // HOWEVER: this may necessitate another round of updating p's
+
          nodes.Reparent(it.index(), p1, p2);
       }
    }
@@ -1612,10 +1620,10 @@ void NCMesh::MergeNodes()
    // adjust face node references
    for (auto it = faces.begin(); it.good(); ++it)
    {
-      int p1 = FindValidNode(it->p1);
-      int p2 = FindValidNode(it->p2);
-      int p3 = FindValidNode(it->p3);
-      int p4 = FindValidNode(it->p4);
+      int p1 = GetValidNode(it->p1);
+      int p2 = GetValidNode(it->p2);
+      int p3 = GetValidNode(it->p3);
+      int p4 = GetValidNode(it->p4);
 
       if (p1 != it->p1 || p2 != it->p2 || p3 != it->p3 || p4 != it->p4)
       {
@@ -1626,7 +1634,7 @@ void NCMesh::MergeNodes()
    // adjust node references in elements
    for (Element &el : elements)
    {
-      if (el.ref_type)
+      if (!el.ref_type)
       {
          for (int i = 0; i < 8 && el.node[i] >= 0; i++)
          {
@@ -2187,8 +2195,10 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
          const int nfv = gi.nfv[k];
          const Face* face = faces.Find(node[fv[0]], node[fv[1]],
                                        node[fv[2]], node[fv[3]]);
-         MFEM_ASSERT(face, "face not found");
 
+         MFEM_ASSERT(face, "face (" << node[fv[0]] << ", " << node[fv[1]] << ", "
+                                    << node[fv[2]] << ", " << node[fv[3]]
+                                    << ") not found");
          if (face->Boundary())
          {
             if ((nc_elem.geom == Geometry::CUBE) ||
@@ -2242,8 +2252,9 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
 
       MFEM_ASSERT(node && node->HasEdge(),
-                  "edge (" << ev[0] << "," << ev[1] << ") not found, "
-                  "node = " << node);
+                  "edge (" << vertex_nodeId[ev[0]] << ","
+                           << vertex_nodeId[ev[1]] << ") not found, "
+                           "node = " << node);
 
       node->edge_index = i;
    }

@@ -589,14 +589,13 @@ protected: // implementation
                         int en1, int en2, int en3, int en4);
 
    void MergeNodes();
-   int FindValidNode(int node);
 
    //void ReparentNode(int node, int new_p1, int new_p2);
 
    int FindMidEdgeNode(int node1, int node2) const;
    int GetMidEdgeNode(int node1, int node2);
-
    int GetMidFaceNode(int en1, int en2, int en3, int en4);
+   int GetValidNode(int node);
 
    void ReferenceElement(int elem);
    void UnreferenceElement(int elem, Array<int> &elemFaces);
