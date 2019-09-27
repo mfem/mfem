@@ -257,7 +257,7 @@ NCMesh::~NCMesh()
 
 NCMesh::Node::~Node()
 {
-   MFEM_ASSERT(!vert_refc && !edge_refc, "node was not unreffed properly, "
+   MFEM_ASSERT(!vert_refc && !edge_refc, "node was not unreferenced properly, "
                "vert_refc: " << (int) vert_refc << ", edge_refc: "
                << (int) edge_refc);
 }
@@ -281,6 +281,11 @@ NCMesh::Node::~Node()
 int NCMesh::FindMidEdgeNode(int node1, int node2) const
 {
    int mid = nodes.FindId(node1, node2);
+   if (mid >= 0 && nodes[mid].flag)
+   {
+      // node marked for removal/merging with another node
+      mid = nodes[mid].vert_index;
+   }
 /*   if (mid < 0 && shadow.Size())
    {
       // if (anisotropic) refinement is underway, some nodes may temporarily
@@ -774,18 +779,23 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
       {
          int midf_v = nodes.FindId(mid12, mid34);
 
+         if (nodes[midf_v].flag) { return true; }
+
          nodes.Reparent(midf_h, mid12, mid34);
 
          if (midf_v >= 0)
          {
-            // merge midf_v into midf_h
-            // flag midf_v for deletion
             nodes.Reparent(midf_v, mid23, mid41);
+
+            // mark midf_v for merging into midf_h
+            nodes[midf_v].flag = 1;
+            nodes[midf_v].vert_index = midf_h;
          }
 
          CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf_h, level+1);
          CheckAnisoFace(mid41, mid23, vn3, vn4, midf_h, mid34, level+1);
 
+         return true;
 #if 0
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
 
@@ -847,6 +857,8 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    {
       ForceRefinement(vn1, vn2, vn3, vn4);
    }
+
+   return false;
 }
 
 /*void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
@@ -1530,6 +1542,13 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       }
    }
 
+   MergeNodes();
+
+   {
+      std::ofstream f("ncmesh-merged.dump");
+      DebugDump(f);
+   }
+
    /*// keep refining as long as the stack contains something
    int nforced = 0;
    while (ref_stack.Size())
@@ -1553,6 +1572,52 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    //shadow.DeleteAll();
 
    Update();
+}
+
+void NCMesh::MergeNodes()
+{
+   // adjust node parents if the parents are to be merged
+   for (auto it = nodes.begin(); it.good(); ++it)
+   {
+      int p1 = it->p1, p2 = it->p2;
+
+      if (nodes[p1].flag) { p1 = nodes[p1].vert_index; }
+      if (nodes[p2].flag) { p2 = nodes[p2].vert_index; }
+
+      if (p1 != it->p1 || p2 != it->p2)
+      {
+         nodes.Reparent(it.index(), p1, p2);
+      }
+   }
+
+   // adjust node references in elements
+   for (Element &el : elements)
+   {
+      if (el.ref_type)
+      {
+         for (int i = 0; i < 8 && el.node[i] >= 0; i++)
+         {
+            const Node &nd = nodes[el.node[i]];
+            if (nd.flag) { el.node[i] = nd.vert_index; }
+         }
+      }
+   }
+
+   // merge and delete flagged nodes
+   for (auto it = nodes.begin(); it.good(); ++it)
+   {
+      if (it->flag)
+      {
+         Node &target = nodes[it->vert_index];
+         target.vert_refc += it->vert_refc;
+         target.edge_refc += it->edge_refc;
+
+         it->flag = 0;
+         it->vert_refc = it->edge_refc = 0;
+
+         nodes.Delete(it.index());
+      }
+   }
 }
 
 
@@ -1856,7 +1921,7 @@ void NCMesh::UpdateVertices()
 {
    // (overridden in ParNCMesh to assign special indices to ghost vertices)
    NVertices = 0;
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex()) { node->vert_index = NVertices++; }
    }
@@ -1864,7 +1929,7 @@ void NCMesh::UpdateVertices()
    vertex_nodeId.SetSize(NVertices);
 
    NVertices = 0;
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex()) { vertex_nodeId[NVertices++] = node.index(); }
    }
@@ -3839,8 +3904,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
             .SetSize(Dim, identity.np, path_map[g].size());
 
             // calculate the point matrices
-            RefPathMap::iterator it;
-            for (it = path_map[g].begin(); it != path_map[g].end(); ++it)
+            for (auto it = path_map[g].begin(); it != path_map[g].end(); ++it)
             {
                GetPointMatrix(geom, it->first.c_str(),
                               transforms.point_matrices[g](it->second-1));
@@ -3893,8 +3957,7 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
             .SetSize(Dim, identity.np, mat_no[geom].size());
 
             // calculate point matrices
-            std::map<int, int>::iterator it;
-            for (it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
+            for (auto it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
             {
                char path[3];
                int code = it->first;
@@ -4733,14 +4796,14 @@ void NCMesh::PrintVertexParents(std::ostream &out) const
 {
    // count vertices with parents
    int nv = 0;
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
       if (node->HasVertex() && node->p1 != node->p2) { nv++; }
    }
    out << nv << "\n";
 
    // print the relations
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
       if (node->HasVertex() && node->p1 != node->p2)
       {
@@ -4781,7 +4844,7 @@ void NCMesh::LoadVertexParents(std::istream &input)
 void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
 {
    int num_top_level = 0;
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->p1 == node->p2) // see NCMesh::NCMesh
       {
@@ -4914,7 +4977,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
 
    // copy roots, they need to be at the beginning of 'elements'
    int root_count = 0;
-   for (elem_iterator el = tmp_elements.begin(); el != tmp_elements.end(); ++el)
+   for (auto el = tmp_elements.begin(); el != tmp_elements.end(); ++el)
    {
       if (el->parent == -1)
       {
@@ -4931,7 +4994,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    }
 
    // we also need to renumber element links in Face::elem[]
-   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   for (auto face = faces.begin(); face != faces.end(); ++face)
    {
       for (int i = 0; i < 2; i++)
       {
@@ -5120,7 +5183,7 @@ void NCMesh::DebugDump(std::ostream &out) const
    // dump nodes
    tmp_vertex = new TmpVertex[nodes.NumIds()];
    out << nodes.Size() << "\n";
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
       const double *pos = CalcVertexPos(node.index());
       out << node.index() << " "
@@ -5156,7 +5219,7 @@ void NCMesh::DebugDump(std::ostream &out) const
 
    // dump faces
    out << faces.Size() << "\n";
-   for (face_const_iterator face = faces.cbegin(); face != faces.cend(); ++face)
+   for (auto face = faces.cbegin(); face != faces.cend(); ++face)
    {
       int elem = face->elem[0];
       if (elem < 0) { elem = face->elem[1]; }

@@ -385,10 +385,10 @@ protected: // implementation
        parent element "signs off" its nodes by decrementing the ref counts. */
    struct Node : public Hashed2
    {
-      char vert_refc, edge_refc;
+      char vert_refc, edge_refc, flag;
       int vert_index, edge_index;
 
-      Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
+      Node() : vert_refc(0), edge_refc(0), flag(0), vert_index(-1), edge_index(-1) {}
       ~Node();
 
       bool HasVertex() const { return vert_refc > 0; }
@@ -460,12 +460,6 @@ protected: // implementation
 
    /// coordinates of top-level vertices (organized as triples)
    Array<double> top_vertex_pos;
-
-   typedef HashTable<Node>::iterator node_iterator;
-   typedef HashTable<Face>::iterator face_iterator;
-   typedef HashTable<Node>::const_iterator node_const_iterator;
-   typedef HashTable<Face>::const_iterator face_const_iterator;
-   typedef BlockArray<Element>::iterator elem_iterator;
 
 
    // secondary data
@@ -593,6 +587,8 @@ protected: // implementation
    void AddAnisoFaceCheck(int vn1, int vn2, int vn3, int vn4);
    void AddIsoFaceCheck(int vn1, int vn2, int vn3, int vn4,
                         int en1, int en2, int en3, int en4);
+
+   void MergeNodes();
 
    //void ReparentNode(int node, int new_p1, int new_p2);
 

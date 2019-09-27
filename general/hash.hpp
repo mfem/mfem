@@ -289,6 +289,7 @@ int HashTable<T>::GetId(int p1, int p2)
    if (unused.Size())
    {
       new_id = unused.Last();
+      new (&Base::At(new_id)) T();
       unused.DeleteLast();
    }
    else
