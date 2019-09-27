@@ -299,6 +299,13 @@ int NCMesh::FindMidEdgeNode(int node1, int node2) const
    return mid;
 }
 
+int NCMesh::FindValidNode(int node)
+{
+   const Node &nd = nodes[node];
+   if (nd.flag) { return nd.vert_index; } // merged node, return target
+   return node;
+}
+
 int NCMesh::GetMidEdgeNode(int node1, int node2)
 {
    int mid = FindMidEdgeNode(node1, node2);
@@ -630,7 +637,8 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
       }
       else
       {
-         MFEM_ABORT("Inconsistent element/face structure.");
+         MFEM_ABORT("Inconsistent element/face structure. (vn1...vn4) = ("
+                    << vn1 << ", " << vn2 << ", " << vn3 << ", " << vn4 << ").");
       }
    }
    else if (el.Geom() == Geometry::PRISM)
@@ -758,6 +766,11 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    // the middle vertical edge. The function calls itself again for the bottom
    // and upper half of the above picture.
 
+   vn1 = FindValidNode(vn1);
+   vn2 = FindValidNode(vn2);
+   vn3 = FindValidNode(vn3);
+   vn4 = FindValidNode(vn4);
+
    if (mid12 < 0)
    {
       mid12 = FindMidEdgeNode(vn1, vn2);
@@ -778,16 +791,21 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
       if (midf_h >= 0)
       {
          int midf_v = nodes.FindId(mid12, mid34);
-
-         if (nodes[midf_v].flag) { return true; }
+         if (midf_v >= 0 && nodes[midf_v].flag)
+         {
+            // this face was already checked
+            return true;
+         }
 
          nodes.Reparent(midf_h, mid12, mid34);
 
+         // both horizontal and vertical nodes found, this needs to be resolved
          if (midf_v >= 0)
          {
+            // midf_v will hold midf_h's original parents temporarily
             nodes.Reparent(midf_v, mid23, mid41);
 
-            // mark midf_v for merging into midf_h
+            // mark midf_v for merging into midf_h and eventual removal
             nodes[midf_v].flag = 1;
             nodes[midf_v].vert_index = midf_h;
          }
@@ -1502,10 +1520,12 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    // schedule requested refinements
    for (int i = 0; i < refinements.Size(); i++)
    {
-      ref_list[refinements[i].index] = refinements[i].ref_type;
+      int elem = leaf_elements[refinements[i].index];
+      ref_list[elem] = refinements[i].ref_type;
    }
 
 
+   static int epoch = 0;
    int round = 0, nforced = 0;
    while (ref_list.size())
    {
@@ -1516,7 +1536,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
          RefineElement(pair.first, pair.second);
 
          char fname[200];
-         sprintf(fname, "ncmesh-%02d-%03d.dump", round, iter++);
+         sprintf(fname, "ncmesh-%d-%02d-%03d.dump", epoch, round, iter++);
          std::ofstream f(fname);
          DebugDump(f);
       }
@@ -1541,6 +1561,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
          }
       }
    }
+   epoch++;
 
    MergeNodes();
 
@@ -1579,14 +1600,26 @@ void NCMesh::MergeNodes()
    // adjust node parents if the parents are to be merged
    for (auto it = nodes.begin(); it.good(); ++it)
    {
-      int p1 = it->p1, p2 = it->p2;
-
-      if (nodes[p1].flag) { p1 = nodes[p1].vert_index; }
-      if (nodes[p2].flag) { p2 = nodes[p2].vert_index; }
+      int p1 = FindValidNode(it->p1);
+      int p2 = FindValidNode(it->p2);
 
       if (p1 != it->p1 || p2 != it->p2)
       {
          nodes.Reparent(it.index(), p1, p2);
+      }
+   }
+
+   // adjust face node references
+   for (auto it = faces.begin(); it.good(); ++it)
+   {
+      int p1 = FindValidNode(it->p1);
+      int p2 = FindValidNode(it->p2);
+      int p3 = FindValidNode(it->p3);
+      int p4 = FindValidNode(it->p4);
+
+      if (p1 != it->p1 || p2 != it->p2 || p3 != it->p3 || p4 != it->p4)
+      {
+         faces.Reparent(it.index(), p1, p2, p3, p4);
       }
    }
 
@@ -2154,6 +2187,8 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
          const int nfv = gi.nfv[k];
          const Face* face = faces.Find(node[fv[0]], node[fv[1]],
                                        node[fv[2]], node[fv[3]]);
+         MFEM_ASSERT(face, "face not found");
+
          if (face->Boundary())
          {
             if ((nc_elem.geom == Geometry::CUBE) ||
@@ -5218,6 +5253,9 @@ void NCMesh::DebugDump(std::ostream &out) const
    out << "\n";
 
    // dump faces
+#if 1
+   out << "0\n";
+#else
    out << faces.Size() << "\n";
    for (auto face = faces.cbegin(); face != faces.cend(); ++face)
    {
@@ -5242,6 +5280,7 @@ void NCMesh::DebugDump(std::ostream &out) const
       //out << " # face " << face.index() << ", index " << face->index << "\n";
       out << "\n";
    }
+#endif
 }
 #endif
 

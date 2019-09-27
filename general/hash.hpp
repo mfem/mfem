@@ -33,7 +33,7 @@ struct Hashed2
  */
 struct Hashed4
 {
-   int p1, p2, p3; // NOTE: p4 is neither hashed nor stored
+   int p1, p2, p3, p4;
    int next;
 };
 
@@ -331,6 +331,7 @@ int HashTable<T>::GetId(int p1, int p2, int p3, int p4)
    item.p1 = p1;
    item.p2 = p2;
    item.p3 = p3;
+   item.p4 = p4;
 
    // insert into hashtable
    Insert(idx, new_id, item);
@@ -509,6 +510,7 @@ void HashTable<T>::Reparent(int id,
    item.p1 = new_p1;
    item.p2 = new_p2;
    item.p3 = new_p3;
+   item.p4 = new_p4;
 
    // reinsert under new parent IDs
    int new_idx = Hash(new_p1, new_p2, new_p3);
