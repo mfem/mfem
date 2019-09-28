@@ -1048,6 +1048,7 @@ void PADiffusionApply2D(const int NE,
    });
 }
 
+// TODO: const int in template specification below?
 template<int T_D1D = 0,
          int T_Q1D = 0,
          int T_NBZ = 0>
@@ -1812,7 +1813,7 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
                                     dofs1D,
                                     quad1D);
    }
-   else
+   else if (dim == 3)
    {
       auto B = Reshape(maps->B.Read(), quad1D, dofs1D);
       auto G = Reshape(maps->G.Read(), quad1D, dofs1D);
@@ -1840,6 +1841,10 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
                                     _y,
                                     dofs1D,
                                     quad1D);
+   }
+   else
+   {
+      mfem_error("Not implemented!");
    }
 }
 

@@ -1773,6 +1773,8 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddMultElementPA(int element, const Vector &x, Vector &y) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);

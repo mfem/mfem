@@ -470,6 +470,117 @@ static void PAMassApply2D(const int NE,
 template<const int T_D1D = 0,
          const int T_Q1D = 0,
          const int T_NBZ = 0>
+static void SmemPAMassApply2DElement(int e,
+                                     DeviceTensor<2,const double> b,
+                                     DeviceTensor<3,const double> op,
+                                     DeviceTensor<2,const double> x,
+                                     DeviceTensor<2,double> y,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+   MFEM_SHARED double BBt[MQ1*MD1];
+   double (*B)[MD1] = (double (*)[MD1]) BBt;
+   double (*Bt)[MQ1] = (double (*)[MQ1]) BBt;
+   MFEM_SHARED double sm0[NBZ][MDQ*MDQ];
+   MFEM_SHARED double sm1[NBZ][MDQ*MDQ];
+   double (*X)[MD1] = (double (*)[MD1]) (sm0 + tidz);
+   double (*DQ)[MQ1] = (double (*)[MQ1]) (sm1 + tidz);
+   double (*QQ)[MQ1] = (double (*)[MQ1]) (sm0 + tidz);
+   double (*QD)[MD1] = (double (*)[MD1]) (sm1 + tidz);
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         // X[dy][dx] = x(dx,dy,e);
+         X[dy][dx] = x(dx,dy);
+      }
+   }
+   if (tidz == 0)
+   {
+      MFEM_FOREACH_THREAD(d,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q1D)
+         {
+            B[q][d] = b(q,d);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double dq = 0.0;
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            dq += X[dy][dx] * B[qx][dx];
+         }
+         DQ[dy][qx] = dq;
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double qq = 0.0;
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            qq += DQ[dy][qx] * B[qy][dy];
+         }
+         QQ[qy][qx] = qq * op(qx, qy, e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+   if (tidz == 0)
+   {
+      MFEM_FOREACH_THREAD(d,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q1D)
+         {
+            Bt[d][q] = b(q,d);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double dq = 0.0;
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            dq += QQ[qy][qx] * Bt[dx][qx];
+         }
+         QD[qy][dx] = dq;
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double dd = 0.0;
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            dd += (QD[qy][dx] * Bt[dy][qy]);
+         }
+         // y(dx, dy, e) += dd;
+         y(dx, dy) += dd;
+      }
+   }
+}
+
+template<const int T_D1D = 0,
+         const int T_Q1D = 0,
+         const int T_NBZ = 0>
 static void SmemPAMassApply2D(const int NE,
                               const Array<double> &b_,
                               const Array<double> &bt_,
@@ -492,6 +603,17 @@ static void SmemPAMassApply2D(const int NE,
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      auto x_element = DeviceTensor<2, const double>(
+         (const double*) x + e * D1D * D1D,
+         D1D, D1D);
+      auto y_element = DeviceTensor<2, double>(
+         (double*) y + e * D1D * D1D,
+         D1D, D1D);
+
+      SmemPAMassApply2DElement(e, b, op, x_element,
+                               y_element, d1d, q1d);
+
+      /*
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -588,6 +710,7 @@ static void SmemPAMassApply2D(const int NE,
             y(dx, dy, e) += dd;
          }
       }
+      */
    });
 }
 
@@ -965,5 +1088,73 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
 }
+
+/**
+   as written this wants a global e-vector for x and a local
+   element vector for y
+
+   not sure that's the right interface
+*/
+void MassIntegrator::AddMultElementPA(int element, const Vector &x,
+                                      Vector &y) const
+{
+   if (dim == 2)
+   {
+      auto B = Reshape(maps->B.Read(), quad1D, dofs1D);
+      // auto G = Reshape(maps->G.Read(), quad1D, dofs1D);
+      // auto Bt = Reshape(maps->Bt.Read(), dofs1D, quad1D);
+      // auto Gt = Reshape(maps->Gt.Read(), dofs1D, quad1D);
+
+      // auto op = Reshape(pa_data.Read(), quad1D*quad1D, 3, ne); // ?
+      auto op = Reshape(pa_data.Read(), quad1D, quad1D, ne); // ?
+
+      auto _x = Reshape(x.Read(), dofs1D, dofs1D, ne);
+      auto _y = Reshape(y.ReadWrite(), dofs1D, dofs1D);
+
+      auto x_element = DeviceTensor<2, const double>(
+         (const double*) _x + element * dofs1D * dofs1D,
+         dofs1D, dofs1D);
+
+      SmemPAMassApply2DElement(element,
+                               B,
+                               op,
+                               x_element,
+                               _y,
+                               dofs1D,
+                               quad1D);
+   }
+   else if (dim == 3)
+   {
+      /*
+      auto B = Reshape(maps->B.Read(), quad1D, dofs1D);
+      auto G = Reshape(maps->G.Read(), quad1D, dofs1D);
+      // auto Bt = Reshape(maps->Bt.Read(), dofs1D, quad1D);
+      // auto Gt = Reshape(maps->Gt.Read(), dofs1D, quad1D);
+      auto op = Reshape(pa_data.Read(), quad1D*quad1D*quad1D, 6, ne);
+      auto _x = Reshape(x.Read(), dofs1D, dofs1D, dofs1D, ne);
+      auto _y = Reshape(y.ReadWrite(), dofs1D, dofs1D, dofs1D);
+
+      auto x_element = DeviceTensor<3, const double>(
+         (const double*) _x + element * dofs1D * dofs1D * dofs1D,
+         dofs1D, dofs1D, dofs1D);
+
+      SmemPAMassApply3DElement(element,
+                               B,
+                               G,
+                               op,
+                               x_element,
+                               _y,
+                               dofs1D,
+                               quad1D);
+      */
+      mfem_error("Not implemented!");
+   }
+   else
+   {
+      mfem_error("Not implemented!");
+   }
+
+}
+
 
 } // namespace mfem

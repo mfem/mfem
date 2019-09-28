@@ -26,7 +26,8 @@ TEST_CASE("elementmatmult")
          for (int ne = 1; ne < 3; ++ne)
          {
             std::cout << "Testing " << dimension << "D partial assembly element mat mult: "
-                      << std::pow(ne, dimension) << " elements." << std::endl;
+                      << std::pow(ne, dimension) << " elements,"
+                      << " integrator " << integrator << std::endl;
             for (int order = 1; order < 5; ++order)
             {
                Mesh * mesh;
