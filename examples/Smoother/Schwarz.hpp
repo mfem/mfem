@@ -52,9 +52,6 @@ private:
    double theta = 0.5;
 public:
    SchwarzSmoother(Mesh * cmesh_, int ref_levels_, FiniteElementSpace *fespace,SparseMatrix *A_, Array<int> ess_bdr);
-   // SchwarzSmoother(Mesh *cmesh_, int ref_levels_, FiniteElementSpace *fespace_, SparseMatrix *A_);
-
-
 
    void SetType(const Schwarz::SmootherType Type) {sType = Type;}
    void SetNumSmoothSteps(const int iter) {maxit = iter;}

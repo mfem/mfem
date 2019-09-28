@@ -101,9 +101,6 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   chrono.Clear();
-   chrono.Start();
-
    ParMesh cpmesh(*pmesh);
    for (int i = 0; i < par_ref_levels; i++)
    {
@@ -113,11 +110,15 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
+   chrono.Clear();
+   chrono.Start();
+
+
    Array<int> ess_tdof_list;
    if (pmesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 0;
+      ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -146,18 +147,46 @@ int main(int argc, char *argv[])
    // }
 
 
-   chrono.Clear();
-   chrono.Start();
+   if (myid == 0)
+   {
+      cout << "Size of linear system " << A.GetGlobalNumRows() <<  endl;
+   }
 
    ParFiniteElementSpace *prec_fespace = (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-   par_patch_assembly * test = new par_patch_assembly(&cpmesh,par_ref_levels, prec_fespace, &A);
+   chrono.Clear();
+   chrono.Start();
+   ParSchwarzSmoother * prec = new ParSchwarzSmoother(&cpmesh,par_ref_levels, prec_fespace, &A);
+   prec->SetNumSmoothSteps(smth_maxit);
+   prec->SetDumpingParam(theta);
    chrono.Stop();
 
    // if (myid == 0)
    // {
       cout << "myid, Preconditioner construction time " <<myid << ", " << chrono.RealTime() << "s. \n";
    // }
+
    MPI_Barrier(MPI_COMM_WORLD);
+
+   int maxit(1000);
+   double rtol(0.0);
+   double atol(1.e-6);
+   // CGSolver solver;
+   GMRESSolver solver(MPI_COMM_WORLD);
+   solver.SetAbsTol(atol);
+   solver.SetRelTol(rtol);
+   solver.SetMaxIter(maxit);
+   solver.SetOperator(A);
+   solver.SetPreconditioner(*prec);
+   solver.SetPrintLevel(1);
+   chrono.Clear();
+   chrono.Start();
+   solver.Mult(B,X);
+   chrono.Stop();
+
+   if (myid == 0)
+   {
+      cout << "Solve time "  << chrono.RealTime() << "s. \n";
+   }
 
 
 
