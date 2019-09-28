@@ -611,105 +611,6 @@ static void SmemPAMassApply2D(const int NE,
 
       SmemPAMassApply2DElement(e, b, op, x_element,
                                y_element, d1d, q1d);
-
-      /*
-      const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-      MFEM_SHARED double BBt[MQ1*MD1];
-      double (*B)[MD1] = (double (*)[MD1]) BBt;
-      double (*Bt)[MQ1] = (double (*)[MQ1]) BBt;
-      MFEM_SHARED double sm0[NBZ][MDQ*MDQ];
-      MFEM_SHARED double sm1[NBZ][MDQ*MDQ];
-      double (*X)[MD1] = (double (*)[MD1]) (sm0 + tidz);
-      double (*DQ)[MQ1] = (double (*)[MQ1]) (sm1 + tidz);
-      double (*QQ)[MQ1] = (double (*)[MQ1]) (sm0 + tidz);
-      double (*QD)[MD1] = (double (*)[MD1]) (sm1 + tidz);
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            X[dy][dx] = x(dx,dy,e);
-         }
-      }
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double dq = 0.0;
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               dq += X[dy][dx] * B[qx][dx];
-            }
-            DQ[dy][qx] = dq;
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double qq = 0.0;
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               qq += DQ[dy][qx] * B[qy][dy];
-            }
-            QQ[qy][qx] = qq * op(qx, qy, e);
-         }
-      }
-      MFEM_SYNC_THREAD;
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               Bt[d][q] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double dq = 0.0;
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               dq += QQ[qy][qx] * Bt[dx][qx];
-            }
-            QD[qy][dx] = dq;
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double dd = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               dd += (QD[qy][dx] * Bt[dy][qy]);
-            }
-            y(dx, dy, e) += dd;
-         }
-      }
-      */
    });
 }
 
@@ -855,14 +756,174 @@ static void PAMassApply3D(const int NE,
    });
 }
 
+
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void SmemPAMassApply3DElement(int e,
+                                     DeviceTensor<2,const double> b,
+                                     DeviceTensor<4,const double> op,
+                                     DeviceTensor<3,const double> x,
+                                     DeviceTensor<3,double> y,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+   MFEM_SHARED double sDQ[MQ1*MD1];
+   double (*B)[MD1] = (double (*)[MD1]) sDQ;
+   double (*Bt)[MQ1] = (double (*)[MQ1]) sDQ;
+   MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
+   MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+   double (*X)[MD1][MD1]   = (double (*)[MD1][MD1]) sm0;
+   double (*DDQ)[MD1][MQ1] = (double (*)[MD1][MQ1]) sm1;
+   double (*DQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm0;
+   double (*QQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm1;
+   double (*QQD)[MQ1][MD1] = (double (*)[MQ1][MD1]) sm0;
+   double (*QDD)[MD1][MD1] = (double (*)[MD1][MD1]) sm1;
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            // X[dz][dy][dx] = x(dx,dy,dz,e);
+            X[dz][dy][dx] = x(dx,dy,dz);
+         }
+      }
+   }
+   if (tidz == 0)
+   {
+      MFEM_FOREACH_THREAD(d,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q1D)
+         {
+            B[q][d] = b(q,d);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double u = 0.0;
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               u += X[dz][dy][dx] * B[qx][dx];
+            }
+            DDQ[dz][dy][qx] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double u = 0.0;
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               u += DDQ[dz][dy][qx] * B[qy][dy];
+            }
+            DQQ[dz][qy][qx] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double u = 0.0;
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               u += DQQ[dz][qy][qx] * B[qz][dz];
+            }
+            QQQ[qz][qy][qx] = u * op(qx,qy,qz,e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   if (tidz == 0)
+   {
+      MFEM_FOREACH_THREAD(d,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q1D)
+         {
+            Bt[d][q] = b(q,d);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               u += QQQ[qz][qy][qx] * Bt[dx][qx];
+            }
+            QQD[qz][qy][dx] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               u += QQD[qz][qy][dx] * Bt[dy][qy];
+            }
+            QDD[qz][dy][dx] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0;
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               u += QDD[qz][dy][dx] * Bt[dz][qz];
+            }
+            // y(dx,dy,dz,e) += u;
+            y(dx,dy,dz) += u;
+         }
+      }
+   }
+}
+
+
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,
-                              const Array<double> &b_,
-                              const Array<double> &bt_,
-                              const Vector &op_,
-                              const Vector &x_,
-                              Vector &y_,
+                              const Array<double> &_b,
+                              const Array<double> &_bt,
+                              const Vector &_op,
+                              const Vector &_x,
+                              Vector &_y,
                               const int d1d = 0,
                               const int q1d = 0)
 {
@@ -872,156 +933,22 @@ static void SmemPAMassApply3D(const int NE,
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   auto b = Reshape(_b.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-      MFEM_SHARED double sDQ[MQ1*MD1];
-      double (*B)[MD1] = (double (*)[MD1]) sDQ;
-      double (*Bt)[MQ1] = (double (*)[MQ1]) sDQ;
-      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
-      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
-      double (*X)[MD1][MD1]   = (double (*)[MD1][MD1]) sm0;
-      double (*DDQ)[MD1][MQ1] = (double (*)[MD1][MQ1]) sm1;
-      double (*DQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm0;
-      double (*QQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm1;
-      double (*QQD)[MQ1][MD1] = (double (*)[MQ1][MD1]) sm0;
-      double (*QDD)[MD1][MD1] = (double (*)[MD1][MD1]) sm1;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               X[dz][dy][dx] = x(dx,dy,dz,e);
-            }
-         }
-      }
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  u += X[dz][dy][dx] * B[qx][dx];
-               }
-               DDQ[dz][dy][qx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  u += DDQ[dz][dy][qx] * B[qy][dy];
-               }
-               DQQ[dz][qy][qx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dz = 0; dz < D1D; ++dz)
-               {
-                  u += DQQ[dz][qy][qx] * B[qz][dz];
-               }
-               QQQ[qz][qy][qx] = u * op(qx,qy,qz,e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               Bt[d][q] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               double u = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  u += QQQ[qz][qy][qx] * Bt[dx][qx];
-               }
-               QQD[qz][qy][dx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               double u = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  u += QQD[qz][qy][dx] * Bt[dy][qy];
-               }
-               QDD[qz][dy][dx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               double u = 0.0;
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  u += QDD[qz][dy][dx] * Bt[dz][qz];
-               }
-               y(dx,dy,dz,e) += u;
-            }
-         }
-      }
+      auto x_element = DeviceTensor<3, const double>(
+         (const double*) x + e * D1D * D1D * D1D,
+         D1D, D1D, D1D);
+      auto y_element = DeviceTensor<3, double>(
+         (double*) y + e * D1D * D1D * D1D,
+         D1D, D1D, D1D);
+
+      SmemPAMassApply3DElement(e, b, op, x_element,
+                               y_element, d1d, q1d);
+
    });
 }
 
@@ -1100,12 +1027,7 @@ void MassIntegrator::AddMultElementPA(int element, const Vector &x,
    if (dim == 2)
    {
       auto B = Reshape(maps->B.Read(), quad1D, dofs1D);
-      // auto G = Reshape(maps->G.Read(), quad1D, dofs1D);
-      // auto Bt = Reshape(maps->Bt.Read(), dofs1D, quad1D);
-      // auto Gt = Reshape(maps->Gt.Read(), dofs1D, quad1D);
-
-      // auto op = Reshape(pa_data.Read(), quad1D*quad1D, 3, ne); // ?
-      auto op = Reshape(pa_data.Read(), quad1D, quad1D, ne); // ?
+      auto op = Reshape(pa_data.Read(), quad1D, quad1D, ne);
 
       auto _x = Reshape(x.Read(), dofs1D, dofs1D, ne);
       auto _y = Reshape(y.ReadWrite(), dofs1D, dofs1D);
@@ -1124,12 +1046,8 @@ void MassIntegrator::AddMultElementPA(int element, const Vector &x,
    }
    else if (dim == 3)
    {
-      /*
       auto B = Reshape(maps->B.Read(), quad1D, dofs1D);
-      auto G = Reshape(maps->G.Read(), quad1D, dofs1D);
-      // auto Bt = Reshape(maps->Bt.Read(), dofs1D, quad1D);
-      // auto Gt = Reshape(maps->Gt.Read(), dofs1D, quad1D);
-      auto op = Reshape(pa_data.Read(), quad1D*quad1D*quad1D, 6, ne);
+      auto op = Reshape(pa_data.Read(), quad1D, quad1D, quad1D, ne);
       auto _x = Reshape(x.Read(), dofs1D, dofs1D, dofs1D, ne);
       auto _y = Reshape(y.ReadWrite(), dofs1D, dofs1D, dofs1D);
 
@@ -1139,14 +1057,11 @@ void MassIntegrator::AddMultElementPA(int element, const Vector &x,
 
       SmemPAMassApply3DElement(element,
                                B,
-                               G,
                                op,
                                x_element,
                                _y,
                                dofs1D,
                                quad1D);
-      */
-      mfem_error("Not implemented!");
    }
    else
    {
