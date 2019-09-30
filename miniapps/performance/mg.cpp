@@ -3,7 +3,6 @@
 #include <iostream>
 
 #include "eigenvalue.hpp"
-#include "multigrid.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -112,11 +111,16 @@ class PoissonMultigridOperator : public MultigridOperator
 
    ~PoissonMultigridOperator()
    {
-      MFEM_FORALL(i, forms.Size(), delete forms[i];);
+      for (int i = 0; i < forms.Size(); ++i)
+      {
+         delete forms[i];
+      }
+
       if (ownLORMatrix)
       {
          delete hypreCoarseMat;
       }
+
       delete a_pc;
       delete pmesh_lor;
       delete fespace_lor;
@@ -369,6 +373,18 @@ int main(int argc, char *argv[])
       }
    }
 
+   if (myid == 0)
+   {
+      cout << "nproc: " << num_procs << endl;
+      cout << "Dofs: " << spaceHierarchy->GetFinestFESpace().GlobalTrueVSize()
+           << endl;
+      cout << "Average dofs per processor: "
+           << spaceHierarchy->GetFinestFESpace().GlobalTrueVSize() / num_procs
+           << endl;
+      cout << "Order: " << orders.Last() << endl;
+      cout << "MG levels: " << spaceHierarchy->GetNumLevels() << endl;
+   }
+
    PoissonMultigridOperator *solveOperator = nullptr;
 
    if (myid == 0)
@@ -467,14 +483,6 @@ int main(int argc, char *argv[])
    {
       cout << "Time to solution: " << solveTime << "s" << endl;
       cout << "Total time: " << setupTime + solveTime << "s" << endl;
-      cout << "nproc: " << num_procs << endl;
-      cout << "Dofs: " << spaceHierarchy->GetFinestFESpace().GlobalTrueVSize()
-           << endl;
-      cout << "Average dofs per processor: "
-           << spaceHierarchy->GetFinestFESpace().GlobalTrueVSize() / num_procs
-           << endl;
-      cout << "Order: " << orders.Last() << endl;
-      cout << "MG levels: " << spaceHierarchy->GetNumLevels() << endl;
    }
 
    solveOperator->RecoverFEMSolution(X, *b, x);
@@ -495,8 +503,15 @@ int main(int argc, char *argv[])
    delete b;
    delete spaceHierarchy;
 
-   MFEM_FORALL(i, essentialTrueDoFs.Size(), delete essentialTrueDoFs[i];);
-   MFEM_FORALL(i, feCollectons.Size(), delete feCollectons[i];);
+   for (int i = 0; i < essentialTrueDoFs.Size(); ++i)
+   {
+      delete essentialTrueDoFs[i];
+   }
+
+   for (int i = 0; i < feCollectons.Size(); ++i)
+   {
+      delete feCollectons[i];
+   }
 
    MPI_Finalize();
 
