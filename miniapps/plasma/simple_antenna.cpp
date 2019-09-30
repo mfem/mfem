@@ -1,4 +1,5 @@
 #include "mfem.hpp"
+#include "../common/mesh_extras.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -10,6 +11,7 @@ int main(int argc, char ** argv)
 {
    int mf, mb, na, nb, nt;
    double af, ab, ba, bb, bt;
+   bool per_y = false;
    bool visualization = true;
 
    mf = mb = na = nb = nt = -1;
@@ -36,6 +38,9 @@ int main(int argc, char ** argv)
                   "Distance above antenna (> 0).");
    args.AddOption(&ba, "-ba", "--size-across",
                   "Distance across antenna (> 0).");
+   args.AddOption(&per_y, "-per-y", "--periodic-y", "-no-per-y",
+                  "--no-periodic-y",
+                  "Make the mesh periodic in the y direction.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -71,7 +76,7 @@ int main(int argc, char ** argv)
    int mx = mf + mb;
    int ny = nb + na + nt;
 
-   double ax = af + ab;
+   // double ax = af + ab;
    double by = bb + ba + bt;
 
    int nelem = mx * ny;
@@ -241,6 +246,21 @@ int main(int argc, char ** argv)
       mesh->AddBdrSegment(v, 6);
    }
    mesh->FinalizeTopology();
+
+   if (per_y)
+   {
+      Array<int> v2v(mesh->GetNV());
+      for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
+
+      for (int i=0; i<=mx; i++)
+      {
+         v2v[(mx + 1) * ny + i] = i;
+      }
+
+      Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, v2v);
+      delete mesh;
+      mesh = per_mesh;
+   }
 
    ofstream mesh_ofs("simple_antenna.mesh");
    mesh_ofs.precision(8);
