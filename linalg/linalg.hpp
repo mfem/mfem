@@ -29,6 +29,7 @@
 #include "handle.hpp"
 #include "invariants.hpp"
 #include "multigrid.hpp"
+#include "eigenvalue.hpp"
 
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"

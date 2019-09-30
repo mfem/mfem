@@ -2,8 +2,6 @@
 #include <fstream>
 #include <iostream>
 
-#include "eigenvalue.hpp"
-
 using namespace std;
 using namespace mfem;
 
@@ -23,6 +21,11 @@ class PoissonMultigridOperator : public MultigridOperator
    HypreBoomerAMG* amg{nullptr};
    CGSolver* coarsePCGSolver{nullptr};
 
+   void AddIntegrators(ParBilinearForm* form)
+   {
+      form->AddDomainIntegrator(new DiffusionIntegrator(one));
+   }
+
    Operator* ConstructOperator(ParFiniteElementSpace* fespace,
                                const Array<int>& essentialDofs)
    {
@@ -31,7 +34,7 @@ class PoissonMultigridOperator : public MultigridOperator
       {
          form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       }
-      form->AddDomainIntegrator(new DiffusionIntegrator(one));
+      AddIntegrators(form);
       if (!partialAssembly)
       {
          form->UsePrecomputedSparsity();
@@ -84,7 +87,7 @@ class PoissonMultigridOperator : public MultigridOperator
             a_pc = new ParBilinearForm(fespace_lor);
          }
 
-         a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+         AddIntegrators(a_pc);
          a_pc->UsePrecomputedSparsity();
          a_pc->Assemble();
 
@@ -169,8 +172,10 @@ class PoissonMultigridOperator : public MultigridOperator
          OperatorJacobiSmoother invDiagOperator(diag, essentialDofs, 1.0);
          ProductOperator diagPrecond(&invDiagOperator, solveOperator, false,
                                      false);
-         double estLargestEigenvalue = PowerMethod::EstimateLargestEigenvalue(
-             MPI_COMM_WORLD, diagPrecond, ev, 10, 1e-8);
+
+         PowerMethod powerMethod(MPI_COMM_WORLD);
+         double estLargestEigenvalue =
+             powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
          smoother = new OperatorChebyshevSmoother(solveOperator, diag,
                                                   essentialDofs, chebyshevOrder,
                                                   estLargestEigenvalue);
