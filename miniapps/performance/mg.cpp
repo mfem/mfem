@@ -10,23 +10,23 @@ using namespace mfem;
 class PoissonMultigridOperator : public MultigridOperator
 {
  private:
-   Array<ParBilinearForm *> forms;
+   Array<ParBilinearForm*> forms;
    bool partialAssembly{true};
    bool ownLORMatrix{false};
    ConstantCoefficient one{1.0};
-   HypreParMatrix *hypreCoarseMat{nullptr};
-   ParBilinearForm *a_pc{nullptr};
-   ParMesh *pmesh_lor{nullptr};
-   H1_FECollection *fec_lor{nullptr};
-   ParFiniteElementSpace *fespace_lor{nullptr};
+   HypreParMatrix* hypreCoarseMat{nullptr};
+   ParBilinearForm* a_pc{nullptr};
+   ParMesh* pmesh_lor{nullptr};
+   H1_FECollection* fec_lor{nullptr};
+   ParFiniteElementSpace* fespace_lor{nullptr};
    bool useCoarsePCG{false};
    HypreBoomerAMG* amg{nullptr};
    CGSolver* coarsePCGSolver{nullptr};
 
-   Operator *ConstructOperator(ParFiniteElementSpace *fespace,
-                               const Array<int> &essentialDofs)
+   Operator* ConstructOperator(ParFiniteElementSpace* fespace,
+                               const Array<int>& essentialDofs)
    {
-      ParBilinearForm *form = new ParBilinearForm(fespace);
+      ParBilinearForm* form = new ParBilinearForm(fespace);
       if (partialAssembly)
       {
          form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -57,14 +57,14 @@ class PoissonMultigridOperator : public MultigridOperator
       return opr.Ptr();
    }
 
-   Solver *ConstructCoarseSolver(ParMesh *mesh, Operator *opr,
-                                 const Array<int> &essentialDofs,
+   Solver* ConstructCoarseSolver(ParMesh* mesh, Operator* opr,
+                                 const Array<int>& essentialDofs,
                                  int coarseOrder, int coarseSteps)
    {
       // Reuse matrix for AMG
       if (!partialAssembly && coarseOrder == 1)
       {
-         hypreCoarseMat = dynamic_cast<HypreParMatrix *>(opr);
+         hypreCoarseMat = dynamic_cast<HypreParMatrix*>(opr);
       }
       else
       {
@@ -116,13 +116,15 @@ class PoissonMultigridOperator : public MultigridOperator
    }
 
  public:
-   PoissonMultigridOperator(ParMesh *mesh, ParFiniteElementSpace *fespace,
-                            const Array<int> &essentialDofs, int coarseOrder,
-                            bool partialAssembly_, int coarseSteps, bool useCoarsePCG_)
-       : MultigridOperator(), partialAssembly(partialAssembly_), useCoarsePCG(useCoarsePCG_)
+   PoissonMultigridOperator(ParMesh* mesh, ParFiniteElementSpace* fespace,
+                            const Array<int>& essentialDofs, int coarseOrder,
+                            bool partialAssembly_, int coarseSteps,
+                            bool useCoarsePCG_)
+       : MultigridOperator(), partialAssembly(partialAssembly_),
+         useCoarsePCG(useCoarsePCG_)
    {
-      Operator *coarseOpr = ConstructOperator(fespace, essentialDofs);
-      Solver *coarseSolver = ConstructCoarseSolver(
+      Operator* coarseOpr = ConstructOperator(fespace, essentialDofs);
+      Solver* coarseSolver = ConstructCoarseSolver(
           mesh, coarseOpr, essentialDofs, coarseOrder, coarseSteps);
 
       AddCoarseLevel(coarseOpr, coarseSolver, partialAssembly, true);
@@ -151,12 +153,12 @@ class PoissonMultigridOperator : public MultigridOperator
       delete fec_lor;
    }
 
-   Solver *ConstructSmoother(ParFiniteElementSpace *fespace,
-                             Operator *solveOperator,
-                             const Array<int> &essentialDofs,
+   Solver* ConstructSmoother(ParFiniteElementSpace* fespace,
+                             Operator* solveOperator,
+                             const Array<int>& essentialDofs,
                              int chebyshevOrder)
    {
-      Solver *smoother = nullptr;
+      Solver* smoother = nullptr;
 
       if (partialAssembly)
       {
@@ -176,39 +178,39 @@ class PoissonMultigridOperator : public MultigridOperator
       else
       {
          smoother =
-             new HypreSmoother(static_cast<HypreParMatrix &>(*solveOperator));
+             new HypreSmoother(static_cast<HypreParMatrix&>(*solveOperator));
       }
 
       return smoother;
    }
 
-   void AddLevel(ParFiniteElementSpace *lFEspace,
-                 ParFiniteElementSpace *hFEspace,
-                 const Array<int> &essentialDofs, int chebyshevOrder)
+   void AddLevel(ParFiniteElementSpace* lFEspace,
+                 ParFiniteElementSpace* hFEspace,
+                 const Array<int>& essentialDofs, int chebyshevOrder)
    {
-      Operator *opr = ConstructOperator(hFEspace, essentialDofs);
-      Solver *smoother =
+      Operator* opr = ConstructOperator(hFEspace, essentialDofs);
+      Solver* smoother =
           ConstructSmoother(hFEspace, opr, essentialDofs, chebyshevOrder);
-      Operator *P = new TrueTransferOperator(*lFEspace, *hFEspace);
+      Operator* P = new TrueTransferOperator(*lFEspace, *hFEspace);
       MultigridOperator::AddLevel(opr, smoother, P, partialAssembly, true,
                                   true);
    }
 
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         Vector &X, Vector &B, int copy_interior = 0)
+   void FormLinearSystem(const Array<int>& ess_tdof_list, Vector& x, Vector& b,
+                         Vector& X, Vector& B, int copy_interior = 0)
    {
       OperatorPtr dummy;
       forms.Last()->FormLinearSystem(ess_tdof_list, x, b, dummy, X, B,
                                      copy_interior);
    }
 
-   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
+   void RecoverFEMSolution(const Vector& X, const Vector& b, Vector& x)
    {
       forms.Last()->RecoverFEMSolution(X, b, x);
    }
 };
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -216,7 +218,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/inline-hex.mesh";
+   const char* mesh_file = "../../data/inline-hex.mesh";
    int ref_levels = 0;
    int pref_levels = 0;
    int order = 1;
@@ -227,7 +229,7 @@ int main(int argc, char *argv[])
    int chebyshevOrder = 3;
    bool visualization = 1;
    bool partialAssembly = true;
-   const char *precondInput = "MG";
+   const char* precondInput = "MG";
    bool useCoarsePCG = false;
 
    enum class Method
@@ -316,7 +318,7 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   Mesh* mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -328,7 +330,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh* pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    mesh = nullptr;
 
@@ -339,12 +341,12 @@ int main(int argc, char *argv[])
    }
 
    Array<int> orders;
-   Array<FiniteElementCollection *> feCollectons;
+   Array<FiniteElementCollection*> feCollectons;
    orders.Append(order);
    feCollectons.Append(new H1_FECollection(order, dim, basis));
 
    // Set up coarse grid finite element space
-   ParFiniteElementSpace *fespace =
+   ParFiniteElementSpace* fespace =
        new ParFiniteElementSpace(pmesh, feCollectons.Last());
    HYPRE_Int size = fespace->GlobalTrueVSize();
 
@@ -353,13 +355,13 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns on level 0: " << size << endl;
    }
 
-   Array<Array<int> *> essentialTrueDoFs;
+   Array<Array<int>*> essentialTrueDoFs;
    essentialTrueDoFs.Append(new Array<int>());
    fespace->GetEssentialTrueDofs(ess_bdr, *essentialTrueDoFs.Last());
 
    // Build hierarchy of meshes and spaces
    // Geometric refinements
-   ParSpaceHierarchy *spaceHierarchy =
+   ParSpaceHierarchy* spaceHierarchy =
        new ParSpaceHierarchy(pmesh, fespace, true, true);
    for (int level = 1; level < h_levels; ++level)
    {
@@ -412,7 +414,7 @@ int main(int argc, char *argv[])
       cout << "MG levels: " << spaceHierarchy->GetNumLevels() << endl;
    }
 
-   PoissonMultigridOperator *solveOperator = nullptr;
+   PoissonMultigridOperator* solveOperator = nullptr;
 
    if (myid == 0)
    {
@@ -432,10 +434,10 @@ int main(int argc, char *argv[])
 
       if (method == Method::LORS)
       {
-         Operator *opr = solveOperator->GetOperatorAtLevel(0);
-         Operator *identityProlongation =
+         Operator* opr = solveOperator->GetOperatorAtLevel(0);
+         Operator* identityProlongation =
              new IdentityOperator(solveOperator->Height());
-         Solver *smoother = solveOperator->ConstructSmoother(
+         Solver* smoother = solveOperator->ConstructSmoother(
              &spaceHierarchy->GetFinestFESpace(), opr,
              *essentialTrueDoFs.Last(), chebyshevOrder);
 
@@ -458,7 +460,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   MultigridSolver *preconditioner =
+   MultigridSolver* preconditioner =
        new MultigridSolver(solveOperator, MultigridSolver::CycleType::VCYCLE,
                            smoothingSteps, smoothingSteps);
 
@@ -478,7 +480,7 @@ int main(int argc, char *argv[])
    }
    tic_toc.Clear();
    tic_toc.Start();
-   ParLinearForm *b = new ParLinearForm(&spaceHierarchy->GetFinestFESpace());
+   ParLinearForm* b = new ParLinearForm(&spaceHierarchy->GetFinestFESpace());
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
