@@ -333,12 +333,13 @@ public:
       HostMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
       h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("host_pool", rm.getAllocator("HOST"))) { }
+                  ("host_pool", rm.getAllocator("HOST"))) { dbg(""); }
    void Alloc(void **ptr, const size_t bytes)
-   { *ptr = h_allocator.allocate(bytes); }
-   void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
+   { dbg(""); *ptr = h_allocator.allocate(bytes); }
+   void Dealloc(void *ptr) { dbg(""); h_allocator.deallocate(ptr); }
    virtual void Insert(void *ptr, const size_t bytes)
    {
+      dbg("");
       auto strat = rm.getDefaultAllocator().getAllocationStrategy();
       umpire::util::AllocationRecord* record =
          new umpire::util::AllocationRecord{ptr, bytes, strat};
@@ -356,11 +357,11 @@ public:
    UmpireDeviceMemorySpace(): DeviceMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
       d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("device_pool",rm.getAllocator("DEVICE"))) { }
+                  ("device_pool",rm.getAllocator("DEVICE"))) { dbg(""); }
    void Alloc(internal::Memory &base, const size_t bytes)
-   { base.d_ptr = d_allocator.allocate(bytes); }
+   { dbg(""); base.d_ptr = d_allocator.allocate(bytes); }
    void Dealloc(void *dptr)
-   { d_allocator.deallocate(dptr); }
+   { dbg(""); d_allocator.deallocate(dptr); }
 };
 
 /// The Umpire copy memory space
@@ -370,13 +371,13 @@ private:
    umpire::ResourceManager& rm;
 public:
    UmpireCopyMemorySpace(): CopyMemorySpace(),
-      rm(umpire::ResourceManager::getInstance()) { }
+      rm(umpire::ResourceManager::getInstance()) { dbg(""); }
    void *HtoD(void *dst, const void *src, const size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   { dbg(""); rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
    void *DtoD(void* dst, const void* src, const size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   { dbg(""); rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
    void *DtoH(void *dst, const void *src, const size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   { dbg(""); rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
 };
 #endif // MFEM_USE_UMPIRE
 
@@ -399,6 +400,7 @@ public:
         const MemoryType d = MemoryType::CUDA)
       : host(nullptr), device(nullptr), memcpy(nullptr)
    {
+      dbg("");
 #ifndef MFEM_USE_UMPIRE
       if (h == MemoryType::HOST) { host = new internal::StdHostMemorySpace(); }
       if (h == MemoryType::HOST_32) { host = new internal::Aligned32HostMemorySpace(); }
@@ -420,8 +422,11 @@ public:
    }
    ~Ctrl()
    {
+      dbg("host");
       delete host;
+      dbg("device");
       delete device;
+      dbg("memcpy");
       delete memcpy;
    }
 };
@@ -432,15 +437,17 @@ static internal::Ctrl *ctrl;
 
 MemoryManager::MemoryManager()
 {
+   dbg("");
    exists = true;
    maps = new internal::Maps();
    ctrl = new internal::Ctrl();
 }
 
-MemoryManager::~MemoryManager() { if (exists) { Destroy(); } }
+MemoryManager::~MemoryManager() { dbg(""); if (exists) { Destroy(); } }
 
 void MemoryManager::Setup(MemoryType mt)
 {
+   dbg("");
 #ifndef MFEM_USE_UMPIRE
    // Nothing to do if we stay on the HOST
    if (mt == MemoryType::HOST) { return; }
@@ -467,6 +474,7 @@ void MemoryManager::Setup(MemoryType mt)
 
 void MemoryManager::Destroy()
 {
+   dbg("");
    MFEM_VERIFY(exists, "MemoryManager has already been destroyed!");
    for (auto& n : maps->memories)
    {
@@ -476,6 +484,7 @@ void MemoryManager::Destroy()
    delete maps;
    delete ctrl;
    exists = false;
+   dbg("done");
 }
 
 //*****************************************************************************
@@ -553,13 +562,19 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
 //*****************************************************************************
 MemoryType MemoryManager::Erase(void *h_ptr, bool free_dev_ptr)
 {
+   dbg("");
    if (!h_ptr) { return MemoryType::HOST; }
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end())
    { mfem_error("Trying to erase an unknown pointer!"); }
    internal::Memory &mem = mem_map_iter->second;
-   if (mem.d_ptr && free_dev_ptr) { dbg("d_ptr"); ctrl->device->Dealloc(mem.d_ptr); }
+   if (mem.d_ptr && free_dev_ptr)
+   {
+      dbg("d_ptr: %p", mem.d_ptr);
+      ctrl->device->Dealloc(mem.d_ptr);
+   }
    maps->memories.erase(mem_map_iter);
+   dbg("mem.d_type: %d",mem.d_type);
    return mem.d_type;
 }
 
