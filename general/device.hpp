@@ -184,13 +184,8 @@ public:
          string name of 'RAJA_CPU' is 'raja-cpu'.
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is: 'occa-cuda',
-<<<<<<< HEAD
-         'raja-cuda', 'cuda', 'occa-omp', 'raja-omp', 'omp', 'occa-cpu',
-         'raja-cpu', 'cpu', 'debug'.
-=======
          'raja-cuda', 'cuda', 'hip', 'occa-omp', 'raja-omp', 'omp', 'occa-cpu',
-         'raja-cpu', 'cpu'.
->>>>>>> master
+         'raja-cpu', 'cpu', 'debug'.
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
        * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'

@@ -53,7 +53,7 @@ void* CuMallocManaged(void** dptr, size_t bytes)
    mfem::out << "CuMallocManaged(): allocating " << bytes << " bytes ... "
              << std::flush;
 #endif
-   MFEM_CUDA_CHECK(cudaMallocManaged(dptr, bytes));
+   MFEM_GPU_CHECK(cudaMallocManaged(dptr, bytes));
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "done: " << *dptr << std::endl;
 #endif
@@ -148,10 +148,10 @@ void* CuMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
 void CuGetLastError()
 {
 #ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaGetLastError());
+   MFEM_GPU_CHECK(cudaGetLastError());
 #endif
 }
-   
+
 int CuGetDeviceCount()
 {
    int num_gpus = -1;
