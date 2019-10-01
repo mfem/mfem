@@ -41,8 +41,11 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp", "omp",
-   "occa-cpu", "raja-cpu", "debug", "cpu"
+   "occa-cuda", "raja-cuda", "cuda",
+   "hip",
+   "occa-omp", "raja-omp", "omp",
+   "occa-cpu", "raja-cpu", "debug",
+   "cpu"
 };
 
 } // namespace mfem::internal
@@ -54,6 +57,7 @@ Device Device::device_singleton;
 
 Device::~Device()
 {
+   dbg("");
    if (destroy_mm) { mm.Destroy(); }
 }
 
@@ -150,6 +154,7 @@ void Device::Enable()
 #ifdef MFEM_USE_CUDA
 static void DeviceSetup(const int dev, int &ngpu)
 {
+   dbg("");
    ngpu = CuGetDeviceCount();
    MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
    MFEM_GPU_CHECK(cudaSetDevice(dev));
@@ -158,6 +163,7 @@ static void DeviceSetup(const int dev, int &ngpu)
 
 static void CudaDeviceSetup(const int dev, int &ngpu)
 {
+   dbg("");
 #ifdef MFEM_USE_CUDA
    DeviceSetup(dev, ngpu);
 #endif
