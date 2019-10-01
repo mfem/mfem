@@ -115,18 +115,18 @@ void Device::Print(std::ostream &out)
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   if (Device::Allows(Backend::DEVICE_MASK))
-   {
-      dbg("[Device::UpdateMemoryTypeAndClass] CUDA_MASK");
-      mem_type = MemoryType::CUDA;
-      mem_class = MemoryClass::CUDA;
-   }
-   else if (Device::Allows(Backend::DEBUG))
+   if (Device::Allows(Backend::DEBUG))
    {
       dbg("[Device::UpdateMemoryTypeAndClass] DEBUG");
       mem_type = MemoryType::HOST_MMU;
       mem_class = MemoryClass::HOST_MMU;
       mm.Setup(mem_type);
+   }
+   else if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      dbg("[Device::UpdateMemoryTypeAndClass] DEVICE_MASK");
+      mem_type = MemoryType::CUDA;
+      mem_class = MemoryClass::CUDA;
    }
    else
    {

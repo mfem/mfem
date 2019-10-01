@@ -577,8 +577,16 @@ inline void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST)
       {
-         if (h_type == MemoryType::HOST) { dbg("delete []"); delete [] h_ptr; }
-         else { MemoryManager::HostDelete_(h_ptr, flags); }
+         if (h_type == MemoryType::HOST)
+         {
+            dbg("delete []");
+            delete [] h_ptr;
+         }
+         else
+         {
+            dbg("HostDelete_");
+            MemoryManager::HostDelete_(h_ptr, flags);
+         }
       }
    }
 }

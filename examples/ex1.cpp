@@ -123,9 +123,11 @@ int main(int argc, char *argv[])
       Y.UseDevice(true);
       dbg("Y = 0.0;");
       Y = 0.0;
+      // in debug device, should raise a SIGBUS/SIGSEGV
       dbg("Y[0] = 0.0;");
       Yd[0] = 0.0;
       dbg("done");
+      delete mesh;
       return 0;
    }
 
