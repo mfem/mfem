@@ -57,7 +57,7 @@ OrderTransferOperator::~OrderTransferOperator() {}
 void OrderTransferOperator::Mult(const Vector &x, Vector &y) const
 {
    Mesh *mesh = hFESpace.GetMesh();
-   Array<int> l_dofs, h_dofs;
+   Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    DenseMatrix loc_prol;
    Vector subY, subX;
 
@@ -65,6 +65,8 @@ void OrderTransferOperator::Mult(const Vector &x, Vector &y) const
    const FiniteElement *h_fe = NULL;
    const FiniteElement *l_fe = NULL;
    IsoparametricTransformation T;
+
+   int vdim = lFESpace.GetVDim();
 
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -82,9 +84,16 @@ void OrderTransferOperator::Mult(const Vector &x, Vector &y) const
          cached_geom = geom;
       }
 
-      x.GetSubVector(l_dofs, subX);
-      loc_prol.Mult(subX, subY);
-      y.SetSubVector(h_dofs, subY);
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         l_dofs.Copy(l_vdofs);
+         lFESpace.DofsToVDofs(vd, l_vdofs);
+         h_dofs.Copy(h_vdofs);
+         hFESpace.DofsToVDofs(vd, h_vdofs);
+         x.GetSubVector(l_vdofs, subX);
+         loc_prol.Mult(subX, subY);
+         y.SetSubVector(h_vdofs, subY);
+      }
    }
 }
 
@@ -93,7 +102,7 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
    y = 0.0;
 
    Mesh *mesh = hFESpace.GetMesh();
-   Array<int> l_dofs, h_dofs;
+   Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    DenseMatrix loc_prol;
    Vector subY, subX;
 
@@ -104,6 +113,8 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
    const FiniteElement *h_fe = NULL;
    const FiniteElement *l_fe = NULL;
    IsoparametricTransformation T;
+
+   int vdim = lFESpace.GetVDim();
 
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -121,21 +132,30 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
          cached_geom = geom;
       }
 
-      x.GetSubVector(h_dofs, subX);
-      for (int p = 0; p < h_dofs.Size(); ++p)
+      for (int vd = 0; vd < vdim; vd++)
       {
-         if (processed[h_dofs[p]])
+         l_dofs.Copy(l_vdofs);
+         lFESpace.DofsToVDofs(vd, l_vdofs);
+         h_dofs.Copy(h_vdofs);
+         hFESpace.DofsToVDofs(vd, h_vdofs);
+
+         x.GetSubVector(h_vdofs, subX);
+         for (int p = 0; p < h_dofs.Size(); ++p)
          {
-            subX[p] = 0.0;
+            if (processed[h_dofs[p]])
+            {
+               subX[p] = 0.0;
+            }
          }
-         else
-         {
-            processed[h_dofs[p]] = 1;
-         }
+
+         loc_prol.MultTranspose(subX, subY);
+         y.AddElementVector(l_vdofs, subY);
       }
 
-      loc_prol.MultTranspose(subX, subY);
-      y.AddElementVector(l_dofs, subY);
+      for (int p = 0; p < h_dofs.Size(); ++p)
+      {
+         processed[h_dofs[p]] = 1;
+      }
    }
 }
 
