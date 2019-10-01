@@ -11,15 +11,18 @@ class PowerMethod
    MPI_Comm comm;
    Vector v1;
 
-public:
-   PowerMethod() { }
+ public:
+   PowerMethod() {}
 
 #ifdef MFEM_USE_MPI
-   PowerMethod(MPI_Comm _comm) : comm(_comm) { }
+   PowerMethod(MPI_Comm _comm) : comm(_comm) {}
 #endif
 
-   /// Returns an estimate on the largest eigenvalue of the operator \p opr using the power method
-   double EstimateLargestEigenvalue(Operator& opr, Vector& v0, int numSteps = 10, double tolerance = 1e-8, int seed = 12345)
+   /// Returns an estimate on the largest eigenvalue of the operator \p opr
+   /// using the power method
+   double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                    int numSteps = 10, double tolerance = 1e-8,
+                                    int seed = 12345)
    {
       v1.SetSize(v0.Size());
       v0.Randomize(seed);
@@ -58,8 +61,7 @@ public:
 
       return eigenvalue;
    };
-
 };
 
-}
+} // namespace mfem
 #endif
