@@ -11,7 +11,7 @@ class PoissonMultigridOperator : public MultigridOperator
    Array<ParBilinearForm*> forms;
    bool partialAssembly{true};
    bool ownLORMatrix{false};
-   ConstantCoefficient one{1.0};
+   Coefficient* coeff{nullptr};
    HypreParMatrix* hypreCoarseMat{nullptr};
    ParBilinearForm* a_pc{nullptr};
    ParMesh* pmesh_lor{nullptr};
@@ -23,7 +23,7 @@ class PoissonMultigridOperator : public MultigridOperator
 
    void AddIntegrators(ParBilinearForm* form)
    {
-      form->AddDomainIntegrator(new DiffusionIntegrator(one));
+      form->AddDomainIntegrator(new DiffusionIntegrator(*coeff));
    }
 
    Operator* ConstructOperator(ParFiniteElementSpace* fespace,
@@ -122,10 +122,22 @@ class PoissonMultigridOperator : public MultigridOperator
    PoissonMultigridOperator(ParMesh* mesh, ParFiniteElementSpace* fespace,
                             const Array<int>& essentialDofs, int coarseOrder,
                             bool partialAssembly_, int coarseSteps,
-                            bool useCoarsePCG_)
+                            bool useCoarsePCG_, bool jump)
        : MultigridOperator(), partialAssembly(partialAssembly_),
          useCoarsePCG(useCoarsePCG_)
    {
+      if (jump)
+      {
+         auto f = [](const Vector& x) {
+            return (x[0] + x[1] < 1.0) ? 1.0 : 100.0;
+         };
+         coeff = new FunctionCoefficient(f);
+      }
+      else
+      {
+         coeff = new ConstantCoefficient(1.0);
+      }
+
       Operator* coarseOpr = ConstructOperator(fespace, essentialDofs);
       Solver* coarseSolver = ConstructCoarseSolver(
           mesh, coarseOpr, essentialDofs, coarseOrder, coarseSteps);
@@ -154,6 +166,7 @@ class PoissonMultigridOperator : public MultigridOperator
       delete pmesh_lor;
       delete fespace_lor;
       delete fec_lor;
+      delete coeff;
    }
 
    Solver* ConstructSmoother(ParFiniteElementSpace* fespace,
@@ -236,6 +249,7 @@ int main(int argc, char* argv[])
    bool partialAssembly = true;
    const char* precondInput = "MG";
    bool useCoarsePCG = false;
+   bool jump = false;
 
    enum class Method
    {
@@ -278,6 +292,8 @@ int main(int argc, char* argv[])
        "Chebyshev smoother order. Order 1 corresponds to damped Jacobi");
    args.AddOption(&useCoarsePCG, "-cpcg", "--coarsepcg", "-no-cpcg",
                   "--no-coarsepcg", "Enable or disable PCG as a coarse solver");
+   args.AddOption(&jump, "-jump", "--jump", "-no-jump",
+                  "--no-jump", "Enable or disable coefficient jump");                  
 
    args.Parse();
    if (!args.Good())
@@ -435,7 +451,7 @@ int main(int argc, char* argv[])
       solveOperator = new PoissonMultigridOperator(
           &spaceHierarchy->GetFinestMesh(), &spaceHierarchy->GetFinestFESpace(),
           *essentialTrueDoFs.Last(), orders.Last(), partialAssembly,
-          coarseSteps, useCoarsePCG);
+          coarseSteps, useCoarsePCG, jump);
 
       if (method == Method::LORS)
       {
@@ -455,7 +471,7 @@ int main(int argc, char* argv[])
       solveOperator = new PoissonMultigridOperator(
           &spaceHierarchy->GetMeshAtLevel(0),
           &spaceHierarchy->GetFESpaceAtLevel(0), *essentialTrueDoFs[0],
-          orders[0], partialAssembly, coarseSteps, useCoarsePCG);
+          orders[0], partialAssembly, coarseSteps, useCoarsePCG, jump);
 
       for (int level = 1; level < spaceHierarchy->GetNumLevels(); ++level)
       {
