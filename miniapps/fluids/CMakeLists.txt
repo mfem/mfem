@@ -52,7 +52,7 @@ if (MFEM_USE_MPI)
   target_link_libraries(flow mfem)
   add_custom_command(TARGET flow POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/flow_solver.hpp $<TARGET_FILE_DIR:flow>/flow_solver.hpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/*_solver.hpp $<TARGET_FILE_DIR:flow>)
 
   # Add the corresponding tests to the "test" target
   add_test(NAME flow_np=4
