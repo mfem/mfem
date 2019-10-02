@@ -615,8 +615,15 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    Element &el = elements[elem];
    MFEM_ASSERT(!el.ref_type, "element already refined.");
 
+   int nodes[8];
+   for (int i = 0; i < 8; i++)
+   {
+      int n = el.node[i];
+      if (n >= 0) { n = GetValidNode(n); }
+      nodes[i] = n;
+   }
+
    char forced_ref_type = 0;
-   int* nodes = el.node;
    if (el.Geom() == Geometry::CUBE)
    {
       // schedule the right split depending on face orientation
@@ -1524,8 +1531,10 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_list[elem] = refinements[i].ref_type;
    }
 
+   char fname[200];
    static int epoch = 0;
    int round = 0, nforced = 0;
+
    while (ref_list.size())
    {
       // perform current batch of refinements (original or forced)
@@ -1534,7 +1543,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       {
          RefineElement(pair.first, pair.second);
 
-         char fname[200];
          sprintf(fname, "ncmesh-%d-%02d-%03d.dump", epoch, round, iter++);
          std::ofstream f(fname);
          DebugDump(f);
@@ -1560,14 +1568,16 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
          }
       }
    }
-   epoch++;
 
    MergeNodes();
 
    {
-      std::ofstream f("ncmesh-merged.dump");
+      sprintf(fname, "ncmesh-%d-merged.dump", epoch);
+      std::ofstream f(fname);
       DebugDump(f);
    }
+
+   aniso_checks.DeleteAll();
 
    /*// keep refining as long as the stack contains something
    int nforced = 0;
@@ -1594,10 +1604,12 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    Update();
 
    {
-      std::ofstream f("ncmesh-updated.dump");
+      sprintf(fname, "ncmesh-%d-updated.dump", epoch);
+      std::ofstream f(fname);
       DebugDump(f);
    }
 
+   epoch++;
 }
 
 void NCMesh::MergeNodes()
@@ -1643,6 +1655,8 @@ void NCMesh::MergeNodes()
 
       if (p1 != it->p1 || p2 != it->p2 || p3 != it->p3 || p4 != it->p4)
       {
+         // TODO: check if the new face already exists and merge
+
          faces.Reparent(it.index(), p1, p2, p3, p4);
       }
    }
