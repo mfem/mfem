@@ -337,9 +337,9 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          Vector coords(dim);
          for (int q = 0; q < nq; ++q)
          {
-            for (int c = 0; c < dim; ++c)
+            for (int vd = 0; vd < dim; ++vd)
             {
-               coords(c) = x(q,c,e);
+               coords(vd) = x(q,vd,e);
             }
             c(q,e) = fQ->Eval(coords);
          }
