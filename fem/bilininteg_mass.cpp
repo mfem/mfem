@@ -43,7 +43,7 @@ double LaghosRho0(const double problem, const double *x)
          (x[0] >= 0.5 && x[1] <  0.5) ? 3.0 : // 4
          -1.0;
    }
-   return -1.0;
+   return 1.0;
 }
 
 // PA Mass Assemble kernel
