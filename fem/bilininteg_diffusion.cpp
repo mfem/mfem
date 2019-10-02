@@ -105,6 +105,37 @@ static void PADiffusionSetup2D(const int Q1D,
    });
 }
 
+// PA variable coefficient Diffusion Assemble 2D kernel
+static void PAVarCoeffDiffusionSetup2D(const int Q1D,
+                                       const int NE,
+                                       const Array<double> &w,
+                                       const Vector &j,
+                                       const Vector& coeff,
+                                       Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+
+   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
+   auto C = Reshape(coeff.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, 3, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double c_detJ = W[q] * C(q,e) / ((J11*J22)-(J21*J12));
+         y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
+         y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
+         y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+      }
+   });
+}
+
 // PA Diffusion Assemble 3D kernel
 static void PADiffusionSetup3D(const int Q1D,
                                const int NE,
@@ -134,6 +165,57 @@ static void PADiffusionSetup3D(const int Q1D,
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
          const double c_detJ = W[q] * COEFF / detJ;
+         // adj(J)
+         const double A11 = (J22 * J33) - (J23 * J32);
+         const double A12 = (J32 * J13) - (J12 * J33);
+         const double A13 = (J12 * J23) - (J22 * J13);
+         const double A21 = (J31 * J23) - (J21 * J33);
+         const double A22 = (J11 * J33) - (J13 * J31);
+         const double A23 = (J21 * J13) - (J11 * J23);
+         const double A31 = (J21 * J32) - (J31 * J22);
+         const double A32 = (J31 * J12) - (J11 * J32);
+         const double A33 = (J11 * J22) - (J12 * J21);
+         // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
+         y(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+         y(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+         y(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+         y(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+         y(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+         y(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+      }
+   });
+}
+
+// PA variable coefficient Diffusion Assemble 3D kernel
+static void PAVarCoeffDiffusionSetup3D(const int Q1D,
+                                       const int NE,
+                                       const Array<double> &w,
+                                       const Vector &j,
+                                       const Vector &coeff,
+                                       Vector &op)
+{
+   const int NQ = Q1D*Q1D*Q1D;
+   auto W = w.Read();
+   auto J = Reshape(j.Read(), NQ, 3, 3, NE);
+   auto C = Reshape(coeff.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, 6, NE);
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J31 = J(q,2,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double J32 = J(q,2,1,e);
+         const double J13 = J(q,0,2,e);
+         const double J23 = J(q,1,2,e);
+         const double J33 = J(q,2,2,e);
+         const double detJ = J11 * (J22 * J33 - J32 * J23) -
+         /* */               J21 * (J12 * J33 - J32 * J13) +
+         /* */               J31 * (J12 * J23 - J22 * J13);
+         const double c_detJ = W[q] * C(q,e) / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -189,6 +271,31 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
+static void PAVarCoeffDiffusionSetup(const int dim, const int D1D,
+                                     const int Q1D, const int NE,
+                                     const Array<double>& W, const Vector& J,
+                                     const Vector& COEFF, Vector& op)
+{
+   if (dim == 1)
+   {
+      MFEM_ABORT("dim==1 not supported in PAVarCoeffDiffusionSetup");
+   }
+   if (dim == 2)
+   {
+#ifdef MFEM_USE_OCCA
+      MFEM_ABORT("Occa support not implemented.");
+#endif // MFEM_USE_OCCA
+      PAVarCoeffDiffusionSetup2D(Q1D, NE, W, J, COEFF, op);
+   }
+   if (dim == 3)
+   {
+#ifdef MFEM_USE_OCCA
+      MFEM_ABORT("Occa support not implemented.");
+#endif // MFEM_USE_OCCA
+      PAVarCoeffDiffusionSetup3D(Q1D, NE, W, J, COEFF, op);
+   }
+}
+
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
@@ -200,16 +307,50 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   int geomFlags = GeometricFactors::JACOBIANS;
+   if (dynamic_cast<FunctionCoefficient*>(Q))
+   {
+      geomFlags |= GeometricFactors::COORDINATES;
+   }
+   geom = mesh->GetGeometricFactors(*ir, geomFlags);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
    ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-   MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-   const double coeff = cQ->constant;
-   PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
-                    coeff, pa_data);
+   if (cQ)
+   {
+      const double coeff = cQ->constant;
+      PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
+                       coeff, pa_data);
+      return;
+   }
+   FunctionCoefficient* fQ = dynamic_cast<FunctionCoefficient*>(Q);
+   if (fQ)
+   {
+      Vector coeff(nq * ne);
+
+      auto x = Reshape(geom->X.Read(), nq, dim, ne);
+      auto c = Reshape(coeff.Write(), nq, ne);
+
+      MFEM_FORALL(e, ne, {
+         Vector coords(dim);
+         for (int q = 0; q < nq; ++q)
+         {
+            for (int c = 0; c < dim; ++c)
+            {
+               coords(c) = x(q,c,e);
+            }
+            c(q,e) = fQ->Eval(coords);
+         }
+      });
+
+      PAVarCoeffDiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(),
+                               geom->J, coeff, pa_data);
+      return;
+   }
+   MFEM_ABORT(
+       "Only ConstantCoefficient and FunctionCoefficient are supported!");
 }
 
 

@@ -46,6 +46,11 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
+double FunctionCoefficient::Eval(const Vector& x)
+{
+   return ((*Function)(x));
+}
+
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
