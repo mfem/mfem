@@ -117,7 +117,6 @@ static void PAMassAssembleDiagonal2D(const int NE,
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(_B.Read(), Q1D, D1D);
-   // auto Bt = Reshape(_Bt.Read(), D1D, Q1D); // ?? (TODO atb@llnl.gov)
    auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
    auto y = Reshape(_diag.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
@@ -169,7 +168,6 @@ static void PAMassAssembleDiagonal3D(const int NE,
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(_B.Read(), Q1D, D1D);
-   // auto Bt = Reshape(_Bt.Read(), D1D, Q1D); // ?? (TODO atb@llnl.gov)
    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
    auto y = Reshape(_diag.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
@@ -609,8 +607,8 @@ static void SmemPAMassApply2D(const int NE,
          (double*) y + e * D1D * D1D,
          D1D, D1D);
 
-      SmemPAMassApply2DElement(e, b, op, x_element,
-                               y_element, d1d, q1d);
+      SmemPAMassApply2DElement<T_D1D, T_Q1D, T_NBZ>(e, b, op, x_element,
+                                                    y_element, d1d, q1d);
    });
 }
 
@@ -946,8 +944,8 @@ static void SmemPAMassApply3D(const int NE,
          (double*) y + e * D1D * D1D * D1D,
          D1D, D1D, D1D);
 
-      SmemPAMassApply3DElement(e, b, op, x_element,
-                               y_element, d1d, q1d);
+      SmemPAMassApply3DElement<T_D1D, T_Q1D>(e, b, op, x_element,
+                                             y_element, D1D, Q1D);
 
    });
 }
