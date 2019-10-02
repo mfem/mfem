@@ -156,6 +156,8 @@ public:
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   double Eval(const Vector& x);
 };
 
 class GridFunction;
