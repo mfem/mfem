@@ -302,7 +302,7 @@ int NCMesh::FindMidEdgeNode(int node1, int node2) const
 int NCMesh::GetValidNode(int node)
 {
    const Node &nd = nodes[node];
-   if (nd.flag) { return nd.vert_index; } // merged node, return target
+   if (nd.flag) { return nd.vert_index; } // previously merged node, return target
    return node;
 }
 
@@ -1603,19 +1603,35 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 void NCMesh::MergeNodes()
 {
    // adjust node parents if the parents are to be merged
-   for (auto it = nodes.begin(); it.good(); ++it)
+   int iter = 0, done;
+   do
    {
-      int p1 = GetValidNode(it->p1);
-      int p2 = GetValidNode(it->p2);
-
-      if (p1 != it->p1 || p2 != it->p2)
+      done = 1;
+      for (auto it = nodes.begin(); it.good(); ++it)
       {
-         // TODO: node with p1, p2 might already exist, need to merge to existing
-         // HOWEVER: this may necessitate another round of updating p's
+         int p1 = GetValidNode(it->p1);
+         int p2 = GetValidNode(it->p2);
 
-         nodes.Reparent(it.index(), p1, p2);
+         // does this node have stale parents?
+         if (p1 != it->p1 || p2 != it->p2)
+         {
+            //
+            int other = nodes.FindId(p1, p2);
+            if (other >= 0)
+            {
+               it->flag = 1;
+               it->vert_index = other;
+               done = 0;
+            }
+
+            nodes.Reparent(it.index(), p1, p2);
+         }
       }
+      iter++;
    }
+   while (!done);
+
+   std::cout << "Nodes merged in " << iter << " sweeps." << std::endl;
 
    // adjust face node references
    for (auto it = faces.begin(); it.good(); ++it)
