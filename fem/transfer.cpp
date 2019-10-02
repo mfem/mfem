@@ -79,7 +79,7 @@ void OrderTransferOperator::Mult(const Vector &x, Vector &y) const
          h_fe = hFESpace.GetFE(i);
          l_fe = lFESpace.GetFE(i);
          T.SetIdentityTransformation(h_fe->GetGeomType());
-         h_fe->Project(*l_fe, T, loc_prol);
+         h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
          subY.SetSize(loc_prol.Height());
          cached_geom = geom;
       }
@@ -127,7 +127,7 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
          h_fe = hFESpace.GetFE(i);
          l_fe = lFESpace.GetFE(i);
          T.SetIdentityTransformation(h_fe->GetGeomType());
-         h_fe->Project(*l_fe, T, loc_prol);
+         h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
          subY.SetSize(loc_prol.Width());
          cached_geom = geom;
       }
