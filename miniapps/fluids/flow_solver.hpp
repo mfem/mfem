@@ -38,6 +38,20 @@ public:
    FunctionCoefficient coeff;
 };
 
+class AccelTerm_T
+{
+public:
+   AccelTerm_T(void (*f)(const Vector &x, double t, Vector &u),
+               Array<int> attr,
+               VectorFunctionCoefficient coeff)
+      : f(f), attr(attr), coeff(coeff)
+   {}
+
+   void (*f)(const Vector &x, double t, Vector &u);
+   Array<int> attr;
+   VectorFunctionCoefficient coeff;
+};
+
 class FlowSolver
 {
 public:
@@ -56,6 +70,9 @@ public:
    void AddPresDirichletBC(double (*f)(const Vector &x, double t),
                            Array<int> &attr);
 
+   void AddAccelTerm(void (*f)(const Vector &x, double t, Vector &u),
+                   Array<int> &attr);
+
    void EnablePA(bool pa) { partial_assembly = pa; }
 
    void EnableNI(bool ni) { numerical_integ = ni; }
@@ -65,6 +82,8 @@ public:
    ~FlowSolver();
 
    void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
+
+   double ComputeCFL(ParGridFunction &u, double &dt);
 
 protected:
    void PrintInfo();
@@ -160,8 +179,8 @@ protected:
    // Bookkeeping for pressure dirichlet bcs
    std::vector<PresDirichletBC_T> pres_dbcs;
 
-   // Bookkeeping for forcing (acceleration) terms
-   // std::vector<void (*)(const Vector &x, double t, Vector &u)> acc_terms;
+   // Bookkeeping for acceleration (forcing) terms
+   std::vector<AccelTerm_T> accel_terms;
 
    int cur_step;
 
@@ -175,7 +194,7 @@ protected:
    double ab3;
 
    // Timers
-   StopWatch sw_setup, sw_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
+   StopWatch sw_setup, sw_step, sw_single_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
 
    // Printlevels
    int pl_mvsolve = 0;
@@ -208,6 +227,18 @@ protected:
    OperatorHandle Mv_lor;
    OperatorHandle Sp_lor;
    OperatorHandle H_lor;
+};
+
+class PIController
+{
+public:
+   PIController(double Kp = 0.2, double Ki = 0.175) : Kp(Kp), Ki(Ki) {}
+
+   ~PIController(){};
+
+protected:
+   double Kp, Ki;
+   double vnm1;
 };
 } // namespace flow
 } // namespace mfem

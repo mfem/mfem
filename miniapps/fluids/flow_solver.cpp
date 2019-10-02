@@ -24,7 +24,7 @@ FlowSolver::FlowSolver(ParMesh *mesh, int order, double kin_vis)
    pfes = new ParFiniteElementSpace(pmesh, pfec);
 
    // Check if fully periodic mesh
-   if (!(pmesh->bdr_attributes.Size() == 0))
+   if (pmesh->bdr_attributes.Size())
    {
       vel_ess_attr.SetSize(pmesh->bdr_attributes.Max());
       vel_ess_attr = 0;
@@ -316,14 +316,23 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
       std::cout << "Step" << std::endl;
    }
    sw_step.Start();
+   sw_single_step.Start();
 
    time += dt;
-
-   // TODO: update pressure bcs and acceleration terms
 
    for (auto vdbc = vel_dbcs.begin(); vdbc != vel_dbcs.end(); ++vdbc)
    {
       vdbc->coeff.SetTime(time);
+   }
+
+   for (auto pdbc = pres_dbcs.begin(); pdbc != pres_dbcs.end(); ++pdbc)
+   {
+     pdbc->coeff.SetTime(time);
+   }
+
+   for (auto acc = accel_terms.begin(); acc != accel_terms.end(); ++acc)
+   {
+     acc->coeff.SetTime(time);
    }
 
    SetTimeIntegrationCoefficients(cur_step);
@@ -529,6 +538,7 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
    un_gf.GetTrueDofs(un);
 
    sw_step.Stop();
+   sw_single_step.Stop();
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
@@ -538,7 +548,10 @@ void FlowSolver::Step(double &time, double dt, int cur_step)
       }
       printf("PRES %3d %.2E %.2E\n", iter_spsolve, res_spsolve, rtol_spsolve);
       printf("HELM %3d %.2E %.2E\n", iter_hsolve, res_hsolve, rtol_hsolve);
+      printf("TPS %22.2E\n", sw_single_step.RealTime());
    }
+
+   sw_single_step.Clear();
 }
 
 void FlowSolver::MeanZero(ParGridFunction &v)
@@ -869,6 +882,26 @@ void FlowSolver::AddPresDirichletBC(double (*f)(const Vector &x, double t),
    }
 }
 
+void FlowSolver::AddAccelTerm(
+   void (*f)(const Vector &x, double t, Vector &u), Array<int> &attr)
+{
+   accel_terms.push_back(
+      AccelTerm_T(f, attr, VectorFunctionCoefficient(pmesh->Dimension(), f)));
+
+   if (verbose && pmesh->GetMyRank() == 0)
+   {
+      out << "Adding Acceleration term to attributes ";
+      for (int i = 0; i < attr.Size(); ++i)
+      {
+         if (attr[i] == 1)
+         {
+            out << i << " ";
+         }
+      }
+      out << std::endl;
+   }
+}
+
 void FlowSolver::SetTimeIntegrationCoefficients(int step)
 {
    if (step == 0)
@@ -901,6 +934,64 @@ void FlowSolver::SetTimeIntegrationCoefficients(int step)
       ab2 = -3.0;
       ab3 = 1.0;
    }
+}
+
+double FlowSolver::ComputeCFL(ParGridFunction &u, double &dt)
+{
+   ParMesh *pmesh = u.ParFESpace()->GetParMesh();
+
+   double hmin = 0.0;
+   double hmin_loc = pmesh->GetElementSize(0, 1);
+
+   for (int i = 1; i < pmesh->GetNE(); i++)
+   {
+      hmin_loc = std::min(pmesh->GetElementSize(i, 1), hmin_loc);
+   }
+
+   MPI_Allreduce(&hmin_loc, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
+
+   int ndofs = u.ParFESpace()->GetNDofs();
+   Vector uc(ndofs), vc(ndofs), wc(ndofs);
+
+   // Only set z-component to zero because x and y are always present.
+   wc = 0.0;
+
+   for (int comp = 0; comp < u.ParFESpace()->GetVDim(); comp++)
+   {
+      for (int i = 0; i < ndofs; i++)
+      {
+         if (comp == 0)
+         {
+            uc(i) = u[u.ParFESpace()->DofToVDof(i, comp)];
+         }
+         else if (comp == 1)
+         {
+            vc(i) = u[u.ParFESpace()->DofToVDof(i, comp)];
+         }
+         else if (comp == 2)
+         {
+            wc(i) = u[u.ParFESpace()->DofToVDof(i, comp)];
+         }
+      }
+   }
+
+   double velmag_max_loc = 0.0;
+   double velmag_max = 0.0;
+   for (int i = 0; i < ndofs; i++)
+   {
+      velmag_max_loc = std::max(sqrt(pow(uc(i), 2.0) + pow(vc(i), 2.0)
+                                     + pow(wc(i), 2.0)),
+                                velmag_max_loc);
+   }
+
+   MPI_Allreduce(&velmag_max_loc,
+                 &velmag_max,
+                 1,
+                 MPI_DOUBLE,
+                 MPI_MAX,
+                 pmesh->GetComm());
+
+   return velmag_max * dt / hmin;
 }
 
 void FlowSolver::PrintTimingData()
