@@ -333,7 +333,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    //const char *mesh_file = "../data/beam-tet.mesh";
    const char *mesh_file = "../data/inline-tet.mesh";
-   int order = 1;
+   int order = 2;
    bool static_cond = false;
    bool visualization = 1;
    bool visit = false;
@@ -430,9 +430,12 @@ int main(int argc, char *argv[])
 
    if (geometricPartition)
      {
-       int nxyzGlobal[3] = {1, 1, 1};
+       //int nxyzGlobal[3] = {1, 1, 1};
+       int nxyzGlobal[3] = {1, 1, 2};
        //int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 1, 2};
+       //int nxyzGlobal[3] = {2, 2, 4};
+       //int nxyzGlobal[3] = {2, 2, 8};
        //int nxyzGlobal[3] = {6, 6, 8};  // 288
        //int nxyzGlobal[3] = {8, 4, 8};
        //int nxyzGlobal[3] = {8, 16, 8};

@@ -28,6 +28,8 @@ using namespace std;
 
 //#define TEST_SD_SOLVER
 
+#define DOFMAP_DEBUG
+
 #define PENALTY_U_S 0.0
 
 
@@ -73,6 +75,22 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 
 void SetDomainDofsFromSubdomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteElementSpace *fespaceDomain, const Vector & ssd, Vector & s);
 void SetSubdomainDofsFromDomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteElementSpace *fespaceDomain, const Vector & s, Vector & ssd);
+
+class EmptyOperator : public Operator
+{
+public:
+  EmptyOperator() : Operator(0, 0) { }
+  
+  virtual void Mult(const Vector &x, Vector &y) const
+  {
+  }
+
+  virtual void MultTranspose(const Vector &x, Vector &y) const
+  {
+  }
+  
+  //virtual ~EmptyOperator();
+};
 
 // TODO: combine SetInjectionOperator and InjectionOperator as one class?
 class SetInjectionOperator : public Operator

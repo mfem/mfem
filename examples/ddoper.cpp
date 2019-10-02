@@ -1623,13 +1623,16 @@ void FindBoundaryTrueDOFs(ParFiniteElementSpace *pfespace, set<int>& tdofsBdry)
 }
 
 // This function is applicable only to convex faces, as it simply compares the vertices as sets.
-bool FacesCoincideGeometrically(ParMesh *volumeMesh, const int face, ParMesh *surfaceMesh, const int elem)
+bool FacesCoincideGeometrically(ParMesh *volumeMesh, const int face, ParMesh *surfaceMesh, const int elem, const bool surface)
 {
   Array<int> faceVert;
   volumeMesh->GetFaceVertices(face, faceVert);
 
   Array<int> elemVert;
-  surfaceMesh->GetElementVertices(elem, elemVert);
+  if (surface)
+    surfaceMesh->GetElementVertices(elem, elemVert);
+  else
+    surfaceMesh->GetFaceVertices(elem, elemVert);
 
   if (faceVert.Size() != elemVert.Size())
     return false;
@@ -1752,6 +1755,10 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
   std::vector<int> ifpedge, maxifpedge;
   ifpedge.assign(ifgSize, -1);
   maxifpedge.assign(ifgSize, -1);
+
+  std::vector<int> ifpface, maxifpface;
+  ifpface.assign(ifgSize, -1);
+  maxifpface.assign(ifgSize, -1);
   
   const double vertexTol = 1.0e-12;
   
@@ -1774,7 +1781,8 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 	  for (int j=0; j<elFaces.Size(); ++j)
 	    {
 	      std::set<int>::const_iterator it = pmeshFacesInInterface.find(elFaces[j]);
-	      if (it != pmeshFacesInInterface.end())
+	      std::set<int>::const_iterator itneg = pmeshFacesInInterface.find(-1 - elFaces[j]);
+	      if (it != pmeshFacesInInterface.end() || itneg != pmeshFacesInInterface.end())
 		{
 		  std::map<int, int>::iterator itf = pmeshFaceToElem.find(elFaces[j]);
 		  if (itf != pmeshFaceToElem.end())
@@ -1984,27 +1992,188 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
   // the data pmeshEdgesInInterface and pmeshVerticesInInterface.
 
   // Therefore, in the following we loop over (1) faces, (2) edges, and (3) vertices in the interface.
-  
+
   // (1) Loop over interface faces.
-  std::map<int, int> pmeshEdgeToAnyFaceInInterface;
-  std::map<int, int> pmeshFaceToIFFace;
+
+  // (1a) Loop over interface faces, only setting helper maps locally and globally (via some communication).
+
+  std::map<HYPRE_Int, int> pgdofToFSet;
+
   int i = 0;
   for (std::set<int>::const_iterator it = pmeshFacesInInterface.begin(); it != pmeshFacesInInterface.end(); ++it, ++i)
     {
-      const int pmeshFace = *it;
+      const int pmeshFace = ((*it) >= 0) ? (*it) : -1 - (*it);
 
-      pmeshFaceToIFFace[pmeshFace] = i;
-      
-      // Face pmeshFace of pmesh coincides with face i of ifMesh on this process (the same face may also exist on a different process in the same ifMesh,
-      // as there can be redundant overlapping faces in parallel, for communication).
+      const bool faceInInterface = ((*it) >= 0);
 
-      { // For each pmesh edge of this face, map to pmeshFace.
-	Array<int> edges, ori;
-	pmesh->GetFaceEdges(pmeshFace, edges, ori);
+      int osf = 0;
+      const int nf = fec->DofForGeometry(pmesh->GetFaceGeometryType(0));
 
-	for (int j=0; j<edges.Size(); ++j)
-	  pmeshEdgeToAnyFaceInInterface[edges[j]] = pmeshFace;
+      /*
+      double cm[3];  // center of mass for pmeshFace, for debugging purposes.
+
+      {
+	for (int l=0; l<3; ++l)
+	  cm[l] = 0.0;
+	
+	Array<int> vert;
+	pmesh->GetFaceVertices(pmeshFace, vert);
+	for (int j=0; j<vert.Size(); ++j)
+	  {
+	    double *vc = pmesh->GetVertex(vert[j]);
+	    for (int l=0; l<3; ++l)
+	      cm[l] += vc[l];
+	  }
+
+	for (int l=0; l<3; ++l)
+	  cm[l] /= (double) vert.Size();
       }
+      */
+      
+      { // Set pgdofToFSet, even if this edge is not in ifMesh
+	const int nv = fec->DofForGeometry(Geometry::POINT);
+	int numVerticesOnFace = 0;
+	if (nv > 0)
+	  {
+	    Array<int> vert;
+	    pmesh->GetFaceVertices(pmeshFace, vert);
+
+	    numVerticesOnFace = vert.Size();
+	  }
+
+	const int ne = fec->DofForGeometry(Geometry::SEGMENT);
+	int numEdgesOnFace = 0;
+	if (ne > 0)
+	  {
+	    Array<int> edge, ori;
+	    pmesh->GetFaceEdges(pmeshFace, edge, ori);
+
+	    numEdgesOnFace = edge.Size();
+	  }
+
+	osf = (nv*numVerticesOnFace) + (ne*numEdgesOnFace);  // offset of face DOF's, which come after vertex and edge DOF's in the DOF arrays ifdofs and sddofs.
+	
+	Array<int> pdofs;
+	fespaceGlobal->GetFaceDofs(pmeshFace, pdofs);
+
+	if (nf > 0)
+	  {
+	    // Use the minimum global face DOF on the face, as a global identification for the face. The minimum resolves ambiguity resulting from orientations
+	    // depending on the process.
+	    MFEM_VERIFY(nf == 2, "For nf > 2, generalize the computation of the minimum.");
+	    const HYPRE_Int gtdof = std::min(fespaceGlobal->GetGlobalTDofNumber(pdofs[osf]), fespaceGlobal->GetGlobalTDofNumber(pdofs[osf+1]));
+	    pgdofToFSet[gtdof] = i;
+	  }
+      }
+
+      if (faceInInterface && nf > 0)
+	{
+	  // Face pmeshFace of pmesh coincides with face i of ifMesh on this process
+
+	  /*
+	  int pmeshFaceOri = -1;
+	  {
+	    // Find the neighboring pmesh element.
+	    std::map<int, int>::iterator ite = pmeshFaceToElem.find(pmeshFace);
+
+	    if (ite == pmeshFaceToElem.end())  // This process does not have an element in this subdomain neighboring the face.
+	      continue;
+      
+	    MFEM_VERIFY(ite->first == pmeshFace, "");
+
+	    const int pmeshElem = ite->second;
+
+	    MFEM_VERIFY(fespaceGlobal->GetOrder(pmeshElem) == 2, "hack only works for second order");
+
+	    Array<int> pElFaces, pOri;
+	    pmesh->GetElementFaces(pmeshElem, pElFaces, pOri);
+	    for (int j=0; j<pElFaces.Size(); ++j)
+	      {
+		if (pElFaces[j] == pmeshFace)
+		  pmeshFaceOri = pOri[j];
+	      }
+	  }
+
+	  //cout << "Interface face " << i << " has pmeshFaceOri " << pmeshFaceOri << endl;
+
+	  MFEM_VERIFY(pmeshFaceOri == 0 || pmeshFaceOri == 5, "pmeshFaceOri");
+	  */
+	  
+	  MFEM_VERIFY(ifespace->GetOrder(i) == 2, "hack only works for second order");
+	  
+	  Array<int> pdofs, ifdofs;
+	  fespaceGlobal->GetFaceDofs(pmeshFace, pdofs);
+	  ifespace->GetElementDofs(i, ifdofs);
+	  
+	  MFEM_VERIFY(pdofs.Size() == ifdofs.Size() && pdofs.Size() == osf + nf, "hack only works for second order");
+
+	  // TODO: is fswitch necessary?
+	  //const int fswitch = 0; // (pmeshFaceOri > 0) ? (1 - (2*(d - osf))) : 0;  // TODO: this is valid only for second order!
+
+	  // Use the minimum global face DOF on the face, as a global identification for the face.
+	  MFEM_VERIFY(nf == 2, "For nf > 2, generalize the computation of the minimum.");
+	  const HYPRE_Int gtdof = std::min(fespaceGlobal->GetGlobalTDofNumber(pdofs[osf]), fespaceGlobal->GetGlobalTDofNumber(pdofs[osf + 1]));
+	  const HYPRE_Int ifgtdof = ifespace->GetGlobalTDofNumber(ifdofs[osf]);  // Just use the first face DOF on the face, as a global identification for the face.
+
+	  MFEM_VERIFY(ifdofs[osf] + 1 == ifdofs[osf+1], "");
+	  MFEM_VERIFY(ifespace->GetGlobalTDofNumber(ifdofs[osf]) + 1 == ifespace->GetGlobalTDofNumber(ifdofs[osf+1]), "");
+	  
+	  ifpface[ifgtdof] = gtdof;
+	}
+    }
+
+  MPI_Allreduce((int*) ifpface.data(), (int*) maxifpface.data(), ifgSize, MPI_INT, MPI_MAX, ifsdcomm);
+
+  std::vector<int> pfaceToIFGDOF;
+  pfaceToIFGDOF.assign(pmeshFacesInInterface.size(), -1);
+  
+  for (i=0; i<ifgSize; ++i)
+    {
+      const HYPRE_Int pgtdof = maxifpface[i]; // minimum of fespaceGlobal->GetGlobalTDofNumber() among face DOF's on its face.
+      if (pgtdof >= 0)
+	{
+	  // Check whether pgtdof is on one of the pmesh faces in the interface on this process.
+	  std::map<HYPRE_Int, int>::iterator it = pgdofToFSet.find(pgtdof);
+	  if (it != pgdofToFSet.end())
+	    {
+	      MFEM_VERIFY(it->first == pgtdof, "");
+	      const int pmfi = it->second;  // index in pmeshFacesInInterface
+	      MFEM_VERIFY(pfaceToIFGDOF[pmfi] == -1 || pfaceToIFGDOF[pmfi] == i, "");
+	      pfaceToIFGDOF[pmfi] = i;
+	    }
+	}
+    }
+	
+  // (1b) Loop over interface faces.
+  std::map<int, int> pmeshEdgeToAnyFaceInInterface;
+  std::map<int, int> pmeshFaceToIFFace;
+  i = 0;
+  for (std::set<int>::const_iterator it = pmeshFacesInInterface.begin(); it != pmeshFacesInInterface.end(); ++it, ++i)
+    {
+      //const int pmeshFace = *it;
+      const int pmeshFace = ((*it) >= 0) ? (*it) : -1 - (*it);
+
+      const bool faceInInterface = ((*it) >= 0);
+      
+      if (faceInInterface)
+	{
+	  // Set maps pmeshFaceToIFFace and pmeshEdgeToAnyFaceInInterface, used only in (2a).
+	  pmeshFaceToIFFace[pmeshFace] = i;
+      
+	  // Face pmeshFace of pmesh coincides with face i of ifMesh on this process (the same face may also exist on a different process in the same ifMesh,
+	  // as there can be redundant overlapping faces in parallel, for communication).
+
+	  { // For each pmesh edge of this face, map to pmeshFace.
+	    Array<int> edges, ori;
+	    pmesh->GetFaceEdges(pmeshFace, edges, ori);
+
+	    for (int j=0; j<edges.Size(); ++j)
+	      pmeshEdgeToAnyFaceInInterface[edges[j]] = pmeshFace;
+	  }
+	}
+      
+      // If !faceInInterface, then this pmesh face is not in ifMesh, so do not set any entries of dofmap. Instead, set face DOF entries of gdofmap.
+      // It is not necessary to set edge or vertex DOF entries of gdofmap here, as that is done later in loop (2) and could be implemented in (3).
       
       // Find the neighboring pmesh element.
       std::map<int, int>::iterator ite = pmeshFaceToElem.find(pmeshFace);
@@ -2018,6 +2187,21 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 
       const int pmeshElem = ite->second;
 
+      int pmeshFaceOri = -1;
+      {
+	Array<int> pElFaces, pOri;
+	pmesh->GetElementFaces(pmeshElem, pElFaces, pOri);
+	for (int j=0; j<pElFaces.Size(); ++j)
+	  {
+	    if (pElFaces[j] == pmeshFace)
+	      pmeshFaceOri = pOri[j];
+	  }
+      }
+
+      //cout << "Interface face " << i << " has pmeshFaceOri " << pmeshFaceOri << endl;
+
+      MFEM_VERIFY(pmeshFaceOri == 0 || pmeshFaceOri == 5, "pmeshFaceOri");
+      
       // Find the neighboring sdMesh element, which coincides with pmeshElem in pmesh.
       std::map<int, int>::const_iterator itse = pmeshElemToSDmesh.find(pmeshElem);
       MFEM_VERIFY(itse != pmeshElemToSDmesh.end(), "");
@@ -2030,10 +2214,15 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 
       sdMesh->GetElementFaces(sdMeshElem, elFaces, ori);
       int sdMeshFace = -1;
+      int sdMeshFaceOri = -1;
       for (int j=0; j<elFaces.Size(); ++j)
 	{
-	  if (FacesCoincideGeometrically(sdMesh, elFaces[j], ifMesh, i))
-	    sdMeshFace = elFaces[j];
+	  //if (FacesCoincideGeometrically(sdMesh, elFaces[j], ifMesh, i, true))
+	  if (FacesCoincideGeometrically(sdMesh, elFaces[j], pmesh, pmeshFace, false))
+	    {
+	      sdMeshFace = elFaces[j];
+	      sdMeshFaceOri = ori[j];
+	    }
 	}
 
       MFEM_VERIFY(sdMeshFace >= 0, "");
@@ -2041,12 +2230,22 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
       // Map vertex DOF's on ifMesh face i to vertex DOF's on sdMesh face sdMeshFace.
       // TODO: is this necessary, since FiniteElementSpace::GetEdgeDofs claims to return vertex DOF's as well?
       const int nv = fec->DofForGeometry(Geometry::POINT);
+      int numVerticesOnFace = 0;
       if (nv > 0)
 	{
-	  Array<int> ifVert, sdVert;
-	  ifMesh->GetFaceVertices(i, ifVert);
+	  Array<int> sdVert;
 	  sdMesh->GetFaceVertices(sdMeshFace, sdVert);
 
+	  numVerticesOnFace = sdVert.Size();
+	}
+
+      if (nv > 0 && faceInInterface)
+	{
+	  Array<int> sdVert;
+	  sdMesh->GetFaceVertices(sdMeshFace, sdVert);
+
+	  Array<int> ifVert;
+	  ifMesh->GetElementVertices(i, ifVert);
 	  MFEM_VERIFY(ifVert.Size() == sdVert.Size(), "");
 	  
 	  for (int j=0; j<ifVert.Size(); ++j)
@@ -2099,17 +2298,27 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
       
       // Map edge DOF's on ifMesh face i to edge DOF's on sdMesh face sdMeshFace.
       const int ne = fec->DofForGeometry(Geometry::SEGMENT);
+      int numEdgesOnFace = 0;
       if (ne > 0)
+	{
+	  Array<int> sdEdge, sdOri;
+	  sdMesh->GetFaceEdges(sdMeshFace, sdEdge, sdOri);
+
+	  numEdgesOnFace = sdEdge.Size();
+	}
+
+      if (ne > 0 && faceInInterface)
 	{
 	  // TODO: could there be multiple DOF's on an edge with different orderings (depending on orientation) in ifespace and fespace?
 	  // TODO: Check orientation for ND_HexahedronElement? Does ND_TetrahedronElement have orientation?
 
-	  Array<int> ifEdge, sdEdge, ifOri, sdOri;
-	  ifMesh->GetElementEdges(i, ifEdge, ifOri);
+	  Array<int> sdEdge, sdOri;
 	  sdMesh->GetFaceEdges(sdMeshFace, sdEdge, sdOri);
-
-	  MFEM_VERIFY(ifEdge.Size() == sdEdge.Size(), "");
 	  
+	  Array<int> ifEdge, ifOri;
+	  ifMesh->GetElementEdges(i, ifEdge, ifOri);
+	  MFEM_VERIFY(ifEdge.Size() == sdEdge.Size(), "");
+
 	  for (int j=0; j<ifEdge.Size(); ++j)
 	    {
 	      Array<int> ifVert;
@@ -2178,6 +2387,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 		  if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		    {
 		      MFEM_VERIFY(dofmap[ifdofs[d]] == sdtdof || dofmap[ifdofs[d]] == -1, "");
+		      
 		      dofmap[ifdofs[d]] = sdtdof;
 		    }
 		}
@@ -2188,20 +2398,35 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
       const int nf = fec->DofForGeometry(sdMesh->GetFaceGeometryType(0));
       if (nf > 0)
 	{
-	  //MFEM_VERIFY(false, "TODO: it may be necessary to set face DOF's in gdofmap.");
-	  
-	  Array<int> ifdofs, sddofs;
-	  ifespace->GetElementDofs(i, ifdofs);
+	  //cout << "nv ne nf " << nv << " " << ne << " " << nf << endl;
+
+	  Array<int> sddofs, ifdofs;
 	  fespace->GetFaceDofs(sdMeshFace, sddofs);
 
-	  MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
-	  for (int d=0; d<ifdofs.Size(); ++d)
+	  const int osf = (nv*numVerticesOnFace) + (ne*numEdgesOnFace);  // offset of face DOF's, which come after vertex and edge DOF's in the DOF arrays ifdofs and sddofs.
+
+	  MFEM_VERIFY(sddofs.Size() == osf + nf, "");
+
+	  if (faceInInterface)
 	    {
-	      const int sddof_d = sddofs[d] >= 0 ? sddofs[d] : -1 - sddofs[d];
-	      const int ifdof_d = ifdofs[d] >= 0 ? ifdofs[d] : -1 - ifdofs[d];
+	      ifespace->GetElementDofs(i, ifdofs);
+	      MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
+	      MFEM_VERIFY(ifespace->GetOrder(i) == 2, "fswitch hack only works for second order");
+	    }
+
+	  for (int d=osf; d<sddofs.Size(); ++d)
+	    {
+	      const int fswitch = (pmeshFaceOri > 0) ? (1 - (2*(d - osf))) : 0; // ((d - osf) + 1) % 2;  // TODO: this is valid only for second order!
+	      const int fswitch2 = (pmeshFaceOri == 0) ? (1 - (2*(d - osf))) : 0; // ((d - osf) + 1) % 2;  // TODO: this is valid only for second order!
+
+	      MFEM_VERIFY(fespace->GetOrder(sdMeshElem) == 2, "fswitch hack only works for second order");
+	      
+	      const int sddof_d = (sddofs[d + fswitch] >= 0) ? sddofs[d + fswitch] : -1 - sddofs[d + fswitch];
+	      const int sddof_d2 = (sddofs[d + fswitch2] >= 0) ? sddofs[d + fswitch2] : -1 - sddofs[d + fswitch2];
 	      
 	      //const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 	      const int sdtdof = fespace->GetLocalTDofNumber(sddof_d);
+	      const int sdtdof2 = fespace->GetLocalTDofNumber(sddof_d2);
 
 	      /*
 	      MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
@@ -2221,13 +2446,39 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 	      
 	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		{
-		  MFEM_VERIFY(dofmap[ifdof_d] == sdtdof || dofmap[ifdof_d] == -1, "");
-		  dofmap[ifdof_d] = sdtdof;
+		  if (faceInInterface)
+		    {
+		      // Set local dofmap
+		      
+		      const int ifdof_d = (ifdofs[d] >= 0) ? ifdofs[d] : -1 - ifdofs[d];
+
+		      if (!(dofmap[ifdof_d] == sdtdof || dofmap[ifdof_d] == -1))
+			cout << "BUG" << endl;
+
+		      /*
+		      if (ifdof_d == 1600 || ifdof_d == 1601)
+			{
+			  cout << "ifdof " << ifdof_d << " set on face " << i << ", sdMeshFaceOri " << sdMeshFaceOri
+			       << ", ifdofs[d] " << ifdofs[d] << ", sddofs[d] " << sddofs[d] << ", pmeshFaceOri "
+			       << pmeshFaceOri << endl;
+			}
+		      */
+		      
+		      MFEM_VERIFY(dofmap[ifdof_d] == sdtdof || dofmap[ifdof_d] == -1, "");
+		      dofmap[ifdof_d] = sdtdof;
+		    }
+		  else
+		    {
+		      // Set global gdofmap
+		      MFEM_VERIFY(pfaceToIFGDOF[i] >= 0, "");
+		      MFEM_VERIFY(gdofmap[pfaceToIFGDOF[i] + d - osf] == sdtdof2 + sdtos || gdofmap[pfaceToIFGDOF[i] + d - osf] == -1, "");
+		      gdofmap[pfaceToIFGDOF[i] + d - osf] = sdtdof2 + sdtos;
+		    }
 		}
 	    }
 	}
     }
-
+  
   // (2) Loop over interface edges.
 
   // (2a) Loop over interface edges, only setting helper maps locally and globally (via some communication).
@@ -2526,6 +2777,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 		    }
 		  else
 		    { // Set global gdofmap
+		      MFEM_VERIFY(gdofmap[pedgeToIFGDOF[i] + d] == -1 || gdofmap[pedgeToIFGDOF[i] + d] == sdtdof + sdtos, "");
 		      gdofmap[pedgeToIFGDOF[i] + d] = sdtdof + sdtos;
 		    }
 		}
@@ -2636,7 +2888,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm, ParFiniteElementSpace *ifesp
 	  MFEM_VERIFY(gdofmap[i] >= 0, "");
       }
   }
-
+  
   /*
   bool mapDefined = true;
   for (i=0; i<ifSize; ++i)
@@ -2728,6 +2980,11 @@ void SetSubdomainDofsFromDomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteE
 		  // Note that this occurs in parallel (1,2,1) for 4 SD's but the solution is the same as in serial. The flip seems correct.
 		}
 	      */
+
+	      // TODO: It seems that this sign flipping may not be sufficient in general. So far, the debugging code below has not caught any
+	      // incorrect signs, which may be the result of consistent vertex ordering in the subdomain and global domain meshes.
+	      // In general, it may be necessary to multiply by the sign of the dot product of the tangent vectors for the edge in the
+	      // subdomain mesh and the edge in the global domain mesh.
 	      
 	      const double flip = ((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0)) ? -1.0 : 1.0;
 	      ssd[lsddof] = s_gf[dof_i] * flip;
@@ -2736,7 +2993,7 @@ void SetSubdomainDofsFromDomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteE
     }
 
   { // debugging
-    // Test orientations of the same DOF's in fespace[m] and ifespace[interfaceIndex] by comparing projections of the same analytic function.
+    // Test orientations of the same DOF's in fespaceDomain and fespaceSD, by comparing projections of the same analytic function.
     VectorFunctionCoefficient E(3, test2_E_exact);
 
     ParGridFunction gfsd(fespaceSD);
@@ -3302,7 +3559,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 							       (i >= 0) ? &(InterfaceToSurfaceInjectionData[m][i][0]) : NULL,
 							       GlobalInterfaceToSurfaceInjectionGlobalData[m][interfaceIndex]);
 
-	      /*
+#ifdef DOFMAP_DEBUG
 	      { // debugging
 		// Test orientations of the same DOF's in fespace[m] and ifespace[interfaceIndex] by comparing projections of the same analytic function.
 		VectorFunctionCoefficient E(3, test2_E_exact);
@@ -3333,10 +3590,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		for (int j=0; j<ifsize; ++j)
 		  {
 		    if (fabs(injIF[j] - vif[j]) > 1.0e-8)
-		      cout << "DISCREPANCY sd " << m << ", entry " << j << endl;
+		      cout << m_rank << ": DISCREPANCY A sd " << m << ", entry " << j << ", inj " << injIF[j] << ", if " << vif[j] << endl;
 		  }
 	      }
-	      */
+#endif
 	      
 	      /*
 	      if (i >= 0)

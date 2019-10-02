@@ -135,7 +135,15 @@ public:
 
   int NumFaces() const
   {
-    return faces.size();
+    //return faces.size();
+    
+    int n=0;
+    for (std::set<int>::const_iterator it = faces.begin(); it != faces.end(); ++it)
+      {
+	if ((*it) >= 0) n++;
+      }
+
+    return n;
   }
 
   void PrintVertices(const ParMesh *pmesh) const
@@ -298,6 +306,10 @@ public:
 			if (tdof >= 0)  // if this is a true DOF
 			  {
 			    interfaces[interfaceIndex].InsertFaceIndex(f[k]);
+			  }
+			else
+			  {
+			    interfaces[interfaceIndex].InsertFaceIndex(-1 - f[k]);
 			  }
 		      }
 		  }
@@ -465,7 +477,8 @@ private:
     else
       {
 	std::set<int>::const_iterator it = interface->faces.begin();
-	pmesh->GetFaceVertices(*it, elVert);
+	const int f0 = ((*it) >= 0) ? (*it) : -1 - (*it);
+	pmesh->GetFaceVertices(f0, elVert);
       }
     
     numElVert = elVert.Size();  // number of vertices per element
@@ -515,6 +528,9 @@ private:
 	int prev = -1;
 	for (std::set<int>::const_iterator it = interface->faces.begin(); it != interface->faces.end(); ++it)
 	  {
+	    if ((*it) < 0)
+	      continue;
+	    
 	    pmesh->GetFaceVertices(*it, elVert);
 
 	    MFEM_VERIFY(prev < *it, "Verify faces are in ascending order");
