@@ -72,8 +72,8 @@ protected:
    /** @brief Protected constructor: objects of this type should be constructed
        only as part of a derived class. */
    SundialsSolver() : sundials_mem(NULL), flag(0), reinit(false),
-                      saved_global_size(0), y(NULL), A(NULL), M(NULL),
-                      LSA(NULL), LSM(NULL), NLS(NULL) { }
+      saved_global_size(0), y(NULL), A(NULL), M(NULL),
+      LSA(NULL), LSM(NULL), NLS(NULL) { }
 
 public:
    /// Access the SUNDIALS memory structure.
@@ -134,7 +134,11 @@ public:
        for the new problem size. */
    /** @param[in] f_ The TimeDependentOperator that defines the ODE system.
 
-       @note All other methods must be called after Init(). */
+       @note All other methods must be called after Init().
+
+       @note If this method is called a second time with a different problem
+       size, then any non-default user-set options will be lost and will need
+       to be set again. */
    void Init(TimeDependentOperator &f_);
 
    /// Integrate the ODE with CVODE using the specified step mode.
@@ -267,7 +271,11 @@ public:
        for the new problem size. */
    /** @param[in] f_ The TimeDependentOperator that defines the ODE system
 
-       @note All other methods must be called after Init(). */
+       @note All other methods must be called after Init().
+
+       @note If this method is called a second time with a different problem
+       size, then any non-default user-set options will be lost and will need
+       to be set again. */
    void Init(TimeDependentOperator &f_);
 
    /// Integrate the ODE with ARKode using the specified step mode.
@@ -408,6 +416,9 @@ public:
    virtual ~KINSolver();
 
    /// Set the nonlinear Operator of the system and initialize KINSOL.
+   /** @note If this method is called a second time with a different problem
+       size, then non-default KINSOL-specific options will be lost and will need
+       to be set again. */
    virtual void SetOperator(const Operator &op);
 
    /// Set the linear solver for inverting the Jacobian.

@@ -307,8 +307,8 @@ public:
    virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
                                 int jok, int *jcur, double gamma);
 
-   /** @brief Solve the ODE linear system \f$ A x = b \f$ as setup by 
-       the method ImplicitSetup().
+   /** @brief Solve the ODE linear system \f$ A x = b \f$ as setup by
+       the method SUNImplicitSetup().
 
        @param[in]      b   The linear system right-hand side.
        @param[in,out]  x   On input, the initial guess. On output, the solution.
@@ -328,8 +328,8 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassSetup();
 
-   /** @brief Solve the mass matrix linear system \f$ M x = b \f$  
-       as setup by the method MassSetup().
+   /** @brief Solve the mass matrix linear system \f$ M x = b \f$
+       as setup by the method SUNMassSetup().
 
        @param[in]      b   The linear system right-hand side.
        @param[in,out]  x   On input, the initial guess. On output, the solution.
