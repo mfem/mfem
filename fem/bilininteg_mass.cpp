@@ -23,6 +23,7 @@ namespace mfem
 static inline MFEM_HOST_DEVICE
 double LaghosRho0(const double problem, const double *x)
 {
+   //printf("\n\033[1;37m[LaghosRho0] problem:%f", problem);
    if (problem == -2.0) { return (x[0] < 0.5) ? 1.0 : 0.1; }
    if (problem == -3.0) { return (x[0] > 1.0 && x[1] > 1.5) ? 0.125 : 1.0; }
    if (problem == -5.0)
@@ -113,6 +114,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       auto W = ir->GetWeights().Read();
+      auto X = Reshape(geom->X.Read(), NQ,3,NE);
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
       MFEM_FORALL(e, NE,
@@ -125,7 +127,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double detJ = J11 * (J22 * J33 - J32 * J23) -
             /* */               J21 * (J12 * J33 - J32 * J13) +
             /* */               J31 * (J12 * J23 - J22 * J13);
-            v(q,e) = W[q] * constant * detJ;
+            const double x[3] = { X(q,0,e), X(q,1,e), X(q,2,e)};
+            const double coeff = LaghosRho0(constant, x);
+            v(q,e) = W[q] * coeff * detJ;
          }
       });
    }
@@ -800,21 +804,23 @@ static void PAMassApply(const int dim,
                      */
             //default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
-   }/*
+   }
    else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
+         //case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
+         case 0x24: return SmemPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-         case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-         case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-         case 0x67: return SmemPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
-         case 0x78: return SmemPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
-         case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
-         default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+            //case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
+            //case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
+            //case 0x67: return SmemPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
+            //case 0x78: return SmemPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
+            //case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
+            //default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+            //default: MFEM_VERIFY(false,"");
       }
-}*/
+   }
    printf("\033[33;1m[PAMassApply] %x \033[m", (D1D<<4)|Q1D); fflush(0);
    MFEM_ABORT("Unknown kernel.");
 }
