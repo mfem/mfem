@@ -8,8 +8,10 @@ namespace mfem
 
 class PowerMethod
 {
-   MPI_Comm comm;
    Vector v1;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif   
 
  public:
    PowerMethod() {}
@@ -35,7 +37,7 @@ class PowerMethod
 
 #ifdef MFEM_USE_MPI
          normV0 = InnerProduct(comm, v0, v0);
-#elif
+#else
          normV0 = InnerProduct(v0, v0);
 #endif
 
@@ -45,7 +47,7 @@ class PowerMethod
          double eigenvalueNew;
 #ifdef MFEM_USE_MPI
          eigenvalueNew = InnerProduct(comm, v0, v1);
-#elif
+#else
          eigenvalueNew = InnerProduct(v0, v1);
 #endif
          double diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalue);
