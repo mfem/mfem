@@ -169,7 +169,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
    if (sundials_mem)
    {
       // Check if the problem size has changed since the last Init() call
-      bool resize;
+      int resize;
       if (!Parallel())
       {
          resize = (NV_LENGTH_S(y) != local_size);
@@ -177,8 +177,9 @@ void CVODESolver::Init(TimeDependentOperator &f_)
       else
       {
 #ifdef MFEM_USE_MPI
-         resize = (NV_LOCLENGTH_P(y) != local_size) ||
-            (saved_global_size != global_size);
+         int l_resize = (NV_LOCLENGTH_P(y) != local_size) ||
+                        (saved_global_size != global_size);
+         MPI_Allreduce(&l_resize, &resize, 1, MPI_INT, MPI_LOR, NV_COMM_P(y));
 #endif
       }
 
@@ -565,7 +566,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    if (sundials_mem)
    {
       // Check if the problem size has changed since the last Init() call
-      bool resize;
+      int resize;
       if (!Parallel())
       {
          resize = (NV_LENGTH_S(y) != local_size);
@@ -573,8 +574,9 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
       else
       {
 #ifdef MFEM_USE_MPI
-         resize = (NV_LOCLENGTH_P(y) != local_size) ||
-            (saved_global_size != global_size);
+         int l_resize = (NV_LOCLENGTH_P(y) != local_size) ||
+                        (saved_global_size != global_size);
+         MPI_Allreduce(&l_resize, &resize, 1, MPI_INT, MPI_LOR, NV_COMM_P(y));
 #endif
       }
 
@@ -1045,7 +1047,7 @@ void KINSolver::SetOperator(const Operator &op)
    if (sundials_mem)
    {
       // Check if the problem size has changed since the last SetOperator call
-      bool resize;
+      int resize;
       if (!Parallel())
       {
          resize = (NV_LENGTH_S(y) != local_size);
@@ -1053,8 +1055,9 @@ void KINSolver::SetOperator(const Operator &op)
       else
       {
 #ifdef MFEM_USE_MPI
-         resize = (NV_LOCLENGTH_P(y) != local_size) ||
-            (saved_global_size != global_size);
+         int l_resize = (NV_LOCLENGTH_P(y) != local_size) ||
+                        (saved_global_size != global_size);
+         MPI_Allreduce(&l_resize, &resize, 1, MPI_INT, MPI_LOR, NV_COMM_P(y));
 #endif
       }
 
