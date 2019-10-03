@@ -21,42 +21,43 @@ namespace mfem
 class TransferOperator : public Operator
 {
  private:
-   Operator *opr;
+   Operator* opr;
 
  public:
-   TransferOperator(const FiniteElementSpace &lFESpace_,
-                    const FiniteElementSpace &hFESpace_);
+   TransferOperator(const FiniteElementSpace& lFESpace_,
+                    const FiniteElementSpace& hFESpace_);
    virtual ~TransferOperator();
-   virtual void Mult(const Vector &x, Vector &y) const override;
-   virtual void MultTranspose(const Vector &x, Vector &y) const override;
+   virtual void Mult(const Vector& x, Vector& y) const override;
+   virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 class OrderTransferOperator : public Operator
 {
  private:
-   const FiniteElementSpace &lFESpace;
-   const FiniteElementSpace &hFESpace;
+   const FiniteElementSpace& lFESpace;
+   const FiniteElementSpace& hFESpace;
 
  public:
-   OrderTransferOperator(const FiniteElementSpace &lFESpace_,
-                         const FiniteElementSpace &hFESpace_);
+   OrderTransferOperator(const FiniteElementSpace& lFESpace_,
+                         const FiniteElementSpace& hFESpace_);
    virtual ~OrderTransferOperator();
-   virtual void Mult(const Vector &x, Vector &y) const override;
-   virtual void MultTranspose(const Vector &x, Vector &y) const override;
+   virtual void Mult(const Vector& x, Vector& y) const override;
+   virtual void MultTranspose(const Vector& x, Vector& y) const override;
+   static inline int DecodeDof(int dof) { return (dof >= 0) ? dof : (-1 - dof); }   
 };
 
 class TrueTransferOperator : public Operator
 {
  private:
-   TransferOperator *localTransferOperator;
-   TripleProductOperator *opr;
+   TransferOperator* localTransferOperator;
+   TripleProductOperator* opr;
 
  public:
-   TrueTransferOperator(const FiniteElementSpace &lFESpace_,
-                        const FiniteElementSpace &hFESpace_);
+   TrueTransferOperator(const FiniteElementSpace& lFESpace_,
+                        const FiniteElementSpace& hFESpace_);
    ~TrueTransferOperator();
-   virtual void Mult(const Vector &x, Vector &y) const override;
-   virtual void MultTranspose(const Vector &x, Vector &y) const override;
+   virtual void Mult(const Vector& x, Vector& y) const override;
+   virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 } // namespace mfem
