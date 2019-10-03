@@ -1048,10 +1048,9 @@ void PADiffusionApply2D(const int NE,
    });
 }
 
-// TODO: const int in template specification below?
-template<int T_D1D = 0,
-         int T_Q1D = 0,
-         int T_NBZ = 0>
+template<const int T_D1D = 0,
+         const int T_Q1D = 0,
+         const int T_NBZ = 0>
 static void SmemPADiffusionApply2DElement(int e,
                                           DeviceTensor<2,const double> b,
                                           DeviceTensor<2,const double> g,
@@ -1243,6 +1242,7 @@ static void SmemPADiffusionApply2D(const int NE,
 
 
 // PA Diffusion Apply 3D kernel
+/// @todo element-ize this kernel
 template<const int T_D1D = 0,
          const int T_Q1D = 0> static
 void PADiffusionApply3D(const int NE,
@@ -1780,6 +1780,8 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    element vector for y
 
    not sure that's the right interface
+
+   @todo select kernels based on device
 */
 void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
                                            Vector &y) const
@@ -1788,8 +1790,6 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
    {
       auto B = Reshape(maps->B.Read(), quad1D, dofs1D);
       auto G = Reshape(maps->G.Read(), quad1D, dofs1D);
-      // auto Bt = Reshape(maps->Bt.Read(), dofs1D, quad1D);
-      // auto Gt = Reshape(maps->Gt.Read(), dofs1D, quad1D);
       auto op = Reshape(pa_data.Read(), quad1D*quad1D, 3, ne);
       auto _x = Reshape(x.Read(), dofs1D, dofs1D, ne);
       auto _y = Reshape(y.ReadWrite(), dofs1D, dofs1D);
@@ -1797,12 +1797,6 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
       auto x_element = DeviceTensor<2, const double>(
          (const double*) _x + element * dofs1D * dofs1D,
          dofs1D, dofs1D);
-
-      // PADiffusionApply2DElement(element, B, G, Bt, Gt,
-      //                        op, x_element, _y, dofs1D, quad1D);
-
-      // todo: 3D, mass kernels, more careful templating etc for performance,
-      // unit tests, think about interface (global e-vectors everywhere?)
 
       SmemPADiffusionApply2DElement(element,
                                     B,
@@ -1817,8 +1811,6 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
    {
       auto B = Reshape(maps->B.Read(), quad1D, dofs1D);
       auto G = Reshape(maps->G.Read(), quad1D, dofs1D);
-      // auto Bt = Reshape(maps->Bt.Read(), dofs1D, quad1D);
-      // auto Gt = Reshape(maps->Gt.Read(), dofs1D, quad1D);
       auto op = Reshape(pa_data.Read(), quad1D*quad1D*quad1D, 6, ne);
       auto _x = Reshape(x.Read(), dofs1D, dofs1D, dofs1D, ne);
       auto _y = Reshape(y.ReadWrite(), dofs1D, dofs1D, dofs1D);
@@ -1826,12 +1818,6 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
       auto x_element = DeviceTensor<3, const double>(
          (const double*) _x + element * dofs1D * dofs1D * dofs1D,
          dofs1D, dofs1D, dofs1D);
-
-      // PADiffusionApply2DElement(element, B, G, Bt, Gt,
-      //                        op, x_element, _y, dofs1D, quad1D);
-
-      // todo: 3D, mass kernels, more careful templating etc for performance,
-      // unit tests, think about interface (global e-vectors everywhere?)
 
       SmemPADiffusionApply3DElement(element,
                                     B,
