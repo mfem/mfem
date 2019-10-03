@@ -1057,7 +1057,7 @@ void FiniteElementSpace::RefinementOperator
 
          for (int p = 0; p < f_dofs.Size(); ++p)
          {
-            if (processed[f_dofs[p]])
+            if (processed[DecodeDof(f_dofs[p])])
             {
                subX[p] = 0.0;
             }
@@ -1069,7 +1069,7 @@ void FiniteElementSpace::RefinementOperator
 
       for (int p = 0; p < f_dofs.Size(); ++p)
       {
-         processed[f_dofs[p]] = 1;
+         processed[DecodeDof(f_dofs[p])] = 1;
       }
    }
 }

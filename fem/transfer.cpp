@@ -142,7 +142,7 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
          x.GetSubVector(h_vdofs, subX);
          for (int p = 0; p < h_dofs.Size(); ++p)
          {
-            if (processed[h_dofs[p]])
+            if (processed[DecodeDof(h_dofs[p])])
             {
                subX[p] = 0.0;
             }
@@ -154,7 +154,7 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
 
       for (int p = 0; p < h_dofs.Size(); ++p)
       {
-         processed[h_dofs[p]] = 1;
+         processed[DecodeDof(h_dofs[p])] = 1;
       }
    }
 }
