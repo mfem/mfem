@@ -1612,6 +1612,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    epoch++;
 }
 
+
 void NCMesh::MergeNodes()
 {
    // adjust node parents if the parents are to be merged
@@ -1645,7 +1646,7 @@ void NCMesh::MergeNodes()
 
    std::cout << "Nodes merged in " << iter << " sweeps." << std::endl;
 
-   // adjust face node references
+   // adjust face node references or merge faces in case of collision
    for (auto it = faces.begin(); it.good(); ++it)
    {
       int p1 = GetValidNode(it->p1);
@@ -1655,9 +1656,16 @@ void NCMesh::MergeNodes()
 
       if (p1 != it->p1 || p2 != it->p2 || p3 != it->p3 || p4 != it->p4)
       {
-         // TODO: check if the new face already exists and merge
-
-         faces.Reparent(it.index(), p1, p2, p3, p4);
+         int other = faces.FindId(p1, p2, p3, p4);
+         if (other >= 0)
+         {
+            MergeFaces(other, it.index());
+            faces.Delete(it.index());
+         }
+         else
+         {
+            faces.Reparent(it.index(), p1, p2, p3, p4);
+         }
       }
    }
 
@@ -1689,6 +1697,23 @@ void NCMesh::MergeNodes()
          nodes.Delete(it.index());
       }
    }
+}
+
+void NCMesh::MergeFaces(int dst, int src)
+{
+   MFEM_ASSERT(dst >= 0 && src >= 0, "");
+   Face &df = faces[dst];
+   Face &sf = faces[src];
+
+   MFEM_ASSERT(df.attribute < 0, "");
+   MFEM_ASSERT(sf.attribute < 0, "");
+
+   int e1 = df.GetSingleElement();
+   int e2 = sf.GetSingleElement();
+   MFEM_ASSERT(e1 != e2, "");
+
+   df.elem[0] = e1;
+   df.elem[1] = e2;
 }
 
 

@@ -180,15 +180,16 @@ protected:
    inline int Hash(int p1, int p2) const
    { return (984120265*p1 + 125965121*p2) & mask; }
 
-   inline int Hash(int p1, int p2, int p3) const
-   { return (984120265*p1 + 125965121*p2 + 495698413*p3) & mask; }
+   inline int Hash(int p1, int p2, int p3, int p4) const
+   { return (984120265*p1 + 125965121*p2 +
+             495698413*p3 + 354156547*p4) & mask; }
 
    // Delete() and Reparent() use one of these:
    inline int Hash(const Hashed2& item) const
    { return Hash(item.p1, item.p2); }
 
    inline int Hash(const Hashed4& item) const
-   { return Hash(item.p1, item.p2, item.p3); }
+   { return Hash(item.p1, item.p2, item.p3, item.p4); }
 
    int SearchList(int id, int p1, int p2) const;
    int SearchList(int id, int p1, int p2, int p3) const;
@@ -312,7 +313,7 @@ int HashTable<T>::GetId(int p1, int p2, int p3, int p4)
 {
    // search for the item in the hashtable
    internal::sort4_ext(p1, p2, p3, p4);
-   int idx = Hash(p1, p2, p3);
+   int idx = Hash(p1, p2, p3, p4);
    int id = SearchList(table[idx], p1, p2, p3);
    if (id >= 0) { return id; }
 
@@ -379,7 +380,7 @@ template<typename T>
 int HashTable<T>::FindId(int p1, int p2, int p3, int p4) const
 {
    internal::sort4_ext(p1, p2, p3, p4);
-   return SearchList(table[Hash(p1, p2, p3)], p1, p2, p3);
+   return SearchList(table[Hash(p1, p2, p3, p4)], p1, p2, p3);
 }
 
 template<typename T>
@@ -513,7 +514,7 @@ void HashTable<T>::Reparent(int id,
    item.p4 = new_p4;
 
    // reinsert under new parent IDs
-   int new_idx = Hash(new_p1, new_p2, new_p3);
+   int new_idx = Hash(new_p1, new_p2, new_p3, new_p4);
    Insert(new_idx, id, item);
 }
 
