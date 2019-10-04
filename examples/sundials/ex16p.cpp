@@ -348,7 +348,7 @@ int main(int argc, char *argv[])
    if (arkode) { arkode->SetStepMode(ARK_ONE_STEP); }
 
    // 10. Perform time-integration (looping over the time iterations, ti, with a
-   //    time-step dt).
+   //     time-step dt).
    if (myid == 0)
    {
       cout << "Integrating the ODE ..." << endl;
