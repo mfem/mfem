@@ -32,6 +32,7 @@ set(SRCS
   nonlininteg.cpp
   staticcond.cpp
   tmop.cpp
+  elementwisesmoother.cpp
   )
 
 set(HDRS
@@ -64,6 +65,7 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
+  elementwisesmoother.hpp
   )
 
 if (MFEM_USE_SIDRE)

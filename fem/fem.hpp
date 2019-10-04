@@ -31,6 +31,7 @@
 #include "estimators.hpp"
 #include "staticcond.hpp"
 #include "tmop.hpp"
+#include "elementwisesmoother.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
