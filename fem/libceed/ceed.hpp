@@ -72,6 +72,11 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
                   Ceed ceed, CeedBasis *basis,
                   CeedElemRestriction *restr);
 
+void FESpace2CeedTensor(const mfem::FiniteElementSpace &fes,
+                        const mfem::IntegrationRule &ir,
+                        Ceed ceed, CeedBasis *basis,
+                        CeedElemRestriction *restr);
+
 #else
 typedef void* CeedData;
 #endif
