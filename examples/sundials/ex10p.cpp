@@ -10,7 +10,9 @@
 //    mpirun -np 4 ex10p -m ../../data/beam-tri.mesh  -rp 1 -o 2 -s  2 -dt 3 -nls kinsol
 //    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s  2 -dt 3 -nls kinsol
 //    mpirun -np 4 ex10p -m ../../data/beam-hex.mesh  -rs 1 -o 2 -s  2 -dt 3 -nls kinsol
+//    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s 14 -dt 0.15 -vs 10
 //    mpirun -np 4 ex10p -m ../../data/beam-tri.mesh  -rp 1 -o 2 -s 17 -dt 5e-3 -vs 60
+//    mpirun -np 4 ex10p -m ../../data/beam-hex.mesh  -rp 0 -o 2 -s 14 -dt 0.15 -vs 10
 //    mpirun -np 4 ex10p -m ../../data/beam-quad-amr.mesh -rp 1 -o 2 -s 12 -dt 0.15 -vs 10
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
@@ -236,6 +238,12 @@ int main(int argc, char *argv[])
 
    // Relative and absolute tolerances for CVODE and ARKODE.
    const double reltol = 1e-1, abstol = 1e-1;
+   // Since this example uses the loose tolerances defined above, it is
+   // necessary to lower the linear solver tolerance for CVODE which is relative
+   // to the above tolerances.
+   const double cvode_eps_lin = 1e-4;
+   // Similarly, the nonlinear tolerance for ARKODE needs to be tightened.
+   const double arkode_eps_nonlin = 1e-6;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -458,6 +466,7 @@ int main(int argc, char *argv[])
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_BDF);
          cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
+         CVodeSetEpsLin(cvode->GetMem(), cvode_eps_lin);
          cvode->SetMaxStep(dt);
          if (ode_solver_type == 11)
          {
@@ -470,6 +479,7 @@ int main(int argc, char *argv[])
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
          cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
+         CVodeSetEpsLin(cvode->GetMem(), cvode_eps_lin);
          cvode->SetMaxStep(dt);
          if (ode_solver_type == 13)
          {
@@ -482,6 +492,7 @@ int main(int argc, char *argv[])
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
          arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
+         ARKStepSetNonlinConvCoef(arkode->GetMem(), arkode_eps_nonlin);
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 15)
          {
@@ -813,7 +824,8 @@ int HyperelasticOperator::SUNImplicitSetup(const Vector &y,
    return 0;
 }
 
-int HyperelasticOperator::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
+int HyperelasticOperator::SUNImplicitSolve(const Vector &b, Vector &x,
+                                           double tol)
 {
    int sc = b.Size() / 2;
    ParFiniteElementSpace *fes = H.ParFESpace();
