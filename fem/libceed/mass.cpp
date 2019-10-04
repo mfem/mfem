@@ -24,17 +24,27 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
+   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0)) ? true : false;
    const int order = fes.GetOrder(0);
    const int ir_order = irm.GetOrder();
-   const mfem::IntegrationRule &ir =
-      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
+   const mfem::IntegrationRule &ir = tensor ?
+      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
+      irm;
    CeedInt nqpts, nelem = mesh->GetNE();
-
-   FESpace2Ceed(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+   
    mesh->EnsureNodes();
+   if (tensor) {
+      FESpace2CeedTensor(fes, ir, ceed, &ceedData.basis, &ceedData.restr); 
+   }else{
+      FESpace2Ceed(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+   }
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   FESpace2Ceed(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   if(tensor) {
+      FESpace2CeedTensor(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   } else {
+      FESpace2Ceed(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   }
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
