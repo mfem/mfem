@@ -664,8 +664,6 @@ ReducedSystemOperator::~ReducedSystemOperator()
 }
 
 
-
-
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K,
@@ -885,6 +883,7 @@ HyperelasticOperator::~HyperelasticOperator()
    delete model;
    delete Mmat;
 }
+
 
 double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
                                       const IntegrationPoint &ip)

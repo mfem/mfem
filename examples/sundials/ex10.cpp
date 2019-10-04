@@ -520,6 +520,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+
 void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
                GridFunction *field, const char *field_name, bool init_vis)
 {
@@ -591,8 +592,6 @@ ReducedSystemOperator::~ReducedSystemOperator()
 {
    delete Jacobian;
 }
-
-
 
 
 HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
@@ -793,6 +792,7 @@ HyperelasticOperator::~HyperelasticOperator()
    delete reduced_oper;
    delete model;
 }
+
 
 double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
                                       const IntegrationPoint &ip)
