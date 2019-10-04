@@ -146,6 +146,11 @@ public:
     return n;
   }
 
+  int NumFacesGeometrically() const
+  {
+    return faces.size();
+  }
+  
   void PrintVertices(const ParMesh *pmesh) const
   {
     for (std::set<int>::const_iterator it = vertices.begin(); it != vertices.end(); ++it)
@@ -318,6 +323,19 @@ public:
       }
 
     delete vert_elem;
+
+    // Remove empty interfaces
+    for (auto it = interfaces.begin(); it != interfaces.end(); )
+      {
+        if (it->NumFacesGeometrically() == 0)
+	  {
+            it = interfaces.erase(it);
+	  }
+	else
+	  {
+            ++it;
+	  }
+      }
   }
 
   int* GetInterfaceGlobalIndices(std::vector<SubdomainInterface>& interfaces)

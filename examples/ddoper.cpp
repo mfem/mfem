@@ -200,13 +200,40 @@ void test1_f_exact_1(const Vector &x, Vector &f)
   f(2) = -c;
 }
 
+#ifdef AIRY_TEST
+#include "gsl_sf_airy.h"
+
+void test_Airy1_E_exact(const Vector &x, Vector &E)
+{
+  const double y = (4.0 * x(0)) - 1.0;
+  //const double k = 104.792251097584;  // TODO: input k
+  const double k = sqrt(211.0);  // TODO: input k
+  const double beta = pow(0.25 * k, 2.0/3.0);  // TODO: store this somehow?
+  
+  E(0) = 0.0;
+  E(1) = 0.0;
+  E(2) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
+}
+
+void test_Airy_epsilon(const Vector &x, Vector &e)
+{
+  e(0) = 1.0;
+  e(1) = 1.0;
+  e(2) = (4.0 * x(0)) - 1.0;
+}
+#endif
+
 void test2_E_exact(const Vector &x, Vector &E)
 {
+#ifdef AIRY_TEST
+  test_Airy1_E_exact(x, E);
+#else
   const double pi = M_PI;
   E(0) = sin(pi * x(1)) * sin(pi * x(2));
   E(1) = sin(pi * x(2)) * sin(pi * x(0));
   E(2) = sin(pi * x(0)) * sin(pi * x(1));
-
+#endif
+  
   /*  
   E(0) = x(1) * (1.0 - x(1)) * x(2) * (1.0 - x(2));
   E(1) = x(0) * (1.0 - x(0)) * x(2) * (1.0 - x(2));
@@ -3139,10 +3166,10 @@ void CompareOperators(Operator *A, Operator *B, MPI_Comm comm)
 
 DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_,
 					   ParFiniteElementSpace *fespaceGlobal, ParMesh **pmeshSD_, ParMesh **pmeshIF_,
-					   const int orderND, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
+					   const int orderND_, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
 					   std::vector<int> *interfaceLocalIndex_, const double k2_, const double h_) :
-  numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), pmeshSD(pmeshSD_), pmeshIF(pmeshIF_), fec(orderND, spaceDim),
-  fecbdry(orderND, spaceDim-1), fecbdryH1(orderND, spaceDim-1), localInterfaces(localInterfaces_), interfaceLocalIndex(interfaceLocalIndex_),
+  numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), orderND(orderND_), pmeshSD(pmeshSD_), pmeshIF(pmeshIF_), fec(orderND_, spaceDim),
+  fecbdry(orderND_, spaceDim-1), fecbdryH1(orderND_, spaceDim-1), localInterfaces(localInterfaces_), interfaceLocalIndex(interfaceLocalIndex_),
   subdomainLocalInterfaces(numSubdomains_), pmeshGlobal(pmesh_),
   k2(k2_), hmin(h_), realPart(true),
   alpha(1.0), beta(1.0), gamma(1.0)  // TODO: set these to the right values
@@ -5717,8 +5744,15 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain)
   //fespace[subdomain]->GetComm()
   bf_sdND[subdomain] = new ParBilinearForm(fespace[subdomain]);  // TODO: make this a class member and delete at the end.
   bf_sdND[subdomain]->AddDomainIntegrator(new CurlCurlIntegrator(one));
-  bf_sdND[subdomain]->AddDomainIntegrator(new VectorFEMassIntegrator(minusk2));
 
+#ifdef AIRY_TEST
+  VectorFunctionCoefficient epsilon(3, test_Airy_epsilon);
+
+  bf_sdND[subdomain]->AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
+#else
+  bf_sdND[subdomain]->AddDomainIntegrator(new VectorFEMassIntegrator(minusk2));
+#endif
+  
   bf_sdND[subdomain]->Assemble();
 
   sdND[subdomain] = new HypreParMatrix();

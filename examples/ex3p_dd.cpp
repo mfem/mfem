@@ -53,10 +53,19 @@ void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
+#ifdef AIRY_TEST
+//#define SIGMAVAL -10981.4158900991
+//#define SIGMAVAL -1601.0
+//#define SIGMAVAL -1009.0
+#define SIGMAVAL -211.0
+//#define SIGMAVAL -2.0
+#else
 #define SIGMAVAL -2.0
 //#define SIGMAVAL -191.0
 //#define SIGMAVAL -1009.0
 //#define SIGMAVAL -511.0
+//#define SIGMAVAL -6007.0
+#endif
 
 void test1_RHS_exact(const Vector &x, Vector &f)
 {
@@ -69,6 +78,9 @@ void test1_RHS_exact(const Vector &x, Vector &f)
 
 void test2_RHS_exact(const Vector &x, Vector &f)
 {
+#ifdef AIRY_TEST
+  f = 0.0;
+#else
   const double pi = M_PI;
   const double sigma = SIGMAVAL;
   const double c = (2.0 * pi * pi) + sigma;
@@ -76,7 +88,8 @@ void test2_RHS_exact(const Vector &x, Vector &f)
   f(0) = c * sin(pi * x(1)) * sin(pi * x(2));
   f(1) = c * sin(pi * x(2)) * sin(pi * x(0));
   f(2) = c * sin(pi * x(0)) * sin(pi * x(1));
-
+#endif
+  
   /*  
   f(0) = SIGMAVAL * x(1) * (1.0 - x(1)) * x(2) * (1.0 - x(2));
   f(1) = SIGMAVAL * x(0) * (1.0 - x(0)) * x(2) * (1.0 - x(2));
@@ -332,7 +345,12 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    //const char *mesh_file = "../data/beam-tet.mesh";
+#ifdef AIRY_TEST
+   const char *mesh_file = "../data/inline-tetHalf.mesh";
+#else
    const char *mesh_file = "../data/inline-tet.mesh";
+#endif
+
    int order = 2;
    bool static_cond = false;
    bool visualization = 1;
@@ -388,11 +406,11 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
+	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
 	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
-	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains
+	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
       
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
@@ -431,12 +449,15 @@ int main(int argc, char *argv[])
    if (geometricPartition)
      {
        //int nxyzGlobal[3] = {1, 1, 1};
-       int nxyzGlobal[3] = {1, 1, 2};
+       //int nxyzGlobal[3] = {1, 1, 2};
        //int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 1, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
+       //int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {2, 2, 8};
-       //int nxyzGlobal[3] = {6, 6, 8};  // 288
+       int nxyzGlobal[3] = {6, 6, 8};  // 288
+       //int nxyzGlobal[3] = {6, 6, 16};  // 576
+       //int nxyzGlobal[3] = {6, 6, 32};  // 1152
        //int nxyzGlobal[3] = {8, 4, 8};
        //int nxyzGlobal[3] = {8, 16, 8};
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
@@ -697,8 +718,14 @@ int main(int argc, char *argv[])
    //Coefficient *sigmaAbs = new ConstantCoefficient(fabs(SIGMAVAL));
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
 
+#ifdef AIRY_TEST
+   VectorFunctionCoefficient epsilon(3, test_Airy_epsilon);
+   a->AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
+#else
+   a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
+#endif
+   
    //cout << myid << ": NBE " << pmesh->GetNBE() << endl;
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
@@ -867,7 +894,7 @@ int main(int argc, char *argv[])
 
    //TestStrumpackConstructor();
 
-   const bool solveDD = true;
+   const bool solveDD = false;
    if (solveDD)
      {
        cout << myid << ": B size " << B.Size() << ", norm " << B.Norml2() << endl;
@@ -982,7 +1009,7 @@ int main(int argc, char *argv[])
 	 {
 
 	   cout << "FULL DIRECT SOLVER" << endl;
-	   /*
+
 	   Operator * Arow = new STRUMPACKRowLocMatrix(A);
 
 	   STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
@@ -1000,13 +1027,39 @@ int main(int argc, char *argv[])
 
 	   if (myid == -10)
 	     {
-	       ofstream solfile("xfemtmp");
+	       ofstream solfile("xairy27b");
 	       X.Print(solfile);
 	     }
+
+	   {
+	     // Check residual
+	     Vector res(X.Size());
+	     Vector ssol(X.Size());
+	     ssol = X;
+
+	     const double Bnrm = B.Norml2();
+	     const double Bnrm2 = Bnrm*Bnrm;
+	     
+	     A.Mult(ssol, res);
+	     res -= B;
+
+	     const double Rnrm = res.Norml2();
+	     const double Rnrm2 = Rnrm*Rnrm;
+
+	     double sumBnrm2 = 0.0;
+	     double sumRnrm2 = 0.0;
+	     MPI_Allreduce(&Bnrm2, &sumBnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	     MPI_Allreduce(&Rnrm2, &sumRnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+	     if (myid == 0)
+	       {
+		 cout << myid << ": STRUMPACK residual norm " << sqrt(sumRnrm2) << ", B norm " << sqrt(sumBnrm2) << endl;
+	       }
+	   }
 	   
 	   delete strumpack;
 	   delete Arow;
-	   */
+
 	 }
        else
 	 {

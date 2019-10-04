@@ -6,6 +6,8 @@
 using namespace mfem;
 using namespace std;
 
+//#define AIRY_TEST
+
 #define ZERO_RHO_BC
 #define ZERO_IFND_BC
 
@@ -33,6 +35,7 @@ using namespace std;
 #define PENALTY_U_S 0.0
 
 
+
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
 void test1_f_exact_0(const Vector &x, Vector &f);
@@ -43,6 +46,11 @@ void test2_f_exact_0(const Vector &x, Vector &f);
 void test2_f_exact_1(const Vector &x, Vector &f);
 double test2_rho_exact_0(const Vector &x);
 double test2_rho_exact_1(const Vector &x);
+
+#ifdef AIRY_TEST
+void test_Airy_epsilon(const Vector &x, Vector &e);
+#endif
+
 SparseMatrix* GetSparseMatrixFromOperator(Operator *op);
 void PrintNonzerosOfInterfaceOperator(Operator const& op, const int tsize0, const int tsize1, set<int> const& tdofsbdry0,
 				      set<int> const& tdofsbdry1, const int nprocs, const int rank);
@@ -260,7 +268,7 @@ class DDMInterfaceOperator : public Operator
 {
 public:
   DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_, ParFiniteElementSpace *fespaceGlobal, ParMesh **pmeshSD_, ParMesh **pmeshIF_,
-		       const int orderND, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
+		       const int orderND_, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
 		       std::vector<int> *interfaceLocalIndex_, const double k2_, const double h_);
 
   
@@ -814,7 +822,8 @@ private:
   
   const double k2;
   const double hmin;
-
+  const int orderND;
+  
   bool realPart;
   
   const int numSubdomains;
@@ -957,7 +966,7 @@ private:
 
     const double h = hmin;
 
-    const double feOrder = 1.0;
+    const double feOrder = orderND;
 
     if (m_rank == 0)
       {
