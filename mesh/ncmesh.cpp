@@ -800,22 +800,29 @@ bool NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
          int midf_v = nodes.FindId(mid12, mid34);
          if (midf_v >= 0 && nodes[midf_v].flag)
          {
-            // this face was already checked
+            // merged node: this face was already checked
             return true;
          }
 
          nodes.Reparent(midf_h, mid12, mid34);
 
-         // both horizontal and vertical nodes found, this needs to be resolved
          if (midf_v >= 0)
          {
-            // midf_v will hold midf_h's original parents temporarily
+            // both horizontal and vertical nodes found, this needs to be
+            // resolved; midf_v will hold midf_h's original parents temporarily
             nodes.Reparent(midf_v, mid23, mid41);
-
-            // mark midf_v for merging into midf_h and eventual removal
-            nodes[midf_v].flag = 1;
-            nodes[midf_v].vert_index = midf_h;
          }
+         else
+         {
+            // if midf_v doesn't exist, create a flagged node temporarily,
+            // just to hold the old edge, before forced refinements are done
+            midf_v = nodes.GetId(mid23, mid41);
+         }
+
+         // mark midf_v for merging into midf_h and eventual removal
+         nodes[midf_v].flag = 1;
+         nodes[midf_v].vert_index = midf_h;
+
 
          CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf_h, level+1);
          CheckAnisoFace(mid41, mid23, vn3, vn4, midf_h, mid34, level+1);
@@ -1543,13 +1550,12 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       {
          RefineElement(pair.first, pair.second);
 
-         sprintf(fname, "ncmesh-%d-%02d-%03d.dump", epoch, round, iter++);
+         sprintf(fname, "ncmesh-%d-%02d-%03d-refine.dump", epoch, round, iter++);
          std::ofstream f(fname);
          DebugDump(f);
       }
       if (round > 0) { nforced += ref_list.size(); }
       ref_list.clear();
-      round++;
 
       // check if forced refinements are necessary
       if (aniso_checks.Size())
@@ -1565,17 +1571,19 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
                // need to keep the check for another round
                aniso_checks.Append(af);
             }
+            else
+            {
+               sprintf(fname, "ncmesh-%d-%02d-%03d-check.dump", epoch, round, iter++);
+               std::ofstream f(fname);
+               DebugDump(f);
+            }
          }
       }
+
+      round++;
    }
 
    MergeNodes();
-
-   {
-      sprintf(fname, "ncmesh-%d-merged.dump", epoch);
-      std::ofstream f(fname);
-      DebugDump(f);
-   }
 
    aniso_checks.DeleteAll();
 
@@ -1604,7 +1612,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    Update();
 
    {
-      sprintf(fname, "ncmesh-%d-updated.dump", epoch);
+      sprintf(fname, "ncmesh-%d-update.dump", epoch);
       std::ofstream f(fname);
       DebugDump(f);
    }
@@ -5291,7 +5299,7 @@ void NCMesh::DebugDump(std::ostream &out) const
           << pos[0] << " " << pos[1] << " " << pos[2] << " "
           << node->p1 << " " << node->p2 << " "
           << node->vert_index << " " << node->edge_index << " "
-          << 0 << "\n";
+          << int(node->flag) << "\n";
    }
    delete [] tmp_vertex;
    out << "\n";
