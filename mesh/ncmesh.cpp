@@ -1654,7 +1654,7 @@ void NCMesh::MergeNodes()
 
    std::cout << "Nodes merged in " << iter << " sweeps." << std::endl;
 
-   // adjust face node references or merge faces in case of collision
+   // adjust face node references and merge faces in case of collision
    for (auto it = faces.begin(); it.good(); ++it)
    {
       int p1 = GetValidNode(it->p1);
@@ -1684,8 +1684,7 @@ void NCMesh::MergeNodes()
       {
          for (int i = 0; i < 8 && el.node[i] >= 0; i++)
          {
-            const Node &nd = nodes[el.node[i]];
-            if (nd.flag) { el.node[i] = nd.vert_index; }
+            el.node[i] = GetValidNode(el.node[i]);
          }
       }
    }

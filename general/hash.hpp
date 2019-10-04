@@ -322,6 +322,7 @@ int HashTable<T>::GetId(int p1, int p2, int p3, int p4)
    if (unused.Size())
    {
       new_id = unused.Last();
+      new (&Base::At(new_id)) T();
       unused.DeleteLast();
    }
    else
@@ -473,6 +474,7 @@ void HashTable<T>::Delete(int id)
 {
    T& item = Base::At(id);
    Unlink(Hash(item), id);
+   item.~T();
    item.next = -2;    // mark item as unused
    unused.Append(id); // add its id to the unused ids
 }
