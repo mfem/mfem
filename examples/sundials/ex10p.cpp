@@ -877,6 +877,7 @@ void HyperelasticOperator::GetElasticEnergyDensity(
 
 HyperelasticOperator::~HyperelasticOperator()
 {
+   delete Jacobian;
    delete newton_solver;
    delete J_solver;
    delete J_prec;
