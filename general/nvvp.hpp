@@ -16,9 +16,10 @@
 #ifndef OKINA_NVVP_HPP
 #define OKINA_NVVP_HPP
 
-#undef __NVVP__
+#define __NVVP__
 #ifdef __NVVP__
 
+#include "dbg.hpp"
 #include <cuda.h>
 #include <nvToolsExt.h>
 #include <cudaProfiler.h>
@@ -32,18 +33,6 @@
 #include <cassert>
 
 using namespace std;
-
-//*****************************************************************************
-inline uint8_t chk8(const char *bfr)
-{
-   char chk = 0;
-   size_t len = strlen(bfr);
-   for (; len; len--,bfr++)
-   {
-      chk += *bfr;
-   }
-   return (uint8_t) chk;
-}
 
 // *****************************************************************************
 inline void push_flf(const char *file, const int line, const char *func)
