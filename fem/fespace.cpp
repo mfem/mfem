@@ -11,6 +11,7 @@
 
 // Implementation of FiniteElementSpace
 
+#include "../general/dbg.hpp"
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
@@ -3010,13 +3011,16 @@ void QuadratureInterpolator::Mult(
             // Q1
             case 404: eval_func = &Eval2D<1,4,4>; break;
             case 409: eval_func = &Eval2D<1,4,9>; break;
+            case 416: eval_func = &Eval2D<1,4,16>; break;
             // Q2
             case 909: eval_func = &Eval2D<1,9,9>; break;
             case 916: eval_func = &Eval2D<1,9,16>; break;
+            case 936: eval_func = &Eval2D<1,9,36>; break;
             // Q3
             case 1616: eval_func = &Eval2D<1,16,16>; break;
             case 1625: eval_func = &Eval2D<1,16,25>; break;
             case 1636: eval_func = &Eval2D<1,16,36>; break;
+            case 1664: eval_func = &Eval2D<1,16,64>; break;
             // Q4
             case 2525: eval_func = &Eval2D<1,25,25>; break;
             case 2536: eval_func = &Eval2D<1,25,36>; break;
@@ -3025,7 +3029,7 @@ void QuadratureInterpolator::Mult(
          }
          if (nq >= 100 || !eval_func)
          {
-            eval_func = &Eval2D<1>;
+            //eval_func = &Eval2D<1>;
          }
       }
       else if (dim == 3)
@@ -3038,20 +3042,24 @@ void QuadratureInterpolator::Mult(
             // Q1
             case 8008: eval_func = &Eval3D<1,8,8>; break;
             case 8027: eval_func = &Eval3D<1,8,27>; break;
+            case 8064: eval_func = &Eval3D<1,8,64>; break;
             // Q2
             case 27027: eval_func = &Eval3D<1,27,27>; break;
             case 27064: eval_func = &Eval3D<1,27,64>; break;
+            case 27216: eval_func = &Eval3D<1,27,216>; break;
             // Q3
             case 64064: eval_func = &Eval3D<1,64,64>; break;
             case 64125: eval_func = &Eval3D<1,64,125>; break;
             case 64216: eval_func = &Eval3D<1,64,216>; break;
+            case 64512: eval_func = &Eval3D<1,64,512>; break;
             // Q4
             case 125125: eval_func = &Eval3D<1,125,125>; break;
             case 125216: eval_func = &Eval3D<1,125,216>; break;
+            case 125512: eval_func = &Eval3D<1,125,512>; break;
          }
          if (nq >= 1000 || !eval_func)
          {
-            eval_func = &Eval3D<1>;
+            //eval_func = &Eval3D<1>;
          }
       }
    }
@@ -3064,6 +3072,7 @@ void QuadratureInterpolator::Mult(
             // Q1
             case 404: eval_func = &Eval2D<2,4,4>; break;
             case 409: eval_func = &Eval2D<2,4,9>; break;
+            //case 416: eval_func = &Eval2D<2,4,16>; break;
             // Q2
             case 909: eval_func = &Eval2D<2,9,9>; break;
             case 916: eval_func = &Eval2D<2,9,16>; break;
@@ -3079,7 +3088,7 @@ void QuadratureInterpolator::Mult(
          }
          if (nq >= 100 || !eval_func)
          {
-            eval_func = &Eval2D<2>;
+            // eval_func = &Eval2D<2>;
          }
       }
       else if (dim == 3)
@@ -3099,10 +3108,11 @@ void QuadratureInterpolator::Mult(
             // Q4
             case 125125: eval_func = &Eval3D<3,125,125>; break;
             case 125216: eval_func = &Eval3D<3,125,216>; break;
+            case 125512: eval_func = &Eval3D<3,125,512>; break;
          }
          if (nq >= 1000 || !eval_func)
          {
-            eval_func = &Eval3D<3>;
+            // eval_func = &Eval3D<3>;
          }
       }
    }
@@ -3112,6 +3122,7 @@ void QuadratureInterpolator::Mult(
    }
    else
    {
+      dbg("dim=%d, vdim=%d, nd=%d, nq=%d", dim, vdim, nd, nq);
       MFEM_ABORT("case not supported yet");
    }
 }
