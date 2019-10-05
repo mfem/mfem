@@ -7,12 +7,16 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "Schwarz.hpp"
+#include "Schwarzp.hpp"
 
 using namespace std;
 using namespace mfem;
 
 // #define DEFINITE
+
+// #ifndef MFEM_USE_PETSC
+// #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
+// #endif
 
 // Define exact solution
 void E_exact(const Vector & x, Vector & E);
@@ -26,91 +30,117 @@ int isol = 1;
 
 int main(int argc, char *argv[])
 {
-    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/one-hex.mesh";
-   int order = 1;
-   // int sdim = 2;
-   bool static_cond = false;
-   const char *device_config = "cpu";
-   bool visualization = true;
-   int ref_levels = 1;
-   int initref    = 1;
-   // number of wavelengths
-   double k = 0.5;
    StopWatch chrono;
 
-
+   // 1. Initialise MPI
+   MPI_Session mpi(argc, argv);
+   // 1. Parse command-line options.
+   // geometry file
+   // const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/one-hex.mesh";
+   // finite element order of approximation
+   int order = 1;
+   // static condensation flag
+   bool static_cond = false;
+   // visualization flag
+   bool visualization = true;
+   // number of wavelengths
+   double k = 0.5;
+   // number of mg levels
+   int maxref = 1;
+   // number of initial ref
+   int initref = 1;
+   // solver
+   int solver = 1;
+   // PETSC
+   // const char *petscrc_file = "petscrc_direct";
+   const char *petscrc_file = "petscrc_mult_options";
+   // optional command line inputs
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   // args.AddOption(&sdim, "-d", "--dimension", "Dimension");
-   args.AddOption(&ref_levels, "-sr", "--serial-refinements", 
-                  "Number of mesh refinements");
-   args.AddOption(&initref, "-iref", "--init-refinements", 
-                  "Number of initial mesh refinements");
    args.AddOption(&k, "-k", "--wavelengths",
                   "Number of wavelengths.");
-   args.AddOption(&isol, "-sol", "--solution", 
-                  "Exact Solution: 0) Polynomial, 1) Sinusoidal.");               
+   args.AddOption(&maxref, "-maxref", "--maxref",
+                  "Number of Refinements.");
+   args.AddOption(&initref, "-initref", "--initref",
+                  "Number of initial refinements.");
+   args.AddOption(&isol, "-isol", "--exact",
+                  "Exact solution flag - "
+                  " 1:sinusoidal, 2: point source, 3: plane wave");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&solver, "-s", "--solver",
+                  "Solver: 0 - SCHWARZ, 1 - GMG-GMRES, 2 - PETSC, 3 - SUPERLU, 4 - STRUMPACK, 5-HSS-GMRES");                       
    args.Parse();
+   // check if the inputs are correct
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if ( mpi.Root() )
+      {
+         args.PrintUsage(cout);
+      }
+      MPI_Finalize();
       return 1;
    }
-   args.PrintOptions(cout);
+   if ( mpi.Root() )
+   {
+      args.PrintOptions(cout);
+   }
+
+   enum SolverType
+   {
+      INVALID_SOL = -1,
+      SCHWARZ     =  0,
+      GMG_GMRES   =  1,
+      PETSC       =  2,
+      SUPERLU     =  3,
+      STRUMPACK   =  4,
+      HSS_GMRES   =  5,
+   };
+
 
    // Angular frequency
-   omega = 2.0 * M_PI * k;
+   omega = 2.0*k*M_PI;
+   // omega = k;
 
-   // 3. Read the mesh from the given mesh file. 
-   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
-
-   Mesh * mesh; 
-   // Define a simple square or cubic mesh
-   // if (sdim == 2)
-   // {
-      // mesh = new Mesh(1, 1, Element::QUADRILATERAL, true,1.0, 1.0,false);
-      // mesh = new Mesh(1, 1, Element::TRIANGLE, true,1.0, 1.0,false);
-   // }
-   // else
-   // {
-      // mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true,1.0, 1.0,1.0, false);
-      mesh = new Mesh(mesh_file, 1, 1);
-   // }
+   // 2. Read the mesh from the given mesh file.
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
-   for (int i=0; i<initref; i++) {mesh->UniformRefinement();}
 
-
-   Mesh * cmesh = new Mesh(*mesh);
-
-   for (int l = 0; l < ref_levels; l++)
+   // 3. Executing uniform h-refinement
+   for (int i = 0; i < initref; i++ )
    {
       mesh->UniformRefinement();
    }
 
-
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   ParMesh cpmesh(*pmesh);
    // 4. Define a finite element space on the mesh.
    FiniteElementCollection *fec   = new ND_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
-   Array<int> ess_tdof_list;
-   if (mesh->bdr_attributes.Size())
+   std::vector<HypreParMatrix*>  P(maxref);
+   for (int i = 0; i < maxref; i++)
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      const ParFiniteElementSpace cfespace(*fespace);
+      pmesh->UniformRefinement();
+      // Update fespace
+      fespace->Update();
+      OperatorHandle Tr(Operator::Hypre_ParCSR);
+      fespace->GetTrueTransferOperator(cfespace, Tr);
+      Tr.SetOperatorOwner(false);
+      Tr.Get(P[i]);
    }
-
 
    ConstantCoefficient muinv(1.0);
 #ifdef DEFINITE
@@ -119,68 +149,83 @@ int main(int argc, char *argv[])
    ConstantCoefficient sigma(-pow(omega, 2));
 #endif
    // 6. Linear form (i.e RHS b = (f,v) = (1,v))
-   LinearForm *b = new LinearForm(fespace);
+   ParLinearForm *b = new ParLinearForm(fespace);
    VectorFunctionCoefficient f(sdim, f_exact);
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    b->Assemble();
 
    // 7. Bilinear form a(.,.) on the finite element space
-   BilinearForm *a = new BilinearForm(fespace);
+   ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(muinv)); // one is the coeff
    a->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
-   if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   GridFunction x(fespace);
-   x = 0.0;
-   VectorFunctionCoefficient E_ex(sdim, E_exact);
-   x.ProjectCoefficient(E_ex);
+   Array<int> ess_tdof_list;
+   if (pmesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
 
-   SparseMatrix A;
+   ParGridFunction x(fespace);
+   x = 0.0;
+   VectorFunctionCoefficient E(sdim, E_exact);
+   x.ProjectCoefficient(E);
+
+   HypreParMatrix * A = new HypreParMatrix;
    Vector B, X;
 
-   a->SetDiagonalPolicy(mfem::Matrix::DIAG_ONE);
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   cout << "Size of linear system: " << A.Height() << endl;
+   a->FormLinearSystem(ess_tdof_list, x, *b, *A, X, B);
 
-   FiniteElementSpace *prec_fespace = (a->StaticCondensationIsEnabled() ? a->SCFESpace() : fespace);
+   if ( mpi.Root() )
+   {
+      cout << "Size of fine grid system: "
+           << A->GetGlobalNumRows() << " x " << A->GetGlobalNumCols() << endl;
+   }
 
+
+   // GMGSolver M(A, P, GMGSolver::CoarseSolver::PETSC);
+   // GMGSolver M(A, P, GMGSolver::CoarseSolver::SUPERLU);
+   // M.SetTheta(0.5);
+   // M.SetSmootherType(HypreSmoother::Jacobi);
    chrono.Clear();
    chrono.Start();
-   SchwarzSmoother * prec = new SchwarzSmoother(cmesh,ref_levels, prec_fespace, &A, ess_tdof_list);
-   prec->SetNumSmoothSteps(1);
-   prec->SetDumpingParam(0.5);
-
+   ParSchwarzSmoother *prec = new ParSchwarzSmoother(&cpmesh,maxref,fespace,A,ess_tdof_list);
    chrono.Stop();
-   // Need to invastigate the time scalings. TODO
-   cout << "Preconditioner construction time " << chrono.RealTime() << "s. \n";
-   
-   // DSmoother M(A);
-   // GSSmoother M(A);
-   X = 0.0;
+
+   if (mpi.Root())
+   {
+      cout << "Preconditioner construction time: " << chrono.RealTime() << endl;
+   }
+
    int maxit(1000);
    double rtol(0.0);
    double atol(1.e-8);
-   GMRESSolver solver;
-   solver.SetAbsTol(atol);
-   solver.SetRelTol(rtol);
-   solver.SetMaxIter(maxit);
-   solver.SetOperator(A);
-   solver.SetPreconditioner(*prec);
-   solver.SetPrintLevel(1);
-   
+   X = 0.0;
+   GMRESSolver gmres(MPI_COMM_WORLD);
+   gmres.SetAbsTol(atol);
+   gmres.SetRelTol(rtol);
+   gmres.SetMaxIter(maxit);
+   gmres.SetOperator(*A);
+   gmres.SetPreconditioner(*prec);
+   gmres.SetPrintLevel(1);
+
+
    chrono.Clear();
    chrono.Start();
-   solver.Mult(B,X);
+   gmres.Mult(B,X);
    chrono.Stop();
 
 
+
+   
+
+   if (mpi.Root())
+   {
+      cout << "Solver time: " << chrono.RealTime() << endl;
+   }
    a->RecoverFEMSolution(X, *b, x);
-   cout << "Solver time: " << chrono.RealTime() << endl;
-
-   GridFunction Egf(fespace);
-   Egf.ProjectCoefficient(E_ex);
-
 
    int order_quad = max(2, 2 * order + 1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -188,67 +233,41 @@ int main(int argc, char *argv[])
    {
       irs[i] = &(IntRules.Get(i, order_quad));
    }
-   double L2Error = x.ComputeL2Error(E_ex, irs);
 
-   double norm_E = ComputeLpNorm(2, E_ex, *mesh, irs);
+   double L2Error = x.ComputeL2Error(E, irs);
+   double norm_E = ComputeGlobalLpNorm(2, E, *pmesh, irs);
 
-   cout << "\n || E_h - E || / ||E|| = " << L2Error / norm_E << '\n' << endl;
+   if (mpi.Root())
+   {
+      cout << "\n || E_h - E || / ||E|| = " << L2Error / norm_E << '\n' << endl;
+   }
 
-   // if (visualization)
-   // {
-   //    char vishost[] = "localhost";
-   //    int  visport   = 19916;
-   //    socketstream sol_sock(vishost, visport);
-   //    sol_sock.precision(8);
-   //    sol_sock <<  "mesh\n" << *cmesh  << "keys n\n" << flush;
-   // }
-
-   //  if (visualization)
-   // {
-   //    char vishost[] = "localhost";
-   //    int  visport   = 19916;
-   //    socketstream sol_sock(vishost, visport);
-   //    sol_sock.precision(8);
-   //    sol_sock <<  "mesh\n" << *mesh  << "keys n\n" << flush;
-   // }
 
 
    if (visualization)
    {
+      int num_procs, myid;
+      MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      if (dim == 2) 
-      {
-         sol_sock <<  "solution\n" << *mesh << x  << "keys rRljc\n" << flush;
-      }
-      else
-      {
-         sol_sock <<  "solution\n" << *mesh << x  << "keys lc\n" << flush;
-      }
+      sol_sock << "solution\n" << *pmesh << x << flush;
    }
+   // ---------------------------------------------------------------------
 
-   if (visualization)
+   for (int i = 0 ; i < maxref; i++)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      if (dim == 2) 
-      {
-         sol_sock <<  "solution\n" << *mesh << Egf  << "keys rRljc\n" << flush;
-      }
-      else
-      {
-         sol_sock <<  "solution\n" << *mesh << Egf  << "keys lc\n" << flush;
-      }
+      // delete P[i];
    }
+   delete A;
    delete a;
    delete b;
    delete fec;
    delete fespace;
-   delete mesh;
+   delete pmesh;
    return 0;
 }
 

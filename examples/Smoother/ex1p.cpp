@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int sdim = 2;
    bool static_cond = false;
-   const char *device_config = "cpu";
+   // const char *device_config = "cpu";
    bool visualization = true;
    int ref_levels = 1;
    int par_ref_levels = 1;
@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
+
    // 6. Define a parallel mesh 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -155,7 +156,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *prec_fespace = (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
    chrono.Clear();
    chrono.Start();
-   ParSchwarzSmoother * prec = new ParSchwarzSmoother(&cpmesh,par_ref_levels, prec_fespace, &A);
+   ParSchwarzSmoother * prec = new ParSchwarzSmoother(&cpmesh,par_ref_levels, prec_fespace, &A,ess_tdof_list);
    prec->SetNumSmoothSteps(smth_maxit);
    prec->SetDumpingParam(theta);
    chrono.Stop();
@@ -170,8 +171,8 @@ int main(int argc, char *argv[])
    int maxit(1000);
    double rtol(0.0);
    double atol(1.e-6);
-   // CGSolver solver;
-   GMRESSolver solver(MPI_COMM_WORLD);
+   CGSolver solver(MPI_COMM_WORLD);
+   // GMRESSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
    solver.SetMaxIter(maxit);
@@ -187,8 +188,6 @@ int main(int argc, char *argv[])
    {
       cout << "Solve time "  << chrono.RealTime() << "s. \n";
    }
-
-
 
 
    // 16. Send the solution by socket to a GLVis server.

@@ -241,6 +241,7 @@ SchwarzSmoother::SchwarzSmoother(Mesh *cmesh_, int ref_levels_, FiniteElementSpa
    chrono.Stop();
    cout << "Total patch dofs info time " << chrono.RealTime() << "s. \n";
 
+   ess_bdr = 0;
    GetNonEssentialPatches(cmesh_, ess_bdr, patch_ids);
 
    // nrpatch = P->nrpatch;
@@ -402,7 +403,7 @@ BlkSchwarzSmoother::BlkSchwarzSmoother(Mesh *cmesh_, int ref_levels_, FiniteElem
       BlockPr->SetBlock(0,1,fakemat);
       BlockPr->SetBlock(1,0,fakemat);
 
-      SparseMatrix *Bpr = GetSparseMatrixFromBlockMatrix(BlockPr);
+      SparseMatrix *Bpr = BlockPr->CreateMonolithic();
       A_local[i] = RAP(*Bpr, *A, *Bpr);
       invA_local[i] = new UMFPackSolver;
       invA_local[i]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
@@ -420,6 +421,7 @@ void BlkSchwarzSmoother::Mult(const Vector &r, Vector &z) const
    z = 0.0;
    Vector rnew(r);
    Vector znew(z);
+
    for (int iter = 0; iter < maxit; iter++)
    {
       znew = 0.0;
@@ -443,20 +445,21 @@ void BlkSchwarzSmoother::Mult(const Vector &r, Vector &z) const
          SparseMatrix * fakemat = new SparseMatrix(Pr->Height(),Pr->Width()); fakemat->Finalize();
          BlockPr->SetBlock(0,1,fakemat);
          BlockPr->SetBlock(1,0,fakemat);
-         SparseMatrix *Bpr = GetSparseMatrixFromBlockMatrix(BlockPr);
+         SparseMatrix *Bpr = BlockPr->CreateMonolithic();
          res_local[i].SetSize(Bpr->NumCols());
          sol_local[i].SetSize(Bpr->NumCols());
          Bpr->MultTranspose(rnew, res_local[i]);
+
          invA_local[i]->Mult(res_local[i], sol_local[i]);
          zaux[i].SetSize(r.Size());
          zaux[i] = 0.0;
          Bpr->Mult(sol_local[i], zaux[i]);
          znew += zaux[i];
       }
+
       // Relaxation parameter
       znew *= theta;
       z += znew;
-
       //Update residual
       Vector raux(znew.Size());
       A->Mult(znew, raux);
