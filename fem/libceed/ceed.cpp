@@ -78,6 +78,34 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
    mfem::Vector qweight(Q);
    mfem::Vector shape_i(P);
    mfem::DenseMatrix grad_i(P, dim);
+   mfem::Array<int> dof_map;
+   switch (mesh->Dimension())
+   {
+      case 1:
+      {
+         const mfem::H1_SegmentElement *h1_fe =
+            dynamic_cast<const mfem::H1_SegmentElement *>(fe);
+         MFEM_VERIFY(h1_fe, "invalid FE");
+         h1_fe->GetDofMap().Copy(dof_map);
+         break;
+      }
+      case 2:
+      {
+         const mfem::H1_QuadrilateralElement *h1_fe =
+            dynamic_cast<const mfem::H1_QuadrilateralElement *>(fe);
+         MFEM_VERIFY(h1_fe, "invalid FE");
+         h1_fe->GetDofMap().Copy(dof_map);
+         break;
+      }
+      case 3:
+      {
+         const mfem::H1_HexahedronElement *h1_fe =
+            dynamic_cast<const mfem::H1_HexahedronElement *>(fe);
+         MFEM_VERIFY(h1_fe, "invalid FE");
+         h1_fe->GetDofMap().Copy(dof_map);
+         break;
+      }
+   }
    for (int i = 0; i < Q; i++)
    {
       const mfem::IntegrationPoint &ip = ir.IntPoint(i);
@@ -89,10 +117,10 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
       fe->CalcDShape(ip, grad_i);
       for (int j = 0; j < P; j++)
       {
-         shape(j, i) = shape_i(j);
+         shape(j, i) = shape_i(dof_map[j]);
          for (int d = 0; d < dim; ++d)
          {
-            grad(j+i*P+d*Q*P) = grad_i(j, d);
+            grad(j+i*P+d*Q*P) = grad_i(dof_map[j], d);
          }
       }
    }
@@ -107,7 +135,7 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
       const int el_offset = fe->GetDof() * i;
       for (int j = 0; j < fe->GetDof(); j++)
       {
-         tp_el_dof[j + el_offset] = el_dof.GetJ()[j + el_offset];
+         tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
       }
    }
    CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(),
