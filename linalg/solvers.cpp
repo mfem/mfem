@@ -704,6 +704,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    DenseMatrix H(m+1,m);
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector r(b.Size());
+   Array<Vector*> v;
+   Array<Vector*> z;
 
    int i, j, k;
 
@@ -728,21 +730,18 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       final_norm = beta;
       final_iter = 0;
       converged = 1;
-      return;
+      goto finish;
    }
 
-   if (print_level>=0)
+   if (print_level == 1 || print_level == 3)
+   {
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
-                << "  || r || = " << beta << endl;
-
-   Array<Vector*> v(m+1);
-   Array<Vector*> z(m+1);
-   for (i= 0; i<=m; i++)
-   {
-      v[i] = NULL;
-      z[i] = NULL;
+                << "  || r || = " << beta << (print_level == 3 ? " ...\n" : "\n");
    }
+
+   v.SetSize(m+1, NULL);
+   z.SetSize(m+1, NULL);
 
    j = 1;
    while (j <= max_iter)
@@ -790,10 +789,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
          double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-         if (print_level >= 0)
-            mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
-                      << "   Iteration : " << setw(3) << j
-                      << "  || r || = " << resid << endl;
 
          if ( resid <= final_norm)
          {
@@ -801,16 +796,18 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
             final_norm = resid;
             final_iter = j;
             converged = 1;
-            for (i= 0; i<=m; i++)
-            {
-               if (v[i]) { delete v[i]; }
-               if (z[i]) { delete z[i]; }
-            }
-            return;
+            goto finish;
+         }
+
+         if (print_level == 1)
+         {
+            mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
+                      << "   Iteration : " << setw(3) << j
+                      << "  || r || = " << resid << endl;
          }
       }
 
-      if (print_level>=0)
+      if (print_level == 1 && j <= max_iter)
       {
          mfem::out << "Restarting..." << endl;
       }
@@ -826,23 +823,34 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          final_norm = beta;
          final_iter = j;
          converged = 1;
-         for (i= 0; i<=m; i++)
-         {
-            if (v[i]) { delete v[i]; }
-            if (z[i]) { delete z[i]; }
-         }
-         return;
+         goto finish;
       }
    }
 
-   for (i = 0; i <= m; i++)
+   final_norm = beta;
+   final_iter = max_iter;
+   converged = 0;
+
+finish:
+    if (print_level == 1 || print_level == 3)
+   {
+      mfem::out << "   Pass : " << setw(2) << (final_iter-1)/m+1
+                << "   Iteration : " << setw(3) << final_iter
+                << "  ||B r|| = " << final_norm << '\n';
+   }
+   else if (print_level == 2)
+   {
+      mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_level >= 0 && !converged)
+   {
+      mfem::out << "FGMRES: No convergence!\n";
+   }
+   for (i = 0; i < v.Size(); i++)
    {
       if (v[i]) { delete v[i]; }
       if (z[i]) { delete z[i]; }
    }
-   converged = 0;
-   return;
-
 }
 
 
