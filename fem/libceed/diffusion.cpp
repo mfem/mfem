@@ -24,7 +24,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
-   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0)) ? true : false;
+   const bool tensor = false;//dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0)) ? true : false;
    const int order = fes.GetOrder(0);
    const int ir_order = irm.GetOrder();
    const mfem::IntegrationRule &ir = tensor ?

@@ -58,6 +58,7 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
       return CEED_PRISM;
       default:
       MFEM_ABORT("This type of element is not supported");
+      return CEED_PRISM;
    }
 }
 
@@ -78,66 +79,99 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
    mfem::Vector qweight(Q);
    mfem::Vector shape_i(P);
    mfem::DenseMatrix grad_i(P, dim);
-   mfem::Array<int> dof_map;
-   switch (mesh->Dimension())
-   {
-      case 1:
+   const mfem::Table &el_dof = fes.GetElementToDofTable();
+   mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
+   if(dynamic_cast<const mfem::TensorBasisElement *>(fe)){
+      mfem::Array<int> dof_map;
+      switch (mesh->Dimension())
       {
-         const mfem::H1_SegmentElement *h1_fe =
-            dynamic_cast<const mfem::H1_SegmentElement *>(fe);
-         MFEM_VERIFY(h1_fe, "invalid FE");
-         h1_fe->GetDofMap().Copy(dof_map);
-         break;
-      }
-      case 2:
-      {
-         const mfem::H1_QuadrilateralElement *h1_fe =
-            dynamic_cast<const mfem::H1_QuadrilateralElement *>(fe);
-         MFEM_VERIFY(h1_fe, "invalid FE");
-         h1_fe->GetDofMap().Copy(dof_map);
-         break;
-      }
-      case 3:
-      {
-         const mfem::H1_HexahedronElement *h1_fe =
-            dynamic_cast<const mfem::H1_HexahedronElement *>(fe);
-         MFEM_VERIFY(h1_fe, "invalid FE");
-         h1_fe->GetDofMap().Copy(dof_map);
-         break;
-      }
-   }
-   for (int i = 0; i < Q; i++)
-   {
-      const mfem::IntegrationPoint &ip = ir.IntPoint(i);
-      qref(0,i) = ip.x;
-      if (dim>1) qref(1,i) = ip.y;
-      if (dim>2) qref(2,i) = ip.z;
-      qweight(i) = ip.weight;
-      fe->CalcShape(ip, shape_i);
-      fe->CalcDShape(ip, grad_i);
-      for (int j = 0; j < P; j++)
-      {
-         shape(j, i) = shape_i(dof_map[j]);
-         for (int d = 0; d < dim; ++d)
+         case 1:
          {
-            grad(j+i*P+d*Q*P) = grad_i(dof_map[j], d);
+            const mfem::H1_SegmentElement *h1_fe =
+               dynamic_cast<const mfem::H1_SegmentElement *>(fe);
+            MFEM_VERIFY(h1_fe, "invalid FE");
+            h1_fe->GetDofMap().Copy(dof_map);
+            break;
+         }
+         case 2:
+         {
+            const mfem::H1_QuadrilateralElement *h1_fe =
+               dynamic_cast<const mfem::H1_QuadrilateralElement *>(fe);
+            MFEM_VERIFY(h1_fe, "invalid FE");
+            h1_fe->GetDofMap().Copy(dof_map);
+            break;
+         }
+         case 3:
+         {
+            const mfem::H1_HexahedronElement *h1_fe =
+               dynamic_cast<const mfem::H1_HexahedronElement *>(fe);
+            MFEM_VERIFY(h1_fe, "invalid FE");
+            h1_fe->GetDofMap().Copy(dof_map);
+            break;
+         }
+      }
+      for (int i = 0; i < Q; i++)
+      {
+         const mfem::IntegrationPoint &ip = ir.IntPoint(i);
+         qref(0,i) = ip.x;
+         if (dim>1) qref(1,i) = ip.y;
+         if (dim>2) qref(2,i) = ip.z;
+         qweight(i) = ip.weight;
+         fe->CalcShape(ip, shape_i);
+         fe->CalcDShape(ip, grad_i);
+         for (int j = 0; j < P; j++)
+         {
+            shape(j, i) = shape_i(dof_map[j]);
+            for (int d = 0; d < dim; ++d)
+            {
+               grad(j+i*P+d*Q*P) = grad_i(dof_map[j], d);
+            }
+         }
+      }
+
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         const int el_offset = fe->GetDof() * i;
+         for (int j = 0; j < fe->GetDof(); j++)
+         {
+            tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
+         }
+      }
+   }else{
+      for (int i = 0; i < Q; i++)
+      {
+         const mfem::IntegrationPoint &ip = ir.IntPoint(i);
+         qref(0,i) = ip.x;
+         if (dim>1) qref(1,i) = ip.y;
+         if (dim>2) qref(2,i) = ip.z;
+         qweight(i) = ip.weight;
+         fe->CalcShape(ip, shape_i);
+         fe->CalcDShape(ip, grad_i);
+         for (int j = 0; j < P; j++)
+         {
+            shape(j, i) = shape_i(j);
+            for (int d = 0; d < dim; ++d)
+            {
+               grad(j+i*P+d*Q*P) = grad_i(j, d);
+            }
+         }
+      }
+
+      const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+      int stride = 1;
+      // if (mesh_fes->GetOrdering()==Ordering::byVDIM) stride = mesh_fes->GetVDim();
+      const int el_offset = stride*P;
+      for (int e = 0; e < mesh->GetNE(); e++)
+      {
+         for (int i = 0; i < P; i++)
+         {
+            tp_el_dof[i + e*P] = el_dof.GetJ()[i*stride + e*el_offset];
          }
       }
    }
    CeedBasisCreateH1(ceed, GetCeedTopology(fe->GetGeomType()), fes.GetVDim(),
                      fe->GetDof(), ir.GetNPoints(), shape.GetData(),
                      grad.GetData(), qref.GetData(), qweight.GetData(), basis);
-
-   const mfem::Table &el_dof = fes.GetElementToDofTable();
-   mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      const int el_offset = fe->GetDof() * i;
-      for (int j = 0; j < fe->GetDof(); j++)
-      {
-         tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
-      }
-   }
    CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(),
                              fes.GetNDofs(), fes.GetVDim(), CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
