@@ -152,6 +152,7 @@ int main(int argc, char *argv[])
    ParGridFunction * E_gf = new ParGridFunction;
    ParGridFunction * Exact_gf = new ParGridFunction;
    E_gf->MakeRef(fespace, x.GetBlock(0));
+   E_gf->ProjectCoefficient(Eex);
 
    VectorFunctionCoefficient Hex(sdim, H_exact);
    ParGridFunction * H_gf = new ParGridFunction;   

@@ -111,21 +111,11 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
       patch_natural_order_idx[k] = i;
    }
 
-
+   int nvert = pmesh.GetNV();
+   // first find all the contributions of the vertices
+   vert_contr.resize(nvert);
    SparseMatrix H1pr_diag;
    B->GetDiag(H1pr_diag);
-   SparseMatrix H1pr_offd;
-   int *cmap;
-   B->GetOffd(H1pr_offd, cmap);
-   
-   
-   
-   // Include also the vertices an each processor that are not owned
-   int nvert = pmesh.GetNV();
-
-   // first find all the contributions of the vertices
-   vector<Array<int>> all_vertex_contr(nvert);
-   vert_contr.resize(nvert);
    for (int i = 0; i < nvert; i++)
    {
       int row = i;
@@ -141,6 +131,9 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
       }
    }
 
+   SparseMatrix H1pr_offd;
+   int *cmap;
+   B->GetOffd(H1pr_offd, cmap);
    for (int i = 0; i < nvert; i++)
    {
       int row = i;
@@ -167,7 +160,6 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
       for (int iv = 0; iv < nv; iv++)
       {
          int ivert = edge_vertices[iv];
-         // edge_contr[ie].Append(vert_contr[ivert]);
          edge_contr[ie].Append(vert_contr[ivert]);
       }
       edge_contr[ie].Sort();
@@ -442,7 +434,6 @@ void par_patch_dof_info::Print()
          }
       }
    }
-
 }
 
 par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace_, HypreParMatrix * A_, const Array<int> & ess_tdof_list) 
@@ -460,6 +451,11 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
    A->GetDiag(diag);
    A->GetOffd(offd,cmap);
    int *row_start = A->GetRowStarts();
+   SparseMatrix offdT;
+   int *cmapT;
+   HypreParMatrix * At = A->Transpose();
+   At->GetOffd(offdT,cmapT);
+   int *row_startT = At->GetRowStarts();
 
    patch_tdof_info = new par_patch_dof_info(cpmesh_, ref_levels_,fespace, ess_tdof_list);
    
@@ -531,10 +527,19 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
          PatchMat01[ip] = new SparseMatrix(num_rows, num_cols);
          GetOffdColumnValues(patch_tdof_info->patch_local_tdofs[ip],patch_other_tdofs[ip],offd, cmap,row_start, PatchMat01[ip]);
          PatchMat01[ip]->Finalize();
-         PatchMat10[ip] = new SparseMatrix(num_cols, num_rows);
-         PatchMat10[ip] = Transpose(*PatchMat01[ip]);
+         // Now the transpose
+         SparseMatrix Mat(num_rows, num_cols);
+         GetOffdColumnValues(patch_tdof_info->patch_local_tdofs[ip],patch_other_tdofs[ip],offdT, cmapT,row_startT, &Mat);
+         Mat.Finalize();
+         PatchMat10[ip] = Transpose(Mat);
+         // PatchMat10[ip] = new SparseMatrix(num_cols, num_rows);
+         // PatchMat10[ip] = Transpose(*PatchMat01[ip]);
       }  
    }
+
+   // The matrix PatchMat10 is the same as PatchMat01 only for symmetric problems
+   // For the case of FOSLS the offdiagonal matrices are not symmetric because of the essential BC
+   // Therefore Patch10 has to be computed separetely in a similar way that Patch11 is computed
 
    //--------------------------------------------------------------------------------------
    // Construction of (1,1)
@@ -860,7 +865,7 @@ void PatchRestriction::Mult(const Vector & r , Array<BlockVector*> & res)
                  recv_count, recv_displ, MPI_DOUBLE, comm);            
    Array<int> roffs(num_procs);
    roffs = 0;
-   // Now each process will construct the the res1 vector
+   // Now each process will construct the res1 vector
    for (int ip = 0; ip < nrpatch; ip++)
    {
       if(myid == host_rank[ip]) 
@@ -972,7 +977,6 @@ void PatchRestriction::MultTranspose(const Array<BlockVector *> & sol, Vector & 
 
 
 
-
 void par_patch_assembly::compute_trueoffsets()
 {
    int num_procs, myid;
@@ -994,14 +998,7 @@ int par_patch_assembly::get_rank(int tdof)
 
 bool its_a_patch(int iv, Array<int> patch_ids)
 {
-   if (patch_ids.FindSorted(iv) == -1)
-   {
-      return false;
-   }
-   else
-   {
-      return true;
-   }
+   return (patch_ids.FindSorted(iv) != -1);
 }
 
 bool owned(int tdof, int * offs)
