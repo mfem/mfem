@@ -121,8 +121,7 @@ static Vector dbcv_re_(0); // Real component of complex Dirichlet value
 static Vector dbcv_im_(0); // Imaginary component of complex Dirichlet value
 
 // Current Density Function
-static Vector rod_params_
-(0); // Amplitude of x, y, z current source, position in 2D, and radius
+static Vector rod_params_(0); // Amplitude of x, y, z current source, position in 2D, and radius
 static Vector antv_(0); // Values of Efield for each antenna attribute
 
 void rod_current_source(const Vector &x, Vector &j);
@@ -133,6 +132,11 @@ void j_src(const Vector &x, Vector &j)
       rod_current_source(x, j);
    }
 }
+
+void antenna_func_lhs_r(const Vector &x, Vector &Ej);
+void antenna_func_rhs_r(const Vector &x, Vector &Ej);
+void antenna_func_lhs_i(const Vector &x, Vector &Ej);
+void antenna_func_rhs_i(const Vector &x, Vector &Ej);
 
 // Electric Field Boundary Condition: The following function returns zero but
 // any function could be used.
@@ -361,7 +365,7 @@ int main(int argc, char *argv[])
    args.AddOption(&dbcv_im_, "-dbcv_im", "--dirichlet-bc-im-val",
                   "Real part of complex Dirichlet values");
    args.AddOption(&ants_, "-ants", "--antenna-attr",
-                  "Boundary attributes of anteanna");
+                  "Boundary attributes of antenna");
    args.AddOption(&antv_, "-antv", "--antenna-vals",
                   "Efield values at antenna attributes");
    // args.AddOption(&num_elements, "-ne", "--num-elements",
@@ -857,17 +861,33 @@ int main(int argc, char *argv[])
          dbcs[i].imag = dbcz_imCoef;
       }
    }
+    
 
    if ( ants_.Size() > 0 )
    {
       MFEM_VERIFY(antv_.Size() == 3*ants_.Size(),
                   "Each Dirichlet boundary condition value must be associated"
                   "with exactly one Dirichlet boundary surface.");
+       
+       VectorFunctionCoefficient *antz_Coef_lhs_r = new VectorFunctionCoefficient(pmesh.SpaceDimension(), antenna_func_lhs_r);
+       VectorFunctionCoefficient *antz_Coef_rhs_r = new VectorFunctionCoefficient(pmesh.SpaceDimension(), antenna_func_rhs_r);
+       VectorFunctionCoefficient *antz_Coef_lhs_i = new VectorFunctionCoefficient(pmesh.SpaceDimension(), antenna_func_lhs_i);
+       VectorFunctionCoefficient *antz_Coef_rhs_i = new VectorFunctionCoefficient(pmesh.SpaceDimension(), antenna_func_rhs_i);
+       
+       Array<int> resize(1);
+       dbcs[dbca.Size()].attr = resize;
+       dbcs[dbca.Size()].attr = ants_[0];
+       dbcs[dbca.Size()].real = antz_Coef_lhs_r;
+       dbcs[dbca.Size()].imag = antz_Coef_lhs_i;
+       
+       dbcs[1+dbca.Size()].attr = resize;
+       dbcs[1+dbca.Size()].attr = ants_[1];
+       dbcs[1+dbca.Size()].real = antz_Coef_rhs_r;
+       dbcs[1+dbca.Size()].imag = antz_Coef_rhs_i;
 
-      for (int i=0; i<ants_.Size(); i++)
+      /*for (int i=0; i<ants_.Size(); i++)
       {
-         Vector antz_(3); antz_[0] = antv_[i];
-         antz_[1] = antv_[i+1]; antz_[2] = antv_[i+2];
+         Vector antz_(3); antz_[0] = antv_[i]; antz_[1] = antv_[i+1]; antz_[2] = antv_[i+2];
          VectorCoefficient *antz_Coef = new VectorConstantCoefficient(antz_);
 
          Array<int> resize(1);
@@ -877,6 +897,7 @@ int main(int argc, char *argv[])
          dbcs[i+dbca.Size()].real = antz_Coef;
          dbcs[i+dbca.Size()].imag = &zeroCoef;
       }
+       */
    }
 
    /*
@@ -1269,6 +1290,55 @@ void e_bc_i(const Vector &x, Vector &E)
    E.SetSize(3);
    E = 0.0;
 }
+
+void antenna_func_lhs_r(const Vector &x, Vector &Ej)
+{
+    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+    
+    Ej.SetSize(x.Size());
+    Ej = 0.0;
+    
+    Ej(0) = antv_[0]*cos(10.8*x(2));
+    Ej(1) = (antv_[1] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) - 0.5)) + 1.0 )*cos(10.8*x(2));
+    Ej(2) = antv_[2]*cos(10.8*x(2));
+}
+
+void antenna_func_rhs_r(const Vector &x, Vector &Ej)
+{
+    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+    
+    Ej.SetSize(x.Size());
+    Ej = 0.0;
+    
+    Ej(0) = antv_[3]*cos(10.8*x(2));
+    Ej(1) = (antv_[4] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) - 0.5)) + 1.0 )*cos(10.8*x(2));
+    Ej(2) = antv_[5]*cos(10.8*x(2));
+}
+
+void antenna_func_lhs_i(const Vector &x, Vector &Ej)
+{
+    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+    
+    Ej.SetSize(x.Size());
+    Ej = 0.0;
+    
+    Ej(0) = antv_[0]*sin(10.8*x(2));
+    Ej(1) = (antv_[1] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) - 0.5)) + 1.0 )*sin(10.8*x(2));
+    Ej(2) = antv_[2]*sin(10.8*x(2));
+}
+
+void antenna_func_rhs_i(const Vector &x, Vector &Ej)
+{
+    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+    
+    Ej.SetSize(x.Size());
+    Ej = 0.0;
+    
+    Ej(0) = antv_[3]*sin(10.8*x(2));
+    Ej(1) = (antv_[4] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) - 0.5)) + 1.0 )*sin(10.8*x(2));
+    Ej(2) = antv_[5]*sin(10.8*x(2));
+}
+
 
 /*
 ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
