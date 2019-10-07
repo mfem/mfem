@@ -341,7 +341,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
             {
                coords(vd) = x(q,vd,e);
             }
-            c(q,e) = fQ->Eval(coords);
+            c(q,e) = fQ->EvalPhysicalSpace(coords);
          }
       });
 
