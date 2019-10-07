@@ -45,8 +45,8 @@ class MultigridOperator : public Operator
    /// the call to this method additional levels may be added with AddLevel. The
    /// ownership of the operators and solvers may be transferred to the
    /// MultigridOperator by setting the according boolean variables.
-   void AddCoarseLevel(Operator* opr, Solver* solver, bool ownOperator,
-                       bool ownSolver);
+   void AddCoarsestLevel(Operator* opr, Solver* solver, bool ownOperator,
+                         bool ownSolver);
 
    /// Adds a level to the multigrid operator hierarchy. This method may only be
    /// called after the coarse level has been added. The ownership of the

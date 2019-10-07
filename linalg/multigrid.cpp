@@ -19,7 +19,7 @@ MultigridOperator::MultigridOperator() {}
 MultigridOperator::MultigridOperator(Operator* opr, Solver* coarseSolver,
                                      bool ownOperator, bool ownSolver)
 {
-   AddCoarseLevel(opr, coarseSolver, ownOperator, ownSolver);
+   AddCoarsestLevel(opr, coarseSolver, ownOperator, ownSolver);
 }
 
 MultigridOperator::~MultigridOperator()
@@ -48,8 +48,8 @@ MultigridOperator::~MultigridOperator()
    smoothers.DeleteAll();
 }
 
-void MultigridOperator::AddCoarseLevel(Operator* opr, Solver* solver,
-                                       bool ownOperator, bool ownSolver)
+void MultigridOperator::AddCoarsestLevel(Operator* opr, Solver* solver,
+                                         bool ownOperator, bool ownSolver)
 {
    MFEM_VERIFY(NumLevels() == 0, "Coarse level already exists");
    operators.Append(opr);
