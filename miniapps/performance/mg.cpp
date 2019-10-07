@@ -142,7 +142,7 @@ class PoissonMultigridOperator : public MultigridOperator
       Solver* coarseSolver = ConstructCoarseSolver(
           mesh, coarseOpr, essentialDofs, coarseOrder, coarseSteps);
 
-      AddCoarseLevel(coarseOpr, coarseSolver, partialAssembly, true);
+      AddCoarsestLevel(coarseOpr, coarseSolver, partialAssembly, true);
    }
 
    ~PoissonMultigridOperator()
