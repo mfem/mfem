@@ -157,7 +157,8 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
-   double Eval(const Vector& x);
+   /// Evaluate the coefficient at the physical coordinates given by \p x 
+   double EvalPhysicalSpace(const Vector& x);
 };
 
 class GridFunction;
