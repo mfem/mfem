@@ -81,35 +81,9 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
    mfem::DenseMatrix grad_i(P, dim);
    const mfem::Table &el_dof = fes.GetElementToDofTable();
    mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
-   if(dynamic_cast<const mfem::TensorBasisElement *>(fe)){
-      mfem::Array<int> dof_map;
-      switch (mesh->Dimension())
-      {
-         case 1:
-         {
-            const mfem::H1_SegmentElement *h1_fe =
-               dynamic_cast<const mfem::H1_SegmentElement *>(fe);
-            MFEM_VERIFY(h1_fe, "invalid FE");
-            h1_fe->GetDofMap().Copy(dof_map);
-            break;
-         }
-         case 2:
-         {
-            const mfem::H1_QuadrilateralElement *h1_fe =
-               dynamic_cast<const mfem::H1_QuadrilateralElement *>(fe);
-            MFEM_VERIFY(h1_fe, "invalid FE");
-            h1_fe->GetDofMap().Copy(dof_map);
-            break;
-         }
-         case 3:
-         {
-            const mfem::H1_HexahedronElement *h1_fe =
-               dynamic_cast<const mfem::H1_HexahedronElement *>(fe);
-            MFEM_VERIFY(h1_fe, "invalid FE");
-            h1_fe->GetDofMap().Copy(dof_map);
-            break;
-         }
-      }
+   const mfem::TensorBasisElement * tfe = dynamic_cast<const mfem::TensorBasisElement *>(fe);
+   if(tfe){//Lexicographic ordering thourgh dof_map
+      const mfem::Array<int>& dof_map = tfe->GetDofMap();
       for (int i = 0; i < Q; i++)
       {
          const mfem::IntegrationPoint &ip = ir.IntPoint(i);
@@ -137,7 +111,7 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
             tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
          }
       }
-   }else{
+   }else{//Native ordering
       for (int i = 0; i < Q; i++)
       {
          const mfem::IntegrationPoint &ip = ir.IntPoint(i);
@@ -158,14 +132,11 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
       }
 
       const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
-      int stride = 1;
-      // if (mesh_fes->GetOrdering()==Ordering::byVDIM) stride = mesh_fes->GetVDim();
-      const int el_offset = stride*P;
       for (int e = 0; e < mesh->GetNE(); e++)
       {
          for (int i = 0; i < P; i++)
          {
-            tp_el_dof[i + e*P] = el_dof.GetJ()[i*stride + e*el_offset];
+            tp_el_dof[i + e*P] = el_dof.GetJ()[i + e*P];
          }
       }
    }
@@ -185,34 +156,9 @@ void FESpace2CeedTensor(const mfem::FiniteElementSpace &fes,
    mfem::Mesh *mesh = fes.GetMesh();
    const mfem::FiniteElement *fe = fes.GetFE(0);
    const int order = fes.GetOrder(0);
-   mfem::Array<int> dof_map;
-   switch (mesh->Dimension())
-   {
-      case 1:
-      {
-         const mfem::H1_SegmentElement *h1_fe =
-            dynamic_cast<const mfem::H1_SegmentElement *>(fe);
-         MFEM_VERIFY(h1_fe, "invalid FE");
-         h1_fe->GetDofMap().Copy(dof_map);
-         break;
-      }
-      case 2:
-      {
-         const mfem::H1_QuadrilateralElement *h1_fe =
-            dynamic_cast<const mfem::H1_QuadrilateralElement *>(fe);
-         MFEM_VERIFY(h1_fe, "invalid FE");
-         h1_fe->GetDofMap().Copy(dof_map);
-         break;
-      }
-      case 3:
-      {
-         const mfem::H1_HexahedronElement *h1_fe =
-            dynamic_cast<const mfem::H1_HexahedronElement *>(fe);
-         MFEM_VERIFY(h1_fe, "invalid FE");
-         h1_fe->GetDofMap().Copy(dof_map);
-         break;
-      }
-   }
+   const mfem::TensorBasisElement * tfe = dynamic_cast<const mfem::TensorBasisElement *>(fe);
+   MFEM_VERIFY(tfe, "invalid FE");
+   const mfem::Array<int>& dof_map = tfe->GetDofMap();
    const mfem::FiniteElement *fe1d =
       fes.FEColl()->FiniteElementForGeometry(mfem::Geometry::SEGMENT);
    mfem::DenseMatrix shape1d(fe1d->GetDof(), ir.GetNPoints());
