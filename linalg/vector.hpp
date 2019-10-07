@@ -297,6 +297,31 @@ public:
    /// Set random values in the vector.
    void Randomize(int seed = 0);
    /// Returns the l2 norm of the vector.
+   MFEM_HOST_DEVICE static inline
+   double norml2(const int size, const double* __restrict__ data)
+   {
+      if (0 == size) { return 0.0; }
+      if (1 == size) { return std::abs(data[0]); }
+      double scale = 0.0;
+      double sum = 0.0;
+      for (int i = 0; i < size; i++)
+      {
+         if (data[i] != 0.0)
+         {
+            const double absdata = fabs(data[i]);
+            if (scale <= absdata)
+            {
+               const double sqr_arg = scale / absdata;
+               sum = 1.0 + sum * (sqr_arg * sqr_arg);
+               scale = absdata;
+               continue;
+            } // end if scale <= absdata
+            const double sqr_arg = absdata / scale;
+            sum += (sqr_arg * sqr_arg); // else scale > absdata
+         } // end if data[i] != 0
+      }
+      return scale * sqrt(sum);
+   }
    double Norml2() const;
    /// Returns the l_infinity norm of the vector.
    double Normlinf() const;

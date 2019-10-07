@@ -720,27 +720,28 @@ double Vector::Norml2() const
    {
       return std::abs(data[0]);
    } // end if 1 == size
+   return norml2(size, data);
+   /*
+    double scale = 0.0;
+    double sum = 0.0;
 
-   double scale = 0.0;
-   double sum = 0.0;
-
-   for (int i = 0; i < size; i++)
-   {
-      if (data[i] != 0.0)
-      {
-         const double absdata = std::abs(data[i]);
-         if (scale <= absdata)
-         {
-            const double sqr_arg = scale / absdata;
-            sum = 1.0 + sum * (sqr_arg * sqr_arg);
-            scale = absdata;
-            continue;
-         } // end if scale <= absdata
-         const double sqr_arg = absdata / scale;
-         sum += (sqr_arg * sqr_arg); // else scale > absdata
-      } // end if data[i] != 0
-   }
-   return scale * std::sqrt(sum);
+    for (int i = 0; i < size; i++)
+    {
+       if (data[i] != 0.0)
+       {
+          const double absdata = std::abs(data[i]);
+          if (scale <= absdata)
+          {
+             const double sqr_arg = scale / absdata;
+             sum = 1.0 + sum * (sqr_arg * sqr_arg);
+             scale = absdata;
+             continue;
+          } // end if scale <= absdata
+          const double sqr_arg = absdata / scale;
+          sum += (sqr_arg * sqr_arg); // else scale > absdata
+       } // end if data[i] != 0
+    }
+    return scale * std::sqrt(sum);*/
 }
 
 double Vector::Normlinf() const
