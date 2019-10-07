@@ -14,15 +14,13 @@
 namespace mfem
 {
 
-template <typename M, typename FES>
-AbstractSpaceHierarchy<M, FES>::AbstractSpaceHierarchy(M* mesh, FES* fespace,
-                                                       bool ownM, bool ownFES)
+SpaceHierarchy::SpaceHierarchy(Mesh* mesh, FiniteElementSpace* fespace,
+                               bool ownM, bool ownFES)
 {
    AddLevel(mesh, fespace, ownM, ownFES);
 }
 
-template <typename M, typename FES>
-AbstractSpaceHierarchy<M, FES>::~AbstractSpaceHierarchy()
+SpaceHierarchy::~SpaceHierarchy()
 {
    for (int i = meshes.Size() - 1; i >= 0; --i)
    {
@@ -40,21 +38,15 @@ AbstractSpaceHierarchy<M, FES>::~AbstractSpaceHierarchy()
    meshes.DeleteAll();
 }
 
-template <typename M, typename FES>
-unsigned AbstractSpaceHierarchy<M, FES>::GetNumLevels() const
-{
-   return meshes.Size();
-}
+unsigned SpaceHierarchy::GetNumLevels() const { return meshes.Size(); }
 
-template <typename M, typename FES>
-unsigned AbstractSpaceHierarchy<M, FES>::GetFinestLevelIndex() const
+unsigned SpaceHierarchy::GetFinestLevelIndex() const
 {
    return GetNumLevels() - 1;
 }
 
-template <typename M, typename FES>
-void AbstractSpaceHierarchy<M, FES>::AddLevel(M* mesh, FES* fespace, bool ownM,
-                                              bool ownFES)
+void SpaceHierarchy::AddLevel(Mesh* mesh, FiniteElementSpace* fespace,
+                              bool ownM, bool ownFES)
 {
    meshes.Append(mesh);
    fespaces.Append(fespace);
@@ -62,88 +54,99 @@ void AbstractSpaceHierarchy<M, FES>::AddLevel(M* mesh, FES* fespace, bool ownM,
    ownedFES.Append(ownFES);
 }
 
-template <typename M, typename FES>
-void AbstractSpaceHierarchy<M, FES>::AddUniformlyRefinedLevel(int dim,
-                                                              int ordering)
+void SpaceHierarchy::AddUniformlyRefinedLevel(int dim, int ordering)
 {
-   M* mesh = new M(*meshes[GetFinestLevelIndex()]);
+   Mesh* mesh = new Mesh(*GetFinestFESpace().GetMesh());
    mesh->UniformRefinement();
-   FES* coarseFEspace = fespaces[GetFinestLevelIndex()];
-   FES* fineFEspace = new FES(mesh, coarseFEspace->FEColl(), dim, ordering);
+   FiniteElementSpace& coarseFEspace = GetFinestFESpace();
+   FiniteElementSpace* fineFEspace =
+       new FiniteElementSpace(mesh, coarseFEspace.FEColl(), dim, ordering);
    AddLevel(mesh, fineFEspace, true, true);
 }
 
-template <typename M, typename FES>
-void AbstractSpaceHierarchy<M, FES>::AddOrderRefinedLevel(
-    FiniteElementCollection* fec, int dim, int ordering)
+void SpaceHierarchy::AddOrderRefinedLevel(FiniteElementCollection* fec, int dim,
+                                          int ordering)
 {
-   M* mesh = &GetFinestMesh();
-   FES* newFEspace = new FES(mesh, fec, dim, ordering);
+   Mesh* mesh = GetFinestFESpace().GetMesh();
+   FiniteElementSpace* newFEspace =
+       new FiniteElementSpace(mesh, fec, dim, ordering);
    AddLevel(mesh, newFEspace, false, true);
 }
 
-template <typename M, typename FES>
-const M& AbstractSpaceHierarchy<M, FES>::GetMeshAtLevel(unsigned level) const
-{
-   MFEM_ASSERT(level < meshes.Size(), "Mesh at given level does not exist.");
-   return *meshes[level];
-}
-
-template <typename M, typename FES>
-M& AbstractSpaceHierarchy<M, FES>::GetMeshAtLevel(unsigned level)
-{
-   return const_cast<M&>(
-       const_cast<const AbstractSpaceHierarchy*>(this)->GetMeshAtLevel(level));
-}
-
-template <typename M, typename FES>
-const M& AbstractSpaceHierarchy<M, FES>::GetFinestMesh() const
-{
-   return GetMeshAtLevel(GetFinestLevelIndex());
-}
-
-template <typename M, typename FES>
-M& AbstractSpaceHierarchy<M, FES>::GetFinestMesh()
-{
-   return const_cast<M&>(
-       const_cast<const AbstractSpaceHierarchy*>(this)->GetFinestMesh());
-}
-
-template <typename M, typename FES>
-const FES&
-AbstractSpaceHierarchy<M, FES>::GetFESpaceAtLevel(unsigned level) const
+const FiniteElementSpace&
+SpaceHierarchy::GetFESpaceAtLevel(unsigned level) const
 {
    MFEM_ASSERT(level < fespaces.Size(),
                "FE space at given level does not exist.");
    return *fespaces[level];
 }
 
-template <typename M, typename FES>
-FES& AbstractSpaceHierarchy<M, FES>::GetFESpaceAtLevel(unsigned level)
+FiniteElementSpace& SpaceHierarchy::GetFESpaceAtLevel(unsigned level)
 {
-   return const_cast<FES&>(
-       const_cast<const AbstractSpaceHierarchy*>(this)->GetFESpaceAtLevel(
-           level));
+   MFEM_ASSERT(level < fespaces.Size(),
+               "FE space at given level does not exist.");
+   return *fespaces[level];
 }
 
-template <typename M, typename FES>
-const FES& AbstractSpaceHierarchy<M, FES>::GetFinestFESpace() const
+const FiniteElementSpace& SpaceHierarchy::GetFinestFESpace() const
 {
    return GetFESpaceAtLevel(GetFinestLevelIndex());
 }
 
-template <typename M, typename FES>
-FES& AbstractSpaceHierarchy<M, FES>::GetFinestFESpace()
+FiniteElementSpace& SpaceHierarchy::GetFinestFESpace()
 {
-   return const_cast<FES&>(
-       const_cast<const AbstractSpaceHierarchy*>(this)->GetFinestFESpace());
+   return GetFESpaceAtLevel(GetFinestLevelIndex());
 }
 
-// Explicit template instantiation
-template class AbstractSpaceHierarchy<Mesh, FiniteElementSpace>;
-
 #ifdef MFEM_USE_MPI
-template class AbstractSpaceHierarchy<ParMesh, ParFiniteElementSpace>;
+ParSpaceHierarchy::ParSpaceHierarchy(ParMesh* mesh,
+                                     ParFiniteElementSpace* fespace, bool ownM,
+                                     bool ownFES)
+    : SpaceHierarchy(mesh, fespace, ownM, ownFES)
+{
+}
+
+void ParSpaceHierarchy::AddUniformlyRefinedLevel(int dim, int ordering)
+{
+   ParMesh* mesh = new ParMesh(*GetFinestFESpace().GetParMesh());
+   mesh->UniformRefinement();
+   ParFiniteElementSpace& coarseFEspace = GetFinestFESpace();
+   ParFiniteElementSpace* fineFEspace =
+       new ParFiniteElementSpace(mesh, coarseFEspace.FEColl(), dim, ordering);
+   AddLevel(mesh, fineFEspace, true, true);
+}
+
+void ParSpaceHierarchy::AddOrderRefinedLevel(FiniteElementCollection* fec,
+                                             int dim, int ordering)
+{
+   ParMesh* mesh = GetFinestFESpace().GetParMesh();
+   ParFiniteElementSpace* newFEspace =
+       new ParFiniteElementSpace(mesh, fec, dim, ordering);
+   AddLevel(mesh, newFEspace, false, true);
+}
+
+const ParFiniteElementSpace&
+ParSpaceHierarchy::GetFESpaceAtLevel(unsigned level) const
+{
+   return static_cast<const ParFiniteElementSpace&>(
+       SpaceHierarchy::GetFESpaceAtLevel(level));
+}
+
+ParFiniteElementSpace& ParSpaceHierarchy::GetFESpaceAtLevel(unsigned level)
+{
+   return static_cast<ParFiniteElementSpace&>(
+       SpaceHierarchy::GetFESpaceAtLevel(level));
+}
+
+const ParFiniteElementSpace& ParSpaceHierarchy::GetFinestFESpace() const
+{
+   return GetFESpaceAtLevel(GetFinestLevelIndex());
+}
+
+ParFiniteElementSpace& ParSpaceHierarchy::GetFinestFESpace()
+{
+   return GetFESpaceAtLevel(GetFinestLevelIndex());
+}
 #endif
 
 } // namespace mfem

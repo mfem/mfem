@@ -22,11 +22,11 @@ namespace mfem
 {
 
 /// Class bundling a hierarchy of meshes and finite element spaces
-template <typename M, typename FES> class AbstractSpaceHierarchy
+class SpaceHierarchy
 {
- private:
-   Array<M*> meshes;
-   Array<FES*> fespaces;
+ protected:
+   Array<Mesh*> meshes;
+   Array<FiniteElementSpace*> fespaces;
    Array<bool> ownedMeshes;
    Array<bool> ownedFES;
 
@@ -34,10 +34,11 @@ template <typename M, typename FES> class AbstractSpaceHierarchy
    /// Constructs a space hierarchy with the given mesh and space on level zero.
    /// The ownership of the mesh and space may be transferred to the
    /// SpaceHierarchy by setting the according boolean variables.
-   AbstractSpaceHierarchy(M* mesh, FES* fespace, bool ownM, bool ownFES);
+   SpaceHierarchy(Mesh* mesh, FiniteElementSpace* fespace, bool ownM,
+                  bool ownFES);
 
    /// Destructor deleting all meshes and spaces that are owned
-   ~AbstractSpaceHierarchy();
+   virtual ~SpaceHierarchy();
 
    /// Returns the number of levels in the hierarchy
    unsigned GetNumLevels() const;
@@ -46,47 +47,65 @@ template <typename M, typename FES> class AbstractSpaceHierarchy
    unsigned GetFinestLevelIndex() const;
 
    /// Adds one level to the hierarchy
-   void AddLevel(M* mesh, FES* fespace, bool ownM, bool ownFES);
+   void AddLevel(Mesh* mesh, FiniteElementSpace* fespace, bool ownM,
+                 bool ownFES);
 
    /// Adds one level to the hierarchy by uniformly refining the mesh on the
    /// previous level
-   void AddUniformlyRefinedLevel(int dim = 1, int ordering = Ordering::byVDIM);
+   virtual void AddUniformlyRefinedLevel(int dim = 1,
+                                         int ordering = Ordering::byVDIM);
+
+   /// Adds one level to the hierarchy by using a different finite element order
+   /// defined through FiniteElementCollection
+   virtual void AddOrderRefinedLevel(FiniteElementCollection* fec, int dim = 1,
+                                     int ordering = Ordering::byVDIM);
+
+   /// Returns the finite element space at the given level
+   virtual const FiniteElementSpace& GetFESpaceAtLevel(unsigned level) const;
+
+   /// Returns the finite element space at the given level
+   virtual FiniteElementSpace& GetFESpaceAtLevel(unsigned level);
+
+   /// Returns the finite element space at the finest level
+   virtual const FiniteElementSpace& GetFinestFESpace() const;
+
+   /// Returns the finite element space at the finest level
+   virtual FiniteElementSpace& GetFinestFESpace();
+};
+
+#ifdef MFEM_USE_MPI
+class ParSpaceHierarchy : public SpaceHierarchy
+{
+ public:
+   /// Constructs a parallel space hierarchy with the given mesh and space on
+   /// level zero. The ownership of the mesh and space may be transferred to the
+   /// ParSpaceHierarchy by setting the according boolean variables.
+   ParSpaceHierarchy(ParMesh* mesh, ParFiniteElementSpace* fespace, bool ownM,
+                     bool ownFES);
+
+   /// Adds one level to the hierarchy by uniformly refining the mesh on the
+   /// previous level
+   void AddUniformlyRefinedLevel(int dim = 1,
+                                 int ordering = Ordering::byVDIM) override;
 
    /// Adds one level to the hierarchy by using a different finite element order
    /// defined through FiniteElementCollection
    void AddOrderRefinedLevel(FiniteElementCollection* fec, int dim = 1,
-                             int ordering = Ordering::byVDIM);
-
-   /// Returns the mesh at the given level
-   const M& GetMeshAtLevel(unsigned level) const;
-
-   /// Returns the mesh at the given level
-   M& GetMeshAtLevel(unsigned level);
-
-   /// Returns the mesh at the finest level
-   const M& GetFinestMesh() const;
-
-   /// Returns the mesh at the finest level
-   M& GetFinestMesh();
+                             int ordering = Ordering::byVDIM) override;
 
    /// Returns the finite element space at the given level
-   const FES& GetFESpaceAtLevel(unsigned level) const;
+   const ParFiniteElementSpace&
+   GetFESpaceAtLevel(unsigned level) const override;
 
    /// Returns the finite element space at the given level
-   FES& GetFESpaceAtLevel(unsigned level);
+   ParFiniteElementSpace& GetFESpaceAtLevel(unsigned level) override;
 
    /// Returns the finite element space at the finest level
-   const FES& GetFinestFESpace() const;
+   const ParFiniteElementSpace& GetFinestFESpace() const override;
 
    /// Returns the finite element space at the finest level
-   FES& GetFinestFESpace();
+   ParFiniteElementSpace& GetFinestFESpace() override;
 };
-
-using SpaceHierarchy = AbstractSpaceHierarchy<Mesh, FiniteElementSpace>;
-
-#ifdef MFEM_USE_MPI
-using ParSpaceHierarchy =
-    AbstractSpaceHierarchy<ParMesh, ParFiniteElementSpace>;
 #endif
 
 } // namespace mfem
