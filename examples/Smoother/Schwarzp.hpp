@@ -108,6 +108,11 @@ public:
 
 
 bool its_a_patch(int iv, Array<int> patch_ids);
+
+bool owned(int tdof, int * offs);
+
+
+
 SparseMatrix * GetDiagColumnValues(const Array<int> & tdof_i, SparseMatrix & diag,
 const int * row_start);
 

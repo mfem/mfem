@@ -111,99 +111,22 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
       patch_natural_order_idx[k] = i;
    }
 
-   // On each processor identify the vertices that it owns (fine grid)
-   SparseMatrix diag;
-   DofTrueDof->GetDiag(diag);
-   Array<int> own_vertices;
-   int nv = 0;
-   for (int k = 0; k < diag.Height(); k++)
-   {
-      int nz = diag.RowSize(k);
-      int i = aux_fespace->GetMyDofOffset() + k;
-      if (nz != 0)
-      {
-         nv++;
-         own_vertices.SetSize(nv);
-         own_vertices[nv - 1] = i;
-      }
-   }
 
-   // For each vertex construct the list of patches that it belongs to
-   // First the patches that are already on the processor
-   int mynrvertices = own_vertices.Size();
-   vector<Array<int>> own_vertex_contr(mynrvertices);
    SparseMatrix H1pr_diag;
    B->GetDiag(H1pr_diag);
-   for (int i = 0; i < mynrvertices; i++)
-   {
-      int kv = 0;
-      int iv = own_vertices[i];
-      int row = iv - aux_fespace->GetMyDofOffset();
-      int row_size = H1pr_diag.RowSize(row);
-      int *col = H1pr_diag.GetRowColumns(row);
-      for (int j = 0; j < row_size; j++)
-      {
-         int jv = col[j] + mycdofoffset;
-         if (its_a_patch(jv, patch_global_dofs_ids))
-         {
-            kv++;
-            own_vertex_contr[i].SetSize(kv);
-            own_vertex_contr[i][kv - 1] = jv;
-         }
-      }
-   }
-   // Next for the patches which are not owned by the processor.
    SparseMatrix H1pr_offd;
    int *cmap;
    B->GetOffd(H1pr_offd, cmap);
-   for (int i = 0; i < mynrvertices; i++)
-   {
-      int kv = own_vertex_contr[i].Size();
-      int iv = own_vertices[i];
-      int row = iv - aux_fespace->GetMyDofOffset();
-      int row_size = H1pr_offd.RowSize(row);
-      int *col = H1pr_offd.GetRowColumns(row);
-      for (int j = 0; j < row_size; j++)
-      {
-         int jv = cmap[col[j]];
-         if (its_a_patch(jv, patch_global_dofs_ids))
-         {
-            kv++;
-            own_vertex_contr[i].SetSize(kv);
-            own_vertex_contr[i][kv - 1] = jv;
-         }
-      }
-   }
+   
+   
+   
    // Include also the vertices an each processor that are not owned
-   // This will be helpfull when creating the list for edges, faces, elements.
-   // Have to modify above to do this at once
-   int allmyvert = pmesh.GetNV();
-   vert_contr.resize(allmyvert);
-   for (int i = 0; i < mynrvertices; i++)
-   {
-      int idx = own_vertices[i] - aux_fespace->GetMyDofOffset();
-      int size = own_vertex_contr[i].Size();
-      vert_contr[idx].SetSize(size);
-      vert_contr[idx] = own_vertex_contr[i];
-   }
-   // -----------------------------------------------------------------------
-   // done with vertices. Now the edges
-   // -----------------------------------------------------------------------
-
-
-   // This needs to be fixed. 
-   // An edge will contribute to where it TRUE vertices contributes. 
-   // It is possible though that both vertices are off processor but the 
-   // edge is on the processor.
-
-   // -----------------------------------------------------------------------
-   // -----------------------------------------------------------------------
-   // -----------------------------------------------------------------------
-   // -----------------------------------------------------------------------
+   int nvert = pmesh.GetNV();
 
    // first find all the contributions of the vertices
-   vector<Array<int>> all_vertex_contr(allmyvert);
-   for (int i = 0; i < allmyvert; i++)
+   vector<Array<int>> all_vertex_contr(nvert);
+   vert_contr.resize(nvert);
+   for (int i = 0; i < nvert; i++)
    {
       int row = i;
       int row_size = H1pr_diag.RowSize(row);
@@ -213,12 +136,12 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
          int jv = col[j] + mycdofoffset;
          if (its_a_patch(jv, patch_global_dofs_ids))
          {
-            all_vertex_contr[i].Append(jv);
+            vert_contr[i].Append(jv);
          }
       }
    }
 
-   for (int i = 0; i < mynrvertices; i++)
+   for (int i = 0; i < nvert; i++)
    {
       int row = i;
       int row_size = H1pr_offd.RowSize(row);
@@ -228,18 +151,10 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
          int jv = cmap[col[j]];
          if (its_a_patch(jv, patch_global_dofs_ids))
          {
-            all_vertex_contr[i].Append(jv);
+            vert_contr[i].Append(jv);
          }
       }
    }
-
-   // -----------------------------------------------------------------------
-   // -----------------------------------------------------------------------
-   // -----------------------------------------------------------------------
-   // -----------------------------------------------------------------------
-
-
-
 
    Array<int> edge_vertices;
    int nedge = pmesh.GetNEdges();
@@ -252,6 +167,7 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
       for (int iv = 0; iv < nv; iv++)
       {
          int ivert = edge_vertices[iv];
+         // edge_contr[ie].Append(vert_contr[ivert]);
          edge_contr[ie].Append(vert_contr[ivert]);
       }
       edge_contr[ie].Sort();
@@ -298,8 +214,6 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
    if(Pr) delete Pr;
    delete aux_fec;
    delete cDofTrueDof;
-
-   
 }
 
 void par_patch_nod_info::Print(int rankid)
@@ -356,17 +270,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    // First the vertices
    nrpatch = patch_nodes->nrpatch;
    patch_local_tdofs.resize(nrpatch);
-   // Populate this list on every patch
-   // Array<Array<int>> ess_tdofl(nrpatch);
-   // for(int ip =0; ip< nrpatch; ip++)
-   // {
-   //    ess_tdofl[ip].SetSize(ess_tdof_list.Size());
-   //    for (int i = 0; i<ess_tdof_list.Size(); i++)
-   //    {
-   //       ess_tdofl[ip][i] = ess_tdof_list[i]+fespace->GetMyTDofOffset();
-   //       // ess_tdofl[ip][i] = -1;
-   //    }
-   // }   
+   int * offs = fespace->GetTrueDofOffsets();
    int nrvert = fespace->GetNV();
    for (int i = 0; i < nrvert; i++)
    {
@@ -385,27 +289,13 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(vertex_dofs[l]);
-            // if (ess_tdofl[kk].Size() > 0)
-            // {
-            //    int idx = ess_tdofl[kk].FindSorted(m);
-            //    if (idx != -1) 
-            //    {
-            //       // remove from list
-            //       ess_tdofl[kk].DeleteFirst(m);
-            //    }
-            //    else
-            //    {
-            //       patch_local_tdofs[kk].Append(m);
-            //    }
-            // }
-            // else
-            // {
+            if (owned(m,offs))   
+            {
                patch_local_tdofs[kk].Append(m);
-            // }
+            }
          }
       }
    }
-
 
    int nedge = fespace->GetMesh()->GetNEdges();
    for (int i = 0; i < nedge; i++)
@@ -422,23 +312,10 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(edge_dofs[l]);
-            // if (ess_tdofl[kk].Size() > 0)
-            // {
-            //    int idx = ess_tdofl[kk].FindSorted(m);
-            //    if (idx != -1) 
-            //    {
-            //       // remove from list
-            //       ess_tdofl[kk].DeleteFirst(m);
-            //    }
-            //    else
-            //    {
-            //       patch_local_tdofs[kk].Append(m);
-            //    }
-            // }
-            // else
-            // {
+            if (owned(m,offs))   
+            {
                patch_local_tdofs[kk].Append(m);
-            // }
+            }
          }
       }
    }
@@ -460,23 +337,10 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(face_dofs[l]);
-            // if (ess_tdofl[kk].Size() > 0)
-            // {
-            //    int idx = ess_tdofl[kk].FindSorted(m);
-            //    if (idx != -1) 
-            //    {
-            //       // remove from list
-            //       ess_tdofl[kk].DeleteFirst(m);
-            //    }
-            //    else
-            //    {
-            //       patch_local_tdofs[kk].Append(m);
-            //    }
-            // }
-            // else
-            // {
+            if (owned(m,offs))   
+            {
                patch_local_tdofs[kk].Append(m);
-            // }
+            }
          }
       }
    }
@@ -495,23 +359,10 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(elem_dofs[l]);
-            // if (ess_tdofl[kk].Size() > 0)
-            // {
-            //    int idx = ess_tdofl[kk].FindSorted(m);
-            //    if (idx != -1) 
-            //    {
-            //       // remove from list
-            //       ess_tdofl[kk].DeleteFirst(m);
-            //    }
-            //    else
-            //    {
-            //       patch_local_tdofs[kk].Append(m);
-            //    }
-            // }
-            // else
-            // {
+            if (owned(m,offs))   
+            {
                patch_local_tdofs[kk].Append(m);
-            // }
+            }
          }
       }
    }
@@ -1152,6 +1003,13 @@ bool its_a_patch(int iv, Array<int> patch_ids)
       return true;
    }
 }
+
+bool owned(int tdof, int * offs)
+{
+   return  (offs[0] <= tdof && tdof < offs[1]); 
+}
+
+
 
 void GetColumnValues(const int tdof_i, const Array<int> & tdof_j, SparseMatrix & diag,
 SparseMatrix & offd, const int * cmap, const int * row_start,  Array<int> &cols, Array<double> &vals)
