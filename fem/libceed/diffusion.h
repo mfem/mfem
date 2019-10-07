@@ -280,9 +280,6 @@ CEED_QFUNCTION(f_apply_diff_mf_const)(void *ctx, CeedInt Q,
             vg[i + Q * 2] = qd[2] * ug0 + qd[4] * ug1 + qd[5] * ug2;
          }
          break;
-      default:
-         return CeedError(NULL, 1, "dim=%d, space_dim=%d is not supported",
-                          bc->dim, bc->space_dim);
    }
    return 0;
 }
@@ -369,9 +366,6 @@ CEED_QFUNCTION(f_apply_diff_mf_grid)(void *ctx, CeedInt Q,
             vg[i + Q * 2] = qd[2] * ug0 + qd[4] * ug1 + qd[5] * ug2;
          }
          break;
-      default:
-         return CeedError(NULL, 1, "dim=%d, space_dim=%d is not supported",
-                          bc->dim, bc->space_dim);
    }
    return 0;
 }
