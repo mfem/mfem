@@ -18,8 +18,6 @@ TransferOperator::TransferOperator(const FiniteElementSpace &lFESpace_,
                                    const FiniteElementSpace &hFESpace_)
     : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
 {
-   // If both spaces' FE collection pointers are pointing to the same collection
-   // we assume that the grid was refined while keeping the order constant
    if (lFESpace_.FEColl() == hFESpace_.FEColl())
    {
       OperatorPtr P(Operator::ANY_TYPE);
