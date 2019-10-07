@@ -355,14 +355,14 @@ int main (int argc, char *argv[])
    const IntegrationRule *ir = &IntRules.Get(geom_type, quad_order);
 
    // Setup the final NonlinearForm.
-   NonlinearForm MA(fespace_scalar);
-   MA.AddDomainIntegrator(new MA_Integrator(fespace_scalar, P, 0));
+   NonlinearForm MAmpere(fespace_scalar);
+   MAmpere.AddDomainIntegrator(new MA_Integrator(fespace_scalar, P, 0));
    const double init_energy = 0.0;
 
    // Fix all boundary nodes
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
-   MA.SetEssentialBC(ess_bdr);
+   MAmpere.SetEssentialBC(ess_bdr);
 
    // As we use the Newton method to solve the resulting nonlinear system,
    //  here we setup the linear solver for the system's Jacobian.
@@ -410,7 +410,7 @@ int main (int argc, char *argv[])
    if (tauval > 0.0)
    {
       tauval = 0.0;
-      newton = new RelaxedNewtonSolver(*ir, fespace);
+      newton = new RelaxedNewtonSolver(*ir, fespace_scalar);
       cout << "The RelaxedNewtonSolver is used (as all det(J)>0)." << endl;
    }
    else
@@ -418,7 +418,7 @@ int main (int argc, char *argv[])
       cout << "The mesh is inverted. Use an untangling metric." << endl;
       return 3;
       tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
-      newton = new DescentNewtonSolver(*ir, fespace);
+      newton = new DescentNewtonSolver(*ir, fespace_scalar);
       cout << "The DescentNewtonSolver is used (as some det(J)<0)." << endl;
    }
    
@@ -427,9 +427,8 @@ int main (int argc, char *argv[])
    newton->SetRelTol(newton_rtol);
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   newton->SetOperator(MA);
+   newton->SetOperator(MAmpere);
    newton->Mult(b, P.GetTrueVector());
-   cout << "Before set" << endl;
    P.SetFromTrueVector();
    if (newton->GetConverged() == false)
    {
@@ -446,7 +445,8 @@ int main (int argc, char *argv[])
    }
 
    // Compute the amount of energy decrease.
-   const double fin_energy = MA.GetGridFunctionEnergy(*x);
+   const double fin_energy = 0.0;
+   //= MAmpere.GetGridFunctionEnergy(*x);
    double metric_part = fin_energy;
 
    // Visualize the mesh displacement.
@@ -516,23 +516,23 @@ void MA_Integrator::AssembleElementGrad(
    int dim = 1;
 
    //GridFunction MAvalue(fespace);
-   Vector MAvalue;
-   MAvalue.SetSize(dof);
-   GridFunction Px(fespace), Py(fespace), Pxx(fespace), Pxy(fespace), Pyy(fespace);
+   // Vector MAvalue;
+   // MAvalue.SetSize(dof);
+   // GridFunction Px(fespace), Py(fespace), Pxx(fespace), Pxy(fespace), Pyy(fespace);
 
-   P->GetDerivative(1,0,Px);
-   P->GetDerivative(1,1,Py);
-   Px.GetDerivative(1,0,Pxx);
-   Px.GetDerivative(1,1,Pxy);
-   Py.GetDerivative(1,1,Pyy);
+   // P->GetDerivative(1,0,Px);
+   // P->GetDerivative(1,1,Py);
+   // Px.GetDerivative(1,0,Pxx);
+   // Px.GetDerivative(1,1,Pxy);
+   // Py.GetDerivative(1,1,Pyy);
 
 
-   for (int i = 0; i < dof; i++)
-   {
-      MAvalue(i) = Pxx(i)*Pyy(i) - Pxy(i)*Pxy(i) - 1;
-   }
+   // for (int i = 0; i < dof; i++)
+   // {
+   //    MAvalue(i) = Pxx(i)*Pyy(i) - Pxy(i)*Pxy(i) - 1;
+   // }
 
-   GridFunction Jg(fespace);
-   Jg.GetGradient(Tr, MAvalue);
+   // GridFunction Jg(fespace);
+   //J->GetGradient(Tr, P);
 
 }
