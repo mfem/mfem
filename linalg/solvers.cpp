@@ -172,7 +172,8 @@ void OperatorChebyshevSmoother::Setup()
    MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = 1.0; );
 
    // Set up Chebyshev coefficients
-   // See Python script for code generation
+   // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
+   // Gauss-Seidel by Adams et al.
    double upper_bound = 1.2 * max_eig_estimate;
    double lower_bound = 0.3 * max_eig_estimate;
    double theta = 0.5 * (upper_bound + lower_bound);
