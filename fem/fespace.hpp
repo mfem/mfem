@@ -961,6 +961,9 @@ public:
    void Mult(const Vector &e_vec, unsigned eval_flags,
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
+   void Values(const Vector &e_vec, Vector &q_val) const;
+   void Derivatives(const Vector &e_vec, Vector &q_der) const;
+
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
