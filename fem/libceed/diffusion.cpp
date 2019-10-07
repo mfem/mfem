@@ -41,15 +41,16 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   const bool mtensor = dynamic_cast<const mfem::TensorBasisElement *>(mesh_fes->GetFE(0)) ? true : false;
-   const mfem::IntegrationRule &mir = mtensor ?
+   const bool mesh_tensor = dynamic_cast<const mfem::TensorBasisElement *>(mesh_fes->GetFE(0)) ? true : false;
+   const mfem::IntegrationRule &mesh_ir = mesh_tensor ?
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
       irm;
-   if(mtensor) {
-      FESpace2CeedTensor(*mesh_fes, mir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   if(mesh_tensor) {
+      FESpace2CeedTensor(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    } else {
-      FESpace2Ceed(*mesh_fes, mir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+      FESpace2Ceed(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    }
+
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
