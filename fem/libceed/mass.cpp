@@ -26,7 +26,7 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    mfem::Mesh *mesh = fes.GetMesh();
    const int order = fes.GetOrder(0);
    const int ir_order = irm.GetOrder();
-   CeedInt nqpts, nelem = mesh->GetNE();
+   CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
    
    mesh->EnsureNodes();
    const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0)) ? true : false;
@@ -41,14 +41,14 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   const bool mtensor = dynamic_cast<const mfem::TensorBasisElement *>(mesh_fes->GetFE(0)) ? true : false;
-   const mfem::IntegrationRule &mir = mtensor ?
+   const bool mesh_tensor = dynamic_cast<const mfem::TensorBasisElement *>(mesh_fes->GetFE(0)) ? true : false;
+   const mfem::IntegrationRule &mesh_ir = mesh_tensor ?
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
       irm;
-   if(mtensor) {
-      FESpace2CeedTensor(*mesh_fes, mir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   if(mesh_tensor) {
+      FESpace2CeedTensor(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    } else {
-      FESpace2Ceed(*mesh_fes, mir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+      FESpace2Ceed(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    }
 
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
@@ -87,8 +87,7 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
       default:
          MFEM_ABORT("This coeff_type is not handled");
    }
-   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", mesh->SpaceDimension()*mesh->SpaceDimension(),
-                         CEED_EVAL_GRAD);
+   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", dim*dim, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
    CeedQFunctionAddOutput(ceedData.build_qfunc, "rho", 1, CEED_EVAL_NONE);
    CeedQFunctionSetContext(ceedData.build_qfunc, &ceedData.build_ctx,
