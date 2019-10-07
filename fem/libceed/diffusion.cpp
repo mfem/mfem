@@ -24,14 +24,15 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
-   const bool tensor = false;//dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0)) ? true : false;
    const int order = fes.GetOrder(0);
    const int ir_order = irm.GetOrder();
+   CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
+   
+   mesh->EnsureNodes();
+   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0)) ? true : false;
    const mfem::IntegrationRule &ir = tensor ?
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
       irm;
-   CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
-   mesh->EnsureNodes();
    if (tensor) {
       FESpace2CeedTensor(fes, ir, ceed, &ceedData.basis, &ceedData.restr); 
    }else{
@@ -40,10 +41,14 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   if(tensor) {
-      FESpace2CeedTensor(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   const bool mtensor = dynamic_cast<const mfem::TensorBasisElement *>(mesh_fes->GetFE(0)) ? true : false;
+   const mfem::IntegrationRule &mir = mtensor ?
+      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
+      irm;
+   if(mtensor) {
+      FESpace2CeedTensor(*mesh_fes, mir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    } else {
-      FESpace2Ceed(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+      FESpace2Ceed(*mesh_fes, mir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    }
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
