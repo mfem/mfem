@@ -68,7 +68,7 @@ MFEM_PERF_CXXFLAGS = $(MFEM_PERF_CXXFLAGS_$(MFEM_PERF_SW))
 MFEM_CXXFLAGS += $(MFEM_PERF_CXXFLAGS)
 
 SEQ_MINIAPPS = ex1
-PAR_MINIAPPS = ex1p
+PAR_MINIAPPS = ex1p mg
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -107,7 +107,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ ex1 ex1p
+	rm -f *.o *~ ex1 ex1p mg
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
