@@ -112,7 +112,7 @@ private:
    const Operator* oper;
 };
 
-/// Chebyshev smoothing with given vector, no matrix necessary
+/// Chebyshev accelerated smoothing with given vector, no matrix necessary
 /** Potentially useful with tensorized operators, for example.
     This is just a very basic Chebyshev iteration, if you want
     tolerances, iteration control, etc. wrap this with SLISolver. */
@@ -122,7 +122,7 @@ public:
    /** Application is by *inverse* of the given vector.
        It is assumed the underlying operator acts as the identity
        on entries in ess_tdof_list, corresponding to (assembled) DIAG_ONE
-       policy or ConstratinedOperator in the matrix-free setting. */
+       policy or ConstrainedOperator in the matrix-free setting. */
    OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, double max_eig_estimate);
