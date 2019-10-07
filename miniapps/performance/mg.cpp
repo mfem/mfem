@@ -292,8 +292,8 @@ int main(int argc, char* argv[])
        "Chebyshev smoother order. Order 1 corresponds to damped Jacobi");
    args.AddOption(&useCoarsePCG, "-cpcg", "--coarsepcg", "-no-cpcg",
                   "--no-coarsepcg", "Enable or disable PCG as a coarse solver");
-   args.AddOption(&jump, "-jump", "--jump", "-no-jump",
-                  "--no-jump", "Enable or disable coefficient jump");                  
+   args.AddOption(&jump, "-jump", "--jump", "-no-jump", "--no-jump",
+                  "Enable or disable coefficient jump");
 
    args.Parse();
    if (!args.Good())
@@ -449,9 +449,9 @@ int main(int argc, char* argv[])
    if (method == Method::LOR || method == Method::LORS)
    {
       solveOperator = new PoissonMultigridOperator(
-          &spaceHierarchy->GetFinestMesh(), &spaceHierarchy->GetFinestFESpace(),
-          *essentialTrueDoFs.Last(), orders.Last(), partialAssembly,
-          coarseSteps, useCoarsePCG, jump);
+          spaceHierarchy->GetFinestFESpace().GetParMesh(),
+          &spaceHierarchy->GetFinestFESpace(), *essentialTrueDoFs.Last(),
+          orders.Last(), partialAssembly, coarseSteps, useCoarsePCG, jump);
 
       if (method == Method::LORS)
       {
@@ -469,7 +469,7 @@ int main(int argc, char* argv[])
    else
    {
       solveOperator = new PoissonMultigridOperator(
-          &spaceHierarchy->GetMeshAtLevel(0),
+          spaceHierarchy->GetFESpaceAtLevel(0).GetParMesh(),
           &spaceHierarchy->GetFESpaceAtLevel(0), *essentialTrueDoFs[0],
           orders[0], partialAssembly, coarseSteps, useCoarsePCG, jump);
 
@@ -547,7 +547,9 @@ int main(int argc, char* argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << spaceHierarchy->GetFinestMesh() << x << flush;
+      sol_sock << "solution\n"
+               << *spaceHierarchy->GetFinestFESpace().GetParMesh() << x
+               << flush;
    }
 
    delete b;
