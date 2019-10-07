@@ -34,9 +34,9 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
       irm;
    if (tensor) {
-      initCeedBasisAndRestrictionTensor(fes, ir, ceed, &ceedData.basis, &ceedData.restr); 
+      initCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr); 
    }else{
-      initCeedBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+      initCeedNonTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
    }
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
@@ -46,9 +46,9 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
       irm;
    if(mesh_tensor) {
-      initCeedBasisAndRestrictionTensor(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+      initCeedTensorBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    } else {
-      initCeedBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+      initCeedNonTensorBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    }
 
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
@@ -104,8 +104,8 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    if (ceedData.coeff_type==Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      initCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
-                   &ceedCoeff->restr);
+      initCeedNonTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
+                                           &ceedCoeff->restr);
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
@@ -139,6 +139,109 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                         ceedData.basis, CEED_VECTOR_ACTIVE);
    CeedOperatorSetField(ceedData.oper, "rho", ceedData.restr_i, CEED_NOTRANSPOSE,
                         CEED_BASIS_COLLOCATED, ceedData.rho);
+   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, CEED_NOTRANSPOSE,
+                        ceedData.basis, CEED_VECTOR_ACTIVE);
+
+   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
+   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
+}
+
+void CeedMFMassAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRule &irm, CeedData& ceedData)
+{
+   Ceed ceed(internal::ceed);
+   mfem::Mesh *mesh = fes.GetMesh();
+   const int order = fes.GetOrder(0);
+   const int ir_order = irm.GetOrder();
+   CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
+
+   mesh->EnsureNodes();
+   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0)) ? true : false;
+   const mfem::IntegrationRule &ir = tensor ?
+      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
+      irm;
+   if (tensor) {
+      initCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr); 
+   }else{
+      initCeedNonTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+   }
+
+   const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+   MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
+   const bool mesh_tensor = dynamic_cast<const mfem::TensorBasisElement *>(mesh_fes->GetFE(0)) ? true : false;
+   const mfem::IntegrationRule &mesh_ir = mesh_tensor ?
+      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
+      irm;
+   if(mesh_tensor) {
+      initCeedTensorBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   } else {
+      initCeedNonTensorBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   }
+
+   CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
+
+   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
+                                     nqpts * nelem, dim * (dim + 1) / 2, &ceedData.restr_i);
+   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
+                                     nqpts * nelem, 1, &ceedData.mesh_restr_i);
+
+   CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
+   CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
+                      mesh->GetNodes()->GetData());
+
+   // Context data to be passed to the 'f_build_diff' Q-function.
+   ceedData.build_ctx.dim = mesh->Dimension();
+   ceedData.build_ctx.space_dim = mesh->SpaceDimension();
+
+   // Create the Q-function that defines the action of the diff operator.
+   switch (ceedData.coeff_type)
+   {
+      case Const:
+         CeedQFunctionCreateInterior(ceed, 1, f_apply_mass_mf_const,
+                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_mass_mf_const", &ceedData.apply_qfunc);
+         ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
+         CeedQFunctionAddInput(ceedData.apply_qfunc, "u", 1, CEED_EVAL_INTERP);
+         break;
+      case Grid:
+         CeedQFunctionCreateInterior(ceed, 1, f_apply_mass_mf_grid,
+                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_mass_mf_grid", &ceedData.apply_qfunc);
+         CeedQFunctionAddInput(ceedData.apply_qfunc, "u", 1, CEED_EVAL_INTERP);
+         CeedQFunctionAddInput(ceedData.apply_qfunc, "coeff", 1, CEED_EVAL_INTERP);
+         break;
+      default:
+         MFEM_ABORT("This coeff_type is not handled");
+   }
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "dx", dim*dim, CEED_EVAL_GRAD);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
+   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", 1, CEED_EVAL_INTERP);
+   CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
+                           sizeof(ceedData.build_ctx));
+
+   // Create the diff operator.
+   CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
+   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, CEED_NOTRANSPOSE,
+                        ceedData.basis, CEED_VECTOR_ACTIVE);
+   CeedTransposeMode lmode = CEED_NOTRANSPOSE;
+   if (mesh_fes->GetOrdering()==Ordering::byVDIM)
+   {
+      lmode = CEED_TRANSPOSE;
+   }
+   if (ceedData.coeff_type==Grid)
+   {
+      CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
+      initCeedNonTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
+                                           &ceedCoeff->restr);
+      CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
+                       &ceedCoeff->coeffVector);
+      CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
+                         ceedCoeff->coeff->GetData());
+      CeedOperatorSetField(ceedData.oper, "coeff", ceedCoeff->restr, lmode,
+                           ceedCoeff->basis, ceedCoeff->coeffVector);
+   }
+   CeedOperatorSetField(ceedData.oper, "dx", ceedData.mesh_restr, lmode,
+                        ceedData.mesh_basis, ceedData.node_coords);
+   CeedOperatorSetField(ceedData.oper, "weights", ceedData.mesh_restr_i,
+                        CEED_NOTRANSPOSE,
+                        ceedData.mesh_basis, CEED_VECTOR_NONE);
    CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, CEED_NOTRANSPOSE,
                         ceedData.basis, CEED_VECTOR_ACTIVE);
 

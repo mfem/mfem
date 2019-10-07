@@ -104,3 +104,80 @@ CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
    }
    return 0;
 }
+
+/// libCEED Q-function for applying a diff operator
+CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
+                                      const CeedScalar *const *in, CeedScalar *const *out)
+{
+   BuildContext *bc = (BuildContext*)ctx;
+   const CeedScalar coeff = bc->coeff;
+   const CeedScalar *u = in[0], *J = in[1], *qw = in[2];
+   CeedScalar *v = out[0];
+   switch (bc->dim + 10 * bc->space_dim)
+   {
+      case 11:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar rho = coeff * qw[i] / J[i];
+            v[i] = rho * u[i];
+         }
+         break;
+      case 22:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar rho = coeff * (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
+            v[i] = rho * u[i];
+         }
+         break;
+      case 33:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar rho = (J[i+Q*0]*(J[i+Q*4]*J[i+Q*8] - J[i+Q*5]*J[i+Q*7]) -
+                                    J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
+                                    J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * coeff * qw[i];
+            v[i] = rho * u[i];
+         }
+         break;
+   }
+   return 0;
+}
+
+CEED_QFUNCTION(f_apply_mass_mf_grid)(void *ctx, CeedInt Q,
+                                     const CeedScalar *const *in, CeedScalar *const *out)
+{
+   BuildContext *bc = (BuildContext*)ctx;
+   const CeedScalar *u = in[0], *c = in[1], *J = in[2], *qw = in[3];
+   CeedScalar *v = out[0];
+   switch (bc->dim + 10*bc->space_dim)
+   {
+      case 11:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            const CeedScalar rho = c[i] * J[i] * qw[i];
+            v[i] = rho * u[i];
+         }
+         break;
+      case 22:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            // 0 2
+            // 1 3
+            const CeedScalar rho = c[i] * (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
+            v[i] = rho * u[i];
+         }
+         break;
+      case 33:
+         for (CeedInt i=0; i<Q; i++)
+         {
+            // 0 3 6
+            // 1 4 7
+            // 2 5 8
+            const CeedScalar rho = (J[i+Q*0]*(J[i+Q*4]*J[i+Q*8] - J[i+Q*5]*J[i+Q*7]) -
+                                    J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
+                                    J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * c[i] * qw[i];
+            v[i] = rho * u[i];
+         }
+         break;
+   }
+   return 0;
+}
