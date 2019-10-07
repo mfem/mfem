@@ -34,9 +34,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
       irm;
    if (tensor) {
-      FESpace2CeedTensor(fes, ir, ceed, &ceedData.basis, &ceedData.restr); 
+      initCeedBasisAndRestrictionTensor(fes, ir, ceed, &ceedData.basis, &ceedData.restr); 
    }else{
-      FESpace2Ceed(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+      initCeedBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
    }
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
@@ -46,9 +46,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
       irm;
    if(mesh_tensor) {
-      FESpace2CeedTensor(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+      initCeedBasisAndRestrictionTensor(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    } else {
-      FESpace2Ceed(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+      initCeedBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    }
 
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
@@ -105,7 +105,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    if (ceedData.coeff_type==Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      FESpace2Ceed(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
+      initCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
                    &ceedCoeff->restr);
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);

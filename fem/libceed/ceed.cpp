@@ -62,10 +62,10 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
    }
 }
 
-void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
-                  const mfem::IntegrationRule &ir,
-                  Ceed ceed, CeedBasis *basis,
-                  CeedElemRestriction *restr)
+void initCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
+                                 const mfem::IntegrationRule &ir,
+                                 Ceed ceed, CeedBasis *basis,
+                                 CeedElemRestriction *restr)
 {
    mfem::Mesh *mesh = fes.GetMesh();
    const mfem::FiniteElement *fe = fes.GetFE(0);
@@ -82,7 +82,7 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
    const mfem::Table &el_dof = fes.GetElementToDofTable();
    mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
    const mfem::TensorBasisElement * tfe = dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   if(tfe){//Lexicographic ordering thourgh dof_map
+   if(tfe){//Lexicographic ordering using dof_map
       const mfem::Array<int>& dof_map = tfe->GetDofMap();
       for (int i = 0; i < Q; i++)
       {
@@ -148,10 +148,10 @@ void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-void FESpace2CeedTensor(const mfem::FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &ir,
-                        Ceed ceed, CeedBasis *basis,
-                        CeedElemRestriction *restr)
+void initCeedBasisAndRestrictionTensor(const mfem::FiniteElementSpace &fes,
+                                       const mfem::IntegrationRule &ir,
+                                       Ceed ceed, CeedBasis *basis,
+                                       CeedElemRestriction *restr)
 {
    mfem::Mesh *mesh = fes.GetMesh();
    const mfem::FiniteElement *fe = fes.GetFE(0);
