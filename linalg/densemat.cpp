@@ -172,32 +172,7 @@ const double &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const double *x, double *y) const
 {
-   multV(height, width, data, x, y);
-   /*
-    if (width == 0)
-    {
-       for (int row = 0; row < height; row++)
-       {
-          y[row] = 0.0;
-       }
-       return;
-    }
-    double *d_col = data;
-    double x_col = x[0];
-    for (int row = 0; row < height; row++)
-    {
-       y[row] = x_col*d_col[row];
-    }
-    d_col += height;
-    for (int col = 1; col < width; col++)
-    {
-       x_col = x[col];
-       for (int row = 0; row < height; row++)
-       {
-          y[row] += x_col*d_col[row];
-       }
-       d_col += height;
-    }*/
+   blas::MultV(height, width, data, x, y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -3028,20 +3003,10 @@ DenseMatrix::~DenseMatrix()
    }
 }
 
-
-
 void Add(const DenseMatrix &A, const DenseMatrix &B,
          double alpha, DenseMatrix &C)
 {
-   add(C.Height(), C.Width(), alpha, A.Data(), B.Data(), C.Data());
-   /*
-   for (int j = 0; j < C.Width(); j++)
-   {
-      for (int i = 0; i < C.Height(); i++)
-      {
-         C(i,j) = A(i,j) + alpha * B(i,j);
-      }
-   }*/
+   blas::Add(C.Height(), C.Width(), alpha, A.Data(), B.Data(), C.Data());
 }
 
 void Add(double alpha, const double *A,
@@ -3085,22 +3050,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    double *ad = a.Data();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   mult(ah,aw,bw,bd,cd,ad);
-   /*
-   for (int i = 0; i < ah*aw; i++)
-   {
-      ad[i] = 0.0;
-   }
-   for (int j = 0; j < aw; j++)
-   {
-      for (int k = 0; k < bw; k++)
-      {
-         for (int i = 0; i < ah; i++)
-         {
-            ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
-         }
-      }
-   }*/
+   blas::Mult(ah,aw,bw,bd,cd,ad);
 #endif
 }
 
@@ -3306,10 +3256,10 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
          inva(0,0) = 1.0 / a.Det();
          break;
       case 2:
-         calcInverse<2>(a.Data(), inva.Data());
+         blas::CalcInverse<2>(a.Data(), inva.Data());
          break;
       case 3:
-         calcInverse<3>(a.Data(), inva.Data());
+         blas::CalcInverse<3>(a.Data(), inva.Data());
          break;
    }
 }
