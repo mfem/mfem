@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <typeinfo>
 
 using namespace mfem;
 using namespace std;
@@ -14,15 +15,18 @@ protected:
    Geometry::Type geom; 
    int own_integ;
    LinearFECollection lfec;
+   const GridFunction *nodes0;
    IsoparametricTransformation T;
-   NonlinearFormIntegrator *integ;
+   //NonlinearFormIntegrator *integ;
 
    Vector M;
    DenseMatrix J;
+   DenseMatrix DSh, DS, Jrt, Jpr, Jpt, PMatI, PMatO;
+
 
 public:
-   MA_Integrator(FiniteElementSpace *fespace = NULL, GridFunction P = NULL, int _own_integ = 1)
-      : geom(Geometry::INVALID), own_integ(_own_integ) { }
+   MA_Integrator(FiniteElementSpace *fespace, GridFunction P, int _own_integ = 1)
+      : fespace(NULL), P(NULL), geom(Geometry::INVALID), own_integ(_own_integ) { }
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
@@ -337,7 +341,7 @@ int main (int argc, char *argv[])
 
    int p = x->Size()/2;
    GridFunction Q(fespace);
-   Q = *x;
+   Q = *x; 
 
    // Define fespace to defined P
    FiniteElementSpace *fespace_scalar = new FiniteElementSpace(mesh, fec, 1);
@@ -421,7 +425,7 @@ int main (int argc, char *argv[])
       newton = new DescentNewtonSolver(*ir, fespace_scalar);
       cout << "The DescentNewtonSolver is used (as some det(J)<0)." << endl;
    }
-   
+   std::cout << " operator: " << typeid(MAmpere).name() << endl;
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
    newton->SetRelTol(newton_rtol);
@@ -474,37 +478,59 @@ int main (int argc, char *argv[])
    return 0;
 }
 
+
 double MA_Integrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
-   double c = 0.0;
-   return c;
+
+   double c;
+   return c = 0.0;
 }
 
 void MA_Integrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
 {
+   
    int dof = el.GetDof();
    //int dim = el.GetDim();
    int dim = 1;
+   cout << "in AssembleElementVector" << endl;
+   DenseMatrix pos0;
+   Vector shape, p, p0, d_vals, grad;
+
+   shape.SetSize(dof);
+   p.SetSize(dim);
+   p0.SetSize(dim);
+   pos0.SetSize(dof, dim);
+   cout << " after set size " << endl;
+   Vector pos0V(pos0.Data(), dof * dim);
+   Array<int> pos_dofs;
+   GridFunction nodes0;
+   GetElementVDofs(T.ElementNo, pos_dofs);
+   cout << " after grid fnct " << endl;
+   nodes0.FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
+   nodes0.GetSubVector(pos_dofs, pos0V);
 
    //GridFunction MAvalue(fespace);
-   Vector MAvalue;
-   MAvalue.SetSize(dof);
-   GridFunction Px(fespace), Py(fespace), Pxx(fespace), Pxy(fespace), Pyy(fespace);
+/*   GridFunction Px(fespace), Py(fespace), Pxx(fespace), Pxy(fespace), Pyy(fespace);
+   std::cout << "MA 498" << std::endl;*/
 
-   P->GetDerivative(1,0,Px);
+   /*std::cout << "MA 500" << std::endl;
    P->GetDerivative(1,1,Py);
+   std::cout << "MA 502" << std::endl;
    Px.GetDerivative(1,0,Pxx);
+   std::cout << "MA 504" << std::endl;
    Px.GetDerivative(1,1,Pxy);
+   std::cout << "MA 506" << std::endl;
    Py.GetDerivative(1,1,Pyy);
-
+   std::cout << "MA 508" << std::endl;
 
    for (int i = 0; i < dof; i++)
    {
       MAvalue(i) = Pxx(i)*Pyy(i) - Pxy(i)*Pxy(i) - 1;
    }
+   std::cout << "MA 514" << std::endl;*/
 }
 
 void MA_Integrator::AssembleElementGrad(
