@@ -38,6 +38,24 @@ void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
                "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleMF(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::Assemble (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
+{
+   mfem_error ("BilinearFormIntegrator::MultAssembled (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultTransposeMF(const Vector &, Vector &) const
+{
+   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose (...)\n"
+               "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
    DenseMatrix &elmat )

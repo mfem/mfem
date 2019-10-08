@@ -117,21 +117,23 @@ public:
 /// Data and methods for matrix-free bilinear forms
 class MFBilinearFormExtension : public BilinearFormExtension
 {
-public:
-   MFBilinearFormExtension(BilinearForm *form)
-      : BilinearFormExtension(form) { }
+protected:
+   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   mutable Vector localX, localY;
+   const Operator *elem_restrict_lex; // Not owned
 
-   /// TODO
-   void Assemble() {}
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A) {}
+public:
+   MFBilinearFormExtension(BilinearForm *form);
+
+   void Assemble();
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0) {}
-   void Mult(const Vector &x, Vector &y) const {}
-   void MultTranspose(const Vector &x, Vector &y) const {}
-   void Update() {}
-   ~MFBilinearFormExtension() {}
+                         int copy_interior = 0);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+   void Update();
 };
 
 }

@@ -62,6 +62,12 @@ public:
        called. */
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -1723,6 +1729,10 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AssembleMF(const FiniteElementSpace&);
+
+   virtual void AddMultMF(const Vector&, Vector&) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 };
@@ -1764,6 +1774,10 @@ public:
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,

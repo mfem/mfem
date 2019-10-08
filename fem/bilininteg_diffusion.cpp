@@ -225,6 +225,25 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
+void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes){
+   const FiniteElement &el = *fes.GetFE(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+#ifdef MFEM_USE_CEED
+   if (Device::Allows(Backend::CEED_MASK))
+   {
+      CeedData* ptr = new CeedData();
+      ceedDataPtr = ptr;
+      initCeedCoeff(Q, ptr);
+      CeedMFDiffusionAssemble(fes, *ir, *ptr);
+   }
+   else
+#endif
+   {
+      mfem_error ("BilinearFormIntegrator::AssembleMF (...)\n"
+                  "   is not implemented for this class.");
+   }
+}
+
 #ifdef MFEM_USE_OCCA
 // OCCA PA Diffusion Apply 2D kernel
 static void OccaPADiffusionApply2D(const int D1D,
@@ -1135,6 +1154,44 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       PADiffusionApply(dim, dofs1D, quad1D, ne,
                        maps->B, maps->G, maps->Bt, maps->Gt,
                        pa_data, x, y);
+   }
+}
+
+void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
+{
+#ifdef MFEM_USE_CEED
+   if (Device::Allows(Backend::CEED_MASK))
+   {
+      const CeedScalar *x_ptr;
+      CeedScalar *y_ptr;
+      CeedMemType mem;
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::IsEnabled() && mem==CEED_MEM_DEVICE )
+      {
+         x_ptr = x.Read();
+         y_ptr = y.ReadWrite();
+      }
+      else
+      {
+         x_ptr = x.HostRead();
+         y_ptr = y.HostReadWrite();
+         mem = CEED_MEM_HOST;
+      }
+      CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
+      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER,
+                         const_cast<CeedScalar*>(x_ptr));
+      CeedVectorSetArray(ceedData.v, mem, CEED_USE_POINTER, y_ptr);
+
+      CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,
+                        CEED_REQUEST_IMMEDIATE);
+
+      CeedVectorSyncArray(ceedData.v, mem);
+   }
+   else
+#endif
+   {
+      mfem_error ("BilinearFormIntegrator::AddMultMF (...)\n"
+                  "   is not implemented for this class.");
    }
 }
 

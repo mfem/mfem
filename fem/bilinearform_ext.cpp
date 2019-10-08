@@ -160,4 +160,129 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
+//MF
+MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
+   : BilinearFormExtension(form),
+     trialFes(a->FESpace()), testFes(a->FESpace())
+{
+   ElementDofOrdering ordering = dynamic_cast<const mfem::TensorBasisElement *>(a->FESpace()->GetFE(0))?
+      ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+   elem_restrict_lex = trialFes->GetElementRestriction(ordering);
+   if (elem_restrict_lex)
+   {
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+   }
+}
+
+void MFBilinearFormExtension::Assemble()
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int integratorCount = integrators.Size();
+   for (int i = 0; i < integratorCount; ++i)
+   {
+      integrators[i]->AssembleMF(*a->FESpace());
+   }
+}
+
+void MFBilinearFormExtension::Update()
+{
+   FiniteElementSpace *fes = a->FESpace();
+   height = width = fes->GetVSize();
+   trialFes = fes;
+   testFes = fes;
+   ElementDofOrdering ordering = dynamic_cast<const mfem::TensorBasisElement *>(a->FESpace()->GetFE(0))?
+      ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+   elem_restrict_lex = trialFes->GetElementRestriction(ordering);
+   if (elem_restrict_lex)
+   {
+      localX.SetSize(elem_restrict_lex->Height());
+      localY.SetSize(elem_restrict_lex->Height());
+   }
+}
+
+void MFBilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                               OperatorHandle &A)
+{
+   const Operator* trialP = trialFes->GetProlongationMatrix();
+   const Operator* testP  = testFes->GetProlongationMatrix();
+   Operator *rap = this;
+   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
+   const bool own_A = (rap!=this);
+   A.Reset(new ConstrainedOperator(rap, ess_tdof_list, own_A));
+}
+
+void MFBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                               Vector &x, Vector &b,
+                                               OperatorHandle &A,
+                                               Vector &X, Vector &B,
+                                               int copy_interior)
+{
+   Operator *oper;
+   Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
+   A.Reset(oper); // A will own oper
+}
+
+void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
+   const int iSz = integrators.Size();
+   if (Device::Allows(Backend::CEED_MASK))
+   {
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultMF(x, y);
+      }
+   }
+   else
+   {
+      if (elem_restrict_lex)
+      {
+         elem_restrict_lex->Mult(x, localX);
+         localY = 0.0;
+         for (int i = 0; i < iSz; ++i)
+         {
+            integrators[i]->AddMultMF(localX, localY);
+         }
+         elem_restrict_lex->MultTranspose(localY, y);
+      }
+      else
+      {
+         y.UseDevice(true); // typically this is a large vector, so store on device
+         y = 0.0;
+         for (int i = 0; i < iSz; ++i)
+         {
+            integrators[i]->AddMultMF(x, y);
+         }
+      }
+   }
+}
+
+void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int iSz = integrators.Size();
+   if (elem_restrict_lex)
+   {
+      elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultTransposeMF(localX, localY);
+      }
+      elem_restrict_lex->MultTranspose(localY, y);
+   }
+   else
+   {
+      y.UseDevice(true);
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultTransposeMF(x, y);
+      }
+   }
+}
+
 } // namespace mfem

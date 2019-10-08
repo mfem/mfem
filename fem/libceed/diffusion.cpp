@@ -202,13 +202,13 @@ void CeedMFDiffusionAssemble(const FiniteElementSpace &fes, const mfem::Integrat
    {
       case Const:
          CeedQFunctionCreateInterior(ceed, 1, f_apply_diff_mf_const,
-                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_mf_const", &ceedData.apply_qfunc);
+                                     MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_apply_diff_mf_const", &ceedData.apply_qfunc);
          ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dim, CEED_EVAL_GRAD);
          break;
       case Grid:
          CeedQFunctionCreateInterior(ceed, 1, f_apply_diff_mf_grid,
-                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_mf_grid", &ceedData.apply_qfunc);
+                                     MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_apply_diff_mf_grid", &ceedData.apply_qfunc);
          CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dim, CEED_EVAL_GRAD);
          CeedQFunctionAddInput(ceedData.apply_qfunc, "coeff", 1, CEED_EVAL_INTERP);
          break;
