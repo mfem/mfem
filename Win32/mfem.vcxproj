@@ -373,11 +373,18 @@
     <Lib />
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\fem\bilinearform_ext.cpp" />
+    <ClCompile Include="..\fem\bilininteg_diffusion.cpp" />
+    <ClCompile Include="..\fem\bilininteg_mass.cpp" />
     <ClCompile Include="..\general\array.cpp" />
+    <ClCompile Include="..\general\cuda.cpp" />
+    <ClCompile Include="..\general\device.cpp" />
     <ClCompile Include="..\general\error.cpp" />
     <ClCompile Include="..\general\globals.cpp" />
     <ClCompile Include="..\general\gzstream.cpp" />
     <ClCompile Include="..\general\isockstream.cpp" />
+    <ClCompile Include="..\general\mem_manager.cpp" />
+    <ClCompile Include="..\general\occa.cpp" />
     <ClCompile Include="..\general\optparser.cpp" />
     <ClCompile Include="..\general\osockstream.cpp" />
     <ClCompile Include="..\general\sets.cpp" />
@@ -441,13 +448,19 @@
     <ClCompile Include="..\fem\pgridfunc.cpp" />
     <ClCompile Include="..\fem\plinearform.cpp" />
     <ClCompile Include="..\fem\pnonlinearform.cpp" />
+    <ClCompile Include="..\mesh\wedge.cpp" />
+    <ClInclude Include="..\fem\bilinearform_ext.hpp" />
     <ClInclude Include="..\general\array.hpp" />
+    <ClInclude Include="..\general\cuda.hpp" />
+    <ClInclude Include="..\general\device.hpp" />
     <ClInclude Include="..\general\error.hpp" />
     <ClInclude Include="..\general\globals.hpp" />
     <ClInclude Include="..\general\gzstream.hpp" />
     <ClInclude Include="..\general\hash.hpp" />
     <ClInclude Include="..\general\isockstream.hpp" />
     <ClInclude Include="..\general\mem_alloc.hpp" />
+    <ClInclude Include="..\general\mem_manager.hpp" />
+    <ClInclude Include="..\general\occa.hpp" />
     <ClInclude Include="..\general\optparser.hpp" />
     <ClInclude Include="..\general\osockstream.hpp" />
     <ClInclude Include="..\general\sets.hpp" />
@@ -465,6 +478,7 @@
     <ClInclude Include="..\linalg\blockvector.hpp" />
     <ClInclude Include="..\linalg\complex_operator.hpp" />
     <ClInclude Include="..\linalg\densemat.hpp" />
+    <ClInclude Include="..\linalg\dtensor.hpp" />
     <ClInclude Include="..\linalg\handle.hpp" />
     <ClInclude Include="..\linalg\invariants.hpp" />
     <ClInclude Include="..\linalg\linalg.hpp" />
@@ -531,6 +545,7 @@
     <ClInclude Include="..\fem\pnonlinearform.hpp" />
     <ClInclude Include="..\config\config.hpp" />
     <ClInclude Include="..\config\tconfig.hpp" />
+    <ClInclude Include="..\mesh\wedge.hpp" />
     <ClInclude Include="..\mfem.hpp" />
     <ClInclude Include="..\mfem-performance.hpp" />
     <ClInclude Include="config\_config.hpp" />
