@@ -418,6 +418,36 @@ public:
 
 #endif // MFEM_USE_SUITESPARSE
 
+class OrthominSolver : public IterativeSolver
+{
+private:
+  int omk;
+
+protected:
+  mutable Vector p, r, Ap, Ar;
+  mutable std::vector<Vector> pprev, Apprev;
+  mutable std::vector<double> Ap2prev;
+
+  void UpdateVectors();
+
+public:
+  OrthominSolver() { }
+
+#ifdef MFEM_USE_MPI
+  OrthominSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+#endif
+
+  virtual void SetOperator(const Operator &op)
+  { IterativeSolver::SetOperator(op); UpdateVectors(); }
+  
+  virtual void Mult(const Vector &b, Vector &x) const;
+
+  void SetKDim(const int k)
+  {
+    omk = k;
+  }
+};
+
 }
 
 #endif // MFEM_SOLVERS

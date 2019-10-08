@@ -60,7 +60,8 @@ int dim;
 #define SIGMAVAL -211.0
 //#define SIGMAVAL -2.0
 #else
-#define SIGMAVAL -2.0
+//#define SIGMAVAL -2.0
+#define SIGMAVAL -6007.0
 //#define SIGMAVAL -191.0
 //#define SIGMAVAL -1009.0
 //#define SIGMAVAL -511.0
@@ -406,9 +407,9 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
+	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
 	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-	(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
       
@@ -452,10 +453,10 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {1, 1, 2};
        //int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 1, 2};
-       //int nxyzGlobal[3] = {2, 2, 4};
+       int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {2, 2, 8};
-       int nxyzGlobal[3] = {6, 6, 8};  // 288
+       //int nxyzGlobal[3] = {6, 6, 8};  // 288
        //int nxyzGlobal[3] = {6, 6, 16};  // 576
        //int nxyzGlobal[3] = {6, 6, 32};  // 1152
        //int nxyzGlobal[3] = {8, 4, 8};
@@ -894,7 +895,7 @@ int main(int argc, char *argv[])
 
    //TestStrumpackConstructor();
 
-   const bool solveDD = false;
+   const bool solveDD = true;
    if (solveDD)
      {
        cout << myid << ": B size " << B.Size() << ", norm " << B.Norml2() << endl;
@@ -936,7 +937,8 @@ int main(int argc, char *argv[])
        GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
        //MINRESSolver *gmres = new MINRESSolver(fespace->GetComm());
        //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
-
+       //OrthominSolver *gmres = new OrthominSolver(fespace->GetComm());
+       
        gmres->SetOperator(ddi);
        gmres->SetRelTol(1e-8);
        gmres->SetMaxIter(100);
@@ -1007,7 +1009,7 @@ int main(int argc, char *argv[])
 
        if (fullDirect)
 	 {
-
+	   /*
 	   cout << "FULL DIRECT SOLVER" << endl;
 
 	   Operator * Arow = new STRUMPACKRowLocMatrix(A);
@@ -1059,7 +1061,7 @@ int main(int argc, char *argv[])
 	   
 	   delete strumpack;
 	   delete Arow;
-
+	   */
 	 }
        else
 	 {

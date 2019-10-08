@@ -212,7 +212,7 @@ void test_Airy1_E_exact(const Vector &x, Vector &E)
   
   E(0) = 0.0;
   E(1) = 0.0;
-  E(2) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
+  E(2) = gsl_sf_airy_Ai(-beta * y, GSL_PREC_DOUBLE);
 }
 
 void test_Airy_epsilon(const Vector &x, Vector &e)

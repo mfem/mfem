@@ -53,7 +53,10 @@ void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
-#define K2_VALUE 11.9
+//#define K2_VALUE 11.9
+//#define K2_VALUE 2.1
+//#define K2_VALUE 1500.9
+#define K2_VALUE 10981.41589009910  // 104.792251097584^2 or 5 GHz
 
 void test_Airy_epsilon(const Vector &x, Vector &e)
 {
@@ -75,8 +78,9 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    //const char *mesh_file = "../data/beam-tet.mesh";
    const char *mesh_file = "../data/inline-tetHalf.mesh";
+   //const char *mesh_file = "../data/inline-hexHalf.mesh";
    //const char *mesh_file = "../data/inline-tet.mesh";
-   int order = 1;
+   int order = 2;
    bool static_cond = false;
    bool visualization = 1;
 #ifdef MFEM_USE_STRUMPACK
@@ -114,9 +118,11 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
+      cout << "Using k2 " << K2_VALUE << endl;
    }
    kappa = freq * M_PI;
 
+   
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -145,7 +151,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 1;
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -300,7 +306,8 @@ int main(int argc, char *argv[])
    }
 
    chrono.Stop();
-   cout << "Solver time " << chrono.RealTime() << endl;
+   if (myid == 0)
+     cout << "Solver time " << chrono.RealTime() << endl;
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -374,7 +381,7 @@ void E_exact(const Vector &x, Vector &E)
   
      E(0) = 0.0;
      E(1) = 0.0;
-     E(2) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
+     E(2) = gsl_sf_airy_Ai(-beta * y, GSL_PREC_DOUBLE);
 #else
       E(0) = sin(kappa * x(1));
       E(1) = sin(kappa * x(2));

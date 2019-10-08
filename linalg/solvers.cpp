@@ -1952,4 +1952,103 @@ KLUSolver::~KLUSolver()
 
 #endif // MFEM_USE_SUITESPARSE
 
+void OrthominSolver::UpdateVectors()
+{
+  p.SetSize(width);
+  Ap.SetSize(width);
+  r.SetSize(width);
+  omk = width;
+}
+
+void OrthominSolver::Mult(const Vector &b, Vector &x) const
+{
+  pprev.clear();
+  Apprev.clear();
+  Ap2prev.clear();
+
+  if (iterative_mode)
+    {
+      oper->Mult(x, r);
+      subtract(b, r, r); // r = b - A x
+    }
+  else
+    {
+      x = 0.0;
+      r = b;
+    }
+
+  double resid = Norm(r);
+  MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+  if (print_level >= 0)
+    mfem::out << "   Iteration : " << setw(3) << 0
+	      << "   ||r|| = " << resid << '\n';
+
+  const double tol_goal = std::max(resid*rel_tol, abs_tol);
+
+  if (resid <= tol_goal)
+    {
+      final_norm = resid;
+      final_iter = 0;
+      converged = 1;
+      return;
+    }
+
+  p = r;
+  oper->Mult(p, Ap);
+
+  for (int i = 1; i <= max_iter; i++)
+    { // TODO: can this be optimized more?
+      const double Ap2 = Dot(Ap, Ap);
+      const double ai = Dot(r, Ap) / Ap2;
+
+      x.Add(ai, p);   // x += a_i * p
+      r.Add(-ai, Ap); // r -= a_i * Ap
+
+      resid = Norm(r);
+      MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+      if (resid < tol_goal)
+	{
+	  if (print_level >= 0)
+	    mfem::out << "   Iteration : " << setw(3) << i
+                      << "   ||r|| = " << resid << '\n';
+	  final_norm = resid;
+	  final_iter = i;
+	  converged = 1;
+	  return;
+	}
+      if (print_level >= 0)
+	mfem::out << "   Iteration : " << setw(3) << i
+		  << "   ||r|| = " << resid << '\n';
+
+      pprev.push_back(p);
+      Apprev.push_back(Ap);
+      Ap2prev.push_back(Ap2);
+
+      if (pprev.size() > omk) // orthomin(k)
+	{
+	  //cout << "Orthomin erasing" << endl;
+	  pprev.erase(pprev.begin()); 
+	  Apprev.erase(Apprev.begin()); 
+	  Ap2prev.erase(Ap2prev.begin()); 
+	}
+
+      // Compute next p
+      p = r;
+      oper->Mult(p, Ap);  // Ap = Ar
+
+      const int np = pprev.size();
+
+      //cout << "Orthomin using " << np << " p vectors" << endl;
+
+      MFEM_VERIFY(np == Apprev.size() && np == Ap2prev.size(), "");
+
+      for (int j=0; j<np; ++j)
+	{
+	  p.Add(-Dot(Ap, Apprev[j]) / Ap2prev[j], pprev[j]);
+	}
+
+      oper->Mult(p, Ap);
+    }
+}
+
 }
