@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_EIGEN_HPP
-#define MFEM_EIGEN_HPP
+#ifndef MFEM_BLAS_HPP
+#define MFEM_BLAS_HPP
 
 #include "../config/config.hpp"
 #include "../general/globals.hpp"
@@ -20,53 +20,146 @@
 namespace mfem
 {
 
-// *****************************************************************************
-MFEM_HOST_DEVICE static inline
-double cpysign(const double x, const double y)
+namespace blas
 {
-   if ((x < 0 && y > 0) || (x > 0 && y < 0))
-   {
-      return -x;
-   }
-   return x;
-}
 
 // *****************************************************************************
 MFEM_HOST_DEVICE static inline
-void getScalingFactor(const double &d_max, double &mult)
+void Swap(double &a, double &b)
 {
-   int d_exp;
-   if (d_max > 0.)
-   {
-      mult = frexp(d_max, &d_exp);
-      if (d_exp == std::numeric_limits<double>::max_exponent)
-      {
-         mult *= std::numeric_limits<double>::radix;
-      }
-      mult = d_max/mult;
-   }
-   else
-   {
-      mult = 1.;
-   }
-   // mult = 2^d_exp is such that d_max/mult is in [0.5,1)
-   // or in other words d_max is in the interval [0.5,1)*mult
+   double tmp = a;
+   a = b;
+   b = tmp;
 }
+
 
 // *****************************************************************************
 const double Epsilon = std::numeric_limits<double>::epsilon();
 
 // *****************************************************************************
-template<int dim> static
-void calcEigenvalues(const double *d, double *lambda, double *vec);
+template<int dim> double Det(const double *d);
+
+template<> MFEM_HOST_DEVICE inline double Det<2>(const double *d)
+{
+   return d[0] * d[3] - d[1] * d[2];
+}
+
+template<> MFEM_HOST_DEVICE inline double Det<3>(const double *d)
+{
+   return d[0] * (d[4] * d[8] - d[5] * d[7]) +
+          d[3] * (d[2] * d[7] - d[1] * d[8]) +
+          d[6] * (d[1] * d[5] - d[2] * d[4]);
+}
+
+// *****************************************************************************
+template<int dim> void CalcInverse(const double *a, double *i);
+
+template<> MFEM_HOST_DEVICE inline
+void CalcInverse<2>(const double *a, double *inva)
+{
+   constexpr int n = 2;
+   const double d = blas::Det<2>(a);
+   const double t = 1.0 / d;
+   inva[0*n+0] =  a[1*n+1] * t ;
+   inva[0*n+1] = -a[0*n+1] * t ;
+   inva[1*n+0] = -a[1*n+0] * t ;
+   inva[1*n+1] =  a[0*n+0] * t ;
+}
+
+template<> MFEM_HOST_DEVICE inline
+void CalcInverse<3>(const double *a, double *inva)
+{
+   constexpr int n = 3;
+   const double d = blas::Det<3>(a);
+   const double t = 1.0 / d;
+   inva[0*n+0] = (a[1*n+1]*a[2*n+2]-a[1*n+2]*a[2*n+1])*t;
+   inva[0*n+1] = (a[0*n+2]*a[2*n+1]-a[0*n+1]*a[2*n+2])*t;
+   inva[0*n+2] = (a[0*n+1]*a[1*n+2]-a[0*n+2]*a[1*n+1])*t;
+
+   inva[1*n+0] = (a[1*n+2]*a[2*n+0]-a[1*n+0]*a[2*n+2])*t;
+   inva[1*n+1] = (a[0*n+0]*a[2*n+2]-a[0*n+2]*a[2*n+0])*t;
+   inva[1*n+2] = (a[0*n+2]*a[1*n+0]-a[0*n+0]*a[1*n+2])*t;
+
+   inva[2*n+0] = (a[1*n+0]*a[2*n+1]-a[1*n+1]*a[2*n+0])*t;
+   inva[2*n+1] = (a[0*n+1]*a[2*n+0]-a[0*n+0]*a[2*n+1])*t;
+   inva[2*n+2] = (a[0*n+0]*a[1*n+1]-a[0*n+1]*a[1*n+0])*t;
+}
+
+// *****************************************************************************
+/// C = A + alpha*B
+MFEM_HOST_DEVICE inline
+void Add(const int height, const int width, const double alpha,
+         const double *A, const double *B, double *C)
+{
+   for (int j = 0; j < width; j++)
+   {
+      for (int i = 0; i < height; i++)
+      {
+         const int n = i*width+j;
+         C[n] = A[n] + alpha * B[n];
+      }
+   }
+}
+
+// *****************************************************************************
+/// Matrix matrix multiplication.  A = B * C.
+MFEM_HOST_DEVICE inline
+void Mult(const int ah, const int aw, const int bw,
+          const double *B, const double *C, double *A)
+{
+   const int ah_x_aw = ah*aw;
+   for (int i = 0; i < ah_x_aw; i++) { A[i] = 0.0; }
+   for (int j = 0; j < aw; j++)
+   {
+      for (int k = 0; k < bw; k++)
+      {
+         for (int i = 0; i < ah; i++)
+         {
+            A[i+j*ah] += B[i+k*ah] * C[k+j*bw];
+         }
+      }
+   }
+}
+
+// *****************************************************************************
+/// Matrix vector multiplication.
+MFEM_HOST_DEVICE inline
+void MultV(const int height, const int width,
+           double *data, const double *x, double *y)
+{
+   if (width == 0)
+   {
+      for (int row = 0; row < height; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   double *d_col = data;
+   double x_col = x[0];
+   for (int row = 0; row < height; row++)
+   {
+      y[row] = x_col*d_col[row];
+   }
+   d_col += height;
+   for (int col = 1; col < width; col++)
+   {
+      x_col = x[col];
+      for (int row = 0; row < height; row++)
+      {
+         y[row] += x_col*d_col[row];
+      }
+      d_col += height;
+   }
+}
 
 // *****************************************************************************
 MFEM_HOST_DEVICE static inline
-void eigensystem2S(const double &d12, double &d1, double &d2,
+void Eigensystem2S(const double &d12, double &d1, double &d2,
                    double &c, double &s)
 {
    const double sqrt_1_eps = sqrt(1./Epsilon);
-   if (d12 == 0.)
+   if (d12 == 0.0)
    {
       c = 1.;
       s = 0.;
@@ -74,14 +167,16 @@ void eigensystem2S(const double &d12, double &d1, double &d2,
    else
    {
       // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
-      double t, zeta = (d2 - d1)/(2*d12);
-      if (fabs(zeta) < sqrt_1_eps)
+      double t;
+      const double zeta = (d2 - d1)/(2*d12);
+      const double azeta = fabs(zeta);
+      if (azeta < sqrt_1_eps)
       {
-         t = cpysign(1./(fabs(zeta) + sqrt(1. + zeta*zeta)), zeta);
+         t = copysign(1./(azeta + sqrt(1. + zeta*zeta)), zeta);
       }
       else
       {
-         t = cpysign(0.5/fabs(zeta), zeta);
+         t = copysign(0.5/azeta, zeta);
       }
       c = sqrt(1./(1. + t*t));
       s = c*t;
@@ -92,39 +187,17 @@ void eigensystem2S(const double &d12, double &d1, double &d2,
 }
 
 // *****************************************************************************
-MFEM_HOST_DEVICE static
-inline void eigenvalues2S(const double &d12, double &d1, double &d2)
-{
-   const double sqrt_1_eps = sqrt(1./Epsilon);
-   if (d12 != 0.)
-   {
-      // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
-      double t, zeta = (d2 - d1)/(2*d12); // inf/inf from overflows?
-      if (fabs(zeta) < sqrt_1_eps)
-      {
-         t = d12*copysign(1./(fabs(zeta) + sqrt(1. + zeta*zeta)), zeta);
-      }
-      else
-      {
-         t = d12*copysign(0.5/fabs(zeta), zeta);
-      }
-      d1 -= t;
-      d2 += t;
-   }
-}
+template<int dim>
+void CalcEigenvalues(const double *d, double *lambda, double *vec);
 
-
-// *****************************************************************************
 template<> MFEM_HOST_DEVICE inline
-void calcEigenvalues<2>(const double* __restrict__ d,
-                        double* __restrict__ lambda,
-                        double* __restrict__ vec)
+void CalcEigenvalues<2>(const double *d, double *lambda, double *vec)
 {
    double d0 = d[0];
    double d2 = d[2]; // use the upper triangular entry
    double d3 = d[3];
    double c, s;
-   eigensystem2S(d2, d0, d3, c, s);
+   Eigensystem2S(d2, d0, d3, c, s);
    if (d0 <= d3)
    {
       lambda[0] = d0;
@@ -146,20 +219,31 @@ void calcEigenvalues<2>(const double* __restrict__ d,
 }
 
 // *****************************************************************************
-// * Eigen values 3D
-// *****************************************************************************
-MFEM_HOST_DEVICE static inline void Swap(double &a, double &b)
+MFEM_HOST_DEVICE static inline
+void GetScalingFactor(const double &d_max, double &mult)
 {
-   double tmp = a;
-   a = b;
-   b = tmp;
+   int d_exp;
+   if (d_max > 0.)
+   {
+      mult = frexp(d_max, &d_exp);
+      if (d_exp == std::numeric_limits<double>::max_exponent)
+      {
+         mult *= std::numeric_limits<double>::radix;
+      }
+      mult = d_max/mult;
+   }
+   else
+   {
+      mult = 1.;
+   }
+   // mult = 2^d_exp is such that d_max/mult is in [0.5,1)
+   // or in other words d_max is in the interval [0.5,1)*mult
 }
 
-
 // *****************************************************************************
-MFEM_HOST_DEVICE static
-inline bool kernelVector2G(const int &mode,
-                           double &d1, double &d12, double &d21, double &d2)
+MFEM_HOST_DEVICE static inline
+bool KernelVector2G(const int &mode,
+                    double &d1, double &d12, double &d21, double &d2)
 {
    // Find a vector (z1,z2) in the "near"-kernel of the matrix
    // |  d1  d12 |
@@ -299,14 +383,14 @@ inline bool kernelVector2G(const int &mode,
 }
 
 // *****************************************************************************
-MFEM_HOST_DEVICE static
-inline void vec_normalize3_aux(const double &x1, const double &x2,
-                               const double &x3,
-                               double &n1, double &n2, double &n3)
+MFEM_HOST_DEVICE static inline
+void Vec_normalize3_aux(const double &x1, const double &x2,
+                        const double &x3,
+                        double &n1, double &n2, double &n3)
 {
-   double m, t, r;
+   double t, r;
 
-   m = fabs(x1);
+   const double m = fabs(x1);
    r = x2/m;
    t = 1. + r*r;
    r = x3/m;
@@ -318,19 +402,18 @@ inline void vec_normalize3_aux(const double &x1, const double &x2,
 }
 
 // *****************************************************************************
-MFEM_HOST_DEVICE static
-inline void vec_normalize3(const double &x1, const double &x2, const double &x3,
-                           double &n1, double &n2, double &n3)
+MFEM_HOST_DEVICE static inline
+void Vec_normalize3(const double &x1, const double &x2, const double &x3,
+                    double &n1, double &n2, double &n3)
 {
    // should work ok when xk is the same as nk for some or all k
-
    if (fabs(x1) >= fabs(x2))
    {
       if (fabs(x1) >= fabs(x3))
       {
          if (x1 != 0.)
          {
-            vec_normalize3_aux(x1, x2, x3, n1, n2, n3);
+            Vec_normalize3_aux(x1, x2, x3, n1, n2, n3);
          }
          else
          {
@@ -341,18 +424,18 @@ inline void vec_normalize3(const double &x1, const double &x2, const double &x3,
    }
    else if (fabs(x2) >= fabs(x3))
    {
-      vec_normalize3_aux(x2, x1, x3, n2, n1, n3);
+      Vec_normalize3_aux(x2, x1, x3, n2, n1, n3);
       return;
    }
-   vec_normalize3_aux(x3, x1, x2, n3, n1, n2);
+   Vec_normalize3_aux(x3, x1, x2, n3, n1, n2);
 }
 
 // *****************************************************************************
-MFEM_HOST_DEVICE static
-inline int kernelVector3G_aux(const int &mode,
-                              double &d1, double &d2, double &d3,
-                              double &c12, double &c13, double &c23,
-                              double &c21, double &c31, double &c32)
+MFEM_HOST_DEVICE static inline
+int KernelVector3G_aux(const int &mode,
+                       double &d1, double &d2, double &d3,
+                       double &c12, double &c13, double &c23,
+                       double &c21, double &c31, double &c32)
 {
    int kdim;
    double mu, n1, n2, n3, s1, s2, s3;
@@ -424,7 +507,7 @@ done_column_1:
    // Solve:
    // |  d2 c23 | | z2 | = | 0 |
    // | c32  d3 | | z3 |   | 0 |
-   if (kernelVector2G(mode, d2, c23, c32, d3))
+   if (KernelVector2G(mode, d2, c23, c32, d3))
    {
       // Have two solutions:
       // two vectors in the kernel are P (-c12/d1, 1, 0)^t and
@@ -449,16 +532,16 @@ done_column_1:
       kdim = 1;
    }
 
-   vec_normalize3(d1, d2, d3, d1, d2, d3);
+   Vec_normalize3(d1, d2, d3, d1, d2, d3);
 
    return kdim;
 }
 
 // *****************************************************************************
-MFEM_HOST_DEVICE static
-inline int kernelVector3S(const int &mode, const double &d12,
-                          const double &d13, const double &d23,
-                          double &d1, double &d2, double &d3)
+MFEM_HOST_DEVICE static inline
+int KernelVector3S(const int &mode, const double &d12,
+                   const double &d13, const double &d23,
+                   double &d1, double &d2, double &d3)
 {
    // Find a unit vector (z1,z2,z3) in the "near"-kernel of the matrix
    // |  d1  d12  d13 |
@@ -567,7 +650,7 @@ inline int kernelVector3S(const int &mode, const double &d12,
          c13 = d3;
          d3 = d1;
    }
-   row = kernelVector3G_aux(mode, d1, d2, d3, c12, c13, c23, c21, c31, c32);
+   row = KernelVector3G_aux(mode, d1, d2, d3, c12, c13, c23, c21, c31, c32);
    // row is kdim
 
    switch (col)
@@ -583,13 +666,13 @@ inline int kernelVector3S(const int &mode, const double &d12,
 }
 
 // *****************************************************************************
-MFEM_HOST_DEVICE static
-inline int reduce3S(const int &mode,
-                    double &d1, double &d2, double &d3,
-                    double &d12, double &d13, double &d23,
-                    double &z1, double &z2, double &z3,
-                    double &v1, double &v2, double &v3,
-                    double &g)
+MFEM_HOST_DEVICE static inline
+int Reduce3S(const int &mode,
+             double &d1, double &d2, double &d3,
+             double &d12, double &d13, double &d23,
+             double &z1, double &z2, double &z3,
+             double &v1, double &v2, double &v3,
+             double &g)
 {
    // Given the matrix
    //     |  d1  d12  d13 |
@@ -699,19 +782,15 @@ inline int reduce3S(const int &mode,
       case 2:
          Swap(z1, z2);
          break;
-
       case 3:
          Swap(z1, z3);
    }
-
    return k;
 }
 
 // *****************************************************************************
 template<> MFEM_HOST_DEVICE inline
-void calcEigenvalues<3>(const double* __restrict__ d,
-                        double* __restrict__ lambda,
-                        double* __restrict__ vec)
+void CalcEigenvalues<3>(const double *d, double *lambda, double *vec)
 {
    double d11 = d[0];
    double d12 = d[3]; // use the upper triangular entries
@@ -729,7 +808,7 @@ void calcEigenvalues<3>(const double* __restrict__ d,
       if (d_max < fabs(d13)) { d_max = fabs(d13); }
       if (d_max < fabs(d23)) { d_max = fabs(d23); }
 
-      getScalingFactor(d_max, mult);
+      GetScalingFactor(d_max, mult);
    }
 
    d11 /= mult;  d22 /= mult;  d33 /= mult;
@@ -806,7 +885,7 @@ void calcEigenvalues<3>(const double* __restrict__ d,
       //  | d13  d23   c3 |
       // This vector is also an eigenvector for A corresponding to aa.
       // The vector z overwrites (c1,c2,c3).
-      switch (kernelVector3S(mode, d12, d13, d23, c1, c2, c3))
+      switch (KernelVector3S(mode, d12, d13, d23, c1, c2, c3))
       {
          case 3:
             // 'aa' is a triple eigenvalue
@@ -828,7 +907,7 @@ void calcEigenvalues<3>(const double* __restrict__ d,
       // A <-- Q P A P Q = |  0  d22 d23 |
       //                   |  0  d23 d33 |
       double v1, v2, v3, g;
-      int k = reduce3S(mode, d11, d22, d33, d12, d13, d23,
+      int k = Reduce3S(mode, d11, d22, d33, d12, d13, d23,
                        c1, c2, c3, v1, v2, v3, g);
       // Q = I - 2 v v^t
       // P - permutation matrix switching entries 1 and k
@@ -837,7 +916,7 @@ void calcEigenvalues<3>(const double* __restrict__ d,
       // | d22 d23 |
       // | d23 d33 |
       double c, s;
-      eigensystem2S(d23, d22, d33, c, s);
+      Eigensystem2S(d23, d22, d33, c, s);
       // d22 <-> P Q (0, c, -s), d33 <-> P Q (0, s, c)
 
       double *vec_1, *vec_2, *vec_3;
@@ -912,11 +991,10 @@ done_3d:
 }
 
 // *****************************************************************************
-template<int dim> static double calcSingularvalue(const double *d);
+template<int dim> double CalcSingularvalue(const double *d);
 
-// *****************************************************************************
 template<> MFEM_HOST_DEVICE inline
-double calcSingularvalue<2>(const double* __restrict__ d)
+double CalcSingularvalue<2>(const double *d)
 {
    constexpr int i = 2-1;
    double d0, d1, d2, d3;
@@ -931,8 +1009,7 @@ double calcSingularvalue<2>(const double* __restrict__ d)
       if (d_max < fabs(d1)) { d_max = fabs(d1); }
       if (d_max < fabs(d2)) { d_max = fabs(d2); }
       if (d_max < fabs(d3)) { d_max = fabs(d3); }
-
-      getScalingFactor(d_max, mult);
+      GetScalingFactor(d_max, mult);
    }
 
    d0 /= mult;
@@ -964,10 +1041,32 @@ double calcSingularvalue<2>(const double* __restrict__ d)
    return t*mult;
 }
 
+// *****************************************************************************
+MFEM_HOST_DEVICE static inline
+void Eigenvalues2S(const double &d12, double &d1, double &d2)
+{
+   const double sqrt_1_eps = sqrt(1./Epsilon);
+   if (d12 != 0.)
+   {
+      // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
+      double t;
+      const double zeta = (d2 - d1)/(2*d12); // inf/inf from overflows?
+      if (fabs(zeta) < sqrt_1_eps)
+      {
+         t = d12*copysign(1./(fabs(zeta) + sqrt(1. + zeta*zeta)), zeta);
+      }
+      else
+      {
+         t = d12*copysign(0.5/fabs(zeta), zeta);
+      }
+      d1 -= t;
+      d2 += t;
+   }
+}
 
 // *****************************************************************************
 template<> MFEM_HOST_DEVICE inline
-double calcSingularvalue<3>(const double* __restrict__ d)
+double CalcSingularvalue<3>(const double *d)
 {
    constexpr int i = 3-1;
    double d0, d1, d2, d3, d4, d5, d6, d7, d8;
@@ -985,8 +1084,7 @@ double calcSingularvalue<3>(const double* __restrict__ d)
       if (d_max < fabs(d6)) { d_max = fabs(d6); }
       if (d_max < fabs(d7)) { d_max = fabs(d7); }
       if (d_max < fabs(d8)) { d_max = fabs(d8); }
-
-      getScalingFactor(d_max, mult);
+      GetScalingFactor(d_max, mult);
    }
 
    d0 /= mult;  d1 /= mult;  d2 /= mult;
@@ -1148,7 +1246,7 @@ double calcSingularvalue<3>(const double* __restrict__ d)
       //  | b13  b23   c3 |
       // This vector is also an eigenvector for B corresponding to aa
       // The vector z overwrites (c1,c2,c3).
-      switch (kernelVector3S(mode, b12, b13, b23, c1, c2, c3))
+      switch (KernelVector3S(mode, b12, b13, b23, c1, c2, c3))
       {
          case 3:
             aa += r;
@@ -1165,7 +1263,7 @@ double calcSingularvalue<3>(const double* __restrict__ d)
       // B <-- Q P B P Q = |  0  b22 b23 |
       //                   |  0  b23 b33 |
       double v1, v2, v3, g;
-      reduce3S(mode, b11, b22, b33, b12, b13, b23,
+      Reduce3S(mode, b11, b22, b33, b12, b13, b23,
                c1, c2, c3, v1, v2, v3, g);
       // Q = I - g v v^t
       // P - permutation matrix switching rows and columns 1 and k
@@ -1173,7 +1271,7 @@ double calcSingularvalue<3>(const double* __restrict__ d)
       // find the eigenvalues of
       //  | b22 b23 |
       //  | b23 b33 |
-      eigenvalues2S(b23, b22, b33);
+      Eigenvalues2S(b23, b22, b33);
 
       if (i == 2)
       {
@@ -1201,6 +1299,8 @@ have_aa:
    return sqrt(fabs(aa))*mult; // take abs before we sort?
 }
 
+} // namespace blas
+
 } // namespace mfem
 
-#endif // EIGEN_HPP
+#endif // MFEM_BLAS_HPP

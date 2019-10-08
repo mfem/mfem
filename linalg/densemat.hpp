@@ -14,26 +14,11 @@
 
 #include "../config/config.hpp"
 #include "../general/globals.hpp"
+#include "blas.hpp"
 #include "matrix.hpp"
 
 namespace mfem
 {
-
-template<int dim> static double det(const double *d);
-
-template<> MFEM_HOST_DEVICE inline
-double det<2>(const double* __restrict__ d)
-{
-   return d[0] * d[3] - d[1] * d[2];
-}
-
-template<> MFEM_HOST_DEVICE inline
-double det<3>(const double* __restrict__ d)
-{
-   return d[0] * (d[4] * d[8] - d[5] * d[7]) +
-          d[3] * (d[2] * d[7] - d[1] * d[8]) +
-          d[6] * (d[1] * d[5] - d[2] * d[4]);
-}
 
 /// Data type dense matrix using column-major storage
 class DenseMatrix : public Matrix
@@ -387,56 +372,7 @@ public:
    virtual ~DenseMatrix();
 };
 
-/// Matrix vector multiplication.
-MFEM_HOST_DEVICE static inline
-void multV(const int height,
-           const int width,
-           double* __restrict__ data,
-           const double* __restrict__ x,
-           double* __restrict__ y)
-{
-   if (width == 0)
-   {
-      for (int row = 0; row < height; row++)
-      {
-         y[row] = 0.0;
-      }
-      return;
-   }
-   double *d_col = data;
-   double x_col = x[0];
-   for (int row = 0; row < height; row++)
-   {
-      y[row] = x_col*d_col[row];
-   }
-   d_col += height;
-   for (int col = 1; col < width; col++)
-   {
-      x_col = x[col];
-      for (int row = 0; row < height; row++)
-      {
-         y[row] += x_col*d_col[row];
-      }
-      d_col += height;
-   }
-}
-
 /// C = A + alpha*B
-MFEM_HOST_DEVICE static inline
-void add(const int height, const int width, const double alpha,
-         const double* __restrict__ A,
-         const double* __restrict__ B,
-         double* __restrict__ C)
-{
-   for (int j = 0; j < width; j++)
-   {
-      for (int i = 0; i < height; i++)
-      {
-         const int n = i*width+j;
-         C[n] = A[n] + alpha * B[n];
-      }
-   }
-}
 void Add(const DenseMatrix &A, const DenseMatrix &B,
          double alpha, DenseMatrix &C);
 
@@ -449,27 +385,6 @@ void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
 
 /// Matrix matrix multiplication.  A = B * C.
-MFEM_HOST_DEVICE static inline
-void mult(const int ah,
-          const int aw,
-          const int bw,
-          const double* __restrict__ B,
-          const double* __restrict__ C,
-          double* __restrict__ A)
-{
-   const int ah_x_aw = ah*aw;
-   for (int i = 0; i < ah_x_aw; i++) { A[i] = 0.0; }
-   for (int j = 0; j < aw; j++)
-   {
-      for (int k = 0; k < bw; k++)
-      {
-         for (int i = 0; i < ah; i++)
-         {
-            A[i+j*ah] += B[i+k*ah] * C[k+j*bw];
-         }
-      }
-   }
-}
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 
 /// Matrix matrix multiplication.  A += B * C.
@@ -485,41 +400,6 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat);
 
 /** Calculate the inverse of a matrix (for NxN matrices, N=1,2,3) or the
     left inverse (A^t.A)^{-1}.A^t (for 2x1, 3x1, or 3x2 matrices) */
-template<int dim> static void calcInverse(const double *a, double *i);
-
-template<> MFEM_HOST_DEVICE inline
-void calcInverse<2>(const double* __restrict__ a,
-                    double* __restrict__ inva)
-{
-   constexpr int n = 2;
-   const double d = det<2>(a);
-   const double t = 1.0 / d;
-   inva[0*n+0] =  a[1*n+1] * t ;
-   inva[0*n+1] = -a[0*n+1] * t ;
-   inva[1*n+0] = -a[1*n+0] * t ;
-   inva[1*n+1] =  a[0*n+0] * t ;
-}
-
-template<> MFEM_HOST_DEVICE inline
-void calcInverse<3>(const double* __restrict__ a,
-                    double* __restrict__ inva)
-{
-   constexpr int n = 3;
-   const double d = det<3>(a);
-   const double t = 1.0 / d;
-   inva[0*n+0] = (a[1*n+1]*a[2*n+2]-a[1*n+2]*a[2*n+1])*t;
-   inva[0*n+1] = (a[0*n+2]*a[2*n+1]-a[0*n+1]*a[2*n+2])*t;
-   inva[0*n+2] = (a[0*n+1]*a[1*n+2]-a[0*n+2]*a[1*n+1])*t;
-
-   inva[1*n+0] = (a[1*n+2]*a[2*n+0]-a[1*n+0]*a[2*n+2])*t;
-   inva[1*n+1] = (a[0*n+0]*a[2*n+2]-a[0*n+2]*a[2*n+0])*t;
-   inva[1*n+2] = (a[0*n+2]*a[1*n+0]-a[0*n+0]*a[1*n+2])*t;
-
-   inva[2*n+0] = (a[1*n+0]*a[2*n+1]-a[1*n+1]*a[2*n+0])*t;
-   inva[2*n+1] = (a[0*n+1]*a[2*n+0]-a[0*n+0]*a[2*n+1])*t;
-   inva[2*n+2] = (a[0*n+0]*a[1*n+1]-a[0*n+1]*a[1*n+0])*t;
-}
-
 void CalcInverse(const DenseMatrix &a, DenseMatrix &inva);
 
 /// Calculate the inverse transpose of a matrix (for NxN matrices, N=1,2,3)
