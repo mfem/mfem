@@ -30,11 +30,11 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
    mesh->EnsureNodes();
-   FESpace2Ceed(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+   initCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   FESpace2Ceed(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   initCeedTensorBasisAndRestriction(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
@@ -90,7 +90,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
       // if (dev_enabled) { Device::Disable(); }
-      FESpace2Ceed(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
+      initCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
                    &ceedCoeff->restr);
       // if (dev_enabled) { Device::Enable(); }
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),

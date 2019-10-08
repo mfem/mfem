@@ -40,10 +40,10 @@ void initCeedCoeff(Coefficient* Q, CeedData* ptr)
    }
 }
 
-void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
-                  const mfem::IntegrationRule &ir,
-                  Ceed ceed, CeedBasis *basis,
-                  CeedElemRestriction *restr)
+void initCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
+                                       const mfem::IntegrationRule &ir,
+                                       Ceed ceed, CeedBasis *basis,
+                                       CeedElemRestriction *restr)
 {
    mfem::Mesh *mesh = fes.GetMesh();
    const mfem::FiniteElement *fe = fes.GetFE(0);
