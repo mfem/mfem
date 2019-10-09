@@ -97,6 +97,8 @@ ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
 ex1-test-seq: ex1
 	@$(call mfem-test,$<,, Performance miniapp,-r 2)
+mg-test-par: mg
+	@$(call mfem-test,$<,, Multigrid miniapp,-r 1 -hl 2 -ol 2)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
