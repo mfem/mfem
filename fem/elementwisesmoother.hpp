@@ -71,6 +71,67 @@ protected:
    const mfem::FiniteElementSpace& fespace_;
 };
 
+class AdditiveSchwarzLORSmoother : public Solver
+{
+ public:
+   AdditiveSchwarzLORSmoother(const mfem::FiniteElementSpace& fespace,
+                              const Array<int>& ess_tdof_list,
+                              mfem::BilinearForm& aform,
+                              const mfem::Vector& diag,
+                              mfem::SparseMatrix* LORmat, double scale);
+   virtual ~AdditiveSchwarzLORSmoother() {}
+
+   virtual void SetOperator(const mfem::Operator& op) {}
+
+   virtual void Mult(const mfem::Vector& in, mfem::Vector& out) const;
+
+ private:
+   virtual void LocalSmoother(int element, const mfem::Vector& in,
+                              mfem::Vector& out) const;
+
+ protected:
+   const mfem::FiniteElementSpace& fespace_;
+   const Array<int>& ess_tdof_list_;
+   mfem::BilinearForm& aform_;
+   mfem::Vector diag_;
+   mfem::SparseMatrix* LORmat_;
+   double scale_;
+   mfem::Table el_to_el_;
+   Vector countingVector;
+   mutable DenseMatrixInverse inv;
+};
+
+
+class AdditiveSchwarzApproxLORSmoother : public Solver
+{
+ public:
+   AdditiveSchwarzApproxLORSmoother(const mfem::FiniteElementSpace& fespace,
+                              const Array<int>& ess_tdof_list,
+                              mfem::BilinearForm& aform,
+                              const mfem::Vector& diag,
+                              mfem::SparseMatrix* LORmat, double scale);
+   virtual ~AdditiveSchwarzApproxLORSmoother() {}
+
+   virtual void SetOperator(const mfem::Operator& op) {}
+
+   virtual void Mult(const mfem::Vector& in, mfem::Vector& out) const;
+
+ private:
+   virtual void LocalSmoother(int element, const mfem::Vector& in,
+                              mfem::Vector& out) const;
+
+ protected:
+   const mfem::FiniteElementSpace& fespace_;
+   const Array<int>& ess_tdof_list_;
+   mfem::BilinearForm& aform_;
+   mfem::Vector diag_;
+   mfem::SparseMatrix* LORmat_;
+   double scale_;
+   mfem::Table el_to_el_;
+   Vector countingVector;
+   mutable DenseMatrixInverse inv;
+};
+
 /**
    Our first implementation is Jacobi within elements and Gauss-Seidel
    between them.

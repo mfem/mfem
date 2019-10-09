@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -57,6 +58,197 @@ void ElementWiseSmoother::ElementResidual(int e, const Vector& b_local,
    r_local -= b_local;
    r_local *= -1.0;
 }
+
+AdditiveSchwarzLORSmoother::AdditiveSchwarzLORSmoother(const mfem::FiniteElementSpace& fespace,
+                                                   const Array<int>& ess_tdof_list,
+                                                   mfem::BilinearForm& aform,
+                                                   const mfem::Vector& diag,
+                                                   mfem::SparseMatrix* LORmat,
+                                                   double scale)
+   :
+   mfem::Solver(fespace.GetVSize()),
+   fespace_(fespace),
+   ess_tdof_list_(ess_tdof_list),
+   aform_(aform),
+   diag_(diag),
+   LORmat_(LORmat),
+   scale_(scale)
+{
+   const Table& el_dof = fespace_.GetElementToDofTable();
+   Table dof_el;
+   mfem::Transpose(el_dof, dof_el);
+   mfem::Mult(el_dof, dof_el, el_to_el_);
+
+   countingVector.SetSize(fespace_.GetTrueVSize());
+   countingVector = 0.0;
+
+   Array<int> local_dofs;
+
+   for (int e = 0; e < fespace_.GetNE(); ++e)
+   {
+      fespace_.GetElementDofs(e, local_dofs);
+      for (int i = 0; i < local_dofs.Size(); ++i)
+      {
+         countingVector[local_dofs[i]] += 1.0;
+      }
+   }
+
+   for (int i = 0; i < fespace_.GetTrueVSize(); ++i)
+   {
+      countingVector[i] = 1.0 / std::sqrt(countingVector[i]);
+   }
+}
+
+void AdditiveSchwarzLORSmoother::Mult(const Vector& b, Vector& x) const
+{
+   x = 0.0;
+   Array<int> local_dofs;
+   Vector b_local;
+   Vector x_local;
+
+   for (int e = 0; e < fespace_.GetNE(); ++e)
+   {
+      fespace_.GetElementDofs(e, local_dofs);
+      b.GetSubVector(local_dofs, b_local);
+      x_local.SetSize(b_local.Size());
+
+      for (int i = 0; i < local_dofs.Size(); ++i)
+      {
+         b_local[i] *= countingVector[local_dofs[i]];
+      }
+
+      LocalSmoother(e, b_local, x_local);
+
+      for (int i = 0; i < local_dofs.Size(); ++i)
+      {
+         x_local[i] *= countingVector[local_dofs[i]];
+      }
+
+      x.AddElementVector(local_dofs, x_local);
+   }
+
+   x *= scale_;
+
+   auto I = ess_tdof_list_.Read();
+   auto B = b.Read();
+   auto X = x.Write();
+   MFEM_FORALL(i, ess_tdof_list_.Size(), X[I[i]] = B[I[i]]; );
+}
+
+void AdditiveSchwarzLORSmoother::LocalSmoother(int e, const Vector& in, Vector& out) const
+{
+   Array<int> local_dofs;
+   fespace_.GetElementDofs(e, local_dofs);
+   DenseMatrix elmat(local_dofs.Size(), local_dofs.Size());
+   LORmat_->GetSubMatrix(local_dofs, local_dofs, elmat);
+   DenseMatrixInverse inv(elmat);
+   inv.Mult(in, out);
+}
+
+AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::FiniteElementSpace& fespace,
+                                                   const Array<int>& ess_tdof_list,
+                                                   mfem::BilinearForm& aform,
+                                                   const mfem::Vector& diag,
+                                                   mfem::SparseMatrix* LORmat,
+                                                   double scale)
+   :
+   mfem::Solver(fespace.GetVSize()),
+   fespace_(fespace),
+   ess_tdof_list_(ess_tdof_list),
+   aform_(aform),
+   diag_(diag),
+   LORmat_(LORmat),
+   scale_(scale)
+{
+   const Table& el_dof = fespace_.GetElementToDofTable();
+   Table dof_el;
+   mfem::Transpose(el_dof, dof_el);
+   mfem::Mult(el_dof, dof_el, el_to_el_);
+
+   countingVector.SetSize(fespace_.GetTrueVSize());
+   countingVector = 0.0;
+
+   Array<int> local_dofs;
+
+   int interiorElement = -1;
+
+   for (int e = 0; e < fespace_.GetNE(); ++e)
+   {
+      fespace_.GetElementDofs(e, local_dofs);
+      for (int i = 0; i < local_dofs.Size(); ++i)
+      {
+         countingVector[local_dofs[i]] += 1.0;
+      }
+
+      Array<int> neighbors;
+      el_to_el_.GetRow(e, neighbors);
+
+      if (neighbors.Size() == 9)
+      {
+         interiorElement = e;
+      }
+   }
+
+   for (int i = 0; i < fespace_.GetTrueVSize(); ++i)
+   {
+      countingVector[i] = 1.0 / std::sqrt(countingVector[i]);
+   }
+
+
+   std::cout << "Interior: " << interiorElement << std::endl;
+
+   fespace_.GetElementDofs(interiorElement, local_dofs);
+   DenseMatrix elmat(local_dofs.Size(), local_dofs.Size());
+   LORmat_->GetSubMatrix(local_dofs, local_dofs, elmat);
+   inv.SetOperator(elmat);
+}
+
+void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
+{
+   x = 0.0;
+   Array<int> local_dofs;
+   Vector b_local;
+   Vector x_local;
+
+   for (int e = 0; e < fespace_.GetNE(); ++e)
+   {
+      fespace_.GetElementDofs(e, local_dofs);
+      b.GetSubVector(local_dofs, b_local);
+      x_local.SetSize(b_local.Size());
+
+      for (int i = 0; i < local_dofs.Size(); ++i)
+      {
+         b_local[i] *= countingVector[local_dofs[i]];
+         b_local[i] *= diag_[local_dofs[i]];
+      }
+
+      LocalSmoother(e, b_local, x_local);
+
+      for (int i = 0; i < local_dofs.Size(); ++i)
+      {
+         x_local[i] *= diag_[local_dofs[i]];
+         x_local[i] *= countingVector[local_dofs[i]];
+      }
+
+      x.AddElementVector(local_dofs, x_local);
+   }
+
+   x *= scale_;
+
+   auto I = ess_tdof_list_.Read();
+   auto B = b.Read();
+   auto X = x.Write();
+   MFEM_FORALL(i, ess_tdof_list_.Size(), X[I[i]] = B[I[i]]; );
+}
+
+void AdditiveSchwarzApproxLORSmoother::LocalSmoother(int e, const Vector& in, Vector& out) const
+{
+   inv.Mult(in, out);
+}
+
+
+
+
 
 ElementWiseJacobi::ElementWiseJacobi(const mfem::FiniteElementSpace& fespace,
                                      mfem::BilinearForm& aform,

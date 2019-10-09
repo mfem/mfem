@@ -124,7 +124,7 @@ void OperatorJacobiSmoother::Setup()
    auto X = dinv.Write();
    MFEM_FORALL(i, N, X[i] = delta / D[i]; );
    auto I = ess_tdof_list.Read();
-   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = delta; );
+   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = 1.0; );
 }
 
 void OperatorJacobiSmoother::Mult(const Vector& x, Vector &y) const

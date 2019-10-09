@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "../../general/forall.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -21,9 +22,10 @@ class PoissonMultigridOperator : public TimedMultigridOperator
    HypreBoomerAMG* amg{nullptr};
    CGSolver* coarsePCGSolver{nullptr};
 
-   void AddIntegrators(ParBilinearForm* form)
+   void AddIntegrators(BilinearForm* form)
    {
       form->AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+      // form->AddDomainIntegrator(new MassIntegrator(*coeff));
    }
 
    Operator* ConstructOperator(ParFiniteElementSpace* fespace,
@@ -129,7 +131,8 @@ class PoissonMultigridOperator : public TimedMultigridOperator
       if (jump)
       {
          auto f = [](const Vector& x) {
-            return (x[0] + x[1] < 1.0) ? 1.0 : 100.0;
+            // return (x[0] < 0.5) ? 1.0 : 100.0;
+            return 5 * x[0] + 1.0;
          };
          coeff = new FunctionCoefficient(f);
       }
@@ -178,20 +181,86 @@ class PoissonMultigridOperator : public TimedMultigridOperator
 
       if (partialAssembly)
       {
-         Vector diag(fespace->GetTrueVSize());
-         forms.Last()->AssembleDiagonal(diag);
+         Vector* diag = new Vector(fespace->GetTrueVSize());
+         forms.Last()->AssembleDiagonal(*diag);
 
-         Vector ev(solveOperator->Width());
-         OperatorJacobiSmoother invDiagOperator(diag, essentialDofs, 1.0);
-         ProductOperator diagPrecond(&invDiagOperator, solveOperator, false,
-                                     false);
+         Vector* coeffDiag = new Vector(fespace->GetTrueVSize());
+         {
+            Array<int> local_dofs;
+            int ne = fespace->GetNE();
+            const IntegrationRule& ir = fespace->GetFE(0)->GetNodes();
+            int nq = ir.GetNPoints();
+
+            for(int e = 0; e < ne; ++e)
+            {
+               fespace->GetElementDofs(e, local_dofs);
+               ElementTransformation& T = *fespace->GetElementTransformation(e);
+               for (int q = 0; q < nq; ++q)
+               {
+                  (*coeffDiag)[local_dofs[q]] = 1.0 / sqrt(coeff->Eval(T, ir.IntPoint(q)));
+               }
+            }
+         }
+
+         Mesh* pmesh_lor = new Mesh(fespace->GetMesh(), fespace->GetOrder(0), BasisType::GaussLobatto);
+         H1_FECollection* fec_lor_ = new H1_FECollection(1, pmesh_lor->Dimension(), BasisType::GaussLobatto);
+         FiniteElementSpace* fespace_lor_ = new FiniteElementSpace(pmesh_lor, fec_lor_);
+
+         BilinearForm* a_pc_ = new BilinearForm(fespace_lor_);
+         a_pc_->SetAssemblyLevel(AssemblyLevel::FULL);
+         // AddIntegrators(a_pc_);
+         ConstantCoefficient* constCoeff = new ConstantCoefficient(1.0);
+         a_pc_->AddDomainIntegrator(new DiffusionIntegrator(*constCoeff));
+         a_pc_->UsePrecomputedSparsity();
+         a_pc_->Assemble();
+
+         SparseMatrix* LORmat = new SparseMatrix();
+         a_pc_->FormSystemMatrix(essentialDofs, *LORmat);
 
          PowerMethod powerMethod(MPI_COMM_WORLD);
-         double estLargestEigenvalue =
-             powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
-         smoother = new OperatorChebyshevSmoother(solveOperator, diag,
-                                                  essentialDofs, chebyshevOrder,
-                                                  estLargestEigenvalue);
+
+         AdditiveSchwarzApproxLORSmoother test(*fespace, essentialDofs, *forms.Last(), *coeffDiag, LORmat, 1.0);
+         // OperatorJacobiSmoother test(*diag, essentialDofs, 1.0);
+
+
+         ProductOperator powerOperator(&test, solveOperator, false, false);
+         Vector ev(solveOperator->Width());
+         double estLargestEigenvalue = powerMethod.EstimateLargestEigenvalue(powerOperator, ev, 10, 1e-8);
+
+         std::cout << "ev = " << estLargestEigenvalue << std::endl;
+
+         double upper_bound = 1.1 * estLargestEigenvalue;
+         double lower_bound = 0.0 * estLargestEigenvalue;
+         double theta = 0.5 * (upper_bound + lower_bound);
+         double delta = 0.5 * (upper_bound - lower_bound);
+         double weight = 1.0 / theta;
+         std::cout << "weight = " << weight << std::endl;
+
+         // HypreParMatrix* LORmatp = new HypreParMatrix();
+         // a_pc_->FormSystemMatrix(essentialDofs, *LORmatp);
+
+         // SparseMatrix* LORmat = new SparseMatrix();
+         // LORmatp->GetDiag(*LORmat);
+
+         std::cout << "truevsize = " << fespace->GetTrueVSize() << std::endl;
+         std::cout << "Width = " << LORmat->Width() << std::endl;
+
+         smoother = new AdditiveSchwarzApproxLORSmoother(*fespace, essentialDofs, *forms.Last(), *coeffDiag, LORmat, weight);
+         // smoother = new ElementWiseJacobi(*fespace, *forms.Last(), *diag, essentialDofs, 2.0/3.0);
+         // smoother = new OperatorJacobiSmoother(*diag, essentialDofs, weight);
+         
+
+         // Vector ev(solveOperator->Width());
+         // OperatorJacobiSmoother invDiagOperator(*diag, essentialDofs, 1.0);
+         // ProductOperator diagPrecond(&invDiagOperator, solveOperator, false,
+         //                             false);
+
+         // PowerMethod powerMethod(MPI_COMM_WORLD);
+         // double estLargestEigenvalue =
+         //     powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
+         // smoother = new OperatorChebyshevSmoother(solveOperator, *diag,
+         //                                          essentialDofs, chebyshevOrder,
+         //                                          estLargestEigenvalue);
       }
       else
       {
@@ -236,11 +305,11 @@ int main(int argc, char* argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 1. Parse command-line options.
-   const char* mesh_file = "../../data/inline-hex.mesh";
+   const char* mesh_file = "../../data/inline-quad.mesh";
    int ref_levels = 0;
    int pref_levels = 0;
    int order = 1;
-   int h_levels = 1;
+   int h_levels = 2;
    int o_levels = 1;
    int smoothingSteps = 3;
    int coarseSteps = 2;
@@ -519,11 +588,12 @@ int main(int argc, char* argv[])
 
    CGSolver pcg(MPI_COMM_WORLD);
    pcg.SetPrintLevel(1);
-   pcg.SetMaxIter(100);
+   pcg.SetMaxIter(500);
    pcg.SetRelTol(1e-6);
    pcg.SetAbsTol(0.0);
    pcg.SetOperator(*solveOperator);
    pcg.SetPreconditioner(*preconditioner);
+   // pcg.SetPreconditioner(*solveOperator->GetSmootherAtLevel(spaceHierarchy->GetFinestLevelIndex()));
    pcg.Mult(B, X);
 
    tic_toc.Stop();
@@ -536,10 +606,10 @@ int main(int argc, char* argv[])
       if (TimedMultigridOperator* tmg =
               dynamic_cast<TimedMultigridOperator*>(solveOperator))
       {
-         tmg->PrintStats(TimedMultigridOperator::Operation::OPERATOR, cout);
-         tmg->PrintStats(TimedMultigridOperator::Operation::PROLONGATION, cout);
-         tmg->PrintStats(TimedMultigridOperator::Operation::RESTRICTION, cout);
-         tmg->PrintStats(TimedMultigridOperator::Operation::SMOOTHER, cout);
+         // tmg->PrintStats(TimedMultigridOperator::Operation::OPERATOR, cout);
+         // tmg->PrintStats(TimedMultigridOperator::Operation::PROLONGATION, cout);
+         // tmg->PrintStats(TimedMultigridOperator::Operation::RESTRICTION, cout);
+         // tmg->PrintStats(TimedMultigridOperator::Operation::SMOOTHER, cout);
       }
    }
 
