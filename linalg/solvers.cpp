@@ -146,7 +146,8 @@ void OperatorJacobiSmoother::Mult(const Vector& x, Vector &y) const
    MFEM_FORALL(i, N, Y[i] += X[i] * R[i]; );
 }
 
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+                                                     const Vector &d,
                                                      const Array<int>& ess_tdofs,
                                                      int order_, double max_eig_estimate_)
    :
@@ -266,13 +267,15 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       }
 
       // Scale residual by inverse diagonal
+      const int n = N;
       auto Dinv = dinv.Read();
       auto R = residual.ReadWrite();
-      MFEM_FORALL(i, N, R[i] *= Dinv[i]; );
+      MFEM_FORALL(i, n, R[i] *= Dinv[i]; );
 
       // Add weighted contribution to y
       auto Y = y.ReadWrite();
-      MFEM_FORALL(i, N, Y[i] += coeffs[k] * R[i]; );
+      auto C = coeffs.Read();
+      MFEM_FORALL(i, n, Y[i] += C[k] * R[i]; );
    }
 }
 
