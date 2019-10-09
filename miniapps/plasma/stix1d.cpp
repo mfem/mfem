@@ -900,7 +900,7 @@ int main(int argc, char *argv[])
    CPDSolver CPD(pmesh, order, omega,
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
-                 conv, epsilon_real, epsilon_imag, epsilon_abs,
+                 conv, *BCoef, epsilon_real, epsilon_imag, epsilon_abs,
                  muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
                  (phase_shift) ? &kCoef : NULL,
                  abcs, sbcs, dbcs,

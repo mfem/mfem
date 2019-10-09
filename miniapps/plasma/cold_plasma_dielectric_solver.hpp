@@ -212,6 +212,7 @@ public:
              CPDSolver::SolverType s, SolverOptions & sOpts,
              CPDSolver::PrecondType p,
              ComplexOperator::Convention conv,
+             VectorCoefficient & BCoef,
              MatrixCoefficient & epsReCoef,
              MatrixCoefficient & epsImCoef,
              MatrixCoefficient & epsAbsCoef,
@@ -294,6 +295,7 @@ private:
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
+   ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
    ParGridFunction        * u_;   // Energy density (L2)
@@ -301,6 +303,7 @@ private:
    ParGridFunction        * uB_;  // Magnetic Energy density (L2)
    ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
 
+   VectorCoefficient * BCoef_;        // B Field Vector
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsImCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
