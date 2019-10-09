@@ -24,13 +24,13 @@ namespace mfem
 /// Class bundling a hierarchy of meshes and finite element spaces
 class SpaceHierarchy
 {
- protected:
+protected:
    Array<Mesh*> meshes;
    Array<FiniteElementSpace*> fespaces;
    Array<bool> ownedMeshes;
    Array<bool> ownedFES;
 
- public:
+public:
    /// Constructs a space hierarchy with the given mesh and space on level zero.
    /// The ownership of the mesh and space may be transferred to the
    /// SpaceHierarchy by setting the according boolean variables.
@@ -76,7 +76,7 @@ class SpaceHierarchy
 #ifdef MFEM_USE_MPI
 class ParSpaceHierarchy : public SpaceHierarchy
 {
- public:
+public:
    /// Constructs a parallel space hierarchy with the given mesh and space on
    /// level zero. The ownership of the mesh and space may be transferred to the
    /// ParSpaceHierarchy by setting the according boolean variables.

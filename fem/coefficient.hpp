@@ -47,6 +47,10 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) = 0;
 
+   /** @brief Evaluate the coefficient at the physical point @a x. */
+   double Eval(const Vector &x)
+   { mfem_error("Not implemented!"); return 0.0; }
+
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
    /** @note When this method is called, the caller must make sure that the
@@ -76,6 +80,8 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return (constant); }
+
+   virtual double Eval(const Vector &x) { return (constant); }
 };
 
 /// class for piecewise constant coefficient
@@ -157,8 +163,8 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
-   /// Evaluate the coefficient at the physical coordinates given by \p x 
-   double EvalPhysicalSpace(const Vector& x);
+   /// Evaluate the coefficient at the physical coordinates given by \p x
+   virtual double Eval(const Vector& x);
 };
 
 class GridFunction;

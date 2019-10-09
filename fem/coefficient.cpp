@@ -46,7 +46,7 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
-double FunctionCoefficient::EvalPhysicalSpace(const Vector& x)
+double FunctionCoefficient::Eval(const Vector& x)
 {
    return ((*Function)(x));
 }
