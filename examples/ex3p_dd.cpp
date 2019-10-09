@@ -54,10 +54,10 @@ double freq = 1.0, kappa;
 int dim;
 
 #ifdef AIRY_TEST
-//#define SIGMAVAL -10981.4158900991
+#define SIGMAVAL -10981.4158900991
 //#define SIGMAVAL -1601.0
 //#define SIGMAVAL -1009.0
-#define SIGMAVAL -211.0
+//#define SIGMAVAL -211.0
 //#define SIGMAVAL -2.0
 #else
 //#define SIGMAVAL -2.0
@@ -407,8 +407,8 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
-	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
+	(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
 	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
@@ -422,7 +422,7 @@ int main(int argc, char *argv[])
 
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {1, 1, 2};
+   int nxyzSubdomains[3] = {1, 1, 8};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -452,11 +452,11 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {1, 1, 1};
        //int nxyzGlobal[3] = {1, 1, 2};
        //int nxyzGlobal[3] = {1, 2, 1};
-       //int nxyzGlobal[3] = {2, 1, 2};
-       int nxyzGlobal[3] = {2, 2, 4};
+       //int nxyzGlobal[3] = {2, 2, 2};
+       //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {2, 2, 8};
-       //int nxyzGlobal[3] = {6, 6, 8};  // 288
+       int nxyzGlobal[3] = {6, 6, 8};  // 288
        //int nxyzGlobal[3] = {6, 6, 16};  // 576
        //int nxyzGlobal[3] = {6, 6, 32};  // 1152
        //int nxyzGlobal[3] = {8, 4, 8};
@@ -987,9 +987,10 @@ int main(int argc, char *argv[])
        }
        */
 
+       X = 0.0;
+
        Vector Xfem(X.Size());
        Xfem = X;
-       X = 0.0;
        
        ddi.RecoverDomainSolution(fespace, xdd, Xfem, X);
 
@@ -1032,32 +1033,6 @@ int main(int argc, char *argv[])
 	       ofstream solfile("xairy27b");
 	       X.Print(solfile);
 	     }
-
-	   {
-	     // Check residual
-	     Vector res(X.Size());
-	     Vector ssol(X.Size());
-	     ssol = X;
-
-	     const double Bnrm = B.Norml2();
-	     const double Bnrm2 = Bnrm*Bnrm;
-	     
-	     A.Mult(ssol, res);
-	     res -= B;
-
-	     const double Rnrm = res.Norml2();
-	     const double Rnrm2 = Rnrm*Rnrm;
-
-	     double sumBnrm2 = 0.0;
-	     double sumRnrm2 = 0.0;
-	     MPI_Allreduce(&Bnrm2, &sumBnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-	     MPI_Allreduce(&Rnrm2, &sumRnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-	     if (myid == 0)
-	       {
-		 cout << myid << ": STRUMPACK residual norm " << sqrt(sumRnrm2) << ", B norm " << sqrt(sumBnrm2) << endl;
-	       }
-	   }
 	   
 	   delete strumpack;
 	   delete Arow;
@@ -1123,6 +1098,32 @@ int main(int argc, char *argv[])
    chrono.Stop();
    cout << myid << ": Total DDM time (setup, solver, recovery) " << chrono.RealTime() << endl;
 
+   {
+     // Check residual
+     Vector res(X.Size());
+     Vector ssol(X.Size());
+     ssol = X;
+
+     const double Bnrm = B.Norml2();
+     const double Bnrm2 = Bnrm*Bnrm;
+	     
+     A.Mult(ssol, res);
+     res -= B;
+
+     const double Rnrm = res.Norml2();
+     const double Rnrm2 = Rnrm*Rnrm;
+
+     double sumBnrm2 = 0.0;
+     double sumRnrm2 = 0.0;
+     MPI_Allreduce(&Bnrm2, &sumBnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+     MPI_Allreduce(&Rnrm2, &sumRnrm2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+     if (myid == 0)
+       {
+	 cout << myid << ": Real FEM system residual norm " << sqrt(sumRnrm2) << ", B norm " << sqrt(sumBnrm2) << endl;
+       }
+   }
+   
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
@@ -1147,7 +1148,7 @@ int main(int argc, char *argv[])
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   /*
+
    {
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
@@ -1161,7 +1162,7 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
-   */
+
    
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)

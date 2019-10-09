@@ -203,16 +203,18 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #ifdef AIRY_TEST
 #include "gsl_sf_airy.h"
 
+//#define K2_AIRY 2.0  // TODO: input k
+#define K2_AIRY 10981.4158900991
+
 void test_Airy1_E_exact(const Vector &x, Vector &E)
 {
   const double y = (4.0 * x(0)) - 1.0;
-  //const double k = 104.792251097584;  // TODO: input k
-  const double k = sqrt(211.0);  // TODO: input k
-  const double beta = pow(0.25 * k, 2.0/3.0);  // TODO: store this somehow?
+  const double k = sqrt(K2_AIRY);  // TODO: input k
+  const double beta = -pow(0.25 * k, 2.0/3.0);  // TODO: store this somehow?
   
   E(0) = 0.0;
   E(1) = 0.0;
-  E(2) = gsl_sf_airy_Ai(-beta * y, GSL_PREC_DOUBLE);
+  E(2) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
 }
 
 void test_Airy_epsilon(const Vector &x, Vector &e)
@@ -220,6 +222,8 @@ void test_Airy_epsilon(const Vector &x, Vector &e)
   e(0) = 1.0;
   e(1) = 1.0;
   e(2) = (4.0 * x(0)) - 1.0;
+
+  e *= -K2_AIRY;
 }
 #endif
 
@@ -2958,11 +2962,12 @@ void SetDomainDofsFromSubdomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteE
 	  const int sddof_i = sddofs[i] >= 0 ? sddofs[i] : -1 - sddofs[i];
 	  const int ldof = fespaceDomain->GetLocalTDofNumber(dof_i);  // If the DOF is owned by the current processor, return its local tdof number, otherwise -1.
 
-	  MFEM_VERIFY(!((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0)), "TODO: flip the sign as in SetSubdomainDofsFromDomainDofs!");
+	  //MFEM_VERIFY(!((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0)), "TODO: flip the sign as in SetSubdomainDofsFromDomainDofs!");
 	  
 	  if (ldof >= 0)
 	    {
-	      s[ldof] = ssd_gf[sddof_i];
+	      const double flip = ((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0)) ? -1.0 : 1.0;
+	      s[ldof] = ssd_gf[sddof_i] * flip;
 	    }
 	}
     }
@@ -4906,6 +4911,15 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 
 	  PrintSubdomainError(m, uSD, eSD, *(rhsSD[m]));
 	  PrintInterfaceError(m, uSD);
+
+	  if (fespace[m] != NULL)
+	    {
+	      if (fespace[m]->GetTrueVSize() > 0)
+		{
+		  uSD.SetSize(fespace[m]->GetTrueVSize());
+		  SetDomainDofsFromSubdomainDofs(fespace[m], fespaceGlobal, uSD, solDomain);
+		}
+	    }
 	  
 #ifdef TESTFEMSOL
 	  {
@@ -5878,8 +5892,13 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain)
       b->Assemble();
       
       ParGridFunction xsd(fespace[subdomain]);
-      xsd.ProjectCoefficient(vcc);
-      
+
+      {
+	VectorFunctionCoefficient Eexact(3, test2_E_exact);
+	//xsd.ProjectCoefficient(vcc);
+	xsd.ProjectCoefficient(Eexact);
+      }
+
       Vector sdB, sdX;
       srcSD[subdomain] = new Vector(fespace[subdomain]->GetTrueVSize());
     
