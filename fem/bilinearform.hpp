@@ -409,6 +409,11 @@ public:
    /// Sets diagonal policy used upon construction of the linear system
    void SetDiagonalPolicy(DiagonalPolicy policy);
 
+   void SetIntegratorOwnership(int _extern_bfs)
+   {
+      extern_bfs = _extern_bfs;
+   }
+
    /// Destroys bilinear form.
    virtual ~BilinearForm();
 };
@@ -546,6 +551,11 @@ public:
 
    virtual void Update(FiniteElementSpace *ntr_fes = NULL,
                        FiniteElementSpace *nte_fes = NULL);
+
+   void SetIntegratorOwnership(int _extern_bfs)
+   {
+      extern_bfs = _extern_bfs;
+   }
 
    virtual ~MixedBilinearForm();
 };

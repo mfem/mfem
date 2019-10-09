@@ -187,6 +187,12 @@ public:
        FiniteElementSpace #fes. */
    LinearForm &operator=(const Vector &v);
 
+   /// Change ownership of linear form integrators.
+   void SetIntegratorOwnership(int _extern_lfs)
+   {
+      extern_lfs = _extern_lfs;
+   }
+
    /// Destroys linear form.
    ~LinearForm();
 };
