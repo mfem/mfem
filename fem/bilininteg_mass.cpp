@@ -697,7 +697,6 @@ static void SmemPAMassApply3D(const int NE,
             }
             for (int dz = 0; dz < D1D; ++dz)
             {
-               //#pragma unroll 
                for (int qz = 0; qz < Q1D; qz++)
                {
                   u[qz] += DQQ[dz][qy][qx] * B[qz][dz];
@@ -775,7 +774,6 @@ static void SmemPAMassApply3D(const int NE,
             }
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               //#pragma  unroll
                for (int dz = 0; dz < D1D; ++dz) 
                {
                   u[dz] += QDD[qz][dy][dx] * Bt[dz][qz];
