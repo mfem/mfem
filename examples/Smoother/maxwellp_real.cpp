@@ -7,8 +7,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "Schwarzp.hpp"
-
+// #include "Schwarzp.hpp"
+#include "Multigrid.hpp"
 using namespace std;
 using namespace mfem;
 
@@ -124,23 +124,25 @@ int main(int argc, char *argv[])
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   ParMesh cpmesh(*pmesh);
    // 4. Define a finite element space on the mesh.
    FiniteElementCollection *fec   = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-
+   std::vector<ParFiniteElementSpace * > fespaces(maxref+1);
+   std::vector<ParMesh * > ParMeshes(maxref+1);
    std::vector<HypreParMatrix*>  P(maxref);
    for (int i = 0; i < maxref; i++)
    {
-      const ParFiniteElementSpace cfespace(*fespace);
+      ParMeshes[i] =new ParMesh(*pmesh);
+      fespaces[i] = new ParFiniteElementSpace(*fespace, *ParMeshes[i]);
       pmesh->UniformRefinement();
       // Update fespace
       fespace->Update();
       OperatorHandle Tr(Operator::Hypre_ParCSR);
-      fespace->GetTrueTransferOperator(cfespace, Tr);
+      fespace->GetTrueTransferOperator(*fespaces[i], Tr);
       Tr.SetOperatorOwner(false);
       Tr.Get(P[i]);
    }
+   fespaces[maxref] = new ParFiniteElementSpace(*fespace);
 
    ConstantCoefficient muinv(1.0);
 #ifdef DEFINITE
@@ -184,31 +186,30 @@ int main(int argc, char *argv[])
            << A->GetGlobalNumRows() << " x " << A->GetGlobalNumCols() << endl;
    }
 
-
+   MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
    // GMGSolver M(A, P, GMGSolver::CoarseSolver::PETSC);
-   // GMGSolver M(A, P, GMGSolver::CoarseSolver::SUPERLU);
-   // M.SetTheta(0.5);
-   // M.SetSmootherType(HypreSmoother::Jacobi);
-   chrono.Clear();
-   chrono.Start();
-   ParSchwarzSmoother *prec = new ParSchwarzSmoother(&cpmesh,maxref,fespace,A,ess_tdof_list);
-   chrono.Stop();
+   MGSolver M(A, P,fespaces);
+   // M.SetTheta(3.0/4.0);
+   // chrono.Clear();
+   // chrono.Start();
 
-   if (mpi.Root())
-   {
-      cout << "Preconditioner construction time: " << chrono.RealTime() << endl;
-   }
+   // if (mpi.Root())
+   // {
+   //    cout << "Preconditioner construction time: " << chrono.RealTime() << endl;
+   // }
 
    int maxit(1000);
    double rtol(0.0);
-   double atol(1.e-8);
+   double atol(1.e-6);
    X = 0.0;
    GMRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetAbsTol(atol);
    gmres.SetRelTol(rtol);
    gmres.SetMaxIter(maxit);
    gmres.SetOperator(*A);
-   gmres.SetPreconditioner(*prec);
+   // gmres.SetPreconditioner(*prec);
+   // gmres.SetPreconditioner(MG);
+   gmres.SetPreconditioner(M);
    gmres.SetPrintLevel(1);
 
 
@@ -268,6 +269,7 @@ int main(int argc, char *argv[])
    delete fec;
    delete fespace;
    delete pmesh;
+   MFEMFinalizePetsc();
    return 0;
 }
 

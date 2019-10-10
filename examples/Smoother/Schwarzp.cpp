@@ -249,7 +249,7 @@ void par_patch_nod_info::Print(int rankid)
    }
 }
 
-par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace, const Array<int> & ess_tdof_list)
+par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace)
 {
    par_patch_nod_info *patch_nodes = new par_patch_nod_info(cpmesh_, ref_levels_);
 
@@ -436,7 +436,7 @@ void par_patch_dof_info::Print()
    }
 }
 
-par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace_, HypreParMatrix * A_, const Array<int> & ess_tdof_list) 
+par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace_, HypreParMatrix * A_) 
    : fespace(fespace_), A(A_)
 {
    comm = A->GetComm();
@@ -457,7 +457,7 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
    At->GetOffd(offdT,cmapT);
    int *row_startT = At->GetRowStarts();
 
-   patch_tdof_info = new par_patch_dof_info(cpmesh_, ref_levels_,fespace, ess_tdof_list);
+   patch_tdof_info = new par_patch_dof_info(cpmesh_, ref_levels_,fespace);
    
    nrpatch = patch_tdof_info->nrpatch; 
    host_rank.SetSize(nrpatch); host_rank = -1;
@@ -708,10 +708,10 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
 }
 
 
-ParSchwarzSmoother::ParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_, const Array<int> & ess_tdof_list)
+ParSchwarzSmoother::ParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_)
 : Solver(A_->Height(), A_->Width()), A(A_)
 {
-   P = new par_patch_assembly(cpmesh_,ref_levels_, fespace_, A_, ess_tdof_list);
+   P = new par_patch_assembly(cpmesh_,ref_levels_, fespace_, A_);
    comm = A->GetComm();
    nrpatch = P->nrpatch;
    host_rank.SetSize(nrpatch);

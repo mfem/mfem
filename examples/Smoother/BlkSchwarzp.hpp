@@ -3,7 +3,6 @@
 #include <fstream>
 #include <iostream>
 #include "Schwarzp.hpp"
-
 using namespace std;
 using namespace mfem;
 
@@ -13,7 +12,7 @@ private:
    MPI_Comm comm;
    int nrpatch;
    int maxit = 1;
-   double theta = 0.5;
+   double theta = 1.0;
    Array<int> host_rank;
    Array<UMFPackSolver * > PatchInv;
    Array<SparseMatrix * > PatchMat;
@@ -24,7 +23,7 @@ private:
    BlockOperator * blk = nullptr;
 public:
    BlkParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_,
-                         Array2D<HypreParMatrix*> blockA_,Array<int> ess_tdof_list);
+                         Array2D<HypreParMatrix*> blockA_);
    void SetNumSmoothSteps(const int iter) {maxit = iter;}
    void SetDumpingParam(const double dump_param) {theta = dump_param;}
   

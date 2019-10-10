@@ -1,7 +1,6 @@
 
 #include "mfem.hpp"
 #include "BlkSchwarzp.hpp"
-#include "util.hpp"
 #include <iterator>
 #include <fstream>
 #include <iostream>
@@ -11,7 +10,7 @@ using namespace mfem;
 
 
 BlkParSchwarzSmoother::BlkParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
-ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_, Array<int> ess_tdof_list)
+ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
 : Solver(blockA_(0,0)->Height()+blockA_(1,0)->Height(), 
          blockA_(0,1)->Width() +blockA_(1,1)->Width()), blockA(blockA_)
 {
@@ -23,7 +22,7 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_, Array<int> 
    {
       for (int j=0; j<2; j++)
       {
-         P(i,j) = new par_patch_assembly(cpmesh_,ref_levels_, fespace_, blockA(i,j), ess_tdof_list);
+         P(i,j) = new par_patch_assembly(cpmesh_,ref_levels_, fespace_, blockA(i,j));
       }
    }
 

@@ -519,7 +519,7 @@ int main(int argc, char *argv[])
    // blkAMS->SetCycleType("012343210");
 
 
-   int maxit(5000);
+   int maxit(500);
    double rtol(1.e-6);
    double atol(0.0);
    trueX = 0.0;
@@ -528,8 +528,8 @@ int main(int argc, char *argv[])
    pcg.SetAbsTol(atol);
    pcg.SetRelTol(rtol);
    pcg.SetMaxIter(maxit);
-   pcg.SetOperator(*LS_Maxwellop);
    pcg.SetPreconditioner(*blkAMS);
+   pcg.SetOperator(*LS_Maxwellop);
    pcg.SetPrintLevel(1);
    pcg.Mult(trueRhs, trueX);
 
@@ -565,9 +565,11 @@ int main(int argc, char *argv[])
       cout << "|| E_h - E || = " << Error_E  << "\n";
       cout << "|| H_h - H || = " << Error_H  << "\n";
 
-      cout << "Total Relative error = " <<  Error_E / norm_E + Error_H / norm_H  << "\n";
-      cout << "E Relative error = " <<  Error_E / norm_E  << "\n";
-      cout << "H Relative error = " <<  Error_H / norm_H  << "\n";
+      cout << "Total error = " << sqrt(Error_H*Error_H+Error_E*Error_E) << "\n";
+
+      // cout << "Total Relative error = " <<  Error_E / norm_E + Error_H / norm_H  << "\n";
+      // cout << "E Relative error = " <<  Error_E / norm_E  << "\n";
+      // cout << "H Relative error = " <<  Error_H / norm_H  << "\n";
 
       // cout << "|| E || = " << norm_E  << "\n";
       // cout << "|| H || = " << norm_H  << "\n";

@@ -2,8 +2,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "BlkSchwarzp.hpp"
-
+// #include "BlkSchwarzp.hpp"
+#include "BlkAMS.hpp"
 using namespace std;
 using namespace mfem;
 
@@ -101,15 +101,24 @@ int main(int argc, char *argv[])
 
    ParMesh *cpmesh = new ParMesh(*pmesh);
 
-   for (int l = 0; l < ref_levels; l++)
-   {
-      pmesh->UniformRefinement();
-   }
-
-   // 4. Define a finite element space on the mesh.
+// 4. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    // ParFiniteElementSpace *fespace = new ParFiniteElementSpace(mesh, fec);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   std::vector<ParFiniteElementSpace * > fespaces(ref_levels+1);
+   std::vector<ParMesh * > ParMeshes(ref_levels+1);
+
+   for (int i = 0; i < ref_levels; i++)
+   {
+      ParMeshes[i] =new ParMesh(*pmesh);
+      fespaces[i] = new ParFiniteElementSpace(*fespace, *ParMeshes[i]);
+      pmesh->UniformRefinement();
+      // Update fespace
+      fespace->Update();
+   }
+   fespaces[ref_levels] = new ParFiniteElementSpace(*fespace);
+
+   
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -235,21 +244,38 @@ int main(int argc, char *argv[])
    blockA(1,1) = A_HH;
 
 
+   // BlkParSchwarzSmoother * prec;
+   // prec = new BlkParSchwarzSmoother(cpmesh,ref_levels,fespace,blockA);
+   // prec->SetDumpingParam(0.2);
+   // prec->SetNumSmoothSteps(3);
 
-   BlkParSchwarzSmoother * prec;
-   prec = new BlkParSchwarzSmoother(cpmesh,ref_levels,fespace,blockA,ess_tdof_list);
+   // prec = new BlkParSchwarzSmoother(fespace->GetParMesh(),0,fespace,blockA);
+   // prec = new BlkParSchwarzSmoother(cpmesh,ref_levels,fespace,blockA);
 
-   int maxit(100);
+   Block_AMSSolver * prec1;
+   prec1 = new Block_AMSSolver(block_trueOffsets,fespaces);
+   prec1->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
+   // prec1->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
+   prec1->SetOperator(blockA);
+   prec1->SetTheta(0.2);
+   //0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
+   // prec1->SetCycleType("012343210");
+   prec1->SetCycleType("0002341432000");
+   prec1->SetNumberofCycles(1);
+
+
+   int maxit(500);
    double rtol(1.e-6);
    double atol(0.0);
    trueX = 0.0;
 
-   // GMRESSolver pcg(MPI_COMM_WORLD);
    CGSolver pcg(MPI_COMM_WORLD);
+   // GMRESSolver pcg(MPI_COMM_WORLD);
    pcg.SetAbsTol(atol);
    pcg.SetRelTol(rtol);
    pcg.SetMaxIter(maxit);
-   pcg.SetPreconditioner(*prec);
+   pcg.SetPreconditioner(*prec1);
+   // pcg.SetPreconditioner(*prec);
    pcg.SetOperator(*LS_Maxwellop);
    pcg.SetPrintLevel(1);
    pcg.Mult(trueRhs, trueX);

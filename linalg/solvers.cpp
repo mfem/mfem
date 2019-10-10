@@ -1692,7 +1692,6 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
    for (int i = NumGrids ; i > 0; i--)
    {
       A[i - 1] = RAP(A[i], P[i - 1]);
-      // Put a check on check dimension of RAP (to do)
    }
    // Set up coarse solve operator
    switch(cs)
@@ -1785,7 +1784,7 @@ void GMGSolver::Mult(const Vector &r, Vector &z) const
       P[i - 1]->MultTranspose(rv[i], rv[i - 1]);
    }
 
-   // Coarse grid Stiffness matrix
+   // Coarse grid Solve
    invAc->Mult(rv[0], zv[0]);
    //
    for (int i = 1; i <= NumGrids ; i++)

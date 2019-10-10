@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *prec_fespace = (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
    chrono.Clear();
    chrono.Start();
-   ParSchwarzSmoother * prec = new ParSchwarzSmoother(&cpmesh,par_ref_levels, prec_fespace, &A,ess_tdof_list);
+   ParSchwarzSmoother * prec = new ParSchwarzSmoother(&cpmesh,par_ref_levels, prec_fespace, &A);
    prec->SetNumSmoothSteps(smth_maxit);
    prec->SetDumpingParam(theta);
    chrono.Stop();

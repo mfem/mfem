@@ -37,7 +37,7 @@ public:
    vector<Array<int>> patch_tdofs;
    vector<Array<int>> patch_local_tdofs;
    // constructor
-   par_patch_dof_info(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace, const Array<int> & ess_tdof_list);
+   par_patch_dof_info(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace);
    void Print();
    ~par_patch_dof_info();
 };
@@ -57,7 +57,7 @@ public:
    HypreParMatrix * A = nullptr;
    int get_rank(int tdof);
    // constructor
-   par_patch_assembly(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_, const Array<int> & ess_tdof_list);
+   par_patch_assembly(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
    ~par_patch_assembly() {delete patch_tdof_info;}
 private:
    void compute_trueoffsets();
@@ -97,7 +97,7 @@ private:
    par_patch_assembly * P;
    PatchRestriction * R= nullptr;
 public:
-   ParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_, const Array<int> & ess_tdof_list);
+   ParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
    void SetNumSmoothSteps(const int iter) {maxit = iter;}
    void SetDumpingParam(const double dump_param) {theta = dump_param;}
    virtual void SetOperator(const Operator &op) {}
