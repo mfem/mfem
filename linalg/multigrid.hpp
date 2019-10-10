@@ -12,6 +12,7 @@
 #ifndef MFEM_MULTIGRID
 #define MFEM_MULTIGRID
 
+#include "../general/tic_toc.hpp"
 #include "operator.hpp"
 
 namespace mfem
@@ -39,7 +40,7 @@ class MultigridOperator : public Operator
                      bool ownSolver);
 
    /// Destructor
-   ~MultigridOperator();
+   virtual ~MultigridOperator();
 
    /// This method adds the first coarse grid level to the hierarchy. Only after
    /// the call to this method additional levels may be added with AddLevel. The
@@ -62,20 +63,22 @@ class MultigridOperator : public Operator
    unsigned GetFinestLevelIndex() const;
 
    /// Matrix vector multiplication at given level
-   void MultAtLevel(unsigned level, const Vector& x, Vector& y) const;
+   virtual void MultAtLevel(unsigned level, const Vector& x, Vector& y) const;
 
    /// Matrix vector multiplication with the operator at the finest level
-   void Mult(const Vector& x, Vector& y) const override;
+   virtual void Mult(const Vector& x, Vector& y) const override;
 
    /// Restrict vector \p x from \p level + 1 to \p level. This method uses the
    /// transposed of the interpolation
-   void RestrictTo(unsigned level, const Vector& x, Vector& y) const;
+   virtual void RestrictTo(unsigned level, const Vector& x, Vector& y) const;
 
    /// Interpolate vector \p x from \p level to \p level + 1
-   void InterpolateFrom(unsigned level, const Vector& x, Vector& y) const;
+   virtual void InterpolateFrom(unsigned level, const Vector& x,
+                                Vector& y) const;
 
    /// Apply Smoother at given level
-   void ApplySmootherAtLevel(unsigned level, const Vector& x, Vector& y) const;
+   virtual void ApplySmootherAtLevel(unsigned level, const Vector& x,
+                                     Vector& y) const;
 
    /// Returns operator at given level
    const Operator* GetOperatorAtLevel(unsigned level) const;
@@ -94,6 +97,43 @@ class MultigridOperator : public Operator
 
    /// Returns smoother at given level
    Solver* GetSmootherAtLevel(unsigned level);
+};
+
+class TimedMultigridOperator : public MultigridOperator
+{
+ public:
+   enum class Operation
+   {
+      OPERATOR,
+      PROLONGATION,
+      RESTRICTION,
+      SMOOTHER
+   };
+
+   enum class Statistics
+   {
+      NUMAPPLICATIONS,
+      TOTALTIME
+   };
+
+ private:
+   mutable StopWatch sw;
+   mutable std::map<std::tuple<Statistics, Operation, unsigned>, double> stats;
+
+ public:
+   TimedMultigridOperator();
+   TimedMultigridOperator(Operator* opr, Solver* coarseSolver, bool ownOperator,
+                          bool ownSolver);
+   ~TimedMultigridOperator();
+
+   void MultAtLevel(unsigned level, const Vector& x, Vector& y) const override;
+   void RestrictTo(unsigned level, const Vector& x, Vector& y) const override;
+   void InterpolateFrom(unsigned level, const Vector& x,
+                        Vector& y) const override;
+   void ApplySmootherAtLevel(unsigned level, const Vector& x,
+                             Vector& y) const override;
+
+   void PrintStats(Operation operation, std::ostream& out) const;
 };
 
 // Multigrid solver
