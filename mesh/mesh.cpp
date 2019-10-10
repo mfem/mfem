@@ -5934,14 +5934,17 @@ void Mesh::UniformRefinement2D()
    const int oedge = NumOfVertices;
    const int oelem = oedge + NumOfEdges;
 
+   Array<Element *> old_elements(elements);
+
    vertices.SetSize(oelem + quad_counter);
    elements.SetSize(4 * NumOfElements);
    quad_counter = 0;
+   int nec = 0; // new element counter
    for (int i = 0; i < NumOfElements; i++)
    {
-      const Element::Type el_type = elements[i]->GetType();
-      const int attr = elements[i]->GetAttribute();
-      int *v = elements[i]->GetVertices();
+      const Element::Type el_type = old_elements[i]->GetType();
+      const int attr = old_elements[i]->GetAttribute();
+      int *v = old_elements[i]->GetVertices();
       const int *e = el_to_edge->GetRow(i);
       const int j = NumOfElements + 3 * i;
       int vv[2];
@@ -5957,9 +5960,11 @@ void Mesh::UniformRefinement2D()
             AverageVertices(vv, 2, oedge+e[ei]);
          }
 
-         elements[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
-         elements[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
-         elements[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
+         printf("oedge, e[0], e[1], e[2]: %d %d %d %d\n",oedge,e[0],e[1],e[2]);
+         printf("v[0], v[1], v[2]: %d %d %d\n",v[0],v[1],v[2]);
+         elements[nec++] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
+         elements[nec++] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
+         elements[nec++] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
 
          v[1] = oedge+e[0];
          v[2] = oedge+e[2];
@@ -5979,12 +5984,14 @@ void Mesh::UniformRefinement2D()
             AverageVertices(vv, 2, oedge+e[ei]);
          }
 
-         elements[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
-                                           oelem+qe, attr);
-         elements[j+1] = new Quadrilateral(oelem+qe, oedge+e[1],
-                                           v[2], oedge+e[2], attr);
-         elements[j+2] = new Quadrilateral(oedge+e[3], oelem+qe,
-                                           oedge+e[2], v[3], attr);
+         elements[nec++] = new Quadrilateral(v[0], oedge+e[0],
+                                             oelem+qe, oedge+e[3], attr);
+         elements[nec++] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
+                                             oelem+qe, attr);
+         elements[nec++] = new Quadrilateral(oelem+qe, oedge+e[1],
+                                             v[2], oedge+e[2], attr);
+         elements[nec++] = new Quadrilateral(oedge+e[3], oelem+qe,
+                                             oedge+e[2], v[3], attr);
 
          v[1] = oedge+e[0];
          v[2] = oelem+qe;
