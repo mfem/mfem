@@ -158,6 +158,7 @@ static void DeviceSetup(const int dev, int &ngpu)
    ngpu = CuGetDeviceCount();
    MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
    MFEM_GPU_CHECK(cudaSetDevice(dev));
+   MFEM_DEVICE_SYNC;
 }
 #endif
 
@@ -250,6 +251,7 @@ void Device::Setup(const int device)
    dev = device;
 
    const bool debug = Allows(Backend::DEBUG);
+   const bool hip = Allows(Backend::HIP_MASK);
    const bool cuda = Allows(Backend::CUDA_MASK);
    const bool raja = Allows(Backend::RAJA_MASK);
    const bool occa = Allows(Backend::OCCA_MASK);
@@ -272,18 +274,16 @@ void Device::Setup(const int device)
                "the OpenMP and RAJA OpenMP backends require MFEM built with"
                " MFEM_USE_OPENMP=YES");
 #endif
-   if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
-   // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
 
    // Device backends setup
    if (cuda) { CudaDeviceSetup(dev, ngpu); }
+   if (hip) { HipDeviceSetup(dev, ngpu); }
    if (occa) { OccaDeviceSetup(dev); }
+   if (raja) { RajaDeviceSetup(dev, ngpu); }
    if (debug)
    {
       ngpu = 1;
-      MFEM_VERIFY((cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
+      MFEM_VERIFY((hip|cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
 #ifdef MFEM_USE_UMPIRE
       MFEM_ABORT("'debug' mode is not compatible with UMPIRE!");
 #endif
