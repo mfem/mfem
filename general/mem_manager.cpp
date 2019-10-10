@@ -126,7 +126,7 @@ public:
    virtual void Dealloc(void *d_ptr) { std::free(d_ptr); }
 };
 
-// The copy memory space abstract class
+/// The copy memory space abstract class
 class CopyMemorySpace
 {
 public:
@@ -321,47 +321,68 @@ public:
    void *DtoH(void *dst, const void *src, const size_t bytes) { return dst; }
 };
 
+
 #ifdef MFEM_USE_UMPIRE
 /// The Umpire host memory space
 class UmpireHostMemorySpace : public HostMemorySpace
 {
 private:
-   umpire::ResourceManager& rm;
+   umpire::ResourceManager &rm;
    umpire::Allocator h_allocator;
+   umpire::strategy::AllocationStrategy *strat;
 public:
+   ~UmpireHostMemorySpace() { h_allocator.release(); }
    UmpireHostMemorySpace():
       HostMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
       h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("host_pool", rm.getAllocator("HOST"))) { dbg(""); }
-   void Alloc(void **ptr, const size_t bytes)
-   { dbg(""); *ptr = h_allocator.allocate(bytes); }
-   void Dealloc(void *ptr) { dbg(""); h_allocator.deallocate(ptr); }
-   virtual void Insert(void *ptr, const size_t bytes)
+                  ("HOST_pool", rm.getAllocator("HOST"))),
+      strat(h_allocator.getAllocationStrategy())
    {
       dbg("");
-      auto strat = rm.getDefaultAllocator().getAllocationStrategy();
-      umpire::util::AllocationRecord* record =
-         new umpire::util::AllocationRecord{ptr, bytes, strat};
-      rm.registerAllocation(ptr, record);
+      // MFEM_DEVICE_SYNC; // => invalid device function
    }
+   void Alloc(void **ptr, const size_t bytes)
+   { *ptr = h_allocator.allocate(bytes); }
+   void Dealloc(void *ptr) { dbg(""); h_allocator.deallocate(ptr); }
+   virtual void Insert(void *ptr, const size_t bytes)
+   { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
 
 /// The Umpire device memory space
 class UmpireDeviceMemorySpace : public DeviceMemorySpace
 {
 private:
-   umpire::ResourceManager& rm;
+   bool init;
+   umpire::ResourceManager &rm;
    umpire::Allocator d_allocator;
 public:
+   ~UmpireDeviceMemorySpace()
+   {
+      dbg("");
+      d_allocator.release();
+   }
    UmpireDeviceMemorySpace(): DeviceMemorySpace(),
-      rm(umpire::ResourceManager::getInstance()),
-      d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("device_pool",rm.getAllocator("DEVICE"))) { dbg(""); }
+      init(false),
+      rm(umpire::ResourceManager::getInstance())
+      // anything on the device => invalid device function
+      /* d_pool_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
+                         ("DEVICE_pool", rm.getAllocator("DEVICE")))*/
+   {
+      dbg("");
+      // MFEM_DEVICE_SYNC; // => invalid device function
+   }
    void Alloc(internal::Memory &base, const size_t bytes)
-   { dbg(""); base.d_ptr = d_allocator.allocate(bytes); }
-   void Dealloc(void *dptr)
-   { dbg(""); d_allocator.deallocate(dptr); }
+   {
+      if (!init)
+      {
+         init = true;
+         d_allocator = rm.makeAllocator<umpire::strategy::DynamicPool>
+                       ("DEVICE_pool", rm.getAllocator("DEVICE"));
+      }
+      base.d_ptr = d_allocator.allocate(bytes);
+   }
+   void Dealloc(void *dptr) { d_allocator.deallocate(dptr); }
 };
 
 /// The Umpire copy memory space
