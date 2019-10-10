@@ -124,7 +124,6 @@ void Device::UpdateMemoryTypeAndClass()
       dbg("[Device::UpdateMemoryTypeAndClass] DEBUG");
       mem_type = MemoryType::HOST_MMU;
       mem_class = MemoryClass::HOST_MMU;
-      mm.Setup(mem_type);
    }
    else if (Device::Allows(Backend::DEVICE_MASK))
    {
@@ -138,6 +137,7 @@ void Device::UpdateMemoryTypeAndClass()
       mem_type = MemoryType::HOST;
       mem_class = MemoryClass::HOST;
    }
+   mm.Setup(mem_type);
 }
 
 void Device::Enable()
@@ -284,9 +284,6 @@ void Device::Setup(const int device)
    {
       ngpu = 1;
       MFEM_VERIFY((hip|cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
-#ifdef MFEM_USE_UMPIRE
-      MFEM_ABORT("'debug' mode is not compatible with UMPIRE!");
-#endif
    }
 }
 

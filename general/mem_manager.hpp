@@ -570,9 +570,9 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 template <typename T>
 inline void Memory<T>::Delete()
 {
-   dbg("Memory<T>::Delete %p", h_ptr);
-   dbg("%sREGISTERED",flags & REGISTERED ? "":"NOT ");
-   const bool exists = MemoryManager::Exists();
+   //dbg("Memory<T>::Delete %p", h_ptr);
+   //dbg("%sREGISTERED",flags & REGISTERED ? "":"NOT ");
+   //const bool exists = MemoryManager::Exists();
    //MFEM_VERIFY(exists, "MemoryManager has already been destroyed!");
    if (!(flags & REGISTERED) ||
        MemoryManager::Delete_((void*)h_ptr, flags) == MemoryType::HOST)
@@ -581,17 +581,17 @@ inline void Memory<T>::Delete()
       {
          if (h_type == MemoryType::HOST)
          {
-            dbg("delete []");
+            //dbg("delete []");
             delete [] h_ptr;
          }
          else
          {
-            dbg("HostDelete_");
+            //dbg("HostDelete_");
             MemoryManager::HostDelete_(h_ptr, flags);
          }
       }
    }
-   dbg("done");
+   //dbg("done");
 }
 
 // ****************************************************************************

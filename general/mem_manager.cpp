@@ -331,17 +331,13 @@ private:
    umpire::Allocator h_allocator;
    umpire::strategy::AllocationStrategy *strat;
 public:
-   ~UmpireHostMemorySpace() { h_allocator.release(); }
+   ~UmpireHostMemorySpace() { dbg(""); h_allocator.release(); }
    UmpireHostMemorySpace():
       HostMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
       h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
                   ("HOST_pool", rm.getAllocator("HOST"))),
-      strat(h_allocator.getAllocationStrategy())
-   {
-      dbg("");
-      // MFEM_DEVICE_SYNC; // => invalid device function
-   }
+      strat(h_allocator.getAllocationStrategy()) { dbg(""); }
    void Alloc(void **ptr, const size_t bytes)
    { *ptr = h_allocator.allocate(bytes); }
    void Dealloc(void *ptr) { dbg(""); h_allocator.deallocate(ptr); }
@@ -353,35 +349,16 @@ public:
 class UmpireDeviceMemorySpace : public DeviceMemorySpace
 {
 private:
-   bool init;
    umpire::ResourceManager &rm;
    umpire::Allocator d_allocator;
 public:
-   ~UmpireDeviceMemorySpace()
-   {
-      dbg("");
-      d_allocator.release();
-   }
+   ~UmpireDeviceMemorySpace() { dbg(""); d_allocator.release(); }
    UmpireDeviceMemorySpace(): DeviceMemorySpace(),
-      init(false),
-      rm(umpire::ResourceManager::getInstance())
-      // anything on the device => invalid device function
-      /* d_pool_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                         ("DEVICE_pool", rm.getAllocator("DEVICE")))*/
-   {
-      dbg("");
-      // MFEM_DEVICE_SYNC; // => invalid device function
-   }
+      rm(umpire::ResourceManager::getInstance()),
+      d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
+                  ("DEVICE_pool", rm.getAllocator("DEVICE"))) { dbg(""); }
    void Alloc(internal::Memory &base, const size_t bytes)
-   {
-      if (!init)
-      {
-         init = true;
-         d_allocator = rm.makeAllocator<umpire::strategy::DynamicPool>
-                       ("DEVICE_pool", rm.getAllocator("DEVICE"));
-      }
-      base.d_ptr = d_allocator.allocate(bytes);
-   }
+   { base.d_ptr = d_allocator.allocate(bytes); }
    void Dealloc(void *dptr) { d_allocator.deallocate(dptr); }
 };
 
@@ -418,7 +395,8 @@ public:
    internal::CopyMemorySpace *memcpy;
 public:
    Ctrl(const MemoryType h = MemoryType::HOST,
-        const MemoryType d = MemoryType::CUDA)
+        const MemoryType d = MemoryType::CUDA,
+        const bool umpire = false)
       : host(nullptr), device(nullptr), memcpy(nullptr)
    {
       dbg("");
@@ -436,18 +414,24 @@ public:
       { memcpy = new internal::CudaCopyMemorySpace(); }
       else { memcpy = new internal::StdCopyMemorySpace(); }
 #else
-      host =   new internal::UmpireHostMemorySpace();
-      device = new internal::UmpireDeviceMemorySpace();
-      memcpy = new internal::UmpireCopyMemorySpace();
+      if (umpire)
+      {
+         host =   new internal::UmpireHostMemorySpace();
+         device = new internal::UmpireDeviceMemorySpace();
+         memcpy = new internal::UmpireCopyMemorySpace();
+      }
+      else
+      {
+         host =   new internal::StdHostMemorySpace();
+         device = new internal::NoDeviceMemorySpace();
+         memcpy = new internal::StdCopyMemorySpace();
+      }
 #endif // MFEM_USE_UMPIRE
    }
    ~Ctrl()
    {
-      dbg("host");
       delete host;
-      dbg("device");
       delete device;
-      dbg("memcpy");
       delete memcpy;
    }
 };
@@ -458,7 +442,6 @@ static internal::Ctrl *ctrl;
 
 MemoryManager::MemoryManager()
 {
-   dbg("");
    exists = true;
    maps = new internal::Maps();
    ctrl = new internal::Ctrl();
@@ -488,8 +471,9 @@ void MemoryManager::Setup(MemoryType mt)
       ctrl = new internal::Ctrl(MemoryType::HOST, MemoryType::CUDA);
    }
 #else
-   if (mt == MemoryType::CUDA_UVM)
-   { mfem_error("Umpire cannot switch to UVM!"); }
+   MFEM_VERIFY( mt != MemoryType::CUDA_UVM, "Umpire cannot switch to UVM!");
+   delete ctrl;
+   ctrl = new internal::Ctrl(MemoryType::HOST, MemoryType::CUDA, true);
 #endif // MFEM_USE_UMPIRE
 }
 
