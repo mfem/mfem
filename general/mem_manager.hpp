@@ -14,7 +14,6 @@
 
 #include "globals.hpp"
 #include "error.hpp"
-#include "dbg.hpp"
 
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
@@ -111,7 +110,7 @@ protected:
 
    enum FlagMask: unsigned long
    {
-      REGISTERED    = 1 << 0, ///< #h_ptr is registered with the MemoryManager
+      REGISTERED    = 1 << 0, ///< The host pointer is registered with the MemoryManager
       OWNS_HOST     = 1 << 1, ///< The host pointer will be deleted by Delete()
       OWNS_DEVICE   = 1 << 2, ///< The device pointer will be deleted by Delete()
       OWNS_INTERNAL = 1 << 3, ///< Ownership flag for internal Memory data
@@ -127,8 +126,7 @@ protected:
        type from MemoryClass::HOST. */
    T *h_ptr;
    int capacity;
-   /** @brief h_type stores the memory type on the host side
-    */
+   /** @brief h_type stores the memory type on the host side. */
    MemoryType h_type;
    mutable unsigned flags;
    // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
@@ -249,7 +247,6 @@ public:
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, bool own)
    {
-      dbg("Wrap %p", ptr);
       h_ptr = ptr;
       capacity = size;
       h_type = MemoryType::HOST;
@@ -380,12 +377,13 @@ public:
 class MemoryManager
 {
 private:
-   template <typename T> friend class Memory;
    // Used by the private static methods called by class Memory:
    typedef Memory<int> Mem;
+   template <typename T> friend class Memory;
 
+   /// Memory type set during the Setup for special backends: MMU, Umpire.
+   /// Set to MemoryType::HOST by default.
    static MemoryType m_type;
-   static MemoryType GetMemoryType_() { return m_type; }
 
    /// Allow to detect if a global memory manager instance exists
    static bool exists;
@@ -394,13 +392,14 @@ private:
    static bool Exists() { return exists; }
 
    // Methods used by class Memory
+private:
 
    // Allocate and register a new pointer. Return the host pointer.
    static void *New_(size_t bytes, MemoryType mt, unsigned &flags);
    static void *HostNew_(void **ptr, const size_t bytes, unsigned &flags);
 
    /// Host function: New, Delete, Unprotect
-   static void HostUnprotect_(const void *ptr, const size_t bytes);
+   //static void HostUnprotect_(const void *ptr, const size_t bytes);
 
    // Register an external pointer of the given MemoryType.
    // Return the host pointer.
@@ -497,9 +496,7 @@ template <typename T>
 inline void Memory<T>::New(int size)
 {
    capacity = size;
-   // Get the m_type from the memory manager (set inside Setup)
-   h_type = MemoryManager::GetMemoryType_();
-   dbg("Memory<T>::New<0:%d>(%d)", h_type, size);
+   h_type = MemoryManager::m_type;
    flags = OWNS_HOST | VALID_HOST;
    if (h_type == MemoryType::HOST)
    {
@@ -515,11 +512,7 @@ inline void Memory<T>::New(int size)
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
-   dbg("Memory<T>::New<%d>(%d)", mt, size);
-   if (mt == MemoryType::HOST)
-   {
-      New(size);
-   }
+   if (mt == MemoryType::HOST) { New(size); }
    else
    {
       h_type = mt;
@@ -532,7 +525,6 @@ inline void Memory<T>::New(int size, MemoryType mt)
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
-   dbg("Memory<T>::Wrap");
    if (mt == MemoryType::HOST)
    {
       Wrap(ptr, size, own);
@@ -551,7 +543,6 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
-   dbg("Memory<T>::MakeAlias(%p, +%d)", base.h_ptr, offset);
    capacity = size;
    h_type = base.h_type;
    h_ptr = base.h_ptr + offset;
@@ -570,10 +561,6 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 template <typename T>
 inline void Memory<T>::Delete()
 {
-   //dbg("Memory<T>::Delete %p", h_ptr);
-   //dbg("%sREGISTERED",flags & REGISTERED ? "":"NOT ");
-   //const bool exists = MemoryManager::Exists();
-   //MFEM_VERIFY(exists, "MemoryManager has already been destroyed!");
    if (!(flags & REGISTERED) ||
        MemoryManager::Delete_((void*)h_ptr, flags) == MemoryType::HOST)
    {
@@ -581,17 +568,14 @@ inline void Memory<T>::Delete()
       {
          if (h_type == MemoryType::HOST)
          {
-            //dbg("delete []");
             delete [] h_ptr;
          }
          else
          {
-            //dbg("HostDelete_");
             MemoryManager::HostDelete_(h_ptr, flags);
          }
       }
    }
-   //dbg("done");
 }
 
 // ****************************************************************************
@@ -653,7 +637,6 @@ inline Memory<T>::operator const U*() const
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
-   dbg("Memory<T>::ReadWrite<%d,%d> %p", h_type, mfem::GetMemoryType(mc),h_ptr);
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
@@ -668,7 +651,6 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
-   dbg("Memory<T>::Read<%d,%d> %p", h_type, mfem::GetMemoryType(mc),h_ptr);
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
@@ -683,7 +665,6 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
-   dbg("Memory<T>::Write<%d,%d> %p", h_type, mfem::GetMemoryType(mc), h_ptr);
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
@@ -698,7 +679,6 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
 template <typename T>
 inline void Memory<T>::Sync(const Memory &other) const
 {
-   dbg("Memory<T>::Sync");
    if (!(flags & REGISTERED) && (other.flags & REGISTERED))
    {
       MFEM_ASSERT(h_ptr == other.h_ptr &&
@@ -734,7 +714,6 @@ inline MemoryType Memory<T>::GetMemoryType() const
 template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
-   dbg("Memory<T>::CopyFrom");
    if (!(flags & REGISTERED) && !(src.flags & REGISTERED))
    {
       if (h_ptr != src.h_ptr && size != 0)
@@ -755,7 +734,6 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
-   dbg("Memory<T>::CopyFromHost");
    if (!(flags & REGISTERED))
    {
       if (h_ptr != src && size != 0)
@@ -776,7 +754,6 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
-   dbg("Memory<T>::CopyToHost");
    if (!(flags & REGISTERED))
    {
       if (h_ptr != dest && size != 0)

@@ -47,7 +47,7 @@
 //               discrete linear system. We also cover the explicit elimination
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
-#include "../general/dbg.hpp"
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -117,16 +117,12 @@ int main(int argc, char *argv[])
 
    if (mmu)
    {
-      dbg("Test Y");
       Vector Y(16);
       double *Yd = (double*)Y;
       Y.UseDevice(true);
-      dbg("Y = 0.0;");
       Y = 0.0;
       // in debug device, should raise a SIGBUS/SIGSEGV
-      dbg("Y[0] = 0.0;");
       Yd[0] = 0.0;
-      dbg("done");
       delete mesh;
       return 0;
    }

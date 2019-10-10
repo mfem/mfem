@@ -55,15 +55,10 @@ static const char *backend_name[Backend::NUM_BACKENDS] =
 Device Device::device_singleton;
 
 
-Device::~Device()
-{
-   dbg("");
-   if (destroy_mm) { mm.Destroy(); }
-}
+Device::~Device() { if (destroy_mm) { mm.Destroy(); } }
 
 void Device::Configure(const std::string &device, const int dev)
 {
-   dbg("Device::Configure");
    std::map<std::string, Backend::Id> bmap;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
@@ -121,19 +116,16 @@ void Device::UpdateMemoryTypeAndClass()
 {
    if (Device::Allows(Backend::DEBUG))
    {
-      dbg("[Device::UpdateMemoryTypeAndClass] DEBUG");
       mem_type = MemoryType::HOST_MMU;
       mem_class = MemoryClass::HOST_MMU;
    }
    else if (Device::Allows(Backend::DEVICE_MASK))
    {
-      dbg("[Device::UpdateMemoryTypeAndClass] DEVICE_MASK");
       mem_type = MemoryType::CUDA;
       mem_class = MemoryClass::CUDA;
    }
    else
    {
-      dbg("[Device::UpdateMemoryTypeAndClass] HOST");
       mem_type = MemoryType::HOST;
       mem_class = MemoryClass::HOST;
    }
@@ -142,10 +134,8 @@ void Device::UpdateMemoryTypeAndClass()
 
 void Device::Enable()
 {
-   dbg("Device::Enable");
    if (Get().backends & ~Backend::CPU)
    {
-      dbg("Device::Enable: ACCELERATED");
       Get().mode = Device::ACCELERATED;
       Get().UpdateMemoryTypeAndClass();
    }
@@ -154,7 +144,6 @@ void Device::Enable()
 #ifdef MFEM_USE_CUDA
 static void DeviceSetup(const int dev, int &ngpu)
 {
-   dbg("");
    ngpu = CuGetDeviceCount();
    MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
    MFEM_GPU_CHECK(cudaSetDevice(dev));
@@ -164,7 +153,6 @@ static void DeviceSetup(const int dev, int &ngpu)
 
 static void CudaDeviceSetup(const int dev, int &ngpu)
 {
-   dbg("");
 #ifdef MFEM_USE_CUDA
    DeviceSetup(dev, ngpu);
 #endif
@@ -244,7 +232,6 @@ static void OccaDeviceSetup(const int dev)
 
 void Device::Setup(const int device)
 {
-   dbg("Device::Setup");
    MFEM_VERIFY(ngpu == -1, "the mfem::Device is already configured!");
 
    ngpu = 0;
@@ -283,7 +270,7 @@ void Device::Setup(const int device)
    if (debug)
    {
       ngpu = 1;
-      MFEM_VERIFY((hip|cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
+      MFEM_VERIFY((hip||cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
    }
 }
 
