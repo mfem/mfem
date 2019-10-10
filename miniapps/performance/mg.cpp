@@ -5,7 +5,7 @@
 using namespace std;
 using namespace mfem;
 
-class PoissonMultigridOperator : public MultigridOperator
+class PoissonMultigridOperator : public TimedMultigridOperator
 {
  private:
    Array<ParBilinearForm*> forms;
@@ -123,7 +123,7 @@ class PoissonMultigridOperator : public MultigridOperator
                             const Array<int>& essentialDofs, int coarseOrder,
                             bool partialAssembly_, int coarseSteps,
                             bool useCoarsePCG_, bool jump)
-       : MultigridOperator(), partialAssembly(partialAssembly_),
+       : TimedMultigridOperator(), partialAssembly(partialAssembly_),
          useCoarsePCG(useCoarsePCG_)
    {
       if (jump)
@@ -533,6 +533,14 @@ int main(int argc, char* argv[])
    {
       cout << "Time to solution: " << solveTime << "s" << endl;
       cout << "Total time: " << setupTime + solveTime << "s" << endl;
+      if (TimedMultigridOperator* tmg =
+              dynamic_cast<TimedMultigridOperator*>(solveOperator))
+      {
+         tmg->PrintStats(TimedMultigridOperator::Operation::OPERATOR, cout);
+         tmg->PrintStats(TimedMultigridOperator::Operation::PROLONGATION, cout);
+         tmg->PrintStats(TimedMultigridOperator::Operation::RESTRICTION, cout);
+         tmg->PrintStats(TimedMultigridOperator::Operation::SMOOTHER, cout);
+      }
    }
 
    solveOperator->RecoverFEMSolution(X, *b, x);
