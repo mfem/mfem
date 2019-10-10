@@ -126,7 +126,8 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
          l_fe = lFESpace.GetFE(i);
          T.SetIdentityTransformation(h_fe->GetGeomType());
          h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
-         subY.SetSize(loc_prol.Width());
+         loc_prol.Transpose();
+         subY.SetSize(loc_prol.Height());
          cached_geom = geom;
       }
 
@@ -146,7 +147,7 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
             }
          }
 
-         loc_prol.MultTranspose(subX, subY);
+         loc_prol.Mult(subX, subY);
          y.AddElementVector(l_vdofs, subY);
       }
 
