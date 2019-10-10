@@ -128,7 +128,6 @@ Vector &Vector::operator=(const Vector &v)
 Vector &Vector::operator=(double value)
 {
    const bool use_dev = UseDevice();
-   dbg("use_dev: %s",use_dev?"true":"false");
    const int N = size;
    auto y = Write(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
@@ -997,7 +996,7 @@ double Vector::operator*(const Vector &v) const
       auto d_dot = dot.Write();
       dot = 0.0;
       MFEM_FORALL(i, N, d_dot[0] += m_data[i] * v_data[i];);
-      dot.HostReadWrite(); // why not just HostRead ?
+      dot.HostReadWrite();
       return dot[0];
    }
 vector_dot_cpu:

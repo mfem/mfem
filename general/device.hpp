@@ -229,6 +229,15 @@ public:
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
    static void Synchronize() { MFEM_DEVICE_SYNC; }
+
+   static bool IsUsingUmpire()
+   {
+#ifndef MFEM_USE_UMPIRE
+      return false;
+#else
+      return true;
+#endif
+   }
 };
 
 
