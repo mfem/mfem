@@ -629,7 +629,6 @@ static void SmemPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            #pragma unroll
             for (int dz = 0; dz < D1D; ++dz) 
             {
                X[dz][dy][dx] = x(dx,dy,dz,e);
@@ -646,21 +645,17 @@ static void SmemPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u[D1D];
-            #pragma unroll
             for(int dz = 0; dz < D1D; dz++)
             {
                u[dz] = 0;
             }
-            #pragma unroll
             for (int dx = 0; dx < D1D; ++dx)
             {
-               #pragma unroll
                for (int dz = 0; dz < D1D; ++dz)
                {
                   u[dz] += X[dz][dy][dx] * B[qx][dx];
                }
             }
-            #pragma unroll
             for (int dz = 0; dz < D1D; ++dz)
             {
                DDQ[dz][dy][qx] = u[dz];
@@ -673,21 +668,17 @@ static void SmemPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u[D1D];
-            #pragma unroll 
             for (int dz = 0; dz < D1D; dz++)
             {
                u[dz] = 0;
             }
-            #pragma unroll 
             for (int dy = 0; dy < D1D; ++dy)
             {
-               #pragma unroll 
                for (int dz = 0; dz < D1D; dz++)
                {
                   u[dz] += DDQ[dz][dy][qx] * B[qy][dy];
                }
             }
-            #pragma unroll 
             for (int dz = 0; dz < D1D; dz++) 
             {
                DQQ[dz][qy][qx] = u[dz];
@@ -700,21 +691,18 @@ static void SmemPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u[Q1D];
-            #pragma unroll 
             for (int qz = 0; qz < Q1D; qz++) 
             {
                u[qz] = 0;
             }
-            #pragma unroll 
             for (int dz = 0; dz < D1D; ++dz)
             {
-               #pragma unroll 
+               //#pragma unroll 
                for (int qz = 0; qz < Q1D; qz++)
                {
                   u[qz] += DQQ[dz][qy][qx] * B[qz][dz];
                }
             }
-            #pragma unroll 
             for (int qz = 0; qz < Q1D; qz++)
             {
                QQQ[qz][qy][qx] = u[qz] * op(qx,qy,qz,e);
@@ -735,21 +723,17 @@ static void SmemPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u[Q1D];
-            #pragma unroll
             for (int qz = 0; qz < Q1D; ++qz)
             {
                u[qz] = 0;
             }
-            #pragma unroll
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               #pragma unroll
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u[qz] += QQQ[qz][qy][qx] * Bt[dx][qx];
                }
             }
-            #pragma unroll
             for (int qz = 0; qz < Q1D; ++qz)
             {
                QQD[qz][qy][dx] = u[qz];
@@ -762,21 +746,17 @@ static void SmemPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u[Q1D];
-            #pragma unroll            
             for (int qz = 0; qz < Q1D; ++qz)
             {
                u[qz] = 0;
             }
-            #pragma unroll
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               #pragma unroll
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u[qz] += QQD[qz][qy][dx] * Bt[dy][qy];
                }
             }
-            #pragma unroll
             for (int qz = 0; qz < Q1D; ++qz)
             {
                QDD[qz][dy][dx] = u[qz];
@@ -789,21 +769,18 @@ static void SmemPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u[D1D];
-            #pragma unroll
             for (int dz = 0; dz < D1D; ++dz)
             {
                u[dz] = 0;
             }
-            #pragma unroll
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               #pragma  unroll
+               //#pragma  unroll
                for (int dz = 0; dz < D1D; ++dz) 
                {
                   u[dz] += QDD[qz][dy][dx] * Bt[dz][qz];
                }
             }
-            #pragma unroll
             for (int dz = 0; dz < D1D; ++dz) 
             {
                y(dx,dy,dz,e) += u[dz];
