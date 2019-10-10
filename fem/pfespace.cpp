@@ -22,6 +22,12 @@
 #include <climits> // INT_MAX
 #include <limits>
 #include <list>
+#ifdef USE_NVTX
+#include <nvToolsExt.h>
+#define NVTX(x) x
+#else 
+#define NVTX(x) 
+#endif
 
 namespace mfem
 {
@@ -3065,6 +3071,8 @@ void DeviceConformingProlongationOperator::BcastEndCopy(
 void DeviceConformingProlongationOperator::Mult(const Vector &x,
                                                 Vector &y) const
 {
+   NVTX(Device::Synchronize());
+   NVTX(nvtxRangePushA("Mult"));
    const GroupTopology &gtopo = gc.GetGroupTopology();
    BcastBeginCopy(x); // copy to 'shr_buf'
    int req_counter = 0;
@@ -3090,8 +3098,12 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
       }
    }
    BcastLocalCopy(x, y);
+   NVTX(nvtxRangePushA("MPI_Waitall"));
    MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+   NVTX(nvtxRangePop());
    BcastEndCopy(y); // copy from 'ext_buf'
+   NVTX(Device::Synchronize());
+   NVTX(nvtxRangePop());
 }
 
 DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
@@ -3153,6 +3165,8 @@ void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
 void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                                                          Vector &y) const
 {
+   NVTX(Device::Synchronize());
+   NVTX(nvtxRangePushA("MultTranspose"));
    const GroupTopology &gtopo = gc.GetGroupTopology();
    ReduceBeginCopy(x); // copy to 'ext_buf'
    int req_counter = 0;
@@ -3178,8 +3192,12 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
       }
    }
    ReduceLocalCopy(x, y);
+   NVTX(nvtxRangePushA("MPI_Waitall"));
    MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+   NVTX(nvtxRangePop()); 
    ReduceEndAssemble(y); // assemble from 'shr_buf'
+   NVTX(Device::Synchronize());
+   NVTX(nvtxRangePop());
 }
 
 } // namespace mfem
