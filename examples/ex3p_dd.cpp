@@ -60,8 +60,8 @@ int dim;
 //#define SIGMAVAL -211.0
 //#define SIGMAVAL -2.0
 #else
-//#define SIGMAVAL -2.0
-#define SIGMAVAL -6007.0
+#define SIGMAVAL -2.0
+//#define SIGMAVAL -6007.0
 //#define SIGMAVAL -191.0
 //#define SIGMAVAL -1009.0
 //#define SIGMAVAL -511.0
@@ -347,7 +347,8 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    //const char *mesh_file = "../data/beam-tet.mesh";
 #ifdef AIRY_TEST
-   const char *mesh_file = "../data/inline-tetHalf.mesh";
+   //const char *mesh_file = "../data/inline-tetHalf.mesh";
+   const char *mesh_file = "inline-tetHalf.mesh";
 #else
    const char *mesh_file = "../data/inline-tet.mesh";
 #endif
@@ -408,8 +409,8 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
 	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
-	(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+	(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
       
@@ -422,7 +423,7 @@ int main(int argc, char *argv[])
 
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {1, 1, 8};
+   int nxyzSubdomains[3] = {1, 2, 8};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -437,6 +438,106 @@ int main(int argc, char *argv[])
      {
        cout << "Subdomain partition " << nxyzSubdomains[0] << ", " << nxyzSubdomains[1] << ", " << nxyzSubdomains[2] << endl;
      }
+
+   std::vector<int> sdOrder(numSubdomains);
+   {
+     const int nh = numSubdomains / 2;
+
+     /*
+     for (int i=0; i<numSubdomains; ++i)
+       {
+	 sdOrder[i] = i;
+       }
+
+     for (int i=0; i<nh; ++i)
+       {
+	 sdOrder[i] = 2*i;
+	 sdOrder[i + nh] = (2*i) + 1;
+       }
+     */
+     /*
+     // Checkerboard ordering, which is bad
+     int cnt = 0;
+     for (int i=0; i<nxyzSubdomains[0]; ++i)
+       {
+	 for (int j=0; j<nxyzSubdomains[1]; ++j)
+	   {
+	     for (int l=0; l<nxyzSubdomains[2]; ++l)
+	       {
+		 const int sdid = (i * nxyzSubdomains[1] * nxyzSubdomains[2]) + (j * nxyzSubdomains[2]) + l;
+		 const int sds = i + j + l;
+		 
+		 if (sds % 2 == 0)
+		   sdOrder[cnt / 2] = sdid;
+		 else
+		   sdOrder[(cnt / 2) + nh] = sdid;
+
+		 cnt++;
+	       }
+	   }
+       }
+     */
+     // 2x2x2 block ordering
+     int ngt = 1;
+     //int nhalf[3];
+     int ngrp[3];
+     
+     for (int i=0; i<3; ++i)
+       {
+	 if (nxyzSubdomains[i] > 1)
+	   {
+	     ngt *= 2;
+	     ngrp[i] = 2;
+	     //nhalf[i] = nxyzSubdomains[i] / 2;
+	   }
+	 else
+	   {
+	     //nhalf[i] = 1;
+	     ngrp[i] = 1;
+	   }
+       }
+
+     std::vector<int> gcnt(ngt); // group size
+     std::vector<int> gos(ngt);  // group offset
+     gcnt.assign(ngt, 0);
+     gos.assign(ngt, 0);
+     
+     for (int i=0; i<nxyzSubdomains[2]; ++i)
+       {
+	 for (int j=0; j<nxyzSubdomains[1]; ++j)
+	   {
+	     for (int l=0; l<nxyzSubdomains[0]; ++l)
+	       {
+		 const int g = ((i % 2) * ngrp[1] * ngrp[0]) + ((j % 2) * ngrp[0]) + (l % 2);
+		 gcnt[g]++;  // count the number of subdomains in each group
+	       }
+	   }
+       }
+
+     // Set group offsets from counts
+     for (int i=1; i<ngt; ++i)
+       {
+	 gos[i] = gos[i-1] + gcnt[i-1];
+       }
+     
+     gcnt.assign(ngt, 0);
+     
+     for (int i=0; i<nxyzSubdomains[2]; ++i)
+       {
+	 for (int j=0; j<nxyzSubdomains[1]; ++j)
+	   {
+	     for (int l=0; l<nxyzSubdomains[0]; ++l)
+	       {
+		 const int g = ((i % 2) * ngrp[1] * ngrp[0]) + ((j % 2) * ngrp[0]) + (l % 2);
+
+		 const int sdid = (i * nxyzSubdomains[1] * nxyzSubdomains[0]) + (j * nxyzSubdomains[0]) + l;
+		 
+		 sdOrder[gos[g] + gcnt[g]] = sdid;
+		 gcnt[g]++;
+	       }
+	   }
+       }
+   }
    
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -454,9 +555,12 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
-       //int nxyzGlobal[3] = {4, 4, 4};
+       //int nxyzGlobal[3] = {4, 8, 4};
        //int nxyzGlobal[3] = {2, 2, 8};
-       int nxyzGlobal[3] = {6, 6, 8};  // 288
+       //int nxyzGlobal[3] = {6, 6, 8};  // 288
+       //int nxyzGlobal[3] = {8, 6, 6};  // 288
+       //int nxyzGlobal[3] = {6, 12, 8};  // 576
+       int nxyzGlobal[3] = {12, 6, 8};  // 576
        //int nxyzGlobal[3] = {6, 6, 16};  // 576
        //int nxyzGlobal[3] = {6, 6, 32};  // 1152
        //int nxyzGlobal[3] = {8, 4, 8};
@@ -909,7 +1013,7 @@ int main(int argc, char *argv[])
        //B_Im = B;
        //B = 0.0;
        
-       ddi.GetReducedSource(fespace, B, B_Im, Bdd);
+       ddi.GetReducedSource(fespace, B, B_Im, Bdd, sdOrder);
 
        //ddi.TestProjectionError();
        

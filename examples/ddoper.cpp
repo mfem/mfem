@@ -208,20 +208,37 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 
 void test_Airy1_E_exact(const Vector &x, Vector &E)
 {
-  const double y = (4.0 * x(0)) - 1.0;
   const double k = sqrt(K2_AIRY);  // TODO: input k
   const double beta = -pow(0.25 * k, 2.0/3.0);  // TODO: store this somehow?
+
+  /*
+  const double y = (4.0 * x(0)) - 1.0;
   
   E(0) = 0.0;
   E(1) = 0.0;
   E(2) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
+  */
+
+  const double y = (4.0 * x(2)) - 1.0;
+  
+  E(0) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
+  E(1) = 0.0;
+  E(2) = 0.0;
+
 }
 
 void test_Airy_epsilon(const Vector &x, Vector &e)
 {
+  /*
   e(0) = 1.0;
   e(1) = 1.0;
   e(2) = (4.0 * x(0)) - 1.0;
+  */
+
+  e(0) = (4.0 * x(2)) - 1.0;
+  e(1) = 1.0;
+  e(2) = 1.0;
+
 
   e *= -K2_AIRY;
 }
@@ -4467,9 +4484,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 }
 
 void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm,
-					    Vector & sourceReduced) const
+					    Vector & sourceReduced, std::vector<int> const& sdOrder) const
 {
-  Vector sourceSD, wSD, vSD;
+  //Vector sourceSD;
+  Vector wSD, vSD;
 
   int nprocs, rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -4484,8 +4502,17 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
     
   sourceReduced = 0.0;
 
-  for (int m=0; m<numSubdomains; ++m)
+  MFEM_VERIFY(numSubdomains == sdOrder.size(), "");
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  
+  //for (int m=0; m<numSubdomains; ++m)
+  for (std::vector<int>::const_iterator it = sdOrder.begin(); it != sdOrder.end(); ++it)
     {
+      const int m = *it;
+
+      //cout << rank << ": GetReducedSource " << m << " nonempty " << sd_nonempty[m] << endl;
+
       ySD[m] = NULL;
       rhsSD[m] = NULL;
 	
@@ -4494,7 +4521,7 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 	{
 	  const int sdsize = (fespace[m] == NULL) ? 0 : fespace[m]->GetTrueVSize();
 	  //sourceSD.SetSize(fespace[m]->GetTrueVSize());
-	  sourceSD.SetSize(sdsize);
+	  //sourceSD.SetSize(sdsize);
 
 	  // Map from the global u to [u_m f_m \rho_m], with blocks corresponding to subdomains, and f_m = 0, \rho_m = 0.
 #ifdef DDMCOMPLEX
@@ -4504,7 +4531,7 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 	  MFEM_VERIFY(AsdComplex[m]->Height() == 2*block_ComplexOffsetsSD[m][1], "");
 	  MFEM_VERIFY(AsdComplex[m]->Height() > 0, "");
 
-	  cout << rank << ": Setting real subdomain DOFs, sd " << m << endl;
+	  cout << rank << ": Setting real subdomain DOFs, sd " << m << ", size " << sdsize << endl;
 	    
 	  ySD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
 	  rhsSD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
@@ -4512,6 +4539,7 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 	  wSD.SetSize(AsdComplex[m]->Height());
 	  wSD = 0.0;
 
+	  /*
 	  if (sdsize > 0)
 	    {
 	      sourceSD = -1.0e7;
@@ -4523,7 +4551,7 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 		    cout << "Entry not set!!!!!!!!!!!!!!" << endl;
 		}
 	    }
-	  
+	  */
 	  const bool explicitRHS = false;
 	  /*
 	    if (explicitRHS)
@@ -4568,7 +4596,7 @@ dc->Save();
 
 if (sdsize > 0)
   {
-  MFEM_VERIFY(sourceSD.Size() == srcSD[m]->Size(), "");
+    //MFEM_VERIFY(sourceSD.Size() == srcSD[m]->Size(), "");
   
   for (int i=0; i<sdsize; ++i)
     {
@@ -4578,16 +4606,17 @@ if (sdsize > 0)
     }
   }
 
+  /*
   cout << rank << ": Setting imaginary subdomain DOFs, sd " << m << endl;
   if (sdsize > 0)
     {
       SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalIm, sourceSD);
     }
-  
     cout << rank << ": Done setting imaginary subdomain DOFs, sd " << m << endl;
 
     if (explicitRHS)
       sourceSD = 0.0;
+  */
 
     /* // TODO: set imaginary part!
     for (int i=0; i<sourceSD.Size(); ++i)

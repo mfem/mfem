@@ -630,7 +630,7 @@ public:
   }
 #endif
 
-  void GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm, Vector & sourceReduced) const;
+  void GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm, Vector & sourceReduced, std::vector<int> const& sdOrder) const;
 
 #ifdef DEBUG_RECONSTRUCTION
   void ComputeF(const int sd, Vector const& u, Vector const& ufull, Vector const& rhs);
