@@ -28,6 +28,22 @@ public:
    double x, y, z, weight;
    int index;
 
+   IntegrationPoint() = default;
+
+   IntegrationPoint ( const double* p, int dim )
+   {
+     x = y = z = weight = 0.0;
+     Set( p, dim );
+   }
+
+   IntegrationPoint ( const double* p, double w, int dim )
+   {
+      x = y = z = weight = 0.0;
+      Set( p, dim );
+      weight = w;
+   }
+
+
    void Init(int const i)
    {
       x = y = z = weight = 0.0;
