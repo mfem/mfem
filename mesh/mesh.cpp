@@ -5960,14 +5960,10 @@ void Mesh::UniformRefinement2D()
             AverageVertices(vv, 2, oedge+e[ei]);
          }
 
-         printf("oedge, e[0], e[1], e[2]: %d %d %d %d\n",oedge,e[0],e[1],e[2]);
-         printf("v[0], v[1], v[2]: %d %d %d\n",v[0],v[1],v[2]);
+         elements[nec++] = new Triangle(oedge+e[2], v[0], oedge+e[0], attr);
          elements[nec++] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
          elements[nec++] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
          elements[nec++] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
-
-         v[1] = oedge+e[0];
-         v[2] = oedge+e[2];
       }
       else if (el_type == Element::QUADRILATERAL)
       {
@@ -5993,9 +5989,6 @@ void Mesh::UniformRefinement2D()
          elements[nec++] = new Quadrilateral(oedge+e[3], oelem+qe,
                                              oedge+e[2], v[3], attr);
 
-         v[1] = oedge+e[0];
-         v[2] = oelem+qe;
-         v[3] = oedge+e[3];
       }
       else
       {
