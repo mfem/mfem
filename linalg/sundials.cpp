@@ -421,6 +421,10 @@ int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector ydot,
 
    // Compute f(t, y) in y' = f(t, y) or fe(t, y) in y' = fe(t, y) + fi(t, y)
    self->f->SetTime(t);
+   if (self->rk_type == IMEX)
+   {
+      self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   }
    self->f->Mult(mfem_y, mfem_ydot);
 
    // Return success
@@ -437,7 +441,8 @@ int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector ydot,
 
    // Compute fi(t, y) in y' = fe(t, y) + fi(t, y)
    self->f->SetTime(t);
-   self->f->SUNImplicitMult(mfem_y, mfem_ydot);
+   self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   self->f->Mult(mfem_y, mfem_ydot);
 
    // Return success
    return (0);
@@ -455,6 +460,10 @@ int ARKStepSolver::LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
 
    // Compute the linear system
    self->f->SetTime(t);
+   if (self->rk_type == IMEX)
+   {
+      self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   }
    return (self->f->SUNImplicitSetup(mfem_y, mfem_fy, jok, jcur, gamma));
 }
 
@@ -466,6 +475,10 @@ int ARKStepSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(LS));
 
    // Solve the linear system
+   if (self->rk_type == IMEX)
+   {
+      self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   }
    return (self->f->SUNImplicitSolve(mfem_b, mfem_x, tol));
 }
 

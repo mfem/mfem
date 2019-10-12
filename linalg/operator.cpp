@@ -172,11 +172,6 @@ Operator &TimeDependentOperator::GetExplicitGradient(const Vector &) const
    return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
 }
 
-void TimeDependentOperator::SUNImplicitMult(const Vector &, Vector &) const
-{
-   mfem_error("TimeDependentOperator::SUNImplicitMult() is not overridden!");
-}
-
 int TimeDependentOperator::SUNImplicitSetup(const Vector &,
                                             const Vector &,
                                             int, int *, double)

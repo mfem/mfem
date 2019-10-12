@@ -188,7 +188,7 @@ public:
 /** Operator of the form: (x,t) -> f(x,t), where k = f(x,t) generally solves the
     algebraic equation F(x,k,t) = G(x,t). The functions F and G represent the
     _implicit_ and _explicit_ parts of the operator, respectively. For explicit
-    operators, F(x,k,t) = k, so f(x,t) = G(x,t).*/
+    operators, F(x,k,t) = k, so f(x,t) = G(x,t). */
 class TimeDependentOperator : public Operator
 {
 public:
@@ -199,21 +199,35 @@ public:
       HOMOGENEOUS ///< This type assumes that G(x,t) = 0.
    };
 
+   /// Evaluation mode. See SetEvalMode() for details.
+   enum EvalMode
+   {
+      /** Normal evaluation. */
+      NORMAL,
+      /** Assuming additive split, f(x,t) = f1(x,t) + f2(x,t), evaluate the
+          first term, f1. */
+      ADDITIVE_TERM_1,
+      /** Assuming additive split, f(x,t) = f1(x,t) + f2(x,t), evaluate the
+          second term, f2. */
+      ADDITIVE_TERM_2
+   };
+
 protected:
    double t;  ///< Current time.
    Type type; ///< Describes the form of the TimeDependentOperator.
+   EvalMode eval_mode; ///< Current evaluation mode.
 
 public:
    /** @brief Construct a "square" TimeDependentOperator y = f(x,t), where x and
        y have the same dimension @a n. */
    explicit TimeDependentOperator(int n = 0, double t_ = 0.0,
                                   Type type_ = EXPLICIT)
-      : Operator(n) { t = t_; type = type_; }
+      : Operator(n) { t = t_; type = type_; eval_mode = NORMAL; }
 
    /** @brief Construct a TimeDependentOperator y = f(x,t), where x and y have
        dimensions @a w and @a h, respectively. */
    TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
-      : Operator(h, w) { t = t_; type = type_; }
+      : Operator(h, w) { t = t_; type = type_; eval_mode = NORMAL; }
 
    /// Read the currently set time.
    virtual double GetTime() const { return t; }
@@ -227,6 +241,23 @@ public:
    bool isImplicit() const { return !isExplicit(); }
    /// True if #type is #HOMOGENEOUS.
    bool isHomogeneous() const { return (type == HOMOGENEOUS); }
+
+   /// Return the current evaluation mode. See SetEvalMode() for details.
+   EvalMode GetEvalMode() const { return eval_mode; }
+
+   /// Set the evaluation mode of the time-dependent operator.
+   /** The evaluation mode is a switch that allows time-stepping methods to
+       request evaluation of separate components/terms of the time-dependent
+       operator. For example, IMEX methods typically assume additive split of
+       the operator: f(x,t) = f1(x,t) + f2(x,t) and they rely on the ability to
+       evaluate the two terms separately.
+
+       Generally, setting the evaluation mode should affect the behavior of all
+       evaluation-related methods in the class, such as Mult(), ImplicitSolve(),
+       etc. However, the exact list of methods that need to support a specific
+       mode will depend on the used time-stepping method. */
+   virtual void SetEvalMode(const EvalMode new_eval_mode)
+   { eval_mode = new_eval_mode; }
 
    /** @brief Perform the action of the explicit part of the operator, G:
        @a y = G(@a x, t) where t is the current time.
@@ -246,17 +277,6 @@ public:
        k solves the algebraic equation F(@a x, k, t) = G(@a x, t) and t is the
        current time. */
    virtual void Mult(const Vector &x, Vector &y) const;
-
-   /** @brief For an additively split operator, perform the action of the second
-       function: @a y = k = f(@a x, t) = f1(@a x, t) + f2(@a x, t), where k
-       solves the algebraic equation F(@a x, k, t) = G(@a x, t) and t is the
-       current time.
-
-       Presently, this method is used by SUNDIALS IMEX ODE solvers where f1 is
-       implemented by Mult and is integrated explicitly and f2 is implemented by
-       SUNImplicitMult and is treated implicitly. For more details, see the
-       SUNDIALS User Guides. */
-   virtual void SUNImplicitMult(const Vector &x, Vector &y) const;
 
    /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
        unknown @a k at the current time t.
