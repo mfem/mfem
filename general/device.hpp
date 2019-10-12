@@ -115,8 +115,11 @@ private:
    bool destroy_mm;
    bool mpi_gpu_aware;
 
-   MemoryType mem_type;    ///< Current Device MemoryType
-   MemoryClass mem_class;  ///< Current Device MemoryClass
+   MemoryType host_mem_type;      ///< Current Host MemoryType
+   MemoryClass host_mem_class;    ///< Current Host MemoryClass
+
+   MemoryType device_mem_type;    ///< Current Device MemoryType
+   MemoryClass device_mem_class;  ///< Current Device MemoryClass
 
    Device(Device const&);
    void operator=(Device const&);
@@ -152,8 +155,10 @@ public:
         backends(Backend::CPU),
         destroy_mm(false),
         mpi_gpu_aware(false),
-        mem_type(MemoryType::HOST),
-        mem_class(MemoryClass::HOST)
+        host_mem_type(MemoryType::HOST),
+        host_mem_class(MemoryClass::HOST),
+        device_mem_type(MemoryType::HOST),
+        device_mem_class(MemoryClass::HOST)
    { }
 
    /** @brief Construct a Device and configure it based on the @a device string.
@@ -167,8 +172,10 @@ public:
         backends(Backend::CPU),
         destroy_mm(false),
         mpi_gpu_aware(false),
-        mem_type(MemoryType::HOST),
-        mem_class(MemoryClass::HOST)
+        host_mem_type(MemoryType::HOST),
+        host_mem_class(MemoryClass::HOST),
+        device_mem_type(MemoryType::HOST),
+        device_mem_class(MemoryClass::HOST)
    { Configure(device, dev); }
 
    /// Destructor.
@@ -214,14 +221,23 @@ public:
    static inline bool Allows(unsigned long b_mask)
    { return Get().backends & b_mask; }
 
+   /** @brief Get the current Host MemoryType. This is the MemoryType used by
+       most MFEM classes when allocating memory used on the host.
+   */
+   static inline MemoryType GetHostMemoryType() { return Get().host_mem_type; }
+
+   /** @brief Get the current Host MemoryClass. This is the MemoryClass used
+       by most MFEM host Memory objects. */
+   static inline MemoryClass GetHostMemoryClass() { return Get().host_mem_class; }
+
    /** @brief Get the current Device MemoryType. This is the MemoryType used by
        most MFEM classes when allocating memory to be used with device kernels.
    */
-   static inline MemoryType GetMemoryType() { return Get().mem_type; }
+   static inline MemoryType GetMemoryType() { return Get().device_mem_type; }
 
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
-   static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
+   static inline MemoryClass GetMemoryClass() { return Get().device_mem_class; }
 
    static void SetGPUAwareMPI(const bool force = true)
    { Get().mpi_gpu_aware = force; }
