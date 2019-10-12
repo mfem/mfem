@@ -439,58 +439,52 @@ public:
    HostMemorySpace *h_mmu{new ProtectedHostMemorySpace()};
    HostMemorySpace *h_uvm{new UvmHostMemorySpace()};
 
-   DeviceMemorySpace d_none{NoDeviceMemorySpace()};
-   DeviceMemorySpace d_std{StdDeviceMemorySpace()};
-   DeviceMemorySpace d_cuda{CudaDeviceMemorySpace()};
-   DeviceMemorySpace d_umpire{UmpireDeviceMemorySpace()};
+   DeviceMemorySpace *d_none{new NoDeviceMemorySpace()};
+   DeviceMemorySpace *d_std{new StdDeviceMemorySpace()};
+   DeviceMemorySpace *d_cuda{new CudaDeviceMemorySpace()};
+   DeviceMemorySpace *d_umpire{new UmpireDeviceMemorySpace()};
+   DeviceMemorySpace *d_uvm{new UvmDeviceMemorySpace()};
+
+   CopyMemorySpace *c_none{new NoCopyMemorySpace()};
+   CopyMemorySpace *c_std{new StdCopyMemorySpace()};
+   CopyMemorySpace *c_cuda{new CudaCopyMemorySpace()};
+   CopyMemorySpace *c_umpire{new UmpireCopyMemorySpace()};
+   CopyMemorySpace *c_uvm{new UvmCopyMemorySpace()};
 
    HostMemorySpace *host[MemoryBackends::NUM_BACKENDS]
    {h_std, h_umpire, h_align32, h_align64, h_mmu, h_std, h_std, h_std};
-   DeviceMemorySpace *device[MemoryBackends::NUM_BACKENDS];
-   CopyMemorySpace *memcpy[MemoryBackends::NUM_BACKENDS];
+
+   DeviceMemorySpace *device[MemoryBackends::NUM_BACKENDS]
+   {d_none, d_none, d_none, d_none, d_std, d_cuda, d_umpire, d_uvm};
+
+   CopyMemorySpace *memcpy[MemoryBackends::NUM_BACKENDS]
+   {c_none, c_none, c_none, c_none, c_std, c_cuda, c_umpire, c_uvm};
 public:
-   Ctrl() : device{nullptr}, memcpy{nullptr}
-   {
-      dbg("");/*
-      host[static_cast<int>(MT::HOST)] = new StdHostMemorySpace();
-      host[static_cast<int>(MT::HOST_UMPIRE)] = new UmpireHostMemorySpace();
-      host[static_cast<int>(MT::HOST_32)] = new Aligned32HostMemorySpace();
-      host[static_cast<int>(MT::HOST_64)] = new Aligned64HostMemorySpace();
-      host[static_cast<int>(MT::HOST_MMU)] = new ProtectedHostMemorySpace();
-      host[static_cast<int>(MT::CUDA)] = new StdHostMemorySpace();
-      host[static_cast<int>(MT::CUDA_UMPIRE)] = new StdHostMemorySpace();
-      host[static_cast<int>(MT::CUDA_UVM)] = new StdHostMemorySpace();*/
-
-      device[static_cast<int>(MT::HOST)] = new NoDeviceMemorySpace();
-      device[static_cast<int>(MT::HOST_UMPIRE)] = new NoDeviceMemorySpace();
-      device[static_cast<int>(MT::HOST_32)] = new NoDeviceMemorySpace();
-      device[static_cast<int>(MT::HOST_64)] = new NoDeviceMemorySpace();
-      device[static_cast<int>(MT::HOST_MMU)] = new StdDeviceMemorySpace();
-      device[static_cast<int>(MT::CUDA)] = new CudaDeviceMemorySpace();
-      device[static_cast<int>(MT::CUDA_UMPIRE)] = new UmpireDeviceMemorySpace();
-      device[static_cast<int>(MT::CUDA_UVM)] = new UvmDeviceMemorySpace();
-
-      memcpy[static_cast<int>(MT::HOST)] = new NoCopyMemorySpace();
-      memcpy[static_cast<int>(MT::HOST_UMPIRE)] = new NoCopyMemorySpace();
-      memcpy[static_cast<int>(MT::HOST_32)] = new NoCopyMemorySpace();
-      memcpy[static_cast<int>(MT::HOST_64)] = new NoCopyMemorySpace();
-      memcpy[static_cast<int>(MT::HOST_MMU)] = new StdCopyMemorySpace();
-      memcpy[static_cast<int>(MT::CUDA)] = new CudaCopyMemorySpace();
-      memcpy[static_cast<int>(MT::CUDA_UMPIRE)] = new UmpireCopyMemorySpace();
-      memcpy[static_cast<int>(MT::CUDA_UVM)] = new UvmCopyMemorySpace();
-   }
+   Ctrl() { dbg(""); }
    HostMemorySpace *Host(const MemoryType mt) { return host[static_cast<int>(mt)]; }
    DeviceMemorySpace *Device(const MemoryType mt) { return device[static_cast<int>(mt)]; }
    CopyMemorySpace *Memcpy(const MemoryType mt) { return memcpy[static_cast<int>(mt)]; }
    ~Ctrl()
    {
-      dbg("");/*
-      for (int i = 0; i < MemoryBackends::NUM_BACKENDS; i++)
-      {
-         delete host[i];
-         delete device[i];
-         delete memcpy[i];
-      }*/
+      dbg("");
+      delete h_std;
+      delete h_umpire;
+      delete h_align32;
+      delete h_align64;
+      delete h_mmu;
+      delete h_uvm;
+
+      delete d_none;
+      delete d_std;
+      delete d_cuda;
+      delete d_umpire;
+      delete d_uvm;
+
+      delete c_none;
+      delete c_std;
+      delete c_cuda;
+      delete c_umpire;
+      delete c_uvm;
    }
 };
 
