@@ -116,20 +116,26 @@ void Device::UpdateMemoryTypeAndClass()
 {
    if (Device::Allows(Backend::DEBUG))
    {
-      mem_type = MemoryType::HOST_MMU;
-      mem_class = MemoryClass::HOST_MMU;
+      host_mem_type = MemoryType::HOST_MMU;
+      host_mem_class = MemoryClass::HOST_MMU;
+      device_mem_type = MemoryType::HOST_MMU;
+      device_mem_class = MemoryClass::HOST_MMU;
    }
    else if (Device::Allows(Backend::DEVICE_MASK))
    {
-      mem_type = MemoryType::CUDA;
-      mem_class = MemoryClass::CUDA;
+      host_mem_type = MemoryType::HOST;
+      host_mem_class = MemoryClass::HOST;
+      device_mem_type = MemoryType::CUDA;
+      device_mem_class = MemoryClass::CUDA;
    }
    else
    {
-      mem_type = MemoryType::HOST;
-      mem_class = MemoryClass::HOST;
+      host_mem_type = MemoryType::HOST;
+      host_mem_class = MemoryClass::HOST;
+      device_mem_type = MemoryType::HOST;
+      device_mem_class = MemoryClass::HOST;
    }
-   mm.Setup(mem_type);
+   mm.Setup(host_mem_type, device_mem_type);
 }
 
 void Device::Enable()

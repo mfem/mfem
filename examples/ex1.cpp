@@ -49,6 +49,8 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
+#include "../general/dbg.hpp"
+#include "../general/mem_manager.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -63,6 +65,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    bool mmu = false;
+   bool mem = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -78,6 +81,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&mmu, "-y", "--mmu", "-no-y",
                   "--no-mmu", "Enable MMU test on vector Y.");
+   args.AddOption(&mem, "-b", "--mem", "-no-b",
+                  "--no-mem", "Enable memory backends tests.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -117,13 +122,53 @@ int main(int argc, char *argv[])
 
    if (mmu)
    {
+      dbg("Vector Y(16)");
       Vector Y(16);
+      dbg("bkp address");
       double *Yd = (double*)Y;
+      dbg("UseDevice");
       Y.UseDevice(true);
+      dbg("Y = 0.0");
       Y = 0.0;
       // in debug device, should raise a SIGBUS/SIGSEGV
+      dbg("Yd[0] = 0.0;");
       Yd[0] = 0.0;
       delete mesh;
+      return 0;
+   }
+
+   if (mem)
+   {
+      MFEM_VERIFY(Device::GetMemoryType()!=MemoryType::HOST_MMU,"");
+      constexpr int N = 1 + static_cast<int>(MemoryType::CUDA_UVM);
+      dbg("N: %d", N);
+      Vector v[N];
+      MemoryType mt = MemoryType::HOST;
+      for (int i=0; i<N; i++, mt++)
+      {
+#ifndef MFEM_USE_UMPIRE
+         if (i==static_cast<int>(MemoryType::HOST_UMPIRE)) { continue; }
+         if (i==static_cast<int>(MemoryType::CUDA_UMPIRE)) { continue; }
+#endif // MFME_USE_UMPIRE
+         constexpr int size = 1024;
+         dbg("\033[7m%d", static_cast<int>(mt));
+         Memory<double> mem(size, mt);
+         //MemoryPrintFlags(mem.GetFlags());
+         MFEM_VERIFY(mem.Capacity() == size,"");
+         Vector &y = v[i];
+         y.NewMemoryAndSize(mem, size, true);
+         y.UseDevice(true);
+         dbg("HostWrite");
+         y.HostWrite();
+         dbg("Write");
+         y.Write();
+         dbg("y = 0.0");
+         y = 0.0;
+         dbg("HostRead");
+         y.HostRead();
+         dbg("%p", (void*)y.GetData());
+         y.Destroy();
+      }
       return 0;
    }
 
