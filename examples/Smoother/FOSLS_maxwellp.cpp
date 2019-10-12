@@ -2,17 +2,20 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <boost/math/special_functions/airy.hpp>
 // #include "BlkSchwarzp.hpp"
 #include "BlkAMS.hpp"
 using namespace std;
 using namespace mfem;
+using namespace boost;
 
 // Define exact solution
 void E_exact(const Vector & x, Vector & E);
 void H_exact(const Vector & x, Vector & H);
-void scaledf_exact_H(const Vector & x, Vector & f_H);
 void f_exact_H(const Vector & x, Vector & f_H);
 void get_maxwell_solution(const Vector & x, double E[], double curlE[], double curl2E[]);
+void epsilon_func(const Vector &x, DenseMatrix &M);
+void epsilon2_func(const Vector &x, DenseMatrix &M);
 
 int dim;
 double omega;
@@ -82,11 +85,13 @@ int main(int argc, char *argv[])
    }
 
    // Angular frequency
-   omega = 2.0*k*M_PI;
-   // omega = k;
+   // omega = 2.0*k*M_PI;
+   omega = k;
 
    // 2. Read the mesh from the given mesh file.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   Mesh *mesh;
+   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 0.5, 0.5, 0.5, false);
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
@@ -159,18 +164,27 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient Eex(sdim, E_exact);
    ParGridFunction * E_gf = new ParGridFunction;
-   ParGridFunction * Exact_gf = new ParGridFunction;
+   ParGridFunction * Exact_gf = new ParGridFunction(fespace);
    E_gf->MakeRef(fespace, x.GetBlock(0));
    E_gf->ProjectCoefficient(Eex);
+   Exact_gf->ProjectCoefficient(Eex);
 
    VectorFunctionCoefficient Hex(sdim, H_exact);
    ParGridFunction * H_gf = new ParGridFunction;   
    H_gf->MakeRef(fespace, x.GetBlock(1));
-   H_gf->ProjectCoefficient(Hex);
+   // H_gf->ProjectCoefficient(Hex);
+
+
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient sigma(pow(omega, 2));
+   ConstantCoefficient neg(-abs(omega));
+   ConstantCoefficient pos(abs(omega));
 
    // // 6. Set up the linear form
-   VectorFunctionCoefficient sf_H(sdim,scaledf_exact_H);
    VectorFunctionCoefficient f_H(sdim,f_exact_H);
+   ScalarVectorProductCoefficient sf_H(neg,f_H);
+
+
 
    ParLinearForm *b_E = new ParLinearForm;
    b_E->Update(fespace, rhs.GetBlock(0), 0);
@@ -186,14 +200,18 @@ int main(int argc, char *argv[])
 
 
    // 7. Bilinear form a(.,.) on the finite element space
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient sigma(pow(omega, 2));
-   ConstantCoefficient neg(-abs(omega));
-   ConstantCoefficient pos(abs(omega));
+
+
+   MatrixFunctionCoefficient epsilon(dim,epsilon_func);
+   MatrixFunctionCoefficient epsilon2(dim,epsilon2_func);
+   ScalarMatrixProductCoefficient coeff(neg,epsilon);
+   ScalarMatrixProductCoefficient coeff2(sigma,epsilon2);
+
+
    //
    ParBilinearForm *a_EE = new ParBilinearForm(fespace);
    a_EE->AddDomainIntegrator(new CurlCurlIntegrator(one)); 
-   a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+   a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(coeff2));
    a_EE->Assemble();
    a_EE->EliminateEssentialBC(ess_bdr,x.GetBlock(0), rhs.GetBlock(0));
    a_EE->Finalize();
@@ -201,7 +219,7 @@ int main(int argc, char *argv[])
 
    ParMixedBilinearForm *a_HE = new ParMixedBilinearForm(fespace,fespace);
    a_HE->AddDomainIntegrator(new MixedVectorCurlIntegrator(neg));
-   a_HE->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(neg)); 
+   a_HE->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(coeff)); 
    a_HE->Assemble();
    a_HE->EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
    a_HE->Finalize();
@@ -258,9 +276,9 @@ int main(int argc, char *argv[])
    // prec1->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
    prec1->SetOperator(blockA);
    prec1->SetTheta(0.2);
-   //0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
+   // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
    // prec1->SetCycleType("012343210");
-   prec1->SetCycleType("0002341432000");
+   prec1->SetCycleType("023414320");
    prec1->SetNumberofCycles(1);
 
 
@@ -308,9 +326,12 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "|| E_h - E || = " << Error_E  << "\n";
-      cout << "|| H_h - H || = " << Error_H  << "\n";
-      cout << "Total error = " << sqrt(Error_H*Error_H+Error_E*Error_E) << "\n";
+      cout << "|| E_h - E ||/||E|| = " << Error_E/norm_E  << "\n";
+      // cout << "|| H_h - H || = " << Error_H  << "\n";
+      // cout << "Total error = " << sqrt(Error_H*Error_H+Error_E*Error_E) << "\n";
    }
+
+   ParGridFunction ExactE(fespace);
 
    if (visualization)
    {
@@ -321,7 +342,12 @@ int main(int argc, char *argv[])
       E_sock << "parallel " << num_procs << " " << myid << "\n";
       E_sock.precision(8);
       E_sock << "solution\n" << *pmesh << *E_gf << "window_title 'Electric field'" << endl;
-      // MPI_Barrier(pmesh->GetComm());
+      socketstream Exact_sock(vishost, visport);
+      Exact_sock << "parallel " << num_procs << " " << myid << "\n";
+      Exact_sock.precision(8);
+      Exact_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Electric field'" << endl;
+ 
+    // MPI_Barrier(pmesh->GetComm());
       // socketstream Eex_sock(vishost, visport);
       // Eex_sock << "parallel " << num_procs << " " << myid << "\n";
       // Eex_sock.precision(8);
@@ -358,44 +384,20 @@ void H_exact(const Vector &x, Vector &H)
 
 void f_exact_H(const Vector &x, Vector &f)
 {
-   double E[3], curlE[3], curl2E[3];
-
-   get_maxwell_solution(x, E, curlE, curl2E);
-
    // curl H - omega E = f
    // = curl (curl E / omega) - omega E
-   f(0) = curl2E[0] / omega - omega * E[0];
-   f(1) = curl2E[1] / omega - omega * E[1];
-   f(2) = curl2E[2] / omega - omega * E[2];
+   f = 0.0;
+   if (sol !=4)
+   {
+      double E[3], curlE[3], curl2E[3];
+      get_maxwell_solution(x, E, curlE, curl2E);
+      f(0) = curl2E[0] / omega - omega * E[0];
+      f(1) = curl2E[1] / omega - omega * E[1];
+      f(2) = curl2E[2] / omega - omega * E[2];
+   }
 }
-
-void scaledf_exact_E(const Vector &x, Vector &f)
-{
-   double E[3], curlE[3], curl2E[3];
-
-   get_maxwell_solution(x, E, curlE, curl2E);
-
-   //  - omega *( curl E - omega H) = 0 
-   f(0) =-omega * (curlE[0] - omega * (curlE[0]/omega)); // = 0
-   f(1) =-omega * (curlE[1] - omega * (curlE[1]/omega)); // = 0
-   f(2) =-omega * (curlE[2] - omega * (curlE[2]/omega)); // = 0
-}
-
-void scaledf_exact_H(const Vector &x, Vector &f)
-{
-   double E[3], curlE[3], curl2E[3];
-
-   get_maxwell_solution(x, E, curlE, curl2E);
-
-   // curl H - omega E = f 
-   // = - omega *( curl (curl E / omega) - omega E) 
-   
-   f(0) = -omega * (curl2E[0]/omega - omega * E[0]);
-   f(1) = -omega * (curl2E[1]/omega - omega * E[1]);
-   f(2) = -omega * (curl2E[2]/omega - omega * E[2]);
-}
-
-void get_maxwell_solution(const Vector &X, double E[], double curlE[], double curl2E[])
+ 
+   void get_maxwell_solution(const Vector &X, double E[], double curlE[], double curl2E[])
 {
    double x = X[0];
    double y = X[1];
@@ -461,6 +463,54 @@ void get_maxwell_solution(const Vector &X, double E[], double curlE[], double cu
       curl2E[1] = 0.0;
       curl2E[2] = 0.0;
    }
+   else if (sol == 4) // Airy function
+   {
+      E[0] = 0;
+      E[1] = 0;
+      // double b = -pow(omega/4.0,2.0/3.0)*(4.0*x(0)-1.0);
+      double b = -pow(omega/4.0,2.0/3.0)*(4.0*x-1.0);
+      E[2] = boost::math::airy_ai(b);
+
+      //  not used
+      curl2E[0] = 0.0;
+      curl2E[1] = 0.0;  
+      curl2E[2] = 0.0;
+   }
 }
 
 
+void epsilon_func(const Vector &x, DenseMatrix &M)
+{
+   M.SetSize(3);
+
+   M = 0.0;
+   M(0,0) = 1.0;
+   M(1,1) = 1.0;
+   if (sol != 4)
+   {
+      M(2,2) = 1.0;
+   }
+   else
+   {
+      M(2,2) = 4.0*x(0)-1.0;
+      // M(2,2) = 2.0;
+   }
+}
+
+void epsilon2_func(const Vector &x, DenseMatrix &M)
+{
+   M.SetSize(3);
+
+   M = 0.0;
+   M(0,0) = 1.0;
+   M(1,1) = 1.0;
+   if (sol != 4)
+   {
+      M(2,2) = 1.0;
+   }
+   else
+   {
+      M(2,2) = pow(4.0*x(0)-1.0,2.0);
+      // M(2,2) = 4.0;
+   }
+}

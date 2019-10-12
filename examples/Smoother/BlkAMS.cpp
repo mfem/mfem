@@ -227,7 +227,7 @@ void Block_AMSSolver::GetCorrection(BlockOperator* Tr, BlockOperator* op, BlockD
    Tr->MultTranspose(r,raux);
    zaux = 0.0;
 
-   int maxit(3000);
+   int maxit(1000);
    double rtol(0.0);
    double atol(1e-8);
    

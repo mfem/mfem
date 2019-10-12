@@ -7,10 +7,12 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <boost/math/special_functions/airy.hpp>
 // #include "Schwarzp.hpp"
 #include "Multigrid.hpp"
 using namespace std;
 using namespace mfem;
+using namespace boost;
 
 // #define DEFINITE
 
@@ -22,6 +24,7 @@ using namespace mfem;
 void E_exact(const Vector & x, Vector & E);
 void f_exact(const Vector & x, Vector & f);
 void get_maxwell_solution(const Vector & x, double E[], double curl2E[]);
+void epsilon_func(const Vector &x, DenseMatrix &M);
 
 int dim;
 double omega;
@@ -111,7 +114,9 @@ int main(int argc, char *argv[])
    // omega = k;
 
    // 2. Read the mesh from the given mesh file.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   Mesh *mesh;
+   mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 0.5, 0.5, 0.5, false);
    
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
@@ -156,10 +161,13 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    b->Assemble();
 
+   MatrixFunctionCoefficient epsilon(dim,epsilon_func);
+   ScalarMatrixProductCoefficient coeff(sigma,epsilon);
+
    // 7. Bilinear form a(.,.) on the finite element space
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(muinv)); // one is the coeff
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+   a->AddDomainIntegrator(new VectorFEMassIntegrator(coeff));
    a->Assemble();
 
    Array<int> ess_tdof_list;
@@ -174,6 +182,8 @@ int main(int argc, char *argv[])
    x = 0.0;
    VectorFunctionCoefficient E(sdim, E_exact);
    x.ProjectCoefficient(E);
+   ParGridFunction Eex(fespace);
+   Eex.ProjectCoefficient(E);
 
    HypreParMatrix * A = new HypreParMatrix;
    Vector B, X;
@@ -206,10 +216,10 @@ int main(int argc, char *argv[])
    gmres.SetAbsTol(atol);
    gmres.SetRelTol(rtol);
    gmres.SetMaxIter(maxit);
+   gmres.SetPreconditioner(M);
    gmres.SetOperator(*A);
    // gmres.SetPreconditioner(*prec);
    // gmres.SetPreconditioner(MG);
-   gmres.SetPreconditioner(M);
    gmres.SetPrintLevel(1);
 
 
@@ -219,8 +229,6 @@ int main(int argc, char *argv[])
    chrono.Stop();
 
 
-
-   
 
    if (mpi.Root())
    {
@@ -243,6 +251,14 @@ int main(int argc, char *argv[])
       cout << "\n || E_h - E || / ||E|| = " << L2Error / norm_E << '\n' << endl;
    }
 
+   int precision = 8;
+   VisItDataCollection *dc = NULL;
+   dc = new VisItDataCollection("Maxwellp_real", pmesh);
+   dc->SetPrefixPath("output");
+   dc->SetPrecision(precision);
+   dc->RegisterField("solution",&x);
+   dc->Save();
+
 
 
    if (visualization)
@@ -256,6 +272,11 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x << flush;
+      
+      socketstream exact_sock(vishost, visport);
+      exact_sock << "parallel " << num_procs << " " << myid << "\n";
+      exact_sock.precision(8);
+      exact_sock << "solution\n" << *pmesh << Eex << flush;
    }
    // ---------------------------------------------------------------------
 
@@ -282,7 +303,7 @@ void E_exact(const Vector &x, Vector &E)
 }
 
 //calculate RHS from exact solution
-// f = curl (mu curl E ) + omega^2*E
+// f = curl (mu curl E ) + coeff*E
 void f_exact(const Vector &x, Vector &f)
 {
    double coeff;
@@ -291,18 +312,22 @@ void f_exact(const Vector &x, Vector &f)
 #else
    coeff = -omega * omega;
 #endif
-   double E[3], curl2E[3];
-   get_maxwell_solution(x, E, curl2E);
-   // curl ( curl E) +/- omega^2 E = f
-   f(0) = curl2E[0] + coeff * E[0];
-   f(1) = curl2E[1] + coeff * E[1];
-   if (dim == 2)
+   f = 0.0;
+   if (isol != 4)
    {
-      if (x.Size() == 3) {f(2)=0.0;}
-   }
-   else
-   {
-      f(2) = curl2E[2] + coeff * E[2];
+      double E[3], curl2E[3];
+      get_maxwell_solution(x, E, curl2E);
+      // curl ( curl E) +/- omega^2 E = f
+      f(0) = curl2E[0] + coeff * E[0];
+      f(1) = curl2E[1] + coeff * E[1];
+      if (dim == 2)
+      {
+         if (x.Size() == 3) {f(2)=0.0;}
+      }
+      else
+      {
+         f(2) = curl2E[2] + coeff * E[2];
+      }
    }
 }
 
@@ -426,5 +451,29 @@ void get_maxwell_solution(const Vector & x, double E[], double curl2E[])
          curl2E[2] = -omega * omega * E[0] / 3.0;
       }
    }
+   else if (isol == 4) // Airy function
+   {
+      E[0] = 0;
+      E[1] = 0;
+      // double b = -pow(omega/4.0,2.0/3.0)*(4.0*x(0)-1.0);
+      double b = -pow(omega/4.0,2.0/3.0)*(4.0*x(0)-1.0);
+      E[2] = boost::math::airy_ai(b);
+   }
+}
 
+void epsilon_func(const Vector &x, DenseMatrix &M)
+{
+   M.SetSize(3);
+
+   M = 0.0;
+   M(0,0) = 1.0;
+   M(1,1) = 1.0;
+   if (isol != 4)
+   {
+      M(2,2) = 1.0;
+   }
+   else
+   {
+      M(2,2) = 4.0*x(0)-1.0;
+   }
 }
