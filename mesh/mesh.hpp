@@ -970,6 +970,8 @@ public:
    virtual void ReorientTetMesh();
 
    int *CartesianPartitioning(int nxyz[]);
+  int *CartesianPartitioningXY(int nxyz[], const int X, const int Y);
+  
    int *GeneratePartitioning(int nparts, int part_method = 1);
    void CheckPartitioning(int *partitioning);
 

@@ -4869,6 +4869,58 @@ int *Mesh::CartesianPartitioning(int nxyz[])
    return partitioning;
 }
 
+int *Mesh::CartesianPartitioningXY(int nxyz[], const int X, const int Y)
+{
+   int *partitioning;
+   double pmin[3] = { infinity(), infinity(), infinity() };
+   double pmax[3] = { -infinity(), -infinity(), -infinity() };
+   // find a bounding box using the vertices
+   for (int vi = 0; vi < NumOfVertices; vi++)
+   {
+      const double *p = vertices[vi]();
+      for (int i = 0; i < spaceDim; i++)
+      {
+         if (p[i] < pmin[i]) { pmin[i] = p[i]; }
+         if (p[i] > pmax[i]) { pmax[i] = p[i]; }
+      }
+   }
+
+   partitioning = new int[NumOfElements];
+
+   // determine the partitioning using the centers of the elements
+   double ppt[3];
+   Vector pt(ppt, spaceDim);
+   int pvec[3];
+   for (int el = 0; el < NumOfElements; el++)
+   {
+      GetElementTransformation(el)->Transform(
+         Geometries.GetCenter(GetElementBaseGeometry(el)), pt);
+      int part = 0;
+      for (int i = spaceDim-1; i >= 0; i--)
+      {
+         int idx = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
+         if (idx < 0) { idx = 0; }
+         if (idx >= nxyz[i]) { idx = nxyz[i]-1; }
+         part = part * nxyz[i] + idx;
+	 pvec[i] = idx;
+      }
+
+      {
+	const int idX = pvec[0] / X;
+	const int idY = pvec[1] / Y;
+	
+	const int idbX = pvec[0] - (idX * X);
+	const int idbY = pvec[1] - (idY * Y);
+	
+	part = (pvec[2] * nxyz[1] * nxyz[0]) + (((idY * nxyz[0] / X) + idX) * X * Y) + (idbY * X) + idbX;
+      }
+      
+      partitioning[el] = part;
+   }
+
+   return partitioning;
+}
+
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
 #ifdef MFEM_USE_METIS

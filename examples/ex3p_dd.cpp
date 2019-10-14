@@ -347,8 +347,8 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    //const char *mesh_file = "../data/beam-tet.mesh";
 #ifdef AIRY_TEST
-   //const char *mesh_file = "../data/inline-tetHalf.mesh";
    const char *mesh_file = "inline-tetHalf.mesh";
+   //const char *mesh_file = "inline-tetHalf2.mesh";
 #else
    const char *mesh_file = "../data/inline-tet.mesh";
 #endif
@@ -409,10 +409,12 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
 	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
-	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-	(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
+
+      // Note: with nx=6 in inline-tetHalf2.mesh, 1/64 becomes 1/96; 1/128 becomes 1/192.
       
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
@@ -557,15 +559,23 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {4, 8, 4};
        //int nxyzGlobal[3] = {2, 2, 8};
-       //int nxyzGlobal[3] = {6, 6, 8};  // 288
+       int nxyzGlobal[3] = {6, 6, 8};  // 288
        //int nxyzGlobal[3] = {8, 6, 6};  // 288
        //int nxyzGlobal[3] = {6, 12, 8};  // 576
-       int nxyzGlobal[3] = {12, 6, 8};  // 576
+       //int nxyzGlobal[3] = {12, 6, 8};  // 576
+       //int nxyzGlobal[3] = {12, 12, 4};  // 576
        //int nxyzGlobal[3] = {6, 6, 16};  // 576
+       //int nxyzGlobal[3] = {12, 12, 8};  // 1152
+       //int nxyzGlobal[3] = {6, 12, 16};  // 1152
        //int nxyzGlobal[3] = {6, 6, 32};  // 1152
        //int nxyzGlobal[3] = {8, 4, 8};
        //int nxyzGlobal[3] = {8, 16, 8};
+       //int nxyzGlobal[3] = {12, 12, 16};  // 2304
+       //int nxyzGlobal[3] = {24, 24, 4};  // 2304
+
        int *partition = mesh->CartesianPartitioning(nxyzGlobal);
+       //int *partition = mesh->CartesianPartitioningXY(nxyzGlobal, 6, 6);
+       //int *partition = mesh->CartesianPartitioningXY(nxyzGlobal, 3, 3);
        
        pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition);
 

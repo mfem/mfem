@@ -748,7 +748,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	}
     }
 
-  cout << rank << ": ownerGlobalI " << ownerGlobalI << ", count " << count << ", nprocs " << nprocs << endl;
+  //cout << rank << ": ownerGlobalI " << ownerGlobalI << ", count " << count << ", nprocs " << nprocs << endl;
   
   MFEM_VERIFY(ownerGlobalI >= 0 && count == 1, "");
   
@@ -811,7 +811,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
       // Create the CSRMatrixMPI A_ by borrowing the internal data from a hypre_CSRMatrix.
       csr_op = hypre_MergeDiagAndOffd(parcsr_op);
 
-      cout << rank << ": num rows " << csr_op->num_rows << ", RP0 " << A->RowPart()[0] << ", RP1 " << A->RowPart()[1] << endl;
+      //cout << rank << ": num rows " << csr_op->num_rows << ", RP0 " << A->RowPart()[0] << ", RP1 " << A->RowPart()[1] << endl;
 
       if (A != NULL)
 	MFEM_VERIFY(csr_op->num_rows == A->RowPart()[1] - A->RowPart()[0], "");
@@ -3995,7 +3995,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
 	rowTrueOffsetsSD[m][2] = ifsize;
 
-	cout << rank << ": SD " << m << " ifsize " << ifsize << endl;
+	//cout << rank << ": SD " << m << " ifsize " << ifsize << endl;
 	    
 	colTrueOffsetsSD[m] = rowTrueOffsetsSD[m];
 	colTrueOffsetsSD[m][1] = tdofsBdry[m].size();
