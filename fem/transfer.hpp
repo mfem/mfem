@@ -95,6 +95,7 @@ class TensorProductTransferOperator : public Operator
    int D1D;
    int Q1D;
    Array<double> B;
+   Array<double> Bt;
 
  public:
    TensorProductTransferOperator(const FiniteElementSpace& lFESpace_,
@@ -115,6 +116,8 @@ class TensorProductTransferOperator : public Operator
  private:
    void Mult2D(const Vector& x, Vector& y) const;
    void Mult3D(const Vector& x, Vector& y) const;
+   void MultTranspose2D(const Vector& x, Vector& y) const;
+   void MultTranspose3D(const Vector& x, Vector& y) const;
 };
 
 /// Matrix-free transfer operator between finite element spaces working on true
