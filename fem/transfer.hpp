@@ -46,7 +46,7 @@ class TransferOperator : public Operator
 };
 
 /// Matrix-free transfer operator between finite element spaces on the same mesh
-class OrderTransferOperator : public Operator
+class PRefinementTransferOperator : public Operator
 {
  private:
    const FiniteElementSpace& lFESpace;
@@ -57,11 +57,11 @@ class OrderTransferOperator : public Operator
    /// have different FE collections. No matrices are assembled, only the action
    /// to a vector is being computed. The underlying finite elements need to
    /// implement the GetTransferMatrix methods.
-   OrderTransferOperator(const FiniteElementSpace& lFESpace_,
-                         const FiniteElementSpace& hFESpace_);
+   PRefinementTransferOperator(const FiniteElementSpace& lFESpace_,
+                               const FiniteElementSpace& hFESpace_);
 
    /// Destructor
-   virtual ~OrderTransferOperator();
+   virtual ~PRefinementTransferOperator();
 
    /// Interpolation or prolongation of a vector \p x corresponding to the
    /// coarse space to the vector \p y corresponding to the fine space.
@@ -80,7 +80,9 @@ class OrderTransferOperator : public Operator
    }
 };
 
-class TensorProductTransferOperator : public Operator
+/// Matrix-free transfer operator between finite element spaces on the same mesh
+/// exploiting the tensor product structure of the finite elements
+class TensorProductPRefinementTransferOperator : public Operator
 {
  private:
    const FiniteElementSpace& lFESpace;
@@ -98,11 +100,12 @@ class TensorProductTransferOperator : public Operator
    Array<double> Bt;
 
  public:
-   TensorProductTransferOperator(const FiniteElementSpace& lFESpace_,
-                                 const FiniteElementSpace& hFESpace_);
+   TensorProductPRefinementTransferOperator(
+       const FiniteElementSpace& lFESpace_,
+       const FiniteElementSpace& hFESpace_);
 
    /// Destructor
-   virtual ~TensorProductTransferOperator();
+   virtual ~TensorProductPRefinementTransferOperator();
 
    /// Interpolation or prolongation of a vector \p x corresponding to the
    /// coarse space to the vector \p y corresponding to the fine space.
