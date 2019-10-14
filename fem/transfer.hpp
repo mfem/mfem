@@ -80,6 +80,43 @@ class OrderTransferOperator : public Operator
    }
 };
 
+class TensorProductTransferOperator : public Operator
+{
+ private:
+   const FiniteElementSpace& lFESpace;
+   const FiniteElementSpace& hFESpace;
+
+   int dim;
+   Array<int> ldofmap;
+   Array<int> hdofmap;
+   IntegrationRule irLex;
+   int NE;
+   const DofToQuad* maps;
+   int D1D;
+   int Q1D;
+   Array<double> B;
+
+ public:
+   TensorProductTransferOperator(const FiniteElementSpace& lFESpace_,
+                                 const FiniteElementSpace& hFESpace_);
+
+   /// Destructor
+   virtual ~TensorProductTransferOperator();
+
+   /// Interpolation or prolongation of a vector \p x corresponding to the
+   /// coarse space to the vector \p y corresponding to the fine space.
+   virtual void Mult(const Vector& x, Vector& y) const override;
+
+   /// Restriction by applying the transpose of the Mult method. The vector \p x
+   /// corresponding to the fine space is restricted to the vector \p y
+   /// corresponding to the coarse space.
+   virtual void MultTranspose(const Vector& x, Vector& y) const override;
+
+ private:
+   void Mult2D(const Vector& x, Vector& y) const;
+   void Mult3D(const Vector& x, Vector& y) const;
+};
+
 /// Matrix-free transfer operator between finite element spaces working on true
 /// degrees of freedom
 class TrueTransferOperator : public Operator

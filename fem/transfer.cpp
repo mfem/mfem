@@ -10,12 +10,13 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "transfer.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
 
-TransferOperator::TransferOperator(const FiniteElementSpace &lFESpace_,
-                                   const FiniteElementSpace &hFESpace_)
+TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
+                                   const FiniteElementSpace& hFESpace_)
     : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
 {
    if (lFESpace_.FEColl() == hFESpace_.FEColl())
@@ -33,18 +34,18 @@ TransferOperator::TransferOperator(const FiniteElementSpace &lFESpace_,
 
 TransferOperator::~TransferOperator() { delete opr; }
 
-void TransferOperator::Mult(const Vector &x, Vector &y) const
+void TransferOperator::Mult(const Vector& x, Vector& y) const
 {
    opr->Mult(x, y);
 }
 
-void TransferOperator::MultTranspose(const Vector &x, Vector &y) const
+void TransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
    opr->MultTranspose(x, y);
 }
 
 OrderTransferOperator::OrderTransferOperator(
-    const FiniteElementSpace &lFESpace_, const FiniteElementSpace &hFESpace_)
+    const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_)
     : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
       hFESpace(hFESpace_)
 {
@@ -52,16 +53,16 @@ OrderTransferOperator::OrderTransferOperator(
 
 OrderTransferOperator::~OrderTransferOperator() {}
 
-void OrderTransferOperator::Mult(const Vector &x, Vector &y) const
+void OrderTransferOperator::Mult(const Vector& x, Vector& y) const
 {
-   Mesh *mesh = hFESpace.GetMesh();
+   Mesh* mesh = hFESpace.GetMesh();
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    DenseMatrix loc_prol;
    Vector subY, subX;
 
    Geometry::Type cached_geom = Geometry::INVALID;
-   const FiniteElement *h_fe = NULL;
-   const FiniteElement *l_fe = NULL;
+   const FiniteElement* h_fe = NULL;
+   const FiniteElement* l_fe = NULL;
    IsoparametricTransformation T;
 
    int vdim = lFESpace.GetVDim();
@@ -95,11 +96,11 @@ void OrderTransferOperator::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
+void OrderTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
    y = 0.0;
 
-   Mesh *mesh = hFESpace.GetMesh();
+   Mesh* mesh = hFESpace.GetMesh();
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    DenseMatrix loc_prol;
    Vector subY, subX;
@@ -108,8 +109,8 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
    processed = 0;
 
    Geometry::Type cached_geom = Geometry::INVALID;
-   const FiniteElement *h_fe = NULL;
-   const FiniteElement *l_fe = NULL;
+   const FiniteElement* h_fe = NULL;
+   const FiniteElement* l_fe = NULL;
    IsoparametricTransformation T;
 
    int vdim = lFESpace.GetVDim();
@@ -158,8 +159,233 @@ void OrderTransferOperator::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
-TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace &lFESpace_,
-                                           const FiniteElementSpace &hFESpace_)
+TensorProductTransferOperator::TensorProductTransferOperator(
+    const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_)
+    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
+      hFESpace(hFESpace_)
+{
+   // Assuming the same element type
+   Mesh* mesh = lFESpace.GetMesh();
+   dim = mesh->Dimension();
+   if (mesh->GetNE() == 0)
+   {
+      return;
+   }
+   const FiniteElement& el = *lFESpace.GetFE(0);
+
+   const TensorBasisElement* ltel =
+       dynamic_cast<const TensorBasisElement*>(&el);
+   MFEM_VERIFY(ltel, "Low order FE space must be tensor product space");
+   ldofmap = ltel->GetDofMap();
+
+   const TensorBasisElement* htel =
+       dynamic_cast<const TensorBasisElement*>(hFESpace.GetFE(0));
+   MFEM_VERIFY(htel, "High order FE space must be tensor product space");
+   hdofmap = htel->GetDofMap();
+
+   const IntegrationRule& ir = hFESpace.GetFE(0)->GetNodes();
+   irLex = ir;
+
+   // The quadrature points, or equivalently, the dofs of the high order space
+   // must be sorted in lexicographical order
+   for (int i = 0; i < ir.GetNPoints(); ++i)
+   {
+      irLex.IntPoint(i) = ir.IntPoint(hdofmap[i]);
+   }
+
+   NE = lFESpace.GetNE();
+   maps = &el.GetDofToQuad(irLex, DofToQuad::TENSOR);
+
+   D1D = maps->ndof;
+   Q1D = maps->nqpt;
+   B = maps->B;
+}
+
+TensorProductTransferOperator::~TensorProductTransferOperator() {}
+
+void TensorProductTransferOperator::Mult(const Vector& x, Vector& y) const
+{
+   if (dim == 2)
+   {
+      Mult2D(x, y);
+   }
+   else if (dim == 3)
+   {
+      Mult3D(x, y);
+   }
+   else
+   {
+      MFEM_ABORT(
+          "TensorProductTransferOperator::Mult not implemented for dim = "
+          << dim);
+   }
+}
+
+void TensorProductTransferOperator::Mult2D(const Vector& x, Vector& y) const
+{
+   Array<int> l_dofs, h_dofs;
+   Vector subY, subY_lex, subX, subX_lex;
+   subX.SetSize(D1D * D1D);
+   subX_lex.SetSize(subX.Size());
+   subY.SetSize(Q1D * Q1D);
+   subY_lex.SetSize(subY.Size());
+
+   double* sol_x = new double[Q1D];
+
+   for (int e = 0; e < NE; ++e)
+   {
+      // Extract dofs in lexicographical order
+      lFESpace.GetElementDofs(e, l_dofs);
+      x.GetSubVector(l_dofs, subX);
+
+      for (int i = 0; i < subX.Size(); ++i)
+      {
+         subX_lex[i] = subX[ldofmap[i]];
+      }
+
+      // Apply doftoQuad map using sum factorization
+      auto subX_lex_ = Reshape(subX_lex.Read(), D1D, D1D);
+      auto subY_lex_ = Reshape(subY_lex.Write(), Q1D, Q1D);
+      auto B_ = Reshape(B.Read(), Q1D, D1D);
+
+      subY_lex = 0.0;
+
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            sol_x[qy] = 0.0;
+         }
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double s = subX_lex_(dx, dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_x[qx] += B_(qx, dx) * s;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double d2q = B_(qy, dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               subY_lex_(qx, qy) += d2q * sol_x[qx];
+            }
+         }
+      }
+
+      for (int i = 0; i < subY.Size(); ++i)
+      {
+         subY[hdofmap[i]] = subY_lex[i];
+      }
+
+      // Set subvectors
+      hFESpace.GetElementDofs(e, h_dofs);
+      y.SetSubVector(h_dofs, subY);
+   }
+
+   delete[] sol_x;
+}
+
+void TensorProductTransferOperator::Mult3D(const Vector& x, Vector& y) const
+{
+   Array<int> l_dofs, h_dofs;
+   Vector subY, subY_lex, subX, subX_lex;
+   subX.SetSize(D1D * D1D * D1D);
+   subX_lex.SetSize(subX.Size());
+   subY.SetSize(Q1D * Q1D * Q1D);
+   subY_lex.SetSize(subY.Size());
+
+   double* sol_x = new double[Q1D];
+   double* sol_xy_ = new double[Q1D * Q1D];
+   auto sol_xy = Reshape(sol_xy_, Q1D, Q1D);
+
+   for (int e = 0; e < NE; ++e)
+   {
+      // Extract dofs in lexicographical order
+      lFESpace.GetElementDofs(e, l_dofs);
+      x.GetSubVector(l_dofs, subX);
+
+      for (int i = 0; i < subX.Size(); ++i)
+      {
+         subX_lex[i] = subX[ldofmap[i]];
+      }
+
+      // Apply doftoQuad map using sum factorization
+      auto subX_lex_ = Reshape(subX_lex.Read(), D1D, D1D, D1D);
+      auto subY_lex_ = Reshape(subY_lex.Write(), Q1D, Q1D, Q1D);
+      auto B_ = Reshape(B.Read(), Q1D, D1D);
+
+      subY_lex = 0.0;
+
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_xy(qx, qy) = 0.0;
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_x[qx] = 0;
+            }
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double s = subX_lex_(dx, dy, dz);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  sol_x[qx] += B_(qx, dx) * s;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = B_(qy, dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  sol_xy(qx, qy) += wy * sol_x[qx];
+               }
+            }
+         }
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            const double wz = B_(qz, dz);
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  subY_lex_(qx, qy, qz) += wz * sol_xy(qx, qy);
+               }
+            }
+         }
+      }
+
+      for (int i = 0; i < subY.Size(); ++i)
+      {
+         subY[hdofmap[i]] = subY_lex[i];
+      }
+
+      // Set subvectors
+      hFESpace.GetElementDofs(e, h_dofs);
+      y.SetSubVector(h_dofs, subY);
+   }
+
+   delete[] sol_xy_;
+   delete[] sol_x;
+}
+
+void TensorProductTransferOperator::MultTranspose(const Vector& x,
+                                                  Vector& y) const
+{
+   MFEM_ABORT("Not implemented.");
+   // y = 0.0;
+}
+
+TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
+                                           const FiniteElementSpace& hFESpace_)
 {
    localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
 
@@ -174,12 +400,12 @@ TrueTransferOperator::~TrueTransferOperator()
    delete localTransferOperator;
 }
 
-void TrueTransferOperator::Mult(const Vector &x, Vector &y) const
+void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
    opr->Mult(x, y);
 }
 
-void TrueTransferOperator::MultTranspose(const Vector &x, Vector &y) const
+void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
    opr->MultTranspose(x, y);
 }
