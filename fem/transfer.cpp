@@ -29,11 +29,11 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
    else if (hFESpace_.GetMesh()->GetNE() > 0 &&
             dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0)))
    {
-      opr = new TensorProductTransferOperator(lFESpace_, hFESpace_);
+      opr = new TensorProductPRefinementTransferOperator(lFESpace_, hFESpace_);
    }
    else
    {
-      opr = new OrderTransferOperator(lFESpace_, hFESpace_);
+      opr = new PRefinementTransferOperator(lFESpace_, hFESpace_);
    }
 }
 
@@ -49,16 +49,16 @@ void TransferOperator::MultTranspose(const Vector& x, Vector& y) const
    opr->MultTranspose(x, y);
 }
 
-OrderTransferOperator::OrderTransferOperator(
+PRefinementTransferOperator::PRefinementTransferOperator(
     const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_)
     : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
       hFESpace(hFESpace_)
 {
 }
 
-OrderTransferOperator::~OrderTransferOperator() {}
+PRefinementTransferOperator::~PRefinementTransferOperator() {}
 
-void OrderTransferOperator::Mult(const Vector& x, Vector& y) const
+void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 {
    Mesh* mesh = hFESpace.GetMesh();
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
@@ -101,7 +101,8 @@ void OrderTransferOperator::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void OrderTransferOperator::MultTranspose(const Vector& x, Vector& y) const
+void PRefinementTransferOperator::MultTranspose(const Vector& x,
+                                                Vector& y) const
 {
    y = 0.0;
 
@@ -164,8 +165,10 @@ void OrderTransferOperator::MultTranspose(const Vector& x, Vector& y) const
    }
 }
 
-TensorProductTransferOperator::TensorProductTransferOperator(
-    const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_)
+TensorProductPRefinementTransferOperator::
+    TensorProductPRefinementTransferOperator(
+        const FiniteElementSpace& lFESpace_,
+        const FiniteElementSpace& hFESpace_)
     : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
       hFESpace(hFESpace_)
 {
@@ -207,9 +210,13 @@ TensorProductTransferOperator::TensorProductTransferOperator(
    Bt = maps->Bt;
 }
 
-TensorProductTransferOperator::~TensorProductTransferOperator() {}
+TensorProductPRefinementTransferOperator::
+    ~TensorProductPRefinementTransferOperator()
+{
+}
 
-void TensorProductTransferOperator::Mult(const Vector& x, Vector& y) const
+void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
+                                                    Vector& y) const
 {
    if (lFESpace.GetMesh()->GetNE() == 0)
    {
@@ -226,13 +233,14 @@ void TensorProductTransferOperator::Mult(const Vector& x, Vector& y) const
    }
    else
    {
-      MFEM_ABORT(
-          "TensorProductTransferOperator::Mult not implemented for dim = "
-          << dim);
+      MFEM_ABORT("TensorProductPRefinementTransferOperator::Mult not "
+                 "implemented for dim = "
+                 << dim);
    }
 }
 
-void TensorProductTransferOperator::Mult2D(const Vector& x, Vector& y) const
+void TensorProductPRefinementTransferOperator::Mult2D(const Vector& x,
+                                                      Vector& y) const
 {
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    Vector subY, subY_lex, subX, subX_lex;
@@ -307,7 +315,8 @@ void TensorProductTransferOperator::Mult2D(const Vector& x, Vector& y) const
    delete[] sol_x;
 }
 
-void TensorProductTransferOperator::Mult3D(const Vector& x, Vector& y) const
+void TensorProductPRefinementTransferOperator::Mult3D(const Vector& x,
+                                                      Vector& y) const
 {
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    Vector subY, subY_lex, subX, subX_lex;
@@ -406,8 +415,8 @@ void TensorProductTransferOperator::Mult3D(const Vector& x, Vector& y) const
    delete[] sol_x;
 }
 
-void TensorProductTransferOperator::MultTranspose(const Vector& x,
-                                                  Vector& y) const
+void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
+                                                             Vector& y) const
 {
    if (lFESpace.GetMesh()->GetNE() == 0)
    {
@@ -426,14 +435,14 @@ void TensorProductTransferOperator::MultTranspose(const Vector& x,
    }
    else
    {
-      MFEM_ABORT(
-          "TensorProductTransferOperator::Mult not implemented for dim = "
-          << dim);
+      MFEM_ABORT("TensorProductPRefinementTransferOperator::Mult not "
+                 "implemented for dim = "
+                 << dim);
    }
 }
 
-void TensorProductTransferOperator::MultTranspose2D(const Vector& x,
-                                                    Vector& y) const
+void TensorProductPRefinementTransferOperator::MultTranspose2D(const Vector& x,
+                                                               Vector& y) const
 {
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    Vector subY, subY_lex, subX, subX_lex;
@@ -523,8 +532,8 @@ void TensorProductTransferOperator::MultTranspose2D(const Vector& x,
    delete[] sol_x;
 }
 
-void TensorProductTransferOperator::MultTranspose3D(const Vector& x,
-                                                    Vector& y) const
+void TensorProductPRefinementTransferOperator::MultTranspose3D(const Vector& x,
+                                                               Vector& y) const
 {
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    Vector subY, subY_lex, subX, subX_lex;
