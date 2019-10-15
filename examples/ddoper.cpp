@@ -211,35 +211,34 @@ void test_Airy1_E_exact(const Vector &x, Vector &E)
   const double k = sqrt(K2_AIRY);  // TODO: input k
   const double beta = -pow(0.25 * k, 2.0/3.0);  // TODO: store this somehow?
 
-  /*
+
   const double y = (4.0 * x(0)) - 1.0;
-  
   E(0) = 0.0;
   E(1) = 0.0;
   E(2) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
-  */
 
+  /*
   const double y = (4.0 * x(2)) - 1.0;
   
   E(0) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
   E(1) = 0.0;
   E(2) = 0.0;
-
+  */
 }
 
 void test_Airy_epsilon(const Vector &x, Vector &e)
 {
-  /*
+
   e(0) = 1.0;
   e(1) = 1.0;
   e(2) = (4.0 * x(0)) - 1.0;
-  */
 
+  /*
   e(0) = (4.0 * x(2)) - 1.0;
   e(1) = 1.0;
   e(2) = 1.0;
-
-
+  */
+  
   e *= -K2_AIRY;
 }
 #endif
@@ -1057,8 +1056,8 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	    SI[i+1] += SI[i];
 	  
 	  const HYPRE_Int nnz = SI[numLocRows];
-	  HYPRE_Int *SJ = new HYPRE_Int[nnz];
-	  double *Sdata = new double[nnz];
+	  HYPRE_Int *SJ = new HYPRE_Int[nnz+1];
+	  double *Sdata = new double[nnz+1];
 
 	  HYPRE_Int cnt = 0;
 
@@ -5407,10 +5406,18 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
     }
   else
 #endif
+#ifdef RL_VARFORM
+    // RawatLee2010 assumes [[u]] = 0, so this term is dropped.
+#else
     {
       op->SetBlock(0, 0, new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, alpha, beta));
     }
-    
+#endif
+
+#ifdef RL_VARFORM
+  // RawatLee2010 assumes <<\mu_r^{-1} f>> = 0, so the A_m^{SF} block is nonzero but there is no C_{mn}^{SF} block.
+  // -<\pi_{mn}(v_m), -\mu_r^{-1} f>_{S_{mn}}
+#else
   // In PengLee2012 C_{mn}^{SF} corresponds to
   // -<\pi_{mn}(v_m), -\mu_r^{-1} f + <<\mu_r^{-1} f>> >_{S_{mn}}
   // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the C_{mn}^{SF} block is the part
@@ -5423,7 +5430,11 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
     {
       op->SetBlock(0, 1, ifNDmass[interfaceIndex], -1.0);
     }
-
+#endif
+  
+#ifdef RL_VARFORM
+  // RawatLee2010 tests with F trial functions, rather than U plus F trial functions as in PengLee2012, and hence has no C_{mn}^{S\rho} block.
+#else
   // In PengLee2012 C_{mn}^{S\rho} corresponds to
   // -\gamma <\pi_{mn}(v_m), \nabla_\tau <<\rho>>_{mn} >_{S_{mn}}
   // Since <<\rho>>_{mn} = \rho_m + \rho_n, the C_{mn}^{S\rho} block is the part
@@ -5431,7 +5442,8 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
   // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
     
   op->SetBlock(0, 2, ifNDH1grad[interfaceIndex], -gamma);
-
+#endif
+  
   // In PengLee2012 C_{mn}^{FS} corresponds to
   // <w_m, [[u]]_{mn}>_{S_{mn}} + beta/alpha <curl_\tau w_m, curl_\tau [[u]]_{mn}>_{S_{mn}}
   // Since [[u]]_{mn} = \pi_{mn}(u_m) - \pi_{nm}(u_n), the C_{mn}^{FS} block is the part
@@ -6333,6 +6345,9 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
     {
       const int interfaceIndex = subdomainLocalInterfaces[subdomain][i];
 
+#ifdef RL_VARFORMOP
+      // RawatLee2010 assumes [[u]] = 0, so the following term is dropped.
+#else
       // Add -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m>_{S_{mn}} - beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{nm}(u_n)>_{S_{mn}} to A_m^{SS}.
 #ifdef DDMCOMPLEX
       if (realPart)
@@ -6472,15 +6487,24 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 	}
 #else
       // TODO: implement A_SS in the real case. 
-#endif
-
+#endif // DDMCOMPLEX
+#endif // RL_VARFORM
+      
+#ifdef RL_VARFORMOP
+      // RawatLee2010 assumes <<\mu_r^{-1} f>> = 0, so the A_m^{SF} block corresponds to
+      // -<\pi_{mn}(v_m), -\mu_r^{-1} f>_{S_{mn}}
+      // which is a mass matrix on the interface Nedelec space.
+      if (ifNDmass[interfaceIndex] != NULL)
+	op->SetBlock(0, (2*i) + 1, new ProductOperator(InterfaceToSurfaceInjection[subdomain][interfaceIndex], ifNDmass[interfaceIndex], false, false));
+#else
       // In PengLee2012 A_m^{SF} corresponds to
       // -<\pi_{mn}(v_m), -\mu_r^{-1} f + <<\mu_r^{-1} f>> >_{S_{mn}}
       // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{SF} block is 0. The paper seems to confirm this in
       // a remark about equation (2.25) on page A1274. 
-	
-      // op->SetBlock(0, (2*i) + 1, new ProductOperator(InterfaceToSurfaceInjection[subdomain][i], ifNDmass[interfaceIndex], false, false), 1.0 / alpha);
 
+      // op->SetBlock(0, (2*i) + 1, new ProductOperator(InterfaceToSurfaceInjection[subdomain][i], ifNDmass[interfaceIndex], false, false), 1.0 / alpha);
+#endif
+      
       // In PengLee2012 A_m^{S\rho} corresponds to
       // -\gamma <\pi_{mn}(v_m), \nabla_\tau <<\rho>>_{mn} >_{S_{mn}}
       // Since <<\rho>>_{mn} = \rho_m + \rho_n, the A_m^{S\rho} block is the part
@@ -6498,7 +6522,11 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 									       false, false),
 							   ifH1massInv[interfaceIndex], ifNDH1gradT[interfaceIndex], false, false, false), gamma);
 #else
+#ifdef RL_VARFORMOP
+      // RawatLee2010 tests with F trial functions, rather than U plus F trial functions as in PengLee2012, and hence has no A_m^{S\rho} block.
+#else      
       op->SetBlock(0, (2*i) + 2, new ProductOperator(InterfaceToSurfaceInjection[subdomain][interfaceIndex], ifNDH1grad[interfaceIndex], false, false), -gamma);
+#endif
 #endif
 	
       // In PengLee2012 A_m^{F\rho} corresponds to
@@ -6667,7 +6695,10 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       
       std::vector<int> &dofmap = (i >= 0) ? InterfaceToSurfaceInjectionData[subdomain][i] : dofmapEmpty;
 
-      // Add -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m>_{S_{mn}} - beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{nm}(u_n)>_{S_{mn}} to A_m^{SS}.
+#ifdef RL_VARFORM
+      // RawatLee2010 assumes [[u]] = 0, so the following term is dropped.
+#else
+      // Add -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m)>_{S_{mn}} - beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{nm}(u_n)>_{S_{mn}} to A_m^{SS}.
 #ifdef DDMCOMPLEX
       HypreParMatrix *ifSum = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(-alpha, *(ifNDmass[interfaceIndex]), -beta, *(ifNDcurlcurl[interfaceIndex]));
 
@@ -6720,15 +6751,36 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 	delete ifSum;
 #else
       // TODO: implement A_SS in the real case. 
-#endif
+#endif // DDMCOMPLEX
+#endif // RL_VARFORM
 
+#ifdef RL_VARFORM
+      // RawatLee2010 assumes <<\mu_r^{-1} f>> = 0, so the A_m^{SF} block corresponds to
+      // -<\pi_{mn}(v_m), -\mu_r^{-1} f>_{S_{mn}}
+      // which is a mass matrix on the interface Nedelec space.
+
+      //if (ifNDmass[interfaceIndex] != NULL)
+	{
+	  HypreParMatrix* injectedM = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDmass[interfaceIndex],
+									   dofmap,
+									   GlobalInterfaceToSurfaceInjectionGlobalData[subdomain][interfaceIndex],
+									   ifespace[interfaceIndex], NULL, false);
+	  
+	  if (injectedM != NULL && i >= 0)
+	    block(0, (2*i) + 1) = injectedM;
+	}
+#else
       // In PengLee2012 A_m^{SF} corresponds to
       // -<\pi_{mn}(v_m), -\mu_r^{-1} f + <<\mu_r^{-1} f>> >_{S_{mn}}
       // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{SF} block is 0. The paper seems to confirm this in
       // a remark about equation (2.25) on page A1274. 
 	
       // op->SetBlock(0, (2*i) + 1, new ProductOperator(InterfaceToSurfaceInjection[subdomain][i], ifNDmass[interfaceIndex], false, false), 1.0 / alpha);
+#endif
 
+#ifdef RL_VARFORM
+      // RawatLee2010 tests with F trial functions, rather than U plus F trial functions as in PengLee2012, and hence has no A_m^{S\rho} block.
+#else
       // In PengLee2012 A_m^{S\rho} corresponds to
       // -\gamma <\pi_{mn}(v_m), \nabla_\tau <<\rho>>_{mn} >_{S_{mn}}
       // Since <<\rho>>_{mn} = \rho_m + \rho_n, the A_m^{S\rho} block is the part
@@ -6793,6 +6845,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 
 	  blockCoefficient(0, (2*i) + 2) = -gamma;
 	}
+#endif // RL_VARFORM
 	
       // In PengLee2012 A_m^{F\rho} corresponds to
       // gamma / alpha <w_m^s, \nabla_\tau <<\rho>>_{mn} >_{S_{mn}}
@@ -6810,13 +6863,12 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       // Since [[u]]_{mn} = \pi_{mn}(u_m) - \pi_{nm}(u_n), the A_m^{FS} block is the part
       // <w_m, \pi_{mn}(u_m)>_{S_{mn}} + beta/alpha <curl_\tau w_m, curl_\tau \pi_{mn}(u_m)>_{S_{mn}}
       // This is an interface mass plus curl-curl stiffness matrix.
-
 #ifdef DDMCOMPLEX
       if (realPart)
 #endif
 	{
-	  ifSum = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(1.0, *(ifNDmass[interfaceIndex]), betaOverAlpha, *(ifNDcurlcurl[interfaceIndex]));
-	  HypreParMatrix *matrixSum = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifSum,
+	  HypreParMatrix *ifSumF = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(1.0, *(ifNDmass[interfaceIndex]), betaOverAlpha, *(ifNDcurlcurl[interfaceIndex]));
+	  HypreParMatrix *matrixSum = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifSumF,
 									   //InterfaceToSurfaceInjectionData[subdomain][i],
 									   //InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 									   dofmap,
@@ -6827,8 +6879,8 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 	  if (i >= 0)
 	    block((2*i) + 1, 0) = matrixSum;
 	  
-	  if (ifSum != NULL)
-	    delete ifSum;
+	  if (ifSumF != NULL)
+	    delete ifSumF;
 	}
 #ifdef DDMCOMPLEX
       else
@@ -6848,7 +6900,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 	    }
 	}
 #endif
-
+      
       // In PengLee2012 A_m^{\rho F} corresponds to
       // <\nabla_\tau \psi_m, \mu_{rm}^{-1} f_{mn}>_{S_{mn}}
       // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.

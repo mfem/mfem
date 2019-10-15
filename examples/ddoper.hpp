@@ -6,7 +6,7 @@
 using namespace mfem;
 using namespace std;
 
-//#define AIRY_TEST
+#define AIRY_TEST
 
 #define ZERO_RHO_BC
 #define ZERO_IFND_BC
@@ -25,6 +25,8 @@ using namespace std;
 //#define ROBIN_TC
 //#define PENGLEE12_SOTC
 //#define RL_DDMXXI
+
+#define RL_VARFORM
 
 //#define TESTFEMSOL
 
