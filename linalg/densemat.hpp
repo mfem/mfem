@@ -262,8 +262,12 @@ public:
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
 
+   void SetRow(int r, const double* row );
    void SetRow(int r, const Vector &row);
+
+   void SetCol(int c, const double* col );
    void SetCol(int c, const Vector &col);
+
 
    /// Set all entries of a row to the specified value.
    void SetRow(int row, double value);

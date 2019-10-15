@@ -2905,20 +2905,34 @@ void DenseMatrix::SetCol(int col, double value)
    }
 }
 
-void DenseMatrix::SetRow(int r, const Vector &row)
+void DenseMatrix::SetRow(int r, const double* row)
 {
+   MFEM_ASSERT( row != nullptr, "supplied row pointer is null" );
    for (int j = 0; j < Width(); j++)
    {
       (*this)(r, j) = row[j];
    }
 }
 
-void DenseMatrix::SetCol(int c, const Vector &col)
+void DenseMatrix::SetRow(int r, const Vector &row)
 {
+   MFEM_ASSERT( Width()==row.Size(), "" );
+   SetRow( r, row.GetData() );
+}
+
+void DenseMatrix::SetCol(int c, const double* col)
+{
+   MFEM_ASSERT( col != nullptr, "supplied column pointer is null" );
    for (int i = 0; i < Height(); i++)
    {
       (*this)(i, c) = col[i];
    }
+}
+
+void DenseMatrix::SetCol(int c, const Vector &col)
+{
+   MFEM_ASSERT( Height()==col.Size(), "" );
+   SetCol( c, col.GetData() );
 }
 
 void DenseMatrix::Threshold(double eps)
