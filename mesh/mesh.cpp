@@ -6034,8 +6034,8 @@ void Mesh::UniformRefinement2D()
    for (int i = 0; i < elements.Size(); i++)
    {
       Embedding &emb = CoarseFineTr.embeddings[i];
-      emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 3;
-      emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 3 + 1;
+      emb.parent = i / 4;
+      emb.matrix = i % 4;
    }
 
    NumOfVertices    = vertices.Size();
