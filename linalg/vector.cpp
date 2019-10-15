@@ -128,8 +128,11 @@ Vector &Vector::operator=(const Vector &v)
 Vector &Vector::operator=(double value)
 {
    const bool use_dev = UseDevice();
+   dbg("use_dev:%d",use_dev);
    const int N = size;
+   dbg("y = Write(use_dev);");
    auto y = Write(use_dev);
+   dbg("MFEM_FORALL_SWITCH");
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
    return *this;
 }
@@ -877,7 +880,7 @@ static double cuVectorMin(const int N, const double *X)
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(min_sz);
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
-   double *d_min = buf.Write(MemoryClass::CUDA, min_sz);
+   double *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
    cuKernelMin<<<gridSize,blockSize>>>(N, d_min, X);
    MFEM_GPU_CHECK(cudaGetLastError());
    const double *h_min = buf.Read(MemoryClass::HOST, min_sz);
@@ -920,7 +923,7 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(dot_sz);
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
-   double *d_dot = buf.Write(MemoryClass::CUDA, dot_sz);
+   double *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
    MFEM_GPU_CHECK(cudaGetLastError());
    const double *h_dot = buf.Read(MemoryClass::HOST, dot_sz);

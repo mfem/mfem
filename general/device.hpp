@@ -55,8 +55,8 @@ struct Backend
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
       OCCA_CUDA = 1 << 9,
-      /** @brief [device] CPU backend: sequential execution on each MPI rank in
-          different protected memory spaces.*/
+      /** @brief [host] Debug backend: host memory is READ/WRITE protected
+          while a device is in use. */
       DEBUG = 1 << 10
    };
 
@@ -76,7 +76,7 @@ struct Backend
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK,
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
       /// Biwise-OR of all OCCA backends
@@ -103,6 +103,7 @@ struct Backend
 class Device
 {
 private:
+   friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
 
    static Device device_singleton;

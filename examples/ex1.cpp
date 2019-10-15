@@ -139,24 +139,28 @@ int main(int argc, char *argv[])
 
    if (mem)
    {
-      MFEM_VERIFY(Device::GetMemoryType()!=MemoryType::HOST_MMU,"");
-      constexpr int N = 1 + static_cast<int>(MemoryType::CUDA_UVM);
+      constexpr int N = 1 + static_cast<int>(MemoryType::DEVICE_UVM);
       dbg("N: %d", N);
       Vector v[N];
       MemoryType mt = MemoryType::HOST;
       for (int i=0; i<N; i++, mt++)
       {
+         if (!Device::Allows(Backend::DEVICE_MASK) &&
+             !mfem::IsHostMemory(mt)) {continue;}
 #ifndef MFEM_USE_UMPIRE
          if (i==static_cast<int>(MemoryType::HOST_UMPIRE)) { continue; }
-         if (i==static_cast<int>(MemoryType::CUDA_UMPIRE)) { continue; }
+         if (i==static_cast<int>(MemoryType::DEVICE_UMPIRE)) { continue; }
 #endif // MFME_USE_UMPIRE
          constexpr int size = 1024;
          dbg("\033[7m%d", static_cast<int>(mt));
          Memory<double> mem(size, mt);
          //MemoryPrintFlags(mem.GetFlags());
          MFEM_VERIFY(mem.Capacity() == size,"");
+         dbg("&y = v[i]");
          Vector &y = v[i];
+         dbg("NewMemoryAndSize");
          y.NewMemoryAndSize(mem, size, true);
+         dbg("UseDevice");
          y.UseDevice(true);
          dbg("HostWrite");
          y.HostWrite();
