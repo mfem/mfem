@@ -3063,6 +3063,71 @@ void Add(double alpha, const DenseMatrix &A,
    Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
+int LinearSolve( DenseMatrix& A, double* X )
+{
+  MFEM_VERIFY( A.IsSquare(), "A must be a square matrix!" );
+  MFEM_ASSERT( A.NumCols() > 0, "supplied matrix, A, is empty!" );
+  MFEM_ASSERT( X != nullptr, "supplied vector, X, is null!" );
+
+  constexpr double TOL = 1.e-9;
+  constexpr int SINGULAR = -1;
+  const int N = A.NumCols();
+
+  switch ( N )
+  {
+    case 1:
+    {
+      const double a00 = A(0,0);
+      if ( abs(a00-0.0) <= TOL )
+      {
+        return SINGULAR;
+      }
+
+      X[ 0 ] /= a00;
+      break;
+    }
+    case 2:
+    {
+      const double det = A.Det();
+      if ( abs(det-0.0) <= TOL )
+      {
+        return SINGULAR;
+      }
+
+      const double invdet = 1. / det;
+
+      const double& a00 = A(0,0);
+      const double& a01 = A(0,1);
+      const double& a10 = A(1,0);
+      const double& a11 = A(1,1);
+      const double b0   = X[0];
+      const double b1   = X[1];
+
+      X[ 0 ] = (  a11*b0 - a01*b1 ) * invdet;
+      X[ 1 ] = ( -a10*b0 + a00*b1 ) * invdet;
+      break;
+    }
+    default:
+    {
+      // detault to LU factorization for the general case
+      constexpr int LU_SUCCESS = 0;
+      int* ipiv = new int [ N ];
+      LUFactors lu( A.Data(), ipiv );
+
+      if ( lu.Factor( N ) != LU_SUCCESS )
+      {
+        return SINGULAR;
+      }
+
+      lu.Solve( N, 1, X );
+
+      delete [] ipiv;
+    }
+
+  } // END switch
+
+  return 0;
+}
 
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {

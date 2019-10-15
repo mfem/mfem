@@ -14,6 +14,75 @@
 
 using namespace mfem;
 
+TEST_CASE( "DenseMatrix LinearSolve methods",
+           "[DenseMatrix]" )
+{
+  SECTION( "singular_system" )
+  {
+    constexpr int N = 3;
+
+    DenseMatrix A( N );
+    A.SetRow( 0, 0.0 );
+    A.SetRow( 1, 0.0 );
+    A.SetRow( 2, 0.0 );
+
+    double X[3];
+
+    int rc = LinearSolve( A, X );
+    REQUIRE( rc < 0 );
+  }
+
+  SECTION( "1x1_system" )
+  {
+    constexpr int N = 1;
+    DenseMatrix A(N);
+    A(0,0) = 2;
+
+    double X[ 1 ] = { 12 };
+
+    int rc = LinearSolve( A, X );
+    REQUIRE( rc==0 );
+    REQUIRE( X[0] == Approx(6) );
+  }
+
+  SECTION( "2x2_system" )
+  {
+    constexpr int N = 2;
+
+    DenseMatrix A( N );
+    A(0,0)=2. ; A(0,1)=1.;
+    A(1,0)=3. ; A(1,1)=4.;
+
+    double X[ 2 ] = { 1, 14 };
+
+    int rc = LinearSolve( A, X );
+
+    REQUIRE( rc==0 );
+    REQUIRE( X[0] == Approx(-2) );
+    REQUIRE( X[1] == Approx(5) );
+  }
+
+  SECTION( "3x3_system" )
+  {
+    constexpr int N = 3;
+
+    DenseMatrix A( N );
+    A( 0,0 )=4; A( 0,1 )=5; A( 0,2 )=-2;
+    A( 1,0 )=7; A( 1,1 )=-1; A( 1,2 )= 2;
+    A( 2,0 )=3; A( 2,1 )=1; A( 2,2 )= 4;
+
+    double X[ 3 ] = { -14, 42, 28 };
+
+    int rc = LinearSolve( A, X );
+
+    REQUIRE( rc==0 );
+    REQUIRE( X[0] == Approx(4)  );
+    REQUIRE( X[1] == Approx(-4) );
+    REQUIRE( X[2] == Approx(5) );
+  }
+
+}
+
 TEST_CASE("DenseMatrix A*B^T methods",
           "[DenseMatrix]")
 {
