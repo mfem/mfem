@@ -370,6 +370,20 @@ void Add(double alpha, const double *A,
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
 
+/// @brief Solves the linear system, `A * X = B` for `X`
+///
+/// @param [in,out] A the square matrix for the linear system
+/// @param [in,out] X the rhs vector, B, on input, the solution, X, on output.
+///
+/// @return status zero on success, negative number otherwise.
+///
+/// @note This routine may replace the contents of the input Matrix, A, with
+///  the corresponding LU factorization of the matrix.
+///
+/// @pre A.IsSquare() == true
+/// @pre X != nullptr
+int LinearSolve( DenseMatrix& A, double* X );
+
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 
