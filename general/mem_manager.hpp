@@ -13,6 +13,7 @@
 #define MFEM_MEM_MANAGER_HPP
 
 #include "globals.hpp"
+#include "globals.hpp"
 #include "error.hpp"
 #include "dbg.hpp"
 
@@ -29,14 +30,15 @@ namespace mfem
 /// Memory types supported by MFEM.
 enum class MemoryType
 {
-   HOST,        ///< Host memory; using new[] and delete[]
-   HOST_UMPIRE, ///< Host memory; using Umpire
-   HOST_32,     ///< Host memory aligned at 32 bytes
-   HOST_64,     ///< Host memory aligned at 64 bytes
-   HOST_MMU,    ///< Host memory with MMU protection
-   CUDA,        ///< cudaMalloc, cudaFree
-   CUDA_UMPIRE, ///< Device memory; using Umpire
-   CUDA_UVM     ///< cudaMallocManaged, cudaFree
+   HOST,          ///< Host memory; using new[] and delete[]
+   HOST_UMPIRE,   ///< Host memory; using Umpire
+   HOST_32,       ///< Host memory aligned at 32 bytes
+   HOST_64,       ///< Host memory aligned at 64 bytes
+   HOST_MMU,      ///< Host memory with MMU protection
+   DEVICE,        ///< [cuda|hip]Malloc, [cuda|hip]Free
+   DEVICE_UMPIRE, ///< Device memory; using Umpire
+   DEVICE_UVM,    ///< [cuda|hip]MallocManaged, [cuda|hip]Free
+   DEVICE_MMU     ///< Device memory with MMU protection
 };
 
 inline MemoryType& operator++(MemoryType &mt,int)
@@ -49,26 +51,25 @@ struct MemoryBackends
    enum
    {
       /// Number of host and device MemoryTypes.
-      NUM_BACKENDS = 8,
-      NUM_HOST_BACKENDS = 5,
-      NUM_DEVICE_BACKENDS = 3
+      NUM_BACKENDS = 9
    };
 };
 
 /// Memory classes identify subsets of memory types.
 /** This type is used by kernels that can work with multiple MemoryType%s.
- *  For example, kernels that can use CUDA or CUDA_UVM memory types should
- *  use MemoryClass::CUDA for their inputs. */
+ *  For example, kernels that can use DEVICE or DEVICE_UVM memory types should
+ *  use MemoryClass::DEVICE for their inputs. */
 enum class MemoryClass
 {
-   HOST,        ///< Memory types: { HOST, HOST_UMPIRE, HOST_32, HOST_64, HOST_MMU, CUDA_UVM }
-   HOST_UMPIRE, ///< Memory types: { HOST_UMPIRE, HOST_32, HOST_64, HOST_MMU }
-   HOST_32,     ///< Memory types: { HOST_32, HOST_64, HOST_MMU }
-   HOST_64,     ///< Memory types: { HOST_64, HOST_MMU }
-   HOST_MMU,    ///< Memory types: { HOST_MMU }
-   CUDA,        ///< Memory types: { CUDA, CUDA_UMPIRE, CUDA_UVM }
-   CUDA_UMPIRE, ///< Memory types: { CUDA_UMPIRE, CUDA_UVM }
-   CUDA_UVM,    ///< Memory types: { CUDA_UVM }
+   HOST,          ///< Memory types: { HOST, HOST_UMPIRE, HOST_32, HOST_64, HOST_MMU, DEVICE_UVM }
+   HOST_UMPIRE,   ///< Memory types: { HOST_UMPIRE, HOST_32, HOST_64, HOST_MMU }
+   HOST_32,       ///< Memory types: { HOST_32, HOST_64, HOST_MMU }
+   HOST_64,       ///< Memory types: { HOST_64, HOST_MMU }
+   HOST_MMU,      ///< Memory types: { HOST_MMU }
+   DEVICE,        ///< Memory types: { DEVICE, DEVICE_UMPIRE, DEVICE_UVM }
+   DEVICE_UMPIRE, ///< Memory types: { DEVICE_UMPIRE, DEVICE_UVM }
+   DEVICE_UVM,    ///< Memory types: { DEVICE_UVM }
+   DEVICE_MMU     ///< Memory types: { DEVICE_MMU }
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
@@ -84,7 +85,7 @@ MemoryType GetMemoryType(MemoryClass mc);
     Currently, the operation is defined as a*b := max(a,b) where the max
     operation is based on the enumeration ordering:
 
-        HOST < HOST_32 < HOST_64 < CUDA < CUDA_UVM. */
+        HOST < HOST_32 < HOST_64 < DEVICE < DEVICE_UVM. */
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 
 /// Class used by MFEM to store pointers to host and/or device memory.
@@ -101,7 +102,7 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
-    MemoryType::CUDA or MemoryTyep::CUDA_UVM).
+    MemoryType::DEVICE or MemoryTyep::DEVICE_UVM).
 
     A Memory object can hold (wrap) an externally allocated pointer with any
     given MemoryType.
@@ -138,8 +139,8 @@ protected:
       OWNS_INTERNAL = 1 << 3, ///< Ownership flag for internal Memory data
       VALID_HOST    = 1 << 4, ///< Host pointer is valid
       VALID_DEVICE  = 1 << 5, ///< Device pointer is valid
-      ALIAS         = 1 << 6, ///< Pointer is an alias
-      USE_DEVICE    = 1 << 7  ///< Internal device flag, see e.g. Vector::UseDevice()
+      USE_DEVICE    = 1 << 6, ///< Internal device flag, see e.g. Vector::UseDevice()
+      ALIAS         = 1 << 7  ///< Pointer is an alias
    };
 
    /// Pointer to host memory. Not owned.
@@ -523,7 +524,7 @@ inline void Memory<T>::New(int size)
 {
    capacity = size;
    h_type = MemoryManager::host_mem_type;
-   dbg("New w/o mt => %d", h_type);
+   dbg("New w/o mt => %d (size:%d)", h_type, size);
    flags = OWNS_HOST | VALID_HOST;
    if (h_type == MemoryType::HOST)
    {
@@ -590,20 +591,38 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 template <typename T>
 inline void Memory<T>::Delete()
 {
-   dbg("");
+   if (h_ptr == nullptr) { return; }
+
+   dbg("%p:%X h_type:%d %s", h_ptr,flags,h_type,
+       !(flags & REGISTERED)?"\033[7mnot registred!":"");
    if (!(flags & REGISTERED) ||
        MemoryManager::Delete_((void*)h_ptr, flags) == MemoryType::HOST)
    {
       if (flags & OWNS_HOST)
       {
+         dbg("OWNS_HOST");
          if (h_type == MemoryType::HOST)
          {
+            dbg("MemoryType::HOST");
             delete [] h_ptr;
          }
          else
          {
+            dbg("!MemoryType::HOST");
             MemoryManager::HostDelete_(h_ptr, h_type, flags);
          }
+      }
+      else
+      {
+         dbg("!OWNS_HOST");
+      }
+      if (flags & OWNS_DEVICE)
+      {
+         //MFEM_VERIFY(false, "Should delete device!");
+      }
+      else
+      {
+         dbg("!OWNS_DEVICE");
       }
    }
 }

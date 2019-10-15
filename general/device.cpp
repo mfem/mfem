@@ -118,23 +118,16 @@ void Device::UpdateMemoryTypeAndClass()
    {
       host_mem_type = MemoryType::HOST_MMU;
       host_mem_class = MemoryClass::HOST_MMU;
-      device_mem_type = MemoryType::HOST_MMU;
-      device_mem_class = MemoryClass::HOST_MMU;
+      device_mem_type = MemoryType::DEVICE_MMU;
+      device_mem_class = MemoryClass::DEVICE_MMU;
    }
-   else if (Device::Allows(Backend::DEVICE_MASK))
+
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
-      host_mem_type = MemoryType::HOST;
-      host_mem_class = MemoryClass::HOST;
-      device_mem_type = MemoryType::CUDA;
-      device_mem_class = MemoryClass::CUDA;
+      device_mem_type = MemoryType::DEVICE;
+      device_mem_class = MemoryClass::DEVICE;
    }
-   else
-   {
-      host_mem_type = MemoryType::HOST;
-      host_mem_class = MemoryClass::HOST;
-      device_mem_type = MemoryType::HOST;
-      device_mem_class = MemoryClass::HOST;
-   }
+
    mm.Setup(host_mem_type, device_mem_type);
 }
 
@@ -269,14 +262,14 @@ void Device::Setup(const int device)
 #endif
 
    // Device backends setup
-   if (cuda) { CudaDeviceSetup(dev, ngpu); }
-   if (hip) { HipDeviceSetup(dev, ngpu); }
    if (occa) { OccaDeviceSetup(dev); }
+   if (hip) { HipDeviceSetup(dev, ngpu); }
+   if (cuda) { CudaDeviceSetup(dev, ngpu); }
    if (raja) { RajaDeviceSetup(dev, ngpu); }
-   if (debug)
+   if (debug && !Allows(Backend::DEVICE_MASK))
    {
-      ngpu = 1;
-      MFEM_VERIFY((hip||cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
+      ngpu=1;
+      // MFEM_VERIFY((hip|cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
    }
 }
 
