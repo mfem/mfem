@@ -4,7 +4,7 @@
 
 namespace mfem
 {
-namespace flow
+namespace navier
 {
 class OrthoSolver : public Solver
 {

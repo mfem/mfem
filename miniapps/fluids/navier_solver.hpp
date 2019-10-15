@@ -5,7 +5,7 @@
 
 namespace mfem
 {
-namespace flow
+namespace navier
 {
 typedef void(VecFuncT)(const Vector &x, double t, Vector &u);
 typedef double(ScalarFuncT)(const Vector &x, double t);
@@ -13,13 +13,13 @@ typedef double(ScalarFuncT)(const Vector &x, double t);
 class VelDirichletBC_T
 {
 public:
-   VelDirichletBC_T(void (*f)(const Vector &x, double t, Vector &u),
+   VelDirichletBC_T(VecFuncT *f,
                     Array<int> attr,
                     VectorFunctionCoefficient coeff)
       : f(f), attr(attr), coeff(coeff)
    {}
 
-   void (*f)(const Vector &x, double t, Vector &u);
+   VecFuncT *f;
    Array<int> attr;
    VectorFunctionCoefficient coeff;
 };
@@ -27,13 +27,13 @@ public:
 class PresDirichletBC_T
 {
 public:
-   PresDirichletBC_T(double (*f)(const Vector &x, double t),
+   PresDirichletBC_T(ScalarFuncT *f,
                      Array<int> attr,
                      FunctionCoefficient coeff)
       : f(f), attr(attr), coeff(coeff)
    {}
 
-   double (*f)(const Vector &x, double t);
+   ScalarFuncT *f;
    Array<int> attr;
    FunctionCoefficient coeff;
 };
@@ -41,21 +41,21 @@ public:
 class AccelTerm_T
 {
 public:
-   AccelTerm_T(void (*f)(const Vector &x, double t, Vector &u),
+   AccelTerm_T(VecFuncT *f,
                Array<int> attr,
                VectorFunctionCoefficient coeff)
       : f(f), attr(attr), coeff(coeff)
    {}
 
-   void (*f)(const Vector &x, double t, Vector &u);
+   VecFuncT *f;
    Array<int> attr;
    VectorFunctionCoefficient coeff;
 };
 
-class FlowSolver
+class NavierSolver
 {
 public:
-   FlowSolver(ParMesh *mesh, int order, double kin_vis);
+   NavierSolver(ParMesh *mesh, int order, double kin_vis);
 
    void Setup(double dt);
    void Step(double &time, double dt, int cur_step);
@@ -64,22 +64,23 @@ public:
 
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
-   void AddVelDirichletBC(void (*f)(const Vector &x, double t, Vector &u),
-                          Array<int> &attr);
+   void AddVelDirichletBC(VecFuncT *f, Array<int> &attr);
 
-   void AddPresDirichletBC(double (*f)(const Vector &x, double t),
-                           Array<int> &attr);
+   void AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr);
 
-   void AddAccelTerm(void (*f)(const Vector &x, double t, Vector &u),
-                   Array<int> &attr);
+   void AddAccelTerm(VecFuncT *f, Array<int> &attr);
 
-   void EnablePA(bool pa) { partial_assembly = pa; }
+   void EnablePA(bool pa = true) { partial_assembly = pa; }
 
-   void EnableNI(bool ni) { numerical_integ = ni; }
+   void EnableNI(bool ni = true) { numerical_integ = ni; }
+
+   void EnableDebug(bool d = true) { debug = d; }
+
+   void EnableVerbose(bool v = true) { verbose = v; }
 
    void PrintTimingData();
 
-   ~FlowSolver();
+   ~NavierSolver();
 
    void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
 
@@ -104,8 +105,8 @@ protected:
                      Vector &B,
                      int copy_interior = 0);
 
-   bool debug = true;
-   bool verbose = true;
+   bool debug = false;
+   bool verbose = false;
    bool partial_assembly = false;
    bool numerical_integ = false;
 
@@ -113,6 +114,8 @@ protected:
 
    double order;
    double kin_vis;
+
+   IntegrationRules rules_ni;
 
    FiniteElementCollection *vfec;
    FiniteElementCollection *pfec;
@@ -128,10 +131,10 @@ protected:
 
    VectorGridFunctionCoefficient *FText_gfcoeff;
    ParLinearForm *FText_bdr_form;
-
    ParLinearForm *g_bdr_form;
-
+   ParLinearForm *f_form;
    ParLinearForm *mass_lf = nullptr;
+
    ConstantCoefficient onecoeff;
    double volume;
 
@@ -194,7 +197,8 @@ protected:
    double ab3;
 
    // Timers
-   StopWatch sw_setup, sw_step, sw_single_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
+   StopWatch sw_setup, sw_step, sw_single_step, sw_extrap, sw_curlcurl,
+      sw_spsolve, sw_hsolve;
 
    // Printlevels
    int pl_mvsolve = 0;
@@ -203,8 +207,8 @@ protected:
    int pl_amg = 0;
 
    // Tolerances
-   double rtol_spsolve = 1e-6;
-   double rtol_hsolve = 1e-8;
+   double rtol_spsolve = 1e-12;
+   double rtol_hsolve = 1e-12;
 
    // Iteration counts
    int iter_mvsolve, iter_spsolve, iter_hsolve;
@@ -214,31 +218,10 @@ protected:
 
    // LOR PC related
    ParMesh *pmesh_lor;
-   FiniteElementCollection *vfec_lor;
    FiniteElementCollection *pfec_lor;
-   ParFiniteElementSpace *vfes_lor;
    ParFiniteElementSpace *pfes_lor;
-   InterpolationGridTransfer *vgt, *pgt;
-
-   ParBilinearForm *Mv_form_lor;
    ParBilinearForm *Sp_form_lor;
-   ParBilinearForm *H_form_lor;
-
-   OperatorHandle Mv_lor;
    OperatorHandle Sp_lor;
-   OperatorHandle H_lor;
 };
-
-class PIController
-{
-public:
-   PIController(double Kp = 0.2, double Ki = 0.175) : Kp(Kp), Ki(Ki) {}
-
-   ~PIController(){};
-
-protected:
-   double Kp, Ki;
-   double vnm1;
-};
-} // namespace flow
+} // namespace navier
 } // namespace mfem

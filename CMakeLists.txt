@@ -18,9 +18,6 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=memory")
-
 # Load user settings before the defaults - this way the defaults will not
 # overwrite the user set options. If the user has not set all options, we still
 # have the defaults.
@@ -453,7 +450,9 @@ add_subdirectory(examples EXCLUDE_FROM_ALL)
 # Create a target for all miniapps and, optionally, enable it.
 set(MFEM_ALL_MINIAPPS_TARGET_NAME miniapps)
 add_mfem_target(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_ENABLE_MINIAPPS})
-add_subdirectory(miniapps EXCLUDE_FROM_ALL)
+if(${MFEM_ENABLE_MINIAPPS})
+  add_subdirectory(miniapps)
+endif()
 
 # Target to build all executables, i.e. everything.
 add_custom_target(exec)

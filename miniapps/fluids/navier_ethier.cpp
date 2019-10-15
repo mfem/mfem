@@ -6,33 +6,41 @@ using namespace flow;
 
 struct s_FlowContext
 {
-   int order = 3;
-   double kin_vis = 0.001;
+   int order = 7;
+   double kin_vis = 1.0 / 10.0; 
    double t_final = 1.0;
-   double dt = 1e-3;
+   double dt = 1e-4;
 } ctx;
 
-void vel(const Vector &x, double t, Vector &u)
+void vel_ethier(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
+   double zi = x(2);
+   double a = M_PI / 4.0; 
+   double d = M_PI / 2.0;
 
-   double U = 1.5;
+   double ex = exp(a * xi);
+   double ey = exp(a * yi);
+   double ez = exp(a * zi);
 
-   if (xi == 0.0)
-   {
-      u(0) = 4.0 * U * yi * (0.41 - yi) / (pow(0.41, 2.0));
-   }
-   else
-   {
-      u(0) = 0.0;
-   }
-   u(1) = 0.0;
-}
+   double e2t = exp(-ctx.kin_vis * d * d * t);
+   
+   double exy = exp(a * (xi + yi));
+   double eyz = exp(a * (yi + zi));
+   double ezx = exp(a * (zi + xi));
 
-double pres(const Vector &x, double t)
-{
-  return 0.0;
+   double sxy = sin(a * xi + d * yi);
+   double syz = sin(a * yi + d * zi);
+   double szx = sin(a * zi + d * xi);
+
+   double cxy = cos(a * xi + d * yi);
+   double cyz = cos(a * yi + d * zi);
+   double czx = cos(a * zi + d * xi);
+
+   u(0) = -a * (ex * syz + ez * cxy) * e2t;
+   u(1) = -a * (ey * szx + ex * cyz) * e2t;
+   u(2) = -a * (ez * sxy + ey * czx) * e2t;
 }
 
 int main(int argc, char *argv[])
@@ -41,7 +49,12 @@ int main(int argc, char *argv[])
 
    int serial_refinements = 0;
 
-   Mesh *mesh = new Mesh("../miniapps/fluids/twocyl.msh");
+   Mesh *mesh = new Mesh("../data/inline-hex.mesh");
+
+   mesh->EnsureNodes();
+   GridFunction *nodes = mesh->GetNodes();
+   *nodes *= 2.0;
+   *nodes -= 1.0;
 
    for (int i = 0; i < serial_refinements; ++i)
    {
@@ -62,21 +75,14 @@ int main(int argc, char *argv[])
    // Set the initial condition.
    // This is completely user customizeable.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
-   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel);
+   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_ethier);
    u_ic->ProjectCoefficient(u_excoeff);
 
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
    Array<int> attr(pmesh->bdr_attributes.Max());
-   attr = 0;
-   attr[0] = 1;
-   attr[1] = 1;
-   attr[2] = 1;
-   flowsolver.AddVelDirichletBC(vel, attr);
-
-   attr = 0;
-   attr[3] = 1;
-   flowsolver.AddPresDirichletBC(pres, attr);
+   attr = 1;
+   flowsolver.AddVelDirichletBC(vel_ethier, attr);
 
    double t = 0.0;
    double dt = ctx.dt;
@@ -105,7 +111,7 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      if ((step + 1) % 100 == 0 || last_step)
+      if ((step + 1) % 10 == 0 || last_step)
       {
          visit_dc.SetCycle(step);
          visit_dc.SetTime(t);

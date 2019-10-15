@@ -1,54 +1,52 @@
-#include "flow_solver.hpp"
+#include "navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
-using namespace flow;
+using namespace navier;
 
-struct s_FlowContext
+struct s_NavierContext
 {
    int order = 5;
-   double kin_vis = 1.0 / 40.0;
-   double t_final = 10e-5;
-   double dt = 1e-5;
+   double kin_vis = 1.0;
+   double t_final = 5;
+   double dt = 0.25;
 } ctx;
 
-void vel_kovasznay(const Vector &x, double t, Vector &u)
+void vel_tgv(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
 
-   double reynolds = 1.0 / ctx.kin_vis;
-   double lam = 0.5 * reynolds
-                - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
+   double F = exp(-2.0 * ctx.kin_vis * t);
 
-   u(0) = 1.0 - exp(lam * xi) * cos(2.0 * M_PI * yi);
-   u(1) = lam / (2.0 * M_PI) * exp(lam * xi) * sin(2.0 * M_PI * yi);
+   u(0) = cos(xi) * sin(yi) * F;
+   u(1) = -sin(xi) * cos(yi) * F;
 }
 
-double pres_kovasznay(const Vector &x)
+double p_tgv(const Vector &x, double t)
 {
    double xi = x(0);
    double yi = x(1);
 
-   double reynolds = 1.0 / ctx.kin_vis;
-   double lam = 0.5 * reynolds
-                - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
+   double F = exp(-2.0 * ctx.kin_vis * t);
 
-   return -0.5 * exp(2.0 * lam * xi);
+   return -0.25 * (cos(2.0 * xi) + cos(2.0 * yi)) * pow(F, 2.0);
 }
 
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int serial_refinements = 0;
+   int serial_refinements = 2;
 
-   Mesh *mesh = new Mesh(2, 4, Element::QUADRILATERAL, false, 1.5, 2.0);
-
+   Mesh *mesh = new Mesh("../data/inline-quad.mesh");
+   // Mesh *mesh = new Mesh("../data/periodic-square.mesh");
 
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
-   *nodes -= 0.5;
+   *nodes *= 2.0;
+   *nodes -= 1.0;
+   *nodes *= M_PI;
 
    for (int i = 0; i < serial_refinements; ++i)
    {
@@ -64,21 +62,23 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Create the flow solver.
-   FlowSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
+   NavierSolver naviersolver(pmesh, ctx.order, ctx.kin_vis);
+   naviersolver.EnablePA(true);
+   naviersolver.EnableNI(true);
 
    // Set the initial condition.
    // This is completely user customizeable.
-   ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
-   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_kovasznay);
+   ParGridFunction *u_ic = naviersolver.GetCurrentVelocity();
+   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_tgv);
    u_ic->ProjectCoefficient(u_excoeff);
 
-   FunctionCoefficient p_excoeff(pres_kovasznay);
+   FunctionCoefficient p_excoeff(p_tgv);
 
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
    Array<int> attr(pmesh->bdr_attributes.Max());
    attr = 1;
-   flowsolver.AddVelDirichletBC(vel_kovasznay, attr);
+   naviersolver.AddVelDirichletBC(vel_tgv, attr);
 
 
    double t = 0.0;
@@ -86,12 +86,14 @@ int main(int argc, char *argv[])
    double t_final = ctx.t_final;
    bool last_step = false;
 
-   flowsolver.Setup(dt);
+   naviersolver.Setup(dt);
 
    double err_u = 0.0;
    double err_p = 0.0;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
+   u_gf = naviersolver.GetCurrentVelocity();
+   p_gf = naviersolver.GetCurrentPressure();
 
    for (int step = 0; !last_step; ++step)
    {
@@ -100,11 +102,18 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      flowsolver.Step(t, dt, step);
+      naviersolver.Step(t, dt, step);
+
+      if (step > 2)
+      {
+         double cfl = naviersolver.ComputeCFL(*u_gf, dt);
+         if (mpi.Root())
+         {
+            printf("CFL = %.5E\n", cfl);
+         }
+      }
 
       // Compare against exact solution of velocity and pressure.
-      u_gf = flowsolver.GetCurrentVelocity();
-      p_gf = flowsolver.GetCurrentPressure();
       u_excoeff.SetTime(t);
       p_excoeff.SetTime(t);
       err_u = u_gf->ComputeL2Error(u_excoeff);
@@ -124,7 +133,7 @@ int main(int argc, char *argv[])
    sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
    sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
 
-   flowsolver.PrintTimingData();
+   naviersolver.PrintTimingData();
 
    delete pmesh;
 

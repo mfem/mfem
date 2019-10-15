@@ -1,7 +1,7 @@
 #include "ortho_solver.hpp"
 
 using namespace mfem;
-using namespace flow;
+using namespace navier;
 
 OrthoSolver::OrthoSolver() : Solver(0, true) {}
 

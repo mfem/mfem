@@ -1,10 +1,10 @@
-#include "flow_solver.hpp"
+#include "navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
-using namespace flow;
+using namespace navier;
 
-struct s_FlowContext
+struct s_NavierContext
 {
    int order = 7;
    double kin_vis = 1.0 / 1600.0;
@@ -95,7 +95,11 @@ private:
    double volume;
 };
 
-template <typename T> T sq(T x) { return x*x; }
+template<typename T>
+T sq(T x)
+{
+   return x * x;
+}
 
 void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
 {
@@ -148,8 +152,9 @@ void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
          grad.SetSize(grad_hat.Height(), Jinv.Width());
          Mult(grad_hat, Jinv, grad);
 
-         double q_val = 0.5*(sq(grad(0,0)) + sq(grad(1,1)) + sq(grad(2,2)))
-            + grad(0,1)*grad(1,0) + grad(0,2)*grad(2,0) + grad(1,2)*grad(2,1);
+         double q_val = 0.5 * (sq(grad(0, 0)) + sq(grad(1, 1)) + sq(grad(2, 2)))
+                        + grad(0, 1) * grad(1, 0) + grad(0, 2) * grad(2, 0)
+                        + grad(1, 2) * grad(2, 1);
 
          vals(dof) = q_val;
       }
@@ -247,13 +252,13 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Create the flow solver.
-   FlowSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
-   flowsolver.EnablePA(ctx.pa);
-   flowsolver.EnableNI(ctx.ni);
+   NavierSolver naviersolver(pmesh, ctx.order, ctx.kin_vis);
+   naviersolver.EnablePA(ctx.pa);
+   naviersolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    // This is completely user customizeable.
-   ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
+   ParGridFunction *u_ic = naviersolver.GetCurrentVelocity();
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_tgv);
    u_ic->ProjectCoefficient(u_excoeff);
 
@@ -262,20 +267,20 @@ int main(int argc, char *argv[])
    double t_final = ctx.t_final;
    bool last_step = false;
 
-   flowsolver.Setup(dt);
+   naviersolver.Setup(dt);
 
-   ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
-   ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
+   ParGridFunction *u_gf = naviersolver.GetCurrentVelocity();
+   ParGridFunction *p_gf = naviersolver.GetCurrentPressure();
 
    ParGridFunction w_gf(*u_gf);
    ParGridFunction q_gf(*p_gf);
-   flowsolver.ComputeCurl3D(*u_gf, w_gf);
+   naviersolver.ComputeCurl3D(*u_gf, w_gf);
    ComputeQCriterion(*u_gf, q_gf);
 
    QOI kin_energy(pmesh);
 
    VisItDataCollection visit_dc("ins", pmesh);
-   visit_dc.SetPrefixPath("/g/g20/pazner1/workspace/tgv_output_vis");
+   visit_dc.SetPrefixPath("output");
    visit_dc.SetCycle(0);
    visit_dc.SetTime(t);
    visit_dc.RegisterField("velocity", u_gf);
@@ -283,6 +288,13 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("vorticity", &w_gf);
    visit_dc.RegisterField("qcriterion", &q_gf);
    visit_dc.Save();
+
+   std::ofstream ofs0("output/qcrit.gf");
+   q_gf.Save(ofs0);
+   ofs0.close();
+   std::ofstream ofs1("output/mesh");
+   pmesh->Print(ofs1);
+   ofs1.close();
 
    double u_inf_loc = u_gf->Normlinf();
    double p_inf_loc = p_gf->Normlinf();
@@ -295,7 +307,7 @@ int main(int argc, char *argv[])
 
    if (mpi.Root())
    {
-      int nel1d = std::round(pow(nel, 1.0/3.0));
+      int nel1d = std::round(pow(nel, 1.0 / 3.0));
       int ngridpts = p_gf->ParFESpace()->GlobalVSize();
       printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
 
@@ -318,11 +330,11 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      flowsolver.Step(t, dt, step);
+      naviersolver.Step(t, dt, step);
 
       if ((step + 1) % 100 == 0 || last_step)
       {
-         flowsolver.ComputeCurl3D(*u_gf, w_gf);
+         naviersolver.ComputeCurl3D(*u_gf, w_gf);
          ComputeQCriterion(*u_gf, q_gf);
          visit_dc.SetCycle(step);
          visit_dc.SetTime(t);
@@ -343,7 +355,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   flowsolver.PrintTimingData();
+   naviersolver.PrintTimingData();
 
    delete pmesh;
 
