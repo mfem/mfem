@@ -18,7 +18,6 @@ private:
    Array<SparseMatrix * > PatchMat;
    /// The linear system matrix
    Array2D<HypreParMatrix*> blockA;
-   Array2D<par_patch_assembly *> P;
    Array2D<PatchRestriction *> R;
    BlockOperator * blk = nullptr;
 public:
@@ -29,11 +28,5 @@ public:
   
    virtual void SetOperator(const Operator &op) {}
    virtual void Mult(const Vector &r, Vector &z) const;
-   virtual ~BlkParSchwarzSmoother() 
-   {
-      for (int ip=0; ip<nrpatch; ip++)
-      {
-         delete PatchMat[ip];
-      }
-   }
+   virtual ~BlkParSchwarzSmoother();
 };

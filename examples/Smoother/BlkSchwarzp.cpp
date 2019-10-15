@@ -17,7 +17,7 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
    // construct and invert the patches
    // This can be modified so only the last part of the assembly is repeated since all the 
    // matrices have the same structure
-   P.SetSize(2,2);
+   Array2D<par_patch_assembly *> P(2,2);
    for (int i=0; i<2; i++)
    {
       for (int j=0; j<2; j++)
@@ -43,15 +43,15 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
          block_offsets[1] = P(0,0)->PatchMat[ip]->Height();
          block_offsets[2] = block_offsets[1];
          block_offsets.PartialSum();
-         BlockMatrix * blockPatchMat = new BlockMatrix(block_offsets);
+         BlockMatrix blockPatchMat(block_offsets);
          for (int i=0; i<2; i++)
          {
             for (int j=0; j<2; j++)
             {
-               blockPatchMat->SetBlock(i,j,P(i,j)->PatchMat[ip]);
+               blockPatchMat.SetBlock(i,j,P(i,j)->PatchMat[ip]);
             }
          }
-         PatchMat[ip] = blockPatchMat->CreateMonolithic();
+         PatchMat[ip] = blockPatchMat.CreateMonolithic();
          // delete blockPatchMat;
          PatchInv[ip]->SetOperator(*PatchMat[ip]);
       }
@@ -61,6 +61,7 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
    R(0,1) = nullptr;
    R(1,0) = nullptr;
    R(1,1) = new PatchRestriction(P(1,1));
+   P.DeleteAll();
 }
 
 
@@ -114,7 +115,8 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
             res[ip] = new BlockVector(block_offs);
             res[ip]->SetVector(*res0[ip],0);
             res[ip]->SetVector(*res1[ip],res0[ip]->Size());
-
+           
+                             
             Array<int> block_offs0(3);
             block_offs0[0] = 0;
             block_offs0[1] = res0[ip]->GetBlock(0).Size();
@@ -128,19 +130,44 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
 
             sol[ip] = new BlockVector(block_offs); 
             PatchInv[ip]->Mult(*res[ip], *sol[ip]);
-
+            delete res[ip];
             sol0[ip] = new BlockVector(sol[ip]->GetBlock(0).GetData(),block_offs0);
             sol1[ip] = new BlockVector(sol[ip]->GetBlock(1).GetData(),block_offs1);
          }
       }
       R(0,0)->MultTranspose(sol0,znew.GetBlock(0));
       R(1,1)->MultTranspose(sol1,znew.GetBlock(1));
+
+      for (int ip=0; ip<nrpatch; ip++)
+      {
+         if(myid == host_rank[ip]) 
+         {
+            delete res0[ip];
+            delete res1[ip];
+            delete sol0[ip];
+            delete sol1[ip];
+            delete sol[ip];
+         }
+      }
       znew *= theta;
       z += znew;
       blkA.Mult(znew,raux); 
       rnew -= raux;
    }
 }
-
-
-
+BlkParSchwarzSmoother::~BlkParSchwarzSmoother()
+{
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+   
+   R.DeleteAll();
+   for (int ip=0; ip<nrpatch; ip++)
+   {
+      if(myid == host_rank[ip]) 
+      {
+         delete PatchMat[ip];
+         delete PatchInv[ip];
+      }
+   }
+}

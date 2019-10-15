@@ -210,43 +210,43 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
 
 void par_patch_nod_info::Print(int rankid)
 {
-   int num_procs, myid;
-   MPI_Comm_size(pmesh.GetComm(), &num_procs);
-   MPI_Comm_rank(pmesh.GetComm(), &myid);
-   if (myid == rankid)
-   {
-      for (int i = 0; i < pmesh.GetNV(); i++)
-      {
-         cout << "vertex number, vertex id: " << i << ", " << i + aux_fespace->GetMyDofOffset() << endl;
-         cout << "contributes to: ";
-         vert_contr[i].Print();
-      }
-      Array<int> edge_vertices;
-      for (int i = 0; i < pmesh.GetNEdges(); i++)
-      {
-         pmesh.GetEdgeVertices(i, edge_vertices);
-         cout << "edge vertices are: " << edge_vertices[0] + aux_fespace->GetMyDofOffset() << " and "
-              << edge_vertices[1] + aux_fespace->GetMyDofOffset() << endl;
-         cout << "edge number: " << i;
-         cout << " contributes to: ";
-         edge_contr[i].Print();
-         cout << endl;
-      }
-      int elem_offset;
-      int nelem = pmesh.GetNE();
-      MPI_Scan(&nelem, &elem_offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-      elem_offset -= nelem;
-      if (myid == 1)
-      {
-         for (int i = 0; i < nelem; i++)
-         {
-            cout << "Element number: " << i + elem_offset;
-            cout << " contributes to: ";
-            elem_contr[i].Print();
-            cout << endl;
-         }
-      }
-   }
+   // int num_procs, myid;
+   // MPI_Comm_size(pmesh.GetComm(), &num_procs);
+   // MPI_Comm_rank(pmesh.GetComm(), &myid);
+   // if (myid == rankid)
+   // {
+   //    for (int i = 0; i < pmesh.GetNV(); i++)
+   //    {
+   //       cout << "vertex number, vertex id: " << i << ", " << i + aux_fespace->GetMyDofOffset() << endl;
+   //       cout << "contributes to: ";
+   //       vert_contr[i].Print();
+   //    }
+   //    Array<int> edge_vertices;
+   //    for (int i = 0; i < pmesh.GetNEdges(); i++)
+   //    {
+   //       pmesh.GetEdgeVertices(i, edge_vertices);
+   //       cout << "edge vertices are: " << edge_vertices[0] + aux_fespace->GetMyDofOffset() << " and "
+   //            << edge_vertices[1] + aux_fespace->GetMyDofOffset() << endl;
+   //       cout << "edge number: " << i;
+   //       cout << " contributes to: ";
+   //       edge_contr[i].Print();
+   //       cout << endl;
+   //    }
+   //    int elem_offset;
+   //    int nelem = pmesh.GetNE();
+   //    MPI_Scan(&nelem, &elem_offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   //    elem_offset -= nelem;
+   //    if (myid == 1)
+   //    {
+   //       for (int i = 0; i < nelem; i++)
+   //       {
+   //          cout << "Element number: " << i + elem_offset;
+   //          cout << " contributes to: ";
+   //          elem_contr[i].Print();
+   //          cout << endl;
+   //       }
+   //    }
+   // }
 }
 
 par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace)
@@ -358,6 +358,8 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          }
       }
    }
+
+   delete patch_nodes;
 
    patch_tdofs.resize(nrpatch);
    for (int i = 0; i < nrpatch; i++)
@@ -514,7 +516,9 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
    //--------------------------------------------------------------------------------------
    // Construction of (0,1) and its transpose
    //--------------------------------------------------------------------------------------
-   // This is done with out communication
+    // The matrix PatchMat10 is the same as PatchMat01 only for symmetric problems
+   // For the case of FOSLS the offdiagonal matrices are not symmetric because of the essential BC
+   // Therefore Patch10 has to be computed in the same way with (0,1) but using the traspose of A
    // loop through patches
    Array<SparseMatrix * > PatchMat01(nrpatch);
    Array<SparseMatrix * > PatchMat10(nrpatch);
@@ -532,14 +536,9 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
          GetOffdColumnValues(patch_tdof_info->patch_local_tdofs[ip],patch_other_tdofs[ip],offdT, cmapT,row_startT, &Mat);
          Mat.Finalize();
          PatchMat10[ip] = Transpose(Mat);
-         // PatchMat10[ip] = new SparseMatrix(num_cols, num_rows);
-         // PatchMat10[ip] = Transpose(*PatchMat01[ip]);
       }  
    }
-
-   // The matrix PatchMat10 is the same as PatchMat01 only for symmetric problems
-   // For the case of FOSLS the offdiagonal matrices are not symmetric because of the essential BC
-   // Therefore Patch10 has to be computed separetely in a similar way that Patch11 is computed
+   delete patch_tdof_info;
 
    //--------------------------------------------------------------------------------------
    // Construction of (1,1)
@@ -749,7 +748,6 @@ void ParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
       Array<BlockVector * > res;
       R->Mult(rnew,res);
 
-      // Array<BlockVector*> res(nrpatch);
       Array<BlockVector*> sol(nrpatch);
       for (int ip=0; ip<nrpatch; ip++)
       {
@@ -765,6 +763,8 @@ void ParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
          }
       }
       R->MultTranspose(sol,znew);
+      sol.DeleteAll();
+      res.DeleteAll();
       znew *= theta; // relaxation parameter
       z+= znew;
       // Update residual
@@ -1105,16 +1105,10 @@ const int * row_start)
    int num_rows = diag.Height();
    int num_cols = tdof_i.Size();
 
-   // SparseMatrix * Pr = new SparseMatrix(num_rows,num_cols);
-   // for (int i=0; i<num_cols; i++)
-   // {
-   //       int ii = tdof_i[i] - row_start[0];
-   //       Pr->Set(ii,i,1.0);
-   // }
-   // Pr->Finalize();
    SparseMatrix * Pr = GetLocalProlongation(tdof_i, row_start, num_rows, num_cols);
-   return RAP(*Pr,diag,*Pr);
+   SparseMatrix * Prl = RAP(*Pr,diag,*Pr); 
    delete Pr;
+   return Prl;
 }
 
 SparseMatrix * GetLocalProlongation(const Array<int> & tdof_i, const int * row_start, 

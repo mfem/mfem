@@ -16,11 +16,12 @@ Block_AMSSolver::Block_AMSSolver(Array<int> offsets_, std::vector<ParFiniteEleme
       : fespaces(fespaces_), offsets(offsets_), offsetsG(3), offsetsPi(3)
 {
    nrmeshes = fespaces.size();
-   Grad = new HypreParMatrix(*GetDiscreteGradientOp(fespaces[nrmeshes-1]));
+   Grad = GetDiscreteGradientOp(fespaces[nrmeshes-1]);
    Pi = GetNDInterpolationOp(fespaces[nrmeshes-1]);
-   Pix = new HypreParMatrix(*Pi(0,0));
-   Piy = new HypreParMatrix(*Pi(0,1));
-   Piz = new HypreParMatrix(*Pi(0,2));
+   Pix = Pi(0,0);
+   Piy = Pi(0,1);
+   Piz = Pi(0,2);
+   
    offsetsG[0]=0;
    offsetsG[1]=Grad->Width();
    offsetsG[2]=Grad->Width();
@@ -227,9 +228,9 @@ void Block_AMSSolver::GetCorrection(BlockOperator* Tr, BlockOperator* op, BlockD
    Tr->MultTranspose(r,raux);
    zaux = 0.0;
 
-   int maxit(1000);
+   int maxit(10);
    double rtol(0.0);
-   double atol(1e-8);
+   double atol(1e-4);
    
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetAbsTol(atol);
@@ -237,7 +238,7 @@ void Block_AMSSolver::GetCorrection(BlockOperator* Tr, BlockOperator* op, BlockD
    cg.SetMaxIter(maxit);
    cg.SetOperator(*op);
    cg.SetPreconditioner(*prec);
-   cg.SetPrintLevel(0);
+   cg.SetPrintLevel(-1);
    cg.Mult(raux, zaux);
       // prec->Mult(raux,zaux);
 
@@ -246,12 +247,24 @@ void Block_AMSSolver::GetCorrection(BlockOperator* Tr, BlockOperator* op, BlockD
 }
 Block_AMSSolver::~Block_AMSSolver()
 {
+   delete Grad;
+   delete Pix;
+   delete Piy;
+   delete Piz;
+   delete G;
+   delete Px;
+   delete Py;
+   delete Pz;
+   delete GtAG;
+   delete PxtAPx;
+   delete PytAPy;
+   delete PztAPz;
+   delete A;
+   delete blkAMG_G; 
+   delete blkAMG_Px;
+   delete blkAMG_Py;
+   delete blkAMG_Pz;
 }
-
-
-
-
-
 
 // Discrete gradient matrix
 HypreParMatrix* GetDiscreteGradientOp(ParFiniteElementSpace *fespace)

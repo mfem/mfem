@@ -251,13 +251,13 @@ int main(int argc, char *argv[])
       cout << "\n || E_h - E || / ||E|| = " << L2Error / norm_E << '\n' << endl;
    }
 
-   int precision = 8;
-   VisItDataCollection *dc = NULL;
-   dc = new VisItDataCollection("Maxwellp_real", pmesh);
-   dc->SetPrefixPath("output");
-   dc->SetPrecision(precision);
-   dc->RegisterField("solution",&x);
-   dc->Save();
+   // int precision = 8;
+   // VisItDataCollection *dc = NULL;
+   // dc = new VisItDataCollection("Maxwellp_real", pmesh);
+   // dc->SetPrefixPath("output");
+   // dc->SetPrecision(precision);
+   // dc->RegisterField("solution",&x);
+   // dc->Save();
 
 
 

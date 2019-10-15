@@ -261,7 +261,8 @@ int main(int argc, char *argv[])
    blockA(1,0) = A_HE;
    blockA(1,1) = A_HH;
 
-
+   chrono.Clear();
+   chrono.Start();
    // BlkParSchwarzSmoother * prec;
    // prec = new BlkParSchwarzSmoother(cpmesh,ref_levels,fespace,blockA);
    // prec->SetDumpingParam(0.2);
@@ -269,6 +270,8 @@ int main(int argc, char *argv[])
 
    // prec = new BlkParSchwarzSmoother(fespace->GetParMesh(),0,fespace,blockA);
    // prec = new BlkParSchwarzSmoother(cpmesh,ref_levels,fespace,blockA);
+
+  
 
    Block_AMSSolver * prec1;
    prec1 = new Block_AMSSolver(block_trueOffsets,fespaces);
@@ -281,11 +284,18 @@ int main(int argc, char *argv[])
    prec1->SetCycleType("023414320");
    prec1->SetNumberofCycles(1);
 
+   chrono.Stop();
 
+   if(myid == 0)
+      cout << "Setup time: " << chrono.RealTime() << endl;
+   
    int maxit(500);
    double rtol(1.e-6);
    double atol(0.0);
    trueX = 0.0;
+
+   chrono.Clear();
+   chrono.Start();
 
    CGSolver pcg(MPI_COMM_WORLD);
    // GMRESSolver pcg(MPI_COMM_WORLD);
@@ -297,6 +307,12 @@ int main(int argc, char *argv[])
    pcg.SetOperator(*LS_Maxwellop);
    pcg.SetPrintLevel(1);
    pcg.Mult(trueRhs, trueX);
+
+
+   chrono.Stop();
+
+   if(myid == 0)
+      cout << "Setup time: " << chrono.RealTime() << endl;
 
 
    if (myid == 0)

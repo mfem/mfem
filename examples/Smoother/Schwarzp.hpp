@@ -39,7 +39,7 @@ public:
    // constructor
    par_patch_dof_info(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace);
    void Print();
-   ~par_patch_dof_info();
+   ~par_patch_dof_info(){};
 };
 
 class par_patch_assembly
