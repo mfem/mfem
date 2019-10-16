@@ -3973,12 +3973,15 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 }
 
 
-void LUFactors::Factor(int m)
+int LUFactors::Factor(int m)
 {
+  constexpr int LU_SUCCESS = 0;
+  constexpr int LU_FAILED  = -1;
+
 #ifdef MFEM_USE_LAPACK
    int info = 0;
    if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
-   MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
+   return (info!=0) ? LU_FAILED : LU_SUCCESS;
 #else
    // compiling without LAPACK
    double *data = this->data;
@@ -4007,7 +4010,13 @@ void LUFactors::Factor(int m)
             }
          }
       }
-      MFEM_ASSERT(data[i+i*m] != 0.0, "division by zero");
+
+      if ( abs(data[i+i*m]-0.0) <= 1.e-9 )
+      {
+        mfem_warning( "LUFactors::Factor: division by zero!" );
+        return LU_FAILED;
+      }
+
       const double a_ii_inv = 1.0/data[i+i*m];
       for (int j = i+1; j < m; j++)
       {
@@ -4023,6 +4032,8 @@ void LUFactors::Factor(int m)
       }
    }
 #endif
+
+   return LU_SUCCESS;
 }
 
 double LUFactors::Det(int m) const
