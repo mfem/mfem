@@ -20,6 +20,12 @@
 namespace mfem
 {
 
+struct CoefficientByAttr
+{
+   Array<int> attr;
+   Coefficient * coef;
+};
+
 namespace plasma
 {
 
@@ -1227,6 +1233,8 @@ private:
 
       // Domain integrators for source terms
       Array<LinearFormIntegrator*> dlfi_;  // Domain Integrators
+      Array<LinearFormIntegrator*> flfi_;
+      Array<Array<int>*>           flfi_marker_; ///< Entries are not owned.
 
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
 
@@ -1494,7 +1502,9 @@ private:
       ProductCoefficient               ChiPerpCoef_;
       Aniso2DDiffusionCoef             ChiCoef_;
       ScalarMatrixProductCoefficient   dtChiCoef_;
-      /*
+
+      const Array<CoefficientByAttr> & dbc_;
+       /*
        ConstantCoefficient DPerpCoef_;
        IonDiffusionCoef DCoef_;
        ScalarMatrixProductCoefficient dtDCoef_;
@@ -1513,7 +1523,8 @@ private:
                                ParGridFunctionArray & pgf,
                                ParGridFunctionArray & dpgf,
                                int ion_charge, double ion_mass, double ChiPerp,
-                               VectorCoefficient & B3Coef
+                               VectorCoefficient & B3Coef,
+			       Array<CoefficientByAttr> & dbc
                                /*,
                                MatrixCoefficient & PerpCoef*/
                               );
@@ -1574,6 +1585,7 @@ private:
                  double neutral_mass, double neutral_temp,
                  double DiPerp, double XiPerp, double XePerp,
                  VectorCoefficient & B3Coef,
+		 Array<CoefficientByAttr> & Te_dbc,
                  // VectorCoefficient & bHatCoef,
                  // MatrixCoefficient & PerpCoef,
                  unsigned int op_flag = 31, int logging = 0);
@@ -1621,7 +1633,8 @@ public:
                   double neutral_temp,
                   double Di_perp, double Xi_perp, double Xe_perp,
                   VectorCoefficient & B3Coef,
-                  bool imex = true,
+		  Array<CoefficientByAttr> & Te_dbc,
+		  bool imex = true,
                   unsigned int op_flag = 31,
                   int logging = 0);
 

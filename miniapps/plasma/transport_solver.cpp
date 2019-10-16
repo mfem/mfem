@@ -903,6 +903,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                double neutral_temp,
                                double Di_perp, double Xi_perp, double Xe_perp,
                                VectorCoefficient &B3Coef,
+			       Array<CoefficientByAttr> & Te_dbc,
                                bool imex, unsigned int op_flag, int logging)
    : TimeDependentOperator(ffes.GetVSize()),
      mpi_(mpi),
@@ -917,7 +918,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
      newton_solver_(fes.GetComm()),
      op_(mpi, dg, pgf, dpgf, offsets_,
          ion_charge, ion_mass, neutral_mass, neutral_temp, Di_perp,
-         Xi_perp, Xe_perp, B3Coef, op_flag, logging)//,
+         Xi_perp, Xe_perp, B3Coef, Te_dbc, op_flag, logging)//,
      // oneCoef_(1.0),
      // n_n_oper_(dg, fes, pgf, oneCoef_, imex),
      // n_i_oper_(dg, fes, pgf, oneCoef_, imex),
@@ -1723,6 +1724,58 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          }
       }
    }
+   // cout << "|y| after dlfi: " << y.Norml2() << endl;
+   if (flfi_.Size())
+   {
+      FaceElementTransformations *tr;
+      Mesh *mesh = fes_->GetMesh();
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < flfi_.Size(); k++)
+      {
+         if (flfi_marker_[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *flfi_marker_[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         tr = mesh->GetBdrFaceTransformations(i);
+         if (tr != NULL)
+         {
+            fes_ -> GetElementVDofs (tr -> Elem1No, vdofs_);
+
+	    int ndof = vdofs_.Size();
+	    elvec_.SetSize(ndof);
+
+	    for (int k = 0; k < flfi_.Size(); k++)
+            {
+               if (flfi_marker_[k] &&
+                   (*flfi_marker_[k])[bdr_attr-1] == 0) { continue; }
+
+               flfi_[k] -> AssembleRHSElementVect (*fes_->GetFE(tr -> Elem1No),
+						   *tr, elvec_);
+               y.AddElementVector (vdofs_, elvec_);
+            }
+         }
+      }
+   }
 
    if (mpi_.Root() && logging_ > 1)
    {
@@ -1800,6 +1853,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        double XiPerp,
                                        double XePerp,
                                        VectorCoefficient &B3Coef,
+				       Array<CoefficientByAttr> & Te_dbc,
                                        // VectorCoefficient &bHatCoef,
                                        // MatrixCoefficient &PerpCoef,
                                        unsigned int op_flag, int logging)
@@ -1866,7 +1920,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    {
       op_[4] = new ElectronStaticPressureOp(mpi, dg, pgf, dpgf,
                                             ion_charge, ion_mass,
-                                            XePerp, B3Coef);
+                                            XePerp, B3Coef, Te_dbc);
       op_[4]->SetLogging(logging, "T_e: ");
    }
    else
@@ -2473,15 +2527,16 @@ void DGTransportTDO::IonMomentumOp::Update()
    NLOperator::Update();
 }
 
-DGTransportTDO::
-ElectronStaticPressureOp::ElectronStaticPressureOp(const MPI_Session & mpi,
-                                                   const DGParams & dg,
-                                                   ParGridFunctionArray & pgf,
-                                                   ParGridFunctionArray & dpgf,
-                                                   int ion_charge,
-                                                   double ion_mass,
-                                                   double ChiPerp,
-                                                   VectorCoefficient & B3Coef)
+DGTransportTDO::ElectronStaticPressureOp::
+ElectronStaticPressureOp(const MPI_Session & mpi,
+			 const DGParams & dg,
+			 ParGridFunctionArray & pgf,
+			 ParGridFunctionArray & dpgf,
+			 int ion_charge,
+			 double ion_mass,
+			 double ChiPerp,
+			 VectorCoefficient & B3Coef,
+			 Array<CoefficientByAttr> & dbc)
    : NLOperator(mpi, dg, 4, pgf, dpgf), z_i_(ion_charge), m_i_(ion_mass),
      ChiPerpConst_(ChiPerp),
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]),
@@ -2509,7 +2564,8 @@ ElectronStaticPressureOp::ElectronStaticPressureOp(const MPI_Session & mpi,
      ChiParaCoef_(z_i_, ne1Coef_, Te1Coef_),
      ChiPerpCoef_(ChiPerpConst_, ne1Coef_),
      ChiCoef_(ChiParaCoef_, ChiPerpCoef_, *B3Coef_),
-     dtChiCoef_(0.0, ChiCoef_)
+     dtChiCoef_(0.0, ChiCoef_),
+     dbc_(dbc)
      /*,
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
@@ -2527,6 +2583,16 @@ ElectronStaticPressureOp::ElectronStaticPressureOp(const MPI_Session & mpi,
    fbfi_.Append(new DGDiffusionIntegrator(ChiCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
+
+
+   for (int i=0; i<dbc_.Size(); i++)
+   {
+     flfi_.Append(new DGDirichletLFIntegrator(*dbc_[i].coef, ChiCoef_,
+					      dg_.sigma,
+					      dg_.kappa));
+     flfi_marker_.Append(dbc_[i].attr);
+   }
+
    /*
    // Advection term: Div(m_i n_i V_i v_i)
    dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(miniViCoef_));
