@@ -3669,7 +3669,7 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 void Mesh::EnsureNodes()
 {
    if (Nodes) { return; }
-   SetCurvature(1, false, -1, Ordering::byVDIM);
+   SetCurvature(1, false, -1, Ordering::byNODES);
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
