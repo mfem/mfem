@@ -36,9 +36,10 @@ const double gas_constant_ = 1.0;
 */
 // Scalar coefficient for diffusion of momentum
 //static double diffusion_constant_ = 0.1;
+static int    prob_ = 4;
 
 static double nn_max_ = 1.0e15;
-static double nn_min_ = 1.0e13;
+static double nn_min_ = 0.9e15;
 
 static double ni_max_ = 1.0e18;
 static double ni_min_ = 1.0e16;
@@ -152,78 +153,186 @@ double TFunc(const Vector &x, double t)
 */
 double nnFunc(const Vector &x, double t)
 {
-   double a = 0.4;
-   double b = 0.8;
+  switch(prob_)
+    {
+    case 1:
+    {
+      double ra = 0.4;
+      double rb = 0.64;
+      
+      double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
+      return nn_max_ + (nn_min_ - nn_max_) * (0.5 + 0.5 * cos(M_PI * r));
+    }
+  case 4:
+    {
+      double a = 0.4;
+      double b = 0.8;
 
-   double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-   double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
-   return nn_max_ +
-          (nn_min_ - nn_max_) * (cos(0.5 * M_PI * sqrt(r)) - 0.75 * exp(-200.0 * rs));
+      double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+      double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+      return nn_max_ +
+	(nn_min_ - nn_max_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) -
+			       0.75 * exp(-200.0 * rs));
+    }
+    default:
+      return nn_max_;
+    }
 }
 
 double niFunc(const Vector &x, double t)
 {
-   double a = 0.4;
-   double b = 0.8;
+  switch(prob_)
+    {
+    case 1:
+    {
+      double ra = 0.4;
+      double rb = 0.64;
+      
+      double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
+      return ni_min_ + (ni_max_ - ni_min_) * (0.5 + 0.5 * cos(M_PI * r));
+    }
+  case 4:
+    {
+      double a = 0.4;
+      double b = 0.8;
 
-   double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-   double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
-   return ni_min_ +
-          (ni_max_ - ni_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-200.0 * rs));
+      double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+      double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
+      return ni_min_ +
+	(ni_max_ - ni_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) +
+			       0.5 * exp(-200.0 * rs));
+    }
+    default:
+      return ni_max_;
+    }
 }
 
 double TiFunc(const Vector &x, double t)
 {
-   double a = 0.4;
-   double b = 0.8;
+  switch(prob_)
+    {
+    case 1:
+    {
+      double ra = 0.4;
+      double rb = 0.64;
+      
+      double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
+      return T_min_ + (T_max_ - T_min_) * (0.5 + 0.5 * cos(M_PI * r));
+    }
+  case 4:
+    {
+      double a = 0.4;
+      double b = 0.8;
 
-   double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-   double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
-   return T_min_ +
-          (T_max_ - T_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-200.0 * rs));
+      double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+      double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
+      return T_min_ +
+	(T_max_ - T_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) +
+			     0.5 * exp(-200.0 * rs));
+    }
+    default:
+      return T_max_;
+    }
 }
 
 double TeFunc(const Vector &x, double t)
 {
+  switch(prob_)
+    {
+    case 1:
+    {
+      double ra = 0.4;
+      double rb = 0.64;
+      
+      double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
+      return T_min_ + (T_max_ - T_min_) * (0.5 + 0.5 * cos(M_PI * r));
+    }
+  case 4:
+    {
    double a = 0.4;
    double b = 0.8;
 
    double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
    double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
    return T_min_ +
-          (T_max_ - T_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs));
+          (T_max_ - T_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs));
+    }
+    default:
+      return T_max_;
+    }
 }
 
 void bHatFunc(const Vector &x, Vector &B)
 {
    B.SetSize(2);
 
-   double a = 0.4;
-   double b = 0.8;
-   double r2 = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-
-   if ( r2 < 1.0e-4 * a * b)
+   switch(prob_)
    {
-      B = 0.0;
-      return;
+   case 1:
+   {
+     double r2 = pow(x[0], 2) + pow(x[1], 2);
+
+     if ( r2 < 1.0e-4 )
+     {
+       B = 0.0;
+       return;
+     }
+
+     double den = sqrt(pow(x[0], 2) + pow(x[1], 2));
+
+     B[0] = x[1] / den;
+     B[1] = -x[0] / den;
+     return;
+   }  
+   case 4:
+   {
+     double a = 0.4;
+     double b = 0.8;
+     double r2 = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+
+     if ( r2 < 1.0e-4 * a * b)
+     {
+       B = 0.0;
+       return;
+     }
+
+     double den = sqrt(pow(b * b * x[0], 2) + pow(a * a * x[1], 2));
+
+     B[0] = a * a * x[1] / den;
+     B[1] = -b * b * x[0] / den;
+     return;
    }
-
-   double den = sqrt(pow(b * b * x[0], 2) + pow(a * a * x[1], 2));
-
-   B[0] = a * a * x[1] / den;
-   B[1] = -b * b * x[0] / den;
+   default:
+     B = 0.0;
+     return;
+   }
 }
 
 void PolBFunc(const Vector &x, Vector &B)
 {
    B.SetSize(2);
 
-   double a = 0.4;
-   double b = 0.8;
+   switch(prob_)
+     {
+     case 1:
+       {
+	 double a = 0.4;
+	 B[0] = -x[1] / a;
+	 B[1] =  x[0] / a;
+       }
+       break;
+     case 4:
+       {
+	 double a = 0.4;
+	 double b = 0.8;
 
-   B[0] = -a * x[1] / (b * b);
-   B[1] =  x[0] / a;
-
+	 B[0] = -a * x[1] / (b * b);
+	 B[1] =  x[0] / a;
+       }
+       break;
+     default:
+       B = 0.0;
+     }
    B *= Pol_B_max_;
 }
 
@@ -267,10 +376,26 @@ void perpFunc(const Vector &x, DenseMatrix &M)
 
 double viFunc(const Vector &x)
 {
-   double a = 0.4;
-   double b = 0.8;
+  switch(prob_)
+    {
+    case 1:
+      {
+	double a = 0.4;
+	double b = 0.64;
 
-   return -v_max_ * sin(M_PI * (pow(x[0] / a, 2) + pow(x[1] / b, 2)));
+	return -v_max_ * sin(M_PI * (pow(x[0] / b, 2) + pow(x[1] / b, 2)));
+      }
+      break;
+    case 4:
+      {
+	double a = 0.4;
+	double b = 0.8;
+
+	return -v_max_ * sin(M_PI * (pow(x[0] / a, 2) + pow(x[1] / b, 2)));
+      }
+    default:
+      return v_max_;;
+    }
 }
 
 /** Given the electron temperature in eV this coefficient returns an
@@ -755,8 +880,8 @@ int main(int argc, char *argv[])
                   "Set the logging level.");
    args.AddOption(&op_flag, "-op", "--operator-test",
                   "Bitmask for disabling operators.");
-   // args.AddOption(&problem_, "-p", "--problem",
-   //                "Problem setup to use. See options in velocity_function().");
+   args.AddOption(&prob_, "-p", "--problem",
+		  "Problem setup to use.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly before parallel"
                   " partitioning, -1 for auto.");
