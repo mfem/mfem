@@ -10,6 +10,8 @@
 
 Version 4.0.1 (development)
 ===========================
+- Improved RAJA backend
+- Improved multi-GPU MPI communication.
 
 GPU support
 -----------

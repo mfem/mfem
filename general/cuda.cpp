@@ -130,4 +130,13 @@ void* CuMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
    return dst;
 }
 
+int CuGetDeviceCount()
+{
+   int num_gpus = -1;
+#ifdef MFEM_USE_CUDA
+   MFEM_GPU_CHECK(cudaGetDeviceCount(&num_gpus));
+#endif
+   return num_gpus;
+}
+
 } // namespace mfem

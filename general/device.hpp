@@ -12,6 +12,7 @@
 #ifndef MFEM_DEVICE_HPP
 #define MFEM_DEVICE_HPP
 
+#include "cuda.hpp"
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
@@ -110,6 +111,7 @@ private:
    unsigned long backends; ///< Bitwise-OR of all configured backends.
    /// Set to true during configuration, except in 'device_singleton'.
    bool destroy_mm;
+   bool mpi_gpu_aware;
 
    MemoryType mem_type;    ///< Current Device MemoryType
    MemoryClass mem_class;  ///< Current Device MemoryClass
@@ -147,6 +149,7 @@ public:
       : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
         destroy_mm(false),
+        mpi_gpu_aware(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
    { }
@@ -161,6 +164,7 @@ public:
       : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
         destroy_mm(false),
+        mpi_gpu_aware(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
    { Configure(device, dev); }
@@ -216,6 +220,13 @@ public:
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
    static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
+
+   static void SetGPUAwareMPI(const bool force = true)
+   { Get().mpi_gpu_aware = force; }
+
+   static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
+
+   static void Synchronize() { MFEM_DEVICE_SYNC; }
 };
 
 
