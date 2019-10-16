@@ -474,10 +474,16 @@ public:
 
    LUFactors(double *data_, int *ipiv_) : data(data_), ipiv(ipiv_) { }
 
-   /** Factorize the current data of size (m x m) overwriting it with the LU
-       factors. The factorization is such that L.U = P.A, where A is the
-       original matrix and P is a permutation matrix represented by ipiv. */
-   void Factor(int m);
+   /**
+    *  Factorize the current data of size (m x m) overwriting it with
+    *  the LU factors. The factorization is such that L.U = P.A, where A is the
+    *  original matrix and P is a permutation matrix represented by ipiv.
+    *
+    *  @param [in] m size of the square matrix
+    *
+    *  @return status
+    */
+   int Factor(int m);
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
