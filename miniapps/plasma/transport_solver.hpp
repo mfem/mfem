@@ -835,6 +835,82 @@ public:
    }
 };
 
+class ElectronThermalParaDiffusionCoef : public StateVariableCoef
+{
+private:
+   double z_i_;
+
+   Coefficient * neCoef_;
+   Coefficient * TeCoef_;
+
+public:
+   ElectronThermalParaDiffusionCoef(double ion_charge,
+                                    Coefficient &neCoef,
+                                    Coefficient &TeCoef)
+      : StateVariableCoef(), z_i_(ion_charge), neCoef_(&neCoef), TeCoef_(&TeCoef)
+   {}
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ne = neCoef_->Eval(T, ip);
+      double Te = TeCoef_->Eval(T, ip);
+      double tau = tau_e(Te, z_i_, ne, 17.0);
+      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_ << std::endl;
+      return 3.16 * ne * Te * eV_ * tau / me_kg_;
+   }
+
+};
+
+class Aniso2DDiffusionCoef : public StateVariableMatCoef
+{
+private:
+   Coefficient       * Para_;
+   Coefficient       * Perp_;
+   VectorCoefficient * B3_;
+
+   mutable Vector B_;
+
+public:
+   Aniso2DDiffusionCoef(Coefficient &ParaCoef, Coefficient &PerpCoef,
+                        VectorCoefficient &B3Coef)
+      : StateVariableMatCoef(2),
+        Para_(&ParaCoef), Perp_(&PerpCoef),
+        B3_(&B3Coef), B_(3) {}
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   void Eval_Func(DenseMatrix & M,
+                  ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      M.SetSize(2);
+
+      double para = Para_->Eval(T, ip);
+      double perp = Perp_->Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+
+      M(0,0) = (B_[0] * B_[0] * para +
+                (B_[1] * B_[1] + B_[2] * B_[2]) * perp ) / Bmag2;
+      M(0,1) = B_[0] * B_[1] * (para - perp) / Bmag2;
+      M(1,0) = M(0,1);
+      M(1,1) = (B_[1] * B_[1] * para +
+                (B_[0] * B_[0] + B_[2] * B_[2]) * perp ) / Bmag2;
+   }
+
+};
+
 class GradPressureCoefficient : public StateVariableCoef
 {
 private:
@@ -1379,6 +1455,74 @@ private:
       void Update();
    };
 
+   class ElectronStaticPressureOp : public NLOperator
+   {
+   private:
+      int    z_i_;
+      double m_i_;
+      double ChiPerpConst_;
+
+      GridFunctionCoefficient nn0Coef_;
+      GridFunctionCoefficient ni0Coef_;
+      GridFunctionCoefficient vi0Coef_;
+      GridFunctionCoefficient Ti0Coef_;
+      GridFunctionCoefficient Te0Coef_;
+
+      GridFunctionCoefficient dnnCoef_;
+      GridFunctionCoefficient dniCoef_;
+      GridFunctionCoefficient dviCoef_;
+      GridFunctionCoefficient dTiCoef_;
+      GridFunctionCoefficient dTeCoef_;
+
+      mutable SumCoefficient  nn1Coef_;
+      mutable SumCoefficient  ni1Coef_;
+      mutable SumCoefficient  vi1Coef_;
+      mutable SumCoefficient  Ti1Coef_;
+      mutable SumCoefficient  Te1Coef_;
+
+      ProductCoefficient      ne0Coef_;
+      ProductCoefficient      ne1Coef_;
+
+      ProductCoefficient      thTeCoef_; // 3/2 * Te
+      ProductCoefficient      thneCoef_; // 3/2 * ne
+
+      ApproxIonizationRate     izCoef_;
+
+      VectorCoefficient *      B3Coef_;
+
+      ElectronThermalParaDiffusionCoef ChiParaCoef_;
+      ProductCoefficient               ChiPerpCoef_;
+      Aniso2DDiffusionCoef             ChiCoef_;
+      ScalarMatrixProductCoefficient   dtChiCoef_;
+      /*
+       ConstantCoefficient DPerpCoef_;
+       IonDiffusionCoef DCoef_;
+       ScalarMatrixProductCoefficient dtDCoef_;
+
+       IonAdvectionCoef ViCoef_;
+       ScalarVectorProductCoefficient dtViCoef_;
+
+       IonSourceCoef           SizCoef_;
+       ProductCoefficient   negSizCoef_;
+
+       ProductCoefficient nnizCoef_;
+       ProductCoefficient niizCoef_;
+      */
+   public:
+      ElectronStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
+                               ParGridFunctionArray & pgf,
+                               ParGridFunctionArray & dpgf,
+                               int ion_charge, double ion_mass, double ChiPerp,
+                               VectorCoefficient & B3Coef
+                               /*,
+                               MatrixCoefficient & PerpCoef*/
+                              );
+
+      virtual void SetTimeStep(double dt);
+
+      void Update();
+   };
+
    class DummyOp : public NLOperator
    {
    public:
@@ -1428,7 +1572,7 @@ private:
                  Array<int> & offsets,
                  int ion_charge, double ion_mass,
                  double neutral_mass, double neutral_temp,
-                 double DiPerp,
+                 double DiPerp, double XiPerp, double XePerp,
                  VectorCoefficient & B3Coef,
                  // VectorCoefficient & bHatCoef,
                  // MatrixCoefficient & PerpCoef,
@@ -1475,7 +1619,7 @@ public:
                   double ion_mass,
                   double neutral_mass,
                   double neutral_temp,
-                  double Di_perp,
+                  double Di_perp, double Xi_perp, double Xe_perp,
                   VectorCoefficient & B3Coef,
                   bool imex = true,
                   unsigned int op_flag = 31,

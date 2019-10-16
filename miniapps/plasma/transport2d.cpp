@@ -1473,7 +1473,7 @@ int main(int argc, char *argv[])
 
    DGTransportTDO oper(mpi, dg, fes, ffes, offsets, pgf, dpgf,
                        ion_charge, ion_mass, neutral_mass, neutral_temp,
-                       Di_perp, B3Coef,
+                       Di_perp, Xi_perp, Xe_perp, B3Coef,
                        imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
@@ -1517,11 +1517,11 @@ int main(int argc, char *argv[])
 
    ofstream ofs_controller;
    if (mpi.Root())
-     {
-       ofs_controller.open("transport2d_cntrl.dat");
-       ode_controller.SetOutput(ofs_controller);
-     }
-   
+   {
+      ofs_controller.open("transport2d_cntrl.dat");
+      ode_controller.SetOutput(ofs_controller);
+   }
+
    L2_FECollection fec_l2_o0(0, dim);
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes_l2_o0(&pmesh, &fec_l2_o0);
@@ -1900,7 +1900,7 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { cout << "Solution error: " << error << endl; }
    }
    */
-   if (mpi.Root()) ofs_controller.close();
+   if (mpi.Root()) { ofs_controller.close(); }
    // Free the used memory.
    delete ode_solver;
    // delete ode_imp_solver;
