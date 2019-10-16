@@ -1775,7 +1775,7 @@ int main(int argc, char *argv[])
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
       dc->RegisterField("neutral_density", &neu_density);
-      dc->RegisterField("ion_density", &elec_energy);
+      dc->RegisterField("ion_density", &ion_density);
       dc->RegisterField("parallel_ion_velocity", &para_velocity);
       dc->RegisterField("ion_temp", &ion_energy);
       dc->RegisterField("electron_temp", &elec_energy);
