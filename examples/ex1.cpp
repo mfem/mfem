@@ -146,11 +146,9 @@ int main(int argc, char *argv[])
       for (int i=0; i<N; i++, mt++)
       {
          if (!Device::Allows(Backend::DEVICE_MASK) &&
-             !mfem::IsHostMemory(mt)) {continue;}
-#ifndef MFEM_USE_UMPIRE
+             !mfem::IsHostMemory(mt)) { continue; }
          if (i==static_cast<int>(MemoryType::HOST_UMPIRE)) { continue; }
          if (i==static_cast<int>(MemoryType::DEVICE_UMPIRE)) { continue; }
-#endif // MFME_USE_UMPIRE
          constexpr int size = 1024;
          dbg("\033[7m%d", static_cast<int>(mt));
          Memory<double> mem(size, mt);

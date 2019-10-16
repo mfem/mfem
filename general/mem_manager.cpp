@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 #include "../general/forall.hpp"
 #include "mem_manager.hpp"
+#include "dbg.hpp"
 
 #include <list>
 #include <cstring> // std::memcpy
@@ -51,13 +52,13 @@ MemoryType GetMemoryType(MemoryClass mc)
 
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
 {
-   //              | HOST         HOST_UMPIRE  HOST_32      HOST_64      HOST_MMU     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   // -------------+----------------------------------------------------------------------------------------------------
-   //  HOST        | HOST         HOST_UMPIRE  HOST_32      HOST_64      HOST_MMU     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  HOST_UMPIRE | HOST_UMPIRE  HOST_UMPIRE  HOST_32      HOST_64      HOST_MMU     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  HOST_32     | HOST_32      HOST_32      HOST_32      HOST_64      HOST_MMU     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  HOST_64     | HOST_64      HOST_64      HOST_64      HOST_64      HOST_MMU     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  HOST_MMU    | HOST_MMU     HOST_MMU     HOST_MMU     HOST_MMU     HOST_MMU     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
+   //                | HOST           HOST_UMPIRE    HOST_32        HOST_64        HOST_MMU       DEVICE         DEVICE_UMPIRE  DEVICE_UVM
+   // ---------------+--------------------------------------------------------------------------------------------------------------------
+   //  HOST          | HOST           HOST_UMPIRE    HOST_32        HOST_64        HOST_MMU       DEVICE         DEVICE_UMPIRE  DEVICE_UVM
+   //  HOST_UMPIRE   | HOST_UMPIRE    HOST_UMPIRE    HOST_32        HOST_64        HOST_MMU       DEVICE         DEVICE_UMPIRE  DEVICE_UVM
+   //  HOST_32       | HOST_32        HOST_32        HOST_32        HOST_64        HOST_MMU       DEVICE         DEVICE_UMPIRE  DEVICE_UVM
+   //  HOST_64       | HOST_64        HOST_64        HOST_64        HOST_64        HOST_MMU       DEVICE         DEVICE_UMPIRE  DEVICE_UVM
+   //  HOST_MMU      | HOST_MMU       HOST_MMU       HOST_MMU       HOST_MMU       HOST_MMU       DEVICE         DEVICE_UMPIRE  DEVICE_UVM
    //  DEVICE        | DEVICE         DEVICE         DEVICE         DEVICE         DEVICE         DEVICE         DEVICE_UMPIRE  DEVICE_UVM
    //  DEVICE_UMPIRE | DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UVM
    //  DEVICE_UVM    | DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM
@@ -74,14 +75,14 @@ namespace internal
 /// Memory class that holds:
 ///   - the host and the device pointer
 ///   - the size in bytes of this memory region
-///   - the type of this memory region
+///   - the host and device type of this memory region
 struct Memory
 {
    void *const h_ptr;
    void *d_ptr;
    const size_t bytes;
    const MemoryType h_type, d_type;
-   Memory(void *const p, const size_t b, const MemoryType h, const MemoryType d):
+   Memory(void *p, size_t b, MemoryType h, MemoryType d):
       h_ptr(p), d_ptr(nullptr), bytes(b), h_type(h), d_type(d) { }
 };
 
@@ -115,43 +116,38 @@ class HostMemorySpace
 {
 public:
    HostMemorySpace() { }
-   HostMemorySpace(const HostMemorySpace &orig) = default;
    virtual ~HostMemorySpace() { }
-   virtual void Alloc(void **ptr, const size_t bytes)
-   { dbg("std"); *ptr = std::malloc(bytes); }
-   virtual void Dealloc(void *ptr) { dbg("std"); std::free(ptr); }
-   //virtual void Insert(void *ptr, const size_t bytes) { }
-   virtual void Protect(const void *ptr, const size_t bytes) { dbg("std"); }
-   virtual void Unprotect(const void *ptr, const size_t bytes) { dbg("std"); }
+   virtual void Alloc(void **ptr, size_t bytes)
+   { mfem_error(""); *ptr = std::malloc(bytes); }
+   virtual void Dealloc(void *ptr) { std::free(ptr); }
+   virtual void Insert(void *ptr, size_t bytes) { }
+   virtual void Protect(const void *ptr, size_t bytes) { }
+   virtual void Unprotect(const void *ptr, size_t bytes) { }
 };
 
 /// The device memory space base abstract class
 class DeviceMemorySpace
 {
 public:
-   DeviceMemorySpace() { }
-   DeviceMemorySpace(const DeviceMemorySpace &orig) = default;
    virtual ~DeviceMemorySpace() { }
    virtual void Alloc(Memory &base)
-   { dbg("std"); base.d_ptr = std::malloc(base.bytes); }
-   virtual void Dealloc(Memory &base) { dbg("std"); std::free(base.d_ptr); }
-   virtual void Protect(const Memory &base) { dbg("std"); }
-   virtual void Unprotect(const Memory &base) { dbg("std"); }
+   { base.d_ptr = std::malloc(base.bytes); }
+   virtual void Dealloc(Memory &base) { std::free(base.d_ptr); }
+   virtual void Protect(const Memory &base) { }
+   virtual void Unprotect(const Memory &base) { }
 };
 
 /// The copy memory space base abstract class
 class CopyMemorySpace
 {
 public:
-   CopyMemorySpace() { }
-   CopyMemorySpace(const CopyMemorySpace &orig) = default;
    virtual ~CopyMemorySpace() { }
-   virtual void *HtoD(void *dst, const void *src, const size_t bytes)
-   { dbg("std"); return std::memcpy(dst, src, bytes); }
-   virtual void *DtoD(void *dst, const void *src, const size_t bytes)
-   { dbg("std"); return std::memcpy(dst, src, bytes); }
-   virtual void *DtoH(void *dst, const void *src, const size_t bytes)
-   { dbg("std"); return std::memcpy(dst, src, bytes); }
+   virtual void *HtoD(void *dst, const void *src, size_t bytes)
+   { return std::memcpy(dst, src, bytes); }
+   virtual void *DtoD(void *dst, const void *src, size_t bytes)
+   { return std::memcpy(dst, src, bytes); }
+   virtual void *DtoH(void *dst, const void *src, size_t bytes)
+   { return std::memcpy(dst, src, bytes); }
 };
 
 /// The std:: host memory space
@@ -161,129 +157,111 @@ class StdHostMemorySpace : public HostMemorySpace { };
 class NoHostMemorySpace : public HostMemorySpace
 {
 public:
-   NoHostMemorySpace(): HostMemorySpace() { dbg(""); }
-   void Alloc(void **ptr, const size_t bytes) { dbg(""); mfem_error("No Alloc Error"); }
+   NoHostMemorySpace(): HostMemorySpace() { }
+   void Alloc(void **ptr, const size_t bytes) { mfem_error("No Alloc Error"); }
 };
 
 /// The aligned 32 host memory space
 class Aligned32HostMemorySpace : public HostMemorySpace
 {
 public:
-   Aligned32HostMemorySpace(): HostMemorySpace() { dbg(""); }
-   void Alloc(void **ptr, const size_t bytes)
-   { dbg("Aligned32"); if (posix_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
+   Aligned32HostMemorySpace(): HostMemorySpace() { }
+   void Alloc(void **ptr, size_t bytes)
+   { if (posix_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
 };
 
 /// The aligned 64 host memory space
 class Aligned64HostMemorySpace : public HostMemorySpace
 {
 public:
-   Aligned64HostMemorySpace(): HostMemorySpace() { dbg(""); }
-   void Alloc(void **ptr, const size_t bytes)
-   { dbg("Aligned64"); if (posix_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
+   Aligned64HostMemorySpace(): HostMemorySpace() { }
+   void Alloc(void **ptr, size_t bytes)
+   { if (posix_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
 };
+
+/// The protected access error, used for the host
+#ifndef _WIN32
+static void MMU_ProtectedAccessError(int sig, siginfo_t *si, void *unused)
+{
+   fflush(0);
+   char str[64];
+   const void *ptr = si->si_addr;
+   sprintf(str, "Error while accessing @ %p!", ptr);
+   mfem::out << std::endl << "An illegal memory access was made!";
+   MFEM_ABORT(str);
+}
+
+static void MMU_Init()
+{
+   struct sigaction sa;
+   sa.sa_flags = SA_SIGINFO;
+   sigemptyset(&sa.sa_mask);
+   sa.sa_sigaction = MMU_ProtectedAccessError;
+   if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
+   if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
+}
+
+static void MMU_Mmap(void **ptr, size_t length)
+{
+   MFEM_VERIFY(length > 0, "Alloc of null-length requested!")
+   const int prot = PROT_READ | PROT_WRITE;
+   const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
+   *ptr = ::mmap(NULL, length, prot, flags, -1, 0);
+   if (*ptr == MAP_FAILED) { mfem_error("Alloc error!"); }
+   //dbg("Host MMU Alloc: %p (%d)", *ptr, bytes);
+}
+static void MMU_Munmap(void *ptr, size_t bytes)
+{
+   MFEM_VERIFY(bytes > 0, "Dealloc of null-length requested!")
+   if (::munmap(ptr, bytes) == -1) { mfem_error("Dealloc error!"); }
+}
+
+static void MMU_Mprotect(const void *ptr, size_t bytes)
+{
+   //dbg("Host MMU Protect %p (%d)", ptr, bytes);
+   if (::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE))
+   { mfem_error("Protect error!"); }
+}
+static void MMU_MUnprotect(const void *ptr, size_t bytes)
+{
+   //dbg("Host MMU Unprotect %p (%d)", ptr, bytes);
+   const int RW = PROT_READ | PROT_WRITE;
+   const int returned = ::mprotect(const_cast<void*>(ptr), bytes, RW);
+   if (returned != 0) { mfem_error("Unprotect error!"); }
+}
+#else
+static void MMU_Init() {}
+static void MMU_Mmap(void **ptr, const size_t length) {}
+static void MMU_Munmap(void *ptr, const size_t length) {}
+static void MMU_Mprotect(void *ptr, const size_t bytes) {}
+static void MMU_MUnprotect(const void *ptr, const size_t bytes) {}
+#endif
 
 /// The protected host memory space
 class ProtectedHostMemorySpace : public HostMemorySpace
 {
-   /// The protected access error, used for the host
-#ifndef _WIN32
-   static void ProtectedAccessError(int sig, siginfo_t *si, void *unused)
-   {
-      fflush(0);
-      char str[64];
-      const void *ptr = si->si_addr;
-      sprintf(str, "Error while accessing @ %p!", ptr);
-      mfem::out << std::endl << "An illegal memory access was made!";
-      MFEM_ABORT(str);
-   }
-#endif
 public:
-   ProtectedHostMemorySpace(): HostMemorySpace()
-   {
-      dbg("");
-#ifndef _WIN32
-      struct sigaction sa;
-      sa.sa_flags = SA_SIGINFO;
-      sigemptyset(&sa.sa_mask);
-      sa.sa_sigaction = ProtectedAccessError;
-      if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
-      if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
-#endif
-   }
-
-   void Alloc(void **ptr, const size_t bytes)
-   {
-      //dbg("Host MMU Alloc (%d)", bytes);
-#ifdef _WIN32
-      mfem_error("Protected HostAlloc is not available on WIN32.");
-#else
-      const size_t length = bytes;
-      MFEM_VERIFY(length > 0, "Alloc of null-length requested!")
-      const int prot = PROT_READ | PROT_WRITE;
-      const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
-      *ptr = ::mmap(NULL, length, prot, flags, -1, 0);
-      if (*ptr == MAP_FAILED) { mfem_error("Alloc error!"); }
-      dbg("Host MMU Alloc: %p (%d)", *ptr, bytes);
-#endif
-   }
-
+   ProtectedHostMemorySpace(): HostMemorySpace() { MMU_Init(); }
+   void Alloc(void **ptr, size_t bytes) { MMU_Mmap(ptr, bytes); }
    void Dealloc(void *ptr)
    {
-      dbg("Host MMU Dealloc %p", ptr);
-      MFEM_VERIFY(mm.IsKnown(ptr), "Unknown ptr to Protect!");
-#ifdef _WIN32
-      mfem_error("Protected HostDealloc is not available on WIN32.");
-#else
-      const internal::Memory &base = maps->memories.at(ptr);
-      const size_t bytes = base.bytes;
-      dbg("Host MMU munmap(%p,%d)",ptr,bytes);
-      MFEM_VERIFY(bytes > 0, "Dealloc of null-length requested!")
-      if (::munmap(ptr, bytes) == -1) { mfem_error("Dealloc error!"); }
-#endif
+      MFEM_VERIFY(mm.IsKnown(ptr), "Unknown ptr to Dealloc!");
+      MMU_Munmap(ptr, maps->memories.at(ptr).bytes);
    }
-
-   // Memory may not be accessed.
-   void Protect(const void *ptr, const size_t bytes)
-   {
-#ifndef _WIN32
-      MFEM_VERIFY(mm.IsKnown(ptr), "Unknown ptr to Protect!");
-      //const internal::Memory &base = maps->memories.at(ptr);
-      //if (base.h_type != MemoryType::HOST_MMU) { dbg("\033[1m PROTECT return"); return; }
-      dbg("Host MMU Protect %p (%d)", ptr, bytes);
-      if (::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE))
-      { mfem_error("Protect error!"); }
-#endif
-   }
-
-   // Memory may be read and written.
-   void Unprotect(const void *ptr, const size_t bytes)
-   {
-#ifndef _WIN32
-      MFEM_VERIFY(mm.IsKnown(ptr), "Unknown ptr to Unprotect!");
-      //const internal::Memory &base = maps->memories.at(ptr);
-      //if (base.h_type != MemoryType::HOST_MMU) { dbg("\033[1m UNPROTECT return"); return; }
-      dbg("Host MMU Unprotect %p (%d)", ptr, bytes);
-      const int RW = PROT_READ | PROT_WRITE;
-      const int returned = ::mprotect(const_cast<void*>(ptr), bytes, RW);
-      if (returned != 0) { mfem_error("Unprotect error!"); }
-#endif
-   }
+   void Protect(const void *ptr, size_t bytes) { MMU_Mprotect(ptr, bytes); }
+   void Unprotect(const void *ptr, size_t bytes) { MMU_MUnprotect(ptr, bytes); }
 };
 
 /// The UVM host memory space
 class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
-   UvmHostMemorySpace() { dbg(""); }
-   ~UvmHostMemorySpace() { dbg(""); }
-   void Alloc(void **ptr, const size_t bytes) { dbg(""); CuMallocManaged(ptr, bytes); }
+   UvmHostMemorySpace() { }
+   ~UvmHostMemorySpace() { }
+   void Alloc(void **ptr, size_t bytes) { CuMallocManaged(ptr, bytes); }
    void Dealloc(void *ptr)
    {
-      dbg("");
-      CuGetLastError();
-      const bool known = mm.IsKnown(ptr);
-      if (!known) { mfem_error("[UVM] Dealloc error!"); }
+      MFEM_VERIFY(mm.IsKnown(ptr), "UVM Dealloc error!");
       const Memory &base = maps->memories.at(ptr);
       if (base.d_type == MemoryType::DEVICE_UVM) { CuMemFree(ptr); }
       else { std::free(ptr); }
@@ -294,9 +272,8 @@ public:
 class NoDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
-   void Alloc(internal::Memory &base)
-   { dbg(""); mfem_error("No Alloc in this memory space"); }
-   void Dealloc(Memory &base) { dbg("");  mfem_error("No Dealloc in this memory space"); }
+   void Alloc(internal::Memory &base) { mfem_error("No device alloc"); }
+   void Dealloc(Memory &base) { mfem_error("No device dealloc"); }
 };
 
 /// The std:: device memory space, used with the 'debug' device
@@ -306,108 +283,38 @@ class StdDeviceMemorySpace : public DeviceMemorySpace { };
 class CudaDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
-   CudaDeviceMemorySpace(): DeviceMemorySpace() { dbg(""); }
-   void Alloc(Memory &base)
-   { dbg("CuMemAlloc"); CuMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) { dbg("CuMemFree"); CuMemFree(base.d_ptr); }
+   CudaDeviceMemorySpace(): DeviceMemorySpace() { }
+   void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
 };
 
 /// The HIP device memory space
 class HipDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
-   HipDeviceMemorySpace(): DeviceMemorySpace() { dbg(""); }
-   void Alloc(Memory &base)
-   { dbg("HipMemAlloc"); HipMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) { dbg("HipMemFree"); HipMemFree(base.d_ptr); }
+   HipDeviceMemorySpace(): DeviceMemorySpace() { }
+   void Alloc(Memory &base) { HipMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) { HipMemFree(base.d_ptr); }
 };
 
 /// The UVM device memory space.
 class UvmDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
-   UvmDeviceMemorySpace(): DeviceMemorySpace() { dbg(""); }
-   void Alloc(Memory &base) { dbg(""); base.d_ptr = base.h_ptr; }
-   void Dealloc(Memory &base) { dbg(""); }
+   UvmDeviceMemorySpace(): DeviceMemorySpace() { }
+   void Alloc(Memory &base) {  base.d_ptr = base.h_ptr; }
+   void Dealloc(Memory &base) { }
 };
 
 /// The protected device memory space
 class ProtectedDeviceMemorySpace : public DeviceMemorySpace
 {
-   /// The protected access error, used for the host
-#ifndef _WIN32
-   static void ProtectedAccessError(int sig, siginfo_t *si, void *unused)
-   {
-      fflush(0);
-      char str[64];
-      const void *ptr = si->si_addr;
-      sprintf(str, "Error while accessing @ %p!", ptr);
-      mfem::out << std::endl << "An illegal memory access was made!";
-      MFEM_ABORT(str);
-   }
-#endif
 public:
-   ProtectedDeviceMemorySpace(): DeviceMemorySpace()
-   {
-      dbg("Device MMU");
-#ifndef _WIN32
-      struct sigaction sa;
-      sa.sa_flags = SA_SIGINFO;
-      sigemptyset(&sa.sa_mask);
-      sa.sa_sigaction = ProtectedAccessError;
-      if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
-      if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
-#endif
-   }
-
-   void Alloc(Memory &base)
-   {
-#ifdef _WIN32
-      mfem_error("Protected HostAlloc is not available on WIN32.");
-#else
-      MFEM_VERIFY(base.bytes > 0, "Alloc of null-length requested!")
-      const int prot = PROT_READ | PROT_WRITE;
-      const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
-      base.d_ptr = ::mmap(NULL, base.bytes, prot, flags, -1, 0);
-      if (base.d_ptr == MAP_FAILED) { mfem_error("Alloc error!"); }
-      dbg("Device MMU Alloc %p (%d)", base.d_ptr, base.bytes);
-#endif
-   }
-
-   void Dealloc(Memory &base)
-   {
-#ifdef _WIN32
-      mfem_error("Protected HostDealloc is not available on WIN32.");
-#else
-      const size_t bytes = base.bytes;
-      dbg("Device MMU munmap(%p,%d)", base.d_ptr, bytes);
-      MFEM_VERIFY(bytes > 0, "Dealloc of null-length requested!")
-      if (::munmap(base.d_ptr, bytes) == -1) { mfem_error("Dealloc error!"); }
-#endif
-   }
-
-   // Memory may not be accessed.
-   void Protect(const Memory &base)
-   {
-#ifndef _WIN32
-      dbg("Device MMU Protect %p (%d)", base.d_ptr, base.bytes);
-      if (::mprotect(const_cast<void*>(base.d_ptr), base.bytes, PROT_NONE))
-      { mfem_error("Protect error!"); }
-#endif
-   }
-
-   // Memory may be read and written.
-   void Unprotect(const Memory &base)
-   {
-#ifndef _WIN32
-      const void *d_ptr = base.d_ptr;
-      const size_t bytes = base.bytes;
-      dbg("Device MMU Unprotect %p (%d)", d_ptr, bytes);
-      const int RW = PROT_READ | PROT_WRITE;
-      const int returned = ::mprotect(const_cast<void*>(d_ptr), bytes, RW);
-      if (returned != 0) { mfem_error("Unprotect error!"); }
-#endif
-   }
+   ProtectedDeviceMemorySpace(): DeviceMemorySpace() { MMU_Init(); }
+   void Alloc(Memory &m) { MMU_Mmap(&m.d_ptr, m.bytes); }
+   void Dealloc(Memory &m) { MMU_Munmap(m.d_ptr, m.bytes); }
+   void Protect(const Memory &m) { MMU_Mprotect(m.d_ptr, m.bytes); }
+   void Unprotect(const Memory &m) { MMU_MUnprotect(m.d_ptr, m.bytes); }
 };
 
 /// The std:: copy memory space
@@ -417,12 +324,12 @@ class StdCopyMemorySpace: public CopyMemorySpace { };
 class NoCopyMemorySpace: public CopyMemorySpace
 {
 public:
-   void *HtoD(void *dst, const void *src, const size_t bytes)
-   { dbg(""); mfem_error("HtoD"); return nullptr; }
-   void *DtoD(void* dst, const void* src, const size_t bytes)
-   { dbg(""); mfem_error("DtoD"); return nullptr; }
-   void *DtoH(void *dst, const void *src, const size_t bytes)
-   { dbg(""); mfem_error("DtoH"); return nullptr; }
+   void *HtoD(void *dst, const void *src, size_t bytes)
+   { mfem_error("HtoD"); return nullptr; }
+   void *DtoD(void* dst, const void* src, size_t bytes)
+   { mfem_error("DtoD"); return nullptr; }
+   void *DtoH(void *dst, const void *src, size_t bytes)
+   { mfem_error("DtoH"); return nullptr; }
 };
 
 /// The CUDA copy memory space
@@ -430,12 +337,12 @@ class CudaCopyMemorySpace: public CopyMemorySpace
 {
 public:
    CudaCopyMemorySpace() { dbg(""); }
-   void *HtoD(void *dst, const void *src, const size_t bytes)
-   { dbg(""); return CuMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, const size_t bytes)
-   { dbg(""); return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, const size_t bytes)
-   { dbg(""); return CuMemcpyDtoH(dst, src, bytes); }
+   void *HtoD(void *dst, const void *src, size_t bytes)
+   { return CuMemcpyHtoD(dst, src, bytes); }
+   void *DtoD(void* dst, const void* src, size_t bytes)
+   { return CuMemcpyDtoD(dst, src, bytes); }
+   void *DtoH(void *dst, const void *src, size_t bytes)
+   { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
 /// The HIP copy memory space
@@ -443,12 +350,12 @@ class HipCopyMemorySpace: public CopyMemorySpace
 {
 public:
    HipCopyMemorySpace() { dbg(""); }
-   void *HtoD(void *dst, const void *src, const size_t bytes)
-   { dbg(""); return HipMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, const size_t bytes)
-   { dbg(""); return HipMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, const size_t bytes)
-   { dbg(""); return HipMemcpyDtoH(dst, src, bytes); }
+   void *HtoD(void *dst, const void *src, size_t bytes)
+   { return HipMemcpyHtoD(dst, src, bytes); }
+   void *DtoD(void* dst, const void* src, size_t bytes)
+   { return HipMemcpyDtoD(dst, src, bytes); }
+   void *DtoH(void *dst, const void *src, size_t bytes)
+   { return HipMemcpyDtoH(dst, src, bytes); }
 };
 
 /// The UVM copy memory space
@@ -456,12 +363,10 @@ class UvmCopyMemorySpace: public CopyMemorySpace
 {
 public:
    UvmCopyMemorySpace() { dbg(""); }
-   void *HtoD(void *dst, const void *src, const size_t bytes)
-   { dbg(""); return dst; }
-   void *DtoD(void* dst, const void* src, const size_t bytes)
-   { dbg(""); return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, const size_t bytes)
-   { dbg(""); return dst; }
+   void *HtoD(void *dst, const void *src, size_t bytes) { return dst; }
+   void *DtoD(void* dst, const void* src, size_t bytes)
+   { return CuMemcpyDtoD(dst, src, bytes); }
+   void *DtoH(void *dst, const void *src, size_t bytes) { return dst; }
 };
 
 
@@ -485,10 +390,9 @@ public:
       h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
                   ("host_pool", rm.getAllocator("HOST"))),
       strat(h_allocator.getAllocationStrategy()) { }
-   void Alloc(void **ptr, const size_t bytes)
-   { *ptr = h_allocator.allocate(bytes); }
+   void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
    void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
-   virtual void Insert(void *ptr, const size_t bytes)
+   virtual void Insert(void *ptr, size_t bytes)
    { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
 
@@ -499,14 +403,13 @@ private:
    umpire::ResourceManager &rm;
    umpire::Allocator d_allocator;
 public:
-   ~UmpireDeviceMemorySpace() { d_allocator.release(); }
+   ~UmpireDeviceMemorySpace() { dbg(""); d_allocator.release(); }
    UmpireDeviceMemorySpace(): DeviceMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
       d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("device_pool", rm.getAllocator("DEVICE"))) { }
-   void Alloc(internal::Memory &base, const size_t bytes)
-   { base.d_ptr = d_allocator.allocate(bytes); }
-   void Dealloc(void *dptr) { d_allocator.deallocate(dptr); }
+                  ("device_pool", rm.getAllocator("DEVICE"))) { dbg(""); }
+   void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
+   void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
 };
 
 /// The Umpire copy memory space
@@ -516,12 +419,12 @@ private:
    umpire::ResourceManager& rm;
 public:
    UmpireCopyMemorySpace(): CopyMemorySpace(),
-      rm(umpire::ResourceManager::getInstance()) { }
-   void *HtoD(void *dst, const void *src, const size_t bytes)
+      rm(umpire::ResourceManager::getInstance()) { dbg(""); }
+   void *HtoD(void *dst, const void *src, size_t bytes)
    { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
-   void *DtoD(void* dst, const void* src, const size_t bytes)
+   void *DtoD(void* dst, const void* src, size_t bytes)
    { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
-   void *DtoH(void *dst, const void *src, const size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes)
    { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
 };
 #endif // MFEM_USE_UMPIRE
@@ -533,17 +436,16 @@ class Ctrl
    typedef MemoryType MT;
 public:
    StdHostMemorySpace h_std;
-   UmpireHostMemorySpace h_umpire;
+   UmpireHostMemorySpace *h_umpire;
    Aligned32HostMemorySpace h_align32;
    Aligned64HostMemorySpace h_align64;
    ProtectedHostMemorySpace h_mmu;
-   //UvmHostMemorySpace h_uvm;
 
    NoDeviceMemorySpace d_none;
    StdDeviceMemorySpace d_std;
    CudaDeviceMemorySpace d_cuda;
    //HipDeviceMemorySpace d_hip;
-   UmpireDeviceMemorySpace d_umpire;
+   UmpireDeviceMemorySpace *d_umpire;
    UvmDeviceMemorySpace d_uvm;
    ProtectedDeviceMemorySpace d_mmu;
 
@@ -551,32 +453,47 @@ public:
    StdCopyMemorySpace c_std;
    CudaCopyMemorySpace c_cuda;
    //HipCopyMemorySpace c_hip;
-   UmpireCopyMemorySpace c_umpire;
+   UmpireCopyMemorySpace *c_umpire;
    UvmCopyMemorySpace c_uvm;
 
    HostMemorySpace *host[MemoryBackends::NUM_BACKENDS]
    {
-      &h_std, &h_umpire, &h_align32, &h_align64, &h_mmu,
+      &h_std, nullptr, &h_align32, &h_align64, &h_mmu,
       nullptr, nullptr, nullptr, nullptr
    };
 
    DeviceMemorySpace *device[MemoryBackends::NUM_BACKENDS]
    {
       nullptr, nullptr, nullptr, nullptr, nullptr,
-      &d_cuda, &d_umpire, &d_uvm, &d_mmu
+      &d_cuda, nullptr, &d_uvm, &d_mmu
    };
 
    CopyMemorySpace *memcpy[MemoryBackends::NUM_BACKENDS]
    {
       nullptr, nullptr, nullptr, nullptr, nullptr,
-      &c_cuda, &c_umpire, &c_uvm, &c_std
+      &c_cuda, nullptr, &c_uvm, &c_std
    };
 public:
-   Ctrl() { dbg(""); }
+   Ctrl() { }
+   void UmpireSetup()
+   {
+      host[static_cast<int>(MemoryType::HOST_UMPIRE)] =
+         static_cast<HostMemorySpace*>(new UmpireHostMemorySpace());
+      device[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
+         static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());
+      memcpy[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
+         static_cast<CopyMemorySpace*>(new UmpireCopyMemorySpace());
+   }
    HostMemorySpace* Host(const MemoryType mt) { return host[static_cast<int>(mt)]; }
    DeviceMemorySpace* Device(const MemoryType mt) { return device[static_cast<int>(mt)]; }
    CopyMemorySpace* Memcpy(const MemoryType mt) { return memcpy[static_cast<int>(mt)]; }
-   ~Ctrl() { dbg(""); }
+   ~Ctrl()
+   {
+      dbg("");
+      delete host[static_cast<int>(MemoryType::HOST_UMPIRE)];
+      delete device[static_cast<int>(MemoryType::DEVICE_UMPIRE)];
+      delete memcpy[static_cast<int>(MemoryType::DEVICE_UMPIRE)];
+   }
 };
 
 } // namespace mfem::internal
@@ -598,6 +515,8 @@ MemoryManager::~MemoryManager() { if (exists) { Destroy(); } }
 //******************************************************************************
 void MemoryManager::Setup(MemoryType host_mt, MemoryType device_mt)
 {
+   // Needs to be done here, to avoid "invalid device function"
+   ctrl->UmpireSetup();
    host_mem_type = host_mt;
    device_mem_type = device_mt;
    dbg("Default memory types: %d <-> %d", host_mem_type, device_mem_type);
@@ -634,7 +553,7 @@ void* MemoryManager::Insert(void *h_ptr, size_t bytes,
       maps->memories.emplace(h_ptr, internal::Memory(h_ptr, bytes, h_mt, d_mt));
    if (res.second == false)
    { mfem_error("Trying to add an already present address!"); }
-   //ctrl->Host(h_mt)->Insert(h_ptr, bytes);
+   ctrl->Host(h_mt)->Insert(h_ptr, bytes);
    dbg("%p", h_ptr);
    return h_ptr;
 }
@@ -773,12 +692,13 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    //const MemoryType &h_mt = base.h_type;
    MFEM_ASSERT((char*)base.h_ptr + offset == alias_ptr, "internal error");
    if (!base.d_ptr) { ctrl->Device(d_mt)->Alloc(base); }
+   ctrl->Device(d_mt)->Unprotect(base);
    if (copy_data)
    {
       ctrl->Memcpy(d_mt)->HtoD((char*)base.d_ptr + offset, alias_ptr, bytes);
-      // if the size of the alias is large enough, we should do this
-      //ctrl->Host(h_mt)->Protect(alias_ptr, bytes);
    }
+   // if the size of the alias is large enough, we should do this
+   //ctrl->Host(h_mt)->Protect(alias_ptr, bytes);
    return (char*) base.d_ptr + offset;
 }
 
@@ -836,22 +756,27 @@ void *MemoryManager::New_(size_t bytes, MemoryType mt, unsigned &flags)
 {
    MFEM_VERIFY(bytes>0, " bytes==0");
    MFEM_VERIFY(mt != MemoryType::HOST, "internal error");
-   const bool host_mem = IsHostMemory(mt);
-   const bool host_mmu = IsHostMemory(mt);
+   const bool host_std =
+      mt == MemoryType::HOST ||
+      mt == MemoryType::HOST_32 ||
+      mt == MemoryType::HOST_64;
+   const bool host_reg =
+      mt == MemoryType::HOST_UMPIRE ||
+      mt == MemoryType::HOST_MMU;
    const MemoryType h_mt = GetHostType(mt);
    const MemoryType d_mt = GetDeviceType(mt);
-   dbg("h_mt:%d, d_mt:%d (bytes:%d)", h_mt, d_mt, bytes);
+   dbg("\033[7mmt:%d, h_mt:%d, d_mt:%d (bytes:%d)", mt, h_mt, d_mt, bytes);
    void *m_ptr;
    ctrl->Host(h_mt)->Alloc(&m_ptr, bytes);
    flags = Mem::OWNS_HOST | Mem::OWNS_DEVICE | Mem::OWNS_INTERNAL;
-   if (host_mem && !host_mmu)
+   if (host_std)
    {
       dbg("host_mem && !host_mmu");
       flags |= Mem::VALID_HOST;
    }
-   else if (host_mmu)
+   else if (host_reg)
    {
-      dbg("host_mmu");
+      dbg("host_reg");
       mm.Insert(m_ptr, bytes, h_mt, d_mt);
       flags |= Mem::REGISTERED | Mem::VALID_HOST;
    }
@@ -889,8 +814,6 @@ void *MemoryManager::Register_(void *ptr, size_t bytes, MemoryType mt,
    }
    const MemoryType h_mt = GetHostType(mt);
    const MemoryType d_mt = GetDeviceType(mt);
-   //if (mt == MemoryType::HOST_MMU) { mfem_error("here"); }
-   //MFEM_VERIFY(mt == MemoryType::DEVICE, "Only DEVICE pointers are supported");
    void *m_ptr;
    ctrl->Host(h_mt)->Alloc(&m_ptr, bytes);
    mm.InsertDevice(ptr, m_ptr, bytes, d_mt);
@@ -944,12 +867,12 @@ static void PullKnown(internal::Maps *maps, const void *ptr,
    // There are cases where it is OK if base.d_ptr is not allocated yet:
    // for example, when requesting read-write access on host to memory created
    // as device memory.
+   ctrl->Host(h_mt)->Unprotect(base.h_ptr, bytes);
    if (copy_data && base.d_ptr)
    {
-      ctrl->Host(h_mt)->Unprotect(base.h_ptr, bytes);
       ctrl->Memcpy(d_mt)->DtoH(base.h_ptr, base.d_ptr, bytes);
-      ctrl->Device(d_mt)->Protect(base);
    }
+   ctrl->Device(d_mt)->Protect(base);
 }
 
 // ****************************************************************************
@@ -964,15 +887,15 @@ static void PullAlias(const internal::Maps *maps, const void *ptr,
    // There are cases where it is OK if alias->mem->d_ptr is not allocated yet:
    // for example, when requesting read-write access on host to memory created
    // as device memory.
+   ctrl->Host(h_mt)->Unprotect(ptr, bytes);
    if (copy_data && alias.mem->d_ptr)
    {
-      ctrl->Host(h_mt)->Unprotect(ptr, bytes);
       ctrl->Memcpy(d_mt)->DtoH(const_cast<void*>(ptr),
                                static_cast<char*>(alias.mem->d_ptr) + alias.offset,
                                bytes);
-      // if the size of the alias is large enough, we should do this
-      //ctrl->Device(d_mt)->Protect(alias.mem);
    }
+   // if the size of the alias is large enough, we should do this
+   //ctrl->Device(d_mt)->Protect(alias.mem);
 }
 
 // ****************************************************************************
@@ -1322,6 +1245,12 @@ void MemoryPrintFlags(unsigned flags)
          << "\n   alias         = " << bool(flags & Mem::ALIAS)
          << std::endl;
 }
+
+const char *MemoryBackends::name[MemoryBackends::NUM_BACKENDS] =
+{
+   "host-std", "host-umpire", "host-aligned-32", "host-aligned-64",
+   "host-debug", "device", "device-umpire", "device-uvm", "device-debug"
+};
 
 MemoryManager mm;
 

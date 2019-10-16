@@ -109,12 +109,26 @@ void Device::Print(std::ostream &out)
          out << internal::backend_name[i];
       }
    }
-   out << '\n';
+   out << std::endl;
+   out << "Memory configuration: "
+       << MemoryBackends().name[static_cast<int>(host_mem_type)];
+   if (Device::Allows(Backend::DEVICE_MASK) || Device::Allows(Backend::DEBUG))
+   {
+      out << ", "
+          << MemoryBackends().name[static_cast<int>(device_mem_type)];
+   }
+   out << std::endl;
 }
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   if (Device::Allows(Backend::DEBUG))
+   if ( IsUsingUmpire())
+   {
+      host_mem_type = MemoryType::HOST_UMPIRE;
+      host_mem_class = MemoryClass::HOST_UMPIRE;
+   }
+   const bool debug = Device::Allows(Backend::DEBUG);
+   if (debug)
    {
       host_mem_type = MemoryType::HOST_MMU;
       host_mem_class = MemoryClass::HOST_MMU;
@@ -126,6 +140,11 @@ void Device::UpdateMemoryTypeAndClass()
    {
       device_mem_type = MemoryType::DEVICE;
       device_mem_class = MemoryClass::DEVICE;
+      if (IsUsingUmpire() && !debug)
+      {
+         device_mem_type = MemoryType::DEVICE_UMPIRE;
+         device_mem_class = MemoryClass::DEVICE_UMPIRE;
+      }
    }
 
    mm.Setup(host_mem_type, device_mem_type);
@@ -133,11 +152,9 @@ void Device::UpdateMemoryTypeAndClass()
 
 void Device::Enable()
 {
-   if (Get().backends & ~Backend::CPU)
-   {
-      Get().mode = Device::ACCELERATED;
-      Get().UpdateMemoryTypeAndClass();
-   }
+   const bool accelerated = Get().backends & ~Backend::CPU;
+   if (accelerated) { Get().mode = Device::ACCELERATED;}
+   if (accelerated || IsUsingUmpire()) { Get().UpdateMemoryTypeAndClass(); }
 }
 
 #ifdef MFEM_USE_CUDA
@@ -266,11 +283,7 @@ void Device::Setup(const int device)
    if (hip) { HipDeviceSetup(dev, ngpu); }
    if (cuda) { CudaDeviceSetup(dev, ngpu); }
    if (raja) { RajaDeviceSetup(dev, ngpu); }
-   if (debug && !Allows(Backend::DEVICE_MASK))
-   {
-      ngpu=1;
-      // MFEM_VERIFY((hip|cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
-   }
+   if (debug && !Allows(Backend::DEVICE_MASK)) { ngpu = 1; }
 }
 
 } // mfem
