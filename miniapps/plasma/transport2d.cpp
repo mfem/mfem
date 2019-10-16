@@ -952,6 +952,10 @@ int main(int argc, char *argv[])
                   "Mass of the neutral species (in amu)");
    args.AddOption(&neutral_temp, "-Tn", "--neutral-temp",
                   "Temperature of the neutral species (in eV)");
+   args.AddOption(&ni_min_, "-ni-min", "--min-ion-density",
+                  "Minimum of inital ion density");
+   args.AddOption(&ni_max_, "-ni-max", "--max-ion-density",
+                  "Maximum of inital ion density");
    // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
    //               "Diffusion constant used in momentum equation.");
    args.AddOption(&Tot_B_max_, "-B", "--total-B-magnitude",
