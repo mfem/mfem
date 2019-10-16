@@ -133,12 +133,15 @@ int main(int argc, char *argv[])
       // in debug device, should raise a SIGBUS/SIGSEGV
       dbg("Yd[0] = 0.0;");
       Yd[0] = 0.0;
+      dbg("delete mesh;");
       delete mesh;
       return 0;
    }
 
    if (mem)
    {
+      //dbg("mem_cuda");
+      //Memory<double> mem_cuda(4096, MemoryType::DEVICE);
       constexpr int N = 1 + static_cast<int>(MemoryType::DEVICE_UVM);
       dbg("N: %d", N);
       Vector v[N];
@@ -171,6 +174,7 @@ int main(int argc, char *argv[])
          dbg("%p", (void*)y.GetData());
          y.Destroy();
       }
+      delete mesh;
       return 0;
    }
 
@@ -284,10 +288,14 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
+   dbg("delete a");
    delete a;
+   dbg("delete b");
    delete b;
+   dbg("delete fespace");
    delete fespace;
    if (order > 0) { delete fec; }
+   dbg("delete mesh");
    delete mesh;
 
    return 0;
