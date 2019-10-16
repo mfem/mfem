@@ -128,11 +128,8 @@ Vector &Vector::operator=(const Vector &v)
 Vector &Vector::operator=(double value)
 {
    const bool use_dev = UseDevice();
-   dbg("use_dev:%d",use_dev);
    const int N = size;
-   dbg("y = Write(use_dev);");
    auto y = Write(use_dev);
-   dbg("MFEM_FORALL_SWITCH");
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
    return *this;
 }
