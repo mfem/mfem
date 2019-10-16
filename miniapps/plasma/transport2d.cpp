@@ -44,8 +44,11 @@ static double nn_min_ = 0.9e15;
 static double ni_max_ = 1.0e18;
 static double ni_min_ = 1.0e16;
 
-static double T_max_ = 10.0;
-static double T_min_ =  1.0;
+static double Ti_max_ = 10.0;
+static double Ti_min_ =  1.0;
+
+static double Te_max_ = 10.0;
+static double Te_min_ =  1.0;
 
 static double Tot_B_max_ = 5.0; // Maximum of total B field
 static double Pol_B_max_ = 0.5; // Maximum of poloidal B field
@@ -217,7 +220,7 @@ double TiFunc(const Vector &x, double t)
       double rb = 0.64;
       
       double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
-      return T_min_ + (T_max_ - T_min_) * (0.5 + 0.5 * cos(M_PI * r));
+      return Ti_min_ + (Ti_max_ - Ti_min_) * (0.5 + 0.5 * cos(M_PI * r));
     }
   case 4:
     {
@@ -226,12 +229,12 @@ double TiFunc(const Vector &x, double t)
 
       double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
       double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
-      return T_min_ +
-	(T_max_ - T_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) +
-			     0.5 * exp(-200.0 * rs));
+      return Ti_min_ +
+	(Ti_max_ - Ti_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) +
+			       0.5 * exp(-200.0 * rs));
     }
     default:
-      return T_max_;
+      return Ti_max_;
     }
 }
 
@@ -245,7 +248,7 @@ double TeFunc(const Vector &x, double t)
       double rb = 0.64;
       
       double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
-      return T_min_ + (T_max_ - T_min_) * (0.5 + 0.5 * cos(M_PI * r));
+      return Te_min_ + (Te_max_ - Te_min_) * (0.5 + 0.5 * cos(M_PI * r));
     }
   case 4:
     {
@@ -254,11 +257,12 @@ double TeFunc(const Vector &x, double t)
 
    double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
    double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
-   return T_min_ +
-          (T_max_ - T_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs));
+   return Te_min_ +
+          (Te_max_ - Te_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) +
+				 0.5 * exp(-400.0 * rs));
     }
     default:
-      return T_max_;
+      return Te_max_;
     }
 }
 
@@ -952,10 +956,22 @@ int main(int argc, char *argv[])
                   "Mass of the neutral species (in amu)");
    args.AddOption(&neutral_temp, "-Tn", "--neutral-temp",
                   "Temperature of the neutral species (in eV)");
+   args.AddOption(&nn_min_, "-nn-min", "--min-neutral-density",
+                  "Minimum of inital neutral density");
+   args.AddOption(&nn_max_, "-nn-max", "--max-neutral-density",
+                  "Maximum of inital neutral density");
    args.AddOption(&ni_min_, "-ni-min", "--min-ion-density",
                   "Minimum of inital ion density");
    args.AddOption(&ni_max_, "-ni-max", "--max-ion-density",
                   "Maximum of inital ion density");
+   args.AddOption(&Ti_min_, "-Ti-min", "--min-ion-temp",
+                  "Minimum of inital ion temperature");
+   args.AddOption(&Ti_max_, "-Ti-max", "--max-ion-temp",
+                  "Maximum of inital ion temperature");
+   args.AddOption(&Te_min_, "-Te-min", "--min-electron-temp",
+                  "Minimum of inital electron temperature");
+   args.AddOption(&Te_max_, "-Te-max", "--max-electron-temp",
+                  "Maximum of inital electron temperature");
    // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
    //               "Diffusion constant used in momentum equation.");
    args.AddOption(&Tot_B_max_, "-B", "--total-B-magnitude",
