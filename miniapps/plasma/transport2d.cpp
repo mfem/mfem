@@ -838,6 +838,7 @@ int main(int argc, char *argv[])
    int ode_solver_type = 2;
    int logging = 0;
    bool   imex = true;
+   bool ode_epus = false;
    int    op_flag = 31;
    double tol_ode = 1e-3;
    double rej_ode = 1.2;
@@ -919,9 +920,20 @@ int main(int argc, char *argv[])
                   "            A-stable methods (not L-stable)\n\t"
                   "            22 - ImplicitMidPointSolver,\n\t"
                   "            23 - SDIRK23, 34 - SDIRK34.");
+   args.AddOption(&ode_epus, "-epus", "--err-per-unit0step", "-eps",
+                  "--err-per-step",
+                  "Select error value used by ODE controller.");
    args.AddOption(&ode_weights, "-ode-w","--ode-weights",
                   "Relative importance of fields when computing "
                   "ODE time step.");
+   args.AddOption(&kP_acc, "-kP", "--kP",
+                  "Gain for proportional error adjustment.");
+   args.AddOption(&kI_acc, "-kI", "--kI",
+                  "Gain for integrated error adjustment.");
+   args.AddOption(&kD_acc, "-kD", "--kD",
+                  "Gain for derivative error adjustment.");
+   args.AddOption(&lim_max, "-thm", "--theta-max",
+                  "Maximum dt increase factor.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -1639,7 +1651,8 @@ int main(int argc, char *argv[])
    ode_controller.SetTimeStep(dt);
    ode_controller.SetTolerance(tol_ode);
    ode_controller.SetRejectionLimit(rej_ode);
-
+   if (ode_epus) ode_controller.SetErrorPerUnitStep();
+   
    ofstream ofs_controller;
    if (mpi.Root())
    {
