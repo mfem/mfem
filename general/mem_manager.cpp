@@ -118,7 +118,7 @@ public:
    HostMemorySpace() { }
    virtual ~HostMemorySpace() { }
    virtual void Alloc(void **ptr, size_t bytes)
-   { mfem_error(""); *ptr = std::malloc(bytes); }
+   { *ptr = std::malloc(bytes); }
    virtual void Dealloc(void *ptr) { std::free(ptr); }
    virtual void Insert(void *ptr, size_t bytes) { }
    virtual void Protect(const void *ptr, size_t bytes) { }
