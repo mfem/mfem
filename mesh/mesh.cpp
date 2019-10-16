@@ -5995,6 +5995,11 @@ void Mesh::UniformRefinement2D()
          MFEM_ABORT("unknown element type: " << el_type);
       }
    }
+
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      FreeElement(old_elements[i]);
+   }
    old_elements.DeleteAll();
 
    boundary.SetSize(2 * NumOfBdrElements);
