@@ -553,12 +553,17 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
                "invalid Memory state");
    if (mm.exists && (flags & Mem::OWNS_INTERNAL))
    {
-      // Deallocate if needed before erasing, as some backends needs the memory
-      MFEM_VERIFY(mm.IsKnown(h_ptr), "Internal Error");
-      internal::Memory &base = maps->memories.at(h_ptr);
-      dbg("h_mt:%d", base.h_mt);
-      const MemoryType h_mt = base.h_mt;
-      if (host_mem_type != MemoryType::HOST) { ctrl->Host(h_mt)->Dealloc(h_ptr); }
+      const bool known = mm.IsKnown(h_ptr);
+      MemoryType h_mt = host_mem_type;
+      if (known)
+      {
+         // Deallocate if needed before erasing, as some backends needs the memory
+         MFEM_VERIFY(mm.IsKnown(h_ptr), "Internal Error");
+         internal::Memory &base = maps->memories.at(h_ptr);
+         dbg("h_mt:%d", base.h_mt);
+         h_mt = base.h_mt;
+         if (host_mem_type != MemoryType::HOST) { ctrl->Host(h_mt)->Dealloc(h_ptr); }
+      }
       if (flags & Mem::ALIAS)
       {
          mm.EraseAlias(h_ptr);
@@ -568,8 +573,10 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
          dbg("mm.Erase");
          mm.Erase(h_ptr, flags & Mem::OWNS_DEVICE);
       }
-      dbg("return h_mt:%d", h_mt);
-      return h_mt;
+      if (known)
+      {
+         return h_mt;
+      }
    }
    return host_mem_type;
 }
@@ -682,11 +689,14 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
          }
          else
          {
-            internal::Memory &base = maps->memories.at(h_ptr);
-            ctrl->Host(base.h_mt)->Unprotect(h_ptr, bytes);
-            if (flags & Mem::VALID_DEVICE)
+            if (mm.IsKnown(h_ptr))
             {
-               ctrl->Device(base.d_mt)->Protect(base);
+               internal::Memory &base = maps->memories.at(h_ptr);
+               ctrl->Host(base.h_mt)->Unprotect(h_ptr, bytes);
+               if (flags & Mem::VALID_DEVICE)
+               {
+                  ctrl->Device(base.d_mt)->Protect(base);
+               }
             }
          }
          flags |= Mem::VALID_HOST;
@@ -718,10 +728,12 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
       MFEM_VERIFY(bytes == 0, "internal error");
       return NULL;
    }
-
-   internal::Memory &base = maps->memories.at(h_ptr);
-   const MemoryType mt = base.d_mt;
-   dbg("d_mt:%d",mt);
+   internal::Memory *base = nullptr;
+   const bool known = mm.IsKnown(h_ptr);
+   if (known)
+   {
+      base = &maps->memories.at(h_ptr);
+   }
 
    switch (mc)
    {
@@ -733,10 +745,13 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
       case MemoryClass::HOST_UMPIRE:
       {
          flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
-         ctrl->Host(base.h_mt)->Unprotect(h_ptr, bytes);
-         if (flags & Mem::VALID_DEVICE)
+         if (known)
          {
-            ctrl->Device(base.d_mt)->Protect(base);
+            ctrl->Host(base->h_mt)->Unprotect(h_ptr, bytes);
+            if (flags & Mem::VALID_DEVICE)
+            {
+               ctrl->Device(base->d_mt)->Protect(*base);
+            }
          }
          return h_ptr;
       }
@@ -881,7 +896,8 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
          dbg("!src_on_host");
          if (dest_d_ptr != src_d_ptr && bytes != 0)
          {
-            MemoryType d_mt = maps->memories.at(dst_h_ptr).d_mt;
+            const bool known = mm.IsKnown(dst_h_ptr);
+            MemoryType d_mt = known ? maps->memories.at(dst_h_ptr).d_mt : device_mem_type;
             ctrl->Device(d_mt)->DtoD(dest_d_ptr, src_d_ptr, bytes);
          }
          else
