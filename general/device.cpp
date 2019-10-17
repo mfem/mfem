@@ -111,11 +111,10 @@ void Device::Print(std::ostream &out)
    }
    out << std::endl;
    out << "Memory configuration: "
-       << MemoryBackends().name[static_cast<int>(host_mem_type)];
+       << MemoryTypeName[static_cast<int>(host_mem_type)];
    if (Device::Allows(Backend::DEVICE_MASK) || Device::Allows(Backend::DEBUG))
    {
-      out << ", "
-          << MemoryBackends().name[static_cast<int>(device_mem_type)];
+      out << ", " << MemoryTypeName[static_cast<int>(device_mem_type)];
    }
    out << std::endl;
 }
