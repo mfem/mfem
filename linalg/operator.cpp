@@ -135,6 +135,76 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
 }
 
 
+void TimeDependentOperator::ExplicitMult(const Vector &, Vector &) const
+{
+   mfem_error("TimeDependentOperator::ExplicitMult() is not overridden!");
+}
+
+void TimeDependentOperator::ImplicitMult(const Vector &, const Vector &,
+                                         Vector &) const
+{
+   mfem_error("TimeDependentOperator::ImplicitMult() is not overridden!");
+}
+
+void TimeDependentOperator::Mult(const Vector &, Vector &) const
+{
+   mfem_error("TimeDependentOperator::Mult() is not overridden!");
+}
+
+void TimeDependentOperator::ImplicitSolve(const double, const Vector &,
+                                          Vector &)
+{
+   mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
+}
+
+Operator &TimeDependentOperator::GetImplicitGradient(
+   const Vector &, const Vector &, double) const
+{
+   mfem_error("TimeDependentOperator::GetImplicitGradient() is "
+              "not overridden!");
+   return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
+}
+
+Operator &TimeDependentOperator::GetExplicitGradient(const Vector &) const
+{
+   mfem_error("TimeDependentOperator::GetExplicitGradient() is "
+              "not overridden!");
+   return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
+}
+
+int TimeDependentOperator::SUNImplicitSetup(const Vector &,
+                                            const Vector &,
+                                            int, int *, double)
+{
+   mfem_error("TimeDependentOperator::SUNImplicitSetup() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNImplicitSolve(const Vector &, Vector &, double)
+{
+   mfem_error("TimeDependentOperator::SUNImplicitSolve() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassSetup()
+{
+   mfem_error("TimeDependentOperator::SUNMassSetup() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassSolve(const Vector &, Vector &, double)
+{
+   mfem_error("TimeDependentOperator::SUNMassSolve() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassMult(const Vector &, Vector &)
+{
+   mfem_error("TimeDependentOperator::SUNMassMult() is not overridden!");
+   return (-1);
+}
+
+
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)
    : Operator(A->Height(), B->Width()),
