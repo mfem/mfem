@@ -473,42 +473,29 @@ void MemoryManager::Destroy()
 //******************************************************************************
 // Inserts
 //******************************************************************************
-void* MemoryManager::Insert(void *h_ptr, size_t bytes,
-                            MemoryType h_mt, MemoryType d_mt)
+void MemoryManager::Insert(void *h_ptr, size_t bytes,
+                           MemoryType h_mt, MemoryType d_mt)
 {
-   dbg("h_mt:%d, d_mt:%d", h_mt, d_mt);
    if (h_ptr == NULL)
    {
       MFEM_VERIFY(bytes == 0, "Trying to add NULL with size " << bytes);
-      return NULL;
+      return;
    }
    auto res =
       maps->memories.emplace(h_ptr, internal::Memory(h_ptr, bytes, h_mt, d_mt));
    if (res.second == false)
    { mfem_error("Trying to add an already present address!"); }
    ctrl->Host(h_mt)->Insert(h_ptr, bytes);
-   dbg("%p", h_ptr);
-   return h_ptr;
 }
 
 //******************************************************************************
-void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr,
-                                 size_t bytes, MemoryType d_mt)
+void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr, size_t bytes,
+                                 MemoryType h_mt, MemoryType d_mt)
 {
-   dbg("");
-   if (h_ptr == NULL)
-   {
-      MFEM_VERIFY(bytes == 0, "Trying to add NULL with size " << bytes);
-      return;
-   }
-   const MemoryType h_mt = MemoryManager::host_mem_type;
-   auto res =
-      maps->memories.emplace(h_ptr, internal::Memory(h_ptr, bytes, h_mt, d_mt));
-   if (res.second == false)
-   { mfem_error("Trying to add an already present address!"); }
-   internal::Memory &base = res.first->second;
-   if (d_ptr == NULL) { ctrl->Device(d_mt)->Alloc(base); }
-   res.first->second.d_ptr = d_ptr;
+   Insert(h_ptr, bytes, h_mt, d_mt);
+   internal::Memory &mem = maps->memories.at(h_ptr);
+   if (d_ptr == NULL) { ctrl->Device(d_mt)->Alloc(mem); }
+   mem.d_ptr = d_ptr;
 }
 
 //******************************************************************************
@@ -555,10 +542,7 @@ void MemoryManager::Erase(void *h_ptr, bool free_dev_ptr)
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
    internal::Memory &mem = mem_map_iter->second;
-   const MemoryType h_mt = mem.h_mt;
-   const MemoryType d_mt = mem.d_mt;
-   dbg("h_mt:%d d_mt:%d", h_mt, d_mt);
-   if (mem.d_ptr && free_dev_ptr) { dbg(""); ctrl->Device(d_mt)->Dealloc(mem);  }
+   if (mem.d_ptr && free_dev_ptr) { ctrl->Device(mem.d_mt)->Dealloc(mem); }
    maps->memories.erase(mem_map_iter);
 }
 
@@ -636,10 +620,6 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
 // *****************************************************************************
 // * public methods
 // *****************************************************************************
-bool MemoryManager::IsKnown(const void *ptr)
-{
-   return maps->memories.find(ptr) != maps->memories.end();
-}
 
 //******************************************************************************
 void MemoryManager::RegisterCheck(void *ptr)
@@ -672,7 +652,6 @@ void MemoryManager::PrintPtrs(void)
 // * Static private MemoryManager methods used by class Memory
 // *****************************************************************************
 
-
 // *****************************************************************************
 void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
                           unsigned &flags)
@@ -698,17 +677,16 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
       MFEM_VERIFY(h_ptr!=nullptr,"");
       return h_ptr;
    }
-
-   if (host_reg) // HOST_UMPIRE, HOST_MMU
+   else if (host_reg)  // HOST_UMPIRE, HOST_MMU
    {
       dbg("host_reg");
       mm.Insert(h_ptr, bytes, h_mt, d_mt);
       flags |= Mem::REGISTERED | Mem::VALID_HOST;
    }
-   else
+   else // DEVICE
    {
       dbg("device h_ptr:%p", h_ptr);
-      mm.InsertDevice(nullptr, h_ptr, bytes, d_mt);
+      mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt);
       flags |= Mem::REGISTERED | Mem::VALID_DEVICE;
    }
    return h_ptr;
@@ -755,7 +733,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    else
    {
       dbg("device");
-      mm.InsertDevice(ptr, h_ptr, bytes, d_mt);
+      mm.InsertDevice(ptr, h_ptr, bytes, h_mt, d_mt);
       flags = (own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE) |
               Mem::OWNS_HOST | Mem::VALID_DEVICE;
    }
@@ -764,9 +742,9 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
 }
 
 // ****************************************************************************
-void MemoryManager::Alias_(void *base_h_ptr, const size_t offset,
-                           const size_t bytes, const unsigned base_flags,
-                           unsigned &flags)
+void MemoryManager::Alias_(void *base_h_ptr,
+                           const size_t offset, const size_t bytes,
+                           const unsigned base_flags, unsigned &flags)
 {
    dbg("");
    mm.InsertAlias(base_h_ptr, (char*)base_h_ptr + offset, bytes,
@@ -1013,10 +991,11 @@ void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
 }
 
 // ****************************************************************************
-MemoryType MemoryManager::GetMemoryType_(void *m_ptr, unsigned flags)
+MemoryType MemoryManager::GetMemoryType_(void *h_ptr, unsigned flags)
 {
-   if (flags & Mem::VALID_DEVICE) { return maps->memories.at(m_ptr).d_mt; }
-   return MemoryType::HOST;
+   internal::Memory &mem = maps->memories.at(h_ptr);
+   if (flags & Mem::VALID_DEVICE) { return mem.d_mt; }
+   return mem.h_mt;
 }
 
 // ****************************************************************************
@@ -1141,6 +1120,7 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
    }
    else
    {
+      MFEM_VERIFY(IsKnown_(src_h_ptr),"");
       const void *src_d_ptr =
          (src_flags & Mem::ALIAS) ?
          mm.GetAliasDevicePtr(src_h_ptr, bytes, false) :
@@ -1187,7 +1167,13 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);
 }
 
-// ****************************************************************************
+// *****************************************************************************
+bool MemoryManager::IsKnown_(const void *h_ptr)
+{
+   return maps->memories.find(h_ptr) != maps->memories.end();
+}
+
+// *****************************************************************************
 void MemoryPrintFlags(unsigned flags)
 {
    typedef Memory<int> Mem;
@@ -1203,6 +1189,9 @@ void MemoryPrintFlags(unsigned flags)
          << std::endl;
 }
 
+// *****************************************************************************
+// * statics
+// *****************************************************************************
 const char *MemoryBackends::name[MemoryBackends::NUM_BACKENDS] =
 {
    "host-std", "host-umpire", "host-aligned-32", "host-aligned-64",

@@ -1,6 +1,8 @@
 #ifndef DBG_HPP
 #define DBG_HPP
 
+#ifndef _WIN32
+
 // *****************************************************************************
 #include <cstdarg>
 #include <cstring>
@@ -10,22 +12,22 @@
 #include <cstdio>
 
 //*****************************************************************************
-static inline uint8_t chk8(const char *bfr)
+inline uint8_t chk8(const char *bfr)
 {
    unsigned int chk = 0;
    size_t len = strlen(bfr);
    for (; len; len--,bfr++)
    {
-      chk += *bfr;
+      chk += static_cast<unsigned int>(*bfr);
    }
    return (uint8_t) chk;
 }
 
 // *****************************************************************************
-static inline const char *strrnchr(const char *s, const unsigned char c, int n)
+inline const char *strrnchr(const char *s, const unsigned char c, int n)
 {
    size_t len = strlen(s);
-   char *p = (char*)s+len-1;
+   char *p = const_cast<char*>(s)+len-1;
    for (; n; n--,p--,len--)
    {
       for (; len; p--,len--)
@@ -43,8 +45,8 @@ static inline const char *strrnchr(const char *s, const unsigned char c, int n)
 #define MFEM_FLF MFEM_FILENAME,__LINE__,__FUNCTION__
 
 // *****************************************************************************
-static inline void dbg_F_L_F_N_A(const char *file, const int line,
-                                 const char *func, const int nargs, ...)
+inline void dbg_F_L_F_N_A(const char *file, const int line,
+                          const char *func, const int nargs, ...)
 {
    static bool env_ini = false;
    static bool env_dbg = false;
@@ -58,9 +60,9 @@ static inline void dbg_F_L_F_N_A(const char *file, const int line,
    if (nargs==0) { return; }
    va_list args;
    va_start(args,nargs);
-   const char *format=va_arg(args,const char*);
+   const char *format = va_arg(args, const char*);
    assert(format);
-   vfprintf(stdout,format,args);
+   vfprintf(stdout, "format", args);
    va_end(args);
    fprintf(stdout,"\033[m");
    fflush(stdout);
@@ -68,5 +70,8 @@ static inline void dbg_F_L_F_N_A(const char *file, const int line,
 }
 // *****************************************************************************
 #define dbg(...) dbg_F_L_F_N_A(MFEM_FLF, MFEM_NA(__VA_ARGS__),__VA_ARGS__)
+#else
+#define dbg(...)
+#endif // _WIN32
 
 #endif // DBG_HPP
