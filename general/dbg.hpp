@@ -62,7 +62,7 @@ inline void dbg_F_L_F_N_A(const char *file, const int line,
    va_start(args,nargs);
    const char *format = va_arg(args, const char*);
    assert(format);
-   vfprintf(stdout, "format", args);
+   vfprintf(stdout, format, args);
    va_end(args);
    fprintf(stdout,"\033[m");
    fflush(stdout);
