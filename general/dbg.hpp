@@ -65,8 +65,6 @@ inline void dbg_F_L_F_N_A(const char *file, const int line,
       env_dbg = getenv("DBG");
       mpi_dbg = atoi(getenv("MPI")?getenv("MPI"):"0");
       env_ini = true;
-      printf("\n\033[7mmpi_rank:%d, mpi_dbg:%d\033[m\n", mpi_rank, mpi_dbg);
-      fflush(0);
    }
    if (!env_dbg) { return; }
    if (mpi_rank!=mpi_dbg) { return; }

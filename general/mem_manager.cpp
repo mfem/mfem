@@ -123,7 +123,7 @@ public:
    HostMemorySpace() { }
    virtual ~HostMemorySpace() { }
    virtual void Alloc(void **ptr, size_t bytes)
-   { *ptr = std::malloc(bytes); }
+   { dbg(""); *ptr = std::malloc(bytes); }
    virtual void Dealloc(void *ptr) { std::free(ptr); }
    virtual void Insert(void *ptr, size_t bytes) { }
    virtual void Protect(const void *ptr, size_t bytes) { }
@@ -165,7 +165,8 @@ class Aligned32HostMemorySpace : public HostMemorySpace
 public:
    Aligned32HostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes)
-   { if (mfem_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
+   { dbg("Alloc32"); if (mfem_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
+   void Dealloc(void *ptr) { dbg("Dealloc32"); std::free(ptr); }
 };
 
 /// The aligned 64 host memory space
@@ -174,7 +175,7 @@ class Aligned64HostMemorySpace : public HostMemorySpace
 public:
    Aligned64HostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes)
-   { if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
+   { dbg("Alloc64"); if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
 };
 
 #ifndef _WIN32
@@ -458,9 +459,9 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
    // by default, use the h_tmp which uses ::new
    void *h_ptr = h_tmp;
    // if it's null, use the h_mt allocator
-   if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
+   if (!h_tmp ) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
 
-   flags = Mem::OWNS_INTERNAL;
+   flags = Mem::OWNS_INTERNAL | Mem::OWNS_HOST;
    if (host_std) // HOST_32, HOST_64
    {
       dbg("host_std");
@@ -468,17 +469,18 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
       MFEM_VERIFY(h_ptr!=nullptr,"");
       return h_ptr;
    }
-   else if (host_reg)  // HOST_UMPIRE, HOST_MMU
+   flags |= Mem::REGISTERED;
+   if (host_reg)  // HOST_UMPIRE, HOST_MMU
    {
       dbg("host_reg: %p (%d)", h_ptr, bytes);
       mm.Insert(h_ptr, bytes, h_mt, d_mt);
-      flags |= Mem::REGISTERED | Mem::OWNS_HOST | Mem::OWNS_DEVICE | Mem::VALID_HOST;
+      flags |= Mem::OWNS_DEVICE | Mem::VALID_HOST;
    }
    else // DEVICE
    {
       dbg("device h_ptr:%p", h_ptr);
       mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt);
-      flags |= Mem::REGISTERED | Mem::OWNS_HOST | Mem::OWNS_DEVICE| Mem::VALID_DEVICE;
+      flags |= Mem::OWNS_DEVICE| Mem::VALID_DEVICE;
    }
    return h_ptr;
 }
@@ -546,7 +548,7 @@ void MemoryManager::Alias_(void *base_h_ptr,
 // ****************************************************************************
 MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
 {
-   //dbg("");
+   dbg("");
    //MemoryPrintFlags(flags);
    dbg("%p:%X", h_ptr, flags);
    MFEM_ASSERT(!(flags & Mem::OWNS_DEVICE) || (flags & Mem::OWNS_INTERNAL),
@@ -555,14 +557,19 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
    {
       const bool known = mm.IsKnown(h_ptr);
       MemoryType h_mt = host_mem_type;
+      dbg("\033[31;7mh_mt:%d", h_mt);
       if (known)
       {
          // Deallocate if needed before erasing, as some backends needs the memory
          MFEM_VERIFY(mm.IsKnown(h_ptr), "Internal Error");
          internal::Memory &base = maps->memories.at(h_ptr);
-         dbg("h_mt:%d", base.h_mt);
+         dbg("base.h_mt:%d", base.h_mt);
          h_mt = base.h_mt;
-         //if (host_mem_type != MemoryType::HOST) { ctrl->Host(h_mt)->Dealloc(h_ptr); }
+         if ((flags & Mem::OWNS_HOST) &&
+             (h_mt != MemoryType::HOST))
+         {
+            dbg("\033[31;7mh_mt:%d", h_mt); ctrl->Host(h_mt)->Dealloc(h_ptr);
+         }
       }
       if (flags & Mem::ALIAS)
       {
