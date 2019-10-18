@@ -14,6 +14,7 @@
 
 #include "globals.hpp"
 #include "error.hpp"
+#include "dbg.hpp"
 
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
@@ -609,7 +610,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 template <typename T>
 inline void Memory<T>::Delete()
 {
-   //dbg("");
+   dbg("");
    if (!(flags & REGISTERED) ||
        MemoryManager::Delete_((void*)h_ptr, flags) == MemoryType::HOST)
    {
