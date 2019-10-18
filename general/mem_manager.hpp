@@ -14,7 +14,6 @@
 
 #include "globals.hpp"
 #include "error.hpp"
-#include "dbg.hpp"
 
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
@@ -552,8 +551,6 @@ inline void Memory<T>::New(int size)
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
-   dbg("New size:%d mt:%d MemoryManager::h_mt:%d", size, mt,
-       MemoryManager::host_mem_type);
    if (MemoryType::HOST == mt ) { New(size); }
    else
    {
@@ -687,7 +684,6 @@ inline Memory<T>::operator const U*() const
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
-   dbg("ReadWrite size:%d flags:%X", size, flags);
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
@@ -702,7 +698,6 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
-   dbg("Read size:%d flags:%X", size, flags);
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
@@ -717,8 +712,6 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
-   dbg("Write h_ptr:%p size:%d flags:%X mc:%d h_mt:%d", h_ptr, size, flags, mc,
-       h_mt);
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
@@ -733,7 +726,6 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
 template <typename T>
 inline void Memory<T>::Sync(const Memory &other) const
 {
-   dbg("Sync flags:%X", flags);
    if (!(flags & REGISTERED) && (other.flags & REGISTERED))
    {
       MFEM_ASSERT(h_ptr == other.h_ptr &&
@@ -769,7 +761,6 @@ inline MemoryType Memory<T>::GetMemoryType() const
 template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
-   dbg("CopyFrom size:%d flags:%X", size, flags);
    if (!(flags & REGISTERED) && !(src.flags & REGISTERED))
    {
       if (h_ptr != src.h_ptr && size != 0)
@@ -790,7 +781,6 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
-   dbg("CopyFromHost size:%d flags:%X", size, flags);
    if (!(flags & REGISTERED))
    {
       if (h_ptr != src && size != 0)
@@ -811,7 +801,6 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 template <typename T>
 inline void Memory<T>::CopyToHost(T *h_dest, int size) const
 {
-   dbg("CopyToHost size:%d flags:%X", size, flags);
    if (!(flags & REGISTERED))
    {
       if (h_ptr != h_dest && size != 0)

@@ -11,6 +11,11 @@
 #include <cstdlib>
 #include <cstdio>
 
+#include "../config/config.hpp"
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#endif
+
 //*****************************************************************************
 inline uint8_t chk8(const char *bfr)
 {
@@ -48,15 +53,28 @@ inline const char *strrnchr(const char *s, const unsigned char c, int n)
 inline void dbg_F_L_F_N_A(const char *file, const int line,
                           const char *func, const int nargs, ...)
 {
+   static int mpi_rank = 0;
+   static int mpi_dbg = 0;
    static bool env_ini = false;
    static bool env_dbg = false;
-   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
+   if (!env_ini)
+   {
+#ifdef MFEM_USE_MPI
+      MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+#endif
+      env_dbg = getenv("DBG");
+      mpi_dbg = atoi(getenv("MPI")?getenv("MPI"):"0");
+      env_ini = true;
+      printf("\n\033[7mmpi_rank:%d, mpi_dbg:%d\033[m\n", mpi_rank, mpi_dbg);
+      fflush(0);
+   }
    if (!env_dbg) { return; }
+   if (mpi_rank!=mpi_dbg) { return; }
    const uint8_t color = 17 + chk8(file)%216;
    fflush(stdout);
    fprintf(stdout,"\033[38;5;%dm",color);
-   fprintf(stdout,"\n%30s:\033[2m%4d\033[22m: %s: \033[1m",
-           file, line, func);
+   fprintf(stdout,"\n%d%30s:\033[2m%4d\033[22m: %s: \033[1m",
+           mpi_rank, file, line, func);
    if (nargs==0) { return; }
    va_list args;
    va_start(args,nargs);
