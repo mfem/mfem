@@ -26,7 +26,7 @@ using namespace std;
 //#define PENGLEE12_SOTC
 //#define RL_DDMXXI
 
-#define RL_VARFORM
+//#define RL_VARFORM
 
 //#define TESTFEMSOL
 
@@ -36,6 +36,7 @@ using namespace std;
 
 #define PENALTY_U_S 0.0
 
+//#define GPWD
 
 
 void test1_E_exact(const Vector &x, Vector &E);
@@ -66,8 +67,10 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 						     ParFiniteElementSpace *ifespace, ParFiniteElementSpace *ifespace2=NULL,
 						     const bool adding=true, const double cI=0.0, const double cA=1.0, const bool injRows=true);
 
+/*
 HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& offsets, Array2D<HypreParMatrix*> const& blocks,
 					       Array2D<double> const& coefficient);
+*/
 
 Operator* CreateStrumpackMatrixFromHypreBlocks(MPI_Comm comm, const Array<int> & offsets, const Array2D<HypreParMatrix*> & blocks,
 					       const Array2D<std::vector<int>*> & leftInjection,
@@ -263,6 +266,51 @@ public:
 };
 
 
+#ifdef GPWD
+class GlobalPlaneParameters
+{
+public:
+  GlobalPlaneParameters() : bx(3), by(3), orig(3)
+  {
+  }
+
+  bool Re;
+  Vector bx, by, orig;
+  double phi, k;
+};
+
+// The complex system Au = y is rewritten in terms of real and imaginary parts as
+// [ A^{Re} -A^{Im} ] [ u^{Re} ] = [ y^{Re} ]
+// [ A^{Im}  A^{Re} ] [ u^{Im} ] = [ y^{Im} ]
+class ComplexGlobalProjection : public Operator
+{
+public:
+  ComplexGlobalProjection(const int N_, const int osRe_, const int osIm_, MPI_Comm comm_,
+			  std::vector<Vector> *b_Re_, std::vector<Vector> *b_Im_, DenseMatrix *Minv_)
+    : N(N_), osRe(osRe_), osIm(osIm_), comm(comm_), b_Re(b_Re_), b_Im(b_Im_), Minv(Minv_)
+  {
+    MFEM_VERIFY(b_Re->size() == N && b_Im->size() == N, "ComplexGlobalProjection");
+    z.SetSize((*b_Re)[0].Size());
+    w.SetSize(2*N);
+  }
+
+  virtual void Mult(const Vector & x, Vector & y) const;
+  virtual void MultTranspose(const Vector &x, Vector &y) const;
+
+private:
+  const int N;
+  const int osRe;
+  const int osIm;
+
+  MPI_Comm comm;  // communicator associated with Vector instances used for real and imaginary parts of the domain space. 
+
+  std::vector<Vector> *b_Re, *b_Im;  // real and imaginary parts of basis
+  DenseMatrix *Minv;
+  
+  mutable Vector z, w;
+};
+#endif
+
 
 #define DDMCOMPLEX
 
@@ -271,7 +319,11 @@ class DDMInterfaceOperator : public Operator
 public:
   DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_, ParFiniteElementSpace *fespaceGlobal, ParMesh **pmeshSD_, ParMesh **pmeshIF_,
 		       const int orderND_, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
-		       std::vector<int> *interfaceLocalIndex_, const double k2_, const double h_);
+		       std::vector<int> *interfaceLocalIndex_, const double k2_,
+#ifdef GPWD
+		       const int Nphi_,
+#endif
+		       const double h_);
 
   
   virtual void Mult(const Vector & x, Vector & y) const
@@ -742,7 +794,7 @@ public:
 
     DataCollection *dc = NULL;
     const bool visit = true;
-    if (visit && sd == 1)
+    if (visit && sd == 7)
       {
 	//x.ProjectCoefficient(E);
 
@@ -757,7 +809,7 @@ public:
 	 }
        else
 	 {
-	   dc = new VisItDataCollection("usd1", pmeshSD[sd]);
+	   dc = new VisItDataCollection("usd7", pmeshSD[sd]);
 	   dc->SetPrecision(8);
 	   // To save the mesh using MFEM's parallel mesh format:
 	   // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
@@ -815,6 +867,10 @@ public:
   void TestProjectionError();
 
   void TestReconstructedFullDDSolution();
+
+#ifdef GPWD
+  void GPWD_PreconditionerMult(const Vector & x, Vector & y);
+#endif
   
 private:
 
@@ -910,6 +966,40 @@ private:
   vector<set<int> > tdofsBdry;
   SetInjectionOperator **tdofsBdryInjection;
   Operator **tdofsBdryInjectionTranspose;
+  
+#ifdef GPWD
+  BlockOperator *globalMR;
+
+  std::vector<Array<int> > osM1;
+  std::vector<BlockOperator*> M1;
+
+  std::vector<int> ifroot;
+  
+  const int Nphi;
+  
+  std::vector<std::vector<Vector> > eTE_Re, eTE_Im, bcr_Re, bcr_Im, rhoc_Re, rhoc_Im;
+  std::vector<DenseMatrix> eTE_M, bcr_M, rhoc_M;
+
+  std::vector<Vector> ifbx, ifby, iforig;
+  
+  std::vector<Array<int> > ifmrOffsetsComplex;
+
+  Array<int> block_MRoffsets;  // Offsets used in globalMR
+
+  int gpwd_size;
+  
+  Vector auxMR, gpwd_u, gpwd_v, gpwd_w, gpwd_z;
+
+  DenseMatrix gpwd_cmat;
+  
+  std::vector<ComplexGlobalProjection*> cgp_u, cgp_f, cgp_rho;
+  
+  void DefineInterfaceBasis(const int interfaceIndex);
+  Operator* CreateInterfaceMassRestriction(const int sd, const int localInterfaceIndex, const int interfaceIndex, const bool firstSD);
+
+  void ProjectionMult(const Vector & x);
+  void ProjectionMultTranspose(Vector & x);
+#endif
   
   double alpha, beta, gamma;
   double alphaInverse, betaOverAlpha, gammaOverAlpha;
@@ -1158,5 +1248,27 @@ private:
   
   void CheckContinuityOfUS(const Vector & solReduced, const bool imag);
 };
+
+#ifdef GPWD
+class DDMPreconditioner : public Solver
+{
+public:
+  DDMPreconditioner(DDMInterfaceOperator *ddi_) : ddi(ddi_)
+  {
+  }
   
+  virtual void Mult(const Vector &x, Vector &y) const
+  {
+    ddi->GPWD_PreconditionerMult(x, y);
+  }
+
+  virtual void SetOperator(const Operator &op)
+  {
+  }
+
+private:
+  DDMInterfaceOperator *ddi;
+};
+#endif  // GPWD
+
 #endif  // DDOPER_HPP

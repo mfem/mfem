@@ -54,8 +54,8 @@ double freq = 1.0, kappa;
 int dim;
 
 #ifdef AIRY_TEST
-#define SIGMAVAL -10981.4158900991
-//#define SIGMAVAL -1601.0
+//#define SIGMAVAL -10981.4158900991
+#define SIGMAVAL -1601.0
 //#define SIGMAVAL -1009.0
 //#define SIGMAVAL -211.0
 //#define SIGMAVAL -2.0
@@ -408,8 +408,8 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
-	(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
+	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
 	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
 
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {1, 2, 8};
+   int nxyzSubdomains[3] = {2, 1, 1};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -552,14 +552,14 @@ int main(int argc, char *argv[])
 
    if (geometricPartition)
      {
-       //int nxyzGlobal[3] = {1, 1, 1};
+       int nxyzGlobal[3] = {1, 1, 1};
        //int nxyzGlobal[3] = {1, 1, 2};
        //int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
-       //int nxyzGlobal[3] = {4, 8, 4};
+       //int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {2, 2, 8};
-       int nxyzGlobal[3] = {6, 6, 8};  // 288
+       //int nxyzGlobal[3] = {6, 6, 8};  // 288
        //int nxyzGlobal[3] = {8, 6, 6};  // 288
        //int nxyzGlobal[3] = {6, 12, 8};  // 576
        //int nxyzGlobal[3] = {12, 6, 8};  // 576
@@ -783,7 +783,11 @@ int main(int argc, char *argv[])
    // 6.1. Create interface operator.
 
    DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, fespace, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
-			    &interfaces, &interfaceGlobalToLocalMap, -SIGMAVAL, hmin);  // PengLee2012 uses order 2 
+			    &interfaces, &interfaceGlobalToLocalMap, -SIGMAVAL,
+#ifdef GPWD
+			    4,
+#endif
+			    hmin);
 
    cout << "DDI size " << ddi.Height() << " by " << ddi.Width() << endl;
    
@@ -879,7 +883,7 @@ int main(int argc, char *argv[])
      const int Ndd = ddi.Height();
      Vector ej(Ndd);
      Vector Aej(Ndd);
-     DenseMatrix ddd(Ndd);
+     //DenseMatrix ddd(Ndd);
 
      ofstream sp("ddisparse.txt");
 
@@ -895,7 +899,7 @@ int main(int argc, char *argv[])
 
 	 for (int i=0; i<Ndd; ++i)
 	   {
-	     ddd(i,j) = Aej[i];
+	     //ddd(i,j) = Aej[i];
 	     
 	     if (writeFile)
 	       {
@@ -1059,6 +1063,11 @@ int main(int argc, char *argv[])
        gmres->SetKDim(100);
        gmres->SetPrintLevel(1);
 
+#ifdef GPWD
+       DDMPreconditioner ddprec(&ddi);
+       gmres->SetPreconditioner(ddprec);
+#endif
+       
        //gmres->SetName("ddi");
 
        StopWatch chronoSolver;

@@ -204,7 +204,8 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #include "gsl_sf_airy.h"
 
 //#define K2_AIRY 2.0  // TODO: input k
-#define K2_AIRY 10981.4158900991
+//#define K2_AIRY 10981.4158900991
+#define K2_AIRY 1601.0
 
 void test_Airy1_E_exact(const Vector &x, Vector &E)
 {
@@ -240,6 +241,75 @@ void test_Airy_epsilon(const Vector &x, Vector &e)
   */
   
   e *= -K2_AIRY;
+}
+#endif
+
+#ifdef GPWD
+GlobalPlaneParameters gpar;
+
+void gpwd_ETE(const Vector &x, Vector &E)
+{
+  const double sinphi = sin(gpar.phi);
+  const double cosphi = cos(gpar.phi);
+
+  // Set (x,y) coordinates in the plane
+  Vector xo(x);
+  xo -= gpar.orig;
+  const double xp = xo * gpar.bx;
+  const double yp = xo * gpar.by;
+  
+  const double theta = gpar.k * ((cosphi * xp) + (sinphi * yp));
+  
+  E = gpar.bx;
+  E *= sinphi;
+  E.Add(-cosphi, gpar.by);
+
+  if (gpar.Re)
+    E *= cos(theta);  // real part
+  else
+    E *= sin(theta);  // imaginary part
+}
+
+void gpwd_bcr(const Vector &x, Vector &E)
+{
+  const double sinphi = sin(gpar.phi);
+  const double cosphi = cos(gpar.phi);
+
+  // Set (x,y) coordinates in the plane
+  Vector xo(x);
+  xo -= gpar.orig;
+  const double xp = xo * gpar.bx;
+  const double yp = xo * gpar.by;
+  
+  const double theta = gpar.k * ((cosphi * xp) + (sinphi * yp));
+  
+  E = gpar.bx;
+  E *= cosphi;
+  E.Add(sinphi, gpar.by);
+
+  if (gpar.Re)
+    E *= cos(theta);  // real part
+  else
+    E *= sin(theta);  // imaginary part
+}
+
+double gpwd_rhoc(const Vector &x)
+{
+  const double sinphi = sin(gpar.phi);
+  const double cosphi = cos(gpar.phi);
+
+  // Set (x,y) coordinates in the plane
+  Vector xo(x);
+  xo -= gpar.orig;
+  const double xp = xo * gpar.bx;
+  const double yp = xo * gpar.by;
+  
+  const double theta = gpar.k * ((cosphi * xp) + (sinphi * yp));
+  
+  if (gpar.Re)
+    return cos(theta);  // real part
+  else
+    return sin(theta);  // imaginary part
 }
 #endif
 
@@ -3188,11 +3258,18 @@ void CompareOperators(Operator *A, Operator *B, MPI_Comm comm)
 DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_,
 					   ParFiniteElementSpace *fespaceGlobal, ParMesh **pmeshSD_, ParMesh **pmeshIF_,
 					   const int orderND_, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
-					   std::vector<int> *interfaceLocalIndex_, const double k2_, const double h_) :
+					   std::vector<int> *interfaceLocalIndex_, const double k2_,
+#ifdef GPWD
+					   const int Nphi_,
+#endif
+					   const double h_) :
   numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), orderND(orderND_), pmeshSD(pmeshSD_), pmeshIF(pmeshIF_), fec(orderND_, spaceDim),
   fecbdry(orderND_, spaceDim-1), fecbdryH1(orderND_, spaceDim-1), localInterfaces(localInterfaces_), interfaceLocalIndex(interfaceLocalIndex_),
   subdomainLocalInterfaces(numSubdomains_), pmeshGlobal(pmesh_),
   k2(k2_), hmin(h_), realPart(true),
+#ifdef GPWD
+  Nphi(Nphi_),
+#endif
   alpha(1.0), beta(1.0), gamma(1.0)  // TODO: set these to the right values
 {
   int num_procs, rank;
@@ -3286,6 +3363,12 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
   std::vector<int> interfaceSDs; // interfaceSDs[i] = (numSubdomains*sd0) + sd1
   interfaceSDs.assign(numInterfaces, 0);
+
+#ifdef GPWD
+  ifmrOffsetsComplex.resize(numInterfaces);
+  block_MRoffsets.SetSize((2*numInterfaces) + 1);  // number of blocks + 1
+  block_MRoffsets = 0;
+#endif
   
   for (int i=0; i<numInterfaces; ++i)
     {
@@ -3317,8 +3400,22 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    cout << rank << " Interface " << i << ", be " << j << ", bdrAttribute " << pmeshIF[i]->GetBdrAttribute(j) << endl;
 	  */
 	    
-	  CreateInterfaceMatrices(i);
+	  CreateInterfaceMatrices(i);	  
 	}
+
+#ifdef GPWD
+      ifmrOffsetsComplex[i].SetSize(3);
+
+      ifmrOffsetsComplex[i] = 0;
+
+      ifmrOffsetsComplex[i][1] = (2*ifNDtrue[i]) + ifH1true[i];
+      ifmrOffsetsComplex[i][2] = (2*ifNDtrue[i]) + ifH1true[i];
+
+      ifmrOffsetsComplex[i].PartialSum();
+      
+      block_MRoffsets[2*i] = ifmrOffsetsComplex[i][2];
+      block_MRoffsets[(2*i)+1] = ifmrOffsetsComplex[i][2];
+#endif
 
       const int ifli = (*interfaceLocalIndex)[i];
 
@@ -3832,11 +3929,59 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   rowTrueOffsetsIFBL.resize(numInterfaces);
   colTrueOffsetsIFBL.resize(numInterfaces);
 
+#ifdef GPWD
+  block_MRoffsets.PartialSum();
+  
+  osM1.resize(numInterfaces);
+  M1.resize(numInterfaces);
+  eTE_Re.resize(numInterfaces);
+  eTE_Im.resize(numInterfaces);
+  eTE_M.resize(numInterfaces);
+  bcr_Re.resize(numInterfaces);
+  bcr_Im.resize(numInterfaces);
+  bcr_M.resize(numInterfaces);
+  rhoc_Re.resize(numInterfaces);
+  rhoc_Im.resize(numInterfaces);
+  rhoc_M.resize(numInterfaces);
+  ifbx.resize(numInterfaces);
+  ifby.resize(numInterfaces);
+  iforig.resize(numInterfaces);
+ 
+  cgp_u.resize(numInterfaces);
+  cgp_f.resize(numInterfaces);
+  cgp_rho.resize(numInterfaces);
+  
+  for (int i=0; i<numInterfaces; ++i)
+    {
+      M1[i] = NULL;
+      cgp_u[i] = NULL;
+      cgp_f[i] = NULL;
+      cgp_rho[i] = NULL;
+    }
+
+  auxMR.SetSize(block_MRoffsets.Last());
+
+  globalMR = new BlockOperator(block_MRoffsets, block_trueOffsets2);
+
+  gpwd_size = 12*numInterfaces*Nphi;  // 2 subdomains per interface, 3 fields (u, f, rho), 2 complex parts.
+
+  gpwd_v.SetSize(height);
+  gpwd_w.SetSize(height);
+  
+  if (m_rank == 0)
+    {
+      ifroot.resize(numInterfaces);
+      gpwd_u.SetSize(gpwd_size);  
+      gpwd_z.SetSize(gpwd_size);  
+      gpwd_cmat.SetSize(gpwd_size);
+    }
+#endif
+
 #ifdef EQUATE_REDUNDANT_VARS
   rowTrueOffsetsIFRR.resize(numLocalInterfaces);
   colTrueOffsetsIFRR.resize(numLocalInterfaces);
 #endif
-    
+
   //for (auto interfaceIndex : allGlobalSubdomainInterfaces[m])
   //for (int ili=0; ili<numLocalInterfaces; ++ili)
   for (int i=0; i<numInterfaces; ++i)
@@ -3882,7 +4027,53 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  globalInterfaceOpIm->SetBlock(sd1, sd0, CreateInterfaceOperator(sd1, sd0, ili, i, 1));
 #endif
 	}
+
+#ifdef GPWD
+      // Note that CreateInterfaceMassRestriction must be called after CreateInterfaceOperator, to ensure offset arrays are defined.
+
+      {
+	int isroot = 0;
+
+	if (ifespace[i] != NULL)
+	  {
+	    int ifrank;
+	    MPI_Comm_rank(ifespace[i]->GetComm(), &ifrank);
+	    if (ifrank == 0)
+	      isroot = 1;
+	  }
+	
+	std::vector<int> allisroot(num_procs);
+	MPI_Gather(&isroot, 1, MPI_INT, allisroot.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+	if (m_rank == 0)
+	  {
+	    ifroot[i] = -1;
+	    for (int j=0; j<num_procs; ++j)
+	      {
+		if (allisroot[j] == 1)
+		  {
+		    MFEM_VERIFY(ifroot[i] == -1, "");
+		    ifroot[i] = j;
+		  }
+	      }
+	    
+	    MFEM_VERIFY(ifroot[i] >= 0, "");
+	  }
+      }
       
+      Operator *ifmr0 = NULL;
+      Operator *ifmr1 = NULL;
+      
+      if (sd_nonempty[sd0])
+	{
+	  ifmr0 = CreateInterfaceMassRestriction(sd0, ili, i, true);
+	}
+      
+      if (sd_nonempty[sd1])
+	{
+	  ifmr1 = CreateInterfaceMassRestriction(sd1, ili, i, false);
+	}
+#endif
+   
       // Set complex blocks
       rowTrueOffsetsComplexIF[i].SetSize(3);
       colTrueOffsetsComplexIF[i].SetSize(3);
@@ -3926,6 +4117,56 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  globalInterfaceOp->SetBlock(sd1, sd0, complexBlock10);
 #endif
 	}
+      
+#ifdef GPWD
+      if (ifNDtrue[i] > 0)
+	{
+	  int osRe = 0;
+	  int osIm = ifmrOffsetsComplex[i][1];
+
+	  // First, project u to eTE.
+	  if (cgp_u[i] == NULL)
+	    cgp_u[i] = new ComplexGlobalProjection(Nphi, osRe, osIm, ifespace[i]->GetComm(), &(eTE_Re[i]), &(eTE_Im[i]), &(eTE_M[i]));
+
+	  // The range of cgp_u is of size 2*Nphi, for real and imaginary parts. The same is true for cgp_f and cgp_rho.
+	  
+	  // Second, project f to bcr.
+	  
+	  osRe += ifNDtrue[i];
+	  osIm += ifNDtrue[i];
+
+	  if (cgp_f[i] == NULL)
+	    cgp_f[i] = new ComplexGlobalProjection(Nphi, osRe, osIm, ifespace[i]->GetComm(), &(bcr_Re[i]), &(bcr_Im[i]), &(bcr_M[i]));
+	  
+	  // Third, project rho to rhoc.
+	  
+	  osRe += ifNDtrue[i];
+	  osIm += ifNDtrue[i];
+
+	  if (cgp_rho[i] == NULL)
+	    cgp_rho[i] = new ComplexGlobalProjection(Nphi, osRe, osIm, iH1fespace[i]->GetComm(), &(rhoc_Re[i]), &(rhoc_Im[i]), &(rhoc_M[i]));
+	}
+
+      if (sd_nonempty[sd0]) // && ifNDtrue[i] > 0)
+	{
+	  // Note that the range of ifmr0 has 3 blocks corresponding to spaces (ifespace[i], ifespace[i], iH1fespace[i]).
+	  BlockOperator *complexIFMR = new BlockOperator(ifmrOffsetsComplex[i], rowTrueOffsetsComplexIF[i]);
+	  complexIFMR->SetDiagonalBlock(0, ifmr0);
+	  complexIFMR->SetDiagonalBlock(1, ifmr0);
+
+	  globalMR->SetBlock(2*i, sd0, complexIFMR);
+	}
+      
+      if (sd_nonempty[sd1]) // && ifNDtrue[i] > 0)
+	{
+	  BlockOperator *complexIFMR = new BlockOperator(ifmrOffsetsComplex[i], colTrueOffsetsComplexIF[i]);
+
+	  complexIFMR->SetDiagonalBlock(0, ifmr1);
+	  complexIFMR->SetDiagonalBlock(1, ifmr1);
+
+	  globalMR->SetBlock((2*i)+1, sd1, complexIFMR);
+	}
+#endif // GPWD
 #else // if DDMCOMPLEX is not defined
       if (ifNDtrue[ili] > 0)
 	{
@@ -3936,7 +4177,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
     }
 
   MPI_Barrier(MPI_COMM_WORLD);
-    
+  
 #ifdef DDMCOMPLEX
   // Create block diagonal operator with entries R_{sd0} A_{sd0}^{-1} R_{sd0}^T
 
@@ -4480,7 +4721,57 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   }
     
   testing = false;
+
+#ifdef GPWD
+  // Set global coarse matrix for GPWD.
+  for (int j=0; j<gpwd_size; ++j)
+    {
+      if (m_rank == 0)
+	{
+	  gpwd_u = 0.0;
+	  gpwd_u[j] = 1.0;
+	}
+      
+      ProjectionMultTranspose(gpwd_v);
+      globalOp->Mult(gpwd_v, gpwd_w);
+      ProjectionMult(gpwd_w);
+
+      if (m_rank == 0)
+	{
+	  for (int i=0; i<gpwd_size; ++i)
+	    {
+	      gpwd_cmat(i,j) = gpwd_u[i];
+	    }
+	}
+    }
+  
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if (m_rank == 0)
+    {
+      gpwd_cmat.Invert();
+    }
+#endif // GPWD  
 }
+
+#ifdef GPWD
+void DDMInterfaceOperator::GPWD_PreconditionerMult(const Vector & x, Vector & y)
+{
+  ProjectionMult(x);
+
+  if (m_rank == 0)
+    {
+      gpwd_cmat.Mult(gpwd_u, gpwd_z);
+      gpwd_u = gpwd_z;
+    }
+  
+  ProjectionMultTranspose(gpwd_v);
+  globalOp->Mult(gpwd_v, gpwd_w);
+
+  y = x;
+  y -= gpwd_w;
+}
+#endif // GPWD  
 
 void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm,
 					    Vector & sourceReduced, std::vector<int> const& sdOrder) const
@@ -5349,7 +5640,7 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
     
   if (orientation == 0)
     {
-      rowTrueOffsetsIF[localInterfaceIndex].resize(2);
+      rowTrueOffsetsIF[localInterfaceIndex].resize(2);  // TODO: this does not seem to depend on orientation, so it could be just one array.
       colTrueOffsetsIF[localInterfaceIndex].resize(2);
     }
     
@@ -5510,6 +5801,492 @@ Operator* NewIdentityOrEmptyOperator(const int n)
   else
     return new EmptyOperator();
 }
+
+#ifdef GPWD
+void DDMInterfaceOperator::ProjectionMult(const Vector & x)
+{
+  MFEM_VERIFY(x.Size() == height, "");
+
+  globalMR->Mult(x, auxMR);  // restrict and multiply by interface mass matrices
+
+  Vector p(2*Nphi);
+  Vector s(12*Nphi);
+  Vector v;
+
+  for (int i=0; i<numInterfaces; ++i)
+    {
+      bool isroot = false;
+
+      if (ifespace[i] != NULL)
+	{
+	  int ifrank;
+	  MPI_Comm_rank(ifespace[i]->GetComm(), &ifrank);
+	  if (ifrank == 0)
+	    isroot = true;
+	}
+
+      if (ifNDtrue[i] > 0)
+	{
+	  v.SetSize(ifmrOffsetsComplex[i][2]);
+	  
+	  for (int j=0; j<2; ++j)  // Subdomains neighboring interface i are indexed by j.
+	    {
+	      for (int l=0; l<v.Size(); ++l)
+		v[l] = auxMR[block_MRoffsets[(2*i)+j] + l];
+		
+	      cgp_u[i]->Mult(v, p);
+
+	      for (int l=0; l<2*Nphi; ++l)
+		s[(2*Nphi*j) + l] = p[l];
+
+	      cgp_f[i]->Mult(v, p);
+
+	      for (int l=0; l<2*Nphi; ++l)
+		s[(4*Nphi) + (2*Nphi*j) + l] = p[l];
+
+	      cgp_rho[i]->Mult(v, p);
+
+	      for (int l=0; l<2*Nphi; ++l)
+		s[(8*Nphi) + (2*Nphi*j) + l] = p[l];
+	    }
+	}
+
+      // Send s from the root process for this interface to world rank 0.
+      if (isroot && m_rank != 0)
+	{
+	  MPI_Send(s.GetData(), 12*Nphi, MPI_DOUBLE, 0, i, MPI_COMM_WORLD);
+	}
+
+      if (m_rank == 0 && ifroot[i] != 0)
+	{
+	  MPI_Recv(s.GetData(), 12*Nphi, MPI_DOUBLE, ifroot[i], i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	}
+
+      if (m_rank == 0)
+	{
+	  for (int l=0; l<12*Nphi; ++l)
+	    gpwd_u[(12*Nphi*i) + l] = s[l];
+	}
+    }
+}
+
+void DDMInterfaceOperator::ProjectionMultTranspose(Vector & x)  // x is output here
+{
+  MFEM_VERIFY(x.Size() == height, "");
+
+  Vector p(2*Nphi);
+  Vector s(12*Nphi);
+  Vector v;
+
+  for (int i=0; i<numInterfaces; ++i)
+    {
+      bool isroot = false;
+
+      if (ifespace[i] != NULL)
+	{
+	  int ifrank;
+	  MPI_Comm_rank(ifespace[i]->GetComm(), &ifrank);
+	  if (ifrank == 0)
+	    isroot = true;
+	}
+
+      if (m_rank == 0)
+	{
+	  for (int l=0; l<12*Nphi; ++l)
+	    s[l] = gpwd_u[(12*Nphi*i) + l];
+	}
+
+      // Send s from world rank 0 to the root process for this interface.
+      
+      if (isroot && m_rank != 0)
+	{
+	  MPI_Recv(s.GetData(), 12*Nphi, MPI_DOUBLE, 0, i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	}
+
+      if (m_rank == 0 && ifroot[i] != 0)
+	{
+	  MPI_Send(s.GetData(), 12*Nphi, MPI_DOUBLE, ifroot[i], i, MPI_COMM_WORLD);
+	}
+
+      // Broadcast s from the root process for this interface to all processes in the interface communicator.
+      if (ifespace[i] != NULL)
+	{
+	  MPI_Bcast(s.GetData(), 12*Nphi, MPI_DOUBLE, 0, ifespace[i]->GetComm());
+	}
+      
+      if (ifNDtrue[i] > 0)
+	{
+	  v.SetSize(ifmrOffsetsComplex[i][2]);
+	  
+	  for (int j=0; j<2; ++j)  // Subdomains neighboring interface i are indexed by j.
+	    {
+	      v = 0.0;
+	      
+	      for (int l=0; l<2*Nphi; ++l)
+		p[l] = s[(2*Nphi*j) + l];
+
+	      cgp_u[i]->MultTranspose(p, v);
+
+	      for (int l=0; l<2*Nphi; ++l)
+		p[l] = s[(4*Nphi) + (2*Nphi*j) + l];
+
+	      cgp_f[i]->MultTranspose(p, v);
+
+	      for (int l=0; l<2*Nphi; ++l)
+		p[l] = s[(8*Nphi) + (2*Nphi*j) + l];
+
+	      cgp_rho[i]->MultTranspose(p, v);
+
+	      for (int l=0; l<v.Size(); ++l)
+		auxMR[block_MRoffsets[(2*i)+j] + l] = v[l];
+	    }
+	}
+    }
+
+  globalMR->MultTranspose(auxMR, x);
+}
+
+void ComplexGlobalProjection::Mult(const Vector & x, Vector & y) const
+{
+  MFEM_VERIFY(y.Size() == 2*N, "");
+  
+  for (int i=0; i<N; ++i)
+    {
+      for (int j=0; j<z.Size(); ++j)
+	z[j] = x[osRe + j];  // z = Re(x)
+
+      const double ipRR = InnerProduct(comm, z, (*b_Re)[i]);
+      const double ipRI = InnerProduct(comm, z, (*b_Im)[i]);
+
+      for (int j=0; j<z.Size(); ++j)
+	z[j] = x[osIm + j];  // z = Im(x)
+
+      const double ipIR = InnerProduct(comm, z, (*b_Re)[i]);
+      const double ipII = InnerProduct(comm, z, (*b_Im)[i]);
+
+      w[i] = ipRR - ipII;  // real part
+      w[N + i] = ipRI + ipIR;  // imaginary part
+    }
+
+  Minv->Mult(w, y);
+}
+
+void ComplexGlobalProjection::MultTranspose(const Vector & x, Vector & y) const
+{
+  MFEM_VERIFY(x.Size() == 2*N, "");
+
+  Minv->Mult(x, w);  // No need for transpose, assuming M is symmetric.
+
+  for (int j=0; j<z.Size(); ++j)
+    {
+      y[osRe + j] = 0.0;
+      y[osIm + j] = 0.0;
+
+      for (int i=0; i<N; ++i)
+	{
+	  y[osRe + j] += (w[i] * (*b_Re)[i][j]) - (w[N+i] * (*b_Im)[i][j]);  // Real part
+	  y[osIm + j] += (w[i] * (*b_Im)[i][j]) + (w[N+i] * (*b_Re)[i][j]);  // Imaginary part
+	}
+    }
+}
+
+void DDMInterfaceOperator::DefineInterfaceBasis(const int interfaceIndex)
+{
+  MPI_Comm comm = ifespace[interfaceIndex]->GetComm();
+
+  int inprocs, irank;
+  MPI_Comm_size(comm, &inprocs);
+  MPI_Comm_rank(comm, &irank);
+
+  ifbx[interfaceIndex].SetSize(3);
+  ifby[interfaceIndex].SetSize(3);
+  iforig[interfaceIndex].SetSize(3);
+  
+  if (irank == 0)
+    {
+      {
+	Array<int> edges, eori;
+	pmeshIF[interfaceIndex]->GetElementEdges(0, edges, eori);
+
+	for (int k=0; k<2; ++k)  // loop over the first two edges
+	  {
+	    Array<int> vert;
+	    pmeshIF[interfaceIndex]->GetEdgeVertices(edges[k], vert);
+
+	    MFEM_VERIFY(vert.Size() == 2, "");
+	    
+	    double *vcrd0 = pmeshIF[interfaceIndex]->GetVertex(vert[0]);
+	    double *vcrd1 = pmeshIF[interfaceIndex]->GetVertex(vert[1]);
+	    for (int j=0; j<3; ++j)
+	      {
+		if (k == 0)
+		  ifbx[interfaceIndex][j] = vcrd1[j] - vcrd0[j];
+		else
+		  ifby[interfaceIndex][j] = vcrd1[j] - vcrd0[j];
+	      }
+	  }
+      }
+
+      ifbx[interfaceIndex] /= ifbx[interfaceIndex].Norml2();
+
+      if (-ifbx[interfaceIndex].Min() > ifbx[interfaceIndex].Max())
+	ifbx[interfaceIndex] *= -1.0;
+      
+      const double dp = ifbx[interfaceIndex] * ifby[interfaceIndex];
+      ifby[interfaceIndex].Add(-dp, ifbx[interfaceIndex]);
+
+      MFEM_VERIFY(ifby[interfaceIndex].Norml2() > 1.0e-6, "");
+      
+      ifby[interfaceIndex] /= ifby[interfaceIndex].Norml2();
+
+      if (-ifby[interfaceIndex].Min() > ifby[interfaceIndex].Max())
+	ifby[interfaceIndex] *= -1.0;
+    }
+
+  MPI_Bcast(ifbx[interfaceIndex].GetData(), 3, MPI_DOUBLE, 0, comm);
+  MPI_Bcast(ifby[interfaceIndex].GetData(), 3, MPI_DOUBLE, 0, comm);
+
+  // Now the basis (ifbx, ifby) is defined.
+  // Next, define the origin as the point closest to the origin, which is unique for Cartesian-aligned meshes and interfaces.
+  double d2min = 0.0;
+  int vmin = 0;
+  MFEM_VERIFY(pmeshIF[interfaceIndex]->GetNV() > 0, "");
+  for (int i=0; i<pmeshIF[interfaceIndex]->GetNV(); ++i)
+    {
+      double *v = pmeshIF[interfaceIndex]->GetVertex(i);
+      const double d2 = (v[0]*v[0]) + (v[1]*v[1]) + (v[2]*v[2]);
+
+      if (i == 0 || d2 < d2min)
+	{
+	  d2min = d2;
+	  vmin = i;
+	}
+    }
+
+  double alld2min = 0.0;
+  MPI_Allreduce(&d2min, &alld2min, 1, MPI_DOUBLE, MPI_MIN, comm);
+
+  const int ownmin = (d2min == alld2min);
+  {
+    int numown = 0;
+    MPI_Allreduce(&ownmin, &numown, 1, MPI_INT, MPI_SUM, comm);
+    MFEM_VERIFY(numown == 1, "");
+  }
+
+  int minowner = -1;
+
+  if (ownmin)
+    {
+      minowner = irank;
+      double *v = pmeshIF[interfaceIndex]->GetVertex(vmin);
+      for (int j=0; j<3; ++j)
+	iforig[interfaceIndex][j] = v[j];
+    }
+
+  {
+    int thisMinOwner = minowner;
+    MPI_Allreduce(&thisMinOwner, &minowner, 1, MPI_INT, MPI_MAX, comm);
+  }
+  
+  MPI_Bcast(iforig[interfaceIndex].GetData(), 3, MPI_DOUBLE, minowner, comm);
+}
+
+Operator* DDMInterfaceOperator::CreateInterfaceMassRestriction(const int sd, const int localInterfaceIndex, const int interfaceIndex, const bool firstSD)
+{
+  if (ifNDtrue[interfaceIndex] > 0)
+    MFEM_VERIFY(localInterfaceIndex >= 0, "");
+
+  const int orientation = firstSD ? 1 : 0;
+  
+  BlockOperator *rightInjection = new BlockOperator(rowTrueOffsetsIFR[interfaceIndex][orientation],
+						    colTrueOffsetsIFR[interfaceIndex][orientation]);
+
+  if (tdofsBdryInjection[sd] == NULL)
+    {
+      if (InterfaceToSurfaceInjection[sd][interfaceIndex] != NULL)
+	rightInjection->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd][interfaceIndex]),
+							   new EmptyOperator(), false, false));
+    }
+  else
+    {
+      rightInjection->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd][interfaceIndex]),
+							 tdofsBdryInjection[sd], false, false));
+    }
+  
+  rightInjection->SetBlock(1, 1, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex]));
+
+  BlockOperator *blockInjectionRight = new BlockOperator(rowTrueOffsetsIFBR[interfaceIndex][orientation], colTrueOffsetsIFBR[interfaceIndex][orientation]);
+
+  blockInjectionRight->SetBlock(0, 0, NewIdentityOrEmptyOperator(tdofsBdry[sd].size()));
+  blockInjectionRight->SetBlock(1, 2, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex]));
+  
+  BlockOperator *M = new BlockOperator(rowTrueOffsetsIFR[interfaceIndex][orientation]);
+
+  if (M1[interfaceIndex] == NULL)
+    {
+      const int numBlocks = 2;
+
+      osM1[interfaceIndex].SetSize(numBlocks + 1);
+      osM1[interfaceIndex] = 0;
+      osM1[interfaceIndex][1] = ifNDtrue[interfaceIndex];
+      osM1[interfaceIndex][2] = ifH1true[interfaceIndex];
+  
+      osM1[interfaceIndex].PartialSum();
+
+      M1[interfaceIndex] = new BlockOperator(osM1[interfaceIndex]);
+
+      M1[interfaceIndex]->SetDiagonalBlock(0, ifNDmass[interfaceIndex]);
+      M1[interfaceIndex]->SetDiagonalBlock(1, ifH1mass[interfaceIndex]);
+
+      eTE_Re[interfaceIndex].resize(Nphi);
+      eTE_Im[interfaceIndex].resize(Nphi);
+
+      eTE_M[interfaceIndex].SetSize(2*Nphi);
+ 
+      bcr_Re[interfaceIndex].resize(Nphi);
+      bcr_Im[interfaceIndex].resize(Nphi);
+
+      bcr_M[interfaceIndex].SetSize(2*Nphi);
+ 
+      rhoc_Re[interfaceIndex].resize(Nphi);
+      rhoc_Im[interfaceIndex].resize(Nphi);
+
+      rhoc_M[interfaceIndex].SetSize(2*Nphi);
+
+      if (ifNDtrue[interfaceIndex] > 0)
+	{
+	  DefineInterfaceBasis(interfaceIndex);
+	}
+
+      gpar.k = sqrt(k2);
+      gpar.bx = ifbx[interfaceIndex];
+      gpar.by = ifby[interfaceIndex];
+      gpar.orig = iforig[interfaceIndex];
+      
+      for (int i=0; i<Nphi; ++i)
+	{
+	  eTE_Re[interfaceIndex][i].SetSize(ifNDtrue[interfaceIndex]);
+	  eTE_Im[interfaceIndex][i].SetSize(ifNDtrue[interfaceIndex]);
+
+	  bcr_Re[interfaceIndex][i].SetSize(ifNDtrue[interfaceIndex]);
+	  bcr_Im[interfaceIndex][i].SetSize(ifNDtrue[interfaceIndex]);
+
+	  rhoc_Re[interfaceIndex][i].SetSize(ifH1true[interfaceIndex]);
+	  rhoc_Im[interfaceIndex][i].SetSize(ifH1true[interfaceIndex]);
+
+	  if (ifNDtrue[interfaceIndex] > 0)
+	    {
+	      gpar.phi = (2*i) * M_PI / ((double) Nphi);
+	      
+	      ParGridFunction egf(ifespace[interfaceIndex]);
+	      ParGridFunction rgf(iH1fespace[interfaceIndex]);
+
+	      VectorFunctionCoefficient eTEexact(3, gpwd_ETE);
+	      VectorFunctionCoefficient bcrexact(3, gpwd_bcr);
+	      FunctionCoefficient rhocexact(gpwd_rhoc);
+	      
+	      // Real part
+	      gpar.Re = true;
+
+	      egf.ProjectCoefficient(eTEexact);
+	      egf.GetTrueDofs(eTE_Re[interfaceIndex][i]);
+
+	      egf.ProjectCoefficient(bcrexact);
+	      egf.GetTrueDofs(bcr_Re[interfaceIndex][i]);
+
+	      rgf.ProjectCoefficient(rhocexact);
+	      rgf.GetTrueDofs(rhoc_Re[interfaceIndex][i]);
+
+	      // Imaginary part
+	      gpar.Re = false;
+	      
+	      egf.ProjectCoefficient(eTEexact);
+	      egf.GetTrueDofs(eTE_Im[interfaceIndex][i]);
+
+	      egf.ProjectCoefficient(bcrexact);
+	      egf.GetTrueDofs(bcr_Im[interfaceIndex][i]);
+
+	      rgf.ProjectCoefficient(rhocexact);
+	      rgf.GetTrueDofs(rhoc_Im[interfaceIndex][i]);
+	    }
+	}
+
+      // Set the entries of eTE_M, bcr_M, rhoc_M.
+      
+      if (ifNDtrue[interfaceIndex] > 0)
+	{
+	  Vector u(ifNDtrue[interfaceIndex]);
+	  Vector v(ifH1true[interfaceIndex]);
+
+	  for (int i=0; i<Nphi; ++i)
+	    {
+	      for (int j=0; j<Nphi; ++j)
+		{
+		  // eTE_M
+		  ifNDmass[interfaceIndex]->Mult(eTE_Re[interfaceIndex][i], u);
+
+		  double ijRe = InnerProduct(ifespace[interfaceIndex]->GetComm(), u, eTE_Re[interfaceIndex][j]); // Re part
+		  double ijIm = InnerProduct(ifespace[interfaceIndex]->GetComm(), u, eTE_Im[interfaceIndex][j]); // Im part
+
+		  ifNDmass[interfaceIndex]->Mult(eTE_Im[interfaceIndex][i], u);
+
+		  ijRe -= InnerProduct(ifespace[interfaceIndex]->GetComm(), u, eTE_Im[interfaceIndex][j]); // Re part
+		  ijIm += InnerProduct(ifespace[interfaceIndex]->GetComm(), u, eTE_Im[interfaceIndex][j]); // Im part (symmetry of M implies this is unnecessary).
+		  
+		  eTE_M[interfaceIndex](i,j) = ijRe;
+		  eTE_M[interfaceIndex](Nphi + i,j) = ijIm;
+		  eTE_M[interfaceIndex](i,Nphi + j) = -ijIm;
+		  eTE_M[interfaceIndex](Nphi + i,Nphi + j) = ijRe;
+
+		  // bcr_M
+		  ifNDmass[interfaceIndex]->Mult(bcr_Re[interfaceIndex][i], u);
+
+		  ijRe = InnerProduct(ifespace[interfaceIndex]->GetComm(), u, bcr_Re[interfaceIndex][j]); // Re part
+		  ijIm = InnerProduct(ifespace[interfaceIndex]->GetComm(), u, bcr_Im[interfaceIndex][j]); // Im part
+
+		  ifNDmass[interfaceIndex]->Mult(bcr_Im[interfaceIndex][i], u);
+
+		  ijRe -= InnerProduct(ifespace[interfaceIndex]->GetComm(), u, bcr_Im[interfaceIndex][j]); // Re part
+		  ijIm += InnerProduct(ifespace[interfaceIndex]->GetComm(), u, bcr_Im[interfaceIndex][j]); // Im part (symmetry of M implies this is unnecessary).
+		  
+		  bcr_M[interfaceIndex](i,j) = ijRe;
+		  bcr_M[interfaceIndex](Nphi + i,j) = ijIm;
+		  bcr_M[interfaceIndex](i,Nphi + j) = -ijIm;
+		  bcr_M[interfaceIndex](Nphi + i,Nphi + j) = ijRe;
+
+		  // rhoc_M
+		  ifH1mass[interfaceIndex]->Mult(rhoc_Re[interfaceIndex][i], v);
+
+		  ijRe = InnerProduct(ifespace[interfaceIndex]->GetComm(), v, rhoc_Re[interfaceIndex][j]); // Re part
+		  ijIm = InnerProduct(ifespace[interfaceIndex]->GetComm(), v, rhoc_Im[interfaceIndex][j]); // Im part
+
+		  ifNDmass[interfaceIndex]->Mult(rhoc_Im[interfaceIndex][i], v);
+
+		  ijRe -= InnerProduct(ifespace[interfaceIndex]->GetComm(), v, rhoc_Im[interfaceIndex][j]); // Re part
+		  ijIm += InnerProduct(ifespace[interfaceIndex]->GetComm(), v, rhoc_Im[interfaceIndex][j]); // Im part (symmetry of M implies this is unnecessary).
+		  
+		  rhoc_M[interfaceIndex](i,j) = ijRe;
+		  rhoc_M[interfaceIndex](Nphi + i,j) = ijIm;
+		  rhoc_M[interfaceIndex](i,Nphi + j) = -ijIm;
+		  rhoc_M[interfaceIndex](Nphi + i,Nphi + j) = ijRe;
+		}
+	    }
+
+	  eTE_M[interfaceIndex].Invert();
+	  bcr_M[interfaceIndex].Invert();
+	  rhoc_M[interfaceIndex].Invert();
+	}
+    }
+  
+  M->SetDiagonalBlock(0, ifNDmass[interfaceIndex]);
+  M->SetDiagonalBlock(1, M1[interfaceIndex]);
+
+  // Create the product of interface mass matrix times the restriction operators. 
+  TripleProductOperator *MR = new TripleProductOperator(M, rightInjection, blockInjectionRight, false, false, false);
+
+  return MR;
+}
+#endif
 
 Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int sd1, const int localInterfaceIndex,
 							const int interfaceIndex, const int orientation)
