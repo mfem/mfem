@@ -97,7 +97,6 @@ void Device::Configure(const std::string &device, const int dev)
          std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
          MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
          Get().MarkBackend(it->second);
-         std::cout <<"libCEED backend: "<< boption << std::endl;
       }
       if (end == device.size()) { break; }
       beg = end + 1;
@@ -257,6 +256,13 @@ static void CeedDeviceSetup(const char* ceed_spec)
 {
 #ifdef MFEM_USE_CEED
    CeedInit(ceed_spec, &internal::ceed);
+   const char *ceed_backend;
+   CeedGetResource(internal::ceed, &ceed_backend);
+   std::cout <<"libCEED backend: "<< ceed_backend << std::endl;
+   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self"))
+   {
+      std::cout << std::endl << "WARNING!!!\nlibCEED is not using the requested backend!!!\nWARNING!!!\n" << std::endl;
+   }
 #endif
 }
 
