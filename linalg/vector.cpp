@@ -12,7 +12,6 @@
 // Implementation of data type vector
 #include "vector.hpp"
 #include "dtensor.hpp"
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 
 #if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
@@ -1043,23 +1042,15 @@ double Vector::Min() const
 
    if (Device::Allows(Backend::DEBUG))
    {
-      dbg("");
       const int N = size;
-      dbg("Read");
       auto m_data = Read();
-      Vector min_(1);
-      dbg("UseDevice");
-      min_.UseDevice(true);
-      auto d_min = min_.ReadWrite();
-      dbg("100000000");
-      min_ = 100000000.0;
-      dbg("MFEM_FORALL");
+      Vector min(1);
+      min = infinity();
+      min.UseDevice(true);
+      auto d_min = min.ReadWrite();
       MFEM_FORALL(i, N, d_min[0] = (d_min[0]<m_data[i])?d_min[0]:m_data[i];);
-      dbg("HostReadWrite");
-      min_.HostReadWrite();
-      dbg("return %e",min_[0]);
-      //sleep(1);
-      return min_[0];
+      min.HostReadWrite();
+      return min[0];
    }
 
 vector_min_cpu:

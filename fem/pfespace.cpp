@@ -2918,7 +2918,6 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
       std::copy(xdata+j-i, xdata+end-i, ydata+j);
       j = end+1;
    }
-   if (Device::Allows(Backend::DEBUG)) { y.HostReadWrite(); }
    std::copy(xdata+j-m, xdata+Width(), ydata+j);
 
    const int out_layout = 0; // 0 - output is ldofs array
@@ -2933,7 +2932,6 @@ void ConformingProlongationOperator::MultTranspose(
 
    const double *xdata = x.HostRead();
    double *ydata = y.HostWrite();
-   if (Device::Allows(Backend::DEBUG)) { y.HostReadWrite(); }
    const int m = external_ldofs.Size();
 
    gc.ReduceBegin(xdata);
