@@ -541,9 +541,9 @@ template <typename T>
 inline void Memory<T>::New(int size)
 {
    capacity = size;
-   h_mt = MemoryManager::host_mem_type;
+   h_mt = size == 0 ?  MemoryType::HOST : MemoryManager::host_mem_type;
    flags = OWNS_HOST | VALID_HOST;
-   h_ptr = (h_mt == MemoryType::HOST) ? (T*) new T[size] :
+   h_ptr = (h_mt == MemoryType::HOST || size == 0) ? (T*) new T[size] :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
 }
 
@@ -551,7 +551,7 @@ inline void Memory<T>::New(int size)
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
-   if (MemoryType::HOST == mt ) { New(size); }
+   if (MemoryType::HOST == mt || size == 0) { New(size); }
    else
    {
       capacity = size;
@@ -568,7 +568,7 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
 {
    capacity = size;
    h_ptr = host_ptr;
-   h_mt = MemoryType::HOST; // MemoryManager::host_mem_type now ?
+   h_mt = MemoryType::HOST;
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
 }
 
@@ -576,7 +576,7 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
-   if (mt == MemoryType::HOST) { return Wrap(ptr, size, own); }
+   if (mt == MemoryType::HOST || size == 0) { return Wrap(ptr, size, own); }
    capacity = size;
    const size_t bytes = size*sizeof(T);
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
@@ -590,6 +590,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
+   //dbg("");
    capacity = size;
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
@@ -608,6 +609,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 template <typename T>
 inline void Memory<T>::Delete()
 {
+   //dbg("");
    if (!(flags & REGISTERED) ||
        MemoryManager::Delete_((void*)h_ptr, flags) == MemoryType::HOST)
    {
