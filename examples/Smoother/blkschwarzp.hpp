@@ -1,8 +1,10 @@
-#include "mfem.hpp"
 
+#pragma once
+
+#include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "Schwarzp.hpp"
+#include "schwarzp.hpp"
 using namespace std;
 using namespace mfem;
 

@@ -1,5 +1,5 @@
 #include "mfem.hpp"
-#include "Schwarzp.hpp"
+#include "schwarzp.hpp"
 #include "util.hpp"
 #include <iterator>
 #include <fstream>

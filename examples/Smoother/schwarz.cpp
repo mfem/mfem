@@ -1,6 +1,6 @@
 
 #include "mfem.hpp"
-#include "Schwarz.hpp"
+#include "schwarz.hpp"
 
 #include <fstream>
 #include <iostream>

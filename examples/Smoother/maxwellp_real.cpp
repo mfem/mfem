@@ -9,7 +9,7 @@
 #include <iostream>
 #include <boost/math/special_functions/airy.hpp>
 // #include "Schwarzp.hpp"
-#include "Multigrid.hpp"
+#include "multigrid.hpp"
 using namespace std;
 using namespace mfem;
 using namespace boost;
@@ -148,7 +148,6 @@ int main(int argc, char *argv[])
       Tr.Get(P[i]);
    }
    fespaces[maxref] = new ParFiniteElementSpace(*fespace);
-
    ConstantCoefficient muinv(1.0);
 #ifdef DEFINITE
    ConstantCoefficient sigma(pow(omega, 2));

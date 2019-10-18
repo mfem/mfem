@@ -1,5 +1,5 @@
+#pragma once
 #include "mfem.hpp"
-
 #include <fstream>
 #include <iostream>
 
@@ -131,4 +131,3 @@ SparseMatrix & offd, const int * cmap, const int * row_start);
 
 void GetColumnValues(const int tdof_i,const Array<int> & tdof_j, SparseMatrix & diag ,
 SparseMatrix & offd, const int *cmap, const int * row_start, Array<int> &cols, Array<double> &vals);
-

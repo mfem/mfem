@@ -114,7 +114,6 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
 
-
    Array<int> ess_tdof_list;
    if (pmesh->bdr_attributes.Size())
    {

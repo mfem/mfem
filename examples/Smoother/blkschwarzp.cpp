@@ -1,6 +1,6 @@
 
 #include "mfem.hpp"
-#include "BlkSchwarzp.hpp"
+#include "blkschwarzp.hpp"
 #include <iterator>
 #include <fstream>
 #include <iostream>

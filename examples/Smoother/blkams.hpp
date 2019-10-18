@@ -1,5 +1,8 @@
+#pragma once
+
 #include "mfem.hpp"
-#include "BlkSchwarzp.hpp"
+#include "blkschwarzp.hpp"
+#include "util.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -45,11 +48,20 @@ private:
    string cycle_type = "023414320"; // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
    HypreSmoother * Dh;
    int NumberOfCycles=1;
+   
+   HypreParMatrix *hGtAG, *hPxtAPx, *hPytAPy, *hPztAPz;
+   HypreBoomerAMG *AMG_G, *AMG_Px, *AMG_Py, *AMG_Pz;
+   Array2D<HypreParMatrix * > hRAP_G;
+   Array2D<HypreParMatrix * > hRAP_Px;
+   Array2D<HypreParMatrix * > hRAP_Py;
+   Array2D<HypreParMatrix * > hRAP_Pz;
+
+
    void DiagAddL1norm();
    void Getrowl1norm(HypreParMatrix *A , Vector &l1norm);
    void GetCorrection(BlockOperator* Tr, BlockOperator* op, BlockDiagonalPreconditioner *prec, Vector &r, Vector &z) const;
+   void GetCorrection(BlockOperator* Tr, HypreParMatrix* op, HypreBoomerAMG *prec, Vector &r, Vector &z) const;
 };
 
 HypreParMatrix* GetDiscreteGradientOp(ParFiniteElementSpace *fespace);
 Array2D<HypreParMatrix *> GetNDInterpolationOp(ParFiniteElementSpace *fespace);
-

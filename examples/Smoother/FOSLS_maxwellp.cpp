@@ -3,8 +3,9 @@
 #include <fstream>
 #include <iostream>
 #include <boost/math/special_functions/airy.hpp>
-// #include "BlkSchwarzp.hpp"
-#include "BlkAMS.hpp"
+#include "blkams.hpp"
+#include "multigrid.hpp"
+
 using namespace std;
 using namespace mfem;
 using namespace boost;
@@ -47,6 +48,9 @@ int main(int argc, char *argv[])
    int ref_levels = 1;
    // number of initial ref
    int initref = 1;
+
+   const char *petscrc_file = "petscrc_mult_options";
+
    // optional command line inputs
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -85,8 +89,8 @@ int main(int argc, char *argv[])
    }
 
    // Angular frequency
-   // omega = 2.0*k*M_PI;
-   omega = k;
+   omega = 2.0*k*M_PI;
+   // omega = k;
 
    // 2. Read the mesh from the given mesh file.
    Mesh *mesh;
@@ -105,13 +109,14 @@ int main(int argc, char *argv[])
    delete mesh;
 
    ParMesh *cpmesh = new ParMesh(*pmesh);
-
+   
 // 4. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    // ParFiniteElementSpace *fespace = new ParFiniteElementSpace(mesh, fec);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    std::vector<ParFiniteElementSpace * > fespaces(ref_levels+1);
    std::vector<ParMesh * > ParMeshes(ref_levels+1);
+   std::vector<HypreParMatrix*>  P(ref_levels);
 
    for (int i = 0; i < ref_levels; i++)
    {
@@ -120,10 +125,12 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
       // Update fespace
       fespace->Update();
+      OperatorHandle Tr(Operator::Hypre_ParCSR);
+      fespace->GetTrueTransferOperator(*fespaces[i], Tr);
+      Tr.SetOperatorOwner(false);
+      Tr.Get(P[i]);
    }
    fespaces[ref_levels] = new ParFiniteElementSpace(*fespace);
-
-   
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -161,6 +168,7 @@ int main(int argc, char *argv[])
    rhs = 0.0;
    trueX = 0.0;
    trueRhs = 0.0;
+
 
    VectorFunctionCoefficient Eex(sdim, E_exact);
    ParGridFunction * E_gf = new ParGridFunction;
@@ -261,64 +269,90 @@ int main(int argc, char *argv[])
    blockA(1,0) = A_HE;
    blockA(1,1) = A_HH;
 
+
+
+   Array2D<double> coefficients(2,2);
+   coefficients(0,0) = 1.0;  coefficients(0,1) = 1.0;
+   coefficients(1,0) = 1.0;  coefficients(1,1) = 1.0;
+
+   HypreParMatrix * hmat = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,block_trueOffsets,blockA,coefficients);
+
+   HypreBoomerAMG * precAMG = new HypreBoomerAMG(*hmat);
+   precAMG->SetPrintLevel(0);
+
+   MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
+   
    chrono.Clear();
    chrono.Start();
-   // BlkParSchwarzSmoother * prec;
-   // prec = new BlkParSchwarzSmoother(cpmesh,ref_levels,fespace,blockA);
-   // prec->SetDumpingParam(0.2);
-   // prec->SetNumSmoothSteps(3);
-
-   // prec = new BlkParSchwarzSmoother(fespace->GetParMesh(),0,fespace,blockA);
-   // prec = new BlkParSchwarzSmoother(cpmesh,ref_levels,fespace,blockA);
-
-  
-
-   Block_AMSSolver * prec1;
-   prec1 = new Block_AMSSolver(block_trueOffsets,fespaces);
-   prec1->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
-   // prec1->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
-   prec1->SetOperator(blockA);
-   prec1->SetTheta(0.2);
-   // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
-   // prec1->SetCycleType("012343210");
-   prec1->SetCycleType("023414320");
-   prec1->SetNumberofCycles(1);
-
+   BlockMGSolver * precMG = new BlockMGSolver(blockA,P,fespaces);
    chrono.Stop();
-
    if(myid == 0)
-      cout << "Setup time: " << chrono.RealTime() << endl;
+      cout << "MG Setup time: " << chrono.RealTime() << endl;
+
+   // chrono.Clear();
+   // chrono.Start();
+   // Block_AMSSolver * precAMS = new Block_AMSSolver(block_trueOffsets,fespaces);
+   // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
+   // // prec1->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
+   // precAMS->SetOperator(blockA);
+   // precAMS->SetTheta(0.2);
+   // // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
+   // precAMS->SetCycleType("023414320");
+   // precAMS->SetNumberofCycles(1);
+   // chrono.Stop();
+   // if(myid == 0)
+   //    cout << "BlkAMS Setup time: " << chrono.RealTime() << endl;
    
-   int maxit(500);
+   
+   int maxit(100);
    double rtol(1.e-6);
    double atol(0.0);
    trueX = 0.0;
 
-   chrono.Clear();
-   chrono.Start();
-
+   
    CGSolver pcg(MPI_COMM_WORLD);
    // GMRESSolver pcg(MPI_COMM_WORLD);
    pcg.SetAbsTol(atol);
    pcg.SetRelTol(rtol);
    pcg.SetMaxIter(maxit);
-   pcg.SetPreconditioner(*prec1);
-   // pcg.SetPreconditioner(*prec);
+   // pcg.SetPreconditioner(*prec1);
    pcg.SetOperator(*LS_Maxwellop);
    pcg.SetPrintLevel(1);
-   pcg.Mult(trueRhs, trueX);
 
+
+   chrono.Clear();
+   chrono.Start();
+   pcg.SetPreconditioner(*precMG);
+   pcg.Mult(trueRhs, trueX);
+   MFEMFinalizePetsc();
 
    chrono.Stop();
 
-   if(myid == 0)
-      cout << "Setup time: " << chrono.RealTime() << endl;
+    if(myid == 0)
+      cout << "MG prec Solution time: " << chrono.RealTime() << endl;
+   // resolve with block AMS
+   // trueX = 0; 
+   // chrono.Clear();
+   // chrono.Start();
+   // pcg.SetPreconditioner(*precAMS);
+   // pcg.Mult(trueRhs, trueX);
+   // chrono.Stop();
 
 
-   if (myid == 0)
-   {
-      cout << "PCG with Block AMS finished" << endl;
-   }
+   // chrono.Stop();
+
+   // if(myid == 0)
+   //    cout << "BlockAMS Solution time: " << chrono.RealTime() << endl;
+
+   // trueX = 0; 
+   // chrono.Clear();
+   // chrono.Start();
+   // pcg.SetPreconditioner(*precAMG);
+   // pcg.Mult(trueRhs, trueX);
+   // chrono.Stop();
+
+   // if (myid == 0)
+   //    cout << "BoomerAMG Solution time "<< chrono.RealTime() << endl;
 
    *E_gf = 0.0;
    *H_gf = 0.0;
@@ -358,10 +392,10 @@ int main(int argc, char *argv[])
       E_sock << "parallel " << num_procs << " " << myid << "\n";
       E_sock.precision(8);
       E_sock << "solution\n" << *pmesh << *E_gf << "window_title 'Electric field'" << endl;
-      socketstream Exact_sock(vishost, visport);
-      Exact_sock << "parallel " << num_procs << " " << myid << "\n";
-      Exact_sock.precision(8);
-      Exact_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Electric field'" << endl;
+      // socketstream Exact_sock(vishost, visport);
+      // Exact_sock << "parallel " << num_procs << " " << myid << "\n";
+      // Exact_sock.precision(8);
+      // Exact_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Electric field'" << endl;
  
     // MPI_Barrier(pmesh->GetComm());
       // socketstream Eex_sock(vishost, visport);

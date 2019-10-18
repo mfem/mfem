@@ -31,7 +31,7 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O=BlkSchwarzp.o BlkAMS.o Schwarzp.o Schwarz.o Multigrid.o util.o
+COMMON_O= util.o blkschwarzp.o blkams.o schwarzp.o schwarz.o multigrid.o
 
 # Remove built-in rules
 %: %.cpp
