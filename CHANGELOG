@@ -31,6 +31,13 @@ libCEED support
   modes are available as MFEM device backends (ceed-cpu and ceed-cuda), using
   some of the best performing CPU and GPU backends from libCEED.
 
+Miscellaneous
+-------------
+- Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This 
+  necessitated a complete rework of the interface and requires changes at
+  the application level.  Example usage of this new interface can be found
+  in the examples/sundials directory.
+
 
 Version 4.0, released on May 24, 2019
 =====================================
