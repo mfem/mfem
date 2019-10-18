@@ -41,11 +41,15 @@ void fe_ray_setMaxLineSearchIterations( int N );
 void fe_ray_setTolerance( double TOL );
 
 /**
- * @brief Sets the coefficients used for the Wolfe conditions in the
- *  backtracking line search.
+ * @brief Sets the coefficients used for enforcing the Wolfe conditions for
+ *  the backtracking line search.
  *
- * @param [in] c1 coefficient for the Armijo condition
- * @param [in] c2 coefficient for the curvature condition
+ * @param [in] c1 coefficient for the sufficient decrease (Armijo) condition
+ * @param [in] c2 coefficient for the curvature condition.
+ *
+ * @note If not specified, the suggested following defaults are employed:
+ *  c1=10^-4 and c2=0.9. See, "Numerical Methods for Unconstrained Optimization
+ *  of Nonlinear Equations" by Dennis and Schnabel.
  *
  * @pre 0.0 < c1 < c2 < 1.0
  */

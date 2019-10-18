@@ -25,8 +25,8 @@ namespace mfem
 static struct params_t
 {
   int     maxNewtonIterations     = 16;
-  int     maxLineSearchIterations = 10;
-  double  c1  = 1.e-4;
+  int     maxLineSearchIterations = 5;
+  double  c1  = 10.e-4;
   double  c2  = 0.9;
   double  tol = 1.e-12;
 } solver_parameters ;
@@ -63,13 +63,6 @@ void get_physical_nodes( const FiniteElement* fe,
   const int ndims = T->GetSpaceDim();
   phys_nodes.SetSize( ndims, ndofs );
   T->Transform( ref_nodes, phys_nodes );
-
-//  Vector xp( ndims );
-//  for ( int idof=0; idof < ndofs; ++idof )
-//  {
-//    T->Transform( ref_nodes.IntPoint( idof ), xp );
-//    phys_nodes.SetCol( idof, xp );
-//  } // END for all dofs on the lement
 }
 
 //------------------------------------------------------------------------------
@@ -103,14 +96,57 @@ void update_jacobian( const double* sk, ElementTransformation* T ,
 }
 
 //------------------------------------------------------------------------------
-void update_fx( const FiniteElement* fe,       ///!< FE instance (in)
-                const DenseMatrix& phys_nodes, ///!< FE phys. nodes (in)
-                const double* sk,              ///!< current ref. coords (in)
-                const double* x0,              ///!< origin of the ray (in)
-                const double* n,               ///!< ray normal (in)
-                double* fx,                    ///!< fx, computed (out)
-                double scalar=1.0              ///!< multiplier (optional)
-                )
+void dFxda( const FiniteElement* fe,  ///!< Fe instance (in)
+            const DenseMatrix& X,     ///!< FE phys. nodes (in)
+            const double* sk,         ///!< current ref. coords (in)
+            const double* n,          ///!< ray normal
+            double* dfxda,            ///!< deriv. of fx w.r.t. alpha (out)
+            double scalar=1.0         ///!< multiplier (optional)
+            )
+{
+  // sanity checks
+  MFEM_ASSERT( fe    != nullptr, "supplied FE instance is null!" );
+  MFEM_ASSERT( sk    != nullptr, "supplied solution vector, sk, is null!" );
+  MFEM_ASSERT( n     != nullptr, "pointer to ray normal is null!" );
+  MFEM_ASSERT( dfxda != nullptr, "pointer to output vector is null!" );
+  MFEM_ASSERT( X.NumRows()== (fe->GetDim()+1),
+               "supplied FE is not a surface element!" );
+  MFEM_ASSERT( X.NumCols()==fe->GetDof(),
+            "supplied physical nodes matrix doesn't match FE number of dofs" );
+
+  const int ndofs = fe->GetDof();
+  const int ndims = X.NumRows();
+
+  // compute shape functions at given point
+  IntegrationPoint ip( sk, fe->GetDim() );
+  Vector N( fe->GetDof() );
+  fe->CalcShape( ip, N );
+
+  const double& t = sk[ fe->GetDim() ];
+
+  for ( int idim=0; idim < ndims; ++idim )
+  {
+    dfxda[ idim ] = 0.0;
+    for ( int idof=0; idof < ndofs; ++idof )
+    {
+      dfxda[ idim ] += ( N[ idof ] * X(idim,idof) );
+    }
+
+    dfxda[ idim ] -= ( t*n[idim] );
+
+  } // END for all dimensions
+
+}
+
+//------------------------------------------------------------------------------
+void Fx( const FiniteElement* fe, ///!< FE instance (in)
+         const DenseMatrix& X,    ///!< FE phys. nodes (in)
+         const double* sk,        ///!< current ref. coords (in)
+         const double* x0,        ///!< origin of the ray (in)
+         const double* n,         ///!< ray normal (in)
+         double* fx,               ///!< fx, computed (out)
+         double scalar=1.0         ///!< multiplier (optional)
+         )
 {
   // sanity checks
   MFEM_ASSERT( fe != nullptr, "supplied FE instance is null!" );
@@ -118,13 +154,13 @@ void update_fx( const FiniteElement* fe,       ///!< FE instance (in)
   MFEM_ASSERT( x0 != nullptr, "pointer to ray origin buffer is null!" );
   MFEM_ASSERT( n  != nullptr, "pointer to ray normal is null!" );
   MFEM_ASSERT( fx != nullptr, "pointer to output vector is null!" );
-  MFEM_ASSERT( phys_nodes.NumRows()== (fe->GetDim()+1),
+  MFEM_ASSERT( X.NumRows()== (fe->GetDim()+1),
                "supplied FE is not a surface element!" );
-  MFEM_ASSERT( phys_nodes.NumCols()==fe->GetDof(),
+  MFEM_ASSERT( X.NumCols()==fe->GetDof(),
             "supplied physical nodes matrix doesn't match FE number of dofs" );
 
   const int ndofs = fe->GetDof();
-  const int ndims = phys_nodes.NumRows();
+  const int ndims = X.NumRows();
 
   // compute shape functions at given point
   IntegrationPoint ip( sk, fe->GetDim() );
@@ -138,7 +174,7 @@ void update_fx( const FiniteElement* fe,       ///!< FE instance (in)
     fx[ idim ] = 0.0;
     for ( int idof=0; idof < ndofs; ++idof )
     {
-      fx[ idim ] += ( N[ idof ] * phys_nodes(idim,idof) );
+      fx[ idim ] += ( N[ idof ] * X(idim,idof) );
     }
 
     fx[ idim ] -= x0[ idim ];
@@ -146,6 +182,103 @@ void update_fx( const FiniteElement* fe,       ///!< FE instance (in)
     fx[ idim ] *= scalar;
   } // END for all dimensions
 
+}
+
+//------------------------------------------------------------------------------
+bool wolfe_conditions( double ak,
+                       const double* fxk,
+                       const double* dfxk,
+                       const double* fxn,
+                       const double* dfxn,
+                       int ndims )
+{
+  MFEM_ASSERT( (fxk != nullptr), "fxk is null" );
+  MFEM_ASSERT( (dfxk != nullptr), "dfxk is null" );
+  MFEM_ASSERT( (fxn != nullptr), "fxn is null" );
+  MFEM_ASSERT( (dfxn != nullptr), "dfxk is null" );
+  MFEM_ASSERT( (ndims==2 || ndims==3), "ndims must be 2 or 3" );
+
+  // Wolfe coefficients used for sufficient decrease and curvature conditions
+  const double& c1 = solver_parameters.c1;
+  const double& c2 = solver_parameters.c2;
+
+  double c1ak = c1*ak;
+
+  bool armijo = true;
+  bool curvature = true;
+  for ( int idim=0; idim < ndims; ++idim )
+  {
+    armijo = armijo && ( fxn[ idim ] <= ( fxk[ idim ]+c1ak*dfxk[ idim ] ) );
+    curvature = curvature && ( abs(dfxn[ idim ]) <= ( c2*abs(dfxk[ idim ]) ) );
+  }
+
+  return ( armijo && curvature );
+}
+
+//------------------------------------------------------------------------------
+double backtracking_linesearch( const FiniteElement* fe, ///!< FE instance (in)
+                                const DenseMatrix& X,    ///!< FE nodes (in)
+                                const double* sk,        ///!< ref. coords (in)
+                                const double* pk,        ///!< direction (in)
+                                const double* x0,        ///!< ray origin (in)
+                                const double* n          ///!< ray normal (in)
+                                )
+{
+  // sanity checks
+  // sanity checks
+  MFEM_ASSERT( fe != nullptr, "supplied FE instance is null!" );
+  MFEM_ASSERT( sk != nullptr, "supplied solution vector, sk, is null!" );
+  MFEM_ASSERT( x0 != nullptr, "pointer to ray origin buffer is null!" );
+  MFEM_ASSERT( n  != nullptr, "pointer to ray normal is null!" );
+  MFEM_ASSERT( X.NumRows()== (fe->GetDim()+1),
+               "supplied FE is not a surface element!" );
+  MFEM_ASSERT( X.NumCols()==fe->GetDof(),
+            "supplied physical nodes matrix doesn't match FE number of dofs" );
+
+  const int ndims = X.NumRows();
+
+  const int maxLineSearchIters = solver_parameters.maxLineSearchIterations;
+
+  constexpr double alphalimit  = 0.1; /* limiter on smallest step size */
+  constexpr double beta        = 0.5; /* shrink factor */
+
+  // evaluate Fx and its derivative at sk, i.e., at alpha = 1
+  double fxk[3];
+  double dfxk[3];
+  Fx( fe, X, sk, x0, n, fxk );
+  dFxda( fe, X, sk, n, dfxk );
+
+  // arrays to store Fx and derivaties at new position `sk +  alpha * pk`
+  double fxn[3];
+  double dfxn[3];
+  double skn[3];
+
+  double alpha  = 1.0;
+  bool foundmin = false;
+  for ( int iter=0; !foundmin && (iter < maxLineSearchIters); ++iter )
+  {
+    // Evaluate sk + alpha * pk at current alpha
+    for ( int idim=0; idim < ndims; ++idim )
+    {
+      skn[ idim ] = sk[ idim ] + (alpha*pk[ idim ] );
+    }
+
+    // Let F(a) = Fx(sk+alpha*pk), evaluate f(a) and derivates at new position
+    Fx( fe, X, skn, x0, n, fxn );
+    dFxda( fe, X, skn, n, dfxn );
+
+    // check sufficient decrease (a.k.a, Armijo) and curvature conditions
+    foundmin = wolfe_conditions( alpha, fxk, dfxk, fxn, dfxn, ndims );
+
+    if ( !foundmin )
+    {
+      // shrink stepsize
+      alpha *= beta;
+    }
+
+  } // END for all linesearch iterations
+
+  return std::max( alpha, alphalimit );
 }
 
 } /* end anonymous namespace */
@@ -246,7 +379,7 @@ bool fe_ray_solve( const int elementId,
   double pk[ 3 ]; // newton direction
 
   // STEP 7: start newton iteration
-  constexpr double NEGATIVE_SIGN = -1.0;
+  constexpr double NEGATE = -1.0;
   bool converged  = false;
   const int maxNewtonIters = solver_parameters.maxNewtonIterations;
   for (int iter=0; !converged && iter < maxNewtonIters; ++iter )
@@ -255,7 +388,7 @@ bool fe_ray_solve( const int elementId,
     update_jacobian( sk, T, J );
 
     // update rhs, i.e., -fx
-    update_fx( fe, phys_nodes, sk, x0, n, pk, NEGATIVE_SIGN );
+    Fx( fe, phys_nodes, sk, x0, n, pk, NEGATE );
 
     // newton step: "J*pk = -fx", solve for pk
     // NOTE: on input, pk==-fx, and on output it store the delta
@@ -272,7 +405,7 @@ bool fe_ray_solve( const int elementId,
     double alpha = 1.0;
     if ( !converged )
     {
-      // TODO: implement this
+      alpha = backtracking_linesearch( fe, phys_nodes, sk, pk, x0, n );
     }
 
     // apply improvements
