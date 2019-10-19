@@ -917,13 +917,26 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
       {
          if (dest_d_ptr != src_h_ptr && bytes != 0)
          {
-            MemoryType dst_d_mt = maps->memories.at(dest_d_ptr).d_mt;
-            MemoryType src_h_mt = maps->memories.at(src_h_ptr).h_mt;
-            MFEM_VERIFY(dst_d_mt == src_h_mt, "");
-            mfem_error("To do!");
-            ctrl->Device(dst_d_mt)->Unprotect(maps->memories.at(dest_d_ptr));
+            MemoryType dst_d_mt = device_mem_type;
+            if (mm.IsKnown(dest_d_ptr))
+            {
+               dst_d_mt = maps->memories.at(dest_d_ptr).d_mt;
+            }
+            MemoryType src_h_mt = host_mem_type;
+            if (mm.IsKnown(src_h_ptr))
+            {
+               src_h_mt = maps->memories.at(src_h_ptr).h_mt;
+            }
+            //MFEM_VERIFY(dst_d_mt == src_h_mt, "");
+            if (mm.IsKnown(dest_d_ptr))
+            {
+               ctrl->Device(dst_d_mt)->Unprotect(maps->memories.at(dest_d_ptr));
+            }
             ctrl->Device(dst_d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
-            ctrl->Host(src_h_mt)->Protect(src_h_ptr, bytes);
+            if (mm.IsKnown(src_h_ptr))
+            {
+               ctrl->Host(src_h_mt)->Protect(src_h_ptr, bytes);
+            }
          }
       }
       else
