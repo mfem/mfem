@@ -387,9 +387,9 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
       //
       // count the ranks that does not have zero length
       int num_ranks = 0;
-      for (int i = 0; i<num_procs; i++)
+      for (int k = 0; k<num_procs; k++)
       {
-         if (count[i] != 0) {num_ranks++;}
+         if (count[k] != 0) {num_ranks++;}
       }
       Array<int> new_count(num_ranks);
       Array<int> new_displs(num_ranks);

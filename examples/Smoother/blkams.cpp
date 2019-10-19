@@ -96,36 +96,36 @@ void Block_AMSSolver::SetOperators()
       for (int j=0; j<2 ; j++)
       {
          A->SetBlock(i,j,A_array(i,j));
-         hRAP_G(i,j) =  RAP(A_array(i,j),Grad);
-         hRAP_Px(i,j) =  RAP(A_array(i,j),Pix);
-         hRAP_Py(i,j) =  RAP(A_array(i,j),Piy);
-         hRAP_Pz(i,j) =  RAP(A_array(i,j),Piz);
+         // hRAP_G(i,j) =  RAP(A_array(i,j),Grad);
+         // hRAP_Px(i,j) =  RAP(A_array(i,j),Pix);
+         // hRAP_Py(i,j) =  RAP(A_array(i,j),Piy);
+         // hRAP_Pz(i,j) =  RAP(A_array(i,j),Piz);
 
-         GtAG->SetBlock(i,j,hRAP_G(i,j));
-         PxtAPx->SetBlock(i,j,hRAP_Px(i,j));
-         PytAPy->SetBlock(i,j,hRAP_Py(i,j));
-         PztAPz->SetBlock(i,j,hRAP_Pz(i,j));
-         // GtAG->SetBlock(i,j,RAP(A_array(i,j),Grad));
-         // PxtAPx->SetBlock(i,j,RAP(A_array(i,j),Pix));
-         // PytAPy->SetBlock(i,j,RAP(A_array(i,j),Piy));
-         // PztAPz->SetBlock(i,j,RAP(A_array(i,j),Piz));
+         // GtAG->SetBlock(i,j,hRAP_G(i,j));
+         // PxtAPx->SetBlock(i,j,hRAP_Px(i,j));
+         // PytAPy->SetBlock(i,j,hRAP_Py(i,j));
+         // PztAPz->SetBlock(i,j,hRAP_Pz(i,j));
+         GtAG->SetBlock(i,j,RAP(A_array(i,j),Grad));
+         PxtAPx->SetBlock(i,j,RAP(A_array(i,j),Pix));
+         PytAPy->SetBlock(i,j,RAP(A_array(i,j),Piy));
+         PztAPz->SetBlock(i,j,RAP(A_array(i,j),Piz));
       }
    }
 
    // create hypre matrices from blocks
-   Array2D<double> coefficients(2,2);
-   coefficients(0,0) = 1.0;  coefficients(0,1) = 1.0;
-   coefficients(1,0) = 1.0;  coefficients(1,1) = 1.0;
-   hGtAG = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,offsetsG,hRAP_G,coefficients);
-   hPxtAPx = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,offsetsPi,hRAP_Px,coefficients);
-   hPytAPy = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,offsetsPi,hRAP_Py,coefficients);
-   hPztAPz = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,offsetsPi,hRAP_Pz,coefficients);
+   // Array2D<double> coefficients(2,2);
+   // coefficients(0,0) = 1.0;  coefficients(0,1) = 1.0;
+   // coefficients(1,0) = 1.0;  coefficients(1,1) = 1.0;
+   // hGtAG = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,offsetsG,hRAP_G,coefficients);
+   // hPxtAPx = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,offsetsPi,hRAP_Px,coefficients);
+   // hPytAPy = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,offsetsPi,hRAP_Py,coefficients);
+   // hPztAPz = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,offsetsPi,hRAP_Pz,coefficients);
 
 
-   AMG_G = new HypreBoomerAMG(*hGtAG); AMG_G->SetPrintLevel(0);
-   AMG_Px = new HypreBoomerAMG(*hPxtAPx); AMG_Px->SetPrintLevel(0);
-   AMG_Py = new HypreBoomerAMG(*hPytAPy); AMG_Py->SetPrintLevel(0);
-   AMG_Pz = new HypreBoomerAMG(*hPztAPz); AMG_Pz->SetPrintLevel(0);
+   // AMG_G = new HypreBoomerAMG(*hGtAG); AMG_G->SetPrintLevel(0);
+   // AMG_Px = new HypreBoomerAMG(*hPxtAPx); AMG_Px->SetPrintLevel(0);
+   // AMG_Py = new HypreBoomerAMG(*hPytAPy); AMG_Py->SetPrintLevel(0);
+   // AMG_Pz = new HypreBoomerAMG(*hPztAPz); AMG_Pz->SetPrintLevel(0);
 
    for (int i=0; i<2 ; i++)
    { 
@@ -223,11 +223,11 @@ void Block_AMSSolver::Mult(const Vector &r, Vector &z) const
    Array<BlockOperator *> PtAP_v(4);
    Array<BlockDiagonalPreconditioner *> blkAMG_v(4);
 
-   Array<HypreParMatrix *> hPtAP_v(4);
-   Array<HypreBoomerAMG *> AMG_v(4);
+   // Array<HypreParMatrix *> hPtAP_v(4);
+   // Array<HypreBoomerAMG *> AMG_v(4);
 
-   hPtAP_v[0]  = hGtAG;    hPtAP_v[1]  = hPxtAPx;   hPtAP_v[2]  = hPytAPy;   hPtAP_v[3]  = hPztAPz;
-   AMG_v[0]    = AMG_G;    AMG_v[1]    = AMG_Px;    AMG_v[2]    = AMG_Py;    AMG_v[3]    = AMG_Pz;  
+   // hPtAP_v[0]  = hGtAG;    hPtAP_v[1]  = hPxtAPx;   hPtAP_v[2]  = hPytAPy;   hPtAP_v[3]  = hPztAPz;
+   // AMG_v[0]    = AMG_G;    AMG_v[1]    = AMG_Px;    AMG_v[2]    = AMG_Py;    AMG_v[3]    = AMG_Pz;  
 
 
    Tr_v[0]     = G;        Tr_v[1]     = Px;        Tr_v[2]     = Py;        Tr_v[3]     = Pz;
@@ -249,8 +249,8 @@ void Block_AMSSolver::Mult(const Vector &r, Vector &z) const
          }
          else
          {
-            // GetCorrection(Tr_v[i-1], PtAP_v[i-1], blkAMG_v[i-1], res, zaux);
-            GetCorrection(Tr_v[i-1], hPtAP_v[i-1], AMG_v[i-1], res, zaux);
+            GetCorrection(Tr_v[i-1], PtAP_v[i-1], blkAMG_v[i-1], res, zaux);
+            // GetCorrection(Tr_v[i-1], hPtAP_v[i-1], AMG_v[i-1], res, zaux);
          }
          z +=zaux; 
          A->Mult(zaux,raux); res -=raux;
@@ -266,19 +266,19 @@ void Block_AMSSolver::GetCorrection(BlockOperator* Tr, BlockOperator* op, BlockD
    Tr->MultTranspose(r,raux);
    zaux = 0.0;
 
-   int maxit(100);
+   int maxit(20);
    double rtol(0.0);
    double atol(1e-6);
    
-   // CGSolver cg(MPI_COMM_WORLD);
-   // cg.SetAbsTol(atol);
-   // cg.SetRelTol(rtol);
-   // cg.SetMaxIter(maxit);
-   // cg.SetOperator(*op);
-   // // cg.SetPreconditioner(*prec);
-   // cg.SetPrintLevel(-1);
-   // cg.Mult(raux, zaux);
-      prec->Mult(raux,zaux);
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetAbsTol(atol);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(maxit);
+   cg.SetOperator(*op);
+   cg.SetPreconditioner(*prec);
+   cg.SetPrintLevel(-1);
+   cg.Mult(raux, zaux);
+      // prec->Mult(raux,zaux);
 
    // Map back to the original space through the Tranfer operator
    Tr->Mult(zaux, z);

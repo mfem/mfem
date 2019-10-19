@@ -28,7 +28,7 @@ void epsilon_func(const Vector &x, DenseMatrix &M);
 
 int dim;
 double omega;
-int isol = 1;
+int sol = 1;
 
 
 int main(int argc, char *argv[])
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
    // number of wavelengths
    double k = 0.5;
    // number of mg levels
-   int maxref = 1;
+   int ref_levels = 1;
    // number of initial ref
    int initref = 1;
    // solver
@@ -67,11 +67,11 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&k, "-k", "--wavelengths",
                   "Number of wavelengths.");
-   args.AddOption(&maxref, "-maxref", "--maxref",
+   args.AddOption(&ref_levels, "-ref", "--ref_levels",
                   "Number of Refinements.");
    args.AddOption(&initref, "-initref", "--initref",
                   "Number of initial refinements.");
-   args.AddOption(&isol, "-isol", "--exact",
+   args.AddOption(&sol, "-sol", "--exact",
                   "Exact solution flag - "
                   " 1:sinusoidal, 2: point source, 3: plane wave");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -110,13 +110,15 @@ int main(int argc, char *argv[])
 
 
    // Angular frequency
-   omega = 2.0*k*M_PI;
-   // omega = k;
+   // omega = 2.0*k*M_PI;
+   omega = k;
 
    // 2. Read the mesh from the given mesh file.
    // Mesh *mesh = new Mesh(mesh_file, 1, 1);
    Mesh *mesh;
-   mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 0.5, 0.5, 0.5, false);
+   double length;
+   length = (sol == 4) ? 0.5: 1.0;
+   mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length, false);
    
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
@@ -132,10 +134,10 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh.
    FiniteElementCollection *fec   = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   std::vector<ParFiniteElementSpace * > fespaces(maxref+1);
-   std::vector<ParMesh * > ParMeshes(maxref+1);
-   std::vector<HypreParMatrix*>  P(maxref);
-   for (int i = 0; i < maxref; i++)
+   std::vector<ParFiniteElementSpace * > fespaces(ref_levels+1);
+   std::vector<ParMesh * > ParMeshes(ref_levels+1);
+   std::vector<HypreParMatrix*>  P(ref_levels);
+   for (int i = 0; i < ref_levels; i++)
    {
       ParMeshes[i] =new ParMesh(*pmesh);
       fespaces[i] = new ParFiniteElementSpace(*fespace, *ParMeshes[i]);
@@ -147,7 +149,7 @@ int main(int argc, char *argv[])
       Tr.SetOperatorOwner(false);
       Tr.Get(P[i]);
    }
-   fespaces[maxref] = new ParFiniteElementSpace(*fespace);
+   fespaces[ref_levels] = new ParFiniteElementSpace(*fespace);
    ConstantCoefficient muinv(1.0);
 #ifdef DEFINITE
    ConstantCoefficient sigma(pow(omega, 2));
@@ -196,9 +198,9 @@ int main(int argc, char *argv[])
    }
 
    MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
-   // GMGSolver M(A, P, GMGSolver::CoarseSolver::PETSC);
-   MGSolver M(A, P,fespaces);
-   // M.SetTheta(3.0/4.0);
+   GMGSolver M(A, P, GMGSolver::CoarseSolver::PETSC);
+   M.SetTheta(1.0/2.0);
+   // MGSolver M(A, P,fespaces);
    // chrono.Clear();
    // chrono.Start();
 
@@ -208,8 +210,8 @@ int main(int argc, char *argv[])
    // }
 
    int maxit(1000);
-   double rtol(0.0);
-   double atol(1.e-6);
+   double rtol(1.e-6);
+   double atol(1.e-12);
    X = 0.0;
    GMRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetAbsTol(atol);
@@ -279,7 +281,7 @@ int main(int argc, char *argv[])
    }
    // ---------------------------------------------------------------------
 
-   for (int i = 0 ; i < maxref; i++)
+   for (int i = 0 ; i < ref_levels; i++)
    {
       // delete P[i];
    }
@@ -312,7 +314,7 @@ void f_exact(const Vector &x, Vector &f)
    coeff = -omega * omega;
 #endif
    f = 0.0;
-   if (isol != 4)
+   if (sol != 4)
    {
       double E[3], curl2E[3];
       get_maxwell_solution(x, E, curl2E);
@@ -332,7 +334,18 @@ void f_exact(const Vector &x, Vector &f)
 
 void get_maxwell_solution(const Vector & x, double E[], double curl2E[])
 {
-   if (isol == 0) // polynomial
+   
+   if (sol ==-1)
+   {
+      E[0] = x[1] * x[2] * (1.0 - x[1]) * (1.0 - x[2]);
+      E[1] = x[0] * x[1] * x[2] * (1.0 - x[0]) * (1.0 - x[2]);
+      E[2] = x[0] * x[1] * (1.0 - x[0]) * (1.0 - x[1]);
+      
+      curl2E[0] = 2.0 * x[1] * (1.0 - x[1]) - (2.0 * x[0] - 3.0) * x[2] * (1 - x[2]);
+      curl2E[1] = 2.0 * x[1] * (x[0] * (1.0 - x[0]) + (1.0 - x[2]) * x[2]);
+      curl2E[2] = 2.0 * x[1] * (1.0 - x[1]) + x[0] * (3.0 - 2.0 * x[2]) * (1.0 - x[0]);
+   }
+   else if (sol == 0) // polynomial
    {
       if (dim == 2)
       {
@@ -356,7 +369,7 @@ void get_maxwell_solution(const Vector & x, double E[], double curl2E[])
       }
    }
 
-   else if (isol == 1) // sinusoidal
+   else if (sol == 1) // sinusoidal
    {
       if (dim == 2)
       {
@@ -377,7 +390,7 @@ void get_maxwell_solution(const Vector & x, double E[], double curl2E[])
          curl2E[2] = omega * omega * E[2];
       }
    }
-   else if (isol == 2) //point source
+   else if (sol == 2) //point source
    {
       if (dim == 2)
       {
@@ -429,7 +442,7 @@ void get_maxwell_solution(const Vector & x, double E[], double curl2E[])
          curl2E[2] = -omega * (r_zx * sin(omega * r) + omega * r_z * r_x * cos(omega * r));
       }
    }
-   else if (isol == 3) // plane wave
+   else if (sol == 3) // plane wave
    {
       if (dim == 2)
       {
@@ -450,7 +463,7 @@ void get_maxwell_solution(const Vector & x, double E[], double curl2E[])
          curl2E[2] = -omega * omega * E[0] / 3.0;
       }
    }
-   else if (isol == 4) // Airy function
+   else if (sol == 4) // Airy function
    {
       E[0] = 0;
       E[1] = 0;
@@ -467,7 +480,7 @@ void epsilon_func(const Vector &x, DenseMatrix &M)
    M = 0.0;
    M(0,0) = 1.0;
    M(1,1) = 1.0;
-   if (isol != 4)
+   if (sol != 4)
    {
       M(2,2) = 1.0;
    }

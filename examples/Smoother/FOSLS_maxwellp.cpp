@@ -89,13 +89,15 @@ int main(int argc, char *argv[])
    }
 
    // Angular frequency
-   omega = 2.0*k*M_PI;
-   // omega = k;
+   // omega = 2.0*k*M_PI;
+   omega = k;
 
    // 2. Read the mesh from the given mesh file.
    Mesh *mesh;
    // Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, 0.5, 0.5, 0.5, false);
+   double length;
+   length = (sol == 4) ? 0.5: 1.0;
+   mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length, false);
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
@@ -270,18 +272,19 @@ int main(int argc, char *argv[])
    blockA(1,1) = A_HH;
 
 
-
-   Array2D<double> coefficients(2,2);
-   coefficients(0,0) = 1.0;  coefficients(0,1) = 1.0;
-   coefficients(1,0) = 1.0;  coefficients(1,1) = 1.0;
-
-   HypreParMatrix * hmat = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD,block_trueOffsets,blockA,coefficients);
-
-   HypreBoomerAMG * precAMG = new HypreBoomerAMG(*hmat);
-   precAMG->SetPrintLevel(0);
+   int maxit(100);
+   double rtol(1.e-6);
+   double atol(0.0);
+   trueX = 0.0;
+   
+   CGSolver pcg(MPI_COMM_WORLD);
+   pcg.SetAbsTol(atol);
+   pcg.SetRelTol(rtol);
+   pcg.SetMaxIter(maxit);
+   pcg.SetOperator(*LS_Maxwellop);
+   pcg.SetPrintLevel(1);
 
    MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
-   
    chrono.Clear();
    chrono.Start();
    BlockMGSolver * precMG = new BlockMGSolver(blockA,P,fespaces);
@@ -289,70 +292,46 @@ int main(int argc, char *argv[])
    if(myid == 0)
       cout << "MG Setup time: " << chrono.RealTime() << endl;
 
-   // chrono.Clear();
-   // chrono.Start();
-   // Block_AMSSolver * precAMS = new Block_AMSSolver(block_trueOffsets,fespaces);
-   // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
-   // // prec1->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
-   // precAMS->SetOperator(blockA);
-   // precAMS->SetTheta(0.2);
-   // // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
-   // precAMS->SetCycleType("023414320");
-   // precAMS->SetNumberofCycles(1);
-   // chrono.Stop();
-   // if(myid == 0)
-   //    cout << "BlkAMS Setup time: " << chrono.RealTime() << endl;
    
-   
-   int maxit(100);
-   double rtol(1.e-6);
-   double atol(0.0);
-   trueX = 0.0;
-
-   
-   CGSolver pcg(MPI_COMM_WORLD);
-   // GMRESSolver pcg(MPI_COMM_WORLD);
-   pcg.SetAbsTol(atol);
-   pcg.SetRelTol(rtol);
-   pcg.SetMaxIter(maxit);
-   // pcg.SetPreconditioner(*prec1);
-   pcg.SetOperator(*LS_Maxwellop);
-   pcg.SetPrintLevel(1);
-
 
    chrono.Clear();
    chrono.Start();
    pcg.SetPreconditioner(*precMG);
    pcg.Mult(trueRhs, trueX);
-   MFEMFinalizePetsc();
-
    chrono.Stop();
+   delete precMG;
+   MFEMFinalizePetsc();
 
     if(myid == 0)
       cout << "MG prec Solution time: " << chrono.RealTime() << endl;
+
+
+   chrono.Clear();
+   chrono.Start();
+   Block_AMSSolver * precAMS = new Block_AMSSolver(block_trueOffsets,fespaces);
+   precAMS->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
+   // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
+   precAMS->SetOperator(blockA);
+   precAMS->SetTheta(0.2);
+   // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
+   precAMS->SetCycleType("023414320");
+   precAMS->SetNumberofCycles(1);
+   chrono.Stop();
+   if(myid == 0)
+      cout << "BlkAMS Setup time: " << chrono.RealTime() << endl;
+
    // resolve with block AMS
-   // trueX = 0; 
-   // chrono.Clear();
-   // chrono.Start();
-   // pcg.SetPreconditioner(*precAMS);
-   // pcg.Mult(trueRhs, trueX);
-   // chrono.Stop();
+   trueX = 0; 
+   chrono.Clear();
+   chrono.Start();
+   pcg.SetPreconditioner(*precAMS);
+   pcg.Mult(trueRhs, trueX);
+   chrono.Stop();
+   delete precAMS;
 
+   if(myid == 0)
+      cout << "BlockAMS Solution time: " << chrono.RealTime() << endl;
 
-   // chrono.Stop();
-
-   // if(myid == 0)
-   //    cout << "BlockAMS Solution time: " << chrono.RealTime() << endl;
-
-   // trueX = 0; 
-   // chrono.Clear();
-   // chrono.Start();
-   // pcg.SetPreconditioner(*precAMG);
-   // pcg.Mult(trueRhs, trueX);
-   // chrono.Stop();
-
-   // if (myid == 0)
-   //    cout << "BoomerAMG Solution time "<< chrono.RealTime() << endl;
 
    *E_gf = 0.0;
    *H_gf = 0.0;
@@ -452,7 +431,24 @@ void f_exact_H(const Vector &x, Vector &f)
    double x = X[0];
    double y = X[1];
    double z = X[2];
-   if (sol == 0) // polynomial
+
+
+
+   if (sol ==-1)
+   {
+      E[0] = y * z * (1.0 - y) * (1.0 - z);
+      E[1] = x * y * z * (1.0 - x) * (1.0 - z);
+      E[2] = x * y * (1.0 - x) * (1.0 - y);
+      
+      curlE[0] = -(x-1.0) * x * (y*(2.0*z-3.0)+1.0);
+      curlE[1] = -2.0*(y-1.0)*y*(x-z);
+      curlE[2] = (z-1)*z*(1.0+y*(2.0*x-3.0));
+      
+      curl2E[0] = 2.0 * y * (1.0 - y) - (2.0 * x - 3.0) * z * (1 - z);
+      curl2E[1] = 2.0 * y * (x * (1.0 - x) + (1.0 - z) * z);
+      curl2E[2] = 2.0 * y * (1.0 - y) + x * (3.0 - 2.0 * z) * (1.0 - x);
+   }
+   else if (sol == 0) // polynomial
    {
       // Polynomial vanishing on the boundary
       E[0] = y * z * (1.0 - y) * (1.0 - z);
