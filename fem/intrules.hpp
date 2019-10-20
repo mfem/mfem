@@ -32,8 +32,8 @@ public:
 
    IntegrationPoint ( const double* p, int dim )
    {
-     x = y = z = weight = 0.0;
-     Set( p, dim );
+      x = y = z = weight = 0.0;
+      Set( p, dim );
    }
 
    IntegrationPoint ( const double* p, double w, int dim )
