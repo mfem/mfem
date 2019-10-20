@@ -1486,6 +1486,20 @@ void PetscParMatrix::Shift(const Vector & s)
    XX->ResetArray();
 }
 
+PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A, PetscParMatrix *P)
+{
+   MFEM_VERIFY(A->Width() == P->Height(),
+               "Petsc TripleMatrixProduct: Number of local cols of A " << A->Width() <<
+               " differs from number of local rows of P " << P->Height());
+   MFEM_VERIFY(A->Height() == R->Width(),
+               "Petsc TripleMatrixProduct: Number of local rows of A " << A->Height() <<
+               " differs from number of local rows of R " << R->Width());
+   Mat B;
+   ierr = MatMatMatMult(*R,*A,*P,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&B);
+   PCHKERRQ(*R,ierr);
+   return new PetscParMatrix(B);
+}
+
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P)
 {
    Mat       pA = *A,pP = *P,pRt = *Rt;
