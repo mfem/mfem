@@ -12,6 +12,8 @@
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
 #include "../general/text.hpp"
+#include "../general/binaryio.hpp"
+
 
 #include <iostream>
 #include <cstdio>
@@ -261,6 +263,164 @@ void Mesh::ReadNetgen3DMesh(std::istream &input)
       }
       boundary[i] = new Triangle(ints, attr);
    }
+}
+
+void Mesh::ReadNetgenSurfaceMesh(std::istream &input)
+{
+   MFEM_ABORT("ReadNetgenSurfaceMesh not yet supported!");
+}
+
+void Mesh::ReadNetgenVol(std::istream &input, int &curved)
+{
+   string buff;
+   int geomtype;
+
+   int numEdges, numSurfaces, numVolumes;
+   const int edgeEleNodes = 2; 
+   const int surfEleNodesMax = 8; // Surface elements can be a mix of tri/quads or 2nd order variants
+   const int volEleNodes = 4; // Volume elements are assumed tets
+   
+   vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
+
+   cerr << "Processing Netgen .vol format" << endl;
+
+   // Next line should be "dimension"
+   getline(input,buff);
+   input >> Dim;
+   cerr << "Dim: " << Dim << endl;
+   // Next line should be "geomtype"
+   getline(input,buff); 
+   getline(input,buff);
+   input >> geomtype;
+   cerr << "geomtype: " << geomtype << endl;
+   while(input >> buff)
+   {
+      // careful the following is dependent on geomtype
+      std::size_t found = buff.find("surfaceelements");
+      if(found!=std::string::npos)
+      {
+         vector<int> vert_indices(surfEleNodesMax);
+         // Following the field layout for surfaceelements
+         int surfnr, bcnr, domin, domout, np;
+         bool warn_2nd_order = false;
+         getline(input,buff);
+         input >> numSurfaces;
+         cerr << "Num Surfaces: " << numSurfaces << endl;
+         elements_2D.reserve(numSurfaces);
+         for(int i=0; i < numSurfaces; ++i)
+         {
+            getline(input,buff);
+            input >> surfnr >> bcnr >> domin >> domout >> np;
+            if(np > 4)
+            {
+               if(! warn_2nd_order)
+               {
+                  MFEM_WARNING("2nd order elements detected; only processing first order");
+                  warn_2nd_order = true;
+               }
+               //curved=1; // for curved either need to load into grid function or define vertices and nodes -- currently unsupported
+               curved=0; // force linear elemnets
+            }
+
+            for(int vi=0; vi < np; ++vi)
+            {
+               input >> vert_indices[vi];
+               vert_indices[vi]--;
+            }
+
+            switch(np)
+            {
+               case 3: // 3-node triangle
+               case 6: // Quadratic   
+               {
+                  elements_2D.push_back(
+                     new Triangle(&vert_indices[0], bcnr));
+                  break;
+               }
+               case 4: // 4-node quadrangle
+               case 8: // quadratic
+               {
+                  elements_2D.push_back(
+                     new Quadrilateral(&vert_indices[0], bcnr));
+                  break;
+               }
+               default: // any other element
+                  MFEM_WARNING("Unsupported netgen surface element type.");
+                  break;
+
+            } // switch number of points np
+         } // for numSurfaces
+      } // if search for surfaceelements
+
+      if(buff == "volumeelements")
+      {
+         vector<int> vert_indices(volEleNodes);
+         // Following the field layout for volumeelements
+         int matnr, np, p1, p2, p3, p4;
+         getline(input,buff);
+         input >> numVolumes;
+         cerr << "Num Volumes: " << numVolumes << endl;
+         elements_3D.reserve(numVolumes);
+         for(int i=0; i < numVolumes; ++i)
+         {
+            getline(input,buff);
+            input >> matnr >> np >> p1 >> p2 >> p3 >> p4;
+            MFEM_ASSERT(np == 4,"incorrect number of points for volume element");
+            // Permute for correct orientation
+            vert_indices[0] = p1-1;
+            vert_indices[1] = p4-1;
+            vert_indices[2] = p3-1;
+            vert_indices[3] = p2-1;
+            elements_3D.push_back(
+                  new Tetrahedron(&vert_indices[0], matnr));
+         } // for numVolumes
+      } //if volumeelements
+
+      if(buff == "edgesegmentsgi2")
+      {
+         vector<int> vert_indices(edgeEleNodes);
+         // Following the field layout for edgeelements
+         int surfid, zero, p1, p2, trignum1, trignum2, domin, domout, ednr1, dist1, ednr2, dist2;
+         getline(input,buff);
+         input >> numEdges;
+         cerr << "Num Edges: " << numEdges << endl;
+         elements_1D.reserve(numEdges);
+         for(int i=0; i < numEdges; ++i)
+         {
+            getline(input,buff);
+            input >> surfid >> zero >> p1 >> p2 >> trignum1 >> trignum2 >> domin >> domout, ednr1 >> dist1 >> ednr2 >> dist2;
+            vert_indices[0] = p1-1;
+            vert_indices[1] = p2-1;
+            elements_1D.push_back(
+                  new Segment(&vert_indices[0], surfid));
+         } // for numEdges
+      } // if edgesegmentsgi2 
+
+      if(buff == "points")
+      {
+         const int netgen_dim = 3;
+         double coord[netgen_dim];
+         getline(input,buff);
+         input >> NumOfVertices;
+         cerr << "Num Vertices: " << NumOfVertices << endl;
+         vertices.SetSize(NumOfVertices);
+         for(int i = 0; i < NumOfVertices; ++i)
+         {
+            getline(input,buff);
+            for(int ci = 0; ci < netgen_dim; ++ci)
+            {
+               input >> coord[ci];
+            }
+            vertices[i] = Vertex(coord, netgen_dim);
+         } // for NumOfVertices
+      } // if points
+
+   } // while input
+
+   ProcessBoundaryElements(elements_0D,
+                           elements_1D,
+                           elements_2D,
+                           elements_3D);
 }
 
 void Mesh::ReadTrueGridMesh(std::istream &input)
@@ -887,32 +1047,884 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
    }
 }
 
-void Mesh::ReadGmshMesh(std::istream &input)
+const int Mesh::nodes_of_gmsh_element[29] =
+   {
+      2, // 2-node line.
+      3, // 3-node triangle.
+      4, // 4-node quadrangle.
+      4, // 4-node tetrahedron.
+      8, // 8-node hexahedron.
+      6, // 6-node prism.
+      5, // 5-node pyramid.
+      3, /* 3-node second order line (2 nodes associated with the vertices
+               and 1 with the edge). */
+      6, /* 6-node second order triangle (3 nodes associated with the
+               vertices and 3 with the edges). */
+      9, /* 9-node second order quadrangle (4 nodes associated with the
+               vertices, 4 with the edges and 1 with the face). */
+      10,/* 10-node second order tetrahedron (4 nodes associated with the
+               vertices and 6 with the edges). */
+      27,/* 27-node second order hexahedron (8 nodes associated with the
+               vertices, 12 with the edges, 6 with the faces and 1 with
+               the volume). */
+      18,/* 18-node second order prism (6 nodes associated with the
+               vertices, 9 with the edges and 3 with the quadrangular
+               faces). */
+      14,/* 14-node second order pyramid (5 nodes associated with the
+               vertices, 8 with the edges and 1 with the quadrangular
+               face). */
+      1, // 1-node point.
+      8, /* 8-node second order quadrangle (4 nodes associated with the
+               vertices and 4 with the edges). */
+      20,/* 20-node second order hexahedron (8 nodes associated with the
+               vertices and 12 with the edges). */
+      15,/* 15-node second order prism (6 nodes associated with the
+               vertices and 9 with the edges). */
+      13,/* 13-node second order pyramid (5 nodes associated with the
+               vertices and 8 with the edges). */
+      9, /* 9-node third order incomplete triangle (3 nodes associated
+               with the vertices, 6 with the edges) */
+      10,/* 10-node third order triangle (3 nodes associated with the
+               vertices, 6 with the edges, 1 with the face) */
+      12,/* 12-node fourth order incomplete triangle (3 nodes associated
+               with the vertices, 9 with the edges) */
+      15,/* 15-node fourth order triangle (3 nodes associated with the
+               vertices, 9 with the edges, 3 with the face) */
+      15,/* 15-node fifth order incomplete triangle (3 nodes associated
+               with the vertices, 12 with the edges) */
+      21,/* 21-node fifth order complete triangle (3 nodes associated with
+               the vertices, 12 with the edges, 6 with the face) */
+      4, /* 4-node third order edge (2 nodes associated with the vertices,
+               2 internal to the edge) */
+      5, /* 5-node fourth order edge (2 nodes associated with the
+               vertices, 3 internal to the edge) */
+      6, /* 6-node fifth order edge (2 nodes associated with the vertices,
+               4 internal to the edge) */
+      20 /* 20-node third order tetrahedron (4 nodes associated with the
+               vertices, 12 with the edges, 4 with the faces) */
+   };
+
+
+
+void Mesh::ProcessBoundaryElements(std::vector<Element*> &elements_0D,
+                                    std::vector<Element*> &elements_1D,
+                                    std::vector<Element*> &elements_2D,
+                                    std::vector<Element*> &elements_3D)
 {
-   string buff;
-   double version;
-   int binary, dsize;
-   input >> version >> binary >> dsize;
-   if (version < 2.2)
+   // spaceDim = 3; // defer to FinalizeTopology to figure out spaceDim
+   if (!elements_3D.empty())
    {
-      MFEM_ABORT("Gmsh file version < 2.2");
-   }
-   if (dsize != sizeof(double))
-   {
-      MFEM_ABORT("Gmsh file : dsize != sizeof(double)");
-   }
-   getline(input, buff);
-   // There is a number 1 in binary format
-   if (binary)
-   {
-      int one;
-      input.read(reinterpret_cast<char*>(&one), sizeof(one));
-      if (one != 1)
+      Dim = 3;
+      NumOfElements = elements_3D.size();
+      elements.SetSize(NumOfElements);
+      for (int el = 0; el < NumOfElements; ++el)
       {
-         MFEM_ABORT("Gmsh file : wrong binary format");
+         elements[el] = elements_3D[el];
+      }
+      NumOfBdrElements = elements_2D.size();
+      boundary.SetSize(NumOfBdrElements);
+      for (int el = 0; el < NumOfBdrElements; ++el)
+      {
+         boundary[el] = elements_2D[el];
+         int *vv = elements_2D[el]->GetVertices();
+      }
+      // discard other elements
+      for (int el = 0; el < elements_1D.size(); ++el)
+      {
+         delete elements_1D[el];
+      }
+      for (int el = 0; el < elements_0D.size(); ++el)
+      {
+         delete elements_0D[el];
       }
    }
+   else if (!elements_2D.empty())
+   {
+      Dim = 2;
+      NumOfElements = elements_2D.size();
+      elements.SetSize(NumOfElements);
+      for (int el = 0; el < NumOfElements; ++el)
+      {
+         elements[el] = elements_2D[el];
+      }
+      NumOfBdrElements = elements_1D.size();
+      boundary.SetSize(NumOfBdrElements);
+      for (int el = 0; el < NumOfBdrElements; ++el)
+      {
+         boundary[el] = elements_1D[el];
+      }
+      // discard other elements
+      for (int el = 0; el < elements_0D.size(); ++el)
+      {
+         delete elements_0D[el];
+      }
+   }
+   else if (!elements_1D.empty())
+   {
+      Dim = 1;
+      NumOfElements = elements_1D.size();
+      elements.SetSize(NumOfElements);
+      for (int el = 0; el < NumOfElements; ++el)
+      {
+         elements[el] = elements_1D[el];
+      }
+      NumOfBdrElements = elements_0D.size();
+      boundary.SetSize(NumOfBdrElements);
+      for (int el = 0; el < NumOfBdrElements; ++el)
+      {
+         boundary[el] = elements_0D[el];
+      }
+   }
+   else
+   {
+      MFEM_ABORT("No elements found");
+      return;
+   }
+}
 
+void Mesh::ReadGmshEntityMap(std::istream &input, std::map<int,int> &entityMap, unsigned long numEntities, bool needBrep, bool v41, bool binary)
+{
+   const int dim3 = 3;
+   int entityTag, physicalTag, brepTag;
+   double boxMin[3], boxMax[3], point[3];
+   unsigned long numPhysicals, numBrep;
+   static bool alreadyWarned=false;
+
+   for(int i=0; i<numEntities; ++i)
+   {
+      if(binary)
+      {
+         entityTag = bin_io::read<int>(input);
+         if(v41 && needBrep==false)
+         {
+            for(int i=0; i< dim3; ++i) 
+            {
+               boxMin[i] = bin_io::read<double>(input);
+            }   
+         }
+         else
+         {
+            for(int i=0; i< dim3; ++i) 
+            {
+               boxMin[i] = bin_io::read<double>(input);
+            }
+            for(int i=0; i< dim3; ++i) 
+            {
+               boxMax[i] = bin_io::read<double>(input);
+            }
+         }
+         numPhysicals = bin_io::read<unsigned long>(input);
+         if(numPhysicals == 0)
+         {
+            entityMap[entityTag] = 1;
+         }
+         else
+         {
+            if(numPhysicals > 1)
+            {
+               if(!alreadyWarned)
+               {
+                  MFEM_WARNING("Multi-physical domains per element is not supported; first value in physical domain list is used instead");
+               }
+               alreadyWarned = true;
+            }
+            for(int phys=0; phys < numPhysicals; ++phys)
+            {
+               physicalTag = bin_io::read<int>(input);
+               if(phys == 0)
+               {
+                  // first physical tag gets mapped; elements only have one attr
+                  entityMap[entityTag] = physicalTag;
+               }
+            }
+         } // numPhysicals > 0
+
+         if(needBrep)
+         {
+            numBrep = bin_io::read<unsigned long>(input);
+            if(numBrep)
+            {
+               for(int brep = 0; brep < numBrep; ++brep)
+               {
+                  brepTag = bin_io::read<int>(input);
+               }
+            }
+         }
+      } // if binary
+      else //ASCII
+      {
+         input >> entityTag;
+         if(v41 && needBrep==false)
+         {
+            for (int ci = 0; ci < dim3; ++ci)
+            {
+               input >> point[ci];
+            }
+         }
+         else
+         {
+            for (int ci = 0; ci < dim3; ++ci)
+            {
+               input >> boxMin[ci];
+            }
+            for (int ci = 0; ci < dim3; ++ci)
+            {
+               input >> boxMax[ci];
+            }
+         }
+         input >> numPhysicals;
+         if(numPhysicals == 0)
+         {
+            entityMap[entityTag] = 1;
+         }
+         else
+         {
+            if(numPhysicals > 1)
+            {
+               if(!alreadyWarned)
+               {
+                  MFEM_WARNING("Multi-physical domains per element is not supported; first value in physical domain list is used instead");
+               }
+               alreadyWarned = true;
+            }
+            for(int phys=0; phys < numPhysicals; ++phys)
+            {
+               input >> physicalTag;
+               if(phys == 0)
+               {
+                  // first physical tag gets mapped; elements only have one attr
+                  entityMap[entityTag] = physicalTag;
+               }
+            }
+         } // numPhysicals > 0
+
+         if(needBrep)
+         {
+            input >> numBrep;
+            if(numBrep)
+            {
+               for(int brep = 0; brep < numBrep; ++brep)
+               {
+                  input >> brepTag;
+               }
+            }
+         }
+      } //else ASCII
+   } // for numEntities
+}
+
+void Mesh::ReadGmshV4(std::istream &input, int binary)
+{
+
+   string buff;
+   // A map between a serial number of the vertex and its number in the file
+   // (there may be gaps in the numbering, and also Gmsh enumerates vertices
+   // starting from 1, not 0)
+   map<int, int> vertices_map;
+
+   // For each point, curve, surface, and volume entities map entity tag to physical tag (physical tag is element material attr)
+   map<int,int> pointEntities_map;
+   map<int,int> curveEntities_map;
+   map<int,int> surfaceEntities_map;
+   map<int,int> volumeEntities_map;
+   // Read the lines of the mesh file. If we face specific keyword, we'll treat
+   // the section.
+   cerr << "Processing gmsh v4.0 format" << endl;
+   while (input >> buff)
+   {
+      if (buff == "$Entities")
+      {
+         unsigned long numPoints, numCurves, numSurfaces, numVolumes;
+         bool needBrep, v41=false;
+
+         getline(input,buff);
+
+         if(binary)
+         {
+            numPoints = bin_io::read<unsigned long>(input);
+            numCurves = bin_io::read<unsigned long>(input);
+            numSurfaces = bin_io::read<unsigned long>(input);
+            numVolumes = bin_io::read<unsigned long>(input);
+         }
+         else
+         {
+            input >> numPoints >> numCurves >> numSurfaces >> numVolumes;
+         }
+
+         cerr << "entities points, lines, surfaces, volumes: " << numPoints << ":" << numCurves << ":" << numSurfaces << ":" << numVolumes << endl;
+
+         ReadGmshEntityMap(input, pointEntities_map, numPoints, needBrep=false, v41=false, binary);
+         ReadGmshEntityMap(input, curveEntities_map, numCurves, needBrep=true, v41=false, binary);
+         ReadGmshEntityMap(input, surfaceEntities_map, numSurfaces, needBrep=true, v41=false, binary);
+         ReadGmshEntityMap(input, volumeEntities_map, numVolumes, needBrep=true, v41=false, binary);
+
+      }// if Entities
+
+      if (buff == "$Nodes") // reading mesh vertices
+      {
+         unsigned long numEntityBlocks;
+         int serial_number, ver=0;
+         const int dim3 = 3;
+         double coord[dim3];
+
+         getline(input,buff);
+
+         if (binary)
+         {
+            numEntityBlocks = bin_io::read<unsigned long>(input);
+            NumOfVertices = bin_io::read<unsigned long>(input);
+         }
+         else //ASCII
+         {
+            input >> numEntityBlocks >> NumOfVertices;
+         }
+
+         vertices.SetSize(NumOfVertices);
+         for (int numBlock=0; numBlock < numEntityBlocks; ++numBlock)
+         {
+            int tagEntity, dimEntity, parametric;
+            unsigned long numNodes;
+            if (binary)
+            {
+               tagEntity = bin_io::read<int>(input);
+               dimEntity = bin_io::read<int>(input);
+               parametric = bin_io::read<int>(input);
+               numNodes = bin_io::read<unsigned long>(input);
+            }
+            else //ASCII
+            {
+               input >> tagEntity >> dimEntity >> parametric >> numNodes;
+            }
+            for (int node=0; node < numNodes; ++node)
+            {
+               if(binary)
+               {
+                  serial_number = bin_io::read<int>(input);
+                  for(int ci=0; ci<dim3; ++ci) 
+                  {
+                     coord[ci] = bin_io::read<double>(input);
+                  }
+               }
+               else
+               {
+                  input >> serial_number;
+                  for(int ci=0; ci<dim3; ++ci) 
+                  {
+                     input >> coord[ci];
+                  }
+               }
+               vertices[ver] = Vertex(coord, dim3);
+               vertices_map[serial_number] = ver;
+               ver++;
+            }
+         }
+         if (static_cast<int>(vertices_map.size()) != NumOfVertices)
+         {
+            MFEM_ABORT("Gmsh file : vertices indices are not unique");
+         }
+      }  // section '$Nodes'
+      else if (buff == "$Elements") // reading mesh elements
+      {
+         unsigned long numEntityBlocks, num_of_all_elements;
+         getline(input, buff);
+         if (binary)
+         {
+            numEntityBlocks = bin_io::read<unsigned long>(input);
+            num_of_all_elements = bin_io::read<unsigned long>(input);
+         }
+         else // ASCII
+         {
+            input >> numEntityBlocks >> num_of_all_elements;
+         }
+         int entity;
+         int dimEntity;
+         int serial_number; // serial number of an element
+         int type_of_element; // ID describing a type of a mesh element
+         unsigned long numElements;
+
+         // set up some defaults 
+         int phys_domain=1; // element's attribute
+         int elem_domain=0; // another element's attribute (rarely used)
+         int n_partitions=0; // number of partitions where an element takes place
+
+
+         vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
+         elements_0D.reserve(num_of_all_elements);
+         elements_1D.reserve(num_of_all_elements);
+         elements_2D.reserve(num_of_all_elements);
+         elements_3D.reserve(num_of_all_elements);
+
+         for (int entityBlock = 0; entityBlock < numEntityBlocks; ++entityBlock)
+         {
+            if (binary)
+            {
+               entity = bin_io::read<int>(input);
+               dimEntity = bin_io::read<int>(input);
+               type_of_element = bin_io::read<int>(input);
+               numElements = bin_io::read<unsigned long>(input);
+            }
+            else //ASCII
+            {
+               input >> entity >> dimEntity >> type_of_element >> numElements;
+            }
+
+            // load physical_domain tag depending on dim of entity
+            switch(dimEntity)
+            {
+               case 0:
+               {   
+                  map<int, int>::const_iterator it = pointEntities_map.find(entity);
+                  if(it != pointEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 1:
+               {   
+                  map<int, int>::const_iterator it = curveEntities_map.find(entity);
+                  if(it != curveEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 2:
+               {   
+                  map<int, int>::const_iterator it = surfaceEntities_map.find(entity);
+                  if(it != surfaceEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 3:   
+               {   
+                  map<int, int>::const_iterator it = volumeEntities_map.find(entity);
+                  if(it != volumeEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               default:
+                  MFEM_ABORT("Invalid dimension, Dim = " << dimEntity);
+            }
+            phys_domain=abs(phys_domain);
+            for (int ele= 0; ele < numElements; ++ele)
+            {
+               // number of nodes for each type of Gmsh elements, type is the index of
+               // the array + 1
+               const int n_elem_nodes = NodesOfGmshElement(type_of_element-1);
+               vector<int> vert_indices(n_elem_nodes);
+               int index;
+               if (binary)
+               {
+                  serial_number = bin_io::read<int>(input);
+               }
+               else // ASCII
+               {
+                  input >> serial_number;
+               }
+               for (int vi = 0; vi < n_elem_nodes; ++vi)
+               {
+                  if (binary)
+                  {
+                     index = bin_io::read<int>(input);
+                  }
+                  else //ASCII
+                  {
+                     input >> index;
+                  }
+                  map<int, int>::const_iterator it = vertices_map.find(index);
+                  if (it == vertices_map.end())
+                  {
+                     MFEM_ABORT("Gmsh file : vertex index doesn't exist");
+                  }
+                  vert_indices[vi] = it->second;
+               }
+
+               // initialize the mesh element
+               switch (type_of_element)
+               {
+                  case 1: // 2-node line
+                  {
+                     elements_1D.push_back(
+                        new Segment(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 2: // 3-node triangle
+                  {
+                     elements_2D.push_back(
+                        new Triangle(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 3: // 4-node quadrangle
+                  {
+                     elements_2D.push_back(
+                        new Quadrilateral(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 4: // 4-node tetrahedron
+                  {
+                     elements_3D.push_back(
+                        new Tetrahedron(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 5: // 8-node hexahedron
+                  {
+                     elements_3D.push_back(
+                        new Hexahedron(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 15: // 1-node point
+                  {
+                     elements_0D.push_back(
+                        new Point(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  default: // any other element
+                     MFEM_WARNING("Unsupported Gmsh element type.");
+                     break;
+
+               } // switch (type_of_element)
+            } // for numElements
+         } // for entityBlock
+
+         ProcessBoundaryElements(elements_0D,
+                                  elements_1D,
+                                  elements_2D,
+                                  elements_3D);
+
+         MFEM_CONTRACT_VAR(n_partitions);
+         MFEM_CONTRACT_VAR(elem_domain);
+      } // section '$Elements'
+   }  // we reach the end of the file
+}
+
+
+void Mesh::ReadGmshV41(std::istream &input, int binary)
+{
+
+   string buff;
+   // A map between a serial number of the vertex and its number in the file
+   // (there may be gaps in the numbering, and also Gmsh enumerates vertices
+   // starting from 1, not 0)
+   map<int, int> vertices_map;
+
+   // For each point, curve, surface, and volume entities map entity tag to physical tag (physical tag is element material attr)
+   map<int,int> pointEntities_map;
+   map<int,int> curveEntities_map;
+   map<int,int> surfaceEntities_map;
+   map<int,int> volumeEntities_map;
+
+   const int dim3 = 3;
+
+   // Read the lines of the mesh file. If we face specific keyword, we'll treat
+   // the section.
+   //
+   cerr << "Processing gmsh 4.1 format" << endl;
+   while (input >> buff)
+   {
+      if (buff == "$Entities")
+      {
+         unsigned long numPoints, numCurves, numSurfaces, numVolumes;
+         unsigned long numPhysicals, numBrep;
+         int entityTag, physicalTag, brepTag;
+         double boxMin[3], boxMax[3], point[3];
+         bool needBrep, v41=true;
+
+         getline(input,buff);
+
+         if(binary)
+         {
+            numPoints = bin_io::read<unsigned long>(input);
+            numCurves = bin_io::read<unsigned long>(input);
+            numSurfaces = bin_io::read<unsigned long>(input);
+            numVolumes = bin_io::read<unsigned long>(input);
+         }
+         else
+         {
+            input >> numPoints >> numCurves >> numSurfaces >> numVolumes;
+         }
+
+         cerr << "entities points, lines, surfaces, volumes: " << numPoints << ":" << numCurves << ":" << numSurfaces << ":" << numVolumes << endl;
+
+         ReadGmshEntityMap(input, pointEntities_map, numPoints, needBrep=false, v41=true, binary);
+         ReadGmshEntityMap(input, curveEntities_map, numCurves, needBrep=true, v41=true, binary);
+         ReadGmshEntityMap(input, surfaceEntities_map, numSurfaces, needBrep=true, v41=true, binary);
+         ReadGmshEntityMap(input, volumeEntities_map, numVolumes, needBrep=true, v41=true, binary);
+
+      }// if Entities
+
+      if (buff == "$Nodes") // reading mesh vertices
+      {
+         unsigned long numEntityBlocks, minNodeTag, maxNodeTag;
+         int serial_number, ver=0;
+         double coord[dim3];
+
+         getline(input,buff);
+
+         if (binary)
+         {
+            numEntityBlocks = bin_io::read<unsigned long>(input);
+            NumOfVertices = bin_io::read<unsigned long>(input);
+            minNodeTag = bin_io::read<unsigned long>(input);
+            maxNodeTag = bin_io::read<unsigned long>(input);
+         }
+         else //ASCII
+         {
+            input >> numEntityBlocks >> NumOfVertices >> minNodeTag >> maxNodeTag;
+         }
+
+         vertices.SetSize(NumOfVertices);
+
+         Array<unsigned long> nodeTags;
+
+         for (int numBlock=0; numBlock < numEntityBlocks; ++numBlock)
+         {
+            int tagEntity, dimEntity, parametric;
+            unsigned long numNodes, nodeTag;
+            
+            if (binary)
+            {
+               dimEntity = bin_io::read<int>(input);
+               tagEntity = bin_io::read<int>(input);
+               parametric = bin_io::read<int>(input);
+               numNodes = bin_io::read<unsigned long>(input);
+            }
+            else //ASCII
+            {
+               input >> dimEntity >> tagEntity >> parametric >> numNodes;
+            }
+
+            nodeTags.SetSize(numNodes);
+
+            for (int node=0; node < numNodes; ++node)
+            {
+               if(binary)
+               {
+                  nodeTag = bin_io::read<unsigned long>(input);
+               }
+               else
+               {
+                  input >> nodeTag;
+               }
+               nodeTags[node] = nodeTag;
+            }
+
+            for (int node=0; node < numNodes; ++node)
+            {
+               if(binary)
+               {
+                  for(int ci=0; ci<dim3; ++ci) 
+                  {
+                     coord[ci] = bin_io::read<double>(input);
+                  }
+               }
+               else
+               {
+                  for(int ci=0; ci<dim3; ++ci) 
+                  {
+                     input >> coord[ci];
+                  }
+               }
+               vertices[ver] = Vertex(coord, dim3);
+               serial_number = nodeTags[node];
+               vertices_map[serial_number] = ver;
+               ver++;
+            }
+         }
+
+         if (static_cast<int>(vertices_map.size()) != NumOfVertices)
+         {
+            MFEM_ABORT("Gmsh file : vertices indices are not unique");
+         }
+      }  // section '$Nodes'
+      else if (buff == "$Elements") // reading mesh elements
+      {
+         unsigned long numEntityBlocks, num_of_all_elements, minElementTag, maxElementTag;
+         getline(input, buff);
+         if (binary)
+         {
+            numEntityBlocks = bin_io::read<unsigned long>(input);
+            num_of_all_elements = bin_io::read<unsigned long>(input);
+            minElementTag = bin_io::read<unsigned long>(input);
+            maxElementTag = bin_io::read<unsigned long>(input);
+         }
+         else // ASCII
+         {
+            input >> numEntityBlocks >> num_of_all_elements >> minElementTag >> maxElementTag;
+         }
+         int entity;
+         int dimEntity;
+         int serial_number; // serial number of an element
+         int type_of_element; // ID describing a type of a mesh element
+         unsigned long numElements;
+
+         // set up some defaults 
+         int phys_domain=1; // element's attribute
+         int elem_domain=0; // another element's attribute (rarely used)
+         int n_partitions=0; // number of partitions where an element takes place
+
+
+         vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
+         elements_0D.reserve(num_of_all_elements);
+         elements_1D.reserve(num_of_all_elements);
+         elements_2D.reserve(num_of_all_elements);
+         elements_3D.reserve(num_of_all_elements);
+
+         for (int entityBlock = 0; entityBlock < numEntityBlocks; ++entityBlock)
+         {
+            if (binary)
+            {
+               dimEntity = bin_io::read<int>(input);
+               entity = bin_io::read<int>(input);
+               type_of_element = bin_io::read<int>(input);
+               numElements = bin_io::read<unsigned long>(input);
+            }
+            else //ASCII
+            {
+               input >> dimEntity >> entity >> type_of_element >> numElements;
+            }
+            // load physical_domain tag depending on dim of entity
+            switch(dimEntity)
+            {
+               case 0:
+               {   
+                  map<int, int>::const_iterator it = pointEntities_map.find(entity);
+                  if(it != pointEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 1:
+               {   
+                  map<int, int>::const_iterator it = curveEntities_map.find(entity);
+                  if(it != curveEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 2:
+               {   
+                  map<int, int>::const_iterator it = surfaceEntities_map.find(entity);
+                  if(it != surfaceEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 3:   
+               {   
+                  map<int, int>::const_iterator it = volumeEntities_map.find(entity);
+                  if(it != volumeEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               default:
+                  MFEM_ABORT("Invalid dimension, Dim = " << dimEntity);
+            }
+            phys_domain=abs(phys_domain); // gmsh sometimes sets negative physical values
+            for (int ele= 0; ele < numElements; ++ele)
+            {
+               // number of nodes for each type of Gmsh elements, type is the index of
+               // the array + 1
+               const int n_elem_nodes = NodesOfGmshElement(type_of_element-1);
+               vector<int> vert_indices(n_elem_nodes);
+               unsigned long nodeTag;
+               if (binary)
+               {
+                  serial_number = bin_io::read<unsigned long>(input);
+               }
+               else // ASCII
+               {
+                  input >> serial_number;
+               }
+               for (int vi = 0; vi < n_elem_nodes; ++vi)
+               {
+                  if (binary)
+                  {
+                     nodeTag = bin_io::read<unsigned long>(input);
+                  }
+                  else //ASCII
+                  {
+                     input >> nodeTag;
+                  }
+                  map<int, int>::const_iterator it = vertices_map.find(nodeTag);
+                  if (it == vertices_map.end())
+                  {
+                     MFEM_ABORT("Gmsh file : vertex nodeTag doesn't exist");
+                  }
+                  vert_indices[vi] = it->second;
+               }
+
+               // initialize the mesh element
+               switch (type_of_element)
+               {
+                  case 1: // 2-node line
+                  {
+                     elements_1D.push_back(
+                        new Segment(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 2: // 3-node triangle
+                  {
+                     elements_2D.push_back(
+                        new Triangle(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 3: // 4-node quadrangle
+                  {
+                     elements_2D.push_back(
+                        new Quadrilateral(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 4: // 4-node tetrahedron
+                  {
+                     elements_3D.push_back(
+                        new Tetrahedron(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 5: // 8-node hexahedron
+                  {
+                     elements_3D.push_back(
+                        new Hexahedron(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 15: // 1-node point
+                  {
+                     elements_0D.push_back(
+                        new Point(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  default: // any other element
+                     MFEM_WARNING("Unsupported Gmsh element type.");
+                     break;
+
+               } // switch (type_of_element)
+            } // for numElements
+         } // for entityBlock
+
+         ProcessBoundaryElements(elements_0D,
+                                  elements_1D,
+                                  elements_2D,
+                                  elements_3D);
+         MFEM_CONTRACT_VAR(n_partitions);
+         MFEM_CONTRACT_VAR(elem_domain);
+      } // section '$Elements'
+   }  // we reach the end of the file
+}
+
+
+void Mesh::ReadGmshV2(std::istream &input, int binary)
+{
+
+   string buff;
    // A map between a serial number of the vertex and its number in the file
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
@@ -933,10 +1945,13 @@ void Mesh::ReadGmshMesh(std::istream &input)
          {
             if (binary)
             {
-               input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
-               input.read(reinterpret_cast<char*>(coord), gmsh_dim*sizeof(double));
+               serial_number = bin_io::read<int>(input);
+               for (int ci = 0; ci < gmsh_dim; ++ci)
+               {
+                  coord[ci] = bin_io::read<double>(input);
+               }
             }
-            else // ASCII
+            else
             {
                input >> serial_number;
                for (int ci = 0; ci < gmsh_dim; ++ci)
@@ -962,68 +1977,9 @@ void Mesh::ReadGmshMesh(std::istream &input)
          int serial_number; // serial number of an element
          int type_of_element; // ID describing a type of a mesh element
          int n_tags; // number of different tags describing an element
-         int phys_domain; // element's attribute
+         int phys_domain = 1; // element's attribute
          int elem_domain; // another element's attribute (rarely used)
          int n_partitions; // number of partitions where an element takes place
-
-         // number of nodes for each type of Gmsh elements, type is the index of
-         // the array + 1
-         int nodes_of_gmsh_element[] =
-         {
-            2, // 2-node line.
-            3, // 3-node triangle.
-            4, // 4-node quadrangle.
-            4, // 4-node tetrahedron.
-            8, // 8-node hexahedron.
-            6, // 6-node prism.
-            5, // 5-node pyramid.
-            3, /* 3-node second order line (2 nodes associated with the vertices
-                    and 1 with the edge). */
-            6, /* 6-node second order triangle (3 nodes associated with the
-                    vertices and 3 with the edges). */
-            9, /* 9-node second order quadrangle (4 nodes associated with the
-                    vertices, 4 with the edges and 1 with the face). */
-            10,/* 10-node second order tetrahedron (4 nodes associated with the
-                     vertices and 6 with the edges). */
-            27,/* 27-node second order hexahedron (8 nodes associated with the
-                     vertices, 12 with the edges, 6 with the faces and 1 with
-                     the volume). */
-            18,/* 18-node second order prism (6 nodes associated with the
-                     vertices, 9 with the edges and 3 with the quadrangular
-                     faces). */
-            14,/* 14-node second order pyramid (5 nodes associated with the
-                     vertices, 8 with the edges and 1 with the quadrangular
-                     face). */
-            1, // 1-node point.
-            8, /* 8-node second order quadrangle (4 nodes associated with the
-                    vertices and 4 with the edges). */
-            20,/* 20-node second order hexahedron (8 nodes associated with the
-                     vertices and 12 with the edges). */
-            15,/* 15-node second order prism (6 nodes associated with the
-                     vertices and 9 with the edges). */
-            13,/* 13-node second order pyramid (5 nodes associated with the
-                     vertices and 8 with the edges). */
-            9, /* 9-node third order incomplete triangle (3 nodes associated
-                    with the vertices, 6 with the edges) */
-            10,/* 10-node third order triangle (3 nodes associated with the
-                     vertices, 6 with the edges, 1 with the face) */
-            12,/* 12-node fourth order incomplete triangle (3 nodes associated
-                     with the vertices, 9 with the edges) */
-            15,/* 15-node fourth order triangle (3 nodes associated with the
-                     vertices, 9 with the edges, 3 with the face) */
-            15,/* 15-node fifth order incomplete triangle (3 nodes associated
-                     with the vertices, 12 with the edges) */
-            21,/* 21-node fifth order complete triangle (3 nodes associated with
-                     the vertices, 12 with the edges, 6 with the face) */
-            4, /* 4-node third order edge (2 nodes associated with the vertices,
-                    2 internal to the edge) */
-            5, /* 5-node fourth order edge (2 nodes associated with the
-                    vertices, 3 internal to the edge) */
-            6, /* 6-node fifth order edge (2 nodes associated with the vertices,
-                    4 internal to the edge) */
-            20 /* 20-node third order tetrahedron (4 nodes associated with the
-                     vertices, 12 with the edges, 4 with the faces) */
-         };
 
          vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
          elements_0D.reserve(num_of_all_elements);
@@ -1050,7 +2006,9 @@ void Mesh::ReadGmshMesh(std::istream &input)
 
                n_elem_part += n_elem_one_type;
 
-               const int n_elem_nodes = nodes_of_gmsh_element[type_of_element-1];
+               // number of nodes for each type of Gmsh elements, type is the index of
+               // the array + 1
+               const int n_elem_nodes = NodesOfGmshElement(type_of_element-1);
                vector<int> data(1+n_tags+n_elem_nodes);
                for (int el = 0; el < n_elem_one_type; ++el)
                {
@@ -1061,6 +2019,11 @@ void Mesh::ReadGmshMesh(std::istream &input)
                   // physical domain - the most important value (to distinguish
                   // materials with different properties)
                   phys_domain = (n_tags > 0) ? data[dd++] : 1;
+                  if(phys_domain == 0)
+                  {
+                     phys_domain = 1;
+                  }
+                  phys_domain = abs(phys_domain);
                   // elementary domain - to distinguish different geometrical
                   // domains (typically, it's used rarely)
                   elem_domain = (n_tags > 1) ? data[dd++] : 0;
@@ -1144,6 +2107,11 @@ void Mesh::ReadGmshMesh(std::istream &input)
                // physical domain - the most important value (to distinguish
                // materials with different properties)
                phys_domain = (n_tags > 0) ? data[0] : 1;
+               if(phys_domain == 0)
+               {
+                  phys_domain = 1;
+               }
+               phys_domain = abs(phys_domain);
                // elementary domain - to distinguish different geometrical
                // domains (typically, it's used rarely)
                elem_domain = (n_tags > 1) ? data[1] : 0;
@@ -1152,7 +2120,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
                n_partitions = (n_tags > 2) ? data[2] : 0;
                // we currently just skip the partitions if they exist, and go
                // directly to vertices describing the mesh element
-               const int n_elem_nodes = nodes_of_gmsh_element[type_of_element-1];
+               const int n_elem_nodes = NodesOfGmshElement(type_of_element-1);
                vector<int> vert_indices(n_elem_nodes);
                int index;
                for (int vi = 0; vi < n_elem_nodes; ++vi)
@@ -1219,79 +2187,46 @@ void Mesh::ReadGmshMesh(std::istream &input)
             } // el (all elements)
          } // if ASCII
 
-         if (!elements_3D.empty())
-         {
-            Dim = 3;
-            NumOfElements = elements_3D.size();
-            elements.SetSize(NumOfElements);
-            for (int el = 0; el < NumOfElements; ++el)
-            {
-               elements[el] = elements_3D[el];
-            }
-            NumOfBdrElements = elements_2D.size();
-            boundary.SetSize(NumOfBdrElements);
-            for (int el = 0; el < NumOfBdrElements; ++el)
-            {
-               boundary[el] = elements_2D[el];
-            }
-            // discard other elements
-            for (size_t el = 0; el < elements_1D.size(); ++el)
-            {
-               delete elements_1D[el];
-            }
-            for (size_t el = 0; el < elements_0D.size(); ++el)
-            {
-               delete elements_0D[el];
-            }
-         }
-         else if (!elements_2D.empty())
-         {
-            Dim = 2;
-            NumOfElements = elements_2D.size();
-            elements.SetSize(NumOfElements);
-            for (int el = 0; el < NumOfElements; ++el)
-            {
-               elements[el] = elements_2D[el];
-            }
-            NumOfBdrElements = elements_1D.size();
-            boundary.SetSize(NumOfBdrElements);
-            for (int el = 0; el < NumOfBdrElements; ++el)
-            {
-               boundary[el] = elements_1D[el];
-            }
-            // discard other elements
-            for (size_t el = 0; el < elements_0D.size(); ++el)
-            {
-               delete elements_0D[el];
-            }
-         }
-         else if (!elements_1D.empty())
-         {
-            Dim = 1;
-            NumOfElements = elements_1D.size();
-            elements.SetSize(NumOfElements);
-            for (int el = 0; el < NumOfElements; ++el)
-            {
-               elements[el] = elements_1D[el];
-            }
-            NumOfBdrElements = elements_0D.size();
-            boundary.SetSize(NumOfBdrElements);
-            for (int el = 0; el < NumOfBdrElements; ++el)
-            {
-               boundary[el] = elements_0D[el];
-            }
-         }
-         else
-         {
-            MFEM_ABORT("Gmsh file : no elements found");
-            return;
-         }
-
+         ProcessBoundaryElements(elements_0D,
+                                  elements_1D,
+                                  elements_2D,
+                                  elements_3D);
          MFEM_CONTRACT_VAR(n_partitions);
          MFEM_CONTRACT_VAR(elem_domain);
 
       } // section '$Elements'
    } // we reach the end of the file
+}
+
+void Mesh::ReadGmshMesh(std::istream &input)
+{
+   string buff;
+   double version;
+   int binary, dsize;
+   input >> version >> binary >> dsize;
+   if (version < 2.2 || version > 4.1)
+   {
+      MFEM_ABORT("Gmsh file version < 2.2 || version > 4.1");
+   }
+   if (dsize != sizeof(double))
+   {
+      MFEM_ABORT("Gmsh file : dsize != sizeof(double)");
+   }
+   getline(input, buff);
+   // There is a number 1 in binary format; in general should be used for endianess check, but we abort for mismatch
+   if (binary)
+   {
+      int one;
+      input.read(reinterpret_cast<char*>(&one), sizeof(one));
+      if (one != 1)
+      {
+         MFEM_ABORT("Gmsh file : wrong binary format");
+      }
+   }
+   if (version == 2.2) {ReadGmshV2(input,binary);}
+   else if (version == 4.0) {ReadGmshV4(input,binary);}
+   else if (version == 4.1) {ReadGmshV41(input,binary);}
+   else {MFEM_ABORT("Gmsh file version unsupported")}
 }
 
 

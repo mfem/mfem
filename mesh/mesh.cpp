@@ -2035,7 +2035,48 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    FinalizeCheck();
    bool generate_edges = true;
 
-   if (spaceDim == 0) { spaceDim = Dim; }
+   if (spaceDim == 0) // then determine spaceDim based on min/max differences detected in any given dimension
+   { 
+      double initX = vertices[0](0);
+      double initY = vertices[0](1);
+      double initZ = vertices[0](2);
+      double minValue[3] = {initX,initY,initZ};
+      double maxValue[3] = {initX,initY,initZ};
+
+      // we're expecting early exits 
+      for(int i = 1; i < vertices.Size(); i++)
+      {
+         minValue[0] = std::min(minValue[0],vertices[i](0));
+         maxValue[0] = std::max(maxValue[0],vertices[i](0));
+         if(minValue[0] != maxValue[0]) 
+         {
+            spaceDim++;
+            break;
+         }
+      } // test x values
+      for(int i = 1; i < vertices.Size(); i++)
+      {
+         minValue[1] = std::min(minValue[1],vertices[i](1));
+         maxValue[1] = std::max(maxValue[1],vertices[i](1));
+         if(minValue[1] != maxValue[1]) 
+         {
+            spaceDim++;
+            break;
+         }
+      } // test y values
+      for(int i = 1; i < vertices.Size(); i++)
+      {
+         minValue[2] = std::min(minValue[2],vertices[i](2));
+         maxValue[2] = std::max(maxValue[2],vertices[i](2));
+         if(minValue[2] != maxValue[2]) 
+         {
+            spaceDim++;
+            break;
+         }
+      } // test z values
+      std::cerr << "spaceDim: " << spaceDim << std::endl;
+   } // if spaceDim == 0
+
    if (ncmesh) { ncmesh->spaceDim = spaceDim; }
 
    // set the mesh type: 'meshgen', ...
@@ -2276,10 +2317,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (x = 0; x < nx; x++)
       {
-         ind[0] = VTX(x  , y  , 0);
-         ind[1] = VTX(x  , y+1, 0);
+         ind[0] = VTX(x, y, 0);
+         ind[1] = VTX(x, y+1, 0);
          ind[2] = VTX(x+1, y+1, 0);
-         ind[3] = VTX(x+1, y  , 0);
+         ind[3] = VTX(x+1, y, 0);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 1);
@@ -2299,10 +2340,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (x = 0; x < nx; x++)
       {
-         ind[0] = VTX(x  , y  , nz);
-         ind[1] = VTX(x+1, y  , nz);
+         ind[0] = VTX(x, y, nz);
+         ind[1] = VTX(x+1, y, nz);
          ind[2] = VTX(x+1, y+1, nz);
-         ind[3] = VTX(x  , y+1, nz);
+         ind[3] = VTX(x, y+1, nz);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 6);
@@ -2322,10 +2363,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (y = 0; y < ny; y++)
       {
-         ind[0] = VTX(0  , y  , z  );
-         ind[1] = VTX(0  , y  , z+1);
-         ind[2] = VTX(0  , y+1, z+1);
-         ind[3] = VTX(0  , y+1, z  );
+         ind[0] = VTX(0, y, z  );
+         ind[1] = VTX(0, y, z+1);
+         ind[2] = VTX(0, y+1, z+1);
+         ind[3] = VTX(0, y+1, z  );
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 5);
@@ -2341,10 +2382,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (y = 0; y < ny; y++)
       {
-         ind[0] = VTX(nx, y  , z  );
+         ind[0] = VTX(nx, y, z  );
          ind[1] = VTX(nx, y+1, z  );
          ind[2] = VTX(nx, y+1, z+1);
-         ind[3] = VTX(nx, y  , z+1);
+         ind[3] = VTX(nx, y, z+1);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 3);
@@ -2360,10 +2401,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (z = 0; z < nz; z++)
       {
-         ind[0] = VTX(x  , 0, z  );
+         ind[0] = VTX(x, 0, z  );
          ind[1] = VTX(x+1, 0, z  );
          ind[2] = VTX(x+1, 0, z+1);
-         ind[3] = VTX(x  , 0, z+1);
+         ind[3] = VTX(x, 0, z+1);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 2);
@@ -2379,8 +2420,8 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (z = 0; z < nz; z++)
       {
-         ind[0] = VTX(x  , ny, z  );
-         ind[1] = VTX(x  , ny, z+1);
+         ind[0] = VTX(x, ny, z  );
+         ind[1] = VTX(x, ny, z+1);
          ind[2] = VTX(x+1, ny, z+1);
          ind[3] = VTX(x+1, ny, z  );
          if (type == Element::TETRAHEDRON)
@@ -2994,6 +3035,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadLineMesh(input);
    }
+   // Older netgen formats < 4.9
    else if (mesh_type == "areamesh2" || mesh_type == "curved_areamesh2")
    {
       if (mesh_type == "curved_areamesh2")
@@ -3005,6 +3047,15 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    else if (mesh_type == "NETGEN" || mesh_type == "NETGEN_Neutral_Format")
    {
       ReadNetgen3DMesh(input);
+   }
+   //Newer netgen formats >= 4.9
+   else if (mesh_type == "surfacemesh")
+   {
+      ReadNetgenSurfaceMesh(input);
+   }   
+   else if (mesh_type == "mesh3d")
+   {
+      ReadNetgenVol(input,curved);
    }
    else if (mesh_type == "TrueGrid")
    {
