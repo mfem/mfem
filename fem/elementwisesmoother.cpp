@@ -149,6 +149,7 @@ AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::F
                                                    const Array<int>& ess_tdof_list,
                                                    mfem::BilinearForm& aform,
                                                    const mfem::Vector& diag,
+                                                   const mfem::Vector& LORdiag,
                                                    mfem::SparseMatrix* LORmat,
                                                    double scale)
    :
@@ -157,6 +158,7 @@ AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::F
    ess_tdof_list_(ess_tdof_list),
    aform_(aform),
    diag_(diag),
+   LORdiag_(LORdiag),
    LORmat_(LORmat),
    scale_(scale)
 {
@@ -198,7 +200,7 @@ AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::F
    std::cout << "Interior: " << interiorElement << std::endl;
 
    fespace_.GetElementDofs(interiorElement, local_dofs);
-   DenseMatrix elmat(local_dofs.Size(), local_dofs.Size());
+   elmat = DenseMatrix(local_dofs.Size(), local_dofs.Size());
    LORmat_->GetSubMatrix(local_dofs, local_dofs, elmat);
    inv.SetOperator(elmat);
 }
@@ -216,17 +218,27 @@ void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
       b.GetSubVector(local_dofs, b_local);
       x_local.SetSize(b_local.Size());
 
+      double minval = 1e300;
+      for (int i = 0; i < local_dofs.Size(); ++i)
+      {
+         minval = std::min(minval, diag_[local_dofs[i]]);
+      }
+
       for (int i = 0; i < local_dofs.Size(); ++i)
       {
          b_local[i] *= countingVector[local_dofs[i]];
-         b_local[i] *= diag_[local_dofs[i]];
+         // b_local[i] *= diag_[local_dofs[i]];
+         b_local[i] *= minval;
+         // b_local[i] *= sqrt(elmat(i,i) / LORdiag_[local_dofs[i]]);
       }
 
       LocalSmoother(e, b_local, x_local);
 
       for (int i = 0; i < local_dofs.Size(); ++i)
       {
-         x_local[i] *= diag_[local_dofs[i]];
+         // x_local[i] *= sqrt(elmat(i,i) / LORdiag_[local_dofs[i]]);
+         x_local[i] *= minval;
+         // x_local[i] *= diag_[local_dofs[i]];
          x_local[i] *= countingVector[local_dofs[i]];
       }
 

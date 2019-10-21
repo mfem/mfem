@@ -109,6 +109,7 @@ class AdditiveSchwarzApproxLORSmoother : public Solver
                               const Array<int>& ess_tdof_list,
                               mfem::BilinearForm& aform,
                               const mfem::Vector& diag,
+                              const mfem::Vector& LORdiag,
                               mfem::SparseMatrix* LORmat, double scale);
    virtual ~AdditiveSchwarzApproxLORSmoother() {}
 
@@ -125,10 +126,12 @@ class AdditiveSchwarzApproxLORSmoother : public Solver
    const Array<int>& ess_tdof_list_;
    mfem::BilinearForm& aform_;
    mfem::Vector diag_;
+   mfem::Vector LORdiag_;
    mfem::SparseMatrix* LORmat_;
    double scale_;
    mfem::Table el_to_el_;
    Vector countingVector;
+   DenseMatrix elmat;
    mutable DenseMatrixInverse inv;
 };
 

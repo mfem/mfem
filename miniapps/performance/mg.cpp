@@ -213,13 +213,21 @@ class PoissonMultigridOperator : public TimedMultigridOperator
          a_pc_->AddDomainIntegrator(new DiffusionIntegrator(*constCoeff));
          a_pc_->UsePrecomputedSparsity();
          a_pc_->Assemble();
+         
+         BilinearForm* a_pc_pa = new BilinearForm(fespace_lor_);
+         a_pc_pa->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         AddIntegrators(a_pc_pa);
+         a_pc_pa->Assemble();
+         Vector* LORdiag = new Vector(fespace->GetTrueVSize());
+         a_pc_pa->AssembleDiagonal(*LORdiag);
 
          SparseMatrix* LORmat = new SparseMatrix();
          a_pc_->FormSystemMatrix(essentialDofs, *LORmat);
 
          PowerMethod powerMethod(MPI_COMM_WORLD);
 
-         AdditiveSchwarzApproxLORSmoother test(*fespace, essentialDofs, *forms.Last(), *coeffDiag, LORmat, 1.0);
+         // AdditiveSchwarzApproxLORSmoother test(*fespace, essentialDofs, *forms.Last(), *coeffDiag, LORmat, 1.0);
+         AdditiveSchwarzApproxLORSmoother test(*fespace, essentialDofs, *forms.Last(), *coeffDiag, *LORdiag, LORmat, 1.0);
          // OperatorJacobiSmoother test(*diag, essentialDofs, 1.0);
 
 
@@ -245,7 +253,7 @@ class PoissonMultigridOperator : public TimedMultigridOperator
          std::cout << "truevsize = " << fespace->GetTrueVSize() << std::endl;
          std::cout << "Width = " << LORmat->Width() << std::endl;
 
-         smoother = new AdditiveSchwarzApproxLORSmoother(*fespace, essentialDofs, *forms.Last(), *coeffDiag, LORmat, weight);
+         smoother = new AdditiveSchwarzApproxLORSmoother(*fespace, essentialDofs, *forms.Last(), *coeffDiag, *LORdiag, LORmat, weight);
          // smoother = new ElementWiseJacobi(*fespace, *forms.Last(), *diag, essentialDofs, 2.0/3.0);
          // smoother = new OperatorJacobiSmoother(*diag, essentialDofs, weight);
          
