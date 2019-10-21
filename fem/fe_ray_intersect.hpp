@@ -21,8 +21,8 @@ class Mesh;
 class FiniteElement;
 
 /**
- * @brief Sets the maximum number of newton iterations. Default set to 16.
- * @param [in] N the maximum number of newton iterations.
+ * @brief Sets the maximum number of Newton iterations. Default set to 16.
+ * @param [in] N the maximum number of Newton iterations.
  *
  * @pre N >= 1
  */

@@ -30,16 +30,16 @@ public:
 
    IntegrationPoint() = default;
 
-   IntegrationPoint ( const double* p, int dim )
+   IntegrationPoint (const double* p, int dim)
    {
       x = y = z = weight = 0.0;
-      Set( p, dim );
+      Set(p, dim);
    }
 
-   IntegrationPoint ( const double* p, double w, int dim )
+   IntegrationPoint (const double* p, double w, int dim)
    {
       x = y = z = weight = 0.0;
-      Set( p, dim );
+      Set(p, dim);
       weight = w;
    }
 

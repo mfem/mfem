@@ -248,7 +248,7 @@ double backtracking_linesearch( const FiniteElement* fe, ///!< FE instance (in)
    Fx( fe, X, sk, x0, n, fxk );
    dFxda( fe, X, sk, n, dfxk );
 
-   // arrays to store Fx and derivaties at new position `sk +  alpha * pk`
+   // arrays to store Fx and derivatives at new position `sk +  alpha * pk`
    double fxn[3];
    double dfxn[3];
    double skn[3];
@@ -263,7 +263,7 @@ double backtracking_linesearch( const FiniteElement* fe, ///!< FE instance (in)
          skn[ idim ] = sk[ idim ] + (alpha*pk[ idim ] );
       }
 
-      // Let F(a) = Fx(sk+alpha*pk), evaluate f(a) and derivates at new position
+      // Let F(a) = Fx(sk+alpha*pk), evaluate f(a) and derivatives at new position
       Fx( fe, X, skn, x0, n, fxn );
       dFxda( fe, X, skn, n, dfxn );
 
@@ -290,7 +290,7 @@ double backtracking_linesearch( const FiniteElement* fe, ///!< FE instance (in)
 //------------------------------------------------------------------------------
 void fe_ray_setMaxNewtonIterations( int N )
 {
-   MFEM_ASSERT( (N >= 1), "Max newton iterations, N, must be N >= 1" );
+   MFEM_ASSERT( (N >= 1), "Max Newton iterations, N, must be N >= 1" );
    solver_parameters.maxNewtonIterations = N;
 }
 
@@ -348,7 +348,7 @@ bool fe_ray_solve( const int elementId,
    MFEM_ASSERT( fes != nullptr,
                 "supplied mesh does not have an associated Finite Element space" );
 
-   // STEP 2: Get the FE instance & tranform for the supplied elementId
+   // STEP 2: Get the FE instance & transform for the supplied elementId
    const FiniteElement* fe  = fes->GetFE( elementId );
    ElementTransformation* T = fes->GetElementTransformation( elementId );
    MFEM_ASSERT( fe != nullptr , "null FE instance" );
@@ -358,8 +358,8 @@ bool fe_ray_solve( const int elementId,
    DenseMatrix phys_nodes;
    get_physical_nodes( fe, T, phys_nodes );
 
-   // STEP 4: create and initialize the jacobian matrix. Note, the last column
-   // of the jacobian is set to the ray normal and is constant.
+   // STEP 4: create and initialize the Jacobian matrix. Note, the last column
+   // of the Jacobian is set to the ray normal and is constant.
    DenseMatrix J( sdim );
    for ( int idim=0; idim < sdim; ++idim )
    {
@@ -367,7 +367,7 @@ bool fe_ray_solve( const int elementId,
    }
 
    // STEP 5: initial guess
-   double sk[ 3 ]; // solution vector, updated at each newton step
+   double sk[ 3 ]; // solution vector, updated at each Newton step
 
    Geometry G;
    const IntegrationPoint& ip = G.GetCenter( fe->GetGeomType() );
@@ -375,22 +375,22 @@ bool fe_ray_solve( const int elementId,
    sk[ tdim ] = 0.0; // can bracket this within [t1,t2] if necessary.
 
 
-   // STEP 6: Newton iteration variables, updated at each newton step
-   double pk[ 3 ]; // newton direction
+   // STEP 6: Newton iteration variables, updated at each Newton step
+   double pk[ 3 ]; // Newton direction
 
-   // STEP 7: start newton iteration
+   // STEP 7: start Newton iteration
    constexpr double NEGATE = -1.0;
    bool converged  = false;
    const int maxNewtonIters = solver_parameters.maxNewtonIterations;
    for (int iter=0; !converged && iter < maxNewtonIters; ++iter )
    {
-      // update lhs jacobian
+      // update lhs Jacobian
       update_jacobian( sk, T, J );
 
       // update rhs, i.e., -fx
       Fx( fe, phys_nodes, sk, x0, n, pk, NEGATE );
 
-      // newton step: "J*pk = -fx", solve for pk
+      // Newton step: "J*pk = -fx", solve for pk
       // NOTE: on input, pk==-fx, and on output it store the delta
       int rc = LinearSolve( J, pk );
       if ( rc != 0 )
@@ -421,7 +421,7 @@ bool fe_ray_solve( const int elementId,
       }
       clamp_min< double >( sk[ tdim ], 0.0 );
 
-   } // END for all newton iterations
+   } // END for all Newton iterations
 
    if ( converged )
    {
