@@ -198,9 +198,10 @@ int main(int argc, char *argv[])
    }
 
    MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
-   GMGSolver M(A, P, GMGSolver::CoarseSolver::PETSC);
-   M.SetTheta(1.0/2.0);
-   // MGSolver M(A, P,fespaces);
+   GMGSolver M1(A, P, GMGSolver::CoarseSolver::PETSC);
+   M1.SetTheta(1.0/2.0);
+   MGSolver M2(A, P,fespaces);
+   M2.SetTheta(1.0/2.0);
    // chrono.Clear();
    // chrono.Start();
 
@@ -209,7 +210,7 @@ int main(int argc, char *argv[])
    //    cout << "Preconditioner construction time: " << chrono.RealTime() << endl;
    // }
 
-   int maxit(1000);
+   int maxit(2000);
    double rtol(1.e-6);
    double atol(1.e-12);
    X = 0.0;
@@ -217,24 +218,31 @@ int main(int argc, char *argv[])
    gmres.SetAbsTol(atol);
    gmres.SetRelTol(rtol);
    gmres.SetMaxIter(maxit);
-   gmres.SetPreconditioner(M);
+   gmres.SetPreconditioner(M1);
    gmres.SetOperator(*A);
-   // gmres.SetPreconditioner(*prec);
-   // gmres.SetPreconditioner(MG);
    gmres.SetPrintLevel(1);
-
-
    chrono.Clear();
    chrono.Start();
    gmres.Mult(B,X);
    chrono.Stop();
 
-
-
    if (mpi.Root())
    {
-      cout << "Solver time: " << chrono.RealTime() << endl;
+      cout << "MG-Jacobi Solver time: " << chrono.RealTime() << endl;
    }
+
+   X = 0.0;
+   gmres.SetPreconditioner(M2);
+   chrono.Clear();
+   chrono.Start();
+   gmres.Mult(B,X);
+   chrono.Stop();
+   if (mpi.Root())
+   {
+      cout << "MG-Add Schwarz Solver time: " << chrono.RealTime() << endl;
+   }
+
+
    a->RecoverFEMSolution(X, *b, x);
 
    int order_quad = max(2, 2 * order + 1);

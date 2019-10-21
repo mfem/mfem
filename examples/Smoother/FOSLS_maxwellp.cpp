@@ -288,6 +288,7 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
    BlockMGSolver * precMG = new BlockMGSolver(blockA,P,fespaces);
+   precMG->SetTheta(1.0/5.0);
    chrono.Stop();
    if(myid == 0)
       cout << "MG Setup time: " << chrono.RealTime() << endl;
@@ -312,7 +313,7 @@ int main(int argc, char *argv[])
    precAMS->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
    // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
    precAMS->SetOperator(blockA);
-   precAMS->SetTheta(0.2);
+   precAMS->SetTheta(0.5);
    // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
    precAMS->SetCycleType("023414320");
    precAMS->SetNumberofCycles(1);

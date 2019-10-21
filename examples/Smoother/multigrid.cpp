@@ -151,7 +151,7 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
       S[i] = new BlkParSchwarzSmoother(fespaces[i]->GetParMesh(),1,fespaces[i+1],A[i+1]);
-      S[i]->SetDumpingParam(1.0/5.0);
+      // S[i]->SetDumpingParam(1.0/5.0);
    }
 }
 
