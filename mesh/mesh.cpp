@@ -5622,7 +5622,7 @@ void Mesh::AddTetrahedralFaceElement(int lf, int gf, int el,
       //   if(oEl==1) cout << "negative weight!" << endl;
 #ifdef MFEM_USE_MEMALLOC
       int vi[]= {v0,v1,v2,v3};
-      Element *tet = NewElement(Geometry::TETRAHEDRON);
+      Tetrahedron *tet = (Tetrahedron*)NewElement(Geometry::TETRAHEDRON);
       tet->SetVertices(vi);
       tet->SetAttribute(1);
       tet->SetRefinementFlag(0);
@@ -5825,7 +5825,7 @@ void Mesh::GenerateFaces()
                   }
 
                   const int *fv = pent_t::FaceVert[filter[j]];
-                  //                     printf("%d:: %d %d %d %d\n",ef[filter[j]],tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
+                  // printf("%d:: %d %d %d %d\n",ef[filter[j]],tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
                   AddTetrahedralFaceElement(j, ef[filter[j]], i,
                                             v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
 
@@ -8997,6 +8997,7 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
 
       vert = pent->GetVertices();
       pent->ParseFlag(type, swapped);
+      unsigned tr = pent->GetTransform();    
 
       if (swapped)
          swap(vert[0], vert[4]);
@@ -9065,12 +9066,13 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
       int attr = el->GetAttribute();
       pent->SetVertices(v[0]);
       pent->CreateFlag(new_type, swaps[0]);
-      pent->ResetTransform(type);
+      pent->ResetTransform(tr);
+      pent->PushTransform(type + swapped*16);
 
       Pentatope *pent2 = new Pentatope(v[1], attr);
       pent2->CreateFlag(new_type, swaps[1]);
-
-      pent2->ResetTransform(10 + pent->GetTransform());
+      pent2->ResetTransform(tr);
+      pent2->PushTransform((type + 10) + swapped * 16);
       elements.Append(pent2);
 
       int coarse = FindCoarseElement(i);
@@ -9568,6 +9570,7 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms()
    for (int i = 0; i < elem_geoms.Size(); i++)
    {
       const Geometry::Type geom = elem_geoms[i];
+      // mfem::out << "CoarseFineTr.point_matrices[geom].SizeK() = " << CoarseFineTr.point_matrices[geom].SizeK() << endl;
       if (CoarseFineTr.point_matrices[geom].SizeK()) { continue; }
 
       if (geom == Geometry::TRIANGLE ||

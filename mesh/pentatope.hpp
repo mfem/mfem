@@ -106,6 +106,9 @@ public:
    virtual void ResetTransform(int tr) { transform = tr; }
    virtual unsigned GetTransform() const { return transform; }
 
+   virtual void PushTransform(int tr)
+   { transform = (transform << 5) | (tr + 1); }
+
    virtual Element *Duplicate(Mesh *m) const;
 
    virtual ~Pentatope() { }
