@@ -73,7 +73,6 @@ int* LoadIterations(int NRows, int NCol)
          in >> iters[row*NCol+col];
       }
 
-
    in.close();
 
    return iters;
@@ -189,26 +188,16 @@ public:
 
       exactSolves = exactSolvesUser;
 
-
-
-
       int orderIm=1;  //H1  --> H(divSkew)
       int orderKer=orderKernel; //curl V --> H(divSkew)
-
-
 
       smootherDivSkew = new HypreSmoother(*A, 16, 3);
 
       Array<int> HDivSkew_essDof(fespace->GetVSize()); HDivSkew_essDof = 0;
       fespace->GetEssentialVDofs(essBnd, HDivSkew_essDof);
 
-
-
-
       //setup the H1 FESpace for the kernel
-      FiniteElementCollection* fecH1Kernel;
-      if (orderKer==1) { fecH1Kernel = new LinearFECollection; }
-      else { fecH1Kernel = new QuadraticFECollection; }
+      FiniteElementCollection* fecH1Kernel = new H1_FECollection(orderKer, 4);
 
       ParFiniteElementSpace *H1KernelFESpace = new ParFiniteElementSpace(pmesh,
                                                                          fecH1Kernel, dim, Ordering::byVDIM);
@@ -245,16 +234,25 @@ public:
       H1Varf->Assemble();
       H1Varf->Finalize();
       SparseMatrix &matH1(H1Varf->SpMat());
-      for (int dof=0; dof<H1Kernel_essDof.Size(); dof++) if (H1Kernel_essDof[dof]<0) { matH1.EliminateRowCol(dof); }
+      for (int dof = 0; dof < H1Kernel_essDof.Size(); dof++)
+         if (H1Kernel_essDof[dof] < 0)
+         {
+            matH1.EliminateRowCol(dof);
+         }
       H1_KernelMat = H1Varf->ParallelAssemble();
       delete H1Varf;
       amgH1_Kernel = new HypreBoomerAMG(*H1_KernelMat);
       amgH1_Kernel->SetSystemsOptions(dim);
+      amgH1_Kernel->SetPrintLevel(0);
 
       //setup the H1 preconditioner for the image
       ParBilinearForm* H1VecVarf = new ParBilinearForm(H1_ImageFESpace);
-      H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_));
-      H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator(*beta));
+      VectorDiffusionIntegrator *alpha_integ = new VectorDiffusionIntegrator(*alpha_);
+      alpha_integ->SetVDim(6);
+      H1VecVarf->AddDomainIntegrator(alpha_integ);
+      VectorMassIntegrator *beta_integ = new VectorMassIntegrator(*beta);
+      beta_integ->SetVDim(6);
+      H1VecVarf->AddDomainIntegrator(beta_integ);
       H1VecVarf->Assemble();
       H1VecVarf->Finalize();
       SparseMatrix &matH1Vec(H1VecVarf->SpMat());
@@ -263,6 +261,7 @@ public:
       delete H1VecVarf;
       amgH1_Image = new HypreBoomerAMG(*H1_ImageMat);
       amgH1_Image->SetSystemsOptions(6);
+      amgH1_Image->SetPrintLevel(0);
 
 
       //setup the injection of H1 into H(curl)
@@ -303,8 +302,6 @@ public:
       P_d_HCurl_HDivSkew = disCurl->ParallelAssemble();
       delete disCurl;
 
-
-
       //setup the smoother for H(curl)
       //      Coefficient *massC = new ConstantCoefficient(1.0);
       //      Coefficient *CurlCurlC = new ConstantCoefficient(1.0);
@@ -320,8 +317,6 @@ public:
       HCurlMat = a_HCurl->ParallelAssemble();
       delete a_HCurl;
       smootherCurl = new HypreSmoother(*HCurlMat, 16, 3);
-
-
 
       f = new Vector(fespace->GetTrueVSize());
 
@@ -352,7 +347,6 @@ public:
       pcgImage->SetMaxIter(100000000);
       pcgImage->SetPrintLevel(-2);
 
-
       delete H1KernelFESpace, fecH1Kernel;
       delete H1_ImageFESpace, fecH1Vec;
    }
@@ -371,7 +365,6 @@ public:
       if (exactSolves) { pcgImage->Mult(*fImage, *uImage); }
       else { amgH1_Image->Mult(*fImage, *uImage); }
       P_H1_HDivSkew->Mult(1.0, *uImage, 1.0, y);
-
 
       *uCurl = 0.0;
       P_d_HCurl_HDivSkew->MultTranspose(x,*fCurl);
@@ -500,6 +493,7 @@ int main(int argc, char *argv[])
    //    else fec = new F2K1_4DFECollection;
 
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   fespace->SetUpdateOperatorType(Operator::Hypre_ParCSR);
    HYPRE_Int size = fespace->GlobalTrueVSize();
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
@@ -563,7 +557,6 @@ int main(int argc, char *argv[])
       //    else
       beta = new ConstantCoefficient(weight);
 
-
       ParBilinearForm *a = new ParBilinearForm(fespace);
       a->AddDomainIntegrator(new DivSkewDivSkewIntegrator(*alpha));
       a->AddDomainIntegrator(new VectorFE_DivSkewMassIntegrator(*beta));
@@ -583,7 +576,6 @@ int main(int argc, char *argv[])
       {
          cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
       }
-
 
       //Define the preconditioner
 
@@ -694,9 +686,11 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
 
 
+
    delete fespace;
    delete fec;
    delete pmesh;
+
 
    MPI_Finalize();
 

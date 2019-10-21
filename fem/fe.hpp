@@ -1624,7 +1624,7 @@ public:
    virtual void CalcDivSkewShape(const IntegrationPoint &ip,
                                  DenseMatrix &divSkew_shape) const;
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const {};
+                                       DenseMatrix &I) const;
    using FiniteElement::Project;
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;

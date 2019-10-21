@@ -1459,6 +1459,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
          el.CalcCurlShape(ip, curlshape);
          for (int dof=0; dof<nd; dof++)
          {
+            tSh = 0.; trShTemp = 0.;
             tSh(0,1) =  curlshape(dof,0); tSh(0,2) =  curlshape(dof,1);
             tSh(0,3) =  curlshape(dof,2);
             tSh(1,0) = -curlshape(dof,0);
@@ -2101,7 +2102,10 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
    double norm;
 
-   elmat.SetSize (dim * dof);
+   if (vdim == -1)
+      vdim = dim;
+
+   elmat.SetSize (vdim * dof);
 
    Jinv.  SetSize (dim);
    dshape.SetSize (dof, dim);
@@ -2146,7 +2150,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
       pelmat *= norm;
 
-      for (int d = 0; d < dim; d++)
+      for (int d = 0; d < vdim; d++)
       {
          for (int k = 0; k < dof; k++)
             for (int l = 0; l < dof; l++)

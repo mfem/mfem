@@ -2043,14 +2043,18 @@ class VectorDiffusionIntegrator : public BilinearFormIntegrator
 private:
    Coefficient *Q;
 
+   int vdim;
    DenseMatrix Jinv;
    DenseMatrix dshape;
    DenseMatrix gshape;
    DenseMatrix pelmat;
 
 public:
-   VectorDiffusionIntegrator() { Q = NULL; }
-   VectorDiffusionIntegrator(Coefficient &q) { Q = &q; }
+   VectorDiffusionIntegrator() { Q = NULL; vdim = -1; }
+   VectorDiffusionIntegrator(Coefficient &q) { Q = &q; vdim = -1;}
+
+   int GetVDim() const { return vdim; }
+   void SetVDim(int vdim) { this->vdim = vdim; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,

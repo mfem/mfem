@@ -476,7 +476,6 @@ public:
       mat.SetSize(dim,dim);
       matToVec.SetSize(dim*dim);
 
-
       elvect.SetSize(dof);
       elvect = 0.0;
 
