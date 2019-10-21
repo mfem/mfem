@@ -171,6 +171,7 @@ AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::F
    countingVector = 0.0;
 
    Array<int> local_dofs;
+   Array<int> local_dofs_lex;
 
    int interiorElement = -1;
 
@@ -199,9 +200,22 @@ AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::F
 
    std::cout << "Interior: " << interiorElement << std::endl;
 
-   fespace_.GetElementDofs(interiorElement, local_dofs);
+   const FiniteElement& el = *fespace_.GetFE(interiorElement);
+   const TensorBasisElement* ltel =
+       dynamic_cast<const TensorBasisElement*>(&el);
+   MFEM_VERIFY(ltel, "FE space must be tensor product space");
+   lexdofmap = ltel->GetDofMap();
+
+   fespace_.GetElementDofs(interiorElement, local_dofs_lex);
    elmat = DenseMatrix(local_dofs.Size(), local_dofs.Size());
-   LORmat_->GetSubMatrix(local_dofs, local_dofs, elmat);
+
+   local_dofs_lex.SetSize(local_dofs.Size());
+   for (int i = 0; i < local_dofs.Size(); ++i)
+   {
+      local_dofs_lex[i] = local_dofs[lexdofmap[i]];
+   }
+
+   LORmat_->GetSubMatrix(local_dofs_lex, local_dofs_lex, elmat);
    inv.SetOperator(elmat);
 }
 
@@ -209,14 +223,16 @@ void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
 {
    x = 0.0;
    Array<int> local_dofs;
-   Vector b_local;
-   Vector x_local;
+   Vector b_local, b_local_lex;
+   Vector x_local, x_local_lex;
 
    for (int e = 0; e < fespace_.GetNE(); ++e)
    {
       fespace_.GetElementDofs(e, local_dofs);
       b.GetSubVector(local_dofs, b_local);
       x_local.SetSize(b_local.Size());
+      b_local_lex.SetSize(b_local.Size());
+      x_local_lex.SetSize(b_local.Size());
 
       double minval = 1e300;
       for (int i = 0; i < local_dofs.Size(); ++i)
@@ -232,7 +248,17 @@ void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
          // b_local[i] *= sqrt(elmat(i,i) / LORdiag_[local_dofs[i]]);
       }
 
-      LocalSmoother(e, b_local, x_local);
+      for (int i = 0; i < lexdofmap.Size(); ++i)
+      {
+         b_local_lex[i] = b_local[lexdofmap[i]];
+      }
+
+      LocalSmoother(e, b_local_lex, x_local_lex);
+
+      for (int i = 0; i < lexdofmap.Size(); ++i)
+      {
+         x_local[lexdofmap[i]] = x_local_lex[i];
+      }
 
       for (int i = 0; i < local_dofs.Size(); ++i)
       {

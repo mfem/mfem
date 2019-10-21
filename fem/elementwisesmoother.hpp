@@ -132,6 +132,7 @@ class AdditiveSchwarzApproxLORSmoother : public Solver
    mfem::Table el_to_el_;
    Vector countingVector;
    DenseMatrix elmat;
+   Array<int> lexdofmap;
    mutable DenseMatrixInverse inv;
 };
 
