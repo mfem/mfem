@@ -356,7 +356,7 @@ TEST_CASE( "Ray Surface Intersection 3D",
    //  p=[2.66268, 3.16268, 2.66268]
 
    constexpr int NDIMS     = 3;
-   constexpr int MAX_ORDER = 16;
+   constexpr int MAX_ORDER = 10;
 
    // Ray input
    const double x0[] = { 0.0, 0.5, 0.0 };     // ray origin
@@ -400,7 +400,7 @@ TEST_CASE( "Ray Surface Intersection 2D",
    //  p=[2.54625, 2.54625]
 
    constexpr int NDIMS     = 2;
-   constexpr int MAX_ORDER = 16;
+   constexpr int MAX_ORDER = 10;
 
    // Ray input
    const double x0[] = {  0.0, 0.0  }; // ray origin
