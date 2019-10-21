@@ -2863,6 +2863,7 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 bool LUFactors::Factor(int m, double TOL)
 {
 #ifdef MFEM_USE_LAPACK
+   static_cast< void >(TOL); /* silence compiler warning */
    int info = 0;
    if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
    return info == 0;
