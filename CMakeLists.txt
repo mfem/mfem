@@ -164,6 +164,15 @@ if (MFEM_USE_METIS)
   find_package(METIS REQUIRED)
 endif()
 
+if (MFEM_USE_GINKGO)
+  find_package(Ginkgo REQUIRED)
+  if (Ginkgo_FOUND)
+    get_target_property(Ginkgo_INCLUDE_DIRS
+      Ginkgo::ginkgo INTERFACE_INCLUDE_DIRECTORIES)
+    set(Ginkgo_LIBRARIES Ginkgo::ginkgo)
+  endif()
+endif()
+
 # GZSTREAM -> zlib
 if (MFEM_USE_GZSTREAM)
   find_package(ZLIB REQUIRED)
@@ -322,7 +331,7 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO Ginkgo GNUTLS NETCDF MPFR PUMI
     POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")

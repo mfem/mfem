@@ -122,6 +122,7 @@ MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GECKO         = NO
+MFEM_USE_GINKGO        = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
@@ -243,6 +244,10 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 GECKO_DIR = @MFEM_DIR@/../gecko
 GECKO_OPT = -I$(GECKO_DIR)/inc
 GECKO_LIB = -L$(GECKO_DIR)/lib -lgecko
+
+# Ginkgo library configuration (currently not needed)
+Ginkgo_OPT =
+Ginkgo_LIB =
 
 # GnuTLS library configuration
 GNUTLS_OPT =

@@ -35,6 +35,7 @@ option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GECKO "Enable GECKO usage" OFF)
+option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
@@ -135,6 +136,8 @@ set(ScaLAPACK_TARGET_NAMES scalapack)
 # set(ScaLAPACK_IMPORT_CONFIG DEBUG)
 
 set(GECKO_DIR "${MFEM_DIR}/../gecko" CACHE PATH "Path to the Gecko library.")
+
+set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
 
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
