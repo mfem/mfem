@@ -262,10 +262,10 @@ public:
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
 
-   void SetRow(int r, const double* row );
+   void SetRow(int r, const double* row);
    void SetRow(int r, const Vector &row);
 
-   void SetCol(int c, const double* col );
+   void SetCol(int c, const double* col);
    void SetCol(int c, const Vector &col);
 
 
@@ -381,12 +381,13 @@ void Add(double alpha, const DenseMatrix &A,
 ///
 /// @return status zero on success, negative number otherwise.
 ///
-/// @note This routine may replace the contents of the input Matrix, A, with
-///  the corresponding LU factorization of the matrix.
+/// @note This routine may replace the contents of the input Matrix, A, with the
+///       corresponding LU factorization of the matrix. Matrices of size 1x1 and
+///       2x2 are handled explicitly.
 ///
 /// @pre A.IsSquare() == true
 /// @pre X != nullptr
-int LinearSolve( DenseMatrix& A, double* X );
+int LinearSolve(DenseMatrix& A, double* X);
 
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
@@ -493,15 +494,18 @@ public:
    LUFactors(double *data_, int *ipiv_) : data(data_), ipiv(ipiv_) { }
 
    /**
-    *  Factorize the current data of size (m x m) overwriting it with
-    *  the LU factors. The factorization is such that L.U = P.A, where A is the
-    *  original matrix and P is a permutation matrix represented by ipiv.
+    * @brief Compute the LU factorization of the current matrix
     *
-    *  @param [in] m size of the square matrix
+    * Factorize the current matrix of size (m x m) overwriting it with the
+    * LU factors. The factorization is such that L.U = P.A, where A is the
+    * original matrix and P is a permutation matrix represented by ipiv.
     *
-    *  @return status
+    * @param [in] m size of the square matrix
+    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 1e-9.
+    *
+    * @return status returns 0 on success, non-zero return value otherwise.
     */
-   int Factor(int m);
+   int Factor(int m, double TOL=1.e-9 );
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */

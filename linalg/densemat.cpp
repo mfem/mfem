@@ -2907,7 +2907,7 @@ void DenseMatrix::SetCol(int col, double value)
 
 void DenseMatrix::SetRow(int r, const double* row)
 {
-   MFEM_ASSERT( row != nullptr, "supplied row pointer is null" );
+   MFEM_ASSERT(row != nullptr, "supplied row pointer is null");
    for (int j = 0; j < Width(); j++)
    {
       (*this)(r, j) = row[j];
@@ -2916,13 +2916,13 @@ void DenseMatrix::SetRow(int r, const double* row)
 
 void DenseMatrix::SetRow(int r, const Vector &row)
 {
-   MFEM_ASSERT( Width()==row.Size(), "" );
-   SetRow( r, row.GetData() );
+   MFEM_ASSERT(Width()==row.Size(), "");
+   SetRow(r, row.GetData());
 }
 
 void DenseMatrix::SetCol(int c, const double* col)
 {
-   MFEM_ASSERT( col != nullptr, "supplied column pointer is null" );
+   MFEM_ASSERT(col != nullptr, "supplied column pointer is null");
    for (int i = 0; i < Height(); i++)
    {
       (*this)(i, c) = col[i];
@@ -2931,8 +2931,8 @@ void DenseMatrix::SetCol(int c, const double* col)
 
 void DenseMatrix::SetCol(int c, const Vector &col)
 {
-   MFEM_ASSERT( Height()==col.Size(), "" );
-   SetCol( c, col.GetData() );
+   MFEM_ASSERT(Height()==col.Size(), "");
+   SetCol(c, col.GetData());
 }
 
 void DenseMatrix::Threshold(double eps)
@@ -3077,70 +3077,64 @@ void Add(double alpha, const DenseMatrix &A,
    Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
-int LinearSolve( DenseMatrix& A, double* X )
+int LinearSolve(DenseMatrix& A, double* X)
 {
-  MFEM_VERIFY( A.IsSquare(), "A must be a square matrix!" );
-  MFEM_ASSERT( A.NumCols() > 0, "supplied matrix, A, is empty!" );
-  MFEM_ASSERT( X != nullptr, "supplied vector, X, is null!" );
+   MFEM_VERIFY(A.IsSquare(), "A must be a square matrix!");
+   MFEM_ASSERT(A.NumCols() > 0, "supplied matrix, A, is empty!");
+   MFEM_ASSERT(X != nullptr, "supplied vector, X, is null!");
 
-  constexpr double TOL = 1.e-9;
-  constexpr int SINGULAR = -1;
-  const int N = A.NumCols();
+   constexpr double TOL = 1.e-9;
+   constexpr int SINGULAR = -1;
+   const int N = A.NumCols();
 
-  switch ( N )
-  {
-    case 1:
-    {
-      const double a00 = A(0,0);
-      if ( abs(a00-0.0) <= TOL )
+   switch (N)
+   {
+      case 1:
       {
-        return SINGULAR;
+         const double det = A(0,0);
+         if (abs(det-0.0) <= TOL) { return SINGULAR; }
+
+         X[0] /= det;
+         break;
+      }
+      case 2:
+      {
+         const double det = A.Det();
+         if (abs(det-0.0) <= TOL) { return SINGULAR; }
+
+         const double invdet = 1. / det;
+
+         const double& a00 = A(0,0);
+         const double& a01 = A(0,1);
+         const double& a10 = A(1,0);
+         const double& a11 = A(1,1);
+         const double b0   = X[0];
+         const double b1   = X[1];
+
+         X[0] = (  a11*b0 - a01*b1 ) * invdet;
+         X[1] = ( -a10*b0 + a00*b1 ) * invdet;
+         break;
+      }
+      default:
+      {
+         // default to LU factorization for the general case
+         constexpr int LU_SUCCESS = 0;
+         int* ipiv = new int [N];
+         LUFactors lu(A.Data(), ipiv);
+
+         if (lu.Factor( N ) != LU_SUCCESS)
+         {
+            return SINGULAR;
+         }
+
+         lu.Solve(N, 1, X);
+
+         delete [] ipiv;
       }
 
-      X[ 0 ] /= a00;
-      break;
-    }
-    case 2:
-    {
-      const double det = A.Det();
-      if ( abs(det-0.0) <= TOL )
-      {
-        return SINGULAR;
-      }
+   } // END switch
 
-      const double invdet = 1. / det;
-
-      const double& a00 = A(0,0);
-      const double& a01 = A(0,1);
-      const double& a10 = A(1,0);
-      const double& a11 = A(1,1);
-      const double b0   = X[0];
-      const double b1   = X[1];
-
-      X[ 0 ] = (  a11*b0 - a01*b1 ) * invdet;
-      X[ 1 ] = ( -a10*b0 + a00*b1 ) * invdet;
-      break;
-    }
-    default:
-    {
-      // detault to LU factorization for the general case
-      constexpr int LU_SUCCESS = 0;
-      int* ipiv = new int [ N ];
-      LUFactors lu( A.Data(), ipiv );
-
-      if ( lu.Factor( N ) != LU_SUCCESS )
-      {
-        return SINGULAR;
-      }
-
-      lu.Solve( N, 1, X );
-
-      delete [] ipiv;
-    }
-
-  } // END switch
-
-  return 0;
+   return 0;
 }
 
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
@@ -4052,10 +4046,10 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 }
 
 
-int LUFactors::Factor(int m)
+int LUFactors::Factor(int m, double TOL)
 {
-  constexpr int LU_SUCCESS = 0;
-  constexpr int LU_FAILED  = -1;
+   constexpr int LU_SUCCESS = 0;
+   constexpr int LU_FAILED  = -1;
 
 #ifdef MFEM_USE_LAPACK
    int info = 0;
@@ -4090,9 +4084,9 @@ int LUFactors::Factor(int m)
          }
       }
 
-      if ( abs(data[i+i*m]-0.0) <= 1.e-9 )
+      if ( abs(data[i+i*m]-0.0) <= TOL )
       {
-        return LU_FAILED;
+         return LU_FAILED;
       }
 
       const double a_ii_inv = 1.0/data[i+i*m];
