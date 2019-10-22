@@ -593,26 +593,6 @@ void NavierSolver::Orthogonalize(Vector &v)
    v -= global_sum / static_cast<double>(global_size);
 }
 
-void NavierSolver::ComputeCurlCurl(ParGridFunction &u, ParGridFunction &ccu)
-{
-   ParGridFunction cu(u.ParFESpace());
-   CurlGridFunctionCoefficient cu_gfcoeff(&u);
-
-   cu.ProjectDiscCoefficient(cu_gfcoeff, GridFunction::AvgType::ARITHMETIC);
-
-   if (u.ParFESpace()->GetVDim() == 2)
-   {
-      for (int i = 0; i < u.ParFESpace()->GetNDofs(); i++)
-      {
-         cu[cu.ParFESpace()->DofToVDof(i, 1)] = 0.0;
-      }
-   }
-
-   cu_gfcoeff.SetGridFunction(&cu);
-   cu_gfcoeff.assume_scalar = true;
-   ccu.ProjectDiscCoefficient(cu_gfcoeff, GridFunction::AvgType::ARITHMETIC);
-}
-
 void NavierSolver::ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu)
 {
    FiniteElementSpace *fes = u.FESpace();

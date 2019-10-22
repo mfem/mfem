@@ -186,6 +186,7 @@ protected:
    std::vector<AccelTerm_T> accel_terms;
 
    int cur_step;
+   std::vector<double> dthist = {0.0, 0.0, 0.0};
 
    // BDFk/EXTk coefficients
    double bd0;
