@@ -57,6 +57,19 @@
 using namespace std;
 using namespace mfem;
 
+template<class T>
+typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
+almost_equal(T x, T y, const int ulp = 2)
+{
+   // the machine epsilon has to be scaled to the magnitude of the values used
+   // and multiplied by the desired precision in ULPs (units in the last place)
+   return std::fabs(x-y) <=
+          std::numeric_limits<T>::epsilon() *
+          std::fabs(x+y) * ulp
+          // unless the result is subnormal
+          || std::fabs(x-y) < std::numeric_limits<T>::min();
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -66,6 +79,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    bool mmu = false;
    bool mem = false;
+   bool als = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -83,6 +97,8 @@ int main(int argc, char *argv[])
                   "--no-mmu", "Enable MMU test on vector Y.");
    args.AddOption(&mem, "-b", "--mem", "-no-b",
                   "--no-mem", "Enable memory backends tests.");
+   args.AddOption(&als, "-a", "--alias", "-no-a",
+                  "--no-alias", "Enable aliases tests.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -119,6 +135,54 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
+   if (als)
+   {
+      const int N = 0x13;
+      dbg("N=%d",N);
+      Vector S(2*3*N + N);
+      S.UseDevice(true);
+      S = -1.0;
+      GridFunction X,V,E;
+      const int Xsz = 3*N;
+      const int Vsz = 3*N;
+      const int Esz = N;
+      dbg("X");
+      X.NewMemoryAndSize(Memory<double>(S.GetMemory(), 0, Xsz), Xsz, false);
+      dbg("V");
+      V.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz, Vsz), Vsz, false);
+      dbg("E");
+      E.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz + Vsz, Esz), Esz, false);
+      dbg("X = 1.0;");
+      X = 1.0;
+      //dbg("X:"); X.Print();
+      dbg("X.SyncAliasMemory;");
+      X.SyncAliasMemory(S);
+      //dbg("S:"); S.Print();
+      S.HostWrite();
+      X.SyncAliasMemory(S);
+      S = -1.0;
+      X.Write();
+      X = 1.0;
+      dbg("S*S;");
+      const double dot = S*S;
+      dbg("X.MFEM_VERIFY: %f", dot);
+      S.HostRead();
+      //S.Print();
+      MFEM_VERIFY(almost_equal(dot, 7.0*N), "S.X verification failed!");
+      dbg("V = 2.0;");
+      V = 2.0;
+      V.SyncAliasMemory(S);
+      S.HostRead();
+      MFEM_VERIFY(almost_equal(S*S, 16.0*N), "S.V verification failed!");
+      dbg("E = 3.0;");
+      E = 3.0;
+      E.SyncAliasMemory(S);
+      MFEM_VERIFY(almost_equal(S*S, 24.0*N), "S.E verification failed!");
+
+      dbg("delete mesh;");
+      delete mesh;
+      return 0;
+   }
 
    if (mmu)
    {
@@ -142,7 +206,7 @@ int main(int argc, char *argv[])
    {
       //dbg("mem_cuda");
       //Memory<double> mem_cuda(4096, MemoryType::DEVICE);
-      constexpr int N = 1 + static_cast<int>(MemoryType::DEVICE_UVM);
+      constexpr int N = static_cast<int>(MemoryType::SIZE);
       dbg("N: %d", N);
       Vector v[N];
       MemoryType mt = MemoryType::HOST;
