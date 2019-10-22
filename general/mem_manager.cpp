@@ -247,14 +247,6 @@ static void MmuInit()
    if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
    if ((pagesize = sysconf(_SC_PAGE_SIZE)) == -1) { mfem_error("SYSCONF"); }
    MFEM_VERIFY(pagesize > 0, "Pagesize must not be less than 1");
-   dbg("\033[7mpagesize: 0x%x", pagesize);
-   const long bytes = 0x1672;
-   void *ptr = (void*)(0x7f80cfdc2980);
-   const void *addr = MmuAddr(ptr);
-   const uintptr_t len = MmuLength(ptr, bytes);
-   dbg("Aligned(%p) = %p", ptr, addr);
-   dbg("Length(%p, 0x%x) = 0x%x", ptr, bytes, len);
-   //exit(0);
 }
 
 /// MMU allocation, through ::mmap
@@ -300,7 +292,7 @@ static void MmuAllow(const void*, const size_t) { }
 class MmuHostMemorySpace : public HostMemorySpace
 {
 public:
-   MmuHostMemorySpace(): HostMemorySpace() { dbg("\033[37mMmuHostInit"); MmuInit(); }
+   MmuHostMemorySpace(): HostMemorySpace() { MmuInit(); }
    void Alloc(void **ptr, size_t bytes)
    {
       MmuAlloc(ptr, bytes);
@@ -409,7 +401,7 @@ public:
 class MmuDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
-   MmuDeviceMemorySpace(): DeviceMemorySpace() { dbg("\033[33mMmuDeviceInit"); MmuInit(); }
+   MmuDeviceMemorySpace(): DeviceMemorySpace() { MmuInit(); }
    void Alloc(Memory &m)
    {
       MmuAlloc(&m.d_ptr, m.bytes);
@@ -536,7 +528,6 @@ public:
 
    ~Ctrl()
    {
-      dbg("");
       delete host[static_cast<int>(MemoryType::HOST_UMPIRE)];
       delete device[static_cast<int>(MemoryType::DEVICE_UMPIRE)];
    }
@@ -688,7 +679,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
                                 size_t bytes, unsigned &flags)
 {
    dbg("h_ptr:%p:%X, d_mc:%d, bytes:0x%x", h_ptr, flags, mc, bytes);
-   MemoryPrintFlags(flags);
+   //MemoryPrintFlags(flags);
    switch (mc)
    {
       case MemoryClass::HOST:
@@ -726,7 +717,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
    dbg("h_ptr:%p:%X, d_mc:%d, bytes:0x%x", h_ptr, flags, mc, bytes);
-   MemoryPrintFlags(flags);
+   //MemoryPrintFlags(flags);
    switch (mc)
    {
       case MemoryClass::HOST:
@@ -764,7 +755,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
    dbg("h_ptr:%p:%X, d_mc:%d, bytes:0x%x", h_ptr, flags, mc, bytes);
-   MemoryPrintFlags(flags);
+   //MemoryPrintFlags(flags);
    if (h_ptr == nullptr)
    {
       MFEM_VERIFY(bytes == 0, "internal error");
