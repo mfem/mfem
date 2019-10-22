@@ -9,14 +9,467 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_GINKGO
+
+
 #include "ginkgo.hpp"
+#include "sparsemat.hpp"
 #include "../general/globals.hpp"
+#include "../general/error.hpp"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
 #include <cmath>
 
+
 namespace mfem
 {
+namespace GinkgoWrappers
+{
+GinkgoIterativeSolverBase::GinkgoIterativeSolverBase(
+   const std::string &exec_type, int print_iter, int max_num_iter,
+   double RTOLERANCE, double ATOLERANCE)
+   : exec_type(exec_type),
+     print_lvl(print_iter),
+     max_iter(max_num_iter),
+     rel_tol(sqrt(RTOLERANCE)),
+     abs_tol(sqrt(ATOLERANCE))
+{
+   if (exec_type == "reference")
+   {
+      executor = gko::ReferenceExecutor::create();
+   }
+   else if (exec_type == "omp")
+   {
+      executor = gko::OmpExecutor::create();
+   }
+   else if (exec_type == "cuda" && gko::CudaExecutor::get_num_devices() > 0)
+   {
+      executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+   }
+   else
+   {
+      mfem::err <<
+                " exec_type needs to be one of the three strings: \"reference\", \"cuda\" or \"omp\" "
+                << std::endl;
+   }
+   using ResidualCriterionFactory = gko::stop::ResidualNormReduction<>;
+   residual_criterion             = ResidualCriterionFactory::build()
+                                    .with_reduction_factor(rel_tol)
+                                    .on(executor);
 
+   combined_factory =
+      gko::stop::Combined::build()
+      .with_criteria(residual_criterion,
+                     gko::stop::Iteration::build()
+                     .with_max_iters(max_iter)
+                     .on(executor))
+      .on(executor);
 }
+
+
+
+void
+GinkgoIterativeSolverBase::initialize_ginkgo_log()
+{
+   // Add the logger object. See the different masks available in Ginkgo's
+   // documentation
+   convergence_logger = gko::log::Convergence<>::create(
+                           executor, gko::log::Logger::criterion_check_completed_mask);
+}
+
+
+
+void
+GinkgoIterativeSolverBase::apply(Vector &      solution,
+                                 const Vector &rhs)
+{
+   // some shortcuts.
+   using val_array = gko::Array<double>;
+   using vec       = gko::matrix::Dense<double>;
+
+   MFEM_VERIFY(system_matrix, "System matrix not initialized");
+   MFEM_VERIFY(executor, "executor is not initialized");
+   MFEM_VERIFY(rhs.Size() == solution.Size(),
+               "Mismatching sizes for rhs and solution");
+
+   // Generate the solver from the solver using the system matrix.
+   auto solver = solver_gen->generate(system_matrix);
+
+   // Create the rhs vector in Ginkgo's format.
+   // std::vector<double> f(rhs.size());
+   // std::copy(rhs.begin(), rhs.begin() + rhs.size(), f.begin());
+   auto b =
+      vec::create(executor,
+                  gko::dim<2>(rhs.Size(), 1),
+                  val_array::view(executor->get_master(), rhs.Size(), rhs.GetData()),
+                  1);
+
+   // Create the solution vector in Ginkgo's format.
+   // std::vector<double> u(solution.size());
+   // std::copy(solution.begin(), solution.begin() + solution.size(), u.begin());
+   auto x = vec::create(executor,
+                        gko::dim<2>(solution.Size(), 1),
+                        val_array::view(executor->get_master(),
+                                        solution.Size(),
+                                        solution.GetData()),
+                        1);
+
+   // Create the logger object to log some data from the solvers to confirm
+   // convergence.
+   initialize_ginkgo_log();
+
+   MFEM_VERIFY(convergence_logger, "logger not initialized" );
+   // Add the convergence logger object to the combined factory to retrieve the
+   // solver and other data
+   combined_factory->add_logger(convergence_logger);
+
+   // Finally, apply the solver to b and get the solution in x.
+   solver->apply(gko::lend(b), gko::lend(x));
+
+   // The convergence_logger object contains the residual vector after the
+   // solver has returned. use this vector to compute the residual norm of the
+   // solution. Get the residual norm from the logger. As the convergence
+   // logger returns a `linop`, it is necessary to convert it to a Dense
+   // matrix. Additionally, if the logger is logging on the gpu, it is
+   // necessary to copy the data to the host and hence the
+   // `residual_norm_d_master`
+   auto residual_norm = convergence_logger->get_residual_norm();
+   auto residual_norm_d =
+      gko::as<gko::matrix::Dense<double>>(residual_norm);
+   auto residual_norm_d_master =
+      gko::matrix::Dense<double>::create(executor->get_master(),
+                                         gko::dim<2> {1, 1});
+   residual_norm_d_master->copy_from(residual_norm_d);
+
+   // Get the number of iterations taken to converge to the solution.
+   auto num_iteration = convergence_logger->get_num_iterations();
+
+   // Ginkgo works with a relative residual norm through its
+   // ResidualNormReduction criterion. Therefore, to get the normalized
+   // residual, we divide by the norm of the rhs.
+   auto b_norm = gko::matrix::Dense<double>::create(executor->get_master(),
+                                                    gko::dim<2> {1, 1});
+   if (executor != executor->get_master())
+   {
+      auto b_master = vec::create(executor->get_master(),
+                                  gko::dim<2>(rhs.Size(), 1),
+                                  val_array::view(executor->get_master(),
+                                                  rhs.Size(),
+                                                  rhs.GetData()),
+                                  1);
+      b_master->compute_norm2(b_norm.get());
+   }
+   else
+   {
+      b->compute_norm2(b_norm.get());
+   }
+
+   MFEM_VERIFY(b_norm.get()->at(0, 0) != 0.0, " rhs norm is zero");
+   // Pass the number of iterations and residual norm to the solver_control
+   // object. As both `residual_norm_d_master` and `b_norm` are seen as Dense
+   // matrices, we use the `at` function to get the first value here. In case
+   // of multiple right hand sides, this will need to be modified.
+   if (num_iteration==max_iter ||
+       (residual_norm_d_master->at(0, 0) / b_norm->at(0, 0)) > rel_tol )
+   {
+      converged = -1;
+   }
+   MFEM_VERIFY(converged ==0, " Solver did not converge"
+              );
+
+   // Check if the solution is on a CUDA device, if so, copy it over to the
+   // host.
+   if (executor != executor->get_master())
+   {
+      auto x_master = vec::create(executor->get_master(),
+                                  gko::dim<2>(solution.Size(), 1),
+                                  val_array::view(executor,
+                                                  solution.Size(),
+                                                  x->get_values()),
+                                  1);
+      x.reset(x_master.release());
+   }
+   // Finally copy over the solution vector to mfem's solution vector.
+   std::copy(x->get_values(),
+             x->get_values() + solution.Size(),
+             solution.GetData());
+}
+
+
+void
+GinkgoIterativeSolverBase::initialize(
+   const SparseMatrix &matrix)
+{
+   // Needs to be a square matrix
+   MFEM_VERIFY(matrix.Height() == matrix.Width(), "System matrix is not square");
+
+   const int N = matrix.Height();
+
+   using mtx = gko::matrix::Csr<double, int>;
+   std::shared_ptr<mtx> system_matrix_compute;
+   system_matrix_compute   = mtx::create(executor->get_master(),
+                                         gko::dim<2>(N),
+                                         matrix.NumNonZeroElems());
+   const double *mat_values   = system_matrix_compute->get_values();
+   const int *mat_row_ptrs = system_matrix_compute->get_row_ptrs();
+   const int *mat_col_idxs = system_matrix_compute->get_col_idxs();
+   mat_values= matrix.GetData();
+   mat_row_ptrs= matrix.GetI();
+   mat_col_idxs= matrix.GetJ();
+   system_matrix =
+      mtx::create(executor, gko::dim<2>(N), matrix.NumNonZeroElems());
+   system_matrix->copy_from(system_matrix_compute.get());
+}
+
+
+
+void
+GinkgoIterativeSolverBase::solve(const SparseMatrix &matrix,
+                                 Vector &      solution,
+                                 const Vector &rhs)
+{
+   initialize(matrix);
+   apply(solution, rhs);
+}
+
+
+
+/* ---------------------- CGSolver ------------------------ */
+CGSolver::CGSolver(
+   const std::string &   exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using cg = gko::solver::Cg<double>;
+   this->solver_gen =
+      cg::build().with_criteria(this->combined_factory).on(this->executor);
+}
+
+
+
+CGSolver::CGSolver(
+   const std::string &                       exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE,
+   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using cg         = gko::solver::Cg<double>;
+   this->solver_gen = cg::build()
+                      .with_criteria(this->combined_factory)
+                      .with_preconditioner(preconditioner)
+                      .on(this->executor);
+}
+
+
+
+/* ---------------------- BICGSTABSolver ------------------------ */
+BICGSTABSolver::BICGSTABSolver(
+   const std::string &   exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using bicgstab   = gko::solver::Bicgstab<double>;
+   this->solver_gen = bicgstab::build()
+                      .with_criteria(this->combined_factory)
+                      .on(this->executor);
+}
+
+
+
+BICGSTABSolver::BICGSTABSolver(
+   const std::string &                       exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE,
+   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using bicgstab   = gko::solver::Bicgstab<double>;
+   this->solver_gen = bicgstab::build()
+                      .with_criteria(this->combined_factory)
+                      .with_preconditioner(preconditioner)
+                      .on(this->executor);
+}
+
+
+
+/* ---------------------- CGSSolver ------------------------ */
+CGSSolver::CGSSolver(
+   const std::string &exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using cgs = gko::solver::Cgs<double>;
+   this->solver_gen =
+      cgs::build().with_criteria(this->combined_factory).on(this->executor);
+}
+
+
+
+CGSSolver::CGSSolver(
+   const std::string &                       exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE,
+   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using cgs        = gko::solver::Cgs<double>;
+   this->solver_gen = cgs::build()
+                      .with_criteria(this->combined_factory)
+                      .with_preconditioner(preconditioner)
+                      .on(this->executor);
+}
+
+
+
+/* ---------------------- FCGSolver ------------------------ */
+FCGSolver::FCGSolver(
+   const std::string &exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using fcg = gko::solver::Fcg<double>;
+   this->solver_gen =
+      fcg::build().with_criteria(this->combined_factory).on(this->executor);
+}
+
+
+
+FCGSolver::FCGSolver(
+   const std::string &                       exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE,
+   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using fcg        = gko::solver::Fcg<double>;
+   this->solver_gen = fcg::build()
+                      .with_criteria(this->combined_factory)
+                      .with_preconditioner(preconditioner)
+                      .on(this->executor);
+}
+
+
+
+/* ---------------------- GMRESSolver ------------------------ */
+
+GMRESSolver::GMRESSolver(
+   const std::string &exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using gmres      = gko::solver::Gmres<double>;
+   this->solver_gen = gmres::build()
+                      .with_krylov_dim(m)
+                      .with_criteria(this->combined_factory)
+                      .on(this->executor);
+}
+
+
+
+GMRESSolver::GMRESSolver(
+   const std::string &                       exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE,
+   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using gmres      = gko::solver::Gmres<double>;
+   this->solver_gen = gmres::build()
+                      .with_krylov_dim(m)
+                      .with_criteria(this->combined_factory)
+                      .with_preconditioner(preconditioner)
+                      .on(this->executor);
+}
+
+
+
+/* ---------------------- IRSolver ------------------------ */
+IRSolver::IRSolver(
+   const std::string &   exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using ir = gko::solver::Ir<double>;
+   this->solver_gen =
+      ir::build().with_criteria(this->combined_factory).on(this->executor);
+}
+
+
+
+IRSolver::IRSolver(
+   const std::string &                       exec_type,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE,
+   const std::shared_ptr<gko::LinOpFactory> &inner_solver
+)
+   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                               ATOLERANCE)
+{
+   using ir         = gko::solver::Ir<double>;
+   this->solver_gen = ir::build()
+                      .with_criteria(this->combined_factory)
+                      .with_solver(inner_solver)
+                      .on(this->executor);
+}
+
+
+} // namespace GinkgoWrappers
+}
+
+#endif
