@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
+   Device device(device_config,0);
    device.Print();
 
    // 3. Read the mesh from the given mesh file. We can handle triangular,
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    }
    if (als)
    {
-      const int N = 0x13;
+      const int N = 0x1234;
       dbg("N=%d",N);
       Vector S(2*3*N + N);
       S.UseDevice(true);
@@ -167,7 +167,6 @@ int main(int argc, char *argv[])
       const double dot = S*S;
       dbg("X.MFEM_VERIFY: %f", dot);
       S.HostRead();
-      //S.Print();
       MFEM_VERIFY(almost_equal(dot, 7.0*N), "S.X verification failed!");
       dbg("V = 2.0;");
       V = 2.0;
@@ -178,9 +177,9 @@ int main(int argc, char *argv[])
       E = 3.0;
       E.SyncAliasMemory(S);
       MFEM_VERIFY(almost_equal(S*S, 24.0*N), "S.E verification failed!");
-
       dbg("delete mesh;");
       delete mesh;
+      device.Print();
       return 0;
    }
 

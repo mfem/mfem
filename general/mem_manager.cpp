@@ -123,8 +123,7 @@ class HostMemorySpace
 public:
    HostMemorySpace() { }
    virtual ~HostMemorySpace() { }
-   virtual void Alloc(void **ptr, size_t bytes)
-   { dbg(""); *ptr = std::malloc(bytes); }
+   virtual void Alloc(void **ptr, size_t bytes) { *ptr = std::malloc(bytes); }
    virtual void Dealloc(void *ptr) { std::free(ptr); }
    virtual void Insert(void *ptr, size_t bytes) { }
    virtual void Protect(const void *ptr, size_t bytes) { }
@@ -186,7 +185,15 @@ public:
 static long pagesize = 0;
 
 // *****************************************************************************
-const void *MmuAddr(const void *a)
+const void *MmuAddrR(const void *a)
+{
+   const uintptr_t psul = static_cast<uintptr_t>(pagesize);
+   const uintptr_t mask = psul - 1;
+   return ((uintptr_t)a&mask) ? (void*)(((uintptr_t)a+psul) & ~mask):a;
+}
+
+// *****************************************************************************
+const void *MmuAddrP(const void *a)
 {
    const uintptr_t psul = static_cast<uintptr_t>(pagesize);
    const uintptr_t mask = psul - 1;
@@ -194,17 +201,38 @@ const void *MmuAddr(const void *a)
 }
 
 // *****************************************************************************
-uintptr_t MmuLength(const void *a, const size_t bytes)
+//  |            a ----A:|      |:B---- b
+uintptr_t MmuLengthR(const void *a, const size_t bytes)
 {
    const uintptr_t psul = static_cast<uintptr_t>(pagesize);
    const uintptr_t mask = psul - 1;
-   const void *A = MmuAddr(a);
+   const void *A = MmuAddrR(a);
+   MFEM_VERIFY((uintptr_t)a <= (uintptr_t)A, "");
+   const void *b = (const void*)((uintptr_t)a + bytes);
+   const void *B = (void*)((uintptr_t)b & ~mask);
+   MFEM_VERIFY((uintptr_t)B <= (uintptr_t)b, "");
+   dbg("a:%p A:[%p--%p]:B %p:b",a,A,B,b);
+   //MFEM_VERIFY((uintptr_t)B >= (uintptr_t)A,"");
+   if (!(B>A)) { return 0; }
+   const uintptr_t length = (uintptr_t) B - (uintptr_t) A;
+   dbg("length: 0x%x", length);
+   MFEM_VERIFY(length % psul == 0,"");
+   return length;
+}
+
+// *****************************************************************************
+//  |         |:A----a |    |  b----B:|
+uintptr_t MmuLengthP(const void *a, const size_t bytes)
+{
+   const uintptr_t psul = static_cast<uintptr_t>(pagesize);
+   const uintptr_t mask = psul - 1;
+   const void *A = MmuAddrP(a);
    MFEM_VERIFY((uintptr_t)A <= (uintptr_t)a, "");
    const void *b = (const void*)((uintptr_t)a + bytes);
    const void *B = ((uintptr_t)b&mask) ? (void*)(((uintptr_t)b+psul) & ~mask):b;
    MFEM_VERIFY((uintptr_t)b <= (uintptr_t)B, "");
    dbg("A:%p a:[%p--%p]:b %p:B",A,a,b,B);
-   MFEM_VERIFY((uintptr_t)B > (uintptr_t)A,"");
+   MFEM_VERIFY((uintptr_t)B >= (uintptr_t)A,"");
    const uintptr_t length = (uintptr_t) B - (uintptr_t) A;
    dbg("length: 0x%x", length);
    MFEM_VERIFY(length % psul == 0,"");
@@ -317,13 +345,13 @@ public:
    {
       dbg("\033[37mMmuHostAliasProtect: %p 0x%x", ptr, bytes);
       //MmuProtect(ptr, bytes);
-      MmuProtect(MmuAddr(ptr), MmuLength(ptr, bytes));
+      MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes));
    }
    void AliasUnprotect(const void *ptr, size_t bytes)
    {
       dbg("\033[37mMmuHostAliasAllow: %p 0x%x", ptr, bytes);
       //MmuAllow(ptr, bytes);
-      MmuAllow(MmuAddr(ptr), MmuLength(ptr, bytes));
+      MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes));
    }
 };
 
@@ -424,13 +452,12 @@ public:
    }
    void AliasProtect(const void *ptr, size_t bytes)
    {
-      MmuProtect(MmuAddr(ptr), MmuLength(ptr, bytes));
+      MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes));
    }
    void AliasUnprotect(const void *ptr, size_t bytes)
    {
       dbg("\033[33mMmuDeviceAliasAllow: %p 0x%x", ptr, bytes);
-      //MmuAllow(ptr, bytes);
-      MmuAllow(MmuAddr(ptr), MmuLength(ptr, bytes));
+      MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes));
    }
 };
 
@@ -452,11 +479,31 @@ public:
       rm(umpire::ResourceManager::getInstance()),
       h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
                   ("host_pool", rm.getAllocator("HOST"))),
-      strat(h_allocator.getAllocationStrategy()) { }
-   void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
-   void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
+      strat(h_allocator.getAllocationStrategy())
+   {
+      dbg("");
+      MFEM_DEVICE_SYNC;
+   }
+   void Alloc(void **ptr, size_t bytes)
+   {
+      MFEM_DEVICE_SYNC;
+      *ptr = h_allocator.allocate(bytes);
+      dbg("\033[33m%p (%d)", *ptr, bytes);
+   }
+   void Dealloc(void *ptr)
+   {
+      MFEM_DEVICE_SYNC;
+      dbg("\033[33m%p", ptr);
+      h_allocator.deallocate(ptr);
+      dbg("done");
+   }
    virtual void Insert(void *ptr, size_t bytes)
-   { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
+   {
+      dbg("skip");
+      //MFEM_DEVICE_SYNC;
+      //dbg("\033[33m%p (%d)", ptr, bytes);
+      //rm.registerAllocation(ptr, {ptr, bytes, strat});
+   }
 };
 
 /// The Umpire device memory space
@@ -470,15 +517,41 @@ public:
    UmpireDeviceMemorySpace(): DeviceMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
       d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("device_pool", rm.getAllocator("DEVICE"))) { dbg(""); }
-   void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
-   void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
+                  ("device_pool", rm.getAllocator("DEVICE")))
+   {
+      dbg("");
+      MFEM_DEVICE_SYNC;
+   }
+   void Alloc(Memory &base)
+   {
+      base.d_ptr = d_allocator.allocate(base.bytes);
+      dbg("\033[33m%p (%d)", base.d_ptr, base.bytes);
+      MFEM_DEVICE_SYNC;
+   }
+   void Dealloc(Memory &base)
+   {
+      dbg("\033[33m%p", base.d_ptr);
+      d_allocator.deallocate(base.d_ptr);
+      MFEM_DEVICE_SYNC;
+   }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   {
+      rm.copy(dst, const_cast<void*>(src), bytes);
+      MFEM_DEVICE_SYNC;
+      return dst;
+   }
    void *DtoD(void* dst, const void* src, size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   {
+      rm.copy(dst, const_cast<void*>(src), bytes);
+      MFEM_DEVICE_SYNC;
+      return dst;
+   }
    void *DtoH(void *dst, const void *src, size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   {
+      rm.copy(dst, const_cast<void*>(src), bytes);
+      MFEM_DEVICE_SYNC;
+      return dst;
+   }
 };
 #endif // MFEM_USE_UMPIRE
 
@@ -489,7 +562,8 @@ class Ctrl
    typedef MemoryType MT;
 public:
    StdHostMemorySpace h_std;
-   UmpireHostMemorySpace *h_umpire;
+   //UmpireHostMemorySpace *h_umpire;
+   UmpireHostMemorySpace h_umpire;
    Aligned32HostMemorySpace h_align32;
    Aligned64HostMemorySpace h_align64;
    MmuHostMemorySpace h_mmu;
@@ -497,30 +571,31 @@ public:
    StdDeviceMemorySpace d_std;
    CudaDeviceMemorySpace d_cuda;
    //HipDeviceMemorySpace d_hip;
-   UmpireDeviceMemorySpace *d_umpire;
+   //UmpireDeviceMemorySpace *d_umpire;
+   UmpireDeviceMemorySpace d_umpire;
    UvmCudaMemorySpace d_uvm;
    MmuDeviceMemorySpace d_mmu;
 
 
    HostMemorySpace *host[MemoryTypeSize]
    {
-      &h_std, nullptr, &h_align32, &h_align64, &h_mmu,
+      &h_std, &h_umpire, &h_align32, &h_align64, &h_mmu,
       nullptr, nullptr, nullptr, nullptr
    };
 
    DeviceMemorySpace *device[MemoryTypeSize]
    {
       nullptr, nullptr, nullptr, nullptr, nullptr,
-      &d_cuda, nullptr, &d_uvm, &d_mmu
+      &d_cuda, &d_umpire, &d_uvm, &d_mmu
    };
 public:
    Ctrl() { }
    void UmpireSetup()
    {
-      host[static_cast<int>(MemoryType::HOST_UMPIRE)] =
+      /*host[static_cast<int>(MemoryType::HOST_UMPIRE)] =
          static_cast<HostMemorySpace*>(new UmpireHostMemorySpace());
       device[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
-         static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());
+         static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());*/
    }
 
    HostMemorySpace* Host(const MemoryType mt) { return host[static_cast<int>(mt)]; }
@@ -528,8 +603,9 @@ public:
 
    ~Ctrl()
    {
-      delete host[static_cast<int>(MemoryType::HOST_UMPIRE)];
-      delete device[static_cast<int>(MemoryType::DEVICE_UMPIRE)];
+      //delete host[static_cast<int>(MemoryType::HOST_UMPIRE)];
+      //delete device[static_cast<int>(MemoryType::DEVICE_UMPIRE)];
+
    }
 };
 
@@ -656,6 +732,8 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
       dbg("\033[31;7mh_mt:%d", h_mt);
       if (known)
       {
+         dbg("known");
+         //MemoryPrintFlags(flags);
          h_mt = maps->memories.at(h_ptr).h_mt;
          // Deallocate the host side if needed before erasing
          if ((flags & Mem::OWNS_HOST) && (h_mt != MemoryType::HOST))
@@ -835,6 +913,7 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
                           size_t bytes, unsigned src_flags,
                           unsigned &dst_flags)
 {
+   MFEM_DEVICE_SYNC;
    dbg("dst_h_ptr:%p, src_h_ptr:%p, bytes:0x%x", dst_h_ptr, src_h_ptr, bytes);
    // Type of copy to use based on the src and dest validity flags:
    //            |       src
@@ -899,33 +978,7 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
       void *dest_d_ptr = (dst_flags & Mem::ALIAS) ?
                          mm.GetAliasDevicePtr(dst_h_ptr, bytes, false) :
                          mm.GetDevicePtr(dst_h_ptr, bytes, false);
-      if (src_on_host)
-      {
-         /*
-         if (dest_d_ptr != src_h_ptr && bytes != 0)
-         {
-         MemoryType dst_d_mt = device_mem_type;
-         if (mm.IsKnown(dest_d_ptr))
-         {
-         dst_d_mt = maps->memories.at(dest_d_ptr).d_mt;
-         }
-         MemoryType src_h_mt = host_mem_type;
-         if (mm.IsKnown(src_h_ptr))
-         {
-         src_h_mt = maps->memories.at(src_h_ptr).h_mt;
-         }
-         //MFEM_VERIFY(dst_d_mt == src_h_mt, "");
-         if (mm.IsKnown(dest_d_ptr))
-         {
-         ctrl->Device(dst_d_mt)->Unprotect(maps->memories.at(dest_d_ptr));
-         }
-         ctrl->Device(dst_d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
-         if (mm.IsKnown(src_h_ptr))
-         {
-         ctrl->Host(src_h_mt)->Protect(src_h_ptr, bytes);
-         }
-         }*/
-      }
+      if (src_on_host) {  }
       else
       {
          if (dest_d_ptr != src_d_ptr && bytes != 0)
@@ -1136,21 +1189,21 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    const internal::Alias &alias = alias_map_iter->second;
    const size_t offset = alias.offset;
    internal::Memory &mem = *alias.mem;
-   //const MemoryType &h_mt = mem.h_mt;
+   const MemoryType &h_mt = mem.h_mt;
    const MemoryType &d_mt = mem.d_mt;
    if (!mem.d_ptr) { ctrl->Device(d_mt)->Alloc(mem); }
    void *alias_h_ptr = static_cast<char*>(mem.h_ptr) + offset;
    void *alias_d_ptr = static_cast<char*>(mem.d_ptr) + offset;
    MFEM_ASSERT(alias_h_ptr == alias_ptr, "internal error");
    MFEM_VERIFY(bytes == alias.bytes, "internal error");
-   ctrl->Device(d_mt)->Unprotect(mem);
-   //ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes);
+   //ctrl->Device(d_mt)->Unprotect(mem);
+   ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes);
    if (copy_data)
    {
       dbg("copy");
       ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes);
    }
-   //ctrl->Host(h_mt)->AliasProtect(alias_ptr, bytes);
+   ctrl->Host(h_mt)->AliasProtect(alias_ptr, bytes);
    dbg("return alias_d_ptr:%p", alias_d_ptr);
    return alias_d_ptr;
 }
@@ -1201,8 +1254,12 @@ void *MemoryManager::GetAliasHostPtr(const void *ptr, size_t bytes,
    void *alias_d_ptr = static_cast<char*>(mem->d_ptr) + alias.offset;
    MFEM_ASSERT(alias_h_ptr == ptr,  "internal error");
    //dbg("Unprotect ptr:%p mem->h_ptr:%p (0x%x)", ptr, mem->h_ptr, mem->bytes);
-   ctrl->Host(h_mt)->AliasUnprotect(mem->h_ptr, mem->bytes);
-   //ctrl->Host(h_mt)->AliasUnprotect(alias_h_ptr, bytes);
+   //ctrl->Host(h_mt)->AliasUnprotect(mem->h_ptr, mem->bytes);
+   ctrl->Host(h_mt)->AliasUnprotect(alias_h_ptr, bytes);
+   if (mem->d_ptr)
+   {
+      ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes);
+   }
    if (copy_data && mem->d_ptr)
    {
       dbg("copy");
