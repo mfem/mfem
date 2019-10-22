@@ -446,7 +446,7 @@ private: // Static methods used by the Memory<T> class
    static MemoryType Delete_(void *h_ptr, unsigned flags);
 
    // Free memory identified by its host pointer with its host deallocator.
-   static void HostDelete_(void *h_ptr, MemoryType mt, unsigned flags);
+   static void HostDelete_(void *h_ptr, MemoryType mt);
 
    // Return a pointer to the memory identified by the host pointer h_ptr for
    // access with the given MemoryClass.
@@ -511,6 +511,14 @@ private: // Methods used by the static methods of this class
    /// Return the corresponding device pointer of alias_ptr,
    /// allocating and moving the data if needed
    void *GetAliasDevicePtr(const void *alias_ptr, size_t bytes, bool copy_data);
+
+   /// Return the corresponding host pointer of d_ptr,
+   /// allocating and moving the data if needed
+   void *GetHostPtr(const void *d_ptr, size_t bytes, bool copy_data);
+
+   /// Return the corresponding host pointer of alias_ptr,
+   /// allocating and moving the data if needed
+   void *GetAliasHostPtr(const void *alias_ptr, size_t bytes, bool copy_data);
 
 public:
    MemoryManager();
@@ -619,7 +627,7 @@ inline void Memory<T>::Delete()
          }
          else
          {
-            MemoryManager::HostDelete_((void*)h_ptr, h_mt, flags);
+            MemoryManager::HostDelete_((void*)h_ptr, h_mt);
          }
       }
    }
