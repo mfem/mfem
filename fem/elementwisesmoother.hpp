@@ -121,6 +121,9 @@ class AdditiveSchwarzApproxLORSmoother : public Solver
    virtual void LocalSmoother(int element, const mfem::Vector& in,
                               mfem::Vector& out) const;
 
+   void TensorProductMult2D(const DenseMatrix& A, const DenseMatrix& B, const Vector& in, Vector& out) const;   
+   void TensorProductMult2D(const Operator& A, const Operator& B, const Vector& in, Vector& out) const;
+
  protected:
    const mfem::FiniteElementSpace& fespace_;
    const Array<int>& ess_tdof_list_;
@@ -134,6 +137,11 @@ class AdditiveSchwarzApproxLORSmoother : public Solver
    DenseMatrix elmat;
    Array<int> lexdofmap;
    mutable DenseMatrixInverse inv;
+   DenseMatrix A1, A2, B1, B2;
+   DenseMatrixInverse invA2, invB1;
+   DenseMatrixSchurDecomposition* schurA1;
+   DenseMatrixSchurDecomposition* schurB2;
+   DenseMatrixSylvesterSolver* syl;
 };
 
 /**

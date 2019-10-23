@@ -56,10 +56,23 @@ extern "C" void
 dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
         double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
         int *LWORK, int *INFO);
+extern "C" void
+dgehrd_(int *N, int *ILO, int *IHI, double *A, int *LDA, double* TAU,
+        double *WORK, int *LWORK, int *INFO);
+extern "C" void
+dorghr_(int *N, int *ILO, int *IHI, double *A, int *LDA, double* TAU,
+        double *WORK, int *LWORK, int *INFO);
+extern "C" void
+dhseqr_(char *JOB, char *COMPZ, int *N, int *ILO, int *IHI, double *H,
+        int *LDH, double *WR, double *WI, double *Z, int *LDZ, double *WORK,
+        int *LWORK, int *INFO);
+extern "C" void 
+dtrsyl_(char* TRANA, char* TRANB, int* ISGN, int* M, int* N,
+        double* A, int* LDA, double* B, int* LDB, double* C,
+        int* LDC, double* SCALE, int* INFO);
 #endif
 
-
-namespace mfem
+    namespace mfem
 {
 
 using namespace std;
@@ -4403,7 +4416,9 @@ void DenseMatrixSVD::Init()
 {
 #ifdef MFEM_USE_LAPACK
    sv.SetSize(min(m, n));
-
+   U.SetSize(m,m);
+   V_T.SetSize(n,n);
+   
    jobu  = 'N';
    jobvt = 'N';
 
@@ -4429,8 +4444,10 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), NULL, &m,
-           NULL, &n, work, &lwork, &info);
+   jobu  = 'A';
+   jobvt = 'A';
+   dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), U.Data(), &m,
+           V_T.Data(), &n, work, &lwork, &info);
 
    if (info)
    {
@@ -4447,6 +4464,108 @@ DenseMatrixSVD::~DenseMatrixSVD()
 #ifdef MFEM_USE_LAPACK
    delete [] work;
 #endif
+}
+
+DenseMatrixSchurDecomposition::DenseMatrixSchurDecomposition(const DenseMatrix &M)
+{
+#ifdef MFEM_USE_LAPACK
+   int n = M.Height();
+   T = M;
+   int ILO = 1;
+   int IHI = n;
+   int info = 0;
+
+   Vector tau(n - 1);
+
+   double work_;
+   int lwork = -1;
+   dgehrd_(&n, &ILO, &IHI, T.Data(), &n, tau.GetData(), &work_, &lwork, &info);
+
+   lwork = static_cast<int>(work_);
+   double* work = new double[lwork];
+   dgehrd_(&n, &ILO, &IHI, T.Data(), &n, tau.GetData(), work, &lwork, &info);
+   delete[] work;
+
+   if (info)
+   {
+      mfem::err << "dgehrd_ : info = " << info << endl;
+      mfem_error();
+   }
+
+   Q = T;
+   lwork = -1;
+   dorghr_(&n, &ILO, &IHI, Q.Data(), &n, tau.GetData(), &work_, &lwork,
+           &info);
+   lwork = static_cast<int>(work_);
+   work = new double[lwork];
+   dorghr_(&n, &ILO, &IHI, Q.Data(), &n, tau.GetData(), work, &lwork, &info);
+   delete[] work;
+
+   if (info)
+   {
+      mfem::err << "dorghr_ : info = " << info << endl;
+      mfem_error();
+   }
+
+   char job = 'S';
+   char compz = 'V';
+   Vector wr(n);
+   Vector wi(n);
+   lwork = -1;
+   dhseqr_(&job, &compz, &n, &ILO, &IHI, T.Data(), &n, wr.GetData(),
+           wi.GetData(), Q.Data(), &n, &work_, &lwork, &info);
+   lwork = static_cast<int>(work_);
+   work = new double[lwork];
+   dhseqr_(&job, &compz, &n, &ILO, &IHI, T.Data(), &n, wr.GetData(),
+           wi.GetData(), Q.Data(), &n, work, &lwork, &info);
+   delete[] work;
+
+   if (info)
+   {
+      mfem::err << "dhseqr_ : info = " << info << endl;
+      mfem_error();
+   }
+
+   Q_T = Q;
+   Q_T.Transpose();
+
+#else
+   mfem_error("DenseMatrixSchurDecomposition::Eval(): Compiled without LAPACK");
+#endif
+}
+
+DenseMatrixSylvesterSolver::DenseMatrixSylvesterSolver(const DenseMatrix& A_, const DenseMatrix& B_, bool tranA_, bool tranB_)
+   : A(A_), B(B_)
+{
+   tranA = tranA_ ? 'T' : 'N';
+   tranB = tranB_ ? 'T' : 'N';
+}
+
+void DenseMatrixSylvesterSolver::Mult(const Vector &c, Vector &x) const
+{
+   int isgn = 1;
+   int m = A.Width();
+   int n = B.Height();
+   double scale = 1.0;
+   int info = 0;
+
+   x = c;
+   dtrsyl_(&tranA, &tranB, &isgn, &m, &n, A.Data(), &m, B.Data(), &n, x.GetData(), &m, &scale, &info);
+
+   if (info)
+   {
+      mfem::err << "dtrsyl_ : info = " << info << endl;
+      mfem_error();
+   }
+
+   // Test inversion
+   // DenseMatrix C(c.GetData(), m, n);
+   // DenseMatrix X(x.GetData(), m, n);
+   // DenseMatrix tmp(m,n);
+   // mfem::Mult(A, X, tmp);
+   // mfem::AddMultABt(X, B, tmp);
+   // tmp -= C;
+   // std::cout << "test = " << tmp.MaxMaxNorm() << std::endl;
 }
 
 

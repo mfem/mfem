@@ -631,6 +631,8 @@ public:
 class DenseMatrixSVD
 {
    Vector sv;
+   DenseMatrix U;
+   DenseMatrix V_T;
    int m, n;
 
 #ifdef MFEM_USE_LAPACK
@@ -647,7 +649,46 @@ public:
    void Eval(DenseMatrix &M);
    Vector &Singularvalues() { return sv; }
    double Singularvalue(int i) { return sv(i); }
+   DenseMatrix& GetU() { return U; }
+   DenseMatrix& GetV_T() { return V_T; }
+
    ~DenseMatrixSVD();
+};
+
+class DenseMatrixSchurDecomposition
+{
+   DenseMatrix T;
+   DenseMatrix Q;
+   DenseMatrix Q_T;
+
+public:
+   DenseMatrixSchurDecomposition(const DenseMatrix &M);
+   DenseMatrix& GetT() { return T; };
+   DenseMatrix& GetQ() { return Q; };
+   DenseMatrix& GetQ_T() { return Q_T; };
+};
+
+/// Solver for the matrix equation op(A)*X + X*op(B) = C where
+/// op(A) = A or A**T using Bartels–Stewart algorithm. A and B must be
+/// quasi-triangular matrices.
+class DenseMatrixSylvesterSolver
+{
+ private:
+   const DenseMatrix& A;
+   const DenseMatrix& B;
+
+#ifdef MFEM_USE_LAPACK
+   mutable char tranA;
+   mutable char tranB;
+#endif
+
+ public:
+   DenseMatrixSylvesterSolver(const DenseMatrix& A, const DenseMatrix& B,
+                              bool tranA_ = false, bool tranB_ = false);
+
+   /// c = vec(C)
+   /// x = vec(X)
+   void Mult(const Vector& c, Vector& x) const;
 };
 
 class Table;
