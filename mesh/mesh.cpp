@@ -6032,9 +6032,9 @@ void Mesh::UniformRefinement2D()
    };
 
    CoarseFineTr.point_matrices[Geometry::TRIANGLE]
-      .UseExternalData(tri_children, 2, 3, 4);
+   .UseExternalData(tri_children, 2, 3, 4);
    CoarseFineTr.point_matrices[Geometry::SQUARE]
-      .UseExternalData(quad_children, 2, 4, 4);
+   .UseExternalData(quad_children, 2, 4, 4);
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
    for (int i = 0; i < elements.Size(); i++)
@@ -6624,11 +6624,11 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
    };
 
    CoarseFineTr.point_matrices[Geometry::TETRAHEDRON]
-      .UseExternalData(tet_children, 3, 4, 16);
+   .UseExternalData(tet_children, 3, 4, 16);
    CoarseFineTr.point_matrices[Geometry::PRISM]
-      .UseExternalData(pri_children, 3, 6, 8);
+   .UseExternalData(pri_children, 3, 6, 8);
    CoarseFineTr.point_matrices[Geometry::CUBE]
-      .UseExternalData(hex_children, 3, 8, 8);
+   .UseExternalData(hex_children, 3, 8, 8);
 
    for (int i = 0; i < elements.Size(); i++)
    {
