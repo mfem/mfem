@@ -314,6 +314,11 @@ static void MmuAlloc(void **ptr, const size_t b) { *ptr = std::malloc(b); }
 static void MmuDealloc(void *ptr, const size_t b) { std::free(ptr); }
 static void MmuProtect(const void*, const size_t) { }
 static void MmuAllow(const void*, const size_t) { }
+const void *MmuAddrR(const void *a) { return a; }
+const void *MmuAddrP(const void *a) { return a; }
+uintptr_t MmuLengthR(const void *a, const size_t bytes) { return 0; }
+uintptr_t MmuLengthP(const void *a, const size_t bytes) { return 0; }
+
 #endif
 
 /// The MMU host memory space
@@ -321,38 +326,14 @@ class MmuHostMemorySpace : public HostMemorySpace
 {
 public:
    MmuHostMemorySpace(): HostMemorySpace() { MmuInit(); }
-   void Alloc(void **ptr, size_t bytes)
-   {
-      MmuAlloc(ptr, bytes);
-      dbg("\033[37mMmuHostAlloc %p, 0x%x", *ptr, bytes);
-   }
-   void Dealloc(void *ptr)
-   {
-      dbg("\033[37mMmuHostDealloc %p", ptr);
-      MmuDealloc(ptr, maps->memories.at(ptr).bytes);
-   }
-   void Protect(const void *ptr, size_t bytes)
-   {
-      dbg("\033[37mMmuHostProtect: %p 0x%x", ptr, bytes);
-      MmuProtect(ptr, bytes);
-   }
-   void Unprotect(const void *ptr, size_t bytes)
-   {
-      dbg("\033[37mMmuHostAllow: %p 0x%x", ptr, bytes);
-      MmuAllow(ptr, bytes);
-   }
+   void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
+   void Dealloc(void *ptr) { MmuDealloc(ptr, maps->memories.at(ptr).bytes); }
+   void Protect(const void *ptr, size_t bytes) { MmuProtect(ptr, bytes); }
+   void Unprotect(const void *ptr, size_t bytes) { MmuAllow(ptr, bytes); }
    void AliasProtect(const void *ptr, size_t bytes)
-   {
-      dbg("\033[37mMmuHostAliasProtect: %p 0x%x", ptr, bytes);
-      //MmuProtect(ptr, bytes);
-      MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes));
-   }
+   { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
    void AliasUnprotect(const void *ptr, size_t bytes)
-   {
-      dbg("\033[37mMmuHostAliasAllow: %p 0x%x", ptr, bytes);
-      //MmuAllow(ptr, bytes);
-      MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes));
-   }
+   { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
 };
 
 /// The UVM host memory space

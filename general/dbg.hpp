@@ -55,15 +55,17 @@ inline void dbg_F_L_F_N_A(const char *file, const int line,
 {
    static int mpi_rank = 0;
    static int mpi_dbg = 0;
+   static bool mpi = false;
    static bool env_ini = false;
    static bool env_dbg = false;
    if (!env_ini)
    {
+      mpi = getenv("MPI");
 #ifdef MFEM_USE_MPI
-      MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+      if (mpi) { MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank); }
 #endif
       env_dbg = getenv("DBG");
-      mpi_dbg = atoi(getenv("MPI")?getenv("MPI"):"0");
+      mpi_dbg = atoi(mpi?getenv("MPI"):"0");
       env_ini = true;
    }
    if (!env_dbg) { return; }
