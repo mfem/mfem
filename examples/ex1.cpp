@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config,0);
+   Device device(device_config);
    device.Print();
 
    // 3. Read the mesh from the given mesh file. We can handle triangular,
@@ -203,8 +203,6 @@ int main(int argc, char *argv[])
 
    if (mem)
    {
-      //dbg("mem_cuda");
-      //Memory<double> mem_cuda(4096, MemoryType::DEVICE);
       constexpr int N = static_cast<int>(MemoryType::SIZE);
       dbg("N: %d", N);
       Vector v[N];
