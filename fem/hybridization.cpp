@@ -9,6 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include <fstream>
+
 #include "hybridization.hpp"
 #include "gridfunc.hpp"
 
@@ -78,7 +80,7 @@ void Hybridization::ConstructC()
             c_pfes->ExchangeFaceNbrData();
             c_num_face_nbr_dofs = c_pfes->GetFaceNbrVSize();
          }
-#ifdef MFEM_DEBUG_HERE
+#if 1//def MFEM_DEBUG_HERE
          MFEM_WARNING('[' << c_pfes->GetMyRank() <<
                       "] num_shared_slave_faces = " << num_shared_slave_faces
                       << ", glob_num_shared_slave_faces = "
@@ -93,6 +95,10 @@ void Hybridization::ConstructC()
 
    const int c_vsize = c_fes->GetVSize();
    Ct = new SparseMatrix(num_hat_dofs, c_vsize + c_num_face_nbr_dofs);
+
+   char fname[100];
+   sprintf(fname, "hybrid-%03d.txt", pmesh->GetMyRank());
+   std::ofstream dbg(fname);
 
    if (c_bfi)
    {
@@ -127,6 +133,10 @@ void Hybridization::ConstructC()
          // zero-out small elements in elmat
          elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
          Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
+
+         dbg << "Ct submatrix:\n";
+         elmat.PrintMatlab(dbg);
+         dbg << std::endl;
       }
 #ifdef MFEM_USE_MPI
       if (pmesh)
@@ -147,6 +157,7 @@ void Hybridization::ConstructC()
             }
             else
             {
+               dbg << "Ghost face!\n";
                const int fill2 = false; // only need side "1" data
                FTr = pmesh->GetSharedFaceTransformations(i, fill2);
                face_fe = c_pfes->GetFaceNbrFaceFE(face_no);
@@ -168,7 +179,19 @@ void Hybridization::ConstructC()
             c_bfi->AssembleFaceMatrix(*face_fe, *fe, *fe, *FTr, elmat);
             // zero-out small elements in elmat
             elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+            /*if (pmesh->GetMyRank() == 1 && ghost_sface)
+            {
+               mfem::out << "TEST\n";
+               for (int i = 0; i < elmat.Height(); i++)
+               {
+                  std::swap(elmat(i,0), elmat(i,1));
+               }
+            }*/
             Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
+
+            dbg << "Shared face " << i << " Ct submatrix:\n";
+            elmat.PrintMatlab(dbg);
+            dbg << std::endl;
          }
          if (glob_num_shared_slave_faces)
          {

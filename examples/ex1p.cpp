@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
+   bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -76,6 +77,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -114,13 +117,17 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 0;
+         //(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
+
+   Array<int> refs;
+   refs.Append(0);
+   mesh->GeneralRefinement(refs);
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -128,7 +135,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 0;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -199,12 +206,30 @@ int main(int argc, char *argv[])
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
+   FiniteElementCollection *hfec = NULL;
+   ParFiniteElementSpace *hfes = NULL;
+   if (static_cond)
+   {
+      a->EnableStaticCondensation();
+   }
+   else if (hybridization)
+   {
+      hfec = new DG_Interface_FECollection(order, dim);
+      hfes = new ParFiniteElementSpace(pmesh, hfec);
+      a->EnableHybridization(hfes, new TraceJumpIntegrator(),
+                             ess_tdof_list);
+   }
    a->Assemble();
 
    OperatorPtr A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+   HYPRE_Int glob_size = A->Height();
+   if (myid == 0)
+   {
+      cout << "Size of linear system: " << glob_size << endl;
+   }
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
@@ -252,6 +277,8 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
+   delete hfes;
+   delete hfec;
    delete a;
    delete b;
    delete fespace;
