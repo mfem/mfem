@@ -716,14 +716,29 @@ public:
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
 
-   DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
+   DenseMatrix &operator()(int k)
+   {
+      MFEM_ASSERT(k >= 0 && k < SizeK(), "k=" << k);
+      Mk.data = GetData(k);
+      return Mk;
+   }
    const DenseMatrix &operator()(int k) const
    { return const_cast<DenseTensor&>(*this)(k); }
 
    double &operator()(int i, int j, int k)
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
+   {
+      MFEM_ASSERT(i >= 0 && i < SizeI(), "i=" << i);
+      MFEM_ASSERT(j >= 0 && j < SizeJ(), "j=" << j);
+      MFEM_ASSERT(k >= 0 && k < SizeK(), "k=" << k);
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
    const double &operator()(int i, int j, int k) const
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
+   {
+      MFEM_ASSERT(i >= 0 && i < SizeI(), "i=" << i);
+      MFEM_ASSERT(j >= 0 && j < SizeJ(), "j=" << j);
+      MFEM_ASSERT(k >= 0 && k < SizeK(), "k=" << k);
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
 
    double *GetData(int k) { return tdata+k*Mk.Height()*Mk.Width(); }
 

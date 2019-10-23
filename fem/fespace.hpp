@@ -145,7 +145,11 @@ protected:
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
-   void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
+   void GetEntityDofs(int entity, int index, Array<int> &dofs,
+                      Geometry::Type master_geom = Geometry::INVALID) const;
+   // Get degenerate face DOFs: see explanation in method implementation.
+   void GetDegenerateFaceDofs(int index, Array<int> &dofs,
+                              Geometry::Type master_geom) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
@@ -156,6 +160,7 @@ protected:
    static bool DofFinalizable(int dof, const Array<bool>& finalized,
                               const SparseMatrix& deps);
 
+   /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
    /// GridFunction interpolation operator applicable after mesh refinement.

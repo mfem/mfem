@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
       if (ref_levels > 0) { ref_levels--; }
       mesh->SetCurvature(2);
    }
-   mesh->EnsureNCMesh();
+   mesh->EnsureNCMesh(true);
    for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
