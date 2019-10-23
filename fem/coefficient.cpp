@@ -250,7 +250,6 @@ CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
                         gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0)
 {
    GridFunc = gf;
-   assume_scalar = false;
 }
 
 void CurlGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
@@ -262,7 +261,7 @@ void CurlGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                        const IntegrationPoint &ip)
 {
-   GridFunc->GetCurl(T, V, assume_scalar);
+   GridFunc->GetCurl(T, V);
 }
 
 DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
