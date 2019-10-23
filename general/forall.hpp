@@ -336,7 +336,7 @@ inline void ForallWrap(const bool use_dev, const int N,
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    // Handle all allowed OpenMP backends except Backend::OMP
-   if (DIM == 1 && Device::Allows(Backend::OMP_MASK & ~Backend::OMP))
+   if (Device::Allows(Backend::OMP_MASK & ~Backend::OMP))
    { return RajaOmpWrap(N, h_body); }
 #endif
 
