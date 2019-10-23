@@ -91,7 +91,8 @@ using RAJA::statement::Segs;
 template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
 void RajaCudaWrap1D(const int N, DBODY &&d_body)
 {
-   RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N),d_body);
+   //true denotes asynchronous kernel
+   RAJA::forall<RAJA::cuda_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
 }
 
 template <typename DBODY>
@@ -102,7 +103,7 @@ void RajaCudaWrap2D(const int N, DBODY &&d_body,
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
    RAJA::kernel<RAJA::KernelPolicy<
-   RAJA::statement::CudaKernel<
+   RAJA::statement::CudaKernelAsync<
    RAJA::statement::For<0, RAJA::cuda_block_x_direct,
         RAJA::statement::For<1, RAJA::cuda_thread_x_direct,
         RAJA::statement::For<2, RAJA::cuda_thread_y_direct,
@@ -125,7 +126,7 @@ void RajaCudaWrap3D(const int N, DBODY &&d_body,
 {
    MFEM_VERIFY(N>0, "");
    RAJA::kernel<RAJA::KernelPolicy<
-   RAJA::statement::CudaKernel<
+   RAJA::statement::CudaKernelAsync<
    RAJA::statement::For<0, RAJA::cuda_block_x_direct,
         RAJA::statement::For<1, RAJA::cuda_thread_x_direct,
         RAJA::statement::For<2, RAJA::cuda_thread_y_direct,
