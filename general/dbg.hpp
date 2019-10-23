@@ -60,12 +60,12 @@ inline void dbg_F_L_F_N_A(const char *file, const int line,
    static bool env_dbg = false;
    if (!env_ini)
    {
-      mpi = getenv("MPI");
+      mpi = getenv("DBG_MPI");
 #ifdef MFEM_USE_MPI
       if (mpi) { MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank); }
 #endif
       env_dbg = getenv("DBG");
-      mpi_dbg = atoi(mpi?getenv("MPI"):"0");
+      mpi_dbg = atoi(mpi?getenv("DBG_MPI"):"0");
       env_ini = true;
    }
    if (!env_dbg) { return; }
