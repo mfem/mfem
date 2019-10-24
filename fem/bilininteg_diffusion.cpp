@@ -1119,15 +1119,14 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
          y_ptr = y.HostReadWrite();
          mem = CEED_MEM_HOST;
       }
-      CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
-      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER,
+      CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
                          const_cast<CeedScalar*>(x_ptr));
-      CeedVectorSetArray(ceedData.v, mem, CEED_USE_POINTER, y_ptr);
+      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
 
-      CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,
+      CeedOperatorApply(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
                         CEED_REQUEST_IMMEDIATE);
 
-      CeedVectorSyncArray(ceedData.v, mem);
+      CeedVectorSyncArray(ceedDataPtr->v, mem);
    }
    else
 #endif
