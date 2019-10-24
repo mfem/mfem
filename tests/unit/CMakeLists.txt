@@ -19,7 +19,8 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(UNIT_TESTS_SRCS
   unit_test_main.cpp
-  general/text-test.cpp
+  general/test_mem.cpp
+  general/test_text.cpp
   linalg/test_blockMatrix.cpp
   linalg/test_densematrix.cpp
   mesh/test_mesh.cpp
