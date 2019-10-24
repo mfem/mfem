@@ -33,7 +33,7 @@
    do \
    { \
       cudaError_t err = (x); \
-      if (err != cudaSuccess && err != cudaErrorCudartUnloading) \
+      if (err != cudaSuccess) \
       { \
          mfem_cuda_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
       } \

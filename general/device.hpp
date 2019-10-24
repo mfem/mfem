@@ -68,7 +68,7 @@ struct Backend
       NUM_BACKENDS = 11,
 
       /// Biwise-OR of all CPU backends
-      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
+      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | DEBUG,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
       /// Biwise-OR of all HIP backends
