@@ -143,10 +143,10 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
    coeff(1,0) = 1.0;  coeff(1,1) = 1.0;
    HypreParMatrix * Ac;
    Ac = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD, offsets, A[0], coeff);
-   petsc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
+   invAc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
    // Convert to PetscParMatrix
-   petsc->SetOperator(PetscParMatrix(Ac, Operator::PETSC_MATAIJ));
-   invAc = petsc;
+   invAc->SetOperator(PetscParMatrix(Ac, Operator::PETSC_MATAIJ));
+   delete Ac;
    // Smoother
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
@@ -214,5 +214,5 @@ BlockMGSolver::~BlockMGSolver() {
       delete BlkA[i];
    }
    delete BlkA[NumGrids];
-   delete petsc;
+   delete invAc;
 }

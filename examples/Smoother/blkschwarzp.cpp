@@ -28,32 +28,45 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
 
    comm = fespace_->GetComm();
    nrpatch = P(0,0)->nrpatch;
-   PatchMat.SetSize(nrpatch);
    host_rank.SetSize(nrpatch);
    host_rank = P(0,0)->host_rank;
    PatchInv.SetSize(nrpatch);
-   for (int ip = 0; ip < nrpatch; ip++)
+   for (int ip = 0; ip < nrpatch; ++ip)
    {
       if (P(0,0)->PatchMat[ip])
       {
-         PatchInv[ip] = new UMFPackSolver;
-         PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         // PatchInv[ip] = new UMFPackSolver;
+         // PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
          Array<int>block_offsets(3);
          block_offsets[0] = 0;
          block_offsets[1] = P(0,0)->PatchMat[ip]->Height();
          block_offsets[2] = block_offsets[1];
          block_offsets.PartialSum();
          BlockMatrix blockPatchMat(block_offsets);
-         for (int i=0; i<2; i++)
+         for (int i=0; i<2; ++i)
          {
-            for (int j=0; j<2; j++)
+            for (int j=0; j<2; ++j)
             {
                blockPatchMat.SetBlock(i,j,P(i,j)->PatchMat[ip]);
             }
          }
-         PatchMat[ip] = blockPatchMat.CreateMonolithic();
-         // delete blockPatchMat;
-         PatchInv[ip]->SetOperator(*PatchMat[ip]);
+         SparseMatrix * smat = blockPatchMat.CreateMonolithic();
+         for (int i=0; i<2; ++i)
+         {
+            for (int j=0; j<2; ++j)
+            {
+               delete P(i,j)->PatchMat[ip];
+            }
+         }
+         std::vector<int> row_starts(2);
+         row_starts[0] = 0;
+         row_starts[1] = smat->NumRows();
+         HypreParMatrix hypremat(MPI_COMM_SELF,smat->NumRows(),(HYPRE_Int*) row_starts.data(), smat);
+         PetscParMatrix petsc(&hypremat, Operator::PETSC_MATAIJ);
+         delete smat;
+         PatchInv[ip] = new PetscLinearSolver(MPI_COMM_SELF, "direct");
+         PatchInv[ip]->SetOperator(petsc);
+         // PatchInv[ip]->SetOperator(*PatchMat[ip]);
       }
    }
    R.SetSize(2,2);
@@ -90,7 +103,7 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
    blkA.SetBlock(0,1,blockA(0,1));
    blkA.SetBlock(1,1,blockA(1,1));
 
-   for (int iter = 0; iter < maxit; iter++)
+   for (int iter = 0; iter < maxit; ++iter)
    {
       znew = 0.0;
       Array<BlockVector * > res0;
@@ -103,7 +116,7 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
       Array<BlockVector*> sol1(nrpatch);
       Array<BlockVector*> sol(nrpatch);
 
-      for (int ip=0; ip<nrpatch; ip++)
+      for (int ip=0; ip<nrpatch; ++ip)
       {
          if(myid == host_rank[ip]) 
          {
@@ -138,7 +151,7 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
       R(0,0)->MultTranspose(sol0,znew.GetBlock(0));
       R(1,1)->MultTranspose(sol1,znew.GetBlock(1));
 
-      for (int ip=0; ip<nrpatch; ip++)
+      for (int ip=0; ip<nrpatch; ++ip)
       {
          if(myid == host_rank[ip]) 
          {
@@ -162,11 +175,11 @@ BlkParSchwarzSmoother::~BlkParSchwarzSmoother()
    MPI_Comm_rank(comm, &myid);
    
    R.DeleteAll();
-   for (int ip=0; ip<nrpatch; ip++)
+   for (int ip=0; ip<nrpatch; ++ip)
    {
       if(myid == host_rank[ip]) 
       {
-         delete PatchMat[ip];
+         // delete PatchMat[ip];
          delete PatchInv[ip];
       }
    }

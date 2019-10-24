@@ -210,38 +210,45 @@ int main(int argc, char *argv[])
    //    cout << "Preconditioner construction time: " << chrono.RealTime() << endl;
    // }
 
-   int maxit(2000);
-   double rtol(1.e-6);
-   double atol(1.e-12);
-   X = 0.0;
-   GMRESSolver gmres(MPI_COMM_WORLD);
-   gmres.SetAbsTol(atol);
-   gmres.SetRelTol(rtol);
-   gmres.SetMaxIter(maxit);
-   gmres.SetPreconditioner(M1);
-   gmres.SetOperator(*A);
-   gmres.SetPrintLevel(1);
-   chrono.Clear();
-   chrono.Start();
-   gmres.Mult(B,X);
-   chrono.Stop();
+   // int maxit(2000);
+   // double rtol(1.e-6);
+   // double atol(1.e-12);
+   // X = 0.0;
+   // GMRESSolver gmres(MPI_COMM_WORLD);
+   // gmres.SetAbsTol(atol);
+   // gmres.SetRelTol(rtol);
+   // gmres.SetMaxIter(maxit);
+   // gmres.SetPreconditioner(M1);
+   // gmres.SetOperator(*A);
+   // gmres.SetPrintLevel(1);
+   // chrono.Clear();
+   // chrono.Start();
+   // gmres.Mult(B,X);
+   // chrono.Stop();
 
-   if (mpi.Root())
-   {
-      cout << "MG-Jacobi Solver time: " << chrono.RealTime() << endl;
-   }
+   // if (mpi.Root())
+   // {
+   //    cout << "MG-Jacobi Solver time: " << chrono.RealTime() << endl;
+   // }
 
-   X = 0.0;
-   gmres.SetPreconditioner(M2);
-   chrono.Clear();
-   chrono.Start();
-   gmres.Mult(B,X);
-   chrono.Stop();
-   if (mpi.Root())
-   {
-      cout << "MG-Add Schwarz Solver time: " << chrono.RealTime() << endl;
-   }
+   // X = 0.0;
+   // gmres.SetPreconditioner(M2);
+   // chrono.Clear();
+   // chrono.Start();
+   // gmres.Mult(B,X);
+   // chrono.Stop();
+   // if (mpi.Root())
+   // {
+   //    cout << "MG-Add Schwarz Solver time: " << chrono.RealTime() << endl;
+   // }
 
+
+   PetscParMatrix * petscA = new PetscParMatrix(A, Operator::PETSC_MATAIJ);
+   delete A;
+   PetscLinearSolver * petsc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
+   petsc->SetOperator(*petscA);
+   delete petscA;
+   petsc->Mult(B,X);
 
    a->RecoverFEMSolution(X, *b, x);
 
@@ -293,7 +300,7 @@ int main(int argc, char *argv[])
    {
       // delete P[i];
    }
-   delete A;
+   // delete A;
    delete a;
    delete b;
    delete fec;

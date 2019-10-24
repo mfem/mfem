@@ -45,8 +45,7 @@ private:
    std::vector<BlkParSchwarzSmoother *> S;
    HypreParMatrix * Ac;
    int NumGrids;
-   PetscLinearSolver *petsc = nullptr;
-   Solver *invAc = nullptr;
+   PetscLinearSolver *invAc = nullptr;
    double theta = 1.0;
 
 public:

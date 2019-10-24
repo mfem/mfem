@@ -16,8 +16,7 @@ private:
    int maxit = 1;
    double theta = 1.0;
    Array<int> host_rank;
-   Array<UMFPackSolver * > PatchInv;
-   Array<SparseMatrix * > PatchMat;
+   Array<PetscLinearSolver * > PatchInv;
    /// The linear system matrix
    Array2D<HypreParMatrix*> blockA;
    Array2D<PatchRestriction *> R;

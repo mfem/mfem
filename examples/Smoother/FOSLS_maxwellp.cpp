@@ -245,6 +245,8 @@ int main(int argc, char *argv[])
    a_HH->Finalize();
    HypreParMatrix *A_HH = a_HH->ParallelAssemble();
 
+   HYPRE_Int * row_starts =  A_HH->GetRowStarts();
+
    BlockOperator *LS_Maxwellop = new BlockOperator(block_trueOffsets);
    LS_Maxwellop->SetBlock(0, 0, A_EE);
    LS_Maxwellop->SetBlock(0, 1, A_EH);
@@ -272,7 +274,7 @@ int main(int argc, char *argv[])
    blockA(1,1) = A_HH;
 
 
-   int maxit(100);
+   int maxit(500);
    double rtol(1.e-6);
    double atol(0.0);
    trueX = 0.0;
@@ -307,28 +309,28 @@ int main(int argc, char *argv[])
       cout << "MG prec Solution time: " << chrono.RealTime() << endl;
 
 
-   chrono.Clear();
-   chrono.Start();
-   Block_AMSSolver * precAMS = new Block_AMSSolver(block_trueOffsets,fespaces);
-   precAMS->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
-   // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
-   precAMS->SetOperator(blockA);
-   precAMS->SetTheta(0.5);
-   // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
-   precAMS->SetCycleType("023414320");
-   precAMS->SetNumberofCycles(1);
-   chrono.Stop();
-   if(myid == 0)
-      cout << "BlkAMS Setup time: " << chrono.RealTime() << endl;
+   // chrono.Clear();
+   // chrono.Start();
+   // Block_AMSSolver * precAMS = new Block_AMSSolver(block_trueOffsets,fespaces);
+   // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
+   // // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
+   // precAMS->SetOperator(blockA);
+   // precAMS->SetTheta(1.0/5.0);
+   // // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
+   // precAMS->SetCycleType("023414320");
+   // precAMS->SetNumberofCycles(1);
+   // chrono.Stop();
+   // if(myid == 0)
+   //    cout << "BlkAMS Setup time: " << chrono.RealTime() << endl;
 
-   // resolve with block AMS
-   trueX = 0; 
-   chrono.Clear();
-   chrono.Start();
-   pcg.SetPreconditioner(*precAMS);
-   pcg.Mult(trueRhs, trueX);
-   chrono.Stop();
-   delete precAMS;
+   // // resolve with block AMS
+   // trueX = 0; 
+   // chrono.Clear();
+   // chrono.Start();
+   // pcg.SetPreconditioner(*precAMS);
+   // pcg.Mult(trueRhs, trueX);
+   // chrono.Stop();
+   // delete precAMS;
 
    if(myid == 0)
       cout << "BlockAMS Solution time: " << chrono.RealTime() << endl;
