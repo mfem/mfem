@@ -37,7 +37,7 @@ GPU support
   can then be dispatched to RAJA and native backends. See the files forall.hpp
   and mem_manager.hpp in the general/ directory for more details. The memory
   manager can utilize the Umpire resource management library or handle directly
-  raw CUDA or managed (UMV) pointers.
+  raw CUDA or managed (UVM) pointers.
 
 - Several of the MFEM example codes (ex1, ex1p, ex6, and ex6p) can now take
   advantage of GPU acceleration with the backend selectable at runtime. Many of
@@ -53,7 +53,7 @@ GPU support
   "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", "cpu" and "debug".
 
 - The "debug" device is to be used specifically for debugging purposes.
-  It allows to test the "device" code-paths without any hardware.
+  It allows to test the "device" code-path without any hardware.
 
 - GPU-related limitations:
   * Hypre preconditioners are not yet available in GPU mode, and in particular
