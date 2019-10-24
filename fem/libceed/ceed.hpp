@@ -71,9 +71,6 @@ void initCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                                        const mfem::IntegrationRule &ir,
                                        Ceed ceed, CeedBasis *basis,
                                        CeedElemRestriction *restr);
-
-#else
-typedef void* CeedData;
 #endif
 
 }
