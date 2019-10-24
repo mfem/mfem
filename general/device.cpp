@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
+
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
@@ -254,16 +255,8 @@ void Device::Setup(const int device)
 
    ngpu = 0;
    dev = device;
-
-   //const bool debug = Allows(Backend::DEBUG);
-   const bool hip = Allows(Backend::HIP_MASK);
-   const bool cuda = Allows(Backend::CUDA_MASK);
-   const bool raja = Allows(Backend::RAJA_MASK);
-   const bool occa = Allows(Backend::OCCA_MASK);
-   const bool openmp = Allows(Backend::OMP|Backend::RAJA_OMP);
-
 #ifndef MFEM_USE_CUDA
-   MFEM_VERIFY(!cuda,
+   MFEM_VERIFY(!Allows(Backend::CUDA_MASK),
                "the CUDA backends require MFEM built with MFEM_USE_CUDA=YES");
 #endif
 #ifndef MFEM_USE_HIP
@@ -271,21 +264,19 @@ void Device::Setup(const int device)
                "the HIP backends require MFEM built with MFEM_USE_HIP=YES");
 #endif
 #ifndef MFEM_USE_RAJA
-   MFEM_VERIFY(!raja,
+   MFEM_VERIFY(!Allows(Backend::RAJA_MASK),
                "the RAJA backends require MFEM built with MFEM_USE_RAJA=YES");
 #endif
 #ifndef MFEM_USE_OPENMP
-   MFEM_VERIFY(!openmp,
+   MFEM_VERIFY(!Allows(Backend::OMP|Backend::RAJA_OMP),
                "the OpenMP and RAJA OpenMP backends require MFEM built with"
                " MFEM_USE_OPENMP=YES");
 #endif
-
-   // Device backends setup
-   if (occa) { OccaDeviceSetup(dev); }
-   if (hip) { HipDeviceSetup(dev, ngpu); }
-   if (cuda) { CudaDeviceSetup(dev, ngpu); }
-   if (raja) { RajaDeviceSetup(dev, ngpu); }
-   //if (debug && !Allows(Backend::DEVICE_MASK)) { ngpu = 1; }
+   if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
+   // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
+   if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
 }
 
 } // mfem

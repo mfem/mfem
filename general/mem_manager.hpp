@@ -14,10 +14,8 @@
 
 #include "globals.hpp"
 #include "error.hpp"
-
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
-
 
 namespace mfem
 {
@@ -269,6 +267,7 @@ public:
    /// Allocate memory for @a size entries with the given MemoryType.
    /** The newly allocated memory is not initialized, however the given
        MemoryType is still set as valid.
+
        @note The current memory is NOT deleted by this method. */
    inline void New(int size, MemoryType mt);
 
@@ -276,20 +275,25 @@ public:
        MemoryType::HOST. */
    /** The parameter @a own determines whether @a ptr will be deleted (using
        operator delete[]) when the method Delete() is called.
+
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, bool own);
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
+
        The given @a ptr must be allocated appropriately for the given
        MemoryType.
+
        The parameter @a own determines whether @a ptr will be deleted when the
        method Delete() is called.
+
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, MemoryType mt, bool own);
 
    /// Create a memory object that points inside the memory object @a base.
    /** The new Memory object uses the same MemoryType(s) as @a base.
+
        @note The current memory is NOT deleted by this method. */
    inline void MakeAlias(const Memory &base, int offset, int size);
 
@@ -312,14 +316,17 @@ public:
    /** When the type T is const-qualified, this method can be used only if the
        host pointer is currently valid (the device pointer may be valid or
        invalid).
+
        When the type T is not const-qualified, this method can be used only if
        the host pointer is the only valid pointer.
+
        When the Memory is empty, this method can be used and it returns NULL. */
    inline operator T*();
 
    /// Direct access to the host memory as const T* (implicit conversion).
    /** This method can be used only if the host pointer is currently valid (the
        device pointer may be valid or invalid).
+
        When the Memory is empty, this method can be used and it returns NULL. */
    inline operator const T*() const;
 
@@ -327,11 +334,14 @@ public:
    /** A pointer to type T must be reinterpret_cast-able to a pointer to type U.
        In particular, this method cannot be used to cast away const-ness from
        the base type T.
+
        When the type U is const-qualified, this method can be used only if the
        host pointer is currently valid (the device pointer may be valid or
        invalid).
+
        When the type U is not const-qualified, this method can be used only if
        the host pointer is the only valid pointer.
+
        When the Memory is empty, this method can be used and it returns NULL. */
    template <typename U>
    inline explicit operator U*();
@@ -339,8 +349,10 @@ public:
    /// Direct access to the host memory via explicit typecast, const version.
    /** A pointer to type T must be reinterpret_cast-able to a pointer to type
        const U.
+
        This method can be used only if the host pointer is currently valid (the
        device pointer may be valid or invalid).
+
        When the Memory is empty, this method can be used and it returns NULL. */
    template <typename U>
    inline explicit operator const U*() const;
@@ -348,6 +360,7 @@ public:
    /// Get read-write access to the memory with the given MemoryClass.
    /** If only read or only write access is needed, then the methods
        Read() or Write() should be used instead of this method.
+
        The parameter @a size must not exceed the Capacity(). */
    inline T *ReadWrite(MemoryClass mc, int size);
 
@@ -357,6 +370,7 @@ public:
 
    /// Get write-only access to the memory with the given MemoryClass.
    /** The parameter @a size must not exceed the Capacity().
+
        The contents of the returned pointer is undefined, unless it was
        validated by a previous call to Read() or ReadWrite() with
        the same MemoryClass. */
@@ -408,7 +422,7 @@ public:
 /// The memory manager class
 class MemoryManager
 {
-private: // Used by the private static methods called by the Memory<T> class
+private:
 
    typedef MemoryType MemType;
    typedef Memory<int> Mem;
@@ -440,8 +454,8 @@ private: // Static methods used by the Memory<T> class
                           bool own, bool alias, unsigned &flags);
 
    /// Register an alias. Note: base_h_ptr may be an alias.
-   static void Alias_(void *base_h_ptr, const size_t offset, const size_t bytes,
-                      const unsigned base_flags, unsigned &flags);
+   static void Alias_(void *base_h_ptr, size_t offset, size_t bytes,
+                      unsigned base_flags, unsigned &flags);
 
    /// Un-register and free memory identified by its host pointer. Returns the
    /// memory type of the host pointer.
@@ -616,14 +630,8 @@ inline void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST)
       {
-         if (h_mt == MemoryType::HOST)
-         {
-            delete [] h_ptr;
-         }
-         else
-         {
-            MemoryManager::HostDelete_((void*)h_ptr, h_mt);
-         }
+         if (h_mt == MemoryType::HOST) { delete [] h_ptr; }
+         else { MemoryManager::HostDelete_((void*)h_ptr, h_mt); }
       }
    }
 }
@@ -734,7 +742,7 @@ template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
    // Assuming that if *this is registered then base is also registered.
-   MFEM_VERIFY(!(flags & REGISTERED) || (base.flags & REGISTERED),
+   MFEM_ASSERT(!(flags & REGISTERED) || (base.flags & REGISTERED),
                "invalid base state");
    if (!(base.flags & REGISTERED)) { return; }
    MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
@@ -787,20 +795,20 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 }
 
 template <typename T>
-inline void Memory<T>::CopyToHost(T *h_dest, int size) const
+inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
    if (!(flags & REGISTERED))
    {
-      if (h_ptr != h_dest && size != 0)
+      if (h_ptr != dest && size != 0)
       {
-         MFEM_ASSERT(h_ptr + size <= h_dest || h_dest + size <= h_ptr,
+         MFEM_ASSERT(h_ptr + size <= dest || dest + size <= h_ptr,
                      "data overlaps!");
-         std::memcpy(h_dest, h_ptr, size*sizeof(T));
+         std::memcpy(dest, h_ptr, size*sizeof(T));
       }
    }
    else
    {
-      MemoryManager::CopyToHost_(h_dest, h_ptr, size*sizeof(T), flags);
+      MemoryManager::CopyToHost_(dest, h_ptr, size*sizeof(T), flags);
    }
 }
 
