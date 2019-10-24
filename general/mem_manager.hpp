@@ -734,7 +734,7 @@ template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
    // Assuming that if *this is registered then base is also registered.
-   MFEM_ASSERT(!(flags & REGISTERED) || (base.flags & REGISTERED),
+   MFEM_VERIFY(!(flags & REGISTERED) || (base.flags & REGISTERED),
                "invalid base state");
    if (!(base.flags & REGISTERED)) { return; }
    MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),

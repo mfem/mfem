@@ -61,32 +61,50 @@ static void MmuCatch(const int N = 1024)
 
 void Aliases(const int N = 0x1234)
 {
+   dbg("S(0x%x)", sizeof(double)*(2*3*N + N));
    Vector S(2*3*N + N);
    S.UseDevice(true);
+   dbg("S = -1.0");
    S = -1.0;
+   dbg("GridFunction X,V,E");
    GridFunction X,V,E;
    const int Xsz = 3*N;
    const int Vsz = 3*N;
    const int Esz = N;
-   X.NewMemoryAndSize(Memory<double>(S.GetMemory(), 0, Xsz), Xsz, false);
-   V.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz, Vsz), Vsz, false);
-   E.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz + Vsz, Esz), Esz, false);
+   dbg("X");
+   X.NewMemoryAndSize(Memory<double>(S.GetMemory(), 0, Xsz), Xsz, true);
+   dbg("V");
+   V.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz, Vsz), Vsz, true);
+   dbg("E");
+   E.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz + Vsz, Esz), Esz, true);
+   dbg("X = 1.0");
    X = 1.0;
+   dbg("X.SyncAliasMemory(S);");
    X.SyncAliasMemory(S);
+   dbg("S.HostWrite();");
    S.HostWrite();
+   dbg("X.SyncAliasMemory(S);");
    X.SyncAliasMemory(S);
+   dbg("S = -1.0;");
    S = -1.0;
+   dbg("X.Write");
    X.Write();
+   dbg("X = 1.0;");
    X = 1.0;
+   dbg("S.HostRead();");
    S.HostRead();
+   dbg("S*S");
    REQUIRE(S*S == Approx(7.0*N));
+   dbg("V = 2.0;");
    V = 2.0;
    V.SyncAliasMemory(S);
    S.HostRead();
    REQUIRE(S*S == Approx(16.0*N));
+   dbg("E = 3.0;");
    E = 3.0;
    E.SyncAliasMemory(S);
    REQUIRE(S*S == Approx(24.0*N));
+   dbg("S.Destroy");
    S.Destroy();
 }
 
@@ -97,13 +115,16 @@ TEST_CASE("MemoryManager", "[MemoryManager]")
       const long pagesize = sysconf(_SC_PAGE_SIZE);
       REQUIRE(pagesize > 0);
       Device device("debug");
-      for (int n = 1; n < 3*pagesize; n+=7)
+      dbg("Aliases");
+      for (int n = 1; n < 2*pagesize; n+=7)
       {
          Aliases(n);
          mm.PrintPtrs();
          mm.PrintAliases();
       }
+      dbg("MmuCatch");
       MmuCatch();
+      dbg("ScanMemoryTypes");
       ScanMemoryTypes();
       mm.PrintPtrs();
       mm.PrintAliases();
