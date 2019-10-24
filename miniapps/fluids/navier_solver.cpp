@@ -220,9 +220,9 @@ void NavierSolver::Setup(double dt)
    {
       VectorDomainLFIntegrator *vdlfi = new VectorDomainLFIntegrator(acc->coeff);
       // TODO this order should always be the same as the nonlinear forms one!
-      const IntegrationRule &ir = IntRules.Get(vfes->GetFE(0)->GetGeomType(),
-                                               4 * order);
-      vdlfi->SetIntRule(&ir);
+      // const IntegrationRule &ir = IntRules.Get(vfes->GetFE(0)->GetGeomType(),
+      //                                          4 * order);
+      // vdlfi->SetIntRule(&ir);
       f_form->AddDomainIntegrator(vdlfi);
    }
 
@@ -313,22 +313,35 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    sw_step.Start();
    sw_single_step.Start();
 
-   time += dt;
+   // if (std::abs(dt - dthist[0]) > std::numeric_limits<double>::min())
+   {
+      dthist[2] = dthist[1];
+      dthist[1] = dthist[0];
+      dthist[0] = dt;
+   }
+
+   for (double dti : dthist)
+   {
+      std::cout << std::scientific << dti << " ";
+   }
+   std::cout << " dthist" << std::endl;
+
+   // time += dt;
 
    for (auto vdbc = vel_dbcs.begin(); vdbc != vel_dbcs.end(); ++vdbc)
    {
-      vdbc->coeff.SetTime(time);
+      vdbc->coeff.SetTime(time + dt);
    }
 
    for (auto pdbc = pres_dbcs.begin(); pdbc != pres_dbcs.end(); ++pdbc)
    {
-      pdbc->coeff.SetTime(time);
+      pdbc->coeff.SetTime(time + dt);
    }
 
    SetTimeIntegrationCoefficients(cur_step);
 
-   if (cur_step <= 2)
-   {
+   // if (cur_step <= 2)
+   // {
       H_bdfcoeff.constant = bd0 / dt;
       H_form->Update();
       H_form->Assemble();
@@ -348,7 +361,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
       {
          HInv->SetOperator(*H);
       }
-   }
+   // }
 
    // Extrapolated f^{n+1}
    // forcing_coeff->SetTime(t - dt);
@@ -360,16 +373,16 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    for (auto acc = accel_terms.begin(); acc != accel_terms.end(); ++acc)
    {
-      acc->coeff.SetTime(time - dt);
+      acc->coeff.SetTime(time);
    }
 
    f_form->Assemble();
    f_form->ParallelAssemble(fn);
    
-   for (auto acc = accel_terms.begin(); acc != accel_terms.end(); ++acc)
-   {
-      acc->coeff.SetTime(time);
-   }
+   // for (auto acc = accel_terms.begin(); acc != accel_terms.end(); ++acc)
+   // {
+   //    acc->coeff.SetTime(time);
+   // }
 
    //
    // Nonlinear EXT terms
@@ -867,7 +880,24 @@ void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
 
 void NavierSolver::SetTimeIntegrationCoefficients(int step)
 {
-   if (step == 0)
+   // Maxmium BDF order to use at current time step
+   // step + 1 <= order <= max_bdf_order
+   int bdf_order = std::min(step + 1, max_bdf_order);
+
+   // Ratio of time step history at dt(t{n}) - dt(t_{n-1})
+   double rho1 = 0.0;
+
+   // Ratio of time step history at dt(t{n-1}) - dt(t_{n-2})
+   double rho2 = 0.0;
+
+   rho1 = dthist[0] / dthist[1];
+
+   if (bdf_order == 3)
+   {
+      rho2 = dthist[1] / dthist[2];
+   }
+
+   if (step == 0 && bdf_order == 1)
    {
       bd0 = 1.0;
       bd1 = -1.0;
@@ -877,25 +907,27 @@ void NavierSolver::SetTimeIntegrationCoefficients(int step)
       ab2 = 0.0;
       ab3 = 0.0;
    }
-   else if (step == 1)
+   else if (step >= 1 && bdf_order == 2)
    {
-      bd0 = 3.0 / 2.0;
-      bd1 = -4.0 / 2.0;
-      bd2 = 1.0 / 2.0;
+      bd0 = (1.0 + 2.0 * rho1) / (1.0 + rho1);
+      bd1 = -(1.0 + rho1);
+      bd2 = pow(rho1, 2.0) / (1.0 + rho1);
       bd3 = 0.0;
-      ab1 = 2.0;
-      ab2 = -1.0;
+      ab1 = 1.0 + rho1;
+      ab2 = -rho1;
       ab3 = 0.0;
    }
-   else if (step == 2)
+   else if (step >= 2 && bdf_order == 3)
    {
-      bd0 = 11.0 / 6.0;
-      bd1 = -18.0 / 6.0;
-      bd2 = 9.0 / 6.0;
-      bd3 = -2.0 / 6.0;
-      ab1 = 3.0;
-      ab2 = -3.0;
-      ab3 = 1.0;
+      bd0 = 1.0 + rho1 / (1.0 + rho1)
+            + (rho2 * rho1) / (1.0 + rho2 * (1 + rho1));
+      bd1 = -1.0 - rho1 - (rho2 * rho1 * (1.0 + rho1)) / (1.0 + rho2);
+      bd2 = pow(rho1, 2.0) * (rho2 + 1.0 / (1.0 + rho1));
+      bd3 = -(pow(rho2, 3.0) * pow(rho1, 2.0) * (1.0 + rho1))
+            / ((1.0 + rho2) * (1.0 + rho2 + rho2 * rho1));
+      ab1 = ((1.0 + rho1) * (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
+      ab2 = -rho1 * (1.0 + rho2 * (1.0 + rho1));
+      ab3 = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
    }
 }
 

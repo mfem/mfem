@@ -88,12 +88,21 @@ public:
 
 protected:
    void PrintInfo();
+
+   // Set time integration coefficient based on the time step
+   // history. This works with variable and constant step size.
+   // For details of computation of the coefficient
+   // see [Wang and Ruuth, JSTOR, 2008].
    void SetTimeIntegrationCoefficients(int step);
+
    void ComputeCurlCurl(ParGridFunction &u, ParGridFunction &ccu);
+
    void ComputeCurl2D(ParGridFunction &u,
                       ParGridFunction &cu,
                       bool assume_scalar = false);
+
    void Orthogonalize(Vector &v);
+
    void MeanZero(ParGridFunction &v);
 
    void EliminateRHS(Operator &A,
@@ -185,6 +194,7 @@ protected:
    // Bookkeeping for acceleration (forcing) terms
    std::vector<AccelTerm_T> accel_terms;
 
+   int max_bdf_order = 2;
    int cur_step;
    std::vector<double> dthist = {0.0, 0.0, 0.0};
 

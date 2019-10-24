@@ -8,8 +8,8 @@ struct s_NavierContext
 {
    int order = 5;
    double kin_vis = 1.0;
-   double t_final = 5;
-   double dt = 0.25;
+   double t_final = 1.0;
+   double dt = 1e-2;
 } ctx;
 
 void vel_tgv(const Vector &x, double t, Vector &u)
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
    // Create the flow solver.
    NavierSolver naviersolver(pmesh, ctx.order, ctx.kin_vis);
    naviersolver.EnablePA(true);
-   naviersolver.EnableNI(true);
+   naviersolver.EnableNI(false);
 
    // Set the initial condition.
    // This is completely user customizeable.
@@ -104,14 +104,14 @@ int main(int argc, char *argv[])
 
       naviersolver.Step(t, dt, step);
 
-      if (step > 2)
-      {
-         double cfl = naviersolver.ComputeCFL(*u_gf, dt);
-         if (mpi.Root())
-         {
-            printf("CFL = %.5E\n", cfl);
-         }
-      }
+      // if (step > 2)
+      // {
+      //    double cfl = naviersolver.ComputeCFL(*u_gf, dt);
+      //    if (mpi.Root())
+      //    {
+      //       printf("CFL = %.5E\n", cfl);
+      //    }
+      // }
 
       // Compare against exact solution of velocity and pressure.
       u_excoeff.SetTime(t);
