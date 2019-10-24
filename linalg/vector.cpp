@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 // Implementation of data type vector
+
 #include "vector.hpp"
 #include "dtensor.hpp"
 #include "../general/forall.hpp"
@@ -989,8 +990,6 @@ double Vector::operator*(const Vector &v) const
    if (Device::Allows(Backend::DEBUG))
    {
       const int N = size;
-      auto v_data = v.Read();
-      auto m_data = Read();
       Vector dot(1);
       dot.UseDevice(true);
       auto d_dot = dot.Write();
@@ -1042,7 +1041,6 @@ double Vector::Min() const
    if (Device::Allows(Backend::DEBUG))
    {
       const int N = size;
-      auto m_data = Read();
       Vector min(1);
       min = infinity();
       min.UseDevice(true);

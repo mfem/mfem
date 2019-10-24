@@ -14,7 +14,6 @@
 #ifdef MFEM_USE_MPI
 
 #include "pfespace.hpp"
-#include "../general/device.hpp"
 #include "../general/forall.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../mesh/mesh_headers.hpp"
@@ -745,8 +744,6 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
-   //ess_dofs.Pull();
-   //true_ess_dofs.Pull();
 #ifdef MFEM_DEBUG
    // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());

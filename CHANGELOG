@@ -45,25 +45,15 @@ GPU support
   bilinear forms) have been extended to take advantage of kernel acceleration by
   simply replacing loops with the MFEM_FORALL() macro.
 
-<<<<<<< HEAD
-- In addition to pure CUDA, the library currently supports OCCA, RAJA and OpenMP
-  kernels, which could be mixed and matched in different parts of the same
-  application. We plan on adding support for more programming models and devices
-  in the future, without the need for significant modifications in user code.
-  The list of current backends is: "occa-cuda", "raja-cuda", "cuda", "cuda-uvm",
-  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", "debug", and "cpu".
-
-- The "debug" device is to be used specifically for debugging purposes: it
-  cannot be used in conjunction with others devices. It allows to test the
-  "device" code-paths without any hardware. Additional checks are performed with
-  this device when both MFEM_USE_MM and MFEM_DEBUG are set.
-=======
 - In addition to native CUDA kernels, the library currently supports OCCA, RAJA
   and OpenMP kernels, which could be mixed and matched in different parts of the
   same application. We plan on adding support for more programming models and
   devices in the future, without the need for significant modifications in user
   code. The list of current backends is: "occa-cuda", "raja-cuda", "cuda",
-  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", "cpu" and "debug".
+
+- The "debug" device is to be used specifically for debugging purposes.
+  It allows to test the "device" code-paths without any hardware.
 
 - GPU-related limitations:
   * Hypre preconditioners are not yet available in GPU mode, and in particular
@@ -74,7 +64,6 @@ GPU support
   * In device mode, full assembly is performed on the host (but the matvec
     action is performed on the device).
   * Partial assembly kernels are not implemented yet for simplices.
->>>>>>> master
 
 Discretization improvements
 ---------------------------

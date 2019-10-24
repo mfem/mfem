@@ -540,6 +540,9 @@ public:
 
    /// Prints all pointers known by the memory manager
    void PrintPtrs(void);
+
+   /// Prints all aliases known by the memory manager
+   void PrintAliases(void);
 };
 
 template <typename T>

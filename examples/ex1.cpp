@@ -49,26 +49,11 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
-#include "../general/dbg.hpp"
-#include "../general/mem_manager.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
-
-template<class T>
-typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
-almost_equal(T x, T y, const int ulp = 2)
-{
-   // the machine epsilon has to be scaled to the magnitude of the values used
-   // and multiplied by the desired precision in ULPs (units in the last place)
-   return std::fabs(x-y) <=
-          std::numeric_limits<T>::epsilon() *
-          std::fabs(x+y) * ulp
-          // unless the result is subnormal
-          || std::fabs(x-y) < std::numeric_limits<T>::min();
-}
 
 int main(int argc, char *argv[])
 {
@@ -77,9 +62,6 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   bool mmu = false;
-   bool mem = false;
-   bool als = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -93,12 +75,6 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&mmu, "-y", "--mmu", "-no-y",
-                  "--no-mmu", "Enable MMU test on vector Y.");
-   args.AddOption(&mem, "-b", "--mem", "-no-b",
-                  "--no-mem", "Enable memory backends tests.");
-   args.AddOption(&als, "-a", "--alias", "-no-a",
-                  "--no-alias", "Enable aliases tests.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -129,114 +105,11 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
-   }
-   if (als)
-   {
-      const int N = 0x1234;
-      dbg("N=%d",N);
-      Vector S(2*3*N + N);
-      S.UseDevice(true);
-      S = -1.0;
-      GridFunction X,V,E;
-      const int Xsz = 3*N;
-      const int Vsz = 3*N;
-      const int Esz = N;
-      dbg("X");
-      X.NewMemoryAndSize(Memory<double>(S.GetMemory(), 0, Xsz), Xsz, false);
-      dbg("V");
-      V.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz, Vsz), Vsz, false);
-      dbg("E");
-      E.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz + Vsz, Esz), Esz, false);
-      dbg("X = 1.0;");
-      X = 1.0;
-      //dbg("X:"); X.Print();
-      dbg("X.SyncAliasMemory;");
-      X.SyncAliasMemory(S);
-      //dbg("S:"); S.Print();
-      S.HostWrite();
-      X.SyncAliasMemory(S);
-      S = -1.0;
-      X.Write();
-      X = 1.0;
-      dbg("S*S;");
-      const double dot = S*S;
-      dbg("X.MFEM_VERIFY: %f", dot);
-      S.HostRead();
-      MFEM_VERIFY(almost_equal(dot, 7.0*N), "S.X verification failed!");
-      dbg("V = 2.0;");
-      V = 2.0;
-      V.SyncAliasMemory(S);
-      S.HostRead();
-      MFEM_VERIFY(almost_equal(S*S, 16.0*N), "S.V verification failed!");
-      dbg("E = 3.0;");
-      E = 3.0;
-      E.SyncAliasMemory(S);
-      MFEM_VERIFY(almost_equal(S*S, 24.0*N), "S.E verification failed!");
-      dbg("delete mesh;");
-      delete mesh;
-      device.Print();
-      return 0;
-   }
-
-   if (mmu)
-   {
-      dbg("Vector Y(16)");
-      Vector Y(16);
-      dbg("bkp address");
-      double *Yd = (double*)Y;
-      dbg("UseDevice");
-      Y.UseDevice(true);
-      dbg("Y = 0.0");
-      Y = 0.0;
-      // in debug device, should raise a SIGBUS/SIGSEGV
-      dbg("Yd[0] = 0.0;");
-      Yd[0] = 0.0;
-      dbg("delete mesh;");
-      delete mesh;
-      return 0;
-   }
-
-   if (mem)
-   {
-      constexpr int N = static_cast<int>(MemoryType::SIZE);
-      dbg("N: %d", N);
-      Vector v[N];
-      MemoryType mt = MemoryType::HOST;
-      for (int i=0; i<N; i++, mt++)
-      {
-         if (!Device::Allows(Backend::DEVICE_MASK) &&
-             !mfem::IsHostMemory(mt)) { continue; }
-         if (i==static_cast<int>(MemoryType::HOST_UMPIRE)) { continue; }
-         if (i==static_cast<int>(MemoryType::DEVICE_UMPIRE)) { continue; }
-         constexpr int size = 1024;
-         dbg("\033[7m%d", static_cast<int>(mt));
-         Memory<double> mem(size, mt);
-         //MemoryPrintFlags(mem.GetFlags());
-         MFEM_VERIFY(mem.Capacity() == size,"");
-         dbg("&y = v[i]");
-         Vector &y = v[i];
-         dbg("NewMemoryAndSize");
-         y.NewMemoryAndSize(mem, size, true);
-         dbg("UseDevice");
-         y.UseDevice(true);
-         dbg("HostWrite");
-         y.HostWrite();
-         dbg("Write");
-         y.Write();
-         dbg("y = 0.0");
-         y = 0.0;
-         dbg("HostRead");
-         y.HostRead();
-         dbg("%p", (void*)y.GetData());
-         y.Destroy();
-      }
-      delete mesh;
-      return 0;
    }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
@@ -349,14 +222,10 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
-   dbg("delete a");
    delete a;
-   dbg("delete b");
    delete b;
-   dbg("delete fespace");
    delete fespace;
    if (order > 0) { delete fec; }
-   dbg("delete mesh");
    delete mesh;
 
    return 0;
