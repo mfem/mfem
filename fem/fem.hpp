@@ -33,6 +33,7 @@
 #include "tmop.hpp"
 #include "transfer.hpp"
 #include "spacehierarchy.hpp"
+#include "mgbilinearform.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
