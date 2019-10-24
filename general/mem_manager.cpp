@@ -518,8 +518,8 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
                           unsigned &flags)
 {
    MFEM_VERIFY(exists, "internal error");
-   MFEM_VERIFY(bytes>0, " bytes==0");
-   MFEM_VERIFY(mt != MemoryType::HOST, "Internal error!");
+   MFEM_VERIFY(bytes > 0, " bytes==0");
+   MFEM_VERIFY(mt != MemoryType::HOST, "internal error");
    const bool host_reg = IsHostRegisteredMemory(mt);
    const bool host_std = IsHostMemory(mt) && !IsHostRegisteredMemory(mt);
    const MemType h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
@@ -535,16 +535,13 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
 
    if (host_std) // HOST_32, HOST_64
    {
-      dbg("host_std");
       flags |= Mem::VALID_HOST;
-      MFEM_VERIFY(h_ptr!=nullptr,"");
       return h_ptr;
    }
 
    flags |= Mem::REGISTERED;
    if (host_reg)  // HOST_UMPIRE, HOST_MMU
    {
-      dbg("\033[31mhost_reg: %p (0x%x)", h_ptr, bytes);
       mm.Insert(h_ptr, bytes, h_mt, d_mt);
       flags |= Mem::OWNS_DEVICE | Mem::VALID_HOST;
    }
@@ -631,10 +628,13 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
                "invalid Memory state");
    if (mm.exists && (flags & Mem::OWNS_INTERNAL))
    {
-      dbg("OWNS_INTERNAL");
       if (flags & Mem::ALIAS)
       {
-         dbg("ALIAS");
+         MFEM_VERIFY(maps,"");
+         auto alias_map_iter = maps->aliases.find(h_ptr);
+         MFEM_VERIFY(alias_map_iter != maps->aliases.end(),"");
+         MFEM_VERIFY(maps->aliases.at(h_ptr).mem,"");
+         dbg("alias %p -> mem %p", h_ptr, maps->aliases.at(h_ptr).mem->h_ptr);
          const MemoryType h_mt = maps->aliases.at(h_ptr).mem->h_mt;
          mm.EraseAlias(h_ptr);
          return h_mt;
