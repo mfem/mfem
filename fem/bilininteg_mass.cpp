@@ -965,4 +965,9 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
 }
 
+MassIntegrator* MassIntegrator::Copy() const
+{
+   return new MassIntegrator(*this);
+}
+
 } // namespace mfem

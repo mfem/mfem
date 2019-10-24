@@ -152,6 +152,9 @@ public:
    /// Set the desired assembly level. The default is AssemblyLevel::FULL.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
+   
+   /** Returns the assembly level */
+   AssemblyLevel GetAssemblyLevel() const;
 
    /** Enable the use of static condensation. For details see the description
        for class StaticCondensation in fem/staticcond.hpp This method should be

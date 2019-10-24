@@ -138,9 +138,9 @@ int main(int argc, char *argv[])
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
    if (mesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -194,12 +194,33 @@ int main(int argc, char *argv[])
       umf_solver.Mult(B, X);
 #endif
    }
-   else // Jacobi preconditioning in partial assembly mode
+   else // p-Multigrid preconditioning in partial assembly mode
    {
-      Vector diag_pa(fespace->GetTrueVSize());
-      a->AssembleDiagonal(diag_pa);
-      OperatorJacobiSmoother M(diag_pa, ess_tdof_list);
-      PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
+      Array<int> orders;
+      orders.Append(order);
+      int coarseOrder = order / 2;
+      while (coarseOrder > 0)
+      {
+         orders.Append(coarseOrder);
+         coarseOrder /= 2;
+      }
+      orders.Sort();
+      SpaceHierarchy spaceHierarchy;
+      Array<H1_FECollection*> collections;
+      for (int level = 0; level < orders.Size() - 1; ++level)
+      {
+         collections.Append(new H1_FECollection(orders[level], dim));
+         FiniteElementSpace *fesp = new FiniteElementSpace(mesh, collections.Last());
+         spaceHierarchy.AddLevel(mesh, fesp, false, true);
+      }
+      spaceHierarchy.AddLevel(mesh, fespace, false, false);
+      MultigridBilinearForm mgOperator(spaceHierarchy, *a, ess_bdr);
+      MultigridSolver M(&mgOperator, MultigridSolver::CycleType::VCYCLE, 1, 1);
+      PCG(mgOperator, M, B, X, 1, 2000, 1e-12, 0.0);
+      for (int level = 0; level < orders.Size() - 1; ++level)
+      {
+         delete collections[level];
+      }
    }
 
    // 12. Recover the solution as a finite element grid function.

@@ -1702,4 +1702,9 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
                     pa_data, x, y);
 }
 
+DiffusionIntegrator* DiffusionIntegrator::Copy() const
+{
+   return new DiffusionIntegrator(*this);
+}
+
 } // namespace mfem
