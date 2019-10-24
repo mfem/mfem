@@ -14,7 +14,12 @@ class PowerMethod
 #endif   
 
  public:
+
+#ifdef MFEM_USE_MPI
+   PowerMethod() : comm(MPI_COMM_NULL) {}
+#else
    PowerMethod() {}
+#endif
 
 #ifdef MFEM_USE_MPI
    PowerMethod(MPI_Comm _comm) : comm(_comm) {}
@@ -36,7 +41,14 @@ class PowerMethod
          double normV0;
 
 #ifdef MFEM_USE_MPI
-         normV0 = InnerProduct(comm, v0, v0);
+         if (comm != MPI_COMM_NULL)
+         {
+            normV0 = InnerProduct(comm, v0, v0);
+         }
+         else
+         {
+            normV0 = InnerProduct(v0, v0);
+         }
 #else
          normV0 = InnerProduct(v0, v0);
 #endif
@@ -46,7 +58,14 @@ class PowerMethod
 
          double eigenvalueNew;
 #ifdef MFEM_USE_MPI
-         eigenvalueNew = InnerProduct(comm, v0, v1);
+         if (comm != MPI_COMM_NULL)
+         {
+            eigenvalueNew = InnerProduct(comm, v0, v1);
+         }
+         else
+         {
+            eigenvalueNew = InnerProduct(v0, v1);
+         }
 #else
          eigenvalueNew = InnerProduct(v0, v1);
 #endif
