@@ -2871,6 +2871,152 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
+FaceRestriction::FaceRestriction(const FiniteElementSpace &f,
+                                       ElementDofOrdering e_ordering)
+   : fes(f),
+     nf(fes.GetNFaces()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(nf > 0 ? fes.GetFace(0)->GetDof() : 0),
+     nfdofs(nf*dof),
+     // offsets(ndofs+1),
+     indices(nf*dof)
+{
+   //if fespace == H1
+   // Assuming all finite elements are the same.
+   height = vdim*ne*dof;
+   width = fes.GetVSize();
+   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   const int *dof_map = NULL;
+   if (dof_reorder && nf > 0)
+   {
+      for (int f = 0; f < nf; ++f)
+      {
+         const FiniteElement *f = fes.GetFace(f);
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(f);
+         if (el) { continue; }
+         mfem_error("Finite element not suitable for lexicographic ordering");
+      }
+      const FiniteElement *f = fes.GetFace(0);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      const Array<int> &fe_dof_map = el->GetDofMap();
+      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
+      dof_map = fe_dof_map.GetData();
+   }
+   // const Table& e2dTable = fes.GetElementToDofTable();
+   // const int* elementMap = e2dTable.GetJ();
+   // We will be keeping a count of how many local nodes point to its global dof
+   // for (int i = 0; i <= ndofs; ++i)
+   // {
+   //    offsets[i] = 0;
+   // }
+   // for (int f = 0; f < nf; ++f)
+   // {
+   //    for (int d = 0; d < dof; ++d)
+   //    {
+   //       const int gid = elementMap[dof*e + d];
+   //       ++offsets[gid + 1];
+   //    }
+   // }
+   // Aggregate to find offsets for each global dof
+   // for (int i = 1; i <= ndofs; ++i)
+   // {
+   //    offsets[i] += offsets[i - 1];
+   // }
+   // For each global dof, fill in all local nodes that point to it
+   Array<int> elementMap;
+   for (int f = 0; f < nf; ++f)
+   {
+      fes.GetFaceDofs(f, elementMap);
+      //Get Elem1 + face_id => Extract dofs
+      for (int d = 0; d < dof; ++d)
+      {
+         const int did = (!dof_reorder)?d:dof_map[d];
+         const int gid = elementMap[did];
+         const int lid = dof*f + d;
+         // indices[offsets[gid]++] = lid;
+         indices[lid] = gid;
+      }
+   }
+   // We shifted the offsets vector by 1 by using it as a counter.
+   // Now we shift it back.
+   // for (int i = ndofs; i > 0; --i)
+   // {
+   //    offsets[i] = offsets[i - 1];
+   // }
+   // offsets[0] = 0;
+}
+
+void FaceRestriction::Mult(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int ne = fes.GetNE();
+   const int vd = vdim;
+   const bool t = byvdim;
+   // auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, nf);
+   MFEM_FORALL(i, nfdofs,
+   {
+      const int idx = d_indices[i];
+      for (int c = 0; c < vd; ++c)
+      {
+            d_y(i % nd, c, i / nd) = d_x(t?c:idx,t:idx:c);
+      }
+      // const int offset = d_offsets[i];
+      // const int nextOffset = d_offsets[i+1];
+      // for (int c = 0; c < vd; ++c)
+      // {
+      //    const double dofValue = d_x(t?c:i,t?i:c);
+      //    for (int j = offset; j < nextOffset; ++j)
+      //    {
+      //       const int idx_j = d_indices[j];
+      //       d_y(idx_j % nd, c, idx_j / nd) = dofValue;
+      //    }
+      // }
+   });
+}
+
+void FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
+{
+   mfem_error("Finite element not suitable for lexicographic ordering");
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   // auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, nf);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, nfdofs,
+   {
+      const int idx = d_indices[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         MFEM_ATOMIC_ADD(d_x(i % nd, c, i / nd),d_y(t?c:idx,t:idx:c));
+      }
+   });
+   // MFEM_FORALL(i, nfdofs,
+   // {
+   //    // const int offset = d_offsets[i];
+   //    // const int nextOffset = d_offsets[i + 1];
+   //    // for (int c = 0; c < vd; ++c)
+   //    // {
+   //    //    double dofValue = 0;
+   //    //    for (int j = offset; j < nextOffset; ++j)
+   //    //    {
+   //    //       const int idx_j = d_indices[j];
+   //    //       dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
+   //    //    }
+   //    //    d_y(t?c:i,t?i:c) = dofValue;
+   //    // }
+   // });
+}
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir)
