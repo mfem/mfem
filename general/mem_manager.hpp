@@ -487,7 +487,7 @@ private: // Static methods used by the Memory<T> class
    /// Check if the host pointer has been registered in the memory manager.
    static bool IsKnown_(const void *h_ptr);
 
-private: // Methods used by the static methods of this class
+private:
 
    /// Insert a host address in the memory map
    void Insert(void *h_ptr, size_t bytes, MemoryType h_mt,  MemoryType d_mt);
@@ -549,9 +549,9 @@ template <typename T>
 inline void Memory<T>::New(int size)
 {
    capacity = size;
-   h_mt = size == 0 ?  MemoryType::HOST : MemoryManager::host_mem_type;
    flags = OWNS_HOST | VALID_HOST;
-   h_ptr = (h_mt == MemoryType::HOST || size == 0) ? (T*) new T[size] :
+   h_mt = size == 0 ?  MemoryType::HOST : MemoryManager::host_mem_type;
+   h_ptr = (h_mt == MemoryType::HOST) ? (T*) new T[size] :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
 }
 
