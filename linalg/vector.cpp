@@ -990,6 +990,8 @@ double Vector::operator*(const Vector &v) const
    if (Device::Allows(Backend::DEBUG))
    {
       const int N = size;
+      auto v_data = v.Read();
+      auto m_data = Read();
       Vector dot(1);
       dot.UseDevice(true);
       auto d_dot = dot.Write();
@@ -1041,6 +1043,7 @@ double Vector::Min() const
    if (Device::Allows(Backend::DEBUG))
    {
       const int N = size;
+      auto m_data = Read();
       Vector min(1);
       min = infinity();
       min.UseDevice(true);
