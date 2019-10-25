@@ -47,8 +47,8 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/beam-tri.mesh";
-   int order = 1;
+   const char *mesh_file = "../data/beam-quad.mesh";
+   int order = 2;
    bool static_cond = false;
    bool visualization = 1;
 
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(500./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -168,11 +168,11 @@ int main(int argc, char *argv[])
    //    constants coefficient lambda and mu.
    Vector lambda(mesh->attributes.Max());
    lambda = 1.0;
-   lambda(0) = lambda(1)*50;
+   // lambda(0) = lambda(1)*5;
    PWConstCoefficient lambda_func(lambda);
    Vector mu(mesh->attributes.Max());
    mu = 1.0;
-   mu(0) = mu(1)*50;
+   // mu(0) = mu(1)*5;
    PWConstCoefficient mu_func(mu);
 
    BilinearForm *a = new BilinearForm(fespace);
@@ -194,10 +194,37 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // 11. Define a simple p-multigrid preconditioner and use it to
    //     solve the system Ax=b with PCG.
-   GSSmoother M(A);
+   Array<int> orders;
+   orders.Append(order);
+   int coarseOrder = order / 2;
+   while (coarseOrder > 0)
+   {
+      orders.Append(coarseOrder);
+      coarseOrder /= 2;
+   }
+   orders.Sort();
+   SpaceHierarchy spaceHierarchy;
+   Array<H1_FECollection*> collections;
+   for (int level = 0; level < orders.Size() - 1; ++level)
+   {
+      collections.Append(new H1_FECollection(orders[level], dim));
+      FiniteElementSpace *fesp = new FiniteElementSpace(mesh, collections.Last(), dim);
+      spaceHierarchy.AddLevel(mesh, fesp, false, true);
+   }
+   spaceHierarchy.AddLevel(mesh, fespace, false, false);
+   MultigridBilinearForm mgOperator(spaceHierarchy, A,  ess_bdr);
+   MultigridSolver M(&mgOperator, MultigridSolver::CycleType::VCYCLE, 1, 1);
    PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
+   for (int level = 0; level < orders.Size() - 1; ++level)
+   {
+      delete collections[level];
+   }
+
+   // GSSmoother M(A);
+   // PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
+
 #else
    // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;

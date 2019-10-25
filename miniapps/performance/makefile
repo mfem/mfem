@@ -68,7 +68,7 @@ MFEM_PERF_CXXFLAGS = $(MFEM_PERF_CXXFLAGS_$(MFEM_PERF_SW))
 MFEM_CXXFLAGS += $(MFEM_PERF_CXXFLAGS)
 
 SEQ_MINIAPPS = ex1
-PAR_MINIAPPS = ex1p
+PAR_MINIAPPS = ex1p mg
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -97,6 +97,8 @@ ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
 ex1-test-seq: ex1
 	@$(call mfem-test,$<,, Performance miniapp,-r 2)
+mg-test-par: mg
+	@$(call mfem-test,$<,, Multigrid miniapp,-r 1 -hl 2 -ol 2)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -107,7 +109,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ ex1 ex1p
+	rm -f *.o *~ ex1 ex1p mg
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

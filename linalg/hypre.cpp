@@ -2591,6 +2591,11 @@ void HypreBoomerAMG::SetDefaultOptions()
    HYPRE_BoomerAMGSetTol(amg_precond, 0.0);
 }
 
+void HypreBoomerAMG::SetMaxIter(int maxIter)
+{
+   HYPRE_BoomerAMGSetMaxIter(amg_precond, maxIter);
+}
+
 void HypreBoomerAMG::ResetAMGPrecond()
 {
    HYPRE_Int coarsen_type;

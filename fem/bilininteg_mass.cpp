@@ -38,21 +38,31 @@ void MassIntegrator::Setup(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetMemoryType());
-   double coeff = 1.0;
-   if (Q)
+   Vector coeff(nq * ne);
+   if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
    {
-      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
       coeff = cQ->constant;
+   }
+   else
+   {
+      auto C = Reshape(coeff.Write(), nq, ne);
+      for(int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            C(q,e) = Q->Eval(T, ir->IntPoint(q));
+         }
+      }
    }
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
-      const double constant = coeff;
       const int NE = ne;
       const int NQ = nq;
       auto w = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+      auto C = Reshape(coeff.Read(), NQ, NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -63,17 +73,17 @@ void MassIntegrator::Setup(const FiniteElementSpace &fes)
             const double J21 = J(q,0,1,e);
             const double J22 = J(q,1,1,e);
             const double detJ = (J11*J22)-(J21*J12);
-            v(q,e) =  w[q] * constant * detJ;
+            v(q,e) =  w[q] * C(q,e) * detJ;
          }
       });
    }
    if (dim==3)
    {
-      const double constant = coeff;
       const int NE = ne;
       const int NQ = nq;
       auto W = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+      auto C = Reshape(coeff.Read(), NQ, NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
@@ -85,7 +95,7 @@ void MassIntegrator::Setup(const FiniteElementSpace &fes)
             const double detJ = J11 * (J22 * J33 - J32 * J23) -
             /* */               J21 * (J12 * J33 - J32 * J13) +
             /* */               J31 * (J12 * J23 - J22 * J13);
-            v(q,e) = W[q] * constant * detJ;
+            v(q,e) = W[q] * C(q,e) * detJ;
          }
       });
    }
@@ -918,40 +928,7 @@ static void PAMassApply(const int dim,
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-
-   if (Device::Allows(Backend::RAJA_CUDA))
-   {
-      if (dim == 2)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x22: return PAMassApply2D<2,2>(NE, B, Bt, op, x, y);
-            case 0x33: return PAMassApply2D<3,3>(NE, B, Bt, op, x, y);
-            case 0x44: return PAMassApply2D<4,4>(NE, B, Bt, op, x, y);
-            case 0x55: return PAMassApply2D<5,5>(NE, B, Bt, op, x, y);
-            case 0x66: return PAMassApply2D<6,6>(NE, B, Bt, op, x, y);
-            case 0x77: return PAMassApply2D<7,7>(NE, B, Bt, op, x, y);
-            case 0x88: return PAMassApply2D<8,8>(NE, B, Bt, op, x, y);
-            case 0x99: return PAMassApply2D<9,9>(NE, B, Bt, op, x, y);
-            default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
-         }
-      }
-      if (dim == 3)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x23: return PAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-            case 0x34: return PAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-            case 0x45: return PAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-            case 0x56: return PAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-            case 0x67: return PAMassApply3D<6,7>(NE, B, Bt, op, x, y);
-            case 0x78: return PAMassApply3D<7,8>(NE, B, Bt, op, x, y);
-            case 0x89: return PAMassApply3D<8,9>(NE, B, Bt, op, x, y);
-            default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
-         }
-      }
-   }
-   else if (dim == 2)
+   if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {
@@ -986,6 +963,11 @@ static void PAMassApply(const int dim,
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+}
+
+MassIntegrator* MassIntegrator::Copy() const
+{
+   return new MassIntegrator(*this);
 }
 
 } // namespace mfem
