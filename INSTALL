@@ -488,6 +488,7 @@ The specific libraries and their options are:
 - SUNDIALS (optional), used when MFEM_USE_SUNDIALS = YES.
   Beginning with MFEM v3.3, SUNDIALS v2.7.0 is supported.
   Beginning with MFEM v3.3.2, SUNDIALS v3.0.0 is also supported.
+  Beginning with MFEM v4.1, only SUNDIALS v5.0.0+ is supported.
   If MFEM_USE_MPI is enabled, we expect that SUNDIALS is built with support for
   both MPI and hypre.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
