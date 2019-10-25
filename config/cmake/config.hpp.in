@@ -122,6 +122,8 @@
 
 // Enable Umpire's library
 #cmakedefine MFEM_USE_UMPIRE
+#cmakedefine MFEM_UMPIRE_HOST "@MFEM_UMPIRE_HOST@"
+#cmakedefine MFEM_UMPIRE_DEVICE "@MFEM_UMPIRE_DEVICE@"
 
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.

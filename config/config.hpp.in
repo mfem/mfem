@@ -137,6 +137,8 @@
 
 // Enable UMPIRE library
 // #define MFEM_USE_UMPIRE
+// #define MFEM_UMPIRE_HOST "@MFEM_UMPIRE_HOST@"
+// #define MFEM_UMPIRE_DEVICE "@MFEM_UMPIRE_DEVICE@"
 
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@

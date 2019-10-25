@@ -14,9 +14,6 @@
 
 #ifndef _WIN32
 #include <unistd.h>
-#else
-#define sysconf(...) 0x10
-#endif
 
 using namespace mfem;
 
@@ -108,3 +105,5 @@ TEST_CASE("MemoryManager", "[MemoryManager]")
       mm.PrintAliases();
    }
 }
+
+#endif // _WIN32
