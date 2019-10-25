@@ -27,13 +27,21 @@ class MultigridBilinearForm : public MultigridOperator
 
  public:
    /// Constructor for a multigrid bilinear form for a given SpaceHierarchy and
-   /// bilinear form. Uses Chebyshev accelerated smoothing. Only supports
-   /// partial assembly bilinear forms.
+   /// bilinear form. Uses Chebyshev accelerated smoothing.
    /// At the moment, only the DomainIntegrators of \p bf are copied.
    MultigridBilinearForm(SpaceHierarchy& spaceHierarchy, BilinearForm& bf,
                          Array<int>& ess_bdr);
 
+   /// Constructor for fully assembled systems
+   MultigridBilinearForm(SpaceHierarchy& spaceHierarchy, SparseMatrix& opr, Array<int>& ess_bdr);
+
    virtual ~MultigridBilinearForm();
+
+ private:
+   void SetupPA(SpaceHierarchy& spaceHierarchy, BilinearForm& bf,
+                Array<int>& ess_bdr);
+   void SetupFull(SpaceHierarchy& spaceHierarchy, SparseMatrix& opr,
+                  Array<int>& ess_bdr);
 };
 
 } // namespace mfem

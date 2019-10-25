@@ -56,8 +56,11 @@ void MultigridOperator::AddCoarsestLevel(Operator* opr, Solver* solver,
    smoothers.Append(solver);
    ownedOperators.Append(ownOperator);
    ownedSmoothers.Append(ownSolver);
-   width = opr->Width();
-   height = opr->Height();
+   if (opr)
+   {
+      width = opr->Width();
+      height = opr->Height();
+   }
 }
 
 void MultigridOperator::AddLevel(Operator* opr, Solver* smoother,
@@ -71,8 +74,11 @@ void MultigridOperator::AddLevel(Operator* opr, Solver* smoother,
    ownedOperators.Append(ownOperator);
    ownedSmoothers.Append(ownSmoother);
    ownedProlongations.Append(ownProlongation);
-   width = opr->Width();
-   height = opr->Height();
+   if (opr)
+   {
+      width = opr->Width();
+      height = opr->Height();
+   }
 }
 
 unsigned MultigridOperator::NumLevels() const { return operators.Size(); }
@@ -142,6 +148,15 @@ Solver* MultigridOperator::GetSmootherAtLevel(unsigned level) const
 Solver* MultigridOperator::GetSmootherAtLevel(unsigned level)
 {
    return smoothers[level];
+}
+
+void MultigridOperator::AddEmptyLevels(unsigned levels)
+{
+   AddCoarsestLevel(nullptr, nullptr, true, true);
+   for (unsigned i = 1; i < levels; ++i)
+   {
+      AddLevel(nullptr, nullptr, nullptr, true, true, true);
+   }
 }
 
 TimedMultigridOperator::TimedMultigridOperator() : MultigridOperator() {}

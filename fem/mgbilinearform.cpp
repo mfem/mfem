@@ -22,6 +22,32 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
 {
    MFEM_VERIFY(bf.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
                "Assembly level must be PARTIAL");
+   SetupPA(spaceHierarchy, bf, ess_bdr);
+}
+
+MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
+                                             SparseMatrix& opr, Array<int>& ess_bdr)
+    : MultigridOperator()
+{
+   SetupFull(spaceHierarchy, opr, ess_bdr);
+}
+
+MultigridBilinearForm::~MultigridBilinearForm()
+{
+   for (int i = 0; i < bfs.Size(); ++i)
+   {
+      delete bfs[i];
+   }
+
+   for (int i = 0; i < essentialTrueDofs.Size(); ++i)
+   {
+      delete essentialTrueDofs[i];
+   }
+}
+
+void MultigridBilinearForm::SetupPA(SpaceHierarchy& spaceHierarchy,
+                                    BilinearForm& bf, Array<int>& ess_bdr)
+{
    BilinearForm* form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(0));
    // TODO: Copy all integrators
    Array<BilinearFormIntegrator*>& dbfi = *bf.GetDBFI();
@@ -103,17 +129,56 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
    }
 }
 
-MultigridBilinearForm::~MultigridBilinearForm()
+void MultigridBilinearForm::SetupFull(SpaceHierarchy& spaceHierarchy,
+                                      SparseMatrix& opr, Array<int>& ess_bdr)
 {
-   for (int i = 0; i < bfs.Size(); ++i)
+   AddEmptyLevels(spaceHierarchy.GetNumLevels());
+
+   width = opr.Width();
+   height = opr.Height();
+
+   operators[spaceHierarchy.GetFinestLevelIndex()] = &opr;
+
+   for (int level = spaceHierarchy.GetFinestLevelIndex(); level > 0; --level)
    {
-      delete bfs[i];
+      smoothers[level] = new GSSmoother((SparseMatrix&)*operators[level]);
+
+      SparseMatrix* R =
+          spaceHierarchy.GetFESpaceAtLevel(level).H2L_GlobalRestrictionMatrix(
+              &spaceHierarchy.GetFESpaceAtLevel(level - 1));
+      SparseMatrix* P = mfem::Transpose(*R);
+      prolongations[level - 1] = P;
+
+
+      SparseMatrix* rap = mfem::RAP(*P, (SparseMatrix&)*operators[level], *P);
+
+      Array<int>* ess_tdof_list = new Array<int>();
+      essentialTrueDofs.Append(ess_tdof_list);
+      spaceHierarchy.GetFESpaceAtLevel(level-1).GetEssentialTrueDofs(
+          ess_bdr, *ess_tdof_list);
+
+      SparseMatrix* elim = new SparseMatrix(rap->Height());
+
+      for (int i = 0; i < ess_tdof_list->Size(); i++)
+      {
+         rap->EliminateRowCol((*ess_tdof_list)[i], *elim, Matrix::DiagonalPolicy::DIAG_ONE);
+      }
+
+      const int remove_zeros = 0;
+      rap->Finalize(remove_zeros);
+
+      operators[level - 1] = rap;
    }
 
-   for (int i = 0; i < essentialTrueDofs.Size(); ++i)
-   {
-      delete essentialTrueDofs[i];
-   }
+   CGSolver* pcg = new CGSolver();
+   GSSmoother* prec = new GSSmoother((SparseMatrix&)*operators[0]);
+   pcg->SetPrintLevel(-1);
+   pcg->SetMaxIter(50);
+   pcg->SetRelTol(sqrt(1e-4));
+   pcg->SetAbsTol(0.0);
+   pcg->SetOperator(*operators[0]);
+   pcg->SetPreconditioner(*prec);
+   smoothers[0] = pcg;
 }
 
 } // namespace mfem

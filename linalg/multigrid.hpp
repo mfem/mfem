@@ -99,6 +99,9 @@ class MultigridOperator : public Operator
 
    /// Returns smoother at given level
    Solver* GetSmootherAtLevel(unsigned level);
+
+protected:
+   void AddEmptyLevels(unsigned levels);
 };
 
 class TimedMultigridOperator : public MultigridOperator
