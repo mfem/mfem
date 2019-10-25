@@ -38,6 +38,8 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
 
    un.SetSize(vfes_truevsize);
    un = 0.0;
+   un_next.SetSize(vfes_truevsize);
+   un_next = 0.0;
    unm1.SetSize(vfes_truevsize);
    unm1 = 0.0;
    unm2.SetSize(vfes_truevsize);
@@ -63,6 +65,8 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
 
    un_gf.SetSpace(vfes);
    un_gf = 0.0;
+   un_next_gf.SetSpace(vfes);
+   un_next_gf = 0.0;
 
    Lext_gf.SetSpace(vfes);
    curlu_gf.SetSpace(vfes);
@@ -299,34 +303,40 @@ void NavierSolver::Setup(double dt)
    HInv->SetRelTol(rtol_hsolve);
    HInv->SetMaxIter(200);
 
-   un_gf.GetTrueDofs(un);
+   // Set initial time step in history array
+   dthist[0] = dt;
 
    sw_setup.Stop();
 }
 
-void NavierSolver::Step(double &time, double dt, int cur_step)
+void NavierSolver::UpdateTimestepHistory(double dt)
+{
+  // Rotate values in time step history array
+  dthist[2] = dthist[1];
+  dthist[1] = dthist[0];
+  dthist[0] = dt;
+
+  // Rotate values in nonlinear extrapolation history array
+  Nunm2 = Nunm1;
+  Nunm1 = Nun;
+
+  // Rotate values in solution history array
+  unm2 = unm1;
+  unm1 = un;
+
+  // Update the current solution and corresponding GridFunction
+  un = un_next;
+  un_gf.SetFromTrueDofs(un);
+}
+
+void NavierSolver::ProvisionalStep(double time, double dt, int cur_step)
 {
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      std::cout << "Step" << std::endl;
+      std::cout << "Step " << cur_step << std::endl;
    }
    sw_step.Start();
    sw_single_step.Start();
-
-   // if (std::abs(dt - dthist[0]) > std::numeric_limits<double>::min())
-   {
-      dthist[2] = dthist[1];
-      dthist[1] = dthist[0];
-      dthist[0] = dt;
-   }
-
-   for (double dti : dthist)
-   {
-      std::cout << std::scientific << dti << " ";
-   }
-   std::cout << " dthist" << std::endl;
-
-   // time += dt;
 
    for (auto vdbc = vel_dbcs.begin(); vdbc != vel_dbcs.end(); ++vdbc)
    {
@@ -340,36 +350,25 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    SetTimeIntegrationCoefficients(cur_step);
 
-   // if (cur_step <= 2)
-   // {
-      H_bdfcoeff.constant = bd0 / dt;
-      H_form->Update();
-      H_form->Assemble();
-      H_form->FormSystemMatrix(vel_ess_tdof, H);
+   H_bdfcoeff.constant = bd0 / dt;
+   H_form->Update();
+   H_form->Assemble();
+   H_form->FormSystemMatrix(vel_ess_tdof, H);
 
-      if (partial_assembly)
-      {
-         HInv->ClearPreconditioner();
-         HInv->SetOperator(*H);
-         delete HInvPC;
-         Vector diag_pa(vfes->GetTrueVSize());
-         H_form->AssembleDiagonal(diag_pa);
-         HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-         HInv->SetPreconditioner(*HInvPC);
-      }
-      else
-      {
-         HInv->SetOperator(*H);
-      }
-   // }
-
-   // Extrapolated f^{n+1}
-   // forcing_coeff->SetTime(t - dt);
-   // f_form->Assemble();
-   // f_form->ParallelAssemble(fn);
-   // forcing_coeff->SetTime(t);
-
-   // fn = 0.0;
+   if (partial_assembly)
+   {
+     HInv->ClearPreconditioner();
+     HInv->SetOperator(*H);
+     delete HInvPC;
+     Vector diag_pa(vfes->GetTrueVSize());
+     H_form->AssembleDiagonal(diag_pa);
+     HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+     HInv->SetPreconditioner(*HInvPC);
+   }
+   else
+   {
+     HInv->SetOperator(*H);
+   }
 
    for (auto acc = accel_terms.begin(); acc != accel_terms.end(); ++acc)
    {
@@ -379,11 +378,6 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    f_form->Assemble();
    f_form->ParallelAssemble(fn);
    
-   // for (auto acc = accel_terms.begin(); acc != accel_terms.end(); ++acc)
-   // {
-   //    acc->coeff.SetTime(time);
-   // }
-
    //
    // Nonlinear EXT terms
    //
@@ -396,9 +390,6 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    MFEM_FORALL(i,
                Fext.Size(),
                Fext[i] = ab1 * Nun[i] + ab2 * Nunm1[i] + ab3 * Nunm2[i];);
-
-   Nunm2 = Nunm1;
-   Nunm1 = Nun;
 
    // Fext = M^{-1} (F(u^{n}) + f^{n+1})
    MvInv->Mult(Fext, tmp1);
@@ -506,36 +497,31 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    Mv->Mult(Fext, tmp1);
    resu.Add(1.0, tmp1);
 
-   // un_gf = 0.0;
-
    for (auto vdbc = vel_dbcs.begin(); vdbc != vel_dbcs.end(); ++vdbc)
    {
-      un_gf.ProjectBdrCoefficient(vdbc->coeff, vdbc->attr);
+      un_next_gf.ProjectBdrCoefficient(vdbc->coeff, vdbc->attr);
    }
 
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
-
-   unm2 = unm1;
-   unm1 = un;
 
    Vector X2, B2;
    if (partial_assembly)
    {
       ConstrainedOperator *HC = H.As<ConstrainedOperator>();
-      EliminateRHS(*H_form, *HC, vel_ess_tdof, un_gf, resu_gf, X2, B2, 1);
+      EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, X2, B2, 1);
    }
    else
    {
-      H_form->FormLinearSystem(vel_ess_tdof, un_gf, resu_gf, H, X2, B2, 1);
+      H_form->FormLinearSystem(vel_ess_tdof, un_next_gf, resu_gf, H, X2, B2, 1);
    }
    sw_hsolve.Start();
    HInv->Mult(B2, X2);
    sw_hsolve.Stop();
    iter_hsolve = HInv->GetNumIterations();
    res_hsolve = HInv->GetFinalNorm();
-   H_form->RecoverFEMSolution(X2, resu_gf, un_gf);
+   H_form->RecoverFEMSolution(X2, resu_gf, un_next_gf);
 
-   un_gf.GetTrueDofs(un);
+   un_next_gf.GetTrueDofs(un_next);
 
    sw_step.Stop();
    sw_single_step.Stop();
@@ -552,6 +538,12 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    }
 
    sw_single_step.Clear();
+}
+
+void NavierSolver::Step(double time, double dt, int cur_step)
+{
+  ProvisionalStep(time, dt, cur_step);
+  UpdateTimestepHistory(dt);
 }
 
 void NavierSolver::MeanZero(ParGridFunction &v)
@@ -886,11 +878,13 @@ void NavierSolver::SetTimeIntegrationCoefficients(int step)
 
    // Ratio of time step history at dt(t{n}) - dt(t_{n-1})
    double rho1 = 0.0;
-
    // Ratio of time step history at dt(t{n-1}) - dt(t_{n-2})
    double rho2 = 0.0;
 
-   rho1 = dthist[0] / dthist[1];
+   if (bdf_order >= 1)
+   {
+      rho1 = dthist[0] / dthist[1];
+   }
 
    if (bdf_order == 3)
    {
