@@ -172,6 +172,8 @@ public:
     */
    void SetKrylovSolver( strumpack::KrylovSolver method );
 
+  void SetHSS();
+
    /**
     * Supported reorderings are:
     *    METIS, PARMETIS, SCOTCH, PTSCOTCH, RCM

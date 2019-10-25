@@ -261,6 +261,13 @@ SetPrintSolveStatistics( bool print_stat )
 
 template<typename scalar_t, typename integer_t>
 void STRUMPACKBaseSolver<scalar_t,integer_t>::
+SetHSS()
+{
+   solver_->options().enable_HSS();
+}
+
+template<typename scalar_t, typename integer_t>
+void STRUMPACKBaseSolver<scalar_t,integer_t>::
 SetKrylovSolver( strumpack::KrylovSolver method )
 {
    solver_->options().set_Krylov_solver( method );

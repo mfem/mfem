@@ -22,7 +22,7 @@ using namespace std;
 
 //#define DEBUG_RECONSTRUCTION
 
-//#define ROBIN_TC
+#define ROBIN_TC
 //#define PENGLEE12_SOTC
 //#define RL_DDMXXI
 
@@ -871,7 +871,10 @@ public:
 #ifdef GPWD
   void GPWD_PreconditionerMult(const Vector & x, Vector & y);
 #endif
-  
+
+  void PolyPreconditionerMult(const Vector & x, Vector & y);
+  void GaussSeidelPreconditionerMult(const Vector & x, Vector & y) const;
+
 private:
 
   int m_rank;
@@ -958,6 +961,7 @@ private:
   BlockOperator *globalInterfaceOp, *globalSubdomainOp;
   
   Operator *globalOp;  // Operator for all global subdomains (blocks corresponding to non-local subdomains will be NULL).
+  Operator *globalOffdiag;
   
   Array<int> block_trueOffsets;  // Offsets used in globalOp
 
@@ -1000,6 +1004,8 @@ private:
   void ProjectionMult(const Vector & x);
   void ProjectionMultTranspose(Vector & x);
 #endif
+
+  Vector prec_z, prec_w;
   
   double alpha, beta, gamma;
   double alphaInverse, betaOverAlpha, gammaOverAlpha;
@@ -1229,6 +1235,20 @@ private:
     return strumpack;
   }
   
+  STRUMPACKSolver* CreateStrumpackSolverApprox(Operator *Arow, MPI_Comm comm)
+  {
+    //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
+    STRUMPACKSolver * strumpack = new STRUMPACKSolver(0, NULL, comm);
+    strumpack->SetPrintFactorStatistics(true);
+    strumpack->SetPrintSolveStatistics(true);
+    strumpack->SetHSS();
+    strumpack->SetKrylovSolver(strumpack::KrylovSolver::PREC_GMRES);
+    strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+    strumpack->SetOperator(*Arow);
+    strumpack->SetFromCommandLine();
+    return strumpack;
+  }
+  
   Solver* CreateSubdomainPreconditionerStrumpack(const int subdomain);
 
   void SetOffsetsSD(const int subdomain);
@@ -1249,7 +1269,6 @@ private:
   void CheckContinuityOfUS(const Vector & solReduced, const bool imag);
 };
 
-#ifdef GPWD
 class DDMPreconditioner : public Solver
 {
 public:
@@ -1259,7 +1278,12 @@ public:
   
   virtual void Mult(const Vector &x, Vector &y) const
   {
+#ifdef GPWD
     ddi->GPWD_PreconditionerMult(x, y);
+#else
+    ddi->GaussSeidelPreconditionerMult(x, y);
+    //ddi->PolyPreconditionerMult(x, y);
+#endif  // GPWD
   }
 
   virtual void SetOperator(const Operator &op)
@@ -1269,6 +1293,5 @@ public:
 private:
   DDMInterfaceOperator *ddi;
 };
-#endif  // GPWD
 
 #endif  // DDOPER_HPP
