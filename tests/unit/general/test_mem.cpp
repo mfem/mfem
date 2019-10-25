@@ -10,13 +10,12 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "mfem.hpp"
-
 #include "catch.hpp"
 
 #ifndef _WIN32
 #include <unistd.h>
 #else
-#define sysconf(...) 0x1000
+#define sysconf(...) 0x10
 #endif
 
 using namespace mfem;
