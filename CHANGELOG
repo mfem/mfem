@@ -20,6 +20,13 @@ GPU support
   backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
   "omp", "occa-cpu", "raja-cpu", and "cpu".
 
+Miscellaneous
+-------------
+- Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This 
+  necessitated a complete rework of the interface and requires changes at
+  the application level.  Example usage of this new interface can be found
+  in the examples/sundials directory.
+
 
 Version 4.0, released on May 24, 2019
 =====================================
