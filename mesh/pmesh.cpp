@@ -2341,10 +2341,10 @@ GetSharedFaceTransformations(int sf, bool fill2)
 
       if (face_type == Element::SEGMENT && fill2)
       {
-         // fix slave orientation in 2D: flip Loc2 to match Loc1 and Face
+/*         // fix slave orientation in 2D: flip Loc2 to match Loc1 and Face
          DenseMatrix &pm = FaceElemTr.Loc2.Transf.GetPointMat();
          std::swap(pm(0,0), pm(0,1));
-         std::swap(pm(1,0), pm(1,1));
+         std::swap(pm(1,0), pm(1,1));*/
       }
    }
 

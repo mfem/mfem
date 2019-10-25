@@ -1132,13 +1132,16 @@ void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
    // ParMesh::GetSharedFace() such that i >= Mesh::GetNumFaces(), i.e. 'i' is
    // the index of a ghost.
    MFEM_ASSERT(Nonconforming() && i >= pmesh->GetNumFaces(), "");
+
    int el1, el2, inf1, inf2;
    pmesh->GetFaceElements(i, &el1, &el2);
    el2 = -1 - el2;
    pmesh->GetFaceInfos(i, &inf1, &inf2);
-   MFEM_ASSERT(0 <= el2 && el2 < face_nbr_element_dof.Size(), "");
+
+   MFEM_ASSERT(el2 >= 0 && el2 < face_nbr_element_dof.Size(), "");
    const int nd = face_nbr_element_dof.RowSize(el2);
    const int *vol_vdofs = face_nbr_element_dof.GetRow(el2);
+
    const Element *face_nbr_el = pmesh->face_nbr_elements[el2];
    Geometry::Type geom = face_nbr_el->GetGeometryType();
    const int face_dim = Geometry::Dimension[geom]-1;
@@ -1174,6 +1177,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
    Geometry::Type geom = (pmesh->Dimension() == 2) ?
                          Geometry::SEGMENT : Geometry::SQUARE;
+   // TODO: fix the above in nc-prism-dev    ^
    return fec->FiniteElementForGeometry(geom);
 }
 

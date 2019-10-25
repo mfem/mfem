@@ -155,7 +155,7 @@ void Hybridization::ConstructC()
                face_fe = c_fes->GetFaceElement(face_no);
                c_fes->GetFaceVDofs(face_no, c_vdofs);
             }
-            else
+            else // ghost face
             {
                dbg << "Ghost face!\n";
                const int fill2 = false; // only need side "1" data

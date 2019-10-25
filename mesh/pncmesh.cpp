@@ -1024,7 +1024,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    // same on different processors, this is important for ExchangeFaceNbrData)
    fnbr.Sort();
    fnbr.Unique();
-   fnbr.Sort(compare_ranks_indices);
+   fnbr.Sort(compare_ranks_indices); // TODO: lambda?
 
    // put the ranks into 'face_nbr_group'
    for (int i = 0; i < fnbr.Size(); i++)
@@ -1192,16 +1192,20 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];
 
             const DenseMatrix* pm = &sf.point_matrix;
-            if (!sloc && Dim == 3)
+            if (!sloc)
             {
-               // ghost slave in 3D needs flipping orientation
-               DenseMatrix* pm2 = new DenseMatrix(*pm);
-               std::swap((*pm2)(0,1), (*pm2)(0,3));
-               std::swap((*pm2)(1,1), (*pm2)(1,3));
-               aux_pm_store.Append(pm2);
+               if (Dim == 3)
+               {
+                  // ghost slave in 3D needs flipping orientation
+                  DenseMatrix* pm2 = new DenseMatrix(*pm);
+                  std::swap((*pm2)(0,1), (*pm2)(0,3));
+                  std::swap((*pm2)(1,1), (*pm2)(1,3));
+                  aux_pm_store.Append(pm2);
+
+                  pm = pm2;
+               }
 
                fi.Elem2Inf ^= 1;
-               pm = pm2;
 
                // The problem is that sf.point_matrix is designed for P matrix
                // construction and always has orientation relative to the slave
