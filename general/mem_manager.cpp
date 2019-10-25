@@ -422,7 +422,7 @@ public:
       HostMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
       h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("host_pool", rm.getAllocator("HOST"))),
+                  ("host_pool", rm.getAllocator(MFEM_UMPIRE_HOST))),
       strat(h_allocator.getAllocationStrategy()) { }
    void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
    void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
@@ -441,7 +441,7 @@ public:
    UmpireDeviceMemorySpace(): DeviceMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
       d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("device_pool", rm.getAllocator("DEVICE"))) { }
+                  ("device_pool", rm.getAllocator(MFEM_UMPIRE_DEVICE))) { }
    void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
    void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
