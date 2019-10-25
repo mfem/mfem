@@ -720,11 +720,7 @@ MFEM_USE_PUMI
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_RAJA
-<<<<<<< HEAD
-MFEM_USE_MM
 MFEM_USE_UMPIRE
-=======
->>>>>>> master
 
 The following options are CMake specific:
 
