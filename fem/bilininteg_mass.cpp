@@ -39,7 +39,11 @@ void MassIntegrator::Setup(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetMemoryType());
    Vector coeff(nq * ne);
-   if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   if (Q == nullptr)
+   {
+      coeff = 1.0;
+   }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
    {
       coeff = cQ->constant;
    }
