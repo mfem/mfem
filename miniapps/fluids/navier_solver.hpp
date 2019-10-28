@@ -206,7 +206,7 @@ protected:
    Solver *MvInvPC;
    CGSolver *MvInv;
 
-   HypreBoomerAMG *SpInvPC;
+   Solver *SpInvPC;
    OrthoSolver *SpInvOrthoPC;
    CGSolver *SpInv;
 

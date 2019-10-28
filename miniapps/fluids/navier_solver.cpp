@@ -251,13 +251,45 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      Sp_form_lor = new ParBilinearForm(pfes_lor);
-      Sp_form_lor->SetExternBFS(1);
-      CopyDBFIntegrators(Sp_form, Sp_form_lor);
-      Sp_form_lor->Assemble();
-      Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
-      SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
-      SpInvPC->SetPrintLevel(pl_amg);
+      std::cout << "Setting up mg solver" << std::endl;
+      Array<int> orders;
+      orders.Append(order);
+      int coarseOrder = order / 2;
+      while (coarseOrder > 0)
+      {
+         orders.Append(coarseOrder);
+         coarseOrder /= 2;
+      }
+      orders.Sort();
+      orders.Print();
+      ParSpaceHierarchy* spaceHierarchy = new ParSpaceHierarchy();
+      Array<H1_FECollection*>* collections = new Array<H1_FECollection*>();
+      std::cout << "test1" << std::endl;
+      for (int level = 0; level < orders.Size() - 1; ++level)
+      {
+         collections->Append(new H1_FECollection(orders[level], pmesh->Dimension()));
+         FiniteElementSpace *fesp = new ParFiniteElementSpace(pmesh, collections->Last());
+         spaceHierarchy->AddLevel(pmesh, fesp, false, true);
+      }
+      spaceHierarchy->AddLevel(pmesh, pfes, false, false);
+      std::cout << "test2" << std::endl;
+
+      ParMultigridBilinearForm* mgOperator = new ParMultigridBilinearForm(*spaceHierarchy, *Sp_form, pres_ess_attr);
+      std::cout << "test3" << std::endl;
+      SpInvPC = new MultigridSolver(mgOperator, MultigridSolver::CycleType::VCYCLE, 1, 1);
+      std::cout << "test4" << std::endl;
+
+      // Sp_form_lor = new ParBilinearForm(pfes_lor);
+      // Sp_form_lor->SetExternBFS(1);
+      // CopyDBFIntegrators(Sp_form, Sp_form_lor);
+      // Sp_form_lor->Assemble();
+      // Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
+      // SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
+
+      std::cout << "Set up mg solver" << std::endl;
+
+
+      // SpInvPC->SetPrintLevel(pl_amg);
       SpInvPC->Mult(resp, pn);
       SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
@@ -265,7 +297,7 @@ void NavierSolver::Setup(double dt)
    else
    {
       SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
-      SpInvPC->SetPrintLevel(0);
+      // SpInvPC->SetPrintLevel(0);
       SpInvOrthoPC = new OrthoSolver();
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
