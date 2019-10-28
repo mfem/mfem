@@ -9,51 +9,25 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "mgbilinearform.hpp"
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
+#include "pmgbilinearform.hpp"
 #include "transfer.hpp"
 
 namespace mfem
 {
 
-MultigridBilinearForm::MultigridBilinearForm()
-    : MultigridOperator()
-{
-}
-
-MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
-                                             BilinearForm& bf,
+ParMultigridBilinearForm::ParMultigridBilinearForm(ParSpaceHierarchy& spaceHierarchy,
+                                             ParBilinearForm& bf,
                                              Array<int>& ess_bdr)
-    : MultigridOperator()
+    : MultigridBilinearForm()
 {
    MFEM_VERIFY(bf.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
                "Assembly level must be PARTIAL");
-   SetupPA(spaceHierarchy, bf, ess_bdr);
-}
 
-MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
-                                             SparseMatrix& opr, Array<int>& ess_bdr)
-    : MultigridOperator()
-{
-   SetupFull(spaceHierarchy, opr, ess_bdr);
-}
-
-MultigridBilinearForm::~MultigridBilinearForm()
-{
-   for (int i = 0; i < bfs.Size(); ++i)
-   {
-      delete bfs[i];
-   }
-
-   for (int i = 0; i < essentialTrueDofs.Size(); ++i)
-   {
-      delete essentialTrueDofs[i];
-   }
-}
-
-void MultigridBilinearForm::SetupPA(SpaceHierarchy& spaceHierarchy,
-                                    BilinearForm& bf, Array<int>& ess_bdr)
-{
-   BilinearForm* form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(0));
+   ParBilinearForm* form = new ParBilinearForm(&spaceHierarchy.GetFESpaceAtLevel(0));
    // TODO: Copy all integrators
    Array<BilinearFormIntegrator*>& dbfi = *bf.GetDBFI();
    for (int i = 0; i < dbfi.Size(); ++i)
@@ -72,7 +46,7 @@ void MultigridBilinearForm::SetupPA(SpaceHierarchy& spaceHierarchy,
    form->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
    opr.SetOperatorOwner(false);
 
-   CGSolver* pcg = new CGSolver();
+   CGSolver* pcg = new CGSolver(MPI_COMM_WORLD);
    pcg->SetPrintLevel(0);
    pcg->SetMaxIter(200);
    pcg->SetRelTol(sqrt(1e-4));
@@ -81,9 +55,38 @@ void MultigridBilinearForm::SetupPA(SpaceHierarchy& spaceHierarchy,
 
    AddCoarsestLevel(opr.Ptr(), pcg, true, true);
 
+   // ParMesh* pmesh = spaceHierarchy.GetFESpaceAtLevel(0).GetParMesh();
+   // ParMesh* pmesh_lor = new ParMesh(pmesh, 1, BasisType::GaussLobatto);
+   // H1_FECollection* fec_lor = new H1_FECollection(1, pmesh->Dimension(),
+   //                                  BasisType::GaussLobatto);
+   // ParFiniteElementSpace* fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
+   // ParBilinearForm* a_pc = new ParBilinearForm(fespace_lor);
+
+   // Array<BilinearFormIntegrator*>& dbfi = *bf.GetDBFI();
+   // for (int i = 0; i < dbfi.Size(); ++i)
+   // {
+   //    a_pc->AddDomainIntegrator((*bf.GetDBFI())[i]->Copy());
+   // }
+
+   // a_pc->UsePrecomputedSparsity();
+   // a_pc->Assemble();
+
+   // essentialTrueDofs.Append(new Array<int>());
+   // spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
+   //     ess_bdr, *essentialTrueDofs.Last());
+
+   // HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
+   // a_pc->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
+
+   // HypreBoomerAMG* amg = new HypreBoomerAMG(*hypreCoarseMat);
+   // amg->SetPrintLevel(-1);
+   // amg->SetMaxIter(1);
+
+   // AddCoarsestLevel(hypreCoarseMat, amg, true, true);
+
    for (int level = 1; level < spaceHierarchy.GetNumLevels(); ++level)
    {
-      BilinearForm* form;
+      ParBilinearForm* form;
       // Reuse form on finest level
       if (level == spaceHierarchy.GetNumLevels() - 1)
       {
@@ -91,7 +94,7 @@ void MultigridBilinearForm::SetupPA(SpaceHierarchy& spaceHierarchy,
       }
       else
       {
-         form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(level));
+         form = new ParBilinearForm(&spaceHierarchy.GetFESpaceAtLevel(level));
          // TODO: Copy all integrators
          for (int i = 0; i < dbfi.Size(); ++i)
          {
@@ -119,7 +122,7 @@ void MultigridBilinearForm::SetupPA(SpaceHierarchy& spaceHierarchy,
                                              1.0);
       ProductOperator diagPrecond(&invDiagOperator, opr.Ptr(), false, false);
 
-      PowerMethod powerMethod;
+      PowerMethod powerMethod(MPI_COMM_WORLD);
       double estLargestEigenvalue =
           powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
 
@@ -127,63 +130,15 @@ void MultigridBilinearForm::SetupPA(SpaceHierarchy& spaceHierarchy,
           opr.Ptr(), diag, *essentialTrueDofs.Last(), 2, estLargestEigenvalue);
 
       Operator* P =
-          new TransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
+          new TrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
                                spaceHierarchy.GetFESpaceAtLevel(level));
 
       AddLevel(opr.Ptr(), smoother, P, true, true, true);
    }
 }
 
-void MultigridBilinearForm::SetupFull(SpaceHierarchy& spaceHierarchy,
-                                      SparseMatrix& opr, Array<int>& ess_bdr)
-{
-   AddEmptyLevels(spaceHierarchy.GetNumLevels());
+ParMultigridBilinearForm::~ParMultigridBilinearForm()
+{}
 
-   width = opr.Width();
-   height = opr.Height();
-
-   operators[spaceHierarchy.GetFinestLevelIndex()] = &opr;
-
-   for (int level = spaceHierarchy.GetFinestLevelIndex(); level > 0; --level)
-   {
-      smoothers[level] = new GSSmoother((SparseMatrix&)*operators[level]);
-
-      SparseMatrix* R =
-          spaceHierarchy.GetFESpaceAtLevel(level).H2L_GlobalRestrictionMatrix(
-              &spaceHierarchy.GetFESpaceAtLevel(level - 1));
-      SparseMatrix* P = mfem::Transpose(*R);
-      prolongations[level - 1] = P;
-
-
-      SparseMatrix* rap = mfem::RAP(*P, (SparseMatrix&)*operators[level], *P);
-
-      Array<int>* ess_tdof_list = new Array<int>();
-      essentialTrueDofs.Append(ess_tdof_list);
-      spaceHierarchy.GetFESpaceAtLevel(level-1).GetEssentialTrueDofs(
-          ess_bdr, *ess_tdof_list);
-
-      SparseMatrix* elim = new SparseMatrix(rap->Height());
-
-      for (int i = 0; i < ess_tdof_list->Size(); i++)
-      {
-         rap->EliminateRowCol((*ess_tdof_list)[i], *elim, Matrix::DiagonalPolicy::DIAG_ONE);
-      }
-
-      const int remove_zeros = 0;
-      rap->Finalize(remove_zeros);
-
-      operators[level - 1] = rap;
-   }
-
-   CGSolver* pcg = new CGSolver();
-   GSSmoother* prec = new GSSmoother((SparseMatrix&)*operators[0]);
-   pcg->SetPrintLevel(-1);
-   pcg->SetMaxIter(50);
-   pcg->SetRelTol(sqrt(1e-4));
-   pcg->SetAbsTol(0.0);
-   pcg->SetOperator(*operators[0]);
-   pcg->SetPreconditioner(*prec);
-   smoothers[0] = pcg;
 }
-
-} // namespace mfem
+#endif

@@ -9,42 +9,28 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MGBILINEARFORM
-#define MFEM_MGBILINEARFORM
+#ifndef MFEM_PMGBILINEARFORM
+#define MFEM_PMGBILINEARFORM
 
 #include "../linalg/multigrid.hpp"
-#include "bilinearform.hpp"
 #include "spacehierarchy.hpp"
+
+#include "mgbilinearform.hpp"
+#include "pbilinearform.hpp"
 
 namespace mfem
 {
 
-class MultigridBilinearForm : public MultigridOperator
+class ParMultigridBilinearForm : public MultigridBilinearForm
 {
- protected:
-   Array<BilinearForm*> bfs;
-   Array<Array<int>*> essentialTrueDofs;
-
  public:
-   /// Empty constructor
-   MultigridBilinearForm();
-
    /// Constructor for a multigrid bilinear form for a given SpaceHierarchy and
    /// bilinear form. Uses Chebyshev accelerated smoothing.
    /// At the moment, only the DomainIntegrators of \p bf are copied.
-   MultigridBilinearForm(SpaceHierarchy& spaceHierarchy, BilinearForm& bf,
-                         Array<int>& ess_bdr);
+   ParMultigridBilinearForm(ParSpaceHierarchy& spaceHierarchy,
+                            ParBilinearForm& bf, Array<int>& ess_bdr);
 
-   /// Constructor for fully assembled systems
-   MultigridBilinearForm(SpaceHierarchy& spaceHierarchy, SparseMatrix& opr, Array<int>& ess_bdr);
-
-   virtual ~MultigridBilinearForm();
-
- private:
-   void SetupPA(SpaceHierarchy& spaceHierarchy, BilinearForm& bf,
-                Array<int>& ess_bdr);
-   void SetupFull(SpaceHierarchy& spaceHierarchy, SparseMatrix& opr,
-                  Array<int>& ess_bdr);
+   virtual ~ParMultigridBilinearForm();
 };
 
 } // namespace mfem

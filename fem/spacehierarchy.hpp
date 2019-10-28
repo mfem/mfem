@@ -81,6 +81,9 @@ public:
 class ParSpaceHierarchy : public SpaceHierarchy
 {
 public:
+   /// Constructs an empty space hierarchy
+   ParSpaceHierarchy();
+
    /// Constructs a parallel space hierarchy with the given mesh and space on
    /// level zero. The ownership of the mesh and space may be transferred to the
    /// ParSpaceHierarchy by setting the according boolean variables.
