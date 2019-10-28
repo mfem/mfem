@@ -105,6 +105,10 @@ FiniteElementSpace& SpaceHierarchy::GetFinestFESpace()
 }
 
 #ifdef MFEM_USE_MPI
+ParSpaceHierarchy::ParSpaceHierarchy()
+{
+}
+
 ParSpaceHierarchy::ParSpaceHierarchy(ParMesh* mesh,
                                      ParFiniteElementSpace* fespace, bool ownM,
                                      bool ownFES)
