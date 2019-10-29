@@ -6,6 +6,13 @@
 using namespace std;
 using namespace mfem;
 
+static const double omega = 12.0 * M_PI;
+
+double exactFun(Vector& x)
+{
+   return std::sin(omega * x[0]) + std::cos(omega * x[0]);
+}
+
 class PoissonMultigridOperator : public TimedMultigridOperator
 {
  private:
@@ -25,7 +32,8 @@ class PoissonMultigridOperator : public TimedMultigridOperator
    void AddIntegrators(BilinearForm* form)
    {
       form->AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      // form->AddDomainIntegrator(new MassIntegrator(*coeff));
+      ConstantCoefficient* massCoeff = new ConstantCoefficient(-omega * omega);
+      form->AddDomainIntegrator(new MassIntegrator(*massCoeff));
    }
 
    Operator* ConstructOperator(ParFiniteElementSpace* fespace,
@@ -208,18 +216,18 @@ class PoissonMultigridOperator : public TimedMultigridOperator
 
          BilinearForm* a_pc_ = new BilinearForm(fespace_lor_);
          a_pc_->SetAssemblyLevel(AssemblyLevel::FULL);
-         // AddIntegrators(a_pc_);
-         ConstantCoefficient* constCoeff = new ConstantCoefficient(1.0);
-         a_pc_->AddDomainIntegrator(new DiffusionIntegrator(*constCoeff));
+         AddIntegrators(a_pc_);
+         // ConstantCoefficient* constCoeff = new ConstantCoefficient(1.0);
+         // a_pc_->AddDomainIntegrator(new DiffusionIntegrator(*constCoeff));
          a_pc_->UsePrecomputedSparsity();
          a_pc_->Assemble();
          
-         BilinearForm* a_pc_pa = new BilinearForm(fespace_lor_);
-         a_pc_pa->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         AddIntegrators(a_pc_pa);
-         a_pc_pa->Assemble();
+         // BilinearForm* a_pc_pa = new BilinearForm(fespace_lor_);
+         // a_pc_pa->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         // AddIntegrators(a_pc_pa);
+         // a_pc_pa->Assemble();
          Vector* LORdiag = new Vector(fespace->GetTrueVSize());
-         a_pc_pa->AssembleDiagonal(*LORdiag);
+         // a_pc_pa->AssembleDiagonal(*LORdiag);
 
          SparseMatrix* LORmat = new SparseMatrix();
          a_pc_->FormSystemMatrix(essentialDofs, *LORmat);
@@ -256,6 +264,7 @@ class PoissonMultigridOperator : public TimedMultigridOperator
          smoother = new AdditiveSchwarzApproxLORSmoother(*fespace, essentialDofs, *forms.Last(), *coeffDiag, *LORdiag, LORmat, weight);
          // smoother = new ElementWiseJacobi(*fespace, *forms.Last(), *diag, essentialDofs, 2.0/3.0);
          // smoother = new OperatorJacobiSmoother(*diag, essentialDofs, weight);
+         // smoother = new OperatorChebyshevSmoother(solveOperator, *diag, essentialDofs, chebyshevOrder, estLargestEigenvalue);
          
 
          // Vector ev(solveOperator->Width());
@@ -572,6 +581,9 @@ int main(int argc, char* argv[])
    ParGridFunction x(&spaceHierarchy->GetFinestFESpace());
    x = 0.0;
 
+   FunctionCoefficient exact(exactFun);
+   x.ProjectCoefficient(exact);
+
    if (myid == 0)
    {
       cout << "Assembling rhs..." << flush;
@@ -580,7 +592,7 @@ int main(int argc, char* argv[])
    tic_toc.Start();
    ParLinearForm* b = new ParLinearForm(&spaceHierarchy->GetFinestFESpace());
    ConstantCoefficient one(1.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   // b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
    tic_toc.Stop();
    if (myid == 0)
@@ -594,11 +606,11 @@ int main(int argc, char* argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   CGSolver pcg(MPI_COMM_WORLD);
+   GMRESSolver pcg(MPI_COMM_WORLD);
    pcg.SetPrintLevel(1);
-   pcg.SetMaxIter(500);
-   pcg.SetRelTol(1e-6);
-   pcg.SetAbsTol(0.0);
+   pcg.SetMaxIter(1000);
+   pcg.SetRelTol(0.0);
+   pcg.SetAbsTol(1e-4);
    pcg.SetOperator(*solveOperator);
    pcg.SetPreconditioner(*preconditioner);
    // pcg.SetPreconditioner(*solveOperator->GetSmootherAtLevel(spaceHierarchy->GetFinestLevelIndex()));
@@ -623,9 +635,6 @@ int main(int argc, char* argv[])
 
    solveOperator->RecoverFEMSolution(X, *b, x);
 
-   delete preconditioner;
-   delete solveOperator;
-
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -638,6 +647,8 @@ int main(int argc, char* argv[])
                << flush;
    }
 
+   delete preconditioner;
+   delete solveOperator;
    delete b;
    delete spaceHierarchy;
 

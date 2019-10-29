@@ -136,12 +136,12 @@ class AdditiveSchwarzApproxLORSmoother : public Solver
    Vector countingVector;
    DenseMatrix elmat;
    Array<int> lexdofmap;
-   mutable DenseMatrixInverse inv;
-   DenseMatrix A1, A2, B1, B2;
-   DenseMatrixInverse invA2, invB1;
-   DenseMatrixSchurDecomposition* schurA1;
-   DenseMatrixSchurDecomposition* schurB2;
-   DenseMatrixSylvesterSolver* syl;
+   mutable std::vector<DenseMatrixInverse> inv;
+   std::vector<DenseMatrix> A1, A2, B1, B2;
+   std::vector<DenseMatrixInverse> invA2, invB1;
+   std::vector<DenseMatrixSchurDecomposition*> schurA1;
+   std::vector<DenseMatrixSchurDecomposition*> schurB2;
+   std::vector<DenseMatrixSylvesterSolver*> syl;
 };
 
 /**

@@ -173,8 +173,6 @@ AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::F
    Array<int> local_dofs;
    Array<int> local_dofs_lex;
 
-   int interiorElement = -1;
-
    for (int e = 0; e < fespace_.GetNE(); ++e)
    {
       fespace_.GetElementDofs(e, local_dofs);
@@ -185,11 +183,6 @@ AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::F
 
       Array<int> neighbors;
       el_to_el_.GetRow(e, neighbors);
-
-      if (neighbors.Size() == 9)
-      {
-         interiorElement = e;
-      }
    }
 
    for (int i = 0; i < fespace_.GetTrueVSize(); ++i)
@@ -197,130 +190,141 @@ AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::F
       countingVector[i] = 1.0 / std::sqrt(countingVector[i]);
    }
 
+   A1.resize(fespace_.GetNE());
+   A2.resize(fespace_.GetNE());
+   B1.resize(fespace_.GetNE());
+   B2.resize(fespace_.GetNE());
+   invA2.resize(fespace_.GetNE());
+   invB1.resize(fespace_.GetNE());
+   schurA1.resize(fespace_.GetNE());
+   schurB2.resize(fespace_.GetNE());
+   syl.resize(fespace_.GetNE());
+   inv.resize(fespace_.GetNE());
 
-   std::cout << "Interior: " << interiorElement << std::endl;
-
-   const FiniteElement& el = *fespace_.GetFE(interiorElement);
-   const TensorBasisElement* ltel =
-       dynamic_cast<const TensorBasisElement*>(&el);
-   MFEM_VERIFY(ltel, "FE space must be tensor product space");
-   lexdofmap = ltel->GetDofMap();
-
-   fespace_.GetElementDofs(interiorElement, local_dofs_lex);
-   elmat = DenseMatrix(local_dofs.Size(), local_dofs.Size());
-
-   local_dofs_lex.SetSize(local_dofs.Size());
-   for (int i = 0; i < local_dofs.Size(); ++i)
+   for (int e = 0; e < fespace_.GetNE(); ++e)
    {
-      local_dofs_lex[i] = local_dofs[lexdofmap[i]];
-   }
+      const FiniteElement& el = *fespace_.GetFE(e);
+      const TensorBasisElement* ltel =
+         dynamic_cast<const TensorBasisElement*>(&el);
+      MFEM_VERIFY(ltel, "FE space must be tensor product space");
+      lexdofmap = ltel->GetDofMap();
 
-   LORmat_->GetSubMatrix(local_dofs_lex, local_dofs_lex, elmat);
-   inv.SetOperator(elmat);
+      fespace_.GetElementDofs(e, local_dofs);
+      elmat = DenseMatrix(local_dofs.Size(), local_dofs.Size());
 
-   int N1D = std::sqrt(local_dofs_lex.Size());
-   DenseMatrix Atilde = elmat;
-
-   for (int i = 0; i < N1D; ++i)
-   {
-      for (int j = 0; j < N1D; ++j)
+      local_dofs_lex.SetSize(local_dofs.Size());
+      for (int i = 0; i < local_dofs.Size(); ++i)
       {
-         DenseMatrix blockMat(N1D, N1D);
-         for (int k = 0; k < N1D; ++k)
-         {
-            for (int l = 0; l < N1D; ++l)
-            {
-               blockMat(k,l) = elmat(k + i*N1D, l + j*N1D);
-            }
-         }
-
-         Atilde.SetRow(j + i * N1D, Vector(blockMat.Data(), N1D * N1D));
+         local_dofs_lex[i] = local_dofs[lexdofmap[i]];
       }
+
+      LORmat_->GetSubMatrix(local_dofs_lex, local_dofs_lex, elmat);
+      inv[e].SetOperator(elmat);
+
+      int N1D = std::sqrt(local_dofs_lex.Size());
+      DenseMatrix Atilde = elmat;
+
+      for (int i = 0; i < N1D; ++i)
+      {
+         for (int j = 0; j < N1D; ++j)
+         {
+            DenseMatrix blockMat(N1D, N1D);
+            for (int k = 0; k < N1D; ++k)
+            {
+               for (int l = 0; l < N1D; ++l)
+               {
+                  blockMat(k,l) = elmat(k + i*N1D, l + j*N1D);
+               }
+            }
+
+            Atilde.SetRow(j + i * N1D, Vector(blockMat.Data(), N1D * N1D));
+         }
+      }
+
+      A1[e].SetSize(N1D, N1D);
+      A2[e].SetSize(N1D, N1D);
+      B1[e].SetSize(N1D, N1D);
+      B2[e].SetSize(N1D, N1D);
+
+      DenseMatrixSVD svd(Atilde);
+      svd.Eval(Atilde);
+
+      // for (int i = 0; i < local_dofs.Size(); ++i)
+      // {
+      //    std::cout << svd.Singularvalue(i) << " ";
+      // }
+      // std::cout << std::endl;
+
+      Vector A1vec(A1[e].Data(), N1D * N1D);
+      svd.GetU().GetColumn(0, A1vec);
+      A1[e] *= std::sqrt(svd.Singularvalue(0));
+
+      Vector A2vec(A2[e].Data(), N1D * N1D);
+      svd.GetU().GetColumn(1, A2vec);
+      A2[e] *= std::sqrt(svd.Singularvalue(1));
+
+      Vector B1vec(B1[e].Data(), N1D * N1D);
+      svd.GetV_T().GetRow(0, B1vec);
+      B1[e] *= std::sqrt(svd.Singularvalue(0));
+
+      Vector B2vec(B2[e].Data(), N1D * N1D);
+      svd.GetV_T().GetRow(1, B2vec);
+      B2[e] *= std::sqrt(svd.Singularvalue(1));
+
+
+      ////---- Test if "tensorization" worked
+
+      // Vector xTest(local_dofs.Size());
+      // Vector yTest(local_dofs.Size());
+      // Vector yTest2(local_dofs.Size());
+      // Vector yTest3(local_dofs.Size());
+
+      // xTest.Randomize();
+
+      // tic_toc.Clear();
+      // tic_toc.Start();
+      // elmat.Mult(xTest, yTest);
+      // tic_toc.Stop();
+      // std::cout << "elmat mult: " << tic_toc.RealTime() << std::endl;
+
+      // tic_toc.Clear();
+      // tic_toc.Start();
+      // TensorProductMult2D(A1, B1, xTest, yTest2);
+      // TensorProductMult2D(A2, B2, xTest, yTest3);
+      // yTest2 += yTest3;
+      // tic_toc.Stop();
+      // std::cout << "tp mult:    " << tic_toc.RealTime() << std::endl;
+
+      // yTest -= yTest2;
+
+      // std::cout << "norm = " << yTest.Norml2() << std::endl;
+
+      ////---- Test end
+
+      invA2[e].SetOperator(A2[e]);
+      invB1[e].SetOperator(B1[e]);
+
+      invA2[e].Mult(A1[e]); // A1 = inv(A2) * A1
+      invB1[e].Mult(B2[e]); // B2 = inv(B1) * B2
+
+      schurA1[e] = new DenseMatrixSchurDecomposition(A1[e]);
+      schurB2[e] = new DenseMatrixSchurDecomposition(B2[e]);
+
+      // ////---- Test if Schur decomposition worked
+      // DenseMatrix testMat(A1.Height(), A1.Width());
+      // mfem::Mult(schurA1->GetT(), schurA1->GetQ_T(), testMat);
+      // DenseMatrix tmp(testMat);
+      // mfem::Mult(schurA1->GetQ(), tmp, testMat);
+
+      // std::cout << "A1 = " << A1.MaxMaxNorm() << std::endl;
+      // std::cout << "testMat = " << testMat.MaxMaxNorm() << std::endl;
+
+      // testMat -= A1;
+      // std::cout << "diff = " << testMat.MaxMaxNorm() << std::endl;
+      // ////---- Test end
+
+      syl[e] = new DenseMatrixSylvesterSolver(schurB2[e]->GetT(), schurA1[e]->GetT(), false, true);
    }
-
-   A1.SetSize(N1D, N1D);
-   A2.SetSize(N1D, N1D);
-   B1.SetSize(N1D, N1D);
-   B2.SetSize(N1D, N1D);
-
-   DenseMatrixSVD svd(Atilde);
-   svd.Eval(Atilde);
-
-   // for (int i = 0; i < local_dofs.Size(); ++i)
-   // {
-   //    std::cout << svd.Singularvalue(i) << " ";
-   // }
-   // std::cout << std::endl;
-
-   Vector A1vec(A1.Data(), N1D * N1D);
-   svd.GetU().GetColumn(0, A1vec);
-   A1 *= std::sqrt(svd.Singularvalue(0));
-
-   Vector A2vec(A2.Data(), N1D * N1D);
-   svd.GetU().GetColumn(1, A2vec);
-   A2 *= std::sqrt(svd.Singularvalue(1));
-
-   Vector B1vec(B1.Data(), N1D * N1D);
-   svd.GetV_T().GetRow(0, B1vec);
-   B1 *= std::sqrt(svd.Singularvalue(0));
-
-   Vector B2vec(B2.Data(), N1D * N1D);
-   svd.GetV_T().GetRow(1, B2vec);
-   B2 *= std::sqrt(svd.Singularvalue(1));
-
-
-   ////---- Test if "tensorization" worked
-
-   // Vector xTest(local_dofs.Size());
-   // Vector yTest(local_dofs.Size());
-   // Vector yTest2(local_dofs.Size());
-   // Vector yTest3(local_dofs.Size());
-
-   // xTest.Randomize();
-
-   // tic_toc.Clear();
-   // tic_toc.Start();
-   // elmat.Mult(xTest, yTest);
-   // tic_toc.Stop();
-   // std::cout << "elmat mult: " << tic_toc.RealTime() << std::endl;
-
-   // tic_toc.Clear();
-   // tic_toc.Start();
-   // TensorProductMult2D(A1, B1, xTest, yTest2);
-   // TensorProductMult2D(A2, B2, xTest, yTest3);
-   // yTest2 += yTest3;
-   // tic_toc.Stop();
-   // std::cout << "tp mult:    " << tic_toc.RealTime() << std::endl;
-
-   // yTest -= yTest2;
-
-   // std::cout << "norm = " << yTest.Norml2() << std::endl;
-
-   ////---- Test end
-
-   invA2.SetOperator(A2);
-   invB1.SetOperator(B1);
-
-   invA2.Mult(A1); // A1 = inv(A2) * A1
-   invB1.Mult(B2); // B2 = inv(B1) * B2
-
-   schurA1 = new DenseMatrixSchurDecomposition(A1);
-   schurB2 = new DenseMatrixSchurDecomposition(B2);
-
-   // ////---- Test if Schur decomposition worked
-   // DenseMatrix testMat(A1.Height(), A1.Width());
-   // mfem::Mult(schurA1->GetT(), schurA1->GetQ_T(), testMat);
-   // DenseMatrix tmp(testMat);
-   // mfem::Mult(schurA1->GetQ(), tmp, testMat);
-
-   // std::cout << "A1 = " << A1.MaxMaxNorm() << std::endl;
-   // std::cout << "testMat = " << testMat.MaxMaxNorm() << std::endl;
-
-   // testMat -= A1;
-   // std::cout << "diff = " << testMat.MaxMaxNorm() << std::endl;
-   // ////---- Test end
-
-   syl = new DenseMatrixSylvesterSolver(schurB2->GetT(), schurA1->GetT(), false, true);
 }
 
 void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
@@ -385,12 +389,12 @@ void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
 
 void AdditiveSchwarzApproxLORSmoother::LocalSmoother(int e, const Vector& in, Vector& out) const
 {
-   TensorProductMult2D(invA2, invB1, in, out);
-   TensorProductMult2D(schurA1->GetQ_T(), schurB2->GetQ_T(), out, out);
-   syl->Mult(out, out);
-   TensorProductMult2D(schurA1->GetQ(), schurB2->GetQ(), out, out);
+   TensorProductMult2D(invA2[e], invB1[e], in, out);
+   TensorProductMult2D(schurA1[e]->GetQ_T(), schurB2[e]->GetQ_T(), out, out);
+   syl[e]->Mult(out, out);
+   TensorProductMult2D(schurA1[e]->GetQ(), schurB2[e]->GetQ(), out, out);
    
-   // inv.Mult(in, out);
+   // inv[e].Mult(in, out);
 }
 
 void AdditiveSchwarzApproxLORSmoother::TensorProductMult2D(const DenseMatrix& A, const DenseMatrix& B, const Vector& in, Vector& out) const
