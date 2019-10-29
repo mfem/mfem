@@ -40,7 +40,16 @@ endif
 %.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) -c -fPIC $(MFEM_FLAGS) $< -o $@
 
-all: $(MINIOBJS)
+all: libdrl4amr.so drl4amr
+
+go:;./drl4amr
+py python:;python drl4amr.py
+tst test:;$(MAKE) go && $(MAKE) python
+
+drl4amr: main.cpp libdrl4amr.so
+	$(MFEM_CXX) $(MFEM_FLAGS) main.cpp -o drl4amr $(MFEM_LIBS) -L. -Wl,-rpath,. -ldrl4amr
+
+libdrl4amr.so: $(MINIOBJS)
 	$(MFEM_CXX) -shared -Wl,-soname,libdrl4amr.so -o libdrl4amr.so $(MINIOBJS) $(MFEM_LIBS)
 
 # Generate an error message if the MFEM library is not built and exit
@@ -49,4 +58,4 @@ $(MFEM_LIB_FILE):
 
 cln clean:
 	rm -f *.o *~
-	rm -rf *.dSYM *.TVD.*breakpoints $(SEQ_MINIOBJS) libdrl4amr.so
+	rm -rf *.dSYM *.TVD.*breakpoints $(SEQ_MINIOBJS) drl4amr libdrl4amr.so
