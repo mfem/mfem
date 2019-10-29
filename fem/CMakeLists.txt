@@ -28,10 +28,13 @@ set(SRCS
   intrules.cpp
   linearform.cpp
   lininteg.cpp
+  mgbilinearform.cpp
   nonlinearform.cpp
   nonlininteg.cpp
+  spacehierarchy.cpp
   staticcond.cpp
   tmop.cpp
+  transfer.cpp
   )
 
 set(HDRS
@@ -52,8 +55,10 @@ set(HDRS
   intrules.hpp
   linearform.hpp
   lininteg.hpp
+  mgbilinearform.hpp
   nonlinearform.hpp
   nonlininteg.hpp
+  spacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
   tbilininteg.hpp
@@ -64,6 +69,7 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
+  transfer.hpp
   )
 
 if (MFEM_USE_SIDRE)
@@ -82,6 +88,7 @@ if (MFEM_USE_MPI)
     pfespace.cpp
     pgridfunc.cpp
     plinearform.cpp
+    pmgbilinearform.cpp
     pnonlinearform.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
@@ -90,6 +97,7 @@ if (MFEM_USE_MPI)
     pfespace.hpp
     pgridfunc.hpp
     plinearform.hpp
+    pmgbilinearform.hpp
     pnonlinearform.hpp)
 endif()
 
