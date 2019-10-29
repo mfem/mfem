@@ -46,6 +46,16 @@ if (MFEM_USE_MPI)
 
   add_test(NAME performance_ex1p_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_ex1p> -no-vis -rs 2
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_ex1p> -no-vis -r 2
+    ${MPIEXEC_POSTFLAGS})
+
+  add_mfem_miniapp(performance_mg
+    MAIN mg.cpp
+    LIBRARIES mfem
+    EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
+
+  add_test(NAME performance_mg_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_mg> -no-vis -r 2
     ${MPIEXEC_POSTFLAGS})
 endif()
