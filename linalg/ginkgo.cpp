@@ -97,24 +97,23 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
 
    // Generate the solver from the solver using the system matrix.
    auto solver = solver_gen->generate(system_matrix);
-
    // Create the rhs vector in Ginkgo's format.
-   // std::vector<double> f(rhs.size());
-   // std::copy(rhs.begin(), rhs.begin() + rhs.size(), f.begin());
+   std::vector<double> f(rhs.Size());
+   std::copy(rhs.GetData(), rhs.GetData() + rhs.Size(), f.begin());
    auto b =
       vec::create(executor,
                   gko::dim<2>(rhs.Size(), 1),
-                  val_array::view(executor->get_master(), rhs.Size(), rhs.GetData()),
+                  val_array::view(executor->get_master(), rhs.Size(), f.data()),
                   1);
 
    // Create the solution vector in Ginkgo's format.
-   // std::vector<double> u(solution.size());
-   // std::copy(solution.begin(), solution.begin() + solution.size(), u.begin());
+   std::vector<double> u(solution.Size());
+   std::copy(solution.GetData(), solution.GetData() + solution.Size(), u.begin());
    auto x = vec::create(executor,
                         gko::dim<2>(solution.Size(), 1),
                         val_array::view(executor->get_master(),
                                         solution.Size(),
-                                        solution.GetData()),
+                                        u.data()),
                         1);
 
    // Create the logger object to log some data from the solvers to confirm
@@ -158,7 +157,7 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
                                   gko::dim<2>(rhs.Size(), 1),
                                   val_array::view(executor->get_master(),
                                                   rhs.Size(),
-                                                  rhs.GetData()),
+                                                  f.data()),
                                   1);
       b_master->compute_norm2(b_norm.get());
    }
@@ -172,10 +171,14 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
    // object. As both `residual_norm_d_master` and `b_norm` are seen as Dense
    // matrices, we use the `at` function to get the first value here. In case
    // of multiple right hand sides, this will need to be modified.
-   if (num_iteration==max_iter ||
+   if (num_iteration==max_iter &&
        (residual_norm_d_master->at(0, 0) / b_norm->at(0, 0)) > rel_tol )
    {
       converged = -1;
+   }
+   if ((residual_norm_d_master->at(0, 0) / b_norm->at(0, 0)) < rel_tol)
+   {
+      converged =0;
    }
    MFEM_VERIFY(converged ==0, " Solver did not converge"
               );
@@ -201,33 +204,41 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
 
 void
 GinkgoIterativeSolverBase::initialize(
-   const SparseMatrix &matrix)
+   const SparseMatrix *matrix)
 {
    // Needs to be a square matrix
-   MFEM_VERIFY(matrix.Height() == matrix.Width(), "System matrix is not square");
+   MFEM_VERIFY(matrix->Height() == matrix->Width(), "System matrix is not square");
 
-   const int N = matrix.Height();
-
+   const int N = matrix->Size();
    using mtx = gko::matrix::Csr<double, int>;
    std::shared_ptr<mtx> system_matrix_compute;
    system_matrix_compute   = mtx::create(executor->get_master(),
                                          gko::dim<2>(N),
-                                         matrix.NumNonZeroElems());
-   const double *mat_values   = system_matrix_compute->get_values();
-   const int *mat_row_ptrs = system_matrix_compute->get_row_ptrs();
-   const int *mat_col_idxs = system_matrix_compute->get_col_idxs();
-   mat_values= matrix.GetData();
-   mat_row_ptrs= matrix.GetI();
-   mat_col_idxs= matrix.GetJ();
+                                         matrix->NumNonZeroElems());
+   double *mat_values   = system_matrix_compute->get_values();
+   int *mat_row_ptrs = system_matrix_compute->get_row_ptrs();
+   int *mat_col_idxs = system_matrix_compute->get_col_idxs();
+   mat_row_ptrs[0] =0;
+   for (int r=0; r< N; ++r)
+   {
+      const int* col = matrix->GetRowColumns(r);
+      const double * val = matrix->GetRowEntries(r);
+      mat_row_ptrs[r+1] = mat_row_ptrs[r] + matrix->RowSize(r);
+      for (int cj=0; cj < matrix->RowSize(r); cj++ )
+      {
+         mat_values[mat_row_ptrs[r]+cj] = val[cj];
+         mat_col_idxs[mat_row_ptrs[r]+cj] = col[cj];
+      }
+   }
    system_matrix =
-      mtx::create(executor, gko::dim<2>(N), matrix.NumNonZeroElems());
+      mtx::create(executor, gko::dim<2>(N), matrix->NumNonZeroElems());
    system_matrix->copy_from(system_matrix_compute.get());
 }
 
 
 
 void
-GinkgoIterativeSolverBase::solve(const SparseMatrix &matrix,
+GinkgoIterativeSolverBase::solve(const SparseMatrix *matrix,
                                  Vector &      solution,
                                  const Vector &rhs)
 {
@@ -472,4 +483,4 @@ IRSolver::IRSolver(
 } // namespace GinkgoWrappers
 }
 
-#endif
+#endif // MFEM_USE_GINKGO
