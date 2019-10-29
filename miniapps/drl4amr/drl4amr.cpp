@@ -36,9 +36,9 @@
 //
 //               We recommend viewing Example 1 before viewing this example.
 
-#include <Python.h>
+//#include <Python.h>
 
-#include "../mfem.hpp"
+#include "mfem.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -48,25 +48,23 @@ using namespace mfem;
 
 #define dbg(...) {printf("\n\033[33m");printf(__VA_ARGS__);printf("\033[m");fflush(0);}
 
-static PyObject * mfem_vector_dot(PyObject *self, PyObject* args)
+class Foo
 {
-   PyObject* input;
-   PyArg_ParseTuple(args, "O", &input);
-   dbg("mfem_vector_dot");
-   const int size = PyList_Size(input);
-   mfem::Vector v(size);
-   for (int i = 0; i < size; i++)
+public:
+   void bar()
    {
-      v[i] = PyFloat_AS_DOUBLE(PyList_GET_ITEM(input, i));
+      std::cout << "Hello" << std::endl;
    }
-   return PyFloat_FromDouble(v*v);
+};
+
+extern "C" {
+   Foo* Foo_new() { return new Foo(); }
+   void Foo_bar(Foo* foo) { foo->bar(); }
 }
 
-static PyObject *ex6(PyObject *self, PyObject* args)
-//int ex6(int argc, char *argv[])
+
+int main(int argc, char *argv[])
 {
-   PyObject* input;
-   PyArg_ParseTuple(args, "O", &input);
    dbg("ex6");
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -74,8 +72,6 @@ static PyObject *ex6(PyObject *self, PyObject* args)
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   int argc = 1;
-   char *argv[] = {NULL};
    OptionsParser Args(argc, argv);
    Args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -92,7 +88,7 @@ static PyObject *ex6(PyObject *self, PyObject* args)
    if (!Args.Good())
    {
       Args.PrintUsage(cout);
-      return PyFloat_FromDouble(1.0);//return 1;
+      return 1;
    }
    Args.PrintOptions(cout);
 
@@ -269,29 +265,5 @@ static PyObject *ex6(PyObject *self, PyObject* args)
       b.Update();
    }
 
-   //return 0;
-   return PyFloat_FromDouble(0.0);
-}
-
-static PyMethodDef drl4amr_mfem_functions[] =
-{
-   {"dot", mfem_vector_dot, METH_VARARGS, "MFEM dot product."},
-   {"ex6", ex6, METH_VARARGS, "MFEM ex6."},
-   {NULL, NULL}
-};
-
-extern "C" {
-   void initdrl4amr(void)
-   {
-      PyImport_AddModule("drl4amr");
-      Py_InitModule("drl4amr", drl4amr_mfem_functions);
-   }
-}
-
-int main(int argc, char **argv)
-{
-   Py_SetProgramName(argv[0]);
-   Py_Initialize();
-   initdrl4amr();
-   Py_Exit(0);
+   return 0;
 }
