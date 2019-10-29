@@ -31,6 +31,13 @@ using namespace mfem;
 
 #include "drl4amr.hpp"
 
+static double theta = 0.0;
+
+double x0(const Vector &x)
+{
+   return sin(2.0*theta*x[0]);
+}
+
 Drl4Amr::Drl4Amr():
    device(device_config), // Enable hardware devices
    mesh(n, n, type, generate_edges, sx, sy, sfc), // Create the mesh
@@ -62,14 +69,26 @@ Drl4Amr::Drl4Amr():
    a.AddDomainIntegrator(integ);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
-   x = 0.0;
+   // Connect to GLVis.
+   if (visualization) { sol_sock.open(vishost, visport); }
+
+   // Initialize theta and x
+   srand48(time(NULL));
+   theta = M_PI*drand48()/2.0;
+   dbg("theta = %f", theta);
+   FunctionCoefficient x0_coeff(x0);
+   x.ProjectCoefficient(x0_coeff);
+
+   if (visualization && sol_sock.good())
+   {
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x << flush;
+      exit(0);
+   }
 
    // All boundary attributes will be used for essential (Dirichlet) BC.
    MFEM_VERIFY(mesh.bdr_attributes.Size() > 0, "BC attributes required!");
    ess_bdr = 1;
-
-   // Connect to GLVis.
-   if (visualization) { sol_sock.open(vishost, visport); }
 
    // Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
    // that uses the ComputeElementFlux method of the DiffusionIntegrator to
@@ -176,5 +195,3 @@ extern "C" {
    int Refine(Drl4Amr *ctrl) { return ctrl->Refine(); }
    int Update(Drl4Amr *ctrl) { return ctrl->Update(); }
 }
-
-

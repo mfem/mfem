@@ -7,16 +7,16 @@ class Ctrl(object):
     def Refine(self): MFEM.Refine(self.obj)
     def Update(self): MFEM.Update(self.obj)
 
-sim = Ctrl()
+#sim = Ctrl()
 
-sim.Compute()
-sim.Refine()
-sim.Update()
+#sim.Compute()
+#sim.Refine()
+#sim.Update()
 
-sim.Refine()
-sim.Update()
-sim.Compute()
+#sim.Refine()
+#sim.Update()
+#sim.Compute()
 
-sim.Refine()
-sim.Update()
-sim.Compute()
+#sim.Refine()
+#sim.Update()
+#sim.Compute()

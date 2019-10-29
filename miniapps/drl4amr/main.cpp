@@ -15,6 +15,5 @@ int main(int argc, char *argv[])
    sim.Refine();
    sim.Update();
 
-   sim.Compute();
-   return 0;
+   return sim.Compute();
 }
