@@ -1,12 +1,22 @@
 from ctypes import cdll
-mfem = cdll.LoadLibrary('./libdrl4amr.so')
+MFEM = cdll.LoadLibrary('./libdrl4amr.so')
 
-class Mfem(object):
-    def __init__(self):
-        self.obj = mfem.Foo_new()
+class Ctrl(object):
+    def __init__(self): self.obj = MFEM.Ctrl()
+    def Compute(self): MFEM.Compute(self.obj)
+    def Refine(self): MFEM.Refine(self.obj)
+    def Update(self): MFEM.Update(self.obj)
 
-    def bar(self):
-        mfem.Foo_bar(self.obj)
+ctrl = Ctrl()
+ctrl.Compute()
+ctrl.Refine()
+ctrl.Update()
+ctrl.Update()
 
-f = Mfem()
-f.bar() #and you will see "Hello" on the screen
+ctrl.Refine()
+ctrl.Update()
+ctrl.Compute()
+
+ctrl.Refine()
+ctrl.Update()
+ctrl.Compute()

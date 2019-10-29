@@ -1,24 +1,6 @@
-//                                MFEM Example 6
+//                                MFEM DRL4AMR
 //
-// Compile with: make ex6
-//
-// Sample runs:  ex6 -m ../data/square-disc.mesh -o 1
-//               ex6 -m ../data/square-disc.mesh -o 2
-//               ex6 -m ../data/square-disc-nurbs.mesh -o 2
-//               ex6 -m ../data/star.mesh -o 3
-//               ex6 -m ../data/escher.mesh -o 2
-//               ex6 -m ../data/fichera.mesh -o 2
-//               ex6 -m ../data/disc-nurbs.mesh -o 2
-//               ex6 -m ../data/ball-nurbs.mesh
-//               ex6 -m ../data/pipe-nurbs.mesh
-//               ex6 -m ../data/star-surf.mesh -o 2
-//               ex6 -m ../data/square-disc-surf.mesh -o 2
-//               ex6 -m ../data/amr-quad.mesh
-//
-// Device sample runs:
-//               ex6 -pa -d cuda
-//               ex6 -pa -d occa-cuda
-//               ex6 -pa -d raja-omp
+// Compile with: make
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
@@ -36,8 +18,6 @@
 //
 //               We recommend viewing Example 1 before viewing this example.
 
-//#include <Python.h>
-
 #include "mfem.hpp"
 
 #include <fstream>
@@ -48,185 +28,135 @@ using namespace mfem;
 
 #define dbg(...) {printf("\n\033[33m");printf(__VA_ARGS__);printf("\033[m");fflush(0);}
 
-class Foo
+///
+class Drl4Amr
 {
-public:
-   void bar()
-   {
-      std::cout << "Hello" << std::endl;
-   }
-};
-
-extern "C" {
-   Foo* Foo_new() { return new Foo(); }
-   void Foo_bar(Foo* foo) { foo->bar(); }
-}
-
-
-int main(int argc, char *argv[])
-{
-   dbg("ex6");
-   // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
-   int order = 1;
-   bool pa = false;
+private:
+   const int n = 8;
+   const Element::Type type = Element::QUADRILATERAL;
+   const bool generate_edges = true;
+   const double sx = 1.0;
+   const double sy = 1.0;
+   const bool sfc = false; // space-filling curve ordering
+   const int order = 2;
+   const bool pa = true;
    const char *device_config = "cpu";
-   bool visualization = true;
-   OptionsParser Args(argc, argv);
-   Args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
-   Args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree).");
-   Args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   Args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
-   Args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
-   Args.Parse();
-   if (!Args.Good())
-   {
-      Args.PrintUsage(cout);
-      return 1;
-   }
-   Args.PrintOptions(cout);
-
-   // 2. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   device.Print();
-
-   // 3. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
-   Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
-   int sdim = mesh.SpaceDimension();
-
-   // 4. Since a NURBS mesh can currently only be refined uniformly, we need to
-   //    convert it to a piecewise-polynomial curved mesh. First we refine the
-   //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
-   if (mesh.NURBSext)
-   {
-      for (int i = 0; i < 2; i++)
-      {
-         mesh.UniformRefinement();
-      }
-      mesh.SetCurvature(2);
-   }
-
-   // 5. Define a finite element space on the mesh. The polynomial order is
-   //    one (linear) by default, but this can be changed on the command line.
-   H1_FECollection fec(order, dim);
-   FiniteElementSpace fespace(&mesh, &fec);
-
-   // 6. As in Example 1, we set up bilinear and linear forms corresponding to
-   //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
-   //    problem yet, this will be done in the main loop.
-   BilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   LinearForm b(&fespace);
-
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
-
-   BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
-   a.AddDomainIntegrator(integ);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
-
-   // 7. The solution vector x and the associated finite element grid function
-   //    will be maintained over the AMR iterations. We initialize it to zero.
-   GridFunction x(&fespace);
-   x = 0.0;
-
-   // 8. All boundary attributes will be used for essential (Dirichlet) BC.
-   MFEM_VERIFY(mesh.bdr_attributes.Size() > 0,
-               "Boundary attributes required in the mesh.");
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   ess_bdr = 1;
-
-   // 9. Connect to GLVis.
-   char vishost[] = "localhost";
-   int  visport   = 19916;
+   const bool visualization = false;
+   const char *vishost = "localhost";
+   const int visport = 19916;
    socketstream sol_sock;
-   if (visualization)
+   const int max_dofs = 500;
+
+   Device device;
+   Mesh mesh;
+   const int dim;
+   const int sdim;
+   H1_FECollection fec;
+   FiniteElementSpace fespace;
+   BilinearForm a;
+   LinearForm b;
+   ConstantCoefficient one;
+   ConstantCoefficient zero;
+   BilinearFormIntegrator *integ;
+   GridFunction x;
+   Array<int> ess_bdr;
+   int iteration;
+   FiniteElementSpace flux_fespace;
+   ZienkiewiczZhuEstimator estimator;
+   ThresholdRefiner refiner;
+public:
+
+   Drl4Amr():
+      device(device_config), // Enable hardware devices
+      mesh(n, n, type, generate_edges, sx, sy, sfc), // Create the mesh
+      dim(mesh.Dimension()),
+      sdim(mesh.SpaceDimension()),
+      fec(order, dim),      // Define a finite element space on the mesh
+      fespace(&mesh, &fec),
+      a(&fespace),
+      b(&fespace),
+      one(1.0),
+      zero(0.0),
+      integ(new DiffusionIntegrator(one)),
+      x(&fespace),      // The solution vector
+      ess_bdr(mesh.bdr_attributes.Max()),
+      iteration(0),
+      flux_fespace(&mesh, &fec, sdim),
+      estimator(*integ, x, flux_fespace),
+      refiner(estimator)
    {
-      sol_sock.open(vishost, visport);
+      dbg("Drl4Amr");
+      device.Print();
+
+      mesh.EnsureNodes();
+      mesh.PrintCharacteristics();
+      mesh.SetCurvature(order, false, sdim, Ordering::byNODES);
+
+      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
+      a.AddDomainIntegrator(integ);
+      b.AddDomainIntegrator(new DomainLFIntegrator(one));
+
+      x = 0.0;
+
+      // All boundary attributes will be used for essential (Dirichlet) BC.
+      MFEM_VERIFY(mesh.bdr_attributes.Size() > 0, "BC attributes required!");
+      ess_bdr = 1;
+
+      // Connect to GLVis.
+      if (visualization) { sol_sock.open(vishost, visport); }
+
+      // Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
+      // that uses the ComputeElementFlux method of the DiffusionIntegrator to
+      // recover a smoothed flux (gradient) that is subtracted from the element
+      // flux to get an error indicator. We need to supply the space for the
+      // smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
+      estimator.SetAnisotropic();
+
+      // A refiner selects and refines elements based on a refinement strategy.
+      // The strategy here is to refine elements with errors larger than a
+      // fraction of the maximum element error. Other strategies are possible.
+      // The refiner will call the given error estimator.
+      refiner.SetTotalErrorFraction(0.7);
    }
 
-   // 10. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
-   //     that uses the ComputeElementFlux method of the DiffusionIntegrator to
-   //     recover a smoothed flux (gradient) that is subtracted from the element
-   //     flux to get an error indicator. We need to supply the space for the
-   //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
-   FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
-   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetAnisotropic();
-
-   // 11. A refiner selects and refines elements based on a refinement strategy.
-   //     The strategy here is to refine elements with errors larger than a
-   //     fraction of the maximum element error. Other strategies are possible.
-   //     The refiner will call the given error estimator.
-   ThresholdRefiner refiner(estimator);
-   refiner.SetTotalErrorFraction(0.7);
-
-   // 12. The main AMR loop. In each iteration we solve the problem on the
-   //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 50000;
-   for (int it = 0; ; it++)
+   int Compute(void)
    {
-      int cdofs = fespace.GetTrueVSize();
-      cout << "\nAMR iteration " << it << endl;
+      dbg("Compute");
+      const int cdofs = fespace.GetTrueVSize();
+      cout << "\nAMR iteration " << iteration << endl;
       cout << "Number of unknowns: " << cdofs << endl;
 
-      // 13. Assemble the right-hand side.
+      // Assemble the right-hand side.
       b.Assemble();
 
-      // 14. Set Dirichlet boundary values in the GridFunction x.
-      //     Determine the list of Dirichlet true DOFs in the linear system.
+      // Set Dirichlet boundary values in the GridFunction x.
+      // Determine the list of Dirichlet true DOFs in the linear system.
       Array<int> ess_tdof_list;
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 15. Assemble the stiffness matrix.
+      // Assemble the stiffness matrix.
       a.Assemble();
 
-      // 16. Create the linear system: eliminate boundary conditions, constrain
-      //     hanging nodes and possibly apply other transformations. The system
-      //     will be solved for true (unconstrained) DOFs only.
+      // Create the linear system: eliminate boundary conditions, constrain
+      // hanging nodes and possibly apply other transformations. The system
+      // will be solved for true (unconstrained) DOFs only.
       OperatorPtr A;
       Vector B, X;
 
       const int copy_interior = 1;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
-      // 17. Solve the linear system A X = B.
-      if (!pa)
-      {
-#ifndef MFEM_USE_SUITESPARSE
-         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-         GSSmoother M((SparseMatrix&)(*A));
-         PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
-#else
-         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-         UMFPackSolver umf_solver;
-         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         umf_solver.SetOperator(*A);
-         umf_solver.Mult(B, X);
-#endif
-      }
-      else // No preconditioning for now in partial assembly mode.
-      {
-         CG(*A, B, X, 3, 2000, 1e-12, 0.0);
-      }
+      // Solve the linear system A X = B.
+      CG(*A, B, X, 3, 2000, 1e-12, 0.0);
 
-      // 18. After solving the linear system, reconstruct the solution as a
-      //     finite element GridFunction. Constrained nodes are interpolated
-      //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
+      // After solving the linear system, reconstruct the solution as a
+      // finite element GridFunction. Constrained nodes are interpolated
+      // from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       a.RecoverFEMSolution(X, b, x);
 
-      // 19. Send solution by socket to the GLVis server.
+      // Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
          sol_sock.precision(8);
@@ -236,34 +166,51 @@ int main(int argc, char *argv[])
       if (cdofs > max_dofs)
       {
          cout << "Reached the maximum number of dofs. Stop." << endl;
-         break;
+         return 1;
       }
+      return 0;
+   }
 
-      // 20. Call the refiner to modify the mesh. The refiner calls the error
-      //     estimator to obtain element errors, then it selects elements to be
-      //     refined and finally it modifies the mesh. The Stop() method can be
-      //     used to determine if a stopping criterion was met.
+   int Refine()
+   {
+      dbg("Refine");
+      // Call the refiner to modify the mesh. The refiner calls the error
+      // estimator to obtain element errors, then it selects elements to be
+      // refined and finally it modifies the mesh. The Stop() method can be
+      // used to determine if a stopping criterion was met.
       refiner.Apply(mesh);
       if (refiner.Stop())
       {
          cout << "Stopping criterion satisfied. Stop." << endl;
-         break;
+         return 1;
       }
+      return 0;
+   }
 
-      // 21. Update the space to reflect the new state of the mesh. Also,
-      //     interpolate the solution x so that it lies in the new space but
-      //     represents the same function. This saves solver iterations later
-      //     since we'll have a good initial guess of x in the next step.
-      //     Internally, FiniteElementSpace::Update() calculates an
-      //     interpolation matrix which is then used by GridFunction::Update().
+   int Update()
+   {
+      dbg("Update");
+      // Update the space to reflect the new state of the mesh. Also,
+      // interpolate the solution x so that it lies in the new space but
+      // represents the same function. This saves solver iterations later
+      // since we'll have a good initial guess of x in the next step.
+      // Internally, FiniteElementSpace::Update() calculates an
+      // interpolation matrix which is then used by GridFunction::Update().
       fespace.Update();
       x.Update();
 
-      // 22. Inform also the bilinear and linear forms that the space has
-      //     changed.
+      // Inform also the bilinear and linear forms that the space has changed.
       a.Update();
       b.Update();
+      return 0;
    }
+};
 
-   return 0;
+extern "C" {
+   Drl4Amr* Ctrl() { return new Drl4Amr(); }
+   int Compute(Drl4Amr *ctrl) { return ctrl->Compute(); }
+   int Refine(Drl4Amr *ctrl) { return ctrl->Refine(); }
+   int Update(Drl4Amr *ctrl) { return ctrl->Update(); }
 }
+
+
