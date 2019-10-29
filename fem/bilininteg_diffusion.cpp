@@ -210,7 +210,11 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
    Vector coeff(nq * ne);
-   if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   if (Q == nullptr)
+   {
+      coeff = 1.0;
+   }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
    {
       coeff = cQ->constant;
    }
@@ -1792,7 +1796,6 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
                     pa_data, x, y);
 }
 
-
 /**
    as written this wants a global e-vector for x and a local
    element vector for y
@@ -1850,6 +1853,11 @@ void DiffusionIntegrator::AddMultElementPA(int element, const Vector &x,
    {
       mfem_error("Not implemented!");
    }
+}
+
+DiffusionIntegrator* DiffusionIntegrator::Copy() const
+{
+   return new DiffusionIntegrator(*this);
 }
 
 } // namespace mfem

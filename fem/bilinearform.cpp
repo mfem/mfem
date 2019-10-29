@@ -141,6 +141,11 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    }
 }
 
+AssemblyLevel BilinearForm::GetAssemblyLevel() const
+{
+   return assembly;
+}
+
 void BilinearForm::EnableStaticCondensation()
 {
    delete static_cond;

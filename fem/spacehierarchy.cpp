@@ -14,6 +14,10 @@
 namespace mfem
 {
 
+SpaceHierarchy::SpaceHierarchy()
+{
+}
+
 SpaceHierarchy::SpaceHierarchy(Mesh* mesh, FiniteElementSpace* fespace,
                                bool ownM, bool ownFES)
 {
@@ -56,6 +60,7 @@ void SpaceHierarchy::AddLevel(Mesh* mesh, FiniteElementSpace* fespace,
 
 void SpaceHierarchy::AddUniformlyRefinedLevel(int dim, int ordering)
 {
+   MFEM_VERIFY(GetNumLevels() > 0, "There is no level which can be refined");
    Mesh* mesh = new Mesh(*GetFinestFESpace().GetMesh());
    mesh->UniformRefinement();
    FiniteElementSpace& coarseFEspace = GetFinestFESpace();
@@ -67,6 +72,7 @@ void SpaceHierarchy::AddUniformlyRefinedLevel(int dim, int ordering)
 void SpaceHierarchy::AddOrderRefinedLevel(FiniteElementCollection* fec, int dim,
                                           int ordering)
 {
+   MFEM_VERIFY(GetNumLevels() > 0, "There is no level which can be refined");
    Mesh* mesh = GetFinestFESpace().GetMesh();
    FiniteElementSpace* newFEspace =
        new FiniteElementSpace(mesh, fec, dim, ordering);
@@ -99,6 +105,10 @@ FiniteElementSpace& SpaceHierarchy::GetFinestFESpace()
 }
 
 #ifdef MFEM_USE_MPI
+ParSpaceHierarchy::ParSpaceHierarchy()
+{
+}
+
 ParSpaceHierarchy::ParSpaceHierarchy(ParMesh* mesh,
                                      ParFiniteElementSpace* fespace, bool ownM,
                                      bool ownFES)

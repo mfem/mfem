@@ -14,6 +14,8 @@
 
 #include "../general/tic_toc.hpp"
 #include "operator.hpp"
+#include <map>
+#include <tuple>
 
 namespace mfem
 {

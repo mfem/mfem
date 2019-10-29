@@ -39,7 +39,11 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetMemoryType());
    Vector coeff(nq * ne);
-   if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   if (Q == nullptr)
+   {
+      coeff = 1.0;
+   }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
    {
       coeff = cQ->constant;
    }
@@ -1068,5 +1072,9 @@ void MassIntegrator::AddMultElementPA(int element, const Vector &x,
 
 }
 
+MassIntegrator* MassIntegrator::Copy() const
+{
+   return new MassIntegrator(*this);
+}
 
 } // namespace mfem

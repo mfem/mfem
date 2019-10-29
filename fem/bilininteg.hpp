@@ -170,6 +170,13 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
+   /// Returns a pointer to a copy of the BilinearFormIntegrator
+   virtual BilinearFormIntegrator* Copy() const
+   {
+      MFEM_ABORT("Copy not implemented ");
+      return nullptr;
+   }
+
    virtual ~BilinearFormIntegrator() { }
 };
 
@@ -1733,6 +1740,8 @@ public:
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
+
+   virtual DiffusionIntegrator* Copy() const;
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1774,6 +1783,8 @@ public:
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    virtual void AddMultElementPA(int element, const Vector &x, Vector &y) const;
+   
+   virtual MassIntegrator* Copy() const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,

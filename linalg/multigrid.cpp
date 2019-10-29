@@ -339,7 +339,7 @@ void MultigridSolver::Cycle(unsigned level) const
    }
 
    // Compute residual
-   opr->GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]);
+   opr->MultAtLevel(level, *Y[level], *R[level]);
    subtract(*X[level], *R[level], *R[level]);
 
    // Restrict residual

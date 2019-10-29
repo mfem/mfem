@@ -34,6 +34,7 @@
 #include "transfer.hpp"
 #include "spacehierarchy.hpp"
 #include "elementwisesmoother.hpp"
+#include "mgbilinearform.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -41,6 +42,7 @@
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pnonlinearform.hpp"
+#include "pmgbilinearform.hpp"
 #endif
 
 #ifdef MFEM_USE_SIDRE
