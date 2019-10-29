@@ -41,6 +41,10 @@
 #include "petsc.hpp"
 #endif
 
+#ifdef MFEM_USE_GINKGO
+#include "ginkgo.hpp"
+#endif
+
 #ifdef MFEM_USE_SUPERLU
 #include "superlu.hpp"
 #endif

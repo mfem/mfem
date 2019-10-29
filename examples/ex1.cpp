@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool use_ginkgo_solver= false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -80,6 +81,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_ginkgo_solver, "--use_ginkgo", "--ginkgo", "-ginkgo",
+                  "-gko",
+                  "Solve using ginkgo.");
    args.Parse();
    if (!args.Good())
    {
@@ -182,21 +186,34 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
-#ifndef MFEM_USE_SUITESPARSE
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
+      if (use_ginkgo_solver)
+      {
+#ifdef MFEM_USE_GINKGO
+         // 11b. Solve the linear system A X = B with Ginkgo.
+         std::string executor = "reference";
+         GinkgoWrappers::CGSolver ginkgo_solver(executor, 1, 2000, 1e-6, 0.0 );
+         ginkgo_solver.solve(&((SparseMatrix&)(*A)), X, B);
 #endif
+      }
+      else
+      {
+#ifndef MFEM_USE_SUITESPARSE
+         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+         GSSmoother M((SparseMatrix&)(*A));
+         PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+#else
+         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(*A);
+         umf_solver.Mult(B, X);
+#endif
+      }
    }
    else // No preconditioning for now in partial assembly mode.
    {
       CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+
    }
 
    // 12. Recover the solution as a finite element grid function.

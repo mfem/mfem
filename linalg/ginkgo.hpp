@@ -36,7 +36,7 @@ namespace GinkgoWrappers
  *
  * @ingroup GinkgoWrappers
  */
-class GinkgoIterativeSolverBase : public IterativeSolver
+class GinkgoIterativeSolverBase
 {
 public:
    /**
@@ -99,7 +99,7 @@ public:
     * Initialize the matrix and copy over its data to Ginkgo's data structures.
     */
    void
-   initialize(const SparseMatrix &matrix);
+   initialize(const SparseMatrix *matrix);
 
    /**
     * Solve the linear system <tt>Ax=b</tt>. Dependent on the information
@@ -115,7 +115,7 @@ public:
     * chosen.
     */
    void
-   solve(const SparseMatrix &matrix,
+   solve(const SparseMatrix *matrix,
          Vector &            solution,
          const Vector &      rhs);
 
