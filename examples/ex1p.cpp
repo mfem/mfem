@@ -167,9 +167,9 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -208,26 +208,59 @@ int main(int argc, char *argv[])
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use jacobi smoothing, for now.
+   //     * With partial assembly, use p-multigrid
    Solver *prec = NULL;
+   ParSpaceHierarchy *spaceHierarchy = NULL;
+   Array<H1_FECollection*> *collections = NULL;
+   ParMultigridBilinearForm* mgOperator = NULL;
    if (pa)
    {
-      Vector diag_pa(fespace->GetTrueVSize());
-      a->AssembleDiagonal(diag_pa);
-      prec = new OperatorJacobiSmoother(diag_pa, ess_tdof_list);
+      spaceHierarchy = new ParSpaceHierarchy;
+      collections = new Array<H1_FECollection*>;
+      Array<int> orders;
+      orders.Append(order);
+      int coarseOrder = order / 2;
+      while (coarseOrder > 0)
+      {
+         orders.Append(coarseOrder);
+         coarseOrder /= 2;
+      }
+      orders.Sort();
+      for (int level = 0; level < orders.Size() - 1; ++level)
+      {
+         collections->Append(new H1_FECollection(orders[level], dim));
+         ParFiniteElementSpace* fesp =
+             new ParFiniteElementSpace(pmesh, collections->Last());
+         spaceHierarchy->AddLevel(mesh, fesp, false, true);
+      }
+      spaceHierarchy->AddLevel(mesh, fespace, false, false);
+      mgOperator = new ParMultigridBilinearForm(*spaceHierarchy, *a, ess_bdr);
+      prec = new MultigridSolver(mgOperator, MultigridSolver::CycleType::VCYCLE,
+                                 1, 1);
    }
    else
    {
-      prec = new HypreBoomerAMG;
+      prec = new HypreBoomerAMG((HypreParMatrix&)*A.Ptr());
    }
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
+   if (prec) { cg.SetPreconditioner(*prec); }
    cg.Mult(B, X);
    delete prec;
+
+   if (pa)
+   {
+      delete mgOperator;
+      for (int level = 0; level < collections->Size() - 1; ++level)
+      {
+         delete (*collections)[level];
+      }
+      delete collections;
+      delete spaceHierarchy;
+   }
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
