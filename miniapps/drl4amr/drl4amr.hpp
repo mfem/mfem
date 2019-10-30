@@ -9,23 +9,24 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int n = 8;
+   const int nx = 16;
+   const int ny = 16;
    const Element::Type type = Element::QUADRILATERAL;
    const bool generate_edges = true;
    const double sx = 1.0;
    const double sy = 1.0;
    const bool sfc = false; // space-filling curve ordering
-   const int order = 2;
+   const int order = 1;
    const bool pa = true;
    const char *device_config = "cpu";
    const bool visualization = true;
    const char *vishost = "localhost";
    const int visport = 19916;
    socketstream sol_sock;
-   const int max_dofs = 500;
+   const int max_dofs = 50000;
 
    Device device;
-   Mesh mesh;
+   mutable Mesh mesh;
    const int dim;
    const int sdim;
    H1_FECollection fec;
@@ -42,7 +43,7 @@ private:
    ZienkiewiczZhuEstimator estimator;
    ThresholdRefiner refiner;
 public:
-   Drl4Amr();
+   Drl4Amr(int i);
    int Compute();
    int Refine();
    int Update();

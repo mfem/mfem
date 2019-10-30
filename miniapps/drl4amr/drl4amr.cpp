@@ -20,6 +20,7 @@
 
 #include "mfem.hpp"
 
+#include <list>
 #include <fstream>
 #include <iostream>
 
@@ -31,33 +32,41 @@ using namespace mfem;
 
 #include "drl4amr.hpp"
 
-static double theta = 0.0;
+static int discs;
+static double theta;
+static Array<double> offsets;
+constexpr int nb_discs_max = 8;
+constexpr double sharpness = 100.0;
 
 double x0(const Vector &x)
 {
-   return sin(2.0*theta*x[0]);
+   double result = 0.0;
+   const double t = x[0] + tan(theta)*x[1];
+   for (double o: offsets) { result += tanh(sharpness*(o - t)); }
+   return result/static_cast<double>(discs);
 }
 
-Drl4Amr::Drl4Amr():
+Drl4Amr::Drl4Amr(int o):
+   order(o),
    device(device_config), // Enable hardware devices
-   mesh(n, n, type, generate_edges, sx, sy, sfc), // Create the mesh
+   mesh(nx, ny, type, generate_edges, sx, sy, sfc), // Create the mesh
    dim(mesh.Dimension()),
    sdim(mesh.SpaceDimension()),
-   fec(order, dim),      // Define a finite element space on the mesh
+   fec(order, dim, BasisType::Positive),
    fespace(&mesh, &fec),
    a(&fespace),
    b(&fespace),
    one(1.0),
    zero(0.0),
    integ(new DiffusionIntegrator(one)),
-   x(&fespace),         // The solution vector
+   x(&fespace),
    ess_bdr(mesh.bdr_attributes.Max()),
    iteration(0),
    flux_fespace(&mesh, &fec, sdim),
    estimator(*integ, x, flux_fespace),
    refiner(estimator)
 {
-   dbg("Drl4Amr");
+   dbg("Drl4Amr o:%d",o);
    device.Print();
 
    mesh.EnsureNodes();
@@ -72,10 +81,15 @@ Drl4Amr::Drl4Amr():
    // Connect to GLVis.
    if (visualization) { sol_sock.open(vishost, visport); }
 
-   // Initialize theta and x
+   // Initialize theta, offsets and x from x0_coeff
    srand48(time(NULL));
    theta = M_PI*drand48()/2.0;
-   dbg("theta = %f", theta);
+   discs = static_cast<int>(1 + nb_discs_max*drand48());
+   offsets.SetSize(discs);
+   for (int i=0; i < discs; i++) { offsets[i] = drand48(); }
+   offsets.Sort();
+   dbg("theta = %f, discontinuities:%d", theta, discs);
+   for (double offset: offsets) { dbg("%f ", offset); }
    FunctionCoefficient x0_coeff(x0);
    x.ProjectCoefficient(x0_coeff);
 
@@ -83,7 +97,7 @@ Drl4Amr::Drl4Amr():
    {
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << flush;
-      exit(0);
+      sol_sock << "pause" << endl;
    }
 
    // All boundary attributes will be used for essential (Dirichlet) BC.
@@ -106,7 +120,7 @@ Drl4Amr::Drl4Amr():
 
 int Drl4Amr::Compute()
 {
-   dbg("Compute");
+   dbg("Compute: %d", iteration);
    const int cdofs = fespace.GetTrueVSize();
    cout << "\nAMR iteration " << iteration << endl;
    cout << "Number of unknowns: " << cdofs << endl;
@@ -145,6 +159,9 @@ int Drl4Amr::Compute()
    {
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << flush;
+      sol_sock << "pause" << endl;
+      cout << "Visualization paused. "
+           "Press <space> in the GLVis window to continue." << endl;
    }
 
    if (cdofs > max_dofs)
@@ -152,6 +169,7 @@ int Drl4Amr::Compute()
       cout << "Reached the maximum number of dofs. Stop." << endl;
       return 1;
    }
+   iteration += 1;
    return 0;
 }
 
@@ -190,7 +208,7 @@ int Drl4Amr::Update()
 }
 
 extern "C" {
-   Drl4Amr* Ctrl() { return new Drl4Amr(); }
+   Drl4Amr* Ctrl(int order) { return new Drl4Amr(order); }
    int Compute(Drl4Amr *ctrl) { return ctrl->Compute(); }
    int Refine(Drl4Amr *ctrl) { return ctrl->Refine(); }
    int Update(Drl4Amr *ctrl) { return ctrl->Update(); }

@@ -37,7 +37,7 @@ endif
 %.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%.o: $(SRC)%.cpp $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
 	$(MFEM_CXX) -c -fPIC $(MFEM_FLAGS) $< -o $@
 
 all: libdrl4amr.so drl4amr
