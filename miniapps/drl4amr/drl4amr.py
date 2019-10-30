@@ -10,6 +10,7 @@ class Ctrl(object):
     def GetNorm(self): return MFEM.GetNorm(self.obj)
     MFEM.GetNorm.restype = c_double
     def GetNDofs(self): return MFEM.GetNDofs(self.obj)
+    def GetImage(self): return MFEM.GetImage(self.obj)
 
 order = 3
 sim = Ctrl(order)
@@ -19,5 +20,6 @@ while sim.GetNorm() > 0.01:
     sim.Compute()
     #sim.Refine(-1); # Will refine using the internal refiner
     sim.Refine(int(NE*random()))
+    #sim.GetImage()
 
 print "Done"

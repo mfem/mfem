@@ -18,6 +18,7 @@ static Array<double> offsets;
 constexpr int nb_discs_max = 6;
 constexpr double sharpness = 100.0;
 
+// *****************************************************************************
 double x0(const Vector &x)
 {
    double result = 0.0;
@@ -26,6 +27,7 @@ double x0(const Vector &x)
    return result/static_cast<double>(discs);
 }
 
+// *****************************************************************************
 Drl4Amr::Drl4Amr(int o):
    order(o),
    device(device_config),
@@ -52,7 +54,11 @@ Drl4Amr::Drl4Amr(int o):
    mesh.SetCurvature(order, false, sdim, Ordering::byNODES);
 
    // Connect to GLVis.
-   if (visualization) { sol_sock.open(vishost, visport); }
+   if (visualization)
+   {
+      vis[0].open(vishost, visport);
+      vis[1].open(vishost, visport);
+   }
 
    // Initialize theta, offsets and x from x0_coeff
    srand48(time(NULL));
@@ -65,13 +71,13 @@ Drl4Amr::Drl4Amr(int o):
    for (double offset: offsets) { dbg("%f ", offset); }
    x.ProjectCoefficient(xcoeff);
 
-   if (visualization && sol_sock.good())
+   if (visualization && vis[0].good())
    {
-      sol_sock.precision(8);
-      sol_sock << "solution" << endl << mesh << x << flush;
-      sol_sock << "window_title '" << "DRL4AMR" << "'" << endl
-               << "window_geometry " << 0 << " " << 0 << " " << 640 << " " << 480 << endl
-               << "keys mgA" << endl;
+      vis[0].precision(8);
+      vis[0] << "solution" << endl << mesh << x << flush;
+      vis[0] << "window_title '" << "DRL4AMR" << "'" << endl
+             << "window_geometry " << 0 << " " << 0 << " " << 640 << " " << 480 << endl
+             << "keys mgA" << endl;
    }
 
    // Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
@@ -88,6 +94,8 @@ Drl4Amr::Drl4Amr(int o):
    refiner.SetTotalErrorFraction(0.7);
 }
 
+
+// *****************************************************************************
 int Drl4Amr::Compute()
 {
    iteration ++;
@@ -99,29 +107,33 @@ int Drl4Amr::Compute()
    x.ProjectCoefficient(xcoeff);
 
    // Send solution by socket to the GLVis server.
-   if (visualization && sol_sock.good())
+   if (visualization && vis[0].good())
    {
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
-      //sol_sock << "pause" << endl;
+      vis[0].precision(8);
+      vis[0] << "solution\n" << mesh << x << flush;
+      //vis[0] << "pause" << endl;
       fflush(0);
    }
    if (cdofs > max_dofs)
    {
       cout << "Reached the maximum number of dofs. Stop." << endl;
+      exit(0);
       return 1;
    }
    return 0;
 }
 
+
+// *****************************************************************************
 int Drl4Amr::Refine(int el_to_refine)
 {
    if (el_to_refine >= 0)
    {
+      mesh.PrintCharacteristics();
       dbg("Refine el:%d", el_to_refine);
       Array<Refinement> refinements(1);
       refinements[0] = Refinement(el_to_refine);
-      mesh.GeneralRefinement(refinements);
+      mesh.GeneralRefinement(refinements, 1, 0);
    }
    else
    {
@@ -144,6 +156,7 @@ int Drl4Amr::Refine(int el_to_refine)
 }
 
 
+// *****************************************************************************
 double Drl4Amr::GetNorm()
 {
    dbg("GetNorm");
@@ -152,11 +165,90 @@ double Drl4Amr::GetNorm()
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
    { irs[i] = &(IntRules.Get(i, order_quad)); }
+   dbg("GetNorm err_x");
    const double err_x  = x.ComputeL2Error(xcoeff, irs);
+   dbg("GetNorm norm_x");
    const double norm_x = ComputeLpNorm(2., xcoeff, mesh, irs);
+   dbg("GetNorm: %f", err_x / norm_x);
    return err_x / norm_x;
 }
 
+
+// *****************************************************************************
+class NCM: public NCMesh
+{
+public:
+   NCM(NCMesh *n): NCMesh(*n) {}
+
+   void Refinements(Mesh *image)
+   {
+      int max_depth = -1;
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         const int depth = GetElementDepth(i);
+         max_depth = std::max(depth, max_depth);
+      }
+      dbg("max_depth:%d", max_depth);
+
+      const char ref_type = 7; // iso
+      Array<Refinement> refinements;
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         const Element el = elements[leaf_elements[i]];
+         const int depth = GetElementDepth(i);
+         dbg("i:%d index:%d depth:%d parent:%d", i, el.index, depth, el.parent);
+         if (el.parent > 0 ) { continue; }
+         refinements.Append(Refinement(i, ref_type));
+      }
+      image->GeneralRefinement(refinements, 1, 1);
+   }
+};
+
+// *****************************************************************************
+void Drl4Amr::GetImage()
+{
+   dbg("Drl4Amr GetImage");
+   /*
+   if (visualization && vis[0].good())
+   {
+      vis[0].precision(8);
+      x = 0.0;
+      vis[0] << "solution" << endl << mesh << x << flush;
+      vis[0] << "window_title '" << "Mesh" << "'" << endl
+             << "window_geometry " << 0 << " " << 0 << " " << 640 << " " << 480 << endl
+             << "keys Rjg" << endl;
+   }*/
+
+   mesh.ncmesh->PrintStats();
+
+   Mesh *image = new Mesh(mesh, true);
+   image->SetCurvature(order, false, sdim, Ordering::byNODES);
+
+   NCM nc(image->ncmesh);
+   nc.Refinements(image);
+
+   if (visualization && vis[1].good())
+   {
+      static bool inited = false;
+      if (!inited) { vis[1].precision(8); }
+      vis[1] << "mesh\n" << *image << flush;
+      fflush(0);
+      if (!inited)
+      {
+         vis[1] << "window_title '" << "Image" << "'" << endl
+                << "window_geometry " << 0 << " " << 600 << " " << 640 << " " << 480 << endl
+                << "keys mngA" << endl;
+         inited = true;
+      }
+   }
+   delete image;
+   static int nexit = 0;
+   nexit++;
+   if (nexit == 3) { exit(0); }
+}
+
+
+// *****************************************************************************
 extern "C" {
    Drl4Amr* Ctrl(int order) { return new Drl4Amr(order); }
    int Compute(Drl4Amr *ctrl) { return ctrl->Compute(); }
@@ -164,4 +256,5 @@ extern "C" {
    int GetNDofs(Drl4Amr *ctrl) { return ctrl->GetNDofs(); }
    int GetNE(Drl4Amr *ctrl) { return ctrl->GetNE(); }
    double GetNorm(Drl4Amr *ctrl) { return ctrl->GetNorm(); }
+   void GetImage(Drl4Amr *ctrl) { return ctrl->GetImage(); }
 }

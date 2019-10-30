@@ -9,9 +9,10 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int max_dofs = 50000;
-   const int nx = 8;
-   const int ny = 8;
+   const int max_dofs = 5000;
+   const int max_amr_depth = 4;
+   const int nx = 4;
+   const int ny = 4;
    const Element::Type type = Element::QUADRILATERAL;
    const bool generate_edges = true;
    const double sx = 1.0;
@@ -22,10 +23,10 @@ private:
    const bool visualization = true;
    const char *vishost = "localhost";
    const int visport = 19916;
-   socketstream sol_sock;
+   socketstream vis[2];
 
    Device device;
-   mutable Mesh mesh;
+   Mesh mesh;
    const int dim;
    const int sdim;
    H1_FECollection fec;
@@ -46,6 +47,7 @@ public:
    int GetNDofs() { return fespace.GetNDofs(); }
    int GetNE() { return fespace.GetNE(); }
    double GetNorm();
+   void GetImage();
 };
 
 #endif // DRL4AMR_HPP
