@@ -15,9 +15,9 @@ int main(int argc, char *argv[])
 
    while (sim.GetNorm() > 0.01)
    {
+      const int el = static_cast<int>(drand48()*sim.GetNE());
       sim.Compute();
-      sim.Refine();
-      sim.Update();
+      sim.Refine(el);
    }
    return 0;
 }

@@ -68,7 +68,10 @@ Drl4Amr::Drl4Amr(int o):
    if (visualization && sol_sock.good())
    {
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
+      sol_sock << "solution" << endl << mesh << x << flush;
+      sol_sock << "window_title '" << "DRL4AMR" << "'" << endl
+               << "window_geometry " << 0 << " " << 0 << " " << 640 << " " << 480 << endl
+               << "keys mgA" << endl;
    }
 
    // Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
@@ -87,7 +90,8 @@ Drl4Amr::Drl4Amr(int o):
 
 int Drl4Amr::Compute()
 {
-   dbg("Compute: %d", iteration);
+   iteration ++;
+   //dbg("Compute: %d", iteration);
    const int cdofs = fespace.GetTrueVSize();
    cout << "\nAMR iteration " << iteration << endl;
    cout << "Number of unknowns: " << cdofs << endl;
@@ -99,44 +103,41 @@ int Drl4Amr::Compute()
    {
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << flush;
-      sol_sock << "pause" << endl;
-      cout << "Visualization paused. "
-           "Press <space> in the GLVis window to continue." << endl;
+      //sol_sock << "pause" << endl;
+      fflush(0);
    }
    if (cdofs > max_dofs)
    {
       cout << "Reached the maximum number of dofs. Stop." << endl;
       return 1;
    }
-   iteration ++;
    return 0;
 }
 
-int Drl4Amr::Refine()
+int Drl4Amr::Refine(int el_to_refine)
 {
-   dbg("Refine");
-   // Call the refiner to modify the mesh. The refiner calls the error
-   // estimator to obtain element errors, then it selects elements to be
-   // refined and finally it modifies the mesh. The Stop() method can be
-   // used to determine if a stopping criterion was met.
-   refiner.Apply(mesh);
-   if (refiner.Stop())
+   if (el_to_refine >= 0)
    {
-      cout << "Stopping criterion satisfied. Stop." << endl;
-      return 1;
+      dbg("Refine el:%d", el_to_refine);
+      Array<Refinement> refinements(1);
+      refinements[0] = Refinement(el_to_refine);
+      mesh.GeneralRefinement(refinements);
    }
-   return 0;
-}
-
-int Drl4Amr::Update()
-{
-   dbg("Update");
-   // Update the space to reflect the new state of the mesh. Also,
-   // interpolate the solution x so that it lies in the new space but
-   // represents the same function. This saves solver iterations later
-   // since we'll have a good initial guess of x in the next step.
-   // Internally, FiniteElementSpace::Update() calculates an
-   // interpolation matrix which is then used by GridFunction::Update().
+   else
+   {
+      dbg("Refine with refiner");
+      // Call the refiner to modify the mesh. The refiner calls the error
+      // estimator to obtain element errors, then it selects elements to be
+      // refined and finally it modifies the mesh. The Stop() method can be
+      // used to determine if a stopping criterion was met.
+      refiner.Apply(mesh);
+      if (refiner.Stop())
+      {
+         cout << "Stopping criterion satisfied. Stop." << endl;
+         return 1;
+      }
+   }
+   // Update the space to reflect the new state of the mesh.
    fespace.Update();
    x.Update();
    return 0;
@@ -159,8 +160,8 @@ double Drl4Amr::GetNorm()
 extern "C" {
    Drl4Amr* Ctrl(int order) { return new Drl4Amr(order); }
    int Compute(Drl4Amr *ctrl) { return ctrl->Compute(); }
-   int Refine(Drl4Amr *ctrl) { return ctrl->Refine(); }
-   int Update(Drl4Amr *ctrl) { return ctrl->Update(); }
+   int Refine(Drl4Amr *ctrl, int el) { return ctrl->Refine(el); }
    int GetNDofs(Drl4Amr *ctrl) { return ctrl->GetNDofs(); }
+   int GetNE(Drl4Amr *ctrl) { return ctrl->GetNE(); }
    double GetNorm(Drl4Amr *ctrl) { return ctrl->GetNorm(); }
 }

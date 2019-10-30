@@ -9,16 +9,15 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int max_dofs = 5000;
-   const int nx = 16;
-   const int ny = 16;
+   const int max_dofs = 50000;
+   const int nx = 8;
+   const int ny = 8;
    const Element::Type type = Element::QUADRILATERAL;
    const bool generate_edges = true;
    const double sx = 1.0;
    const double sy = 1.0;
    const bool sfc = false; // space-filling curve ordering
    const int order = 1;
-   const bool pa = true;
    const char *device_config = "cpu";
    const bool visualization = true;
    const char *vishost = "localhost";
@@ -43,9 +42,9 @@ private:
 public:
    Drl4Amr(int i);
    int Compute();
-   int Refine();
-   int Update();
+   int Refine(int el =-1);
    int GetNDofs() { return fespace.GetNDofs(); }
+   int GetNE() { return fespace.GetNE(); }
    double GetNorm();
 };
 
