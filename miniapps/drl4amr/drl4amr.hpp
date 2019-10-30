@@ -9,6 +9,7 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
+   const int max_dofs = 5000;
    const int nx = 16;
    const int ny = 16;
    const Element::Type type = Element::QUADRILATERAL;
@@ -23,7 +24,6 @@ private:
    const char *vishost = "localhost";
    const int visport = 19916;
    socketstream sol_sock;
-   const int max_dofs = 50000;
 
    Device device;
    mutable Mesh mesh;
@@ -31,13 +31,11 @@ private:
    const int sdim;
    H1_FECollection fec;
    FiniteElementSpace fespace;
-   BilinearForm a;
-   LinearForm b;
    ConstantCoefficient one;
    ConstantCoefficient zero;
    BilinearFormIntegrator *integ;
+   FunctionCoefficient xcoeff;
    GridFunction x;
-   Array<int> ess_bdr;
    int iteration;
    FiniteElementSpace flux_fespace;
    ZienkiewiczZhuEstimator estimator;
@@ -47,6 +45,8 @@ public:
    int Compute();
    int Refine();
    int Update();
+   int GetNDofs() { return fespace.GetNDofs(); }
+   double GetNorm();
 };
 
 #endif // DRL4AMR_HPP

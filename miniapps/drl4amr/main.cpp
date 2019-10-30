@@ -10,18 +10,14 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   Drl4Amr sim(3);
-   sim.Compute();
-   sim.Refine();
-   sim.Update();
+   const int order = 3;
+   Drl4Amr sim(order);
 
-   sim.Compute();
-   sim.Refine();
-   sim.Update();
-
-   sim.Compute();
-   sim.Refine();
-   sim.Update();
-
+   while (sim.GetNorm() > 0.01)
+   {
+      sim.Compute();
+      sim.Refine();
+      sim.Update();
+   }
    return 0;
 }

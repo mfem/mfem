@@ -1,4 +1,4 @@
-from ctypes import cdll
+from ctypes import *
 MFEM = cdll.LoadLibrary('./libdrl4amr.so')
 
 class Ctrl(object):
@@ -6,17 +6,15 @@ class Ctrl(object):
     def Compute(self): MFEM.Compute(self.obj)
     def Refine(self): MFEM.Refine(self.obj)
     def Update(self): MFEM.Update(self.obj)
+    def GetNDofs(self): return MFEM.GetNDofs(self.obj)
+    def GetNorm(self): return MFEM.GetNorm(self.obj)
+    MFEM.GetNorm.restype = c_double
 
-#sim = Ctrl(2)
+order = 3
+sim = Ctrl(order)
 
-#sim.Compute()
-#sim.Refine()
-#sim.Update()
+while sim.GetNorm() > 0.01:
+    sim.Compute()
+    sim.Refine()
+    print(sim.Update())
 
-#sim.Refine()
-#sim.Update()
-#sim.Compute()
-
-#sim.Refine()
-#sim.Update()
-#sim.Compute()
