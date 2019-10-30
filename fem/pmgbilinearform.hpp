@@ -23,6 +23,12 @@ namespace mfem
 
 class ParMultigridBilinearForm : public MultigridBilinearForm
 {
+ private:
+   ParMesh* pmesh_lor;
+   H1_FECollection* fec_lor;
+   ParFiniteElementSpace* fespace_lor;
+   ParBilinearForm* a_lor;
+
  public:
    /// Constructor for a multigrid bilinear form for a given SpaceHierarchy and
    /// bilinear form. Uses Chebyshev accelerated smoothing.

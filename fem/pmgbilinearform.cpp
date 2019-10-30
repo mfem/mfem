@@ -19,70 +19,41 @@
 namespace mfem
 {
 
-ParMultigridBilinearForm::ParMultigridBilinearForm(ParSpaceHierarchy& spaceHierarchy,
-                                             ParBilinearForm& bf,
-                                             Array<int>& ess_bdr)
+ParMultigridBilinearForm::ParMultigridBilinearForm(
+    ParSpaceHierarchy& spaceHierarchy, ParBilinearForm& bf, Array<int>& ess_bdr)
     : MultigridBilinearForm()
 {
    MFEM_VERIFY(bf.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
                "Assembly level must be PARTIAL");
 
-   ParBilinearForm* form = new ParBilinearForm(&spaceHierarchy.GetFESpaceAtLevel(0));
-   // TODO: Copy all integrators
+   ParMesh* pmesh = spaceHierarchy.GetFESpaceAtLevel(0).GetParMesh();
+   pmesh_lor = new ParMesh(pmesh, 1, BasisType::GaussLobatto);
+   fec_lor =
+       new H1_FECollection(1, pmesh->Dimension(), BasisType::GaussLobatto);
+   fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
+   a_lor = new ParBilinearForm(fespace_lor);
+
    Array<BilinearFormIntegrator*>& dbfi = *bf.GetDBFI();
    for (int i = 0; i < dbfi.Size(); ++i)
    {
-      form->AddDomainIntegrator((*bf.GetDBFI())[i]->Copy());
+      a_lor->AddDomainIntegrator((*bf.GetDBFI())[i]->Copy());
    }
-   form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   form->Assemble();
+
+   a_lor->UsePrecomputedSparsity();
+   a_lor->Assemble();
 
    essentialTrueDofs.Append(new Array<int>());
    spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
        ess_bdr, *essentialTrueDofs.Last());
 
-   OperatorPtr opr;
-   opr.SetType(Operator::ANY_TYPE);
-   form->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
-   opr.SetOperatorOwner(false);
+   HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
+   a_lor->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
 
-   CGSolver* pcg = new CGSolver(MPI_COMM_WORLD);
-   pcg->SetPrintLevel(0);
-   pcg->SetMaxIter(200);
-   pcg->SetRelTol(sqrt(1e-4));
-   pcg->SetAbsTol(0.0);
-   pcg->SetOperator(*opr.Ptr());
+   HypreBoomerAMG* amg = new HypreBoomerAMG(*hypreCoarseMat);
+   amg->SetPrintLevel(-1);
+   amg->SetMaxIter(1);
 
-   AddCoarsestLevel(opr.Ptr(), pcg, true, true);
-
-   // ParMesh* pmesh = spaceHierarchy.GetFESpaceAtLevel(0).GetParMesh();
-   // ParMesh* pmesh_lor = new ParMesh(pmesh, 1, BasisType::GaussLobatto);
-   // H1_FECollection* fec_lor = new H1_FECollection(1, pmesh->Dimension(),
-   //                                  BasisType::GaussLobatto);
-   // ParFiniteElementSpace* fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
-   // ParBilinearForm* a_pc = new ParBilinearForm(fespace_lor);
-
-   // Array<BilinearFormIntegrator*>& dbfi = *bf.GetDBFI();
-   // for (int i = 0; i < dbfi.Size(); ++i)
-   // {
-   //    a_pc->AddDomainIntegrator((*bf.GetDBFI())[i]->Copy());
-   // }
-
-   // a_pc->UsePrecomputedSparsity();
-   // a_pc->Assemble();
-
-   // essentialTrueDofs.Append(new Array<int>());
-   // spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
-   //     ess_bdr, *essentialTrueDofs.Last());
-
-   // HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
-   // a_pc->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
-
-   // HypreBoomerAMG* amg = new HypreBoomerAMG(*hypreCoarseMat);
-   // amg->SetPrintLevel(-1);
-   // amg->SetMaxIter(1);
-
-   // AddCoarsestLevel(hypreCoarseMat, amg, true, true);
+   AddCoarsestLevel(hypreCoarseMat, amg, true, true);
 
    for (int level = 1; level < spaceHierarchy.GetNumLevels(); ++level)
    {
@@ -131,14 +102,19 @@ ParMultigridBilinearForm::ParMultigridBilinearForm(ParSpaceHierarchy& spaceHiera
 
       Operator* P =
           new TrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
-                               spaceHierarchy.GetFESpaceAtLevel(level));
+                                   spaceHierarchy.GetFESpaceAtLevel(level));
 
       AddLevel(opr.Ptr(), smoother, P, true, true, true);
    }
 }
 
 ParMultigridBilinearForm::~ParMultigridBilinearForm()
-{}
-
+{
+   delete a_lor;
+   delete fespace_lor;
+   delete fec_lor;
+   delete pmesh_lor;
 }
+
+} // namespace mfem
 #endif
