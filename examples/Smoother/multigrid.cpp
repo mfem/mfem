@@ -87,7 +87,13 @@ MGSolver::~MGSolver() {
    for (int i = n - 1; i >= 0 ; i--)
    {
       delete S[i];
+      delete A[i];
    }
+   S.clear();
+   A.clear();
+   delete invAc;
+
+
 }
 
 BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HypreParMatrix *> P_,std::vector<ParFiniteElementSpace * > fespaces)
@@ -212,7 +218,16 @@ BlockMGSolver::~BlockMGSolver() {
       delete S[i];
       delete BlkP[i];
       delete BlkA[i];
+      for (int j=0; j<2; j++)
+      {
+         for (int k=0; k<2; k++)
+         {
+            delete A[i](j,k);
+         }
+      }
+      A[i].DeleteAll();
    }
    delete BlkA[NumGrids];
    delete invAc;
+   A.clear();
 }

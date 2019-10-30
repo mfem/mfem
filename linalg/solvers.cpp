@@ -1810,7 +1810,10 @@ GMGSolver::~GMGSolver() {
    for (int i = n - 1; i >= 0 ; i--)
    {
       delete S[i];
+      delete A[i];
    }
+   S.clear();
+   A.clear();
 #ifdef MFEM_USE_PETSC
    // delete petsc;
 #endif   
@@ -1822,8 +1825,7 @@ GMGSolver::~GMGSolver() {
    // delete SluA;
    // delete superlu;
 #endif   
-   // delete invAc;
-
+   delete invAc;
 }
 
 ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,

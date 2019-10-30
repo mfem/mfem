@@ -19,7 +19,7 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
 
    // 2. Store the cDofTrueDof Matrix. Required after the refinements
    HypreParMatrix *cDofTrueDof = new HypreParMatrix(*aux_fespace->Dof_TrueDof_Matrix());
-
+   
    // 3. Perform the refinements (if any) and Get the final Prolongation operator
    HypreParMatrix *Pr = nullptr;
    for (int i = 0; i < ref_levels; i++)
@@ -57,8 +57,9 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
       // If there is no refinement then the prolongation is the identity
       A = DofTrueDof;
    }
-   HypreParMatrix *B = ParMult(A, cDofTrueDof->Transpose()); 
-
+   HypreParMatrix * cDofTrueDofT = cDofTrueDof->Transpose();
+   HypreParMatrix *B = ParMult(A, cDofTrueDofT); 
+   delete cDofTrueDofT;
    // 5. Now we compute the vertices that are owned by the process
    SparseMatrix cdiag, coffd;
    cDofTrueDof->GetDiag(cdiag);
@@ -203,6 +204,8 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
       elem_contr[iel].Sort();
       elem_contr[iel].Unique();
    }
+   delete A;
+   delete B;
    if(Pr) delete Pr;
    delete aux_fec;
    delete cDofTrueDof;
@@ -267,10 +270,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    for (int i = 0; i < nrvert; i++)
    {
       int np = patch_nodes->vert_contr[i].Size();
-      if (np == 0)
-      {
-         continue;
-      }
+      if (np == 0) continue;
       Array<int> vertex_dofs;
       fespace->GetVertexDofs(i, vertex_dofs);
       int nv = vertex_dofs.Size();
@@ -281,10 +281,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(vertex_dofs[l]);
-            if (owned(m,offs))   
-            {
-               patch_local_tdofs[kk].Append(m);
-            }
+            if (owned(m,offs)) patch_local_tdofs[kk].Append(m);
          }
       }
    }
@@ -293,7 +290,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    for (int i = 0; i < nedge; i++)
    {
       int np = patch_nodes->edge_contr[i].Size();
-      if (np == 0) {continue;}
+      if (np == 0) continue;
       Array<int> edge_dofs;
       fespace->GetEdgeInteriorDofs(i, edge_dofs);
       int nv = edge_dofs.Size();
@@ -304,10 +301,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(edge_dofs[l]);
-            if (owned(m,offs))   
-            {
-               patch_local_tdofs[kk].Append(m);
-            }
+            if (owned(m,offs)) patch_local_tdofs[kk].Append(m);
          }
       }
    }
@@ -315,10 +309,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    for (int i = 0; i < nface; i++)
    {
       int np = patch_nodes->face_contr[i].Size();
-      if (np == 0)
-      {
-         continue;
-      }
+      if (np == 0) continue;
       Array<int> face_dofs;
       fespace->GetFaceInteriorDofs(i, face_dofs);
       int nv = face_dofs.Size();
@@ -329,10 +320,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(face_dofs[l]);
-            if (owned(m,offs))   
-            {
-               patch_local_tdofs[kk].Append(m);
-            }
+            if (owned(m,offs)) patch_local_tdofs[kk].Append(m);
          }
       }
    }
@@ -340,7 +328,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    for (int i = 0; i < nelem; i++)
    {
       int np = patch_nodes->elem_contr[i].Size();
-      if (np == 0) {continue;}
+      if (np == 0) continue;
       Array<int> elem_dofs;
       fespace->GetElementInteriorDofs(i, elem_dofs);
       int nv = elem_dofs.Size();
@@ -351,14 +339,10 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          for (int l = 0; l < nv; l++)
          {
             int m = fespace->GetGlobalTDofNumber(elem_dofs[l]);
-            if (owned(m,offs))   
-            {
-               patch_local_tdofs[kk].Append(m);
-            }
+            if (owned(m,offs)) patch_local_tdofs[kk].Append(m);
          }
       }
    }
-
    delete patch_nodes;
 
    patch_tdofs.resize(nrpatch);
@@ -369,23 +353,19 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
 
       count[myid] = size;
       MPI_Allgather(&size, 1, MPI_INT, &count[0], 1, MPI_INT, comm);
-      //
       Array<int>displs(num_procs);
       displs[0] = 0;
       for (int j = 1; j < num_procs; j++)
       {
          displs[j] = displs[j-1] + count[j-1];
       }
-
       int tot_size = displs[num_procs - 1] + count[num_procs - 1];
-
       // Get a group identifier for comm.
       MPI_Group world_group_id;
       MPI_Comm new_comm;
       MPI_Group new_group_id;
       MPI_Comm_group (comm, &world_group_id);
-      //
-      // count the ranks that does not have zero length
+      // count the ranks that do not have zero length
       int num_ranks = 0;
       for (int k = 0; k<num_procs; k++)
       {
@@ -393,7 +373,6 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
       }
       Array<int> new_count(num_ranks);
       Array<int> new_displs(num_ranks);
-
       int sub_comm_ranks[num_ranks];
       num_ranks = 0;
       for (int j = 0; j <num_procs ; j++ )
@@ -414,6 +393,9 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
          MPI_Allgatherv(&patch_local_tdofs[i][0],size,MPI_INT,
                      &patch_tdofs[i][0],new_count,new_displs,MPI_INT,new_comm);
       }
+      MPI_Group_free(&world_group_id);
+      MPI_Group_free(&new_group_id);
+      MPI_Comm_free(&new_comm);
    }
 }
 
@@ -486,12 +468,12 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
          GetArrayIntersection(patch_other_tdofs[ip], patch_tdof_info->patch_local_tdofs[ip], patch_owned_other_tdofs[ip]);
       }
    }
-   // // For the construction of the matrix of a patch we follow the following procedure. 
-   // // The matrix will be split to a 2x2 block matrix where: 
-   // // Block (0,0) is constructed by the dofs owned by the processor (using diag and RAP)
-   // // Block (0,1) is constructed by the dofs owned by the processor (using offd) 
-   // // Block (1,0) is the Transpose of (0,1) (for now the support is only for symmetric matrices)
-   // // Block (1,1) has to be communicated among processors. Its constructed by the dofs not owned by the processor.
+   // For the construction of the matrix of a patch we follow the following procedure. 
+   // The matrix will be split to a 2x2 block matrix where: 
+   // Block (0,0) is constructed by the dofs owned by the processor (using diag and RAP)
+   // Block (0,1) is constructed by the dofs owned by the processor (using offd) 
+   // Block (1,0) is the Transpose of (0,1) (for now the support is only for symmetric matrices)
+   // Block (1,1) has to be communicated among processors. Its constructed by the dofs not owned by the processor.
 
    Array<SparseMatrix * > PatchMat00(nrpatch);
    Prl.SetSize(nrpatch);
@@ -501,6 +483,8 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
    //--------------------------------------------------------------------------------------
    for (int ip = 0; ip < nrpatch; ip++)
    {
+      PatchMat00[ip]=nullptr;
+      Prl[ip] = nullptr;
       if (myid == host_rank[ip])
       {
          int num_cols = patch_tdof_info->patch_local_tdofs[ip].Size();
@@ -524,6 +508,8 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
    Array<SparseMatrix * > PatchMat10(nrpatch);
    for (int ip = 0; ip < nrpatch; ip++)
    {
+       PatchMat01[ip] = nullptr;
+       PatchMat10[ip] = nullptr;
       if (myid == host_rank[ip])
       {
          int num_rows = patch_tdof_info->patch_local_tdofs[ip].Size();
@@ -539,6 +525,7 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
       }  
    }
    delete patch_tdof_info;
+   delete At;
 
    //--------------------------------------------------------------------------------------
    // Construction of (1,1)
@@ -648,6 +635,7 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
    // Now each process will construct the SparseMatrix
    for (int ip = 0; ip < nrpatch; ip++)
    {
+      PatchMat11[ip] = nullptr;
       if(myid == host_rank[ip]) 
       {
          int ndof = patch_other_tdofs[ip].Size();
@@ -673,7 +661,6 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
       }
    }
 
-
    Array<BlockMatrix * > BlkPatchMat(nrpatch);
    PatchMat.SetSize(nrpatch);
 
@@ -697,13 +684,23 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
             BlkPatchMat[ip]->SetBlock(1,1,PatchMat11[ip]);   
             // Convert to sparse
             PatchMat[ip] = BlkPatchMat[ip]->CreateMonolithic();
+             
          }
          else
          {
-            PatchMat[ip] = PatchMat00[ip];
+            PatchMat[ip] = new SparseMatrix(*PatchMat00[ip]);
          }
+         delete PatchMat00[ip];
+         delete PatchMat10[ip];
+         delete PatchMat01[ip];
+         delete PatchMat11[ip];
       }
    }
+   PatchMat00.DeleteAll();
+   PatchMat01.DeleteAll();
+   PatchMat10.DeleteAll();
+   PatchMat11.DeleteAll();
+
 }
 
 
@@ -762,9 +759,12 @@ void ParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
             PatchInv[ip]->Mult(*res[ip], *sol[ip]);
          }
       }
-      R->MultTranspose(sol,znew);
-      sol.DeleteAll();
+      for (auto p:res) delete p;
       res.DeleteAll();
+      R->MultTranspose(sol,znew);
+      for (auto p:sol) delete p;
+      sol.DeleteAll();
+
       znew *= theta; // relaxation parameter
       z+= znew;
       // Update residual
@@ -772,6 +772,18 @@ void ParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
       A->Mult(znew,raux); 
       rnew -= raux;
    } // end of loop through smoother iterations
+}
+
+
+ParSchwarzSmoother::~ParSchwarzSmoother()
+{
+   delete P; 
+   delete R;
+   for (int ip = 0; ip < nrpatch; ip++)
+   {
+      if (PatchInv[ip]) delete PatchInv[ip];
+   }
+   PatchInv.DeleteAll();
 }
 
 
@@ -995,6 +1007,20 @@ int par_patch_assembly::get_rank(int tdof)
    up=std::upper_bound (tdof_offsets.begin(), tdof_offsets.end(), tdof); //          ^
    return std::distance(tdof_offsets.begin(),up)-1;
 }
+
+par_patch_assembly::~par_patch_assembly()
+{
+   // // if(patch_tdof_info) delete patch_tdof_info;
+   for (int ip = 0; ip < nrpatch; ip++)
+   {
+      if (PatchMat[ip]) delete PatchMat[ip];
+      if (Prl[ip]) delete Prl[ip];
+   }
+   Prl.DeleteAll();
+   PatchMat.DeleteAll();
+}
+
+
 
 bool its_a_patch(int iv, Array<int> patch_ids)
 {

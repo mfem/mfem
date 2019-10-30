@@ -16,10 +16,13 @@ private:
    int maxit = 1;
    double theta = 1.0;
    Array<int> host_rank;
-   Array<PetscLinearSolver * > PatchInv;
+   // Array<PetscLinearSolver * > PatchInv;
+   Array<UMFPackSolver * > PatchInv;
+   Array<SparseMatrix * > PatchMat;
    /// The linear system matrix
    Array2D<HypreParMatrix*> blockA;
    Array2D<PatchRestriction *> R;
+   Array2D<par_patch_assembly *> P;
    BlockOperator * blk = nullptr;
 public:
    BlkParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_,

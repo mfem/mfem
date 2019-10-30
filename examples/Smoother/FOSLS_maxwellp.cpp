@@ -110,8 +110,6 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   ParMesh *cpmesh = new ParMesh(*pmesh);
-   
 // 4. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    // ParFiniteElementSpace *fespace = new ParFiniteElementSpace(mesh, fec);
@@ -274,6 +272,8 @@ int main(int argc, char *argv[])
    blockA(1,1) = A_HH;
 
 
+   BlkParSchwarzSmoother *precAS = new BlkParSchwarzSmoother(fespaces[ref_levels-1]->GetParMesh(),1,fespaces[ref_levels],blockA);
+
    int maxit(500);
    double rtol(1.e-6);
    double atol(0.0);
@@ -297,16 +297,18 @@ int main(int argc, char *argv[])
 
    
 
-   chrono.Clear();
-   chrono.Start();
+   // chrono.Clear();
+   // chrono.Start();
    pcg.SetPreconditioner(*precMG);
+   // pcg.SetPreconditioner(*precAS);
    pcg.Mult(trueRhs, trueX);
-   chrono.Stop();
+   // chrono.Stop();
+   delete precAS;
    delete precMG;
    MFEMFinalizePetsc();
 
-    if(myid == 0)
-      cout << "MG prec Solution time: " << chrono.RealTime() << endl;
+   //  if(myid == 0)
+   //    cout << "MG prec Solution time: " << chrono.RealTime() << endl;
 
 
    // chrono.Clear();
@@ -332,72 +334,85 @@ int main(int argc, char *argv[])
    // chrono.Stop();
    // delete precAMS;
 
-   if(myid == 0)
-      cout << "BlockAMS Solution time: " << chrono.RealTime() << endl;
+   // if(myid == 0)
+   //    cout << "BlockAMS Solution time: " << chrono.RealTime() << endl;
 
 
-   *E_gf = 0.0;
-   *H_gf = 0.0;
+   // *E_gf = 0.0;
+   // *H_gf = 0.0;
 
-   E_gf->Distribute(&(trueX.GetBlock(0)));
-   H_gf->Distribute(&(trueX.GetBlock(1)));
+   // E_gf->Distribute(&(trueX.GetBlock(0)));
+   // H_gf->Distribute(&(trueX.GetBlock(1)));
 
-   int order_quad = max(2, 2*order+1);
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
-   {
-      irs[i] = &(IntRules.Get(i, order_quad));
-   }
+   // int order_quad = max(2, 2*order+1);
+   // const IntegrationRule *irs[Geometry::NumGeom];
+   // for (int i=0; i < Geometry::NumGeom; ++i)
+   // {
+   //    irs[i] = &(IntRules.Get(i, order_quad));
+   // }
 
-   double Error_E = E_gf->ComputeL2Error(Eex, irs);
-   double norm_E = ComputeGlobalLpNorm(2, Eex, *pmesh, irs);
+   // double Error_E = E_gf->ComputeL2Error(Eex, irs);
+   // double norm_E = ComputeGlobalLpNorm(2, Eex, *pmesh, irs);
 
-   double Error_H = H_gf->ComputeL2Error(Hex, irs);
-   double norm_H = ComputeGlobalLpNorm(2, Hex , *pmesh, irs);
+   // double Error_H = H_gf->ComputeL2Error(Hex, irs);
+   // double norm_H = ComputeGlobalLpNorm(2, Hex , *pmesh, irs);
 
-   if (myid == 0)
-   {
-      cout << "|| E_h - E || = " << Error_E  << "\n";
-      cout << "|| E_h - E ||/||E|| = " << Error_E/norm_E  << "\n";
-      // cout << "|| H_h - H || = " << Error_H  << "\n";
-      // cout << "Total error = " << sqrt(Error_H*Error_H+Error_E*Error_E) << "\n";
-   }
+   // if (myid == 0)
+   // {
+   //    cout << "|| E_h - E || = " << Error_E  << "\n";
+   //    cout << "|| E_h - E ||/||E|| = " << Error_E/norm_E  << "\n";
+   //    // cout << "|| H_h - H || = " << Error_H  << "\n";
+   //    // cout << "Total error = " << sqrt(Error_H*Error_H+Error_E*Error_E) << "\n";
+   // }
 
-   ParGridFunction ExactE(fespace);
+   // ParGridFunction ExactE(fespace);
 
-   if (visualization)
-   {
-      // 8. Connect to GLVis.
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream E_sock(vishost, visport);
-      E_sock << "parallel " << num_procs << " " << myid << "\n";
-      E_sock.precision(8);
-      E_sock << "solution\n" << *pmesh << *E_gf << "window_title 'Electric field'" << endl;
-      // socketstream Exact_sock(vishost, visport);
-      // Exact_sock << "parallel " << num_procs << " " << myid << "\n";
-      // Exact_sock.precision(8);
-      // Exact_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Electric field'" << endl;
+   // if (visualization)
+   // {
+   //    // 8. Connect to GLVis.
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+   //    socketstream E_sock(vishost, visport);
+   //    E_sock << "parallel " << num_procs << " " << myid << "\n";
+   //    E_sock.precision(8);
+   //    E_sock << "solution\n" << *pmesh << *E_gf << "window_title 'Electric field'" << endl;
+   //    // socketstream Exact_sock(vishost, visport);
+   //    // Exact_sock << "parallel " << num_procs << " " << myid << "\n";
+   //    // Exact_sock.precision(8);
+   //    // Exact_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Electric field'" << endl;
  
-    // MPI_Barrier(pmesh->GetComm());
-      // socketstream Eex_sock(vishost, visport);
-      // Eex_sock << "parallel " << num_procs << " " << myid << "\n";
-      // Eex_sock.precision(8);
-      // Eex_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Exact Electric field'" << endl;
-   }
+   //  // MPI_Barrier(pmesh->GetComm());
+   //    // socketstream Eex_sock(vishost, visport);
+   //    // Eex_sock << "parallel " << num_procs << " " << myid << "\n";
+   //    // Eex_sock.precision(8);
+   //    // Eex_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Exact Electric field'" << endl;
+   // }
 
+   delete A_EE;
+   delete A_HE;
+   delete A_EH;
+   delete A_HH;
+   delete LS_Maxwellop;
    delete a_EE;
    delete a_HE;
    delete a_HH;
    delete b_E;
    delete b_H;
+   delete E_gf;
+   delete Exact_gf;
+   for (auto p: ParMeshes) delete p;
+   for (auto p: fespaces)  delete p;
+   for (auto p: P)  delete p;
+   ParMeshes.clear();
+   fespaces.clear();
+   P.clear();
    delete fec;
    delete fespace;
    delete pmesh;
+   
    MPI_Finalize();
    return 0;
 }
-
 
 //define exact solution
 void E_exact(const Vector &x, Vector &E)

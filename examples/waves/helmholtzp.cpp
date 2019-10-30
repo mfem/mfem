@@ -116,6 +116,7 @@ int main(int argc, char *argv[])
 
    // 3. Read the mesh from the given mesh file.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
@@ -288,12 +289,24 @@ void get_helmholtz_solution_Re(const Vector &x, double & p, double dp[], double 
    }
    else
    {
-      double alpha = omega/sqrt(3);
-      p = cos(alpha * ( x(0) + x(1) + x(2) ) );
-      dp[0] = -alpha * sin(alpha * ( x(0) + x(1) + x(2) ) );
-      dp[1] = dp[0];
-      dp[2] = dp[0];
-      d2p = -3.0 * alpha * alpha * p;
+      double alpha;
+      if (dim == 2)
+      {
+         alpha = omega/sqrt(2);
+         p = cos(alpha * ( x(0) + x(1) ) );
+         dp[0] = -alpha * sin(alpha * ( x(0) + x(1) ) );
+         dp[1] = dp[0];
+         d2p = -2.0 * alpha * alpha * p;
+      }
+      else 
+      {
+         alpha = omega/sqrt(3);
+         p = cos(alpha * ( x(0) + x(1) + x(2) ) );
+         dp[0] = -alpha * sin(alpha * ( x(0) + x(1) + x(2) ) );
+         dp[1] = dp[0];
+         dp[2] = dp[0];
+         d2p = -3.0 * alpha * alpha * p;
+      }
    }
    
 }
@@ -313,12 +326,24 @@ void get_helmholtz_solution_Im(const Vector &x, double & p, double dp[], double 
    }
    else
    {
-      double alpha = omega/sqrt(3);
-      p = -sin(alpha * ( x(0) + x(1) + x(2) ) );
-      dp[0] = -alpha * cos(alpha * ( x(0) + x(1) + x(2) ) );
-      dp[1] = dp[0];
-      dp[2] = dp[0];
-      d2p = -3.0 * alpha * alpha * p;
+      double alpha;
+      if (dim == 2)
+      {
+         alpha = omega/sqrt(2);
+         p = -sin(alpha * ( x(0) + x(1) ) );
+         dp[0] = -alpha * cos(alpha * ( x(0) + x(1) ) );
+         dp[1] = dp[0];
+         d2p = -2.0 * alpha * alpha * p;
+      }
+      else 
+      {
+         alpha = omega/sqrt(3);
+         p = -sin(alpha * ( x(0) + x(1) + x(2) ) );
+         dp[0] = -alpha * cos(alpha * ( x(0) + x(1) + x(2) ) );
+         dp[1] = dp[0];
+         dp[2] = dp[0];
+         d2p = -3.0 * alpha * alpha * p;
+      }   
    }
 }
 

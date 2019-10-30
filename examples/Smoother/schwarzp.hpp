@@ -58,15 +58,7 @@ public:
    int get_rank(int tdof);
    // constructor
    par_patch_assembly(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
-   ~par_patch_assembly() 
-   {
-      delete patch_tdof_info;
-      for (int ip = 0; ip < nrpatch; ip++)
-      {
-         if (PatchMat[ip]) delete PatchMat[ip];
-         if (Prl[ip]) delete Prl[ip];
-      }
-   }
+   ~par_patch_assembly();
 private:
    void compute_trueoffsets();
    ParFiniteElementSpace *fespace=nullptr;
@@ -110,7 +102,7 @@ public:
    void SetDumpingParam(const double dump_param) {theta = dump_param;}
    virtual void SetOperator(const Operator &op) {}
    virtual void Mult(const Vector &r, Vector &z) const;
-   virtual ~ParSchwarzSmoother() {}
+   virtual ~ParSchwarzSmoother();
 };
 
 

@@ -36,7 +36,10 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Initialise MPI
-   MPI_Session mpi(argc, argv);
+   int num_procs, myid;
+   MPI_Init(&argc, &argv); // Initialise MPI
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs); //total number of processors available
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid); // Determine process identifier
    // 1. Parse command-line options.
    // geometry file
    // const char *mesh_file = "../data/star.mesh";
@@ -85,14 +88,14 @@ int main(int argc, char *argv[])
    // check if the inputs are correct
    if (!args.Good())
    {
-      if ( mpi.Root() )
+      if (myid == 0)
       {
          args.PrintUsage(cout);
       }
       MPI_Finalize();
       return 1;
    }
-   if ( mpi.Root() )
+   if (myid == 0)
    {
       args.PrintOptions(cout);
    }
@@ -191,64 +194,68 @@ int main(int argc, char *argv[])
 
    a->FormLinearSystem(ess_tdof_list, x, *b, *A, X, B);
 
-   if ( mpi.Root() )
+   if (myid == 0)
    {
       cout << "Size of fine grid system: "
            << A->GetGlobalNumRows() << " x " << A->GetGlobalNumCols() << endl;
    }
 
    MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
-   GMGSolver M1(A, P, GMGSolver::CoarseSolver::PETSC);
-   M1.SetTheta(1.0/2.0);
-   MGSolver M2(A, P,fespaces);
-   M2.SetTheta(1.0/2.0);
-   // chrono.Clear();
-   // chrono.Start();
+   chrono.Clear();
+   chrono.Start();
+   GMGSolver * M1 = new GMGSolver(A, P, GMGSolver::CoarseSolver::PETSC);
+   M1->SetTheta(1.0/2.0);
+   chrono.Stop();
 
-   // if (mpi.Root())
-   // {
-   //    cout << "Preconditioner construction time: " << chrono.RealTime() << endl;
-   // }
+   if (myid == 0)
+   {
+      cout << "MG-Jacobi  construction time: " << chrono.RealTime() << endl;
+   }
 
-   // int maxit(2000);
-   // double rtol(1.e-6);
-   // double atol(1.e-12);
-   // X = 0.0;
-   // GMRESSolver gmres(MPI_COMM_WORLD);
-   // gmres.SetAbsTol(atol);
-   // gmres.SetRelTol(rtol);
-   // gmres.SetMaxIter(maxit);
-   // gmres.SetPreconditioner(M1);
-   // gmres.SetOperator(*A);
-   // gmres.SetPrintLevel(1);
-   // chrono.Clear();
-   // chrono.Start();
-   // gmres.Mult(B,X);
-   // chrono.Stop();
+   int maxit(2000);
+   double rtol(1.e-6);
+   double atol(1.e-12);
+   X = 0.0;
+   GMRESSolver gmres(MPI_COMM_WORLD);
+   gmres.SetAbsTol(atol);
+   gmres.SetRelTol(rtol);
+   gmres.SetMaxIter(maxit);
+   gmres.SetPreconditioner(*M1);
+   gmres.SetOperator(*A);
+   gmres.SetPrintLevel(1);
+   chrono.Clear();
+   chrono.Start();
+   gmres.Mult(B,X);
+   chrono.Stop();
 
-   // if (mpi.Root())
-   // {
-   //    cout << "MG-Jacobi Solver time: " << chrono.RealTime() << endl;
-   // }
+   if (myid == 0)
+   {
+      cout << "MG-Jacobi Solver time: " << chrono.RealTime() << endl;
+   }
+   delete M1;
 
-   // X = 0.0;
-   // gmres.SetPreconditioner(M2);
-   // chrono.Clear();
-   // chrono.Start();
-   // gmres.Mult(B,X);
-   // chrono.Stop();
-   // if (mpi.Root())
-   // {
-   //    cout << "MG-Add Schwarz Solver time: " << chrono.RealTime() << endl;
-   // }
+   chrono.Clear();
+   chrono.Start();
+   MGSolver * M2 = new MGSolver(A, P,fespaces);
+   M2->SetTheta(1.0/2.0);
+   chrono.Stop();
+   if (myid == 0)
+   {
+      cout << "MG-Add Schwarz Construction time: " << chrono.RealTime() << endl;
+   }
+   X = 0.0;
+   gmres.SetPreconditioner(*M2);
+   chrono.Clear();
+   chrono.Start();
+   gmres.Mult(B,X);
+   chrono.Stop();
+   if (myid == 0)
+   {
+      cout << "MG-Add Schwarz Solver time: " << chrono.RealTime() << endl;
+   }
+   delete M2;
 
-
-   PetscParMatrix * petscA = new PetscParMatrix(A, Operator::PETSC_MATAIJ);
-   delete A;
-   PetscLinearSolver * petsc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
-   petsc->SetOperator(*petscA);
-   delete petscA;
-   petsc->Mult(B,X);
+   MFEMFinalizePetsc();
 
    a->RecoverFEMSolution(X, *b, x);
 
@@ -262,7 +269,7 @@ int main(int argc, char *argv[])
    double L2Error = x.ComputeL2Error(E, irs);
    double norm_E = ComputeGlobalLpNorm(2, E, *pmesh, irs);
 
-   if (mpi.Root())
+   if (myid == 0)
    {
       cout << "\n || E_h - E || / ||E|| = " << L2Error / norm_E << '\n' << endl;
    }
@@ -279,9 +286,6 @@ int main(int argc, char *argv[])
 
    if (visualization)
    {
-      int num_procs, myid;
-      MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
@@ -296,17 +300,19 @@ int main(int argc, char *argv[])
    }
    // ---------------------------------------------------------------------
 
-   for (int i = 0 ; i < ref_levels; i++)
-   {
-      // delete P[i];
-   }
-   // delete A;
+   delete A;
    delete a;
    delete b;
+   for (auto p: ParMeshes) delete p;
+   for (auto p: fespaces)  delete p;
+   for (auto p: P)  delete p;
+   ParMeshes.clear();
+   fespaces.clear();
+   P.clear();
    delete fec;
    delete fespace;
    delete pmesh;
-   MFEMFinalizePetsc();
+   MPI_Finalize();
    return 0;
 }
 

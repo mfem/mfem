@@ -17,7 +17,7 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
    // construct and invert the patches
    // This can be modified so only the last part of the assembly is repeated since all the 
    // matrices have the same structure
-   Array2D<par_patch_assembly *> P(2,2);
+   P.SetSize(2,2);
    for (int i=0; i<2; i++)
    {
       for (int j=0; j<2; j++)
@@ -31,12 +31,13 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
    host_rank.SetSize(nrpatch);
    host_rank = P(0,0)->host_rank;
    PatchInv.SetSize(nrpatch);
+   PatchMat.SetSize(nrpatch);
    for (int ip = 0; ip < nrpatch; ++ip)
    {
+      PatchInv[ip]=nullptr;
       if (P(0,0)->PatchMat[ip])
       {
-         // PatchInv[ip] = new UMFPackSolver;
-         // PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         
          Array<int>block_offsets(3);
          block_offsets[0] = 0;
          block_offsets[1] = P(0,0)->PatchMat[ip]->Height();
@@ -50,23 +51,26 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
                blockPatchMat.SetBlock(i,j,P(i,j)->PatchMat[ip]);
             }
          }
-         SparseMatrix * smat = blockPatchMat.CreateMonolithic();
+         // SparseMatrix * smat = blockPatchMat.CreateMonolithic();
+         PatchMat[ip] = blockPatchMat.CreateMonolithic();
          for (int i=0; i<2; ++i)
          {
             for (int j=0; j<2; ++j)
             {
-               delete P(i,j)->PatchMat[ip];
+               delete P(i,j)->PatchMat[ip]; P(i,j)->PatchMat[ip] = nullptr;
             }
          }
-         std::vector<int> row_starts(2);
-         row_starts[0] = 0;
-         row_starts[1] = smat->NumRows();
-         HypreParMatrix hypremat(MPI_COMM_SELF,smat->NumRows(),(HYPRE_Int*) row_starts.data(), smat);
-         PetscParMatrix petsc(&hypremat, Operator::PETSC_MATAIJ);
-         delete smat;
-         PatchInv[ip] = new PetscLinearSolver(MPI_COMM_SELF, "direct");
-         PatchInv[ip]->SetOperator(petsc);
-         // PatchInv[ip]->SetOperator(*PatchMat[ip]);
+   //       // std::vector<int> row_starts(2);
+   //       // row_starts[0] = 0;
+   //       // row_starts[1] = smat->NumRows();
+   //       // HypreParMatrix hypremat(MPI_COMM_SELF,smat->NumRows(),(HYPRE_Int*) row_starts.data(), smat);
+   //       // PetscParMatrix petsc(&hypremat, Operator::PETSC_MATAIJ);
+   //       // delete smat;
+   //       // PatchInv[ip] = new PetscLinearSolver(MPI_COMM_SELF, "direct");
+   //       // PatchInv[ip]->SetOperator(petsc);
+         PatchInv[ip] = new UMFPackSolver;
+         PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         PatchInv[ip]->SetOperator(*PatchMat[ip]);
       }
    }
    R.SetSize(2,2);
@@ -74,7 +78,6 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
    R(0,1) = nullptr;
    R(1,0) = nullptr;
    R(1,1) = new PatchRestriction(P(1,1));
-   P.DeleteAll();
 }
 
 
@@ -170,17 +173,21 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
 }
 BlkParSchwarzSmoother::~BlkParSchwarzSmoother()
 {
-   int num_procs, myid;
-   MPI_Comm_size(comm, &num_procs);
-   MPI_Comm_rank(comm, &myid);
-   
+   for (int i=0; i<2; i++)
+   {
+      for (int j=0; j<2; j++)
+      {
+         delete P(i,j); 
+         delete R(i,j);
+      }   
+   }
+   P.DeleteAll();
    R.DeleteAll();
    for (int ip=0; ip<nrpatch; ++ip)
    {
-      if(myid == host_rank[ip]) 
-      {
-         // delete PatchMat[ip];
-         delete PatchInv[ip];
-      }
+       if (PatchMat[ip])  delete PatchMat[ip];
+       if (PatchInv[ip])  delete PatchInv[ip];
    }
+   PatchMat.DeleteAll();
+   PatchInv.DeleteAll();
 }
