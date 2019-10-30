@@ -350,7 +350,7 @@ void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
 
       for (int i = 0; i < local_dofs.Size(); ++i)
       {
-         b_local[i] *= countingVector[local_dofs[i]];
+         // b_local[i] *= countingVector[local_dofs[i]];
          // b_local[i] *= diag_[local_dofs[i]];
          // b_local[i] *= minval;
          // b_local[i] *= sqrt(elmat(i,i) / LORdiag_[local_dofs[i]]);
@@ -373,7 +373,7 @@ void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
          // x_local[i] *= sqrt(elmat(i,i) / LORdiag_[local_dofs[i]]);
          // x_local[i] *= minval;
          // x_local[i] *= diag_[local_dofs[i]];
-         x_local[i] *= countingVector[local_dofs[i]];
+         // x_local[i] *= countingVector[local_dofs[i]];
       }
 
       x.AddElementVector(local_dofs, x_local);

@@ -6,11 +6,11 @@
 using namespace std;
 using namespace mfem;
 
-static const double omega = 12.0 * M_PI;
+static const double omega = 2.0 * M_PI * 5.3;
 
 double exactFun(Vector& x)
 {
-   return std::sin(omega * x[0]) + std::cos(omega * x[0]);
+   return std::sin(omega * (x[0]+x[1]) / std::sqrt(2));
 }
 
 class PoissonMultigridOperator : public TimedMultigridOperator
@@ -27,7 +27,7 @@ class PoissonMultigridOperator : public TimedMultigridOperator
    ParFiniteElementSpace* fespace_lor{nullptr};
    bool useCoarsePCG{false};
    HypreBoomerAMG* amg{nullptr};
-   CGSolver* coarsePCGSolver{nullptr};
+   GMRESSolver* coarsePCGSolver{nullptr};
 
    void AddIntegrators(BilinearForm* form)
    {
@@ -110,22 +110,22 @@ class PoissonMultigridOperator : public TimedMultigridOperator
       amg->SetPrintLevel(-1);
       amg->SetMaxIter(coarseSteps);
 
-      if (useCoarsePCG)
-      {
+      // if (useCoarsePCG)
+      // {
          amg->SetMaxIter(1);
-         coarsePCGSolver = new CGSolver(MPI_COMM_WORLD);
-         coarsePCGSolver->SetPrintLevel(-1);
-         coarsePCGSolver->SetMaxIter(50);
-         coarsePCGSolver->SetRelTol(1e-3);
+         coarsePCGSolver = new GMRESSolver(MPI_COMM_WORLD);
+         coarsePCGSolver->SetPrintLevel(0);
+         coarsePCGSolver->SetMaxIter(2000);
+         coarsePCGSolver->SetRelTol(1e-4);
          coarsePCGSolver->SetAbsTol(0.0);
          coarsePCGSolver->SetOperator(*opr);
-         coarsePCGSolver->SetPreconditioner(*amg);
+         // coarsePCGSolver->SetPreconditioner(*amg);
          return coarsePCGSolver;
-      }
-      else
-      {
-         return amg;
-      }
+      // }
+      // else
+      // {
+      //    return amg;
+      // }
    }
 
  public:
@@ -425,7 +425,8 @@ int main(int argc, char* argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh* mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh* mesh = new Mesh(mesh_file, 1, 1);
+   Mesh* mesh = new Mesh(1,1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
    int dim = mesh->Dimension();
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -610,7 +611,7 @@ int main(int argc, char* argv[])
    pcg.SetPrintLevel(1);
    pcg.SetMaxIter(1000);
    pcg.SetRelTol(0.0);
-   pcg.SetAbsTol(1e-4);
+   pcg.SetAbsTol(1e-8);
    pcg.SetOperator(*solveOperator);
    pcg.SetPreconditioner(*preconditioner);
    // pcg.SetPreconditioner(*solveOperator->GetSmootherAtLevel(spaceHierarchy->GetFinestLevelIndex()));
