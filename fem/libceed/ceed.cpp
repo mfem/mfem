@@ -23,7 +23,7 @@ void initCeedCoeff(Coefficient* Q, CeedData* ptr)
    if (ConstantCoefficient* coeff = dynamic_cast<ConstantCoefficient*>(Q))
    {
       CeedConstCoeff* ceedCoeff = new CeedConstCoeff{coeff->constant};
-      ptr->coeff_type = Const;
+      ptr->coeff_type = CeedCoeff::Const;
       ptr->coeff = (void*)ceedCoeff;
    }
    else if (GridFunctionCoefficient* coeff =
@@ -31,7 +31,7 @@ void initCeedCoeff(Coefficient* Q, CeedData* ptr)
    {
       CeedGridCoeff* ceedCoeff = new CeedGridCoeff;
       ceedCoeff->coeff = coeff->GetGridFunction();
-      ptr->coeff_type = Grid;
+      ptr->coeff_type = CeedCoeff::Grid;
       ptr->coeff = (void*)ceedCoeff;
    }
    else

@@ -36,7 +36,7 @@ struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
 
 // struct BuildContextConstCoeff { CeedInt dim, space_dim; CeedScalar coeff; };
 
-enum CeedCoeff { Const, Grid };
+enum class CeedCoeff { Const, Grid };
 
 struct CeedConstCoeff
 {
