@@ -275,11 +275,9 @@ protected:
    double res_mvsolve, res_spsolve, res_hsolve;
 
    // LOR PC related
-   ParMesh *pmesh_lor;
-   FiniteElementCollection *pfec_lor;
-   ParFiniteElementSpace *pfes_lor;
-   ParBilinearForm *Sp_form_lor;
-   OperatorHandle Sp_lor;
+   ParSpaceHierarchy *spaceHierarchy;
+   Array<H1_FECollection*>* collections;
+   ParMultigridBilinearForm* mgOperator;
 };
 } // namespace navier
 } // namespace mfem
