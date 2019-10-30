@@ -72,7 +72,7 @@ public:
 };
 
 // Defined in fe.cpp to ensure construction after 'mfem::poly1d'.
-extern class H1_WedgeElement WedgeFE;
+extern MFEM_THREAD_LOCAL H1_WedgeElement WedgeFE;
 
 }
 
