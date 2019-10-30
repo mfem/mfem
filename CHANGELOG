@@ -22,9 +22,16 @@ GPU support
 
 Discretization improvements
 ---------------------------
-- Added support for non-conforming wedge AMR, including coarsening and parallel
-  load balancing. Anisotropic wedge refinement is only available in the serial
+- Added support for non-conforming prism AMR, including coarsening and parallel
+  load balancing. Anisotropic prism refinement is only available in the serial
   version at the moment.
+
+Miscellaneous
+-------------
+- Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This 
+  necessitated a complete rework of the interface and requires changes at
+  the application level.  Example usage of this new interface can be found
+  in the examples/sundials directory.
 
 
 Version 4.0, released on May 24, 2019
