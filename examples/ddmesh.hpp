@@ -6,6 +6,7 @@
 using namespace mfem;
 using namespace std;
 
+
 /*
 void TestSerialMeshLinearSystem(Mesh *mesh)
 {
@@ -471,13 +472,16 @@ private:
   
   // Gather subdomain or interface mesh data to all processes.
   void GatherSubdomainOrInterfaceMeshData(const int attribute, const int numLocalElements,
-					  int& subdomainNumElements, const SubdomainInterface *interface)
+					  int& subdomainNumElements, int& elemOffset, const SubdomainInterface *interface)
   {
     MPI_Allgather(&numLocalElements, 1, MPI_INT, cts, 1, MPI_INT, MPI_COMM_WORLD);
 
     subdomainNumElements = 0;
     offsets[0] = 0;
     for (int i = 0; i < num_procs; ++i) {
+      if (i == myid)
+	elemOffset = subdomainNumElements;
+      
       subdomainNumElements += cts[i];
       procNumElems[i] = cts[i];
       cts[i] *= 2;
@@ -621,7 +625,7 @@ private:
       }
   }
 
-  // This is a serial function, which should be called only processes touching the subdomain.
+  // This is a serial function, which should be called only by processes touching the subdomain.
   Mesh* BuildSerialMesh(const int attribute, const int subdomainNumElements, const SubdomainInterface *interface)
   {
     // element_vgid holds vertices as global ids.  Vertices may be shared
@@ -718,17 +722,17 @@ private:
     return smesh;
   }
   
-  Mesh* CreateSerialSubdomainOrInterfaceMesh(const int attribute, const SubdomainInterface *interface)
+  Mesh* CreateSerialSubdomainOrInterfaceMesh(int& elemOffset, const int attribute, const SubdomainInterface *interface, const int mustBuild=0)
   {
     int numLocalElements = (interface == NULL) ? NumberOfLocalElementsForSubdomain(attribute) : interface->NumFaces();
 
     int subdomainNumElements = 0;
-    GatherSubdomainOrInterfaceMeshData(attribute, numLocalElements, subdomainNumElements, interface);
+    GatherSubdomainOrInterfaceMeshData(attribute, numLocalElements, subdomainNumElements, elemOffset, interface);
 
     // Now we have enough data to build the subdomain mesh.
     Mesh *serialMesh = NULL;
 
-    if (numLocalElements > 0)
+    if ((numLocalElements > 0 && mustBuild == 0) || (mustBuild == 2))
       serialMesh = BuildSerialMesh(attribute, subdomainNumElements, interface);
     
     return serialMesh;
@@ -774,14 +778,17 @@ public:
     ParMesh **pmeshSD = new ParMesh*[numSubdomains];
 
     mode = SubdomainMesh;
+
+    int numSubdomainsOnProc = 0;
     
     for (int s=0; s<numSubdomains; ++s)  // Loop over subdomains
       {
-	Mesh *sdmesh = CreateSerialSubdomainOrInterfaceMesh(s+1, NULL);
+	int elemOffset = 0;
+	Mesh *sdmesh = CreateSerialSubdomainOrInterfaceMesh(elemOffset, s+1, NULL);
 
 	MPI_Comm sd_com;
 	int color = (sdmesh == NULL);
-	const int status = MPI_Comm_split(MPI_COMM_WORLD, color, myid, &sd_com);
+	const int status = MPI_Comm_split(MPI_COMM_WORLD, color, myid, &sd_com);  // TODO: replace this with one MPI_Comm_split call. 
 	MFEM_VERIFY(status == MPI_SUCCESS, "Construction of comm failed");
 
 	if (sdmesh != NULL)
@@ -794,15 +801,19 @@ public:
 	    //TestParallelMeshLinearSystem(pmeshSD[s]);
 	    
 	    cout << myid << ": Subdomain mesh NBE " << pmeshSD[s]->GetNBE() << endl;
+
+	    numSubdomainsOnProc++;
 	  }
 	else
 	  pmeshSD[s] = NULL;
       }
     
+    //MFEM_VERIFY(numSubdomainsOnProc == 1, "Parallel partition crosses subdomain boundaries");
+    
     return pmeshSD;
   }
-  
-  ParMesh* CreateParallelInterfaceMesh(SubdomainInterface& interface)
+
+  Mesh* CreateSerialInterfaceMesh(int& elemOffset, SubdomainInterface& interface, const int mustBuild=0)
   {
     mode = InterfaceMesh;
 
@@ -813,8 +824,15 @@ public:
     
     // Add all faces in interface.faces as elements in a new serial Mesh.
 
-    Mesh *ifmesh = CreateSerialSubdomainOrInterfaceMesh(interface.GetGlobalIndex(), &interface);
+    return CreateSerialSubdomainOrInterfaceMesh(elemOffset, interface.GetGlobalIndex(), &interface, mustBuild);
+  }
+  
+  ParMesh* CreateParallelInterfaceMesh(SubdomainInterface& interface)
+  {
+    int elemOffset = 0;
 
+    Mesh *ifmesh = CreateSerialInterfaceMesh(elemOffset, interface);
+    
     // Create a parallel mesh from ifmesh.
 
     MPI_Comm if_com;
@@ -829,7 +847,7 @@ public:
 
 	return ifParMesh;
       }
-
+    
     return NULL;
   }
   

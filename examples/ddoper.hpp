@@ -38,6 +38,10 @@ using namespace std;
 
 //#define GPWD
 
+//#define NO_COMM_SPLITTING
+
+//#define SERIAL_INTERFACES
+
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -62,9 +66,20 @@ hypre_CSRMatrix* GetHypreParMatrixData(const HypreParMatrix & hypParMat);
 SparseMatrix* GatherHypreParMatrix(HypreParMatrix *A);
 SparseMatrix* ReceiveSparseMatrix(const int source);
 void SendSparseMatrix(SparseMatrix *S, const int dest);
-HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMatrix *A, HypreParMatrix *I, std::vector<int> & inj,
-						     std::vector<int> & ginj,
+
+
+HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMatrix *A,
+#ifdef SERIAL_INTERFACES
+						     SparseMatrix *I,
+#else
+						     HypreParMatrix *I,
+#endif
+						     std::vector<int> & inj, std::vector<int> & ginj,
+#ifdef SERIAL_INTERFACES						     
+						     FiniteElementSpace *ifespace, FiniteElementSpace *ifespace2,
+#else
 						     ParFiniteElementSpace *ifespace, ParFiniteElementSpace *ifespace2=NULL,
+#endif
 						     const bool adding=true, const double cI=0.0, const double cA=1.0, const bool injRows=true);
 
 /*
@@ -161,7 +176,7 @@ private:
   MPI_Comm m_comm;
 public:
 
-  InjectionOperator(MPI_Comm comm, ParFiniteElementSpace *subdomainSpace, ParFiniteElementSpace *interfaceSpace, int *a,
+  InjectionOperator(MPI_Comm comm, ParFiniteElementSpace *subdomainSpace, FiniteElementSpace *interfaceSpace, int *a,
 		    std::vector<int> const& gdofmap);
   
   ~InjectionOperator()
@@ -317,7 +332,12 @@ private:
 class DDMInterfaceOperator : public Operator
 {
 public:
-  DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_, ParFiniteElementSpace *fespaceGlobal, ParMesh **pmeshSD_, ParMesh **pmeshIF_,
+  DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_, ParFiniteElementSpace *fespaceGlobal, ParMesh **pmeshSD_,
+#ifdef SERIAL_INTERFACES
+		       Mesh **smeshIF_, std::vector<int> const& interfaceFaceOffset,
+#else
+		       ParMesh **pmeshIF_,
+#endif
 		       const int orderND_, const int spaceDim, std::vector<SubdomainInterface> *localInterfaces_,
 		       std::vector<int> *interfaceLocalIndex_, const double k2_,
 #ifdef GPWD
@@ -690,9 +710,11 @@ public:
   void ComputeF(const int sd, Vector const& u, Vector const& ufull, Vector const& rhs);
 #endif
   
-  int JustComputeF(const int sd, Vector const& u, Vector const& rhs, Vector& uFullSD, Vector& Cf);
   
 #ifdef DDMCOMPLEX
+#ifndef SERIAL_INTERFACES
+  int JustComputeF(const int sd, Vector const& u, Vector const& rhs, Vector& uFullSD, Vector& Cf);
+
   void PrintInterfaceError(const int sd, Vector const& u)
   {
     VectorFunctionCoefficient f(3, test2_f_exact_0);
@@ -742,7 +764,8 @@ public:
 	  }
       }
   }
-
+#endif
+  
   void PrintSubdomainInteriorError(const int sd, Vector const& u)
   {
     if (fespace[sd] == NULL)
@@ -864,8 +887,10 @@ public:
   void RecoverDomainSolution(ParFiniteElementSpace *fespaceGlobal, const Vector & solReduced, Vector const& femSol,
 			     Vector & solDomain);
 
+#ifndef SERIAL_INTERFACES
   void TestProjectionError();
-
+#endif
+  
   void TestReconstructedFullDDSolution();
 
 #ifdef GPWD
@@ -892,12 +917,26 @@ private:
 
   ParMesh *pmeshGlobal;
   ParMesh **pmeshSD;  // Subdomain meshes
-  ParMesh **pmeshIF;  // Interface meshes
   ND_FECollection fec, fecbdry;
   H1_FECollection fecbdryH1;
   
-  ParFiniteElementSpace **fespace, **ifespace, **iH1fespace;
+#ifdef SERIAL_INTERFACES
+  Mesh **smeshIF;  // Interface meshes
+  FiniteElementSpace **ifespace, **iH1fespace;
+  SparseMatrix **ifNDmassSp, **ifNDcurlcurlSp, **ifNDH1gradSp, **ifNDH1gradTSp, **ifH1massSp;
+
+  //HypreParMatrix **ifNDmass, **ifNDH1grad, **ifNDH1gradT, **ifH1mass, **ifND_FS;
+#else
+  ParMesh **pmeshIF;  // Interface meshes
+  ParFiniteElementSpace **ifespace, **iH1fespace;
+
   HypreParMatrix **ifNDmass, **ifNDcurlcurl, **ifNDH1grad, **ifNDH1gradT, **ifH1mass, **ifND_FS;
+#endif
+  
+  std::vector<Array2D<SparseMatrix*> > AsdRe_SparseBlocks;
+  std::vector<Array2D<SparseMatrix*> > AsdIm_SparseBlocks;
+
+  ParFiniteElementSpace **fespace;
   Operator **ifNDmassInv, **ifH1massInv;
   HypreParMatrix **sdND;
   HypreParMatrix **sdNDcopy;
@@ -1260,7 +1299,11 @@ private:
   Operator* CreateSubdomainOperator(const int subdomain);
   
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
-  void CreateSubdomainHypreBlocks(const int subdomain, Array2D<HypreParMatrix*>& block, Array2D<double>& blockCoefficient);
+  void CreateSubdomainHypreBlocks(const int subdomain, Array2D<HypreParMatrix*>& block,
+				  //#ifdef SERIAL_INTERFACES
+				  Array2D<SparseMatrix*>& blockSp,
+				  //#endif
+				  Array2D<double>& blockCoefficient);
 #endif
   
   // This is the same operator as CreateSubdomainOperator, except it is stored as a strumpack matrix rather than a block operator. 
