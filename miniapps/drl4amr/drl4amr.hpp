@@ -23,6 +23,8 @@ private:
    const bool visualization = true;
    const char *vishost = "localhost";
    const int visport = 19916;
+   const int visw = 480;
+   const int vish = 480;
    socketstream vis[3];
 
    Device device;
@@ -44,8 +46,14 @@ public:
    Drl4Amr(int i);
    int Compute();
    int Refine(int el =-1);
-   int GetTrueVSize() { return fespace.GetTrueVSize(); }
-   int GetNE() { return fespace.GetNE(); }
+   int GetTrueVSize()
+   {
+      return fespace.GetTrueVSize();
+   }
+   int GetNE()
+   {
+      return fespace.GetNE();
+   }
    double GetNorm();
    void GetImage();
 };

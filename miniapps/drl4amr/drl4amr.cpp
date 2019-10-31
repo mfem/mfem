@@ -23,7 +23,10 @@ double x0(const Vector &x)
 {
    double result = 0.0;
    const double t = x[0] + tan(theta)*x[1];
-   for (double o: offsets) { result += tanh(sharpness*(o - t)); }
+   for (double o: offsets)
+   {
+      result += tanh(sharpness*(o - t));
+   }
    return result/static_cast<double>(discs);
 }
 
@@ -66,10 +69,16 @@ Drl4Amr::Drl4Amr(int o):
    theta = M_PI*drand48()/2.0;
    discs = static_cast<int>(1 + nb_discs_max*drand48());
    offsets.SetSize(discs);
-   for (int i=0; i < discs; i++) { offsets[i] = drand48(); }
+   for (int i=0; i < discs; i++)
+   {
+      offsets[i] = drand48();
+   }
    offsets.Sort();
    printf("\ntheta = %f, discontinuities:%d", theta, discs);
-   for (double offset: offsets) { printf("\n%f ", offset); }
+   for (double offset: offsets)
+   {
+      printf("\n%f ", offset);
+   }
    x.ProjectCoefficient(xcoeff);
 
    if (visualization && vis[0].good())
@@ -77,19 +86,23 @@ Drl4Amr::Drl4Amr(int o):
       vis[0].precision(8);
       vis[0] << "solution" << endl << mesh << x << flush;
       vis[0] << "window_title '" << "Solution" << "'" << endl
-             << "window_geometry " << 0 << " " << 0 << " " << 640 << " " << 480 << endl
+             << "window_geometry " << 0 << " " << 0 << " " << visw << " " << vish << endl
              << "keys mgA" << endl;
 
       vis[1].precision(8);
       vis[1] << "mesh" << endl << mesh << flush;
       vis[1] << "window_title '" << "Mesh" << "'" << endl
-             << "window_geometry " << 650 << " " << 0 << " " << 640 << " " << 480 << endl
+             << "window_geometry "
+             << (vish + 10) << " " << 0
+             << " " << visw << " " << vish  << endl
              << "keys mgA" << endl;
 
       vis[2].precision(8);
       vis[2] << "solution" << endl << mesh << x << flush;
       vis[2] << "window_title '" << "Image" << "'" << endl
-             << "window_geometry " << 1300 << " " << 0 << " " << 640 << " " << 480 << endl
+             << "window_geometry "
+             <<  (2 * vish + 10) << " " << 0
+             << " " << visw << " " << vish << endl
              << "keys RjgA" << endl; // mn
    }
 
@@ -141,7 +154,10 @@ int Drl4Amr::Refine(int el_to_refine)
       //mesh.PrintCharacteristics();
       mesh.EnsureNCMesh();
       const int depth = mesh.ncmesh->GetElementDepth(el_to_refine);
-      if (depth == max_amr_depth) { return 0; }
+      if (depth == max_amr_depth)
+      {
+         return 0;
+      }
       MFEM_VERIFY(depth <= max_amr_depth, "max_amr_depth error");
       //dbg("Refine el:%d, depth:%d", el_to_refine, depth);
       Array<Refinement> refinements(1);
@@ -183,7 +199,9 @@ double Drl4Amr::GetNorm()
    const int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
-   { irs[i] = &(IntRules.Get(i, order_quad)); }
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
    const double err_x  = x.ComputeL2Error(xcoeff, irs);
    const double norm_x = ComputeLpNorm(2., xcoeff, mesh, irs);
    return err_x / norm_x;
@@ -213,7 +231,10 @@ public:
       for (int i = 0; i < leaf_elements.Size(); i++)
       {
          const int depth = GetElementDepth(i);
-         if (depth < max_depth) { return false; }
+         if (depth < max_depth)
+         {
+            return false;
+         }
       }
       return true;
    }
@@ -268,11 +289,32 @@ void Drl4Amr::GetImage()
 
 // *****************************************************************************
 extern "C" {
-   Drl4Amr* Ctrl(int order) { return new Drl4Amr(order); }
-   int Compute(Drl4Amr *ctrl) { return ctrl->Compute(); }
-   int Refine(Drl4Amr *ctrl, int el) { return ctrl->Refine(el); }
-   int GetTrueVSize(Drl4Amr *ctrl) { return ctrl->GetTrueVSize(); }
-   int GetNE(Drl4Amr *ctrl) { return ctrl->GetNE(); }
-   double GetNorm(Drl4Amr *ctrl) { return ctrl->GetNorm(); }
-   void GetImage(Drl4Amr *ctrl) { return ctrl->GetImage(); }
+   Drl4Amr* Ctrl(int order)
+   {
+      return new Drl4Amr(order);
+   }
+   int Compute(Drl4Amr *ctrl)
+   {
+      return ctrl->Compute();
+   }
+   int Refine(Drl4Amr *ctrl, int el)
+   {
+      return ctrl->Refine(el);
+   }
+   int GetTrueVSize(Drl4Amr *ctrl)
+   {
+      return ctrl->GetTrueVSize();
+   }
+   int GetNE(Drl4Amr *ctrl)
+   {
+      return ctrl->GetNE();
+   }
+   double GetNorm(Drl4Amr *ctrl)
+   {
+      return ctrl->GetNorm();
+   }
+   void GetImage(Drl4Amr *ctrl)
+   {
+      return ctrl->GetImage();
+   }
 }
