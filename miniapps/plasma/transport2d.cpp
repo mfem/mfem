@@ -1507,6 +1507,16 @@ int main(int argc, char *argv[])
    elec_energy.ProjectCoefficient(Te0Coef);
 
 
+   Array<CoefficientByAttr>  Ti_dbc;
+   if (prob_ == 1)
+   {
+      Ti_dbc.SetSize(2);
+      Ti_dbc[0].attr.Append(1);
+      Ti_dbc[0].coef = new ConstantCoefficient(Ti_max_);
+      Ti_dbc[1].attr.Append(2);
+      Ti_dbc[1].coef = new ConstantCoefficient(Ti_min_);
+   }
+
    Array<CoefficientByAttr>  Te_dbc;
    if (prob_ == 1)
    {
@@ -1640,7 +1650,7 @@ int main(int argc, char *argv[])
 
    DGTransportTDO oper(mpi, dg, fes, ffes, offsets, pgf, dpgf,
                        ion_charge, ion_mass, neutral_mass, neutral_temp,
-                       Di_perp, Xi_perp, Xe_perp, B3Coef, Te_dbc,
+                       Di_perp, Xi_perp, Xe_perp, B3Coef, Ti_dbc, Te_dbc,
                        imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
