@@ -9,10 +9,10 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int max_dofs = 5000;
+   const int max_dofs = 50000;
    const int max_amr_depth = 4;
-   const int nx = 4;
-   const int ny = 4;
+   const int nx = 8;
+   const int ny = 8;
    const Element::Type type = Element::QUADRILATERAL;
    const bool generate_edges = true;
    const double sx = 1.0;

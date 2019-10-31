@@ -87,10 +87,10 @@ Drl4Amr::Drl4Amr(int o):
              << "keys mgA" << endl;
 
       vis[2].precision(8);
-      vis[2] << "mesh" << endl << mesh << flush;
+      vis[2] << "solution" << endl << mesh << x << flush;
       vis[2] << "window_title '" << "Image" << "'" << endl
              << "window_geometry " << 1300 << " " << 0 << " " << 640 << " " << 480 << endl
-             << "keys mgA" << endl; // n
+             << "keys RjgA" << endl; // mn
    }
 
    // Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
@@ -240,27 +240,27 @@ void Drl4Amr::GetImage()
 {
    //dbg("GetImage");
    //mesh.ncmesh->PrintStats();
-   int i;
    bool done = false;
-   Mesh *img[2] = {NULL, &mesh};
-   for (i = 0; !done; i++)
+   Mesh msh(mesh, true);
+   FiniteElementSpace fes(&msh, &fec);
+   GridFunction X(&fes);
+
+   X.ProjectCoefficient(xcoeff);
+
+   while (!done)
    {
-      const int k = i%2;
-      const int p = (i+1)%2;
-      img[k] = new Mesh(*img[p], true);
-      img[k]->SetCurvature(order, false, sdim, Ordering::byNODES);
-      NCM nc1(img[k]->ncmesh);
-      nc1.FullRefine(img[k]);
-      done = nc1.IsAllMaxDepth();
+      NCM nc(msh.ncmesh);
+      nc.FullRefine(&msh);
+      done = nc.IsAllMaxDepth();
+      fes.Update();
+      X.Update();
    }
 
    if (visualization && vis[2].good())
    {
-      vis[2] << "mesh\n" << *img[i%2] << flush;
+      vis[2] << "solution" << endl << msh << X << flush;
       fflush(0);
    }
-   delete img[0];
-   delete img[1];
    //static int nexit = 0;
    //if (nexit++ == 8) { exit(0); }
 }
