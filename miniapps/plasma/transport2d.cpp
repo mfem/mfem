@@ -1509,14 +1509,14 @@ int main(int argc, char *argv[])
 
    Array<CoefficientByAttr>  Te_dbc;
    if (prob_ == 1)
-     {
-       Te_dbc.SetSize(2);
-       Te_dbc[0].attr.Append(1);
-       Te_dbc[0].coef = new ConstantCoefficient(Te_max_);
-       Te_dbc[1].attr.Append(2);
-       Te_dbc[1].coef = new ConstantCoefficient(Te_min_);
-     }
-   
+   {
+      Te_dbc.SetSize(2);
+      Te_dbc[0].attr.Append(1);
+      Te_dbc[0].coef = new ConstantCoefficient(Te_max_);
+      Te_dbc[1].attr.Append(2);
+      Te_dbc[1].coef = new ConstantCoefficient(Te_min_);
+   }
+
    Array<double> coefNrm(5);
    {
       L2_ParFESpace l2_fes(&pmesh, order - 1, dim);
@@ -1681,8 +1681,8 @@ int main(int argc, char *argv[])
    ode_controller.SetTimeStep(dt);
    ode_controller.SetTolerance(tol_ode);
    ode_controller.SetRejectionLimit(rej_ode);
-   if (ode_epus) ode_controller.SetErrorPerUnitStep();
-   
+   if (ode_epus) { ode_controller.SetErrorPerUnitStep(); }
+
    ofstream ofs_controller;
    if (mpi.Root())
    {
