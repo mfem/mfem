@@ -443,7 +443,7 @@ protected:
 };
 
 /** Given the electron temperature in eV this coefficient returns an
-    approzximation to the expected ionization rate in m^3/s.
+    approximation to the expected ionization rate in m^3/s.
 */
 class ApproxIonizationRate : public StateVariableCoef
 {
