@@ -9,8 +9,8 @@
 using namespace std;
 using namespace mfem;
 
-#define dbg(...) \
-   { printf("\n\033[33m"); printf(__VA_ARGS__); printf("\033[m"); fflush(0); }
+//#define dbg(...) \
+//   { printf("\n\033[33m"); printf(__VA_ARGS__); printf("\033[m"); fflush(0); }
 
 static int discs;
 static double theta;
@@ -46,7 +46,7 @@ Drl4Amr::Drl4Amr(int o):
    estimator(*integ, x, flux_fespace),
    refiner(estimator)
 {
-   dbg("Drl4Amr o:%d",o);
+   //dbg("Drl4Amr order:%d",o);
    device.Print();
 
    mesh.EnsureNodes();
@@ -68,8 +68,8 @@ Drl4Amr::Drl4Amr(int o):
    offsets.SetSize(discs);
    for (int i=0; i < discs; i++) { offsets[i] = drand48(); }
    offsets.Sort();
-   dbg("theta = %f, discontinuities:%d", theta, discs);
-   for (double offset: offsets) { dbg("%f ", offset); }
+   printf("\ntheta = %f, discontinuities:%d", theta, discs);
+   for (double offset: offsets) { printf("\n%f ", offset); }
    x.ProjectCoefficient(xcoeff);
 
    if (visualization && vis[0].good())
@@ -112,7 +112,6 @@ Drl4Amr::Drl4Amr(int o):
 int Drl4Amr::Compute()
 {
    iteration ++;
-   //dbg("Compute: %d", iteration);
    const int cdofs = fespace.GetTrueVSize();
    cout << "\nAMR iteration " << iteration << endl;
    cout << "Number of unknowns: " << cdofs << endl;
@@ -139,12 +138,12 @@ int Drl4Amr::Refine(int el_to_refine)
 {
    if (el_to_refine >= 0)
    {
-      mesh.PrintCharacteristics();
+      //mesh.PrintCharacteristics();
       mesh.EnsureNCMesh();
       const int depth = mesh.ncmesh->GetElementDepth(el_to_refine);
       if (depth == max_amr_depth) { return 0; }
       MFEM_VERIFY(depth <= max_amr_depth, "max_amr_depth error");
-      dbg("Refine el:%d, depth:%d", el_to_refine, depth);
+      //dbg("Refine el:%d, depth:%d", el_to_refine, depth);
       Array<Refinement> refinements(1);
       refinements[0] = Refinement(el_to_refine);
       mesh.GeneralRefinement(refinements, 1, 1);
@@ -157,7 +156,7 @@ int Drl4Amr::Refine(int el_to_refine)
    }
    else
    {
-      dbg("Refine with refiner");
+      //dbg("Refine with refiner");
       // Call the refiner to modify the mesh. The refiner calls the error
       // estimator to obtain element errors, then it selects elements to be
       // refined and finally it modifies the mesh. The Stop() method can be
@@ -179,7 +178,7 @@ int Drl4Amr::Refine(int el_to_refine)
 // *****************************************************************************
 double Drl4Amr::GetNorm()
 {
-   dbg("GetNorm");
+   //dbg("GetNorm");
    // Setup all integration rules for any element type
    const int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -222,32 +221,24 @@ public:
    void FullRefine(Mesh *image)
    {
       const int max_depth = GetMaxDepth();
-      dbg("max_depth:%d", max_depth);
-
       const char ref_type = 7; // iso
       Array<Refinement> refinements;
       for (int i = 0; i < leaf_elements.Size(); i++)
       {
-         //const Element el = elements[leaf_elements[i]];
-         const int depth = GetElementDepth(i);
-         if (depth < max_depth)
+         if (GetElementDepth(i) < max_depth)
          {
-            //dbg("Refine i:%d index:%d depth:%d parent:%d", i, el.index, depth, el.parent);
             refinements.Append(Refinement(i, ref_type));
-         }
-         else
-         {
-            //dbg("Skip i:%d index:%d depth:%d parent:%d", i, el.index, depth, el.parent);
          }
       }
       image->GeneralRefinement(refinements, 1, 0);
    }
 };
 
+
 // *****************************************************************************
 void Drl4Amr::GetImage()
 {
-   dbg("Drl4Amr GetImage");
+   //dbg("GetImage");
    //mesh.ncmesh->PrintStats();
    int i;
    bool done = false;
@@ -256,7 +247,6 @@ void Drl4Amr::GetImage()
    {
       const int k = i%2;
       const int p = (i+1)%2;
-      dbg("%d %d", k, p);
       img[k] = new Mesh(*img[p], true);
       img[k]->SetCurvature(order, false, sdim, Ordering::byNODES);
       NCM nc1(img[k]->ncmesh);
@@ -281,7 +271,7 @@ extern "C" {
    Drl4Amr* Ctrl(int order) { return new Drl4Amr(order); }
    int Compute(Drl4Amr *ctrl) { return ctrl->Compute(); }
    int Refine(Drl4Amr *ctrl, int el) { return ctrl->Refine(el); }
-   int GetNDofs(Drl4Amr *ctrl) { return ctrl->GetNDofs(); }
+   int GetTrueVSize(Drl4Amr *ctrl) { return ctrl->GetTrueVSize(); }
    int GetNE(Drl4Amr *ctrl) { return ctrl->GetNE(); }
    double GetNorm(Drl4Amr *ctrl) { return ctrl->GetNorm(); }
    void GetImage(Drl4Amr *ctrl) { return ctrl->GetImage(); }

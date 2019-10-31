@@ -9,7 +9,7 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int max_dofs = 50000;
+   const int max_dofs = 5000;
    const int max_amr_depth = 4;
    const int nx = 4;
    const int ny = 4;
@@ -44,7 +44,7 @@ public:
    Drl4Amr(int i);
    int Compute();
    int Refine(int el =-1);
-   int GetNDofs() { return fespace.GetNDofs(); }
+   int GetTrueVSize() { return fespace.GetTrueVSize(); }
    int GetNE() { return fespace.GetNE(); }
    double GetNorm();
    void GetImage();

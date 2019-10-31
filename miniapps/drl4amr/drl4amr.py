@@ -15,8 +15,8 @@ class Ctrl(object):
     def GetNorm(self): return MFEM.GetNorm(self.obj)
     MFEM.GetNorm.argtypes = [c_void_p]
     MFEM.GetNorm.restype = c_double
-    def GetNDofs(self): return MFEM.GetNDofs(self.obj)
-    MFEM.GetNDofs.argtypes = [c_void_p]
+    def GetTrueVSize(self): return MFEM.GetTrueVSize(self.obj)
+    MFEM.GetTrueVSize.argtypes = [c_void_p]
     def GetImage(self): MFEM.GetImage(self.obj)
     MFEM.GetImage.argtypes = [c_void_p]
 
@@ -26,9 +26,9 @@ sim = Ctrl(order)
 while sim.GetNorm() > 0.01:
     NE = sim.GetNE()
     sim.Compute()
-    sim.Refine(-1); # Will refine using the internal refiner
-    #sim.Refine(int(NE*random()))
-    #sim.GetImage()
-    print(sim.GetNorm())
+    #sim.Refine(-1); # Will refine using the internal refiner
+    sim.Refine(int(NE*random()))
+    sim.GetImage()
+    print("Norm: "+str(sim.GetNorm()))
 
-print("Done, final norm:", sim.GetNorm())
+print("Done, final norm: "+str(sim.GetNorm()))
