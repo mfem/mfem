@@ -955,7 +955,8 @@ public:
       double ne = neCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
       double tau = tau_e(Te, z_i_, ne, 17.0);
-      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_ << std::endl;
+      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
+      // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
       return 3.16 * ne * Te * eV_ * tau / me_kg_;
    }
 
@@ -1322,7 +1323,7 @@ private:
       // Domain integrators for source terms
       Array<LinearFormIntegrator*> dlfi_;  // Domain Integrators
       Array<LinearFormIntegrator*> flfi_;
-      Array<Array<int>*>           flfi_marker_; ///< Entries are not owned.
+      Array<Array<int>*>           flfi_marker_; ///< Entries are owned.
 
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
 

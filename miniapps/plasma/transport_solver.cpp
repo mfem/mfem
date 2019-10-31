@@ -1722,6 +1722,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          for (int k=0; k < dlfi_.Size(); k++)
          {
             dlfi_[k]->AssembleRHSElementVect(*fes_->GetFE(i), *eltrans, elvec_);
+            elvec_ *= -1.0;
             y.AddElementVector (vdofs_, elvec_);
          }
       }
@@ -1774,10 +1775,12 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
                flfi_[k] -> AssembleRHSElementVect (*fes_->GetFE(tr -> Elem1No),
                                                    *tr, elvec_);
+               elvec_ *= -1.0;
                y.AddElementVector (vdofs_, elvec_);
             }
          }
       }
+      // cout << "|y| after flfi: " << y.Norml2() << endl;
    }
 
    if (mpi_.Root() && logging_ > 1)
@@ -2158,8 +2161,17 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    blf_[0]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
                                                                 dg_.sigma,
                                                                 dg_.kappa));
+   /*
+   blf_[0]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
+                        dg_.sigma,
+                        dg_.kappa));
+   */
+   blf_[0]->AddDomainIntegrator(new MassIntegrator(dtdSizdnnCoef_));
    // blf_[0]->AddDomainIntegrator(new MassIntegrator(dtdSndnnCoef_));
-   // blf_[1] = new ParBilinearForm((*pgf_)[1]->ParFESpace());
+
+   // dOp / dn_i
+   blf_[1] = new ParBilinearForm((*pgf_)[1]->ParFESpace());
+   blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSizdniCoef_));
    // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSndniCoef_));
 }
 
@@ -2378,16 +2390,26 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
-
+   /*
+   bfbfi_.Append(new DGDiffusionIntegrator(DCoef_,
+                  dg_.sigma,
+                  dg_.kappa));
+   bfbfi_marker_.Append(NULL);
+   */
    // Advection term: Div(v_i n_i)
    dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
    fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
    // bfbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
 
-   // Source term: -S_{iz}
+   // Source terms (moved to LHS): S_{rc}-S_{iz}
    dlfi_.Append(new DomainLFIntegrator(negSizCoef_));
+   // dlfi_.Append(new DomainLFIntegrator(SrcCoef_));
 
    // Gradient of non-linear operator
+   // dOp / dn_n
+   blf_[0] = new ParBilinearForm((*pgf_)[0]->ParFESpace());
+   blf_[0]->AddDomainIntegrator(new MassIntegrator(negdtdSizdnnCoef_));
+
    // dOp / dn_i
    blf_[1] = new ParBilinearForm((*pgf_)[1]->ParFESpace());
    blf_[1]->AddDomainIntegrator(new MassIntegrator);
@@ -2395,11 +2417,16 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    blf_[1]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
                                                                 dg_.sigma,
                                                                 dg_.kappa));
+   /*
+   blf_[1]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
+                        dg_.sigma,
+                        dg_.kappa));
+   */
    blf_[1]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(dtViCoef_));
    blf_[1]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtViCoef_,
                                                             1.0, -0.5));
-   // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSndniCoef_));
+   blf_[1]->AddDomainIntegrator(new MassIntegrator(negdtdSizdniCoef_));
 }
 
 
@@ -2476,6 +2503,10 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    fbfi_.Append(new DGDiffusionIntegrator(EtaCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
+   bfbfi_.Append(new DGDiffusionIntegrator(EtaCoef_,
+                                           dg_.sigma,
+                                           dg_.kappa));
+   bfbfi_marker_.Append(NULL);
 
    // Advection term: Div(m_i n_i V_i v_i)
    dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(miniViCoef_));
@@ -2499,6 +2530,9 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    blf_[2]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtEtaCoef_,
                                                                 dg_.sigma,
                                                                 dg_.kappa));
+   blf_[2]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtEtaCoef_,
+                                                           dg_.sigma,
+                                                           dg_.kappa));
 
    blf_[2]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
@@ -2596,6 +2630,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      ChiParaCoef_(z_i_, ne1Coef_, Te1Coef_),
      ChiPerpCoef_(ChiPerpConst_, ne1Coef_),
      ChiCoef_(ChiParaCoef_, ChiPerpCoef_, *B3Coef_),
+     // dtChiCoef_(0.0, ChiCoef_),
      dtChiCoef_(0.0, ChiCoef_),
      dbc_(dbc)
      /*,
@@ -2615,14 +2650,32 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    fbfi_.Append(new DGDiffusionIntegrator(ChiCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
-
+   bfbfi_.Append(new DGDiffusionIntegrator(ChiCoef_,
+                                           dg_.sigma,
+                                           dg_.kappa));
+   bfbfi_marker_.Append(NULL);
 
    for (int i=0; i<dbc_.Size(); i++)
    {
-     flfi_.Append(new DGDirichletLFIntegrator(*dbc_[i].coef, ChiCoef_,
-					      dg_.sigma,
-					      dg_.kappa));
-     flfi_marker_.Append(dbc_[i].attr);
+      flfi_.Append(new DGDirichletLFIntegrator(*dbc_[i].coef, ChiCoef_,
+                                               dg_.sigma,
+                                               dg_.kappa));
+      flfi_marker_.Append(new Array<int>);
+      flfi_marker_[i]->SetSize(pgf[0]->ParFESpace()->
+                               GetParMesh()->bdr_attributes.Max());
+
+      if (dbc_[i].attr.Size() == 1 && dbc_[i].attr[0] == -1)
+      {
+         (*flfi_marker_[i]) = 1;
+      }
+      else
+      {
+         (*flfi_marker_[i]) = 0;
+         for (int j=0; j<dbc_[i].attr.Size(); j++)
+         {
+            (*flfi_marker_[i])[dbc_[i].attr[j]-1] = 1;
+         }
+      }
    }
 
    /*
@@ -2648,6 +2701,9 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    blf_[4]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtChiCoef_,
                                                                 dg_.sigma,
                                                                 dg_.kappa));
+   blf_[4]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtChiCoef_,
+                                                           dg_.sigma,
+                                                           dg_.kappa));
    /*
    blf_[2]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
