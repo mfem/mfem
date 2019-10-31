@@ -903,7 +903,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                double neutral_temp,
                                double Di_perp, double Xi_perp, double Xe_perp,
                                VectorCoefficient &B3Coef,
-			       Array<CoefficientByAttr> & Te_dbc,
+                               Array<CoefficientByAttr> & Te_dbc,
                                bool imex, unsigned int op_flag, int logging)
    : TimeDependentOperator(ffes.GetVSize()),
      mpi_(mpi),
@@ -1464,8 +1464,8 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       }
       y.AddElementVector(vdofs_, elvec_);
    }
-
    // cout << "|y| after dbfi_m: " << y.Norml2() << endl;
+
    if (mpi_.Root() && logging_ > 2)
    {
       cout << log_prefix_
@@ -1504,8 +1504,9 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
          y.AddElementVector(vdofs_, elvec_);
       }
+      // cout << "|y| after dbfi: " << y.Norml2() << endl;
    }
-   // cout << "|y| after dbfi: " << y.Norml2() << endl;
+
    if (mpi_.Root() && logging_ > 2)
    {
       cout << log_prefix_
@@ -1629,9 +1630,9 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             y.AddElementVector(vdofs_, elvec);
          }
       }
-
+      // cout << "|y| after fbfi: " << y.Norml2() << endl;
    }
-   // cout << "|y| after fbfi: " << y.Norml2() << endl;
+
    if (mpi_.Root() && logging_ > 2)
    {
       cout << log_prefix_
@@ -1703,8 +1704,9 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             y.AddElementVector(vdofs_, elvec_);
          }
       }
+      // cout << "|y| after bfbfi: " << y.Norml2() << endl;
    }
-   // cout << "|y| after bfbfi: " << y.Norml2() << endl;
+
    if (dlfi_.Size())
    {
       ElementTransformation *eltrans = NULL;
@@ -1723,8 +1725,9 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             y.AddElementVector (vdofs_, elvec_);
          }
       }
+      // cout << "|y| after dlfi: " << y.Norml2() << endl;
    }
-   // cout << "|y| after dlfi: " << y.Norml2() << endl;
+
    if (flfi_.Size())
    {
       FaceElementTransformations *tr;
@@ -1761,16 +1764,16 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          {
             fes_ -> GetElementVDofs (tr -> Elem1No, vdofs_);
 
-	    int ndof = vdofs_.Size();
-	    elvec_.SetSize(ndof);
+            int ndof = vdofs_.Size();
+            elvec_.SetSize(ndof);
 
-	    for (int k = 0; k < flfi_.Size(); k++)
+            for (int k = 0; k < flfi_.Size(); k++)
             {
                if (flfi_marker_[k] &&
                    (*flfi_marker_[k])[bdr_attr-1] == 0) { continue; }
 
                flfi_[k] -> AssembleRHSElementVect (*fes_->GetFE(tr -> Elem1No),
-						   *tr, elvec_);
+                                                   *tr, elvec_);
                y.AddElementVector (vdofs_, elvec_);
             }
          }
@@ -1853,7 +1856,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        double XiPerp,
                                        double XePerp,
                                        VectorCoefficient &B3Coef,
-				       Array<CoefficientByAttr> & Te_dbc,
+                                       Array<CoefficientByAttr> & Te_dbc,
                                        // VectorCoefficient &bHatCoef,
                                        // MatrixCoefficient &PerpCoef,
                                        unsigned int op_flag, int logging)
@@ -2558,14 +2561,14 @@ void DGTransportTDO::IonMomentumOp::Update()
 
 DGTransportTDO::ElectronStaticPressureOp::
 ElectronStaticPressureOp(const MPI_Session & mpi,
-			 const DGParams & dg,
-			 ParGridFunctionArray & pgf,
-			 ParGridFunctionArray & dpgf,
-			 int ion_charge,
-			 double ion_mass,
-			 double ChiPerp,
-			 VectorCoefficient & B3Coef,
-			 Array<CoefficientByAttr> & dbc)
+                         const DGParams & dg,
+                         ParGridFunctionArray & pgf,
+                         ParGridFunctionArray & dpgf,
+                         int ion_charge,
+                         double ion_mass,
+                         double ChiPerp,
+                         VectorCoefficient & B3Coef,
+                         Array<CoefficientByAttr> & dbc)
    : NLOperator(mpi, dg, 4, pgf, dpgf), z_i_(ion_charge), m_i_(ion_mass),
      ChiPerpConst_(ChiPerp),
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]),

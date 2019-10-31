@@ -1611,19 +1611,19 @@ private:
       ScalarMatrixProductCoefficient   dtChiCoef_;
 
       const Array<CoefficientByAttr> & dbc_;
-       /*
-       ConstantCoefficient DPerpCoef_;
-       IonDiffusionCoef DCoef_;
-       ScalarMatrixProductCoefficient dtDCoef_;
+      /*
+      ConstantCoefficient DPerpCoef_;
+      IonDiffusionCoef DCoef_;
+      ScalarMatrixProductCoefficient dtDCoef_;
 
-       IonAdvectionCoef ViCoef_;
-       ScalarVectorProductCoefficient dtViCoef_;
+      IonAdvectionCoef ViCoef_;
+      ScalarVectorProductCoefficient dtViCoef_;
 
-       IonSourceCoef           SizCoef_;
-       ProductCoefficient   negSizCoef_;
+      IonSourceCoef           SizCoef_;
+      ProductCoefficient   negSizCoef_;
 
-       ProductCoefficient nnizCoef_;
-       ProductCoefficient niizCoef_;
+      ProductCoefficient nnizCoef_;
+      ProductCoefficient niizCoef_;
       */
    public:
       ElectronStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
@@ -1631,7 +1631,7 @@ private:
                                ParGridFunctionArray & dpgf,
                                int ion_charge, double ion_mass, double ChiPerp,
                                VectorCoefficient & B3Coef,
-			       Array<CoefficientByAttr> & dbc
+                               Array<CoefficientByAttr> & dbc
                                /*,
                                MatrixCoefficient & PerpCoef*/
                               );
@@ -1692,7 +1692,7 @@ private:
                  double neutral_mass, double neutral_temp,
                  double DiPerp, double XiPerp, double XePerp,
                  VectorCoefficient & B3Coef,
-		 Array<CoefficientByAttr> & Te_dbc,
+                 Array<CoefficientByAttr> & Te_dbc,
                  // VectorCoefficient & bHatCoef,
                  // MatrixCoefficient & PerpCoef,
                  unsigned int op_flag = 31, int logging = 0);
@@ -1740,8 +1740,8 @@ public:
                   double neutral_temp,
                   double Di_perp, double Xi_perp, double Xe_perp,
                   VectorCoefficient & B3Coef,
-		  Array<CoefficientByAttr> & Te_dbc,
-		  bool imex = true,
+                  Array<CoefficientByAttr> & Te_dbc,
+                  bool imex = true,
                   unsigned int op_flag = 31,
                   int logging = 0);
 
