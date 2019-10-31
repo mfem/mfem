@@ -481,6 +481,41 @@ public:
 
 };
 
+/** Given the electron temperature in eV this coefficient returns an
+    approximation to the expected recombination rate in m^3/s.
+*/
+class ApproxRecombinationRate : public StateVariableCoef
+{
+private:
+   Coefficient *TeCoef_;
+
+public:
+   ApproxRecombinationRate(Coefficient &TeCoef)
+      : TeCoef_(&TeCoef) {}
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double Te2 = pow(TeCoef_->Eval(T, ip), 2);
+
+      return 3.0e-19 * Te2 / (3.0 + 0.01 * Te2);
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double Te = TeCoef_->Eval(T, ip);
+
+      return 2.0 * 3.0 * 3.0e-19 * Te / pow(3.0 + 0.01 * Te * Te, 2);
+   }
+
+};
+
 class NeutralDiffusionCoef : public StateVariableCoef
 {
 private:
@@ -639,10 +674,12 @@ private:
    Coefficient        * nn_;
    StateVariableCoef  * iz_;
 
+   double nn0_;
+
 public:
    IonSourceCoef(ProductCoefficient &neCoef, Coefficient &nnCoef,
                  StateVariableCoef &izCoef)
-      : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef) {}
+      : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef), nn0_(1e10) {}
 
    bool NonTrivialValue(DerivType deriv) const
    {
@@ -657,7 +694,7 @@ public:
       double nn = nn_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
-      return ne * nn * iz;
+      return ne * (nn - nn0_) * iz;
    }
 
    double Eval_dNn(ElementTransformation &T,
@@ -677,7 +714,7 @@ public:
 
       double dNe_dNi = ne_->GetAConst();
 
-      return dNe_dNi * nn * iz;
+      return dNe_dNi * (nn - nn0_) * iz;
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -688,7 +725,58 @@ public:
 
       double diz_dTe = iz_->Eval_dTe(T, ip);
 
-      return ne * nn * diz_dTe;
+      return ne * (nn - nn0_) * diz_dTe;
+   }
+};
+
+class IonSinkCoef : public StateVariableCoef
+{
+private:
+   ProductCoefficient * ne_;
+   Coefficient        * ni_;
+   StateVariableCoef  * rc_;
+
+public:
+   IonSinkCoef(ProductCoefficient &neCoef, Coefficient &niCoef,
+               StateVariableCoef &rcCoef)
+      : ne_(&neCoef), ni_(&niCoef), rc_(&rcCoef) {}
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ne = ne_->Eval(T, ip);
+      double ni = ni_->Eval(T, ip);
+      double rc = rc_->Eval(T, ip);
+
+      return ne * ni * rc;
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni = ni_->Eval(T, ip);
+      double rc = rc_->Eval(T, ip);
+
+      double dNe_dNi = ne_->GetAConst();
+
+      return 2.0 * dNe_dNi * ni * rc;
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ne = ne_->Eval(T, ip);
+      double ni = ni_->Eval(T, ip);
+
+      double drc_dTe = rc_->Eval_dTe(T, ip);
+
+      return ne * ni * drc_dTe;
    }
 };
 
@@ -1316,16 +1404,26 @@ private:
       ProductCoefficient      ne1Coef_;
       ConstantCoefficient      vnCoef_;
       ApproxIonizationRate     izCoef_;
+      ApproxRecombinationRate  rcCoef_;
 
       NeutralDiffusionCoef      DCoef_;
       ProductCoefficient      dtDCoef_;
 
       IonSourceCoef           SizCoef_;
+      IonSinkCoef             SrcCoef_;
 
-      ProductCoefficient     nnizCoef_; // nn * iz
-      ProductCoefficient     neizCoef_; // ne * iz
-      ProductCoefficient dtdSndnnCoef_; // - dt * dSn/dnn
-      ProductCoefficient dtdSndniCoef_; // - dt * dSn/dni
+      ProductCoefficient   negSrcCoef_;
+
+      IonSourceCoef       dSizdnnCoef_;
+      IonSourceCoef       dSizdniCoef_;
+
+      ProductCoefficient dtdSizdnnCoef_;
+      ProductCoefficient dtdSizdniCoef_;
+
+      // ProductCoefficient     nnizCoef_; // nn * iz
+      // ProductCoefficient     neizCoef_; // ne * iz
+      // ProductCoefficient dtdSndnnCoef_; // - dt * dSn/dnn
+      // ProductCoefficient dtdSndniCoef_; // - dt * dSn/dni
 
       // mutable DiffusionIntegrator   diff_;
       // mutable DGDiffusionIntegrator dg_diff_;
@@ -1370,6 +1468,7 @@ private:
       ProductCoefficient      ne1Coef_;
 
       ApproxIonizationRate     izCoef_;
+      ApproxRecombinationRate  rcCoef_;
 
       ConstantCoefficient DPerpCoef_;
       // MatrixCoefficient * PerpCoef_;
@@ -1383,7 +1482,15 @@ private:
       ScalarVectorProductCoefficient dtViCoef_;
 
       IonSourceCoef           SizCoef_;
+      IonSinkCoef             SrcCoef_;
+
       ProductCoefficient   negSizCoef_;
+
+      IonSourceCoef           dSizdnnCoef_;
+      IonSourceCoef           dSizdniCoef_;
+
+      ProductCoefficient   negdtdSizdnnCoef_;
+      ProductCoefficient   negdtdSizdniCoef_;
 
       ProductCoefficient nnizCoef_;
       ProductCoefficient niizCoef_;

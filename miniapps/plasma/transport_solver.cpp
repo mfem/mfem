@@ -2109,16 +2109,26 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      ne1Coef_(z_i_, ni1Coef_),
      vnCoef_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
      izCoef_(Te1Coef_),
+     rcCoef_(Te1Coef_),
      DCoef_(ne1Coef_, vnCoef_, izCoef_),
      dtDCoef_(0.0, DCoef_),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
-     nnizCoef_(nn1Coef_, izCoef_),
-     neizCoef_(ne1Coef_, izCoef_),
-     dtdSndnnCoef_(0.0, neizCoef_),
-     dtdSndniCoef_(0.0, nnizCoef_)//,
+     SrcCoef_(ne1Coef_, ni1Coef_, rcCoef_),
+     negSrcCoef_(-1.0, SrcCoef_),
+     dSizdnnCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     dSizdniCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     dtdSizdnnCoef_(0.0, dSizdnnCoef_),
+     dtdSizdniCoef_(0.0, dSizdniCoef_)//,
+     // nnizCoef_(nn1Coef_, izCoef_),
+     // neizCoef_(ne1Coef_, izCoef_),
+     // dtdSndnnCoef_(0.0, neizCoef_),
+     // dtdSndniCoef_(0.0, nnizCoef_),
      // diff_(DCoef_),
      // dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
 {
+   dSizdnnCoef_.SetDerivType(StateVariableFunc::DerivType::NEUTRAL_DENSITY);
+   dSizdniCoef_.SetDerivType(StateVariableFunc::DerivType::ION_DENSITY);
+
    // Time derivative term: dn_n / dt
    dbfi_m_[0].Append(new MassIntegrator);
 
@@ -2127,9 +2137,15 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    fbfi_.Append(new DGDiffusionIntegrator(DCoef_,
                                           dg_.sigma,
                                           dg_.kappa));
-
-   // Source term: S_{iz}
+   /*
+   bfbfi_.Append(new DGDiffusionIntegrator(DCoef_,
+                  dg_.sigma,
+                  dg_.kappa));
+   bfbfi_marker_.Append(NULL);
+   */
+   // Source terms (moved to LHS): S_{iz} - S_{rc}
    dlfi_.Append(new DomainLFIntegrator(SizCoef_));
+   // dlfi_.Append(new DomainLFIntegrator(negSrcCoef_));
 
    // Gradient of non-linear operator
    // dOp / dn_n
@@ -2157,8 +2173,10 @@ void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
    Te1Coef_.SetBeta(dt);
 
    dtDCoef_.SetAConst(dt);
-   dtdSndnnCoef_.SetAConst(dt);
-   dtdSndniCoef_.SetAConst(dt * z_i_);
+   // dtdSndnnCoef_.SetAConst(dt);
+   // dtdSndniCoef_.SetAConst(dt * z_i_);
+   dtdSizdnnCoef_.SetAConst(dt);
+   dtdSizdniCoef_.SetAConst(dt);
 }
 
 void DGTransportTDO::NeutralDensityOp::Update()
@@ -2329,17 +2347,26 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      ne0Coef_(z_i_, ni0Coef_),
      ne1Coef_(z_i_, ni1Coef_),
      izCoef_(Te1Coef_),
+     rcCoef_(Te1Coef_),
      DPerpCoef_(DPerp),
      DCoef_(DPerpCoef_, B3Coef),
      dtDCoef_(0.0, DCoef_),
      ViCoef_(pgf, dpgf, B3Coef), dtViCoef_(0.0, ViCoef_),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     SrcCoef_(ne1Coef_, ni1Coef_, rcCoef_),
      negSizCoef_(-1.0, SizCoef_),
+     dSizdnnCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     dSizdniCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     negdtdSizdnnCoef_(0.0, dSizdnnCoef_),
+     negdtdSizdniCoef_(0.0, dSizdniCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
      niizCoef_(ni1Coef_, izCoef_)//,
      // dtdSndnnCoef_(0.0, niizCoef_),
      // dtdSndniCoef_(0.0, nnizCoef_)
 {
+   dSizdnnCoef_.SetDerivType(StateVariableFunc::DerivType::NEUTRAL_DENSITY);
+   dSizdniCoef_.SetDerivType(StateVariableFunc::DerivType::ION_DENSITY);
+
    // Time derivative term: dn_i / dt
    dbfi_m_[1].Append(new MassIntegrator);
 
@@ -2392,6 +2419,8 @@ void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
    dtViCoef_.SetAConst(dt);
    // dtdSndnnCoef_.SetAConst(-dt);
    // dtdSndniCoef_.SetAConst(-dt * z_i_);
+   negdtdSizdnnCoef_.SetAConst(-dt);
+   negdtdSizdniCoef_.SetAConst(-dt);
 }
 
 void DGTransportTDO::IonDensityOp::Update()
