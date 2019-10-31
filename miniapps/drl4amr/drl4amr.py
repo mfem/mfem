@@ -20,6 +20,6 @@ while sim.GetNorm() > 0.01:
     sim.Compute()
     #sim.Refine(-1); # Will refine using the internal refiner
     sim.Refine(int(NE*random()))
-    #sim.GetImage()
+    sim.GetImage()
 
 print "Done"

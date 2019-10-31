@@ -58,6 +58,7 @@ Drl4Amr::Drl4Amr(int o):
    {
       vis[0].open(vishost, visport);
       vis[1].open(vishost, visport);
+      vis[2].open(vishost, visport);
    }
 
    // Initialize theta, offsets and x from x0_coeff
@@ -75,9 +76,21 @@ Drl4Amr::Drl4Amr(int o):
    {
       vis[0].precision(8);
       vis[0] << "solution" << endl << mesh << x << flush;
-      vis[0] << "window_title '" << "DRL4AMR" << "'" << endl
+      vis[0] << "window_title '" << "Solution" << "'" << endl
              << "window_geometry " << 0 << " " << 0 << " " << 640 << " " << 480 << endl
              << "keys mgA" << endl;
+
+      vis[1].precision(8);
+      vis[1] << "mesh" << endl << mesh << flush;
+      vis[1] << "window_title '" << "Mesh" << "'" << endl
+             << "window_geometry " << 650 << " " << 0 << " " << 640 << " " << 480 << endl
+             << "keys mgA" << endl;
+
+      vis[2].precision(8);
+      vis[2] << "mesh" << endl << mesh << flush;
+      vis[2] << "window_title '" << "Image" << "'" << endl
+             << "window_geometry " << 1300 << " " << 0 << " " << 640 << " " << 480 << endl
+             << "keys mgA" << endl; // n
    }
 
    // Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
@@ -109,16 +122,13 @@ int Drl4Amr::Compute()
    // Send solution by socket to the GLVis server.
    if (visualization && vis[0].good())
    {
-      vis[0].precision(8);
       vis[0] << "solution\n" << mesh << x << flush;
-      //vis[0] << "pause" << endl;
       fflush(0);
    }
    if (cdofs > max_dofs)
    {
       cout << "Reached the maximum number of dofs. Stop." << endl;
       exit(0);
-      return 1;
    }
    return 0;
 }
@@ -130,10 +140,20 @@ int Drl4Amr::Refine(int el_to_refine)
    if (el_to_refine >= 0)
    {
       mesh.PrintCharacteristics();
-      dbg("Refine el:%d", el_to_refine);
+      mesh.EnsureNCMesh();
+      const int depth = mesh.ncmesh->GetElementDepth(el_to_refine);
+      if (depth == max_amr_depth) { return 0; }
+      MFEM_VERIFY(depth <= max_amr_depth, "max_amr_depth error");
+      dbg("Refine el:%d, depth:%d", el_to_refine, depth);
       Array<Refinement> refinements(1);
       refinements[0] = Refinement(el_to_refine);
-      mesh.GeneralRefinement(refinements, 1, 0);
+      mesh.GeneralRefinement(refinements, 1, 1);
+      // Send solution by socket to the GLVis server.
+      if (visualization && vis[1].good())
+      {
+         vis[1] << "mesh\n" << mesh << flush;
+         fflush(0);
+      }
    }
    else
    {
@@ -165,11 +185,8 @@ double Drl4Amr::GetNorm()
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
    { irs[i] = &(IntRules.Get(i, order_quad)); }
-   dbg("GetNorm err_x");
    const double err_x  = x.ComputeL2Error(xcoeff, irs);
-   dbg("GetNorm norm_x");
    const double norm_x = ComputeLpNorm(2., xcoeff, mesh, irs);
-   dbg("GetNorm: %f", err_x / norm_x);
    return err_x / norm_x;
 }
 
@@ -180,7 +197,7 @@ class NCM: public NCMesh
 public:
    NCM(NCMesh *n): NCMesh(*n) {}
 
-   void Refinements(Mesh *image)
+   int GetMaxDepth()
    {
       int max_depth = -1;
       for (int i = 0; i < leaf_elements.Size(); i++)
@@ -188,19 +205,42 @@ public:
          const int depth = GetElementDepth(i);
          max_depth = std::max(depth, max_depth);
       }
+      return max_depth;
+   }
+
+   bool IsAllMaxDepth()
+   {
+      const int max_depth = GetMaxDepth();
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         const int depth = GetElementDepth(i);
+         if (depth < max_depth) { return false; }
+      }
+      return true;
+   }
+
+   void FullRefine(Mesh *image)
+   {
+      const int max_depth = GetMaxDepth();
       dbg("max_depth:%d", max_depth);
 
       const char ref_type = 7; // iso
       Array<Refinement> refinements;
       for (int i = 0; i < leaf_elements.Size(); i++)
       {
-         const Element el = elements[leaf_elements[i]];
+         //const Element el = elements[leaf_elements[i]];
          const int depth = GetElementDepth(i);
-         dbg("i:%d index:%d depth:%d parent:%d", i, el.index, depth, el.parent);
-         if (el.parent > 0 ) { continue; }
-         refinements.Append(Refinement(i, ref_type));
+         if (depth < max_depth)
+         {
+            //dbg("Refine i:%d index:%d depth:%d parent:%d", i, el.index, depth, el.parent);
+            refinements.Append(Refinement(i, ref_type));
+         }
+         else
+         {
+            //dbg("Skip i:%d index:%d depth:%d parent:%d", i, el.index, depth, el.parent);
+         }
       }
-      image->GeneralRefinement(refinements, 1, 1);
+      image->GeneralRefinement(refinements, 1, 0);
    }
 };
 
@@ -208,43 +248,31 @@ public:
 void Drl4Amr::GetImage()
 {
    dbg("Drl4Amr GetImage");
-   /*
-   if (visualization && vis[0].good())
+   //mesh.ncmesh->PrintStats();
+   int i;
+   bool done = false;
+   Mesh *img[2] = {NULL, &mesh};
+   for (i = 0; !done; i++)
    {
-      vis[0].precision(8);
-      x = 0.0;
-      vis[0] << "solution" << endl << mesh << x << flush;
-      vis[0] << "window_title '" << "Mesh" << "'" << endl
-             << "window_geometry " << 0 << " " << 0 << " " << 640 << " " << 480 << endl
-             << "keys Rjg" << endl;
-   }*/
-
-   mesh.ncmesh->PrintStats();
-
-   Mesh *image = new Mesh(mesh, true);
-   image->SetCurvature(order, false, sdim, Ordering::byNODES);
-
-   NCM nc(image->ncmesh);
-   nc.Refinements(image);
-
-   if (visualization && vis[1].good())
-   {
-      static bool inited = false;
-      if (!inited) { vis[1].precision(8); }
-      vis[1] << "mesh\n" << *image << flush;
-      fflush(0);
-      if (!inited)
-      {
-         vis[1] << "window_title '" << "Image" << "'" << endl
-                << "window_geometry " << 0 << " " << 600 << " " << 640 << " " << 480 << endl
-                << "keys mngA" << endl;
-         inited = true;
-      }
+      const int k = i%2;
+      const int p = (i+1)%2;
+      dbg("%d %d", k, p);
+      img[k] = new Mesh(*img[p], true);
+      img[k]->SetCurvature(order, false, sdim, Ordering::byNODES);
+      NCM nc1(img[k]->ncmesh);
+      nc1.FullRefine(img[k]);
+      done = nc1.IsAllMaxDepth();
    }
-   delete image;
-   static int nexit = 0;
-   nexit++;
-   if (nexit == 3) { exit(0); }
+
+   if (visualization && vis[2].good())
+   {
+      vis[2] << "mesh\n" << *img[i%2] << flush;
+      fflush(0);
+   }
+   delete img[0];
+   delete img[1];
+   //static int nexit = 0;
+   //if (nexit++ == 8) { exit(0); }
 }
 
 

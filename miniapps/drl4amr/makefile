@@ -21,6 +21,14 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+# Some choices below are based on the OS type:
+NOTMAC := $(subst Darwin,,$(shell uname -s))
+ifneq ($(NOTMAC),)
+   SOPREFIX = so
+else
+   SOPREFIX = install_
+endif
+
 SEQ_MINIOBJS = drl4amr.o
 PAR_MINIOBJS =
 ifeq ($(MFEM_USE_MPI),NO)
@@ -50,7 +58,7 @@ drl4amr: main.cpp libdrl4amr.so
 	$(MFEM_CXX) $(MFEM_FLAGS) main.cpp -o drl4amr $(MFEM_LIBS) -L. -Wl,-rpath,. -ldrl4amr
 
 libdrl4amr.so: $(MINIOBJS)
-	$(MFEM_CXX) -shared -Wl,-soname,libdrl4amr.so -o libdrl4amr.so $(MINIOBJS) $(MFEM_LIBS)
+	$(MFEM_CXX) -shared -Wl,-$(SOPREFIX)name,libdrl4amr.so -o libdrl4amr.so $(MINIOBJS) $(MFEM_LIBS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

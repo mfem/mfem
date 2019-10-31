@@ -23,7 +23,7 @@ private:
    const bool visualization = true;
    const char *vishost = "localhost";
    const int visport = 19916;
-   socketstream vis[2];
+   socketstream vis[3];
 
    Device device;
    Mesh mesh;
