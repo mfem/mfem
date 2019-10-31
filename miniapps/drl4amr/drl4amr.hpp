@@ -9,7 +9,7 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int max_dofs = 5000;
+   const int max_dofs = 50000;
    const int max_amr_depth = 4;
    const int nx = 4;
    const int ny = 4;
