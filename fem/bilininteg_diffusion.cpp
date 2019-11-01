@@ -424,8 +424,6 @@ static void PADiffusionDiagonal3D(const int NE,
       // five  Bx Gy Bz O22 Bx Gy Bz;
       // six   Bx Gy Bz O23 Bx By Gz;
       // seven Bx By Gz O31 Gx By Bz;
-      // eight Bx By Gz O32 Bx Gy Bz;
-      // nine  Bx By Gz O33 Bx By Gz;
 
       double ztemp01[max_Q1D][max_Q1D][max_D1D];
       double ztemp02[max_Q1D][max_Q1D][max_D1D];
