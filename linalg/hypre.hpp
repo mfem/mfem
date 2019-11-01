@@ -792,6 +792,9 @@ private:
 
    HypreSolver * precond;
 
+   /// Default, generally robust, GMRES options
+   void SetDefaultOptions();
+
 public:
    HypreGMRES(MPI_Comm comm);
 
