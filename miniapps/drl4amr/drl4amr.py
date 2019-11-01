@@ -1,10 +1,10 @@
 import numpy as np
 from ctypes import *
 from random import *
-from PIL import Image
-import numpy.ctypeslib as ctl
+#from PIL import Image
+#import numpy.ctypeslib as ctl
 
-c_double_p = POINTER(c_double)
+#c_double_p = POINTER(c_double)
 #c_vector_d = ctl.ndpointer(c_double, flags="C_CONTIGUOUS")
 
 MFEM = cdll.LoadLibrary('./libdrl4amr.so')
@@ -15,7 +15,7 @@ def sign(f, args_t, res_t):
 
 class Ctrl(object):
     def __init__(self, order): self.obj = MFEM.Ctrl(order)
-    sign(MFEM.Ctrl, [c_void_p], c_int)
+    sign(MFEM.Ctrl, [c_int], c_void_p)
 
     def Compute(self): return MFEM.Compute(self.obj)
     sign(MFEM.Compute, [c_void_p], c_int)
@@ -33,7 +33,7 @@ class Ctrl(object):
     sign(MFEM.GetNDofs, [c_void_p], c_int)
 
     def GetImage(self): return MFEM.GetImage(self.obj)
-    sign(MFEM.GetImage, [c_void_p], c_double_p)
+    sign(MFEM.GetImage, [c_void_p], POINTER(c_double))
 
     def GetImageSize(self): return MFEM.GetImageSize(self.obj)
     sign(MFEM.GetImageSize, [c_void_p], c_int)
@@ -47,6 +47,7 @@ class Ctrl(object):
 
 order = 2
 sim = Ctrl(order)
+NE = sim.GetNE()
 NX = sim.GetImageX()
 NY = sim.GetImageY()
 print(NX,NY)
@@ -54,8 +55,6 @@ print(NX,NY)
 c_image = c_double * NX * NY
 
 while sim.GetNorm() > 0.01:
-    NE = sim.GetNE()
-
     sim.Compute()
 
     #sim.Refine(-1); # Will refine using the internal refiner
@@ -66,16 +65,16 @@ while sim.GetNorm() > 0.01:
     #print("image_s: " + str(image_s))
 
     # Get the data back, two ways:
-    # data = np.fromiter(image_d, dtype=np.double, count=NX*NY) # copy
+    data = np.fromiter(image_d, dtype=np.double, count=NX*NY) # copy
     # or:
-    addr = addressof(image_d.contents)
-    data = np.frombuffer(c_image.from_address(addr))
+    #addr = addressof(image_d.contents)
+    #data = np.frombuffer(c_image.from_address(addr))
 
     # Scale and convert the image
-    image_f = (data * 255 / np.max(data)).astype('uint8')
-    image = Image.fromarray(image_f.reshape(NX,NY),'L')
+    #image_f = (data * 255 / np.max(data)).astype('uint8')
+    #image = Image.fromarray(image_f.reshape(NX,NY),'L')
     #image.show()
-    image.save('image.jpg')
+    #image.save('image.jpg')
     print("Norm: "+str(sim.GetNorm()))
 
 print("Done, final norm: "+str(sim.GetNorm()))
