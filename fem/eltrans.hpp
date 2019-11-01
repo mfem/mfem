@@ -102,6 +102,8 @@ public:
    virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) = 0;
 
    virtual ~ElementTransformation() { }
+
+   virtual void Print(std::ostream &out = mfem::out) const {}
 };
 
 
@@ -331,6 +333,9 @@ public:
    }
 
    virtual ~IsoparametricTransformation() { }
+
+   virtual void Print(std::ostream &out = mfem::out) const
+   { PointMat.PrintMatlab(out); }
 };
 
 class IntegrationPointTransformation

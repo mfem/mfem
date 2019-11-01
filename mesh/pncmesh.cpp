@@ -1205,7 +1205,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                   pm = pm2;
                }
 
-               fi.Elem2Inf ^= 1;
+               //fi.Elem2Inf ^= 1;
 
                // The problem is that sf.point_matrix is designed for P matrix
                // construction and always has orientation relative to the slave

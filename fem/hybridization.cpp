@@ -112,6 +112,14 @@ void Hybridization::ConstructC()
          FTr = mesh->GetInteriorFaceTransformations(i);
          if (!FTr) { continue; }
 
+         dbg << "Face:\n";
+         FTr->Face->Print(dbg);
+         dbg << "Loc1:\n";
+         FTr->Loc1.Transf.Print(dbg);
+         dbg << "Loc2:\n";
+         FTr->Loc2.Transf.Print(dbg);
+         dbg << "\n";
+
          int o1 = hat_offsets[FTr->Elem1No];
          int s1 = hat_offsets[FTr->Elem1No+1] - o1;
          int o2 = hat_offsets[FTr->Elem2No];
@@ -168,6 +176,13 @@ void Hybridization::ConstructC()
                   c_vdofs[j] += c_vsize;
                }
             }
+
+            dbg << "Face:\n";
+            FTr->Face->Print(dbg);
+            dbg << "Loc1:\n";
+            FTr->Loc1.Transf.Print(dbg);
+            dbg << "\n";
+
             int o1 = hat_offsets[FTr->Elem1No];
             int s1 = hat_offsets[FTr->Elem1No+1] - o1;
             vdofs.SetSize(s1);
