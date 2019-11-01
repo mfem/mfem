@@ -2367,31 +2367,30 @@ HyprePCG::~HyprePCG()
 
 HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
 {
-   int k_dim    = 50;
-   int max_iter = 100;
-   double tol   = 1e-6;
-
    iterative_mode = true;
 
    HYPRE_ParCSRGMRESCreate(comm, &gmres_solver);
-   HYPRE_ParCSRGMRESSetKDim(gmres_solver, k_dim);
-   HYPRE_ParCSRGMRESSetMaxIter(gmres_solver, max_iter);
-   HYPRE_ParCSRGMRESSetTol(gmres_solver, tol);
+   SetDefaultOptions();
 }
 
 HypreGMRES::HypreGMRES(HypreParMatrix &_A) : HypreSolver(&_A)
 {
    MPI_Comm comm;
 
-   int k_dim    = 50;
-   int max_iter = 100;
-   double tol   = 1e-6;
-
    iterative_mode = true;
 
    HYPRE_ParCSRMatrixGetComm(*A, &comm);
 
    HYPRE_ParCSRGMRESCreate(comm, &gmres_solver);
+   SetDefaultOptions();
+}
+
+void HypreGMRES::SetDefaultOptions()
+{
+   int k_dim    = 50;
+   int max_iter = 100;
+   double tol   = 1e-6;
+
    HYPRE_ParCSRGMRESSetKDim(gmres_solver, k_dim);
    HYPRE_ParCSRGMRESSetMaxIter(gmres_solver, max_iter);
    HYPRE_ParCSRGMRESSetTol(gmres_solver, tol);
