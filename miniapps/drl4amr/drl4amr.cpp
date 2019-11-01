@@ -215,210 +215,10 @@ double Drl4Amr::GetNorm()
    return err_x / norm_x;
 }
 
-#if 0
-// *****************************************************************************
-class NCM: public NCMesh
-{
-public:
-   NCM(NCMesh *n): NCMesh(*n) {}
-
-   int GetMaxDepth()
-   {
-      int max_depth = -1;
-      for (int i = 0; i < leaf_elements.Size(); i++)
-      {
-         const int depth = GetElementDepth(i);
-         max_depth = std::max(depth, max_depth);
-      }
-      return max_depth;
-   }
-
-   bool IsAllMaxDepth()
-   {
-      const int max_depth = GetMaxDepth();
-      for (int i = 0; i < leaf_elements.Size(); i++)
-      {
-         const int depth = GetElementDepth(i);
-         if (depth < max_depth)
-         {
-            return false;
-         }
-      }
-      return true;
-   }
-
-   // If max_amr_depth =-1, use runtime GetMaxDepth as target depth
-   void FullRefine(Mesh *image, const int max_amr_depth =-1)
-   {
-      const int max_depth = (max_amr_depth > 0) ? max_amr_depth : GetMaxDepth();
-      const char ref_type = 7; // iso
-      Array<Refinement> refinements;
-      for (int i = 0; i < leaf_elements.Size(); i++)
-      {
-         if (GetElementDepth(i) < max_depth)
-         {
-            refinements.Append(Refinement(i, ref_type));
-         }
-      }
-      image->GeneralRefinement(refinements, 1, 0);
-   }
-};
-#endif
 
 // *****************************************************************************
 double *Drl4Amr::GetImage()
 {
-#if 0
-   //dbg("GetImage");
-   //mesh.ncmesh->PrintStats();
-   bool done = false;
-   Mesh msh(mesh, true);
-
-   FiniteElementSpace fes(&msh, &fec);
-   GridFunction X(&fes);
-
-   X.ProjectCoefficient(xcoeff);
-
-   while (!done)
-   {
-      NCM nc(msh.ncmesh);
-      nc.FullRefine(&msh, max_depth);
-      done = nc.IsAllMaxDepth();
-      fes.Update();
-      X.Update();
-   }
-
-   if (visualization && vis[2].good())
-   {
-      vis[2] << "solution" << endl << msh << X << flush;
-      fflush(0);
-   }
-
-   image.SetSize(X.Size());
-   image = X;
-   Vector R(X.Size());
-
-   //dbg("GetImageSize: %d", image.Size());
-   //for (int i=0; i< image.Size(); i++) { dbg("%f", image[i]); }
-   //dbg("GetImageSize: %dx%d = %d", GetImageX(), GetImageY(), GetImageSize());
-
-   IntegrationRules irs(0, Quadrature1D::ClosedUniform);
-   constexpr int ir_order = 5;
-   const IntegrationRule &ir = irs.Get(Geometry::SQUARE, ir_order);
-   MFEM_VERIFY(order <= ir_order, "");
-   // number of the points in the integration rule
-   const int nip = ir.GetNPoints();
-   MFEM_VERIFY(nip == 25,"");
-   //dbg("IntegrationPoints (%d):", nip);
-   /*for (int k = 0; k < nip; k++)
-   {
-      const IntegrationPoint &ip = ir.IntPoint(k);
-      dbg("x:%f y:%f", ip.x, ip.y);
-   }*/
-   const int NX = GetImageX();
-   const int NY = GetImageY();
-   //dbg("\033[37morder=%d NX=%d, NY=%d", order, NX, NY);
-
-   for (int e=0; e < msh.GetNE(); ++e)
-   {
-      //dbg("\033[31mel#%d", e);
-      Array<int> v;
-      msh.GetElementVertices(e,v);
-      MFEM_VERIFY(v.Size() == 4,"");
-      const double *A = msh.GetVertex(v[0]);
-      const double *B = msh.GetVertex(v[1]);
-      const double *C = msh.GetVertex(v[2]);
-      const double *D = msh.GetVertex(v[3]);
-      Vector V;
-      X.GetValues(e, ir, V);
-      //dbg("V (%d):\n", V.Size()); V.Print();
-      MFEM_VERIFY(order ==1 || order ==2, "");
-      if (order == 1)
-      {
-         const int xa = static_cast<int>((A[0] / sx) * (NX-1));
-         const int ya = static_cast<int>((A[1] / sy) * (NY-1));
-         const int idA = xa*NY + ya;
-         R[idA] = fabs(V[0]);
-         //dbg("A(%d, %d)[%d] = %f", xa, ya, idA, R[idA]);
-
-         const int xb = static_cast<int>((B[0] / sx) * (NX-1));
-         const int yb = static_cast<int>((B[1] / sy) * (NY-1));
-         const int idB = xb*NY + yb;
-         R[idB] = fabs(V[4]);
-         //dbg("B(%d, %d)[%d] = %f", xb, yb, idB, R[idB]);
-
-         const int xc = static_cast<int>((C[0] / sx) * (NX-1));
-         const int yc = static_cast<int>((C[1] / sy) * (NY-1));
-         const int idC = xc*NY + yc;
-         R[idC] = fabs(V[24]);
-         //dbg("C(%d, %d)[%d] = %f", xc, yc, idC, R[idC]);
-
-         const int xd = static_cast<int>((D[0] / sx) * (NX-1));
-         const int yd = static_cast<int>((D[1] / sy) * (NY-1));
-         const int idD = xd*NY + yd;
-         R[idD] = fabs(V[20]);
-         //dbg("D(%d, %d)[%d] = %f", xd, yd, idD, R[idD]);
-      }
-      if (order == 2)
-      {
-         const int xa = static_cast<int>((A[0] / sx) * (NX-1));
-         const int ya = static_cast<int>((A[1] / sy) * (NY-1));
-         const int idA = xa*NY + ya;
-         R[idA] = fabs(V[0]);
-         //dbg("A(%d, %d)[%d] = %f", xa, ya, idA, R[idA]);
-
-         const int xe = static_cast<int>((((A[0]+B[0])/2.0)/sx) * (NX-1));
-         const int ye = static_cast<int>(((A[1]+0.0) / sy) * (NY-1));
-         const int idE = xe*NY + ye;
-         R[idE] = fabs(V[2]);
-         //dbg("E(%d, %d)[%d] = %f", xe, ye, idE, R[idE]);
-
-         const int xb = static_cast<int>((B[0] / sx) * (NX-1));
-         const int yb = static_cast<int>((B[1] / sy) * (NY-1));
-         const int idB = xb*NY + yb;
-         R[idB] = fabs(V[4]);
-         //dbg("B(%d, %d)[%d] = %f", xb, yb, idB, R[idB]);
-
-         const int xf = static_cast<int>((B[0] / sx) * (NX-1));
-         const int yf = static_cast<int>((((B[1]+C[1])/2.0)/sy) * (NY-1));
-         const int idF = xf*NY + yf;
-         R[idF] = fabs(V[14]);
-         //dbg("F(%d, %d)[%d] = %f", xf, yf, idF, R[idF]);
-
-         const int xc = static_cast<int>((C[0] / sx) * (NX-1));
-         const int yc = static_cast<int>((C[1] / sy) * (NY-1));
-         const int idC = xc*NY + yc;
-         R[idC] = fabs(V[24]);
-         //dbg("C(%d, %d)[%d] = %f", xc, yc, idC, R[idC]);
-
-         const int xg = static_cast<int>((((C[0]+D[0])/2.0)/sx) * (NX-1));
-         const int yg = static_cast<int>((C[1] / sy) * (NY-1));
-         const int idG = xg*NY + yg;
-         R[idG] = fabs(V[22]);
-         //dbg("G(%d, %d)[%d] = %f", xg, yg, idG, R[idG]);
-
-         const int xd = static_cast<int>((D[0] / sx) * (NX-1));
-         const int yd = static_cast<int>((D[1] / sy) * (NY-1));
-         const int idD = xd*NY + yd;
-         R[idD] = fabs(V[20]);
-         //dbg("D(%d, %d)[%d] = %f", xd, yd, idD, R[idD]);
-
-         const int xh = static_cast<int>((D[0] / sx) * (NX-1));
-         const int yh = static_cast<int>((((D[1]+A[1])/2.0)/sy) * (NY-1));
-         const int idH = xh*NY + yh;
-         R[idH] = fabs(V[10]);
-         //dbg("H(%d, %d)[%d] = %f", xh, yh, idH, R[idH]);
-
-         const int xi = static_cast<int>((((A[0]+B[0])/2.0)/sx) * (NX-1));
-         const int yi = static_cast<int>((((D[1]+A[1])/2.0)/sy) * (NY-1));
-         const int idI = xi*NY + yi;
-         R[idI] = fabs(V[12]);
-         //dbg("I(%d, %d)[%d] = %f", xi, yi, idI, R[idI]);
-      }
-   }
-   image = R;
-#else
-
    Array<int> vert;
    Vector sln;
 
@@ -442,24 +242,22 @@ double *Drl4Amr::GetImage()
       int oy = int(v[1] * ny*(1 << max_depth) * order);
 
       for (int i = 0; i <= subdiv; i++)
-      for (int j = 0; j <= subdiv; j++)
-      {
-         int n = i*(subdiv+1) + j;
-         int m = (oy + i)*imwidth + (ox + j);
+         for (int j = 0; j <= subdiv; j++)
+         {
+            int n = i*(subdiv+1) + j;
+            int m = (oy + i)*imwidth + (ox + j);
 
-         image(m) = sln(n);
-      }
+            image(m) = sln(n);
+         }
    }
 
    if (visualization) { ShowImage(); }
 
-#endif
-   //static int nexit = 0;
-   //if (nexit++ == 1) { exit(0); }
    return image.GetData();
 }
 
 
+// *****************************************************************************
 void Drl4Amr::ShowImage()
 {
    if (!vis[2].good()) { return; }
@@ -471,13 +269,6 @@ void Drl4Amr::ShowImage()
    GridFunction gridfn(&fes, image.GetData());
 
    vis[2] << "solution" << endl << imesh << gridfn << flush;
-}
-
-
-// *****************************************************************************
-int Drl4Amr::GetImageSize() const
-{
-   return GetImageX() * GetImageY();
 }
 
 

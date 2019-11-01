@@ -53,9 +53,9 @@ public:
    double GetNorm();
    double *GetImage();
    void ShowImage();
-   int GetImageSize() const;
    int GetImageX() const { return 1 + order * (nx << max_depth); }
    int GetImageY() const { return 1 + order * (ny << max_depth); }
+   int GetImageSize() const { return GetImageX() * GetImageY(); }
 };
 
 #endif // DRL4AMR_HPP
