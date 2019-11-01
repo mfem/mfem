@@ -131,6 +131,7 @@ class AdditiveSchwarzApproxLORSmoother : public Solver
    mfem::Vector diag_;
    mfem::Vector LORdiag_;
    mfem::SparseMatrix* LORmat_;
+public:   
    double scale_;
    mfem::Table el_to_el_;
    Vector countingVector;

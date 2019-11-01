@@ -289,8 +289,8 @@ AdditiveSchwarzApproxLORSmoother::AdditiveSchwarzApproxLORSmoother(const mfem::F
 
       // tic_toc.Clear();
       // tic_toc.Start();
-      // TensorProductMult2D(A1, B1, xTest, yTest2);
-      // TensorProductMult2D(A2, B2, xTest, yTest3);
+      // TensorProductMult2D(A1[e], B1[e], xTest, yTest2);
+      // TensorProductMult2D(A2[e], B2[e], xTest, yTest3);
       // yTest2 += yTest3;
       // tic_toc.Stop();
       // std::cout << "tp mult:    " << tic_toc.RealTime() << std::endl;
@@ -350,7 +350,7 @@ void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
 
       for (int i = 0; i < local_dofs.Size(); ++i)
       {
-         // b_local[i] *= countingVector[local_dofs[i]];
+         b_local[i] *= countingVector[local_dofs[i]];
          // b_local[i] *= diag_[local_dofs[i]];
          // b_local[i] *= minval;
          // b_local[i] *= sqrt(elmat(i,i) / LORdiag_[local_dofs[i]]);
@@ -373,7 +373,7 @@ void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
          // x_local[i] *= sqrt(elmat(i,i) / LORdiag_[local_dofs[i]]);
          // x_local[i] *= minval;
          // x_local[i] *= diag_[local_dofs[i]];
-         // x_local[i] *= countingVector[local_dofs[i]];
+         x_local[i] *= countingVector[local_dofs[i]];
       }
 
       x.AddElementVector(local_dofs, x_local);
@@ -389,12 +389,12 @@ void AdditiveSchwarzApproxLORSmoother::Mult(const Vector& b, Vector& x) const
 
 void AdditiveSchwarzApproxLORSmoother::LocalSmoother(int e, const Vector& in, Vector& out) const
 {
-   TensorProductMult2D(invA2[e], invB1[e], in, out);
-   TensorProductMult2D(schurA1[e]->GetQ_T(), schurB2[e]->GetQ_T(), out, out);
-   syl[e]->Mult(out, out);
-   TensorProductMult2D(schurA1[e]->GetQ(), schurB2[e]->GetQ(), out, out);
+   // TensorProductMult2D(invA2[e], invB1[e], in, out);
+   // TensorProductMult2D(schurA1[e]->GetQ_T(), schurB2[e]->GetQ_T(), out, out);
+   // syl[e]->Mult(out, out);
+   // TensorProductMult2D(schurA1[e]->GetQ(), schurB2[e]->GetQ(), out, out);
    
-   // inv[e].Mult(in, out);
+   inv[e].Mult(in, out);
 }
 
 void AdditiveSchwarzApproxLORSmoother::TensorProductMult2D(const DenseMatrix& A, const DenseMatrix& B, const Vector& in, Vector& out) const

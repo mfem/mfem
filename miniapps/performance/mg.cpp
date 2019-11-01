@@ -6,7 +6,7 @@
 using namespace std;
 using namespace mfem;
 
-static const double omega = 2.0 * M_PI * 5.3;
+static const double omega = 8.0 * M_PI;
 
 double exactFun(Vector& x)
 {
@@ -115,8 +115,8 @@ class PoissonMultigridOperator : public TimedMultigridOperator
          amg->SetMaxIter(1);
          coarsePCGSolver = new GMRESSolver(MPI_COMM_WORLD);
          coarsePCGSolver->SetPrintLevel(0);
-         coarsePCGSolver->SetMaxIter(2000);
-         coarsePCGSolver->SetRelTol(1e-4);
+         coarsePCGSolver->SetMaxIter(5000);
+         coarsePCGSolver->SetRelTol(1e-12);
          coarsePCGSolver->SetAbsTol(0.0);
          coarsePCGSolver->SetOperator(*opr);
          // coarsePCGSolver->SetPreconditioner(*amg);
@@ -235,7 +235,7 @@ class PoissonMultigridOperator : public TimedMultigridOperator
          PowerMethod powerMethod(MPI_COMM_WORLD);
 
          // AdditiveSchwarzApproxLORSmoother test(*fespace, essentialDofs, *forms.Last(), *coeffDiag, LORmat, 1.0);
-         AdditiveSchwarzApproxLORSmoother test(*fespace, essentialDofs, *forms.Last(), *coeffDiag, *LORdiag, LORmat, 1.0);
+         AdditiveSchwarzApproxLORSmoother& test = *new AdditiveSchwarzApproxLORSmoother(*fespace, essentialDofs, *forms.Last(), *coeffDiag, *LORdiag, LORmat, 1.0);
          // OperatorJacobiSmoother test(*diag, essentialDofs, 1.0);
 
 
@@ -261,7 +261,8 @@ class PoissonMultigridOperator : public TimedMultigridOperator
          std::cout << "truevsize = " << fespace->GetTrueVSize() << std::endl;
          std::cout << "Width = " << LORmat->Width() << std::endl;
 
-         smoother = new AdditiveSchwarzApproxLORSmoother(*fespace, essentialDofs, *forms.Last(), *coeffDiag, *LORdiag, LORmat, weight);
+         smoother = &test; test.scale_ = weight;
+         // smoother = new AdditiveSchwarzApproxLORSmoother(*fespace, essentialDofs, *forms.Last(), *coeffDiag, *LORdiag, LORmat, weight);
          // smoother = new ElementWiseJacobi(*fespace, *forms.Last(), *diag, essentialDofs, 2.0/3.0);
          // smoother = new OperatorJacobiSmoother(*diag, essentialDofs, weight);
          // smoother = new OperatorChebyshevSmoother(solveOperator, *diag, essentialDofs, chebyshevOrder, estLargestEigenvalue);
@@ -448,6 +449,8 @@ int main(int argc, char* argv[])
       pmesh->UniformRefinement();
    }
 
+   std::cout << "Number of elements: " << pmesh->GetNE() << std::endl;
+
    Array<int> orders;
    Array<FiniteElementCollection*> feCollectons;
    orders.Append(order);
@@ -608,10 +611,11 @@ int main(int argc, char* argv[])
    tic_toc.Start();
 
    GMRESSolver pcg(MPI_COMM_WORLD);
+   pcg.SetKDim(100);
    pcg.SetPrintLevel(1);
    pcg.SetMaxIter(1000);
-   pcg.SetRelTol(0.0);
-   pcg.SetAbsTol(1e-8);
+   pcg.SetRelTol(1e-10);
+   pcg.SetAbsTol(0.0);
    pcg.SetOperator(*solveOperator);
    pcg.SetPreconditioner(*preconditioner);
    // pcg.SetPreconditioner(*solveOperator->GetSmootherAtLevel(spaceHierarchy->GetFinestLevelIndex()));
