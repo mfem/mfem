@@ -1,11 +1,9 @@
 import numpy as np
 from ctypes import *
 from random import *
-#from PIL import Image
-#import numpy.ctypeslib as ctl
+from PIL import Image
 
-#c_double_p = POINTER(c_double)
-#c_vector_d = ctl.ndpointer(c_double, flags="C_CONTIGUOUS")
+c_double_p = POINTER(c_double)
 
 MFEM = cdll.LoadLibrary('./libdrl4amr.so')
 
@@ -33,7 +31,7 @@ class Ctrl(object):
     sign(MFEM.GetNDofs, [c_void_p], c_int)
 
     def GetImage(self): return MFEM.GetImage(self.obj)
-    sign(MFEM.GetImage, [c_void_p], POINTER(c_double))
+    sign(MFEM.GetImage, [c_void_p], c_double_p)
 
     def GetImageSize(self): return MFEM.GetImageSize(self.obj)
     sign(MFEM.GetImageSize, [c_void_p], c_int)
@@ -45,14 +43,15 @@ class Ctrl(object):
     sign(MFEM.GetImageY, [c_void_p], c_int)
 
 
+# Orders 1 and 2 are supported with the current GetImage
 order = 2
+
 sim = Ctrl(order)
+
 NE = sim.GetNE()
 NX = sim.GetImageX()
 NY = sim.GetImageY()
-print(NX,NY)
-
-c_image = c_double * NX * NY
+#print(NX,NY)
 
 while sim.GetNorm() > 0.01:
     sim.Compute()
@@ -65,16 +64,14 @@ while sim.GetNorm() > 0.01:
     #print("image_s: " + str(image_s))
 
     # Get the data back, two ways:
-    data = np.fromiter(image_d, dtype=np.double, count=NX*NY) # copy
+    #data = np.fromiter(image_d, dtype=np.double, count=NX*NY) # copy
     # or:
-    #addr = addressof(image_d.contents)
-    #data = np.frombuffer(c_image.from_address(addr))
+    data = np.frombuffer((c_double*NX*NY).from_address(addressof(image_d.contents))) # address
 
     # Scale and convert the image
-    #image_f = (data * 255 / np.max(data)).astype('uint8')
-    #image = Image.fromarray(image_f.reshape(NX,NY),'L')
-    #image.show()
-    #image.save('image.jpg')
+    image_f = (data * 255 / np.max(data)).astype('uint8')
+    image = Image.fromarray(image_f.reshape(NX,NY),'L')
+    image.save('image.jpg')
     print("Norm: "+str(sim.GetNorm()))
 
 print("Done, final norm: "+str(sim.GetNorm()))
