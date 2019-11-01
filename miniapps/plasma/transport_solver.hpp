@@ -1321,6 +1321,12 @@ private:
    GMRESSolver  newton_op_solver_;
    NewtonSolver  newton_solver_;
 
+   // Data collection used to write data files
+   DataCollection * dc_;
+
+   // Sockets used to communicate with GLVis
+   std::map<std::string, socketstream*> socks_;
+
    class NLOperator : public Operator
    {
    protected:
@@ -1331,6 +1337,7 @@ private:
       std::string log_prefix_;
 
       int index_;
+      std::string field_name_;
       double dt_;
       ParFiniteElementSpace *fes_;
       ParMesh               *pmesh_;
@@ -1365,7 +1372,14 @@ private:
 
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
 
+      // Data collection used to write data files
+      DataCollection * dc_;
+
+      // Sockets used to communicate with GLVis
+      std::map<std::string, socketstream*> socks_;
+
       NLOperator(const MPI_Session & mpi, const DGParams & dg, int index,
+                 const std::string &field_name,
                  ParGridFunctionArray & pgf,
                  ParGridFunctionArray & dpgf);
 
@@ -1381,6 +1395,14 @@ private:
 
       virtual void Update();
       virtual Operator *GetGradientBlock(int i);
+
+      virtual void RegisterDataFields(DataCollection & dc);
+
+      virtual void PrepareDataFields();
+
+      virtual void InitializeGLVis();
+
+      virtual void DisplayToGLVis();
    };
 
    /** The NeutralDensityOp is an mfem::Operator designed to work with
@@ -1706,6 +1728,9 @@ private:
 
       const Array<CoefficientByAttr> & dbc_;
 
+      ParGridFunction * ChiParaGF_;
+      ParGridFunction * ChiPerpGF_;
+
    public:
       ElectronStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
                                ParGridFunctionArray & pgf,
@@ -1714,7 +1739,13 @@ private:
                                VectorCoefficient & B3Coef,
                                Array<CoefficientByAttr> & dbc);
 
+      ~ElectronStaticPressureOp();
+
       virtual void SetTimeStep(double dt);
+
+      void RegisterDataFields(DataCollection & dc);
+
+      void PrepareDataFields();
 
       void Update();
    };
@@ -1724,7 +1755,8 @@ private:
    public:
       DummyOp(const MPI_Session & mpi, const DGParams & dg,
               ParGridFunctionArray & pgf,
-              ParGridFunctionArray & dpgf, int index);
+              ParGridFunctionArray & dpgf,
+              int index, const std::string &field_name);
 
       virtual void SetTimeStep(double dt)
       {
@@ -1789,6 +1821,14 @@ private:
 
       Operator &GetGradient(const Vector &x) const
       { UpdateGradient(x); return *grad_; }
+
+      void RegisterDataFields(DataCollection & dc);
+
+      void PrepareDataFields();
+
+      void InitializeGLVis();
+
+      void DisplayToGLVis();
    };
 
    CombinedOp op_;
@@ -1829,6 +1869,15 @@ public:
 
    void SetTime(const double _t);
    void SetLogging(int logging);
+
+   void RegisterDataFields(DataCollection & dc);
+
+   void PrepareDataFields();
+
+   void InitializeGLVis();
+
+   void DisplayToGLVis();
+
    /*
     void SetNnDiffusionCoefficient(Coefficient &dCoef);
     void SetNnDiffusionCoefficient(MatrixCoefficient &DCoef);
