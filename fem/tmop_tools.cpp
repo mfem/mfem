@@ -270,7 +270,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 #endif
 
-      if (energy_out > 1.2*energy_in || isnan(energy_out) != 0)
+      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
       {
          if (print_level >= 0)
          { mfem::out << "Scale = " << scale << " Increasing energy.\n"; }
@@ -431,7 +431,7 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 #endif
 
-      if (energy_out > energy_in || isnan(energy_out) != 0)
+      if (energy_out > energy_in || std::isnan(energy_out) != 0)
       {
          scale *= 0.5;
       }
