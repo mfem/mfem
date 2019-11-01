@@ -28,8 +28,8 @@ double x0(const Vector &x)
 }
 
 // *****************************************************************************
-Drl4Amr::Drl4Amr(int o):
-   order(o),
+Drl4Amr::Drl4Amr(int order):
+   order(order),
    device(device_config),
    mesh(nx, ny, type, generate_edges, sx, sy, sfc),
    dim(mesh.Dimension()),
@@ -76,7 +76,7 @@ Drl4Amr::Drl4Amr(int o):
    {
       printf("\n%f ", offset);
    }
-   x.ProjectCoefficient(xcoeff);
+   x.ProjectCoefficient(xcoeff); // TODO: call Compute?
 
    if (visualization && vis[0].good())
    {
@@ -183,7 +183,7 @@ int Drl4Amr::Refine(int el_to_refine)
    }
    // Update the space to reflect the new state of the mesh.
    fespace.Update();
-   x.Update();
+   x.Update(); // FIXME: not necessary
    return 0;
 }
 
@@ -257,6 +257,7 @@ public:
 // *****************************************************************************
 double *Drl4Amr::GetImage()
 {
+#if 0
    //dbg("GetImage");
    //mesh.ncmesh->PrintStats();
    bool done = false;
@@ -405,6 +406,41 @@ double *Drl4Amr::GetImage()
       }
    }
    image = R;
+#else
+
+   Array<int> vert;
+   Vector sln;
+
+   image.SetSize(GetImageSize());
+   int imwidth = GetImageX();
+
+   // rasterize each element into the image
+   for (int k = 0; k < mesh.GetNE(); k++)
+   {
+      int subdiv = 1 << (max_depth - mesh.ncmesh->GetElementDepth(k));
+
+      const IntegrationRule &ir =
+         GlobGeometryRefiner.Refine(Geometry::SQUARE, subdiv)->RefPts;
+
+      x.GetValues(k, ir, sln);
+
+      mesh.GetElementVertices(k, vert);
+      const double *v = mesh.GetVertex(vert[0]);
+
+      int ox = int(v[0])*order;
+      int oy = int(v[1])*order;
+
+      for (int i = 0; i <= subdiv*order; i++)
+      for (int j = 0; j <= subdiv*order; j++)
+      {
+         int n = i*(subdiv*order+1) + j;
+         int m = (oy + i)*imwidth + (ox + j);
+
+         image(m) = sln(n);
+      }
+   }
+
+#endif
    //static int nexit = 0;
    //if (nexit++ == 1) { exit(0); }
    return image.GetData();

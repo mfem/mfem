@@ -43,8 +43,9 @@ private:
    FiniteElementSpace flux_fespace;
    ZienkiewiczZhuEstimator estimator;
    ThresholdRefiner refiner;
+
 public:
-   Drl4Amr(int i);
+   Drl4Amr(int order);
    int Compute();
    int Refine(int el =-1);
    int GetNDofs() { return fespace.GetNDofs();}
