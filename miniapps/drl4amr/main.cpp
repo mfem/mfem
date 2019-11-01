@@ -19,6 +19,7 @@ int main(int argc, char *argv[])
       sim.Compute();
       sim.Refine(el);
       sim.GetImage();
+      sim.GetLevelField();
       sim.GetImageSize();
    }
    return 0;

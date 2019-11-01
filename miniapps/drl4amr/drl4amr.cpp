@@ -35,6 +35,7 @@ Drl4Amr::Drl4Amr(int o):
    dim(mesh.Dimension()),
    sdim(mesh.SpaceDimension()),
    fec(order, dim, BasisType::Positive),
+   fec0(0, dim, BasisType::Positive),
    fespace(&mesh, &fec),
    one(1.0),
    zero(0.0),
@@ -59,6 +60,7 @@ Drl4Amr::Drl4Amr(int o):
       vis[0].open(vishost, visport);
       vis[1].open(vishost, visport);
       vis[2].open(vishost, visport);
+      vis[3].open(vishost, visport);
    }
 
    // Initialize theta, offsets and x from x0_coeff
@@ -97,6 +99,14 @@ Drl4Amr::Drl4Amr(int o):
       vis[2].precision(8);
       vis[2] << "solution" << endl << mesh << x << flush;
       vis[2] << "window_title '" << "Image" << "'" << endl
+             << "window_geometry "
+             <<  (2 * vish + 10) << " " << 0
+             << " " << visw << " " << vish << endl
+             << "keys RjgA" << endl; // mn
+
+      vis[3].precision(8);
+      vis[3] << "solution" << endl << mesh << x << flush;
+      vis[3] << "window_title '" << "Level" << "'" << endl
              << "window_geometry "
              <<  (2 * vish + 10) << " " << 0
              << " " << visw << " " << vish << endl
@@ -408,6 +418,46 @@ double *Drl4Amr::GetImage()
    //static int nexit = 0;
    //if (nexit++ == 1) { exit(0); }
    return image.GetData();
+}
+
+// *****************************************************************************
+int *Drl4Amr::GetLevelField()
+{
+   //dbg("GetImage");
+   //mesh.ncmesh->PrintStats();
+   bool done = false;
+   Mesh msh(mesh, true);
+
+   FiniteElementSpace fes0(&msh, &fec0);
+   GridFunction L(&fes0);
+
+   Array<int> dofs;
+   for (int i = 0; i < msh.GetNE(); i++) {
+
+      const int depth = msh.ncmesh->GetElementDepth(i);
+      
+      fes0.GetElementDofs(i, dofs);
+      for (int k = 0; k < dofs.Size(); k++) {
+         L[ dofs[k] ] = depth;
+      }
+   }
+
+   while (!done)
+   {
+      NCM nc(msh.ncmesh);
+      nc.FullRefine(&msh, max_depth);
+      done = nc.IsAllMaxDepth();
+      fes0.Update();
+      L.Update();
+   }
+
+   if (visualization && vis[3].good())
+   {
+      vis[3] << "solution" << endl << msh << L << flush;
+      fflush(0);
+   }
+
+   return (int*) L.GetData();
 }
 
 

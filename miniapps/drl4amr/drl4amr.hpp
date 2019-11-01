@@ -25,7 +25,7 @@ private:
    const int visport = 19916;
    const int visw = 480;
    const int vish = 480;
-   socketstream vis[3];
+   socketstream vis[4];
    Vector image;
 
    Device device;
@@ -33,6 +33,7 @@ private:
    const int dim;
    const int sdim;
    H1_FECollection fec;
+   L2_FECollection fec0;
    FiniteElementSpace fespace;
    ConstantCoefficient one;
    ConstantCoefficient zero;
@@ -54,6 +55,11 @@ public:
    int GetImageSize();
    int GetImageX() { return 1 + order * (nx << max_depth); }
    int GetImageY() { return 1 + order * (ny << max_depth); }
+
+   double *GetDOFField();
+   int *GetLevelField();
+   int *GetIdField();
+   
 };
 
 #endif // DRL4AMR_HPP

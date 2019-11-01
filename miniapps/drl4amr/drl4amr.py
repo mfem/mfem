@@ -60,6 +60,8 @@ while sim.GetNorm() > 0.01:
     sim.Refine(int(NE*random()))
 
     image_d = sim.GetImage()
+    field = sim.GetField()
+    level = sim.GetLevel()
     #image_s = sim.GetImageSize()
     #print("image_s: " + str(image_s))
 
