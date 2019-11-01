@@ -9,8 +9,8 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int nx = 16;
-   const int ny = 16;
+   const int nx = 8;
+   const int ny = 8;
    const int max_dofs = 50000;
    const int max_depth = 2;
    const Element::Type type = Element::QUADRILATERAL;
@@ -18,7 +18,6 @@ private:
    const double sx = 1.0;
    const double sy = 1.0;
    const bool sfc = false; // space-filling curve ordering
-   const int order = 1;
    const char *device_config = "cpu";
    const bool visualization = true;
    const char *vishost = "localhost";
@@ -28,10 +27,11 @@ private:
    socketstream vis[3];
    Vector image;
 
+   int order;
    Device device;
    Mesh mesh;
-   const int dim;
-   const int sdim;
+   int dim;
+   int sdim;
    H1_FECollection fec;
    FiniteElementSpace fespace;
    ConstantCoefficient one;
@@ -52,9 +52,10 @@ public:
    int GetNE() { return fespace.GetNE(); }
    double GetNorm();
    double *GetImage();
-   int GetImageSize();
-   int GetImageX() { return 1 + order * (nx << max_depth); }
-   int GetImageY() { return 1 + order * (ny << max_depth); }
+   void ShowImage();
+   int GetImageSize() const;
+   int GetImageX() const { return 1 + order * (nx << max_depth); }
+   int GetImageY() const { return 1 + order * (ny << max_depth); }
 };
 
 #endif // DRL4AMR_HPP

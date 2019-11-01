@@ -49,9 +49,10 @@ Drl4Amr::Drl4Amr(int order):
    //dbg("Drl4Amr order:%d",o);
    device.Print();
 
-   mesh.EnsureNodes();
+   mesh.EnsureNCMesh();
    mesh.PrintCharacteristics();
-   mesh.SetCurvature(order, false, sdim, Ordering::byNODES);
+
+   fespace.Update();
 
    // Connect to GLVis.
    if (visualization)
@@ -126,7 +127,16 @@ int Drl4Amr::Compute()
    cout << "\nAMR iteration " << iteration << endl;
    cout << "Number of unknowns: " << cdofs << endl;
 
+   // TODO: it would be more proper to actually solve here
    x.ProjectCoefficient(xcoeff);
+
+   // constrain slave nodes
+   if (fespace.GetProlongationMatrix())
+   {
+      Vector y(fespace.GetTrueVSize());
+      fespace.GetRestrictionMatrix()->Mult(x, y);
+      fespace.GetProlongationMatrix()->Mult(y, x);
+   }
 
    // Send solution by socket to the GLVis server.
    if (visualization && vis[0].good())
@@ -181,9 +191,10 @@ int Drl4Amr::Refine(int el_to_refine)
          return 1;
       }
    }
+
    // Update the space to reflect the new state of the mesh.
    fespace.Update();
-   x.Update(); // FIXME: not necessary
+   x.Update();
    return 0;
 }
 
@@ -204,7 +215,7 @@ double Drl4Amr::GetNorm()
    return err_x / norm_x;
 }
 
-
+#if 0
 // *****************************************************************************
 class NCM: public NCMesh
 {
@@ -252,7 +263,7 @@ public:
       image->GeneralRefinement(refinements, 1, 0);
    }
 };
-
+#endif
 
 // *****************************************************************************
 double *Drl4Amr::GetImage()
@@ -417,7 +428,7 @@ double *Drl4Amr::GetImage()
    // rasterize each element into the image
    for (int k = 0; k < mesh.GetNE(); k++)
    {
-      int subdiv = 1 << (max_depth - mesh.ncmesh->GetElementDepth(k));
+      int subdiv = (1 << (max_depth - mesh.ncmesh->GetElementDepth(k))) * order;
 
       const IntegrationRule &ir =
          GlobGeometryRefiner.Refine(Geometry::SQUARE, subdiv)->RefPts;
@@ -427,18 +438,20 @@ double *Drl4Amr::GetImage()
       mesh.GetElementVertices(k, vert);
       const double *v = mesh.GetVertex(vert[0]);
 
-      int ox = int(v[0])*order;
-      int oy = int(v[1])*order;
+      int ox = int(v[0] * nx*(1 << max_depth) * order);
+      int oy = int(v[1] * ny*(1 << max_depth) * order);
 
-      for (int i = 0; i <= subdiv*order; i++)
-      for (int j = 0; j <= subdiv*order; j++)
+      for (int i = 0; i <= subdiv; i++)
+      for (int j = 0; j <= subdiv; j++)
       {
-         int n = i*(subdiv*order+1) + j;
+         int n = i*(subdiv+1) + j;
          int m = (oy + i)*imwidth + (ox + j);
 
          image(m) = sln(n);
       }
    }
+
+   if (visualization) { ShowImage(); }
 
 #endif
    //static int nexit = 0;
@@ -447,10 +460,23 @@ double *Drl4Amr::GetImage()
 }
 
 
-// *****************************************************************************
-int Drl4Amr::GetImageSize()
+void Drl4Amr::ShowImage()
 {
-   MFEM_VERIFY( GetImageX() * GetImageY() == image.Size(), "");
+   if (!vis[2].good()) { return; }
+
+   Mesh imesh(GetImageX(), GetImageY(), type, false, sx, sy, false);
+
+   L2_FECollection fec(0, imesh.Dimension());
+   FiniteElementSpace fes(&imesh, &fec);
+   GridFunction gridfn(&fes, image.GetData());
+
+   vis[2] << "solution" << endl << imesh << gridfn << flush;
+}
+
+
+// *****************************************************************************
+int Drl4Amr::GetImageSize() const
+{
    return GetImageX() * GetImageY();
 }
 
