@@ -9,10 +9,10 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
+   const int nx = 16;
+   const int ny = 16;
    const int max_dofs = 50000;
-   const int max_amr_depth = 4;
-   const int nx = 8;
-   const int ny = 8;
+   const int max_depth = 2;
    const Element::Type type = Element::QUADRILATERAL;
    const bool generate_edges = true;
    const double sx = 1.0;
@@ -26,6 +26,7 @@ private:
    const int visw = 480;
    const int vish = 480;
    socketstream vis[3];
+   Vector image;
 
    Device device;
    Mesh mesh;
@@ -46,16 +47,13 @@ public:
    Drl4Amr(int i);
    int Compute();
    int Refine(int el =-1);
-   int GetTrueVSize()
-   {
-      return fespace.GetTrueVSize();
-   }
-   int GetNE()
-   {
-      return fespace.GetNE();
-   }
+   int GetNDofs() { return fespace.GetNDofs();}
+   int GetNE() { return fespace.GetNE(); }
    double GetNorm();
-   void GetImage();
+   double *GetImage();
+   int GetImageSize();
+   int GetImageX() { return 1 + order * (nx << max_depth); }
+   int GetImageY() { return 1 + order * (ny << max_depth); }
 };
 
 #endif // DRL4AMR_HPP
