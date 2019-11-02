@@ -100,6 +100,17 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       });
    }
+
+   //Perform additional scaling if specified by user
+   if(scale_pa_data)
+   {
+     const int NE = ne;
+     const int NQ = nq;
+     double * d_v       = pa_data.ReadWrite();
+     double * d_scale   = scale_pa_data->ReadWrite();
+     MFEM_FORALL(i, NE*NQ, {d_v[i] *= d_scale[i];});
+   }
+
 }
 
 #ifdef MFEM_USE_OCCA
