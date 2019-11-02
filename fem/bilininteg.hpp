@@ -1735,17 +1735,22 @@ protected:
    Coefficient *Q;
    // PA extension
    Vector pa_data;
+   Vector *scale_pa_data;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir) { Q = NULL; maps = NULL; geom = NULL; }
+     : BilinearFormIntegrator(ir) { Q = NULL; maps = NULL; geom = NULL; scale_pa_data=NULL; }
 
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q) { maps = NULL; geom = NULL; }
+      : BilinearFormIntegrator(ir), Q(&q) { maps = NULL; geom = NULL; scale_pa_data=NULL; }
+
+   /// Construct a mass integrator with coefficient q + scaling of quadrature data
+   MassIntegrator(Coefficient &q, Vector *ext_scale, const IntegrationRule *ir)
+      : BilinearFormIntegrator(ir), Q(&q) { maps = NULL; geom = NULL; scale_pa_data=ext_scale; }
 
    /** Given a particular Finite Element
        computes the element mass matrix elmat. */
