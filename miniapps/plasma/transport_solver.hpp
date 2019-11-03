@@ -780,6 +780,42 @@ public:
    }
 };
 
+class IonMomentumParaDiffusionCoef : public StateVariableCoef
+{
+private:
+   double zi_;
+   double mi_;
+   const double lnLambda_;
+   const double a_;
+
+   Coefficient       * TiCoef_;
+
+public:
+   IonMomentumParaDiffusionCoef(int ion_charge, double ion_mass,
+                                Coefficient &TiCoef)
+      : zi_((double)ion_charge), mi_(ion_mass),
+        lnLambda_(17.0),
+        a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+           sqrt(mi_ * amu_ * pow(eV_, 5) / M_PI) /
+           (lnLambda_ * pow(q_ * zi_, 4))),
+        TiCoef_(&TiCoef)
+   {}
+
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double Ti = TiCoef_->Eval(T, ip);
+      double EtaPara = a_ * sqrt(pow(Ti, 5));
+      return EtaPara;
+   }
+
+};
+/*
 class IonMomentumDiffusionCoef : public StateVariableMatCoef
 {
 private:
@@ -844,7 +880,7 @@ public:
    }
 
 };
-
+*/
 class IonMomentumAdvectionCoef : public StateVariableVecCoef
 {
 private:
@@ -1041,7 +1077,6 @@ public:
       M(1,1) = (B_[1] * B_[1] * para +
                 (B_[0] * B_[0] + B_[2] * B_[2]) * perp ) / Bmag2;
    }
-
 };
 
 class GradPressureCoefficient : public StateVariableCoef
@@ -1481,6 +1516,8 @@ private:
       ProductCoefficient dtdSizdnnCoef_;
       ProductCoefficient dtdSizdniCoef_;
 
+      ParGridFunction * DGF_;
+
       // ProductCoefficient     nnizCoef_; // nn * iz
       // ProductCoefficient     neizCoef_; // ne * iz
       // ProductCoefficient dtdSndnnCoef_; // - dt * dSn/dnn
@@ -1495,9 +1532,15 @@ private:
                        int ion_charge, double neutral_mass,
                        double neutral_temp);
 
+      ~NeutralDensityOp();
+
       virtual void SetTimeStep(double dt);
 
       void Update();
+
+      virtual void RegisterDataFields(DataCollection & dc);
+
+      virtual void PrepareDataFields();
 
       // void Mult(const Vector &k, Vector &y) const;
 
@@ -1558,6 +1601,8 @@ private:
       // ProductCoefficient dtdSndnnCoef_;
       // ProductCoefficient dtdSndniCoef_;
 
+      ParGridFunction * DPerpGF_;
+
    public:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
                    ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
@@ -1565,9 +1610,15 @@ private:
                    VectorCoefficient & B3Coef/*,
                       MatrixCoefficient & PerpCoef*/);
 
+      ~IonDensityOp();
+
       virtual void SetTimeStep(double dt);
 
       void Update();
+
+      virtual void RegisterDataFields(DataCollection & dc);
+
+      virtual void PrepareDataFields();
    };
 
    class IonMomentumOp : public NLOperator
@@ -1602,7 +1653,9 @@ private:
       ProductCoefficient    mini1Coef_;
       ProductCoefficient    mivi1Coef_;
 
-      IonMomentumDiffusionCoef EtaCoef_;
+      IonMomentumParaDiffusionCoef   EtaParaCoef_;
+      ProductCoefficient             EtaPerpCoef_;
+      Aniso2DDiffusionCoef           EtaCoef_;
       ScalarMatrixProductCoefficient dtEtaCoef_;
 
       IonMomentumAdvectionCoef miniViCoef_;
@@ -1620,15 +1673,24 @@ private:
       ProductCoefficient nnizCoef_;
       ProductCoefficient niizCoef_;
 
+      ParGridFunction * EtaParaGF_;
+      ParGridFunction * EtaPerpGF_;
+
    public:
       IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,
                     ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                     int ion_charge, double ion_mass, double DPerp,
                     VectorCoefficient & B3Coef);
 
+      ~IonMomentumOp();
+
       virtual void SetTimeStep(double dt);
 
       void Update();
+
+      virtual void RegisterDataFields(DataCollection & dc);
+
+      virtual void PrepareDataFields();
    };
 
    class IonStaticPressureOp : public NLOperator
@@ -1673,6 +1735,9 @@ private:
 
       const Array<CoefficientByAttr> & dbc_;
 
+      ParGridFunction * ChiParaGF_;
+      ParGridFunction * ChiPerpGF_;
+
    public:
       IonStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
                           ParGridFunctionArray & pgf,
@@ -1681,9 +1746,15 @@ private:
                           VectorCoefficient & B3Coef,
                           Array<CoefficientByAttr> & dbc);
 
+      ~IonStaticPressureOp();
+
       virtual void SetTimeStep(double dt);
 
       void Update();
+
+      virtual void RegisterDataFields(DataCollection & dc);
+
+      virtual void PrepareDataFields();
    };
 
    class ElectronStaticPressureOp : public NLOperator

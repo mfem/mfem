@@ -2261,7 +2261,8 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      dSizdnnCoef_(ne1Coef_, nn1Coef_, izCoef_),
      dSizdniCoef_(ne1Coef_, nn1Coef_, izCoef_),
      dtdSizdnnCoef_(0.0, dSizdnnCoef_),
-     dtdSizdniCoef_(0.0, dSizdniCoef_)//,
+     dtdSizdniCoef_(0.0, dSizdniCoef_),
+     DGF_(new ParGridFunction((*pgf_)[0]->ParFESpace()))
      // nnizCoef_(nn1Coef_, izCoef_),
      // neizCoef_(ne1Coef_, izCoef_),
      // dtdSndnnCoef_(0.0, neizCoef_),
@@ -2312,6 +2313,11 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSndniCoef_));
 }
 
+DGTransportTDO::NeutralDensityOp::~NeutralDensityOp()
+{
+   delete DGF_;
+}
+
 void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
 {
    if (mpi_.Root() && logging_)
@@ -2331,9 +2337,24 @@ void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
    dtdSizdniCoef_.SetAConst(dt);
 }
 
+void DGTransportTDO::NeutralDensityOp::RegisterDataFields(DataCollection & dc)
+{
+   NLOperator::RegisterDataFields(dc);
+
+   dc.RegisterField("D_n", DGF_);
+}
+
+void DGTransportTDO::
+NeutralDensityOp::PrepareDataFields()
+{
+   DGF_->ProjectCoefficient(DCoef_);
+}
+
 void DGTransportTDO::NeutralDensityOp::Update()
 {
    NLOperator::Update();
+
+   DGF_->Update();
 }
 /*
 void DGTransportTDO::NeutralDensityOp::Mult(const Vector &k, Vector &y) const
@@ -2513,7 +2534,8 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      negdtdSizdnnCoef_(0.0, dSizdnnCoef_),
      negdtdSizdniCoef_(0.0, dSizdniCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
-     niizCoef_(ni1Coef_, izCoef_)//,
+     niizCoef_(ni1Coef_, izCoef_),
+     DPerpGF_(new ParGridFunction((*pgf_)[1]->ParFESpace()))
      // dtdSndnnCoef_(0.0, niizCoef_),
      // dtdSndniCoef_(0.0, nnizCoef_)
 {
@@ -2591,9 +2613,28 @@ void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
    negdtdSizdniCoef_.SetAConst(-dt);
 }
 
+DGTransportTDO::IonDensityOp::~IonDensityOp()
+{
+   delete DPerpGF_;
+}
+
+void DGTransportTDO::IonDensityOp::RegisterDataFields(DataCollection & dc)
+{
+   NLOperator::RegisterDataFields(dc);
+
+   dc.RegisterField("D_i Perpendicular", DPerpGF_);
+}
+
+void DGTransportTDO::IonDensityOp::PrepareDataFields()
+{
+   DPerpGF_->ProjectCoefficient(DPerpCoef_);
+}
+
 void DGTransportTDO::IonDensityOp::Update()
 {
    NLOperator::Update();
+
+   DPerpGF_->Update();
 }
 
 DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
@@ -2619,7 +2660,9 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      ne1Coef_(z_i_, ni1Coef_),
      mini1Coef_(m_i_, ni1Coef_),
      mivi1Coef_(m_i_, vi1Coef_),
-     EtaCoef_(ion_charge, ion_mass, DPerpCoef_, ni1Coef_, Ti1Coef_, B3Coef),
+     EtaParaCoef_(ion_charge, ion_mass, Ti1Coef_),
+     EtaPerpCoef_(DPerpConst_, mini1Coef_),
+     EtaCoef_(EtaParaCoef_, EtaPerpCoef_, *B3Coef_),
      dtEtaCoef_(0.0, EtaCoef_),
      miniViCoef_(pgf, dpgf, ion_mass, DPerpCoef_, B3Coef),
      dtminiViCoef_(0.0, miniViCoef_),
@@ -2629,7 +2672,9 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
-     niizCoef_(ni1Coef_, izCoef_)
+     niizCoef_(ni1Coef_, izCoef_),
+     EtaParaGF_(new ParGridFunction((*pgf_)[2]->ParFESpace())),
+     EtaPerpGF_(new ParGridFunction((*pgf_)[2]->ParFESpace()))
 {
    // Time derivative term: m_i v_i dn_i/dt
    dbfi_m_[1].Append(new MassIntegrator(mivi1Coef_));
@@ -2707,6 +2752,11 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    */
 }
 
+DGTransportTDO::IonMomentumOp::~IonMomentumOp()
+{
+   delete EtaPerpGF_;
+   delete EtaParaGF_;
+}
 
 void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
 {
@@ -2727,9 +2777,28 @@ void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
    dtminiViCoef_.SetAConst(dt);
 }
 
+void DGTransportTDO::
+IonMomentumOp::RegisterDataFields(DataCollection & dc)
+{
+   NLOperator::RegisterDataFields(dc);
+
+   dc.RegisterField("Eta_i Perpendicular", EtaPerpGF_);
+   dc.RegisterField("Eta_i Parallel",      EtaParaGF_);
+}
+
+void DGTransportTDO::
+IonMomentumOp::PrepareDataFields()
+{
+   EtaParaGF_->ProjectCoefficient(EtaParaCoef_);
+   EtaPerpGF_->ProjectCoefficient(EtaPerpCoef_);
+}
+
 void DGTransportTDO::IonMomentumOp::Update()
 {
    NLOperator::Update();
+
+   EtaParaGF_->Update();
+   EtaPerpGF_->Update();
 }
 
 DGTransportTDO::IonStaticPressureOp::
@@ -2762,7 +2831,9 @@ IonStaticPressureOp(const MPI_Session & mpi,
      ChiPerpCoef_(ChiPerpConst_, ni1Coef_),
      ChiCoef_(ChiParaCoef_, ChiPerpCoef_, *B3Coef_),
      dtChiCoef_(0.0, ChiCoef_),
-     dbc_(dbc)
+     dbc_(dbc),
+     ChiParaGF_(new ParGridFunction((*pgf_)[3]->ParFESpace())),
+     ChiPerpGF_(new ParGridFunction((*pgf_)[3]->ParFESpace()))
 {
    // Time derivative term: 1.5 T_i dn_i/dt
    dbfi_m_[1].Append(new MassIntegrator(thTiCoef_));
@@ -2839,6 +2910,12 @@ IonStaticPressureOp(const MPI_Session & mpi,
    */
 }
 
+DGTransportTDO::IonStaticPressureOp::~IonStaticPressureOp()
+{
+   delete ChiPerpGF_;
+   delete ChiParaGF_;
+}
+
 void DGTransportTDO::IonStaticPressureOp::SetTimeStep(double dt)
 {
    if (mpi_.Root() && logging_)
@@ -2857,9 +2934,28 @@ void DGTransportTDO::IonStaticPressureOp::SetTimeStep(double dt)
    dtChiCoef_.SetAConst(dt);
 }
 
+void DGTransportTDO::
+IonStaticPressureOp::RegisterDataFields(DataCollection & dc)
+{
+   NLOperator::RegisterDataFields(dc);
+
+   dc.RegisterField("n_i Chi_i Perpendicular", ChiPerpGF_);
+   dc.RegisterField("n_i Chi_i Parallel",      ChiParaGF_);
+}
+
+void DGTransportTDO::
+IonStaticPressureOp::PrepareDataFields()
+{
+   ChiParaGF_->ProjectCoefficient(ChiParaCoef_);
+   ChiPerpGF_->ProjectCoefficient(ChiPerpCoef_);
+}
+
 void DGTransportTDO::IonStaticPressureOp::Update()
 {
    NLOperator::Update();
+
+   ChiParaGF_->Update();
+   ChiPerpGF_->Update();
 }
 
 DGTransportTDO::ElectronStaticPressureOp::
@@ -3000,8 +3096,8 @@ ElectronStaticPressureOp::RegisterDataFields(DataCollection & dc)
 {
    NLOperator::RegisterDataFields(dc);
 
-   dc.RegisterField("n Chi_e Perpendicular", ChiPerpGF_);
-   dc.RegisterField("n Chi_e Parallel",      ChiParaGF_);
+   dc.RegisterField("n_e Chi_e Perpendicular", ChiPerpGF_);
+   dc.RegisterField("n_e Chi_e Parallel",      ChiParaGF_);
 }
 
 void DGTransportTDO::
@@ -3014,6 +3110,9 @@ ElectronStaticPressureOp::PrepareDataFields()
 void DGTransportTDO::ElectronStaticPressureOp::Update()
 {
    NLOperator::Update();
+
+   ChiParaGF_->Update();
+   ChiPerpGF_->Update();
 }
 
 DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
