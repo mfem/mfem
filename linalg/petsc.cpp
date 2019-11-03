@@ -422,6 +422,12 @@ PetscParVector& PetscParVector::operator*=(PetscScalar s)
    return *this;
 }
 
+PetscParVector& PetscParVector::operator+=(PetscScalar s)
+{
+   ierr = VecShift(x,s); PCHKERRQ(x,ierr);
+   return *this;
+}
+
 void PetscParVector::PlaceArray(PetscScalar *temp_data)
 {
    ierr = VecPlaceArray(x,temp_data); PCHKERRQ(x,ierr);

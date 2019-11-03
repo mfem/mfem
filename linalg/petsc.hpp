@@ -170,6 +170,7 @@ public:
    PetscParVector& operator+= (const PetscParVector &y);
    PetscParVector& operator-= (const PetscParVector &y);
    PetscParVector& operator*= (PetscScalar d);
+   PetscParVector& operator+= (PetscScalar d);
 
    /** @brief Temporarily replace the data of the PETSc Vec object. To return to
        the original data array, call ResetArray().
