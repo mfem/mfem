@@ -1,9 +1,11 @@
+import sys
 import numpy as np
 from ctypes import *
 from random import *
 from PIL import Image
 
 c_double_p = POINTER(c_double)
+c_int_p = POINTER(c_int)
 
 MFEM = cdll.LoadLibrary('./libdrl4amr.so')
 
@@ -24,6 +26,9 @@ class Ctrl(object):
     def GetNE(self): return MFEM.GetNE(self.obj)
     sign(MFEM.GetNE, [c_void_p], c_int)
 
+    def GetNEFR(self): return MFEM.GetNEFR(self.obj)
+    sign(MFEM.GetNEFR, [c_void_p], c_int)
+
     def GetNorm(self): return MFEM.GetNorm(self.obj)
     sign(MFEM.GetNorm, [c_void_p], c_double)
 
@@ -41,6 +46,12 @@ class Ctrl(object):
 
     def GetImageY(self): return MFEM.GetImageY(self.obj)
     sign(MFEM.GetImageY, [c_void_p], c_int)
+
+    def GetLevelField(self): return MFEM.GetLevelField(self.obj)
+    sign(MFEM.GetLevelField, [c_void_p], c_int_p)
+
+    def GetElemIdField(self): return MFEM.GetElemIdField(self.obj)
+    sign(MFEM.GetElemIdField, [c_void_p], c_int_p)
 
 
 # Orders 1 and 2 are supported with the current GetImage
@@ -60,8 +71,9 @@ while sim.GetNorm() > 0.01:
     sim.Refine(int(NE*random()))
 
     image_d = sim.GetImage()
-    field = sim.GetField()
-    level = sim.GetLevel()
+#    field = sim.GetField()
+    level = sim.GetLevelField()
+    id = sim.GetElemIdField()
     #image_s = sim.GetImageSize()
     #print("image_s: " + str(image_s))
 
@@ -69,6 +81,10 @@ while sim.GetNorm() > 0.01:
     #data = np.fromiter(image_d, dtype=np.double, count=NX*NY) # copy
     # or:
     data = np.frombuffer((c_double*NX*NY).from_address(addressof(image_d.contents))) # address
+
+    level = np.frombuffer((c_int*sim.GetNEFR()).from_address(addressof(level.contents)),dtype=np.intc)
+    # np.set_printoptions(threshold = sys.maxsize)
+    # print level
 
     # Scale and convert the image
     image_f = (data * 255 / np.max(data)).astype('uint8')

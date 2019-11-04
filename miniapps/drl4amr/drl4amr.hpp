@@ -25,7 +25,7 @@ private:
    const int visport = 19916;
    const int visw = 480;
    const int vish = 480;
-   socketstream vis[4];
+   socketstream vis[5];
    Vector image;
 
    Device device;
@@ -35,6 +35,7 @@ private:
    H1_FECollection fec;
    L2_FECollection fec0;
    FiniteElementSpace fespace;
+   FiniteElementSpace fespace0; // 0th order L2 space for easily creating everywhere fine arrays
    ConstantCoefficient one;
    ConstantCoefficient zero;
    BilinearFormIntegrator *integ;
@@ -44,12 +45,18 @@ private:
    FiniteElementSpace flux_fespace;
    ZienkiewiczZhuEstimator estimator;
    ThresholdRefiner refiner;
+
+   int nefr;      // # elements fully refined
+   int* level_no; // int array derived from gridfunction data
+   int* elem_id;  // int array derived from gridfunction data
+
 public:
    Drl4Amr(int i);
    int Compute();
    int Refine(int el =-1);
    int GetNDofs() { return fespace.GetNDofs();}
    int GetNE() { return fespace.GetNE(); }
+   int GetNEFR() { return nefr; }
    double GetNorm();
    double *GetImage();
    int GetImageSize();
@@ -58,7 +65,7 @@ public:
 
    double *GetDOFField();
    int *GetLevelField();
-   int *GetIdField();
+   int *GetElemIdField();
    
 };
 
