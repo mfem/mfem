@@ -11,6 +11,7 @@
 
 #include "../general/forall.hpp"
 #include "mem_manager.hpp"
+#include "dbg.hpp"
 
 #include <list>
 #include <cstring> // std::memcpy
@@ -126,7 +127,6 @@ public:
    virtual ~HostMemorySpace() { }
    virtual void Alloc(void **ptr, size_t bytes) { *ptr = std::malloc(bytes); }
    virtual void Dealloc(void *ptr) { std::free(ptr); }
-   virtual void Insert(void *ptr, size_t bytes) { }
    virtual void Protect(const void *ptr, size_t bytes) { }
    virtual void Unprotect(const void *ptr, size_t bytes) { }
    virtual void AliasProtect(const void *ptr, size_t bytes) { }
@@ -405,6 +405,7 @@ public:
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
 };
 
+#undef UMPIRE_USE_STATIC
 #ifndef MFEM_USE_UMPIRE
 class UmpireHostMemorySpace : public NoHostMemorySpace { };
 class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
@@ -423,11 +424,10 @@ public:
       rm(umpire::ResourceManager::getInstance()),
       h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
                   ("host_pool", rm.getAllocator(MFEM_UMPIRE_HOST))),
-      strat(h_allocator.getAllocationStrategy()) { }
-   void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
-   void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
-   virtual void Insert(void *ptr, size_t bytes)
-   { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
+      strat(h_allocator.getAllocationStrategy())
+   { dbg("MFEM_UMPIRE_HOST: %s", MFEM_UMPIRE_HOST); }
+   void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); dbg("%p (x%x)", *ptr, bytes); }
+   void Dealloc(void *ptr) { dbg("%p", ptr); h_allocator.deallocate(ptr); }
 };
 
 /// The Umpire device memory space
@@ -441,15 +441,16 @@ public:
    UmpireDeviceMemorySpace(): DeviceMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
       d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("device_pool", rm.getAllocator(MFEM_UMPIRE_DEVICE))) { }
-   void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
-   void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
+                  ("device_pool", rm.getAllocator(MFEM_UMPIRE_DEVICE)))
+   { dbg("MFEM_UMPIRE_DEVICE: %s", MFEM_UMPIRE_DEVICE); }
+   void Alloc(Memory &base) { dbg(""); base.d_ptr = d_allocator.allocate(base.bytes); }
+   void Dealloc(Memory &base) { dbg(""); d_allocator.deallocate(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   { dbg(""); rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
    void *DtoD(void* dst, const void* src, size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   { dbg(""); rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
    void *DtoH(void *dst, const void *src, size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   { dbg(""); rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
 };
 #endif // MFEM_USE_UMPIRE
 
@@ -459,7 +460,11 @@ class Ctrl
    typedef MemoryType MT;
 public:
    StdHostMemorySpace h_std;
+#ifdef UMPIRE_USE_STATIC
    UmpireHostMemorySpace h_umpire;
+#else
+   UmpireHostMemorySpace *h_umpire;
+#endif
    Aligned32HostMemorySpace h_align32;
    Aligned64HostMemorySpace h_align64;
    MmuHostMemorySpace h_mmu;
@@ -472,38 +477,54 @@ public:
 #else
    NoDeviceMemorySpace d_device;
 #endif
+#ifdef UMPIRE_USE_STATIC
    UmpireDeviceMemorySpace d_umpire;
+#else
+   UmpireDeviceMemorySpace *d_umpire;
+#endif
    UvmCudaMemorySpace d_uvm;
    MmuDeviceMemorySpace d_mmu;
 
 
    HostMemorySpace *host[MemoryTypeSize]
    {
+#ifdef UMPIRE_USE_STATIC
       &h_std, &h_umpire, &h_align32, &h_align64, &h_mmu,
+#else
+      &h_std, nullptr, &h_align32, &h_align64, &h_mmu,
+#endif
       nullptr, nullptr, nullptr, nullptr
    };
 
    DeviceMemorySpace *device[MemoryTypeSize]
    {
       nullptr, nullptr, nullptr, nullptr, nullptr,
+#ifdef UMPIRE_USE_STATIC
       &d_device, &d_umpire, &d_uvm, &d_mmu
+#else
+      &d_device, nullptr, &d_uvm, &d_mmu
+#endif
    };
 public:
+#ifndef UMPIRE_USE_STATIC
    void UmpireSetup()
    {
-      /*host[static_cast<int>(MemoryType::HOST_UMPIRE)] =
+      host[static_cast<int>(MemoryType::HOST_UMPIRE)] =
          static_cast<HostMemorySpace*>(new UmpireHostMemorySpace());
       device[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
-         static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());*/
+         static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());
    }
+#endif
 
    HostMemorySpace* Host(const MemoryType mt) { return host[static_cast<int>(mt)]; }
    DeviceMemorySpace* Device(const MemoryType mt)  { return device[static_cast<int>(mt)]; }
 
    ~Ctrl()
    {
-      //delete host[static_cast<int>(MemoryType::HOST_UMPIRE)];
-      //delete device[static_cast<int>(MemoryType::DEVICE_UMPIRE)];
+#ifndef UMPIRE_USE_STATIC
+      delete host[static_cast<int>(MemoryType::HOST_UMPIRE)];
+      delete device[static_cast<int>(MemoryType::DEVICE_UMPIRE)];
+#endif
    }
 };
 
@@ -919,7 +940,6 @@ void MemoryManager::Insert(void *h_ptr, size_t bytes,
    auto res = maps->memories.emplace(h_ptr,
                                      internal::Memory(h_ptr, bytes, h_mt, d_mt));
    if (res.second == false) { mfem_error("Address already present!"); }
-   ctrl->Host(h_mt)->Insert(h_ptr, bytes);
 }
 
 void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr, size_t bytes,
@@ -1078,8 +1098,10 @@ MemoryManager::~MemoryManager() { if (exists) { Destroy(); } }
 
 void MemoryManager::Setup(MemoryType host_mt, MemoryType device_mt)
 {
+#ifndef UMPIRE_USE_STATIC
    // Needs to be done here, to avoid "invalid device function"
-   //ctrl->UmpireSetup();
+   ctrl->UmpireSetup();
+#endif
    host_mem_type = host_mt;
    device_mem_type = device_mt;
 }
