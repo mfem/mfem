@@ -787,7 +787,8 @@ HYPRE_Int ParFiniteElementSpace::GetGlobalTDofNumber(int ldof) const
 {
    if (Nonconforming())
    {
-      MFEM_VERIFY(ldof_ltdof[ldof] >= 0, "ldof " << ldof << " not a true DOF.");
+      MFEM_VERIFY(ldof_ltdof[ldof] >= 0, "ldof " << ldof << " not a true DOF."
+                  <<" (Value: " << ldof_ltdof[ldof] <<")");
 
       return GetMyTDofOffset() + ldof_ltdof[ldof];
    }
