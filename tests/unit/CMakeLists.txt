@@ -37,7 +37,12 @@ set(UNIT_TESTS_SRCS
   fem/test_quadraturefunc.cpp
   )
 
-# All unit tests are built into a single executable 'unit_tests'.
+set(PAR_UNIT_TESTS_SRCS
+  par_unit_test_main.cpp
+  fem/ptest_tdofs.cpp
+)
+
+# All serial unit tests are built into a single executable 'unit_tests'.
 add_executable(unit_tests ${UNIT_TESTS_SRCS})
 target_link_libraries(unit_tests mfem)
 add_custom_command(TARGET unit_tests POST_BUILD
@@ -51,3 +56,19 @@ add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
 #   make unit_tests
 #   ctest -R unit_tests [-V]
 add_test(NAME unit_tests COMMAND unit_tests)
+
+
+# Parallel unit tests are built into a single executable 'par_unit_tests'.
+if (MFEM_USE_MPI)
+  add_executable(par_unit_tests ${PAR_UNIT_TESTS_SRCS})
+  target_link_libraries(par_unit_tests mfem)
+  add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} par_unit_tests)
+
+  # The parallel unit tests can be built and run separately from the rest of the tests:
+  #   make par_unit_tests
+  #   ctest -R par_unit_tests [-V]
+  set(_nranks 2)
+  add_test(NAME par_unit_tests 
+           COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG}${_nranks} par_unit_tests)
+endif()
+
