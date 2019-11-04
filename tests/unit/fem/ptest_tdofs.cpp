@@ -67,6 +67,7 @@ namespace
 // Define some parameters for the tests
 const int NUM_SER_REF_LEVELS = 1;
 const int NUM_PAR_REF_LEVELS = 0;
+const int UNINITIALIZED_VAL = -100;
 const bool VERBOSE_OUTPUT = false;
 
 /// Helper function to refine the mesh uniformly
@@ -151,7 +152,7 @@ struct TDOFTester
       auto* fec = new mfem::H1_FECollection(order, dim);
       mfem::ParFiniteElementSpace fes(m_mesh, fec);
       mfem::Array<int> vert_tdof(NV);
-      vert_tdof = UNITIALIZED_VAL;
+      vert_tdof = UNINITIALIZED_VAL;
 
       mfem::Array<int> idofs;
 
@@ -220,7 +221,7 @@ struct TDOFTester
 
       mfem::ParFiniteElementSpace fes(m_mesh, fec);
       mfem::Array<int> edge_tdof(NEdge);
-      edge_tdof = UNITIALIZED_VAL;
+      edge_tdof = UNINITIALIZED_VAL;
 
       mfem::Array<int> idofs;
 
@@ -275,7 +276,7 @@ struct TDOFTester
       auto* fec = new mfem::RT_FECollection(order,dim);
       mfem::ParFiniteElementSpace fes(m_mesh, fec);
       mfem::Array<int> face_tdof(NFace);
-      face_tdof = UNITIALIZED_VAL;
+      face_tdof = UNINITIALIZED_VAL;
 
       mfem::Array<int> idofs;
 
@@ -325,7 +326,7 @@ struct TDOFTester
       auto* fec = new mfem::L2_FECollection(order, dim);
       mfem::ParFiniteElementSpace fes(m_mesh, fec);
       mfem::Array<int> elem_tdof(NE);
-      elem_tdof = UNITIALIZED_VAL;
+      elem_tdof = UNINITIALIZED_VAL;
 
       mfem::Array<int> idofs;
 
@@ -384,7 +385,7 @@ struct TDOFTester
       auto* fec = new mfem::RT_FECollection(order, dim);
       mfem::ParFiniteElementSpace fes(m_mesh, fec);
       mfem::Array<int> be_tdof(NBE);
-      be_tdof = UNITIALIZED_VAL;
+      be_tdof = UNINITIALIZED_VAL;
 
       mfem::Array<int> idofs;
 
@@ -435,7 +436,6 @@ struct TDOFTester
    }
 
    mfem::ParMesh* m_mesh;
-   static constexpr int UNITIALIZED_VAL = -100;
    int rank;
    bool m_verbose;
 };
