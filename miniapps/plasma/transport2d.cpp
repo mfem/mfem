@@ -1957,6 +1957,8 @@ int main(int argc, char *argv[])
                ion_energy.MakeRef(&fes, u, offsets[3]);
                elec_energy.MakeRef(&fes, u, offsets[4]);
             }
+            oper.Update();
+            ode_solver->Init(oper);
 
             // 22. Load balance the mesh, and update the space and solution. Currently
             //     available only for nonconforming meshes.
@@ -1983,11 +1985,11 @@ int main(int argc, char *argv[])
                   ion_energy.MakeRef(&fes, u, offsets[3]);
                   elec_energy.MakeRef(&fes, u, offsets[4]);
                }
+	       oper.Update();
+	       ode_solver->Init(oper);
             }
             // m.Update(); m.Assemble(); m.Finalize();
             // ode_diff_msr.SetOperator(m);
-            oper.Update();
-            ode_solver->Init(oper);
          }
          if (derefiner.Apply(pmesh))
          {
