@@ -1052,6 +1052,12 @@ public:
         Para_(&ParaCoef), Perp_(&PerpCoef),
         B3_(&B3Coef), B_(3) {}
 
+   Aniso2DDiffusionCoef(bool para, Coefficient &Coef,
+                        VectorCoefficient &B3Coef)
+      : StateVariableMatCoef(2),
+        Para_(para ? &Coef : NULL), Perp_(para ? NULL : &Coef),
+        B3_(&B3Coef), B_(3) {}
+
    bool NonTrivialValue(DerivType deriv) const
    {
       return (deriv == INVALID);
@@ -1063,8 +1069,8 @@ public:
    {
       M.SetSize(2);
 
-      double para = Para_->Eval(T, ip);
-      double perp = Perp_->Eval(T, ip);
+      double para = Para_ ? Para_->Eval(T, ip) : 0.0;
+      double perp = Perp_ ? Perp_->Eval(T, ip) : 0.0;
 
       B3_->Eval(B_, T, ip);
 
