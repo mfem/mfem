@@ -1579,6 +1579,87 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
    }
 }
 
+void GridFunction::ProjectVectorDeltaCoefficient(VectorDeltaCoefficient
+                                                 &vdelta_coeff,
+                                                 double &integral)
+{
+   DeltaCoefficient &delta_coeff = vdelta_coeff.GetDeltaCoefficient();
+
+   if (!fes->GetNE())
+   {
+      integral = 0.0;
+      return;
+   }
+
+   Mesh *mesh = fes->GetMesh();
+   const int dim = mesh->Dimension();
+   const double *center = delta_coeff.Center();
+   const double *vert = mesh->GetVertex(0);
+   double min_dist, dist;
+   int v_idx = 0;
+
+   // find the vertex closest to the center of the delta function
+   min_dist = Distance(center, vert, dim);
+   for (int i = 0; i < mesh->GetNV(); i++)
+   {
+      vert = mesh->GetVertex(i);
+      dist = Distance(center, vert, dim);
+      if (dist < min_dist)
+      {
+         min_dist = dist;
+         v_idx = i;
+      }
+   }
+
+   (*this) = 0.0;
+   integral = 0.0;
+
+   if (min_dist >= delta_coeff.Tol())
+   {
+      return;
+   }
+
+   // find the elements that have 'v_idx' as a vertex
+   Vector dir;
+   vdelta_coeff.GetDirection(dir);
+   MFEM_ASSERT(fes->GetVDim() == dir.Size(),
+               "Vector dimension of the grid function does not match the coefficient.");
+
+   MassIntegrator Mi(*delta_coeff.Weight());
+   DenseMatrix loc_mass;
+   Array<int> dofs, vdofs, vertices;
+   Vector vals, vvals, loc_mass_vals;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      mesh->GetElementVertices(i, vertices);
+      for (int j = 0; j < vertices.Size(); j++)
+         if (vertices[j] == v_idx)
+         {
+            const FiniteElement *fe = fes->GetFE(i);
+            MFEM_ASSERT(fe->GetRangeType() == FiniteElement::SCALAR,
+                        "Implemented only for scalar finite elements.");
+
+            Mi.AssembleElementMatrix(*fe, *fes->GetElementTransformation(i),
+                                     loc_mass);
+            vals.SetSize(fe->GetDof());
+            fe->ProjectDelta(j, vals);
+            fes->GetElementDofs(i, dofs);
+            vvals.SetSize(vals.Size());
+            for (int d = 0; d < dir.Size(); d++)
+            {
+               vdofs = dofs;
+               fes->DofsToVDofs(d, vdofs);
+               vvals.Set(dir[d], vals);
+               SetSubVector(vdofs, vvals);
+            }
+            loc_mass_vals.SetSize(vals.Size());
+            loc_mass.Mult(vals, loc_mass_vals);
+            integral += loc_mass_vals.Sum(); // partition of unity basis
+            break;
+         }
+   }
+}
+
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
@@ -1602,7 +1683,10 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
 
       ProjectDeltaCoefficient(*delta_c, integral);
 
-      (*this) *= (delta_c->Scale() / integral);
+      if (integral > 0.)
+      {
+         (*this) *= (delta_c->Scale() / integral);
+      }
    }
 }
 
@@ -1632,16 +1716,32 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
-   int i;
-   Array<int> vdofs;
-   Vector vals;
+   VectorDeltaCoefficient *vdelta_c =
+      dynamic_cast<VectorDeltaCoefficient *>(&vcoeff);
 
-   for (i = 0; i < fes->GetNE(); i++)
+   if (vdelta_c == NULL)
    {
-      fes->GetElementVDofs(i, vdofs);
-      vals.SetSize(vdofs.Size());
-      fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-      SetSubVector(vdofs, vals);
+      Array<int> vdofs;
+      Vector vals;
+
+      for (int i = 0; i < fes->GetNE(); i++)
+      {
+         fes->GetElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+         SetSubVector(vdofs, vals);
+      }
+   }
+   else
+   {
+      double integral;
+
+      ProjectVectorDeltaCoefficient(*vdelta_c, integral);
+
+      if (integral > 0.)
+      {
+         (*this) *= (vdelta_c->GetDeltaCoefficient().Scale() / integral);
+      }
    }
 }
 
