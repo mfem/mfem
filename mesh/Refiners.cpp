@@ -108,7 +108,6 @@ namespace mfem {
 		}
 
 		num_marked_elements = mesh.ReduceInt(marked_elements.Size());
-		MFEM_ASSERT( num_marked_elements == n, "Marking algorithm n is not the same as number of actually marked elements" );
 		if (num_marked_elements == 0) { return STOP; }
 
 		mesh.GeneralRefinement(marked_elements, non_conforming, nc_limit);
