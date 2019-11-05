@@ -33,8 +33,7 @@
 #include "tmop.hpp"
 /* HDG */
 #include "hdg_integrators.hpp"
-#include "HDGBilinearForm2.hpp"
-#include "HDGBilinearForm3.hpp"
+#include "HDGBilinearForm.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

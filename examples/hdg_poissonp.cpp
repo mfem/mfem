@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_PETSC
    // We initialize PETSc
-   PetscInitialize(NULL,NULL,petscrc_file,NULL);
+   MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
 #endif
 
 #ifndef MFEM_USE_PETSC
@@ -219,8 +219,9 @@ int main(int argc, char *argv[])
    FiniteElementCollection *dg_coll(new DG_FECollection(order, dim));
    FiniteElementCollection *face(new DG_Interface_FECollection(order, dim));
 
-   // V_space is the scalar DG space on elements for u_h
-   // W_space is the vector valued DG space on elements for q_h
+   // Finite element spaces:
+   // V_space is the vector valued DG space on elements for q_h
+   // W_space is the scalar DG space on elements for u_h
    // M_space is the DG space on faces for lambda_h
    ParFiniteElementSpace *V_space = new ParFiniteElementSpace(pmesh, dg_coll, dim);
    ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, dg_coll);
@@ -237,9 +238,9 @@ int main(int argc, char *argv[])
    double tau_D = 5.0;
 
    // 7. Define the different forms and gridfunctions.
-   HDGBilinearForm3 *AVarf(new HDGBilinearForm3(V_space, W_space, M_space, true));
+   HDGBilinearForm *AVarf(new HDGBilinearForm(V_space, W_space, M_space, true));
    AVarf->AddHDGDomainIntegrator(new HDGDomainIntegratorDiffusion(diffusion));
-   AVarf->AddHDGBdrIntegrator(new HDGFaceIntegratorDiffusion(tau_D));
+   AVarf->AddHDGFaceIntegrator(new HDGFaceIntegratorDiffusion(tau_D));
 
    ParGridFunction lambda(M_space);
    ParGridFunction q_variable(V_space), u_variable(W_space);
@@ -290,7 +291,7 @@ int main(int argc, char *argv[])
 
       chrono.Clear();
       chrono.Start();
-      AVarf->AssembleSC(*R, *F, ess_bdr, lambda, memA, memB);
+      AVarf->AssembleSC(R, F, ess_bdr, lambda, memA, memB);
       chrono.Stop();
       AVarf->Finalize();
 
@@ -381,7 +382,7 @@ int main(int argc, char *argv[])
 
       chrono.Clear();
       chrono.Start();
-      AVarf->Reconstruct(R, F, lambda, &q_variable, &u_variable);
+      AVarf->Reconstruct(R, F, &lambda, &q_variable, &u_variable);
       chrono.Stop();
 
       reconstructTime = chrono.RealTime();
@@ -606,7 +607,7 @@ int main(int argc, char *argv[])
    }
 
 #ifdef MFEM_USE_PETSC
-   PetscFinalize();
+   MFEMFinalizePetsc();
 #endif
    MPI_Finalize();
 
