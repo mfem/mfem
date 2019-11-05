@@ -4,6 +4,7 @@
 //
 
 #include "mfem.hpp"
+#include "fem/gslib.hpp"
 #include <fstream>
 
 using namespace mfem;
