@@ -94,6 +94,9 @@ void Device::Configure(const std::string &device, const int dev)
    // Enable the device
    Enable();
 
+   // Update the host & device memory backends
+   Get().UpdateMemoryTypeAndClass();
+
    // Copy all data members from the global 'singleton_device' into '*this'.
    std::memcpy(this, &Get(), sizeof(Device));
 
@@ -126,12 +129,21 @@ void Device::Print(std::ostream &out)
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   if (IsUsingUmpire())
+#ifdef MFEM_USE_UMPIRE
+   const bool umpire = true;
+#else
+   const bool umpire = false;
+#endif
+   const bool debug = Device::Allows(Backend::DEBUG);
+
+   // If MFEM has been compiled with Umpire support, use it as default
+   if (umpire)
    {
       host_mem_type = MemoryType::HOST_UMPIRE;
       host_mem_class = MemoryClass::HOST_UMPIRE;
    }
-   const bool debug = Device::Allows(Backend::DEBUG);
+
+   // In 'debug' mode, switch for the host and device MMU memory types
    if (debug)
    {
       host_mem_type = MemoryType::HOST_MMU;
@@ -140,17 +152,19 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_class = MemoryClass::DEVICE_MMU;
    }
 
+   // Allow to tune the device memory types, with some restrictions
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       device_mem_type = MemoryType::DEVICE;
       device_mem_class = MemoryClass::DEVICE;
-      if (IsUsingUmpire() && !debug)
+      if (umpire && !debug)
       {
          device_mem_type = MemoryType::DEVICE_UMPIRE;
          device_mem_class = MemoryClass::DEVICE_UMPIRE;
       }
    }
 
+   // Update the memory manager with the new settings
    mm.Setup(host_mem_type, device_mem_type);
 }
 
@@ -158,7 +172,6 @@ void Device::Enable()
 {
    const bool accelerated = Get().backends & ~(Backend::CPU | Backend::DEBUG);
    if (accelerated) { Get().mode = Device::ACCELERATED;}
-   Get().UpdateMemoryTypeAndClass();
 }
 
 #ifdef MFEM_USE_CUDA

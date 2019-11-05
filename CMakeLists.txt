@@ -301,9 +301,9 @@ endif()
 # UMPIRE
 if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
-   set(MFEM_UMPIRE_HOST "HOST")
+   set(MFEM_UMPIRE_HOST "mfem_host")
     message(STATUS "MFEM: Umpire host allocator name: ${MFEM_UMPIRE_HOST}")
-   set(MFEM_UMPIRE_DEVICE "DEVICE")
+   set(MFEM_UMPIRE_DEVICE "mfem_device")
     message(STATUS "MFEM: Umpire device allocator name: ${MFEM_UMPIRE_DEVICE}")
 endif()
 

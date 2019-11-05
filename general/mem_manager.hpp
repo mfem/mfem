@@ -38,8 +38,10 @@ enum class MemoryType
    SIZE           ///< Number of host and device memory types
 };
 
-/// Size of the memory types, casted as int.
+/// Size of the memory types, the host and device ones.
 constexpr int MemoryTypeSize = static_cast<int>(MemoryType::SIZE);
+constexpr int HostMemoryTypeSize = static_cast<int>(MemoryType::DEVICE);
+constexpr int DeviceMemoryTypeSize = MemoryTypeSize - HostMemoryTypeSize;
 
 /// Memory type names, used during Device:: configuration.
 extern const char *MemoryTypeName[MemoryTypeSize];
