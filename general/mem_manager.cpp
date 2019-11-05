@@ -11,7 +11,6 @@
 
 #include "../general/forall.hpp"
 #include "mem_manager.hpp"
-#include "dbg.hpp"
 
 #include <list>
 #include <cstring> // std::memcpy
@@ -405,7 +404,6 @@ public:
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
 };
 
-#undef UMPIRE_USE_STATIC
 #ifndef MFEM_USE_UMPIRE
 class UmpireHostMemorySpace : public NoHostMemorySpace { };
 class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
@@ -422,12 +420,13 @@ public:
    UmpireHostMemorySpace():
       HostMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
-      h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("host_pool", rm.getAllocator(MFEM_UMPIRE_HOST))),
-      strat(h_allocator.getAllocationStrategy())
-   { dbg("MFEM_UMPIRE_HOST: %s", MFEM_UMPIRE_HOST); }
-   void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); dbg("%p (x%x)", *ptr, bytes); }
-   void Dealloc(void *ptr) { dbg("%p", ptr); h_allocator.deallocate(ptr); }
+      h_allocator(rm.isAllocator(MFEM_UMPIRE_HOST)?
+                  rm.getAllocator(MFEM_UMPIRE_HOST):
+                  rm.makeAllocator<umpire::strategy::DynamicPool>
+                  (MFEM_UMPIRE_HOST, rm.getAllocator("HOST"))),
+      strat(h_allocator.getAllocationStrategy()) { }
+   void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
+   void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
 };
 
 /// The Umpire device memory space
@@ -440,17 +439,18 @@ public:
    ~UmpireDeviceMemorySpace() { d_allocator.release(); }
    UmpireDeviceMemorySpace(): DeviceMemorySpace(),
       rm(umpire::ResourceManager::getInstance()),
-      d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
-                  ("device_pool", rm.getAllocator(MFEM_UMPIRE_DEVICE)))
-   { dbg("MFEM_UMPIRE_DEVICE: %s", MFEM_UMPIRE_DEVICE); }
-   void Alloc(Memory &base) { dbg(""); base.d_ptr = d_allocator.allocate(base.bytes); }
-   void Dealloc(Memory &base) { dbg(""); d_allocator.deallocate(base.d_ptr); }
+      d_allocator(rm.isAllocator(MFEM_UMPIRE_DEVICE)?
+                  rm.getAllocator(MFEM_UMPIRE_DEVICE):
+                  rm.makeAllocator<umpire::strategy::DynamicPool>
+                  (MFEM_UMPIRE_DEVICE, rm.getAllocator("DEVICE"))) { }
+   void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
+   void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   { dbg(""); rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
    void *DtoD(void* dst, const void* src, size_t bytes)
-   { dbg(""); rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
    void *DtoH(void *dst, const void *src, size_t bytes)
-   { dbg(""); rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
 };
 #endif // MFEM_USE_UMPIRE
 
@@ -458,73 +458,76 @@ public:
 class Ctrl
 {
    typedef MemoryType MT;
+
 public:
-   StdHostMemorySpace h_std;
-#ifdef UMPIRE_USE_STATIC
-   UmpireHostMemorySpace h_umpire;
-#else
-   UmpireHostMemorySpace *h_umpire;
-#endif
-   Aligned32HostMemorySpace h_align32;
-   Aligned64HostMemorySpace h_align64;
-   MmuHostMemorySpace h_mmu;
+   HostMemorySpace *host[HostMemoryTypeSize];
+   DeviceMemorySpace *device[DeviceMemoryTypeSize];
 
-   StdDeviceMemorySpace d_std;
-#if defined(MFEM_USE_CUDA)
-   CudaDeviceMemorySpace d_device;
-#elif defined(MFEM_USE_HIP)
-   CudaDeviceMemorySpace d_device;
-#else
-   NoDeviceMemorySpace d_device;
-#endif
-#ifdef UMPIRE_USE_STATIC
-   UmpireDeviceMemorySpace d_umpire;
-#else
-   UmpireDeviceMemorySpace *d_umpire;
-#endif
-   UvmCudaMemorySpace d_uvm;
-   MmuDeviceMemorySpace d_mmu;
-
-
-   HostMemorySpace *host[MemoryTypeSize]
-   {
-#ifdef UMPIRE_USE_STATIC
-      &h_std, &h_umpire, &h_align32, &h_align64, &h_mmu,
-#else
-      &h_std, nullptr, &h_align32, &h_align64, &h_mmu,
-#endif
-      nullptr, nullptr, nullptr, nullptr
-   };
-
-   DeviceMemorySpace *device[MemoryTypeSize]
-   {
-      nullptr, nullptr, nullptr, nullptr, nullptr,
-#ifdef UMPIRE_USE_STATIC
-      &d_device, &d_umpire, &d_uvm, &d_mmu
-#else
-      &d_device, nullptr, &d_uvm, &d_mmu
-#endif
-   };
 public:
-#ifndef UMPIRE_USE_STATIC
-   void UmpireSetup()
+   Ctrl(): host{nullptr}, device{nullptr} { }
+
+   void Setup()
    {
+      const bool debug = Device::Allows(Backend::DEBUG);
+
+      // Filling the host memory backends
+      // HOST, HOST_32 & HOST_64 are always ready
+      // MFEM_USE_UMPIRE will set either [No/Umpire] HostMemorySpace
+      host[static_cast<int>(MemoryType::HOST)] =
+         static_cast<HostMemorySpace*>(new StdHostMemorySpace());
+
       host[static_cast<int>(MemoryType::HOST_UMPIRE)] =
          static_cast<HostMemorySpace*>(new UmpireHostMemorySpace());
-      device[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
-         static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());
-   }
+
+      host[static_cast<int>(MemoryType::HOST_32)] =
+         static_cast<HostMemorySpace*>(new Aligned32HostMemorySpace());
+
+      host[static_cast<int>(MemoryType::HOST_64)] =
+         static_cast<HostMemorySpace*>(new Aligned64HostMemorySpace());
+
+      // Only create MmuHostMemorySpace if needed, as it reroutes signals.
+      if (debug)
+      {
+         host[static_cast<int>(MemoryType::HOST_MMU)] =
+            static_cast<HostMemorySpace*>(new MmuHostMemorySpace());
+      }
+
+      // Filling the device memory backends, shifting with the host size
+      device[static_cast<int>(MemoryType::DEVICE)-HostMemoryTypeSize] =
+#if defined(MFEM_USE_CUDA)
+         static_cast<DeviceMemorySpace*>(new CudaDeviceMemorySpace());
+#elif defined(MFEM_USE_HIP)
+         static_cast<DeviceMemorySpace*>(new HipDeviceMemorySpace());
+#else
+         static_cast<DeviceMemorySpace*>(new NoDeviceMemorySpace());
 #endif
 
-   HostMemorySpace* Host(const MemoryType mt) { return host[static_cast<int>(mt)]; }
-   DeviceMemorySpace* Device(const MemoryType mt)  { return device[static_cast<int>(mt)]; }
+      device[static_cast<int>(MemoryType::DEVICE_UMPIRE)-HostMemoryTypeSize] =
+         static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());
+
+      device[static_cast<int>(MemoryType::DEVICE_UVM)-HostMemoryTypeSize] =
+         static_cast<DeviceMemorySpace*>(new UvmCudaMemorySpace());
+
+      if (debug)
+      {
+         device[static_cast<int>(MemoryType::DEVICE_MMU)-HostMemoryTypeSize] =
+            static_cast<DeviceMemorySpace*>(new MmuDeviceMemorySpace());
+      }
+   }
+
+   HostMemorySpace* Host(const MemoryType mt)
+   { return host[static_cast<int>(mt)]; }
+
+   DeviceMemorySpace* Device(const MemoryType mt)
+   { return device[static_cast<int>(mt)-HostMemoryTypeSize]; }
 
    ~Ctrl()
    {
-#ifndef UMPIRE_USE_STATIC
-      delete host[static_cast<int>(MemoryType::HOST_UMPIRE)];
-      delete device[static_cast<int>(MemoryType::DEVICE_UMPIRE)];
-#endif
+      for (MemoryType mt = MemoryType::HOST; mt<MemoryType::DEVICE; mt++)
+      { delete host[static_cast<int>(mt)]; }
+
+      for (MemoryType mt = MemoryType::DEVICE; mt<MemoryType::SIZE; mt++)
+      { delete device[static_cast<int>(mt)-HostMemoryTypeSize]; }
    }
 };
 
@@ -1100,7 +1103,7 @@ void MemoryManager::Setup(MemoryType host_mt, MemoryType device_mt)
 {
 #ifndef UMPIRE_USE_STATIC
    // Needs to be done here, to avoid "invalid device function"
-   ctrl->UmpireSetup();
+   ctrl->Setup();
 #endif
    host_mem_type = host_mt;
    device_mem_type = device_mt;
