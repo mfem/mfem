@@ -46,6 +46,29 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
+double StdFunctionCoefficient::Eval(ElementTransformation & T,
+                                    const IntegrationPoint & ip)
+{
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   if ( ( bool )( timeFunction ) )
+   {
+      return timeFunction( transip, GetTime() );
+   }
+   else if ( ( bool )( function ) )
+   {
+      return function( transip );
+   }
+   else
+   {
+      MFEM_ABORT( "No valid function object inside this FunctionCoefficient!" );
+      return std::nan( "" );
+   }
+}
+
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
@@ -121,6 +144,34 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    if (Q)
    {
       V *= Q->Eval(T, ip, GetTime());
+   }
+}
+
+void VectorStdFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   if ( ( bool )( vectorTimeFunction ) )
+   {
+      std::cerr << " nope " << std::endl;
+      vectorTimeFunction( transip, GetTime(), V );
+   }
+   else if ( ( bool )( vectorFunction ) )
+   {
+      vectorFunction( transip, V );
+   }
+   else
+   {
+      MFEM_ABORT( "No valid function object inside this VectorStdFunctionCoefficient!" );
+   }
+
+   if ( Q != nullptr )
+   {
+      V *= Q->Eval( T, ip, GetTime() );
    }
 }
 

@@ -325,6 +325,10 @@ public:
                   double *data, HYPRE_Int *rows,
                   HYPRE_Int *cols); // constructor with 9 arguments
 
+   /** @brief Copy constructor for a ParCSR matrix which creates a deep copy of
+       structure and data from @a P. */
+   HypreParMatrix(const HypreParMatrix &P);
+
    /// Make this HypreParMatrix a reference to 'master'
    void MakeRef(const HypreParMatrix &master);
 

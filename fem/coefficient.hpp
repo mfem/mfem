@@ -17,6 +17,8 @@
 #include "intrules.hpp"
 #include "eltrans.hpp"
 
+#include <functional>
+
 namespace mfem
 {
 
@@ -156,6 +158,34 @@ public:
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+};
+
+class StdFunctionCoefficient : public Coefficient
+{
+protected:
+   using RealFunc = std::function< double( const mfem::Vector & )>;
+   using RealTimeFunc = std::function< double( const mfem::Vector &, double )>;
+
+   RealFunc function;
+   RealTimeFunc timeFunction;
+
+public:
+   StdFunctionCoefficient( RealFunc F )
+      : function( F )
+   {
+
+   }
+
+   StdFunctionCoefficient( RealTimeFunc F )
+      : timeFunction( F )
+   {
+
+   }
+
+   /// Evaluate coefficient
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip) override;
+
 };
 
 class GridFunction;
@@ -362,6 +392,38 @@ public:
                      const IntegrationPoint &ip);
 
    virtual ~VectorFunctionCoefficient() { }
+};
+
+class VectorStdFunctionCoefficient : public VectorCoefficient
+{
+private:
+   using VectorFunc = std::function< void( const mfem::Vector &, mfem::Vector & )>;
+   using VectorTimeFunc =
+      std::function< void( const mfem::Vector &, double, mfem::Vector & )>;
+
+   VectorFunc vectorFunction;
+   VectorTimeFunc vectorTimeFunction;
+   Coefficient *Q;
+
+public:
+   /// Construct a time-independent vector coefficient from a C-function
+   VectorStdFunctionCoefficient(int dim, VectorFunc VF, Coefficient *q = nullptr)
+      : VectorCoefficient(dim), vectorFunction( VF ), Q(q)
+   {
+   };
+
+   /// Construct a time-dependent vector coefficient from a C-function
+   VectorStdFunctionCoefficient(int dim, VectorTimeFunc VF,
+                                Coefficient *q = nullptr)
+      : VectorCoefficient(dim), vectorTimeFunction( VF ), Q(q)
+   {
+   };
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip) override;
+
+   virtual ~VectorStdFunctionCoefficient() { };
 };
 
 /// Vector coefficient defined by an array of scalar coefficients.
