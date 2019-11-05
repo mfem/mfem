@@ -28,7 +28,6 @@
 #include "mesh_refiners.hpp"
 #include "nurbs.hpp"
 #include "wedge.hpp"
-#include "Refiners.hpp"
 
 #ifdef MFEM_USE_MESQUITE
 #include "mesquite.hpp"
