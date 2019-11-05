@@ -37,6 +37,7 @@ static void OccaPADiffusionSetup2D(const int D1D,
    const occa::memory o_J = OccaMemoryRead(J.GetMemory(), J.Size());
    const occa::memory o_C = OccaMemoryRead(C.GetMemory(), C.Size());
    occa::memory o_op = OccaMemoryWrite(op.GetMemory(), op.Size());
+   const bool const_c = C.Size() == 1;
    const occa_id_t id = std::make_pair(D1D,Q1D);
    static occa_kernel_t OccaDiffSetup2D_ker;
    if (OccaDiffSetup2D_ker.find(id) == OccaDiffSetup2D_ker.end())
@@ -46,7 +47,7 @@ static void OccaPADiffusionSetup2D(const int D1D,
                                      "DiffusionSetup2D", props);
       OccaDiffSetup2D_ker.emplace(id, DiffusionSetup2D);
    }
-   OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, o_C, o_op);
+   OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);
 }
 
 static void OccaPADiffusionSetup3D(const int D1D,
@@ -64,6 +65,7 @@ static void OccaPADiffusionSetup3D(const int D1D,
    const occa::memory o_J = OccaMemoryRead(J.GetMemory(), J.Size());
    const occa::memory o_C = OccaMemoryRead(C.GetMemory(), C.Size());
    occa::memory o_op = OccaMemoryWrite(op.GetMemory(), op.Size());
+   const bool const_c = C.Size() == 1;
    const occa_id_t id = std::make_pair(D1D,Q1D);
    static occa_kernel_t OccaDiffSetup3D_ker;
    if (OccaDiffSetup3D_ker.find(id) == OccaDiffSetup3D_ker.end())
@@ -73,7 +75,7 @@ static void OccaPADiffusionSetup3D(const int D1D,
                                      "DiffusionSetup3D", props);
       OccaDiffSetup3D_ker.emplace(id, DiffusionSetup3D);
    }
-   OccaDiffSetup3D_ker.at(id)(NE, o_W, o_J, o_C, o_op);
+   OccaDiffSetup3D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);
 }
 #endif // MFEM_USE_OCCA
 
@@ -86,10 +88,11 @@ static void PADiffusionSetup2D(const int Q1D,
                                Vector &d)
 {
    const int NQ = Q1D*Q1D;
+   const bool const_c = c.Size() == 1;
    auto W = w.Read();
 
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto C = Reshape(c.Read(), NQ, NE);
+   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 3, NE);
 
    MFEM_FORALL(e, NE,
@@ -100,7 +103,8 @@ static void PADiffusionSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * C(q,e) / ((J11*J22)-(J21*J12));
+         const double coeff = const_c ? C(0,0) : C(q,e);
+         const double c_detJ = W[q] * coeff / ((J11*J22)-(J21*J12));
          D(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
          D(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
          D(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
@@ -117,9 +121,10 @@ static void PADiffusionSetup3D(const int Q1D,
                                Vector &d)
 {
    const int NQ = Q1D*Q1D*Q1D;
+   const bool const_c = c.Size() == 1;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto C = Reshape(c.Read(), NQ, NE);
+   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
@@ -137,7 +142,8 @@ static void PADiffusionSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * C(q,e) / detJ;
+         const double coeff = const_c ? C(0,0) : C(q,e);
+         const double c_detJ = W[q] * coeff / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -209,17 +215,20 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-   Vector coeff(nq * ne);
+   Vector coeff;
    if (Q == nullptr)
    {
-      coeff = 1.0;
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
    }
    else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
    {
-      coeff = cQ->constant;
+      coeff.SetSize(1);
+      coeff(0) = cQ->constant;
    }
    else
    {
+      coeff.SetSize(nq * ne);
       auto C = Reshape(coeff.Write(), nq, ne);
       for(int e = 0; e < ne; ++e)
       {
