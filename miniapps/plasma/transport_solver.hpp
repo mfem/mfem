@@ -1681,6 +1681,8 @@ private:
       ProductCoefficient    mini1Coef_;
       ProductCoefficient    mivi1Coef_;
 
+      VectorCoefficient * B3Coef_;
+
       IonMomentumParaDiffusionCoef   EtaParaCoef_;
       ProductCoefficient             EtaPerpCoef_;
       Aniso2DDiffusionCoef           EtaCoef_;
@@ -1692,8 +1694,6 @@ private:
       GradPressureCoefficient gradPCoef_;
 
       ApproxIonizationRate     izCoef_;
-
-      VectorCoefficient * B3Coef_;
 
       IonSourceCoef           SizCoef_;
       ProductCoefficient   negSizCoef_;
