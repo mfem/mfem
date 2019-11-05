@@ -1,6 +1,7 @@
 ﻿//          Serial example of utilizing GSLib's FindPoints methods
 //
 // Compile with: make compare
+// Sample run  : ./compare
 //
 
 #include "mfem.hpp"
@@ -21,10 +22,10 @@ double field_func(const Vector &x)
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
-   const char *mesh_file_1 = "RT2D.mesh";
-   const char *mesh_file_2 = "RT2D.mesh";
-   const char *sltn_file_1 = "sltn_1.gf";
-   const char *sltn_file_2 = "sltn_2.gf";
+   const char *mesh_file_1 = "sltn1.mesh";
+   const char *mesh_file_2 = "sltn2.mesh";
+   const char *sltn_file_1 = "sltn1.gf";
+   const char *sltn_file_2 = "sltn2.gf";
    int pts_cnt_1D = 100;
 
    // Parse command-line options.
@@ -166,17 +167,21 @@ int main (int argc, char *argv[])
    double *nd1 = n1->GetData(), *nd2 = n2->GetData();
    double avg_dist = 0.0;
    const int node_cnt = n1->Size() / dim;
-   for (int i = 0; i < node_cnt; i++)
+   if (n1->Size() == n2->Size())
    {
-      double diff_i = 0.0;
-      for (int d = 0; d < dim; d++)
+      for (int i = 0; i < node_cnt; i++)
       {
-         const int j = i + d * node_cnt;
-         diff_i += (nd1[j] - nd2[j]) * (nd1[j] - nd2[j]);
+         double diff_i = 0.0;
+         for (int d = 0; d < dim; d++)
+         {
+            const int j = i + d * node_cnt;
+            diff_i += (nd1[j] - nd2[j]) * (nd1[j] - nd2[j]);
+         }
+         avg_dist += sqrt(diff_i);
       }
-      avg_dist += sqrt(diff_i);
+      avg_dist /= node_cnt;
    }
-   avg_dist /= node_cnt;
+   else { avg_dist = -1.0; }
 
    std::cout << "Avg position difference: " << avg_dist << std::endl
              << "Searched " << pts_cnt << " points.\n"
