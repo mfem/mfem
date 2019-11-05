@@ -49,13 +49,15 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   return GridF -> GetValue (T.ElementNo, ip, Component);
-}
-
-double GridFunctionBdrCoefficient::Eval (ElementTransformation &T,
-                                         const IntegrationPoint &ip)
-{
-   return GridF -> GetBdrValue (T.ElementNo, ip, Component);
+   Mesh *mesh = GridF->FESpace()->GetMesh();
+   if (mesh->Dimension() == T.GetDimension())
+   {
+      return GridF -> GetValue (T.ElementNo, ip, Component);
+   }
+   else // Assuming T is a boundary element transformation:
+   {
+      return GridF -> GetBdrValue (T.ElementNo, ip, Component);
+   }
 }
 
 double GridFunctionBdrTraceCoefficient::Eval (ElementTransformation &T,
@@ -178,37 +180,29 @@ void VectorGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
-   GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   Mesh *mesh = GridFunc->FESpace()->GetMesh();
+   if (mesh->Dimension() == T.GetDimension())
+   {
+      GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   }
+   else // Assuming T is a boundary element transformation:
+   {
+      GridFunc->GetBdrVectorValue(T.ElementNo, ip, V);
+   }
 }
 
 void VectorGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
-   GridFunc->GetVectorValues(T, ir, M);
-}
-
-VectorGridFunctionBdrCoefficient::VectorGridFunctionBdrCoefficient (
-   const GridFunction *gf)
-   : VectorCoefficient ((gf) ? gf -> VectorDim() : 0)
-{
-   GridFunc = gf;
-}
-
-void VectorGridFunctionBdrCoefficient::SetGridFunction(const GridFunction *gf)
-{
-   GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
-}
-
-void VectorGridFunctionBdrCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                            const IntegrationPoint &ip)
-{
-   GridFunc->GetBdrVectorValue(T.ElementNo, ip, V);
-}
-
-void VectorGridFunctionBdrCoefficient::Eval(
-   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
-{
-   GridFunc->GetBdrVectorValues(T, ir, M);
+   Mesh *mesh = GridFunc->FESpace()->GetMesh();
+   if (mesh->Dimension() == T.GetDimension())
+   {
+      GridFunc->GetVectorValues(T, ir, M);
+   }
+   else // Assuming T is a boundary element transformation:
+   {
+      GridFunc->GetBdrVectorValues(T, ir, M);
+   }
 }
 
 VectorGridFunctionBdrTraceCoefficient::VectorGridFunctionBdrTraceCoefficient (

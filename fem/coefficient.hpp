@@ -180,27 +180,6 @@ public:
                        const IntegrationPoint &ip);
 };
 
-/// Coefficient defined by the boundary of a GridFunction. This coefficient is
-/// mesh dependent.
-class GridFunctionBdrCoefficient : public Coefficient
-{
-private:
-   const GridFunction *GridF;
-   int Component;
-
-public:
-   /** Construct GridFunctionBdrCoefficient from a given GridFunction, and
-       optionally specify a component to use if it is a vector GridFunction. */
-   GridFunctionBdrCoefficient (const GridFunction *gf, int comp = 1)
-   { GridF = gf; Component = comp; }
-
-   void SetGridFunction(const GridFunction *gf) { GridF = gf; }
-   const GridFunction * GetGridFunction() const { return GridF; }
-
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
-};
-
 /// Coefficient defined by the boundary traces of a GridFunction. This
 /// coefficient is mesh dependent.
 /** The coefficient is defined on the boundary elements, but the values are
@@ -457,28 +436,6 @@ public:
                      const IntegrationRule &ir);
 
    virtual ~VectorGridFunctionCoefficient() { }
-};
-
-/// Vector coefficient defined by the boundary of a vector GridFunction
-class VectorGridFunctionBdrCoefficient : public VectorCoefficient
-{
-protected:
-   const GridFunction *GridFunc;
-
-public:
-   VectorGridFunctionBdrCoefficient() : VectorCoefficient(0), GridFunc(NULL) { }
-   VectorGridFunctionBdrCoefficient(const GridFunction *gf);
-
-   void SetGridFunction(const GridFunction *gf);
-   const GridFunction * GetGridFunction() const { return GridFunc; }
-
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
-
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
-
-   virtual ~VectorGridFunctionBdrCoefficient() { }
 };
 
 /// Vector coefficient defined by the boundary traces of a vector GridFunction
