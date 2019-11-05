@@ -924,7 +924,7 @@ int main(int argc, char *argv[])
                   "            A-stable methods (not L-stable)\n\t"
                   "            22 - ImplicitMidPointSolver,\n\t"
                   "            23 - SDIRK23, 34 - SDIRK34.");
-   args.AddOption(&ode_epus, "-epus", "--err-per-unit0step", "-eps",
+   args.AddOption(&ode_epus, "-epus", "--err-per-unit-step", "-eps",
                   "--err-per-step",
                   "Select error value used by ODE controller.");
    args.AddOption(&ode_weights, "-ode-w","--ode-weights",
