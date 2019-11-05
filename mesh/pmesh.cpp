@@ -2446,8 +2446,10 @@ void ParMesh::ReorientTetMesh()
       stria_comm.Bcast(stria_master_flag);
       for (int i = 0; i < stria_flag.Size(); i++)
       {
+         const int *v = shared_trias[i].v;
          MFEM_VERIFY(stria_flag[i] == stria_master_flag[i],
-                     "inconsistent vertex ordering found");
+                     "inconsistent vertex ordering found, shared triangle (" <<
+                     v[0] << ", " << v[1] << ", " << v[2] << ")");
       }
    }
 

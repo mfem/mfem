@@ -10041,4 +10041,51 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    return mesh3d;
 }
 
+#ifdef MFEM_DEBUG
+void Mesh::DebugDump(std::ostream &out) const
+{
+   // dump vertices and edges (NCMesh "nodes")
+   out << NumOfVertices + NumOfEdges << "\n";
+   for (int i = 0; i < NumOfVertices; i++)
+   {
+      const double *v = GetVertex(i);
+      out << i << " " << v[0] << " " << v[1] << " " << v[2]
+          << " 0 0 " << i << " -1 0\n";
+   }
+
+   Array<int> ev;
+   for (int i = 0; i < NumOfEdges; i++)
+   {
+      GetEdgeVertices(i, ev);
+      double mid[3] = {0, 0, 0};
+      for (int j = 0; j < 2; j++)
+      {
+         for (int k = 0; k < spaceDim; k++)
+         {
+            mid[k] += GetVertex(ev[j])[k];
+         }
+      }
+      out << NumOfVertices+i << " "
+          << mid[0]/2 << " " << mid[1]/2 << " " << mid[2]/2 << " "
+          << ev[0] << " " << ev[1] << " -1 " << i << " 0\n";
+   }
+
+   // dump elements
+   out << NumOfElements << "\n";
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      const Element* e = elements[i];
+      out << e->GetNVertices() << " ";
+      for (int j = 0; j < e->GetNVertices(); j++)
+      {
+         out << e->GetVertices()[j] << " ";
+      }
+      out << e->GetAttribute() << " 0 " << i << "\n";
+   }
+
+   // dump faces
+   out << "0\n";
+}
+#endif
+
 }
