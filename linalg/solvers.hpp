@@ -287,6 +287,8 @@ public:
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
+
+   virtual ~NewtonSolver();
 };
 
 /** Adaptive restarted GMRES.
