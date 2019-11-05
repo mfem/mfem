@@ -12,19 +12,59 @@ using namespace mfem;
 #define dbg(...) \
    { printf("\n\033[33m"); printf(__VA_ARGS__); printf("\033[m"); fflush(0); }
 
+enum TestFunction {
+   STEPS,
+   ZZFAIL,
+};
+
+static TestFunction test_func = ZZFAIL;
+
+// *****************************************************************************
+
 static int discs;
 static double theta;
 static Array<double> offsets;
 constexpr int nb_discs_max = 6;
 constexpr double sharpness = 100.0;
 
-// *****************************************************************************
-double x0(const Vector &x)
+double x0_steps(const Vector &x)
 {
    double result = 0.0;
    const double t = x[0] + tan(theta)*x[1];
    for (double o: offsets) { result += 1.0 + tanh(sharpness*(o - t)); }
    return result/static_cast<double>(discs<<1); // should be in [0,1]
+}
+
+double sgn(double val)
+{
+   double eps = 1.e-10;
+   if (val < -eps) return -1.;
+   if (val > +eps) return +1.;
+   return 0.;
+}
+
+double x0_zzfail(const Vector &x)
+{
+   double f = 16;
+   double twopi = 8*atan(1.);
+   double w0 = sgn( sin(f*twopi*x[0]) );
+   double w1 = sgn( sin(f*twopi*x[1]) );
+   if (x[0] < 0.5) return w0*w1;
+   return 0;
+}
+
+double x0(const Vector &x)
+{
+   switch (test_func) {
+   case STEPS:
+      return x0_steps(x);
+      break;
+   case ZZFAIL:
+      return x0_zzfail(x);
+      break;
+   }
+   printf("unknown function: %d\n",test_func);
+   return 0;
 }
 
 // *****************************************************************************
@@ -43,7 +83,6 @@ Drl4Amr::Drl4Amr(int o):
    integ(new DiffusionIntegrator(one)),
    xcoeff(x0),
    x(&fespace),
-//   level(&fespace),
    iteration(0),
    flux_fespace(&mesh, &fec, sdim),
    estimator(*integ, x, flux_fespace),
