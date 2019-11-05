@@ -1,6 +1,7 @@
 1. Download gslib and untar it at the level of the mfem folder.
-   wget https://github.com/gslib/gslib/archive/v1.0.3.tar.gz
-   tar -zxvf v1.0.3.tar.gz
+   wget https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
+   tar -zxvf v1.0.5.tar.gz
+   ln -s gslib-1.0.5 gslib
    Now gslib should be located at the level of the MFEM folder
 
 2. Build gslib in serial or parallel based on MFEM build:
