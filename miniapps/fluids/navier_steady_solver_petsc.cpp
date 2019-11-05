@@ -555,7 +555,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh_file = "../data/amr-quad.mesh";
+      mesh_file = "../../data/amr-quad.mesh";
    }
 
    int vel_order = order;
