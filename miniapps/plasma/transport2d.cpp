@@ -846,10 +846,10 @@ int main(int argc, char *argv[])
    int    op_flag = 31;
    double tol_ode = 1e-3;
    double rej_ode = 1.2;
-   double kP_acc = 0.13;
-   double kI_acc = 1.0 / 15.0;
-   double kD_acc = 0.2;
-   double kI_rej = 0.2;
+   double kP_acc = 0.0;
+   double kI_acc = 0.6;
+   double kD_acc = 0.0;
+   double kI_rej = 0.6;
    double lim_max = 2.0;
 
    double tol_init = 1e-5;
@@ -1037,6 +1037,8 @@ int main(int argc, char *argv[])
    {
       ode_weights.SetSize(5);
       ode_weights = 1.0;
+      ode_weights[0] = 1e-8;
+      ode_weights[4] = 1e-10;
    }
 
    if (t_final < 0.0)
