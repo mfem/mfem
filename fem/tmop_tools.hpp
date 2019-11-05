@@ -100,8 +100,6 @@ public:
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    virtual void ProcessNewState(const Vector &x) const;
-
-   virtual ~TMOPNewtonSolver();
 };
 
 /// Allows negative Jacobians. Used for untangling.
