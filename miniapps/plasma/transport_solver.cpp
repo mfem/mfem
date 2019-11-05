@@ -2660,6 +2660,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      ne1Coef_(z_i_, ni1Coef_),
      mini1Coef_(m_i_, ni1Coef_),
      mivi1Coef_(m_i_, vi1Coef_),
+     B3Coef_(&B3Coef),
      EtaParaCoef_(ion_charge, ion_mass, Ti1Coef_),
      EtaPerpCoef_(DPerpConst_, mini1Coef_),
      EtaCoef_(EtaParaCoef_, EtaPerpCoef_, *B3Coef_),
@@ -2668,7 +2669,6 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      dtminiViCoef_(0.0, miniViCoef_),
      gradPCoef_(pgf, dpgf, ion_charge, B3Coef),
      izCoef_(Te1Coef_),
-     B3Coef_(&B3Coef),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
@@ -2972,12 +2972,15 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      z_i_(ion_charge), m_i_(ion_mass),
      ChiPerpConst_(ChiPerp),
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]),
-     Ti0Coef_(pgf[3]), Te0Coef_(pgf[4]),
+     Ti0Coef_(pgf[3]),
+     Te0Coef_(pgf[4]), grad_Te0Coef_(pgf[4]),
      dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dviCoef_(dpgf[2]),
-     dTiCoef_(dpgf[3]), dTeCoef_(dpgf[4]),
+     dTiCoef_(dpgf[3]),
+     dTeCoef_(dpgf[4]), grad_dTeCoef_(dpgf[4]),
      nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
      vi1Coef_(vi0Coef_, dviCoef_),
-     Ti1Coef_(Ti0Coef_, dTiCoef_), Te1Coef_(Te0Coef_, dTeCoef_),
+     Ti1Coef_(Ti0Coef_, dTiCoef_),
+     Te1Coef_(Te0Coef_, dTeCoef_), grad_Te1Coef_(grad_Te0Coef_, grad_dTeCoef_),
      ne0Coef_(z_i_, ni0Coef_),
      ne1Coef_(z_i_, ni1Coef_),
      thTeCoef_(1.5 * z_i_, Te1Coef_),
@@ -2985,9 +2988,14 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      izCoef_(Te1Coef_),
      B3Coef_(&B3Coef),
      ChiParaCoef_(z_i_, ne1Coef_, Te1Coef_),
+     dChidTParaCoef_(z_i_, ne1Coef_, Te1Coef_,
+		     StateVariableFunc::ELECTRON_TEMPERATURE),
      ChiPerpCoef_(ChiPerpConst_, ne1Coef_),
      ChiCoef_(ChiParaCoef_, ChiPerpCoef_, *B3Coef_),
      dtChiCoef_(0.0, ChiCoef_),
+     dChidTCoef_(true, dChidTParaCoef_, *B3Coef_),
+     dChiGradTCoef_(dChidTCoef_, grad_Te1Coef_),
+     dtdChiGradTCoef_(0.0, dChiGradTCoef_),
      dbc_(dbc),
      ChiParaGF_(new ParGridFunction((*pgf_)[4]->ParFESpace())),
      ChiPerpGF_(new ParGridFunction((*pgf_)[4]->ParFESpace()))
@@ -3057,6 +3065,11 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    blf_[4]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtChiCoef_,
                                                            dg_.sigma,
                                                            dg_.kappa));
+
+   blf_[4]->AddDomainIntegrator(
+      new MixedScalarWeakDivergenceIntegrator(dtdChiGradTCoef_));
+   blf_[4]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtdChiGradTCoef_,
+                                                            1.0, -0.5));
    /*
    blf_[2]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
@@ -3087,8 +3100,10 @@ void DGTransportTDO::ElectronStaticPressureOp::SetTimeStep(double dt)
    vi1Coef_.SetBeta(dt);
    Ti1Coef_.SetBeta(dt);
    Te1Coef_.SetBeta(dt);
+   grad_Te1Coef_.SetBeta(dt);
 
    dtChiCoef_.SetAConst(dt);
+   dtdChiGradTCoef_.SetAConst(-dt);
 }
 
 void DGTransportTDO::

@@ -1804,11 +1804,15 @@ private:
       GridFunctionCoefficient dTiCoef_;
       GridFunctionCoefficient dTeCoef_;
 
+      GradientGridFunctionCoefficient grad_Te0Coef_;
+      GradientGridFunctionCoefficient grad_dTeCoef_;
+     
       mutable SumCoefficient  nn1Coef_;
       mutable SumCoefficient  ni1Coef_;
       mutable SumCoefficient  vi1Coef_;
       mutable SumCoefficient  Ti1Coef_;
       mutable SumCoefficient  Te1Coef_;
+      mutable VectorSumCoefficient  grad_Te1Coef_;
 
       ProductCoefficient      ne0Coef_;
       ProductCoefficient      ne1Coef_;
@@ -1821,9 +1825,14 @@ private:
       VectorCoefficient *      B3Coef_;
 
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
+      ElectronThermalParaDiffusionCoef dChidTParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
       Aniso2DDiffusionCoef             ChiCoef_;
       ScalarMatrixProductCoefficient   dtChiCoef_;
+
+      Aniso2DDiffusionCoef             dChidTCoef_;
+      MatVecCoefficient                dChiGradTCoef_;
+      ScalarVectorProductCoefficient   dtdChiGradTCoef_;
 
       const Array<CoefficientByAttr> & dbc_;
 
