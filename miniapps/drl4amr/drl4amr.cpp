@@ -67,6 +67,54 @@ double x0(const Vector &x)
    return 0;
 }
 
+
+// *****************************************************************************
+class NCM: public NCMesh
+{
+public:
+   NCM(NCMesh *n): NCMesh(*n) {}
+
+   int GetMaxDepth()
+   {
+      int max_depth = -1;
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         const int depth = GetElementDepth(i);
+         max_depth = std::max(depth, max_depth);
+      }
+      return max_depth;
+   }
+
+   bool IsAllMaxDepth(int max_depth)
+   {
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         const int depth = GetElementDepth(i);
+         if (depth < max_depth)
+         {
+            return false;
+         }
+      }
+      return true;
+   }
+
+   // If max_amr_depth =-1, use runtime GetMaxDepth as target depth
+   void FullRefine(Mesh *image, const int max_amr_depth =-1)
+   {
+      const int max_depth = (max_amr_depth > 0) ? max_amr_depth : GetMaxDepth();
+      const char ref_type = 7; // iso
+      Array<Refinement> refinements;
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         if (GetElementDepth(i) < max_depth)
+         {
+            refinements.Append(Refinement(i, ref_type));
+         }
+      }
+      image->GeneralRefinement(refinements, 1, 0);
+   }
+};
+
 // *****************************************************************************
 Drl4Amr::Drl4Amr(int o):
    order(o),
@@ -90,7 +138,7 @@ Drl4Amr::Drl4Amr(int o):
    level_no(0),
    elem_id(0)
 {
-   //dbg("Drl4Amr order:%d",o);
+   //dbg("Drl4Amr order: %d\n",o);
    device.Print();
 
    mesh.EnsureNodes();
@@ -165,6 +213,21 @@ Drl4Amr::Drl4Amr(int o):
              << "keys RjgA" << endl; // mn
    }
 
+   // Make fully refined mesh to get its size, so we can allocate
+   // statically sized metadata arrays.
+   mesh.EnsureNCMesh();
+   Mesh msh(mesh, true);
+   bool done = false;
+   while (!done)
+   {
+      NCM nc(msh.ncmesh);
+      nc.FullRefine(&msh, max_depth);
+      done = nc.IsAllMaxDepth(max_depth);
+   }
+   nefr = msh.GetNE();
+   level_no = new int[nefr];
+   elem_id = new int[nefr];
+
    // Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
    // that uses the ComputeElementFlux method of the DiffusionIntegrator to
    // recover a smoothed flux (gradient) that is subtracted from the element
@@ -177,6 +240,7 @@ Drl4Amr::Drl4Amr(int o):
    // fraction of the maximum element error. Other strategies are possible.
    // The refiner will call the given error estimator.
    refiner.SetTotalErrorFraction(0.7);
+   //dbg("~Drl4Amr order: %d\n",o);
 }
 
 
@@ -267,54 +331,6 @@ double Drl4Amr::GetNorm()
 }
 
 
-// *****************************************************************************
-class NCM: public NCMesh
-{
-public:
-   NCM(NCMesh *n): NCMesh(*n) {}
-
-   int GetMaxDepth()
-   {
-      int max_depth = -1;
-      for (int i = 0; i < leaf_elements.Size(); i++)
-      {
-         const int depth = GetElementDepth(i);
-         max_depth = std::max(depth, max_depth);
-      }
-      return max_depth;
-   }
-
-   bool IsAllMaxDepth()
-   {
-      const int max_depth = GetMaxDepth();
-      for (int i = 0; i < leaf_elements.Size(); i++)
-      {
-         const int depth = GetElementDepth(i);
-         if (depth < max_depth)
-         {
-            return false;
-         }
-      }
-      return true;
-   }
-
-   // If max_amr_depth =-1, use runtime GetMaxDepth as target depth
-   void FullRefine(Mesh *image, const int max_amr_depth =-1)
-   {
-      const int max_depth = (max_amr_depth > 0) ? max_amr_depth : GetMaxDepth();
-      const char ref_type = 7; // iso
-      Array<Refinement> refinements;
-      for (int i = 0; i < leaf_elements.Size(); i++)
-      {
-         if (GetElementDepth(i) < max_depth)
-         {
-            refinements.Append(Refinement(i, ref_type));
-         }
-      }
-      image->GeneralRefinement(refinements, 1, 0);
-   }
-};
-
 
 // *****************************************************************************
 double *Drl4Amr::GetImage()
@@ -333,7 +349,7 @@ double *Drl4Amr::GetImage()
    {
       NCM nc(msh.ncmesh);
       nc.FullRefine(&msh, max_depth);
-      done = nc.IsAllMaxDepth();
+      done = nc.IsAllMaxDepth(max_depth);
       fes.Update();
       X.Update();
    }
@@ -496,7 +512,7 @@ int *Drl4Amr::GetLevelField()
    {
       NCM nc(msh.ncmesh);
       nc.FullRefine(&msh, max_depth);
-      done = nc.IsAllMaxDepth();
+      done = nc.IsAllMaxDepth(max_depth);
       fes0.Update();
       level.Update();
    }
@@ -507,9 +523,6 @@ int *Drl4Amr::GetLevelField()
       fflush(0);
    }
 
-   if (level_no) delete[] level_no;
-   nefr = msh.GetNE();
-   level_no = new int[nefr];
    std::copy(level.GetData(), level.GetData()+msh.GetNE(), level_no);
 
    return level_no;
@@ -536,7 +549,7 @@ int *Drl4Amr::GetElemIdField()
    {
       NCM nc(msh.ncmesh);
       nc.FullRefine(&msh, max_depth);
-      done = nc.IsAllMaxDepth();
+      done = nc.IsAllMaxDepth(max_depth);
       fes0.Update();
       elem.Update();
    }
@@ -547,9 +560,6 @@ int *Drl4Amr::GetElemIdField()
       fflush(0);
    }
 
-   if (elem_id) delete[] elem_id;
-   nefr = msh.GetNE();
-   elem_id = new int[nefr];
    std::copy(elem.GetData(), elem.GetData()+msh.GetNE(), elem_id);
 
    return elem_id;
