@@ -7,6 +7,7 @@
 //    mpirun -np 2 exp -m ../../data/fichera.mesh -o 3
 
 #include "mfem.hpp"
+#include "fem/gslib.hpp"
 
 using namespace mfem;
 using namespace std;

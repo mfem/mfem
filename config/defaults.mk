@@ -46,6 +46,14 @@ CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
+# HIP configuration options
+HIP_CXX = hipcc
+# The HIP_ARCH option specifies the AMD GPU processor, similar to CUDA_ARCH. For
+# example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
+# gfx900, gfx1010, etc.
+HIP_ARCH = gfx900
+HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
@@ -123,6 +131,7 @@ MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_GSLIB         = NO
 MFEM_USE_CUDA          = NO
+MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 
@@ -174,9 +183,9 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
-SUNDIALS_DIR = @MFEM_DIR@/../sundials-3.0.0
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib -L$(SUNDIALS_DIR)/lib\
+SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib64\
  -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
 
 ifeq ($(MFEM_USE_MPI),YES)
@@ -201,7 +210,7 @@ SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
 # SuperLU library configuration
 SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
-SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/SRC -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
+SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
 # STRUMPACK >= v2.2.0)
@@ -301,13 +310,17 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
    -llion -lmth -lapf_zoltan -lspr
 
 # GSLIB library
-GSLIB_DIR = @MFEM_DIR@/../gslib-1.0.3/build
+GSLIB_DIR = @MFEM_DIR@/../gslib/build
 GSLIB_OPT = -I$(GSLIB_DIR)/include
 GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration (currently not needed)
 CUDA_OPT =
 CUDA_LIB =
+
+# HIP library configuration (currently not needed)
+HIP_OPT =
+HIP_LIB =
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
