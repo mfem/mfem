@@ -326,15 +326,10 @@ public:
       lin->SetBlock(0, 1, G);
       lin->SetBlock(1, 0, D.As<HypreParMatrix>());
 
-
       newton_solver.iterative_mode = true;
       newton_solver.SetOperator(*this);
       J_factory = new PreconditionerFactory(*this, "preconditioner");
       newton_solver.SetPreconditionerFactory(J_factory);
-      // newton_solver.SetSolver(*jac_solver);
-
-      // trueX.Randomize();
-      // this->CheckJacobian(trueX, ess_tdof_list_);
    }
 
    virtual void Mult(const Vector &x, Vector &y) const
@@ -372,9 +367,7 @@ public:
       jac->SetBlock(0, 0, NjacS);
 
       delete petscJac;
-      petscJac = new PetscParMatrix(pmesh_->GetComm(),
-                                    jac,
-                                    PETSC_MATAIJ);
+      petscJac = new PetscParMatrix(pmesh_->GetComm(), jac, Operator::PETSC_MATAIJ);
 
       // return *jac;
       return *petscJac;
@@ -423,10 +416,7 @@ public:
 
 Solver *PreconditionerFactory::NewPreconditioner(const OperatorHandle &oh)
 {
-   // return new PetscFieldSplitSolver(MPI_COMM_WORLD, *ns_op.jac, "");
-   PetscParMatrix *pP;
-   oh.Get(pP);
-   return new PetscPreconditioner(*pP, "jfnk_");
+   return new PetscFieldSplitSolver(MPI_COMM_WORLD, *ns_op.jac, "");
 }
 
 void UpdateFESpaces(Array<ParFiniteElementSpace *> &fes)
