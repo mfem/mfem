@@ -1820,12 +1820,6 @@ int main(int argc, char *argv[])
       oper.RegisterDataFields(*dc);
       oper.PrepareDataFields();
 
-      dc->RegisterField("neutral_density", &neu_density);
-      dc->RegisterField("ion_density", &ion_density);
-      dc->RegisterField("parallel_ion_velocity", &para_velocity);
-      dc->RegisterField("ion_temp", &ion_energy);
-      dc->RegisterField("electron_temp", &elec_energy);
-
       dc->SetCycle(0);
       dc->SetTime(t_init);
       dc->Save();
