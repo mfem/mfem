@@ -25,6 +25,7 @@
 #include "ncmesh.hpp"
 #include "mesh.hpp"
 #include "mesh_operators.hpp"
+#include "mesh_refiners.hpp"
 #include "nurbs.hpp"
 #include "wedge.hpp"
 #include "Refiners.hpp"
