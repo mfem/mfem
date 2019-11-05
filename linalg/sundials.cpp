@@ -159,8 +159,10 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 
    if (Parallel())
    {
+#ifdef MFEM_USE_MPI
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
+#endif
    }
 
    // Get current time
@@ -569,8 +571,10 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
 
    if (Parallel())
    {
+#ifdef MFEM_USE_MPI
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
+#endif
    }
 
    // Get current time
@@ -1053,8 +1057,10 @@ void KINSolver::SetOperator(const Operator &op)
 
    if (Parallel())
    {
+#ifdef MFEM_USE_MPI
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
+#endif
    }
 
    if (sundials_mem)
