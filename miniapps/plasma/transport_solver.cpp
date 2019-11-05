@@ -1276,7 +1276,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
 
    if (mpi_.Root() == 0 && logging_ > 0)
    {
-      cout << "Setting time step: " << dt << endl;
+     cout << "Setting time step: " << dt << " in DGTransportTDO" << endl;
    }
    op_.SetTimeStep(dt);
    // op_.UpdateGradient();
