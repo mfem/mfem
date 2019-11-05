@@ -47,6 +47,14 @@ inline double tau_e(double Te, double zi, double ni, double lnLambda)
           sqrt(0.5 * me_kg_ * pow(Te * eV_, 3) / M_PI) /
           (lnLambda * pow(q_, 4) * zi * zi * ni);
 }
+/// Derivative of tau_e wrt Te
+inline double dtau_e_dT(double Te, double zi, double ni, double lnLambda)
+{
+   // The factor of eV_ is included to convert Te from eV to Joules
+   return 1.125 * eV_ * pow(4.0 * M_PI * epsilon0_, 2) *
+          sqrt(0.5 * me_kg_ * Te * eV_ / M_PI) /
+          (lnLambda * pow(q_, 4) * zi * zi * ni);
+}
 
 /**
    Returns the mean Ion-Ion mean collision time in seconds (see equation 2.5i)
@@ -1014,13 +1022,15 @@ private:
 public:
    ElectronThermalParaDiffusionCoef(double ion_charge,
                                     Coefficient &neCoef,
-                                    Coefficient &TeCoef)
-      : StateVariableCoef(), z_i_(ion_charge), neCoef_(&neCoef), TeCoef_(&TeCoef)
+                                    Coefficient &TeCoef,
+				    DerivType deriv = INVALID)
+      : StateVariableCoef(deriv),
+	z_i_(ion_charge), neCoef_(&neCoef), TeCoef_(&TeCoef)
    {}
 
    bool NonTrivialValue(DerivType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -1032,6 +1042,18 @@ public:
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
       return 3.16 * ne * Te * eV_ * tau / me_kg_;
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+		   const IntegrationPoint &ip)
+   {
+      double ne = neCoef_->Eval(T, ip);
+      double Te = TeCoef_->Eval(T, ip);
+      double tau = tau_e(Te, z_i_, ne, 17.0);
+      double dtau = dtau_e_dT(Te, z_i_, ne, 17.0);
+      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
+      // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
+      return 3.16 * ne * eV_ * (tau + Te * dtau)/ me_kg_;
    }
 
 };
