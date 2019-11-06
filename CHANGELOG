@@ -27,6 +27,15 @@ Miscellaneous
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
 
+- Added support for GSLIB-FindPoints, a high-order off-grid interpolation
+  utility. See INSTALL for details on building MFEM with GSLIB, and
+  examples/gslib for an example of this feature. 
+
+New and updated examples and miniapps
+-------------------------------------
+- Added an example in examples/gslib that shows how GSLIB-FindPoints can be
+  used to find arbitrary number of points (in physical-space) in a 2D/3D mesh
+  in parallel, and interpolate a GridFunction/ParGridFunction on those points.  
 
 Version 4.0, released on May 24, 2019
 =====================================
