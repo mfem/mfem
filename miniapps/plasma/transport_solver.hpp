@@ -805,7 +805,7 @@ public:
         lnLambda_(17.0),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
            sqrt(mi_ * amu_ * pow(eV_, 5) / M_PI) /
-           (lnLambda_ * pow(q_ * zi_, 4))),
+           (lnLambda_ * amu_ * pow(q_ * zi_, 4))),
         TiCoef_(&TiCoef)
    {}
 
