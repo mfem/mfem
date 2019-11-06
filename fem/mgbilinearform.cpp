@@ -15,14 +15,12 @@
 namespace mfem
 {
 
-MultigridBilinearForm::MultigridBilinearForm()
-    : MultigridOperator()
-{
-}
+MultigridBilinearForm::MultigridBilinearForm() : MultigridOperator() {}
 
 MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
                                              BilinearForm& bf,
-                                             Array<int>& ess_bdr)
+                                             Array<int>& ess_bdr,
+                                             int chebyshevOrder)
     : MultigridOperator()
 {
    MFEM_VERIFY(bf.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
@@ -98,7 +96,8 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
           powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
 
       Solver* smoother = new OperatorChebyshevSmoother(
-          opr.Ptr(), diag, *essentialTrueDofs.Last(), 2, estLargestEigenvalue);
+          opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder,
+          estLargestEigenvalue);
 
       Operator* P =
           new TransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),

@@ -20,7 +20,8 @@ namespace mfem
 {
 
 ParMultigridBilinearForm::ParMultigridBilinearForm(
-    ParSpaceHierarchy& spaceHierarchy, ParBilinearForm& bf, Array<int>& ess_bdr)
+    ParSpaceHierarchy& spaceHierarchy, ParBilinearForm& bf, Array<int>& ess_bdr,
+    int chebyshevOrder)
     : MultigridBilinearForm()
 {
    MFEM_VERIFY(bf.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
@@ -98,7 +99,8 @@ ParMultigridBilinearForm::ParMultigridBilinearForm(
           powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
 
       Solver* smoother = new OperatorChebyshevSmoother(
-          opr.Ptr(), diag, *essentialTrueDofs.Last(), 2, estLargestEigenvalue);
+          opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder,
+          estLargestEigenvalue);
 
       Operator* P =
           new TrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
