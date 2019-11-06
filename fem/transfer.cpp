@@ -261,6 +261,9 @@ void TensorProductPRefinementTransferOperator::Mult2D(const Vector& x,
 {   
    elem_restrict_lex_l->Mult(x, localL);
 
+   const int NE_ = NE;
+   const int D1D_ = D1D;
+   const int Q1D_ = Q1D;
    auto x_ = Reshape(localL.Read(), D1D, D1D, NE);
    auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, NE);
    auto B_ = Reshape(B.Read(), Q1D, D1D);
@@ -268,35 +271,35 @@ void TensorProductPRefinementTransferOperator::Mult2D(const Vector& x,
 
    localH = 0.0;
 
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL(e, NE_,
    {
-      for (int dy = 0; dy < D1D; ++dy)
+      for (int dy = 0; dy < D1D_; ++dy)
       {
          double sol_x[Q1D];
-         for (int qy = 0; qy < Q1D; ++qy)
+         for (int qy = 0; qy < Q1D_; ++qy)
          {
             sol_x[qy] = 0.0;
          }
-         for (int dx = 0; dx < D1D; ++dx)
+         for (int dx = 0; dx < D1D_; ++dx)
          {
             const double s = x_(dx, dy, e);
-            for (int qx = 0; qx < Q1D; ++qx)
+            for (int qx = 0; qx < Q1D_; ++qx)
             {
                sol_x[qx] += B_(qx, dx) * s;
             }
          }
-         for (int qy = 0; qy < Q1D; ++qy)
+         for (int qy = 0; qy < Q1D_; ++qy)
          {
             const double d2q = B_(qy, dy);
-            for (int qx = 0; qx < Q1D; ++qx)
+            for (int qx = 0; qx < Q1D_; ++qx)
             {
                y_(qx, qy, e) += d2q * sol_x[qx];
             }
          }
       }
-      for (int qy = 0; qy < Q1D; ++qy)
+      for (int qy = 0; qy < Q1D_; ++qy)
       {
-         for (int qx = 0; qx < Q1D; ++qx)
+         for (int qx = 0; qx < Q1D_; ++qx)
          {
             y_(qx, qy, e) = m_(qx, qy, e) * y_(qx, qy, e);
          }
@@ -437,6 +440,9 @@ void TensorProductPRefinementTransferOperator::MultTranspose2D(const Vector& x,
 {
    elem_restrict_lex_h->Mult(x, localH);
 
+   const int NE_ = NE;
+   const int D1D_ = D1D;
+   const int Q1D_ = Q1D;
    auto x_ = Reshape(localH.Read(), Q1D, Q1D, NE);
    auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, NE);
    auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
@@ -444,27 +450,27 @@ void TensorProductPRefinementTransferOperator::MultTranspose2D(const Vector& x,
 
    localL = 0.0;
 
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL(e, NE_,
    {
-      for (int qy = 0; qy < Q1D; ++qy)
+      for (int qy = 0; qy < Q1D_; ++qy)
       {
          double sol_x[D1D];
-         for (int dx = 0; dx < D1D; ++dx)
+         for (int dx = 0; dx < D1D_; ++dx)
          {
             sol_x[dx] = 0.0;
          }
-         for (int qx = 0; qx < Q1D; ++qx)
+         for (int qx = 0; qx < Q1D_; ++qx)
          {
             const double s = (m_(qx, qy, e) == 0.0) ? 0.0 : x_(qx, qy, e);
-            for (int dx = 0; dx < D1D; ++dx)
+            for (int dx = 0; dx < D1D_; ++dx)
             {
                sol_x[dx] += Bt_(dx, qx) * s;
             }
          }
-         for (int dy = 0; dy < D1D; ++dy)
+         for (int dy = 0; dy < D1D_; ++dy)
          {
             const double q2d = Bt_(dy, qy);
-            for (int dx = 0; dx < D1D; ++dx)
+            for (int dx = 0; dx < D1D_; ++dx)
             {
                y_(dx, dy, e) += q2d * sol_x[dx];
             }
