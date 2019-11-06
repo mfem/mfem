@@ -275,7 +275,7 @@ void TensorProductPRefinementTransferOperator::Mult2D(const Vector& x,
    {
       for (int dy = 0; dy < D1D_; ++dy)
       {
-         double sol_x[Q1D];
+         double sol_x[Q1D_];
          for (int qy = 0; qy < Q1D_; ++qy)
          {
             sol_x[qy] = 0.0;
@@ -454,7 +454,7 @@ void TensorProductPRefinementTransferOperator::MultTranspose2D(const Vector& x,
    {
       for (int qy = 0; qy < Q1D_; ++qy)
       {
-         double sol_x[D1D];
+         double sol_x[D1D_];
          for (int dx = 0; dx < D1D_; ++dx)
          {
             sol_x[dx] = 0.0;
