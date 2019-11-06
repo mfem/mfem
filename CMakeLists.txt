@@ -248,6 +248,10 @@ if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
 endif()
 
+if (MFEM_USE_CEED)
+  find_package(libCEED REQUIRED)
+endif()
+
 if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint )
 endif()
@@ -323,7 +327,7 @@ endif()
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
     MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
+    POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA libCEED)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -533,6 +537,13 @@ if (MFEM_USE_OCCA)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
     FILES_MATCHING PATTERN "*.okl")
+endif()
+
+# Install the libCEED files
+if (MFEM_USE_CEED)
+  install(DIRECTORY ${MFEM_SOURCE_DIRS}
+    DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
+    FILES_MATCHING PATTERN "diffusion.h mass.h")
 endif()
 
 # Install ${HEADERS}
