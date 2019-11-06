@@ -900,6 +900,7 @@ public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void BooleanMask(Vector &y) const;
 };
 
 
