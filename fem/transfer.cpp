@@ -15,6 +15,94 @@
 namespace mfem
 {
 
+namespace TransferKernels
+{
+void Prolongation2D(const int NE, const int D1D, const int Q1D,
+                    const Vector& localL, Vector& localH,
+                    const Array<double>& B, const Vector& mask)
+{
+   auto x_ = Reshape(localL.Read(), D1D, D1D, NE);
+   auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, NE);
+   auto B_ = Reshape(B.Read(), Q1D, D1D);
+   auto m_ = Reshape(mask.Read(), Q1D, Q1D, NE);
+
+   localH = 0.0;
+
+   MFEM_FORALL(e, NE, {
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         double sol_x[Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            sol_x[qy] = 0.0;
+         }
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double s = x_(dx, dy, e);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_x[qx] += B_(qx, dx) * s;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double d2q = B_(qy, dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               y_(qx, qy, e) += d2q * sol_x[qx];
+            }
+         }
+      }
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            y_(qx, qy, e) = m_(qx, qy, e) * y_(qx, qy, e);
+         }
+      }
+   });
+}
+
+void Restriction2D(const int NE, const int D1D, const int Q1D,
+                   const Vector& localH, Vector& localL,
+                   const Array<double>& Bt, const Vector& mask)
+{
+   auto x_ = Reshape(localH.Read(), Q1D, Q1D, NE);
+   auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, NE);
+   auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
+   auto m_ = Reshape(mask.Read(), Q1D, Q1D, NE);
+
+   localL = 0.0;
+
+   MFEM_FORALL(e, NE, {
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         double sol_x[D1D];
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            sol_x[dx] = 0.0;
+         }
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double s = (m_(qx, qy, e) == 0.0) ? 0.0 : x_(qx, qy, e);
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               sol_x[dx] += Bt_(dx, qx) * s;
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            const double q2d = Bt_(dy, qy);
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               y_(dx, dy, e) += q2d * sol_x[dx];
+            }
+         }
+      }
+   });
+}
+} // namespace TransferKernels
+
 TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
                                    const FiniteElementSpace& hFESpace_)
     : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
@@ -260,52 +348,7 @@ void TensorProductPRefinementTransferOperator::Mult2D(const Vector& x,
                                                       Vector& y) const
 {   
    elem_restrict_lex_l->Mult(x, localL);
-
-   const int NE_ = NE;
-   const int D1D_ = D1D;
-   const int Q1D_ = Q1D;
-   auto x_ = Reshape(localL.Read(), D1D, D1D, NE);
-   auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, NE);
-   auto B_ = Reshape(B.Read(), Q1D, D1D);
-   auto m_ = Reshape(mask.Read(), Q1D, Q1D, NE);
-
-   localH = 0.0;
-
-   MFEM_FORALL(e, NE_,
-   {
-      for (int dy = 0; dy < D1D_; ++dy)
-      {
-         double sol_x[Q1D_];
-         for (int qy = 0; qy < Q1D_; ++qy)
-         {
-            sol_x[qy] = 0.0;
-         }
-         for (int dx = 0; dx < D1D_; ++dx)
-         {
-            const double s = x_(dx, dy, e);
-            for (int qx = 0; qx < Q1D_; ++qx)
-            {
-               sol_x[qx] += B_(qx, dx) * s;
-            }
-         }
-         for (int qy = 0; qy < Q1D_; ++qy)
-         {
-            const double d2q = B_(qy, dy);
-            for (int qx = 0; qx < Q1D_; ++qx)
-            {
-               y_(qx, qy, e) += d2q * sol_x[qx];
-            }
-         }
-      }
-      for (int qy = 0; qy < Q1D_; ++qy)
-      {
-         for (int qx = 0; qx < Q1D_; ++qx)
-         {
-            y_(qx, qy, e) = m_(qx, qy, e) * y_(qx, qy, e);
-         }
-      }
-   });
-
+   TransferKernels::Prolongation2D(NE, D1D, Q1D, localL, localH, B, mask);
    elem_restrict_lex_h->MultTranspose(localH, y);
 }
 
@@ -439,45 +482,7 @@ void TensorProductPRefinementTransferOperator::MultTranspose2D(const Vector& x,
                                                                Vector& y) const
 {
    elem_restrict_lex_h->Mult(x, localH);
-
-   const int NE_ = NE;
-   const int D1D_ = D1D;
-   const int Q1D_ = Q1D;
-   auto x_ = Reshape(localH.Read(), Q1D, Q1D, NE);
-   auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, NE);
-   auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
-   auto m_ = Reshape(mask.Read(), Q1D, Q1D, NE);
-
-   localL = 0.0;
-
-   MFEM_FORALL(e, NE_,
-   {
-      for (int qy = 0; qy < Q1D_; ++qy)
-      {
-         double sol_x[D1D_];
-         for (int dx = 0; dx < D1D_; ++dx)
-         {
-            sol_x[dx] = 0.0;
-         }
-         for (int qx = 0; qx < Q1D_; ++qx)
-         {
-            const double s = (m_(qx, qy, e) == 0.0) ? 0.0 : x_(qx, qy, e);
-            for (int dx = 0; dx < D1D_; ++dx)
-            {
-               sol_x[dx] += Bt_(dx, qx) * s;
-            }
-         }
-         for (int dy = 0; dy < D1D_; ++dy)
-         {
-            const double q2d = Bt_(dy, qy);
-            for (int dx = 0; dx < D1D_; ++dx)
-            {
-               y_(dx, dy, e) += q2d * sol_x[dx];
-            }
-         }
-      }
-   });
-
+   TransferKernels::Restriction2D(NE, D1D, Q1D, localH, localL, Bt, mask);
    elem_restrict_lex_l->MultTranspose(localL, y);
 }
 
