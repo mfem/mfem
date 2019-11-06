@@ -2829,10 +2829,10 @@ void ElementRestriction::BooleanMask(Vector& y) const
    Array<char> processed(vd * ndofs);
    processed = 0;
 
-   auto d_offsets = offsets.Read();
-   auto d_indices = indices.Read();
-   auto d_x = Reshape(processed.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-   auto d_y = Reshape(y.Write(), nd, vd, ne);
+   auto d_offsets = offsets.HostRead();
+   auto d_indices = indices.HostRead();
+   auto d_x = Reshape(processed.HostReadWrite(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.HostWrite(), nd, vd, ne);
    for (int i = 0; i < ndofs; ++i)
    {
       const int offset = d_offsets[i];
