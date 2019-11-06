@@ -100,6 +100,7 @@ class MultigridOperator : public Operator
    Solver* GetSmootherAtLevel(int level);
 };
 
+/// Abstract multigrid operator with timing support
 class TimedMultigridOperator : public MultigridOperator
 {
  public:
@@ -122,6 +123,7 @@ class TimedMultigridOperator : public MultigridOperator
    mutable std::map<std::tuple<Statistics, Operation, int>, double> stats;
 
  public:
+   /// See documentation of MultigridOperator
    TimedMultigridOperator();
    TimedMultigridOperator(Operator* opr, Solver* coarseSolver, bool ownOperator,
                           bool ownSolver);
@@ -133,6 +135,7 @@ class TimedMultigridOperator : public MultigridOperator
    void ApplySmootherAtLevel(int level, const Vector& x,
                              Vector& y) const override;
 
+   /// Writes the collected staticistics for a specific \p operation to \p out
    void PrintStats(Operation operation, std::ostream& out) const;
 };
 
