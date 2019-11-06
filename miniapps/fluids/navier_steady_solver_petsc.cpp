@@ -125,7 +125,6 @@ void kov_vel_ex(const Vector &x, Vector &u)
 double kov_p_ex(const Vector &x)
 {
    double xi = x(0);
-
    double lam = kov_lam();
 
    return 1.0 - 1.0 / 2.0 * exp(2.0 * lam * xi);
@@ -141,7 +140,7 @@ public:
       : PetscPreconditionerFactory(name), ns_op(op)
    {}
 
-   virtual Solver *NewPreconditioner(const OperatorHandle &op);
+   Solver *NewPreconditioner(const OperatorHandle &op);
 
    virtual ~PreconditionerFactory() {}
 };
@@ -160,38 +159,35 @@ private:
    BlockVector trueX, trueRhs;
 
    VectorGridFunctionCoefficient vel_fc;
-   ParNonlinearForm *N;
-   ParBilinearForm *sform;
-   ParLinearForm *fform;
-   ParMixedBilinearForm *dform;
+   ParNonlinearForm *N = nullptr;
+   ParBilinearForm *sform = nullptr;
+   ParLinearForm *fform = nullptr;
+   ParMixedBilinearForm *dform = nullptr;
 
-   HypreParMatrix *S;
+   HypreParMatrix *S = nullptr;
    OperatorHandle D;
-   HypreParMatrix *G;
-   mutable HypreParMatrix *NjacS;
+   HypreParMatrix *G = nullptr;
+   mutable HypreParMatrix *NjacS = nullptr;
 
-   BlockOperator *lin;
+   BlockOperator *lin = nullptr;
 
-   IterativeSolver *jac_solver;
+   IterativeSolver *jac_solver = nullptr;
 
-   mutable Operator *petscJac;
+   mutable Operator *petscJac = nullptr;
    PetscNonlinearSolver newton_solver;
-   PetscPreconditionerFactory *J_factory;
-   PetscPreconditioner *prec;
+   PetscPreconditionerFactory *J_factory = nullptr;
 
-   ParGridFunction *vel_gf;
-   ParGridFunction *p_gf;
+   ParGridFunction *vel_gf = nullptr;
+   ParGridFunction *p_gf = nullptr;
 
 public:
-   BlockOperator *jac;
+   BlockOperator *jac = nullptr;
 
    NavierStokesOperator(Array<ParFiniteElementSpace *> &fes)
       : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
         pmesh_(fes[0]->GetParMesh()), fes_(fes),
-        ess_bdr_attr_(pmesh_->bdr_attributes.Max()), N(nullptr), S(nullptr),
-        G(nullptr), NjacS(nullptr), jac(nullptr), lin(nullptr),
-        jac_solver(nullptr), newton_solver(pmesh_->GetComm(), *this),
-        vel_gf(nullptr)
+        ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
+        newton_solver(pmesh_->GetComm(), *this)
    {
       if (opt_.prob_type == PROB_TYPE::KOV || opt_.prob_type == PROB_TYPE::MMS
           || opt_.prob_type == PROB_TYPE::LDC)
@@ -328,7 +324,7 @@ public:
 
       newton_solver.iterative_mode = true;
       newton_solver.SetOperator(*this);
-      J_factory = new PreconditionerFactory(*this, "preconditioner");
+      J_factory = new PreconditionerFactory(*this, "mypc");
       newton_solver.SetPreconditionerFactory(J_factory);
    }
 
@@ -594,23 +590,27 @@ int main(int argc, char *argv[])
    socketstream u_sock(vishost, visport);
    u_sock.precision(8);
 
-   NavierStokesOperator nso(fes);
-   nso.Solve();
+   {
+      NavierStokesOperator nso(fes);
+      nso.Solve();
 
-   vel_gf = nso.UpdateVelocityGF();
-   p_gf = nso.UpdatePressureGF();
+      vel_gf = nso.UpdateVelocityGF();
+      p_gf = nso.UpdatePressureGF();
 
-   CompareSolution(nso, vel_gf, p_gf);
+      CompareSolution(nso, vel_gf, p_gf);
 
-   u_sock << "parallel " << num_procs << " " << myid << "\n"
-          << "solution\n"
-          << *pmesh << *vel_gf << "window_title 'velocity'" << endl;
+      u_sock << "parallel " << num_procs << " " << myid << "\n"
+             << "solution\n"
+             << *pmesh << *vel_gf << "window_title 'velocity'" << endl;
+   }
 
    delete vel_fec;
    delete pres_fec;
    delete vel_fes;
    delete pres_fes;
    delete pmesh;
+
+   MFEMFinalizePetsc();
 
    return 0;
 }
