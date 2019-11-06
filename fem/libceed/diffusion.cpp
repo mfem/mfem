@@ -30,11 +30,11 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
    mesh->EnsureNodes();
-   initCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+   InitCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   initCeedTensorBasisAndRestriction(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   InitCeedTensorBasisAndRestriction(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
@@ -56,13 +56,13 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    // quadrature data) and set its context data.
    switch (ceedData.coeff_type)
    {
-      case Const:
+      case CeedCoeff::Const:
          CeedQFunctionCreateInterior(ceed, 1, f_build_diff_const,
                                      MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_build_diff_const",
                                      &ceedData.build_qfunc);
          ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          break;
-      case Grid:
+      case CeedCoeff::Grid:
          CeedQFunctionCreateInterior(ceed, 1, f_build_diff_grid,
                                      MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_build_diff_grid",
                                      &ceedData.build_qfunc);
@@ -86,19 +86,17 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    {
       lmode = CEED_TRANSPOSE;
    }
-   if (ceedData.coeff_type==Grid)
+   if (ceedData.coeff_type==CeedCoeff::Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      // if (dev_enabled) { Device::Disable(); }
-      initCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
+      InitCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
                    &ceedCoeff->restr);
-      // if (dev_enabled) { Device::Enable(); }
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
                          ceedCoeff->coeff->GetData());
-      CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr, lmode,
-                           ceedCoeff->basis, ceedCoeff->coeffVector);
+      CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr,
+                           CEED_NOTRANSPOSE, ceedCoeff->basis, ceedCoeff->coeffVector);
    }
    CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, lmode,
                         ceedData.mesh_basis, CEED_VECTOR_ACTIVE);

@@ -19,7 +19,9 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
 struct CeedData;
+#endif
 
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
@@ -1680,8 +1682,11 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
+   
+#ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
+#endif
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
@@ -1742,8 +1747,11 @@ protected:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+   
+#ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
+#endif
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
