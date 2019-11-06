@@ -1002,6 +1002,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   mat_e = NULL;
    extern_bfs = 0;
 }
 
@@ -1013,6 +1014,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   mat_e = NULL;
    extern_bfs = 1;
 
    // Copy the pointers to the integrators
@@ -1249,6 +1251,8 @@ void MixedBilinearForm::Update()
 {
    delete mat;
    mat = NULL;
+   delete mat_e;
+   mat_e = nullptr;
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
 }
@@ -1256,6 +1260,7 @@ void MixedBilinearForm::Update()
 MixedBilinearForm::~MixedBilinearForm()
 {
    if (mat) { delete mat; }
+   if (mat_e) { delete mat_e; }
    if (!extern_bfs)
    {
       int i;

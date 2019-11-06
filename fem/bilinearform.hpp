@@ -509,6 +509,7 @@ class MixedBilinearForm : public Matrix
 {
 protected:
    SparseMatrix *mat; ///< Owned.
+   SparseMatrix *mat_e; ///< Owned.
 
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned

@@ -51,7 +51,7 @@ public:
    vector<Array<int>> patch_other_tdofs;
    vector<Array<int>> patch_owned_other_tdofs;
    Array<SparseMatrix * > PatchMat;
-   Array<SparseMatrix * > Prl;
+   Array<SparseMatrix * > Rst;
    par_patch_dof_info *patch_tdof_info=nullptr;   
    Array<int> host_rank; 
    HypreParMatrix * A = nullptr;
@@ -111,13 +111,8 @@ bool its_a_patch(int iv, Array<int> patch_ids);
 
 bool owned(int tdof, int * offs);
 
-
-
-SparseMatrix * GetDiagColumnValues(const Array<int> & tdof_i, SparseMatrix & diag,
-const int * row_start);
-
-SparseMatrix * GetLocalProlongation(const Array<int> & tdof_i, const int * row_start, 
-                              const int num_rows, const int num_cols);
+SparseMatrix * GetLocalRestriction(const Array<int> & tdof_i, const int * row_start, 
+                              const int num_rows, const int num_cols);                              
 
 void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j, SparseMatrix & offd, const int * cmap, 
                          const int * row_start, SparseMatrix * PatchMat);
@@ -131,3 +126,7 @@ SparseMatrix & offd, const int * cmap, const int * row_start);
 
 void GetColumnValues(const int tdof_i,const Array<int> & tdof_j, SparseMatrix & diag ,
 SparseMatrix & offd, const int *cmap, const int * row_start, Array<int> &cols, Array<double> &vals);
+
+
+// SparseMatrix * GetLocalProlongation(const Array<int> & tdof_i, const int * row_start, 
+                              // const int num_rows, const int num_cols);

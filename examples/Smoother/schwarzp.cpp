@@ -204,7 +204,7 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
       elem_contr[iel].Sort();
       elem_contr[iel].Unique();
    }
-   delete A;
+   if(Pr) delete A;
    delete B;
    if(Pr) delete Pr;
    delete aux_fec;
@@ -362,7 +362,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
       int tot_size = displs[num_procs - 1] + count[num_procs - 1];
       // Get a group identifier for comm.
       MPI_Group world_group_id;
-      MPI_Comm new_comm;
+      MPI_Comm new_comm = MPI_COMM_NULL;
       MPI_Group new_group_id;
       MPI_Comm_group (comm, &world_group_id);
       // count the ranks that do not have zero length
@@ -395,7 +395,7 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
       }
       MPI_Group_free(&world_group_id);
       MPI_Group_free(&new_group_id);
-      MPI_Comm_free(&new_comm);
+      if (new_comm != MPI_COMM_NULL) MPI_Comm_free(&new_comm);
    }
 }
 
@@ -421,7 +421,7 @@ void par_patch_dof_info::Print()
 }
 
 par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace_, HypreParMatrix * A_) 
-   : fespace(fespace_), A(A_)
+   :  A(A_), fespace(fespace_)
 {
    comm = A->GetComm();
    int num_procs, myid;
@@ -476,7 +476,8 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
    // Block (1,1) has to be communicated among processors. Its constructed by the dofs not owned by the processor.
 
    Array<SparseMatrix * > PatchMat00(nrpatch);
-   Prl.SetSize(nrpatch);
+   // Prl.SetSize(nrpatch);
+   Rst.SetSize(nrpatch);
 
    //--------------------------------------------------------------------------------------
    // Construction of (0,0): This is done with RAP
@@ -484,16 +485,20 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
    for (int ip = 0; ip < nrpatch; ip++)
    {
       PatchMat00[ip]=nullptr;
-      Prl[ip] = nullptr;
+      // Prl[ip] = nullptr;
+      Rst[ip] = nullptr;
       if (myid == host_rank[ip])
       {
          int num_cols = patch_tdof_info->patch_local_tdofs[ip].Size();
          int num_rows = diag.Height();
          // loop through rows
-         Prl[ip] = GetLocalProlongation(patch_tdof_info->patch_local_tdofs[ip],
-                                                  row_start, num_rows, num_cols);
-
-         PatchMat00[ip] = RAP(*Prl[ip],diag,*Prl[ip]);
+         // Prl[ip] = GetLocalProlongation(patch_tdof_info->patch_local_tdofs[ip],
+                                                //   row_start, num_rows, num_cols);
+         Rst[ip] = GetLocalRestriction(patch_tdof_info->patch_local_tdofs[ip],
+                                                  row_start, num_rows, num_cols);                                         
+         SparseMatrix *Prl = Transpose(*Rst[ip]);
+         PatchMat00[ip] = RAP(*Prl,diag,*Prl);
+         delete Prl;
       }  
    }
 
@@ -684,7 +689,7 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
             BlkPatchMat[ip]->SetBlock(1,1,PatchMat11[ip]);   
             // Convert to sparse
             PatchMat[ip] = BlkPatchMat[ip]->CreateMonolithic();
-             
+            delete BlkPatchMat[ip];
          }
          else
          {
@@ -716,6 +721,7 @@ ParSchwarzSmoother::ParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFin
    // check for correctness
    for (int ip = 0; ip < nrpatch; ip++)
    {
+      PatchInv[ip] = nullptr;
       if (P->PatchMat[ip])
       {
          PatchInv[ip] = new UMFPackSolver;
@@ -733,7 +739,6 @@ void ParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
    Array<int> tdof_i;
-   int *row_start = A->GetRowStarts();
 
    z = 0.0;
    Vector rnew(r);
@@ -748,6 +753,7 @@ void ParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
       Array<BlockVector*> sol(nrpatch);
       for (int ip=0; ip<nrpatch; ip++)
       {
+         sol[ip] = nullptr;
          if(myid == host_rank[ip]) 
          {
             Array<int> block_offs(3);
@@ -840,9 +846,12 @@ void PatchRestriction::Mult(const Vector & r , Array<BlockVector*> & res)
    {
       if (myid == host_rank[ip])
       {
-         int n = P->Prl[ip]->Width();
+         // int n = P->Prl[ip]->Width();
+         // res0[ip].SetSize(n);
+         // P->Prl[ip]->MultTranspose(r, res0[ip]);
+         int n = P->Rst[ip]->Height();
          res0[ip].SetSize(n);
-         P->Prl[ip]->MultTranspose(r, res0[ip]);
+         P->Rst[ip]->Mult(r, res0[ip]);
       }
    }
    // now allocate space for the send buffer
@@ -902,6 +911,7 @@ void PatchRestriction::Mult(const Vector & r , Array<BlockVector*> & res)
    res.SetSize(nrpatch);
    for (int ip=0; ip<nrpatch; ip++)
    {
+      res[ip] = nullptr;
       if(myid == host_rank[ip]) 
       {
          Array<int> block_offs(3);
@@ -979,9 +989,12 @@ void PatchRestriction::MultTranspose(const Array<BlockVector *> & sol, Vector & 
       if (myid == host_rank[ip])
       {
          sol0[ip] = sol[ip]->GetBlock(0);
-         int n = P->Prl[ip]->Height();
+         // int n = P->Prl[ip]->Height();
+         // Vector z0(n); z0 = 0.0;
+         // P->Prl[ip]->Mult(sol0[ip], z0);
+         int n = P->Rst[ip]->Width();
          Vector z0(n); z0 = 0.0;
-         P->Prl[ip]->Mult(sol0[ip], z0);
+         P->Rst[ip]->MultTranspose(sol0[ip], z0);
          z += z0;
       }
    }
@@ -1014,9 +1027,9 @@ par_patch_assembly::~par_patch_assembly()
    for (int ip = 0; ip < nrpatch; ip++)
    {
       if (PatchMat[ip]) delete PatchMat[ip];
-      if (Prl[ip]) delete Prl[ip];
+      if (Rst[ip]) delete Rst[ip];
    }
-   Prl.DeleteAll();
+   Rst.DeleteAll();
    PatchMat.DeleteAll();
 }
 
@@ -1125,32 +1138,18 @@ void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j, S
    }
 }
 
-SparseMatrix * GetDiagColumnValues(const Array<int> & tdof_i, SparseMatrix & diag,
-const int * row_start)
-{
-   int num_rows = diag.Height();
-   int num_cols = tdof_i.Size();
-
-   SparseMatrix * Pr = GetLocalProlongation(tdof_i, row_start, num_rows, num_cols);
-   SparseMatrix * Prl = RAP(*Pr,diag,*Pr); 
-   delete Pr;
-   return Prl;
-}
-
-SparseMatrix * GetLocalProlongation(const Array<int> & tdof_i, const int * row_start, 
+SparseMatrix * GetLocalRestriction(const Array<int> & tdof_i, const int * row_start, 
                               const int num_rows, const int num_cols)
 {
-   SparseMatrix * R = new SparseMatrix(num_rows,num_cols);
+   SparseMatrix * R = new SparseMatrix(num_cols,num_rows);
    for (int i=0; i<num_cols; i++)
    {
          int ii = tdof_i[i] - row_start[0];
-         R->Set(ii,i,1.0);
+         R->Set(i,ii,1.0);
    }
    R->Finalize();
    return R;
 }
-
-
 
 void GetArrayIntersection(const Array<int> & A, const Array<int> & B, Array<int>  & C) 
 {
@@ -1173,3 +1172,17 @@ void GetArrayIntersection(const Array<int> & A, const Array<int> & B, Array<int>
       }
    }
 }  
+
+
+// SparseMatrix * GetLocalProlongation(const Array<int> & tdof_i, const int * row_start, 
+//                               const int num_rows, const int num_cols)
+// {
+//    SparseMatrix * R = new SparseMatrix(num_rows,num_cols);
+//    for (int i=0; i<num_cols; i++)
+//    {
+//          int ii = tdof_i[i] - row_start[0];
+//          R->Set(ii,i,1.0);
+//    }
+//    R->Finalize();
+//    return R;
+// }

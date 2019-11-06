@@ -35,6 +35,7 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
    for (int ip = 0; ip < nrpatch; ++ip)
    {
       PatchInv[ip]=nullptr;
+      PatchMat[ip]=nullptr;
       if (P(0,0)->PatchMat[ip])
       {
          
@@ -132,7 +133,6 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
             res[ip]->SetVector(*res0[ip],0);
             res[ip]->SetVector(*res1[ip],res0[ip]->Size());
            
-                             
             Array<int> block_offs0(3);
             block_offs0[0] = 0;
             block_offs0[1] = res0[ip]->GetBlock(0).Size();
@@ -153,7 +153,6 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
       }
       R(0,0)->MultTranspose(sol0,znew.GetBlock(0));
       R(1,1)->MultTranspose(sol1,znew.GetBlock(1));
-
       for (int ip=0; ip<nrpatch; ++ip)
       {
          if(myid == host_rank[ip]) 
@@ -177,8 +176,8 @@ BlkParSchwarzSmoother::~BlkParSchwarzSmoother()
    {
       for (int j=0; j<2; j++)
       {
-         delete P(i,j); 
-         delete R(i,j);
+         if (P(i,j)) delete P(i,j); 
+         if (R(i,j)) delete R(i,j);
       }   
    }
    P.DeleteAll();

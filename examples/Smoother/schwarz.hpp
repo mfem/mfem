@@ -23,15 +23,15 @@ struct patch_nod_info
    // constructor
    patch_nod_info(Mesh * mesh_, int ref_levels_);
 private:
-   int ref_levels=0;;
    Mesh *mesh=nullptr;
+   int ref_levels=0;;
 };
 
 struct patch_assembly 
 {
    int nrpatch;
-   int ref_levels;
    Mesh cmesh;
+   int ref_levels;
    Array<SparseMatrix *> Pid; 
    // constructor
    patch_assembly(Mesh * cmesh_, int ref_levels_,FiniteElementSpace *fespace);

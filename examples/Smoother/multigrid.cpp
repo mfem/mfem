@@ -82,7 +82,8 @@ void MGSolver::Mult(const Vector &r, Vector &z) const
    z = zv[NumGrids];
 }
 
-MGSolver::~MGSolver() {
+MGSolver::~MGSolver() 
+{
    int n = S.size();
    for (int i = n - 1; i >= 0 ; i--)
    {
@@ -92,8 +93,6 @@ MGSolver::~MGSolver() {
    S.clear();
    A.clear();
    delete invAc;
-
-
 }
 
 BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HypreParMatrix *> P_,std::vector<ParFiniteElementSpace * > fespaces)
@@ -147,12 +146,15 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
    Array2D<double> coeff(2,2);
    coeff(0,0) = 1.0;  coeff(0,1) = 1.0;
    coeff(1,0) = 1.0;  coeff(1,1) = 1.0;
+   // Convert to PetscParMatrix
    HypreParMatrix * Ac;
    Ac = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD, offsets, A[0], coeff);
-   invAc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
    // Convert to PetscParMatrix
-   invAc->SetOperator(PetscParMatrix(Ac, Operator::PETSC_MATAIJ));
+   PetscParMatrix * petsc = new PetscParMatrix(Ac, Operator::PETSC_MATAIJ);
    delete Ac;
+   invAc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
+   invAc->SetOperator(*petsc);
+   delete petsc;
    // Smoother
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
@@ -212,7 +214,8 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
    z = zv[NumGrids];
 }
 
-BlockMGSolver::~BlockMGSolver() {
+BlockMGSolver::~BlockMGSolver() 
+{
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
       delete S[i];

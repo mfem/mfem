@@ -45,7 +45,8 @@ void hypre_ParCSRMatrixEliminateAXB(hypre_ParCSRMatrix *A,
 void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                     hypre_ParCSRMatrix **Ae,
                                     HYPRE_Int num_rowscols_to_elim,
-                                    HYPRE_Int *rowscols_to_elim);
+                                    HYPRE_Int *rowscols_to_elim,
+                                    int ignore_rows = 0);
 
 /** Split matrix 'A' into nr x nc blocks, return nr x nc pointers to
     new parallel matrices. The array 'blocks' needs to be preallocated to hold

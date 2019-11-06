@@ -183,12 +183,12 @@ void Block_AMSSolver::Getrowl1norm(HypreParMatrix *A , Vector &l1norm)
    HYPRE_Int num_rows = hypre_ParCSRMatrixNumRows(Ah);
    hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(Ah);
    HYPRE_Int *A_diag_I = hypre_CSRMatrixI(A_diag);
-   HYPRE_Int *A_diag_J = hypre_CSRMatrixJ(A_diag);
+   // HYPRE_Int *A_diag_J = hypre_CSRMatrixJ(A_diag);
    HYPRE_Real *A_diag_data = hypre_CSRMatrixData(A_diag);
 
    hypre_CSRMatrix *A_offd = hypre_ParCSRMatrixOffd(Ah);
    HYPRE_Int *A_offd_I = hypre_CSRMatrixI(A_offd);
-   HYPRE_Int *A_offd_J = hypre_CSRMatrixJ(A_offd);
+   // HYPRE_Int *A_offd_J = hypre_CSRMatrixJ(A_offd);
    HYPRE_Real *A_offd_data = hypre_CSRMatrixData(A_offd);
    HYPRE_Int num_cols_offd = hypre_CSRMatrixNumCols(A_offd);
 
@@ -213,7 +213,7 @@ void Block_AMSSolver::Mult(const Vector &r, Vector &z) const
 {
    int n = r.Size();
    int m = A->Height();
-   int Numit = 0;
+   // int Numit = 0;
    if (n != m ) {cout << "Size inconsistency" << endl;}
 
    Vector res(n), raux(n),zaux(n);

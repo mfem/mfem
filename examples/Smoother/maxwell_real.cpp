@@ -7,7 +7,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "Schwarz.hpp"
+#include "schwarz.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -37,6 +37,7 @@ int main(int argc, char *argv[])
    int initref    = 1;
    // number of wavelengths
    double k = 0.5;
+   int nd = 3;
    StopWatch chrono;
 
 
@@ -46,7 +47,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   // args.AddOption(&sdim, "-d", "--dimension", "Dimension");
+   args.AddOption(&nd, "-nd", "--dimension", "Dimension");
    args.AddOption(&ref_levels, "-sr", "--serial-refinements", 
                   "Number of mesh refinements");
    args.AddOption(&initref, "-iref", "--init-refinements", 
@@ -76,16 +77,16 @@ int main(int argc, char *argv[])
 
    Mesh * mesh; 
    // Define a simple square or cubic mesh
-   // if (sdim == 2)
-   // {
-      // mesh = new Mesh(1, 1, Element::QUADRILATERAL, true,1.0, 1.0,false);
+   if (nd == 2)
+   {
+      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true,1.0, 1.0,false);
       // mesh = new Mesh(1, 1, Element::TRIANGLE, true,1.0, 1.0,false);
-   // }
-   // else
-   // {
-      // mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true,1.0, 1.0,1.0, false);
-      mesh = new Mesh(mesh_file, 1, 1);
-   // }
+   }
+   else
+   {
+      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true,1.0, 1.0,1.0, false);
+      // mesh = new Mesh(mesh_file, 1, 1);
+   }
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
    for (int i=0; i<initref; i++) {mesh->UniformRefinement();}
@@ -145,11 +146,13 @@ int main(int argc, char *argv[])
 
    FiniteElementSpace *prec_fespace = (a->StaticCondensationIsEnabled() ? a->SCFESpace() : fespace);
 
+
+
    chrono.Clear();
    chrono.Start();
    SchwarzSmoother * prec = new SchwarzSmoother(cmesh,ref_levels, prec_fespace, &A, ess_tdof_list);
    prec->SetNumSmoothSteps(1);
-   prec->SetDumpingParam(0.5);
+   prec->SetDumpingParam(1.0/2.0);
 
    chrono.Stop();
    // Need to invastigate the time scalings. TODO
@@ -160,26 +163,46 @@ int main(int argc, char *argv[])
    X = 0.0;
    int maxit(1000);
    double rtol(0.0);
-   double atol(1.e-8);
+   double atol(1.e-12);
    GMRESSolver solver;
    solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
    solver.SetMaxIter(maxit);
-   solver.SetOperator(A);
    solver.SetPreconditioner(*prec);
+   solver.SetOperator(A);
    solver.SetPrintLevel(1);
    
    chrono.Clear();
    chrono.Start();
    solver.Mult(B,X);
    chrono.Stop();
+   cout << "Solver time: " << chrono.RealTime() << endl;
+
+
+   // UMFPackSolver * invA = new UMFPackSolver;
+   // invA->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   // invA->SetOperator(A);
+   // invA->Mult(B,X);
+
+
+   // delete invA;
+
 
 
    a->RecoverFEMSolution(X, *b, x);
-   cout << "Solver time: " << chrono.RealTime() << endl;
+
+
+
+
+
 
    GridFunction Egf(fespace);
    Egf.ProjectCoefficient(E_ex);
+
+
+
+
+
 
 
    int order_quad = max(2, 2 * order + 1);

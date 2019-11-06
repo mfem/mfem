@@ -11,7 +11,7 @@ using namespace mfem;
 
 void print(std::vector<int> const &input)
 {
-	for (int i = 0; i < input.size(); i++) {
+	for (int i = 0; i < (int)input.size(); i++) {
 		std::cout << input.at(i) << ' ';
 	}
 }

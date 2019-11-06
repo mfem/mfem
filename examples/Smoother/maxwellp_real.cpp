@@ -58,6 +58,8 @@ int main(int argc, char *argv[])
    int initref = 1;
    // solver
    int solver = 1;
+   // Space Dimension
+   int nd = 3;
    // PETSC
    // const char *petscrc_file = "petscrc_direct";
    const char *petscrc_file = "petscrc_mult_options";
@@ -83,7 +85,8 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&solver, "-s", "--solver",
-                  "Solver: 0 - SCHWARZ, 1 - GMG-GMRES, 2 - PETSC, 3 - SUPERLU, 4 - STRUMPACK, 5-HSS-GMRES");                       
+                  "Solver: 0 - SCHWARZ, 1 - GMG-GMRES, 2 - PETSC, 3 - SUPERLU, 4 - STRUMPACK, 5-HSS-GMRES");       
+   args.AddOption(&nd, "-nd", "--dimension", "Dimension: 2D or 3D");                                      
    args.Parse();
    // check if the inputs are correct
    if (!args.Good())
@@ -113,15 +116,22 @@ int main(int argc, char *argv[])
 
 
    // Angular frequency
-   // omega = 2.0*k*M_PI;
-   omega = k;
+   omega = 2.0*k*M_PI;
+   // omega = k;
 
    // 2. Read the mesh from the given mesh file.
    // Mesh *mesh = new Mesh(mesh_file, 1, 1);
    Mesh *mesh;
-   double length;
-   length = (sol == 4) ? 0.5: 1.0;
-   mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length, false);
+   if(nd == 3)
+   {
+      double length;
+      length = (sol == 4) ? 0.5: 1.0;
+      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length, false);
+   }
+   else
+   {
+      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0,false);
+   }
    
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
@@ -192,6 +202,7 @@ int main(int argc, char *argv[])
    HypreParMatrix * A = new HypreParMatrix;
    Vector B, X;
 
+
    a->FormLinearSystem(ess_tdof_list, x, *b, *A, X, B);
 
    if (myid == 0)
@@ -200,21 +211,24 @@ int main(int argc, char *argv[])
            << A->GetGlobalNumRows() << " x " << A->GetGlobalNumCols() << endl;
    }
 
-   MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
-   chrono.Clear();
-   chrono.Start();
-   GMGSolver * M1 = new GMGSolver(A, P, GMGSolver::CoarseSolver::PETSC);
-   M1->SetTheta(1.0/2.0);
-   chrono.Stop();
+   // MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
 
+   // chrono.Clear();
+   // chrono.Start();
+   // GMGSolver * M1 = new GMGSolver(A, P, GMGSolver::CoarseSolver::PETSC);
+   ParSchwarzSmoother * M1 = new ParSchwarzSmoother(fespaces[ref_levels-1]->GetParMesh(),1,fespaces[ref_levels],A);
+   // M1->SetDumpingParam(1.0/5.0);
+   // M1->SetTheta(1.0/2.0);
+   // chrono.Stop();
+   
    if (myid == 0)
    {
-      cout << "MG-Jacobi  construction time: " << chrono.RealTime() << endl;
+      cout << "Additive Smoother construction time: " << chrono.RealTime() << endl;
    }
 
    int maxit(2000);
    double rtol(1.e-6);
-   double atol(1.e-12);
+   double atol(1.e-6);
    X = 0.0;
    GMRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetAbsTol(atol);
@@ -234,28 +248,28 @@ int main(int argc, char *argv[])
    }
    delete M1;
 
-   chrono.Clear();
-   chrono.Start();
-   MGSolver * M2 = new MGSolver(A, P,fespaces);
-   M2->SetTheta(1.0/2.0);
-   chrono.Stop();
-   if (myid == 0)
-   {
-      cout << "MG-Add Schwarz Construction time: " << chrono.RealTime() << endl;
-   }
-   X = 0.0;
-   gmres.SetPreconditioner(*M2);
-   chrono.Clear();
-   chrono.Start();
-   gmres.Mult(B,X);
-   chrono.Stop();
-   if (myid == 0)
-   {
-      cout << "MG-Add Schwarz Solver time: " << chrono.RealTime() << endl;
-   }
-   delete M2;
+   // chrono.Clear();
+   // chrono.Start();
+   // MGSolver * M2 = new MGSolver(A, P,fespaces);
+   // M2->SetTheta(1.0/5.0);
+   // chrono.Stop();
+   // if (myid == 0)
+   // {
+   //    cout << "MG-Add Schwarz Construction time: " << chrono.RealTime() << endl;
+   // }
+   // X = 0.0;
+   // gmres.SetPreconditioner(*M2);
+   // chrono.Clear();
+   // chrono.Start();
+   // gmres.Mult(B,X);
+   // chrono.Stop();
+   // if (myid == 0)
+   // {
+   //    cout << "MG-Add Schwarz Solver time: " << chrono.RealTime() << endl;
+   // }
+   // delete M2;
 
-   MFEMFinalizePetsc();
+   // MFEMFinalizePetsc();
 
    a->RecoverFEMSolution(X, *b, x);
 
@@ -282,8 +296,6 @@ int main(int argc, char *argv[])
    // dc->RegisterField("solution",&x);
    // dc->Save();
 
-
-
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -291,12 +303,12 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
+      sol_sock << "solution\n" << *pmesh << x  << "window_title 'Numerical E'" << "keys rRljc\n" << flush;
       
       socketstream exact_sock(vishost, visport);
       exact_sock << "parallel " << num_procs << " " << myid << "\n";
       exact_sock.precision(8);
-      exact_sock << "solution\n" << *pmesh << Eex << flush;
+      exact_sock << "solution\n" << *pmesh << Eex << "window_title 'Exact E'" << "keys rRljc\n" << flush;
    }
    // ---------------------------------------------------------------------
 
