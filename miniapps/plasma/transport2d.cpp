@@ -1,6 +1,10 @@
 //
 // ./transport -s 12 -v 1 -vs 5 -tol 5e-3 -tf 4
 //
+
+// Annular benchmark test
+// mpirun -np 10 ./transport2d -v 1 -vs 1 -epus -tf 1 -op 16 -l 1 -m annulus-quad-o3.mesh -p 1 -ni-min 3e19 -ni-max 3e19 -Te-min 11 -Te-max 440 -ode-w '1e-8 1 0 0 1e-4' -dt 1e-1 -visit
+
 #include "mfem.hpp"
 #include <fstream>
 #include <sstream>
