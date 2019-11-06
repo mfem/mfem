@@ -59,34 +59,33 @@ class MultigridOperator : public Operator
                  bool ownOperator, bool ownSmoother, bool ownProlongation);
 
    /// Returns the number of levels
-   unsigned NumLevels() const;
+   int NumLevels() const;
 
    /// Returns the index of the finest level
-   unsigned GetFinestLevelIndex() const;
+   int GetFinestLevelIndex() const;
 
    /// Matrix vector multiplication at given level
-   virtual void MultAtLevel(unsigned level, const Vector& x, Vector& y) const;
+   virtual void MultAtLevel(int level, const Vector& x, Vector& y) const;
 
    /// Matrix vector multiplication with the operator at the finest level
    virtual void Mult(const Vector& x, Vector& y) const override;
 
    /// Restrict vector \p x from \p level + 1 to \p level. This method uses the
    /// transposed of the interpolation
-   virtual void RestrictTo(unsigned level, const Vector& x, Vector& y) const;
+   virtual void RestrictTo(int level, const Vector& x, Vector& y) const;
 
    /// Interpolate vector \p x from \p level to \p level + 1
-   virtual void InterpolateFrom(unsigned level, const Vector& x,
-                                Vector& y) const;
+   virtual void InterpolateFrom(int level, const Vector& x, Vector& y) const;
 
    /// Apply Smoother at given level
-   virtual void ApplySmootherAtLevel(unsigned level, const Vector& x,
+   virtual void ApplySmootherAtLevel(int level, const Vector& x,
                                      Vector& y) const;
 
    /// Returns operator at given level
-   const Operator* GetOperatorAtLevel(unsigned level) const;
+   const Operator* GetOperatorAtLevel(int level) const;
 
    /// Returns operator at given level
-   Operator* GetOperatorAtLevel(unsigned level);
+   Operator* GetOperatorAtLevel(int level);
 
    /// Returns operator at finest level
    const Operator* GetOperatorAtFinestLevel() const;
@@ -95,10 +94,10 @@ class MultigridOperator : public Operator
    Operator* GetOperatorAtFinestLevel();
 
    /// Returns smoother at given level
-   Solver* GetSmootherAtLevel(unsigned level) const;
+   Solver* GetSmootherAtLevel(int level) const;
 
    /// Returns smoother at given level
-   Solver* GetSmootherAtLevel(unsigned level);
+   Solver* GetSmootherAtLevel(int level);
 };
 
 class TimedMultigridOperator : public MultigridOperator
@@ -120,7 +119,7 @@ class TimedMultigridOperator : public MultigridOperator
 
  private:
    mutable StopWatch sw;
-   mutable std::map<std::tuple<Statistics, Operation, unsigned>, double> stats;
+   mutable std::map<std::tuple<Statistics, Operation, int>, double> stats;
 
  public:
    TimedMultigridOperator();
@@ -128,11 +127,10 @@ class TimedMultigridOperator : public MultigridOperator
                           bool ownSolver);
    ~TimedMultigridOperator();
 
-   void MultAtLevel(unsigned level, const Vector& x, Vector& y) const override;
-   void RestrictTo(unsigned level, const Vector& x, Vector& y) const override;
-   void InterpolateFrom(unsigned level, const Vector& x,
-                        Vector& y) const override;
-   void ApplySmootherAtLevel(unsigned level, const Vector& x,
+   void MultAtLevel(int level, const Vector& x, Vector& y) const override;
+   void RestrictTo(int level, const Vector& x, Vector& y) const override;
+   void InterpolateFrom(int level, const Vector& x, Vector& y) const override;
+   void ApplySmootherAtLevel(int level, const Vector& x,
                              Vector& y) const override;
 
    void PrintStats(Operation operation, std::ostream& out) const;
@@ -152,8 +150,8 @@ class MultigridSolver : public Solver
    const MultigridOperator* opr;
    CycleType cycleType;
 
-   mutable Array<unsigned> preSmoothingSteps;
-   mutable Array<unsigned> postSmoothingSteps;
+   mutable Array<int> preSmoothingSteps;
+   mutable Array<int> postSmoothingSteps;
 
    mutable Array<Vector*> X;
    mutable Array<Vector*> Y;
@@ -164,8 +162,7 @@ class MultigridSolver : public Solver
    /// Constructs the multigrid solver and helper vectors
    MultigridSolver(const MultigridOperator* opr_,
                    CycleType cycleType_ = CycleType::VCYCLE,
-                   unsigned preSmoothingSteps_ = 3,
-                   unsigned postSmoothingSteps_ = 3);
+                   int preSmoothingSteps_ = 3, int postSmoothingSteps_ = 3);
 
    /// Destructor deleting the allocated memory of helper vectors
    ~MultigridSolver();
@@ -175,27 +172,27 @@ class MultigridSolver : public Solver
 
    /// Set the number of pre-smoothing steps on all levels, excluding the coarse
    /// grid
-   void SetPreSmoothingSteps(unsigned steps);
+   void SetPreSmoothingSteps(int steps);
 
    /// Set the number of pre-smoothing steps on all levels, excluding the coarse
    /// grid
-   void SetPreSmoothingSteps(const Array<unsigned>& steps);
+   void SetPreSmoothingSteps(const Array<int>& steps);
 
    /// Set the number of post-smoothing steps on all levels, excluding the
    /// coarse grid
-   void SetPostSmoothingSteps(unsigned steps);
+   void SetPostSmoothingSteps(int steps);
 
    /// Set the number of post-smoothing steps on all levels, excluding the
    /// coarse grid
-   void SetPostSmoothingSteps(const Array<unsigned>& steps);
+   void SetPostSmoothingSteps(const Array<int>& steps);
 
    /// Set the number of pre- and post-smoothing steps on all levels, excluding
    /// the coarse grid
-   void SetSmoothingSteps(unsigned steps);
+   void SetSmoothingSteps(int steps);
 
    /// Set the number of pre- and post-smoothing steps on all levels, excluding
    /// the coarse grid. Only the pre-smoothing
-   void SetSmoothingSteps(const Array<unsigned>& steps);
+   void SetSmoothingSteps(const Array<int>& steps);
 
    /// Application of a cycle
    virtual void Mult(const Vector& x, Vector& y) const override;
@@ -209,12 +206,11 @@ class MultigridSolver : public Solver
    void SmoothingStep(int level) const;
 
    /// Application of a cycle at particular level
-   void Cycle(unsigned level) const;
+   void Cycle(int level) const;
 
    /// Setup used by constructor and SetOperator which allocates memory for
    /// helper vectors on coarser levels
-   void Setup(unsigned preSmoothingSteps_ = 3,
-              unsigned postSmoothingSteps_ = 3);
+   void Setup(int preSmoothingSteps_ = 3, int postSmoothingSteps_ = 3);
 
    /// Frees the allocated memory
    void Reset();

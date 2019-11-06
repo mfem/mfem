@@ -24,14 +24,13 @@ namespace mfem
 /// Class bundling a hierarchy of meshes and finite element spaces
 class SpaceHierarchy
 {
-protected:
+ protected:
    Array<Mesh*> meshes;
    Array<FiniteElementSpace*> fespaces;
    Array<bool> ownedMeshes;
    Array<bool> ownedFES;
 
-public:
-
+ public:
    /// Constructs an empty space hierarchy
    SpaceHierarchy();
 
@@ -45,10 +44,10 @@ public:
    virtual ~SpaceHierarchy();
 
    /// Returns the number of levels in the hierarchy
-   unsigned GetNumLevels() const;
+   int GetNumLevels() const;
 
    /// Returns the index of the finest level
-   unsigned GetFinestLevelIndex() const;
+   int GetFinestLevelIndex() const;
 
    /// Adds one level to the hierarchy
    void AddLevel(Mesh* mesh, FiniteElementSpace* fespace, bool ownM,
@@ -65,10 +64,10 @@ public:
                                      int ordering = Ordering::byVDIM);
 
    /// Returns the finite element space at the given level
-   virtual const FiniteElementSpace& GetFESpaceAtLevel(unsigned level) const;
+   virtual const FiniteElementSpace& GetFESpaceAtLevel(int level) const;
 
    /// Returns the finite element space at the given level
-   virtual FiniteElementSpace& GetFESpaceAtLevel(unsigned level);
+   virtual FiniteElementSpace& GetFESpaceAtLevel(int level);
 
    /// Returns the finite element space at the finest level
    virtual const FiniteElementSpace& GetFinestFESpace() const;
@@ -80,7 +79,7 @@ public:
 #ifdef MFEM_USE_MPI
 class ParSpaceHierarchy : public SpaceHierarchy
 {
-public:
+ public:
    /// Constructs an empty space hierarchy
    ParSpaceHierarchy();
 
@@ -101,11 +100,10 @@ public:
                              int ordering = Ordering::byVDIM) override;
 
    /// Returns the finite element space at the given level
-   const ParFiniteElementSpace&
-   GetFESpaceAtLevel(unsigned level) const override;
+   const ParFiniteElementSpace& GetFESpaceAtLevel(int level) const override;
 
    /// Returns the finite element space at the given level
-   ParFiniteElementSpace& GetFESpaceAtLevel(unsigned level) override;
+   ParFiniteElementSpace& GetFESpaceAtLevel(int level) override;
 
    /// Returns the finite element space at the finest level
    const ParFiniteElementSpace& GetFinestFESpace() const override;
