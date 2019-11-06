@@ -119,12 +119,6 @@ class TensorProductPRefinementTransferOperator : public Operator
    /// corresponding to the fine space is restricted to the vector \p y
    /// corresponding to the coarse space.
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
-
- private:
-   void Mult2D(const Vector& x, Vector& y) const;
-   void Mult3D(const Vector& x, Vector& y) const;
-   void MultTranspose2D(const Vector& x, Vector& y) const;
-   void MultTranspose3D(const Vector& x, Vector& y) const;
 };
 
 /// Matrix-free transfer operator between finite element spaces working on true
