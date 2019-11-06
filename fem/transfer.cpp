@@ -31,7 +31,7 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
    MFEM_FORALL(e, NE, {
       for (int dy = 0; dy < D1D; ++dy)
       {
-         double sol_x[Q1D];
+         double sol_x[MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             sol_x[qy] = 0.0;
@@ -77,7 +77,7 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
    MFEM_FORALL(e, NE, {
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double sol_x[D1D];
+         double sol_x[MAX_D1D];
          for (int dx = 0; dx < D1D; ++dx)
          {
             sol_x[dx] = 0.0;
