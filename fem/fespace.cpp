@@ -2912,8 +2912,8 @@ void QuadratureInterpolator::Eval3D(
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int max_ND = T_ND ? T_ND : MAX_ND2D;
-      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
+      constexpr int max_ND = T_ND ? T_ND : MAX_ND3D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
       double s_E[max_VDIM*max_ND];
       for (int d = 0; d < ND; d++)
       {

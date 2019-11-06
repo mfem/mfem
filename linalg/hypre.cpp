@@ -231,10 +231,6 @@ HypreParVector::~HypreParVector()
 
 #ifdef MFEM_USE_SUNDIALS
 
-#ifndef SUNFALSE
-#define SUNFALSE FALSE
-#endif
-
 void HypreParVector::ToNVector(N_Vector &nv)
 {
    MFEM_ASSERT(nv && N_VGetVectorID(nv) == SUNDIALS_NVEC_PARHYP,
@@ -817,6 +813,28 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
 
    height = GetNumRows();
    width = GetNumCols();
+}
+
+HypreParMatrix::HypreParMatrix(const HypreParMatrix &P)
+{
+   hypre_ParCSRMatrix *Ph = static_cast<hypre_ParCSRMatrix *>(P);
+
+   Init();
+
+   // Clone the structure
+   A = hypre_ParCSRMatrixCompleteClone(Ph);
+   // Make a deep copy of the data from the source
+   hypre_ParCSRMatrixCopy(Ph, A, 1);
+
+   height = GetNumRows();
+   width = GetNumCols();
+
+   CopyRowStarts();
+   CopyColStarts();
+
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+
+   hypre_MatvecCommPkgCreate(A);
 }
 
 void HypreParMatrix::MakeRef(const HypreParMatrix &master)
