@@ -57,7 +57,78 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            y_(qx, qy, e) = m_(qx, qy, e) * y_(qx, qy, e);
+            y_(qx, qy, e) *= m_(qx, qy, e);
+         }
+      }
+   });
+}
+
+void Prolongation3D(const int NE, const int D1D, const int Q1D,
+                    const Vector& localL, Vector& localH,
+                    const Array<double>& B, const Vector& mask)
+{
+   auto x_ = Reshape(localL.Read(), D1D, D1D, D1D, NE);
+   auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, Q1D, NE);
+   auto B_ = Reshape(B.Read(), Q1D, D1D);
+   auto m_ = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
+
+   localH = 0.0;
+
+   MFEM_FORALL(e, NE, {
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         double sol_xy[MAX_Q1D][MAX_Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_xy[qy][qx] = 0.0;
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            double sol_x[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_x[qx] = 0;
+            }
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double s = x_(dx, dy, dz, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  sol_x[qx] += B_(qx, dx) * s;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = B_(qy, dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  sol_xy[qy][qx] += wy * sol_x[qx];
+               }
+            }
+         }
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            const double wz = B_(qz, dz);
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  y_(qx, qy, qz, e) += wz * sol_xy[qy][qx];
+               }
+            }
+         }
+      }
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               y_(qx, qy, qz, e) *= m_(qx, qy, qz, e);
+            }
          }
       }
    });
@@ -84,7 +155,7 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
          }
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const double s = (m_(qx, qy, e) == 0.0) ? 0.0 : x_(qx, qy, e);
+            const double s = m_(qx, qy, e) * x_(qx, qy, e);
             for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] += Bt_(dx, qx) * s;
@@ -96,6 +167,66 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
             for (int dx = 0; dx < D1D; ++dx)
             {
                y_(dx, dy, e) += q2d * sol_x[dx];
+            }
+         }
+      }
+   });
+}
+void Restriction3D(const int NE, const int D1D, const int Q1D,
+                   const Vector& localH, Vector& localL,
+                   const Array<double>& Bt, const Vector& mask)
+{
+   auto x_ = Reshape(localH.Read(), Q1D, Q1D, Q1D, NE);
+   auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, D1D, NE);
+   auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
+   auto m_ = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
+
+   localL = 0.0;
+
+   MFEM_FORALL(e, NE, {
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         double sol_xy[MAX_D1D][MAX_D1D];
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               sol_xy[dy][dx] = 0;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            double sol_x[MAX_D1D];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               sol_x[dx] = 0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double s = m_(qx, qy, qz, e) * x_(qx, qy, qz, e);
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  sol_x[dx] += Bt_(dx, qx) * s;
+               }
+            }
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double wy = Bt_(dy, qy);
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  sol_xy[dy][dx] += wy * sol_x[dx];
+               }
+            }
+         }
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            const double wz = Bt_(dz, qz);
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  y_(dx, dy, dz, e) += wz * sol_xy[dy][dx];
+               }
             }
          }
       }
@@ -297,10 +428,10 @@ TensorProductPRefinementTransferOperator::
    B = maps->B;
    Bt = maps->Bt;
 
-   elem_restrict_lex_l = lFESpace.GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
-   elem_restrict_lex_h = hFESpace.GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
+   elem_restrict_lex_l =
+       lFESpace.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   elem_restrict_lex_h =
+       hFESpace.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
 
    localL.SetSize(elem_restrict_lex_l->Height(), Device::GetMemoryType());
    localH.SetSize(elem_restrict_lex_h->Height(), Device::GetMemoryType());
@@ -328,13 +459,14 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
       return;
    }
 
+   elem_restrict_lex_l->Mult(x, localL);
    if (dim == 2)
    {
-      Mult2D(x, y);
+      TransferKernels::Prolongation2D(NE, D1D, Q1D, localL, localH, B, mask);
    }
    else if (dim == 3)
    {
-      Mult3D(x, y);
+      TransferKernels::Prolongation3D(NE, D1D, Q1D, localL, localH, B, mask);
    }
    else
    {
@@ -342,114 +474,7 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
                  "implemented for dim = "
                  << dim);
    }
-}
-
-void TensorProductPRefinementTransferOperator::Mult2D(const Vector& x,
-                                                      Vector& y) const
-{   
-   elem_restrict_lex_l->Mult(x, localL);
-   TransferKernels::Prolongation2D(NE, D1D, Q1D, localL, localH, B, mask);
    elem_restrict_lex_h->MultTranspose(localH, y);
-}
-
-void TensorProductPRefinementTransferOperator::Mult3D(const Vector& x,
-                                                      Vector& y) const
-{
-   Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
-   Vector subY, subY_lex, subX, subX_lex;
-   subX.SetSize(D1D * D1D * D1D);
-   subX_lex.SetSize(subX.Size());
-   subY.SetSize(Q1D * Q1D * Q1D);
-   subY_lex.SetSize(subY.Size());
-
-   double* sol_x = new double[Q1D];
-   double* sol_xy_ = new double[Q1D * Q1D];
-   auto sol_xy = Reshape(sol_xy_, Q1D, Q1D);
-
-   for (int e = 0; e < NE; ++e)
-   {
-      // Extract dofs in lexicographical order
-      lFESpace.GetElementDofs(e, l_dofs);
-      hFESpace.GetElementDofs(e, h_dofs);
-
-      const int vdim = lFESpace.GetVDim();
-      for (int vd = 0; vd < vdim; ++vd)
-      {
-         l_dofs.Copy(l_vdofs);
-         lFESpace.DofsToVDofs(vd, l_vdofs);
-         x.GetSubVector(l_vdofs, subX);
-
-         for (int i = 0; i < subX.Size(); ++i)
-         {
-            subX_lex[i] = subX[ldofmap[i]];
-         }
-
-         // Apply doftoQuad map using sum factorization
-         auto subX_lex_ = Reshape(subX_lex.Read(), D1D, D1D, D1D);
-         auto subY_lex_ = Reshape(subY_lex.Write(), Q1D, Q1D, Q1D);
-         auto B_ = Reshape(B.Read(), Q1D, D1D);
-
-         subY_lex = 0.0;
-
-         for (int dz = 0; dz < D1D; ++dz)
-         {
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  sol_xy(qx, qy) = 0.0;
-               }
-            }
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  sol_x[qx] = 0;
-               }
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const double s = subX_lex_(dx, dy, dz);
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     sol_x[qx] += B_(qx, dx) * s;
-                  }
-               }
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  const double wy = B_(qy, dy);
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     sol_xy(qx, qy) += wy * sol_x[qx];
-                  }
-               }
-            }
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               const double wz = B_(qz, dz);
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     subY_lex_(qx, qy, qz) += wz * sol_xy(qx, qy);
-                  }
-               }
-            }
-         }
-
-         for (int i = 0; i < subY.Size(); ++i)
-         {
-            subY[hdofmap[i]] = subY_lex[i];
-         }
-
-         // Set subvectors
-         h_dofs.Copy(h_vdofs);
-         hFESpace.DofsToVDofs(vd, h_vdofs);
-         y.SetSubVector(h_vdofs, subY);
-      }
-   }
-
-   delete[] sol_xy_;
-   delete[] sol_x;
 }
 
 void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
@@ -460,145 +485,22 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
       return;
    }
 
-   y = 0.0;
-
+   elem_restrict_lex_h->Mult(x, localH);
    if (dim == 2)
    {
-      MultTranspose2D(x, y);
+      TransferKernels::Restriction2D(NE, D1D, Q1D, localH, localL, Bt, mask);
    }
    else if (dim == 3)
    {
-      MultTranspose3D(x, y);
+      TransferKernels::Restriction3D(NE, D1D, Q1D, localH, localL, Bt, mask);
    }
    else
    {
-      MFEM_ABORT("TensorProductPRefinementTransferOperator::Mult not "
+      MFEM_ABORT("TensorProductPRefinementTransferOperator::MultTranspose not "
                  "implemented for dim = "
                  << dim);
    }
-}
-
-void TensorProductPRefinementTransferOperator::MultTranspose2D(const Vector& x,
-                                                               Vector& y) const
-{
-   elem_restrict_lex_h->Mult(x, localH);
-   TransferKernels::Restriction2D(NE, D1D, Q1D, localH, localL, Bt, mask);
    elem_restrict_lex_l->MultTranspose(localL, y);
-}
-
-void TensorProductPRefinementTransferOperator::MultTranspose3D(const Vector& x,
-                                                               Vector& y) const
-{
-   Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
-   Vector subY, subY_lex, subX, subX_lex;
-   subX.SetSize(Q1D * Q1D * Q1D);
-   subX_lex.SetSize(subX.Size());
-   subY.SetSize(D1D * D1D * D1D);
-   subY_lex.SetSize(subY.Size());
-
-   Array<char> processed(hFESpace.GetVSize());
-   processed = 0;
-
-   double* sol_x = new double[D1D];
-   double* sol_xy_ = new double[D1D * D1D];
-   auto sol_xy = Reshape(sol_xy_, D1D, D1D);
-
-   for (int e = 0; e < NE; ++e)
-   {
-      hFESpace.GetElementDofs(e, h_dofs);
-      lFESpace.GetElementDofs(e, l_dofs);
-
-      const int vdim = lFESpace.GetVDim();
-      for (int vd = 0; vd < vdim; ++vd)
-      {
-         // Extract dofs in lexicographical order
-         h_dofs.Copy(h_vdofs);
-         hFESpace.DofsToVDofs(vd, h_vdofs);
-         x.GetSubVector(h_vdofs, subX);
-
-         for (int p = 0; p < h_dofs.Size(); ++p)
-         {
-            if (processed[h_dofs[p]])
-            {
-               subX[p] = 0.0;
-            }
-         }
-
-         for (int i = 0; i < subX.Size(); ++i)
-         {
-            subX_lex[i] = subX[hdofmap[i]];
-         }
-
-         // Apply doftoQuad map using sum factorization
-         auto subX_lex_ = Reshape(subX_lex.Read(), Q1D, Q1D, Q1D);
-         auto subY_lex_ = Reshape(subY_lex.Write(), D1D, D1D, D1D);
-         auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
-
-         subY_lex = 0.0;
-
-         for (int qz = 0; qz < Q1D; ++qz)
-         {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  sol_xy(dx, dy) = 0;
-               }
-            }
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  sol_x[dx] = 0;
-               }
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  const double s = subX_lex_(qx, qy, qz);
-                  for (int dx = 0; dx < D1D; ++dx)
-                  {
-                     sol_x[dx] += Bt_(dx, qx) * s;
-                  }
-               }
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  const double wy = Bt_(dy, qy);
-                  for (int dx = 0; dx < D1D; ++dx)
-                  {
-                     sol_xy(dx, dy) += wy * sol_x[dx];
-                  }
-               }
-            }
-            for (int dz = 0; dz < D1D; ++dz)
-            {
-               const double wz = Bt_(dz, qz);
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  for (int dx = 0; dx < D1D; ++dx)
-                  {
-                     subY_lex_(dx, dy, dz) += wz * sol_xy(dx, dy);
-                  }
-               }
-            }
-         }
-
-         for (int i = 0; i < subY.Size(); ++i)
-         {
-            subY[ldofmap[i]] = subY_lex[i];
-         }
-
-         l_dofs.Copy(l_vdofs);
-         lFESpace.DofsToVDofs(vd, l_vdofs);
-         y.AddElementVector(l_vdofs, subY);
-      }
-
-      for (int p = 0; p < h_dofs.Size(); ++p)
-      {
-         processed[h_dofs[p]] = 1;
-      }
-   }
-
-   delete[] sol_xy_;
-   delete[] sol_x;
 }
 
 TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
