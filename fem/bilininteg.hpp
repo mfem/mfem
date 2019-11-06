@@ -167,7 +167,7 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
-   /// Returns a pointer to a copy of the BilinearFormIntegrator
+   /// Returns a pointer to a non-owned copy of the BilinearFormIntegrator
    virtual BilinearFormIntegrator* Copy() const
    {
       MFEM_ABORT("Copy not implemented ");

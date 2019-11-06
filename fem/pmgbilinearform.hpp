@@ -34,7 +34,8 @@ class ParMultigridBilinearForm : public MultigridBilinearForm
    /// bilinear form. Uses Chebyshev accelerated smoothing.
    /// At the moment, only the DomainIntegrators of \p bf are copied.
    ParMultigridBilinearForm(ParSpaceHierarchy& spaceHierarchy,
-                            ParBilinearForm& bf, Array<int>& ess_bdr);
+                            ParBilinearForm& bf, Array<int>& ess_bdr,
+                            int chebyshevOrder = 2);
 
    virtual ~ParMultigridBilinearForm();
 };

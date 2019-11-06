@@ -34,7 +34,7 @@ class MultigridBilinearForm : public MultigridOperator
    /// partial assembly bilinear forms.
    /// At the moment, only the DomainIntegrators of \p bf are copied.
    MultigridBilinearForm(SpaceHierarchy& spaceHierarchy, BilinearForm& bf,
-                         Array<int>& ess_bdr);
+                         Array<int>& ess_bdr, int chebyshevOrder = 2);
 
    virtual ~MultigridBilinearForm();
 };
