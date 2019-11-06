@@ -75,15 +75,11 @@ void MultigridOperator::AddLevel(Operator* opr, Solver* smoother,
    height = opr->Height();
 }
 
-unsigned MultigridOperator::NumLevels() const { return operators.Size(); }
+int MultigridOperator::NumLevels() const { return operators.Size(); }
 
-unsigned MultigridOperator::GetFinestLevelIndex() const
-{
-   return NumLevels() - 1;
-}
+int MultigridOperator::GetFinestLevelIndex() const { return NumLevels() - 1; }
 
-void MultigridOperator::MultAtLevel(unsigned level, const Vector& x,
-                                    Vector& y) const
+void MultigridOperator::MultAtLevel(int level, const Vector& x, Vector& y) const
 {
    MFEM_ASSERT(level < NumLevels(), "Level does not exist.");
    operators[level]->Mult(x, y);
@@ -96,30 +92,29 @@ void MultigridOperator::Mult(const Vector& x, Vector& y) const
    MultAtLevel(NumLevels() - 1, x, y);
 }
 
-void MultigridOperator::RestrictTo(unsigned level, const Vector& x,
-                                   Vector& y) const
+void MultigridOperator::RestrictTo(int level, const Vector& x, Vector& y) const
 {
    prolongations[level]->MultTranspose(x, y);
 }
 
-void MultigridOperator::InterpolateFrom(unsigned level, const Vector& x,
+void MultigridOperator::InterpolateFrom(int level, const Vector& x,
                                         Vector& y) const
 {
    prolongations[level]->Mult(x, y);
 }
 
-void MultigridOperator::ApplySmootherAtLevel(unsigned level, const Vector& x,
+void MultigridOperator::ApplySmootherAtLevel(int level, const Vector& x,
                                              Vector& y) const
 {
    smoothers[level]->Mult(x, y);
 }
 
-const Operator* MultigridOperator::GetOperatorAtLevel(unsigned level) const
+const Operator* MultigridOperator::GetOperatorAtLevel(int level) const
 {
    return operators[level];
 }
 
-Operator* MultigridOperator::GetOperatorAtLevel(unsigned level)
+Operator* MultigridOperator::GetOperatorAtLevel(int level)
 {
    return operators[level];
 }
@@ -134,12 +129,12 @@ Operator* MultigridOperator::GetOperatorAtFinestLevel()
    return GetOperatorAtLevel(operators.Size() - 1);
 }
 
-Solver* MultigridOperator::GetSmootherAtLevel(unsigned level) const
+Solver* MultigridOperator::GetSmootherAtLevel(int level) const
 {
    return smoothers[level];
 }
 
-Solver* MultigridOperator::GetSmootherAtLevel(unsigned level)
+Solver* MultigridOperator::GetSmootherAtLevel(int level)
 {
    return smoothers[level];
 }
@@ -155,7 +150,7 @@ TimedMultigridOperator::TimedMultigridOperator(Operator* opr,
 
 TimedMultigridOperator::~TimedMultigridOperator() {}
 
-void TimedMultigridOperator::MultAtLevel(unsigned level, const Vector& x,
+void TimedMultigridOperator::MultAtLevel(int level, const Vector& x,
                                          Vector& y) const
 {
    MFEM_ASSERT(level < NumLevels(), "Level does not exist.");
@@ -169,7 +164,7 @@ void TimedMultigridOperator::MultAtLevel(unsigned level, const Vector& x,
        sw.RealTime();
 }
 
-void TimedMultigridOperator::RestrictTo(unsigned level, const Vector& x,
+void TimedMultigridOperator::RestrictTo(int level, const Vector& x,
                                         Vector& y) const
 {
    sw.Clear();
@@ -182,7 +177,7 @@ void TimedMultigridOperator::RestrictTo(unsigned level, const Vector& x,
                          level)] += sw.RealTime();
 }
 
-void TimedMultigridOperator::InterpolateFrom(unsigned level, const Vector& x,
+void TimedMultigridOperator::InterpolateFrom(int level, const Vector& x,
                                              Vector& y) const
 {
    sw.Clear();
@@ -195,8 +190,7 @@ void TimedMultigridOperator::InterpolateFrom(unsigned level, const Vector& x,
                          level)] += sw.RealTime();
 }
 
-void TimedMultigridOperator::ApplySmootherAtLevel(unsigned level,
-                                                  const Vector& x,
+void TimedMultigridOperator::ApplySmootherAtLevel(int level, const Vector& x,
                                                   Vector& y) const
 {
    sw.Clear();
@@ -224,7 +218,7 @@ void TimedMultigridOperator::PrintStats(Operation operation,
    out << std::setw(16) << operationToString[operation] << "TPA";
    out << "\n";
 
-   for (unsigned level = 0; level < NumLevels(); ++level)
+   for (int level = 0; level < NumLevels(); ++level)
    {
       int numAppl =
           stats[std::make_tuple(Statistics::NUMAPPLICATIONS, operation, level)];
@@ -241,9 +235,8 @@ void TimedMultigridOperator::PrintStats(Operation operation,
 }
 
 MultigridSolver::MultigridSolver(const MultigridOperator* opr_,
-                                 CycleType cycleType_,
-                                 unsigned preSmoothingSteps_,
-                                 unsigned postSmoothingSteps_)
+                                 CycleType cycleType_, int preSmoothingSteps_,
+                                 int postSmoothingSteps_)
     : opr(opr_), cycleType(cycleType_)
 {
    Setup(preSmoothingSteps_, postSmoothingSteps_);
@@ -256,12 +249,12 @@ void MultigridSolver::SetCycleType(CycleType cycleType_)
    cycleType = cycleType_;
 }
 
-void MultigridSolver::SetPreSmoothingSteps(unsigned steps)
+void MultigridSolver::SetPreSmoothingSteps(int steps)
 {
    preSmoothingSteps = steps;
 }
 
-void MultigridSolver::SetPreSmoothingSteps(const Array<unsigned>& steps)
+void MultigridSolver::SetPreSmoothingSteps(const Array<int>& steps)
 {
    MFEM_VERIFY(
        steps.Size() == preSmoothingSteps.Size(),
@@ -269,12 +262,12 @@ void MultigridSolver::SetPreSmoothingSteps(const Array<unsigned>& steps)
    preSmoothingSteps = steps;
 }
 
-void MultigridSolver::SetPostSmoothingSteps(unsigned steps)
+void MultigridSolver::SetPostSmoothingSteps(int steps)
 {
    postSmoothingSteps = steps;
 }
 
-void MultigridSolver::SetPostSmoothingSteps(const Array<unsigned>& steps)
+void MultigridSolver::SetPostSmoothingSteps(const Array<int>& steps)
 {
    MFEM_VERIFY(
        steps.Size() == postSmoothingSteps.Size(),
@@ -282,13 +275,13 @@ void MultigridSolver::SetPostSmoothingSteps(const Array<unsigned>& steps)
    postSmoothingSteps = steps;
 }
 
-void MultigridSolver::SetSmoothingSteps(unsigned steps)
+void MultigridSolver::SetSmoothingSteps(int steps)
 {
    SetPreSmoothingSteps(steps);
    SetPostSmoothingSteps(steps);
 }
 
-void MultigridSolver::SetSmoothingSteps(const Array<unsigned>& steps)
+void MultigridSolver::SetSmoothingSteps(const Array<int>& steps)
 {
    SetPreSmoothingSteps(steps);
    SetPostSmoothingSteps(steps);
@@ -325,7 +318,7 @@ void MultigridSolver::SmoothingStep(int level) const
    add(*Y[level], 1.0, *Z[level], *Y[level]); // x = x + S (b - A x)
 }
 
-void MultigridSolver::Cycle(unsigned level) const
+void MultigridSolver::Cycle(int level) const
 {
    if (level == 0)
    {
@@ -349,12 +342,12 @@ void MultigridSolver::Cycle(unsigned level) const
    *Y[level - 1] = 0.0;
 
    // Corrections
-   unsigned corrections = 1;
+   int corrections = 1;
    if (cycleType == CycleType::WCYCLE)
    {
       corrections = 2;
    }
-   for (unsigned correction = 0; correction < corrections; ++correction)
+   for (int correction = 0; correction < corrections; ++correction)
    {
       Cycle(level - 1);
    }
@@ -372,10 +365,9 @@ void MultigridSolver::Cycle(unsigned level) const
    }
 }
 
-void MultigridSolver::Setup(unsigned preSmoothingSteps_,
-                            unsigned postSmoothingSteps_)
+void MultigridSolver::Setup(int preSmoothingSteps_, int postSmoothingSteps_)
 {
-   for (unsigned level = 0; level < opr->NumLevels() - 1; ++level)
+   for (int level = 0; level < opr->NumLevels() - 1; ++level)
    {
       int vectorSize = opr->GetOperatorAtLevel(level)->Height();
       X.Append(new Vector(vectorSize));
@@ -405,7 +397,7 @@ void MultigridSolver::Setup(unsigned preSmoothingSteps_,
 
 void MultigridSolver::Reset()
 {
-   for (unsigned i = 0; i < X.Size(); ++i)
+   for (int i = 0; i < X.Size(); ++i)
    {
       delete X[i];
       delete Y[i];

@@ -14,9 +14,7 @@
 namespace mfem
 {
 
-SpaceHierarchy::SpaceHierarchy()
-{
-}
+SpaceHierarchy::SpaceHierarchy() {}
 
 SpaceHierarchy::SpaceHierarchy(Mesh* mesh, FiniteElementSpace* fespace,
                                bool ownM, bool ownFES)
@@ -42,12 +40,9 @@ SpaceHierarchy::~SpaceHierarchy()
    meshes.DeleteAll();
 }
 
-unsigned SpaceHierarchy::GetNumLevels() const { return meshes.Size(); }
+int SpaceHierarchy::GetNumLevels() const { return meshes.Size(); }
 
-unsigned SpaceHierarchy::GetFinestLevelIndex() const
-{
-   return GetNumLevels() - 1;
-}
+int SpaceHierarchy::GetFinestLevelIndex() const { return GetNumLevels() - 1; }
 
 void SpaceHierarchy::AddLevel(Mesh* mesh, FiniteElementSpace* fespace,
                               bool ownM, bool ownFES)
@@ -79,15 +74,14 @@ void SpaceHierarchy::AddOrderRefinedLevel(FiniteElementCollection* fec, int dim,
    AddLevel(mesh, newFEspace, false, true);
 }
 
-const FiniteElementSpace&
-SpaceHierarchy::GetFESpaceAtLevel(unsigned level) const
+const FiniteElementSpace& SpaceHierarchy::GetFESpaceAtLevel(int level) const
 {
    MFEM_ASSERT(level < fespaces.Size(),
                "FE space at given level does not exist.");
    return *fespaces[level];
 }
 
-FiniteElementSpace& SpaceHierarchy::GetFESpaceAtLevel(unsigned level)
+FiniteElementSpace& SpaceHierarchy::GetFESpaceAtLevel(int level)
 {
    MFEM_ASSERT(level < fespaces.Size(),
                "FE space at given level does not exist.");
@@ -105,9 +99,7 @@ FiniteElementSpace& SpaceHierarchy::GetFinestFESpace()
 }
 
 #ifdef MFEM_USE_MPI
-ParSpaceHierarchy::ParSpaceHierarchy()
-{
-}
+ParSpaceHierarchy::ParSpaceHierarchy() {}
 
 ParSpaceHierarchy::ParSpaceHierarchy(ParMesh* mesh,
                                      ParFiniteElementSpace* fespace, bool ownM,
@@ -136,13 +128,13 @@ void ParSpaceHierarchy::AddOrderRefinedLevel(FiniteElementCollection* fec,
 }
 
 const ParFiniteElementSpace&
-ParSpaceHierarchy::GetFESpaceAtLevel(unsigned level) const
+ParSpaceHierarchy::GetFESpaceAtLevel(int level) const
 {
    return static_cast<const ParFiniteElementSpace&>(
        SpaceHierarchy::GetFESpaceAtLevel(level));
 }
 
-ParFiniteElementSpace& ParSpaceHierarchy::GetFESpaceAtLevel(unsigned level)
+ParFiniteElementSpace& ParSpaceHierarchy::GetFESpaceAtLevel(int level)
 {
    return static_cast<ParFiniteElementSpace&>(
        SpaceHierarchy::GetFESpaceAtLevel(level));
