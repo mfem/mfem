@@ -199,7 +199,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
-      initCeedCoeff(Q, ptr);
+      InitCeedCoeff(Q, ptr);
       CeedPADiffusionAssemble(fes, *ir, *ptr);
    }
    else
@@ -1108,7 +1108,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       CeedScalar *y_ptr;
       CeedMemType mem;
       CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::IsEnabled() && mem==CEED_MEM_DEVICE )
+      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
       {
          x_ptr = x.Read();
          y_ptr = y.ReadWrite();

@@ -65,9 +65,9 @@ struct CeedData
    CeedVector u, v;
 };
 
-void initCeedCoeff(Coefficient* Q, CeedData* ptr);
+void InitCeedCoeff(Coefficient* Q, CeedData* ptr);
 
-void initCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
+void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                                        const mfem::IntegrationRule &ir,
                                        Ceed ceed, CeedBasis *basis,
                                        CeedElemRestriction *restr);
