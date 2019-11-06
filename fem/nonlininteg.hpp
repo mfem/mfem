@@ -334,7 +334,7 @@ class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
    Coefficient *Q{};
-   DenseMatrix dshape, EF, gradEF, ELV;
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
    // PA extension
    Vector pa_data;
@@ -343,15 +343,26 @@ private:
    int dim, ne, nq;
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+
    VectorConvectionNLFIntegrator() = default;
+
    static const IntegrationRule &GetRule(const FiniteElement &fe,
                                          ElementTransformation &T);
+
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
                                       const Vector &elfun,
                                       Vector &elvect);
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat);
+
    using NonlinearFormIntegrator::Setup;
+
    virtual void Setup(const FiniteElementSpace &fes);
+
    virtual void MultPA(const Vector &x, Vector &y) const;
 };
 
