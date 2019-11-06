@@ -56,14 +56,15 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
    }
    else // Assuming T is a boundary element transformation:
    {
-      return GridF -> GetBdrValue (T.ElementNo, ip, Component);
+      if (GridF->FESpace()->GetBE(T.ElementNo) != NULL)
+      {
+         return GridF -> GetBdrValue (T.ElementNo, ip, Component);
+      }
+      else // Return the trace value when the boundary element does not exist
+      {
+         return GridF -> GetBdrFaceValue (T.ElementNo, ip, Component);
+      }
    }
-}
-
-double GridFunctionBdrTraceCoefficient::Eval (ElementTransformation &T,
-                                              const IntegrationPoint &ip)
-{
-   return GridF -> GetBdrFaceValue (T.ElementNo, ip, Component);
 }
 
 double TransformedCoefficient::Eval(ElementTransformation &T,
@@ -187,7 +188,14 @@ void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    }
    else // Assuming T is a boundary element transformation:
    {
-      GridFunc->GetBdrVectorValue(T.ElementNo, ip, V);
+      if (GridFunc->FESpace()->GetBE(T.ElementNo) != NULL)
+      {
+         GridFunc->GetBdrVectorValue(T.ElementNo, ip, V);
+      }
+      else // Return the trace value when the boundary element does not exist
+      {
+         GridFunc->GetBdrFaceVectorValue(T.ElementNo, ip, V);
+      }
    }
 }
 
@@ -201,34 +209,15 @@ void VectorGridFunctionCoefficient::Eval(
    }
    else // Assuming T is a boundary element transformation:
    {
-      GridFunc->GetBdrVectorValues(T, ir, M);
+      if (GridFunc->FESpace()->GetBE(T.ElementNo) != NULL)
+      {
+         GridFunc->GetBdrVectorValues(T, ir, M);
+      }
+      else // Return the trace value when the boundary element does not exist
+      {
+         GridFunc->GetBdrFaceVectorValues(T.ElementNo, ir, M);
+      }
    }
-}
-
-VectorGridFunctionBdrTraceCoefficient::VectorGridFunctionBdrTraceCoefficient (
-   const GridFunction *gf)
-   : VectorCoefficient ((gf) ? gf -> VectorDim() : 0)
-{
-   GridFunc = gf;
-}
-
-void VectorGridFunctionBdrTraceCoefficient::SetGridFunction(
-   const GridFunction *gf)
-{
-   GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
-}
-
-void VectorGridFunctionBdrTraceCoefficient::Eval(Vector &V,
-                                                 ElementTransformation &T,
-                                                 const IntegrationPoint &ip)
-{
-   GridFunc->GetBdrFaceVectorValue(T.ElementNo, ip, V);
-}
-
-void VectorGridFunctionBdrTraceCoefficient::Eval(
-   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
-{
-   GridFunc->GetBdrFaceVectorValues(T.ElementNo, ir, M);
 }
 
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (

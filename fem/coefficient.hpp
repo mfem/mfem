@@ -160,6 +160,9 @@ public:
 class GridFunction;
 
 /// Coefficient defined by a GridFunction. This coefficient is mesh dependent.
+/** The coefficient is defined inside the domain and at the boundaries returning
+    the value of the boundary element when it exists or of the corresponding
+    boundary face when it does not (i.e. the trace of the given GridFunction). */
 class GridFunctionCoefficient : public Coefficient
 {
 private:
@@ -171,29 +174,6 @@ public:
    /** Construct GridFunctionCoefficient from a given GridFunction, and
        optionally specify a component to use if it is a vector GridFunction. */
    GridFunctionCoefficient (const GridFunction *gf, int comp = 1)
-   { GridF = gf; Component = comp; }
-
-   void SetGridFunction(const GridFunction *gf) { GridF = gf; }
-   const GridFunction * GetGridFunction() const { return GridF; }
-
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
-};
-
-/// Coefficient defined by the boundary traces of a GridFunction. This
-/// coefficient is mesh dependent.
-/** The coefficient is defined on the boundary elements, but the values are
-    taken from the corresponding boundary faces of the given GridFunction. */
-class GridFunctionBdrTraceCoefficient : public Coefficient
-{
-private:
-   const GridFunction *GridF;
-   int Component;
-
-public:
-   /** Construct GridFunctionBdrTraceCoefficient from a given GridFunction, and
-       optionally specify a component to use if it is a vector GridFunction. */
-   GridFunctionBdrTraceCoefficient (const GridFunction *gf, int comp = 1)
    { GridF = gf; Component = comp; }
 
    void SetGridFunction(const GridFunction *gf) { GridF = gf; }
@@ -417,6 +397,9 @@ public:
 };
 
 /// Vector coefficient defined by a vector GridFunction
+/** The coefficient is defined inside the domain and at the boundaries returning
+    the value of the boundary element when it exists or of the corresponding
+    boundary face when it does not (i.e. the trace of the given GridFunction). */
 class VectorGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
@@ -436,31 +419,6 @@ public:
                      const IntegrationRule &ir);
 
    virtual ~VectorGridFunctionCoefficient() { }
-};
-
-/// Vector coefficient defined by the boundary traces of a vector GridFunction
-/** The coefficient is defined on the boundary elements, but the values are
-    taken from the corresponding boundary faces of the given GridFunction.
-*/
-class VectorGridFunctionBdrTraceCoefficient : public VectorCoefficient
-{
-protected:
-   const GridFunction *GridFunc;
-
-public:
-   VectorGridFunctionBdrTraceCoefficient() : VectorCoefficient(0), GridFunc(NULL) { }
-   VectorGridFunctionBdrTraceCoefficient(const GridFunction *gf);
-
-   void SetGridFunction(const GridFunction *gf);
-   const GridFunction * GetGridFunction() const { return GridFunc; }
-
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
-
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
-
-   virtual ~VectorGridFunctionBdrTraceCoefficient() { }
 };
 
 /// Vector coefficient defined as the Gradient of a scalar GridFunction
