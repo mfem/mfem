@@ -1003,6 +1003,15 @@ public:
    {
       double ni = niCoef_->Eval(T, ip);
       double Ti = TiCoef_->Eval(T, ip);
+      MFEM_VERIFY(ni > 0.0,
+		  "Ion density (" << ni << ") "
+		  "less than or equal to zero in "
+		  "IonThermalParaDiffusionCoef."); 
+      MFEM_VERIFY(Ti > 0.0,
+		  "Ion temperature (" << Ti << ") "
+		  "less than or equal to zero in "
+		  "IonThermalParaDiffusionCoef."); 
+      
       double tau = tau_i(m_i_, z_i_, ni, Ti, 17.0);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
@@ -1038,6 +1047,15 @@ public:
    {
       double ne = neCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
+      MFEM_VERIFY(ne > 0.0,
+		  "Electron density (" << ne << ") "
+		  "less than or equal to zero in "
+		  "ElectronThermalParaDiffusionCoef."); 
+      MFEM_VERIFY(Te > 0.0,
+		  "Electron temperature (" << Te << ") "
+		  "less than or equal to zero in "
+		  "ElectronThermalParaDiffusionCoef."); 
+      
       double tau = tau_e(Te, z_i_, ne, 17.0);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
@@ -1049,6 +1067,15 @@ public:
    {
       double ne = neCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
+      MFEM_VERIFY(ne > 0.0,
+		  "Electron density (" << ne << ") "
+		  "less than or equal to zero in "
+		  "ElectronThermalParaDiffusionCoef."); 
+      MFEM_VERIFY(Te > 0.0,
+		  "Electron temperature (" << Te << ") "
+		  "less than or equal to zero in "
+		  "ElectronThermalParaDiffusionCoef."); 
+      
       double tau = tau_e(Te, z_i_, ne, 17.0);
       double dtau = dtau_e_dT(Te, z_i_, ne, 17.0);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
