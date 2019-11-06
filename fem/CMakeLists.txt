@@ -64,6 +64,7 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
+  tmop_tools.hpp
   )
 
 if (MFEM_USE_SIDRE)
