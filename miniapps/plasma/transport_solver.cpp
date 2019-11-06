@@ -1274,9 +1274,9 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    }
    dpgf_->ExchangeFaceNbrData();
 
-   if (mpi_.Root() == 0 && logging_ > 0)
+   if (mpi_.Root() && logging_ > 0)
    {
-     cout << "Setting time step: " << dt << " in DGTransportTDO" << endl;
+      cout << "Setting time step: " << dt << " in DGTransportTDO" << endl;
    }
    op_.SetTimeStep(dt);
    // op_.UpdateGradient();
