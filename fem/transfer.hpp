@@ -28,7 +28,11 @@ class TransferOperator : public Operator
    /// Constructs a transfer operator from \p lFESpace to \p hFESpace. No
    /// matrices are assembled, only the action to a vector is being computed. If
    /// both spaces' FE collection pointers are pointing to the same collection
-   /// we assume that the grid was refined while keeping the order constant.
+   /// we assume that the grid was refined while keeping the order constant. If
+   /// the FE collections are different, it is assumed that both spaces have are
+   /// using the same mesh. If the first element of the high-order space is a
+   /// `TensorBasisElement`, the optimized tensor-product transfers are used. If
+   /// not, the general transfers used.
    TransferOperator(const FiniteElementSpace& lFESpace,
                     const FiniteElementSpace& hFESpace);
 
@@ -87,13 +91,8 @@ class TensorProductPRefinementTransferOperator : public Operator
  private:
    const FiniteElementSpace& lFESpace;
    const FiniteElementSpace& hFESpace;
-
    int dim;
-   Array<int> ldofmap;
-   Array<int> hdofmap;
-   IntegrationRule irLex;
    int NE;
-   const DofToQuad* maps;
    int D1D;
    int Q1D;
    Array<double> B;
@@ -101,9 +100,15 @@ class TensorProductPRefinementTransferOperator : public Operator
    const Operator* elem_restrict_lex_l;
    const Operator* elem_restrict_lex_h;
    Vector mask;
-   mutable Vector localL, localH;
+   mutable Vector localL;
+   mutable Vector localH;
 
  public:
+   /// Constructs a transfer operator from \p lFESpace to \p hFESpace which
+   /// have different FE collections. No matrices are assembled, only the action
+   /// to a vector is being computed. The underlying finite elements need to be
+   /// of the type `TensorBasisElement`. It is also assumed that all the
+   /// elements in the spaces are of the same type.
    TensorProductPRefinementTransferOperator(
        const FiniteElementSpace& lFESpace_,
        const FiniteElementSpace& hFESpace_);

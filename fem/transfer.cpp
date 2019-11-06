@@ -403,15 +403,14 @@ TensorProductPRefinementTransferOperator::
    const TensorBasisElement* ltel =
        dynamic_cast<const TensorBasisElement*>(&el);
    MFEM_VERIFY(ltel, "Low order FE space must be tensor product space");
-   ldofmap = ltel->GetDofMap();
 
    const TensorBasisElement* htel =
        dynamic_cast<const TensorBasisElement*>(hFESpace.GetFE(0));
    MFEM_VERIFY(htel, "High order FE space must be tensor product space");
-   hdofmap = htel->GetDofMap();
+   const Array<int>& hdofmap = htel->GetDofMap();
 
    const IntegrationRule& ir = hFESpace.GetFE(0)->GetNodes();
-   irLex = ir;
+   IntegrationRule irLex = ir;
 
    // The quadrature points, or equivalently, the dofs of the high order space
    // must be sorted in lexicographical order
@@ -421,28 +420,36 @@ TensorProductPRefinementTransferOperator::
    }
 
    NE = lFESpace.GetNE();
-   maps = &el.GetDofToQuad(irLex, DofToQuad::TENSOR);
+   const DofToQuad& maps = el.GetDofToQuad(irLex, DofToQuad::TENSOR);
 
-   D1D = maps->ndof;
-   Q1D = maps->nqpt;
-   B = maps->B;
-   Bt = maps->Bt;
+   D1D = maps.ndof;
+   Q1D = maps.nqpt;
+   B = maps.B;
+   Bt = maps.Bt;
 
    elem_restrict_lex_l =
        lFESpace.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+
+   MFEM_VERIFY(elem_restrict_lex_l,
+               "Low order ElementRestriction not available");
+
    elem_restrict_lex_h =
        hFESpace.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+
+   MFEM_VERIFY(elem_restrict_lex_h,
+               "High order ElementRestriction not available");
 
    localL.SetSize(elem_restrict_lex_l->Height(), Device::GetMemoryType());
    localH.SetSize(elem_restrict_lex_h->Height(), Device::GetMemoryType());
    localL.UseDevice(true);
    localH.UseDevice(true);
 
-   Vector mask_host(localH.Size());
-   ((ElementRestriction*)elem_restrict_lex_h)->BooleanMask(mask_host);
+   MFEM_VERIFY(dynamic_cast<const ElementRestriction*>(elem_restrict_lex_h),
+               "High order element restriction is of unsupported type");
 
    mask.SetSize(localH.Size(), Device::GetMemoryType());
-   mask = mask_host;
+   static_cast<const ElementRestriction*>(elem_restrict_lex_h)
+       ->BooleanMask(mask);
    mask.UseDevice(true);
 }
 
