@@ -2548,12 +2548,12 @@ void PetscLinearSolver::MultKernel(const Vector &b, Vector &x, bool trans) const
 
 void PetscLinearSolver::Mult(const Vector &b, Vector &x) const
 {
-  (*this).MultKernel(b,x,false);
+   (*this).MultKernel(b,x,false);
 }
 
 void PetscLinearSolver::MultTranspose(const Vector &b, Vector &x) const
 {
-  (*this).MultKernel(b,x,true);
+   (*this).MultKernel(b,x,true);
 }
 
 PetscLinearSolver::~PetscLinearSolver()
@@ -2677,7 +2677,8 @@ void PetscPreconditioner::SetOperator(const Operator &op)
    if (delete_pA) { delete pA; };
 }
 
-void PetscPreconditioner::MultKernel(const Vector &b, Vector &x, bool trans) const
+void PetscPreconditioner::MultKernel(const Vector &b, Vector &x,
+                                     bool trans) const
 {
    PC pc = (PC)obj;
 
