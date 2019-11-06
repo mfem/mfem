@@ -853,7 +853,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       return;
    }
 
-   /*std::cout << "Refining element " << elem << " ("
+   /*mfem::out << "Refining element " << elem << " ("
              << el.node[0] << ", " << el.node[1] << ", "
              << el.node[2] << ", " << el.node[3] << ", "
              << el.node[4] << ", " << el.node[5] << ", "
