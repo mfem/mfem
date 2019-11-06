@@ -1004,14 +1004,14 @@ public:
       double ni = niCoef_->Eval(T, ip);
       double Ti = TiCoef_->Eval(T, ip);
       MFEM_VERIFY(ni > 0.0,
-		  "Ion density (" << ni << ") "
-		  "less than or equal to zero in "
-		  "IonThermalParaDiffusionCoef."); 
+                  "Ion density (" << ni << ") "
+                  "less than or equal to zero in "
+                  "IonThermalParaDiffusionCoef.");
       MFEM_VERIFY(Ti > 0.0,
-		  "Ion temperature (" << Ti << ") "
-		  "less than or equal to zero in "
-		  "IonThermalParaDiffusionCoef."); 
-      
+                  "Ion temperature (" << Ti << ") "
+                  "less than or equal to zero in "
+                  "IonThermalParaDiffusionCoef.");
+
       double tau = tau_i(m_i_, z_i_, ni, Ti, 17.0);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
@@ -1032,9 +1032,9 @@ public:
    ElectronThermalParaDiffusionCoef(double ion_charge,
                                     Coefficient &neCoef,
                                     Coefficient &TeCoef,
-				    DerivType deriv = INVALID)
+                                    DerivType deriv = INVALID)
       : StateVariableCoef(deriv),
-	z_i_(ion_charge), neCoef_(&neCoef), TeCoef_(&TeCoef)
+        z_i_(ion_charge), neCoef_(&neCoef), TeCoef_(&TeCoef)
    {}
 
    bool NonTrivialValue(DerivType deriv) const
@@ -1048,14 +1048,14 @@ public:
       double ne = neCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
       MFEM_VERIFY(ne > 0.0,
-		  "Electron density (" << ne << ") "
-		  "less than or equal to zero in "
-		  "ElectronThermalParaDiffusionCoef."); 
+                  "Electron density (" << ne << ") "
+                  "less than or equal to zero in "
+                  "ElectronThermalParaDiffusionCoef.");
       MFEM_VERIFY(Te > 0.0,
-		  "Electron temperature (" << Te << ") "
-		  "less than or equal to zero in "
-		  "ElectronThermalParaDiffusionCoef."); 
-      
+                  "Electron temperature (" << Te << ") "
+                  "less than or equal to zero in "
+                  "ElectronThermalParaDiffusionCoef.");
+
       double tau = tau_e(Te, z_i_, ne, 17.0);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
@@ -1063,19 +1063,19 @@ public:
    }
 
    double Eval_dTe(ElementTransformation &T,
-		   const IntegrationPoint &ip)
+                   const IntegrationPoint &ip)
    {
       double ne = neCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
       MFEM_VERIFY(ne > 0.0,
-		  "Electron density (" << ne << ") "
-		  "less than or equal to zero in "
-		  "ElectronThermalParaDiffusionCoef."); 
+                  "Electron density (" << ne << ") "
+                  "less than or equal to zero in "
+                  "ElectronThermalParaDiffusionCoef.");
       MFEM_VERIFY(Te > 0.0,
-		  "Electron temperature (" << Te << ") "
-		  "less than or equal to zero in "
-		  "ElectronThermalParaDiffusionCoef."); 
-      
+                  "Electron temperature (" << Te << ") "
+                  "less than or equal to zero in "
+                  "ElectronThermalParaDiffusionCoef.");
+
       double tau = tau_e(Te, z_i_, ne, 17.0);
       double dtau = dtau_e_dT(Te, z_i_, ne, 17.0);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
@@ -1408,7 +1408,7 @@ private:
    // HypreSmoother newton_op_prec_;
    // Array<HypreSmoother*> newton_op_prec_blocks_;
    TransportPrec newton_op_prec_;
-   GMRESSolver  newton_op_solver_;
+   GMRESSolver   newton_op_solver_;
    NewtonSolver  newton_solver_;
 
    // Data collection used to write data files
@@ -1833,7 +1833,7 @@ private:
 
       GradientGridFunctionCoefficient grad_Te0Coef_;
       GradientGridFunctionCoefficient grad_dTeCoef_;
-     
+
       mutable SumCoefficient  nn1Coef_;
       mutable SumCoefficient  ni1Coef_;
       mutable SumCoefficient  vi1Coef_;
