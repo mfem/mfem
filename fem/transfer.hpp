@@ -98,6 +98,10 @@ class TensorProductPRefinementTransferOperator : public Operator
    int Q1D;
    Array<double> B;
    Array<double> Bt;
+   const Operator* elem_restrict_lex_l;
+   const Operator* elem_restrict_lex_h;
+   Vector mask;
+   mutable Vector localL, localH;
 
  public:
    TensorProductPRefinementTransferOperator(
