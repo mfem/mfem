@@ -2658,6 +2658,9 @@ void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
       {
          for (int idof=0; idof<ndof; ++idof)
          {
+            // E-vector dimensions (dofs, vdim, elements)
+            // L-vector dimensions: byVDIM:  (vdim, dofs, element)
+            //                      byNODES: (dofs, elements, vdim)
             int yidx = iel*vdim*ndof + vd*ndof + idof;
             int xidx;
             if (byvdim)

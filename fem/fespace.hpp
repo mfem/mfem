@@ -304,8 +304,9 @@ public:
        The parameter @a e_ordering describes how the local DOFs in each element
        should be ordered, see ElementDofOrdering.
 
-       For discontinuous spaces, where the element-restriction is the identity,
-       this method will return NULL.
+       For discontinuous spaces, the element restriction corresponds to a
+       permutation of the degrees of freedom, implemented by the
+       L2ElementRestriction class.
 
        The returned Operator is owned by the FiniteElementSpace. */
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
@@ -896,6 +897,11 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
+/// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetElementRestriction(). L-vectors
+    corresponding to grid functions in L2 finite element spaces differ from
+    E-vectors only in the ordering of the degrees of freedom. */
 class L2ElementRestriction : public Operator
 {
    const int ne;
