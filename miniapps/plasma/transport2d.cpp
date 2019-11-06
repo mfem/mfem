@@ -49,6 +49,7 @@ static double Ti_min_ =  1.0;
 
 static double Te_max_ = 10.0;
 static double Te_min_ =  1.0;
+static double Te_exp_ =  0.0;
 
 static double Tot_B_max_ = 5.0; // Maximum of total B field
 static double Pol_B_max_ = 0.5; // Maximum of poloidal B field
@@ -248,7 +249,9 @@ double TeFunc(const Vector &x, double t)
          double rb = 0.64;
 
          double r = (sqrt(pow(x[0], 2) + pow(x[1], 2)) - ra) / (rb - ra);
-         return Te_min_ + (Te_max_ - Te_min_) * (0.5 + 0.5 * cos(M_PI * r));
+         double rs = pow(x[0] - 0.5 * (ra + rb), 2) + pow(x[1], 2);
+         return Te_min_ + (Te_max_ - Te_min_) * (0.5 + 0.5 * cos(M_PI * r)) +
+                0.5 * Te_exp_ * exp(-400.0 * rs);
       }
       case 4:
       {
@@ -258,8 +261,8 @@ double TeFunc(const Vector &x, double t)
          double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
          double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
          return Te_min_ +
-                (Te_max_ - Te_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) +
-                                       0.5 * exp(-400.0 * rs));
+                (Te_max_ - Te_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r))) +
+                0.5 * Te_exp_ * exp(-400.0 * rs);
       }
       default:
          return Te_max_;
@@ -972,6 +975,8 @@ int main(int argc, char *argv[])
                   "Minimum of inital electron temperature");
    args.AddOption(&Te_max_, "-Te-max", "--max-electron-temp",
                   "Maximum of inital electron temperature");
+   args.AddOption(&Te_exp_, "-Te-exp", "--electron-temp-exp",
+                  "Amplitude of inital electron temperature gaussian");
    // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
    //               "Diffusion constant used in momentum equation.");
    args.AddOption(&Tot_B_max_, "-B", "--total-B-magnitude",
