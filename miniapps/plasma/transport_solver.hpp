@@ -1085,6 +1085,37 @@ public:
 
 };
 
+class VectorXYCoefficient : public VectorCoefficient
+{
+private:
+  VectorCoefficient * V_;
+  Vector v3_;
+
+public:
+  VectorXYCoefficient(VectorCoefficient &V)
+    : VectorCoefficient(2), V_(&V), v3_(3) {}
+
+  void Eval(Vector &v,
+	    ElementTransformation &T,
+	    const IntegrationPoint &ip)
+  { v.SetSize(2); V_->Eval(v3_, T, ip); v[0] = v3_[0]; v[1] = v3_[1]; }
+};
+
+class VectorZCoefficient : public Coefficient
+{
+private:
+  VectorCoefficient * V_;
+  Vector v3_;
+
+public:
+  VectorZCoefficient(VectorCoefficient &V)
+    : V_(&V), v3_(3) {}
+
+  double Eval(ElementTransformation &T,
+	      const IntegrationPoint &ip)
+  { V_->Eval(v3_, T, ip); return v3_[2]; }
+};
+
 class Aniso2DDiffusionCoef : public StateVariableMatCoef
 {
 private:
@@ -1399,6 +1430,7 @@ private:
    int logging_;
 
    ParFiniteElementSpace *fes_;
+   ParFiniteElementSpace *v2fes_;
    ParFiniteElementSpace *ffes_;
    ParGridFunctionArray  *pgf_;
    ParGridFunctionArray  *dpgf_;
@@ -1968,6 +2000,11 @@ private:
 
    CombinedOp op_;
 
+   VectorXYCoefficient BxyCoef_;
+   VectorZCoefficient  BzCoef_;
+
+   ParGridFunction * BxyGF_;
+   ParGridFunction * BzGF_;
    // ConstantCoefficient oneCoef_;
 
    // DGAdvectionDiffusionTDO n_n_oper_; // Neutral Density

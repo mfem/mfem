@@ -913,6 +913,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
      mpi_(mpi),
      logging_(logging),
      fes_(&fes),
+     v2fes_(NULL),
      ffes_(&ffes),
      pgf_(&pgf),
      dpgf_(&dpgf),
@@ -922,7 +923,11 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
      newton_solver_(fes.GetComm()),
      op_(mpi, dg, pgf, dpgf, offsets_,
          ion_charge, ion_mass, neutral_mass, neutral_temp, Di_perp,
-         Xi_perp, Xe_perp, B3Coef, Ti_dbc, Te_dbc, op_flag, logging)//,
+         Xi_perp, Xe_perp, B3Coef, Ti_dbc, Te_dbc, op_flag, logging),
+     BxyCoef_(B3Coef),
+     BzCoef_(B3Coef),
+     BxyGF_(NULL),
+     BzGF_(NULL)
      // oneCoef_(1.0),
      // n_n_oper_(dg, fes, pgf, oneCoef_, imex),
      // n_i_oper_(dg, fes, pgf, oneCoef_, imex),
@@ -983,6 +988,11 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
    newton_solver_.SetRelTol(rel_tol);
    newton_solver_.SetAbsTol(0.0);
    newton_solver_.SetMaxIter(10);
+
+   v2fes_ = new ParFiniteElementSpace(fes_->GetParMesh(), fes_->FEColl(), 2);
+   BxyGF_ = new ParGridFunction(v2fes_);
+   BzGF_  = new ParGridFunction(fes_);
+   
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Done constructing DGTransportTDO" << endl;
@@ -997,6 +1007,9 @@ DGTransportTDO::~DGTransportTDO()
       delete mit->second;
    }
 
+   delete BxyGF_;
+   delete BzGF_;
+   delete v2fes_;
 }
 
 void DGTransportTDO::SetTime(const double _t)
@@ -1033,12 +1046,19 @@ void
 DGTransportTDO::RegisterDataFields(DataCollection & dc)
 {
    dc_ = &dc;
+
+   dc_->RegisterField("B Poloidal", BxyGF_);
+   dc_->RegisterField("B Toroidal", BzGF_);
+   
    op_.RegisterDataFields(dc);
 }
 
 void
 DGTransportTDO::PrepareDataFields()
 {
+   BxyGF_->ProjectCoefficient(BxyCoef_);
+   BzGF_->ProjectCoefficient(BzCoef_);
+  
    op_.PrepareDataFields();
 }
 
@@ -1426,6 +1446,10 @@ void DGTransportTDO::Update()
 {
    height = width = ffes_->GetVSize();
 
+   v2fes_->Update();
+   BxyGF_->Update();
+   BzGF_->Update();
+   
    op_.Update();
 
    newton_solver_.SetOperator(op_);
