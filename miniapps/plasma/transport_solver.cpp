@@ -875,7 +875,8 @@ void TransportPrec::SetOperator(const Operator &op)
 
             Operator & diag_op = blk_op->GetBlock(i,i);
             HypreParMatrix & M = dynamic_cast<HypreParMatrix&>(diag_op);
-
+	    diag_prec_[i] = new HypreBoomerAMG(M);
+	    /*
             if (i == 0)
             {
                cout << "Building new HypreBoomerAMG preconditioner" << endl;
@@ -883,8 +884,10 @@ void TransportPrec::SetOperator(const Operator &op)
             }
             else
             {
+               cout << "Building new HypreDiagScale preconditioner" << endl;
                diag_prec_[i] = new HypreDiagScale(M);
             }
+	    */
             SetDiagonalBlock(i, diag_prec_[i]);
          }
       }
