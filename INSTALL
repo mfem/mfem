@@ -442,6 +442,8 @@ MFEM_USE_OCCA = YES/NO
    backends. In order to use the OCCA CUDA backend, CUDA support must be enabled
    in MFEM as well, i.e. MFEM_USE_CUDA=YES must be set.
 
+MFEM_USE_GSLIB = YES/NO
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -589,6 +591,17 @@ The specific libraries and their options are:
   URL: https://zlib.net
   Options: ZLIB_OPT, ZLIB_LIB.
 
+- GSLib, used when MFEM_USE_GSLIB = YES. GSLib must be built prior to the 
+  MFEM build.
+  URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
+     -- Download GSLib and untar it at the same level as MFEM.
+     -- Rename the untarred folder as: ln -s gslib-1.0.5 gslib
+     -- Build gslib in serial or parallel based on MFEM build:
+         --- make CC=gcc   MPI=0  
+                     or 
+         --- make CC=mpicc MPI=1
+     -- Build MFEM using the MFEM_USE_GSLIB=YES option.
+     -- See GSLib example in examples/gslib for usage.
 
 Building with CMake
 ===================
