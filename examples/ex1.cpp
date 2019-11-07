@@ -191,8 +191,15 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_GINKGO
          // 11b. Solve the linear system A X = B with Ginkgo.
          std::string executor = "reference";
-         GinkgoWrappers::CGSolver ginkgo_solver(executor, 1, 2000, 1e-6, 0.0 );
+         auto exec = gko::ReferenceExecutor::create();
+         auto ilu_precond =
+            gko::preconditioner::Ilu<gko::solver::LowerTrs<>,
+            gko::solver::UpperTrs<>, false>::build()
+            .on(exec);
+         GinkgoWrappers::CGSolver ginkgo_solver(executor, 1, 2000, 1e-6, 0.0,
+                                                ilu_precond.release() );
          ginkgo_solver.solve(&((SparseMatrix&)(*A)), X, B);
+
 #endif
       }
       else
