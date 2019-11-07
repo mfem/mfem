@@ -252,9 +252,6 @@ Mesh* get_mesh2d( int refinement_level, int order )
 
    mesh->Transform( mesh_trans2d );
 
-   mesh->SetNodalFESpace(
-      new FiniteElementSpace( mesh, new H1_FECollection(order,TDIM), SDIM ) );
-
    return mesh;
 }
 
@@ -269,7 +266,7 @@ template < >
 Mesh* get_mesh< 3 >( int rl, int order ) { return get_mesh3d(rl,order); };
 
 //------------------------------------------------------------------------------
-template < int NDIMS >
+template < int NDIMS, typename BasisType=mfem::H1_FECollection >
 bool check_fe_ray( int fe_order,
                    const double* x0,
                    const double* n,
@@ -279,6 +276,7 @@ bool check_fe_ray( int fe_order,
                    const double& t_expected=-1.0
                  )
 {
+
    // STEP 0: create mesh
    constexpr int REFINEMENT_LEVELS = 5;
    Mesh* m = get_mesh< NDIMS >( REFINEMENT_LEVELS, fe_order );
@@ -287,6 +285,17 @@ bool check_fe_ray( int fe_order,
    REQUIRE( m->SpaceDimension()==NDIMS );
 
    dump_ray( x0, n, NDIMS, "test_ray" );
+
+   constexpr int SDIM = NDIMS;
+   constexpr int TDIM = SDIM - 1;
+
+   // set the basis
+   m->SetNodalFESpace(
+       new FiniteElementSpace( m, new BasisType(fe_order,TDIM), SDIM ) );
+
+   std::cout << "Testing FE/Ray intersection on a " << NDIMS << "-D surface mesh ";
+   std::cout << "using [" << m->GetNodalFESpace()->FEColl()->Name();
+   std::cout << "] basis.\n";
 
 #ifdef FE_RAY_VTK_DEBUG
    if ( fe_order <= 2 )
@@ -378,12 +387,23 @@ TEST_CASE( "Ray Surface Intersection 3D",
 
          SECTION( "Test with intersecting ray" )
          {
-            REQUIRE( check_fe_ray< NDIMS >( iorder,x0,n1,found_in,ip,r,t) );
+            bool intersects = false;
+            intersects = check_fe_ray< NDIMS >( iorder,x0,n1,found_in,ip,r,t );
+            REQUIRE( intersects );
+
+            intersects = check_fe_ray< NDIMS, H1Pos_FECollection >(
+                iorder,x0,n1,found_in,ip,r,t);
+            REQUIRE( intersects );
          }
 
          SECTION( "Test non-intersecting ray" )
          {
-            REQUIRE_FALSE( check_fe_ray< NDIMS >( iorder,x0,n2 ) );
+            bool intersects = true;
+            intersects = check_fe_ray< NDIMS >( iorder,x0,n2 );
+            REQUIRE_FALSE( intersects );
+
+            intersects = check_fe_ray< NDIMS,H1Pos_FECollection >(iorder,x0,n2);
+            REQUIRE_FALSE( intersects );
          }
 
       }
@@ -422,12 +442,23 @@ TEST_CASE( "Ray Surface Intersection 2D",
 
          SECTION( "Test with intersecting ray" )
          {
-            REQUIRE( check_fe_ray< NDIMS >( iorder,x0,n1,found_in,ip,r,t) );
+            bool intersects = false;
+            intersects = check_fe_ray< NDIMS >( iorder,x0,n1,found_in,ip,r,t);
+            REQUIRE( intersects );
+
+            intersects = check_fe_ray< NDIMS, H1Pos_FECollection >(
+                            iorder,x0,n1,found_in,ip,r,t);
+            REQUIRE( intersects );
          }
 
          SECTION( "Test non-intersecting ray" )
          {
-            REQUIRE_FALSE( check_fe_ray< NDIMS >( iorder,x0,n2 ) );
+            bool intersects = true;
+            intersects = check_fe_ray< NDIMS >( iorder,x0,n2 );
+            REQUIRE_FALSE( intersects );
+
+            intersects = check_fe_ray< NDIMS,H1Pos_FECollection >(iorder,x0,n2);
+            REQUIRE_FALSE( intersects );
          }
 
       }
