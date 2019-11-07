@@ -211,20 +211,19 @@ int main(int argc, char *argv[])
            << A->GetGlobalNumRows() << " x " << A->GetGlobalNumCols() << endl;
    }
 
-   // MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
+   MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
 
-   // chrono.Clear();
-   // chrono.Start();
+   chrono.Clear();
+   chrono.Start();
    // GMGSolver * M1 = new GMGSolver(A, P, GMGSolver::CoarseSolver::PETSC);
-   ParSchwarzSmoother * M1 = new ParSchwarzSmoother(fespaces[ref_levels-1]->GetParMesh(),1,fespaces[ref_levels],A);
-   // M1->SetDumpingParam(1.0/5.0);
-   // M1->SetTheta(1.0/2.0);
-   // chrono.Stop();
+   MGSolver * M1 = new MGSolver(A, P,fespaces);
+   M1->SetTheta(1.0/5.0);
+   chrono.Stop();
    
-   if (myid == 0)
-   {
-      cout << "Additive Smoother construction time: " << chrono.RealTime() << endl;
-   }
+   // if (myid == 0)
+   // {
+   cout << "MG preconditioner construction time: " << chrono.RealTime() << endl;
+   // }
 
    int maxit(2000);
    double rtol(1.e-6);
@@ -242,34 +241,13 @@ int main(int argc, char *argv[])
    gmres.Mult(B,X);
    chrono.Stop();
 
-   if (myid == 0)
-   {
-      cout << "MG-Jacobi Solver time: " << chrono.RealTime() << endl;
-   }
+   // if (myid == 0)
+   // {
+   cout << "MG-Preconditioned Solver time: " << chrono.RealTime() << endl;
+   // }
    delete M1;
 
-   // chrono.Clear();
-   // chrono.Start();
-   // MGSolver * M2 = new MGSolver(A, P,fespaces);
-   // M2->SetTheta(1.0/5.0);
-   // chrono.Stop();
-   // if (myid == 0)
-   // {
-   //    cout << "MG-Add Schwarz Construction time: " << chrono.RealTime() << endl;
-   // }
-   // X = 0.0;
-   // gmres.SetPreconditioner(*M2);
-   // chrono.Clear();
-   // chrono.Start();
-   // gmres.Mult(B,X);
-   // chrono.Stop();
-   // if (myid == 0)
-   // {
-   //    cout << "MG-Add Schwarz Solver time: " << chrono.RealTime() << endl;
-   // }
-   // delete M2;
-
-   // MFEMFinalizePetsc();
+   MFEMFinalizePetsc();
 
    a->RecoverFEMSolution(X, *b, x);
 

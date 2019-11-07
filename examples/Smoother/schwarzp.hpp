@@ -50,8 +50,8 @@ public:
    vector<int>tdof_offsets;
    vector<Array<int>> patch_other_tdofs;
    vector<Array<int>> patch_owned_other_tdofs;
-   Array<SparseMatrix * > PatchMat;
-   Array<SparseMatrix * > Rst;
+   vector<Array<int>> l2gmaps; // patch to global maps for the dofs owned by the processor
+   Array<SparseMatrix* > PatchMat;
    par_patch_dof_info *patch_tdof_info=nullptr;   
    Array<int> host_rank; 
    HypreParMatrix * A = nullptr;
@@ -89,9 +89,10 @@ private:
    MPI_Comm comm;
    int nrpatch;
    int maxit = 1;
-   double theta = 0.5;
+   double theta = 1.0;
    Array<int> host_rank;
    Array<UMFPackSolver * > PatchInv;
+   Array<KLUSolver * > PatchInvKLU;
    /// The linear system matrix
    HypreParMatrix * A;
    par_patch_assembly * P;
@@ -113,6 +114,9 @@ bool owned(int tdof, int * offs);
 
 SparseMatrix * GetLocalRestriction(const Array<int> & tdof_i, const int * row_start, 
                               const int num_rows, const int num_cols);                              
+
+void GetLocal2GlobalMap(const Array<int> & tdof_i, const int * row_start, 
+                              const int num_rows, const int num_cols, Array<int> & l2gmap);
 
 void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j, SparseMatrix & offd, const int * cmap, 
                          const int * row_start, SparseMatrix * PatchMat);

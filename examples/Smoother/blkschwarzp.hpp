@@ -18,6 +18,7 @@ private:
    Array<int> host_rank;
    // Array<PetscLinearSolver * > PatchInv;
    Array<UMFPackSolver * > PatchInv;
+   Array<KLUSolver * > PatchInvKLU;
    Array<SparseMatrix * > PatchMat;
    /// The linear system matrix
    Array2D<HypreParMatrix*> blockA;

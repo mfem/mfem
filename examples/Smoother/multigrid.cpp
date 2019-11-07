@@ -10,27 +10,48 @@ using namespace mfem;
 MGSolver::MGSolver(HypreParMatrix * Af_, std::vector<HypreParMatrix *> P_,std::vector<ParFiniteElementSpace * > fespaces)
    : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
 
+   StopWatch chrono;
    NumGrids = P.size();
    S.resize(NumGrids);
    A.resize(NumGrids + 1);
 
+   // chrono.Clear();
+   // chrono.Start();
    A[NumGrids] = Af;
    for (int i = NumGrids ; i > 0; i--)
    {
       A[i - 1] = RAP(A[i], P[i - 1]);
    }
+
+   // chrono.Stop();
+   // cout << "Setting up matrices A: " << chrono.RealTime() << endl;
+
    // Set up coarse solve operator
+   // chrono.Clear();
+   // chrono.Start();
+   
    petsc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
    // Convert to PetscParMatrix
    petsc->SetOperator(PetscParMatrix(A[0], Operator::PETSC_MATAIJ));
    invAc = petsc;
+   // chrono.Stop();
+   // cout << "Setting up coarse grid LU: " << chrono.RealTime() << endl;
+
+
+   // GMGSolver * M1 = new GMGSolver(A, P, GMGSolver::CoarseSolver::PETSC);
+   
+   // chrono.Clear();
+   // chrono.Start();
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
       S[i] = new ParSchwarzSmoother(fespaces[i]->GetParMesh(),1,fespaces[i+1],A[i+1]);
-      S[i]->SetDumpingParam(1.0/5.0);
+      // S[i]->SetDumpingParam(1.0/5.0);
       // S[i]->SetType(HypreSmoother::Jacobi);
       // S[i]->SetOperator(*A[i+1]);
    }
+   // chrono.Stop();
+   // cout << "Setting up Smoothers: " << chrono.RealTime() << endl;
+
 }
 
 void MGSolver::Mult(const Vector &r, Vector &z) const

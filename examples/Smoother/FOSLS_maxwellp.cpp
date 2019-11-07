@@ -4,6 +4,7 @@
 #include <iostream>
 #include <boost/math/special_functions/airy.hpp>
 #include "multigrid.hpp"
+#include "petsc.h"
 
 using namespace std;
 using namespace mfem;
@@ -274,8 +275,19 @@ int main(int argc, char *argv[])
    double rtol(1.e-6);
    double atol(1.e-6);
 
+   // {
+   //    PetscParMatrix Apetsc(MPI_COMM_WORLD, LS_Maxwellop, Operator::PETSC_MATAIJ);
+   //    delete LS_Maxwellop;
+   //    Mat Am = Apetsc;
+   //    int ierr = MatConvert(Am, MATAIJ, MAT_INITIAL_MATRIX, &Am); CHKERRQ(ierr);
+   //    PetscParMatrix ApetscAIJ(Am);
+   //    PetscLinearSolver solver(ApetscAIJ);
 
-   trueX = 0.0;
+   //    solver.Mult(trueRhs,trueX);
+   // }
+   
+
+   // trueX = 0.0;
    
    CGSolver pcg(MPI_COMM_WORLD);
    pcg.SetAbsTol(atol);
@@ -283,25 +295,26 @@ int main(int argc, char *argv[])
    pcg.SetMaxIter(maxit);
    pcg.SetOperator(*LS_Maxwellop);
    pcg.SetPrintLevel(1);
-   // chrono.Clear();
-   // chrono.Start();
+   chrono.Clear();
+   chrono.Start();
    BlockMGSolver * precMG = new BlockMGSolver(blockA,P,fespaces);
    precMG->SetTheta(1.0/5.0);
    int lv_coarse = min(ref_levels,ref_levels);
    int levels = ref_levels - lv_coarse; 
    // BlkParSchwarzSmoother * precAS = new BlkParSchwarzSmoother(fespaces[lv_coarse]->GetParMesh(),levels,fespaces[ref_levels],blockA);
-   // chrono.Stop();
-   // if(myid == 0)
-   //    cout << "MG Setup time: " << chrono.RealTime() << endl;
-   // chrono.Clear();
-   // chrono.Start();
+   chrono.Stop();
+   cout << "MG Setup time: " << chrono.RealTime() << endl;
+   
+   chrono.Clear();
+   chrono.Start();
    pcg.SetPreconditioner(*precMG);
    // pcg.SetPreconditioner(*precAS);
    pcg.Mult(trueRhs, trueX);
-   // chrono.Stop();
+   chrono.Stop();
+   cout << "MG Solution time time: " << chrono.RealTime() << endl;
    
-   // delete precMG;
-   // // delete precAS;
+   delete precMG;
+   // delete precAS;
 
 
    
@@ -402,7 +415,7 @@ int main(int argc, char *argv[])
    delete A_HE;
    delete A_EH;
    delete A_HH;
-   delete LS_Maxwellop;
+   // delete LS_Maxwellop;
    delete a_EE;
    delete a_HE;
    delete a_HH;

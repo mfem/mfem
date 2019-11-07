@@ -46,7 +46,7 @@ private:
    HypreParMatrix * Ac;
    int NumGrids;
    PetscLinearSolver *invAc = nullptr;
-   double theta = 1.0;
+   double theta = 1.0/5.0;
 
 public:
    BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HypreParMatrix *> P_, std::vector<ParFiniteElementSpace *> fespaces);

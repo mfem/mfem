@@ -1,6 +1,8 @@
 -prefix_push direct
 #-ksp_view
+#-ksp_monitor
 -ksp_type preonly
+#-ksp_type gmres
 -pc_type lu
 -pc_factor_mat_solver_type mumps
 #-pc_factor_mat_solver_type strumpack

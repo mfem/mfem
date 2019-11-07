@@ -31,10 +31,12 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
    host_rank.SetSize(nrpatch);
    host_rank = P(0,0)->host_rank;
    PatchInv.SetSize(nrpatch);
+   PatchInvKLU.SetSize(nrpatch);
    PatchMat.SetSize(nrpatch);
    for (int ip = 0; ip < nrpatch; ++ip)
    {
       PatchInv[ip]=nullptr;
+      PatchInvKLU[ip] = nullptr;
       PatchMat[ip]=nullptr;
       if (P(0,0)->PatchMat[ip])
       {
@@ -69,9 +71,11 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
    //       // delete smat;
    //       // PatchInv[ip] = new PetscLinearSolver(MPI_COMM_SELF, "direct");
    //       // PatchInv[ip]->SetOperator(petsc);
-         PatchInv[ip] = new UMFPackSolver;
-         PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         PatchInv[ip]->SetOperator(*PatchMat[ip]);
+         // PatchInv[ip] = new UMFPackSolver;
+         // PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         // PatchInv[ip]->SetOperator(*PatchMat[ip]);
+         PatchInvKLU[ip] = new KLUSolver(*PatchMat[ip]);
+         // PatchInvKLU[ip]->SetOperator(*PatchMat[ip]);
       }
    }
    R.SetSize(2,2);
@@ -145,7 +149,8 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
             block_offs1.PartialSum();
 
             sol[ip] = new BlockVector(block_offs); 
-            PatchInv[ip]->Mult(*res[ip], *sol[ip]);
+            // PatchInv[ip]->Mult(*res[ip], *sol[ip]);
+            PatchInvKLU[ip]->Mult(*res[ip], *sol[ip]);
             delete res[ip];
             sol0[ip] = new BlockVector(sol[ip]->GetBlock(0).GetData(),block_offs0);
             sol1[ip] = new BlockVector(sol[ip]->GetBlock(1).GetData(),block_offs1);
@@ -186,7 +191,9 @@ BlkParSchwarzSmoother::~BlkParSchwarzSmoother()
    {
        if (PatchMat[ip])  delete PatchMat[ip];
        if (PatchInv[ip])  delete PatchInv[ip];
+       if (PatchInvKLU[ip])  delete PatchInvKLU[ip];
    }
    PatchMat.DeleteAll();
    PatchInv.DeleteAll();
+   PatchInvKLU.DeleteAll();
 }
