@@ -1430,7 +1430,7 @@ private:
    int logging_;
 
    ParFiniteElementSpace *fes_;
-   ParFiniteElementSpace *v2fes_;
+   ParFiniteElementSpace *vfes_;
    ParFiniteElementSpace *ffes_;
    ParGridFunctionArray  *pgf_;
    ParGridFunctionArray  *dpgf_;
@@ -2021,6 +2021,7 @@ private:
 public:
    DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                   ParFiniteElementSpace &fes,
+                  ParFiniteElementSpace &vfes,
                   ParFiniteElementSpace &ffes,
                   Array<int> &offsets,
                   ParGridFunctionArray &pgf,

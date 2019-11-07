@@ -896,6 +896,7 @@ void TransportPrec::SetOperator(const Operator &op)
 
 DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                ParFiniteElementSpace &fes,
+                               ParFiniteElementSpace &vfes,
                                ParFiniteElementSpace &ffes,
                                Array<int> & offsets,
                                ParGridFunctionArray &pgf,
@@ -913,7 +914,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
      mpi_(mpi),
      logging_(logging),
      fes_(&fes),
-     v2fes_(NULL),
+     vfes_(&vfes),
      ffes_(&ffes),
      pgf_(&pgf),
      dpgf_(&dpgf),
@@ -989,8 +990,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
    newton_solver_.SetAbsTol(0.0);
    newton_solver_.SetMaxIter(10);
 
-   v2fes_ = new ParFiniteElementSpace(fes_->GetParMesh(), fes_->FEColl(), 2);
-   BxyGF_ = new ParGridFunction(v2fes_);
+   BxyGF_ = new ParGridFunction(vfes_);
    BzGF_  = new ParGridFunction(fes_);
    
    if (mpi_.Root() && logging_ > 1)
@@ -1009,7 +1009,6 @@ DGTransportTDO::~DGTransportTDO()
 
    delete BxyGF_;
    delete BzGF_;
-   delete v2fes_;
 }
 
 void DGTransportTDO::SetTime(const double _t)
@@ -1446,7 +1445,6 @@ void DGTransportTDO::Update()
 {
    height = width = ffes_->GetVSize();
 
-   v2fes_->Update();
    BxyGF_->Update();
    BzGF_->Update();
    

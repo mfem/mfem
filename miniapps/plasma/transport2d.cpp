@@ -1111,7 +1111,8 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes(&pmesh, &fec);
-
+   ParFiniteElementSpace vfes(&pmesh, &fec, 2);
+   
    // Adaptively refine mesh to accurately represent a given coefficient
    {
       ParGridFunctionArray coef_gf(5, &fes);
@@ -1659,7 +1660,7 @@ int main(int argc, char *argv[])
       coefNrm[4] = bnXeb / bMb;
    }
 
-   DGTransportTDO oper(mpi, dg, fes, ffes, offsets, pgf, dpgf,
+   DGTransportTDO oper(mpi, dg, fes, vfes, ffes, offsets, pgf, dpgf,
                        ion_charge, ion_mass, neutral_mass, neutral_temp,
                        Di_perp, Xi_perp, Xe_perp, B3Coef, Ti_dbc, Te_dbc,
                        imex, op_flag, logging);
@@ -1948,6 +1949,7 @@ int main(int argc, char *argv[])
             //     matrix is an interpolation matrix so the updated GridFunction will
             //     still represent the same function as before refinement.
             ffes.Update();
+            vfes.Update();
             fes.Update();
             fes.ExchangeFaceNbrData();
             fes_l2_o0.Update();
@@ -1978,6 +1980,7 @@ int main(int argc, char *argv[])
                // Update the space and the GridFunction. This time the update matrix
                // redistributes the GridFunction among the processors.
                ffes.Update();
+               vfes.Update();
                fes.Update();
                fes.ExchangeFaceNbrData();
                fes_l2_o0.Update();
@@ -2011,6 +2014,7 @@ int main(int argc, char *argv[])
             // 24. Update the space and the solution, rebalance the mesh.
             // cout << "fes.Update();" << endl;
             ffes.Update();
+            vfes.Update();
             fes.Update();
             fes.ExchangeFaceNbrData();
             // cout << "fes_l2_o0.Update();" << endl;
