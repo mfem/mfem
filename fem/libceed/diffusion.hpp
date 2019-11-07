@@ -20,6 +20,7 @@ namespace mfem
 
 #ifdef MFEM_USE_CEED
 
+/// Initialize a Diffusion Integrator using libCEED
 void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &ir,  CeedData& ceedData);
 
