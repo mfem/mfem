@@ -34,6 +34,7 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
    }
    form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    form->Assemble();
+   bfs.Append(form);
 
    essentialTrueDofs.Append(new Array<int>());
    spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
