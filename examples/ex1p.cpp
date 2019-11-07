@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
    if (pa)
    {
       delete mgOperator;
-      for (int level = 0; level < collections->Size() - 1; ++level)
+      for (int level = 0; level < collections->Size(); ++level)
       {
          delete (*collections)[level];
       }
