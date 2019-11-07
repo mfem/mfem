@@ -272,7 +272,7 @@ CGSolver::CGSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+   const gko::LinOpFactory* preconditioner
 )
    : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
                                ATOLERANCE)
@@ -311,7 +311,7 @@ BICGSTABSolver::BICGSTABSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+   const gko::LinOpFactory* preconditioner
 )
    : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
                                ATOLERANCE)
@@ -349,7 +349,7 @@ CGSSolver::CGSSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+   const gko::LinOpFactory* preconditioner
 )
    : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
                                ATOLERANCE)
@@ -387,7 +387,7 @@ FCGSolver::FCGSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+   const gko::LinOpFactory* preconditioner
 )
    : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
                                ATOLERANCE)
@@ -428,7 +428,7 @@ GMRESSolver::GMRESSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const std::shared_ptr<gko::LinOpFactory> &preconditioner
+   const gko::LinOpFactory* preconditioner
 )
    : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
                                ATOLERANCE)
@@ -467,7 +467,7 @@ IRSolver::IRSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const std::shared_ptr<gko::LinOpFactory> &inner_solver
+   const gko::LinOpFactory* inner_solver
 )
    : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
                                ATOLERANCE)

@@ -234,7 +234,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const std::shared_ptr<gko::LinOpFactory> &preconditioner
+      const gko::LinOpFactory* preconditioner
    );
 };
 
@@ -285,7 +285,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const std::shared_ptr<gko::LinOpFactory> &preconditioner
+      const gko::LinOpFactory* preconditioner
    );
 
 };
@@ -339,7 +339,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const std::shared_ptr<gko::LinOpFactory> &preconditioner
+      const gko::LinOpFactory* preconditioner
    );
 };
 
@@ -401,7 +401,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const std::shared_ptr<gko::LinOpFactory> &preconditioner
+      const gko::LinOpFactory* preconditioner
    );
 };
 
@@ -454,7 +454,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const std::shared_ptr<gko::LinOpFactory> &preconditioner
+      const gko::LinOpFactory* preconditioner
    );
 
 protected:
@@ -511,7 +511,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const std::shared_ptr<gko::LinOpFactory> &inner_solver
+      const gko::LinOpFactory *inner_solver
    );
 };
 
