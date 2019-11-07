@@ -822,6 +822,28 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
 }
 
 
+const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement &trial_fe,
+                                                     const FiniteElement &test_fe,
+                                                     ElementTransformation &Trans)
+{
+   int order;
+   if (trial_fe.Space() == FunctionSpace::Pk)
+   {
+      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+   }
+   else
+   {
+      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+   }
+
+   if (trial_fe.Space() == FunctionSpace::rQk)
+   {
+      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
 void ConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
