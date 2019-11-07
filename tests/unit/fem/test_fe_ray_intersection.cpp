@@ -291,7 +291,7 @@ bool check_fe_ray( int fe_order,
 
    // set the basis
    m->SetNodalFESpace(
-       new FiniteElementSpace( m, new BasisType(fe_order,TDIM), SDIM ) );
+      new FiniteElementSpace( m, new BasisType(fe_order,TDIM), SDIM ) );
 
    std::cout << "Testing FE/Ray intersection on a " << NDIMS << "-D surface mesh ";
    std::cout << "using [" << m->GetNodalFESpace()->FEColl()->Name();
@@ -392,7 +392,7 @@ TEST_CASE( "Ray Surface Intersection 3D",
             REQUIRE( intersects );
 
             intersects = check_fe_ray< NDIMS, H1Pos_FECollection >(
-                iorder,x0,n1,found_in,ip,r,t);
+                            iorder,x0,n1,found_in,ip,r,t);
             REQUIRE( intersects );
          }
 
