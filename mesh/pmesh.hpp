@@ -38,12 +38,6 @@ protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   /// global_element_offset + local element number defines a global
-   /// numbering for elements
-   void ComputeGlobalElementOffset() const;
-   mutable bool have_global_element_offset;
-   mutable long global_element_offset;
-
    struct Vert3
    {
       int v[3];
@@ -83,6 +77,10 @@ protected:
    Array<int> sedge_ledge;
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
+
+   // glob_elem_offset + local element number defines a global element numbering
+   mutable long glob_elem_offset, glob_offset_sequence;
+   void ComputeGlobalElementOffset() const;
 
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
@@ -230,8 +228,8 @@ public:
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
 
-   /// Map a global element number to a local element number.  If the
-   /// global element is not on this processor, return -1.
+   /** Map a global element number to a local element number. If the
+       global element is not on this processor, return -1. */
    int GetLocalElementNum(long global_element_num) const;
 
    /// Map a local element number to a global element number.

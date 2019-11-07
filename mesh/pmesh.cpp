@@ -34,8 +34,9 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
      group_sedge(pmesh.group_sedge),
      group_stria(pmesh.group_stria),
      group_squad(pmesh.group_squad),
-     gtopo(pmesh.gtopo),
-     have_global_element_offset(false)
+     glob_elem_offset(-1),
+     glob_offset_sequence(-1),
+     gtopo(pmesh.gtopo)
 {
    MyComm = pmesh.MyComm;
    NRanks = pmesh.NRanks;
@@ -93,8 +94,9 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
-   : gtopo(comm),
-     have_global_element_offset(false)
+   : glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
+   , gtopo(comm)
 {
    int *partitioning = NULL;
    Array<bool> activeBdrElem;
@@ -835,9 +837,10 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    : MyComm(pncmesh.MyComm)
    , NRanks(pncmesh.NRanks)
    , MyRank(pncmesh.MyRank)
+   , glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
    , gtopo(MyComm)
    , pncmesh(NULL)
-   , have_global_element_offset(false)
 {
    Mesh::InitFromNCMesh(pncmesh);
    ReduceMeshGen();
@@ -846,15 +849,14 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
 
 void ParMesh::ComputeGlobalElementOffset() const
 {
-   long local_elems = NumOfElements;
-   long total_elems = 0;
-   MPI_Allreduce(&local_elems, &total_elems, 1, MPI_LONG, MPI_SUM, MyComm);
+   if (glob_offset_sequence != sequence) // mesh has changed
+   {
+      long local_elems = NumOfElements;
+      MPI_Scan(&local_elems, &glob_elem_offset, 1, MPI_LONG, MPI_SUM, MyComm);
+      glob_elem_offset -= local_elems;
 
-   global_element_offset = 0;
-   MPI_Scan(&local_elems, &global_element_offset, 1, MPI_LONG, MPI_SUM, MyComm);
-   global_element_offset -= local_elems;
-
-   have_global_element_offset = true;
+      glob_offset_sequence = sequence; // don't recalculate until refinement etc.
+   }
 }
 
 void ParMesh::ReduceMeshGen()
@@ -901,8 +903,9 @@ void ParMesh::FinalizeParTopo()
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
-   : gtopo(comm),
-     have_global_element_offset(false)
+   : glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
+   , gtopo(comm)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -1079,10 +1082,11 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      MyComm(orig_mesh->GetComm()),
      NRanks(orig_mesh->GetNRanks()),
      MyRank(orig_mesh->GetMyRank()),
+     glob_elem_offset(-1),
+     glob_offset_sequence(-1),
      gtopo(orig_mesh->gtopo),
      have_face_nbr_data(false),
-     pncmesh(NULL),
-     have_global_element_offset(false)
+     pncmesh(NULL)
 {
    // Need to initialize:
    // - shared_edges, shared_{trias,quads}
@@ -1312,20 +1316,16 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
 
 int ParMesh::GetLocalElementNum(long global_element_num) const
 {
-   if (!have_global_element_offset) {
-      ComputeGlobalElementOffset();
-   }
-   int local = global_element_num -global_element_offset;
-   if (local < 0 || local >= NumOfElements) return -1;
+   ComputeGlobalElementOffset();
+   long local = global_element_num - glob_elem_offset;
+   if (local < 0 || local >= NumOfElements) { return -1; }
    return local;
 }
 
 long ParMesh::GetGlobalElementNum(int local_element_num) const
 {
-   if (!have_global_element_offset) {
-      ComputeGlobalElementOffset();
-   }
-   return global_element_offset +local_element_num;
+   ComputeGlobalElementOffset();
+   return glob_elem_offset + local_element_num;
 }
 
 void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
@@ -2511,8 +2511,6 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       MFEM_ABORT("Local and nonconforming refinements cannot be mixed.");
    }
 
-   have_global_element_offset = false;
-
    DeleteFaceNbrData();
 
    InitRefinementTransforms();
@@ -3026,8 +3024,6 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                  "serial Mesh)");
    }
 
-   have_global_element_offset = false;
-
    DeleteFaceNbrData();
 
    // NOTE: no check of !refinements.Size(), in parallel we would have to reduce
@@ -3070,8 +3066,6 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    MFEM_VERIFY(pncmesh, "Only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
                "Project the NURBS to Nodes first.");
-
-   have_global_element_offset = false;
 
    const Table &dt = pncmesh->GetDerefinementTable();
 
@@ -3148,8 +3142,6 @@ void ParMesh::Rebalance()
       delete Nodes;
       Nodes = new_nodes;
    }
-
-   have_global_element_offset = false;
 
    DeleteFaceNbrData();
 
@@ -3633,8 +3625,6 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
 
 void ParMesh::UniformRefinement2D()
 {
-   have_global_element_offset = false;
-
    DeleteFaceNbrData();
 
    const int old_nv = NumOfVertices;
@@ -3655,8 +3645,6 @@ void ParMesh::UniformRefinement2D()
 
 void ParMesh::UniformRefinement3D()
 {
-   have_global_element_offset = false;
-
    DeleteFaceNbrData();
 
    const int old_nv = NumOfVertices;
@@ -3688,8 +3676,6 @@ void ParMesh::UniformRefinement3D()
 
 void ParMesh::NURBSUniformRefinement()
 {
-   have_global_element_offset = false;
-
    if (MyRank == 0)
    {
       mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
