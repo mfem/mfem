@@ -91,8 +91,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-square.mesh";
-   //const char *mesh_file = "../data/periodic-cube.mesh";
+   //const char *mesh_file = "../data/periodic-square.mesh";
+   const char *mesh_file = "../data/periodic-cube.mesh";
 
    int ref_levels = 0;
    int order = 1;
@@ -117,6 +117,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
