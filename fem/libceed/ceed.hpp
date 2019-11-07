@@ -34,8 +34,6 @@ namespace internal { extern Ceed ceed; }
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
 
-// struct BuildContextConstCoeff { CeedInt dim, space_dim; CeedScalar coeff; };
-
 enum class CeedCoeff { Const, Grid };
 
 struct CeedConstCoeff
@@ -65,8 +63,10 @@ struct CeedData
    CeedVector u, v;
 };
 
+/// Identifies the type of coefficient of the Integrator to initialize accordingly the CeedData
 void InitCeedCoeff(Coefficient* Q, CeedData* ptr);
 
+/// Initialize a tensor CeedBasis and a CeedElemRestriction
 void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                                        const mfem::IntegrationRule &ir,
                                        Ceed ceed, CeedBasis *basis,
