@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include <cassert>
 
 using namespace std;
 
@@ -266,10 +267,10 @@ static void PADiffusionDiagonal2D(const int NE,
                const double O11 = Q(q,0,e);
                const double O12 = Q(q,1,e);
                const double O22 = Q(q,2,e);
-               temp01[qx][dy]   += B(qy, dy) * B(qy, dy) * O11;
-               temp02[qx][dy]   += B(qy, dy) * G(qy, dy) * O12;
+               temp01[qx][dy] += B(qy, dy) * B(qy, dy) * O11;
+               temp02[qx][dy] += B(qy, dy) * G(qy, dy) * O12;
                temp03[qx][dy] += G(qy, dy) * B(qy, dy) * O12;
-               temp04[qx][dy]  += G(qy, dy) * G(qy, dy) * O22;
+               temp04[qx][dy] += G(qy, dy) * G(qy, dy) * O22;
             }
          }
       }
@@ -292,10 +293,10 @@ static void PADiffusionDiagonal2D(const int NE,
 // Shared memory PA Diffusion Diagonal 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionDiagonal2D(const int NE,
-                                      const Array<double> &_b,
-                                      const Array<double> &_g,
-                                      const Vector &_q,
-                                      Vector &_y,
+                                      const Array<double> &b_,
+                                      const Array<double> &g_,
+                                      const Vector &q_,
+                                      Vector &y_,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
@@ -306,10 +307,10 @@ static void SmemPADiffusionDiagonal2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(_b.Read(), Q1D, D1D);
-   auto g = Reshape(_g.Read(), Q1D, D1D);
-   auto Q = Reshape(_q.Read(), Q1D*Q1D, 3, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto g = Reshape(g_.Read(), Q1D, D1D);
+   auto Q = Reshape(q_.Read(), Q1D*Q1D, 3, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -354,10 +355,13 @@ static void SmemPADiffusionDiagonal2D(const int NE,
                const double O22 = Q(q,2,e);
                const double By = B[qy][dy];
                const double Gy = G[qy][dy];
-               T0[qx][dy] += By * By * O11;
-               T1[qx][dy] += By * Gy * O12;
-               T2[qx][dy] += Gy * By * O12;
-               T3[qx][dy] += Gy * Gy * O22;
+               const double BB = By * By;
+               const double BG = By * Gy;
+               const double GG = Gy * Gy;
+               T0[qx][dy] += BB * O11;
+               T1[qx][dy] += BG * O12;
+               T2[qx][dy] += BG * O12;
+               T3[qx][dy] += GG * O22;
             }
          }
       }
@@ -370,10 +374,13 @@ static void SmemPADiffusionDiagonal2D(const int NE,
             {
                const double Bx = B[qx][dx];
                const double Gx = G[qx][dx];
-               y(dx,dy,e) += Gx * Gx * T0[qx][dy];
-               y(dx,dy,e) += Gx * Bx * T1[qx][dy];
-               y(dx,dy,e) += Bx * Gx * T2[qx][dy];
-               y(dx,dy,e) += Bx * Bx * T3[qx][dy];
+               const double BB = Bx * Bx;
+               const double BG = Bx * Gx;
+               const double GG = Gx * Gx;
+               y(dx,dy,e) += GG * T0[qx][dy];
+               y(dx,dy,e) += BG * T1[qx][dy];
+               y(dx,dy,e) += BG * T2[qx][dy];
+               y(dx,dy,e) += BB * T3[qx][dy];
             }
          }
       }
@@ -405,8 +412,8 @@ static void PADiffusionDiagonal3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
 
       // gradphi \cdot OP \gradphi has nine terms
       // nine terms might be too many, but for proof of concept that's what I'll do
@@ -423,15 +430,15 @@ static void PADiffusionDiagonal3D(const int NE,
       // eight Bx By Gz O32 Bx Gy Bz;
       // nine  Bx By Gz O33 Bx By Gz;
 
-      double ztemp01[max_Q1D][max_Q1D][max_D1D];
-      double ztemp02[max_Q1D][max_Q1D][max_D1D];
-      double ztemp03[max_Q1D][max_Q1D][max_D1D];
-      double ztemp04[max_Q1D][max_Q1D][max_D1D];
-      double ztemp05[max_Q1D][max_Q1D][max_D1D];
-      double ztemp06[max_Q1D][max_Q1D][max_D1D];
-      double ztemp07[max_Q1D][max_Q1D][max_D1D];
-      double ztemp08[max_Q1D][max_Q1D][max_D1D];
-      double ztemp09[max_Q1D][max_Q1D][max_D1D];
+      double ztemp01[MQ1][MQ1][MD1];
+      double ztemp02[MQ1][MQ1][MD1];
+      double ztemp03[MQ1][MQ1][MD1];
+      double ztemp04[MQ1][MQ1][MD1];
+      double ztemp05[MQ1][MQ1][MD1];
+      double ztemp06[MQ1][MQ1][MD1];
+      double ztemp07[MQ1][MQ1][MD1];
+      double ztemp08[MQ1][MQ1][MD1];
+      double ztemp09[MQ1][MQ1][MD1];
 
       // first tensor contraction, along z direction
       for (int qx = 0; qx < Q1D; ++qx)
@@ -473,15 +480,15 @@ static void PADiffusionDiagonal3D(const int NE,
          }
       }
 
-      double ytemp01[max_Q1D][max_D1D][max_D1D];
-      double ytemp02[max_Q1D][max_D1D][max_D1D];
-      double ytemp03[max_Q1D][max_D1D][max_D1D];
-      double ytemp04[max_Q1D][max_D1D][max_D1D];
-      double ytemp05[max_Q1D][max_D1D][max_D1D];
-      double ytemp06[max_Q1D][max_D1D][max_D1D];
-      double ytemp07[max_Q1D][max_D1D][max_D1D];
-      double ytemp08[max_Q1D][max_D1D][max_D1D];
-      double ytemp09[max_Q1D][max_D1D][max_D1D];
+      double ytemp01[MQ1][MD1][MD1];
+      double ytemp02[MQ1][MD1][MD1];
+      double ytemp03[MQ1][MD1][MD1];
+      double ytemp04[MQ1][MD1][MD1];
+      double ytemp05[MQ1][MD1][MD1];
+      double ytemp06[MQ1][MD1][MD1];
+      double ytemp07[MQ1][MD1][MD1];
+      double ytemp08[MQ1][MD1][MD1];
+      double ytemp09[MQ1][MD1][MD1];
 
       // second tensor contraction, along y direction
       for (int qx = 0; qx < Q1D; ++qx)
@@ -541,27 +548,27 @@ static void PADiffusionDiagonal3D(const int NE,
    });
 }
 
-// Shared memory PA Diffusion Diagonal 3D kernelt
-// Still uses too many resources for launch if order >= 5
+// Shared memory PA Diffusion Diagonal 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPADiffusionDiagonal3D(const int NE,
-                                      const Array<double> &_b,
-                                      const Array<double> &_g,
-                                      const Vector &_q,
-                                      Vector &_y,
+                                      const Array<double> &b_,
+                                      const Array<double> &g_,
+                                      const Vector &q_,
+                                      Vector &y_,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
+   constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(_b.Read(), Q1D, D1D);
-   auto g = Reshape(_g.Read(), Q1D, D1D);
-   auto Q = Reshape(_q.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto g = Reshape(g_.Read(), Q1D, D1D);
+   auto Q = Reshape(q_.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -572,28 +579,8 @@ static void SmemPADiffusionDiagonal3D(const int NE,
       MFEM_SHARED double BG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (BG+0);
       double (*G)[MD1] = (double (*)[MD1]) (BG+1);
-      // gradphi \cdot OP \gradphi has nine terms
-      // (might be too many, you could use symmetry to only have six)
-      // nine terms:
-      // one   Gx By Bz O11 Gx By Bz;
-      // two   Gx By Bz O12 Bx Gy Bz;
-      // three Gx By Bz O13 Bx By Gz;
-      // four  Bx Gy Bz O21 Gx By Bz;
-      // five  Bx Gy Bz O22 Bx Gy Bz;
-      // six   Bx Gy Bz O23 Bx By Gz;
-      // seven Bx By Gz O31 Gx By Bz;
-      // eight Bx By Gz O32 Bx Gy Bz;
-      // nine  Bx By Gz O33 Bx By Gz;
-      MFEM_SHARED double sm[9][MQ1*MQ1*MD1];
-      double (*QQD0)[MQ1][MD1] = (double (*)[MQ1][MD1])(sm+0);
-      double (*QQD1)[MQ1][MD1] = (double (*)[MQ1][MD1])(sm+1);
-      double (*QQD2)[MQ1][MD1] = (double (*)[MQ1][MD1])(sm+2);
-      double (*QQD3)[MQ1][MD1] = (double (*)[MQ1][MD1])(sm+3);
-      double (*QQD4)[MQ1][MD1] = (double (*)[MQ1][MD1])(sm+4);
-      double (*QQD5)[MQ1][MD1] = (double (*)[MQ1][MD1])(sm+5);
-      double (*QQD6)[MQ1][MD1] = (double (*)[MQ1][MD1])(sm+6);
-      double (*QQD7)[MQ1][MD1] = (double (*)[MQ1][MD1])(sm+7);
-      double (*QQD8)[MQ1][MD1] = (double (*)[MQ1][MD1])(sm+8);
+      MFEM_SHARED double QQD[MQ1][MQ1][MD1];
+      double QDD[MQ1][MD1][MD1];
       if (tidz == 0)
       {
          MFEM_FOREACH_THREAD(d,y,D1D)
@@ -606,124 +593,76 @@ static void SmemPADiffusionDiagonal3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      // first tensor contraction, along z direction
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
+
+      for (int i = 0; i < DIM; ++i)
       {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         for (int j = 0; j < DIM; ++j)
          {
+            // first tensor contraction, along z direction
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               {
+                  MFEM_FOREACH_THREAD(dz,z,D1D)
+                  {
+                     QQD[qx][qy][dz] = 0.0;
+                     for (int qz = 0; qz < Q1D; ++qz)
+                     {
+                        const int q = qx + (qy + qz * Q1D) * Q1D;
+                        const int k = j >= i ?
+                                      3 - (3-i)*(2-i)/2 + j:
+                                      3 - (3-j)*(2-j)/2 + i;
+                        const double O = Q(q,k,e);
+                        const double Bz = B[qz][dz];
+                        const double Gz = G[qz][dz];
+                        const double L = i==2 ? Gz : Bz;
+                        const double R = j==2 ? Gz : Bz;
+                        QQD[qx][qy][dz] += L * O * R;
+                     }
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+            // second tensor contraction, along y direction
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               MFEM_FOREACH_THREAD(dz,z,D1D)
+               {
+                  MFEM_FOREACH_THREAD(dy,y,D1D)
+                  {
+                     QDD[qx][dy][dz] = 0.0;
+                     for (int qy = 0; qy < Q1D; ++qy)
+                     {
+                        const double By = B[qy][dy];
+                        const double Gy = G[qy][dy];
+                        const double L = i==1 ? Gy : By;
+                        const double R = j==1 ? Gy : By;
+                        QDD[qx][dy][dz] += L * QQD[qx][qy][dz] * R;
+                     }
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+            // third tensor contraction, along x direction
             MFEM_FOREACH_THREAD(dz,z,D1D)
             {
-               QQD0[qx][qy][dz] = 0.0;
-               QQD1[qx][qy][dz] = 0.0;
-               QQD2[qx][qy][dz] = 0.0;
-               QQD3[qx][qy][dz] = 0.0;
-               QQD4[qx][qy][dz] = 0.0;
-               QQD5[qx][qy][dz] = 0.0;
-               QQD6[qx][qy][dz] = 0.0;
-               QQD7[qx][qy][dz] = 0.0;
-               QQD8[qx][qy][dz] = 0.0;
-               for (int qz = 0; qz < Q1D; ++qz)
+               MFEM_FOREACH_THREAD(dy,y,D1D)
                {
-                  const int q = qx + (qy + qz * Q1D) * Q1D;
-                  const double O11 = Q(q,0,e);
-                  const double O12 = Q(q,1,e);
-                  const double O13 = Q(q,2,e);
-                  const double O22 = Q(q,3,e);
-                  const double O23 = Q(q,4,e);
-                  const double O33 = Q(q,5,e);
-                  const double Bz = B[qz][dz];
-                  const double Gz = G[qz][dz];
-                  const double BB = Bz * Bz;
-                  const double BG = Bz * Gz;
-                  const double GG = Gz * Gz;
-                  QQD0[qx][qy][dz] += BB * O11;
-                  QQD1[qx][qy][dz] += BB * O12;
-                  QQD2[qx][qy][dz] += BG * O13;
-                  QQD3[qx][qy][dz] += BB * O12;
-                  QQD4[qx][qy][dz] += BB * O22;
-                  QQD5[qx][qy][dz] += BG * O23;
-                  QQD6[qx][qy][dz] += BG * O13;
-                  QQD7[qx][qy][dz] += BG * O23;
-                  QQD8[qx][qy][dz] += GG * O33;
+                  MFEM_FOREACH_THREAD(dx,x,D1D)
+                  {
+                     for (int qx = 0; qx < Q1D; ++qx)
+                     {
+                        const double Bx = B[qx][dx];
+                        const double Gx = G[qx][dx];
+                        const double L = i==0 ? Gx : Bx;
+                        const double R = j==0 ? Gx : Bx;
+                        Y(dx, dy, dz, e) += L * QDD[qx][dy][dz] * R;
+                     }
+                  }
                }
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      // temporary tensors in registers
-      double QDD0[MQ1][MD1][MD1];
-      double QDD1[MQ1][MD1][MD1];
-      double QDD2[MQ1][MD1][MD1];
-      double QDD3[MQ1][MD1][MD1];
-      double QDD4[MQ1][MD1][MD1];
-      double QDD5[MQ1][MD1][MD1];
-      double QDD6[MQ1][MD1][MD1];
-      double QDD7[MQ1][MD1][MD1];
-      double QDD8[MQ1][MD1][MD1];
-      // second tensor contraction, along y direction
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dz,z,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               QDD0[qx][dy][dz] = 0.0;
-               QDD1[qx][dy][dz] = 0.0;
-               QDD2[qx][dy][dz] = 0.0;
-               QDD3[qx][dy][dz] = 0.0;
-               QDD4[qx][dy][dz] = 0.0;
-               QDD5[qx][dy][dz] = 0.0;
-               QDD6[qx][dy][dz] = 0.0;
-               QDD7[qx][dy][dz] = 0.0;
-               QDD8[qx][dy][dz] = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  const double By = B[qy][dy];
-                  const double Gy = G[qy][dy];
-                  const double BB = By * By;
-                  const double BG = By * Gy;
-                  const double GG = Gy * Gy;
-                  QDD0[qx][dy][dz] += BB * QQD0[qx][qy][dz];
-                  QDD1[qx][dy][dz] += BG * QQD1[qx][qy][dz];
-                  QDD2[qx][dy][dz] += BB * QQD2[qx][qy][dz];
-                  QDD3[qx][dy][dz] += BG * QQD3[qx][qy][dz];
-                  QDD4[qx][dy][dz] += GG * QQD4[qx][qy][dz];
-                  QDD5[qx][dy][dz] += BG * QQD5[qx][qy][dz];
-                  QDD6[qx][dy][dz] += BB * QQD6[qx][qy][dz];
-                  QDD7[qx][dy][dz] += BG * QQD7[qx][qy][dz];
-                  QDD8[qx][dy][dz] += BB * QQD8[qx][qy][dz];
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      // third tensor contraction, along x direction
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  const double Bx = B[qx][dx];
-                  const double Gx = G[qx][dx];
-                  const double BB = Bx * Bx;
-                  const double BG = Bx * Gx;
-                  const double GG = Gx * Gx;
-                  y(dx, dy, dz, e) += GG * QDD0[qx][dy][dz];
-                  y(dx, dy, dz, e) += BG * QDD1[qx][dy][dz];
-                  y(dx, dy, dz, e) += BG * QDD2[qx][dy][dz];
-                  y(dx, dy, dz, e) += BG * QDD3[qx][dy][dz];
-                  y(dx, dy, dz, e) += BB * QDD4[qx][dy][dz];
-                  y(dx, dy, dz, e) += BB * QDD5[qx][dy][dz];
-                  y(dx, dy, dz, e) += BG * QDD6[qx][dy][dz];
-                  y(dx, dy, dz, e) += BB * QDD7[qx][dy][dz];
-                  y(dx, dy, dz, e) += BB * QDD8[qx][dy][dz];
-               }
-            }
-         }
-      }
+         } // j
+      } // i
    });
 }
 
@@ -733,7 +672,7 @@ static void PADiffusionAssembleDiagonal(const int dim,
                                         const int NE,
                                         const Array<double> &B,
                                         const Array<double> &G,
-                                        const Vector &op,
+                                        const Vector &D,
                                         Vector &y)
 {
 #ifdef MFEM_USE_OCCA
@@ -742,58 +681,36 @@ static void PADiffusionAssembleDiagonal(const int dim,
       MFEM_ABORT("OCCA PADiffusionAssembleDiagonal unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-
-#ifdef MFEM_USE_RAJA
-   if (Device::Allows(Backend::RAJA_CUDA))
+   if (dim == 2)
    {
-      if (dim == 2)
+      switch ((D1D << 4 ) | Q1D)
       {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            default:   return PADiffusionDiagonal2D(NE,B,G,op,y,D1D,Q1D);
-         }
-      }
-      if (dim == 3)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            default:   return PADiffusionDiagonal3D(NE,B,G,op,y,D1D,Q1D);
-         }
+         case 0x22: return SmemPADiffusionDiagonal2D<2,2,16>(NE,B,G,D,y);
+         case 0x33: return SmemPADiffusionDiagonal2D<3,3,16>(NE,B,G,D,y);
+         case 0x44: return SmemPADiffusionDiagonal2D<4,4,8>(NE,B,G,D,y);
+         case 0x55: return SmemPADiffusionDiagonal2D<5,5,8>(NE,B,G,D,y);
+         case 0x66: return SmemPADiffusionDiagonal2D<6,6,4>(NE,B,G,D,y);
+         case 0x77: return SmemPADiffusionDiagonal2D<7,7,4>(NE,B,G,D,y);
+         case 0x88: return SmemPADiffusionDiagonal2D<8,8,2>(NE,B,G,D,y);
+         case 0x99: return SmemPADiffusionDiagonal2D<9,9,2>(NE,B,G,D,y);
+         default: return PADiffusionDiagonal2D(NE,B,G,D,y,D1D,Q1D);
       }
    }
-   else
-#endif // MFEM_USE_RAJA
-      if (dim == 2)
+   else if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
       {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x22: return SmemPADiffusionDiagonal2D<2,2,16>(NE,B,G,op,y);
-            case 0x33: return SmemPADiffusionDiagonal2D<3,3,16>(NE,B,G,op,y);
-            case 0x44: return SmemPADiffusionDiagonal2D<4,4,8>(NE,B,G,op,y);
-            case 0x55: return SmemPADiffusionDiagonal2D<5,5,8>(NE,B,G,op,y);
-            case 0x66: return SmemPADiffusionDiagonal2D<6,6,4>(NE,B,G,op,y);
-            case 0x77: return SmemPADiffusionDiagonal2D<7,7,4>(NE,B,G,op,y);
-            case 0x88: return SmemPADiffusionDiagonal2D<8,8,2>(NE,B,G,op,y);
-            case 0x99: return SmemPADiffusionDiagonal2D<9,9,2>(NE,B,G,op,y);
-            default: return PADiffusionDiagonal2D(NE,B,G,op,y,D1D,Q1D);
-         }
+         case 0x23: return SmemPADiffusionDiagonal3D<2,3>(NE,B,G,D,y);
+         case 0x34: return SmemPADiffusionDiagonal3D<3,4>(NE,B,G,D,y);
+         case 0x45: return SmemPADiffusionDiagonal3D<4,5>(NE,B,G,D,y);
+         case 0x56: return SmemPADiffusionDiagonal3D<5,6>(NE,B,G,D,y);
+         case 0x67: return SmemPADiffusionDiagonal3D<6,7>(NE,B,G,D,y);
+         case 0x78: return SmemPADiffusionDiagonal3D<7,8>(NE,B,G,D,y);
+         case 0x89: return SmemPADiffusionDiagonal3D<8,9>(NE,B,G,D,y);
+         case 0x9A: return SmemPADiffusionDiagonal3D<9,10>(NE,B,G,D,y);
+         default: return PADiffusionDiagonal3D(NE,B,G,D,y,D1D,Q1D);
       }
-      else if (dim == 3)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x23: return SmemPADiffusionDiagonal3D<2,3>(NE,B,G,op,y);
-            case 0x34: return SmemPADiffusionDiagonal3D<3,4>(NE,B,G,op,y);
-            case 0x45: return SmemPADiffusionDiagonal3D<4,5>(NE,B,G,op,y);
-            case 0x56: return SmemPADiffusionDiagonal3D<5,6>(NE,B,G,op,y);
-            // beyond: too many resources requested for launch
-            case 0x67: return PADiffusionDiagonal3D<6,7>(NE,B,G,op,y);
-            case 0x78: return PADiffusionDiagonal3D<7,8>(NE,B,G,op,y);
-            case 0x89: return PADiffusionDiagonal3D<8,9>(NE,B,G,op,y);
-            case 0x9A: return PADiffusionDiagonal3D<9,10>(NE,B,G,op,y);
-            default: return PADiffusionDiagonal3D(NE,B,G,op,y,D1D,Q1D);
-         }
-      }
+   }
    MFEM_ABORT("Unknown kernel.");
 }
 
