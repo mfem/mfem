@@ -24,7 +24,6 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
-   const int order = fes.GetOrder(0);
    const int ir_order = irm.GetOrder();
    const mfem::IntegrationRule &ir =
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
@@ -52,19 +51,24 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    ceedData.build_ctx.dim = mesh->Dimension();
    ceedData.build_ctx.space_dim = mesh->SpaceDimension();
 
+   std::string diff_qf_file = GetCeedPath() + "/diffusion.h";
+   std::string diff_qf;
+
    // Create the Q-function that builds the diff operator (i.e. computes its
    // quadrature data) and set its context data.
    switch (ceedData.coeff_type)
    {
       case CeedCoeff::Const:
+         diff_qf = diff_qf_file + ":f_build_diff_const";
          CeedQFunctionCreateInterior(ceed, 1, f_build_diff_const,
-                                     MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_build_diff_const",
+                                     diff_qf.c_str(),
                                      &ceedData.build_qfunc);
          ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          break;
       case CeedCoeff::Grid:
+         diff_qf = diff_qf_file + ":f_build_diff_grid";
          CeedQFunctionCreateInterior(ceed, 1, f_build_diff_grid,
-                                     MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_build_diff_grid",
+                                     diff_qf.c_str(),
                                      &ceedData.build_qfunc);
          CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
          break;
@@ -112,8 +116,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                      CEED_REQUEST_IMMEDIATE);
 
    // Create the Q-function that defines the action of the diff operator.
+   diff_qf = diff_qf_file + ":f_apply_diff";
    CeedQFunctionCreateInterior(ceed, 1, f_apply_diff,
-                               MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_apply_diff",
+                               diff_qf.c_str(),
                                &ceedData.apply_qfunc);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dim, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "rho", dim * (dim + 1) / 2,
