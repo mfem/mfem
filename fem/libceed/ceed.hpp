@@ -71,6 +71,9 @@ void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                                        const mfem::IntegrationRule &ir,
                                        Ceed ceed, CeedBasis *basis,
                                        CeedElemRestriction *restr);
+
+const std::string &GetCeedPath();
+
 #endif
 
 }
