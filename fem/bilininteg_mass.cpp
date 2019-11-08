@@ -372,12 +372,6 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
                                    const Vector &D,
                                    Vector &Y)
 {
-#ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      MFEM_ABORT("OCCA PA Mass Assemble Diagonal unknown kernel!");
-   }
-#endif // MFEM_USE_OCCA
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)

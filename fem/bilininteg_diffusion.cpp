@@ -598,12 +598,6 @@ static void PADiffusionAssembleDiagonal(const int dim,
                                         const Vector &D,
                                         Vector &Y)
 {
-#ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      MFEM_ABORT("OCCA PADiffusionAssembleDiagonal unknown kernel!");
-   }
-#endif // MFEM_USE_OCCA
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
