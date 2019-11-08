@@ -2442,14 +2442,27 @@ void ParMesh::ReorientTetMesh()
             stria_flag[i] = (v[1] < v[2]) ? 1 : 2;
          }
       }
+
+      {
+         std::ofstream f(MakeParFilename("stria-", MyRank, ".txt"));
+         for (int i = 0; i < shared_trias.Size(); i++)
+         {
+            const int *v = shared_trias[i].v;
+            f << i << ": " << v[0] << ", " << v[1] << ", " << v[2] << "\n";
+         }
+      }
+
       Array<int> stria_master_flag(stria_flag);
       stria_comm.Bcast(stria_master_flag);
       for (int i = 0; i < stria_flag.Size(); i++)
       {
          const int *v = shared_trias[i].v;
          MFEM_VERIFY(stria_flag[i] == stria_master_flag[i],
-                     "inconsistent vertex ordering found, shared triangle (" <<
-                     v[0] << ", " << v[1] << ", " << v[2] << ")");
+                     "inconsistent vertex ordering found, shared triangle "
+                     << i << ": ("
+                     << v[0] << ", " << v[1] << ", " << v[2] << "), "
+                     << "local flag: " << stria_flag[i]
+                     << ", master flag: " << stria_master_flag[i]);
       }
    }
 
