@@ -105,42 +105,36 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-template<const int T_D1D = 0,
-         const int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassAssembleDiagonal2D(const int NE,
-                                     const Array<double> &_B,
-                                     const Array<double> &_Bt,
-                                     const Vector &_op,
-                                     Vector &_diag,
+                                     const Array<double> &b,
+                                     const Vector &d,
+                                     Vector &y,
                                      const int d1d = 0,
                                      const int q1d = 0)
 {
-   // see PAMassApply2D
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
-   // auto Bt = Reshape(_Bt.Read(), D1D, Q1D); // ?? (TODO atb@llnl.gov)
-   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, NE);
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto D = Reshape(d.Read(), Q1D, Q1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
-      double temp[max_Q1D][max_D1D];
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      double QD[MQ1][MD1];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dy = 0; dy < D1D; ++dy)
          {
-            temp[qx][dy] = 0.0;
+            QD[qx][dy] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               temp[qx][dy] += B(qy, dy) * B(qy, dy) * op(qx, qy, e);
+               QD[qx][dy] += B(qy, dy) * B(qy, dy) * D(qx, qy, e);
             }
          }
       }
@@ -151,20 +145,84 @@ static void PAMassAssembleDiagonal2D(const int NE,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                // might need absolute values on next line
-               y(dx,dy,e) += B(qx, dx) * B(qx, dx) * temp[qx][dy];
+               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * QD[qx][dy];
             }
          }
       }
    });
 }
 
-template<const int T_D1D = 0,
-         const int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+static void SmemPAMassAssembleDiagonal2D(const int NE,
+                                         const Array<double> &b_,
+                                         const Vector &d_,
+                                         Vector &y_,
+                                         const int d1d = 0,
+                                         const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double QDZ[NBZ][MQ1][MD1];
+      double (*QD)[MD1] = (double (*)[MD1])(QDZ + tidz);
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            QD[qx][dy] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               QD[qx][dy] += B[qy][dy] * B[qy][dy] * D(qx, qy, e);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               // might need absolute values on next line
+               Y(dx,dy,e) += B[qx][dx] * B[qx][dx] * QD[qx][dy];
+            }
+         }
+      }
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassAssembleDiagonal3D(const int NE,
-                                     const Array<double> &_B,
-                                     const Array<double> &_Bt,
-                                     const Vector &_op,
-                                     Vector &_diag,
+                                     const Array<double> &b,
+                                     const Vector &d,
+                                     Vector &y,
                                      const int d1d = 0,
                                      const int q1d = 0)
 {
@@ -172,44 +230,41 @@ static void PAMassAssembleDiagonal3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
-   // auto Bt = Reshape(_Bt.Read(), D1D, Q1D); // ?? (TODO atb@llnl.gov)
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, D1D, NE);
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
-      double temp[max_Q1D][max_Q1D][max_D1D];
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      double QQD[MQ1][MQ1][MD1];
+      double QDD[MQ1][MD1][MD1];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int dz = 0; dz < D1D; ++dz)
             {
-               temp[qx][qy][dz] = 0.0;
+               QQD[qx][qy][dz] = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  temp[qx][qy][dz] += B(qz, dz) * B(qz, dz) * op(qx, qy, qz, e);
+                  QQD[qx][qy][dz] += B(qz, dz) * B(qz, dz) * D(qx, qy, qz, e);
                }
             }
          }
       }
-      double temp2[max_Q1D][max_D1D][max_D1D];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dz = 0; dz < D1D; ++dz)
          {
             for (int dy = 0; dy < D1D; ++dy)
             {
-               temp2[qx][dy][dz] = 0.0;
+               QDD[qx][dy][dz] = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  temp2[qx][dy][dz] += B(qy, dy) * B(qy, dy) * temp[qx][qy][dz];
+                  QDD[qx][dy][dz] += B(qy, dy) * B(qy, dy) * QQD[qx][qy][dz];
                }
             }
          }
@@ -222,7 +277,7 @@ static void PAMassAssembleDiagonal3D(const int NE,
             {
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2[qx][dy][dz];
+                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * QDD[qx][dy][dz];
                }
             }
          }
@@ -230,50 +285,123 @@ static void PAMassAssembleDiagonal3D(const int NE,
    });
 }
 
-static void PAMassAssembleDiagonal(
-   const int dim, const int D1D,
-   const int Q1D, const int NE,
-   const Array<double> &B, const Array<double> &Bt,
-   const Vector &op, Vector &y)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void SmemPAMassAssembleDiagonal3D(const int NE,
+                                         const Array<double> &b_,
+                                         const Vector &d_,
+                                         Vector &y_,
+                                         const int d1d = 0,
+                                         const int q1d = 0)
 {
-#ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      MFEM_ABORT("OCCA PA Mass Assemble Diagonal unknown kernel!");
-   }
-#endif // MFEM_USE_OCCA
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double QQD[MQ1][MQ1][MD1];
+      MFEM_SHARED double QDD[MQ1][MD1][MD1];
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dz,z,D1D)
+            {
+               QQD[qx][qy][dz] = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  QQD[qx][qy][dz] += B[qz][dz] * B[qz][dz] * D(qx, qy, qz, e);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               QDD[qx][dy][dz] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  QDD[qx][dy][dz] += B[qy][dy] * B[qy][dy] * QQD[qx][qy][dz];
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  Y(dx, dy, dz, e) += B[qx][dx] * B[qx][dx] * QDD[qx][dy][dz];
+               }
+            }
+         }
+      }
+   });
+}
 
-   if (Device::Allows(Backend::RAJA_CUDA))
-   {
-      if (dim == 2)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            default:   return PAMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
-         }
-      }
-      if (dim == 3)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            default:   return PAMassAssembleDiagonal3D(NE, B, Bt, op, y, D1D, Q1D);
-         }
-      }
-   }
-   else if (dim == 2)
+static void PAMassAssembleDiagonal(const int dim, const int D1D,
+                                   const int Q1D, const int NE,
+                                   const Array<double> &B,
+                                   const Vector &D,
+                                   Vector &Y)
+{
+   if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         // should look at smem routines in what follows?
-         default:   return PAMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
+         case 0x22: return SmemPAMassAssembleDiagonal2D<2,2,16>(NE,B,D,Y);
+         case 0x33: return SmemPAMassAssembleDiagonal2D<3,3,16>(NE,B,D,Y);
+         case 0x44: return SmemPAMassAssembleDiagonal2D<4,4,8>(NE,B,D,Y);
+         case 0x55: return SmemPAMassAssembleDiagonal2D<5,5,8>(NE,B,D,Y);
+         case 0x66: return SmemPAMassAssembleDiagonal2D<6,6,4>(NE,B,D,Y);
+         case 0x77: return SmemPAMassAssembleDiagonal2D<7,7,4>(NE,B,D,Y);
+         case 0x88: return SmemPAMassAssembleDiagonal2D<8,8,2>(NE,B,D,Y);
+         case 0x99: return SmemPAMassAssembleDiagonal2D<9,9,2>(NE,B,D,Y);
+         default:   return PAMassAssembleDiagonal2D(NE,B,D,Y,D1D,Q1D);
       }
    }
    else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         // should look at smem routines in what follows?
-         default:   return PAMassAssembleDiagonal3D(NE, B, Bt, op, y, D1D, Q1D);
+         case 0x23: return SmemPAMassAssembleDiagonal3D<2,3>(NE,B,D,Y);
+         case 0x34: return SmemPAMassAssembleDiagonal3D<3,4>(NE,B,D,Y);
+         case 0x45: return SmemPAMassAssembleDiagonal3D<4,5>(NE,B,D,Y);
+         case 0x56: return SmemPAMassAssembleDiagonal3D<5,6>(NE,B,D,Y);
+         case 0x67: return SmemPAMassAssembleDiagonal3D<6,7>(NE,B,D,Y);
+         case 0x78: return SmemPAMassAssembleDiagonal3D<7,8>(NE,B,D,Y);
+         case 0x89: return SmemPAMassAssembleDiagonal3D<8,9>(NE,B,D,Y);
+         default:   return PAMassAssembleDiagonal3D(NE,B,D,Y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
@@ -281,8 +409,7 @@ static void PAMassAssembleDiagonal(
 
 void MassIntegrator::AssembleDiagonalPA(Vector& diag) const
 {
-   PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne,
-                          maps->B, maps->Bt, pa_data, diag);
+   PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
 }
 
 #ifdef MFEM_USE_OCCA
@@ -292,18 +419,18 @@ static void OccaPAMassApply2D(const int D1D,
                               const int NE,
                               const Array<double> &B,
                               const Array<double> &Bt,
-                              const Vector &op,
-                              const Vector &x,
-                              Vector &y)
+                              const Vector &D,
+                              const Vector &X,
+                              Vector &Y)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
    const occa::memory o_B = OccaMemoryRead(B.GetMemory(), B.Size());
    const occa::memory o_Bt = OccaMemoryRead(Bt.GetMemory(), Bt.Size());
-   const occa::memory o_op = OccaMemoryRead(op.GetMemory(), op.Size());
-   const occa::memory o_x = OccaMemoryRead(x.GetMemory(), x.Size());
-   occa::memory o_y = OccaMemoryReadWrite(y.GetMemory(), y.Size());
+   const occa::memory o_D = OccaMemoryRead(D.GetMemory(), D.Size());
+   const occa::memory o_X = OccaMemoryRead(X.GetMemory(), X.Size());
+   occa::memory o_Y = OccaMemoryReadWrite(Y.GetMemory(), Y.Size());
    const occa_id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {
@@ -315,7 +442,7 @@ static void OccaPAMassApply2D(const int D1D,
                                         "MassApply2D_CPU", props);
          OccaMassApply2D_cpu.emplace(id, MassApply2D_CPU);
       }
-      OccaMassApply2D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
+      OccaMassApply2D_cpu.at(id)(NE, o_B, o_Bt, o_D, o_X, o_Y);
    }
    else
    {
@@ -327,7 +454,7 @@ static void OccaPAMassApply2D(const int D1D,
                                         "MassApply2D_GPU", props);
          OccaMassApply2D_gpu.emplace(id, MassApply2D_GPU);
       }
-      OccaMassApply2D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
+      OccaMassApply2D_gpu.at(id)(NE, o_B, o_Bt, o_D, o_X, o_Y);
    }
 }
 
@@ -337,18 +464,18 @@ static void OccaPAMassApply3D(const int D1D,
                               const int NE,
                               const Array<double> &B,
                               const Array<double> &Bt,
-                              const Vector &op,
-                              const Vector &x,
-                              Vector &y)
+                              const Vector &D,
+                              const Vector &X,
+                              Vector &Y)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
    const occa::memory o_B = OccaMemoryRead(B.GetMemory(), B.Size());
    const occa::memory o_Bt = OccaMemoryRead(Bt.GetMemory(), Bt.Size());
-   const occa::memory o_op = OccaMemoryRead(op.GetMemory(), op.Size());
-   const occa::memory o_x = OccaMemoryRead(x.GetMemory(), x.Size());
-   occa::memory o_y = OccaMemoryReadWrite(y.GetMemory(), y.Size());
+   const occa::memory o_D = OccaMemoryRead(D.GetMemory(), D.Size());
+   const occa::memory o_X = OccaMemoryRead(X.GetMemory(), X.Size());
+   occa::memory o_Y = OccaMemoryReadWrite(Y.GetMemory(), Y.Size());
    const occa_id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {
@@ -360,7 +487,7 @@ static void OccaPAMassApply3D(const int D1D,
                                         "MassApply3D_CPU", props);
          OccaMassApply3D_cpu.emplace(id, MassApply3D_CPU);
       }
-      OccaMassApply3D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
+      OccaMassApply3D_cpu.at(id)(NE, o_B, o_Bt, o_D, o_X, o_Y);
    }
    else
    {
@@ -372,17 +499,16 @@ static void OccaPAMassApply3D(const int D1D,
                                         "MassApply3D_GPU", props);
          OccaMassApply3D_gpu.emplace(id, MassApply3D_GPU);
       }
-      OccaMassApply3D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
+      OccaMassApply3D_gpu.at(id)(NE, o_B, o_Bt, o_D, o_X, o_Y);
    }
 }
 #endif // MFEM_USE_OCCA
 
-template<const int T_D1D = 0,
-         const int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassApply2D(const int NE,
-                          const Array<double> &B_,
-                          const Array<double> &Bt_,
-                          const Vector &op_,
+                          const Array<double> &b_,
+                          const Array<double> &bt_,
+                          const Vector &d_,
                           const Vector &x_,
                           Vector &y_,
                           const int d1d = 0,
@@ -392,11 +518,11 @@ static void PAMassApply2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(B_.Read(), Q1D, D1D);
-   auto Bt = Reshape(Bt_.Read(), D1D, Q1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   auto B = Reshape(b_.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt_.Read(), D1D, Q1D);
+   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
+   auto X = Reshape(x_.Read(), D1D, D1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
@@ -421,7 +547,7 @@ static void PAMassApply2D(const int NE,
          }
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const double s = x(dx,dy,e);
+            const double s = X(dx,dy,e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] += B(qx,dx)* s;
@@ -440,7 +566,7 @@ static void PAMassApply2D(const int NE,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            sol_xy[qy][qx] *= op(qx,qy,e);
+            sol_xy[qy][qx] *= D(qx,qy,e);
          }
       }
       for (int qy = 0; qy < Q1D; ++qy)
@@ -463,20 +589,18 @@ static void PAMassApply2D(const int NE,
             const double q2d = Bt(dy,qy);
             for (int dx = 0; dx < D1D; ++dx)
             {
-               y(dx,dy,e) += q2d * sol_x[dx];
+               Y(dx,dy,e) += q2d * sol_x[dx];
             }
          }
       }
    });
 }
 
-template<const int T_D1D = 0,
-         const int T_Q1D = 0,
-         const int T_NBZ = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPAMassApply2D(const int NE,
                               const Array<double> &b_,
                               const Array<double> &bt_,
-                              const Vector &op_,
+                              const Vector &d_,
                               const Vector &x_,
                               Vector &y_,
                               const int d1d = 0,
@@ -490,9 +614,9 @@ static void SmemPAMassApply2D(const int NE,
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -520,11 +644,11 @@ static void SmemPAMassApply2D(const int NE,
       }
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(d,y,D1D)
+         MFEM_FOREACH_THREAD(D,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[q][d] = b(q,d);
+               B[q][D] = b(q,D);
             }
          }
       }
@@ -551,17 +675,17 @@ static void SmemPAMassApply2D(const int NE,
             {
                qq += DQ[dy][qx] * B[qy][dy];
             }
-            QQ[qy][qx] = qq * op(qx, qy, e);
+            QQ[qy][qx] = qq * D(qx, qy, e);
          }
       }
       MFEM_SYNC_THREAD;
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(d,y,D1D)
+         MFEM_FOREACH_THREAD(D,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bt[d][q] = b(q,d);
+               Bt[D][q] = b(q,D);
             }
          }
       }
@@ -588,18 +712,17 @@ static void SmemPAMassApply2D(const int NE,
             {
                dd += (QD[qy][dx] * Bt[dy][qy]);
             }
-            y(dx, dy, e) += dd;
+            Y(dx, dy, e) += dd;
          }
       }
    });
 }
 
-template<const int T_D1D = 0,
-         const int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassApply3D(const int NE,
-                          const Array<double> &B_,
-                          const Array<double> &Bt_,
-                          const Vector &op_,
+                          const Array<double> &b_,
+                          const Array<double> &bt_,
+                          const Vector &d_,
                           const Vector &x_,
                           Vector &y_,
                           const int d1d = 0,
@@ -609,11 +732,11 @@ static void PAMassApply3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(B_.Read(), Q1D, D1D);
-   auto Bt = Reshape(Bt_.Read(), D1D, Q1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   auto B = Reshape(b_.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt_.Read(), D1D, Q1D);
+   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
+   auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -650,7 +773,7 @@ static void PAMassApply3D(const int NE,
             }
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double s = x(dx,dy,dz,e);
+               const double s = X(dx,dy,dz,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   sol_x[qx] += B(qx,dx) * s;
@@ -683,7 +806,7 @@ static void PAMassApply3D(const int NE,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               sol_xyz[qz][qy][qx] *= op(qx,qy,qz,e);
+               sol_xyz[qz][qy][qx] *= D(qx,qy,qz,e);
             }
          }
       }
@@ -728,7 +851,7 @@ static void PAMassApply3D(const int NE,
             {
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  y(dx,dy,dz,e) += wz * sol_xy[dy][dx];
+                  Y(dx,dy,dz,e) += wz * sol_xy[dy][dx];
                }
             }
          }
@@ -736,12 +859,11 @@ static void PAMassApply3D(const int NE,
    });
 }
 
-template<const int T_D1D = 0,
-         const int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,
                               const Array<double> &b_,
                               const Array<double> &bt_,
-                              const Vector &op_,
+                              const Vector &d_,
                               const Vector &x_,
                               Vector &y_,
                               const int d1d = 0,
@@ -754,7 +876,7 @@ static void SmemPAMassApply3D(const int NE,
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
@@ -840,7 +962,7 @@ static void SmemPAMassApply3D(const int NE,
                {
                   u += DQQ[dz][qy][qx] * B[qz][dz];
                }
-               QQQ[qz][qy][qx] = u * op(qx,qy,qz,e);
+               QQQ[qz][qy][qx] = u * d(qx,qy,qz,e);
             }
          }
       }
@@ -912,22 +1034,20 @@ static void PAMassApply(const int dim,
                         const int NE,
                         const Array<double> &B,
                         const Array<double> &Bt,
-                        const Vector &op,
-                        const Vector &x,
-                        Vector &y)
+                        const Vector &D,
+                        const Vector &X,
+                        Vector &Y)
 {
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
       if (dim == 2)
       {
-         OccaPAMassApply2D(D1D, Q1D, NE, B, Bt, op, x, y);
-         return;
+         return OccaPAMassApply2D(D1D,Q1D,NE,B,Bt,D,X,Y);
       }
       if (dim == 3)
       {
-         OccaPAMassApply3D(D1D, Q1D, NE, B, Bt, op, x, y);
-         return;
+         return OccaPAMassApply3D(D1D,Q1D,NE,B,Bt,D,X,Y);
       }
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
@@ -936,29 +1056,29 @@ static void PAMassApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
-         case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
-         case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
-         case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, Bt, op, x, y);
-         case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, Bt, op, x, y);
-         case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, Bt, op, x, y);
-         case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, Bt, op, x, y);
-         case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, Bt, op, x, y);
-         default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
+         case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,Bt,D,X,Y);
+         case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,Bt,D,X,Y);
+         case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,Bt,D,X,Y);
+         case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
+         case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
+         case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
+         case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,Bt,D,X,Y);
+         case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
+         default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
    else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-         case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-         case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-         case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-         case 0x67: return SmemPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
-         case 0x78: return SmemPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
-         case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
-         default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+         case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
+         case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
+         case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
+         case 0x56: return SmemPAMassApply3D<5,6>(NE,B,Bt,D,X,Y);
+         case 0x67: return SmemPAMassApply3D<6,7>(NE,B,Bt,D,X,Y);
+         case 0x78: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
+         case 0x89: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
+         default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
