@@ -94,9 +94,6 @@ void Device::Configure(const std::string &device, const int dev)
    // Enable the device
    Enable();
 
-   // Update the host & device memory backends
-   Get().UpdateMemoryTypeAndClass();
-
    // Copy all data members from the global 'singleton_device' into '*this'.
    std::memcpy(this, &Get(), sizeof(Device));
 
@@ -165,13 +162,15 @@ void Device::UpdateMemoryTypeAndClass()
    }
 
    // Update the memory manager with the new settings
-   mm.Setup(host_mem_type, device_mem_type);
+   mm.Configure(host_mem_type, device_mem_type);
 }
 
 void Device::Enable()
 {
    const bool accelerated = Get().backends & ~(Backend::CPU | Backend::DEBUG);
    if (accelerated) { Get().mode = Device::ACCELERATED;}
+   // Update the host & device memory backends
+   Get().UpdateMemoryTypeAndClass();
 }
 
 #ifdef MFEM_USE_CUDA
