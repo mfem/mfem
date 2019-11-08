@@ -412,6 +412,7 @@ class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
 class UmpireHostMemorySpace : public HostMemorySpace
 {
 private:
+   const char *name;
    umpire::ResourceManager &rm;
    umpire::Allocator h_allocator;
    umpire::strategy::AllocationStrategy *strat;
@@ -419,12 +420,12 @@ public:
    ~UmpireHostMemorySpace() { h_allocator.release(); }
    UmpireHostMemorySpace():
       HostMemorySpace(),
+      name(mm.GetUmpireAllocatorHostName()),
       rm(umpire::ResourceManager::getInstance()),
-      h_allocator(rm.isAllocator(MFEM_UMPIRE_HOST)?
-                  rm.getAllocator(MFEM_UMPIRE_HOST):
+      h_allocator(rm.isAllocator(name)? rm.getAllocator(name):
                   rm.makeAllocator<umpire::strategy::DynamicPool>
-                  (MFEM_UMPIRE_HOST, rm.getAllocator("HOST"))),
-      strat(h_allocator.getAllocationStrategy()) { }
+                  (name, rm.getAllocator("HOST"))),
+      strat(h_allocator.getAllocationStrategy()) { printf("\033[33m[%s]\033[m",name); }
    void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
    void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
 };
@@ -433,16 +434,18 @@ public:
 class UmpireDeviceMemorySpace : public DeviceMemorySpace
 {
 private:
+   const char *name;
    umpire::ResourceManager &rm;
    umpire::Allocator d_allocator;
 public:
    ~UmpireDeviceMemorySpace() { d_allocator.release(); }
-   UmpireDeviceMemorySpace(): DeviceMemorySpace(),
+   UmpireDeviceMemorySpace():
+      DeviceMemorySpace(),
+      name(mm.GetUmpireAllocatorDeviceName()),
       rm(umpire::ResourceManager::getInstance()),
-      d_allocator(rm.isAllocator(MFEM_UMPIRE_DEVICE)?
-                  rm.getAllocator(MFEM_UMPIRE_DEVICE):
+      d_allocator(rm.isAllocator(name)? rm.getAllocator(name):
                   rm.makeAllocator<umpire::strategy::DynamicPool>
-                  (MFEM_UMPIRE_DEVICE, rm.getAllocator("DEVICE"))) { }
+                  (name, rm.getAllocator("DEVICE"))) { printf("\033[33m[%s]\033[m",name); }
    void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
    void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
@@ -466,8 +469,13 @@ public:
 public:
    Ctrl(): host{nullptr}, device{nullptr} { }
 
-   void Setup()
+   void Configure()
    {
+      if (host[static_cast<int>(MemoryType::HOST)])
+      {
+         mfem_error("Memory backends have already been configured!");
+      }
+
       const bool debug = Device::Allows(Backend::DEBUG);
 
       // Filling the host memory backends
@@ -516,10 +524,18 @@ public:
    }
 
    HostMemorySpace* Host(const MemoryType mt)
-   { return host[static_cast<int>(mt)]; }
+   {
+      const int mt_i = static_cast<int>(mt);
+      MFEM_ASSERT(host[mt_i], "Memory manager has not been configured!");
+      return host[mt_i];
+   }
 
    DeviceMemorySpace* Device(const MemoryType mt)
-   { return device[static_cast<int>(mt)-HostMemoryTypeSize]; }
+   {
+      const int mt_i = static_cast<int>(mt) - HostMemoryTypeSize;
+      MFEM_ASSERT(device[mt_i], "Memory manager has not been configured!");
+      return device[mt_i];
+   }
 
    ~Ctrl()
    {
@@ -1099,15 +1115,22 @@ MemoryManager::MemoryManager()
 
 MemoryManager::~MemoryManager() { if (exists) { Destroy(); } }
 
-void MemoryManager::Setup(MemoryType host_mt, MemoryType device_mt)
+void MemoryManager::Configure(const MemoryType host_mt,
+                              const MemoryType device_mt)
 {
-#ifndef UMPIRE_USE_STATIC
-   // Needs to be done here, to avoid "invalid device function"
-   ctrl->Setup();
-#endif
+   ctrl->Configure();
    host_mem_type = host_mt;
    device_mem_type = device_mt;
 }
+
+#ifdef MFEM_USE_UMPIRE
+void MemoryManager::SetUmpireAllocatorNames(const char *h_name,
+                                            const char *d_name)
+{
+   h_umpire_name = h_name;
+   d_umpire_name = d_name;
+}
+#endif
 
 void MemoryManager::Destroy()
 {
@@ -1181,6 +1204,11 @@ void MemoryPrintFlags(unsigned flags)
 MemoryManager mm;
 
 bool MemoryManager::exists = false;
+
+#ifdef MFEM_USE_UMPIRE
+const char* MemoryManager::h_umpire_name = MFEM_UMPIRE_HOST;
+const char* MemoryManager::d_umpire_name = MFEM_UMPIRE_DEVICE;
+#endif
 
 MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
 MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
