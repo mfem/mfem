@@ -24,7 +24,6 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
-   const int order = fes.GetOrder(0);
    const int ir_order = irm.GetOrder();
    const mfem::IntegrationRule &ir =
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
@@ -52,19 +51,24 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    ceedData.build_ctx.dim = mesh->Dimension();
    ceedData.build_ctx.space_dim = mesh->SpaceDimension();
 
+   std::string mass_qf_file = GetCeedPath() + "/mass.h";
+   std::string mass_qf;
+
    // Create the Q-function that builds the mass operator (i.e. computes its
    // quadrature data) and set its context data.
    switch (ceedData.coeff_type)
    {
       case CeedCoeff::Const:
+         mass_qf = mass_qf_file + ":f_build_mass_const";
          CeedQFunctionCreateInterior(ceed, 1, f_build_mass_const,
-                                     MFEM_SOURCE_DIR"/fem/libceed/mass.h:f_build_mass_const",
+                                     mass_qf.c_str(),
                                      &ceedData.build_qfunc);
          ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          break;
       case CeedCoeff::Grid:
+         mass_qf = mass_qf_file + ":f_build_mass_grid";
          CeedQFunctionCreateInterior(ceed, 1, f_build_mass_grid,
-                                     MFEM_SOURCE_DIR"/fem/libceed/mass.h:f_build_mass_grid",
+                                     mass_qf.c_str(),
                                      &ceedData.build_qfunc);
          CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
          break;
@@ -112,8 +116,9 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                      CEED_REQUEST_IMMEDIATE);
 
    // Create the Q-function that defines the action of the mass operator.
+   mass_qf = mass_qf_file + ":f_apply_mass";
    CeedQFunctionCreateInterior(ceed, 1, f_apply_mass,
-                               MFEM_SOURCE_DIR"/fem/libceed/mass.h:f_apply_mass", &ceedData.apply_qfunc);
+                               mass_qf.c_str(), &ceedData.apply_qfunc);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "u", 1, CEED_EVAL_INTERP);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "rho", 1, CEED_EVAL_NONE);
    CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", 1, CEED_EVAL_INTERP);

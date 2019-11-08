@@ -258,7 +258,7 @@ static void CeedDeviceSetup(const char* ceed_spec)
    CeedInit(ceed_spec, &internal::ceed);
    const char *ceed_backend;
    CeedGetResource(internal::ceed, &ceed_backend);
-   std::cout <<"libCEED backend: "<< ceed_backend << std::endl;
+   mfem::out << "libCEED backend: " << ceed_backend << std::endl;
    if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self"))
    {
       std::cout << std::endl << "WARNING!!!\nlibCEED is not using the requested backend!!!\nWARNING!!!\n" << std::endl;

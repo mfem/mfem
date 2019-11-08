@@ -12,10 +12,28 @@
 #include "ceed.hpp"
 #include "../../general/device.hpp"
 
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#ifndef _WIN32
+typedef struct stat struct_stat;
+#else
+#define stat(dir, buf) _stat(dir, buf)
+#define S_ISDIR(mode) _S_IFDIR(mode)
+typedef struct _stat struct_stat;
+#endif
+
 namespace mfem
 {
 
-namespace internal { extern Ceed ceed; }
+namespace internal
+{
+
+extern Ceed ceed;
+
+std::string ceed_path;
+
+}
 
 #ifdef MFEM_USE_CEED
 void InitCeedCoeff(Coefficient* Q, CeedData* ptr)
@@ -118,6 +136,33 @@ void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
    CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(),
                              fes.GetNDofs(), fes.GetVDim(), CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
+}
+
+const std::string &GetCeedPath()
+{
+   if (internal::ceed_path.empty())
+   {
+      const char *install_dir = MFEM_INSTALL_DIR "/include/mfem/fem/libceed";
+      const char *source_dir = MFEM_SOURCE_DIR "/fem/libceed";
+      struct_stat m_stat;
+      if (stat(install_dir, &m_stat) == 0 && S_ISDIR(m_stat.st_mode))
+      {
+         internal::ceed_path = install_dir;
+      }
+      else if (stat(source_dir, &m_stat) == 0 && S_ISDIR(m_stat.st_mode))
+      {
+         internal::ceed_path = source_dir;
+      }
+      else
+      {
+         MFEM_ABORT("Cannot find libCEED kernels in MFEM_INSTALL_DIR or "
+                    "MFEM_SOURCE_DIR");
+      }
+   }
+#ifdef MFEM_DEBUG
+   mfem::out << "Using libCEED dir: " << internal::ceed_path << std::endl;
+#endif
+   return internal::ceed_path;
 }
 
 #endif
