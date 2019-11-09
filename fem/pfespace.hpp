@@ -395,7 +395,7 @@ protected:
    bool mpi_gpu_aware;
    Array<int> shr_ltdof, ext_ldof;
    mutable Vector shr_buf, ext_buf;
-   int *shr_buf_offsets, *ext_buf_offsets;
+   Memory<int> shr_buf_offsets, ext_buf_offsets;
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
    MPI_Request *requests;

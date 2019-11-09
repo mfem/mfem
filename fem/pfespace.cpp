@@ -2967,7 +2967,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       shr_ltdof.CopyFrom(nbr_ltdof.GetJ());
       shr_buf.SetSize(nb_connections);
       shr_buf.UseDevice(true);
-      shr_buf_offsets = nbr_ltdof.GetI();
+      shr_buf_offsets = nbr_ltdof.GetIMemory();
       {
          Array<int> shr_ltdof(nbr_ltdof.GetJ(), nb_connections);
          Array<int> unique_ltdof(shr_ltdof);
@@ -2985,7 +2985,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
          unq_shr_i = Array<int>(unique_shr.GetI(), unique_shr.Size()+1);
          unq_shr_j = Array<int>(unique_shr.GetJ(), unique_shr.Size_of_connections());
       }
-      delete [] nbr_ltdof.GetJ();
+      nbr_ltdof.GetJMemory().Delete();
       nbr_ltdof.LoseData();
    }
    {
@@ -2996,8 +2996,8 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       ext_ldof.CopyFrom(nbr_ldof.GetJ());
       ext_buf.SetSize(nb_connections);
       ext_buf.UseDevice(true);
-      ext_buf_offsets = nbr_ldof.GetI();
-      delete [] nbr_ldof.GetJ();
+      ext_buf_offsets = nbr_ldof.GetIMemory();
+      nbr_ldof.GetJMemory().Delete();
       nbr_ldof.LoseData();
    }
    const GroupTopology &gtopo = gc.GetGroupTopology();
@@ -3097,8 +3097,8 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
 DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
 {
    delete [] requests;
-   delete [] ext_buf_offsets;
-   delete [] shr_buf_offsets;
+   ext_buf_offsets.Delete();
+   shr_buf_offsets.Delete();
 }
 
 void DeviceConformingProlongationOperator::ReduceBeginCopy(

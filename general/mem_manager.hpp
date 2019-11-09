@@ -451,6 +451,9 @@ private:
 
 private: // Static methods used by the Memory<T> class
 
+   /// Wrap an externally allocated host pointer.
+   static void Wrap_(void *h_ptr, size_t bytes, unsigned &flags);
+
    /// Allocate and register a new pointer. Return the host pointer.
    /// h_tmp must be already allocated using new T[] if mt is a pure device
    /// memory type, e.g. CUDA (mt will not be HOST).
@@ -606,6 +609,8 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
    h_ptr = host_ptr;
    h_mt = MemoryType::HOST;
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
+   if (MemoryManager::host_mem_type != MemoryType::HOST)
+   { MemoryManager::Wrap_(h_ptr, size*sizeof(T), flags); }
 }
 
 template <typename T>

@@ -126,6 +126,7 @@ public:
    virtual ~HostMemorySpace() { }
    virtual void Alloc(void **ptr, size_t bytes) { *ptr = std::malloc(bytes); }
    virtual void Dealloc(void *ptr) { std::free(ptr); }
+   virtual void Insert(void *ptr, size_t bytes) { }
    virtual void Protect(const void *ptr, size_t bytes) { }
    virtual void Unprotect(const void *ptr, size_t bytes) { }
    virtual void AliasProtect(const void *ptr, size_t bytes) { }
@@ -428,6 +429,8 @@ public:
       strat(h_allocator.getAllocationStrategy()) { }
    void Alloc(void **ptr, size_t bytes) { *ptr = h_allocator.allocate(bytes); }
    void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
+   void Insert(void *ptr, size_t bytes)
+   { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
 
 /// The Umpire device memory space
@@ -551,13 +554,19 @@ public:
 
 static internal::Ctrl *ctrl;
 
+void MemoryManager::Wrap_(void *h_ptr, size_t bytes, unsigned &flags)
+{
+   // h_mt = MemoryType::HOST but host_mem_type needs extra care
+   ctrl->Host(MemoryManager::host_mem_type)->Insert(h_ptr, bytes);
+   MFEM_VERIFY(IsHostRegisteredMemory(MemoryManager::host_mem_type),"");
+}
+
 void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
                           unsigned &flags)
 {
    MFEM_VERIFY(exists, "internal error");
    MFEM_VERIFY(bytes > 0, "internal error");
    MFEM_VERIFY(mt != MemoryType::HOST, "internal error");
-
    const bool host_reg = IsHostRegisteredMemory(mt);
    const bool host_std = IsHostMemory(mt) && !IsHostRegisteredMemory(mt);
    const MemType h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
