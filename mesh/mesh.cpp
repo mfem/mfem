@@ -4912,10 +4912,32 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    return NULL;
 }
 
+// shift cyclically 3 integers so that the smallest is first
+static inline
+void Rotate3(int &a, int &b, int &c)
+{
+   if (a < b)
+   {
+      if (a > c)
+      {
+         ShiftRight(a, b, c);
+      }
+   }
+   else
+   {
+      if (b < c)
+      {
+         ShiftRight(c, b, a);
+      }
+      else
+      {
+         ShiftRight(a, b, c);
+      }
+   }
+}
+
 void Mesh::ReorientTetMesh()
 {
-   int *v;
-
    if (Dim != 3 || !(meshgen & 1))
    {
       return;
@@ -4933,7 +4955,7 @@ void Mesh::ReorientTetMesh()
    {
       if (GetElementType(i) == Element::TETRAHEDRON)
       {
-         v = elements[i]->GetVertices();
+         int *v = elements[i]->GetVertices();
 
          Rotate3(v[0], v[1], v[2]);
          if (v[0] < v[3])
@@ -4942,7 +4964,7 @@ void Mesh::ReorientTetMesh()
          }
          else
          {
-            ShiftL2R(v[0], v[1], v[3]);
+            ShiftRight(v[0], v[1], v[3]);
          }
       }
    }
@@ -4951,7 +4973,7 @@ void Mesh::ReorientTetMesh()
    {
       if (GetBdrElementType(i) == Element::TRIANGLE)
       {
-         v = boundary[i]->GetVertices();
+         int *v = boundary[i]->GetVertices();
 
          Rotate3(v[0], v[1], v[2]);
       }
