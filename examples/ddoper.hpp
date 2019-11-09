@@ -95,11 +95,14 @@ Operator* CreateStrumpackMatrixFromHypreBlocks(MPI_Comm comm, const Array<int> &
 void FindBoundaryTrueDOFs(ParFiniteElementSpace *pfespace, set<int>& tdofsBdry);
 bool FacesCoincideGeometrically(ParMesh *volumeMesh, const int face, ParMesh *surfaceMesh, const int elem);
 void PrintMeshBoundingBox(ParMesh *mesh);
+
+/*
 void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteElementSpace *fespace, ParFiniteElementSpace *fespaceGlobal,
 				 ParMesh *pmesh, const int sdAttribute, const std::set<int>& pmeshFacesInInterface,
 				 const std::set<int>& pmeshEdgesInInterface, const std::set<int>& pmeshVerticesInInterface, 
 				 const FiniteElementCollection *fec, std::vector<int>& dofmap, //std::vector<int>& fdofmap,
 				 std::vector<int>& gdofmap);
+*/
 
 void SetDomainDofsFromSubdomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteElementSpace *fespaceDomain, const Vector & ssd, Vector & s);
 void SetSubdomainDofsFromDomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteElementSpace *fespaceDomain, const Vector & s, Vector & ssd);
@@ -280,7 +283,39 @@ public:
   }
 };
 
+#ifdef SERIAL_INTERFACES
+class SerialInterfaceCommunicator : public Operator
+{
+private:
+  const int n, otherRank, id;
+  const bool isSender;
+  
+public:
+  SerialInterfaceCommunicator(const int n_, const bool isSender_, const int otherRank_, const int id_)
+    : Operator(n_), n(n_), isSender(isSender_), otherRank(otherRank_), id(id_)
+  {
+    MFEM_VERIFY(otherRank >= 0, "");
+  }
 
+  ~SerialInterfaceCommunicator()
+  {
+  }
+  
+  virtual void Mult(const Vector & x, Vector & y) const
+  {
+    MFEM_VERIFY(x.Size() == n && y.Size() == n, "");
+
+    if (isSender)
+      {
+	MPI_Send(x.GetData(), n, MPI_DOUBLE, otherRank, id, MPI_COMM_WORLD);
+	y = x;
+      }
+    else
+      MPI_Recv(y.GetData(), n, MPI_DOUBLE, otherRank, id, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  }
+};
+
+#endif
 #ifdef GPWD
 class GlobalPlaneParameters
 {
@@ -369,6 +404,12 @@ public:
     //globalInterfaceOp->Mult(x, y);
   }  
 
+  void TestIFMult(const Vector & x, Vector & y) const
+  {
+    globalInterfaceOp->Mult(x, y);
+    cout << m_rank << ": TestIFMult norm " << y.Norml2() << endl;
+  }
+  
 #ifndef DDMCOMPLEX
   void FullSystemAnalyticTest()
   {
@@ -925,6 +966,8 @@ private:
   FiniteElementSpace **ifespace, **iH1fespace;
   SparseMatrix **ifNDmassSp, **ifNDcurlcurlSp, **ifNDH1gradSp, **ifNDH1gradTSp, **ifH1massSp;
 
+  std::vector<SerialInterfaceCommunicator*> SIsender, SIreceiver;
+  
   //HypreParMatrix **ifNDmass, **ifNDH1grad, **ifNDH1gradT, **ifH1mass, **ifND_FS;
 #else
   ParMesh **pmeshIF;  // Interface meshes

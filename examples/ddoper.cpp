@@ -211,8 +211,8 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #include "gsl_sf_airy.h"
 
 //#define K2_AIRY 2.0  // TODO: input k
-#define K2_AIRY 10981.4158900991  // 5 GHz
-//#define K2_AIRY 43925.6635603965  // 10 GHz
+//#define K2_AIRY 10981.4158900991  // 5 GHz
+#define K2_AIRY 43925.6635603965  // 10 GHz
 //#define K2_AIRY 175702.65424  // 20 GHz
 //#define K2_AIRY 1601.0
 
@@ -1889,6 +1889,156 @@ void PrintMeshBoundingBox(ParMesh *mesh)
   cout << mesh->GetMyRank() << ": sd box [" << vmin[0] << ", " << vmin[1] << ", " << vmin[2] << "] to [" << vmax[0] << ", " << vmax[1] << ", " << vmax[2] << "]" << endl;
 }
 
+// cp = a x b
+void CrossProduct3D(Vector const& a, Vector const& b, Vector& cp)
+{
+  cp[0] = (a[1]*b[2]) - (a[2]*b[1]);
+  cp[1] = (a[2]*b[0]) - (a[0]*b[2]);
+  cp[2] = (a[0]*b[1]) - (a[1]*b[0]);
+
+}
+
+void GetFaceNormal(Mesh *mesh, const int face, Vector& normal)
+{
+  MFEM_VERIFY(mesh->SpaceDimension() == 3, "");
+
+  Array<int> faceVert;
+  mesh->GetFaceVertices(face, faceVert);
+  MFEM_VERIFY(faceVert.Size() > 2, "");
+
+  Vector t1(3);
+  Vector t2(3);
+
+  for (int i=0; i<3; ++i)
+    {
+      t1[i] = mesh->GetVertex(faceVert[0])[i] - mesh->GetVertex(faceVert[1])[i];
+      t2[i] = mesh->GetVertex(faceVert[2])[i] - mesh->GetVertex(faceVert[1])[i];
+    }
+
+  CrossProduct3D(t1, t2, normal);
+
+  const double s = normal.Norml2();
+  MFEM_VERIFY(s > 1.0e-8, "");
+  
+  normal /= s;
+}
+
+int FindDofByPointValue(std::vector<double> const& facebv, const int dim, const int facendofs, const int facenip, const int face, const int dof,
+			const int elem, ParFiniteElementSpace *fespace, Vector const& faceNormal)
+{
+  // Note that the size of facebv is dim * (facendofs + 1) * facenip * numLocalFacesInInterface;
+
+  const int osface = dim * (facendofs + 1) * facenip * face;
+
+  const FiniteElement *fe = fespace->GetFE(elem);
+  MFEM_VERIFY(fe->GetRangeType() != FiniteElement::SCALAR, "");
+
+  ElementTransformation *Tr = fespace->GetElementTransformation(elem);
+
+  Array<int> dofs;
+  fespace->GetElementDofs(elem, dofs);
+  const int ndofs = dofs.Size();
+
+  int dofId = -1;
+  //double dofsign = 1.0;
+  {
+    const int adof = (dof >= 0) ? dof : -1 - dof;
+    for (int d=0; d<ndofs; ++d)
+      {
+	const int dof_d = (dofs[d] >= 0) ? dofs[d] : -1 - dofs[d];
+	if (dof_d == adof)
+	  {
+	    MFEM_VERIFY(dofId == -1, "");
+	    dofId = d;
+
+	    /*
+	    if ((dofs[d] < 0 && dof >= 0) || (dof < 0 && dofs[d] >= 0))
+	      dofsign = -1.0;
+	    */
+	  }
+      }
+    
+    MFEM_VERIFY(dofId >= 0, "");
+  }
+  
+  IntegrationPoint ip;
+  
+  MFEM_VERIFY(dim == 3, "");
+  
+  Vector x(dim);  // Point in physical space.
+  Vector v(dim);  // Basis function value at integration point.
+  Vector fv(dim); // Basis function value at integration point, from facebv.
+  Vector tmp(dim);
+  
+  DenseMatrix vshape(ndofs, dim);
+  Vector data(ndofs);
+
+  data = 0.0;
+  data[dofId] = (dofs[dofId] >= 0) ? 1.0 : -1.0;
+
+  Vector e(facendofs);
+
+  for (int i=0; i<facenip; ++i)
+    {
+      for (int j=0; j<dim; ++j)
+	x[j] = facebv[osface + (i * dim * (facendofs + 1)) + j];
+
+      const bool found = (Tr->TransformBack(x, ip) == 0);
+      MFEM_VERIFY(found, "");
+
+      Tr->SetIntPoint(&ip);
+      fe->CalcVShape(*Tr, vshape);
+
+      vshape.MultTranspose(data, v);
+
+      // Set v = n x (v x n).
+      CrossProduct3D(v, faceNormal, tmp);
+      CrossProduct3D(faceNormal, tmp, v);
+
+      double emin = 0.0;
+      int imin = 0;
+      
+      for (int n=0; n<facendofs; ++n)
+	{
+	  for (int j=0; j<dim; ++j)
+	    fv[j] = facebv[osface + (i * dim * (facendofs + 1)) + (dim * (1+n)) + j];
+
+	  const double vnrm = std::max(v.Norml2(), fv.Norml2());
+
+	  MFEM_VERIFY(vnrm > 1.0e-4, "");
+	  
+	  fv -= v;
+	  
+	  e[n] = fv.Norml2() / vnrm;
+
+	  if (n == 0 || e[n] < emin)
+	    {
+	      emin = e[n];
+	      imin = n;
+	    }
+	}
+
+      double emin2 = 0.0;
+      int imin2 = -1;
+
+      for (int n=0; n<facendofs; ++n)
+	{
+	  if (n != imin && (imin2 == -1 || e[n] < emin2))
+	    {
+	      emin2 = e[n];
+	      imin2 = n;
+	    }
+	}
+
+      MFEM_VERIFY(imin != imin2 && imin2 >= 0, "");
+
+      if (emin2 > 1.0e-4 && emin / emin2 < 0.1)
+	return imin;
+    }
+
+  return -1;
+}
+
 // For InterfaceToSurfaceInjection, we need a map from DOF's on the interfaces to the corresponding DOF's on the surfaces of the subdomains.
 // These maps could be created efficiently by maintaining maps between subdomain meshes and the original mesh, as well as maps between the
 // interface meshes and the original mesh. The ParMesh constructor appears to keep the same ordering of elements, but it reorders the vertices.
@@ -1919,20 +2069,20 @@ void PrintMeshBoundingBox(ParMesh *mesh)
 // Therefore, dofmap is defined by SetInterfaceToSurfaceDOFMap() to be of full ifespace DOF size, mapping from full ifespace DOF's to true
 // subdomain DOF's in fespace; fdofmap is also of full ifespace DOF size, mapping from full ifespace DOF's to full subdomain DOF's in fespace.
 
-// For full generality of parallel partitioning, we must allow for ifespace and fespace to be NULL (possibly even both), as this function
+// For full generality of parallel partitioning, we must allow for ifespace or fespace to be NULL (but not both), as this function
 // needs to be called by all processes in ifsdcomm. There may be processes that touch an interface but not a subdomain, and vice versa.
-// Therefore, we cannot limit calls to this function only to processes touching an interface or subdomain.
 void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 #ifdef SERIAL_INTERFACES
 				 FiniteElementSpace *ifespace,
 				 const int interfaceFaceOffset,
+				 std::vector<int> const& pmeshFacesInInterfaceOrdered,
 #else
 				 ParFiniteElementSpace *ifespace,
 #endif
 				 ParFiniteElementSpace *fespace, ParFiniteElementSpace *fespaceGlobal,
 				 ParMesh *pmesh, const int sdAttribute,
-				 const std::set<int>& pmeshFacesInInterface,
-				 const std::set<int>& pmeshEdgesInInterface, const std::set<int>& pmeshVerticesInInterface, 
+				 std::set<int> const& pmeshFacesInInterface,
+				 std::set<int> const& pmeshEdgesInInterface, std::set<int> const& pmeshVerticesInInterface, 
 				 const FiniteElementCollection *fec, std::vector<int>& dofmap, //std::vector<int>& fdofmap,
 				 std::vector<int>& gdofmap)
 {
@@ -2209,21 +2359,97 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 
   std::map<HYPRE_Int, int> pgdofToFSet;
 
-#ifdef SERIAL_INTERFACES
-  int i = interfaceFaceOffset;
-#else
   int i = 0;
-#endif
   
-  for (std::set<int>::const_iterator it = pmeshFacesInInterface.begin(); it != pmeshFacesInInterface.end(); ++it, ++i)
+#ifdef SERIAL_INTERFACES
+  std::vector<int> ifgi, iegi, ifeli;
+  std::vector<double> ifemp;
+
+  ifgi.assign(pmeshFacesInInterface.size(), -1);
+  iegi.assign(pmeshEdgesInInterface.size(), -1);
+
+  int numEdgesPerFace = 0;
+  {
+    Array<int> edge, ori;
+    pmesh->GetFaceEdges(0, edge, ori);
+
+    numEdgesPerFace = edge.Size();
+
+    ifeli.assign(numEdgesPerFace * pmeshFacesInInterface.size(), -1);
+    ifemp.assign(3 * numEdgesPerFace * pmeshFacesInInterface.size(), std::numeric_limits<double>::max());
+  }
+
+  std::map<int, int> pmeshEdgeToEdgeInInterface;
+
+  for (std::set<int>::const_iterator it = pmeshEdgesInInterface.begin(); it != pmeshEdgesInInterface.end(); ++it, ++i)
+    {
+      const int pmeshEdge = *it;
+      pmeshEdgeToEdgeInInterface[pmeshEdge] = i;
+    }
+  
+  // The faces in pmeshFacesInInterface have different ordering on different processes, so we must define global indices
+  // to obtain a consistent ordering. The global indices will be defined by RT0 global true DOF numbers.
+  /*
+  pmeshFacesInInterface
+  {
+    RT_FECollection face_fec(0, pmesh->Dimension());
+    ParFiniteElementSpace face_fes(pmesh, &face_fec);
+
+    Array<int> fdof;
+
+			face_fes.GetFaceDofs(f[k], fdof);
+
+			MFEM_VERIFY(fdof.Size() == 1, "");
+
+			const int fdof0 = (fdof[0] >= 0) ? fdof[0] : -1 - fdof[0];
+			const int tdof = face_fes.GetLocalTDofNumber(fdof0);
+			if (tdof >= 0)  // if this is a true DOF
+
+			  
+			    const int gtdof = face_fes.GetGlobalTDofNumber(fdof0);
+    
+  }
+  */
+  
+  bool nfpos = false;
+  i = 0;
+#endif
+
+#ifdef SERIAL_INTERFACES
+  /*
+  // Copy all of the face indices in pmeshFacesInInterface as non-negative integers in another std::set for sorting in the right order.
+  std::set<int> pmeshFacesInInterfaceSorted;
+
+  for (std::set<int>::const_iterator it = pmeshFacesInInterface.begin(); it != pmeshFacesInInterface.end(); ++it)
     {
       const int pmeshFace = ((*it) >= 0) ? (*it) : -1 - (*it);
+      pmeshFacesInInterfaceSorted.insert(pmeshFace);
+    }
 
-      const bool faceInInterface = ((*it) >= 0);
+  for (std::set<int>::const_iterator it = pmeshFacesInInterfaceSorted.begin(); it != pmeshFacesInInterfaceSorted.end(); ++it, ++i)
+  */
+  for (std::vector<int>::const_iterator it = pmeshFacesInInterfaceOrdered.begin(); it != pmeshFacesInInterfaceOrdered.end(); ++it, ++i)
+#else
+  for (std::set<int>::const_iterator it = pmeshFacesInInterface.begin(); it != pmeshFacesInInterface.end(); ++it, ++i)  
+#endif
+    {
+      const int drefit = *it;
+      
+      const int pmeshFace = ((*it) >= 0) ? (*it) : -1 - (*it);
 
-      int osf = 0;
       const int nf = fec->DofForGeometry(pmesh->GetFaceGeometryType(0));
 
+#ifdef SERIAL_INTERFACES
+      const bool faceInInterface = true;
+
+      if (nf > 0)
+	nfpos = true;
+#else
+      const bool faceInInterface = ((*it) >= 0);
+#endif
+
+      int osf = 0;
+      
       /*
       double cm[3];  // center of mass for pmeshFace, for debugging purposes.
 
@@ -2243,7 +2469,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	for (int l=0; l<3; ++l)
 	  cm[l] /= (double) vert.Size();
       }
-      */
+      */      
       
       { // Set pgdofToFSet, even if this edge is not in ifMesh
 	const int nv = fec->DofForGeometry(Geometry::POINT);
@@ -2313,36 +2539,359 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 
 	  MFEM_VERIFY(pmeshFaceOri == 0 || pmeshFaceOri == 5, "pmeshFaceOri");
 	  */
-	  
-	  MFEM_VERIFY(ifespace->GetOrder(i) == 2, "hack only works for second order");
-	  
+
 	  Array<int> pdofs, ifdofs;
 	  fespaceGlobal->GetFaceDofs(pmeshFace, pdofs);
-	  ifespace->GetElementDofs(i, ifdofs);
-	  
-	  MFEM_VERIFY(pdofs.Size() == ifdofs.Size() && pdofs.Size() == osf + nf, "hack only works for second order");
-
-	  // TODO: is fswitch necessary?
-	  //const int fswitch = 0; // (pmeshFaceOri > 0) ? (1 - (2*(d - osf))) : 0;  // TODO: this is valid only for second order!
 
 	  // Use the minimum global face DOF on the face, as a global identification for the face.
 	  MFEM_VERIFY(nf == 2, "For nf > 2, generalize the computation of the minimum.");
 	  const HYPRE_Int gtdof = std::min(fespaceGlobal->GetGlobalTDofNumber(pdofs[osf]), fespaceGlobal->GetGlobalTDofNumber(pdofs[osf + 1]));
+	  
 #ifdef SERIAL_INTERFACES
-	  const HYPRE_Int ifgtdof = ifdofs[osf];  // Just use the first face DOF on the face, as a global identification for the face.
+	  ifgi[i] = gtdof;
+
+	  {
+	    Array<int> edge, ori;
+	    pmesh->GetFaceEdges(pmeshFace, edge, ori);
+
+	    MFEM_VERIFY(numEdgesPerFace == edge.Size(), "");
+	    for (int j=0; j<numEdgesPerFace; ++j)
+	      {
+		std::map<int, int>::const_iterator it = pmeshEdgeToEdgeInInterface.find(edge[j]);
+		
+		MFEM_VERIFY(it != pmeshEdgeToEdgeInInterface.end(), "");
+		MFEM_VERIFY(it->first == edge[j], "");
+		
+		ifeli[(numEdgesPerFace * i) + j] = it->second;
+
+		Array<int> pmeshEdgeVert;
+		pmesh->GetEdgeVertices(edge[j], pmeshEdgeVert);
+
+		MFEM_VERIFY(pmeshEdgeVert.Size() == 2, "");
+	
+		for (int l=0; l<3; ++l)
+		  ifemp[(3*((numEdgesPerFace * i) + j)) + l] = 0.5 * (pmesh->GetVertex(pmeshEdgeVert[0])[l] + pmesh->GetVertex(pmeshEdgeVert[1])[l]);
+	      }
+	  }
 #else
+	  ifespace->GetElementDofs(i, ifdofs);
+
+	  MFEM_VERIFY(ifespace->GetOrder(i) == 2, "hack only works for second order");
+	  MFEM_VERIFY(pdofs.Size() == ifdofs.Size() && pdofs.Size() == osf + nf, "hack only works for second order");
+
 	  const HYPRE_Int ifgtdof = ifespace->GetGlobalTDofNumber(ifdofs[osf]);  // Just use the first face DOF on the face, as a global identification for the face.
 	  MFEM_VERIFY(ifespace->GetGlobalTDofNumber(ifdofs[osf]) + 1 == ifespace->GetGlobalTDofNumber(ifdofs[osf+1]), "");
-#endif
-	  
 	  MFEM_VERIFY(ifdofs[osf] + 1 == ifdofs[osf+1], "");
-	  
+
 	  ifpface[ifgtdof] = gtdof;
+#endif
+
+	  // TODO: is fswitch necessary?
+	  //const int fswitch = 0; // (pmeshFaceOri > 0) ? (1 - (2*(d - osf))) : 0;  // TODO: this is valid only for second order!
 	}
     }
 
-  MPI_Allreduce((int*) ifpface.data(), (int*) maxifpface.data(), ifgSize, MPI_INT, MPI_MAX, ifsdcomm);
+#ifdef SERIAL_INTERFACES
+  // TODO: the code will break for order 1.
+  MFEM_VERIFY(nfpos, "Otherwise ifeli, ifemp, etc. are not set, so even the edge DOF's are not mapped.");
 
+  int myid, nprocs;
+  MPI_Comm_size(ifsdcomm, &nprocs);
+  MPI_Comm_rank(ifsdcomm, &myid);
+
+  const int nie = pmeshEdgesInInterface.size();
+  std::vector<int> allnie(nprocs);
+
+  MPI_Gather(&nie, 1, MPI_INT, (int*) allnie.data(), 1, MPI_INT, 0, ifsdcomm);
+    
+  std::vector<int> dsple(nprocs);
+  std::vector<int> allietoifedge;
+  
+  if (myid == 0)
+    {
+      int sumnie = 0;
+      for (int i=0; i<nprocs; ++i)
+	{
+	  dsple[i] = sumnie;
+	  sumnie += allnie[i];
+	}
+
+      allietoifedge.assign(sumnie, -1);
+    }
+  
+  std::vector<int> allnif(nprocs);
+
+  if (nfpos)
+    {
+      // Set ifpface by using gathered ifgi values.
+      
+      const int nif = pmeshFacesInInterface.size();
+      std::vector<int> allifos(nprocs);
+
+      MPI_Gather(&nif, 1, MPI_INT, (int*) allnif.data(), 1, MPI_INT, 0, ifsdcomm);
+      MPI_Gather(&interfaceFaceOffset, 1, MPI_INT, (int*) allifos.data(), 1, MPI_INT, 0, ifsdcomm);
+    
+      std::vector<int> allifgi;
+      std::vector<int> dspl(nprocs);
+
+      if (myid == 0)
+	{
+	  int sumnif = 0;
+	  for (int i=0; i<nprocs; ++i)
+	    {
+	      dspl[i] = sumnif;
+	      sumnif += allnif[i];
+
+	      MFEM_VERIFY(dspl[i] == allifos[i], "");
+	    }
+
+	  MFEM_VERIFY(sumnif == ifMesh->GetNE(), "");
+
+	  allifgi.assign(sumnif, -1);
+	}
+
+      MPI_Gatherv((int*) ifgi.data(), nif, MPI_INT, (int*) allifgi.data(), (int*) allnif.data(), (int*) dspl.data(), MPI_INT, 0, ifsdcomm);
+
+      if (myid == 0)
+	{
+	  int osf = 0;
+	  { // Set osf
+	    const int nv = fec->DofForGeometry(Geometry::POINT);
+	    int numVerticesOnFace = 0;
+	    if (nv > 0)
+	      {
+		Array<int> vert;
+		ifMesh->GetElementVertices(0, vert);
+
+		numVerticesOnFace = vert.Size();
+	      }
+
+	    const int ne = fec->DofForGeometry(Geometry::SEGMENT);
+	    int numEdgesOnFace = 0;
+	    if (ne > 0)
+	      {
+		Array<int> edge, ori;
+		ifMesh->GetElementEdges(0, edge, ori);
+
+		numEdgesOnFace = edge.Size();
+	      }
+
+	    osf = (nv*numVerticesOnFace) + (ne*numEdgesOnFace);  // offset of face DOF's, which come after vertex and edge DOF's in the DOF arrays ifdofs and sddofs.
+	  }
+
+	  for (int p=0; p<nprocs; ++p)
+	    {
+	      for (int i=0; i<allnif[p]; ++i)  // Loop over pmesh faces in interface on proc p
+		{
+		  const int ifMeshElem = allifos[p] + i;  // The corresponding element index in ifMesh.
+
+		  Array<int> ifdofs;
+		  ifespace->GetElementDofs(ifMeshElem, ifdofs);
+
+		  MFEM_VERIFY(ifespace->GetOrder(ifMeshElem) == 2, "hack only works for second order");
+		  MFEM_VERIFY(ifdofs[osf] + 1 == ifdofs[osf+1], "");
+
+		  const HYPRE_Int ifgtdof = ifdofs[osf];  // Just use the first face DOF on the face, as a global identification for the face.
+		  ifpface[ifgtdof] = allifgi[dspl[p] + i];
+		}
+	    }
+	}
+
+      // Set allietoifedge by using gathered ifeli and ifemp values.
+
+      std::vector<int> allifeli;
+      std::vector<double> allifemp;
+
+      if (myid == 0)
+	{
+	  for (int i=0; i<nprocs; ++i)
+	    {
+	      dspl[i] *= numEdgesPerFace;
+	      allnif[i] *= numEdgesPerFace;  // counts
+	    }
+
+	  allifeli.assign(numEdgesPerFace * allifgi.size(), -1);
+	}
+      
+      MPI_Gatherv((int*) ifeli.data(), numEdgesPerFace * nif, MPI_INT, (int*) allifeli.data(), (int*) allnif.data(), (int*) dspl.data(), MPI_INT, 0, ifsdcomm);
+
+      if (myid == 0)
+	{
+	  for (int i=0; i<nprocs; ++i)
+	    {
+	      dspl[i] *= 3;
+	      allnif[i] *= 3;  // counts
+	    }
+
+	  allifemp.assign(3 * numEdgesPerFace * allifgi.size(), -1);
+	}
+      
+      MPI_Gatherv((double*) ifemp.data(), 3 * numEdgesPerFace * nif, MPI_DOUBLE, (double*) allifemp.data(), (int*) allnif.data(),
+		  (int*) dspl.data(), MPI_DOUBLE, 0, ifsdcomm);
+
+      if (myid == 0)
+	{
+	  for (int p=0; p<nprocs; ++p)
+	    {
+	      allnif[p] /= (3 * numEdgesPerFace);  // restore the original value
+	      dspl[p] /= (3 * numEdgesPerFace);  // restore the original value
+	      
+	      for (int i=0; i<allnif[p]; ++i)  // Loop over pmesh faces in interface on proc p
+		{
+		  const int ifMeshElem = allifos[p] + i;  // The corresponding element index in ifMesh.
+
+		  Array<int> ifEdge, ifOri;
+		  ifMesh->GetElementEdges(ifMeshElem, ifEdge, ifOri);
+		  
+		  MFEM_VERIFY(numEdgesPerFace == ifEdge.Size(), "");
+		  
+		  // Do a double-loop over numEdgesPerFace midpoints of edges in ifEdge and allifemp to find geometric matches.
+		  for (int j=0; j<numEdgesPerFace; ++j)
+		    {
+		      int ifMeshEdge = -1;
+		      
+		      for (int k=0; k<numEdgesPerFace; ++k)
+			{
+			  Array<int> ifmeshEdgeVert;
+			  ifMesh->GetEdgeVertices(ifEdge[k], ifmeshEdgeVert);
+
+			  MFEM_VERIFY(ifmeshEdgeVert.Size() == 2, "");
+
+			  bool pointsEqual = true;
+			  for (int l=0; l<3; ++l)
+			    {
+			      const double ifMeshEdgeMidpoint_l = 0.5 * (ifMesh->GetVertex(ifmeshEdgeVert[0])[l] + ifMesh->GetVertex(ifmeshEdgeVert[1])[l]);
+
+			      if (fabs(ifMeshEdgeMidpoint_l - allifemp[(3*numEdgesPerFace * (dspl[p] + i)) + (3*j) + l]) > vertexTol)
+				pointsEqual = false;
+			    }
+
+			  if (pointsEqual)
+			    {
+			      MFEM_VERIFY(ifMeshEdge == -1, "");
+			      ifMeshEdge = ifEdge[k];
+			    }
+			}
+		      
+		      MFEM_VERIFY(ifMeshEdge >= 0, "");
+
+		      allietoifedge[dsple[p] + allifeli[(numEdgesPerFace * (dspl[p] + i)) + j]] = ifMeshEdge;
+		    }
+		}
+	    }
+	}
+    }
+
+  std::vector<double> ifbv;
+  int ifnip = -1;
+  int ifndofs = -1;
+  
+  {
+    // Scatter basis function values at integration points on every ifMesh element.
+    const int dim = pmesh->SpaceDimension();
+    MFEM_VERIFY(dim == 3, "");
+    const FiniteElement *fe0 = fespace->GetFE(0);
+
+    MFEM_VERIFY(fe0->GetRangeType() != FiniteElement::SCALAR, "");
+
+    std::vector<int> scnt(nprocs);
+    std::vector<int> sdspl(nprocs);
+    std::vector<double> vals;
+
+    int ssizes[2];
+    
+    if (myid == 0)
+      {
+	// The following code is based on GridFunction::ComputeLpError and GridFunction::GetVectorValue
+	
+	const FiniteElement *ife0 = ifespace->GetFE(0);
+	MFEM_VERIFY(fe0->GetOrder() == ife0->GetOrder(), "");
+
+	int intorder = (2*ife0->GetOrder()) + 1;
+	const IntegrationRule *ir = &(IntRules.Get(ife0->GetGeomType(), intorder));
+
+	const int nip = ir->Size();
+
+	Array<int> dofs;
+	ifespace->GetElementDofs(0, dofs);
+	const int ndofs = dofs.Size();
+	Vector data(ndofs);
+	DenseMatrix vshape(ndofs, dim);
+	Vector v(dim);
+	
+	vals.resize(dim * (ndofs + 1) * nip * ifMesh->GetNE());
+	
+	ssizes[0] = ndofs;
+	ssizes[1] = nip;
+	
+	sdspl[0] = 0;
+	for (int i=0; i<nprocs; ++i)
+	  {
+	    scnt[i] = dim * (ndofs + 1) * nip * allnif[i];
+	    if (i > 0)
+	      sdspl[i] = sdspl[i-1] + scnt[i-1];
+	  }
+	
+	int cnt = 0;
+	for (int f=0; f<ifMesh->GetNE(); ++f)
+	  {
+	    const FiniteElement *ife = ifespace->GetFE(f);
+	    MFEM_VERIFY(fe0->GetOrder() == ife->GetOrder(), "");
+	    MFEM_VERIFY(ife->GetRangeType() != FiniteElement::SCALAR, "");
+
+	    ElementTransformation *Tr = ifespace->GetElementTransformation(f);
+
+	    ifespace->GetElementDofs(f, dofs);
+	    MFEM_VERIFY(ndofs == dofs.Size() && ndofs == ife->GetDof(), "");
+	    
+	    for (int i=0; i<nip; ++i)
+	      {
+		IntegrationPoint const& ip = ir->IntPoint(i);
+		Vector ipx(dim);
+		Tr->Transform(ip, ipx);
+
+		for (int j=0; j<dim; ++j, ++cnt)
+		  {
+		    vals[cnt] = ipx[j];
+		  }
+
+		Tr->SetIntPoint(&ip);
+		ife->CalcVShape(*Tr, vshape);
+
+		for (int d=0; d<ndofs; ++d)
+		  {
+		    data = 0.0;
+		    data[d] = (dofs[d] >= 0) ? 1.0 : -1.0;
+
+		    vshape.MultTranspose(data, v);
+		    
+		    for (int j=0; j<dim; ++j, ++cnt)
+		      {
+			vals[cnt] = v[j];
+		      }
+		  }
+	      }
+	  }
+
+	MFEM_VERIFY(vals.size() == cnt, "");
+      }
+
+    MPI_Bcast(ssizes, 2, MPI_INT, 0, ifsdcomm);
+    ifndofs = ssizes[0];
+    ifnip = ssizes[1];
+
+    const int nif = pmeshFacesInInterface.size();
+
+    const int nrecv = dim * (ifndofs + 1) * ifnip * nif;
+    
+    ifbv.resize(nrecv);
+    
+    MPI_Scatterv((double*) vals.data(), (int*) scnt.data(), (int*) sdspl.data(), MPI_DOUBLE, (double*) ifbv.data(), nrecv, MPI_DOUBLE, 0, ifsdcomm);
+  }
+#endif
+
+  MPI_Allreduce((int*) ifpface.data(), (int*) maxifpface.data(), ifgSize, MPI_INT, MPI_MAX, ifsdcomm);
+  
   std::vector<int> pfaceToIFGDOF;
   pfaceToIFGDOF.assign(pmeshFacesInInterface.size(), -1);
   
@@ -2368,18 +2917,27 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
   std::map<int, int> pmeshFaceToIFFace;
 
 #ifdef SERIAL_INTERFACES
-  i = interfaceFaceOffset;
+  i = 0; // interfaceFaceOffset;
 #else
   i = 0;
 #endif
-  
+
+#ifdef SERIAL_INTERFACES
+  //for (std::set<int>::const_iterator it = pmeshFacesInInterfaceSorted.begin(); it != pmeshFacesInInterfaceSorted.end(); ++it, ++i)
+  for (std::vector<int>::const_iterator it = pmeshFacesInInterfaceOrdered.begin(); it != pmeshFacesInInterfaceOrdered.end(); ++it, ++i)
+#else
   for (std::set<int>::const_iterator it = pmeshFacesInInterface.begin(); it != pmeshFacesInInterface.end(); ++it, ++i)
+#endif
     {
       //const int pmeshFace = *it;
       const int pmeshFace = ((*it) >= 0) ? (*it) : -1 - (*it);
 
+#ifdef SERIAL_INTERFACES
+      const bool faceInInterface = false;
+#else
       const bool faceInInterface = ((*it) >= 0);
-      
+#endif
+     
       if (faceInInterface)
 	{
 	  // Set maps pmeshFaceToIFFace and pmeshEdgeToAnyFaceInInterface, used only in (2a).
@@ -2642,8 +3200,13 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	  for (int d=osf; d<sddofs.Size(); ++d)
 	    {
 	      const int fswitch = (pmeshFaceOri > 0) ? (1 - (2*(d - osf))) : 0; // ((d - osf) + 1) % 2;  // TODO: this is valid only for second order!
+#ifdef SERIAL_INTERFACES
+	      const int fswitch2 = 0;
+	      //const int fswitch2 = (pmeshFaceOri == 0) ? (1 - (2*(d - osf))) : 0; // ((d - osf) + 1) % 2;  // TODO: this is valid only for second order!
+#else
 	      const int fswitch2 = (pmeshFaceOri == 0) ? (1 - (2*(d - osf))) : 0; // ((d - osf) + 1) % 2;  // TODO: this is valid only for second order!
-
+#endif
+	      
 	      MFEM_VERIFY(fespace->GetOrder(sdMeshElem) == 2, "fswitch hack only works for second order");
 	      
 	      const int sddof_d = (sddofs[d + fswitch] >= 0) ? sddofs[d + fswitch] : -1 - sddofs[d + fswitch];
@@ -2696,8 +3259,43 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 		    {
 		      // Set global gdofmap
 		      MFEM_VERIFY(pfaceToIFGDOF[i] >= 0, "");
+
+		      /*
+		      if (pfaceToIFGDOF[i] == 1600)
+			{
+			  cout << "ifdof " << pfaceToIFGDOF[i] + d - osf << " set on face " << i << ", sdMeshFaceOri " << sdMeshFaceOri
+			       << ", sddofs[d] " << sddofs[d] << ", pmeshFaceOri " << pmeshFaceOri << endl;
+			}
+		      */
+		      
+
+		      // Note that pfaceToIFGDOF[i] is the global DOF of the first face DOF of the face in ifMesh corresponding to face i.
+
+#ifdef SERIAL_INTERFACES
+		      Vector normal(3);
+		      GetFaceNormal(sdMesh, sdMeshFace, normal);
+
+		      const int faceDofIndex = FindDofByPointValue(ifbv, sdMesh->SpaceDimension(), ifndofs, ifnip, i, sddofs[d], sdMeshElem, fespace, normal);
+		      MFEM_VERIFY(faceDofIndex >= 0 && faceDofIndex >= osf, "");
+		      
+		      /*
+		      const int ifMeshFaceDofIndex = [pfaceToIFGDOF[i] + d - osf];
+		      gdofmap[pfaceToIFGDOF[i] + ifMeshFaceDofIndex] = sdtdof2 + sdtos;
+		      */
+
+		      if (!(gdofmap[pfaceToIFGDOF[i] + faceDofIndex - osf] == sdtdof2 + sdtos || gdofmap[pfaceToIFGDOF[i] + faceDofIndex - osf] == -1))
+			cout << "BUG" << endl;
+
+		      MFEM_VERIFY(gdofmap[pfaceToIFGDOF[i] + faceDofIndex - osf] == sdtdof2 + sdtos || gdofmap[pfaceToIFGDOF[i] + faceDofIndex - osf] == -1, "");
+
+		      gdofmap[pfaceToIFGDOF[i] + faceDofIndex - osf] = sdtdof2 + sdtos;
+#else
+		      if (!(gdofmap[pfaceToIFGDOF[i] + d - osf] == sdtdof2 + sdtos || gdofmap[pfaceToIFGDOF[i] + d - osf] == -1))
+			cout << "BUG" << endl;
 		      MFEM_VERIFY(gdofmap[pfaceToIFGDOF[i] + d - osf] == sdtdof2 + sdtos || gdofmap[pfaceToIFGDOF[i] + d - osf] == -1, "");
+
 		      gdofmap[pfaceToIFGDOF[i] + d - osf] = sdtdof2 + sdtos;
+#endif
 		    }
 		}
 	    }
@@ -2724,6 +3322,10 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 
 	const HYPRE_Int gtdof = fespaceGlobal->GetGlobalTDofNumber(pdofs[0]);  // Just use the first DOF on the edge, as a global identification for the edge.
 	pgdofToSet[gtdof] = i;
+
+#ifdef SERIAL_INTERFACES
+	iegi[i] = gtdof;
+#endif
       }
       
       // Find the edge of ifMesh that coincides with pmesh edge pmeshEdge.
@@ -2856,11 +3458,58 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	    MFEM_VERIFY(continuousEdgeDOFs, "continuousEdgeDOFs");
 	  }
 	  
+#ifdef SERIAL_INTERFACES
+	  MFEM_VERIFY(false, "This should not be reached in the case SERIAL_INTERFACES.");
+#endif
+
 	  ifpedge[ifgtdof] = gtdof;
 	}
       }
     }
 
+#ifdef SERIAL_INTERFACES
+  // Set ifpedge by using gathered iegi values.
+  {
+    std::vector<int> alliegi;
+
+    if (myid == 0)
+      {
+	int sumnie = 0;
+	for (int i=0; i<nprocs; ++i)
+	  {
+	    sumnie += allnie[i];
+	  }
+
+	alliegi.assign(sumnie, -1);
+      }
+
+    MPI_Gatherv((int*) iegi.data(), nie, MPI_INT, (int*) alliegi.data(), (int*) allnie.data(), (int*) dsple.data(), MPI_INT, 0, ifsdcomm);
+
+    if (myid == 0)
+      {
+	int ose = 0;
+	{
+	  const int nv = fec->DofForGeometry(Geometry::POINT);
+	  ose = (2*nv);  // offset of edge DOF's, which come after vertex DOF's.
+	}
+
+	for (int p=0; p<nprocs; ++p)
+	  {
+	    for (int i=0; i<allnie[p]; ++i)  // Loop over pmesh edges in interface on proc p
+	      {
+		const int ifMeshEdge = allietoifedge[dsple[p] + i];  // The corresponding edge index in ifMesh.
+
+		Array<int> ifdofs;
+		ifespace->GetEdgeDofs(ifMeshEdge, ifdofs);
+
+		const HYPRE_Int ifgtdof = ifdofs[ose];  // Just use the first edge DOF on the edge, as a global identification for the edge.
+		ifpedge[ifgtdof] = alliegi[dsple[p] + i];
+	      }
+	  }
+      }
+  }
+#endif
+  
 #ifdef SERIAL_INTERFACES
   // TODO: some MPI calls like this can be eliminated in the serial interface case.
 #endif
@@ -2918,6 +3567,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
       else if (nv > 0)
 	{
 	  Array<int> ifVert, sdVert;
+	  MFEM_VERIFY(false, "BUG: i is not the index of the edge in ifMesh!");
 	  ifMesh->GetEdgeVertices(i, ifVert);
 	  sdMesh->GetEdgeVertices(sdMeshEdge, sdVert);
 
@@ -3119,10 +3769,10 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	    const int gtdof = i;
 #else
 	    const int gtdof = ifespace->GetGlobalTDofNumber(i);
-#endif
 	    
 	    MFEM_VERIFY(gdofmap[gtdof] == -1 || gdofmap[gtdof] == dofmap[i] + sdtos, "");
 	    gdofmap[gtdof] = dofmap[i] + sdtos;
+#endif
 	  }
       }
     
@@ -3501,6 +4151,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   ifNDcurlcurlSp = numInterfaces > 0 ? new SparseMatrix*[numInterfaces] : NULL;
   ifNDH1gradSp = numInterfaces > 0 ? new SparseMatrix*[numInterfaces] : NULL;
   ifNDH1gradTSp = numInterfaces > 0 ? new SparseMatrix*[numInterfaces] : NULL;
+
+  SIsender.resize(numInterfaces);
+  SIreceiver.resize(numInterfaces);
 #else
   ifespace = numInterfaces > 0 ? new ParFiniteElementSpace*[numInterfaces] : NULL;
   iH1fespace = numInterfaces > 0 ? new ParFiniteElementSpace*[numInterfaces] : NULL;
@@ -3729,14 +4382,14 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    locSizeSD += ifNDtrue[interfaceIndex];
 	  }
 
-	sd_nonempty[m] = (locSizeSD > 0);
-
 #ifdef NO_COMM_SPLITTING
 	sd_com[m] = MPI_COMM_WORLD;
 #else
 #ifdef SERIAL_INTERFACES
-	sd_com[m] = fespace[m]->GetComm();
+	sd_com[m] = (fespace[m] == NULL) ? MPI_COMM_NULL : fespace[m]->GetComm();
+	sd_nonempty[m] = (fespace[m] != NULL);	
 #else
+	sd_nonempty[m] = (locSizeSD > 0);
 	int color = (locSizeSD == 0);
 	const int status = MPI_Comm_split(MPI_COMM_WORLD, color, m_rank, &(sd_com[m]));
 	MFEM_VERIFY(status == MPI_SUCCESS, "Construction of comm failed");
@@ -3744,6 +4397,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #endif
       }
 
+#ifdef SERIAL_INTERFACES
+      if (sd_nonempty[m])
+	{
+#endif
+      
       for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
 	{
 	  const int interfaceIndex = subdomainLocalInterfaces[m][i];
@@ -3838,6 +4496,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    }
 	  */
 	}
+#ifdef SERIAL_INTERFACES
+	}
+#endif
 
       // TODO: make this scalable
       MPI_Barrier(MPI_COMM_WORLD);
@@ -3869,11 +4530,12 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  if (sd_nonempty[m])
 	    {
 	      std::set<int> facesEmpty, edgesEmpty, verticesEmpty;
-	      const std::set<int> &ifFaces = (ifli >= 0) ? (*localInterfaces)[ifli].faces : facesEmpty;
+	      
+	      const std::set<int> &ifFaces = (ifli >= 0) ? (*localInterfaces)[ifli].facesSet : facesEmpty;
 	      const std::set<int> &ifEdges = (ifli >= 0) ? (*localInterfaces)[ifli].edges : edgesEmpty;
 	      const std::set<int> &ifVertices = (ifli >= 0) ? (*localInterfaces)[ifli].vertices : verticesEmpty;
 
-	      std::vector<int> dofmapEmpty; // , gdofmapEmpty;
+	      std::vector<int> dofmapEmpty;
 
 	      std::vector<int> &dofmap = (i >= 0) ? InterfaceToSurfaceInjectionData[m][i] : dofmapEmpty;
 	      //std::vector<int> &gdofmap = (i >= 0) ? InterfaceToSurfaceInjectionGlobalData[m][i] : gdofmapEmpty;
@@ -3885,9 +4547,16 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 					  InterfaceToSurfaceInjectionGlobalData[m][i]);
 	      */
 	      
+#ifdef SERIAL_INTERFACES
+	      std::vector<int> ifFacesOrderedEmpty;
+	      const std::vector<int> &ifFacesOrdered = (ifli >= 0) ? (*localInterfaces)[ifli].faces : ifFacesOrderedEmpty;
+
+	      MFEM_VERIFY(ifFacesOrdered.size() == ifFaces.size(), "");
+#endif
+
 	      SetInterfaceToSurfaceDOFMap(sd_com[m], ifespace[interfaceIndex], 
 #ifdef SERIAL_INTERFACES
-					  interfaceFaceOffset[ifli],
+					  interfaceFaceOffset[ifli], ifFacesOrdered,
 #endif
 					  fespace[m], fespaceGlobal, pmeshGlobal, m+1,
 					  ifFaces, ifEdges, ifVertices, &fecbdry, dofmap,
@@ -3909,7 +4578,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 							       GlobalInterfaceToSurfaceInjectionGlobalData[m][interfaceIndex]);
 
 #ifdef DOFMAP_DEBUG
-#ifndef SERIAL_INTERFACES
+	      //#ifndef SERIAL_INTERFACES
 	      { // debugging
 		// Test orientations of the same DOF's in fespace[m] and ifespace[interfaceIndex] by comparing projections of the same analytic function.
 		VectorFunctionCoefficient E(3, test2_E_exact);
@@ -3921,9 +4590,17 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
 		if (ifespace[interfaceIndex] != NULL)
 		  {
+#ifdef SERIAL_INTERFACES
+		    GridFunction gfif(ifespace[interfaceIndex]);
+		    Vector vifg(ifsize);
+		    gfif.ProjectCoefficient(E);
+		    gfif.GetTrueDofs(vifg);  // vifg will go out of scope with gfif
+		    vif = vifg;
+#else
 		    ParGridFunction gfif(ifespace[interfaceIndex]);
 		    gfif.ProjectCoefficient(E);
 		    gfif.GetTrueDofs(vif);
+#endif
 		  }
 		  
 		Vector vsd((fespace[m] != NULL) ? fespace[m]->GetTrueVSize() : 0);
@@ -3943,7 +4620,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		      cout << m_rank << ": DISCREPANCY A sd " << m << ", entry " << j << ", inj " << injIF[j] << ", if " << vif[j] << endl;
 		  }
 	      }
-#endif
+	      //#endif
 #endif
 	      
 	      /*
@@ -4236,7 +4913,27 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       //cout << rank << ": Interface " << ili << " sd " << sd0 << ", " << sd1 << endl;
 	
       MFEM_VERIFY(sd0 < sd1, "");
+      
+#ifdef SERIAL_INTERFACES
+      if (ifNDtrue[i] > 0 && !(sd_nonempty[sd0] && sd_nonempty[sd1]))
+	{
+	  MFEM_VERIFY(ili >= 0, "");
+	  MFEM_VERIFY((*localInterfaces)[ili].GetRank() == m_rank, "");
+	  MFEM_VERIFY((*localInterfaces)[ili].GetOwningRank() == m_rank || (*localInterfaces)[ili].GetSharingRank() == m_rank, "");
+	  MFEM_VERIFY((*localInterfaces)[ili].GetOwningRank() != (*localInterfaces)[ili].GetSharingRank(), "");
 
+	  const int otherRank = ((*localInterfaces)[ili].GetOwningRank() == m_rank) ? (*localInterfaces)[ili].GetSharingRank() : (*localInterfaces)[ili].GetOwningRank();
+	  
+	  SIsender[i] = new SerialInterfaceCommunicator((2*ifNDtrue[i]) + ifH1true[i], true, otherRank, i);
+	  SIreceiver[i] = new SerialInterfaceCommunicator((2*ifNDtrue[i]) + ifH1true[i], false, otherRank, i);
+	}
+      else
+	{
+	  SIsender[i] = NULL;
+	  SIreceiver[i] = NULL;
+	}
+#endif
+      
       // Create operators for interface between subdomains sd0 and sd1, namely C_{sd0,sd1} R_{sd1}^T and the other.
       //if (ifNDtrue[ili] > 0)  // TODO: this is wrong, as it excludes the possibility that this process owns S but not F or rho.
       if (sd_nonempty[sd0] || sd_nonempty[sd1])
@@ -4464,6 +5161,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    ifsize += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
 	  }
 
+#ifdef SERIAL_INTERFACES
+	if (!sd_nonempty[m])
+	  ifsize = 0;
+#endif
+	
 	rowTrueOffsetsSD[m][2] = ifsize;
 
 	//cout << rank << ": SD " << m << " ifsize " << ifsize << endl;
@@ -4619,6 +5321,30 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		  }
 	      }
 
+	    {
+	    /*
+	      std::string filename = "ifNDmassSp" + std::to_string(m) + ".txt";
+	      std::ofstream sfile(filename, std::ofstream::out);
+	      ifNDmassSp[0]->Print(sfile);
+	    */
+	      /*
+	      std::string filename = "ifNDcurlcurlSp" + std::to_string(m) + ".txt";
+	      std::ofstream sfile(filename, std::ofstream::out);
+	      ifNDcurlcurlSp[0]->Print(sfile);
+	      */
+	    }
+
+	    {
+	      /*
+	      std::string filename = "ifNDmass" + std::to_string(m) + ".txt";
+	      ifNDmass[0]->Print(filename.c_str());
+	      */
+	      /*
+	      std::string filename = "ifNDcurlcurl" + std::to_string(m) + ".txt";
+	      ifNDcurlcurl[0]->Print(filename.c_str());
+	      */
+	    }
+	    
 	    HypreParMatrix *HypreAsdComplexRe = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], AsdRe_HypreBlocks[m],
 									       //#ifdef SERIAL_INTERFACES
 									       AsdRe_SparseBlocks[m],
@@ -4630,18 +5356,21 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 									       AsdIm_SparseBlocks[m],
 									       //#endif
 									       AsdIm_HypreBlockCoef[m], blockGI, blockProcOffsets, all_block_num_loc_rows);
-									       
 
-	    if (m == 2)
+	    if (m == -1)
 	      {
-		/*
-		const int Nm = HypreAsdComplexRe->Height();
+
+		const int Nm = HypreAsdComplexIm->Height();
 		MFEM_VERIFY(Nm > 0, "");
 
 		Vector ej(Nm);
 		Vector Aej(Nm);
 
-		for (int j=120; j<121; ++j)
+		double ejnorm = 0.0;
+		double Aejnorm = 0.0;
+		
+		//for (int j=83024; j<(83024 + 2624); ++j)
+		for (int j=0; j<Nm; ++j)
 		  {
 		    ej = 0.0;
 
@@ -4653,17 +5382,26 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		    
 			ej[j] = 1.0;
 		      }
-		
-		    HypreAsdComplexRe->Mult(ej, Aej);
 
+		    ejnorm = ej.Norml2();
+
+		    //HypreAsdComplexRe->Mult(ej, Aej);
+
+		    HypreAsdComplexIm->MultTranspose(ej, Aej);  // Aej is the j-th row of A
+		    Aejnorm = Aej.Norml2();
+
+		    cout << m_rank << ": sd " << m << " j " << j << " Aejnorm " << Aejnorm << endl;
+		    
+		    /*
 		    if (sdrank == 0)
 		      {
 			ofstream tmpfile("rank36out3");
 			Aej.Print(tmpfile);
 			tmpfile.close();
 		      }
+		    */
 		  }
-		*/
+
 		/*		
 		Vector ej(std::max(ifH1true[1], 1));
 		Vector Aej(std::max(ifNDtrue[1], 1));
@@ -4721,7 +5459,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		
 	    //if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0_Par5");
 	    //if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0_Serial");
-	    //if (m == 1) HypreAsdComplexRe->Print("HypreAsdComplexRe1_Par6");
+	    //if (m == 1) HypreAsdComplexRe->Print("HypreAsdComplexRe1_Par7");
 	    //if (m == 1) HypreAsdComplexRe->Print("HypreAsdComplexRe1_Serial");
 	    //if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0");
 	    //if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0_Serial");
@@ -5998,6 +6736,15 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
     NDcurlcurl->FormSystemMatrix(ND_ess_tdof_list, *(ifNDcurlcurlSp[interfaceIndex]));
     //ND_FS->FormSystemMatrix(ND_ess_tdof_list, *(ifND_FS[interfaceIndex]));
 
+    // Since BilinearForm uses DIAG_KEEP as the DiagonalPolicy, let's change it to DIAG_ONE manually here.
+    for (int i = 0; i < ND_ess_tdof_list.Size(); i++)
+      {
+	const int sdof = ND_ess_tdof_list[i];
+	const int dof = (sdof >= 0) ? sdof : -1-sdof;
+	(*(ifNDmassSp[interfaceIndex]))(dof,dof) = 1.0;
+	(*(ifNDcurlcurlSp[interfaceIndex]))(dof,dof) = 1.0;
+      }
+    
     UMFPackSolver *massInv = new UMFPackSolver();
     massInv->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
     massInv->SetOperator(*(ifNDmassSp[interfaceIndex]));
@@ -6070,6 +6817,15 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
 
 #ifdef SERIAL_INTERFACES
     H1mass->FormSystemMatrix(H1_ess_tdof_list, *(ifH1massSp[interfaceIndex]));
+
+    // Since BilinearForm uses DIAG_KEEP as the DiagonalPolicy, let's change it to DIAG_ONE manually here.
+    for (int i = 0; i < H1_ess_tdof_list.Size(); i++)
+      {
+	const int sdof = H1_ess_tdof_list[i];
+	const int dof = (sdof >= 0) ? sdof : -1-sdof;
+	(*(ifH1massSp[interfaceIndex]))(dof,dof) = 1.0;
+      }
+    
     // Note that ifH1massInv is not used and does not need to be defined.
 #else
     H1mass->FormSystemMatrix(H1_ess_tdof_list, *(ifH1mass[interfaceIndex]));
@@ -6863,6 +7619,8 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
   MFEM_VERIFY(iH1fespace[interfaceIndex] != NULL, "");
   */
   
+  // TODO: this function would be more concise with a local variable for ifNDtrue[interfaceIndex], etc., especially for the switch SERIAL_INTERFACES.
+  
   // Find interface indices with respect to subdomains sd0 and sd1.
   int sd0if = -1;
   int sd1if = -1;
@@ -6971,24 +7729,50 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
   */
   
   colTrueOffsetsIFR[interfaceIndex][orientation].PartialSum();
-    
-  BlockOperator *rightInjection = new BlockOperator(rowTrueOffsetsIFR[interfaceIndex][orientation], colTrueOffsetsIFR[interfaceIndex][orientation]);
+
+#ifdef SERIAL_INTERFACES
+  if (!sd_nonempty[sd1])
+    {
+      colTrueOffsetsIFR[interfaceIndex][orientation] = 0;
+    }
+#endif
+
+  BlockOperator *rightInjectionBO = new BlockOperator(rowTrueOffsetsIFR[interfaceIndex][orientation], colTrueOffsetsIFR[interfaceIndex][orientation]);
 
   if (tdofsBdryInjection[sd1] == NULL)
     {
       if (InterfaceToSurfaceInjection[sd1][interfaceIndex] != NULL)
-	rightInjection->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd1][interfaceIndex]),
+	rightInjectionBO->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd1][interfaceIndex]),
 							   new EmptyOperator(), false, false));
     }
   else
     {
-      rightInjection->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd1][interfaceIndex]),
+      rightInjectionBO->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd1][interfaceIndex]),
 							 tdofsBdryInjection[sd1], false, false));
     }
   
-  rightInjection->SetBlock(1, 1, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex]));
-  //rightInjection->SetBlock(1, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize()));
+#ifdef SERIAL_INTERFACES
+  if (sd_nonempty[sd1])
+#endif
+    {
+      rightInjectionBO->SetBlock(1, 1, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex]));
+      //rightInjection->SetBlock(1, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize()));
+    }
 
+  Operator *rightInjection = rightInjectionBO;
+  
+#ifdef SERIAL_INTERFACES
+  MFEM_VERIFY(sd_nonempty[sd0] || sd_nonempty[sd1], "");
+  // If both subdomains are nonempty, then no communication is done. 
+  if (ifNDtrue[interfaceIndex] > 0 && !(sd_nonempty[sd0] && sd_nonempty[sd1]))
+    {
+      if (sd_nonempty[sd1])
+	rightInjection = new ProductOperator(SIsender[interfaceIndex], rightInjectionBO, false, false);
+      else
+	rightInjection = new ProductOperator(SIreceiver[interfaceIndex], rightInjectionBO, false, false);
+    }
+#endif
+  
   // Create left injection operator for sd0.
 
   rowTrueOffsetsIFL[interfaceIndex][orientation].SetSize(numBlocks + 1);  // Number of blocks + 1
@@ -7010,7 +7794,14 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
   colTrueOffsetsIFL[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize(); // + iH1fespace[interfaceIndex]->GetTrueVSize();
   */ 
   colTrueOffsetsIFL[interfaceIndex][orientation].PartialSum();
-    
+
+#ifdef SERIAL_INTERFACES
+  if (!sd_nonempty[sd0])
+    {
+      rowTrueOffsetsIFL[interfaceIndex][orientation] = 0;
+    }
+#endif
+  
   BlockOperator *leftInjection = new BlockOperator(rowTrueOffsetsIFL[interfaceIndex][orientation], colTrueOffsetsIFL[interfaceIndex][orientation]);
 
   if (tdofsBdryInjectionTranspose[sd0] == NULL)
@@ -7022,10 +7813,15 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
     {
       leftInjection->SetBlock(0, 0, new ProductOperator(tdofsBdryInjectionTranspose[sd0], InterfaceToSurfaceInjection[sd0][interfaceIndex], false, false));
     }
-  
-  leftInjection->SetBlock(1, 1, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex]));
-  //leftInjection->SetBlock(1, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()));
 
+#ifdef SERIAL_INTERFACES
+  if (sd_nonempty[sd0])
+#endif
+  {
+    leftInjection->SetBlock(1, 1, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex]));
+    //leftInjection->SetBlock(1, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()));
+  }
+  
   TripleProductOperator *CijS = new TripleProductOperator(leftInjection, Cij, rightInjection, false, false, false);
 
   // CijS maps from (u^s, f_i, \rho_i) space to (u^s, f_i) space.
@@ -7050,13 +7846,30 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
   //colTrueOffsetsIFBL[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize();
     
   colTrueOffsetsIFBL[interfaceIndex][orientation].PartialSum();
-    
+
+#ifdef SERIAL_INTERFACES
+  if (!sd_nonempty[sd0])
+    {
+      rowTrueOffsetsIFBL[interfaceIndex][orientation] = 0;
+      colTrueOffsetsIFBL[interfaceIndex][orientation] = 0;
+    }
+#endif
+  
   BlockOperator *blockInjectionLeft = new BlockOperator(rowTrueOffsetsIFBL[interfaceIndex][orientation], colTrueOffsetsIFBL[interfaceIndex][orientation]);
 
   blockInjectionLeft->SetBlock(0, 0, NewIdentityOrEmptyOperator(tdofsBdry[sd0].size()));
-  blockInjectionLeft->SetBlock(2, 1, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex]));
-  //blockInjectionLeft->SetBlock(2, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()));
-
+#ifdef SERIAL_INTERFACES
+  if (!sd_nonempty[sd0])
+    {
+      blockInjectionLeft->SetBlock(2, 1, new EmptyOperator());
+    }
+  else
+#endif
+    {
+      blockInjectionLeft->SetBlock(2, 1, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex]));
+      //blockInjectionLeft->SetBlock(2, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()));
+    }
+  
   // Create block injection operator from (u^s, f_i, \rho_i) to (u^s, f_i, \rho_i) on sd1, where the domain is over all sd1 interfaces
   // and the range is only this one interface.
 
@@ -7078,13 +7891,34 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
   colTrueOffsetsIFBR[interfaceIndex][orientation][4] = sd1osComp;
     
   colTrueOffsetsIFBR[interfaceIndex][orientation].PartialSum();
-    
-  BlockOperator *blockInjectionRight = new BlockOperator(rowTrueOffsetsIFBR[interfaceIndex][orientation], colTrueOffsetsIFBR[interfaceIndex][orientation]);
 
-  blockInjectionRight->SetBlock(0, 0, NewIdentityOrEmptyOperator(tdofsBdry[sd1].size()));
-  blockInjectionRight->SetBlock(1, 2, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex]));
-  //blockInjectionRight->SetBlock(1, 2, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize()));
+#ifdef SERIAL_INTERFACES
+  if (!sd_nonempty[sd1])
+    {
+      rowTrueOffsetsIFBR[interfaceIndex][orientation] = 0;
+      colTrueOffsetsIFBR[interfaceIndex][orientation] = 0;
+    }
+#endif
+  
+  BlockOperator *blockInjectionRightBO = new BlockOperator(rowTrueOffsetsIFBR[interfaceIndex][orientation], colTrueOffsetsIFBR[interfaceIndex][orientation]);
 
+  blockInjectionRightBO->SetBlock(0, 0, NewIdentityOrEmptyOperator(tdofsBdry[sd1].size()));
+
+#ifdef SERIAL_INTERFACES
+  if (sd_nonempty[sd1])
+#endif
+    {
+      blockInjectionRightBO->SetBlock(1, 2, NewIdentityOrEmptyOperator(ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex]));
+      //blockInjectionRight->SetBlock(1, 2, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize()));
+    }
+
+  Operator *blockInjectionRight = blockInjectionRightBO;
+  
+#ifdef SERIAL_INTERFACES
+  if (!sd_nonempty[sd1])
+    blockInjectionRight = new EmptyOperator();
+#endif
+  
 #ifdef EQUATE_REDUNDANT_VARS
   if (orientation == 1 && realPart)
     {
@@ -7399,7 +8233,12 @@ void DDMInterfaceOperator::SetOffsetsSD(const int subdomain)
     
   trueOffsetsSD[subdomain] = 0;
   trueOffsetsSD[subdomain][1] = (!sdNull) ? fespace[subdomain]->GetTrueVSize() : 0;
-    
+
+#ifdef SERIAL_INTERFACES
+  if (sdNull)
+    return;
+#endif
+  
   for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
     {
       const int interfaceIndex = subdomainLocalInterfaces[subdomain][i];

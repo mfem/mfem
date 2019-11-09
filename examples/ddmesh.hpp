@@ -7,6 +7,9 @@ using namespace mfem;
 using namespace std;
 
 
+//#define SERIAL_INTERFACES  // TODO: remove this?
+
+
 /*
 void TestSerialMeshLinearSystem(Mesh *mesh)
 {
@@ -82,16 +85,26 @@ private:
 
   int globalIndex;
 
+  int owningRank, sharingRank, myRank;
+  
 protected:
   
 public:
-  SubdomainInterface(const int sd0_, const int sd1_) : sd0(sd0_), sd1(sd1_)
+  SubdomainInterface(const int sd0_, const int sd1_, const int rank) : sd0(sd0_), sd1(sd1_), myRank(rank)
   {
     MFEM_VERIFY(sd0 < sd1, "");
     globalIndex = -1;
+    owningRank = -1;
+    sharingRank = -1;
   }
   
-  std::set<int> vertices, edges, faces;  // local pmesh vertex, edges, and face indices
+  std::set<int> vertices, edges, facesSet;  // local pmesh vertex, edges, and face indices
+
+  std::vector<int> faces;
+  
+#ifdef SERIAL_INTERFACES
+  std::vector<int> facesOrderedByInsertion;
+#endif
   
   void InsertVertexIndex(const int v)
   {
@@ -105,9 +118,49 @@ public:
 
   void InsertFaceIndex(const int f)
   {
-    faces.insert(f);
+#ifdef SERIAL_INTERFACES  // TODO: remove this?
+    std::set<int>::const_iterator it = faces.find(f);
+    if (it == faces.end())
+      facesOrderedByInsertion.push_back(f);
+#endif
+    
+    facesSet.insert(f);
   }
+  
+  void ConstructFacesVector(ParFiniteElementSpace const& face_fes)
+  {
+    std::map<int, int> giToFace;
+    std::set<int> gi;
 
+    for (auto it = facesSet.begin(); it != facesSet.end(); ++it)
+      {
+	const int sf = *it;  // signed face index
+	const int f = (sf >= 0) ? sf : -1 - sf;
+
+	Array<int> fdof;
+	face_fes.GetFaceDofs(f, fdof);
+
+	MFEM_VERIFY(fdof.Size() == 1, "");
+
+	const int fdof0 = (fdof[0] >= 0) ? fdof[0] : -1 - fdof[0];
+	const int gtdof = face_fes.GetGlobalTDofNumber(fdof0);
+
+	gi.insert(gtdof);
+	giToFace[gtdof] = sf;
+      }
+
+    for (auto it = gi.begin(); it != gi.end(); ++it)  // Loop over faces in order of global index
+      {
+	const int gid = *it;
+
+	auto itf = giToFace.find(gid);
+	MFEM_VERIFY(itf != giToFace.end(), "");
+	MFEM_VERIFY(itf->first == gid, "");
+	
+	faces.push_back(itf->second);
+      }
+  }
+  
   int FirstSubdomain() const
   {
     return sd0;
@@ -139,7 +192,7 @@ public:
     //return faces.size();
     
     int n=0;
-    for (std::set<int>::const_iterator it = faces.begin(); it != faces.end(); ++it)
+    for (std::set<int>::const_iterator it = facesSet.begin(); it != facesSet.end(); ++it)
       {
 	if ((*it) >= 0) n++;
       }
@@ -149,7 +202,40 @@ public:
 
   int NumFacesGeometrically() const
   {
-    return faces.size();
+    return facesSet.size();
+  }
+
+  void SetOwningRank(const int r) 
+  {
+    if (owningRank != r)
+      {
+	MFEM_VERIFY(owningRank == -1, "");
+	owningRank = r;
+      }
+  }
+
+  int GetOwningRank() const
+  {
+    return owningRank;
+  }
+
+  int GetSharingRank() const
+  {
+    return sharingRank;
+  }
+
+  int GetRank() const
+  {
+    return myRank;
+  }
+
+  void SetSharingRank(const int r) 
+  {
+    if (sharingRank != r)
+      {
+	MFEM_VERIFY(sharingRank == -1, "");
+	sharingRank = r;
+      }
   }
   
   void PrintVertices(const ParMesh *pmesh) const
@@ -210,7 +296,21 @@ public:
     MFEM_VERIFY(elem_marker.Size() == pmesh->GetNE(), "");
     MFEM_VERIFY(vert_marker_gf.Size() == pmesh->GetNV(), "");
 
+    int num_procs = -1;
+    int myid = -1;
+
+    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
     map<int,int> interfaceGlobalToLocal;
+
+    std::vector<int> fos(num_procs);
+
+    {
+      HYPRE_Int* ftdofos = face_fes.GetTrueDofOffsets();
+      const int fstart = ftdofos[0];
+      MPI_Allgather(&fstart, 1, MPI_INT, fos.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    }
     
     for (int s=0; s<numSubdomains; ++s)
       {
@@ -248,7 +348,7 @@ public:
 		  if (it == interfaceGlobalToLocal.end())  // Create a new interface
 		    {
 		      interfaceGlobalToLocal[gi] = interfaces.size();
-		      interfaces.push_back(SubdomainInterface(sd0, sd1));
+		      interfaces.push_back(SubdomainInterface(sd0, sd1, myid));
 		    }
 		}
 		
@@ -258,6 +358,9 @@ public:
 		pmesh->GetElementVertices(i, v);
 		pmesh->GetElementEdges(i, e, ecor);
 		pmesh->GetElementFaces(i, f, fcor);
+
+		Vector elcenter(3);
+		pmesh->GetElementCenter(i, elcenter);
 		
 		for (int j = 0; j < v.Size(); j++)
 		  {
@@ -284,6 +387,8 @@ public:
 		
 		for (int k = 0; k < f.Size(); ++k)
 		  {
+		    MFEM_VERIFY(f[k] >= 0, "");
+		    
 		    Array<int> fv;
 		    pmesh->GetFaceVertices(f[k], fv);
 		    bool faceOn = true;
@@ -312,10 +417,27 @@ public:
 			if (tdof >= 0)  // if this is a true DOF
 			  {
 			    interfaces[interfaceIndex].InsertFaceIndex(f[k]);
+			    interfaces[interfaceIndex].SetOwningRank(myid);
 			  }
 			else
 			  {
 			    interfaces[interfaceIndex].InsertFaceIndex(-1 - f[k]);
+
+			    const int gtdof = face_fes.GetGlobalTDofNumber(fdof0);
+			    int r = -1;
+			    for (int p=0; p<num_procs; ++p)
+			      {
+				if (gtdof >= fos[p])
+				  {
+				    r = p;
+				    break;
+				  }
+			      }
+
+			    MFEM_VERIFY(r >= 0 && gtdof >= fos[r], "");
+			    
+			    interfaces[interfaceIndex].SetOwningRank(r);
+			    interfaces[interfaceIndex].SetSharingRank(myid);
 			  }
 		      }
 		  }
@@ -337,6 +459,10 @@ public:
             ++it;
 	  }
       }
+
+    // Construct interfaces[].faces from interfaces[].facesSet.
+    for (auto it = interfaces.begin(); it != interfaces.end(); ++it)
+      it->ConstructFacesVector(face_fes);
   }
 
   int* GetInterfaceGlobalIndices(std::vector<SubdomainInterface>& interfaces)
@@ -480,7 +606,7 @@ private:
     offsets[0] = 0;
     for (int i = 0; i < num_procs; ++i) {
       if (i == myid)
-	elemOffset = subdomainNumElements;
+	elemOffset = subdomainNumElements;  // For interfaces, this is the correct value only for processes owning faces on the interface. 
       
       subdomainNumElements += cts[i];
       procNumElems[i] = cts[i];
@@ -490,7 +616,7 @@ private:
     }
 
     MFEM_VERIFY(subdomainNumElements > 0, "");
-    
+
     // Assumption: all elements are of the same geometric type.
     Array<int> elVert;
 
@@ -498,7 +624,7 @@ private:
       pmesh->GetElementVertices(0, elVert);
     else
       {
-	std::set<int>::const_iterator it = interface->faces.begin();
+	std::set<int>::const_iterator it = interface->facesSet.begin();
 	const int f0 = ((*it) >= 0) ? (*it) : -1 - (*it);
 	pmesh->GetFaceVertices(f0, elVert);
       }
@@ -548,7 +674,7 @@ private:
     else
       {
 	int prev = -1;
-	for (std::set<int>::const_iterator it = interface->faces.begin(); it != interface->faces.end(); ++it)
+	for (std::vector<int>::const_iterator it = interface->faces.begin(); it != interface->faces.end(); ++it)
 	  {
 	    if ((*it) < 0)
 	      continue;
@@ -729,6 +855,20 @@ private:
     int subdomainNumElements = 0;
     GatherSubdomainOrInterfaceMeshData(attribute, numLocalElements, subdomainNumElements, elemOffset, interface);
 
+    /*
+    if (interface != NULL)
+      {
+	// For SERIAL_INTERFACES, set elemOffset based on the geometric number of faces, since the entire global interface mesh is built for both subdomains.
+	
+	const int numGeometricFaces = interface->NumFacesGeometrically();
+	MPI_Allgather(&numGeometricFaces, 1, MPI_INT, cts, 1, MPI_INT, MPI_COMM_WORLD);
+
+	elemOffset = 0;
+	for (int i = 0; i < myid; ++i)
+	  elemOffset += cts[i];
+      }
+    */
+    
     // Now we have enough data to build the subdomain mesh.
     Mesh *serialMesh = NULL;
 

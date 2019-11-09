@@ -37,6 +37,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <limits>
 
 #include "ddmesh.hpp"
 #include "ddoper.hpp"
@@ -54,8 +55,8 @@ double freq = 1.0, kappa;
 int dim;
 
 #ifdef AIRY_TEST
-#define SIGMAVAL -10981.4158900991  // 5 GHz
-//#define SIGMAVAL -43925.6635603965  // 10 GHz
+//#define SIGMAVAL -10981.4158900991  // 5 GHz
+#define SIGMAVAL -43925.6635603965  // 10 GHz
 //#define SIGMAVAL -175702.65424  // 20 GHz
 //#define SIGMAVAL -1601.0
 //#define SIGMAVAL -1009.0
@@ -411,8 +412,8 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
 	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
-      (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-      //(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+      (int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
 
@@ -427,7 +428,7 @@ int main(int argc, char *argv[])
 
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {2, 2, 2};
+   int nxyzSubdomains[3] = {1, 1, 8};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -438,6 +439,12 @@ int main(int argc, char *argv[])
      delete subdomain;
    }
 
+   if (numSubdomains > 10000)
+     {
+       MFEM_VERIFY(numSubdomains < 10000, "SubdomainInterface::SetGlobalIndex will overflow");
+       return 3;
+     }
+   
    if (myid == 0)
      {
        cout << "Subdomain partition " << nxyzSubdomains[0] << ", " << nxyzSubdomains[1] << ", " << nxyzSubdomains[2] << endl;
@@ -556,13 +563,13 @@ int main(int argc, char *argv[])
      {
        //int nxyzGlobal[3] = {1, 1, 1};
        //int nxyzGlobal[3] = {1, 1, 2};
-       int nxyzGlobal[3] = {1, 2, 2};
+       //int nxyzGlobal[3] = {1, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {6, 6, 4};
        //int nxyzGlobal[3] = {2, 2, 8};
-       //int nxyzGlobal[3] = {6, 6, 8};  // 288
+       int nxyzGlobal[3] = {6, 6, 8};  // 288
        //int nxyzGlobal[3] = {8, 6, 6};  // 288
        //int nxyzGlobal[3] = {6, 12, 8};  // 576
        //int nxyzGlobal[3] = {12, 6, 8};  // 576
@@ -700,27 +707,151 @@ int main(int argc, char *argv[])
 	     }
 	   
 	   smeshInterfaces[i] = sdMeshGen.CreateSerialInterfaceMesh(interfaceFaceOffset[iloc], interfaces[iloc], mustBuild);
+	   //interfaceFaceOffset[iloc] = 0;
 #else
 	   pmeshInterfaces[i] = sdMeshGen.CreateParallelInterfaceMesh(interfaces[iloc]);
 #endif
 	 }
        else
 	 {
-	   // This is not elegant. 
+	   // This is not elegant. The problem is that SubdomainParMeshGenerator uses MPI_COMM_WORLD, so every
+	   // process must call its functions, even if the process does not touch the interface. A solution would
+	   // be to use the appropriate communicator or point-to-point communication, which would make the interface
+	   // mesh generation more parallel.
 	   const int sd0 = interfaceGI[i] / numSubdomains;  // globalIndex = (numSubdomains * sd0) + sd1;
 	   const int sd1 = interfaceGI[i] - (numSubdomains * sd0);  // globalIndex = (numSubdomains * sd0) + sd1;
-	   SubdomainInterface emptyInterface(sd0, sd1);
+	   SubdomainInterface emptyInterface(sd0, sd1, myid);
 	   emptyInterface.SetGlobalIndex(numSubdomains);
 #ifdef SERIAL_INTERFACES
 	   int elemOffset = 0;
 	   Mesh* ifmesh = sdMeshGen.CreateSerialInterfaceMesh(elemOffset, emptyInterface, 1);
 	   MFEM_VERIFY(ifmesh == NULL, "");
+	   smeshInterfaces[i] = NULL;
 #else
 	   pmeshInterfaces[i] = sdMeshGen.CreateParallelInterfaceMesh(emptyInterface);
 #endif
 	 }
      }
 
+   { // At this point, owningRank is set locally in each SubdomainInterface. Now determine the non-owning process.
+     
+     // First, count the number of local interfaces owned by each rank.
+
+     std::vector<int> numOwnedByRank, numSharedByRank;
+     numOwnedByRank.assign(num_procs, 0);
+     numSharedByRank.assign(num_procs, 0);
+
+     for (auto si : interfaces)
+       {
+	 numOwnedByRank[si.GetOwningRank()]++;
+       }
+
+     MPI_Alltoall(numOwnedByRank.data(), 1, MPI_INT, numSharedByRank.data(), 1, MPI_INT, MPI_COMM_WORLD);
+     
+#ifdef SERIAL_INTERFACES
+     // Second, send interface indices to their owners.
+     for (int r=0; r<num_procs; ++r)
+       {
+	 if (numOwnedByRank[r] > 0 && r != myid)
+	   {
+	     std::vector<int> ifid(numOwnedByRank[r]);
+	     int cnt = 0;
+	     
+	     // This looks like bad complexity, but the small number of local interfaces and neighboring processes should keep this from being slow.
+	     for (int i=0; i<numInterfaces; ++i)
+	       {
+		 if (interfaceGlobalToLocalMap[i] >= 0)
+		   {
+		     if (interfaces[interfaceGlobalToLocalMap[i]].GetOwningRank() == r)
+		       {
+			 ifid[cnt] = i;
+			 cnt++;
+		       }
+		   }
+	       }
+
+	     MFEM_VERIFY(cnt == numOwnedByRank[r], "");
+
+	     MPI_Send(ifid.data(), numOwnedByRank[r], MPI_INT, r, myid, MPI_COMM_WORLD);
+	   }
+
+	 if (numSharedByRank[r] > 0 && r != myid)
+	   {
+	     std::vector<int> ifid(numSharedByRank[r]);
+
+	     MPI_Recv(ifid.data(), numSharedByRank[r], MPI_INT, r, r, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+	     for (int i=0; i<numSharedByRank[r]; ++i)
+	       {
+		 MFEM_VERIFY(interfaceGlobalToLocalMap[ifid[i]] >= 0, "");
+		 interfaces[interfaceGlobalToLocalMap[ifid[i]]].SetSharingRank(r);
+	       }
+	   }
+       }
+
+     // Third, verify that owning and sharing ranks are set.
+     for (auto si : interfaces)
+       {
+	 MFEM_VERIFY(si.GetOwningRank() == myid || si.GetSharingRank() == myid, "");
+	 MFEM_VERIFY(si.GetOwningRank() >= 0, ""); // && si.GetSharingRank() >= 0, "");
+       }
+
+     // Fourth, overwrite interfaceFaceOffset on sharing ranks with the values received from owning ranks.
+     for (int r=0; r<num_procs; ++r)
+       {
+	 if (numSharedByRank[r] > 0 && r != myid)
+	   {
+	     std::vector<int> ifos(numSharedByRank[r]);
+	     int cnt = 0;
+	     
+	     // This looks like bad complexity, but the small number of local interfaces and neighboring processes should keep this from being slow.
+	     for (int i=0; i<numInterfaces; ++i)
+	       {
+		 const int ifloc = interfaceGlobalToLocalMap[i];
+		 if (ifloc >= 0)
+		   {
+		     if (interfaces[ifloc].GetSharingRank() == r)
+		       {
+			 ifos[cnt] = interfaceFaceOffset[ifloc];
+			 cnt++;
+		       }
+		   }
+	       }
+
+	     MFEM_VERIFY(cnt == numSharedByRank[r], "");
+
+	     MPI_Send(ifos.data(), numSharedByRank[r], MPI_INT, r, num_procs + myid, MPI_COMM_WORLD);
+	   }
+
+	 if (numOwnedByRank[r] > 0 && r != myid)
+	   {
+	     std::vector<int> ifos(numOwnedByRank[r]);
+
+	     MPI_Recv(ifos.data(), numOwnedByRank[r], MPI_INT, r, num_procs + r, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+	     int cnt = 0;
+	     
+	     for (int i=0; i<numInterfaces; ++i)
+	       {
+		 const int ifloc = interfaceGlobalToLocalMap[i];
+		 if (ifloc >= 0)
+		   {
+		     if (interfaces[ifloc].GetOwningRank() == r)
+		       {
+			 interfaceFaceOffset[ifloc] = ifos[cnt];
+			 cnt++;
+		       }
+		   }
+	       }
+	     
+	     MFEM_VERIFY(cnt == numOwnedByRank[r], "");
+	   }
+       }
+#endif
+   }
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   
    /*
    {
      // Print the first vertex on each process, in order of rank.
@@ -809,8 +940,21 @@ int main(int argc, char *argv[])
      cout << "Number of mesh elements: " << globalNE << endl;
      cout << "Number of finite element unknowns: " << size << endl;
      cout << "Root local number of finite element unknowns: " << fespace->TrueVSize() << endl;
-   }
 
+     /*
+     cout << "Maximum value for int: " << std::numeric_limits<int>::max() << endl;
+     cout << "Maximum value for HYPRE_Int: " << std::numeric_limits<HYPRE_Int>::max() << endl;
+     cout << "Maximum value for double: " << std::numeric_limits<double>::max() << endl;
+     */
+     
+     {
+       const HYPRE_Int maxint = 0.9*std::numeric_limits<int>::max();
+       if (size > maxint)
+	 cout << "WARNING: int max exceeded! Change type int to HYPRE_Int?" << endl;
+       MFEM_VERIFY(size < maxint, "");
+     }
+   }
+ 
    /*
    if (myid == 0)
    { // Print the interface mesh
@@ -839,6 +983,30 @@ int main(int argc, char *argv[])
 			    hmin);
 
    cout << "DDI size " << ddi.Height() << " by " << ddi.Width() << endl;
+
+   /*
+   {
+     Vector t(ddi.Width());
+     Vector s(ddi.Width());
+     t = 1.0;
+
+     //for (int i=ddi.Width()/2; i<ddi.Width(); ++i)
+     //  t[i] = 2.0;
+
+     for (int i=0; i<ddi.Width(); ++i)
+       t[i] = i;
+
+     if (myid == 1)
+       {
+	 //t = 2.0;
+	 for (int i=0; i<ddi.Width(); ++i)
+	   t[i] += ddi.Width();
+       }
+     
+     s = 0.0;
+     ddi.TestIFMult(t, s);
+   }
+   */
    
    //return 0;
    
@@ -1099,6 +1267,13 @@ int main(int argc, char *argv[])
 
        cout << myid << ": Bdd norm " << Bdd.Norml2() << endl;
 
+       /*
+       {
+	 xdd = 0.0;
+	 ddi.TestIFMult(Bdd, xdd);
+       }
+       */
+       
        cout << "Solving DD system with gmres" << endl;
 
        GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
