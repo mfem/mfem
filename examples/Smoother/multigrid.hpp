@@ -3,6 +3,7 @@
 #include "mfem.hpp"
 #include "util.hpp"
 #include "blkschwarzp.hpp"
+#include "petsc.h"
 
 namespace mfem {
 

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <boost/math/special_functions/airy.hpp>
 #include "multigrid.hpp"
+#include "blkams.hpp"
 #include "petsc.h"
 
 using namespace std;
@@ -89,8 +90,8 @@ int main(int argc, char *argv[])
    }
 
    // Angular frequency
-   // omega = 2.0*k*M_PI;
-   omega = k;
+   omega = 2.0*k*M_PI;
+   // omega = k;
 
    // 2. Read the mesh from the given mesh file.
    Mesh *mesh;
@@ -265,30 +266,19 @@ int main(int argc, char *argv[])
          blockA(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
       }
    }
-   // blockA(0,0) = A_EE;
-   // blockA(0,1) = A_EH;
-   // blockA(1,0) = A_HE;
-   // blockA(1,1) = A_HH;
 
+   // double nnz = A_HH->NNZ();
+   // double ndof = A_HH->GetGlobalNumRows();
+   // double est_mem_b = nnz*12.0 + (ndof+1.0)*4; 
+   // double gb = est_mem_b*4.0/pow(1024.0,3);
+
+   // mfem::out << "Estimated memory taken by the global matrix: " <<  gb << endl;
 
    int maxit(500);
    double rtol(1.e-6);
    double atol(1.e-6);
 
-   // {
-   //    PetscParMatrix Apetsc(MPI_COMM_WORLD, LS_Maxwellop, Operator::PETSC_MATAIJ);
-   //    delete LS_Maxwellop;
-   //    Mat Am = Apetsc;
-   //    int ierr = MatConvert(Am, MATAIJ, MAT_INITIAL_MATRIX, &Am); CHKERRQ(ierr);
-   //    PetscParMatrix ApetscAIJ(Am);
-   //    PetscLinearSolver solver(ApetscAIJ);
-
-   //    solver.Mult(trueRhs,trueX);
-   // }
-   
-
    // trueX = 0.0;
-   
    CGSolver pcg(MPI_COMM_WORLD);
    pcg.SetAbsTol(atol);
    pcg.SetRelTol(rtol);
@@ -299,11 +289,14 @@ int main(int argc, char *argv[])
    chrono.Start();
    BlockMGSolver * precMG = new BlockMGSolver(blockA,P,fespaces);
    precMG->SetTheta(1.0/5.0);
-   int lv_coarse = min(ref_levels,ref_levels);
-   int levels = ref_levels - lv_coarse; 
-   // BlkParSchwarzSmoother * precAS = new BlkParSchwarzSmoother(fespaces[lv_coarse]->GetParMesh(),levels,fespaces[ref_levels],blockA);
+   // int lv_coarse = min(ref_levels,ref_levels-1);
+   // int levels = ref_levels - lv_coarse; 
+   // BlkParSchwarzSmoother * precAS = new BlkParSchwarzSmoother(fespaces[lv_coarse]->GetParMesh(),levels,fespaces[ref_levels],LS_Maxwellop);
    chrono.Stop();
-   cout << "MG Setup time: " << chrono.RealTime() << endl;
+   if (myid == 0)
+   {
+      cout << "MG Setup time: " << chrono.RealTime() << endl;
+   }
    
    chrono.Clear();
    chrono.Start();
@@ -311,26 +304,18 @@ int main(int argc, char *argv[])
    // pcg.SetPreconditioner(*precAS);
    pcg.Mult(trueRhs, trueX);
    chrono.Stop();
-   cout << "MG Solution time time: " << chrono.RealTime() << endl;
-   
    delete precMG;
    // delete precAS;
-
-
    
    // trueX = 0.0;
-   // PetscParMatrix * petsc = new PetscParMatrix(MPI_COMM_WORLD,LS_Maxwellop,Operator::PETSC_MATAIJ);
-   // // PetscLinearSolver * invA = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
-   // // invA->SetOperator(*petsc);
-
-   // PetscLinearSolver *invA = new PetscLinearSolver(*petsc);
    // invA->Mult(trueRhs,trueX);
-
-
-
-
    MFEMFinalizePetsc();
 
+   if (myid == 0)
+   {
+      cout << "MG Solution time time: " << chrono.RealTime() << endl;
+   }   
+   // cin.get();
    //  if(myid == 0)
    //    cout << "MG prec Solution time: " << chrono.RealTime() << endl;
 
@@ -339,8 +324,8 @@ int main(int argc, char *argv[])
    // chrono.Start();
    // Block_AMSSolver * precAMS = new Block_AMSSolver(block_trueOffsets,fespaces);
    // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
-   // // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
-   // precAMS->SetOperator(blockA);
+   // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
+   // precAMS->SetOperator(LS_Maxwellop);
    // precAMS->SetTheta(1.0/5.0);
    // // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
    // precAMS->SetCycleType("023414320");
@@ -390,32 +375,32 @@ int main(int argc, char *argv[])
 
    // ParGridFunction ExactE(fespace);
 
-   // if (visualization)
-   // {
-   //    // 8. Connect to GLVis.
-   //    char vishost[] = "localhost";
-   //    int  visport   = 19916;
-   //    socketstream E_sock(vishost, visport);
-   //    E_sock << "parallel " << num_procs << " " << myid << "\n";
-   //    E_sock.precision(8);
-   //    E_sock << "solution\n" << *pmesh << *E_gf << "window_title 'Electric field'" << endl;
-   //    // socketstream Exact_sock(vishost, visport);
-   //    // Exact_sock << "parallel " << num_procs << " " << myid << "\n";
-   //    // Exact_sock.precision(8);
-   //    // Exact_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Electric field'" << endl;
+   if (visualization)
+   {
+      // 8. Connect to GLVis.
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream E_sock(vishost, visport);
+      E_sock << "parallel " << num_procs << " " << myid << "\n";
+      E_sock.precision(8);
+      E_sock << "solution\n" << *pmesh << *E_gf << "window_title 'Electric field'" << endl;
+      // socketstream Exact_sock(vishost, visport);
+      // Exact_sock << "parallel " << num_procs << " " << myid << "\n";
+      // Exact_sock.precision(8);
+      // Exact_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Electric field'" << endl;
  
-   //  // MPI_Barrier(pmesh->GetComm());
-   //    // socketstream Eex_sock(vishost, visport);
-   //    // Eex_sock << "parallel " << num_procs << " " << myid << "\n";
-   //    // Eex_sock.precision(8);
-   //    // Eex_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Exact Electric field'" << endl;
-   // }
+    // MPI_Barrier(pmesh->GetComm());
+      // socketstream Eex_sock(vishost, visport);
+      // Eex_sock << "parallel " << num_procs << " " << myid << "\n";
+      // Eex_sock.precision(8);
+      // Eex_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Exact Electric field'" << endl;
+   }
 
    delete A_EE;
    delete A_HE;
    delete A_EH;
    delete A_HH;
-   // delete LS_Maxwellop;
+   delete LS_Maxwellop;
    delete a_EE;
    delete a_HE;
    delete a_HH;
@@ -433,6 +418,8 @@ int main(int argc, char *argv[])
    delete fespace;
    delete pmesh;
    
+   // cout << "Freed memory: " << endl;
+   // cin.get();
    MPI_Finalize();
    return 0;
 }
@@ -520,7 +507,35 @@ void f_exact_H(const Vector &x, Vector &f)
    }
    else if (sol == 2) // point source
    {
-      MFEM_ABORT("Case unfinished");
+       // shift to avoid singularity
+      double x0 = x + 0.1;
+      double x1 = y + 0.1;
+      double x2 = z + 0.1;
+      //
+      double r = sqrt(x0 * x0 + x1 * x1 + x2 * x2);
+
+      E[0] = cos(omega * r);
+      E[1] = 0.0;
+      E[2] = 0.0;
+
+      double r_x = x0 / r;
+      double r_y = x1 / r;
+      double r_z = x2 / r;
+      double r_xy = -(r_x / r) * r_y;
+      double r_xz = -(r_x / r) * r_z;
+      double r_yx = r_xy;
+      double r_yy = (1.0 / r) * (1.0 - r_y * r_y);
+      double r_zx = r_xz;
+      double r_zz = (1.0 / r) * (1.0 - r_z * r_z);
+
+      curlE[0] = 0.0;
+      curlE[1] = -omega * r_z * sin(omega * r);
+      curlE[2] =  omega * r_y * sin(omega * r);
+
+      curl2E[0] = omega * ((r_yy + r_zz) * sin(omega * r) +
+                           (omega * r_y * r_y + omega * r_z * r_z) * cos(omega * r));
+      curl2E[1] = -omega * (r_yx * sin(omega * r) + omega * r_y * r_x * cos(omega * r));
+      curl2E[2] = -omega * (r_zx * sin(omega * r) + omega * r_z * r_x * cos(omega * r));
    }
    else if (sol == 3) // plane wave
    {

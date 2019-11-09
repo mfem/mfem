@@ -22,12 +22,15 @@ private:
    Array<SparseMatrix * > PatchMat;
    /// The linear system matrix
    Array2D<HypreParMatrix*> blockA;
+   BlockOperator * bop;
    Array2D<PatchRestriction *> R;
    Array2D<par_patch_assembly *> P;
    BlockOperator * blk = nullptr;
 public:
+   // BlkParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_,
+   //                       Array2D<HypreParMatrix*> blockA_);
    BlkParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_,
-                         Array2D<HypreParMatrix*> blockA_);
+                         BlockOperator * bop_);                      
    void SetNumSmoothSteps(const int iter) {maxit = iter;}
    void SetDumpingParam(const double dump_param) {theta = dump_param;}
   

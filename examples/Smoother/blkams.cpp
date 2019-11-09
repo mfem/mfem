@@ -48,15 +48,22 @@ Block_AMSSolver::Block_AMSSolver(Array<int> offsets_, std::vector<ParFiniteEleme
 }
 
 
-void Block_AMSSolver::SetOperator(Array2D<HypreParMatrix*> Op)
+void Block_AMSSolver::SetOperator(BlockOperator * bop)
 {
-   A_array = Op;
+   A_array.SetSize(2,2);
+   for (int i=0; i<2; i++)
+   {
+      for (int j=0; j<2; j++)
+      {
+         A_array(i,j) = static_cast<HypreParMatrix *>(&bop->GetBlock(i,j));
+      }
+   }
    if (sType == Block_AMS::BlkSmootherType::SCHWARZ)
    {
       // int lvls = std::min(1,nrmeshes);
       // int lvls = nrmeshes;
       int lvls = 1;
-      D = new BlkParSchwarzSmoother(fespaces[nrmeshes-lvls]->GetParMesh(),lvls-1,fespaces[nrmeshes-1],Op);
+      D = new BlkParSchwarzSmoother(fespaces[nrmeshes-lvls]->GetParMesh(),lvls-1,fespaces[nrmeshes-1],bop);
       // dynamic_cast<BlkParSchwarzSmoother *>(D)->SetDumpingParam(1.0);
       // dynamic_cast<BlkParSchwarzSmoother *>(D)->SetNumSmoothSteps(1);
    }
@@ -88,7 +95,6 @@ void Block_AMSSolver::SetOperators()
    hRAP_Pz.SetSize(2,2);
    for (int i=0; i<2 ; i++)
    {
-      A->SetBlock(i,i,A_array(i,i));
       G->SetBlock(i,i,Grad);
       Px->SetBlock(i,i,Pix);
       Py->SetBlock(i,i,Piy);

@@ -10,18 +10,19 @@ using namespace mfem;
 
 
 BlkParSchwarzSmoother::BlkParSchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
-ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
-: Solver(blockA_(0,0)->Height()+blockA_(1,0)->Height(), 
-         blockA_(0,1)->Width() +blockA_(1,1)->Width()), blockA(blockA_)
+ParFiniteElementSpace *fespace_, BlockOperator * bop_)
+: Solver(bop_->Height(),bop_->Width()), bop(bop_)         
 {
    // construct and invert the patches
    // This can be modified so only the last part of the assembly is repeated since all the 
    // matrices have the same structure
    P.SetSize(2,2);
+   blockA.SetSize(2,2);
    for (int i=0; i<2; i++)
    {
       for (int j=0; j<2; j++)
       {
+         blockA(i,j) = static_cast<HypreParMatrix *>(&bop->GetBlock(i,j));
          P(i,j) = new par_patch_assembly(cpmesh_,ref_levels_, fespace_, blockA(i,j));
       }
    }
@@ -54,7 +55,6 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
                blockPatchMat.SetBlock(i,j,P(i,j)->PatchMat[ip]);
             }
          }
-         // SparseMatrix * smat = blockPatchMat.CreateMonolithic();
          PatchMat[ip] = blockPatchMat.CreateMonolithic();
          for (int i=0; i<2; ++i)
          {
@@ -63,19 +63,11 @@ ParFiniteElementSpace *fespace_, Array2D<HypreParMatrix * > blockA_)
                delete P(i,j)->PatchMat[ip]; P(i,j)->PatchMat[ip] = nullptr;
             }
          }
-   //       // std::vector<int> row_starts(2);
-   //       // row_starts[0] = 0;
-   //       // row_starts[1] = smat->NumRows();
-   //       // HypreParMatrix hypremat(MPI_COMM_SELF,smat->NumRows(),(HYPRE_Int*) row_starts.data(), smat);
-   //       // PetscParMatrix petsc(&hypremat, Operator::PETSC_MATAIJ);
-   //       // delete smat;
-   //       // PatchInv[ip] = new PetscLinearSolver(MPI_COMM_SELF, "direct");
-   //       // PatchInv[ip]->SetOperator(petsc);
          // PatchInv[ip] = new UMFPackSolver;
          // PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
          // PatchInv[ip]->SetOperator(*PatchMat[ip]);
+         // PatchInv[ip]->SetPrintLevel(2);
          PatchInvKLU[ip] = new KLUSolver(*PatchMat[ip]);
-         // PatchInvKLU[ip]->SetOperator(*PatchMat[ip]);
       }
    }
    R.SetSize(2,2);
@@ -92,7 +84,7 @@ void BlkParSchwarzSmoother::Mult(const Vector &r, Vector &z) const
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
 
-   z = 0.0; // initilize the correction to zero
+   z = 0.0; // initialize the correction to zero
 
    Array<int> offsets(3);
    offsets[0] = 0;
@@ -187,6 +179,44 @@ BlkParSchwarzSmoother::~BlkParSchwarzSmoother()
    }
    P.DeleteAll();
    R.DeleteAll();
+   // estimate of KLU solver memory
+   // double gb1 = 0.0;
+   // double gb2 = 0.0;
+   // double gb3 = 0.0;
+
+   // double UMFgb1 = 0.0;
+   // double UMFgb2 = 0.0;
+   // double UMFgb3 = 0.0;
+   // mfem::out << "nrpatch = " << nrpatch << endl;
+   // for (int ip=0; ip<nrpatch; ++ip)
+   // {
+   //    if (PatchMat[ip]) 
+   //    {
+   //       int nnz1 = PatchMat[ip]->NumNonZeroElems();
+   //       int n = PatchMat[ip]->Height();
+   //       gb1 += nnz1 * 12.0 + (n+1.0)*4.0;
+   //    }
+   //    if (PatchInv[ip])
+   //    {
+   //       int units = PatchInv[ip]->Info[UMFPACK_SIZE_OF_UNIT];
+   //       int SymGB = PatchInv[ip]->Info[UMFPACK_SYMBOLIC_PEAK_MEMORY];
+   //       int NumGB = PatchInv[ip]->Info[UMFPACK_NUMERIC_SIZE_ESTIMATE];
+   //       int TotGB = PatchInv[ip]->Info[UMFPACK_PEAK_MEMORY_ESTIMATE];
+
+   //       UMFgb1 += SymGB*units;
+   //       UMFgb2 += NumGB*units;
+   //       UMFgb3 += TotGB*units;
+   //       // int nnz2 = pow(PatchInv[ip]->Height(),4.0/3.0);
+   //       // int n = PatchInv[ip]->Height();
+   //       // gb2 += nnz2 * 12.0 + (n+1.0)*4.0;
+   //    } 
+   //    if (PatchInvKLU[ip])
+   //    {
+   //       int nnz3 = pow(PatchInvKLU[ip]->Height(),4.0/3.0);
+   //       int n = PatchInvKLU[ip]->Height();
+   //       gb3 += nnz3 * 12.0 + (n+1.0)*4.0;
+   //    }  
+   // }
    for (int ip=0; ip<nrpatch; ++ip)
    {
        if (PatchMat[ip])  delete PatchMat[ip];
@@ -196,4 +226,10 @@ BlkParSchwarzSmoother::~BlkParSchwarzSmoother()
    PatchMat.DeleteAll();
    PatchInv.DeleteAll();
    PatchInvKLU.DeleteAll();
+
+   // mfem::out << "Total storage for PatchMat       : " << gb1/pow(1024.0,3) << " GB " << endl;
+   // mfem::out << "Symbolic storage for PatchInvUMF : " << UMFgb1/pow(1024.0,3) << " GB " << endl;
+   // mfem::out << "Numeric storage for PatchInvUMF  : " << UMFgb2/pow(1024.0,3) << " GB " << endl;
+   // mfem::out << "Total storage for PatchInvUMF    : " << UMFgb3/pow(1024.0,3) << " GB " << endl;
+   // mfem::out << "Total storage for PatchInvKLU: " << gb3/pow(1024.0,3) << " GB " << endl;
 }

@@ -18,7 +18,7 @@ class Block_AMSSolver : public Solver
 public:
    Block_AMSSolver(Array<int> offsets_, std::vector<ParFiniteElementSpace *>fespaces_);
    virtual void SetOperator(const Operator & ) {}
-   virtual void SetOperator(Array2D<HypreParMatrix*> Op);
+   virtual void SetOperator(BlockOperator * bop);
    void SetOperators();
    void SetTheta(const double a);
    void SetSmootherType(Block_AMS::BlkSmootherType type){sType = type;}

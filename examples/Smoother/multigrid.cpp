@@ -158,28 +158,37 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
       BlkP[k-1]->SetBlock(1,1,P[k-1]);
    }
    // Set up coarse solve operator
-   // Convert the corse grid block matrix to a HypreParMatrix
+   // Convert the coarse grid blockmatrix to a HypreParMatrix
    Array<int> offsets(3);
    offsets[0]=0;
    offsets[1]=A[0](0,0)->Height();
    offsets[2]=A[0](1,1)->Height();
    offsets.PartialSum();
-   Array2D<double> coeff(2,2);
-   coeff(0,0) = 1.0;  coeff(0,1) = 1.0;
-   coeff(1,0) = 1.0;  coeff(1,1) = 1.0;
+
+   BlkA[0] = new BlockOperator(offsets);
+   for (int i=0; i<2; i++)
+   {
+      for (int j=0; j<2; j++)
+      {
+         BlkA[0]->SetBlock(i,j,A[0](i,j));
+      }
+   }
+
    // Convert to PetscParMatrix
    HypreParMatrix * Ac;
-   Ac = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD, offsets, A[0], coeff);
+   // Ac = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD, offsets, A[0]);
+   Ac = CreateHypreParMatrixFromBlocks(offsets, BlkA[0]);
    // Convert to PetscParMatrix
    PetscParMatrix * petsc = new PetscParMatrix(Ac, Operator::PETSC_MATAIJ);
    delete Ac;
    invAc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
    invAc->SetOperator(*petsc);
    delete petsc;
+
    // Smoother
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
-      S[i] = new BlkParSchwarzSmoother(fespaces[i]->GetParMesh(),1,fespaces[i+1],A[i+1]);
+      S[i] = new BlkParSchwarzSmoother(fespaces[i]->GetParMesh(),1,fespaces[i+1],BlkA[i+1]);
       // S[i]->SetDumpingParam(1.0/5.0);
    }
 }
