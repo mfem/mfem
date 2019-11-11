@@ -32,6 +32,7 @@ set(SRCS
   nonlininteg.cpp
   staticcond.cpp
   tmop.cpp
+  tmop_tools.cpp
   )
 
 set(HDRS
