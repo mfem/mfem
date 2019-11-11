@@ -30,6 +30,7 @@
 #include "datacollection.hpp"
 #include "estimators.hpp"
 #include "staticcond.hpp"
+#include "tmop.hpp"
 #include "tmop_tools.hpp"
 
 #ifdef MFEM_USE_MPI
