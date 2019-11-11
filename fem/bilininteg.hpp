@@ -1682,7 +1682,7 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
-   
+
 #ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
@@ -1698,6 +1698,79 @@ public:
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q)
+      : MQ(&q) { Q = NULL; maps = NULL; geom = NULL; }
+
+   /** Given a particular Finite Element
+       computes the element stiffness matrix elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+   /** Given a trial and test Finite Element computes the element stiffness
+       matrix elmat. */
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   /// Perform the local action of the BilinearFormIntegrator
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      const Vector &elfun, Vector &elvect);
+
+   virtual void ComputeElementFlux(const FiniteElement &el,
+                                   ElementTransformation &Trans,
+                                   Vector &u, const FiniteElement &fluxelem,
+                                   Vector &flux, int with_coef = 1);
+
+   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+                                    ElementTransformation &Trans,
+                                    Vector &flux, Vector *d_energy = NULL);
+
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe);
+};
+
+/** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
+    can be a scalar or a matrix coefficient. */
+class MechanicsIntegrator: public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+
+private:
+   Vector vec, pointflux, shape;
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape, dshapedxt, invdfdx, mq;
+   DenseMatrix te_dshape, te_dshapedxt;
+#endif
+
+   // PA extension
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, dofs1D, quad1D;
+   Vector pa_data;
+   
+#ifdef MFEM_USE_CEED
+   // CEED extension
+   CeedData* ceedDataPtr;
+   double* ktan_ptr;
+#endif
+
+public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+   MechanicsIntegrator() { Q = NULL; MQ = NULL; maps = NULL; geom = NULL; }
+
+   /// Construct a diffusion integrator with a scalar coefficient q
+   MechanicsIntegrator(Coefficient &q)
+      : Q(&q) { MQ = NULL; maps = NULL; geom = NULL; }
+
+   /// Construct a diffusion integrator with a matrix coefficient q
+   MechanicsIntegrator(MatrixCoefficient &q)
       : MQ(&q) { Q = NULL; maps = NULL; geom = NULL; }
 
    /** Given a particular Finite Element
