@@ -430,7 +430,8 @@ PetscParMatrix * ParMult(const PetscParMatrix *A, const PetscParMatrix *B);
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P);
 
 /// Returns the matrix R * A * P
-PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A, PetscParMatrix *P);
+PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A,
+                                     PetscParMatrix *P);
 
 /// Returns the matrix P^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P);

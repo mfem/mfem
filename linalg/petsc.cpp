@@ -1155,7 +1155,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             for (int j = ii[i]; j < ii[i+1]; j++)
             {
                pjj[j] = jj[j];
-               if (j != ii[i] && issorted) issorted = (pjj[j] > pjj[j-1]);
+               if (j != ii[i] && issorted) { issorted = (pjj[j] > pjj[j-1]); }
                pdata[j] = data[j];
             }
             if (!issorted)
@@ -1486,7 +1486,8 @@ void PetscParMatrix::Shift(const Vector & s)
    XX->ResetArray();
 }
 
-PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A, PetscParMatrix *P)
+PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A,
+                                     PetscParMatrix *P)
 {
    MFEM_VERIFY(A->Width() == P->Height(),
                "Petsc TripleMatrixProduct: Number of local cols of A " << A->Width() <<
