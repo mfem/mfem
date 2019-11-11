@@ -42,23 +42,23 @@ void initCeedCoeff(Coefficient* Q, CeedData* ptr)
 
 static CeedElemTopology GetCeedTopology(Geometry::Type geom)
 {
-   switch(geom)
+   switch (geom)
    {
       case Geometry::SEGMENT:
-      return CEED_LINE;
+         return CEED_LINE;
       case Geometry::TRIANGLE:
-      return CEED_TRIANGLE;
+         return CEED_TRIANGLE;
       case Geometry::SQUARE:
-      return CEED_QUAD;
+         return CEED_QUAD;
       case Geometry::TETRAHEDRON:
-      return CEED_TET;
+         return CEED_TET;
       case Geometry::CUBE:
-      return CEED_HEX;
+         return CEED_HEX;
       case Geometry::PRISM:
-      return CEED_PRISM;
+         return CEED_PRISM;
       default:
-      MFEM_ABORT("This type of element is not supported");
-      return CEED_PRISM;
+         MFEM_ABORT("This type of element is not supported");
+         return CEED_PRISM;
    }
 }
 
@@ -81,15 +81,17 @@ void initCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
    mfem::DenseMatrix grad_i(P, dim);
    const mfem::Table &el_dof = fes.GetElementToDofTable();
    mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
-   const mfem::TensorBasisElement * tfe = dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   if(tfe){//Lexicographic ordering using dof_map
+   const mfem::TensorBasisElement * tfe =
+      dynamic_cast<const mfem::TensorBasisElement *>(fe);
+   if (tfe) //Lexicographic ordering using dof_map
+   {
       const mfem::Array<int>& dof_map = tfe->GetDofMap();
       for (int i = 0; i < Q; i++)
       {
          const mfem::IntegrationPoint &ip = ir.IntPoint(i);
          qref(0,i) = ip.x;
-         if (dim>1) qref(1,i) = ip.y;
-         if (dim>2) qref(2,i) = ip.z;
+         if (dim>1) { qref(1,i) = ip.y; }
+         if (dim>2) { qref(2,i) = ip.z; }
          qweight(i) = ip.weight;
          fe->CalcShape(ip, shape_i);
          fe->CalcDShape(ip, grad_i);
@@ -111,13 +113,15 @@ void initCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
             tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
          }
       }
-   }else{//Native ordering
+   }
+   else  //Native ordering
+   {
       for (int i = 0; i < Q; i++)
       {
          const mfem::IntegrationPoint &ip = ir.IntPoint(i);
          qref(0,i) = ip.x;
-         if (dim>1) qref(1,i) = ip.y;
-         if (dim>2) qref(2,i) = ip.z;
+         if (dim>1) { qref(1,i) = ip.y; }
+         if (dim>2) { qref(2,i) = ip.z; }
          qweight(i) = ip.weight;
          fe->CalcShape(ip, shape_i);
          fe->CalcDShape(ip, grad_i);
@@ -156,7 +160,8 @@ void initCeedBasisAndRestrictionTensor(const mfem::FiniteElementSpace &fes,
    mfem::Mesh *mesh = fes.GetMesh();
    const mfem::FiniteElement *fe = fes.GetFE(0);
    const int order = fes.GetOrder(0);
-   const mfem::TensorBasisElement * tfe = dynamic_cast<const mfem::TensorBasisElement *>(fe);
+   const mfem::TensorBasisElement * tfe =
+      dynamic_cast<const mfem::TensorBasisElement *>(fe);
    MFEM_VERIFY(tfe, "invalid FE");
    const mfem::Array<int>& dof_map = tfe->GetDofMap();
    const mfem::FiniteElement *fe1d =

@@ -27,28 +27,39 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    const int order = fes.GetOrder(0);
    const int ir_order = irm.GetOrder();
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
-   
+
    mesh->EnsureNodes();
-   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0)) ? true : false;
+   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(
+                                                                         0)) ? true : false;
    const mfem::IntegrationRule &ir = tensor ?
-      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
-      irm;
-   if (tensor) {
-      initCeedBasisAndRestrictionTensor(fes, ir, ceed, &ceedData.basis, &ceedData.restr); 
-   }else{
+                                     mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
+                                     irm;
+   if (tensor)
+   {
+      initCeedBasisAndRestrictionTensor(fes, ir, ceed, &ceedData.basis,
+                                        &ceedData.restr);
+   }
+   else
+   {
       initCeedBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
    }
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   const bool mesh_tensor = dynamic_cast<const mfem::TensorBasisElement *>(mesh_fes->GetFE(0)) ? true : false;
+   const bool mesh_tensor = dynamic_cast<const mfem::TensorBasisElement *>
+                            (mesh_fes->GetFE(0)) ? true : false;
    const mfem::IntegrationRule &mesh_ir = mesh_tensor ?
-      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
-      irm;
-   if(mesh_tensor) {
-      initCeedBasisAndRestrictionTensor(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
-   } else {
-      initCeedBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+                                          mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order):
+                                          irm;
+   if (mesh_tensor)
+   {
+      initCeedBasisAndRestrictionTensor(*mesh_fes, mesh_ir, ceed,
+                                        &ceedData.mesh_basis, &ceedData.mesh_restr);
+   }
+   else
+   {
+      initCeedBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis,
+                                  &ceedData.mesh_restr);
    }
 
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
@@ -105,8 +116,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    if (ceedData.coeff_type==Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      initCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
-                   &ceedCoeff->restr);
+      initCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed,
+                                  &ceedCoeff->basis,
+                                  &ceedCoeff->restr);
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
