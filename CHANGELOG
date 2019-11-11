@@ -33,13 +33,10 @@ Miscellaneous
 
 New and updated examples and miniapps
 -------------------------------------
-- Added examples (exs.cpp,exp.cpp) in examples/gslib that show how
-  GSLIB-FindPoints can be used to find arbitrary number of points (in
+- Added examples (exs.cpp,exp.cpp,compare.cpp) in examples/gslib that show 
+  how GSLIB-FindPoints can be used to find arbitrary number of points (in
   physical-space) in a 2D/3D mesh in parallel, and interpolate a
-  GridFunction/ParGridFunction on those points.  
-- Added an example (compare.cpp) in examples/gslib that shows how 
-  GSLIB-FindPoints can be used to compare solution on two different 
-  meshes.
+  GridFunction/ParGridFunction at those points.  
 
 Version 4.0, released on May 24, 2019
 =====================================
