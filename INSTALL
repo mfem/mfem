@@ -597,9 +597,9 @@ The specific libraries and their options are:
      -- Download GSLib and untar it at the same level as MFEM.
      -- Rename the untarred folder as: ln -s gslib-1.0.5 gslib
      -- Build gslib in serial or parallel based on desired MFEM build:
-         --- make CC=gcc   MPI=0  
+         --- make clean;make CC=gcc   MPI=0  
                     or 
-         --- make CC=mpicc MPI=1
+         --- make clean;make CC=mpicc MPI=1
      -- Build MFEM using the MFEM_USE_GSLIB=YES option.
      -- See GSLib examples in examples/gslib for usage.
 
