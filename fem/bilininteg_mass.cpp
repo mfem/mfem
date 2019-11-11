@@ -53,7 +53,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       coeff.SetSize(nq * ne);
       auto C = Reshape(coeff.Write(), nq, ne);
-      for(int e = 0; e < ne; ++e)
+      for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
@@ -71,7 +71,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto w = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
       auto C =
-          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
+         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -95,7 +95,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto W = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
       auto C =
-          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
+         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
