@@ -25,6 +25,8 @@ set(SRCS
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
+  HDGBilinearForm.cpp
+  hdg_integrators.cpp
   intrules.cpp
   linearform.cpp
   lininteg.cpp
@@ -49,6 +51,8 @@ set(HDRS
   geom.hpp
   gridfunc.hpp
   hybridization.hpp
+  HDGBilinearForm.cpp
+  hdg_integrators.cpp
   intrules.hpp
   linearform.hpp
   lininteg.hpp
