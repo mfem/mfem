@@ -873,9 +873,9 @@ private:
    /// Default, generally robust, ParaSails options
    void SetDefaultOptions();
 
-   // If sai_precond is NULL, allocates it and sets default options.
-   // Otherwise saves the options from sai_precond, destroys it, allocates a new
-   // one, and sets its options to the saved values.
+   // If sai_precond is NULL, this method allocates it and sets default options.
+   // Otherwise the method saves the options from sai_precond, destroys it,
+   // allocates a new object, and sets its options to the saved values.
    void ResetSAIPrecond(MPI_Comm comm);
 
 public:
@@ -914,9 +914,9 @@ private:
    /// Default, generally robust, Euclid options
    void SetDefaultOptions();
 
-   // If euc_precond is NULL, allocates it and sets default options.
-   // Otherwise saves the options from euc_precond, destroys it, allocates a new
-   // one, and sets its options to the saved values.
+   // If euc_precond is NULL, this method allocates it and sets default options.
+   // Otherwise the method saves the options from euc_precond, destroys it,
+   // allocates a new object, and sets its options to the saved values.
    void ResetEuclidPrecond(MPI_Comm comm);
 
 public:
