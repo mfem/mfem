@@ -7,7 +7,7 @@ using namespace mfem;
 
 class PoissonMultigridOperator : public TimedMultigridOperator
 {
- private:
+private:
    Array<ParBilinearForm*> forms;
    bool partialAssembly{true};
    bool ownLORMatrix{false};
@@ -118,17 +118,18 @@ class PoissonMultigridOperator : public TimedMultigridOperator
       }
    }
 
- public:
+public:
    PoissonMultigridOperator(ParMesh* mesh, ParFiniteElementSpace* fespace,
                             const Array<int>& essentialDofs, int coarseOrder,
                             bool partialAssembly_, int coarseSteps,
                             bool useCoarsePCG_, bool jump)
-       : TimedMultigridOperator(), partialAssembly(partialAssembly_),
-         useCoarsePCG(useCoarsePCG_)
+      : TimedMultigridOperator(), partialAssembly(partialAssembly_),
+        useCoarsePCG(useCoarsePCG_)
    {
       if (jump)
       {
-         auto f = [](const Vector& x) {
+         auto f = [](const Vector& x)
+         {
             return (x[0] + x[1] < 1.0) ? 1.0 : 100.0;
          };
          coeff = new FunctionCoefficient(f);
@@ -140,7 +141,7 @@ class PoissonMultigridOperator : public TimedMultigridOperator
 
       Operator* coarseOpr = ConstructOperator(fespace, essentialDofs);
       Solver* coarseSolver = ConstructCoarseSolver(
-          mesh, coarseOpr, essentialDofs, coarseOrder, coarseSteps);
+                                mesh, coarseOpr, essentialDofs, coarseOrder, coarseSteps);
 
       AddCoarsestLevel(coarseOpr, coarseSolver, partialAssembly, true);
    }
@@ -188,7 +189,7 @@ class PoissonMultigridOperator : public TimedMultigridOperator
 
          PowerMethod powerMethod(MPI_COMM_WORLD);
          double estLargestEigenvalue =
-             powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
+            powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
          smoother = new OperatorChebyshevSmoother(solveOperator, diag,
                                                   essentialDofs, chebyshevOrder,
                                                   estLargestEigenvalue);
@@ -196,7 +197,7 @@ class PoissonMultigridOperator : public TimedMultigridOperator
       else
       {
          smoother =
-             new HypreSmoother(static_cast<HypreParMatrix&>(*solveOperator));
+            new HypreSmoother(static_cast<HypreParMatrix&>(*solveOperator));
       }
 
       return smoother;
@@ -208,7 +209,7 @@ class PoissonMultigridOperator : public TimedMultigridOperator
    {
       Operator* opr = ConstructOperator(hFEspace, essentialDofs);
       Solver* smoother =
-          ConstructSmoother(hFEspace, opr, essentialDofs, chebyshevOrder);
+         ConstructSmoother(hFEspace, opr, essentialDofs, chebyshevOrder);
       Operator* P = new TrueTransferOperator(*lFEspace, *hFEspace);
       MultigridOperator::AddLevel(opr, smoother, P, partialAssembly, true,
                                   true);
@@ -261,13 +262,13 @@ int main(int argc, char* argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(
-       &ref_levels, "-r", "--refine",
-       "Number of times to refine the initial mesh uniformly;"
-       "This mesh will be the coarse mesh in the multigrid hierarchy");
+      &ref_levels, "-r", "--refine",
+      "Number of times to refine the initial mesh uniformly;"
+      "This mesh will be the coarse mesh in the multigrid hierarchy");
    args.AddOption(
-       &pref_levels, "-pr", "--parallelrefine",
-       "Number of times to refine the serially refined mesh in parallel;"
-       "This mesh will be the coarse mesh in the multigrid hierarchy");
+      &pref_levels, "-pr", "--parallelrefine",
+      "Number of times to refine the serially refined mesh in parallel;"
+      "This mesh will be the coarse mesh in the multigrid hierarchy");
    args.AddOption(&order, "-o", "--order",
                   "Order of the finite element spaces");
    args.AddOption(&h_levels, "-hl", "--hlevels",
@@ -288,8 +289,8 @@ int main(int argc, char* argv[])
    args.AddOption(&coarseSteps, "-cs", "--coarsesteps",
                   "Number of coarse grid corrections");
    args.AddOption(
-       &chebyshevOrder, "-co", "--chebyshevorder",
-       "Chebyshev smoother order. Order 1 corresponds to damped Jacobi");
+      &chebyshevOrder, "-co", "--chebyshevorder",
+      "Chebyshev smoother order. Order 1 corresponds to damped Jacobi");
    args.AddOption(&useCoarsePCG, "-cpcg", "--coarsepcg", "-no-cpcg",
                   "--no-coarsepcg", "Enable or disable PCG as a coarse solver");
    args.AddOption(&jump, "-jump", "--jump", "-no-jump", "--no-jump",
@@ -316,10 +317,11 @@ int main(int argc, char* argv[])
       MFEM_ABORT("Order refinements are not supported with order > 1");
    }
 
-   std::map<std::string, Method> mapInputToPrecond = {
-       {"MG", Method::MG},
-       {"LOR", Method::LOR},
-       {"LORS", Method::LORS},
+   std::map<std::string, Method> mapInputToPrecond =
+   {
+      {"MG", Method::MG},
+      {"LOR", Method::LOR},
+      {"LORS", Method::LORS},
    };
 
    auto it = mapInputToPrecond.find(std::string(precondInput));
@@ -368,7 +370,7 @@ int main(int argc, char* argv[])
 
    // Set up coarse grid finite element space
    ParFiniteElementSpace* fespace =
-       new ParFiniteElementSpace(pmesh, feCollectons.Last());
+      new ParFiniteElementSpace(pmesh, feCollectons.Last());
    HYPRE_Int size = fespace->GlobalTrueVSize();
 
    if (myid == 0)
@@ -383,7 +385,7 @@ int main(int argc, char* argv[])
    // Build hierarchy of meshes and spaces
    // Geometric refinements
    ParSpaceHierarchy* spaceHierarchy =
-       new ParSpaceHierarchy(pmesh, fespace, true, true);
+      new ParSpaceHierarchy(pmesh, fespace, true, true);
    for (int level = 1; level < h_levels; ++level)
    {
       spaceHierarchy->AddUniformlyRefinedLevel();
@@ -413,7 +415,7 @@ int main(int argc, char* argv[])
    {
       essentialTrueDoFs.Append(new Array<int>());
       spaceHierarchy->GetFESpaceAtLevel(level).GetEssentialTrueDofs(
-          ess_bdr, *essentialTrueDoFs[level]);
+         ess_bdr, *essentialTrueDoFs[level]);
 
       size = spaceHierarchy->GetFESpaceAtLevel(level).GlobalTrueVSize();
       if (myid == 0)
@@ -449,29 +451,29 @@ int main(int argc, char* argv[])
    if (method == Method::LOR || method == Method::LORS)
    {
       solveOperator = new PoissonMultigridOperator(
-          spaceHierarchy->GetFinestFESpace().GetParMesh(),
-          &spaceHierarchy->GetFinestFESpace(), *essentialTrueDoFs.Last(),
-          orders.Last(), partialAssembly, coarseSteps, useCoarsePCG, jump);
+         spaceHierarchy->GetFinestFESpace().GetParMesh(),
+         &spaceHierarchy->GetFinestFESpace(), *essentialTrueDoFs.Last(),
+         orders.Last(), partialAssembly, coarseSteps, useCoarsePCG, jump);
 
       if (method == Method::LORS)
       {
          Operator* opr = solveOperator->GetOperatorAtLevel(0);
          Operator* identityProlongation =
-             new IdentityOperator(solveOperator->Height());
+            new IdentityOperator(solveOperator->Height());
          Solver* smoother = solveOperator->ConstructSmoother(
-             &spaceHierarchy->GetFinestFESpace(), opr,
-             *essentialTrueDoFs.Last(), chebyshevOrder);
+                               &spaceHierarchy->GetFinestFESpace(), opr,
+                               *essentialTrueDoFs.Last(), chebyshevOrder);
 
          solveOperator->MultigridOperator::AddLevel(
-             opr, smoother, identityProlongation, false, true, true);
+            opr, smoother, identityProlongation, false, true, true);
       }
    }
    else
    {
       solveOperator = new PoissonMultigridOperator(
-          spaceHierarchy->GetFESpaceAtLevel(0).GetParMesh(),
-          &spaceHierarchy->GetFESpaceAtLevel(0), *essentialTrueDoFs[0],
-          orders[0], partialAssembly, coarseSteps, useCoarsePCG, jump);
+         spaceHierarchy->GetFESpaceAtLevel(0).GetParMesh(),
+         &spaceHierarchy->GetFESpaceAtLevel(0), *essentialTrueDoFs[0],
+         orders[0], partialAssembly, coarseSteps, useCoarsePCG, jump);
 
       for (int level = 1; level < spaceHierarchy->GetNumLevels(); ++level)
       {
@@ -482,8 +484,8 @@ int main(int argc, char* argv[])
    }
 
    MultigridSolver* preconditioner =
-       new MultigridSolver(solveOperator, MultigridSolver::CycleType::VCYCLE,
-                           smoothingSteps, smoothingSteps);
+      new MultigridSolver(solveOperator, MultigridSolver::CycleType::VCYCLE,
+                          smoothingSteps, smoothingSteps);
 
    tic_toc.Stop();
    double setupTime = tic_toc.RealTime();
@@ -534,7 +536,7 @@ int main(int argc, char* argv[])
       cout << "Time to solution: " << solveTime << "s" << endl;
       cout << "Total time: " << setupTime + solveTime << "s" << endl;
       if (TimedMultigridOperator* tmg =
-              dynamic_cast<TimedMultigridOperator*>(solveOperator))
+             dynamic_cast<TimedMultigridOperator*>(solveOperator))
       {
          tmg->PrintStats(TimedMultigridOperator::Operation::OPERATOR, cout);
          tmg->PrintStats(TimedMultigridOperator::Operation::PROLONGATION, cout);

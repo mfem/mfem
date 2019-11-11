@@ -11,9 +11,9 @@ class PowerMethod
    Vector v1;
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-#endif   
+#endif
 
- public:
+public:
 
 #ifdef MFEM_USE_MPI
    PowerMethod() : comm(MPI_COMM_NULL) {}

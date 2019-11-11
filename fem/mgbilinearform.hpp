@@ -21,11 +21,11 @@ namespace mfem
 
 class MultigridBilinearForm : public MultigridOperator
 {
- protected:
+protected:
    Array<BilinearForm*> bfs;
    Array<Array<int>*> essentialTrueDofs;
 
- public:
+public:
    /// Empty constructor
    MultigridBilinearForm();
 

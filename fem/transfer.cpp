@@ -17,7 +17,7 @@ namespace mfem
 
 TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
                                    const FiniteElementSpace& hFESpace_)
-    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
+   : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
 {
    if (lFESpace_.FEColl() == hFESpace_.FEColl())
    {
@@ -50,9 +50,9 @@ void TransferOperator::MultTranspose(const Vector& x, Vector& y) const
 }
 
 PRefinementTransferOperator::PRefinementTransferOperator(
-    const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_)
-    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
-      hFESpace(hFESpace_)
+   const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_)
+   : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
+     hFESpace(hFESpace_)
 {
 }
 
@@ -166,11 +166,11 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
 }
 
 TensorProductPRefinementTransferOperator::
-    TensorProductPRefinementTransferOperator(
-        const FiniteElementSpace& lFESpace_,
-        const FiniteElementSpace& hFESpace_)
-    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
-      hFESpace(hFESpace_)
+TensorProductPRefinementTransferOperator(
+   const FiniteElementSpace& lFESpace_,
+   const FiniteElementSpace& hFESpace_)
+   : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
+     hFESpace(hFESpace_)
 {
    // Assuming the same element type
    Mesh* mesh = lFESpace.GetMesh();
@@ -182,11 +182,11 @@ TensorProductPRefinementTransferOperator::
    const FiniteElement& el = *lFESpace.GetFE(0);
 
    const TensorBasisElement* ltel =
-       dynamic_cast<const TensorBasisElement*>(&el);
+      dynamic_cast<const TensorBasisElement*>(&el);
    MFEM_VERIFY(ltel, "Low order FE space must be tensor product space");
 
    const TensorBasisElement* htel =
-       dynamic_cast<const TensorBasisElement*>(hFESpace.GetFE(0));
+      dynamic_cast<const TensorBasisElement*>(hFESpace.GetFE(0));
    MFEM_VERIFY(htel, "High order FE space must be tensor product space");
    const Array<int>& hdofmap = htel->GetDofMap();
 
@@ -209,13 +209,13 @@ TensorProductPRefinementTransferOperator::
    Bt = maps.Bt;
 
    elem_restrict_lex_l =
-       lFESpace.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      lFESpace.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
 
    MFEM_VERIFY(elem_restrict_lex_l,
                "Low order ElementRestriction not available");
 
    elem_restrict_lex_h =
-       hFESpace.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      hFESpace.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
 
    MFEM_VERIFY(elem_restrict_lex_h,
                "High order ElementRestriction not available");
@@ -230,7 +230,7 @@ TensorProductPRefinementTransferOperator::
 
    mask.SetSize(localH.Size(), Device::GetMemoryType());
    static_cast<const ElementRestriction*>(elem_restrict_lex_h)
-       ->BooleanMask(mask);
+   ->BooleanMask(mask);
    mask.UseDevice(true);
 }
 
@@ -247,7 +247,8 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
 
    localH = 0.0;
 
-   MFEM_FORALL(e, NE, {
+   MFEM_FORALL(e, NE,
+   {
       for (int dy = 0; dy < D1D; ++dy)
       {
          double sol_x[MAX_Q1D];
@@ -293,7 +294,8 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
 
    localH = 0.0;
 
-   MFEM_FORALL(e, NE, {
+   MFEM_FORALL(e, NE,
+   {
       for (int dz = 0; dz < D1D; ++dz)
       {
          double sol_xy[MAX_Q1D][MAX_Q1D];
@@ -364,7 +366,8 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
 
    localL = 0.0;
 
-   MFEM_FORALL(e, NE, {
+   MFEM_FORALL(e, NE,
+   {
       for (int qy = 0; qy < Q1D; ++qy)
       {
          double sol_x[MAX_D1D];
@@ -402,7 +405,8 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
 
    localL = 0.0;
 
-   MFEM_FORALL(e, NE, {
+   MFEM_FORALL(e, NE,
+   {
       for (int qz = 0; qz < Q1D; ++qz)
       {
          double sol_xy[MAX_D1D][MAX_D1D];
@@ -454,7 +458,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
 } // namespace TransferKernels
 
 TensorProductPRefinementTransferOperator::
-    ~TensorProductPRefinementTransferOperator()
+~TensorProductPRefinementTransferOperator()
 {
 }
 

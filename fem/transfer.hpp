@@ -21,10 +21,10 @@ namespace mfem
 /// Matrix-free transfer operator between finite element spaces
 class TransferOperator : public Operator
 {
- private:
+private:
    Operator* opr;
 
- public:
+public:
    /// Constructs a transfer operator from \p lFESpace to \p hFESpace. No
    /// matrices are assembled, only the action to a vector is being computed. If
    /// both spaces' FE collection pointers are pointing to the same collection
@@ -52,11 +52,11 @@ class TransferOperator : public Operator
 /// Matrix-free transfer operator between finite element spaces on the same mesh
 class PRefinementTransferOperator : public Operator
 {
- private:
+private:
    const FiniteElementSpace& lFESpace;
    const FiniteElementSpace& hFESpace;
 
- public:
+public:
    /// Constructs a transfer operator from \p lFESpace to \p hFESpace which
    /// have different FE collections. No matrices are assembled, only the action
    /// to a vector is being computed. The underlying finite elements need to
@@ -76,7 +76,7 @@ class PRefinementTransferOperator : public Operator
    /// corresponding to the coarse space.
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 
- private:
+private:
    /// Helper function to decode encoded dofs
    static inline int DecodeDof(int dof)
    {
@@ -88,7 +88,7 @@ class PRefinementTransferOperator : public Operator
 /// exploiting the tensor product structure of the finite elements
 class TensorProductPRefinementTransferOperator : public Operator
 {
- private:
+private:
    const FiniteElementSpace& lFESpace;
    const FiniteElementSpace& hFESpace;
    int dim;
@@ -103,15 +103,15 @@ class TensorProductPRefinementTransferOperator : public Operator
    mutable Vector localL;
    mutable Vector localH;
 
- public:
+public:
    /// Constructs a transfer operator from \p lFESpace to \p hFESpace which
    /// have different FE collections. No matrices are assembled, only the action
    /// to a vector is being computed. The underlying finite elements need to be
    /// of the type `TensorBasisElement`. It is also assumed that all the
    /// elements in the spaces are of the same type.
    TensorProductPRefinementTransferOperator(
-       const FiniteElementSpace& lFESpace_,
-       const FiniteElementSpace& hFESpace_);
+      const FiniteElementSpace& lFESpace_,
+      const FiniteElementSpace& hFESpace_);
 
    /// Destructor
    virtual ~TensorProductPRefinementTransferOperator();
@@ -130,11 +130,11 @@ class TensorProductPRefinementTransferOperator : public Operator
 /// degrees of freedom
 class TrueTransferOperator : public Operator
 {
- private:
+private:
    TransferOperator* localTransferOperator;
    RAPOperator* opr;
 
- public:
+public:
    /// Constructs a transfer operator working on true degrees of freedom from \p
    /// lFESpace to \p hFESpace
    TrueTransferOperator(const FiniteElementSpace& lFESpace_,

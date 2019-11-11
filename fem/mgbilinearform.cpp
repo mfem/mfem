@@ -21,7 +21,7 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
                                              BilinearForm& bf,
                                              Array<int>& ess_bdr,
                                              int chebyshevOrder)
-    : MultigridOperator()
+   : MultigridOperator()
 {
    MFEM_VERIFY(bf.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
                "Assembly level must be PARTIAL");
@@ -38,7 +38,7 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
 
    essentialTrueDofs.Append(new Array<int>());
    spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
-       ess_bdr, *essentialTrueDofs.Last());
+      ess_bdr, *essentialTrueDofs.Last());
 
    OperatorPtr opr;
    opr.SetType(Operator::ANY_TYPE);
@@ -77,7 +77,7 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
 
       essentialTrueDofs.Append(new Array<int>());
       spaceHierarchy.GetFESpaceAtLevel(level).GetEssentialTrueDofs(
-          ess_bdr, *essentialTrueDofs.Last());
+         ess_bdr, *essentialTrueDofs.Last());
 
       OperatorPtr opr;
       opr.SetType(Operator::ANY_TYPE);
@@ -94,15 +94,15 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
 
       PowerMethod powerMethod;
       double estLargestEigenvalue =
-          powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
+         powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
 
       Solver* smoother = new OperatorChebyshevSmoother(
-          opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder,
-          estLargestEigenvalue);
+         opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder,
+         estLargestEigenvalue);
 
       Operator* P =
-          new TransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
-                               spaceHierarchy.GetFESpaceAtLevel(level));
+         new TransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
+                              spaceHierarchy.GetFESpaceAtLevel(level));
 
       AddLevel(opr.Ptr(), smoother, P, true, true, true);
    }

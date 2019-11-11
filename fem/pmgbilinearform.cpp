@@ -20,9 +20,9 @@ namespace mfem
 {
 
 ParMultigridBilinearForm::ParMultigridBilinearForm(
-    ParSpaceHierarchy& spaceHierarchy, ParBilinearForm& bf, Array<int>& ess_bdr,
-    int chebyshevOrder)
-    : MultigridBilinearForm()
+   ParSpaceHierarchy& spaceHierarchy, ParBilinearForm& bf, Array<int>& ess_bdr,
+   int chebyshevOrder)
+   : MultigridBilinearForm()
 {
    MFEM_VERIFY(bf.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
                "Assembly level must be PARTIAL");
@@ -30,7 +30,7 @@ ParMultigridBilinearForm::ParMultigridBilinearForm(
    ParMesh* pmesh = spaceHierarchy.GetFESpaceAtLevel(0).GetParMesh();
    pmesh_lor = new ParMesh(pmesh, 1, BasisType::GaussLobatto);
    fec_lor =
-       new H1_FECollection(1, pmesh->Dimension(), BasisType::GaussLobatto);
+      new H1_FECollection(1, pmesh->Dimension(), BasisType::GaussLobatto);
    fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
    a_lor = new ParBilinearForm(fespace_lor);
 
@@ -45,7 +45,7 @@ ParMultigridBilinearForm::ParMultigridBilinearForm(
 
    essentialTrueDofs.Append(new Array<int>());
    spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
-       ess_bdr, *essentialTrueDofs.Last());
+      ess_bdr, *essentialTrueDofs.Last());
 
    HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
    a_lor->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
@@ -79,7 +79,7 @@ ParMultigridBilinearForm::ParMultigridBilinearForm(
 
       essentialTrueDofs.Append(new Array<int>());
       spaceHierarchy.GetFESpaceAtLevel(level).GetEssentialTrueDofs(
-          ess_bdr, *essentialTrueDofs.Last());
+         ess_bdr, *essentialTrueDofs.Last());
 
       OperatorPtr opr;
       opr.SetType(Operator::ANY_TYPE);
@@ -96,15 +96,15 @@ ParMultigridBilinearForm::ParMultigridBilinearForm(
 
       PowerMethod powerMethod(MPI_COMM_WORLD);
       double estLargestEigenvalue =
-          powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
+         powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
 
       Solver* smoother = new OperatorChebyshevSmoother(
-          opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder,
-          estLargestEigenvalue);
+         opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder,
+         estLargestEigenvalue);
 
       Operator* P =
-          new TrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
-                                   spaceHierarchy.GetFESpaceAtLevel(level));
+         new TrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
+                                  spaceHierarchy.GetFESpaceAtLevel(level));
 
       AddLevel(opr.Ptr(), smoother, P, true, true, true);
    }

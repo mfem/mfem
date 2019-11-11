@@ -152,7 +152,7 @@ public:
    /// Set the desired assembly level. The default is AssemblyLevel::FULL.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
-   
+
    /** Returns the assembly level */
    AssemblyLevel GetAssemblyLevel() const;
 
