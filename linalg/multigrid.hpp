@@ -23,7 +23,7 @@ namespace mfem
 /// Abstract multigrid operator
 class MultigridOperator : public Operator
 {
- protected:
+protected:
    Array<Operator*> operators;
    Array<Solver*> smoothers;
    Array<const Operator*> prolongations;
@@ -32,7 +32,7 @@ class MultigridOperator : public Operator
    Array<bool> ownedSmoothers;
    Array<bool> ownedProlongations;
 
- public:
+public:
    /// Empty constructor
    MultigridOperator();
 
@@ -103,7 +103,7 @@ class MultigridOperator : public Operator
 /// Abstract multigrid operator with timing support
 class TimedMultigridOperator : public MultigridOperator
 {
- public:
+public:
    enum class Operation
    {
       OPERATOR,
@@ -118,11 +118,11 @@ class TimedMultigridOperator : public MultigridOperator
       TOTALTIME
    };
 
- private:
+private:
    mutable StopWatch sw;
    mutable std::map<std::tuple<Statistics, Operation, int>, double> stats;
 
- public:
+public:
    /// See documentation of MultigridOperator
    TimedMultigridOperator();
    TimedMultigridOperator(Operator* opr, Solver* coarseSolver, bool ownOperator,
@@ -142,14 +142,14 @@ class TimedMultigridOperator : public MultigridOperator
 // Multigrid solver
 class MultigridSolver : public Solver
 {
- public:
+public:
    enum class CycleType
    {
       VCYCLE,
       WCYCLE
    };
 
- private:
+private:
    const MultigridOperator* opr;
    CycleType cycleType;
 
@@ -161,7 +161,7 @@ class MultigridSolver : public Solver
    mutable Array<Vector*> R;
    mutable Array<Vector*> Z;
 
- public:
+public:
    /// Constructs the multigrid solver and helper vectors
    MultigridSolver(const MultigridOperator* opr_,
                    CycleType cycleType_ = CycleType::VCYCLE,
@@ -204,7 +204,7 @@ class MultigridSolver : public Solver
    /// type MultigridOperator
    virtual void SetOperator(const Operator& op) override;
 
- private:
+private:
    /// Application of a smoothing step at particular level
    void SmoothingStep(int level) const;
 

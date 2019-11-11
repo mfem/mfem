@@ -28,7 +28,7 @@ double coeffFunction(const Vector& x)
    else
    {
       return sin(8.0 * M_PI * x[0]) * cos(6.0 * M_PI * x[1]) *
-                 sin(4.0 * M_PI * x[2]) +
+             sin(4.0 * M_PI * x[2]) +
              2.0;
    }
 }
@@ -58,7 +58,7 @@ TEST_CASE("pa_coeff")
                                   1.0);
                }
                FiniteElementCollection* h1_fec =
-                   new H1_FECollection(order, dimension);
+                  new H1_FECollection(order, dimension);
                FiniteElementSpace h1_fespace(mesh, h1_fec);
                Array<int> ess_tdof_list;
 
@@ -97,7 +97,7 @@ TEST_CASE("pa_coeff")
                if (integrator < 2)
                {
                   assemblyform.AddDomainIntegrator(
-                      new DiffusionIntegrator(*coeff));
+                     new DiffusionIntegrator(*coeff));
                }
                if (integrator > 0)
                {

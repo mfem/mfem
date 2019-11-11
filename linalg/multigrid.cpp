@@ -144,7 +144,7 @@ TimedMultigridOperator::TimedMultigridOperator() : MultigridOperator() {}
 TimedMultigridOperator::TimedMultigridOperator(Operator* opr,
                                                Solver* coarseSolver,
                                                bool ownOperator, bool ownSolver)
-    : MultigridOperator(opr, coarseSolver, ownOperator, ownSolver)
+   : MultigridOperator(opr, coarseSolver, ownOperator, ownSolver)
 {
 }
 
@@ -161,7 +161,7 @@ void TimedMultigridOperator::MultAtLevel(int level, const Vector& x,
    stats[std::make_tuple(Statistics::NUMAPPLICATIONS, Operation::OPERATOR,
                          level)] += 1;
    stats[std::make_tuple(Statistics::TOTALTIME, Operation::OPERATOR, level)] +=
-       sw.RealTime();
+      sw.RealTime();
 }
 
 void TimedMultigridOperator::RestrictTo(int level, const Vector& x,
@@ -200,17 +200,19 @@ void TimedMultigridOperator::ApplySmootherAtLevel(int level, const Vector& x,
    stats[std::make_tuple(Statistics::NUMAPPLICATIONS, Operation::SMOOTHER,
                          level)] += 1;
    stats[std::make_tuple(Statistics::TOTALTIME, Operation::SMOOTHER, level)] +=
-       sw.RealTime();
+      sw.RealTime();
 }
 
 void TimedMultigridOperator::PrintStats(Operation operation,
                                         std::ostream& out) const
 {
-   std::map<Operation, std::string> operationToString = {
-       {Operation::OPERATOR, "Operator"},
-       {Operation::PROLONGATION, "Prolongation"},
-       {Operation::RESTRICTION, "Restriction"},
-       {Operation::SMOOTHER, "Smoother"}};
+   std::map<Operation, std::string> operationToString =
+   {
+      {Operation::OPERATOR, "Operator"},
+      {Operation::PROLONGATION, "Prolongation"},
+      {Operation::RESTRICTION, "Restriction"},
+      {Operation::SMOOTHER, "Smoother"}
+   };
 
    out << std::setw(5) << "Level";
    out << std::setw(16) << operationToString[operation] << "NA";
@@ -221,9 +223,9 @@ void TimedMultigridOperator::PrintStats(Operation operation,
    for (int level = 0; level < NumLevels(); ++level)
    {
       int numAppl =
-          stats[std::make_tuple(Statistics::NUMAPPLICATIONS, operation, level)];
+         stats[std::make_tuple(Statistics::NUMAPPLICATIONS, operation, level)];
       double totalTime =
-          stats[std::make_tuple(Statistics::TOTALTIME, operation, level)];
+         stats[std::make_tuple(Statistics::TOTALTIME, operation, level)];
       double timePerAppl = (numAppl != 0) ? (totalTime / numAppl) : INFINITY;
 
       out << std::setw(5) << level;
@@ -237,7 +239,7 @@ void TimedMultigridOperator::PrintStats(Operation operation,
 MultigridSolver::MultigridSolver(const MultigridOperator* opr_,
                                  CycleType cycleType_, int preSmoothingSteps_,
                                  int postSmoothingSteps_)
-    : opr(opr_), cycleType(cycleType_)
+   : opr(opr_), cycleType(cycleType_)
 {
    Setup(preSmoothingSteps_, postSmoothingSteps_);
 }
@@ -257,8 +259,8 @@ void MultigridSolver::SetPreSmoothingSteps(int steps)
 void MultigridSolver::SetPreSmoothingSteps(const Array<int>& steps)
 {
    MFEM_VERIFY(
-       steps.Size() == preSmoothingSteps.Size(),
-       "Number of step sizes needs to be the same as the number of levels");
+      steps.Size() == preSmoothingSteps.Size(),
+      "Number of step sizes needs to be the same as the number of levels");
    preSmoothingSteps = steps;
 }
 
@@ -270,8 +272,8 @@ void MultigridSolver::SetPostSmoothingSteps(int steps)
 void MultigridSolver::SetPostSmoothingSteps(const Array<int>& steps)
 {
    MFEM_VERIFY(
-       steps.Size() == postSmoothingSteps.Size(),
-       "Number of step sizes needs to be the same as the number of levels");
+      steps.Size() == postSmoothingSteps.Size(),
+      "Number of step sizes needs to be the same as the number of levels");
    postSmoothingSteps = steps;
 }
 

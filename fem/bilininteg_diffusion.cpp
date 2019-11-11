@@ -219,7 +219,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else
    {
       auto C = Reshape(coeff.Write(), nq, ne);
-      for(int e = 0; e < ne; ++e)
+      for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)

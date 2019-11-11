@@ -50,19 +50,19 @@ TEST_CASE("ptransfer")
             else
             {
                mesh =
-                   new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+                  new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
             }
             FiniteElementCollection* c_h1_fec =
-                new H1_FECollection(order, dimension);
+               new H1_FECollection(order, dimension);
             FiniteElementCollection* f_h1_fec =
-                new H1_FECollection(2 * order, dimension);
+               new H1_FECollection(2 * order, dimension);
             FiniteElementSpace c_h1_fespace(mesh, c_h1_fec);
             FiniteElementSpace f_h1_fespace(mesh, f_h1_fec);
 
             PRefinementTransferOperator transferOperator(c_h1_fespace,
                                                          f_h1_fespace);
             TensorProductPRefinementTransferOperator tpTransferOperator(
-                c_h1_fespace, f_h1_fespace);
+               c_h1_fespace, f_h1_fespace);
             GridFunction X(&c_h1_fespace);
             GridFunction X_tp(&c_h1_fespace);
             GridFunction Y_exact(&f_h1_fespace);

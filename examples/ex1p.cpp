@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
       {
          collections->Append(new H1_FECollection(orders[level], dim));
          ParFiniteElementSpace* fesp =
-             new ParFiniteElementSpace(pmesh, collections->Last());
+            new ParFiniteElementSpace(pmesh, collections->Last());
          spaceHierarchy->AddLevel(mesh, fesp, false, true);
       }
       spaceHierarchy->AddLevel(mesh, fespace, false, false);
