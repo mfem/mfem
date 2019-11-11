@@ -24,7 +24,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &ir, CeedData& ceedData);
 
 void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
-							 const mfem::IntegrationRule &ir, CeedData& ceedData);
+                             const mfem::IntegrationRule &ir, CeedData& ceedData);
 
 #endif
 

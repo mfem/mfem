@@ -225,7 +225,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes){
+void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 #ifdef MFEM_USE_CEED

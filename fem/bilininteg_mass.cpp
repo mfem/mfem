@@ -115,7 +115,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void MassIntegrator::AssembleMF(const FiniteElementSpace &fes){
+void MassIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);

@@ -24,7 +24,7 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &ir,  CeedData& ceedData);
 
 void CeedMFMassAssemble(const FiniteElementSpace &fes,
-						const mfem::IntegrationRule &irm, CeedData& ceedData);
+                        const mfem::IntegrationRule &irm, CeedData& ceedData);
 
 #endif
 
