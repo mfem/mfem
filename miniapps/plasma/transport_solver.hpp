@@ -1494,6 +1494,8 @@ private:
 
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
 
+      int vis_flag_;
+
       // Data collection used to write data files
       DataCollection * dc_;
 
@@ -1503,7 +1505,8 @@ private:
       NLOperator(const MPI_Session & mpi, const DGParams & dg, int index,
                  const std::string &field_name,
                  ParGridFunctionArray & pgf,
-                 ParGridFunctionArray & dpgf);
+                 ParGridFunctionArray & dpgf,
+                 int vis_flag);
 
    public:
 
@@ -1517,6 +1520,8 @@ private:
 
       virtual void Update();
       virtual Operator *GetGradientBlock(int i);
+
+      inline bool CheckVisFlag(int flag) { return (vis_flag_>> flag) & 1; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -1617,7 +1622,8 @@ private:
       NeutralDensityOp(const MPI_Session & mpi, const DGParams & dg,
                        ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                        int ion_charge, double neutral_mass,
-                       double neutral_temp);
+                       double neutral_temp,
+                       int vis_flag);
 
       ~NeutralDensityOp();
 
@@ -1692,7 +1698,8 @@ private:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
                    ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                    int ion_charge, double DPerp,
-                   VectorCoefficient & B3Coef);
+                   VectorCoefficient & B3Coef,
+                   int vis_flag);
 
       ~IonDensityOp();
 
@@ -1766,7 +1773,8 @@ private:
                     ParFiniteElementSpace & vfes,
                     ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                     int ion_charge, double ion_mass, double DPerp,
-                    VectorCoefficient & B3Coef);
+                    VectorCoefficient & B3Coef,
+                    int vis_flag);
 
       ~IonMomentumOp();
 
@@ -1830,7 +1838,8 @@ private:
                           ParGridFunctionArray & dpgf,
                           int ion_charge, double ion_mass, double ChiPerp,
                           VectorCoefficient & B3Coef,
-                          Array<CoefficientByAttr> & dbc);
+                          Array<CoefficientByAttr> & dbc,
+                          int vis_flag);
 
       ~IonStaticPressureOp();
 
@@ -1903,7 +1912,8 @@ private:
                                ParGridFunctionArray & dpgf,
                                int ion_charge, double ion_mass, double ChiPerp,
                                VectorCoefficient & B3Coef,
-                               Array<CoefficientByAttr> & dbc);
+                               Array<CoefficientByAttr> & dbc,
+                               int vis_flag);
 
       ~ElectronStaticPressureOp();
 
@@ -1922,7 +1932,7 @@ private:
       DummyOp(const MPI_Session & mpi, const DGParams & dg,
               ParGridFunctionArray & pgf,
               ParGridFunctionArray & dpgf,
-              int index, const std::string &field_name);
+              int index, const std::string &field_name, int vis_flag);
 
       virtual void SetTimeStep(double dt)
       {
@@ -1971,6 +1981,7 @@ private:
                  VectorCoefficient & B3Coef,
                  Array<CoefficientByAttr> & Ti_dbc,
                  Array<CoefficientByAttr> & Te_dbc,
+                 const Array<int> & vis_flags,
                  // VectorCoefficient & bHatCoef,
                  // MatrixCoefficient & PerpCoef,
                  unsigned int op_flag = 31, int logging = 0);
@@ -2034,6 +2045,7 @@ public:
                   VectorCoefficient & B3Coef,
                   Array<CoefficientByAttr> & Ti_dbc,
                   Array<CoefficientByAttr> & Te_dbc,
+                  const Array<int> & vis_flags,
                   bool imex = true,
                   unsigned int op_flag = 31,
                   int logging = 0);
