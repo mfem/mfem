@@ -791,7 +791,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
 {
    // Check if we have a discontinuous space using the FE collection:
    const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
-   //if (dg_space) { return NULL; }
+   if (dg_space) { return NULL; }
    // TODO: support other DG collections.
    if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
    {
