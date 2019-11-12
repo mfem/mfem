@@ -9577,6 +9577,9 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int NQ   = ir.GetNPoints();
 
    Vector Enodes(vdim*ND*NE);
+
+   //Support for DG space missing
+
    // For now, we are not using tensor product evaluation
    const Operator *elem_restr = fespace->GetElementRestriction(
                                    ElementDofOrdering::NATIVE);
