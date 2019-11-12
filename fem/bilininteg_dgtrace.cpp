@@ -17,7 +17,7 @@ using namespace std;
 
 namespace mfem
 {
-
+#if 0
 // PA DG Trace Integrator
 
 // PA DG Trace Assemble 2D kernel for constant velocity
@@ -1372,5 +1372,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
                     maps->B, maps->G, maps->Bt, maps->Gt,
                     pa_data, x, y);
 }
+
+#endif
 
 } // namespace mfem

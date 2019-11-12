@@ -920,7 +920,7 @@ public:
 /// Operator that extracts Face degrees of freedom.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
-class FaceRestriction : public Operator
+class H1FaceRestriction : public Operator
 {
 protected:
    const FiniteElementSpace &fes;
@@ -930,11 +930,10 @@ protected:
    const int ndofs;
    const int dof;
    const int nfdofs;
-   Array<int> offsets;
    Array<int> indices;
 
 public:
-   FaceRestriction(const FiniteElementSpace&, ElementDofOrdering);
+   H1FaceRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 };
