@@ -2671,8 +2671,8 @@ void HypreEuclid::SetDefaultOptions()
 
 void HypreEuclid::ResetEuclidPrecond(MPI_Comm comm)
 {
-   // Euclid does not seem to offer access to its current configuration
-   // so we'll simply reset it to its default options.
+   // Euclid does not seem to offer access to its current configuration, so we
+   // simply reset it to its default options.
    HYPRE_EuclidDestroy(euc_precond);
    HYPRE_EuclidCreate(comm, &euc_precond);
 
