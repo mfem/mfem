@@ -2871,21 +2871,123 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
-FaceRestriction::FaceRestriction(const FiniteElementSpace &f,
-                                       ElementDofOrdering e_ordering)
-   : fes(f),
-     nf(fes.GetNFaces()),
+static void GetFaceDofsLex(const int dim, const int face_id, const int dof1d, int* faceMap)
+{
+   switch(dim)
+   {
+      case 1:
+      switch(face_id){
+         case 0://WEST
+         faceMap[0] = 0;
+         break;
+         case 1://EAST
+         faceMap[0] = dof1d-1;
+         break;
+      }
+      break;
+      case 2:
+      switch(face_id){
+         case 0://SOUTH
+         for (int i = 0; i < dof1d; ++i)
+         {
+            faceMap[i] = i;
+         }
+         break;
+         case 1://EAST
+         for (int i = 0; i < dof1d; ++i)
+         {
+            faceMap[i] = dof1d-1 + i*dof1d;
+         }
+         break;
+         case 2://NORTH
+         for (int i = 0; i < dof1d; ++i)
+         {
+            faceMap[i] = (dof1d-1)*dof1d + i;
+         }
+         break;
+         case 3://WEST
+         for (int i = 0; i < dof1d; ++i)
+         {
+            faceMap[i] = i*dof1d;
+         }
+         break;
+      }
+      break;
+      case 3:
+      switch(face_id){
+         case 0://BOTTOM
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = i + j*dof1d;
+            }
+         }
+         break;
+         case 1://SOUTH
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = i + j*dof1d*dof1d;
+            }
+         }
+         break;
+         case 2://EAST
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
+            }
+         }
+         break;
+         case 3://NORTH
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
+            }
+         }
+         break;
+         case 4://WEST
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;
+            }
+         }
+         break;
+         case 5://TOP
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
+            }
+         }
+         break;
+      }
+      break;
+   }
+}
+
+H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
+                                     ElementDofOrdering e_ordering)
+   : fes(fes),
+     nf(fes.GetNF()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(nf > 0 ? fes.GetFace(0)->GetDof() : 0),
+     dof(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
      nfdofs(nf*dof),
-     // offsets(ndofs+1),
      indices(nf*dof)
 {
    //if fespace == H1
    // Assuming all finite elements are the same.
-   height = vdim*ne*dof;
+   height = vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    const int *dof_map = NULL;
@@ -2893,128 +2995,90 @@ FaceRestriction::FaceRestriction(const FiniteElementSpace &f,
    {
       for (int f = 0; f < nf; ++f)
       {
-         const FiniteElement *f = fes.GetFace(f);
+         const FiniteElement *fe = fes.GetFaceElement(f);
          const TensorBasisElement* el =
-            dynamic_cast<const TensorBasisElement*>(f);
+            dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
          mfem_error("Finite element not suitable for lexicographic ordering");
       }
-      const FiniteElement *f = fes.GetFace(0);
+      const FiniteElement *fe = fes.GetFaceElement(0);
       const TensorBasisElement* el =
          dynamic_cast<const TensorBasisElement*>(fe);
       const Array<int> &fe_dof_map = el->GetDofMap();
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
       dof_map = fe_dof_map.GetData();
    }
-   // const Table& e2dTable = fes.GetElementToDofTable();
-   // const int* elementMap = e2dTable.GetJ();
-   // We will be keeping a count of how many local nodes point to its global dof
-   // for (int i = 0; i <= ndofs; ++i)
-   // {
-   //    offsets[i] = 0;
-   // }
-   // for (int f = 0; f < nf; ++f)
-   // {
-   //    for (int d = 0; d < dof; ++d)
-   //    {
-   //       const int gid = elementMap[dof*e + d];
-   //       ++offsets[gid + 1];
-   //    }
-   // }
-   // Aggregate to find offsets for each global dof
-   // for (int i = 1; i <= ndofs; ++i)
-   // {
-   //    offsets[i] += offsets[i - 1];
-   // }
-   // For each global dof, fill in all local nodes that point to it
-   Array<int> elementMap;
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elementMap = e2dTable.GetJ();
+   int faceMap[dof];
+   int e1, e2;
+   int inf1, inf2;
+   int face_id;
+   int orientation;
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_dofs = fes.GetFE(0)->GetDof();
    for (int f = 0; f < nf; ++f)
    {
-      fes.GetFaceDofs(f, elementMap);
-      //Get Elem1 + face_id => Extract dofs
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      orientation = inf1 % 64;
+      face_id = inf1 / 64;
+      if(dof_reorder){
+         if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
+         GetFaceDofsLex(vdim, face_id, dof1d, faceMap);//Only for hex
+      } else {
+         mfem_error("FaceRestriction not yet implemented for this type of element.");
+         //TODO Something with GetFaceDofs?
+      }
       for (int d = 0; d < dof; ++d)
       {
-         const int did = (!dof_reorder)?d:dof_map[d];
-         const int gid = elementMap[did];
+         const int face_dof = faceMap[d];
+         const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
+         const int gid = elementMap[e1*elem_dofs + did];
          const int lid = dof*f + d;
-         // indices[offsets[gid]++] = lid;
          indices[lid] = gid;
       }
    }
-   // We shifted the offsets vector by 1 by using it as a counter.
-   // Now we shift it back.
-   // for (int i = ndofs; i > 0; --i)
-   // {
-   //    offsets[i] = offsets[i - 1];
-   // }
-   // offsets[0] = 0;
 }
 
-void FaceRestriction::Mult(const Vector& x, Vector& y) const
+void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
-   const int ne = fes.GetNE();
    const int vd = vdim;
    const bool t = byvdim;
-   // auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, nf);
    MFEM_FORALL(i, nfdofs,
    {
       const int idx = d_indices[i];
+      const int dof = i % nd;
+      const int face = i / nd;
       for (int c = 0; c < vd; ++c)
       {
-            d_y(i % nd, c, i / nd) = d_x(t?c:idx,t:idx:c);
+         d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
       }
-      // const int offset = d_offsets[i];
-      // const int nextOffset = d_offsets[i+1];
-      // for (int c = 0; c < vd; ++c)
-      // {
-      //    const double dofValue = d_x(t?c:i,t?i:c);
-      //    for (int j = offset; j < nextOffset; ++j)
-      //    {
-      //       const int idx_j = d_indices[j];
-      //       d_y(idx_j % nd, c, idx_j / nd) = dofValue;
-      //    }
-      // }
    });
 }
 
-void FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
+void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
-   mfem_error("Finite element not suitable for lexicographic ordering");
+   mfem_error("MultTranspose not yet implemented");
    // Assumes all elements have the same number of dofs
-   const int nd = dof;
-   const int vd = vdim;
-   const bool t = byvdim;
-   // auto d_offsets = offsets.Read();
-   auto d_indices = indices.Read();
-   auto d_x = Reshape(x.Read(), nd, vd, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, nfdofs,
-   {
-      const int idx = d_indices[i];
-      for (int c = 0; c < vd; ++c)
-      {
-         MFEM_ATOMIC_ADD(d_x(i % nd, c, i / nd),d_y(t?c:idx,t:idx:c));
-      }
-   });
+   // const int nd = dof;
+   // const int vd = vdim;
+   // const bool t = byvdim;
+   // auto d_indices = indices.Read();
+   // auto d_x = Reshape(x.Read(), nd, vd, nf);
+   // auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
    // MFEM_FORALL(i, nfdofs,
    // {
-   //    // const int offset = d_offsets[i];
-   //    // const int nextOffset = d_offsets[i + 1];
-   //    // for (int c = 0; c < vd; ++c)
-   //    // {
-   //    //    double dofValue = 0;
-   //    //    for (int j = offset; j < nextOffset; ++j)
-   //    //    {
-   //    //       const int idx_j = d_indices[j];
-   //    //       dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
-   //    //    }
-   //    //    d_y(t?c:i,t?i:c) = dofValue;
-   //    // }
+   //    const int idx = d_indices[i];
+   //    for (int c = 0; c < vd; ++c)
+   //    {
+   //       MFEM_ATOMIC_ADD(d_x(i % nd, c, i / nd),d_y(t?c:idx,t:idx:c));
+   //    }
    // });
 }
 
