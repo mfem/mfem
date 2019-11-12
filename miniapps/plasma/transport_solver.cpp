@@ -2257,7 +2257,8 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      dSizdniCoef_(ne1Coef_, nn1Coef_, izCoef_),
      dtdSizdnnCoef_(0.0, dSizdnnCoef_),
      dtdSizdniCoef_(0.0, dSizdniCoef_),
-     DGF_(new ParGridFunction((*pgf_)[0]->ParFESpace()))
+     DGF_(NULL),
+     SGF_(NULL)
      // nnizCoef_(nn1Coef_, izCoef_),
      // neizCoef_(ne1Coef_, izCoef_),
      // dtdSndnnCoef_(0.0, neizCoef_),
@@ -2306,11 +2307,21 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    blf_[1] = new ParBilinearForm((*pgf_)[1]->ParFESpace());
    blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSizdniCoef_));
    // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSndniCoef_));
+
+   if (this->CheckVisFlag(DIFFUSION_COEF))
+   {
+      DGF_ = new ParGridFunction((*pgf_)[0]->ParFESpace());
+   }
+   if (this->CheckVisFlag(SOURCE))
+   {
+      SGF_ = new ParGridFunction((*pgf_)[0]->ParFESpace());
+   }
 }
 
 DGTransportTDO::NeutralDensityOp::~NeutralDensityOp()
 {
    delete DGF_;
+   delete SGF_;
 }
 
 void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
@@ -2336,13 +2347,27 @@ void DGTransportTDO::NeutralDensityOp::RegisterDataFields(DataCollection & dc)
 {
    NLOperator::RegisterDataFields(dc);
 
-   dc.RegisterField("D_n", DGF_);
+   if (this->CheckVisFlag(DIFFUSION_COEF))
+   {
+      dc.RegisterField("D_n", DGF_);
+   }
+   if (this->CheckVisFlag(SOURCE))
+   {
+      dc.RegisterField("S_n", SGF_);
+   }
 }
 
 void DGTransportTDO::
 NeutralDensityOp::PrepareDataFields()
 {
-   DGF_->ProjectCoefficient(DCoef_);
+   if (this->CheckVisFlag(DIFFUSION_COEF))
+   {
+      DGF_->ProjectCoefficient(DCoef_);
+   }
+   if (this->CheckVisFlag(SOURCE))
+   {
+      SGF_->ProjectCoefficient(SizCoef_);
+   }
 }
 
 void DGTransportTDO::NeutralDensityOp::Update()

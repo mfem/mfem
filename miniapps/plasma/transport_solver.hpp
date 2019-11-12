@@ -1572,6 +1572,8 @@ private:
    class NeutralDensityOp : public NLOperator
    {
    private:
+      enum VisField {DIFFUSION_COEF = 1, SOURCE = 2};
+
       int    z_i_;
       double m_n_;
       double T_n_;
@@ -1609,6 +1611,7 @@ private:
       ProductCoefficient dtdSizdniCoef_;
 
       ParGridFunction * DGF_;
+      ParGridFunction * SGF_;
 
       // ProductCoefficient     nnizCoef_; // nn * iz
       // ProductCoefficient     neizCoef_; // ne * iz
