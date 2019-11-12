@@ -593,7 +593,7 @@ void NURBSPatch::KnotInsert(Array<Vector *> &newkv)
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 void NURBSPatch::KnotInsert(int dir, const Vector &knot)
 {
-   if (knot.Size() == 0 ) return;
+   if (knot.Size() == 0 ) { return; }
 
    if (dir >= kv.Size() || dir < 0)
    {
