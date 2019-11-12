@@ -2976,9 +2976,18 @@ HypreBoomerAMG::~HypreBoomerAMG()
    HYPRE_BoomerAMGDestroy(amg_precond);
 }
 
+HypreAMS::HypreAMS(ParFiniteElementSpace *edge_fespace)
+{
+   Init(edge_fespace);
+}
 
 HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
    : HypreSolver(&A)
+{
+   Init(edge_fespace);
+}
+
+void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 {
    int cycle_type       = 13;
    int rlx_type         = 2;
@@ -3160,6 +3169,22 @@ HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
    // can produce hypre errors in the Setup (specifically in the l1 row norm
    // computation). See the documentation of SetErrorMode() for more details.
    error_mode = IGNORE_HYPRE_ERRORS;
+}
+
+void HypreAMS::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 HypreAMS::~HypreAMS()
