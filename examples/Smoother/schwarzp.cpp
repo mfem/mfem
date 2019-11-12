@@ -83,6 +83,7 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
 
    MPI_Allreduce(&mynrpatch, &nrpatch, 1, MPI_INT, MPI_SUM, comm);
 
+
    patch_global_dofs_ids.SetSize(nrpatch);
    // Create a list of patches identifiers to all procs
    int num_procs, myid;
@@ -98,9 +99,21 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
    {
       displs[i] = displs[i - 1] + count[i - 1];
    }
+
    int * cownvert_ptr = nullptr;
-   if (cown_vertices.Size() >0) cownvert_ptr = &cown_vertices[0];
+   int * dof_rank_id_ptr = nullptr;
+   Array<int> dof_rank_id;
+   if (cown_vertices.Size() >0) 
+   {
+      cownvert_ptr = &cown_vertices[0];
+      dof_rank_id.SetSize(cown_vertices.Size());
+      dof_rank_id = myid;
+      dof_rank_id_ptr = &dof_rank_id[0];
+   }
+   // send also the rank number for each global dof
+   host_rank.SetSize(nrpatch);
    MPI_Allgatherv(cownvert_ptr, mynrpatch, MPI_INT, &patch_global_dofs_ids[0], count, displs, MPI_INT, comm);
+   MPI_Allgatherv(dof_rank_id_ptr, mynrpatch, MPI_INT, &host_rank[0], count, displs, MPI_INT, comm);
 
    int size = patch_global_dofs_ids[nrpatch - 1] + 1;
    patch_natural_order_idx.SetSize(size);
@@ -264,6 +277,8 @@ par_patch_dof_info::par_patch_dof_info(ParMesh *cpmesh_, int ref_levels_, ParFin
    // Build a list on each processor identifying the truedofs in each patch
    // First the vertices
    nrpatch = patch_nodes->nrpatch;
+   host_rank = patch_nodes->host_rank;
+
    patch_local_tdofs.resize(nrpatch);
    int * offs = fespace->GetTrueDofOffsets();
    int nrvert = fespace->GetNV();
@@ -456,7 +471,8 @@ par_patch_assembly::par_patch_assembly(ParMesh *cpmesh_, int ref_levels_, ParFin
 
       if (ndof !=0 )
       {
-         host_rank[ip] = get_rank(patch_tdof_info->patch_tdofs[ip][0]);
+         host_rank[ip] = patch_tdof_info->host_rank[ip];
+         // host_rank[ip] = get_rank(patch_tdof_info->patch_tdofs[ip][0]);
          for (int i=0; i<ndof; i++)
          {
             int tdof = patch_tdof_info->patch_tdofs[ip][i];

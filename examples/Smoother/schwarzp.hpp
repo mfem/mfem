@@ -16,6 +16,7 @@ public:
    vector<Array<int>> edge_contr;
    vector<Array<int>> face_contr;
    vector<Array<int>> elem_contr;
+   Array<int> host_rank;
    Array<int> patch_natural_order_idx;
    Array<int> patch_global_dofs_ids;
    // constructor
@@ -34,6 +35,7 @@ class par_patch_dof_info
 public:
    MPI_Comm comm = MPI_COMM_WORLD;
    int nrpatch;
+   Array<int> host_rank;
    vector<Array<int>> patch_tdofs;
    vector<Array<int>> patch_local_tdofs;
    // constructor
