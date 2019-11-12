@@ -86,11 +86,12 @@ private:
   int globalIndex;
 
   int owningRank, sharingRank, myRank;
+  bool empty;
   
 protected:
   
 public:
-  SubdomainInterface(const int sd0_, const int sd1_, const int rank) : sd0(sd0_), sd1(sd1_), myRank(rank)
+  SubdomainInterface(const int sd0_, const int sd1_, const int rank, const bool empty_=false) : sd0(sd0_), sd1(sd1_), myRank(rank), empty(empty_)
   {
     MFEM_VERIFY(sd0 < sd1, "");
     globalIndex = -1;
@@ -214,6 +215,16 @@ public:
       }
   }
 
+  void OverwriteOwningRank(const int r) 
+  {
+    owningRank = r;
+  }
+
+  void OverwriteSharingRank(const int r) 
+  {
+    sharingRank = r;
+  }
+
   int GetOwningRank() const
   {
     return owningRank;
@@ -233,9 +244,17 @@ public:
   {
     if (sharingRank != r)
       {
+	if (sharingRank != -1)
+	  cout << "BUG" << endl;
+	
 	MFEM_VERIFY(sharingRank == -1, "");
 	sharingRank = r;
       }
+  }
+  
+  bool IsEmpty() const
+  {
+    return empty;
   }
   
   void PrintVertices(const ParMesh *pmesh) const
@@ -424,14 +443,15 @@ public:
 			    interfaces[interfaceIndex].InsertFaceIndex(-1 - f[k]);
 
 			    const int gtdof = face_fes.GetGlobalTDofNumber(fdof0);
-			    int r = -1;
+			    int r = 0;
 			    for (int p=0; p<num_procs; ++p)
 			      {
-				if (gtdof >= fos[p])
+				if (gtdof < fos[p])
 				  {
-				    r = p;
 				    break;
 				  }
+				else
+				  r = p;
 			      }
 
 			    MFEM_VERIFY(r >= 0 && gtdof >= fos[r], "");

@@ -211,8 +211,8 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #include "gsl_sf_airy.h"
 
 //#define K2_AIRY 2.0  // TODO: input k
-//#define K2_AIRY 10981.4158900991  // 5 GHz
-#define K2_AIRY 43925.6635603965  // 10 GHz
+#define K2_AIRY 10981.4158900991  // 5 GHz
+//#define K2_AIRY 43925.6635603965  // 10 GHz
 //#define K2_AIRY 175702.65424  // 20 GHz
 //#define K2_AIRY 1601.0
 
@@ -793,7 +793,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 
   // Gather the entire global interface matrix to one root process, namely rank 0 in the ifespace communicator.
 #ifdef SERIAL_INTERFACES						     
-  SparseMatrix *globalI = new SparseMatrix(*I);
+  SparseMatrix *globalI = (I == NULL) ? NULL : new SparseMatrix(*I);
   if (globalI != NULL && cI != 0.0)
     {
       for (int i=0; i<globalI->Size(); ++i)
@@ -2387,30 +2387,6 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
       pmeshEdgeToEdgeInInterface[pmeshEdge] = i;
     }
   
-  // The faces in pmeshFacesInInterface have different ordering on different processes, so we must define global indices
-  // to obtain a consistent ordering. The global indices will be defined by RT0 global true DOF numbers.
-  /*
-  pmeshFacesInInterface
-  {
-    RT_FECollection face_fec(0, pmesh->Dimension());
-    ParFiniteElementSpace face_fes(pmesh, &face_fec);
-
-    Array<int> fdof;
-
-			face_fes.GetFaceDofs(f[k], fdof);
-
-			MFEM_VERIFY(fdof.Size() == 1, "");
-
-			const int fdof0 = (fdof[0] >= 0) ? fdof[0] : -1 - fdof[0];
-			const int tdof = face_fes.GetLocalTDofNumber(fdof0);
-			if (tdof >= 0)  // if this is a true DOF
-
-			  
-			    const int gtdof = face_fes.GetGlobalTDofNumber(fdof0);
-    
-  }
-  */
-  
   bool nfpos = false;
   i = 0;
 #endif
@@ -2593,7 +2569,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 
 #ifdef SERIAL_INTERFACES
   // TODO: the code will break for order 1.
-  MFEM_VERIFY(nfpos, "Otherwise ifeli, ifemp, etc. are not set, so even the edge DOF's are not mapped.");
+  //MFEM_VERIFY(nfpos, "Otherwise ifeli, ifemp, etc. are not set, so even the edge DOF's are not mapped.");
 
   int myid, nprocs;
   MPI_Comm_size(ifsdcomm, &nprocs);
@@ -2621,7 +2597,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
   
   std::vector<int> allnif(nprocs);
 
-  if (nfpos)
+  //if (nfpos)
     {
       // Set ifpface by using gathered ifgi values.
       
@@ -2642,7 +2618,12 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	      dspl[i] = sumnif;
 	      sumnif += allnif[i];
 
+	      /*
+	      if (dspl[i] != allifos[i])
+		cout << "BUG" << endl;
+	      
 	      MFEM_VERIFY(dspl[i] == allifos[i], "");
+	      */
 	    }
 
 	  MFEM_VERIFY(sumnif == ifMesh->GetNE(), "");
@@ -4154,6 +4135,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
   SIsender.resize(numInterfaces);
   SIreceiver.resize(numInterfaces);
+
+  sd_root.assign(numSubdomains, -1);
 #else
   ifespace = numInterfaces > 0 ? new ParFiniteElementSpace*[numInterfaces] : NULL;
   iH1fespace = numInterfaces > 0 ? new ParFiniteElementSpace*[numInterfaces] : NULL;
@@ -4200,7 +4183,13 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  ifespace[i] = NULL;
 	  iH1fespace[i] = NULL;
 
-#ifndef SERIAL_INTERFACES
+#ifdef SERIAL_INTERFACES
+	  ifNDmassSp[i] = NULL;
+	  ifNDH1gradSp[i] = NULL;
+	  ifNDH1gradTSp[i] = NULL;
+	  ifH1massSp[i] = NULL;
+	  ifNDcurlcurlSp[i] = NULL;
+#else
 	  ifNDmass[i] = NULL;
 	  ifNDH1grad[i] = NULL;
 	  ifNDH1gradT[i] = NULL;
@@ -4387,7 +4376,13 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #else
 #ifdef SERIAL_INTERFACES
 	sd_com[m] = (fespace[m] == NULL) ? MPI_COMM_NULL : fespace[m]->GetComm();
-	sd_nonempty[m] = (fespace[m] != NULL);	
+	sd_nonempty[m] = (fespace[m] != NULL);
+
+	if (sd_nonempty[m])
+	  {
+	    sd_root[m] = m_rank;
+	    MPI_Bcast(&(sd_root[m]), 1, MPI_INT, 0, sd_com[m]);
+	  }
 #else
 	sd_nonempty[m] = (locSizeSD > 0);
 	int color = (locSizeSD == 0);
@@ -4554,9 +4549,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      MFEM_VERIFY(ifFacesOrdered.size() == ifFaces.size(), "");
 #endif
 
+	      const int ifos = (ifli >= 0) ? interfaceFaceOffset[ifli] : 0;
+	      
 	      SetInterfaceToSurfaceDOFMap(sd_com[m], ifespace[interfaceIndex], 
 #ifdef SERIAL_INTERFACES
-					  interfaceFaceOffset[ifli], ifFacesOrdered,
+					  ifos, ifFacesOrdered,
 #endif
 					  fespace[m], fespaceGlobal, pmeshGlobal, m+1,
 					  ifFaces, ifEdges, ifVertices, &fecbdry, dofmap,
@@ -4915,8 +4912,104 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       MFEM_VERIFY(sd0 < sd1, "");
       
 #ifdef SERIAL_INTERFACES
+      int sdata[2] = {-1, -1};
+      
+      if (ili >= 0)
+	{
+	  if (!(*localInterfaces)[ili].IsEmpty())
+	    {
+	      MFEM_VERIFY((*localInterfaces)[ili].GetRank() == m_rank, "");
+	      MFEM_VERIFY((*localInterfaces)[ili].GetOwningRank() == m_rank || (*localInterfaces)[ili].GetSharingRank() == m_rank, "");
+
+	      int otherSubdomainRoot = -1;
+		  
+	      if ((sd_nonempty[sd0] || sd_nonempty[sd1]) && !(sd_nonempty[sd0] && sd_nonempty[sd1]))
+		{
+		  const int otherRank = ((*localInterfaces)[ili].GetOwningRank() == m_rank) ?
+		    (*localInterfaces)[ili].GetSharingRank() : (*localInterfaces)[ili].GetOwningRank();
+
+		  // Exchange subdomain root ranks.
+		  
+		  const int mysd = sd_nonempty[sd0] ? sd0 : sd1;
+		  MFEM_VERIFY(sd_root[mysd] >= 0, "");
+
+		  if (mysd == sd0)
+		    MPI_Send(&(sd_root[mysd]), 1, MPI_INT, otherRank, i, MPI_COMM_WORLD);
+		  else
+		    MPI_Recv(&otherSubdomainRoot, 1, MPI_INT, otherRank, i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+		  if (mysd == sd1)
+		    MPI_Send(&(sd_root[mysd]), 1, MPI_INT, otherRank, i, MPI_COMM_WORLD);
+		  else
+		    MPI_Recv(&otherSubdomainRoot, 1, MPI_INT, otherRank, i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+		  MFEM_VERIFY(otherSubdomainRoot >= 0, "");
+
+		  int isOwner = ((*localInterfaces)[ili].GetOwningRank() == m_rank) ? 1 : 0;
+		  sdata[0] = otherSubdomainRoot;
+		  sdata[1] = isOwner;
+		}
+	    }
+	}
+
+      {
+	// Send otherSubdomainRoot to this subdomain's root, for which ifNDtrue[i] > 0, via a gather for both subdomains.
+	
+	const int sds[2] = {sd0, sd1};
+	for (int j=0; j<2; ++j)
+	  {
+	    const int sd = sds[j];
+	    
+	    if (sd_nonempty[sd])
+	      {
+		std::vector<int> allsdata;
+
+		int sdnprocs = -1;
+		MPI_Comm_size(sd_com[sd], &sdnprocs);
+		
+		if (sd_root[sd] == m_rank)
+		  {
+		    allsdata.resize(2*sdnprocs);
+		  }
+		
+		MPI_Gather(sdata, 2, MPI_INT, allsdata.data(), 2, MPI_INT, 0, sd_com[sd]);
+
+		if (sd_root[sd] == m_rank)
+		  {
+		    int otherSubdomainRoot = -1;
+		    bool isOwner = false;
+		    for (int p=0; p<sdnprocs; ++p)
+		      {
+			if (allsdata[2*p] >= 0)
+			  {
+			    MFEM_VERIFY(otherSubdomainRoot == -1 || (otherSubdomainRoot == allsdata[2*p] && isOwner == (allsdata[(2*p) + 1] == 1)), "");
+
+			    otherSubdomainRoot = allsdata[2*p];
+			    isOwner = (allsdata[(2*p) + 1] == 1);
+			  }
+		      }
+
+		    MFEM_VERIFY(ifNDtrue[i] > 0, "");
+		    MFEM_VERIFY(ili >= 0, "");
+		    
+		    if (isOwner)
+		      {
+			(*localInterfaces)[ili].OverwriteOwningRank(m_rank);
+			(*localInterfaces)[ili].OverwriteSharingRank(otherSubdomainRoot);
+		      }
+		    else
+		      {
+			(*localInterfaces)[ili].OverwriteOwningRank(otherSubdomainRoot);
+			(*localInterfaces)[ili].OverwriteSharingRank(m_rank);
+		      }
+		  }
+	      }
+	  }
+      }
+      
       if (ifNDtrue[i] > 0 && !(sd_nonempty[sd0] && sd_nonempty[sd1]))
 	{
+	  MFEM_VERIFY(sd_nonempty[sd0] || sd_nonempty[sd1], "");
 	  MFEM_VERIFY(ili >= 0, "");
 	  MFEM_VERIFY((*localInterfaces)[ili].GetRank() == m_rank, "");
 	  MFEM_VERIFY((*localInterfaces)[ili].GetOwningRank() == m_rank || (*localInterfaces)[ili].GetSharingRank() == m_rank, "");

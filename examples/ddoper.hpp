@@ -40,7 +40,7 @@ using namespace std;
 
 //#define NO_COMM_SPLITTING
 
-//#define SERIAL_INTERFACES
+#define SERIAL_INTERFACES
 
 
 void test1_E_exact(const Vector &x, Vector &E);
@@ -857,7 +857,7 @@ public:
     double normXRe = x.ComputeL2Error(vzero);
 
     DataCollection *dc = NULL;
-    const bool visit = true;
+    const bool visit = false;
     if (visit && sd == 7)
       {
 	//x.ProjectCoefficient(E);
@@ -967,6 +967,8 @@ private:
   SparseMatrix **ifNDmassSp, **ifNDcurlcurlSp, **ifNDH1gradSp, **ifNDH1gradTSp, **ifH1massSp;
 
   std::vector<SerialInterfaceCommunicator*> SIsender, SIreceiver;
+
+  std::vector<int> sd_root;
   
   //HypreParMatrix **ifNDmass, **ifNDH1grad, **ifNDH1gradT, **ifH1mass, **ifND_FS;
 #else

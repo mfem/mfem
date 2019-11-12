@@ -55,8 +55,8 @@ double freq = 1.0, kappa;
 int dim;
 
 #ifdef AIRY_TEST
-//#define SIGMAVAL -10981.4158900991  // 5 GHz
-#define SIGMAVAL -43925.6635603965  // 10 GHz
+#define SIGMAVAL -10981.4158900991  // 5 GHz
+//#define SIGMAVAL -43925.6635603965  // 10 GHz
 //#define SIGMAVAL -175702.65424  // 20 GHz
 //#define SIGMAVAL -1601.0
 //#define SIGMAVAL -1009.0
@@ -412,8 +412,8 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
 	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
-	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-      (int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
 
@@ -428,7 +428,7 @@ int main(int argc, char *argv[])
 
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {1, 1, 8};
+   int nxyzSubdomains[3] = {2, 2, 2};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -566,10 +566,10 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {1, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
-       //int nxyzGlobal[3] = {4, 4, 4};
-       //int nxyzGlobal[3] = {6, 6, 4};
+       int nxyzGlobal[3] = {4, 4, 4};
+       //int nxyzGlobal[3] = {6, 6, 2};
        //int nxyzGlobal[3] = {2, 2, 8};
-       int nxyzGlobal[3] = {6, 6, 8};  // 288
+       //int nxyzGlobal[3] = {6, 6, 8};  // 288
        //int nxyzGlobal[3] = {8, 6, 6};  // 288
        //int nxyzGlobal[3] = {6, 12, 8};  // 576
        //int nxyzGlobal[3] = {12, 6, 8};  // 576
@@ -578,7 +578,8 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {12, 12, 8};  // 1152
        //int nxyzGlobal[3] = {6, 12, 16};  // 1152
        //int nxyzGlobal[3] = {6, 6, 32};  // 1152
-       //int nxyzGlobal[3] = {8, 4, 8};
+       //int nxyzGlobal[3] = {8, 8, 8};
+       //int nxyzGlobal[3] = {16, 16, 8};
        //int nxyzGlobal[3] = {8, 16, 8};
        //int nxyzGlobal[3] = {12, 12, 16};  // 2304
        //int nxyzGlobal[3] = {24, 24, 4};  // 2304
@@ -648,11 +649,6 @@ int main(int argc, char *argv[])
    SubdomainInterfaceGenerator sdInterfaceGen(numSubdomains, pmesh);
    vector<SubdomainInterface> interfaces;  // Local interfaces
    sdInterfaceGen.CreateInterfaces(interfaces);
-
-#ifdef SERIAL_INTERFACES
-   std::vector<int> interfaceFaceOffset;
-   interfaceFaceOffset.assign(interfaces.size(), 0);
-#endif
    
    /*
    { // Debugging
@@ -682,10 +678,131 @@ int main(int argc, char *argv[])
 #else
    ParMesh **pmeshInterfaces = (numInterfaces > 0 ) ? new ParMesh*[numInterfaces] : NULL;
 #endif
-   
+
+#ifdef SERIAL_INTERFACES
+   {
+     // For each interface, the root process in pmeshSD[sd]->GetComm() for each of the neighboring subdomains sd
+     // must create an empty interface if it does not exist already. 
+
+     std::map<int, int> sdToId;
+     std::vector<std::vector<int> > sdif;
+     
+     for (int i=0; i<numInterfaces; ++i)
+       {
+	 const int iloc = interfaceGlobalToLocalMap[i];  // Local interface index
+       
+	 if (iloc >= 0)
+	   {
+	     MFEM_VERIFY(interfaceGI[i] == interfaces[iloc].GetGlobalIndex(), "");
+	     int sds[2] = {interfaces[iloc].FirstSubdomain(), interfaces[iloc].SecondSubdomain()};
+
+	     for (int j=0; j<2; ++j)
+	       {
+		 if (pmeshSD[sds[j]] != NULL)
+		   {
+		     std::map<int, int>::iterator it = sdToId.find(sds[j]);
+		     if (it == sdToId.end())
+		       {
+			 std::vector<int> ifi;
+			 ifi.push_back(i);
+
+			 sdToId[sds[j]] = sdif.size();
+			 sdif.push_back(ifi);
+		       }
+		     else
+		       {
+			 MFEM_VERIFY(it->first == sds[j], "");
+
+			 const int sdid = it->second;
+
+			 sdif[sdid].push_back(i);
+		       }
+		   }
+	       }
+	   }
+       }
+     
+     for (int sd=0; sd<numSubdomains; ++sd)
+       {
+	 if (pmeshSD[sd] != NULL)
+	   {
+	     int nif = 0;
+	     std::vector<int> sbuf, recv;
+
+	     int sdrank = -1;
+	     int sdnprocs = -1;
+	     MPI_Comm_rank(pmeshSD[sd]->GetComm(), &sdrank);
+	     MPI_Comm_size(pmeshSD[sd]->GetComm(), &sdnprocs);
+	     
+	     std::vector<int> allnif(sdnprocs);
+	     std::vector<int> rdspl(sdnprocs);
+
+	     std::map<int, int>::iterator it = sdToId.find(sd);
+	     if (it != sdToId.end())
+	       {
+		 MFEM_VERIFY(it->first == sd, "");
+		 const int sdid = it->second;
+
+		 nif = 2 * sdif[sdid].size();
+		 for (auto ifid : sdif[sdid])
+		   {
+		     sbuf.push_back(ifid);
+		     
+		     MFEM_VERIFY(interfaceGlobalToLocalMap[ifid] >= 0, "");
+		     sbuf.push_back(interfaces[interfaceGlobalToLocalMap[ifid]].GetOwningRank());
+		   }
+	       }
+
+	     MPI_Gather(&nif, 1, MPI_INT, allnif.data(), 1, MPI_INT, 0, pmeshSD[sd]->GetComm());
+
+	     int sumcnt = 0;
+	     if (sdrank == 0)
+	       {
+		 for (int p=0; p<sdnprocs; ++p)
+		   {
+		     rdspl[p] = sumcnt;
+		     sumcnt += allnif[p];
+		   }
+	     
+		 recv.resize(sumcnt);
+	       }
+	     
+	     MPI_Gatherv(sbuf.data(), nif, MPI_INT, recv.data(), allnif.data(), rdspl.data(), MPI_INT, 0, pmeshSD[sd]->GetComm());
+
+	     if (sdrank == 0)
+	       {
+		 for (int j=0; j<sumcnt/2; ++j)
+		   {
+		     const int ifid = recv[2*j];
+		     const int owningRank = recv[(2*j) + 1];
+		     
+		     if (interfaceGlobalToLocalMap[ifid] < 0)
+		       {
+			 const int sd0 = interfaceGI[ifid] / numSubdomains;
+			 const int sd1 = interfaceGI[ifid] - (sd0 * numSubdomains);
+			 
+			 interfaceGlobalToLocalMap[ifid] = interfaces.size();
+			 interfaces.push_back(SubdomainInterface(sd0, sd1, myid, true));  // Create empty interface
+
+			 interfaces[interfaceGlobalToLocalMap[ifid]].SetOwningRank(owningRank);
+
+			 const int ifgi = interfaces[interfaceGlobalToLocalMap[ifid]].SetGlobalIndex(numSubdomains);
+			 MFEM_VERIFY(ifgi == interfaceGI[ifid], "");
+		       }
+		   }
+	       }
+	   }
+       }
+   }
+
+   std::vector<int> interfaceFaceOffset;
+   interfaceFaceOffset.assign(interfaces.size(), 0);
+#endif
+
    for (int i=0; i<numInterfaces; ++i)
      {
        const int iloc = interfaceGlobalToLocalMap[i];  // Local interface index
+
        if (iloc >= 0)
 	 {
 	   MFEM_VERIFY(interfaceGI[i] == interfaces[iloc].GetGlobalIndex(), "");
@@ -697,7 +814,7 @@ int main(int argc, char *argv[])
 	     {
 	       if (pmeshSD[sds[j]] != NULL)
 		 {
-		   // Limit the serial mesh construction to one process having non-null pmeshSD.
+		   // Limit the serial mesh construction to one process having non-null pmeshSD, for each neighboring subdomain.
 		   int sdrank = -1;
 		   MPI_Comm_rank(pmeshSD[sds[j]]->GetComm(), &sdrank);
 
@@ -720,7 +837,7 @@ int main(int argc, char *argv[])
 	   // mesh generation more parallel.
 	   const int sd0 = interfaceGI[i] / numSubdomains;  // globalIndex = (numSubdomains * sd0) + sd1;
 	   const int sd1 = interfaceGI[i] - (numSubdomains * sd0);  // globalIndex = (numSubdomains * sd0) + sd1;
-	   SubdomainInterface emptyInterface(sd0, sd1, myid);
+	   SubdomainInterface emptyInterface(sd0, sd1, myid, true);
 	   emptyInterface.SetGlobalIndex(numSubdomains);
 #ifdef SERIAL_INTERFACES
 	   int elemOffset = 0;
@@ -743,7 +860,8 @@ int main(int argc, char *argv[])
 
      for (auto si : interfaces)
        {
-	 numOwnedByRank[si.GetOwningRank()]++;
+	 if (!si.IsEmpty())
+	   numOwnedByRank[si.GetOwningRank()]++;
        }
 
      MPI_Alltoall(numOwnedByRank.data(), 1, MPI_INT, numSharedByRank.data(), 1, MPI_INT, MPI_COMM_WORLD);
@@ -762,7 +880,7 @@ int main(int argc, char *argv[])
 	       {
 		 if (interfaceGlobalToLocalMap[i] >= 0)
 		   {
-		     if (interfaces[interfaceGlobalToLocalMap[i]].GetOwningRank() == r)
+		     if ((!interfaces[interfaceGlobalToLocalMap[i]].IsEmpty()) && interfaces[interfaceGlobalToLocalMap[i]].GetOwningRank() == r)
 		       {
 			 ifid[cnt] = i;
 			 cnt++;
@@ -792,7 +910,7 @@ int main(int argc, char *argv[])
      // Third, verify that owning and sharing ranks are set.
      for (auto si : interfaces)
        {
-	 MFEM_VERIFY(si.GetOwningRank() == myid || si.GetSharingRank() == myid, "");
+	 //MFEM_VERIFY(si.GetOwningRank() == myid || si.GetSharingRank() == myid, "");
 	 MFEM_VERIFY(si.GetOwningRank() >= 0, ""); // && si.GetSharingRank() >= 0, "");
        }
 
@@ -847,6 +965,8 @@ int main(int argc, char *argv[])
 	     MFEM_VERIFY(cnt == numOwnedByRank[r], "");
 	   }
        }
+
+     // Note that the interface owning and sharing ranks were used only to set interfaceFaceOffset and are no longer needed.
 #endif
    }
 
