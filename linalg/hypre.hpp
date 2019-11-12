@@ -1065,7 +1065,7 @@ public:
    HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
 
    virtual void SetOperator(const Operator &op);
-   
+
    void SetPrintLevel(int print_lvl);
 
    /// The typecast to HYPRE_Solver returns the internal ads object
