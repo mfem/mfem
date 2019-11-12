@@ -1043,6 +1043,9 @@ public:
 class HypreADS : public HypreSolver
 {
 private:
+   /// Constuct ADS solver from finite element space
+   void Init(ParFiniteElementSpace *face_fespace);
+
    HYPRE_Solver ads;
 
    /// Vertex coordinates
@@ -1057,8 +1060,12 @@ private:
    HypreParMatrix *RT_Pi, *RT_Pix, *RT_Piy, *RT_Piz;
 
 public:
+   HypreADS(ParFiniteElementSpace *face_fespace);
+
    HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
 
+   virtual void SetOperator(const Operator &op);
+   
    void SetPrintLevel(int print_lvl);
 
    /// The typecast to HYPRE_Solver returns the internal ads object
