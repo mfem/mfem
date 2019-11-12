@@ -917,7 +917,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
      newton_op_prec_(offsets),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
-     op_(mpi, dg, pgf, dpgf, offsets_,
+     op_(mpi, dg, vfes, pgf, dpgf, offsets_,
          ion_charge, ion_mass, neutral_mass, neutral_temp, Di_perp,
          Xi_perp, Xe_perp, B3Coef, Ti_dbc, Te_dbc, op_flag, logging),
      BxyCoef_(B3Coef),
@@ -1917,6 +1917,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 
 DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        const DGParams & dg,
+                                       ParFiniteElementSpace & vfes,
                                        ParGridFunctionArray & pgf,
                                        ParGridFunctionArray & dpgf,
                                        Array<int> & offsets,
@@ -1966,7 +1967,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 2) & 1)
    {
-      op_[2] = new IonMomentumOp(mpi, dg, pgf, dpgf, ion_charge, ion_mass,
+      op_[2] = new IonMomentumOp(mpi, dg, vfes, pgf, dpgf, ion_charge, ion_mass,
                                  DiPerp, B3Coef);
       op_[2]->SetLogging(logging, "v_i: ");
    }
@@ -2617,6 +2618,7 @@ void DGTransportTDO::IonDensityOp::Update()
 
 DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              const DGParams & dg,
+                                             ParFiniteElementSpace & vfes,
                                              ParGridFunctionArray & pgf,
                                              ParGridFunctionArray & dpgf,
                                              int ion_charge,
@@ -2652,7 +2654,8 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      nnizCoef_(nn1Coef_, izCoef_),
      niizCoef_(ni1Coef_, izCoef_),
      EtaParaGF_(new ParGridFunction((*pgf_)[2]->ParFESpace())),
-     EtaPerpGF_(new ParGridFunction((*pgf_)[2]->ParFESpace()))
+     EtaPerpGF_(new ParGridFunction((*pgf_)[2]->ParFESpace())),
+     MomParaGF_(new ParGridFunction(&vfes))
 {
    // Time derivative term: m_i v_i dn_i/dt
    dbfi_m_[1].Append(new MassIntegrator(mivi1Coef_));
@@ -2734,6 +2737,7 @@ DGTransportTDO::IonMomentumOp::~IonMomentumOp()
 {
    delete EtaPerpGF_;
    delete EtaParaGF_;
+   delete MomParaGF_;
 }
 
 void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
@@ -2760,8 +2764,9 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
 {
    NLOperator::RegisterDataFields(dc);
 
-   dc.RegisterField("Eta_i Perpendicular", EtaPerpGF_);
-   dc.RegisterField("Eta_i Parallel",      EtaParaGF_);
+   dc.RegisterField("Eta_i Perpendicular",   EtaPerpGF_);
+   dc.RegisterField("Eta_i Parallel",        EtaParaGF_);
+   dc.RegisterField("Ion Parallel Momentum", MomParaGF_);
 }
 
 void DGTransportTDO::
@@ -2769,6 +2774,7 @@ IonMomentumOp::PrepareDataFields()
 {
    EtaParaGF_->ProjectCoefficient(EtaParaCoef_);
    EtaPerpGF_->ProjectCoefficient(EtaPerpCoef_);
+   MomParaGF_->ProjectCoefficient(miniViCoef_);
 }
 
 void DGTransportTDO::IonMomentumOp::Update()
@@ -2777,6 +2783,7 @@ void DGTransportTDO::IonMomentumOp::Update()
 
    EtaParaGF_->Update();
    EtaPerpGF_->Update();
+   MomParaGF_->Update();
 }
 
 DGTransportTDO::IonStaticPressureOp::

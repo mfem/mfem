@@ -1759,9 +1759,11 @@ private:
 
       ParGridFunction * EtaParaGF_;
       ParGridFunction * EtaPerpGF_;
+      ParGridFunction * MomParaGF_;
 
    public:
       IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,
+                    ParFiniteElementSpace & vfes,
                     ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                     int ion_charge, double ion_mass, double DPerp,
                     VectorCoefficient & B3Coef);
@@ -1960,6 +1962,7 @@ private:
 
    public:
       CombinedOp(const MPI_Session & mpi, const DGParams & dg,
+                 ParFiniteElementSpace & vfes,
                  ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                  Array<int> & offsets,
                  int ion_charge, double ion_mass,
