@@ -11,6 +11,18 @@
 Version 4.0.1 (development)
 ===========================
 
+Meshing improvements
+--------------------------
+- The TMOP mesh optimization algorithms were extended to support R-adaptivity.
+  The target matrices can now be constructed either via a user-specified
+  analytical function (e.g., spatial dependence of size, aspect ratio, etc., of
+  each element) or via a GridFunction/ParGridFunction specified on the original
+  mesh.  
+
+New and updated examples and miniapps
+-------------------------------------
+- The (p)mesh-optimizer miniapp has been updated to demonstrate the R-adaptivity 
+  capability usin TMOP.
 
 Version 4.0, released on May 24, 2019
 =====================================
