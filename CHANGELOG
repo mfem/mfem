@@ -36,7 +36,7 @@ New and updated examples and miniapps
 - Added examples (exs.cpp,exp.cpp,compare.cpp) in examples/gslib that show 
   how GSLIB-FindPoints can be used to find arbitrary number of points (in
   physical-space) in a 2D/3D mesh in parallel, and interpolate a
-  GridFunction/ParGridFunction at those points. The gridfunction must 
+  GridFunction/ParGridFunction at those points. The GridFunction must 
   be in H1 and in the same space as the mesh that is used to find the points.
 
 Version 4.0, released on May 24, 2019

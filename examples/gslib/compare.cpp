@@ -17,6 +17,8 @@
 // GSLib's highly optimized communication kernels to first find arbitrary 
 // number of points (given in physical-space) in a mesh in serial/parallel
 // and then interpolate a GridFunction/ParGridFunction at those points. 
+// The GridFunction must be in H1 and in the same space as the mesh that is
+// used to find the points.
 //
 // Compile with: make compare
 // Sample run  : ./compare
