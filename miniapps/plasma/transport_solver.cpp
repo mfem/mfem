@@ -823,21 +823,16 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
 void DGAdvectionDiffusionTDO::Update()
 {
    height = width = fes_->GetVSize();
-   // cout << "DGA::Update m" << endl;
+
    m_.Update(); m_.Assemble(); m_.Finalize();
-   // cout << "DGA::Update a" << endl;
    a_->Update(); // a_->Assemble(); a_->Finalize();
-   // cout << "DGA::Update b" << endl;
+
    if (b_) { b_->Update(); /*b_->Assemble(); b_->Finalize();*/ }
-   // cout << "DGA::Update s" << endl;
    if (s_) { s_->Update(); /*s_->Assemble(); s_->Finalize();*/ }
-   // cout << "DGA::Update k" << endl;
    if (k_) { k_->Update(); k_->Assemble(); k_->Finalize(); }
-   // cout << "DGA::Update q_exp" << endl;
    if (q_exp_) { q_exp_->Update(); q_exp_->Assemble(); }
-   // cout << "DGA::Update q_imp" << endl;
    if (q_imp_) { q_imp_->Update(); q_imp_->Assemble(); }
-   // cout << "DGA::Update rhs" << endl;
+
    rhs_.Update();
    RHS_.SetSize(fes_->GetTrueVSize());
    X_.SetSize(fes_->GetTrueVSize());
@@ -875,19 +870,19 @@ void TransportPrec::SetOperator(const Operator &op)
 
             Operator & diag_op = blk_op->GetBlock(i,i);
             HypreParMatrix & M = dynamic_cast<HypreParMatrix&>(diag_op);
-	    diag_prec_[i] = new HypreBoomerAMG(M);
-	    /*
-            if (i == 0)
-            {
-               cout << "Building new HypreBoomerAMG preconditioner" << endl;
-               diag_prec_[i] = new HypreBoomerAMG(M);
-            }
-            else
-            {
-               cout << "Building new HypreDiagScale preconditioner" << endl;
-               diag_prec_[i] = new HypreDiagScale(M);
-            }
-	    */
+            diag_prec_[i] = new HypreBoomerAMG(M);
+            /*
+                 if (i == 0)
+                 {
+                    cout << "Building new HypreBoomerAMG preconditioner" << endl;
+                    diag_prec_[i] = new HypreBoomerAMG(M);
+                 }
+                 else
+                 {
+                    cout << "Building new HypreDiagScale preconditioner" << endl;
+                    diag_prec_[i] = new HypreDiagScale(M);
+                 }
+            */
             SetDiagonalBlock(i, diag_prec_[i]);
          }
       }
@@ -929,53 +924,13 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
      BzCoef_(B3Coef),
      BxyGF_(NULL),
      BzGF_(NULL)
-     // oneCoef_(1.0),
-     // n_n_oper_(dg, fes, pgf, oneCoef_, imex),
-     // n_i_oper_(dg, fes, pgf, oneCoef_, imex),
-     // v_i_oper_(dg, fes, pgf, MomCCoef, imex),
-     // T_i_oper_(dg, fes, pgf,  TiCCoef, imex),
-     // T_e_oper_(dg, fes, pgf,  TeCCoef, imex)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Constructing DGTransportTDO" << endl;
    }
    const double rel_tol = 1e-8;
-   /*
-   {
-      int loc_size = fes_->GetVSize();
-      SparseMatrix spZ(loc_size, loc_size, 0);
-      HypreParMatrix Z(fes_->GetComm(), fes_->GlobalVSize(),
-             fes_->GetDofOffsets(), &spZ);
 
-      HypreSmoother * prec0 = new HypreSmoother(Z, HypreSmoother::Jacobi);
-      HypreSmoother * prec1 = new HypreSmoother(Z, HypreSmoother::Jacobi);
-      HypreSmoother * prec2 = new HypreSmoother(Z, HypreSmoother::Jacobi);
-      HypreSmoother * prec3 = new HypreSmoother(Z, HypreSmoother::Jacobi);
-      HypreSmoother * prec4 = new HypreSmoother(Z, HypreSmoother::Jacobi);
-
-      prec0->SetType(HypreSmoother::l1Jacobi);
-      prec0->SetPositiveDiagonal(true);
-
-      prec1->SetType(HypreSmoother::l1Jacobi);
-      prec1->SetPositiveDiagonal(true);
-
-      prec2->SetType(HypreSmoother::l1Jacobi);
-      prec2->SetPositiveDiagonal(true);
-
-      prec3->SetType(HypreSmoother::l1Jacobi);
-      prec3->SetPositiveDiagonal(true);
-
-      prec4->SetType(HypreSmoother::l1Jacobi);
-      prec4->SetPositiveDiagonal(true);
-
-      newton_op_prec_.SetDiagonalBlock(0, prec0);
-      newton_op_prec_.SetDiagonalBlock(1, prec1);
-      newton_op_prec_.SetDiagonalBlock(2, prec2);
-      newton_op_prec_.SetDiagonalBlock(3, prec3);
-      newton_op_prec_.SetDiagonalBlock(4, prec4);
-   }
-   */
    newton_op_solver_.SetRelTol(rel_tol * 1.0e-2);
    newton_op_solver_.SetAbsTol(0.0);
    newton_op_solver_.SetMaxIter(300);
@@ -992,7 +947,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
 
    BxyGF_ = new ParGridFunction(vfes_);
    BzGF_  = new ParGridFunction(fes_);
-   
+
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Done constructing DGTransportTDO" << endl;
@@ -1048,7 +1003,7 @@ DGTransportTDO::RegisterDataFields(DataCollection & dc)
 
    dc_->RegisterField("B Poloidal", BxyGF_);
    dc_->RegisterField("B Toroidal", BzGF_);
-   
+
    op_.RegisterDataFields(dc);
 }
 
@@ -1057,7 +1012,7 @@ DGTransportTDO::PrepareDataFields()
 {
    BxyGF_->ProjectCoefficient(BxyCoef_);
    BzGF_->ProjectCoefficient(BzCoef_);
-  
+
    op_.PrepareDataFields();
 }
 
@@ -1447,7 +1402,7 @@ void DGTransportTDO::Update()
 
    BxyGF_->Update();
    BzGF_->Update();
-   
+
    op_.Update();
 
    newton_solver_.SetOperator(op_);
@@ -2000,7 +1955,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    if ((op_flag >> 1) & 1)
    {
       op_[1] = new IonDensityOp(mpi, dg, pgf, dpgf, ion_charge, DiPerp,
-                                B3Coef /*bHatCoef, PerpCoef*/);
+                                B3Coef);
       op_[1]->SetLogging(logging, "n_i: ");
    }
    else
@@ -2534,9 +2489,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            ParGridFunctionArray & dpgf,
                                            int ion_charge,
                                            double DPerp,
-                                           VectorCoefficient & B3Coef/*,
-                                           VectorCoefficient & bHatCoef,
-                                           MatrixCoefficient & PerpCoef*/)
+                                           VectorCoefficient & B3Coef)
    : NLOperator(mpi, dg, 1, "Ion Density", pgf, dpgf),
      z_i_(ion_charge), DPerpConst_(DPerp),
      nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]), Te0Coef_(pgf[4]),

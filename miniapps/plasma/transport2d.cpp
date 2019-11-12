@@ -1112,7 +1112,7 @@ int main(int argc, char *argv[])
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes(&pmesh, &fec);
    ParFiniteElementSpace vfes(&pmesh, &fec, 2);
-   
+
    // Adaptively refine mesh to accurately represent a given coefficient
    {
       ParGridFunctionArray coef_gf(5, &fes);
