@@ -47,10 +47,9 @@ MemoryType GetDualMemoryType(MemoryType mt)
       return MemoryType::HOST;
    }
    const bool debug = Device::Allows(Backend::DEBUG);
-   if (debug && ! Device::Allows(Backend::CUDA))
+   if (debug && !Device::Allows(Backend::CUDA))
    {
       dbg("debug");
-      MFEM_VERIFY(mt==MemoryType::HOST,"");
       return MemoryType::DEVICE_DEBUG;
    }
    switch (mt)
@@ -412,12 +411,14 @@ class UvmCudaMemorySpace : public DeviceMemorySpace
 {
 public:
    UvmCudaMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) {  base.d_ptr = base.h_ptr; }
+   void Alloc(Memory &base) { base.d_ptr = base.h_ptr; }
    void Dealloc(Memory &base) { }
-   void *HtoD(void *dst, const void *src, size_t bytes) { return dst; }
+   void *HtoD(void *dst, const void *src, size_t bytes)
+   { return const_cast<void*>(src); }
    void *DtoD(void* dst, const void* src, size_t bytes)
    { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes) { return dst; }
+   void *DtoH(void *dst, const void *src, size_t bytes)
+   { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
 /// The MMU device memory space
