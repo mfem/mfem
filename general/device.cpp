@@ -36,14 +36,14 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
    Backend::HIP,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU,
-   Backend::DEBUG
+   Backend::DEBUG, Backend::UVM
 };
 
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
    "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp", "omp",
-   "occa-cpu", "raja-cpu", "cpu", "debug"
+   "occa-cpu", "raja-cpu", "cpu", "debug", "uvm"
 };
 
 } // namespace mfem::internal
@@ -117,7 +117,8 @@ void Device::Print(std::ostream &out)
    out << std::endl;
    out << "Memory configuration: "
        << MemoryTypeName[static_cast<int>(host_mem_type)];
-   if (Device::Allows(Backend::DEVICE_MASK) || Device::Allows(Backend::DEBUG))
+   if (Device::Allows(Backend::DEVICE_MASK) ||
+       Device::Allows(Backend::DEBUG))
    {
       out << ", " << MemoryTypeName[static_cast<int>(device_mem_type)];
    }
@@ -131,6 +132,7 @@ void Device::UpdateMemoryTypeAndClass()
 #else
    const bool umpire = false;
 #endif
+   const bool uvm = Device::Allows(Backend::UVM);
    const bool debug = Device::Allows(Backend::DEBUG);
 
    // If MFEM has been compiled with Umpire support, use it as default
@@ -161,13 +163,23 @@ void Device::UpdateMemoryTypeAndClass()
       }
    }
 
+   // Use the uvm shortcut if it has been requested
+   if (uvm)
+   {
+      host_mem_type = MemoryType::HOST_MANAGED;
+      host_mem_class = MemoryClass::HOST_MANAGED;
+      device_mem_type = MemoryType::DEVICE_MANAGED;
+      device_mem_class = MemoryClass::DEVICE_MANAGED;
+   }
+
    // Update the memory manager with the new settings
    mm.Configure(host_mem_type, device_mem_type);
 }
 
 void Device::Enable()
 {
-   const bool accelerated = Get().backends & ~(Backend::CPU | Backend::DEBUG);
+   const bool accelerated =
+      Get().backends & ~(Backend::CPU | Backend::DEBUG | Backend::UVM);
    if (accelerated) { Get().mode = Device::ACCELERATED;}
    // Update the host & device memory backends
    Get().UpdateMemoryTypeAndClass();

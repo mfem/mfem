@@ -31,9 +31,10 @@ enum class MemoryType
    HOST_32,       ///< Host memory; aligned at 32 bytes
    HOST_64,       ///< Host memory; aligned at 64 bytes
    HOST_DEBUG,    ///< Host memory; protected while in device mode
+   HOST_MANAGED,  ///< Host memory; using *MallocManaged, *Free
    DEVICE,        ///< Device memory; using *Malloc, *Free
+   DEVICE_MANAGED,///< Device memory; using D2D copies only
    DEVICE_UMPIRE, ///< Device memory; using Umpire
-   DEVICE_UVM,    ///< Device memory; using *MallocManaged, *Free
    DEVICE_DEBUG,  ///< Device memory; protected while in host mode
    SIZE           ///< Number of host and device memory types
 };
@@ -66,15 +67,16 @@ inline MemoryType& operator--(MemoryType &mt,int)
  *  use MemoryClass::DEVICE for their inputs. */
 enum class MemoryClass
 {
-   HOST,          ///< Memory types: { HOST, HOST_UMPIRE, HOST_32, HOST_64, HOST_DEBUG }
-   HOST_UMPIRE,   ///< Memory types: { HOST_UMPIRE, HOST_32, HOST_64, HOST_DEBUG }
-   HOST_32,       ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
-   HOST_64,       ///< Memory types: { HOST_64, HOST_DEBUG }
-   HOST_DEBUG,    ///< Memory types: { HOST_DEBUG }
-   DEVICE,        ///< Memory types: { DEVICE, DEVICE_UMPIRE, DEVICE_UVM, DEVICE_DEBUG}
-   DEVICE_UMPIRE, ///< Memory types: { DEVICE_UMPIRE, DEVICE_UVM, DEVICE_DEBUG}
-   DEVICE_UVM,    ///< Memory types: { DEVICE_UVM, DEVICE_DEBUG}
-   DEVICE_DEBUG   ///< Memory types: { DEVICE_DEBUG }
+   HOST,           ///< Memory types: { HOST, HOST_UMPIRE, HOST_32, HOST_64, HOST_DEBUG }
+   HOST_UMPIRE,    ///< Memory types: { HOST_UMPIRE, HOST_32, HOST_64, HOST_DEBUG }
+   HOST_32,        ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
+   HOST_64,        ///< Memory types: { HOST_64, HOST_DEBUG }
+   HOST_DEBUG,     ///< Memory types: { HOST_DEBUG }
+   HOST_MANAGED,   ///< Memory types: { MANAGED, DEVICE_DEBUG}
+   DEVICE,         ///< Memory types: { DEVICE, DEVICE_UMPIRE, MANAGED, DEVICE_DEBUG}
+   DEVICE_MANAGED, ///< Memory types: { MANAGED, DEVICE_DEBUG}
+   DEVICE_UMPIRE,  ///< Memory types: { DEVICE_UMPIRE, MANAGED, DEVICE_DEBUG}
+   DEVICE_DEBUG    ///< Memory types: { DEVICE_DEBUG }
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
@@ -82,7 +84,11 @@ inline bool IsHostMemory(MemoryType mt) { return mt < MemoryType::DEVICE; }
 
 /// Return true if the given host memory type needs to be registered.
 inline bool IsHostRegisteredMemory(MemoryType mt)
-{ return mt == MemoryType::HOST_UMPIRE || mt == MemoryType::HOST_DEBUG; }
+{
+   return mt == MemoryType::HOST_UMPIRE ||
+          mt == MemoryType::HOST_DEBUG  ||
+          mt == MemoryType::HOST_MANAGED;
+}
 
 /// Return a suitable MemoryType for a given MemoryClass.
 MemoryType GetMemoryType(MemoryClass mc);
@@ -452,7 +458,7 @@ private:
 private: // Static methods used by the Memory<T> class
 
    /// Wrap an externally allocated host pointer.
-   static void Wrap_(void *h_ptr, size_t bytes, unsigned &flags);
+   //static void Wrap_(void *h_ptr, size_t bytes, unsigned &flags);
 
    /// Allocate and register a new pointer. Return the host pointer.
    /// h_tmp must be already allocated using new T[] if mt is a pure device
@@ -609,8 +615,6 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
    h_ptr = host_ptr;
    h_mt = MemoryType::HOST;
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
-   if (MemoryManager::host_mem_type != MemoryType::HOST)
-   { MemoryManager::Wrap_(h_ptr, size*sizeof(T), flags); }
 }
 
 template <typename T>
