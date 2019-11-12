@@ -83,8 +83,8 @@ public:
                               Note: the gslib reference frame is [-1,1].
        @param[in] field_in    Function values that will be interpolated on the
                               reference positions. Note: it is assumed that
-                              @a field_in is associated with the mesh given to
-                              Setup().
+                              @a field_in is in H1 and in the same space as the 
+                              mesh that was given to Setup().
        @param[out] field_out  Interpolated values. */
    void Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
                     Array<uint> &elem_ids, Vector &ref_pos,
