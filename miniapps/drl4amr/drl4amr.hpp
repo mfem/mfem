@@ -9,8 +9,8 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int nx = 16;
-   const int ny = 16;
+   const int nx = 8;
+   const int ny = 8;
    const int max_dofs = 50000;
    const int max_depth = 2;
    const Element::Type type = Element::QUADRILATERAL;
@@ -18,7 +18,6 @@ private:
    const double sx = 1.0;
    const double sy = 1.0;
    const bool sfc = false; // space-filling curve ordering
-   const int order = 1;
    const char *device_config = "cpu";
    const bool visualization = true;
    const char *vishost = "localhost";
@@ -28,14 +27,16 @@ private:
    socketstream vis[5];
    Vector image;
 
+   int order;
    Device device;
-   Mesh mesh;
-   const int dim;
-   const int sdim;
+   Mesh mesh, imesh;
+   int dim;
+   int sdim;
    H1_FECollection fec;
-   L2_FECollection fec0;
-   FiniteElementSpace fespace;
-   FiniteElementSpace fespace0; // 0th order L2 space for easily creating everywhere fine arrays
+   L2_FECollection fec0, ifec;
+   FiniteElementSpace fespace, ifes;
+   FiniteElementSpace
+   fespace0; // 0th order L2 space for creating everywhere fine arrays
    ConstantCoefficient one;
    ConstantCoefficient zero;
    BilinearFormIntegrator *integ;
@@ -46,27 +47,32 @@ private:
    ZienkiewiczZhuEstimator estimator;
    ThresholdRefiner refiner;
 
-   int nefr;      // # elements fully refined
-   int* level_no; // int array derived from gridfunction data
-   int* elem_id;  // int array derived from gridfunction data
+   int nefr; // # elements fully refined
+   GridFunction v_level_no, v_elem_id;
+   Array<int> i_level_no, i_elem_id; // int array derived from gridfunction data
 
 public:
-   Drl4Amr(int i);
+   Drl4Amr(int order);
    int Compute();
    int Refine(int el =-1);
-   int GetNDofs() { return fespace.GetNDofs();}
+
    int GetNE() { return fespace.GetNE(); }
-   int GetNEFR() { return nefr; }
+   int GetNEFullyRefined() { return nefr; }
+   int GetNDofs() { return fespace.GetNDofs();}
+
    double GetNorm();
    double *GetImage();
-   int GetImageSize();
-   int GetImageX() { return 1 + order * (nx << max_depth); }
-   int GetImageY() { return 1 + order * (ny << max_depth); }
 
-   double *GetDOFField();
    int *GetLevelField();
    int *GetElemIdField();
-   
+
+   int GetImageX() const { return 1 + order * (nx << max_depth); }
+   int GetImageY() const { return 1 + order * (ny << max_depth); }
+   int GetImageSize() const { return GetImageX() * GetImageY(); }
+
+private:
+   void ShowImage();
+   void GetImage(GridFunction&, Vector&, Array<int>&);
 };
 
 #endif // DRL4AMR_HPP

@@ -54,7 +54,6 @@ class Ctrl(object):
     sign(MFEM.GetElemIdField, [c_void_p], c_int_p)
 
 
-# Orders 1 and 2 are supported with the current GetImage
 order = 2
 
 sim = Ctrl(order)
