@@ -154,22 +154,24 @@ void Device::UpdateMemoryTypeAndClass()
    // Allow to tune the device memory types, with some restrictions
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      device_mem_type = MemoryType::DEVICE;
-      device_mem_class = MemoryClass::DEVICE;
-      if (umpire && !debug)
+      if (!uvm)
       {
-         device_mem_type = MemoryType::DEVICE_UMPIRE;
-         device_mem_class = MemoryClass::DEVICE_UMPIRE;
+         device_mem_type = MemoryType::DEVICE;
+         device_mem_class = MemoryClass::DEVICE;
+         if (umpire && !debug)
+         {
+            device_mem_type = MemoryType::DEVICE_UMPIRE;
+            device_mem_class = MemoryClass::DEVICE_UMPIRE;
+         }
       }
-   }
-
-   // Use the uvm shortcut if it has been requested
-   if (uvm)
-   {
-      host_mem_type = MemoryType::HOST_MANAGED;
-      host_mem_class = MemoryClass::HOST_MANAGED;
-      device_mem_type = MemoryType::DEVICE_MANAGED;
-      device_mem_class = MemoryClass::DEVICE_MANAGED;
+      else
+      {
+         // Use the uvm shortcut if it has been requested
+         host_mem_type = MemoryType::HOST_MANAGED;
+         host_mem_class = MemoryClass::HOST_MANAGED;
+         device_mem_type = MemoryType::DEVICE_MANAGED;
+         device_mem_class = MemoryClass::DEVICE_MANAGED;
+      }
    }
 
    // Update the memory manager with the new settings
