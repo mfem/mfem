@@ -20,6 +20,10 @@ GPU support
   backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
   "omp", "occa-cpu", "raja-cpu", and "cpu".
 
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added support for using the Ginkgo library's solvers and preconditioners.
+
 Miscellaneous
 -------------
 - Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This 
