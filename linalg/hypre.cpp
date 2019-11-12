@@ -3207,8 +3207,18 @@ void HypreAMS::SetPrintLevel(int print_lvl)
    HYPRE_AMSSetPrintLevel(ams, print_lvl);
 }
 
+HypreADS::HypreADS(ParFiniteElementSpace *face_fespace)
+{
+   Init(face_fespace);
+}
+
 HypreADS::HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
    : HypreSolver(&A)
+{
+   Init(face_fespace);
+}
+
+void HypreADS::Init(ParFiniteElementSpace *face_fespace)
 {
    int cycle_type       = 11;
    int rlx_type         = 2;
@@ -3429,6 +3439,22 @@ HypreADS::HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
    // errors in the Setup (specifically in the l1 row norm computation). See the
    // documentation of SetErrorMode() for more details.
    error_mode = IGNORE_HYPRE_ERRORS;
+}
+
+void HypreADS::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 HypreADS::~HypreADS()
