@@ -14,16 +14,16 @@ using namespace mfem;
   printf("\n\033[33m"); printf(__VA_ARGS__); printf("\033[m"); fflush(0); }}
 
 // *****************************************************************************
-enum TestFunction { STEPS, ZZFAIL};
+enum TestFunction {STEPS, ZZFAIL};
 
 static int discs;
 static double theta;
 static Array<double> offsets;
 constexpr int nb_discs_max = 6;
 constexpr double sharpness = 100.0;
-static TestFunction test_func = STEPS;//ZZFAIL;
+static TestFunction test_func = STEPS;
 
-static double x0_steps(const Vector &x)
+double x0_steps(const Vector &x)
 {
    double result = 0.0;
    const double t = x[0] + tan(theta)*x[1];
@@ -31,7 +31,7 @@ static double x0_steps(const Vector &x)
    return result/static_cast<double>(discs<<1); // should be in [0,1]
 }
 
-static double sgn(double val)
+double sgn(double val)
 {
    const double eps = 1.e-10;
    if (val < -eps) { return -1.0; }
@@ -39,7 +39,7 @@ static double sgn(double val)
    return 0.;
 }
 
-static double x0_zzfail(const Vector &x)
+double x0_zzfail(const Vector &x)
 {
    const double f = 16.0;
    const double twopi = 8*atan(1.);
@@ -61,7 +61,7 @@ double x0(const Vector &x)
 }
 
 // *****************************************************************************
-Drl4Amr::Drl4Amr(int order, long int seed):
+Drl4Amr::Drl4Amr(int order, int seed):
    order(order),
    seed(seed != 0 ? seed : time(NULL)),
    device(device_config),
@@ -71,7 +71,7 @@ Drl4Amr::Drl4Amr(int order, long int seed):
    dim(mesh.Dimension()),
    sdim(mesh.SpaceDimension()),
    h1fec(order, dim, BasisType::Positive),
-   l2fec(    0, dim),
+   l2fec(0, dim),
    h1fes(&mesh, &h1fec),
    l2fes(&mesh, &l2fec),
    node_image_l2fes(&node_image_mesh, &l2fec),
@@ -294,12 +294,13 @@ double Drl4Amr::GetNorm()
 
 
 // *****************************************************************************
-void Drl4Amr::GetH1Image(GridFunction &gf, Vector &image)
+void Drl4Amr::GetImage(GridFunction &gf, Vector &image, bool isH1)
 {
-   dbg("GetH1Image");
+   dbg("GetImage");
    Vector vals;
    Array<int> vert;
-   const int width = GetNodeImageX();
+   const int offset = isH1 ? 0 : 1;
+   const int width = GetNodeImageX() - offset;
    // rasterize each element into the image
    for (int k = 0; k < mesh.GetNE(); k++)
    {
@@ -312,45 +313,11 @@ void Drl4Amr::GetH1Image(GridFunction &gf, Vector &image)
       double *v = mesh.GetVertex(vert[0]);
       int ox = int(v[0] * nx*(1 << max_depth) * order);
       int oy = int(v[1] * ny*(1 << max_depth) * order);
-      for (int i = 0; i <= times; i++)
+      int N = times - offset;
+      for (int i = 0; i <= N; i++)
       {
-         for (int j = 0; j <= times; j++)
+         for (int j = 0; j <= N; j++)
          {
-            int n = i * (times + 1) + j;
-            int m = (oy + i) * width + (ox + j);
-            image(m) = vals(n);
-         }
-      }
-   }
-}
-
-
-// *****************************************************************************
-void Drl4Amr::GetL2Image(GridFunction &gf, Vector &image)
-{
-   dbg("GetL2Image");
-   Vector vals;
-   Array<int> vert;
-   const int width = GetElemImageX();
-   // rasterize each element into the image
-   for (int k = 0; k < mesh.GetNE(); k++)
-   {
-      dbg("k:%d",k);
-      Geometry::Type geom = Geometry::SQUARE;
-      int depth = mesh.ncmesh->GetElementDepth(k);
-      int times = (1 << (max_depth - depth)) * order;
-      IntegrationRule &ir = GlobGeometryRefiner.Refine(geom, times)->RefPts;
-      gf.GetValues(k, ir, vals);
-      mesh.GetElementVertices(k, vert);
-      double *v = mesh.GetVertex(vert[0]);
-      int ox = int(v[0] * nx*(1 << max_depth) * order);
-      int oy = int(v[1] * ny*(1 << max_depth) * order);
-      dbg("\tox:%d oy:%d times:%d",ox, oy, times);
-      for (int i = 0; i < times; i++)
-      {
-         for (int j = 0; j < times; j++)
-         {
-            dbg("\t\ti:%d j:%d",i, j);
             int n = i * (times + 1) + j;
             int m = (oy + i) * width + (ox + j);
             image(m) = vals(n);
@@ -364,7 +331,7 @@ void Drl4Amr::GetL2Image(GridFunction &gf, Vector &image)
 double *Drl4Amr::GetImage()
 {
    dbg("GetImage: solution");
-   GetH1Image(solution, solution_image);
+   GetImage(solution, solution_image, true);
    if (visualization && vis[2].good())
    {
       GridFunction gf(&node_image_l2fes, solution_image.GetData());
@@ -377,7 +344,6 @@ double *Drl4Amr::GetImage()
 // *****************************************************************************
 double *Drl4Amr::GetElemIdField()
 {
-   dbg("GetElemIdField");
    GridFunction id(&l2fes);
 
    Array<int> dofs;
@@ -389,7 +355,7 @@ double *Drl4Amr::GetElemIdField()
          id[ dofs[k] ] = i;
       }
    }
-   GetL2Image(id, elem_id);
+   GetImage(id, elem_id, false);
    if (visualization && vis[4].good())
    {
       GridFunction gf(&elem_image_l2fes, elem_id.GetData());
@@ -415,7 +381,7 @@ double *Drl4Amr::GetElemDepthField()
          level[ dofs[k] ] = depth;
       }
    }
-   GetL2Image(level, elem_depth);
+   GetImage(level, elem_depth, false);
    if (visualization && vis[3].good())
    {
       GridFunction gf(&elem_image_l2fes, elem_depth.GetData());
@@ -426,10 +392,9 @@ double *Drl4Amr::GetElemDepthField()
 }
 
 
-
 // *****************************************************************************
 extern "C" {
-   Drl4Amr* Ctrl(int order) { return new Drl4Amr(order); }
+   Drl4Amr* Ctrl(int order, int seed) { return new Drl4Amr(order, seed); }
 
    int Compute(Drl4Amr *ctrl) { return ctrl->Compute(); }
    int Refine(Drl4Amr *ctrl, int el) { return ctrl->Refine(el); }

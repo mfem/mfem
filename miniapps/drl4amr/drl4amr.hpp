@@ -9,9 +9,9 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int nx = 4;
-   const int ny = 4;
-   const int max_dofs = 500;
+   const int nx = 8;
+   const int ny = 8;
+   const int max_dofs = 5000;
    const int max_depth = 2;
    const Element::Type quads = Element::QUADRILATERAL;
    const bool generate_edges = true;
@@ -47,7 +47,7 @@ private:
    int iteration;
 
 public:
-   Drl4Amr(int order, long int seed =0);
+   Drl4Amr(int order, int seed =0);
 
    int Compute();
 
@@ -76,8 +76,7 @@ public:
    int GetElemImageSize() const { return GetElemImageX() * GetElemImageY(); }
 
 private:
-   void GetH1Image(GridFunction&, Vector&);
-   void GetL2Image(GridFunction&, Vector&);
+   void GetImage(GridFunction&, Vector&, bool =true);
 };
 
 #endif // DRL4AMR_HPP
