@@ -2446,6 +2446,30 @@ HypreParaSails::~HypreParaSails()
    HYPRE_ParaSailsDestroy(sai_precond);
 }
 
+HypreEuclid::HypreEuclid(HypreParMatrix &A) : HypreSolver(&A)
+{
+   MPI_Comm comm;
+
+   int    euc_level = 1; // We use ILU(1)
+   int    euc_stats = 0; // No logging
+   int    euc_mem   = 0; // No memory logging
+   int    euc_bj    = 0; // 1: Use Block Jacobi
+   int    euc_ro_sc = 0; // 1: Use Row scaling
+
+   HYPRE_ParCSRMatrixGetComm(A, &comm);
+
+   HYPRE_EuclidCreate(comm, &euc_precond);
+   HYPRE_EuclidSetLevel(euc_precond, euc_level);
+   HYPRE_EuclidSetStats(euc_precond, euc_stats);
+   HYPRE_EuclidSetMem(euc_precond, euc_mem);
+   HYPRE_EuclidSetBJ(euc_precond, euc_bj);
+   HYPRE_EuclidSetRowScale(euc_precond, euc_ro_sc);
+}
+
+HypreEuclid::~HypreEuclid()
+{
+   HYPRE_EuclidDestroy(euc_precond);
+}
 
 HypreBoomerAMG::HypreBoomerAMG()
 {

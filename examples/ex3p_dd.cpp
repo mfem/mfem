@@ -54,10 +54,14 @@ void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
+#define NO_GLOBAL_FEM
+
+//#define SUBDOMAIN_MESH
+
 #ifdef AIRY_TEST
-#define SIGMAVAL -10981.4158900991  // 5 GHz
+//#define SIGMAVAL -10981.4158900991  // 5 GHz
 //#define SIGMAVAL -43925.6635603965  // 10 GHz
-//#define SIGMAVAL -175702.65424  // 20 GHz
+#define SIGMAVAL -175702.65424  // 20 GHz
 //#define SIGMAVAL -1601.0
 //#define SIGMAVAL -1009.0
 //#define SIGMAVAL -211.0
@@ -341,6 +345,10 @@ void PrintDenseMatrixOfOperator(Operator const& op, const int nprocs, const int 
 
 int main(int argc, char *argv[])
 {
+   StopWatch chronoMain;
+   chronoMain.Clear();
+   chronoMain.Start();
+  
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -350,8 +358,8 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    //const char *mesh_file = "../data/beam-tet.mesh";
 #ifdef AIRY_TEST
-   const char *mesh_file = "inline-tetHalf.mesh";
-   //const char *mesh_file = "inline-tetHalf2.mesh";
+   //const char *mesh_file = "inline-tetHalf.mesh";
+   const char *mesh_file = "inline-tetHalf2.mesh";
 #else
    const char *mesh_file = "../data/inline-tet.mesh";
 #endif
@@ -359,7 +367,7 @@ int main(int argc, char *argv[])
    int order = 2;
    bool static_cond = false;
    bool visualization = 1;
-   bool visit = false;
+   bool visit = true;
 #ifdef MFEM_USE_STRUMPACK
    bool use_strumpack = false;
 #endif
@@ -405,6 +413,15 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
+#ifdef SUBDOMAIN_MESH
+   for (int i=0; i<mesh->GetNE(); ++i)  // Loop over all elements, to set the attribute as the subdomain index.
+     {
+       mesh->SetAttribute(i, i+1);  // Set each element to be a subdomain.
+     }
+   
+   const int numSubdomains = mesh->GetNE();
+#endif
+   
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
@@ -412,8 +429,8 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
 	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
-	(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+      (int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
 
@@ -426,9 +443,10 @@ int main(int argc, char *argv[])
       }
    }
 
+#ifndef SUBDOMAIN_MESH
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {2, 2, 2};
+   int nxyzSubdomains[3] = {6, 6, 6};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -438,19 +456,25 @@ int main(int argc, char *argv[])
        }
      delete subdomain;
    }
-
+#endif
+   
    if (numSubdomains > 10000)
      {
        MFEM_VERIFY(numSubdomains < 10000, "SubdomainInterface::SetGlobalIndex will overflow");
        return 3;
      }
+
+   std::vector<int> sdOrder(numSubdomains);
    
+#ifdef SUBDOMAIN_MESH
+   for (int i=0; i<numSubdomains; ++i)
+     sdOrder[i] = i;
+#else
    if (myid == 0)
      {
        cout << "Subdomain partition " << nxyzSubdomains[0] << ", " << nxyzSubdomains[1] << ", " << nxyzSubdomains[2] << endl;
      }
 
-   std::vector<int> sdOrder(numSubdomains);
    {
      const int nh = numSubdomains / 2;
 
@@ -549,6 +573,7 @@ int main(int argc, char *argv[])
 	   }
        }
    }
+#endif
    
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -557,7 +582,11 @@ int main(int argc, char *argv[])
    //    spaces on them.
    ParMesh *pmesh = NULL;
 
+#ifdef SUBDOMAIN_MESH
+   const bool geometricPartition = false;
+#else
    const bool geometricPartition = true;
+#endif
 
    if (geometricPartition)
      {
@@ -566,7 +595,7 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {1, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
-       int nxyzGlobal[3] = {4, 4, 4};
+       //int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {6, 6, 2};
        //int nxyzGlobal[3] = {2, 2, 8};
        //int nxyzGlobal[3] = {6, 6, 8};  // 288
@@ -579,15 +608,16 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {6, 12, 16};  // 1152
        //int nxyzGlobal[3] = {6, 6, 32};  // 1152
        //int nxyzGlobal[3] = {8, 8, 8};
+       int nxyzGlobal[3] = {12, 12, 12};  // 1728
        //int nxyzGlobal[3] = {16, 16, 8};
        //int nxyzGlobal[3] = {8, 16, 8};
        //int nxyzGlobal[3] = {12, 12, 16};  // 2304
        //int nxyzGlobal[3] = {24, 24, 4};  // 2304
        //int nxyzGlobal[3] = {24, 24, 8};  // 4608
        
-       int *partition = mesh->CartesianPartitioning(nxyzGlobal);
+       //int *partition = mesh->CartesianPartitioning(nxyzGlobal);
        //int *partition = mesh->CartesianPartitioningXY(nxyzGlobal, 2, 2);
-       //int *partition = mesh->CartesianPartitioningXY(nxyzGlobal, 6, 6);
+       int *partition = mesh->CartesianPartitioningXY(nxyzGlobal, 6, 6);
        //int *partition = mesh->CartesianPartitioningXY(nxyzGlobal, 3, 3);
        
        pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition);
@@ -1086,6 +1116,10 @@ int main(int argc, char *argv[])
      pmeshInterfaces[0]->Print(mesh_ofs);
    }
    */
+
+   StopWatch chronoDDC;
+   chronoDDC.Clear();
+   chronoDDC.Start();
    
    // 6.1. Create interface operator.
 
@@ -1104,6 +1138,10 @@ int main(int argc, char *argv[])
 
    cout << "DDI size " << ddi.Height() << " by " << ddi.Width() << endl;
 
+   chronoDDC.Stop();
+   if (myid == 0)
+     cout << myid << ": DDMInterfaceOperator constructor timing " << chronoDDC.RealTime() << endl;
+   
    /*
    {
      Vector t(ddi.Width());
@@ -1131,7 +1169,13 @@ int main(int argc, char *argv[])
    //return 0;
    
    //PrintDenseMatrixOfOperator(ddi, num_procs, myid);
+   ParGridFunction x(fespace);
+   VectorFunctionCoefficient E(sdim, test2_E_exact);
    
+#ifdef NO_GLOBAL_FEM
+   Vector B(fespace->GetTrueVSize());
+   Vector X(fespace->GetTrueVSize());
+#else
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
@@ -1161,9 +1205,7 @@ int main(int argc, char *argv[])
    //    solution. Note that only values from the boundary edges will be used
    //    when eliminating the non-homogeneous boundary condition to modify the
    //    r.h.s. vector b.
-   ParGridFunction x(fespace);
    //VectorFunctionCoefficient E(sdim, E_exact);
-   VectorFunctionCoefficient E(sdim, test2_E_exact);
    x.ProjectCoefficient(E);
 
    // 10. Set up the parallel bilinear form corresponding to the EM diffusion
@@ -1211,6 +1253,7 @@ int main(int argc, char *argv[])
      cout << "Global projected error " << Ax.Norml2() << " relative to " << B.Norml2() << endl;
    }
    */
+#endif // NO_GLOBAL_FEM
    
    //HypreParMatrix *Apa = a->ParallelAssemble();
    DenseMatrixInverse dddinv;
@@ -1260,7 +1303,8 @@ int main(int argc, char *argv[])
        }
      */
    }
-
+   
+#ifndef NO_GLOBAL_FEM
    if (false)
    { // Test projection as solution
      ParBilinearForm *mbf = new ParBilinearForm(fespace);
@@ -1341,8 +1385,10 @@ int main(int argc, char *argv[])
    {
      cout << myid << ": A size " << A.Height() << " x " << A.Width() << endl;
      cout << myid << ": X size " << X.Size() << ", B size " << B.Size() << endl;
-     cout << myid << ": fespace size " << fespace->GetVSize() << ", true size " << fespace->GetTrueVSize() << endl;
    }
+#endif // NO_GLOBAL_FEM
+
+   cout << myid << ": fespace size " << fespace->GetVSize() << ", true size " << fespace->GetTrueVSize() << endl;
 
    StopWatch chrono;
    chrono.Clear();
@@ -1353,8 +1399,8 @@ int main(int argc, char *argv[])
    const bool solveDD = true;
    if (solveDD)
      {
-       cout << myid << ": B size " << B.Size() << ", norm " << B.Norml2() << endl;
-       cout << myid << ": fespace true V size " << fespace->GetTrueVSize() << endl;
+       //cout << myid << ": B size " << B.Size() << ", norm " << B.Norml2() << endl;
+       //cout << myid << ": fespace true V size " << fespace->GetTrueVSize() << endl;
 
        Vector Bdd(ddi.Width());
        Vector xdd(ddi.Width());
@@ -1465,11 +1511,18 @@ int main(int argc, char *argv[])
        
        chronoSolver.Stop();
        if (myid == 0)
-	 cout << myid << ": Solver and recovery only time " << chronoSolver.RealTime() << endl;
+	 cout << myid << ": Solver and recovery only timing " << chronoSolver.RealTime() << endl;
 
        delete gmres;
      }
 
+   chrono.Stop();
+   if (myid == 0)
+     cout << myid << ": Total DDM timing (setup, solver, recovery) " << chrono.RealTime() << endl;
+
+#ifdef NO_GLOBAL_FEM
+   x.SetFromTrueDofs(X);
+#else
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
      {
@@ -1562,10 +1615,6 @@ int main(int argc, char *argv[])
        delete ams;
      }
    
-   chrono.Stop();
-   if (myid == 0)
-     cout << myid << ": Total DDM time (setup, solver, recovery) " << chrono.RealTime() << endl;
-
    {
      // Check residual
      Vector res(X.Size());
@@ -1595,6 +1644,7 @@ int main(int argc, char *argv[])
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
+#endif // NO_GLOBAL_FEM
 
    // 14. Compute and print the L^2 norm of the error.
    {
@@ -1673,13 +1723,19 @@ int main(int argc, char *argv[])
      }
    
    // 17. Free the used memory.
+#ifndef NO_GLOBAL_FEM
    delete a;
    delete sigma;
    delete muinv;
    delete b;
+#endif
    delete fespace;
    delete fec;
    delete pmesh;
+
+   chronoMain.Stop();
+   if (myid == 0)
+     cout << myid << ": Total main timing " << chronoMain.RealTime() << endl;
    
    MPI_Finalize();
 

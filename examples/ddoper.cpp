@@ -211,9 +211,9 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #include "gsl_sf_airy.h"
 
 //#define K2_AIRY 2.0  // TODO: input k
-#define K2_AIRY 10981.4158900991  // 5 GHz
+//#define K2_AIRY 10981.4158900991  // 5 GHz
 //#define K2_AIRY 43925.6635603965  // 10 GHz
-//#define K2_AIRY 175702.65424  // 20 GHz
+#define K2_AIRY 175702.65424  // 20 GHz
 //#define K2_AIRY 1601.0
 
 void test_Airy1_E_exact(const Vector &x, Vector &E)
@@ -4282,6 +4282,16 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   sdnp.assign(numSubdomains, 0);
   gsdnp.assign(numSubdomains, 0);
   */
+
+  StopWatch chronoSD;
+  chronoSD.Clear();
+  chronoSD.Start();
+
+  for (int m=0; m<numSubdomains; ++m)  // TODO: make this scalable
+    {
+      MPI_Barrier(MPI_COMM_WORLD);
+      GatherSetInt(MPI_COMM_WORLD, subdomainLocalInterfaces[m], allGlobalSubdomainInterfaces[m]);
+    }
   
   for (int m=0; m<numSubdomains; ++m)
     {
@@ -4495,11 +4505,13 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	}
 #endif
 
+      /*
       // TODO: make this scalable
       MPI_Barrier(MPI_COMM_WORLD);
       
       GatherSetInt(MPI_COMM_WORLD, subdomainLocalInterfaces[m], allGlobalSubdomainInterfaces[m]);
-
+      */
+      
       // Loop over all global interfaces touching this subdomain in a consistent order for all processes.
       int lastIF = -1;
       for (auto interfaceIndex : allGlobalSubdomainInterfaces[m])
@@ -4635,9 +4647,13 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  */
 	}
       
-      MPI_Barrier(MPI_COMM_WORLD);
+      //MPI_Barrier(MPI_COMM_WORLD);
     }
 
+  chronoSD.Stop();
+  if (m_rank == 0)
+    cout << m_rank << ": DDM constructor SD loop timing " << chronoSD.RealTime() << endl;
+  
   tdofsBdry.resize(numSubdomains);
   trueOffsetsSD.resize(numSubdomains);
 

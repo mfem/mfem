@@ -848,6 +848,33 @@ public:
    virtual ~HypreParaSails();
 };
 
+/** The Euclid preconditioner in Hypre
+
+    Euclid implements the Parallel Incomplete LU factorization technique. For
+    more information see:
+
+    "A Scalable Parallel Algorithm for Incomplete Factor Preconditioning" by
+    David Hysom and Alex Pothen, https://doi.org/10.1137/S1064827500376193
+*/
+class HypreEuclid : public HypreSolver
+{
+private:
+   HYPRE_Solver euc_precond;
+
+public:
+   HypreEuclid(HypreParMatrix &A);
+
+   /// The typecast to HYPRE_Solver returns the internal euc_precond
+   virtual operator HYPRE_Solver() const { return euc_precond; }
+
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSetup; }
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSolve; }
+
+   virtual ~HypreEuclid();
+};
+
 /// The BoomerAMG solver in hypre
 class HypreBoomerAMG : public HypreSolver
 {

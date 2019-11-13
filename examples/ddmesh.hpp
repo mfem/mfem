@@ -378,8 +378,10 @@ public:
 		pmesh->GetElementEdges(i, e, ecor);
 		pmesh->GetElementFaces(i, f, fcor);
 
+		/*
 		Vector elcenter(3);
 		pmesh->GetElementCenter(i, elcenter);
+		*/
 		
 		for (int j = 0; j < v.Size(); j++)
 		  {
