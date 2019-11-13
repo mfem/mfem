@@ -2432,6 +2432,8 @@ void ParMesh::ReorientTetMesh()
       return;
    }
 
+   DeleteLazyTables();
+
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
 

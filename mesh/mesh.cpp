@@ -4943,6 +4943,8 @@ void Mesh::ReorientTetMesh()
       return;
    }
 
+   DeleteLazyTables();
+
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
 
@@ -5983,7 +5985,7 @@ void Mesh::UniformRefinement2D()
          }
 
          new_elements[j++] =
-            new Triangle(oedge+e[2], v[0], oedge+e[0], attr);
+            new Triangle(v[0], oedge+e[0], oedge+e[2], attr);
          new_elements[j++] =
             new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
          new_elements[j++] =
@@ -6390,7 +6392,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
                          oedge+e[mv[k][2]], oedge+e[mv[k][3]], attr);
             }
 #endif
-            for (int k = 0; k < 8; k++)
+            for (int k = 0; k < 4; k++)
             {
                CoarseFineTr.embeddings[j+k].parent = i;
                CoarseFineTr.embeddings[j+k].matrix = k;
