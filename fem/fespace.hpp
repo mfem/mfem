@@ -889,7 +889,7 @@ protected:
    const int nedofs;
    Array<int> offsets;
    Array<int> indices;
-
+   Array<int> elementMap;
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;

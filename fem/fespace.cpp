@@ -2650,7 +2650,8 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
      dof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
      nedofs(ne*dof),
      offsets(ndofs+1),
-     indices(ne*dof)
+     indices(ne*dof),
+     elementMap(ne*dof)
 {
    // Assuming all finite elements are the same.
    height = vdim*ne*dof;
@@ -2675,7 +2676,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
       dof_map = fe_dof_map.GetData();
    }
    const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
+   const int* eMap = e2dTable.GetJ();
    // We will be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= ndofs; ++i)
    {
@@ -2685,7 +2686,9 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int gid = elementMap[dof*e + d];
+         int did = (!dof_reorder)?d:dof_map[d];
+         elementMap[dof*e + d] = eMap[dof*e + did];
+         const int gid = eMap[dof*e + d];
          ++offsets[gid + 1];
       }
    }
@@ -2700,7 +2703,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
       for (int d = 0; d < dof; ++d)
       {
          const int did = (!dof_reorder)?d:dof_map[d];
-         const int gid = elementMap[dof*e + did];
+         const int gid = eMap[dof*e + did];
          const int lid = dof*e + d;
          indices[offsets[gid]++] = lid;
       }
@@ -2724,18 +2727,15 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
-   MFEM_FORALL(i, ndofs,
+   auto d_elementMap = elementMap.Read();
+
+   MFEM_FORALL(i, dof*ne, 
    {
-      const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i+1];
       for (int c = 0; c < vd; ++c)
       {
-         const double dofValue = d_x(t?c:i,t?i:c);
-         for (int j = offset; j < nextOffset; ++j)
-         {
-            const int idx_j = d_indices[j];
-            d_y(idx_j % nd, c, idx_j / nd) = dofValue;
-         }
+         int idx = d_elementMap[i];
+         const double dofValue = d_x(t?c:idx,t?idx:c);
+         d_y(i % dof, c, i / dof) = dofValue;
       }
    });
 }
