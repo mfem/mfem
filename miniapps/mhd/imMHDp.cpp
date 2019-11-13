@@ -51,7 +51,6 @@ double InitialPsi(const Vector &x)
    return -x(1)+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
 }
 
-
 double BackPsi(const Vector &x)
 {
    //this is the background psi (for post-processing/plotting only)
@@ -336,8 +335,8 @@ int main(int argc, char *argv[])
     if (myid==0) cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
     delete ode_solver;
     delete ode_solver2;
-    delete mesh;
     delete pmesh;
+    if (use_petsc) { MFEMFinalizePetsc(); }
     MPI_Finalize();
     return 2;
    }

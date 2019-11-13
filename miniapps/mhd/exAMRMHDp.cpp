@@ -127,22 +127,24 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 2;
    int ode_solver_type = 2;
-   int amr_levels=0;
    double t_final = 5.0;
    double dt = 0.0001;
    double visc = 0.0;
    double resi = 0.0;
-   double ltol_amr=1e-5;
    bool visit = false;
+   //----amr coefficients----
+   int amr_levels=0;
+   double ltol_amr=1e-5;
    bool derefine = false;
    bool derefineIt = false;
    int precision = 8;
-   int icase = 1;
    int nc_limit = 3;         // maximum level of hanging nodes
+   int ref_steps=1000;
+   //----end of amr----
+   int icase = 1;
    alpha = 0.001; 
    Lx=3.0;
    lambda=5.0;
-   int ref_steps=1000;
 
    bool visualization = true;
    int vis_steps = 200;
@@ -235,7 +237,7 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   // 4. Refine the mesh to increase the resolution.    
+   //++++Refine the mesh to increase the resolution.    
    mesh->EnsureNCMesh();
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
@@ -263,6 +265,19 @@ int main(int argc, char *argv[])
    if (myid == 0)
       cout << "Number of total scalar unknowns: " << global_size << endl;
 
+   //this is a periodic boundary condition in x and Direchlet in y 
+   Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
+   ess_bdr = 0;
+   ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary fixed
+   if(ess_bdr.Size()!=1)
+   {
+    if (myid == 0) cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
+    delete ode_solver;
+    delete pmesh;
+    MPI_Finalize();
+    return 2;
+   }
+
    int fe_size = fespace.GetVSize();
    Array<int> fe_offset(5);
    fe_offset[0] = 0;
@@ -282,18 +297,7 @@ int main(int argc, char *argv[])
    w=0.0;
    j=0.0;
 
-   //this is a periodic boundary condition in x and Direchlet in y 
-   Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
-   ess_bdr = 0;
-   ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary fixed
-   if(ess_bdr.Size()!=1)
-   {
-    if (myid == 0) cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
-    delete ode_solver;
-    delete pmesh;
-    MPI_Finalize();
-    return 2;
-   }
+
 
    //-----------------------------------AMR---------------------------------
    int sdim = pmesh->SpaceDimension();
