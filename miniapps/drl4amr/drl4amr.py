@@ -86,11 +86,11 @@ while sim.GetNorm() > 0.01:
     image.save('image.jpg')
 
     id_f = (id_d * 255 / np.max(id_d)).astype('uint8')
-    id = id.fromarray(id_f.reshape(NX,NY),'L')
+    id = Image.fromarray(id_f.reshape(NX,NY),'L')
     id.save('id.jpg')
 
     depth_f = (depth_d * 255 / np.max(depth_d)).astype('uint8')
-    depth = depth.fromarray(depth_f.reshape(NX,NY),'L')
+    depth = Image.fromarray(depth_f.reshape(NX,NY),'L')
     depth.save('depth.jpg')
 
     print("Norm: "+str(sim.GetNorm()))
