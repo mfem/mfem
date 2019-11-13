@@ -38,21 +38,18 @@
 namespace mfem
 {
 
+// Wraped HOST memory (sparsemat BooleanMult in parallel) should target DEVICE,
+// even with special device memory types like Umpire.
 MemoryType GetDualMemoryType(MemoryType mt)
 {
    MFEM_VERIFY(IsHostMemory(mt),"");
-   return Device::GetMemoryType();/*
-   if (IsHostMemory(Device::GetMemoryType()))
+
+   // If we are in debug mode without any real devices, use DEVICE_DEBUG
+   if (Device::Allows(Backend::DEBUG) && !Device::Allows(Backend::DEVICE_MASK))
    {
-      dbg("IsHostMemory");
-      return MemoryType::HOST;
-   }
-   const bool debug = Device::Allows(Backend::DEBUG);
-   if (debug && !Device::Allows(Backend::CUDA))
-   {
-      dbg("debug");
       return MemoryType::DEVICE_DEBUG;
    }
+
    switch (mt)
    {
       case MemoryType::HOST:          return MemoryType::DEVICE;
@@ -63,22 +60,23 @@ MemoryType GetDualMemoryType(MemoryType mt)
       case MemoryType::HOST_MANAGED:  return MemoryType::DEVICE_MANAGED;
       default: MFEM_VERIFY(false, "Dual memory type not allowed!");
    }
-   return MemoryType::HOST;*/
+   return MemoryType::HOST;
 }
 
 MemoryType GetMemoryType(MemoryClass mc)
 {
-   const bool debug = Device::Allows(Backend::DEBUG) ;
-   if (debug && (mc==MemoryClass::DEVICE) && !Device::Allows(Backend::CUDA))
-   { return MemoryType::DEVICE_DEBUG; }
-
+   /*
+     const bool debug = Device::Allows(Backend::DEBUG) ;
+     if (debug && (mc==MemoryClass::DEVICE) && !Device::Allows(Backend::CUDA))
+     { return MemoryType::DEVICE_DEBUG; }
+   */
    switch (mc)
    {
       case MemoryClass::HOST:    return Device::GetHostMemoryType();
       case MemoryClass::HOST_32: return MemoryType::HOST_32;
       case MemoryClass::HOST_64: return MemoryType::HOST_64;
       case MemoryClass::DEVICE:  return Device::GetMemoryType();
-      case MemoryClass::MANAGED: return MemoryType::HOST_MANAGED;
+      case MemoryClass::MANAGED: return MemoryType::DEVICE_MANAGED;
       case MemoryClass::DEBUG:   return MemoryType::DEVICE_DEBUG;
    }
    MFEM_VERIFY(false, "Unknown MemoryClass!");
@@ -772,8 +770,10 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
       }
       case MemoryClass::MANAGED:
       {
-         MFEM_VERIFY(h_mt == MemoryType::HOST_MANAGED &&
-                     d_mt == MemoryType::DEVICE_MANAGED,"");
+         //dbg("mc:%d %p h_mt:%d flags:x%X d_mt:%d", mc, h_ptr, h_mt, flags, d_mt);
+         MFEM_VERIFY((h_mt == MemoryType::HOST_MANAGED &&
+                      d_mt == MemoryType::DEVICE_MANAGED) ||
+                     (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE),"");
          return true;
       }
       default: break;

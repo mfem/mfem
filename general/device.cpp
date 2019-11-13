@@ -146,9 +146,9 @@ void Device::UpdateMemoryTypeAndClass()
    if (debug)
    {
       host_mem_type = MemoryType::HOST_DEBUG;
-      host_mem_class = MemoryClass::HOST;
+      host_mem_class = MemoryClass::DEBUG;
       device_mem_type = MemoryType::DEVICE_DEBUG;
-      device_mem_class = MemoryClass::DEVICE;
+      device_mem_class = MemoryClass::DEBUG;
    }
 
    // Allow to tune the device memory types, with some restrictions
