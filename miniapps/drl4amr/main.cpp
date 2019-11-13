@@ -12,16 +12,15 @@ int main(int argc, char *argv[])
 {
    const int order = 2;
    Drl4Amr sim(order);
-
    while (sim.GetNorm() > 0.01)
    {
-      const int el = static_cast<int>(drand48()*sim.GetNE());
+      const int e = static_cast<int>(drand48()*sim.GetNE());
       sim.Compute();
-      sim.Refine(el);
+      sim.Refine(e);
       sim.GetImage();
-      sim.GetLevelField();
+      //sim.GetImageSize();
       sim.GetElemIdField();
-      sim.GetImageSize();
+      sim.GetElemDepthField();
    }
    return 0;
 }

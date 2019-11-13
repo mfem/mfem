@@ -9,11 +9,11 @@ using namespace mfem;
 class Drl4Amr
 {
 private:
-   const int nx = 8;
-   const int ny = 8;
-   const int max_dofs = 50000;
+   const int nx = 4;
+   const int ny = 4;
+   const int max_dofs = 500;
    const int max_depth = 2;
-   const Element::Type type = Element::QUADRILATERAL;
+   const Element::Type quads = Element::QUADRILATERAL;
    const bool generate_edges = true;
    const double sx = 1.0;
    const double sy = 1.0;
@@ -25,54 +25,59 @@ private:
    const int visw = 480;
    const int vish = 480;
    socketstream vis[5];
-   Vector image;
 
-   int order;
+   const int order;
+   const long int seed;
    Device device;
-   Mesh mesh, imesh;
-   int dim;
-   int sdim;
-   H1_FECollection fec;
-   L2_FECollection fec0, ifec;
-   FiniteElementSpace fespace, ifes;
-   FiniteElementSpace
-   fespace0; // 0th order L2 space for creating everywhere fine arrays
+   Mesh mesh, node_image_mesh, elem_image_mesh;
+   const int dim;
+   const int sdim;
+   H1_FECollection h1fec;
+   L2_FECollection l2fec;
+   FiniteElementSpace h1fes, l2fes, node_image_l2fes, elem_image_l2fes;
    ConstantCoefficient one;
    ConstantCoefficient zero;
    BilinearFormIntegrator *integ;
    FunctionCoefficient xcoeff;
-   GridFunction x;
-   int iteration;
+   GridFunction solution, elem_id, elem_depth;
+   Vector solution_image, elem_id_image, elem_depth_image;
    FiniteElementSpace flux_fespace;
    ZienkiewiczZhuEstimator estimator;
    ThresholdRefiner refiner;
-
-   int nefr; // # elements fully refined
-   GridFunction v_level_no, v_elem_id;
-   Array<int> i_level_no, i_elem_id; // int array derived from gridfunction data
+   int iteration;
 
 public:
-   Drl4Amr(int order);
-   int Compute();
-   int Refine(int el =-1);
+   Drl4Amr(int order, long int seed =0);
 
-   int GetNE() { return fespace.GetNE(); }
-   int GetNEFullyRefined() { return nefr; }
-   int GetNDofs() { return fespace.GetNDofs();}
+   int Compute();
+
+   /// If el_to_refine is positive or null, will refine this element only,
+   /// if el_to_refine is strictly negative, it will use the built-in refiner.
+   /// Return:
+   ///    1 if max_depth was hit
+   ///   -1 if the stopping criterion satisfied (only with the built-in refiner)
+   ///    0 otherwise
+   int Refine(int el_to_refine =-1);
+
+   int GetNE() { return h1fes.GetNE(); }
+   int GetNDofs() { return h1fes.GetNDofs();}
 
    double GetNorm();
    double *GetImage();
+   double *GetElemIdField();
+   double *GetElemDepthField();
 
-   int *GetLevelField();
-   int *GetElemIdField();
+   int GetNodeImageX() const { return 1 + GetElemImageX();}
+   int GetNodeImageY() const { return 1 + GetElemImageY();}
+   int GetNodeImageSize() const { return GetNodeImageX() * GetNodeImageY(); }
 
-   int GetImageX() const { return 1 + order * (nx << max_depth); }
-   int GetImageY() const { return 1 + order * (ny << max_depth); }
-   int GetImageSize() const { return GetImageX() * GetImageY(); }
+   int GetElemImageX() const { return order * (nx << max_depth);}
+   int GetElemImageY() const { return order * (ny << max_depth);}
+   int GetElemImageSize() const { return GetElemImageX() * GetElemImageY(); }
 
 private:
-   void ShowImage();
-   void GetImage(GridFunction&, Vector&, Array<int>&);
+   void GetH1Image(GridFunction&, Vector&);
+   void GetL2Image(GridFunction&, Vector&);
 };
 
 #endif // DRL4AMR_HPP
