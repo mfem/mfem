@@ -81,15 +81,15 @@ while sim.GetNorm() > 0.01:
     depth_d = np.frombuffer((c_double*NX*NY).from_address(addressof(depth_p.contents)))
 
     # Scale and convert the image
-    image_f = (image_d * 255 / np.max(data)).astype('uint8')
+    image_f = (image_d * 255 / np.max(image_d)).astype('uint8')
     image = Image.fromarray(image_f.reshape(NX,NY),'L')
     image.save('image.jpg')
 
-    id_f = (id_d * 255 / np.max(data)).astype('uint8')
+    id_f = (id_d * 255 / np.max(id_d)).astype('uint8')
     id = id.fromarray(id_f.reshape(NX,NY),'L')
     id.save('id.jpg')
 
-    depth_f = (depth_d * 255 / np.max(data)).astype('uint8')
+    depth_f = (depth_d * 255 / np.max(depth_d)).astype('uint8')
     depth = depth.fromarray(depth_f.reshape(NX,NY),'L')
     depth.save('depth.jpg')
 
