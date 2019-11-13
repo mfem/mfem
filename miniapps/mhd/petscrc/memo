@@ -33,6 +33,15 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+11/4
+move back to imAMRMHDp
+
+things need to be changed: 
+1. j0 is owned in main (so that j0 can be updated in AMRUpdate)
+2. add j in main for amr estimator
+3. initialize reducedSystemOperator after mesh is changed
+
+
 9/16
 for sl=10^3 and o=3, I cannot solve preconditioner too tight:
     for r=6, 7, 8
@@ -72,14 +81,69 @@ o2 is not working
 8/26
 exAMRMHD fails for o=3? Diverged pcg? time steps are probably too large
 
+8/24
+test rs=9: will reduce stiffness rtol=1e-5 be better?
+
+8/23
+resi=1e-3 is okay for rs 7, 8 not 9
+resi=1e-4 is okay for rs 7, 8, 9
+
+for resi=1e-4
+for rs<=7 rtol=1e-5 is good
+for rs>7 rtol for Schur needs to be 1e-6
+
+rs=9
+change stiffness to 1e-5 ok
+mass matrix has to be inverted accurately
+
+iter=2,3 not good
+
+
+8/20
+mpirun -n 16 imMHDp -m Meshes/xperiodic-new.mesh -rs 6 -rp 0 -o 2 -i 3 -vs 1 -tf 1 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+
+potential improvements (minor):
+1. do schur complement inside petsc
+2. not assemble matrix when impose boundary condition
+
+8/19
+this seems work:
+srun -n 16 imMHDp -m Meshes/xperiodic-square-new.mesh -rs 6 -rp 0 -o 2 -i 2 -vs 1 -tf 5 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+srun -n 16 imMHDp -m Meshes/xperiodic-square-new.mesh -rs 7 -rp 0 -o 2 -i 2 -vs 1 -tf 5 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+srun -n 32 imMHDp -m Meshes/xperiodic-square-new.mesh -rs 8 -rp 0 -o 2 -i 2 -vs 1 -tf 5 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+
+
 8/17
 new tests:
-mpirun -n 4 exMHDp -m Meshes/xperiodic1.mesh -rs 4 -o 2 -tf 1 -vs 100 -dt .001 -i 3
+mpirun -n 4 exMHDp -m Meshes/xperiodic-new.mesh -rs 4 -o 2 -tf 1 -vs 100 -dt .001 -i 3
 mpirun -n 4 exMHDp -m Meshes/xperiodic-square-new.mesh -rs 2 -o 2 -tf 3 -vs 100 -dt .001
 
 redo:
 64*64
 mpirun -n 4 imMHDp  -m Meshes/xperiodic-square-new.mesh -rs 4 -o 2 -i 2 -tf 10 -dt 5 -s 3 -usepetsc --petscopts petscrc/rc_full -shell
+
+test:
+srun -n 16 imMHDp -m Meshes/xperiodic-square-new.mesh -rs 6 -rp 0 -o 2 -i 2 -vs 1 -tf 10 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+mffd_err=1e-3
+r=6 (256x256): iter=60 to 80
+mffd_err=1e-3
+r=7 (512x512): iter=134, 113, 105, 143; some norms are off
+mffd_err=1e-2
+r=7 (512x512): iter=80, 103, 107, 143; norms are close
+r=8 : iter=187, , , ; norms are close
+mffd_err=1e-1
+r=8 : iter=130, 155, 146, ; norms are close
+
+-mat_mffd_err 1e-1 -mat_mffd_type ds -mat_mffd_umin 1e-5 
+r=7 (512x512): iter=112, not working...
+
+from info?? 
+[0] MatMult_MFFD(): Current differencing parameter: 6.962523027760e-09
+[0] MatMult_MFFD(): Current differencing parameter: 2.757792494633e+00
+
+will o3 scale better?
+
+
 
 8/13
 srun -n 16 imMHDp -rs 6 -rp 1 -o 2 -i 2 -vs 1 -tf 5 -dt 5 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell

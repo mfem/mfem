@@ -3,7 +3,7 @@
 // Compile with: make imMHDp
 //
 // Description:  It solves a time dependent resistive MHD problem 
-//               There three versions:
+//               There are three versions:
 //               1. explicit scheme
 //               2. implicit scheme using a very simple linear preconditioner
 //               3. implicit scheme using physcis-based preconditioner

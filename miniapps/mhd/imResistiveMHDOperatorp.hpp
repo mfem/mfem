@@ -33,7 +33,8 @@ private:
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl;
    mutable HypreParMatrix *ScFull, *AReFull, *NbFull, *PwMat, Mmatlp, *NbMat;
-   bool initialMdt, useFull;
+   bool initialMdt;
+   int useFull;
    HypreParVector *E0Vec;
    ParGridFunction *j0;
    Array<int> block_trueOffsets;
@@ -68,7 +69,7 @@ public:
                          ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
                          ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
                          CGSolver *M_solver_, const Array<int> &ess_tdof_list_,
-                         const Array<int> &ess_bdr_, bool useFull_);
+                         const Array<int> &ess_bdr_, int useFull_);
 
    /// Set current values - needed to compute action and Jacobian.
    void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
@@ -81,7 +82,7 @@ public:
            double rate=dtOld/dt;
            *Mdtpr*=rate;
 
-           if (useFull)
+           if (useFull == 1)
            {
                delete ARe;
                delete ASl;
@@ -103,7 +104,7 @@ public:
            *Mdtpr*=(1./dt); 
            initialMdt=true;
 
-           if (useFull)
+           if (useFull == 1)
            {
               if (DRematpr!=NULL)
                  ARe = ParAdd(Mdtpr, DRematpr);
@@ -653,12 +654,12 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
           DSlpr = &DSl;
       }
 
-      bool useFull = true;
+      int useFull = 1;
       reduced_oper  = new ReducedSystemOperator(f, M, Mmat, K, Kmat,
                          KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
                          ess_tdof_list, ess_bdr, useFull);
 
-      const double rel_tol=1.e-8;
+      const double rel_tol=1e-4;
       pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
       if (use_factory)
       {
@@ -670,8 +671,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
          //SNESKSPSetUseEW(snes,PETSC_TRUE);
          //SNESKSPSetParametersEW(snes,2,1e-4,0.1,0.9,1.5,1.5,0.1);
 
-         if (useFull)
-            J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK preconditioner");
+         if (useFull==1)
+            J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
          else
             J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
          pnewton_solver->SetPreconditionerFactory(J_factory);
@@ -886,7 +887,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      Nv(NULL), Nb(NULL), Pw(NULL), PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
      Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
-    useFull=false;
+    useFull=0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
     //the following is not right because Mdtpr shares the same matrix with Mmat_
@@ -911,7 +912,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
    ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
    CGSolver *M_solver_,const Array<int> &ess_tdof_list_,
-   const Array<int> &ess_bdr_, bool useFull_)
+   const Array<int> &ess_bdr_, int useFull_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
      initialMdt(false),
@@ -957,7 +958,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
    MFEM_ASSERT(initialMdt, "Mdt not initialized correctly!"); 
 
-   if (useFull)
+   if (useFull==1)
    {
        delete Jacobian;
        delete AReFull; 
