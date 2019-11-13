@@ -10,7 +10,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const int order = 2;
+   const int order = 3;
    Drl4Amr sim(order);
    while (sim.GetNorm() > 0.01)
    {
@@ -18,9 +18,8 @@ int main(int argc, char *argv[])
       sim.Compute();
       sim.Refine(e);
       sim.GetImage();
-      //sim.GetImageSize();
-      sim.GetElemIdField();
-      sim.GetElemDepthField();
+      sim.GetIdField();
+      sim.GetDepthField();
    }
    return 0;
 }

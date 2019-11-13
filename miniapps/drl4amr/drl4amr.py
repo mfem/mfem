@@ -31,37 +31,27 @@ class Ctrl(object):
     def GetNDofs(self): return MFEM.GetNDofs(self.obj)
     sign(MFEM.GetNDofs, [c_void_p], c_int)
 
-    # Get the image of the solution of size GetNodeImageSize
+    # Get the image of the solution, of size GetImageSize
     def GetImage(self): return MFEM.GetImage(self.obj)
     sign(MFEM.GetImage, [c_void_p], c_double_p)
 
-    # Get the image of the elem id, of size GetElemImageSize
-    def GetElemIdField(self): return MFEM.GetElemIdField(self.obj)
-    sign(MFEM.GetElemIdField, [c_void_p], c_double_p)
+    # Get the image of the elem id, of size GetImageSize
+    def GetIdField(self): return MFEM.GetIdField(self.obj)
+    sign(MFEM.GetIdField, [c_void_p], c_double_p)
 
-    # Get the image of the elem depth
-    def GetElemDepthField(self): return MFEM.GetElemDepthField(self.obj)
-    sign(MFEM.GetElemDepthField, [c_void_p], c_double_p)
+    # Get the image of the elem depth, of size GetImageSize
+    def GetDepthField(self): return MFEM.GetDepthField(self.obj)
+    sign(MFEM.GetDepthField, [c_void_p], c_double_p)
 
-    # Get Node images sizes: GetNodeImageSize = GetNodeImageX * GetNodeImageY
-    def GetNodeImageSize(self): return MFEM.GetNodeImageSize(self.obj)
-    sign(MFEM.GetNodeImageSize, [c_void_p], c_int)
+    # Get images sizes: GetImageSize = GetImageX * GetImageY
+    def GetImageSize(self): return MFEM.GetImageSize(self.obj)
+    sign(MFEM.GetImageSize, [c_void_p], c_int)
 
-    def GetNodeImageX(self): return MFEM.GetNodeImageX(self.obj)
-    sign(MFEM.GetNodeImageX, [c_void_p], c_int)
+    def GetImageX(self): return MFEM.GetImageX(self.obj)
+    sign(MFEM.GetImageX, [c_void_p], c_int)
 
-    def GetNodeImageY(self): return MFEM.GetNodeImageY(self.obj)
-    sign(MFEM.GetNodeImageY, [c_void_p], c_int)
-
-    # Get Elem images sizes: GetElemImageSize = GetElemImageX * GetElemImageY
-    def GetElemImageSize(self): return MFEM.GetElemImageSize(self.obj)
-    sign(MFEM.GetElemImageSize, [c_void_p], c_int)
-
-    def GetElemImageX(self): return MFEM.GetElemImageX(self.obj)
-    sign(MFEM.GetElemImageX, [c_void_p], c_int)
-
-    def GetElemImageY(self): return MFEM.GetElemImageY(self.obj)
-    sign(MFEM.GetElemImageY, [c_void_p], c_int)
+    def GetImageY(self): return MFEM.GetImageY(self.obj)
+    sign(MFEM.GetImageY, [c_void_p], c_int)
 
 
 seed = 0
@@ -70,14 +60,10 @@ order = 2
 sim = Ctrl(order, seed)
 
 NE = sim.GetNE()
-
-NX = sim.GetNodeImageX()
-NY = sim.GetNodeImageY()
+NX = sim.GetImageX()
+NY = sim.GetImageY()
 print(NX,NY)
 
-EX = sim.GetElemImageX()
-EY = sim.GetElemImageY()
-print(EX,EY)
 
 while sim.GetNorm() > 0.01:
     sim.Compute()
@@ -85,27 +71,27 @@ while sim.GetNorm() > 0.01:
     #sim.Refine(-1); # Will refine using the internal refiner
     sim.Refine(int(NE*random()))
 
-    image_d = sim.GetImage()
-#    field = sim.GetField()
-    depth_d = sim.GetElemDepthField()
-    id = sim.GetElemIdField()
-    #image_s = sim.GetImageSize()
-    #print("image_s: " + str(image_s))
+    image_p = sim.GetImage()
+    id_p = sim.GetIdField()
+    depth_p = sim.GetDepthField()
 
     # Get the data back
-    data = np.frombuffer((c_double*NX*NY).from_address(addressof(image_d.contents)))
-    depth = np.frombuffer((c_double*EX*EY).from_address(addressof(depth_d.contents)))
-    # np.set_printoptions(threshold = sys.maxsize)
-    # print level
+    image_d = np.frombuffer((c_double*NX*NY).from_address(addressof(image_p.contents)))
+    id_d = np.frombuffer((c_double*NX*NY).from_address(addressof(id_p.contents)))
+    depth_d = np.frombuffer((c_double*NX*NY).from_address(addressof(depth_p.contents)))
 
     # Scale and convert the image
-    image_f = (data * 255 / np.max(data)).astype('uint8')
+    image_f = (image_d * 255 / np.max(data)).astype('uint8')
     image = Image.fromarray(image_f.reshape(NX,NY),'L')
     image.save('image.jpg')
 
-    depth_f = (depth * 255 / np.max(data)).astype('uint8')
-    depth_image = Image.fromarray(depth_f.reshape(EX,EY),'L')
-    depth_image.save('depth.jpg')
+    id_f = (id_d * 255 / np.max(data)).astype('uint8')
+    id = id.fromarray(id_f.reshape(NX,NY),'L')
+    id.save('id.jpg')
+
+    depth_f = (depth_d * 255 / np.max(data)).astype('uint8')
+    depth = depth.fromarray(depth_f.reshape(NX,NY),'L')
+    depth.save('depth.jpg')
 
     print("Norm: "+str(sim.GetNorm()))
 

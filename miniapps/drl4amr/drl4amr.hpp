@@ -11,8 +11,8 @@ class Drl4Amr
 private:
    const int nx = 8;
    const int ny = 8;
-   const int max_dofs = 5000;
    const int max_depth = 2;
+   const int max_dofs = 5000;
    const Element::Type quads = Element::QUADRILATERAL;
    const bool generate_edges = true;
    const double sx = 1.0;
@@ -29,12 +29,12 @@ private:
    const int order;
    const long int seed;
    Device device;
-   Mesh mesh, node_image_mesh, elem_image_mesh;
+   Mesh mesh, image_mesh;
    const int dim;
    const int sdim;
    H1_FECollection h1fec;
    L2_FECollection l2fec;
-   FiniteElementSpace h1fes, l2fes, node_image_l2fes, elem_image_l2fes;
+   FiniteElementSpace h1fes, l2fes, image_fes;
    ConstantCoefficient one;
    ConstantCoefficient zero;
    BilinearFormIntegrator *integ;
@@ -64,19 +64,15 @@ public:
 
    double GetNorm();
    double *GetImage();
-   double *GetElemIdField();
-   double *GetElemDepthField();
+   double *GetIdField();
+   double *GetDepthField();
 
-   int GetNodeImageX() const { return 1 + GetElemImageX();}
-   int GetNodeImageY() const { return 1 + GetElemImageY();}
-   int GetNodeImageSize() const { return GetNodeImageX() * GetNodeImageY(); }
-
-   int GetElemImageX() const { return order * (nx << max_depth);}
-   int GetElemImageY() const { return order * (ny << max_depth);}
-   int GetElemImageSize() const { return GetElemImageX() * GetElemImageY(); }
+   int GetImageX() const { return order * (nx << max_depth);}
+   int GetImageY() const { return order * (ny << max_depth);}
+   int GetImageSize() const { return GetImageX() * GetImageY(); }
 
 private:
-   void GetImage(GridFunction&, Vector&, bool =true);
+   void GetImage(GridFunction&, Vector&);
 };
 
 #endif // DRL4AMR_HPP
