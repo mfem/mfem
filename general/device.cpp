@@ -139,16 +139,16 @@ void Device::UpdateMemoryTypeAndClass()
    if (umpire)
    {
       host_mem_type = MemoryType::HOST_UMPIRE;
-      host_mem_class = MemoryClass::HOST_UMPIRE;
+      host_mem_class = MemoryClass::HOST;
    }
 
    // In 'debug' mode, switch for the host and device DEBUG memory types
    if (debug)
    {
       host_mem_type = MemoryType::HOST_DEBUG;
-      host_mem_class = MemoryClass::HOST_DEBUG;
+      host_mem_class = MemoryClass::HOST;
       device_mem_type = MemoryType::DEVICE_DEBUG;
-      device_mem_class = MemoryClass::DEVICE_DEBUG;
+      device_mem_class = MemoryClass::DEVICE;
    }
 
    // Allow to tune the device memory types, with some restrictions
@@ -161,16 +161,16 @@ void Device::UpdateMemoryTypeAndClass()
          if (umpire && !debug)
          {
             device_mem_type = MemoryType::DEVICE_UMPIRE;
-            device_mem_class = MemoryClass::DEVICE_UMPIRE;
+            device_mem_class = MemoryClass::DEVICE;
          }
       }
       else
       {
          // Use the uvm shortcut if it has been requested
          host_mem_type = MemoryType::HOST_MANAGED;
-         host_mem_class = MemoryClass::HOST_MANAGED;
+         host_mem_class = MemoryClass::MANAGED;
          device_mem_type = MemoryType::DEVICE_MANAGED;
-         device_mem_class = MemoryClass::DEVICE_MANAGED;
+         device_mem_class = MemoryClass::MANAGED;
       }
    }
 

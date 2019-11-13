@@ -41,6 +41,7 @@ namespace mfem
 MemoryType GetDualMemoryType(MemoryType mt)
 {
    MFEM_VERIFY(IsHostMemory(mt),"");
+   return Device::GetMemoryType();/*
    if (IsHostMemory(Device::GetMemoryType()))
    {
       dbg("IsHostMemory");
@@ -60,48 +61,42 @@ MemoryType GetDualMemoryType(MemoryType mt)
       case MemoryType::HOST_64:       return MemoryType::DEVICE;
       case MemoryType::HOST_DEBUG:    return MemoryType::DEVICE_DEBUG;
       case MemoryType::HOST_MANAGED:  return MemoryType::DEVICE_MANAGED;
-      //case MemoryType::DEVICE:        return MemoryType::HOST;
-      //case MemoryType::DEVICE_UMPIRE: return MemoryType::HOST_UMPIRE;
-      //case MemoryType::DEVICE_DEBUG:  return MemoryType::HOST_DEBUG;
-      default: MFEM_ASSERT(false, "Dual memory type not allowed!");
+      default: MFEM_VERIFY(false, "Dual memory type not allowed!");
    }
-   return MemoryType::HOST;
+   return MemoryType::HOST;*/
 }
 
 MemoryType GetMemoryType(MemoryClass mc)
 {
+   const bool debug = Device::Allows(Backend::DEBUG) ;
+   if (debug && (mc==MemoryClass::DEVICE) && !Device::Allows(Backend::CUDA))
+   { return MemoryType::DEVICE_DEBUG; }
+
    switch (mc)
    {
-      case MemoryClass::HOST:           return MemoryType::HOST;
-      case MemoryClass::HOST_UMPIRE:    return MemoryType::HOST_UMPIRE;
-      case MemoryClass::HOST_32:        return MemoryType::HOST_32;
-      case MemoryClass::HOST_64:        return MemoryType::HOST_64;
-      case MemoryClass::HOST_DEBUG:     return MemoryType::HOST_DEBUG;
-      case MemoryClass::HOST_MANAGED:   return MemoryType::HOST_MANAGED;
-      case MemoryClass::DEVICE_MANAGED: return MemoryType::DEVICE_MANAGED;
-      case MemoryClass::DEVICE:         return MemoryType::DEVICE;
-      case MemoryClass::DEVICE_UMPIRE:  return MemoryType::DEVICE_UMPIRE;
-      case MemoryClass::DEVICE_DEBUG:   return MemoryType::DEVICE_DEBUG;
+      case MemoryClass::HOST:    return Device::GetHostMemoryType();
+      case MemoryClass::HOST_32: return MemoryType::HOST_32;
+      case MemoryClass::HOST_64: return MemoryType::HOST_64;
+      case MemoryClass::DEVICE:  return Device::GetMemoryType();
+      case MemoryClass::MANAGED: return MemoryType::HOST_MANAGED;
+      case MemoryClass::DEBUG:   return MemoryType::DEVICE_DEBUG;
    }
-   MFEM_ASSERT(false, "Unknown MemoryClass!");
+   MFEM_VERIFY(false, "Unknown MemoryClass!");
    return MemoryType::HOST;
 }
 
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
 {
-   //                | HOST           HOST_UMPIRE    HOST_32        HOST_64        HOST_DEBUG     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   // ---------------+--------------------------------------------------------------------------------------------------------------------
-   //  HOST          | HOST           HOST_UMPIRE    HOST_32        HOST_64        HOST_DEBUG     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  HOST_UMPIRE   | HOST_UMPIRE    HOST_UMPIRE    HOST_32        HOST_64        HOST_DEBUG     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  HOST_32       | HOST_32        HOST_32        HOST_32        HOST_64        HOST_DEBUG     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  HOST_64       | HOST_64        HOST_64        HOST_64        HOST_64        HOST_DEBUG     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  HOST_DEBUG    | HOST_DEBUG     HOST_DEBUG     HOST_DEBUG     HOST_DEBUG     HOST_DEBUG     DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  DEVICE        | DEVICE         DEVICE         DEVICE         DEVICE         DEVICE         DEVICE         DEVICE_UMPIRE  DEVICE_UVM
-   //  DEVICE_UMPIRE | DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UMPIRE  DEVICE_UVM
-   //  DEVICE_UVM    | DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM     DEVICE_UVM
+   //          | HOST     HOST_32  HOST_64  DEVICE   MANAGED
+   // ---------+---------------------------------------------
+   //  HOST    | HOST     HOST_32  HOST_64  DEVICE   MANAGED
+   //  HOST_32 | HOST_32  HOST_32  HOST_64  DEVICE   MANAGED
+   //  HOST_64 | HOST_64  HOST_64  HOST_64  DEVICE   MANAGED
+   //  DEVICE  | DEVICE   DEVICE   DEVICE   DEVICE   MANAGED
+   //  MANAGED | MANAGED  MANAGED  MANAGED  MANAGED  MANAGED
 
    // Using the enumeration ordering:
-   // HOST < HOST_UMPIRE < HOST_32 < HOST_64 < HOST_DEBUG < DEVICE < DEVICE_UMPIRE < DEVICE_UVM < DEVICE_DEBUG,
+   //    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED,
    // the above table is simply: a*b = max(a,b).
 
    return std::max(mc1, mc2);
@@ -740,107 +735,121 @@ void MemoryManager::HostDelete_(void *ptr, MemoryType h_type)
    if (mm.exists) { ctrl->Host(h_type)->Dealloc(ptr); }
 }
 
-void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
+bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
+                                      MemoryType h_mt, size_t bytes, unsigned flags)
+{
+   //dbg("%d %p %d x%X", mc, h_ptr, h_mt, flags);
+   if (!h_ptr)
+   {
+      MFEM_VERIFY(bytes == 0, "Trying to access NULL with size " << bytes);
+      return true;
+   }
+   const internal::Memory &mem =
+      (flags & Mem::ALIAS) ?
+      *maps->aliases.at(h_ptr).mem : maps->memories.at(h_ptr);
+   const MemoryType &d_mt = mem.d_mt;
+   switch (mc)
+   {
+      //case MemoryClass::HOST: { MFEM_VERIFY(false,""); break; }
+      case MemoryClass::HOST_32:
+      {
+         MFEM_VERIFY(h_mt == MemoryType::HOST_32 ||
+                     h_mt == MemoryType::HOST_64,"");
+         return true;
+      }
+      case MemoryClass::HOST_64:
+      {
+         MFEM_VERIFY(h_mt == MemoryType::HOST_64,"");
+         return true;
+      }
+      case MemoryClass::DEVICE:
+      {
+         MFEM_VERIFY(d_mt == MemoryType::DEVICE ||
+                     d_mt == MemoryType::DEVICE_DEBUG ||
+                     d_mt == MemoryType::DEVICE_UMPIRE ||
+                     d_mt == MemoryType::DEVICE_MANAGED,"");
+         return true;
+      }
+      case MemoryClass::MANAGED:
+      {
+         MFEM_VERIFY(h_mt == MemoryType::HOST_MANAGED &&
+                     d_mt == MemoryType::DEVICE_MANAGED,"");
+         return true;
+      }
+      default: break;
+   }
+   return true;
+}
+
+void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                 size_t bytes, unsigned &flags)
 {
-   //dbg("");
-   switch (mc)
+   if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
+   MFEM_VERIFY(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),
+               "MemoryType check failed!");
+   if (IsHostMemory(GetMemoryType(mc)))
    {
-      case MemoryClass::HOST:
-      case MemoryClass::HOST_32:
-      case MemoryClass::HOST_64:
-      case MemoryClass::HOST_DEBUG:
-      case MemoryClass::HOST_UMPIRE:
-      case MemoryClass::HOST_MANAGED:
-      {
-         const bool copy = !(flags & Mem::VALID_HOST);
-         flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
-         if (flags & Mem::ALIAS)
-         { return mm.GetAliasHostPtr(h_ptr, bytes, copy); }
-         else { return mm.GetHostPtr(h_ptr, bytes, copy); }
-      }
-
-      case MemoryClass::DEVICE:
-      case MemoryClass::DEVICE_DEBUG:
-      case MemoryClass::DEVICE_UMPIRE:
-      case MemoryClass::DEVICE_MANAGED:
-      {
-         const bool copy = !(flags & Mem::VALID_DEVICE);
-         flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
-         if (flags & Mem::ALIAS)
-         { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
-         else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
-      }
+      const bool copy = !(flags & Mem::VALID_HOST);
+      flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
+      if (flags & Mem::ALIAS)
+      { return mm.GetAliasHostPtr(h_ptr, bytes, copy); }
+      else { return mm.GetHostPtr(h_ptr, bytes, copy); }
    }
-   return nullptr;
+   else
+   {
+      const bool copy = !(flags & Mem::VALID_DEVICE);
+      flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
+      if (flags & Mem::ALIAS)
+      { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
+      else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
+   }
 }
 
-const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
+const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
-   //dbg("");
-   switch (mc)
+   if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
+   MFEM_VERIFY(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),
+               "MemoryType check failed!");
+   if (IsHostMemory(GetMemoryType(mc)))
    {
-      case MemoryClass::HOST:
-      case MemoryClass::HOST_32:
-      case MemoryClass::HOST_64:
-      case MemoryClass::HOST_DEBUG:
-      case MemoryClass::HOST_UMPIRE:
-      case MemoryClass::HOST_MANAGED:
-      {
-         const bool copy = !(flags & Mem::VALID_HOST);
-         flags |= Mem::VALID_HOST;
-         if (flags & Mem::ALIAS)
-         { return mm.GetAliasHostPtr(h_ptr, bytes, copy); }
-         else { return mm.GetHostPtr(h_ptr, bytes, copy); }
-      }
-
-      case MemoryClass::DEVICE:
-      case MemoryClass::DEVICE_DEBUG:
-      case MemoryClass::DEVICE_UMPIRE:
-      case MemoryClass::DEVICE_MANAGED:
-      {
-         const bool copy = !(flags & Mem::VALID_DEVICE);
-         flags |= Mem::VALID_DEVICE;
-         if (flags & Mem::ALIAS)
-         { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
-         else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
-      }
+      const bool copy = !(flags & Mem::VALID_HOST);
+      flags |= Mem::VALID_HOST;
+      if (flags & Mem::ALIAS)
+      { return mm.GetAliasHostPtr(h_ptr, bytes, copy); }
+      else { return mm.GetHostPtr(h_ptr, bytes, copy); }
    }
-   return nullptr;
+   else
+   {
+      const bool copy = !(flags & Mem::VALID_DEVICE);
+      flags |= Mem::VALID_DEVICE;
+      if (flags & Mem::ALIAS)
+      { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
+      else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
+   }
 }
 
-void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
+void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
-   //dbg("");
-   switch (mc)
+   if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
+   MFEM_VERIFY(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),
+               "MemoryType check failed!");
+   if (IsHostMemory(GetMemoryType(mc)))
    {
-      case MemoryClass::HOST:
-      case MemoryClass::HOST_32:
-      case MemoryClass::HOST_64:
-      case MemoryClass::HOST_DEBUG:
-      case MemoryClass::HOST_UMPIRE:
-      case MemoryClass::HOST_MANAGED:
-      {
-         flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
-         if (flags & Mem::ALIAS)
-         { return mm.GetAliasHostPtr(h_ptr, bytes, false); }
-         else { return mm.GetHostPtr(h_ptr, bytes, false); }
-      }
-
-      case MemoryClass::DEVICE:
-      case MemoryClass::DEVICE_DEBUG:
-      case MemoryClass::DEVICE_UMPIRE:
-      case MemoryClass::DEVICE_MANAGED:
-      {
-         flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
-         if (flags & Mem::ALIAS)
-         { return mm.GetAliasDevicePtr(h_ptr, bytes, false); }
-         else { return mm.GetDevicePtr(h_ptr, bytes, false); }
-      }
+      flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
+      if (flags & Mem::ALIAS)
+      { return mm.GetAliasHostPtr(h_ptr, bytes, false); }
+      else { return mm.GetHostPtr(h_ptr, bytes, false); }
    }
-   return nullptr;
+   else
+   {
+      flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
+      if (flags & Mem::ALIAS)
+      { return mm.GetAliasDevicePtr(h_ptr, bytes, false); }
+      else { return mm.GetDevicePtr(h_ptr, bytes, false); }
+
+   }
 }
 
 void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,

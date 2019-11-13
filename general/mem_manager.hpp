@@ -67,16 +67,12 @@ inline MemoryType& operator--(MemoryType &mt,int)
  *  use MemoryClass::DEVICE for their inputs. */
 enum class MemoryClass
 {
-   HOST,           ///< Memory types: { HOST, HOST_UMPIRE, HOST_32, HOST_64, HOST_DEBUG }
-   HOST_UMPIRE,    ///< Memory types: { HOST_UMPIRE, HOST_32, HOST_64, HOST_DEBUG }
-   HOST_32,        ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
-   HOST_64,        ///< Memory types: { HOST_64, HOST_DEBUG }
-   HOST_DEBUG,     ///< Memory types: { HOST_DEBUG }
-   HOST_MANAGED,   ///< Memory types: { MANAGED, DEVICE_DEBUG}
-   DEVICE,         ///< Memory types: { DEVICE, DEVICE_UMPIRE, MANAGED, DEVICE_DEBUG}
-   DEVICE_MANAGED, ///< Memory types: { MANAGED, DEVICE_DEBUG}
-   DEVICE_UMPIRE,  ///< Memory types: { DEVICE_UMPIRE, MANAGED, DEVICE_DEBUG}
-   DEVICE_DEBUG    ///< Memory types: { DEVICE_DEBUG }
+   HOST,    ///< Memory types: { HOST, HOST_32, HOST_64, MANAGED }
+   HOST_32, ///< Memory types: { HOST_32, HOST_64 }
+   HOST_64, ///< Memory types: { HOST_64 }
+   DEVICE,  ///< Memory types: { DEVICE, MANAGED }
+   MANAGED, ///< Memory types: { MANAGED }
+   DEBUG    ///< Memory types: { DEBUG }
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
@@ -85,8 +81,8 @@ inline bool IsHostMemory(MemoryType mt) { return mt < MemoryType::DEVICE; }
 /// Return true if the given host memory type needs to be registered.
 inline bool IsHostRegisteredMemory(MemoryType mt)
 {
-   return mt == MemoryType::HOST_UMPIRE ||
-          mt == MemoryType::HOST_DEBUG  ||
+   return mt == MemoryType::HOST_DEBUG  ||
+          mt == MemoryType::HOST_UMPIRE ||
           mt == MemoryType::HOST_MANAGED;
 }
 
@@ -100,8 +96,7 @@ MemoryType GetMemoryType(MemoryClass mc);
     Currently, the operation is defined as a*b := max(a,b) where the max
     operation is based on the enumeration ordering:
 
-    HOST < HOST_UMPIRE < HOST_32 < HOST_64 < HOST_DEBUG
-                       < DEVICE < DEVICE_UMPIRE < DEVICE_UVM < DEVICE_DEBUG. */
+    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED. */
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 
 /// Class used by MFEM to store pointers to host and/or device memory.
@@ -118,7 +113,7 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
-    MemoryType: DEVICE, DEVICE_UMPIRE,  DEVICE_UVM or DEVICE_DEBUG).
+    MemoryType: DEVICE, DEVICE_UMPIRE, DEVICE_UVM or DEVICE_DEBUG).
 
     A Memory object can hold (wrap) an externally allocated pointer with any
     given MemoryType.
@@ -481,16 +476,20 @@ private: // Static methods used by the Memory<T> class
    /// Free memory identified by its host pointer with its host deallocator.
    static void HostDelete_(void *h_ptr, MemoryType mt);
 
+   /// Check if the memory types given the memory class are valid
+   static bool MemoryClassCheck_(MemoryClass mc, void *h_ptr,
+                                 MemoryType h_mt, size_t bytes, unsigned flags);
+
    /// Return a pointer to the memory identified by the host pointer h_ptr for
    /// access with the given MemoryClass.
-   static void *ReadWrite_(void *h_ptr, MemoryClass mc, size_t bytes,
-                           unsigned &flags);
+   static void *ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
+                           size_t bytes, unsigned &flags);
 
-   static const void *Read_(void *h_ptr, MemoryClass mc, size_t bytes,
-                            unsigned &flags);
+   static const void *Read_(void *h_ptr, MemoryType h_mt,  MemoryClass mc,
+                            size_t bytes, unsigned &flags);
 
-   static void *Write_(void *h_ptr, MemoryClass mc, size_t bytes,
-                       unsigned &flags);
+   static void *Write_(void *h_ptr, MemoryType h_mt,  MemoryClass mc,
+                       size_t bytes, unsigned &flags);
 
    static void SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
                           size_t alias_bytes, unsigned base_flags,
@@ -720,7 +719,7 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
-   return (T*)MemoryManager::ReadWrite_(h_ptr, mc, bytes, flags);
+   return (T*)MemoryManager::ReadWrite_(h_ptr, h_mt, mc, bytes, flags);
 }
 
 template <typename T>
@@ -733,7 +732,7 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
-   return (const T*)MemoryManager::Read_(h_ptr, mc, bytes, flags);
+   return (const T*)MemoryManager::Read_(h_ptr, h_mt, mc, bytes, flags);
 }
 
 template <typename T>
@@ -746,7 +745,7 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
-   return (T*)MemoryManager::Write_(h_ptr, mc, bytes, flags);
+   return (T*)MemoryManager::Write_(h_ptr, h_mt, mc, bytes, flags);
 }
 
 template <typename T>
