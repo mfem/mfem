@@ -1103,24 +1103,24 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    visit_dc_ = &visit_dc;
 
-   visit_dc.RegisterField("Re(E)", &e_->real());
-   visit_dc.RegisterField("Im(E)", &e_->imag());
+   visit_dc.RegisterField("Re_E", &e_->real());
+   visit_dc.RegisterField("Im_E", &e_->imag());
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
    // visit_dc.RegisterField("H", h_);
    if ( j_ )
    {
-      visit_dc.RegisterField("Re(J)", &j_->real());
-      visit_dc.RegisterField("Im(J)", &j_->imag());
+      visit_dc.RegisterField("Re_J", &j_->real());
+      visit_dc.RegisterField("Im_J", &j_->imag());
    }
    if ( u_ )
    {
       visit_dc.RegisterField("U", u_);
       visit_dc.RegisterField("U_E", uE_);
       visit_dc.RegisterField("U_B", uB_);
-      visit_dc.RegisterField("Re(S)", &S_->real());
-      visit_dc.RegisterField("Im(S)", &S_->imag());
+      visit_dc.RegisterField("Re_S", &S_->real());
+      visit_dc.RegisterField("Im_S", &S_->imag());
       // visit_dc.RegisterField("Im(u)", &u_->imag());
    }
    // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
