@@ -1057,7 +1057,7 @@ int main(int argc, char *argv[])
    if (vis_flags.Size() != 5)
    {
       vis_flags.SetSize(5);
-      vis_flags = 255; // Turn on all visualization fields
+      vis_flags = -1; // Turn on default visualization fields
    }
 
    if (t_final < 0.0)

@@ -1435,6 +1435,8 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      dc_(NULL)
 {
    blf_ = NULL;
+
+   if (vis_flag_ < 0) { vis_flag_ = this->GetDefaultVisFlag(); }
 }
 
 DGTransportTDO::NLOperator::~NLOperator()
@@ -1964,7 +1966,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 1) & 1)
    {
-      op_[1] = new IonDensityOp(mpi, dg, pgf, dpgf, ion_charge, DiPerp,
+      op_[1] = new IonDensityOp(mpi, dg, vfes, pgf, dpgf, ion_charge, DiPerp,
                                 B3Coef, vis_flags[1]);
       op_[1]->SetLogging(logging, "n_i: ");
    }
@@ -2349,11 +2351,15 @@ void DGTransportTDO::NeutralDensityOp::RegisterDataFields(DataCollection & dc)
 
    if (this->CheckVisFlag(DIFFUSION_COEF))
    {
-      dc.RegisterField("D_n", DGF_);
+      ostringstream oss;
+      oss << field_name_ << " D_n";
+      dc.RegisterField(oss.str(), DGF_);
    }
    if (this->CheckVisFlag(SOURCE))
    {
-      dc.RegisterField("S_n", SGF_);
+      ostringstream oss;
+      oss << field_name_ << " S_n";
+      dc.RegisterField(oss.str(), SGF_);
    }
 }
 
@@ -2374,7 +2380,8 @@ void DGTransportTDO::NeutralDensityOp::Update()
 {
    NLOperator::Update();
 
-   DGF_->Update();
+   if (DGF_ != NULL) { DGF_->Update(); }
+   if (SGF_ != NULL) { SGF_->Update(); }
 }
 /*
 void DGTransportTDO::NeutralDensityOp::Mult(const Vector &k, Vector &y) const
@@ -2525,6 +2532,7 @@ Operator *DGTransportTDO::NeutralDensityOp::GetGradientBlock(int i)
 */
 DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            const DGParams & dg,
+                                           ParFiniteElementSpace & vfes,
                                            ParGridFunctionArray & pgf,
                                            ParGridFunctionArray & dpgf,
                                            int ion_charge,
@@ -2554,7 +2562,9 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      negdtdSizdniCoef_(0.0, dSizdniCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
      niizCoef_(ni1Coef_, izCoef_),
-     DPerpGF_(new ParGridFunction((*pgf_)[1]->ParFESpace()))
+     DPerpGF_(NULL),
+     AGF_(NULL),
+     SGF_(NULL)
      // dtdSndnnCoef_(0.0, niizCoef_),
      // dtdSndniCoef_(0.0, nnizCoef_)
 {
@@ -2606,6 +2616,19 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    blf_[1]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtViCoef_,
                                                             1.0, -0.5));
    blf_[1]->AddDomainIntegrator(new MassIntegrator(negdtdSizdniCoef_));
+
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      DPerpGF_ = new ParGridFunction((*pgf_)[1]->ParFESpace());
+   }
+   if (this->CheckVisFlag(ADVECTION_COEF))
+   {
+      AGF_ = new ParGridFunction(&vfes);
+   }
+   if (this->CheckVisFlag(SOURCE))
+   {
+      SGF_ = new ParGridFunction((*pgf_)[1]->ParFESpace());
+   }
 }
 
 
@@ -2635,25 +2658,57 @@ void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
 DGTransportTDO::IonDensityOp::~IonDensityOp()
 {
    delete DPerpGF_;
+   delete AGF_;
+   delete SGF_;
 }
 
 void DGTransportTDO::IonDensityOp::RegisterDataFields(DataCollection & dc)
 {
    NLOperator::RegisterDataFields(dc);
 
-   dc.RegisterField("D_i Perpendicular", DPerpGF_);
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      ostringstream oss;
+      oss << field_name_ << " D_i Perpendicular";
+      dc.RegisterField(oss.str(), DPerpGF_);
+   }
+   if (this->CheckVisFlag(ADVECTION_COEF))
+   {
+      ostringstream oss;
+      oss << field_name_ << " V_i";
+      dc.RegisterField(oss.str(), AGF_);
+   }
+   if (this->CheckVisFlag(SOURCE))
+   {
+      ostringstream oss;
+      oss << field_name_ << " S_i";
+      dc.RegisterField(oss.str(), SGF_);
+   }
 }
 
 void DGTransportTDO::IonDensityOp::PrepareDataFields()
 {
-   DPerpGF_->ProjectCoefficient(DPerpCoef_);
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      DPerpGF_->ProjectCoefficient(DPerpCoef_);
+   }
+   if (this->CheckVisFlag(ADVECTION_COEF))
+   {
+      AGF_->ProjectCoefficient(ViCoef_);
+   }
+   if (this->CheckVisFlag(SOURCE))
+   {
+      SGF_->ProjectCoefficient(negSizCoef_);
+   }
 }
 
 void DGTransportTDO::IonDensityOp::Update()
 {
    NLOperator::Update();
 
-   DPerpGF_->Update();
+   if (DPerpGF_ != NULL) { DPerpGF_->Update(); }
+   if (AGF_     != NULL) { AGF_->Update(); }
+   if (SGF_     != NULL) { SGF_->Update(); }
 }
 
 DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
@@ -2694,9 +2749,10 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      negSizCoef_(-1.0, SizCoef_),
      nnizCoef_(nn1Coef_, izCoef_),
      niizCoef_(ni1Coef_, izCoef_),
-     EtaParaGF_(new ParGridFunction((*pgf_)[2]->ParFESpace())),
-     EtaPerpGF_(new ParGridFunction((*pgf_)[2]->ParFESpace())),
-     MomParaGF_(new ParGridFunction(&vfes))
+     EtaParaGF_(NULL),
+     EtaPerpGF_(NULL),
+     MomParaGF_(NULL),
+     SGF_(NULL)
 {
    // Time derivative term: m_i v_i dn_i/dt
    dbfi_m_[1].Append(new MassIntegrator(mivi1Coef_));
@@ -2772,6 +2828,22 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    blf_[2]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtViCoef_,
                                                             1.0, -0.5));
    */
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      EtaParaGF_ = new ParGridFunction((*pgf_)[3]->ParFESpace());
+   }
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      EtaPerpGF_ = new ParGridFunction((*pgf_)[3]->ParFESpace());
+   }
+   if (this->CheckVisFlag(ADVECTION_COEF))
+   {
+      MomParaGF_ = new ParGridFunction(&vfes);
+   }
+   if (this->CheckVisFlag(SOURCE))
+   {
+      SGF_ = new ParGridFunction((*pgf_)[3]->ParFESpace());
+   }
 }
 
 DGTransportTDO::IonMomentumOp::~IonMomentumOp()
@@ -2779,6 +2851,7 @@ DGTransportTDO::IonMomentumOp::~IonMomentumOp()
    delete EtaPerpGF_;
    delete EtaParaGF_;
    delete MomParaGF_;
+   delete SGF_;
 }
 
 void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
@@ -2805,26 +2878,61 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
 {
    NLOperator::RegisterDataFields(dc);
 
-   dc.RegisterField("Eta_i Perpendicular",   EtaPerpGF_);
-   dc.RegisterField("Eta_i Parallel",        EtaParaGF_);
-   dc.RegisterField("Ion Parallel Momentum", MomParaGF_);
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      ostringstream oss;
+      oss << field_name_ << " Eta_i Perpendicular";
+      dc.RegisterField(oss.str(), EtaPerpGF_);
+   }
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      ostringstream oss;
+      oss << field_name_ << " Eta_i Parallel";
+      dc.RegisterField(oss.str(), EtaParaGF_);
+   }
+   if (this->CheckVisFlag(ADVECTION_COEF))
+   {
+      ostringstream oss;
+      oss << field_name_ << " Advection Coef";
+      dc.RegisterField(oss.str(), MomParaGF_);
+   }
+   if (this->CheckVisFlag(SOURCE))
+   {
+      ostringstream oss;
+      oss << field_name_ << " S_i";
+      dc.RegisterField(oss.str(), SGF_);
+   }
 }
 
 void DGTransportTDO::
 IonMomentumOp::PrepareDataFields()
 {
-   EtaParaGF_->ProjectCoefficient(EtaParaCoef_);
-   EtaPerpGF_->ProjectCoefficient(EtaPerpCoef_);
-   MomParaGF_->ProjectCoefficient(miniViCoef_);
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      EtaPerpGF_->ProjectCoefficient(EtaPerpCoef_);
+   }
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      EtaParaGF_->ProjectCoefficient(EtaParaCoef_);
+   }
+   if (this->CheckVisFlag(ADVECTION_COEF))
+   {
+      MomParaGF_->ProjectCoefficient(miniViCoef_);
+   }
+   if (this->CheckVisFlag(SOURCE))
+   {
+      SGF_->ProjectCoefficient(gradPCoef_);
+   }
 }
 
 void DGTransportTDO::IonMomentumOp::Update()
 {
    NLOperator::Update();
 
-   EtaParaGF_->Update();
-   EtaPerpGF_->Update();
-   MomParaGF_->Update();
+   if (EtaParaGF_ != NULL) { EtaParaGF_->Update(); }
+   if (EtaPerpGF_ != NULL) { EtaPerpGF_->Update(); }
+   if (MomParaGF_ != NULL) { MomParaGF_->Update(); }
+   if (SGF_       != NULL) { SGF_->Update(); }
 }
 
 DGTransportTDO::IonStaticPressureOp::

@@ -1523,6 +1523,8 @@ private:
 
       inline bool CheckVisFlag(int flag) { return (vis_flag_>> flag) & 1; }
 
+      virtual int GetDefaultVisFlag() { return 1; }
+
       virtual void RegisterDataFields(DataCollection & dc);
 
       virtual void PrepareDataFields();
@@ -1634,6 +1636,8 @@ private:
 
       void Update();
 
+      int GetDefaultVisFlag() { return 7; }
+
       virtual void RegisterDataFields(DataCollection & dc);
 
       virtual void PrepareDataFields();
@@ -1646,6 +1650,10 @@ private:
    class IonDensityOp : public NLOperator
    {
    private:
+      enum VisField {DIFFUSION_PERP_COEF = 1,
+                     ADVECTION_COEF = 2, SOURCE = 3
+                    };
+
       int    z_i_;
       double DPerpConst_;
 
@@ -1696,9 +1704,12 @@ private:
       ProductCoefficient niizCoef_;
 
       ParGridFunction * DPerpGF_;
+      ParGridFunction * AGF_;
+      ParGridFunction * SGF_;
 
    public:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
+                   ParFiniteElementSpace & vfes,
                    ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                    int ion_charge, double DPerp,
                    VectorCoefficient & B3Coef,
@@ -1710,6 +1721,8 @@ private:
 
       void Update();
 
+      int GetDefaultVisFlag() { return 11; }
+
       virtual void RegisterDataFields(DataCollection & dc);
 
       virtual void PrepareDataFields();
@@ -1718,6 +1731,10 @@ private:
    class IonMomentumOp : public NLOperator
    {
    private:
+      enum VisField {DIFFUSION_PARA_COEF = 1, DIFFUSION_PERP_COEF = 2,
+                     ADVECTION_COEF = 3, SOURCE = 4
+                    };
+
       int    z_i_;
       double m_i_;
       double DPerpConst_;
@@ -1770,6 +1787,7 @@ private:
       ParGridFunction * EtaParaGF_;
       ParGridFunction * EtaPerpGF_;
       ParGridFunction * MomParaGF_;
+      ParGridFunction * SGF_;
 
    public:
       IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,
@@ -1784,6 +1802,8 @@ private:
       virtual void SetTimeStep(double dt);
 
       void Update();
+
+      int GetDefaultVisFlag() { return 19; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
