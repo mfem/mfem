@@ -82,7 +82,8 @@
 //                        -do '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
 //                        -dbcs '4 8 19 21' -abcs '5 18' -f 3e8
 //
-
+// ./stix2d_CM -m simple_antenna.mesh -f 8e7 -s 3 -rs 0 -o 1 -maxit 1 -ants '5 6' -antv '0.0 1.0 0.0 0.0 1.0 0.0' -B '0 0 5.4' -dp 0 -dpp 2e20 -tp 1 -tpp '2 0 0 0 1e2 1e2 1e2' -kz 10.8
+//
 #include "cold_plasma_dielectric_coefs.hpp"
 #include "cold_plasma_dielectric_solver.hpp"
 #include "../common/mesh_extras.hpp"
@@ -1300,52 +1301,60 @@ void antenna_func_lhs_r(const Vector &x, Vector &Ej)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
+   double kz = 0.0;
+   
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
-   Ej(0) = antv_[0]*cos(10.8*x(2));
+   Ej(0) = antv_[0]*cos(kz*x(2));
    Ej(1) = (antv_[1] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) -
-                                            0.5)) + 1.0 )*cos(10.8*x(2));
-   Ej(2) = antv_[2]*cos(10.8*x(2));
+                                            0.5)) + 1.0 )*cos(kz*x(2));
+   Ej(2) = antv_[2]*cos(kz*x(2));
 }
 
 void antenna_func_rhs_r(const Vector &x, Vector &Ej)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
+   double kz = 0.0;
+   
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
-   Ej(0) = antv_[3]*cos(10.8*x(2));
+   Ej(0) = antv_[3]*cos(kz*x(2));
    Ej(1) = (antv_[4] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) -
-                                            0.5)) + 1.0 )*cos(10.8*x(2));
-   Ej(2) = antv_[5]*cos(10.8*x(2));
+                                            0.5)) + 1.0 )*cos(kz*x(2));
+   Ej(2) = antv_[5]*cos(kz*x(2));
 }
 
 void antenna_func_lhs_i(const Vector &x, Vector &Ej)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
+   double kz = 0.0;
+
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
-   Ej(0) = antv_[0]*sin(10.8*x(2));
+   Ej(0) = antv_[0]*sin(kz*x(2));
    Ej(1) = (antv_[1] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) -
-                                            0.5)) + 1.0 )*sin(10.8*x(2));
-   Ej(2) = antv_[2]*sin(10.8*x(2));
+                                            0.5)) + 1.0 )*sin(kz*x(2));
+   Ej(2) = antv_[2]*sin(kz*x(2));
 }
 
 void antenna_func_rhs_i(const Vector &x, Vector &Ej)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
+   double kz = 0.0;
+
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
-   Ej(0) = antv_[3]*sin(10.8*x(2));
+   Ej(0) = antv_[3]*sin(kz*x(2));
    Ej(1) = (antv_[4] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) -
-                                            0.5)) + 1.0 )*sin(10.8*x(2));
-   Ej(2) = antv_[5]*sin(10.8*x(2));
+                                            0.5)) + 1.0 )*sin(kz*x(2));
+   Ej(2) = antv_[5]*sin(kz*x(2));
 }
 
 
