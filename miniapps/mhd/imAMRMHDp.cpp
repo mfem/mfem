@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
    lambda=5.0;
 
    bool visualization = true;
-   int vis_steps = 200;
+   int vis_steps = 10;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -371,6 +371,23 @@ int main(int argc, char *argv[])
    }
    psiTmp.SetTrueVector();
 
+   if (icase==1)
+   {
+        FunctionCoefficient jInit(InitialJ);
+        jTmp.ProjectCoefficient(jInit);
+   }
+   else if (icase==2)
+   {
+        FunctionCoefficient jInit2(InitialJ2);
+        jTmp.ProjectCoefficient(jInit2);
+   }
+   else if (icase==3)
+   {
+        FunctionCoefficient jInit3(InitialJ3);
+        jTmp.ProjectCoefficient(jInit3);
+   }
+   jTmp.SetTrueVector();
+
    for (int ref_it = 1; ; ref_it++)
    {
      exOperator->UpdateJ(vxTmp);
@@ -409,7 +426,7 @@ int main(int argc, char *argv[])
    fe_offset3[3] = 3*fe_size;
 
    BlockVector vx(fe_offset3);
-   ParGridFunction phi, psi, w, psiBack(&fespace), psiPer(&fespace);
+   ParGridFunction phi, psi, w, j(&fespace), psiBack(&fespace), psiPer(&fespace);
    phi.MakeTRef(&fespace, vx, fe_offset3[0]);
    psi.MakeTRef(&fespace, vx, fe_offset3[1]);
      w.MakeTRef(&fespace, vx, fe_offset3[2]);
@@ -460,6 +477,7 @@ int main(int argc, char *argv[])
         psiBack.ProjectCoefficient(psi03);
    }
    psiBack.SetTrueVector();
+   psiBack.SetFromTrueVector(); 
 
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
@@ -478,21 +496,25 @@ int main(int argc, char *argv[])
    if (icase==1)
    {
         FunctionCoefficient jInit(InitialJ);
+        j.ProjectCoefficient(jInit);
         oper.SetInitialJ(jInit);
    }
    else if (icase==2)
    {
         FunctionCoefficient jInit2(InitialJ2);
+        j.ProjectCoefficient(jInit2);
         oper.SetInitialJ(jInit2);
    }
    else if (icase==3)
    {
         FunctionCoefficient jInit3(InitialJ3);
+        j.ProjectCoefficient(jInit3);
         oper.SetInitialJ(jInit3);
    }
-   oper.BindingGF(vx);
+   j.SetTrueVector();
+   j.SetFromTrueVector(); 
 
-   socketstream vis_phi;
+   socketstream vis_phi, vis_j;
    subtract(psi,psiBack,psiPer);
    if (visualization)
    {
@@ -516,6 +538,13 @@ int main(int argc, char *argv[])
          vis_phi << "solution\n" << *pmesh << psiPer;
          vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
          vis_phi << flush;
+
+         vis_j.open(vishost, visport);
+         vis_j << "parallel " << num_procs << " " << myid << "\n";
+         vis_j.precision(8);
+         vis_j << "solution\n" << *pmesh << j;
+         vis_j << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
+         vis_j << flush;
 
          MPI_Barrier(pmesh->GetComm());
       }
@@ -601,6 +630,7 @@ int main(int argc, char *argv[])
          if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
          psi.SetFromTrueVector();
          subtract(psi,psiBack,psiPer);
+         oper.UpdateJ(vx, &j);
 
          if (visualization)
          {
@@ -623,6 +653,10 @@ int main(int argc, char *argv[])
             {
                 vis_phi << flush;
             }
+
+            vis_j << "parallel " << num_procs << " " << myid << "\n";
+            vis_j << "solution\n" << *pmesh << j;
+            vis_j << flush;
          }
 
          if (visit)

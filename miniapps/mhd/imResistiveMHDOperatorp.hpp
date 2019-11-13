@@ -176,7 +176,7 @@ protected:
    HyprePCG *K_pcg;
 
    mutable Vector z, zFull; // auxiliary vector 
-   mutable ParGridFunction j, gf;  //auxiliary variable (to store the boundary condition)
+   mutable ParGridFunction j, gftmp;  //auxiliary variable (to store the boundary condition)
    ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
 
 public:
@@ -190,9 +190,9 @@ public:
    //here vector are block vectors
    virtual void ImplicitSolve(const double dt, const Vector &vx, Vector &k);
 
-   //link gf with psi
+   //link gftmp with psi
    void BindingGF(Vector &vx)
-   {int sc = height/3; gf.MakeTRef(&fespace, vx, sc);}
+   {int sc = height/3; gftmp.MakeTRef(&fespace, vx, sc);}
 
    //set rhs E0 
    void SetRHSEfield(FunctionCoefficient Efield);
@@ -201,6 +201,7 @@ public:
    {jBdy = jBdy_;}
 
    void UpdatePhi(Vector &vx);
+   void UpdateJ(Vector &k, ParGridFunction *jGf);
    void assembleNv(ParGridFunction *gf);
    void assembleNb(ParGridFunction *gf);
 
@@ -702,6 +703,7 @@ void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ)
 {
     j.ProjectCoefficient(initJ);
     j.SetTrueVector();
+    j.SetFromTrueVector();
 
     //add current to reduced_oper
     if (reduced_oper!=NULL)
@@ -723,11 +725,13 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
 
    //compute the current as an auxilary variable
-   gf.SetFromTrueVector();  //recover psi
+   Vector &k_ = const_cast<Vector &>(vx);
+   gftmp.MakeTRef(&fespace, k_, sc);
+   gftmp.SetFromTrueVector();  //recover psi
 
    Vector J, Z;
    HypreParMatrix A;
-   KB->Mult(gf, zFull);
+   KB->Mult(gftmp, zFull);
    zFull.Neg(); // z = -z
    M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
    M_solver.Mult(Z, J);
@@ -845,6 +849,24 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
       K_pcg->Mult(z,phi);
    else 
       K_solver.Mult(z, phi);
+}
+
+void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
+{
+   //the current is J=-M^{-1}*K*Psi
+   int sc = height/3;
+
+   Vector &k_ = const_cast<Vector &>(k);
+   gftmp.MakeTRef(&fespace, k_, sc);
+   gftmp.SetFromTrueVector();
+
+   Vector J, Z;
+   HypreParMatrix A;
+   KB->Mult(gftmp, zFull);
+   zFull.Neg(); // z = -z
+   M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
+   M_solver.Mult(Z, J);
+   M->RecoverFEMSolution(J, zFull, *jout);
 }
 
 void ResistiveMHDOperator::DestroyHypre()
