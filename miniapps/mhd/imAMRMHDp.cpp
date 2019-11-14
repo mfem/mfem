@@ -141,7 +141,6 @@ int main(int argc, char *argv[])
    int amr_levels=0;
    double ltol_amr=1e-5;
    bool derefine = false;
-   bool derefineIt = false;
    int precision = 8;
    int nc_limit = 3;         // maximum level of hanging nodes
    int ref_steps=10;
@@ -166,8 +165,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - Brailovskaya,\n\t"
-                  "            3 - L-stable SDIRK23, 4 - L-stable SDIRK33,\n\t"
+                  "ODE solver: 1 - Backward Euler, 3 - L-stable SDIRK23, 4 - L-stable SDIRK33,\n\t"
                   "            22 - Implicit Midpoint, 23 - SDIRK23, 24 - SDIRK34.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
@@ -244,21 +242,17 @@ int main(int argc, char *argv[])
    //++++Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    backward Euler methods are available.
-   PCSolver *ode_solver=NULL;
-   ODESolver *ode_solver2=NULL;
-   bool explicitSolve=false;
+   ODESolver *ode_solver=NULL;
    switch (ode_solver_type)
    {
-      //Explicit methods (first-order Predictor-Corrector)
-      case 2: ode_solver = new PCSolver; explicitSolve = true; break;
       //Implict L-stable methods 
-      case 1: ode_solver2 = new BackwardEulerSolver; break;
-      case 3: ode_solver2 = new SDIRK23Solver(2); break;
-      case 4: ode_solver2 = new SDIRK33Solver; break;
+      case 1: ode_solver = new BackwardEulerSolver; break;
+      case 3: ode_solver = new SDIRK23Solver(2); break;
+      case 4: ode_solver = new SDIRK33Solver; break;
       // Implicit A-stable methods (not L-stable)
-      case 12: ode_solver2 = new ImplicitMidpointSolver; break;
-      case 13: ode_solver2 = new SDIRK23Solver; break;
-      case 14: ode_solver2 = new SDIRK34Solver; break;
+      case 12: ode_solver = new ImplicitMidpointSolver; break;
+      case 13: ode_solver = new SDIRK23Solver; break;
+      case 14: ode_solver = new SDIRK34Solver; break;
      default:
          if (myid == 0) cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;
@@ -297,17 +291,17 @@ int main(int argc, char *argv[])
    {
     if (myid == 0) cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
     delete ode_solver;
-    delete ode_solver2;
     delete pmesh;
     if (use_petsc) { MFEMFinalizePetsc(); }
     MPI_Finalize();
     return 2;
    }
 
+   //-----------------------------------Generate adaptive grid---------------------------------
    //the first part of the code is copied for an explicit code to have a good initial adapative mesh
    //If there is a simple way to initialize the mesh, then we can drop this part.
    //But last time I tried, the solver has some issue in terms of wrong ordering and refined levels 
-   //after an adaptive mesh is saved. This is a simple work around for now.
+   //after an adaptive mesh is saved and loaded. This is a simple work around for now.
    int fe_size = fespace.GetVSize();
    Array<int> fe_offset(5);
    fe_offset[0] = 0;
@@ -316,41 +310,29 @@ int main(int argc, char *argv[])
    fe_offset[3] = 3*fe_size;
    fe_offset[4] = 4*fe_size;
 
-   BlockVector vxTmp(fe_offset);
+   BlockVector *vxTmp = new BlockVector(fe_offset);
    ParGridFunction psiTmp, phiTmp, wTmp, jTmp;
-   phiTmp.MakeRef(&fespace, vxTmp.GetBlock(0), 0);
-   psiTmp.MakeRef(&fespace, vxTmp.GetBlock(1), 0);
-     wTmp.MakeRef(&fespace, vxTmp.GetBlock(2), 0);
-     jTmp.MakeRef(&fespace, vxTmp.GetBlock(3), 0);
+   phiTmp.MakeRef(&fespace, vxTmp->GetBlock(0), 0);
+   psiTmp.MakeRef(&fespace, vxTmp->GetBlock(1), 0);
+     wTmp.MakeRef(&fespace, vxTmp->GetBlock(2), 0);
+     jTmp.MakeRef(&fespace, vxTmp->GetBlock(3), 0);
    phiTmp=0.0;
-   psiTmp=0.0;
      wTmp=0.0;
-     jTmp=0.0;
 
-   //-----------------------------------AMR---------------------------------
    int sdim = pmesh->SpaceDimension();
    BilinearFormIntegrator *integ = new DiffusionIntegrator;
    ParFiniteElementSpace flux_fespace1(pmesh, &fe_coll, sdim), flux_fespace2(pmesh, &fe_coll, sdim);
-   BlockZZEstimator estimator(*integ, jTmp, *integ, psiTmp, flux_fespace1, flux_fespace2);
-   //ZienkiewiczZhuEstimator estimator(*integ, w, flux_fespace1);
-   //ZienkiewiczZhuEstimator estimator(*integ, j, flux_fespace1);
+   BlockZZEstimator estimatorTmp(*integ, jTmp, *integ, psiTmp, flux_fespace1, flux_fespace2);
 
-   ThresholdRefiner refiner(estimator);
-   //refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
-   refiner.SetTotalErrorGoal(1e-7);    // total error goal (stop criterion)
-   refiner.SetLocalErrorGoal(1e-7);    // local error goal (stop criterion)
-   refiner.SetMaxElements(50000);
-   refiner.SetMaximumRefinementLevel(ser_ref_levels+par_ref_levels+1);
-   refiner.SetNCLimit(nc_limit);
+   ThresholdRefiner refinerTmp(estimatorTmp);
+   refinerTmp.SetTotalErrorGoal(1e-7);    // total error goal (stop criterion)
+   refinerTmp.SetLocalErrorGoal(1e-7);    // local error goal (stop criterion)
+   refinerTmp.SetMaxElements(50000);
+   refinerTmp.SetMaximumRefinementLevel(ser_ref_levels+par_ref_levels+1);
+   refinerTmp.SetNCLimit(nc_limit);
 
-   ThresholdDerefiner derefiner(estimator);
-   derefiner.SetThreshold(.2*ltol_amr);
-   derefiner.SetNCLimit(nc_limit);
-   //-----------------------------------AMR---------------------------------
-
-   //-----------------------------------Generate AMR grid---------------------------------
    AMRResistiveMHDOperator *exOperator = new AMRResistiveMHDOperator(fespace, ess_bdr, visc, resi);
-   BlockVector *vx_old = new BlockVector(vxTmp);
+   BlockVector *vxTmp_old = new BlockVector(*vxTmp);
    exOperator->assembleProblem(ess_bdr); 
 
    //psi is needed to get solution started
@@ -390,21 +372,19 @@ int main(int argc, char *argv[])
 
    for (int ref_it = 1; ; ref_it++)
    {
-     exOperator->UpdateJ(vxTmp);
-     refiner.Apply(*pmesh);
-     if (refiner.Refined()==false)
+     exOperator->UpdateJ(*vxTmp);
+     refinerTmp.Apply(*pmesh);
+     if (refinerTmp.Refined()==false)
      {
          break;
      }
      else
      {
          if (myid == 0) cout<<"Initial mesh refine..."<<endl;
-         AMRUpdate(vxTmp, *vx_old, fe_offset, phiTmp, psiTmp, wTmp, jTmp);
-
+         AMRUpdate(*vxTmp, *vxTmp_old, fe_offset, phiTmp, psiTmp, wTmp, jTmp);
          pmesh->Rebalance();
-
          //---Update problem---
-         AMRUpdate(vxTmp, *vx_old, fe_offset, phiTmp, psiTmp, wTmp, jTmp);
+         AMRUpdate(*vxTmp, *vxTmp_old, fe_offset, phiTmp, psiTmp, wTmp, jTmp);
          exOperator->UpdateProblem();
          exOperator->assembleProblem(ess_bdr); 
      }
@@ -413,9 +393,10 @@ int main(int argc, char *argv[])
    global_size = fespace.GlobalTrueVSize();
    if (myid == 0)
       cout << "Number of total scalar unknowns becomes: " << global_size << endl;
-   delete vx_old;
+   delete vxTmp_old;
+   delete vxTmp;
    delete exOperator;
-   //-----------------------------------Generate AMR grid---------------------------------
+   //-----------------------------------End of generating adaptive grid---------------------------------
 
    //-----------------------------------Initial solution on adaptive grid---------------------------------
    fe_size = fespace.TrueVSize();
@@ -426,7 +407,7 @@ int main(int argc, char *argv[])
    fe_offset3[3] = 3*fe_size;
 
    BlockVector vx(fe_offset3);
-   ParGridFunction phi, psi, w, j(&fespace), psiBack(&fespace), psiPer(&fespace);
+   ParGridFunction phi, psi, w, j(&fespace); 
    phi.MakeTRef(&fespace, vx, fe_offset3[0]);
    psi.MakeTRef(&fespace, vx, fe_offset3[1]);
      w.MakeTRef(&fespace, vx, fe_offset3[2]);
@@ -435,6 +416,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient phiInit(InitialPhi);
    phi.ProjectCoefficient(phiInit);
    phi.SetTrueVector();
+   phi.SetFromTrueVector(); 
 
    if (icase==1)
    {
@@ -452,33 +434,13 @@ int main(int argc, char *argv[])
         psi.ProjectCoefficient(psiInit3);
    }
    psi.SetTrueVector();
+   psi.SetFromTrueVector(); 
 
    FunctionCoefficient wInit(InitialW);
    w.ProjectCoefficient(wInit);
    w.SetTrueVector();
+   w.SetFromTrueVector();
    
-   //this step is necessary to make sure unknows are updated!
-   phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
-
-   //Set the background psi
-   if (icase==1)
-   {
-        FunctionCoefficient psi0(BackPsi);
-        psiBack.ProjectCoefficient(psi0);
-   }
-   else if (icase==2)
-   {
-        FunctionCoefficient psi02(BackPsi2);
-        psiBack.ProjectCoefficient(psi02);
-   }
-   else if (icase==3)
-   {
-        FunctionCoefficient psi03(BackPsi3);
-        psiBack.ProjectCoefficient(psi03);
-   }
-   psiBack.SetTrueVector();
-   psiBack.SetFromTrueVector(); 
-
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
    if (icase==2)  //add the source term
@@ -512,10 +474,29 @@ int main(int argc, char *argv[])
         oper.SetInitialJ(jInit3);
    }
    j.SetTrueVector();
-   j.SetFromTrueVector(); 
 
-   socketstream vis_phi, vis_j;
-   subtract(psi,psiBack,psiPer);
+   //-----------------------------------AMR for the real computation---------------------------------
+   BlockZZEstimator estimator(*integ, j, *integ, psi, flux_fespace1, flux_fespace2);
+
+   ThresholdRefiner refiner(estimator);
+   //refiner.SetTotalErrorFraction(0.0);   // here 0.0 means we use local threshold
+   refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
+   refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
+   refiner.SetMaxElements(50000);
+   refiner.SetMaximumRefinementLevel(amr_levels);
+   refiner.SetNCLimit(nc_limit);
+
+   ThresholdDerefiner derefiner(estimator);
+   derefiner.SetThreshold(.2*ltol_amr);
+   derefiner.SetNCLimit(nc_limit);
+
+   bool derefineIt = false;
+   bool refineMesh = false;
+
+   BlockVector vx_old(vx);
+   //-----------------------------------AMR---------------------------------
+
+   socketstream vis_phi, vis_j, vis_psi, vis_w;
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -535,27 +516,31 @@ int main(int argc, char *argv[])
       {
          vis_phi << "parallel " << num_procs << " " << myid << "\n";
          vis_phi.precision(8);
-         vis_phi << "solution\n" << *pmesh << psiPer;
-         vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
+         vis_phi << "solution\n" << *pmesh << phi;
+         vis_phi << "window_size 800 800\n"<< "window_title '" << "phi'" << "keys cm\n";
          vis_phi << flush;
 
          vis_j.open(vishost, visport);
          vis_j << "parallel " << num_procs << " " << myid << "\n";
          vis_j.precision(8);
          vis_j << "solution\n" << *pmesh << j;
-         vis_j << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
+         vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
          vis_j << flush;
+         MPI_Barrier(MPI_COMM_WORLD);//without barrier, glvis may not open
 
-         MPI_Barrier(pmesh->GetComm());
+         vis_w.open(vishost, visport);
+         vis_w << "parallel " << num_procs << " " << myid << "\n";
+         vis_w.precision(8);
+         vis_w << "solution\n" << *pmesh << w;
+         vis_w << "window_size 800 800\n"<< "window_title '" << "omega'" << "keys cm\n";
+         vis_w << flush;
+         MPI_Barrier(MPI_COMM_WORLD);
       }
    }
 
    double t = 0.0;
    oper.SetTime(t);
-   if (explicitSolve)
-      ode_solver->Init(oper);
-   else
-      ode_solver2->Init(oper);
+   ode_solver->Init(oper);
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
@@ -565,12 +550,12 @@ int main(int argc, char *argv[])
       if (icase==1)
       {
         dc = new VisItDataCollection("case1", pmesh);
-        dc->RegisterField("psiPer", &psiPer);
+        dc->RegisterField("psi", &psi);
       }
       else if (icase==2)
       {
         dc = new VisItDataCollection("case2", pmesh);
-        dc->RegisterField("psiPer", &psiPer);
+        //dc->RegisterField("psiPer", &psiPer);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("phi", &phi);
         dc->RegisterField("omega", &w);
@@ -578,7 +563,7 @@ int main(int argc, char *argv[])
       else
       {
         dc = new VisItDataCollection("case3", pmesh);
-        dc->RegisterField("psiPer", &psiPer);
+        //dc->RegisterField("psiPer", &psiPer);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("phi", &phi);
         dc->RegisterField("omega", &w);
@@ -597,75 +582,53 @@ int main(int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
 
-   //++++Perform time-integration (looping over the time iterations, ti, with a
-   //    time-step dt).
+   if (myid == 0) cout<<"Start time stepping..."<<endl;
+   //++++Perform time-integration (looping over the time iterations, ti, with a time-step dt).
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
       double dt_real = min(dt, t_final - t);
 
-      if (explicitSolve)
-      {
-         //---Predictor stage---
-         //assemble the nonlinear terms
-         phi.SetFromTrueVector(); oper.assembleNv(&phi);
-         psi.SetFromTrueVector(); oper.assembleNb(&psi);
-         ode_solver->StepP(vx, t, dt_real);
-
-         //---Corrector stage---
-         //assemble the nonlinear terms (only psi is updated)
-         psi.SetFromTrueVector(); oper.assembleNb(&psi);
-         ode_solver->Step(vx, t, dt_real);
-         oper.UpdatePhi(vx);
-      }
-      else
-      {
-         ode_solver2->Step(vx, t, dt_real);
-      }
+      //---solve step---
+      ode_solver->Step(vx, t, dt_real);
 
       last_step = (t >= t_final - 1e-8*dt);
 
       if (last_step || (ti % vis_steps) == 0)
       {
          if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
-         psi.SetFromTrueVector();
-         subtract(psi,psiBack,psiPer);
-         oper.UpdateJ(vx, &j);
 
          if (visualization)
          {
-            if(icase!=3)
-            {
-                vis_phi << "parallel " << num_procs << " " << myid << "\n";
-                vis_phi << "solution\n" << *pmesh << psiPer;
-            }
-            else
-            {
-                vis_phi << "parallel " << num_procs << " " << myid << "\n";
-                vis_phi << "solution\n" << *pmesh << psi;
-            }
+            //for the plotting purpose we have to reset those solutions
+            phi.SetFromTrueVector();
+            w.SetFromTrueVector();
+            oper.UpdateJ(vx, &j);
 
+            vis_phi << "parallel " << num_procs << " " << myid << "\n";
+            vis_phi << "solution\n" << *pmesh << phi;
             if (icase==1) 
-            {
                 vis_phi << "valuerange -.001 .001\n" << flush;
-            }
             else
-            {
                 vis_phi << flush;
-            }
 
             vis_j << "parallel " << num_procs << " " << myid << "\n";
-            vis_j << "solution\n" << *pmesh << j;
-            vis_j << flush;
+            vis_j << "solution\n" << *pmesh << j << flush;
+            vis_w << "parallel " << num_procs << " " << myid << "\n";
+            vis_w << "solution\n" << *pmesh << w << flush;
          }
 
          if (visit)
          {
-            if (icase!=1)
+            if(!visualization)
             {
-              phi.SetFromTrueVector();
-              w.SetFromTrueVector();
+               phi.SetFromTrueVector();
+               w.SetFromTrueVector();
+               oper.UpdateJ(vx, &j);
             }
+
+            if (icase!=1)
+              psi.SetFromTrueVector();
             dc->SetCycle(ti);
             dc->SetTime(t);
             dc->Save();
@@ -711,7 +674,6 @@ int main(int argc, char *argv[])
 
    //+++++Free the used memory.
    delete ode_solver;
-   delete ode_solver2;
    delete pmesh;
    delete dc;
 

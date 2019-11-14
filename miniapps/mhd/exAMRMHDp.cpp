@@ -136,7 +136,6 @@ int main(int argc, char *argv[])
    int amr_levels=0;
    double ltol_amr=1e-5;
    bool derefine = false;
-   bool derefineIt = false;
    int precision = 8;
    int nc_limit = 3;         // maximum level of hanging nodes
    int ref_steps=1000;
@@ -318,6 +317,9 @@ int main(int argc, char *argv[])
    ThresholdDerefiner derefiner(estimator);
    derefiner.SetThreshold(.2*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
+
+   bool derefineIt = false;
+   bool refineMesh = false;
    //-----------------------------------AMR---------------------------------
 
    //-----------------------------------Generate AMR grid---------------------------------
@@ -520,7 +522,6 @@ int main(int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
 
-   bool refineMesh;
    if (myid == 0) cout<<"Start time stepping..."<<endl;
    //---assemble problem and update boundary condition---
    oper.assembleProblem(ess_bdr); 
