@@ -1306,10 +1306,11 @@ void antenna_func_lhs_r(const Vector &x, Vector &Ej)
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
-   Ej(0) = antv_[0]*cos(kz*x(2));
+   Ej(0) = antv_[0];
    Ej(1) = (antv_[1] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) -
-                                            0.5)) + 1.0 )*cos(kz*x(2));
-   Ej(2) = antv_[2]*cos(kz*x(2));
+                                            0.5)) + 1.0 );
+   Ej(2) = antv_[2];
+   Ej *= cos(kz*x(2));
 }
 
 void antenna_func_rhs_r(const Vector &x, Vector &Ej)
@@ -1321,10 +1322,11 @@ void antenna_func_rhs_r(const Vector &x, Vector &Ej)
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
-   Ej(0) = antv_[3]*cos(kz*x(2));
+   Ej(0) = antv_[3];
    Ej(1) = (antv_[4] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) -
-                                            0.5)) + 1.0 )*cos(kz*x(2));
-   Ej(2) = antv_[5]*cos(kz*x(2));
+                                            0.5)) + 1.0 );
+   Ej(2) = antv_[5];
+   Ej *= cos(kz*x(2));
 }
 
 void antenna_func_lhs_i(const Vector &x, Vector &Ej)
@@ -1336,10 +1338,11 @@ void antenna_func_lhs_i(const Vector &x, Vector &Ej)
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
-   Ej(0) = antv_[0]*sin(kz*x(2));
+   Ej(0) = antv_[0];
    Ej(1) = (antv_[1] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) -
-                                            0.5)) + 1.0 )*sin(kz*x(2));
-   Ej(2) = antv_[2]*sin(kz*x(2));
+                                            0.5)) + 1.0 );
+   Ej(2) = antv_[2];
+   Ej *= sin(kz*x(2));
 }
 
 void antenna_func_rhs_i(const Vector &x, Vector &Ej)
@@ -1351,10 +1354,11 @@ void antenna_func_rhs_i(const Vector &x, Vector &Ej)
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
-   Ej(0) = antv_[3]*sin(kz*x(2));
+   Ej(0) = antv_[3];
    Ej(1) = (antv_[4] / 2.0) * ( sin(M_PI * (((2.0 * x(1) - 0.4 + 0.05 ) / 0.05) -
-                                            0.5)) + 1.0 )*sin(kz*x(2));
-   Ej(2) = antv_[5]*sin(kz*x(2));
+                                            0.5)) + 1.0 );
+   Ej(2) = antv_[5];
+   Ej *= sin(kz*x(2));
 }
 
 
