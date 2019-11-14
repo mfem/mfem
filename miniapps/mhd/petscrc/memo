@@ -33,12 +33,22 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+11/13
+add a fixed adaptive mesh to imAMRMHDp;
+
+this is okay
+mpirun -n 4 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 2 -i 3 -vs 1 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+
+this is okay for a fixed adaptive mesh (no significant impact)
+mpirun -n 4 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 1 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3
+
+
 11/4
 move back to imAMRMHDp
 
 things need to be changed: 
-1. j0 is owned in main (so that j0 can be updated in AMRUpdate)
-2. add j in main for amr estimator
+*1. j0 is owned in main (so that j0 can be updated in AMRUpdate)
+*2. add j in main for amr estimator
 3. initialize reducedSystemOperator after mesh is changed
 
 
