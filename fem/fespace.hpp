@@ -938,6 +938,28 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
+/// Operator that extracts Face degrees of freedom.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetElementRestriction(). */
+class L2FaceRestriction : public Operator
+{
+protected:
+   const FiniteElementSpace &fes;
+   const int nf;
+   const int vdim;
+   const bool byvdim;
+   const int ndofs;
+   const int dof;
+   const int nfdofs;
+   Array<int> indices1;
+   Array<int> indices2;
+
+public:
+   L2FaceRestriction(const FiniteElementSpace&, ElementDofOrdering);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
+
 /** @brief A class that performs interpolation from an E-vector to quadrature
     point values and/or derivatives (Q-vectors). */
 /** An E-vector represents the element-wise discontinuous version of the FE
