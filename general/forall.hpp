@@ -277,7 +277,7 @@ void CuWrap3D(const int N, DBODY &&d_body,
     int grid = numSM;                                                      \
     KER##_v2<DOFS,QUAD,0,QUAD*QUAD*BZ,NBLOCK><<<grid,blck>>>(__VA_ARGS__); \
   }
-  
+
 #endif // MFEM_USE_CUDA
 
 

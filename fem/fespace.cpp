@@ -2729,7 +2729,7 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_y = Reshape(y.Write(), nd, vd, ne);
    auto d_elementMap = elementMap.Read();
 
-   MFEM_FORALL(i, dof*ne, 
+   MFEM_FORALL(i, dof*ne,
    {
       for (int c = 0; c < vd; ++c)
       {
