@@ -12,11 +12,19 @@ using namespace mfem;
 #define dbg(...) \
    { printf("\n\033[33m"); printf(__VA_ARGS__); printf("\033[m"); fflush(0); }
 
+const char *device_config = "cpu";
+
 static int discs;
 static double theta;
 static Array<double> offsets;
 constexpr int nb_discs_max = 6;
 constexpr double sharpness = 100.0;
+
+const bool visualization = true;
+const char *vishost = "localhost";
+const int visport = 19916;
+const int visw = 480;
+const int vish = 480;
 
 // *****************************************************************************
 double x0(const Vector &x)
@@ -31,7 +39,7 @@ double x0(const Vector &x)
 Drl4Amr::Drl4Amr(int order):
    order(order),
    device(device_config),
-   mesh(nx, ny, type, generate_edges, sx, sy, sfc),
+   mesh(nx, ny, elem_type, true, sx, sy, false),
    dim(mesh.Dimension()),
    sdim(mesh.SpaceDimension()),
    fec(order, dim, BasisType::Positive),
@@ -242,13 +250,13 @@ double *Drl4Amr::GetImage()
       int oy = int(v[1] * ny*(1 << max_depth) * order);
 
       for (int i = 0; i <= subdiv; i++)
-         for (int j = 0; j <= subdiv; j++)
-         {
-            int n = i*(subdiv+1) + j;
-            int m = (oy + i)*imwidth + (ox + j);
+      for (int j = 0; j <= subdiv; j++)
+      {
+         int n = i*(subdiv+1) + j;
+         int m = (oy + i)*imwidth + (ox + j);
 
-            image(m) = sln(n);
-         }
+         image(m) = sln(n);
+      }
    }
 
    if (visualization) { ShowImage(); }
@@ -256,13 +264,92 @@ double *Drl4Amr::GetImage()
    return image.GetData();
 }
 
+// *****************************************************************************
+
+double* Drl4Amr::GetLocalImage(int element) const
+{
+   const NCMesh *ncmesh = mesh.ncmesh;
+   MFEM_ASSERT(ncmesh, "");
+
+   int width = GetElementImageWidth();
+   int height = GetElementImageHeight();
+   int subdiv = oversample*order;
+
+   local_image.SetSize(width * height);
+   local_image = 0.0;
+
+   auto im = Reshape(local_image.Write(), 3, height, width);
+
+   Vector sln;
+   DenseMatrix grad;
+
+   // rasterize element interior
+   {
+      const IntegrationRule &ir =
+         GlobGeometryRefiner.Refine(Geometry::SQUARE, subdiv)->RefPts;
+
+      x.GetValues(element, ir, sln);
+      x.GetGradients(element, ir, grad);
+
+      for (int i = 0; i <= subdiv; i++)
+      for (int j = 0; j <= subdiv; j++)
+      {
+         int k = i*(subdiv+1) + j;
+
+         im(0, i+1, j+1) = sln(k);
+         im(1, i+1, j+1) = grad(0, k);
+         im(2, i+1, j+1) = grad(1, k);
+      }
+   }
+
+   // rasterize neighbor edges
+   {
+      Array<int> edges, ori;
+      mesh.GetElementEdges(element, edges, ori);
+
+      const IntegrationRule &ir =
+         GlobGeometryRefiner.Refine(Geometry::SEGMENT, subdiv)->RefPts;
+
+      for (int e = 0; e < edges.Size(); e++)
+      {
+         const NCMesh::NCList &edge_list = ncmesh->GetEdgeList();
+
+         int type;
+         const NCMesh::MeshId &eid = edge_list.LookUp(edges[e], &type);
+
+         if (type == 0) // conforming
+         {
+            GetEdgeValues(x, eid.index, sln);
+            GetEdgeGradients(x, eid.index, grad);
+
+         }
+         else if (type == 1) // master
+         {
+         }
+         else if (type == 2) // slave
+         {
+         }
+         else
+         {
+            MFEM_ABORT("invalid edge type");
+         }
+
+         // store edge values
+         for (int i = 0; i <= subdiv; i++)
+         {
+         }
+      }
+   }
+
+   return local_image.GetData();
+}
 
 // *****************************************************************************
 void Drl4Amr::ShowImage()
 {
    if (!vis[2].good()) { return; }
 
-   Mesh imesh(GetImageX(), GetImageY(), type, false, sx, sy, false);
+   Mesh imesh(GetImageX(), GetImageY(), elem_type, false, sx, sy, false);
 
    L2_FECollection fec(0, imesh.Dimension());
    FiniteElementSpace fes(&imesh, &fec);

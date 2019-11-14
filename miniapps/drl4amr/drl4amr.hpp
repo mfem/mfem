@@ -13,49 +13,54 @@ private:
    const int ny = 8;
    const int max_dofs = 50000;
    const int max_depth = 2;
-   const Element::Type type = Element::QUADRILATERAL;
-   const bool generate_edges = true;
+   const Element::Type elem_type = Element::QUADRILATERAL;
    const double sx = 1.0;
    const double sy = 1.0;
-   const bool sfc = false; // space-filling curve ordering
-   const char *device_config = "cpu";
-   const bool visualization = true;
-   const char *vishost = "localhost";
-   const int visport = 19916;
-   const int visw = 480;
-   const int vish = 480;
-   socketstream vis[3];
-   Vector image;
+   const int oversample = 2;
 
    int order;
-   Device device;
-   Mesh mesh;
    int dim;
    int sdim;
+
+   Device device;
+   socketstream vis[3];
+
+   Vector image;
+   Vector local_image;
+
+   Mesh mesh;
    H1_FECollection fec;
    FiniteElementSpace fespace;
+
    ConstantCoefficient one;
    ConstantCoefficient zero;
    BilinearFormIntegrator *integ;
    FunctionCoefficient xcoeff;
+
    GridFunction x;
    int iteration;
+
    FiniteElementSpace flux_fespace;
    ZienkiewiczZhuEstimator estimator;
    ThresholdRefiner refiner;
 
 public:
    Drl4Amr(int order);
+
    int Compute();
    int Refine(int el =-1);
    int GetNDofs() { return fespace.GetNDofs();}
    int GetNE() { return fespace.GetNE(); }
    double GetNorm();
-   double *GetImage();
-   void ShowImage();
-   int GetImageX() const { return 1 + order * (nx << max_depth); }
-   int GetImageY() const { return 1 + order * (ny << max_depth); }
-   int GetImageSize() const { return GetImageX() * GetImageY(); }
+
+   double *GetFullImage();
+   int GetFullWidth() const { return 1 + order * (nx << max_depth); }
+   int GetFullHeight() const { return GetFullWidth(); }
+   void ShowFullImage();
+
+   double* GetLocalImage(int element) const;
+   int GetLocalWidth() const { return (oversample*order + 1) + 2; }
+   int GetLocalHeight() const { return GetLocalWidth(); }
 };
 
 #endif // DRL4AMR_HPP
