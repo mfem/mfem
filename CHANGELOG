@@ -22,7 +22,7 @@ Meshing improvements
 New and updated examples and miniapps
 -------------------------------------
 - The (p)mesh-optimizer miniapp has been updated to demonstrate the R-adaptivity 
-  capability usin TMOP.
+  capability using TMOP.
 
 Version 4.0, released on May 24, 2019
 =====================================
