@@ -3082,6 +3082,136 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    // });
 }
 
+L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
+                                     ElementDofOrdering e_ordering)
+   : fes(fes),
+     nf(fes.GetNF()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
+     nfdofs(nf*dof),
+     indices1(nf*dof),
+     indices2(nf*dof)
+{
+   //if fespace == L2
+   // Assuming all finite elements are the same.
+   height = vdim*nf*dof;
+   width = fes.GetVSize();
+   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   const int *dof_map = NULL;
+   if (dof_reorder && nf > 0)
+   {
+      for (int f = 0; f < nf; ++f)
+      {
+         const FiniteElement *fe = fes.GetFaceElement(f);
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(fe);
+         if (el) { continue; }
+         mfem_error("Finite element not suitable for lexicographic ordering");
+      }
+      const FiniteElement *fe = fes.GetFaceElement(0);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      const Array<int> &fe_dof_map = el->GetDofMap();
+      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
+      dof_map = fe_dof_map.GetData();
+   }
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elementMap = e2dTable.GetJ();
+   int faceMap1[dof], faceMap2[dof];
+   int e1, e2;
+   int inf1, inf2;
+   int face_id;
+   int orientation;
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_dofs = fes.GetFE(0)->GetDof();
+   for (int f = 0; f < nf; ++f)
+   {
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      if(dof_reorder){
+         if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
+         orientation = inf1 % 64;
+         face_id = inf1 / 64;
+         GetFaceDofsLex(vdim, face_id, dof1d, faceMap1);//Only for hex
+         orientation = inf2 % 64;
+         face_id = inf2 / 64;
+         GetFaceDofsLex(vdim, face_id, dof1d, faceMap2);//Only for hex
+      } else {
+         mfem_error("FaceRestriction not yet implemented for this type of element.");
+         //TODO Something with GetFaceDofs?
+      }
+      for (int d = 0; d < dof; ++d)
+      {
+         const int face_dof = faceMap1[d];
+         const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
+         const int gid = elementMap[e1*elem_dofs + did];
+         const int lid = dof*f + d;
+         indices1[lid] = gid;
+      }
+      for (int d = 0; d < dof; ++d)
+      {
+         const int face_dof = faceMap2[d];
+         const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
+         const int gid = elementMap[e2*elem_dofs + did];
+         const int lid = dof*f + d;
+         indices2[lid] = gid;//TODO Add permutation
+      }
+   }
+}
+
+void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_indices1 = indices1.Read();
+   auto d_indices2 = indices2.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
+   MFEM_FORALL(i, nfdofs,
+   {
+      const int idx1 = d_indices1[i];
+      const int dof1 = i % nd;
+      const int face1 = i / nd;
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(dof1, c, 0, face1) = d_x(t?c:idx1, t?idx1:c);
+      }
+      const int idx2 = d_indices2[i];//Permutation of d_indices2
+      const int dof2 = i % nd;
+      const int face2 = i / nd;
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(dof2, c, 1, face2) = d_x(t?c:idx2, t?idx2:c);//TODO Add permutation
+      }
+   });
+}
+
+void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
+{
+   Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_indices = indices.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, nf);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, 2, t?ndofs:vd);
+   MFEM_FORALL(i, nfdofs,
+   {
+      const int idx1 = d_indices1[i];
+      const int idx2 = d_indices2[i];//TODO Add permutation
+      for (int c = 0; c < vd; ++c)
+      {
+         d_x(t?c:idx1,t:idx1:c) += d_y(i % nd, c, 0, i / nd);
+         d_x(t?c:idx2,t:idx2:c) += d_y(i % nd, c, 1, i / nd);
+      }
+   });
+}
+
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir)
 {
