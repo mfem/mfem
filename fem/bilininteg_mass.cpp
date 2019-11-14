@@ -231,7 +231,8 @@ static void PAMassApply2D(const int NE,
       }
       for (int dy = 0; dy < D1D; ++dy)
       {
-         double sol_x[max_Q1D];
+         volatile double sol_x[max_Q1D];
+         // ('volatile' prevents compiler uninitialized use warning below)
          for (int qy = 0; qy < Q1D; ++qy)
          {
             sol_x[qy] = 0.0;
@@ -262,7 +263,8 @@ static void PAMassApply2D(const int NE,
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double sol_x[max_D1D];
+         volatile double sol_x[max_D1D];
+         // ('volatile' prevents compiler uninitialized use warning below)
          for (int dx = 0; dx < D1D; ++dx)
          {
             sol_x[dx] = 0.0;
@@ -460,7 +462,8 @@ static void PAMassApply3D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double sol_x[max_Q1D];
+            volatile double sol_x[max_Q1D];
+            // ('volatile' prevents compiler uninitialized use warning below)
             for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] = 0;
@@ -516,7 +519,8 @@ static void PAMassApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double sol_x[max_D1D];
+            volatile double sol_x[max_D1D];
+            // ('volatile' prevents compiler uninitialized use warning below)
             for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] = 0;
@@ -751,7 +755,7 @@ static void PAMassApply(const int dim,
 #endif // MFEM_USE_OCCA
    if (dim == 2)
    {
-      switch ((D1D << 4 ) | Q1D)
+      switch ((D1D << 4) | Q1D)
       {
          case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
          case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
@@ -766,7 +770,7 @@ static void PAMassApply(const int dim,
    }
    else if (dim == 3)
    {
-      switch ((D1D << 4 ) | Q1D)
+      switch ((D1D << 4) | Q1D)
       {
          case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
