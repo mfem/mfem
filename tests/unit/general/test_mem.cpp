@@ -26,6 +26,7 @@ static void ScanMemoryTypes(const int N = 1024)
    {
       if (!Device::Allows(Backend::DEVICE_MASK) &&
           !IsHostMemory(mt)) { continue; }
+      if (i==static_cast<int>(MemoryType::HOST_MANAGED)) { continue; }
 #ifndef MFEM_USE_UMPIRE
       if (i==static_cast<int>(MemoryType::HOST_UMPIRE)) { continue; }
       if (i==static_cast<int>(MemoryType::DEVICE_UMPIRE)) { continue; }

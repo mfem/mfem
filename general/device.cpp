@@ -142,7 +142,7 @@ void Device::UpdateMemoryTypeAndClass()
       host_mem_class = MemoryClass::HOST;
    }
 
-   // In 'debug' mode, switch for the host and device DEBUG memory types
+   // Enable the DEBUG mode when requested
    if (debug)
    {
       host_mem_type = MemoryType::HOST_DEBUG;
@@ -151,27 +151,23 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_class = MemoryClass::DEBUG;
    }
 
-   // Allow to tune the device memory types, with some restrictions
+   // Allow to tune the device memory type, with some restrictions
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      if (!uvm)
+      device_mem_type = MemoryType::DEVICE;
+      device_mem_class = MemoryClass::DEVICE;
+
+      if (umpire && !debug) { device_mem_type = MemoryType::DEVICE_UMPIRE; }
+
+      if (uvm && !debug)
       {
-         device_mem_type = MemoryType::DEVICE;
-         device_mem_class = MemoryClass::DEVICE;
-         if (umpire && !debug)
-         {
-            device_mem_type = MemoryType::DEVICE_UMPIRE;
-            device_mem_class = MemoryClass::DEVICE;
-         }
-      }
-      else
-      {
-         // Use the uvm shortcut if it has been requested
+         // Enable the UVM shortcut when requested
          host_mem_type = MemoryType::HOST_MANAGED;
          host_mem_class = MemoryClass::MANAGED;
          device_mem_type = MemoryType::DEVICE_MANAGED;
          device_mem_class = MemoryClass::MANAGED;
       }
+      if (uvm && debug) { MFEM_VERIFY(false, "Error in UVM and Debug mode!"); }
    }
 
    // Update the memory manager with the new settings
