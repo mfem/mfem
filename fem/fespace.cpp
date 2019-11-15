@@ -2648,7 +2648,10 @@ L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndof(ne > 0 ? fes.GetFE(0)->GetDof() : 0)
-{ }
+{
+   height = vdim*ne*ndof;
+   width = vdim*ne*ndof;
+}
 
 void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
 {
@@ -2670,6 +2673,34 @@ void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
             else
             {
                xidx = vd*ne*ndof + iel*ndof + idof;
+            }
+            y[yidx] = x[xidx];
+         }
+      }
+   }
+}
+
+void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
+{
+   // Since this restriction is a permutation, the transpose is the inverse
+   for (int iel=0; iel<ne; ++iel)
+   {
+      for (int vd=0; vd<vdim; ++vd)
+      {
+         for (int idof=0; idof<ndof; ++idof)
+         {
+            // E-vector dimensions (dofs, vdim, elements)
+            // L-vector dimensions: byVDIM:  (vdim, dofs, element)
+            //                      byNODES: (dofs, elements, vdim)
+            int xidx = iel*vdim*ndof + vd*ndof + idof;
+            int yidx;
+            if (byvdim)
+            {
+               yidx = iel*ndof*vdim + idof*vdim + vd;
+            }
+            else
+            {
+               yidx = vd*ne*ndof + iel*ndof + idof;
             }
             y[yidx] = x[xidx];
          }

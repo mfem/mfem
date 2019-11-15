@@ -911,6 +911,7 @@ class L2ElementRestriction : public Operator
 public:
    L2ElementRestriction(const FiniteElementSpace&);
    void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
 };
 
 /** @brief A class that performs interpolation from an E-vector to quadrature
