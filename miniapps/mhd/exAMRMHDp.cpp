@@ -107,7 +107,7 @@ double E0rhs3(const Vector &x)
 }
 
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
-               Array<int> &true_offset,
+               Array<int> &offset,
                ParGridFunction &phi,
                ParGridFunction &psi,
                ParGridFunction &w,
@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
    derefiner.SetThreshold(.2*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
 
-   bool derefineIt = false;
+   bool derefineMesh = false;
    bool refineMesh = false;
    //-----------------------------------AMR---------------------------------
 
@@ -540,11 +540,11 @@ int main(int argc, char *argv[])
       //derefine every ref_steps but is lagged by a step of ref_steps/2
       if ( derefine && (ti-ref_steps/2)%ref_steps ==0 && ti >  ref_steps ) 
       {
-          derefineIt=true;
+          derefineMesh=true;
           derefiner.Reset();
       }
       else
-          derefineIt=false;
+          derefineMesh=false;
 
       {
         //---Predictor stage---
@@ -574,7 +574,7 @@ int main(int argc, char *argv[])
         if (refineMesh)  refiner.Apply(*pmesh);
         if (refiner.Refined()==false || (!refineMesh))
         {
-           if (derefine && derefineIt && derefiner.Apply(*pmesh))
+           if (derefine && derefineMesh && derefiner.Apply(*pmesh))
            {
               if (myid == 0) cout << "Derefined mesh..." << endl;
 
@@ -591,35 +591,33 @@ int main(int argc, char *argv[])
            }
            else //mesh is not refined or derefined
            {
+              if ( (last_step || (ti % vis_steps) == 0) )
+              {
 
-                if ( (last_step || (ti % vis_steps) == 0) )
-                {
+                 if (visualization)
+                 {
+                      vis_phi << "parallel " << num_procs << " " << myid << "\n";
+                      vis_phi << "solution\n" << *pmesh << phi << flush;
+                      vis_psi << "parallel " << num_procs << " " << myid << "\n";
+                      vis_psi << "solution\n" << *pmesh << psi << flush;
+                      vis_j << "parallel " << num_procs << " " << myid << "\n";
+                      vis_j << "solution\n" << *pmesh << j << flush;
+                      vis_w << "parallel " << num_procs << " " << myid << "\n";
+                      vis_w << "solution\n" << *pmesh << w << flush;
+                 }
 
-                   if (visualization)
-                   {
-                        vis_phi << "parallel " << num_procs << " " << myid << "\n";
-                        vis_phi << "solution\n" << *pmesh << phi << flush;
-                        vis_psi << "parallel " << num_procs << " " << myid << "\n";
-                        vis_psi << "solution\n" << *pmesh << psi << flush;
-                        vis_j << "parallel " << num_procs << " " << myid << "\n";
-                        vis_j << "solution\n" << *pmesh << j << flush;
-                        vis_w << "parallel " << num_procs << " " << myid << "\n";
-                        vis_w << "solution\n" << *pmesh << w << flush;
+                 if (visit)
+                 {
+                    dc->SetCycle(ti);
+                    dc->SetTime(t);
+                    dc->Save();
+                 }
+              }
 
-                   }
-
-                   if (visit)
-                   {
-                      dc->SetCycle(ti);
-                      dc->SetTime(t);
-                      dc->Save();
-                   }
-                }
-
-                if (last_step)
-                    break;
-                else
-                    continue;
+              if (last_step)
+                  break;
+              else
+                  continue;
            }
         }
         else
@@ -715,7 +713,7 @@ int main(int argc, char *argv[])
 
 //this is an function modified based on amr/laghos.cpp
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
-               Array<int> &true_offset,
+               Array<int> &offset,
                ParGridFunction &phi,
                ParGridFunction &psi,
                ParGridFunction &w,
@@ -729,14 +727,14 @@ void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
    int fe_size = H1FESpace->GetVSize();
 
    //update offset vector
-   true_offset[0] = 0;
-   true_offset[1] = fe_size;
-   true_offset[2] = 2*fe_size;
-   true_offset[3] = 3*fe_size;
-   true_offset[4] = 4*fe_size;
+   offset[0] = 0;
+   offset[1] = fe_size;
+   offset[2] = 2*fe_size;
+   offset[3] = 3*fe_size;
+   offset[4] = 4*fe_size;
 
    S_tmp = S;
-   S.Update(true_offset);
+   S.Update(offset);
     
    const Operator* H1Update = H1FESpace->GetUpdateOperator();
 
@@ -745,12 +743,12 @@ void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
    H1Update->Mult(S_tmp.GetBlock(2), S.GetBlock(2));
    H1Update->Mult(S_tmp.GetBlock(3), S.GetBlock(3));
 
-   phi.MakeRef(H1FESpace, S, true_offset[0]);
-   psi.MakeRef(H1FESpace, S, true_offset[1]);
-     w.MakeRef(H1FESpace, S, true_offset[2]);
-     j.MakeRef(H1FESpace, S, true_offset[3]);
+   phi.MakeRef(H1FESpace, S, offset[0]);
+   psi.MakeRef(H1FESpace, S, offset[1]);
+     w.MakeRef(H1FESpace, S, offset[2]);
+     j.MakeRef(H1FESpace, S, offset[3]);
 
-   S_tmp.Update(true_offset);
+   S_tmp.Update(offset);
    H1FESpace->UpdatesFinished();
 }
 

@@ -345,13 +345,11 @@ int main(int argc, char *argv[])
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
    if (icase==2)  //add the source term
    {
-       FunctionCoefficient e0(E0rhs);
-       oper.SetRHSEfield(e0);
+       oper.SetRHSEfield(E0rhs);
    }
    else if (icase==3)     
    {
-       FunctionCoefficient e0(E0rhs3);
-       oper.SetRHSEfield(e0);
+       oper.SetRHSEfield(E0rhs3);
    }
 
    //set initial J

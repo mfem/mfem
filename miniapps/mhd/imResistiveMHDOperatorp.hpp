@@ -118,80 +118,6 @@ public:
 
 };
 
-/** After spatial discretization, the resistive MHD model can be written as a
- *  system of ODEs:
- *     dPsi/dt = M^{-1}*F1,
- *     dw  /dt = M^{-1}*F2,
- *  coupled with two linear systems
- *     j   = -M^{-1}*(K-B)*Psi 
- *     Phi = -K^{-1}*M*w
- *  so far there seems no need to do a BlockNonlinearForm
- *
- *  Class ResistiveMHDOperator represents the right-hand side of the above
- *  system of ODEs. */
-class ResistiveMHDOperator : public TimeDependentOperator
-{
-protected:
-   ParFiniteElementSpace &fespace;
-   Array<int> ess_tdof_list;
-
-   ParBilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
-   ParBilinearForm *Nv, *Nb;
-   ParLinearForm *E0, *Sw; //two source terms
-   HypreParMatrix Kmat, Mmat, DSlmat, DRemat;
-   HypreParVector *E0Vec;
-   double viscosity, resistivity;
-   double jBdy;
-   bool useAMG;
-
-   //for implicit stepping
-   ReducedSystemOperator *reduced_oper;
-   PetscNonlinearSolver *pnewton_solver;
-   PetscPreconditionerFactory *J_factory;
-
-   CGSolver M_solver; // Krylov solver for inverting the mass matrix M
-   HypreSmoother M_prec;  // Preconditioner for the mass matrix M
-
-   CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
-   HypreSmoother K_prec;  // Preconditioner for the stiffness matrix K
-
-   HypreSolver *K_amg; //BoomerAMG for stiffness matrix
-   HyprePCG *K_pcg;
-
-   mutable Vector z, zFull; // auxiliary vector 
-   mutable ParGridFunction j, gftmp;  //auxiliary variable (to store the boundary condition)
-   ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
-
-public:
-   ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr, 
-                       double visc, double resi, bool use_petsc, bool use_factory); 
-
-   // Compute the right-hand side of the ODE system.
-   virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
-
-   //Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
-   //here vector are block vectors
-   virtual void ImplicitSolve(const double dt, const Vector &vx, Vector &k);
-
-   //link gftmp with psi
-   void BindingGF(Vector &vx)
-   {int sc = height/3; gftmp.MakeTRef(&fespace, vx, sc);}
-
-   //set rhs E0 
-   void SetRHSEfield(FunctionCoefficient Efield);
-   void SetInitialJ(FunctionCoefficient initJ);
-   void SetJBdy(double jBdy_) 
-   {jBdy = jBdy_;}
-
-   void UpdatePhi(Vector &vx);
-   void UpdateJ(Vector &k, ParGridFunction *jGf);
-   void assembleNv(ParGridFunction *gf);
-   void assembleNb(ParGridFunction *gf);
-
-   void DestroyHypre();
-   virtual ~ResistiveMHDOperator();
-};
-
 // Auxiliary class to provide preconditioners for matrix-free methods 
 class FullPreconditionerFactory : public PetscPreconditionerFactory
 {
@@ -222,16 +148,95 @@ public:
    virtual ~PreconditionerFactory() {};
 };
 
+/** After spatial discretization, the resistive MHD model can be written as a
+ *  system of ODEs:
+ *     dPsi/dt = M^{-1}*F1,
+ *     dw  /dt = M^{-1}*F2,
+ *  coupled with two linear systems
+ *     j   = -M^{-1}*(K-B)*Psi 
+ *     Phi = -K^{-1}*M*w
+ *  so far there seems no need to do a BlockNonlinearForm
+ *
+ *  Class ResistiveMHDOperator represents the right-hand side of the above
+ *  system of ODEs. */
+class ResistiveMHDOperator : public TimeDependentOperator
+{
+protected:
+   ParFiniteElementSpace &fespace;
+   Array<int> ess_tdof_list;
+
+   ParBilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
+   ParBilinearForm *Nv, *Nb;
+   ParLinearForm *E0, *Sw; //two source terms
+   HypreParMatrix Kmat, Mmat, DSlmat, DRemat;
+   HypreParVector *E0Vec;
+   FunctionCoefficient *E0rhs;
+   double viscosity, resistivity;
+   bool useAMG, use_petsc, use_factory;
+   ConstantCoefficient visc_coeff, resi_coeff;
+
+   //for implicit stepping
+   ReducedSystemOperator *reduced_oper;
+   PetscNonlinearSolver *pnewton_solver;
+   PetscPreconditionerFactory *J_factory;
+
+   CGSolver M_solver; // Krylov solver for inverting the mass matrix M
+   HypreSmoother *M_prec;  // Preconditioner for the mass matrix M
+
+   CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
+   HypreSmoother *K_prec;  // Preconditioner for the stiffness matrix K
+
+   HypreSolver *K_amg; //BoomerAMG for stiffness matrix
+   HyprePCG *K_pcg;
+
+   mutable Vector z, zFull; // auxiliary vector 
+   mutable ParGridFunction j, gftmp;  //auxiliary variable (to store the boundary condition)
+   ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
+
+public:
+   ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr, 
+                       double visc, double resi, bool use_petsc_, bool use_factory_); 
+
+   // Compute the right-hand side of the ODE system.
+   virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
+
+   //Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
+   //here vector are block vectors
+   virtual void ImplicitSolve(const double dt, const Vector &vx, Vector &k);
+
+   //Update problem in AMR case
+   void UpdateProblem(Array<int> &ess_bdr);
+
+   //link gftmp with psi; this is an old way
+   void BindingGF(Vector &vx)
+   {int sc = height/3; gftmp.MakeTRef(&fespace, vx, sc);}
+
+   //set rhs E0 
+   void SetRHSEfield( double(* f)( const Vector&) );
+   void SetInitialJ(FunctionCoefficient initJ);
+
+   void UpdateJ(Vector &k, ParGridFunction *jGf);
+
+   //only for explicit solver
+   void UpdatePhi(Vector &vx);
+   void assembleNv(ParGridFunction *gf);
+   void assembleNb(ParGridFunction *gf);
+
+   void DestroyHypre();
+   virtual ~ResistiveMHDOperator();
+};
+
 
 ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi, 
-                                         bool use_petsc = false, bool use_factory=false)
+                                         bool use_petsc_ = false, bool use_factory_=false)
    : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
-     Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL),
-     viscosity(visc),  resistivity(resi), useAMG(false), 
+     Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL), E0rhs(NULL),
+     viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
+     visc_coeff(visc),  resi_coeff(resi),  
      reduced_oper(NULL), pnewton_solver(NULL), J_factory(NULL),
-     M_solver(f.GetComm()), K_solver(f.GetComm()), 
+     M_solver(f.GetComm()), K_solver(f.GetComm()), M_prec(NULL), K_prec(NULL),
      K_amg(NULL), K_pcg(NULL), z(height/3), zFull(f.GetVSize()), j(&fespace),
      DRetmp(NULL), DSltmp(NULL)
 {
@@ -248,8 +253,9 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(2000);
    M_solver.SetPrintLevel(0);
-   M_prec.SetType(HypreSmoother::Jacobi);
-   M_solver.SetPreconditioner(M_prec);
+   M_prec = new HypreSmoother;
+   M_prec->SetType(HypreSmoother::Jacobi);
+   M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
 
    //stiffness matrix
@@ -276,9 +282,10 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       K_solver.SetAbsTol(0.0);
       K_solver.SetMaxIter(2000);
       K_solver.SetPrintLevel(3);
-      //K_prec.SetType(HypreSmoother::GS);
-      K_prec.SetType(HypreSmoother::Chebyshev); //this is faster
-      K_solver.SetPreconditioner(K_prec);
+      delete K_prec;
+      K_prec = new HypreSmoother;
+      K_prec->SetType(HypreSmoother::Chebyshev);
+      K_solver.SetPreconditioner(*K_prec);
       K_solver.SetOperator(Kmat);
    }
 
@@ -287,11 +294,9 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    KB->AddBdrFaceIntegrator(new BoundaryGradIntegrator);  // -B matrix
    KB->Assemble();
 
-   ConstantCoefficient visc_coeff(viscosity);
    DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
    DRe.Assemble();
 
-   ConstantCoefficient resi_coeff(resistivity);
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
   
@@ -323,12 +328,12 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       }
 
       int useFull = 1;
-      reduced_oper  = new ReducedSystemOperator(f, M, Mmat, K, Kmat,
+      reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
                          KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
                          ess_tdof_list, ess_bdr, useFull);
 
       const double rel_tol=1e-4;
-      pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
+      pnewton_solver = new PetscNonlinearSolver(fespace.GetComm(),*reduced_oper);
       if (use_factory)
       {
          SNES snes=SNES(*pnewton_solver);
@@ -353,11 +358,145 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    }
 }
 
-void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
+void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
+{
+   //update ess_tdof_list
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+   //mass matrix
+   M->Update();
+   M->Assemble();
+   M->FormSystemMatrix(ess_tdof_list, Mmat);
+
+   M_solver.iterative_mode = true;
+   M_solver.SetRelTol(1e-7);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(2000);
+   M_solver.SetPrintLevel(0);
+   delete M_prec;
+   M_prec = new HypreSmoother;
+   M_prec->SetType(HypreSmoother::Jacobi);
+   M_solver.SetPreconditioner(*M_prec);
+   M_solver.SetOperator(Mmat);
+
+   //stiffness matrix
+   K->Update();
+   K->Assemble();
+   K->FormSystemMatrix(ess_tdof_list, Kmat);
+
+   if (useAMG)
+   {
+      delete K_amg;
+      delete K_pcg;
+      K_amg = new HypreBoomerAMG(Kmat);
+      K_pcg = new HyprePCG(Kmat);
+      K_pcg->iterative_mode = false;
+      K_pcg->SetTol(1e-7);
+      K_pcg->SetMaxIter(200);
+      K_pcg->SetPrintLevel(0);
+      K_pcg->SetPreconditioner(*K_amg);
+   }
+   else
+   {
+      K_solver.iterative_mode = true;
+      K_solver.SetRelTol(1e-7);
+      K_solver.SetAbsTol(0.0);
+      K_solver.SetMaxIter(2000);
+      K_solver.SetPrintLevel(3);
+      delete K_prec;
+      K_prec = new HypreSmoother;
+      K_prec->SetType(HypreSmoother::Chebyshev);
+      K_solver.SetPreconditioner(*K_prec);
+      K_solver.SetOperator(Kmat);
+   }
+
+   KB->Update(); 
+   KB->Assemble();
+
+   DRe.Update();    
+   DRe.Assemble();
+
+   DSl.Update();    
+   DSl.Assemble();
+  
+   if (use_petsc)
+   {
+      ParBilinearForm *DRepr=NULL, *DSlpr=NULL;
+      HypreParMatrix *DRematpr=NULL, *DSlmatpr=NULL;
+      if (viscosity != 0.0)
+      {   
+          //assemble diffusion matrices (cannot delete DRetmp if ParAdd is used later)
+          DRetmp->Update();
+          DRetmp->Assemble();
+          DRetmp->FormSystemMatrix(ess_tdof_list, DRemat);
+
+          DRematpr = &DRemat;
+          DRepr = &DRe;
+      }
+
+      if (resistivity != 0.0)
+      {
+          DSltmp->Update();
+          DSltmp->Assemble();
+          DSltmp->FormSystemMatrix(ess_tdof_list, DSlmat);
+
+          DSlmatpr = &DSlmat;
+          DSlpr = &DSl;
+      }
+
+      delete reduced_oper;
+      int useFull = 1;
+      reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
+                         KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
+                         ess_tdof_list, ess_bdr, useFull);
+
+      const double rel_tol=1e-4;
+      delete pnewton_solver;
+      pnewton_solver = new PetscNonlinearSolver(fespace.GetComm(),*reduced_oper);
+      if (use_factory)
+      {
+         SNES snes=SNES(*pnewton_solver);
+         KSP ksp; 
+		 SNESGetKSP(snes,&ksp);
+
+         delete J_factory;
+         if (useFull==1)
+            J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
+         else
+            J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
+         pnewton_solver->SetPreconditionerFactory(J_factory);
+      }
+      pnewton_solver->SetPrintLevel(0); // print Newton iterations
+      pnewton_solver->SetRelTol(rel_tol);
+      pnewton_solver->SetAbsTol(0.0);
+      pnewton_solver->SetMaxIter(20);
+      pnewton_solver->iterative_mode=true;
+   }
+
+   E0->Update();
+   E0->Assemble();
+   delete E0Vec;
+   E0Vec=E0->ParallelAssemble();
+
+   //update E0 
+   if (reduced_oper!=NULL)
+      reduced_oper->setE0(E0Vec);
+
+   //update J
+   j.Update();
+   //add current to reduced_oper
+   if (reduced_oper!=NULL)
+        reduced_oper->setCurrent(&j);
+
+}
+
+void ResistiveMHDOperator::SetRHSEfield( double(* f)( const Vector&) ) 
 {
    delete E0;
+   delete E0rhs;
+   E0rhs = new FunctionCoefficient(f);
    E0 = new ParLinearForm(&fespace);
-   E0->AddDomainIntegrator(new DomainLFIntegrator(Efield));
+   E0->AddDomainIntegrator(new DomainLFIntegrator(*E0rhs));
    E0->Assemble();
    E0Vec=E0->ParallelAssemble();
 
@@ -460,7 +599,7 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
       ostringstream phi_name, psi_name, w_name;
       int myid;
       if (myid==0)
-          cout <<"======OUTPUT: matrices in ResisitiveMHDOperator:ImplicitSolve======"<<endl;
+          cout <<"======OUTPUT: matrices in ResistiveMHDOperator:ImplicitSolve======"<<endl;
       MPI_Comm_rank(MPI_COMM_WORLD, &myid);
       phi_name << "dbg_phi." << setfill('0') << setw(6) << myid;
       psi_name << "dbg_psi." << setfill('0') << setw(6) << myid;
@@ -479,7 +618,6 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
       w1.Save(osol4);
    }
 }
-
 
 void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
 {
@@ -540,11 +678,12 @@ void ResistiveMHDOperator::DestroyHypre()
 {
     //hypre and petsc needs to be deleted earilier
     delete K_amg;
+    delete M_prec;
+    delete K_prec;
     delete reduced_oper;
     delete J_factory;
     delete pnewton_solver;
 }
-
 
 ResistiveMHDOperator::~ResistiveMHDOperator()
 {
@@ -553,6 +692,7 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete K;
     delete E0;
     delete E0Vec;
+    delete E0rhs;
     delete Sw;
     delete KB;
     delete Nv;

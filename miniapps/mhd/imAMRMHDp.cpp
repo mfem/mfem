@@ -4,13 +4,12 @@
 //
 // Sample runs:
 //
-// Description:  it solves a time dependent resistive MHD problem 
+// Description:  this function will only support amr and implicit solvers
 // Author: QT
 
 #include "mfem.hpp"
 #include "myCoefficient.hpp"
 #include "BoundaryGradIntegrator.hpp"
-//include "imAMRResistiveMHDOperatorp.hpp"
 #include "imResistiveMHDOperatorp.hpp"
 #include "AMRResistiveMHDOperatorp.hpp"
 #include "BlockZZEstimator.hpp"
@@ -108,12 +107,92 @@ double E0rhs3(const Vector &x)
    return resiG*(ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
 }
 
+//this is an AMR update function for VSize (instead of TrueVSize)
+//It is only called in the initial stage of AMR to generate an adaptive mesh
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
+               Array<int> &offset,
+               ParGridFunction &phi,
+               ParGridFunction &psi,
+               ParGridFunction &w,
+               ParGridFunction &j)
+{
+   ParFiniteElementSpace* H1FESpace = phi.ParFESpace();
+
+   //update fem space
+   H1FESpace->Update();
+
+   int fe_size = H1FESpace->GetVSize();
+
+   //update offset vector
+   offset[0] = 0;
+   offset[1] = fe_size;
+   offset[2] = 2*fe_size;
+   offset[3] = 3*fe_size;
+   offset[4] = 4*fe_size;
+
+   S_tmp = S;
+   S.Update(offset);
+    
+   const Operator* H1Update = H1FESpace->GetUpdateOperator();
+
+   H1Update->Mult(S_tmp.GetBlock(0), S.GetBlock(0));
+   H1Update->Mult(S_tmp.GetBlock(1), S.GetBlock(1));
+   H1Update->Mult(S_tmp.GetBlock(2), S.GetBlock(2));
+   H1Update->Mult(S_tmp.GetBlock(3), S.GetBlock(3));
+
+   phi.MakeRef(H1FESpace, S, offset[0]);
+   psi.MakeRef(H1FESpace, S, offset[1]);
+     w.MakeRef(H1FESpace, S, offset[2]);
+     j.MakeRef(H1FESpace, S, offset[3]);
+
+   S_tmp.Update(offset);
+   H1FESpace->UpdatesFinished();
+}
+
+//this is an update function for block vector of TureVSize
+void AMRUpdateTrue(BlockVector &S, BlockVector &S_tmp,
                Array<int> &true_offset,
                ParGridFunction &phi,
                ParGridFunction &psi,
                ParGridFunction &w,
-               ParGridFunction &j);
+               ParGridFunction &j)
+{
+   // Update the GridFunctions so that they match S
+   phi.SetFromTrueDofs(S.GetBlock(0));
+   psi.SetFromTrueDofs(S.GetBlock(1));
+   w.SetFromTrueDofs(S.GetBlock(2));
+
+   FiniteElementSpace* H1FESpace = phi.FESpace();
+
+   //update fem space
+   H1FESpace->Update();
+
+   // Compute new dofs on the new mesh
+   phi.Update();
+   psi.Update();
+   w.Update();
+   
+   // Note j is store differently as a regular gridfunction
+   j.Update();
+
+   int fe_size = H1FESpace->GetTrueVSize();
+
+   //update offset vector
+   true_offset[0] = 0;
+   true_offset[1] = fe_size;
+   true_offset[2] = 2*fe_size;
+   true_offset[3] = 3*fe_size;
+
+   // Resize S
+   S.Update(true_offset);
+
+   // Compute "true" dofs and store them in S
+   phi.GetTrueDofs(S.GetBlock(0));
+   psi.GetTrueDofs(S.GetBlock(1));
+     w.GetTrueDofs(S.GetBlock(2));
+
+   H1FESpace->UpdatesFinished();
+}
 
 
 int main(int argc, char *argv[])
@@ -445,13 +524,11 @@ int main(int argc, char *argv[])
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
    if (icase==2)  //add the source term
    {
-       FunctionCoefficient e0(E0rhs);
-       oper.SetRHSEfield(e0);
+       oper.SetRHSEfield(E0rhs);
    }
    else if (icase==3)     
    {
-       FunctionCoefficient e0(E0rhs3);
-       oper.SetRHSEfield(e0);
+       oper.SetRHSEfield(E0rhs3);
    }
 
    //set initial J
@@ -479,7 +556,7 @@ int main(int argc, char *argv[])
    BlockZZEstimator estimator(*integ, j, *integ, psi, flux_fespace1, flux_fespace2);
 
    ThresholdRefiner refiner(estimator);
-   //refiner.SetTotalErrorFraction(0.0);   // here 0.0 means we use local threshold
+   //refiner.SetTotalErrorFraction(0.0);   // here 0.0 means we use local threshold; default is 0.5
    refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
    refiner.SetMaxElements(50000);
@@ -490,7 +567,7 @@ int main(int argc, char *argv[])
    derefiner.SetThreshold(.2*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
 
-   bool derefineIt = false;
+   bool derefineMesh = false;
    bool refineMesh = false;
 
    BlockVector vx_old(vx);
@@ -589,50 +666,147 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
-      //---solve step---
+      if ((ti % ref_steps) == 0)
+      {
+          refineMesh=true;
+          refiner.Reset();
+      }
+      else
+          refineMesh=false;
+
+      //here we derefine every ref_steps but is lagged by a step of ref_steps/2
+      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 && ti >  ref_steps ) 
+      {
+          derefineMesh=true;
+          derefiner.Reset();
+      }
+      else
+          derefineMesh=false;
+
+      //---the main solve step---
       ode_solver->Step(vx, t, dt_real);
+
+      //update J if it is refine or derefine step
+      if (refineMesh || derefineMesh)
+          oper.UpdateJ(vx, &j);
 
       last_step = (t >= t_final - 1e-8*dt);
 
-      if (last_step || (ti % vis_steps) == 0)
+      if (myid == 0 && (ti % 10)==0)
       {
-         if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
+          global_size = fespace.GlobalTrueVSize();
+          cout << "Number of total scalar unknowns: " << global_size << endl;
+          cout << "step " << ti << ", t = " << t <<endl;
+      }
 
-         if (visualization)
+      //----------------------------AMR---------------------------------
+      if (refineMesh)  refiner.Apply(*pmesh);
+      if (refiner.Refined()==false || (!refineMesh))
+      {
+         if (derefine && derefineMesh && derefiner.Apply(*pmesh))
          {
-            //for the plotting purpose we have to reset those solutions
-            phi.SetFromTrueVector();
-            w.SetFromTrueVector();
-            oper.UpdateJ(vx, &j);
+            if (myid == 0) cout << "Derefined mesh..." << endl;
 
-            vis_phi << "parallel " << num_procs << " " << myid << "\n";
-            vis_phi << "solution\n" << *pmesh << phi;
-            if (icase==1) 
-                vis_phi << "valuerange -.001 .001\n" << flush;
-            else
-                vis_phi << flush;
+            AMRUpdateTrue(vx, vx_old, fe_offset3, phi, psi, w, j);
+            pmesh->Rebalance();
 
-            vis_j << "parallel " << num_procs << " " << myid << "\n";
-            vis_j << "solution\n" << *pmesh << j << flush;
-            vis_w << "parallel " << num_procs << " " << myid << "\n";
-            vis_w << "solution\n" << *pmesh << w << flush;
+            //---Update solutions---
+            AMRUpdateTrue(vx, vx_old, fe_offset3, phi, psi, w, j);
+
+            //---assemble problem and update boundary condition---
+            oper.UpdateProblem(ess_bdr); 
+            ode_solver->Init(oper);
          }
-
-         if (visit)
+         else //mesh is not refined or derefined
          {
-            if(!visualization)
+            if ( (last_step || (ti % vis_steps) == 0) )
             {
-               phi.SetFromTrueVector();
-               w.SetFromTrueVector();
-               oper.UpdateJ(vx, &j);
+               if (visualization)
+               {
+                  //for the plotting purpose we have to reset those solutions
+                  phi.SetFromTrueVector();
+                  w.SetFromTrueVector();
+                  oper.UpdateJ(vx, &j);
+
+                  vis_phi << "parallel " << num_procs << " " << myid << "\n";
+                  vis_phi << "solution\n" << *pmesh << phi;
+                  if (icase==1) 
+                      vis_phi << "valuerange -.001 .001\n" << flush;
+                  else
+                      vis_phi << flush;
+
+                  vis_j << "parallel " << num_procs << " " << myid << "\n";
+                  vis_j << "solution\n" << *pmesh << j << flush;
+                  vis_w << "parallel " << num_procs << " " << myid << "\n";
+                  vis_w << "solution\n" << *pmesh << w << flush;
+               }
+
+               if (visit)
+               {
+                  if(!visualization)
+                  {
+                     phi.SetFromTrueVector();
+                     w.SetFromTrueVector();
+                     oper.UpdateJ(vx, &j);
+                  }
+
+                  if (icase!=1)
+                    psi.SetFromTrueVector();
+                  dc->SetCycle(ti);
+                  dc->SetTime(t);
+                  dc->Save();
+               }
             }
 
-            if (icase!=1)
-              psi.SetFromTrueVector();
-            dc->SetCycle(ti);
-            dc->SetTime(t);
-            dc->Save();
+            if (last_step)
+                break;
+            else
+                continue;
          }
+      }
+      else
+      {
+         if (myid == 0) cout<<"Mesh refine..."<<endl;
+
+         AMRUpdateTrue(vx, vx_old, fe_offset3, phi, psi, w, j);
+
+         pmesh->Rebalance();
+
+         //---Update problem---
+         AMRUpdateTrue(vx, vx_old, fe_offset3, phi, psi, w, j);
+
+         //---assemble problem and update boundary condition---
+         oper.UpdateProblem(ess_bdr); 
+         ode_solver->Init(oper);
+      }
+      //----------------------------AMR---------------------------------
+
+      //reach here only if mesh is refined/derefined
+      if (visualization)
+      {
+         //for the plotting purpose we have to reset those solutions
+         //this is probably not necessary any more (those already updated)
+         phi.SetFromTrueVector();
+         w.SetFromTrueVector();
+
+         vis_phi << "parallel " << num_procs << " " << myid << "\n";
+         vis_phi << "solution\n" << *pmesh << phi;
+         if (icase==1) 
+             vis_phi << "valuerange -.001 .001\n" << flush;
+         else
+             vis_phi << flush;
+
+         vis_j << "parallel " << num_procs << " " << myid << "\n";
+         vis_j << "solution\n" << *pmesh << j << flush;
+         vis_w << "parallel " << num_procs << " " << myid << "\n";
+         vis_w << "solution\n" << *pmesh << w << flush;
+      }
+
+      if (visit)
+      {
+         dc->SetCycle(ti);
+         dc->SetTime(t);
+         dc->Save();
       }
 
    }
@@ -687,45 +861,4 @@ int main(int argc, char *argv[])
 }
 
 
-//this is an AMR update function for VSize (instead of TrueVSize)
-//It is only called in the initial stage of AMR to generate an adaptive mesh
-void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
-               Array<int> &true_offset,
-               ParGridFunction &phi,
-               ParGridFunction &psi,
-               ParGridFunction &w,
-               ParGridFunction &j)
-{
-   ParFiniteElementSpace* H1FESpace = phi.ParFESpace();
-
-   //update fem space
-   H1FESpace->Update();
-
-   int fe_size = H1FESpace->GetVSize();
-
-   //update offset vector
-   true_offset[0] = 0;
-   true_offset[1] = fe_size;
-   true_offset[2] = 2*fe_size;
-   true_offset[3] = 3*fe_size;
-   true_offset[4] = 4*fe_size;
-
-   S_tmp = S;
-   S.Update(true_offset);
-    
-   const Operator* H1Update = H1FESpace->GetUpdateOperator();
-
-   H1Update->Mult(S_tmp.GetBlock(0), S.GetBlock(0));
-   H1Update->Mult(S_tmp.GetBlock(1), S.GetBlock(1));
-   H1Update->Mult(S_tmp.GetBlock(2), S.GetBlock(2));
-   H1Update->Mult(S_tmp.GetBlock(3), S.GetBlock(3));
-
-   phi.MakeRef(H1FESpace, S, true_offset[0]);
-   psi.MakeRef(H1FESpace, S, true_offset[1]);
-     w.MakeRef(H1FESpace, S, true_offset[2]);
-     j.MakeRef(H1FESpace, S, true_offset[3]);
-
-   S_tmp.Update(true_offset);
-   H1FESpace->UpdatesFinished();
-}
 
