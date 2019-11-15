@@ -60,9 +60,6 @@ protected:
    /// Return a number(0-4) identifying how the given face has been split
    int GetFaceSplittings(Element *face, const DSTable &v_to_v, int *middle);
 
-   void GetFaceNbrElementTransformation(
-      int i, IsoparametricTransformation *ElTr);
-
    ElementTransformation* GetGhostFaceTransformation(
       FaceElementTransformations* FETr, int face_type, int face_geom);
 
@@ -183,6 +180,9 @@ public:
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
+
+   void GetFaceNbrElementTransformation(
+      int i, IsoparametricTransformation *ElTr);
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
