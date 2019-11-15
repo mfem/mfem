@@ -3298,6 +3298,10 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    Array<int> rdofs;
    DenseMatrix phys_pts;
    int max_nv = 0;
+
+   DenseMatrix node_coordinates(spaceDim*pow(2, Dim), r_num_elem);
+   H1_FECollection vertex_fec(1, Dim);
+
    for (int el = 0; el < orig_mesh->GetNE(); el++)
    {
       Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
@@ -3312,6 +3316,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       orig_mesh->GetElementTransformation(el)->Transform(rfe->GetNodes(),
                                                          phys_pts);
       const int *c2h_map = rfec.GetDofMap(geom);
+      const int *vertex_map = vertex_fec.GetDofMap(geom);
       for (int i = 0; i < phys_pts.Width(); i++)
       {
          vertices[rdofs[i]].SetCoords(spaceDim, phys_pts.GetColumn(i));
@@ -3326,9 +3331,24 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
             v[k] = rdofs[c2h_map[cid]];
          }
+         for (int k = 0; k < nvert; k++)
+         {
+            for (int j = 0; j < spaceDim; ++j)
+            {
+               node_coordinates(k*spaceDim + j, NumOfElements)
+                  = vertices[v[vertex_map[k]]](j);
+            }
+         }
          AddElement(elem);
       }
    }
+
+   SetCurvature(1, true, spaceDim);
+   Vector node_coordinates_vec(
+      node_coordinates.Data(),
+      node_coordinates.Width()*node_coordinates.Height());
+   SetNodes(node_coordinates_vec);
+
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
    {
