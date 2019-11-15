@@ -8247,6 +8247,187 @@ void Mesh::PrintVTK(std::ostream &out)
    out.flush();
 }
 
+void Mesh::PrintVTU(std::string fname){
+    fname=fname+".vtu";
+    std::fstream out(fname.c_str(),std::ios::out);
+    out<<"<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"<<std::endl;
+    out<<"<UnstructuredGrid>"<<std::endl;
+    PrintVTU(out,1);
+    out<<"</Piece>"<<std::endl; //needed to close the piece open in the PrintVTU method
+    out<<"</UnstructuredGrid>"<<std::endl;
+    out<<"</VTKFile>"<<std::endl;
+    
+    out.close();
+    
+}
+
+void Mesh::PrintVTU(std::ostream &out, int ref)
+{
+   int np, nc, size;
+   RefinedGeometry *RefG;
+   DenseMatrix pmat;
+   
+   // count the points, cells, size
+   np = nc = size = 0;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      int nv = Geometries.GetVertices(geom)->GetNPoints();
+      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+      np += RefG->RefPts.GetNPoints();
+      nc += RefG->RefGeoms.Size() / nv;
+      size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
+   }
+   
+   
+   //out<<"<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"<<std::endl;
+   //out<<"<UnstructuredGrid>"<<std::endl;
+   out<<"<Piece NumberOfPoints=\""<<np<<"\" NumberOfCells=\""<<nc<<"\">"<<std::endl; 
+
+   //print out the points
+   out<<"<Points>"<<std::endl;
+   out<<"<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">"<<std::endl;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      RefG = GlobGeometryRefiner.Refine(
+                GetElementBaseGeometry(i), ref, 1);
+
+      GetElementTransformation(i)->Transform(RefG->RefPts, pmat);
+
+      for (int j = 0; j < pmat.Width(); j++)
+      {
+         out << pmat(0, j) << ' ';
+         if (pmat.Height() > 1)
+         {
+            out << pmat(1, j) << ' ';
+            if (pmat.Height() > 2)
+            {
+               out << pmat(2, j);
+            }
+            else
+            {
+               out << 0.0;
+            }
+         }
+         else
+         {
+            out << 0.0 << ' ' << 0.0;
+         }
+         out << '\n';
+      }
+   }
+   out<<"</DataArray>"<<std::endl;
+   out<<"</Points>"<<std::endl;
+
+   out<<"<Cells>"<<std::endl;
+   out<<"<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">"<<std::endl;
+   //connectivity
+   std::vector<int> offset;
+   int coff=0;
+   np = 0;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      int nv = Geometries.GetVertices(geom)->GetNPoints();
+      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+      Array<int> &RG = RefG->RefGeoms;
+
+      for (int j = 0; j < RG.Size(); )
+      {
+         //out << nv;
+         coff=coff+nv; 
+         offset.push_back(coff);
+         
+         for (int k = 0; k < nv; k++, j++)
+         {
+            out << ' ' << np + RG[j];
+         }
+         out << '\n';
+      }
+      np += RefG->RefPts.GetNPoints();
+   }
+   out<<"</DataArray>"<<std::endl;
+    
+   out<<"<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">"<<std::endl;
+   //offsets
+   for(size_t ii=0;ii<offset.size();ii++){ out<<offset[ii]<<std::endl;}
+   out<<"</DataArray>"<<std::endl;
+   out<<"<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">"<<std::endl;
+   //cell types
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      int nv = Geometries.GetVertices(geom)->GetNPoints();
+      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+      Array<int> &RG = RefG->RefGeoms;
+      int vtk_cell_type = 5;
+
+      switch (geom)
+      {
+         case Geometry::POINT:        vtk_cell_type = 1;   break;
+         case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
+         case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
+         case Geometry::SQUARE:       vtk_cell_type = 9;   break;
+         case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
+         case Geometry::CUBE:         vtk_cell_type = 12;  break;
+         case Geometry::PRISM:        vtk_cell_type = 13;  break;
+         default:
+            MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
+            break;
+      }
+
+      for (int j = 0; j < RG.Size(); j += nv)
+      {
+         out << vtk_cell_type << '\n';
+      }
+   } 
+   out<<"</DataArray>"<<std::endl;
+   out<<"</Cells>"<<std::endl;
+
+   out<<"<CellData Scalars=\"material\">"<<std::endl;
+   out<<"<DataArray type=\"Int32\" Name=\"material\" format=\"ascii\">"<<std::endl;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      int nv = Geometries.GetVertices(geom)->GetNPoints();
+      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+      int attr = GetAttribute(i);
+      for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+      {
+         out << attr << '\n';
+      }
+   }      
+   out<<"</DataArray>"<<std::endl;
+   
+   if (Dim > 1)
+   {
+      out<<"<DataArray type=\"Int32\" Name=\"element_coloring\" format=\"ascii\">"<<std::endl; 
+      Array<int> coloring;
+      srand((unsigned)time(0));
+      double a = double(rand()) / (double(RAND_MAX) + 1.);
+      int el0 = (int)floor(a * GetNE());
+      GetElementColoring(coloring, el0);
+      for (int i = 0; i < GetNE(); i++)
+      {
+         Geometry::Type geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+         {
+            out << coloring[i] + 1 << '\n';
+         }
+      }
+      out<<"</DataArray>"<<std::endl;
+   }
+   
+   out<<"</CellData>"<<std::endl; 
+   
+   //out<<"</Piece>"<<std::endl;
+   //out<<"</UnstructuredGrid>"<<std::endl;
+   //out<<"</VTKFile>"<<std::endl;
+}
+
+
 void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
 {
    int np, nc, size;
