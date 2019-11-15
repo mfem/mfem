@@ -483,6 +483,14 @@ protected:
     void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
     void SaveQFieldVTU(std::ostream &out, int ref, const QFieldMapIterator& it);
     
+    std::string  GenerateCollectionPath();
+    std::string  GenerateVTUFileName();
+    std::string  GenerateVTUPath();
+    std::string  GeneratePVDFileName();
+    std::string  GeneratePVDPath();
+    std::string  GeneratePVTUFileName();
+    std::string  GeneratePVTUPath();
+    
 public: 
     /// Constructor. The collection name is used when saving the data.
     /** If @a mesh_ is NULL, then the mesh can be set later by calling either

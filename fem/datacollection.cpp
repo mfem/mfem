@@ -772,20 +772,63 @@ void ParaviewDataCollection::Load(int ){
     MFEM_WARNING("ParaviewDataCollection::Load() is not implemented!!!" );
 }
 
+std::string  ParaviewDataCollection::GenerateCollectionPath(){
+    std::string out="";
+    out=DataCollection::GetPrefixPath()+"/"+DataCollection::GetCollectionName();
+    return out;
+}
+
+std::string ParaviewDataCollection::GeneratePVTUPath(){
+    std::string out=GenerateCollectionPath();
+    out=out+"/Cycle"+to_padded_string(cycle,pad_digits_cycle);
+    return out;
+}
+
+std::string ParaviewDataCollection::GenerateVTUPath(){
+    std::string out=GeneratePVTUPath();
+    return out;
+}
+
+std::string ParaviewDataCollection::GeneratePVDFileName(){
+    std::string out=GenerateCollectionPath();
+    out=out+"/"+GetCollectionName()+".pvd";
+    return out;
+}
+
+std::string ParaviewDataCollection::GeneratePVTUFileName(){
+    std::string out=GeneratePVTUPath();
+    out=out+"/data.pvtu";
+    return out;
+}
+
+std::string ParaviewDataCollection::GenerateVTUFileName(){
+    std::string out=GenerateVTUPath();
+    out=out+"/proc"+to_padded_string(myrank,pad_digits_rank)+".vtu";
+}
+
+
 void ParaviewDataCollection::Save(){
     //add a new collection to the PDV file
     //pvd_stream<<"<DataSet timestep=\""<<0<<"\" group=\"\" part=\""<<0<<"\" file=\""
     //pvd_stream<<examplePVD/examplePVD_T0000.vtp<<"\"/>"<<std::endl;
+
+    
+    //check if the directories are created 
+    { 
+        //check the GenerateVTUPath
+        std::string path=GenerateVTUPath();
+        
+    }
     
     
 }
 
 
 
-void ParaviewDataCollection::SaveMeshVTU(std::ostream &out, int ref, mfem::Mesh *imesh){
+void ParaviewDataCollection::SaveDataVTU(std::ostream &out, int ref){
    out<<"<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"<<std::endl;
    out<<"<UnstructuredGrid>"<<std::endl;
-   imesh->PrintVTU(out,ref);
+   mesh->PrintVTU(out,ref);
     
    //dump out the grid functions as point data 
    out<<"<PointData >"<<std::endl;
@@ -799,7 +842,7 @@ void ParaviewDataCollection::SaveMeshVTU(std::ostream &out, int ref, mfem::Mesh 
    //the cycle should be moved before the grid functions 
    //and the PrintVTU CellData section should be open in the mesh dump
    for(QFieldMapIterator it=q_field_map.begin(); it!=q_field_map.end();++it){
-   //save the quadrature functions
+       //save the quadrature functions
        //this one is not implemented yet
        SaveQFieldVTU(out,ref,it);
    }
@@ -810,7 +853,7 @@ void ParaviewDataCollection::SaveMeshVTU(std::ostream &out, int ref, mfem::Mesh 
    out<<"</VTKFile>"<<std::endl;
 }
 
-void ParaviewDataCollection::SaveQFieldVTU(std::ostream &out_, int ref_, 
+void ParaviewDataCollection::SaveQFieldVTU(std::ostream &out, int ref, 
                                                             const QFieldMapIterator& it ){
    MFEM_WARNING("SaveQFieldVTU is wotk in progress - field name:"<<it->second); 
 }
