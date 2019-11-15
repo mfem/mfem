@@ -467,6 +467,61 @@ public:
    virtual ~VisItDataCollection() {}
 };
 
+/// Data collection with VisIt I/O routines
+class ParaviewDataCollection : public DataCollection
+{
+private:
+#ifdef MFEM_USE_MPI
+    MPI_Comm lcomm;
+#endif
+    int myrank;
+    int nprocs;
+    int levels_of_detail;
+    
+protected:
+    void SaveDataVTU(std::ostream &out, int ref);
+    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
+    void SaveQFieldVTU(std::ostream &out, int ref, const QFieldMapIterator& it);
+    
+public: 
+    /// Constructor. The collection name is used when saving the data.
+    /** If @a mesh_ is NULL, then the mesh can be set later by calling either
+       SetMesh() or Load(). The latter works only in serial. */
+    ParaviewDataCollection(const std::string& collection_name, mfem::Mesh *mesh_ = NULL);
+#ifdef MFEM_USE_MPI
+    /// Construct a parallel VisItDataCollection to be loaded from files.
+   /** Before loading the collection with Load(), some parameters in the
+       collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
+    ParaviewDataCollection(MPI_Comm comm, const std::string& collection_name,
+                       mfem::Mesh *mesh_ = NULL);
+#endif
+    
+    virtual ~ParaviewDataCollection();
+    
+    virtual void SetMesh(mfem::Mesh * new_mesh) override;
+    
+#ifdef MFEM_USE_MPI
+   /// Set/change the mesh associated with the collection.
+   virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override;
+#endif
+
+   /// Add a grid function to the collection and update the root file
+   virtual void RegisterField(const std::string& field_name, mfem::GridFunction *gf) override;    
+   
+
+   /// Set refinement levels 
+   void SetLevelsOfDetail(int levels_of_detail_);
+
+   /// Save the collection and a VisIt root file
+   virtual void Save() override;
+
+   /// Load the collection  - not implemented in the paraview writer
+   virtual void Load(int cycle_ = 0) override;
+    
+};    
+
+
+
 }
 
 #endif

@@ -726,4 +726,136 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
    }
 }
 
+
+ParaviewDataCollection::ParaviewDataCollection(const std::string& collection_name,  mfem::Mesh *mesh_ )                                                
+   :DataCollection(collection_name, mesh_)
+{
+    myrank=0;
+    nprocs=1;
+    levels_of_detail=1;
+}
+
+#ifdef MFEM_USE_MPI
+ParaviewDataCollection::ParaviewDataCollection(MPI_Comm comm, const std::string& collection_name, 
+                                               mfem::Mesh *mesh_ )                                                
+   :DataCollection(collection_name, mesh_)
+{
+    lcomm=comm;
+    MPI_Comm_rank(comm, &myrank);
+    MPI_Comm_size(comm, &nprocs);
+    levels_of_detail=1;
+} 
+#endif
+
+void ParaviewDataCollection::SetMesh(mfem::Mesh * new_mesh){
+    DataCollection::SetMesh(new_mesh);
+}
+
+#ifdef MFEM_USE_MPI
+void ParaviewDataCollection::SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh){
+    SetMesh(new_mesh);
+    lcomm=comm;
+    MPI_Comm_rank(comm, &myrank);
+    MPI_Comm_size(comm, &nprocs);
+}
+#endif
+
+void ParaviewDataCollection::RegisterField(const std::string& field_name, mfem::GridFunction *gf){
+    DataCollection::RegisterField(field_name,gf);
+}
+
+void ParaviewDataCollection::SetLevelsOfDetail(int levels_of_detail_){
+    levels_of_detail=levels_of_detail_;
+}
+
+void ParaviewDataCollection::Load(int ){
+    MFEM_WARNING("ParaviewDataCollection::Load() is not implemented!!!" );
+}
+
+void ParaviewDataCollection::Save(){
+    //add a new collection to the PDV file
+    //pvd_stream<<"<DataSet timestep=\""<<0<<"\" group=\"\" part=\""<<0<<"\" file=\""
+    //pvd_stream<<examplePVD/examplePVD_T0000.vtp<<"\"/>"<<std::endl;
+    
+    
+}
+
+
+
+void ParaviewDataCollection::SaveMeshVTU(std::ostream &out, int ref, mfem::Mesh *imesh){
+   out<<"<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"<<std::endl;
+   out<<"<UnstructuredGrid>"<<std::endl;
+   imesh->PrintVTU(out,ref);
+    
+   //dump out the grid functions as point data 
+   out<<"<PointData >"<<std::endl;
+   //save the grid functions 
+   //iterate over all grid functions
+   for(FieldMapIterator it=field_map.begin(); it!=field_map.end();++it){
+       SaveGFieldVTU(out,ref,it);
+   }
+   //iterate over all quadrature functions
+   //if the Quadrature functions are dumped as cell data
+   //the cycle should be moved before the grid functions 
+   //and the PrintVTU CellData section should be open in the mesh dump
+   for(QFieldMapIterator it=q_field_map.begin(); it!=q_field_map.end();++it){
+   //save the quadrature functions
+       //this one is not implemented yet
+       SaveQFieldVTU(out,ref,it);
+   }
+   out<<"</PointData>"<<std::endl;
+   //close the mesh
+   out<<"</Piece>"<<std::endl; //needed to close the piece open in the PrintVTU method
+   out<<"</UnstructuredGrid>"<<std::endl;
+   out<<"</VTKFile>"<<std::endl;
+}
+
+void ParaviewDataCollection::SaveQFieldVTU(std::ostream &out_, int ref_, 
+                                                            const QFieldMapIterator& it ){
+   MFEM_WARNING("SaveQFieldVTU is wotk in progress - field name:"<<it->second); 
+}
+void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
+                                                            const FieldMapIterator& it){
+   RefinedGeometry *RefG;
+   Vector val;
+   DenseMatrix vval, pmat;
+   int vec_dim = it->second->VectorDim();
+   if (vec_dim == 1)
+   {   
+      // scalar data
+      out<<"<DataArray type=\"Float32\" Name=\""<<it->first;
+      out<<"\" NumberOfComponents=\"1\" format=\"ascii\" >"<<std::endl;
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         RefG = GlobGeometryRefiner.Refine(
+                   mesh->GetElementBaseGeometry(i), ref_, 1);
+         it->second->GetValues(i, RefG->RefPts, val, pmat);
+         for (int j = 0; j < val.Size(); j++)
+         {
+            out << val(j) << '\n';
+         }
+      }
+       
+   }else{
+      //vector data
+      out<<"<DataArray type=\"Float32\" Name=\""<<it->first;
+      out<<"\" NumberOfComponents=\""<<vec_dim<<"\" format=\"ascii\" >"<<std::endl; 
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         RefG = GlobGeometryRefiner.Refine(
+                   mesh->GetElementBaseGeometry(i), ref_, 1);
+
+         it->second->GetVectorValues(i, RefG->RefPts, vval, pmat);
+
+         for (int jj = 0; jj < vval.Width(); jj++){
+            for (int ii = 0; ii < vval.Height(); ii++){   
+            out << vval(ii, jj) << ' ';}
+            out << std::endl;
+         }
+      }
+   }
+   out<<"</DataArray>"<<std::endl;
+   out.flush(); 
+}
+
 }  // end namespace MFEM
