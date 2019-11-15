@@ -231,8 +231,7 @@ static void PAMassApply2D(const int NE,
       }
       for (int dy = 0; dy < D1D; ++dy)
       {
-         volatile double sol_x[max_Q1D];
-         // ('volatile' prevents compiler uninitialized use warning below)
+         double sol_x[max_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             sol_x[qy] = 0.0;
@@ -263,8 +262,7 @@ static void PAMassApply2D(const int NE,
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         volatile double sol_x[max_D1D];
-         // ('volatile' prevents compiler uninitialized use warning below)
+         double sol_x[max_D1D];
          for (int dx = 0; dx < D1D; ++dx)
          {
             sol_x[dx] = 0.0;
@@ -462,8 +460,7 @@ static void PAMassApply3D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            volatile double sol_x[max_Q1D];
-            // ('volatile' prevents compiler uninitialized use warning below)
+            double sol_x[max_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] = 0;
@@ -519,8 +516,7 @@ static void PAMassApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            volatile double sol_x[max_D1D];
-            // ('volatile' prevents compiler uninitialized use warning below)
+            double sol_x[max_D1D];
             for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] = 0;
