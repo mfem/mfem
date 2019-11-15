@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = exMHD exAMRMHD 
-PAR_EXAMPLES = exMHDp exAMRMHDp imMHDp
+PAR_EXAMPLES = exMHDp exAMRMHDp imMHDp imAMRMHDp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else

@@ -172,7 +172,7 @@ void AMRUpdateTrue(BlockVector &S, BlockVector &S_tmp,
    psi.Update();
    w.Update();
    
-   // Note j is store differently as a regular gridfunction
+   // Note j stores data differently as a regular gridfunction
    j.Update();
 
    int fe_size = H1FESpace->GetTrueVSize();
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
    bool derefine = false;
    int precision = 8;
    int nc_limit = 3;         // maximum level of hanging nodes
-   int ref_steps=10;
+   int ref_steps=2;
    //----end of amr----
    int icase = 1;
    alpha = 0.001; 
@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver=NULL;
    switch (ode_solver_type)
    {
-      //Implict L-stable methods 
+      // Implict L-stable methods 
       case 1: ode_solver = new BackwardEulerSolver; break;
       case 3: ode_solver = new SDIRK23Solver(2); break;
       case 4: ode_solver = new SDIRK33Solver; break;
@@ -335,6 +335,7 @@ int main(int argc, char *argv[])
      default:
          if (myid == 0) cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;
+         if (use_petsc) { MFEMFinalizePetsc(); }
          MPI_Finalize();
          return 3;
    }
@@ -686,9 +687,12 @@ int main(int argc, char *argv[])
       //---the main solve step---
       ode_solver->Step(vx, t, dt_real);
 
-      //update J if it is refine or derefine step
+      //update J and psi as it is needed in the refine or derefine step
       if (refineMesh || derefineMesh)
+      {
+          psi.SetFromTrueVector();
           oper.UpdateJ(vx, &j);
+      }
 
       last_step = (t >= t_final - 1e-8*dt);
 
@@ -849,6 +853,7 @@ int main(int argc, char *argv[])
    //+++++Free the used memory.
    delete ode_solver;
    delete pmesh;
+   delete integ;
    delete dc;
 
    oper.DestroyHypre();

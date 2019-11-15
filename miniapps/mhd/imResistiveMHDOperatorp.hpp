@@ -363,6 +363,9 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    //update ess_tdof_list
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
+   //update problem size
+   width = height = fespace.GetTrueVSize()*3;
+
    //mass matrix
    M->Update();
    M->Assemble();
@@ -446,6 +449,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
 
       delete reduced_oper;
       int useFull = 1;
+      //if needed, we can replace new with another update function
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
                          KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
                          ess_tdof_list, ess_bdr, useFull);
@@ -482,7 +486,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    if (reduced_oper!=NULL)
       reduced_oper->setE0(E0Vec);
 
-   //update J
+   //update the local j
    j.Update();
    //add current to reduced_oper
    if (reduced_oper!=NULL)
