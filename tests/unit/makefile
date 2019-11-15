@@ -29,20 +29,22 @@ HEADER_FILES = $(SRC)catch.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
 
-SEQ_UNIT_TESTS = unit_tests
-PAR_UNIT_TESTS =
+CUDA_UNIT_TESTS = $(if $(MFEM_CXX:nvcc=),,unit_tests_dev_cuda)
 
-DEV_UNIT_TESTS = unit_tests_dev #unit_tests_dev_debug $(if $(MFEM_CXX:nvcc=),,unit_tests_dev_cuda)
-DEV_SOURCE_FILES = $(SRC)unit_test_main.cpp miniapps/test_sedov.cpp
-DEV_OBJECT_FILES = $(DEV_SOURCE_FILES:$(SRC)%.cpp=%.o)
+SEQ_UNIT_TESTS = unit_tests unit_tests_dev_cpu $(CUDA_UNIT_TESTS)
+PAR_UNIT_TESTS = unit_tests_dev_cpu $(CUDA_UNIT_TESTS)
+
+DEV_SOURCE_FILES = miniapps/test_sedov.cpp
+CPU_OBJECT_FILES = $(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cpu.o)
+CUDA_OBJECT_FILES = $(if $(MFEM_CXX:nvcc=),,$(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cuda.o))
 
 ifeq ($(MFEM_USE_MPI),NO)
-   UNIT_TESTS = $(SEQ_UNIT_TESTS) $(DEV_UNIT_TESTS)
+   UNIT_TESTS = $(SEQ_UNIT_TESTS)
 else
-   UNIT_TESTS = $(PAR_UNIT_TESTS) $(SEQ_UNIT_TESTS) $(DEV_UNIT_TESTS)
+   UNIT_TESTS = $(PAR_UNIT_TESTS) $(SEQ_UNIT_TESTS)
 endif
 
-all: $(UNIT_TESTS)
+all: $(UNIT_TESTS) ;echo all: $(UNIT_TESTS)
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -51,14 +53,27 @@ all: $(UNIT_TESTS)
 unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-unit_tests_dev: $(DEV_OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) -DMFEM_DEV_UNIT_TESTS $(DEV_OBJECT_FILES) $(INCLUDES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+unit_tests_dev_cpu: DEV_UNIT_FLAGS=-DMFEM_DEV_UNIT_TESTS -DMFEM_DEV_UNIT=\"cpu\"
+unit_tests_dev_cpu: $(SRC)unit_test_main.o $(CPU_OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(SRC)unit_test_main.o $(CPU_OBJECT_FILES) $(INCLUDES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+unit_tests_dev_cuda: DEV_UNIT_FLAGS=-DMFEM_DEV_UNIT_TESTS -DMFEM_DEV_UNIT=\"cuda\"
+unit_tests_dev_cuda: $(SRC)unit_test_main.o $(CUDA_OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(SRC)unit_test_main.o $(CUDA_OBJECT_FILES) $(INCLUDES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
 $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(INCLUDES) $(MFEM_FLAGS) -o $(@)
+
+$(CPU_OBJECT_FILES): %.cpu.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+	@mkdir -p $(@D)
+	$(CCC) -c $(abspath $(<)) $(INCLUDES) $(MFEM_FLAGS) $(DEV_UNIT_FLAGS) -o $(@)
+
+$(CUDA_OBJECT_FILES): %.cuda.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+	@mkdir -p $(@D)
+	$(CCC) -c $(abspath $(<)) $(INCLUDES) $(MFEM_FLAGS) $(DEV_UNIT_FLAGS) -o $(@)
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
@@ -70,12 +85,14 @@ include $(MFEM_TEST_MK)
 %-test-seq: %
 	@$(call mfem-test,$<,, Unit tests,,SKIP-NO-VIS)
 
-%-test-par: %;@echo test-par
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,,SKIP-NO-VIS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
 clean:
-	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) $(DEV_UNIT_TESTS) *.o */*.o */*~ *~
+	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
 	rm -rf *.dSYM output_meshes
