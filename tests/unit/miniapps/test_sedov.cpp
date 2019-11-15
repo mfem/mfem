@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
+//#define MFEM_DEV_UNIT_TESTS
 #ifdef MFEM_DEV_UNIT_TESTS
 
 #include "catch.hpp"
@@ -25,20 +26,20 @@
 #else
 typedef int HYPRE_Int;
 typedef int MPI_Comm;
-#define ParFiniteElementSpace FiniteElementSpace
+#define ParMesh Mesh
 #define ParBilinearForm BilinearForm
 #define ParGridFunction GridFunction
-#define ParMesh Mesh
+#define ParFiniteElementSpace FiniteElementSpace
 #define PFesGetParMeshGetComm(...)
 #define PFesGetParMeshGetComm0(...) 0
 #define GetParMesh GetMesh
 #define GlobalTrueVSize GetVSize
 #define MPI_Finalize()
 #define MPI_Allreduce(src,dst,...) *dst = *src
-#define MPI_DOUBLE double
-#define HYPRE_MPI_INT int
 #define MPI_INT int
 #define MPI_LONG long
+#define HYPRE_MPI_INT int
+#define MPI_DOUBLE double
 template<typename T>
 void MPI_Reduce_(T *src, T *dst, const int n)
 {
@@ -3076,7 +3077,7 @@ static long GetMaxRssMB()
 
 TEST_CASE("Miniapps", "[Sedov]")
 {
-   const char *mesh_file = "../../data/cube01_hex.mesh"; // square01_quad
+   const char *mesh_file = "data/cube01_hex.mesh"; // square01_quad
    const int rs_levels = 0;
    int rp_levels = 0;
    Array<int> cxyz;
@@ -3096,7 +3097,7 @@ TEST_CASE("Miniapps", "[Sedov]")
    bool okina = true;
    bool qupdate = true;
    int partition_type = 111;
-   const char *dev_opt = "cpu";
+   const char *dev_opt = MFEM_DEV_UNIT;
    const int dev = 0;
    double blast_energy = 0.25;
    double blast_position[] = {0.0, 0.0, 0.0};
@@ -3427,8 +3428,8 @@ TEST_CASE("Miniapps", "[Sedov]")
          MFEM_VERIFY(ode_solver_type==4, "check: ode_solver_type");
          MFEM_VERIFY(fabs(t_final-0.6)<eps, "check: t_final");
          MFEM_VERIFY(cfl==0.5, "check: cfl");
-         const int dim = strcmp(mesh_file,"../../data/square01_quad.mesh")==0?2:
-                         strcmp(mesh_file,"../../data/cube01_hex.mesh")==0?3:1;
+         const int dim = strcmp(mesh_file,"data/square01_quad.mesh")==0?2:
+                         strcmp(mesh_file,"data/cube01_hex.mesh")==0?3:1;
          MFEM_VERIFY(dim==2 || dim==3, "check: mesh_file");
          REQUIRE(problem==1);
          if (dim==2)
