@@ -3095,6 +3095,9 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      indices2(nf*dof)
 {
    //if fespace == L2
+   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
+   if(!dg_space)
+      mfem_error("The L2FaceRestriction has to be used on a DG space");
    // Assuming all finite elements are the same.
    height = vdim*nf*dof;
    width = fes.GetVSize();
@@ -3210,6 +3213,263 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          d_x(t?c:idx2,t:idx2:c) += d_y(i % nd, c, 1, i / nd);
       }
    });
+}
+
+static int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind,
+                              const int quads, Tensor<1,int>& ind_f)
+{
+   int& k1 = ind_f(0);
+   int& k2 = ind_f(1);
+   int kf1,kf2;
+   kf1 = qind%quads;
+   kf2 = qind/quads;
+   switch (face_id)
+   {
+      case 0://BOTTOM
+         switch (orientation)
+         {
+            case 0://{0, 1, 2, 3}
+               k1 = kf1;
+               k2 = quads-1-kf2;
+               break;
+            case 1://{0, 3, 2, 1}
+               k1 = quads-1-kf2;
+               k2 = kf1;
+               break;
+            case 2://{1, 2, 3, 0}
+               k1 = quads-1-kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 3://{1, 0, 3, 2}
+               k1 = quads-1-kf1;
+               k2 = quads-1-kf2;
+               break;
+            case 4://{2, 3, 0, 1}
+               k1 = quads-1-kf1;
+               k2 = kf2;
+               break;
+            case 5://{2, 1, 0, 3}
+               k1 = kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 6://{3, 0, 1, 2}
+               k1 = kf2;
+               k2 = kf1;
+               break;
+            case 7://{3, 2, 1, 0}
+               k1 = kf1;
+               k2 = kf2;
+               break;
+            default:
+               mfem_error("This orientation does not exist in 3D");
+               break;
+         }
+         break;
+      case 1://SOUTH
+         switch (orientation)
+         {
+            case 0://{0, 1, 2, 3}
+               k1 = kf1;
+               k2 = kf2;
+               break;
+            case 1://{0, 3, 2, 1}
+               k1 = kf2;
+               k2 = kf1;
+               break;
+            case 2://{1, 2, 3, 0}
+               k1 = kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 3://{1, 0, 3, 2}
+               k1 = quads-1-kf1;
+               k2 = kf2;
+               break;
+            case 4://{2, 3, 0, 1}
+               k1 = quads-1-kf1;
+               k2 = quads-1-kf2;
+               break;
+            case 5://{2, 1, 0, 3}
+               k1 = quads-1-kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 6://{3, 0, 1, 2}
+               k1 = quads-1-kf2;
+               k2 = kf1;
+               break;
+            case 7://{3, 2, 1, 0}
+               k1 = kf1;
+               k2 = quads-1-kf2;
+               break;
+            default:
+               mfem_error("This orientation does not exist in 3D");
+               break;
+         }
+         break;
+      case 2://EAST
+         switch (orientation)
+         {
+            case 0://{0, 1, 2, 3}
+               k1 = kf1;
+               k2 = kf2;
+               break;
+            case 1://{0, 3, 2, 1}
+               k1 = kf2;
+               k2 = kf1;
+               break;
+            case 2://{1, 2, 3, 0}
+               k1 = kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 3://{1, 0, 3, 2}
+               k1 = quads-1-kf1;
+               k2 = kf2;
+               break;
+            case 4://{2, 3, 0, 1}
+               k1 = quads-1-kf1;
+               k2 = quads-1-kf2;
+               break;
+            case 5://{2, 1, 0, 3}
+               k1 = quads-1-kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 6://{3, 0, 1, 2}
+               k1 = quads-1-kf2;
+               k2 = kf1;
+               break;
+            case 7://{3, 2, 1, 0}
+               k1 = kf1;
+               k2 = quads-1-kf2;
+               break;
+            default:
+               mfem_error("This orientation does not exist in 3D");
+               break;
+         }
+         break;
+      case 3://NORTH
+         switch (orientation)
+         {
+            case 0://{0, 1, 2, 3}
+               k1 = quads-1-kf1;
+               k2 = kf2;
+               break;
+            case 1://{0, 3, 2, 1}
+               k1 = kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 2://{1, 2, 3, 0}
+               k1 = kf2;
+               k2 = kf1;
+               break;
+            case 3://{1, 0, 3, 2}
+               k1 = kf1;
+               k2 = kf2;
+               break;
+            case 4://{2, 3, 0, 1}
+               k1 = kf1;
+               k2 = quads-1-kf2;
+               break;
+            case 5://{2, 1, 0, 3}
+               k1 = quads-1-kf2;
+               k2 = kf1;
+               break;
+            case 6://{3, 0, 1, 2}
+               k1 = quads-1-kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 7://{3, 2, 1, 0}
+               k1 = quads-1-kf1;
+               k2 = quads-1-kf2;
+               break;
+            default:
+               mfem_error("This orientation does not exist in 3D");
+               break;
+         }
+         break;
+      case 4://WEST
+         switch (orientation)
+         {
+            case 0://{0, 1, 2, 3}
+               k1 = quads-1-kf1;
+               k2 = kf2;
+               break;
+            case 1://{0, 3, 2, 1}
+               k1 = kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 2://{1, 2, 3, 0}
+               k1 = kf2;
+               k2 = kf1;
+               break;
+            case 3://{1, 0, 3, 2}
+               k1 = kf1;
+               k2 = kf2;
+               break;
+            case 4://{2, 3, 0, 1}
+               k1 = kf1;
+               k2 = quads-1-kf2;
+               break;
+            case 5://{2, 1, 0, 3}
+               k1 = quads-1-kf2;
+               k2 = kf1;
+               break;
+            case 6://{3, 0, 1, 2}
+               k1 = quads-1-kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 7://{3, 2, 1, 0}
+               k1 = quads-1-kf1;
+               k2 = quads-1-kf2;
+               break;
+            default:
+               mfem_error("This orientation does not exist in 3D");
+               break;
+         }
+         break;
+      case 5://TOP
+         switch (orientation)
+         {
+            case 0://{0, 1, 2, 3}
+               k1 = kf1;
+               k2 = kf2;
+               break;
+            case 1://{0, 3, 2, 1}
+               k1 = kf2;
+               k2 = kf1;
+               break;
+            case 2://{1, 2, 3, 0}
+               k1 = kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 3://{1, 0, 3, 2}
+               k1 = quads-1-kf1;
+               k2 = kf2;
+               break;
+            case 4://{2, 3, 0, 1}
+               k1 = quads-1-kf1;
+               k2 = quads-1-kf2;
+               break;
+            case 5://{2, 1, 0, 3}
+               k1 = quads-1-kf2;
+               k2 = quads-1-kf1;
+               break;
+            case 6://{3, 0, 1, 2}
+               k1 = quads-1-kf2;
+               k2 = kf1;
+               break;
+            case 7://{3, 2, 1, 0}
+               k1 = kf1;
+               k2 = quads-1-kf2;
+               break;
+            default:
+               mfem_error("This orientation does not exist in 3D");
+               break;
+         }
+         break;
+      default:
+         mfem_error("This face_id does not exist in 3D");
+         break;
+   }
+   return k1 + quads*k2;
 }
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
