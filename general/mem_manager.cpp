@@ -375,7 +375,7 @@ public:
    void Alloc(Memory &base) { base.d_ptr = base.h_ptr; }
    void Dealloc(Memory &base) { }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   { return const_cast<void*>(src); }
+   { return CuMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes)
    { return CuMemcpyDtoD(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)

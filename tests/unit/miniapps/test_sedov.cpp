@@ -8,8 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-//#define MFEM_DEV_UNIT_TESTS
-#ifdef MFEM_DEV_UNIT_TESTS
 
 #include "catch.hpp"
 
@@ -49,6 +47,7 @@ void MPI_Reduce_(T *src, T *dst, const int n)
 class MPI_Session
 {
 public:
+   MPI_Session() {}
    MPI_Session(int argc, char **argv) {}
    bool Root() { return true; }
    int WorldRank() { return 0; }
@@ -2384,6 +2383,444 @@ class TaylorCoefficient : public Coefficient
    }
 };
 
+template<int D1D, int Q1D, int NBZ> static inline
+void D2QValues2D(const int NE, const Array<double> &b_,
+                 const Vector &x_, Vector &y_)
+{
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto x = Reshape(x_.Read(), D1D, D1D, NE);
+   auto y = Reshape(y_.Write(), Q1D, Q1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      const int zid = MFEM_THREAD_ID(z);
+      MFEM_SHARED double B[Q1D][D1D];
+      MFEM_SHARED double DDz[NBZ][D1D*D1D];
+      double (*DD)[D1D] = (double (*)[D1D])(DDz + zid);
+      MFEM_SHARED double DQz[NBZ][D1D*Q1D];
+      double (*DQ)[Q1D] = (double (*)[Q1D])(DQz + zid);
+      if (zid == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            DD[dy][dx] = x(dx,dy,e);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double dq = 0.0;
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               dq += B[qx][dx] * DD[dy][dx];
+            }
+            DQ[dy][qx] = dq;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double qq = 0.0;
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               qq += DQ[dy][qx] * B[qy][dy];
+            }
+            y(qx,qy,e) = qq;
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+template<int D1D, int Q1D> static inline
+void D2QValues3D(const int NE, const Array<double> &b_,
+                 const Vector &x_, Vector &y_)
+{
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(y_.Write(), Q1D, Q1D, Q1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      MFEM_SHARED double B[Q1D][D1D];
+      MFEM_SHARED double sm0[Q1D*Q1D*Q1D];
+      MFEM_SHARED double sm1[Q1D*Q1D*Q1D];
+      double (*X)[D1D][D1D]   = (double (*)[D1D][D1D]) sm0;
+      double (*DDQ)[D1D][Q1D] = (double (*)[D1D][Q1D]) sm1;
+      double (*DQQ)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) sm0;
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               X[dz][dy][dx] = x(dx,dy,dz,e);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  u += B[qx][dx] * X[dz][dy][dx];
+               }
+               DDQ[dz][dy][qx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  u += DDQ[dz][dy][qx] * B[qy][dy];
+               }
+               DQQ[dz][qy][qx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  u += DQQ[dz][qy][qx] * B[qz][dz];
+               }
+               y(qx,qy,qz,e) = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+typedef void (*fD2QValues)(const int NE,
+                           const Array<double> &B,
+                           const Vector &e_vec,
+                           Vector &q_val);
+
+static void D2QValues(const FiniteElementSpace &fes,
+                      const DofToQuad *maps,
+                      const IntegrationRule& ir,
+                      const Vector &e_vec,
+                      Vector &q_val)
+{
+   const int dim = fes.GetMesh()->Dimension();
+   const int nzones = fes.GetNE();
+   const int dofs1D = fes.GetFE(0)->GetOrder() + 1;
+   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
+   const int id = (dim<<8)|(dofs1D<<4)|(quad1D);
+   static std::unordered_map<int, fD2QValues> call =
+   {
+      // 2D
+      {0x224,&D2QValues2D<2,4,8>},
+      //{0x236,&D2QValues2D<3,6,4>}, {0x248,&D2QValues2D<4,8,2>},
+      // 3D
+      {0x324,&D2QValues3D<2,4>},
+      //{0x336,&D2QValues3D<3,6>}, {0x348,&D2QValues3D<4,8>},
+   };
+   if (!call[id])
+   {
+      mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
+      MFEM_ABORT("Unknown kernel");
+   }
+   call[id](nzones, maps->B, e_vec, q_val);
+}
+
+void Values(FiniteElementSpace *fespace, const IntegrationRule &ir,
+            const Vector &e_vec, Vector &q_val)
+{
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
+   D2QValues(*fespace, &d2q,ir, e_vec, q_val);
+}
+
+template<int D1D, int Q1D, int NBZ> static inline
+void D2QGrad2D(const int NE,
+               const Array<double> &b_,
+               const Array<double> &g_,
+               const Vector &x_,
+               Vector &y_)
+{
+   constexpr int VDIM = 2;
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto g = Reshape(g_.Read(), Q1D, D1D);
+   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      MFEM_SHARED double B[Q1D][D1D];
+      MFEM_SHARED double G[Q1D][D1D];
+      MFEM_SHARED double Xz[NBZ][D1D][D1D];
+      double (*X)[D1D] = (double (*)[D1D])(Xz + tidz);
+      MFEM_SHARED double GD[2][NBZ][D1D][Q1D];
+      double (*DQ0)[Q1D] = (double (*)[Q1D])(GD[0] + tidz);
+      double (*DQ1)[Q1D] = (double (*)[Q1D])(GD[1] + tidz);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int c = 0; c < 2; ++c)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               X[dx][dy] = x(dx,dy,c,e);
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double input = X[dx][dy];
+                  u += B[qx][dx] * input;
+                  v += G[qx][dx] * input;
+               }
+               DQ0[dy][qx] = u;
+               DQ1[dy][qx] = v;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  u += DQ1[dy][qx] * B[qy][dy];
+                  v += DQ0[dy][qx] * G[qy][dy];
+               }
+               y(c,0,qx,qy,e) = u;
+               y(c,1,qx,qy,e) = v;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
+template<int D1D, int Q1D> static inline
+void D2QGrad3D(const int NE,
+               const Array<double> &b_, const Array<double> &g_,
+               const Vector &x_, Vector &y_)
+{
+   constexpr int VDIM = 3;
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto g = Reshape(g_.Read(), Q1D, D1D);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, Q1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      MFEM_SHARED double B[Q1D][D1D];
+      MFEM_SHARED double G[Q1D][D1D];
+      MFEM_SHARED double sm0[3][Q1D*Q1D*Q1D];
+      MFEM_SHARED double sm1[3][Q1D*Q1D*Q1D];
+      double (*X)[D1D][D1D]    = (double (*)[D1D][D1D]) (sm0+2);
+      double (*DDQ0)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+0);
+      double (*DDQ1)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+1);
+      double (*DQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+0);
+      double (*DQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+1);
+      double (*DQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+2);
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int c = 0; c < VDIM; ++c)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(dz,z,D1D)
+               {
+
+                  X[dx][dy][dz] = x(dx,dy,dz,c,e);
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     const double coords = X[dx][dy][dz];
+                     u += coords * B[qx][dx];
+                     v += coords * G[qx][dx];
+                  }
+                  DDQ0[dz][dy][qx] = u;
+                  DDQ1[dz][dy][qx] = v;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dy = 0; dy < D1D; ++dy)
+                  {
+                     u += DDQ1[dz][dy][qx] * B[qy][dy];
+                     v += DDQ0[dz][dy][qx] * G[qy][dy];
+                     w += DDQ0[dz][dy][qx] * B[qy][dy];
+                  }
+                  DQQ0[dz][qy][qx] = u;
+                  DQQ1[dz][qy][qx] = v;
+                  DQQ2[dz][qy][qx] = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dz = 0; dz < D1D; ++dz)
+                  {
+                     u += DQQ0[dz][qy][qx] * B[qz][dz];
+                     v += DQQ1[dz][qy][qx] * B[qz][dz];
+                     w += DQQ2[dz][qy][qx] * G[qz][dz];
+                  }
+                  y(c,0,qx,qy,qz,e) = u;
+                  y(c,1,qx,qy,qz,e) = v;
+                  y(c,2,qx,qy,qz,e) = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
+typedef void (*fD2QGrad)(const int NE,
+                         const Array<double> &B,
+                         const Array<double> &G,
+                         const Vector &e_vec,
+                         Vector &q_der);
+
+static void D2QGrad(const FiniteElementSpace &fes,
+                    const DofToQuad *maps,
+                    const IntegrationRule& ir,
+                    const Vector &e_vec,
+                    Vector &q_der)
+{
+   const int dim = fes.GetMesh()->Dimension();
+   const int NE = fes.GetNE();
+   const int D1D = fes.GetFE(0)->GetOrder() + 1;
+   const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
+   const int id = (dim<<8)|(D1D<<4)|(Q1D);
+   static std::unordered_map<int, fD2QGrad> call =
+   {
+      // 2D
+      {0x234,&D2QGrad2D<3,4,8>},
+      //{0x246,&D2QGrad2D<4,6,4>},{0x258,&D2QGrad2D<5,8,2>},
+      // 3D
+      {0x334,&D2QGrad3D<3,4>},
+      //{0x346,&D2QGrad3D<4,6>},{0x358,&D2QGrad3D<5,8>},
+   };
+   if (!call[id])
+   {
+      mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
+      MFEM_ABORT("Unknown kernel");
+   }
+   call[id](NE, maps->B, maps->G, e_vec, q_der);
+}
+
+void Derivatives(FiniteElementSpace *fespace,  const IntegrationRule &ir,
+                 const Vector &e_vec, Vector &q_der)
+{
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
+   D2QGrad(*fespace, &d2q, ir, e_vec, q_der);
+}
+
 MFEM_HOST_DEVICE inline double smooth_step_01(double x, double eps)
 {
    const double y = (x + eps) / (2.0 * eps);
@@ -2600,12 +3037,12 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
    H1ER->Mult(d_x, d_h1_v_local_in);
-   q1->Derivatives(d_h1_v_local_in, d_h1_grad_x_data);
+   Derivatives(&H1, ir, d_h1_v_local_in, d_h1_grad_x_data);
    d_v.MakeRef(&H1,*S_p, H1_size);
    H1ER->Mult(d_v, d_h1_v_local_in);
-   q1->Derivatives(d_h1_v_local_in, d_h1_grad_v_data);
+   Derivatives(&H1, ir, d_h1_v_local_in, d_h1_grad_v_data);
    d_e.MakeRef(&L2, *S_p, 2*H1_size);
-   q2->Values(d_e, d_l2_e_quads_data);
+   Values(&L2, ir, d_e, d_l2_e_quads_data);
    d_dt_est = quad_data.dt_est;
    const int id = (dim<<4) | nqp1D;
    typedef void (*fQKernel)(const int NE, const int NQ, const int Q1D,
@@ -3075,11 +3512,14 @@ static long GetMaxRssMB()
    return usage.ru_maxrss/unit;
 }
 
-TEST_CASE("Miniapps", "[Sedov]")
+int sedov(MPI_Session &mpi, int argc, char *argv[])
 {
-   const char *mesh_file = "data/cube01_hex.mesh"; // square01_quad
+   int myid = mpi.WorldRank();
+
+   problem = 1;
+   const char *mesh_file = "data/cube01_hex.mesh";
    const int rs_levels = 0;
-   int rp_levels = 0;
+   const int rp_levels = 0;
    Array<int> cxyz;
    int order_v = 2;
    int order_e = 1;
@@ -3093,31 +3533,100 @@ TEST_CASE("Miniapps", "[Sedov]")
    int max_tsteps = -1;
    bool p_assembly = true;
    bool impose_visc = false;
+   bool visualization = false;
    int vis_steps = 5;
-   bool okina = true;
-   bool qupdate = true;
+   bool visit = false;
+   bool gfprint = false;
+   const char *basename = "results/Laghos";
    int partition_type = 111;
-   const char *dev_opt = MFEM_DEV_UNIT;
-   const int dev = 0;
-   double blast_energy = 0.25;
-   double blast_position[] = {0.0, 0.0, 0.0};
+   bool okina = false;
+   bool qupdate = false;
+   const char *dev_opt = "cpu";
    bool check = true;
    bool mem_usage = false;
    bool fom = false;
    bool gpu_aware_mpi = false;
-   int argc = 0;
-   char **argv = { nullptr };
+   int dev = -1;
+   double blast_energy = 0.25;
+   double blast_position[] = {0.0, 0.0, 0.0};
 
-   MPI_Session mpi(argc, argv);
-   int myid = mpi.WorldRank();
+   OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&cxyz, "-c", "--cartesian-partitioning",
+                  "Use Cartesian partitioning.");
+   args.AddOption(&problem, "-p", "--problem", "Problem setup to use.");
+   args.AddOption(&order_v, "-ok", "--order-kinematic",
+                  "Order (degree) of the kinematic finite element space.");
+   args.AddOption(&order_e, "-ot", "--order-thermo",
+                  "Order (degree) of the thermodynamic finite element space.");
+   args.AddOption(&order_q, "-oq", "--order-intrule",
+                  "Order  of the integration rule.");
+   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
+                  "            7 - RK2Avg.");
+   args.AddOption(&t_final, "-tf", "--t-final",
+                  "Final time; start time is 0.");
+   args.AddOption(&cfl, "-cfl", "--cfl", "CFL-condition number.");
+   args.AddOption(&cg_tol, "-cgt", "--cg-tol",
+                  "Relative CG tolerance (velocity linear solve).");
+   args.AddOption(&ftz_tol, "-ftz", "--ftz-tol",
+                  "Absolute flush-to-zero tolerance.");
+   args.AddOption(&cg_max_iter, "-cgm", "--cg-max-steps",
+                  "Maximum number of CG iterations (velocity linear solve).");
+   args.AddOption(&max_tsteps, "-ms", "--max-steps",
+                  "Maximum number of steps (negative means no restriction).");
+   args.AddOption(&p_assembly, "-pa", "--partial-assembly", "-fa",
+                  "--full-assembly",
+                  "Activate 1D tensor-based assembly (partial assembly).");
+   args.AddOption(&impose_visc, "-iv", "--impose-viscosity", "-niv",
+                  "--no-impose-viscosity",
+                  "Use active viscosity terms even for smooth problems.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
+   args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
+                  "Enable or disable VisIt visualization.");
+   args.AddOption(&gfprint, "-print", "--print", "-no-print", "--no-print",
+                  "Enable or disable result output (files in mfem format).");
+   args.AddOption(&basename, "-k", "--outputfilename",
+                  "Name of the visit dump files");
+   args.AddOption(&partition_type, "-pt", "--partition",
+                  "Customized x/y/z Cartesian MPI partitioning of the serial mesh.\n\t"
+                  "Here x,y,z are relative task ratios in each direction.\n\t"
+                  "Example: with 48 mpi tasks and -pt 321, one would get a Cartesian\n\t"
+                  "partition of the serial mesh by (6,4,2) MPI tasks in (x,y,z).\n\t"
+                  "NOTE: the serially refined mesh must have the appropriate number\n\t"
+                  "of zones in each direction, e.g., the number of zones in direction x\n\t"
+                  "must be divisible by the number of MPI tasks in direction x.\n\t"
+                  "Available options: 11, 21, 111, 211, 221, 311, 321, 322, 432.");
+   args.AddOption(&okina, "-o", "--okina", "-no-o", "--no-okina",
+                  "Activate OKINA kernels.");
+   args.AddOption(&qupdate, "-q", "--qupdate", "-no-q", "--no-qupdate",
+                  "Enable or disable QUpdate function.");
+   args.AddOption(&dev_opt, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&check, "-chk", "--checks", "-no-chk", "--no-checks",
+                  "Enable 2D checks.");
+   args.AddOption(&mem_usage, "-mb", "--mem", "-no-mem", "--no-mem",
+                  "Enable memory usage.");
+   args.AddOption(&fom, "-f", "--fom", "-no-fom", "--no-fom",
+                  "Enable figure of merit output.");
+   args.AddOption(&gpu_aware_mpi, "-gam", "--gpu-aware-mpi", "-no-gam",
+                  "--no-gpu-aware-mpi", "Enable GPU aware MPI communications.");
+   args.AddOption(&dev, "-dev", "--dev", "GPU device to use.");
 
-   Device device;
-   device.Configure(dev_opt, dev);
-   if (mpi.Root()) {device.Print();}
-   device.SetGPUAwareMPI(gpu_aware_mpi);
+   args.Parse();
+   if (!args.Good())
+   {
+      if (mpi.Root()) { args.PrintUsage(cout); }
+      return -1;
+   }
+   if (mpi.Root()) { args.PrintOptions(cout); }
 
    Mesh *msh = new Mesh(mesh_file, 1, 1);
-   //Mesh *mesh = new Mesh(2, 2, Element::QUADRILATERAL);
    const int dim = msh->Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { msh->UniformRefinement(); }
    const int mesh_NE = msh->GetNE();
@@ -3210,8 +3719,8 @@ TEST_CASE("Miniapps", "[Sedov]")
             cout << "Unknown partition type: " << partition_type << '\n';
          }
          delete msh;
-         MPI_Finalize();
-         REQUIRE(false);
+         //MPI_Finalize();
+         return -1;
    }
    int nproduct = 1;
    for (int d = 0; d < dim; d++) { nproduct *= nxyz[d]; }
@@ -3248,7 +3757,7 @@ TEST_CASE("Miniapps", "[Sedov]")
 #endif
       }
 #ifndef MFEM_USE_METIS
-      REQUIRE(false);
+      return -1;
 #endif
 #ifdef MFEM_USE_MPI
       pmesh = new ParMesh(MPI_COMM_WORLD, *msh);
@@ -3417,6 +3926,7 @@ TEST_CASE("Miniapps", "[Sedov]")
       }
       if (check)
       {
+         REQUIRE(problem==1);
          const double eps = 1.e-13;
          double loc_norm = e_gf * e_gf, tot_norm;
          MPI_Allreduce(&loc_norm, &tot_norm, 1, MPI_DOUBLE, MPI_SUM,
@@ -3428,10 +3938,10 @@ TEST_CASE("Miniapps", "[Sedov]")
          MFEM_VERIFY(ode_solver_type==4, "check: ode_solver_type");
          MFEM_VERIFY(fabs(t_final-0.6)<eps, "check: t_final");
          MFEM_VERIFY(cfl==0.5, "check: cfl");
+         //MFEM_VERIFY(cg_tol==1.e-14, "check: cg_tol");
          const int dim = strcmp(mesh_file,"data/square01_quad.mesh")==0?2:
                          strcmp(mesh_file,"data/cube01_hex.mesh")==0?3:1;
          MFEM_VERIFY(dim==2 || dim==3, "check: mesh_file");
-         REQUIRE(problem==1);
          if (dim==2)
          {
             const double p1_05 = 3.50825494522579e+00;
@@ -3479,6 +3989,54 @@ TEST_CASE("Miniapps", "[Sedov]")
    delete ode_solver;
    delete pmesh;
    delete mat_gf_coeff;
+   return 0;
 }
 
-#endif // MFEM_DEV_UNIT_TESTS
+static int argn(const char *argv[], int argc =0)
+{
+   while (argv[argc]) { argc+=1; }
+   return argc;
+}
+
+#ifndef MFEM_DEV_UNIT_TESTS
+
+TEST_CASE("Sedov", "[Sedov]")
+{
+   MPI_Session mpi;
+   const char *argv3D[]= {"unit_tests",
+                          "-m", "data/cube01_hex.mesh",
+                          nullptr
+                         };
+   REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
+
+   const char *argv2D[]= {"unit_tests_dev",
+                          "-m", "data/square01_quad.mesh",
+                          nullptr
+                         };
+   REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
+
+}
+
+#else
+
+TEST_CASE("Sedov", "[Sedov]")
+{
+   MPI_Session mpi;
+   Device device;
+   device.Configure(MFEM_DEV_UNIT);
+   if (mpi.Root()) {device.Print();}
+
+   const char *argv3D[]= {"unit_tests_dev",
+                          "-m", "data/cube01_hex.mesh",
+                          nullptr
+                         };
+   REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
+
+   const char *argv2D[]= {"unit_tests_dev",
+                          "-m", "data/square01_quad.mesh",
+                          nullptr
+                         };
+   REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
+}
+
+#endif
