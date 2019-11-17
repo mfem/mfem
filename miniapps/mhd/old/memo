@@ -3,3 +3,5 @@ imMHDp.cpp: this version is identical to exMHDp but use J as an auxilary variabl
 imMHDpTdofs.cpp: identical to exMHDp but use J as an auxilary varible and use true dofs in BlockVector instead dofs
 
 mini: a minimal case to demonstrate the failure of new PetscParVector
+
+amrTest: a simplified test to verify the dynamic amr interface in an implicit scheme (using tdofs as the block vector)

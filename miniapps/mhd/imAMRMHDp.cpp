@@ -150,19 +150,20 @@ void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
 }
 
 //this is an update function for block vector of TureVSize
-void AMRUpdateTrue(BlockVector &S, BlockVector &S_tmp,
+void AMRUpdateTrue(BlockVector &S, 
                Array<int> &true_offset,
                ParGridFunction &phi,
                ParGridFunction &psi,
                ParGridFunction &w,
                ParGridFunction &j)
 {
-   // Update the GridFunctions so that they match S
+   FiniteElementSpace* H1FESpace = phi.FESpace();
+
+   //++++Update the GridFunctions so that they match S
    phi.SetFromTrueDofs(S.GetBlock(0));
    psi.SetFromTrueDofs(S.GetBlock(1));
    w.SetFromTrueDofs(S.GetBlock(2));
 
-   FiniteElementSpace* H1FESpace = phi.FESpace();
 
    //update fem space
    H1FESpace->Update();
@@ -570,8 +571,6 @@ int main(int argc, char *argv[])
 
    bool derefineMesh = false;
    bool refineMesh = false;
-
-   BlockVector vx_old(vx);
    //-----------------------------------AMR---------------------------------
 
    socketstream vis_phi, vis_j, vis_psi, vis_w;
@@ -690,13 +689,13 @@ int main(int argc, char *argv[])
       //update J and psi as it is needed in the refine or derefine step
       if (refineMesh || derefineMesh)
       {
-          psi.SetFromTrueVector();
+          psi.SetFromTrueDofs(vx.GetBlock(1));
           oper.UpdateJ(vx, &j);
       }
 
       last_step = (t >= t_final - 1e-8*dt);
 
-      if (myid == 0 && (ti % 10)==0)
+      if (myid == 0 && (ti % 1)==0)
       {
           global_size = fespace.GlobalTrueVSize();
           cout << "Number of total scalar unknowns: " << global_size << endl;
@@ -711,11 +710,15 @@ int main(int argc, char *argv[])
          {
             if (myid == 0) cout << "Derefined mesh..." << endl;
 
-            AMRUpdateTrue(vx, vx_old, fe_offset3, phi, psi, w, j);
+            //---Update solutions first---
+            AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+            oper.UpdateGridFunction();
+
             pmesh->Rebalance();
 
-            //---Update solutions---
-            AMRUpdateTrue(vx, vx_old, fe_offset3, phi, psi, w, j);
+            //---Update solutions after rebalancing---
+            AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+            oper.UpdateGridFunction();
 
             //---assemble problem and update boundary condition---
             oper.UpdateProblem(ess_bdr); 
@@ -728,8 +731,8 @@ int main(int argc, char *argv[])
                if (visualization)
                {
                   //for the plotting purpose we have to reset those solutions
-                  phi.SetFromTrueVector();
-                  w.SetFromTrueVector();
+                  phi.SetFromTrueDofs(vx.GetBlock(0));
+                  w.SetFromTrueDofs(vx.GetBlock(2));
                   oper.UpdateJ(vx, &j);
 
                   vis_phi << "parallel " << num_procs << " " << myid << "\n";
@@ -749,13 +752,13 @@ int main(int argc, char *argv[])
                {
                   if(!visualization)
                   {
-                     phi.SetFromTrueVector();
-                     w.SetFromTrueVector();
+                     phi.SetFromTrueDofs(vx.GetBlock(0));
+                     w.SetFromTrueDofs(vx.GetBlock(2));
                      oper.UpdateJ(vx, &j);
                   }
 
                   if (icase!=1)
-                    psi.SetFromTrueVector();
+                     psi.SetFromTrueDofs(vx.GetBlock(1));
                   dc->SetCycle(ti);
                   dc->SetTime(t);
                   dc->Save();
@@ -770,28 +773,39 @@ int main(int argc, char *argv[])
       }
       else
       {
-         if (myid == 0) cout<<"Mesh refine..."<<endl;
+         if (myid == 0) 
+         {
+             cout<<"Mesh refine..."<<endl;
+         }
 
-         AMRUpdateTrue(vx, vx_old, fe_offset3, phi, psi, w, j);
+         //---Update solutions first---
+         AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+         oper.UpdateGridFunction();
 
          pmesh->Rebalance();
 
-         //---Update problem---
-         AMRUpdateTrue(vx, vx_old, fe_offset3, phi, psi, w, j);
+         //---Update problem after rebalancing---
+         AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+         oper.UpdateGridFunction();
+
+         global_size = fespace.GlobalTrueVSize();
+         cout << "Number of total scalar unknowns: " << global_size << endl;
 
          //---assemble problem and update boundary condition---
          oper.UpdateProblem(ess_bdr); 
          ode_solver->Init(oper);
+
+         //FIXME: debug only
+         break;
       }
       //----------------------------AMR---------------------------------
 
       //reach here only if mesh is refined/derefined
       if (visualization)
       {
-         //for the plotting purpose we have to reset those solutions
-         //this is probably not necessary any more (those already updated)
-         phi.SetFromTrueVector();
-         w.SetFromTrueVector();
+         //SetFromTrueVector leads to the wrong answer if mesh is changed 
+         //phi.SetFromTrueVector();
+         //w.SetFromTrueVector();
 
          vis_phi << "parallel " << num_procs << " " << myid << "\n";
          vis_phi << "solution\n" << *pmesh << phi;
@@ -805,6 +819,7 @@ int main(int argc, char *argv[])
          vis_w << "parallel " << num_procs << " " << myid << "\n";
          vis_w << "solution\n" << *pmesh << w << flush;
       }
+
 
       if (visit)
       {
@@ -820,7 +835,9 @@ int main(int argc, char *argv[])
 
    //++++++Save the solutions.
    {
-      phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
+      phi.SetFromTrueDofs(vx.GetBlock(0));
+      psi.SetFromTrueDofs(vx.GetBlock(1));
+      w.SetFromTrueDofs(vx.GetBlock(2));
 
       ostringstream mesh_name, phi_name, psi_name, w_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;

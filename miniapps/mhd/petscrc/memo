@@ -33,6 +33,15 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+11/16
+avoid SetFromTrueVector() when mesh is changed; this gives the wrong answer!
+
+
+11/15
+testing:
+mpirun -n 4 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 1 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3
+
+
 11/13
 add a fixed adaptive mesh to imAMRMHDp;
 

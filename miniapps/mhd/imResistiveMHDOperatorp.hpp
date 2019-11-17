@@ -211,6 +211,12 @@ public:
    void BindingGF(Vector &vx)
    {int sc = height/3; gftmp.MakeTRef(&fespace, vx, sc);}
 
+   //update grid functions (grid functions have to be updated immediately)
+   void UpdateGridFunction()
+   {
+      j.Update(); gftmp.Update();
+   }
+
    //set rhs E0 
    void SetRHSEfield( double(* f)( const Vector&) );
    void SetInitialJ(FunctionCoefficient initJ);
@@ -486,8 +492,6 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    if (reduced_oper!=NULL)
       reduced_oper->setE0(E0Vec);
 
-   //update the local j
-   j.Update();
    //add current to reduced_oper
    if (reduced_oper!=NULL)
         reduced_oper->setCurrent(&j);
