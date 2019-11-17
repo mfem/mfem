@@ -430,7 +430,7 @@ int main(int argc, char *argv[])
       int ref_levels =
 	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
 	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-      (int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
 
@@ -446,7 +446,7 @@ int main(int argc, char *argv[])
 #ifndef SUBDOMAIN_MESH
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {6, 6, 6};
+   int nxyzSubdomains[3] = {12, 12, 12};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -609,6 +609,8 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {6, 6, 32};  // 1152
        //int nxyzGlobal[3] = {8, 8, 8};
        int nxyzGlobal[3] = {12, 12, 12};  // 1728
+       //int nxyzGlobal[3] = {24, 12, 12};  // 3456
+       //int nxyzGlobal[3] = {24, 24, 12};  // 6912
        //int nxyzGlobal[3] = {16, 16, 8};
        //int nxyzGlobal[3] = {8, 16, 8};
        //int nxyzGlobal[3] = {12, 12, 16};  // 2304

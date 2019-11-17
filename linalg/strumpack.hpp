@@ -173,7 +173,17 @@ public:
    void SetKrylovSolver( strumpack::KrylovSolver method );
 
   void SetHSS();
+  void SetHssAbsTol(double atol);
+  void SetHssRelTol(double rtol);
 
+  /**
+    * Disable static pivoting for stability. The static pivoting in strumpack
+    * permutes the sparse input matrix in order to get large (nonzero) elements
+    * on the diagonal. If the input matrix is already diagonally dominant, this
+    * reordering can be disabled.
+    */
+   void DisableMatching();
+  
    /**
     * Supported reorderings are:
     *    METIS, PARMETIS, SCOTCH, PTSCOTCH, RCM

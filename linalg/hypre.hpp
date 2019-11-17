@@ -932,7 +932,7 @@ public:
   {
     //int m = hypre_ParAMGData_GetMaxLevels(amg_precond);
     //int n = hypre_ParAMGData_GetNumLevels(amg_precond);
-    return hypre_AMGGetRestriction(amg_precond);
+    //return hypre_AMGGetRestriction(amg_precond);
     //hypre_ParCSRMatrix** hypre_AMGGetRestriction(void *solver);
     //return (HYPRE_ParCSRMatrix) hypre_ParAMGDataRArray(amg_precond);  // See hypre/src/parcsr_ls/par_amg.h
   }

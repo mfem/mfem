@@ -4650,10 +4650,6 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       //MPI_Barrier(MPI_COMM_WORLD);
     }
 
-  chronoSD.Stop();
-  if (m_rank == 0)
-    cout << m_rank << ": DDM constructor SD loop timing " << chronoSD.RealTime() << endl;
-  
   tdofsBdry.resize(numSubdomains);
   trueOffsetsSD.resize(numSubdomains);
 
@@ -4662,8 +4658,15 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //return;
+  chronoSD.Stop();
+  if (m_rank == 0)
+    cout << m_rank << ": DDM constructor SD loop 1 timing " << chronoSD.RealTime() << endl;
   
+  //return;
+
+  chronoSD.Clear();
+  chronoSD.Start();
+
   for (int m=0; m<numSubdomains; ++m)
     {
       A_SS[m] = NULL;
@@ -4788,12 +4791,18 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	
       invAsd[m] = gmres;
 
-      MPI_Barrier(MPI_COMM_WORLD);
+      //MPI_Barrier(MPI_COMM_WORLD);
     }
     
   block_trueOffsets.PartialSum();
   MFEM_VERIFY(block_trueOffsets.Last() == size, "");
 
+  MPI_Barrier(MPI_COMM_WORLD);
+  
+  chronoSD.Stop();
+  if (m_rank == 0)
+    cout << m_rank << ": DDM constructor SD loop 2 timing " << chronoSD.RealTime() << endl;
+  
   /*
   MPI_Allreduce(sdnp.data(), gsdnp.data(), numSubdomains, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
@@ -4903,6 +4912,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   colTrueOffsetsIFRR.resize(numLocalInterfaces);
 #endif
 
+  chronoSD.Clear();
+  chronoSD.Start();
+  
   //for (auto interfaceIndex : allGlobalSubdomainInterfaces[m])
   //for (int ili=0; ili<numLocalInterfaces; ++ili)
   for (int i=0; i<numInterfaces; ++i)
@@ -5214,6 +5226,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
     }
 
   MPI_Barrier(MPI_COMM_WORLD);
+
+  chronoSD.Stop();
+  if (m_rank == 0)
+    cout << m_rank << ": DDM constructor IF loop timing " << chronoSD.RealTime() << endl;
   
 #ifdef DDMCOMPLEX
   // Create block diagonal operator with entries R_{sd0} A_{sd0}^{-1} R_{sd0}^T
@@ -5243,6 +5259,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   colSROffsetsSD.SetSize(numSubdomains + 1); // number of blocks + 1
   rowSROffsetsSD = 0;
   colSROffsetsSD = 0;
+
+  chronoSD.Clear();
+  chronoSD.Start();
 
   for (int m=0; m<numSubdomains; ++m)
     {
@@ -5339,7 +5358,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    precAsdComplex[m] = NULL;
 	  }
 	
-	MPI_Barrier(MPI_COMM_WORLD);
+	//MPI_Barrier(MPI_COMM_WORLD);
   
 #ifdef SPARSE_ASDCOMPLEX
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
@@ -5579,8 +5598,44 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    //if (m == 1) HypreAsdComplex[m]->Print("HypreAsdComplex_Serial");
 		
 	    //invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
+#ifdef EUCLID_INVERSE
+	    GMRESSolver *gmres = new GMRESSolver(sd_com[m]);
+
+	    gmres->SetOperator(*(HypreAsdComplex[m]));
+
+	    gmres->SetRelTol(1e-12);
+	    gmres->SetMaxIter(100);  // 3333
+	    gmres->SetPrintLevel(1);
+
+	    HypreEuclid *precEuclid = new HypreEuclid(*(HypreAsdComplex[m]));
+	    gmres->SetPreconditioner(*precEuclid);
+	    gmres->SetName("invAsdComplexEuclid" + std::to_string(m));
+	    gmres->iterative_mode = false;
+	    
+	    invAsdComplex[m] = gmres;
+#else
 	    invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), sd_com[m]);
-	    //invAsdComplex[m] = CreateStrumpackSolverApprox(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), sd_com[m]);
+	    //invAsdComplex[m] = CreateStrumpackSolverApproxV2(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), sd_com[m]);
+	    /*
+	    {
+	      GMRESSolver *gmres = new GMRESSolver(sd_com[m]);
+
+	      gmres->SetOperator(*(HypreAsdComplex[m]));
+
+	      gmres->SetRelTol(1e-12);
+	      gmres->SetMaxIter(100);  // 3333
+	      gmres->SetPrintLevel(1);
+
+	      STRUMPACKSolver *sprec = CreateStrumpackSolverApproxV2(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), sd_com[m]);
+	      gmres->SetPreconditioner(*sprec);
+	      gmres->SetName("invAsdComplexHSSGMRES" + std::to_string(m));
+	      gmres->iterative_mode = false;
+	    
+	      invAsdComplex[m] = gmres;
+	    }
+	    */
+#endif
+
 	    //invAsdComplex[m] = HypreAsdComplex[m];
 	  }
 	else
@@ -5762,6 +5817,12 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  }
       }
     }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  chronoSD.Stop();
+  if (m_rank == 0)
+    cout << m_rank << ": DDM constructor SD loop 3 timing " << chronoSD.RealTime() << endl;
 
   // Create operators R_{sd0} A_{sd0}^{-1} C_{sd0,sd1} R_{sd1}^T by multiplying globalInterfaceOp on the left by globalSubdomainOp. Then add identity.
 

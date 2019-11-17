@@ -267,6 +267,28 @@ SetHSS()
 }
 
 template<typename scalar_t, typename integer_t>
+void STRUMPACKBaseSolver<scalar_t,integer_t>::SetHssAbsTol(double atol)
+{
+   solver_->options().HSS_options().set_abs_tol(atol);
+}
+
+template<typename scalar_t, typename integer_t>
+void STRUMPACKBaseSolver<scalar_t,integer_t>::SetHssRelTol(double rtol)
+{
+   solver_->options().HSS_options().set_rel_tol(rtol);
+}
+
+template<typename scalar_t, typename integer_t>
+void STRUMPACKBaseSolver<scalar_t,integer_t>::DisableMatching( )
+{
+  //#if STRUMPACK_VERSION_MAJOR >= 3
+  solver_->options().set_matching( strumpack::MatchingJob::NONE );
+  //#else
+  //solver_->options().set_mc64job( strumpack::MC64Job::NONE );
+  //#endif
+}
+
+template<typename scalar_t, typename integer_t>
 void STRUMPACKBaseSolver<scalar_t,integer_t>::
 SetKrylovSolver( strumpack::KrylovSolver method )
 {

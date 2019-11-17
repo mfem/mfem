@@ -42,6 +42,8 @@ using namespace std;
 
 #define SERIAL_INTERFACES
 
+//#define EUCLID_INVERSE
+
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -1333,6 +1335,25 @@ private:
     return strumpack;
   }
   
+  STRUMPACKSolver* CreateStrumpackSolverApproxV2(Operator *Arow, MPI_Comm comm)
+  {
+    //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
+    STRUMPACKSolver * strumpack = new STRUMPACKSolver(0, NULL, comm);
+    strumpack->SetPrintFactorStatistics(true);
+    strumpack->SetPrintSolveStatistics(true);
+    strumpack->SetHSS();
+    strumpack->SetHssAbsTol(0.0);
+    strumpack->SetHssRelTol(1e-4);
+    strumpack->SetAbsTol(0.0);
+    strumpack->SetRelTol(1e-6);
+    strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+    strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+    strumpack->DisableMatching();
+    strumpack->SetOperator(*Arow);
+    strumpack->SetFromCommandLine();
+    return strumpack;
+  }
+
   Solver* CreateSubdomainPreconditionerStrumpack(const int subdomain);
 
   void SetOffsetsSD(const int subdomain);
