@@ -152,7 +152,6 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 
    di_dt = 0.0;
    CGSolver lin_solver;
-   //GMRESSolver lin_solver;
    DSmoother prec;
    lin_solver.SetPreconditioner(prec);
    lin_solver.SetOperator(M.SpMat());
@@ -201,7 +200,6 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    HypreParMatrix *Mh  = M.ParallelAssemble();
 
    CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
-   //GMRESSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
    HypreSmoother prec;
    prec.SetType(HypreSmoother::Jacobi, 1);
    lin_solver.SetPreconditioner(prec);
