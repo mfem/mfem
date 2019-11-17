@@ -12,11 +12,11 @@
 //          ------------------------------------------------------
 //          Serial example of utilizing GSLib's FindPoints methods
 //          ------------------------------------------------------
-// This example utilizes GSLib's high-order off-grid interpolation utility 
-// FindPoints to compare solution on two different meshes. FindPoints uses 
-// GSLib's highly optimized communication kernels to first find arbitrary 
+// This example utilizes GSLib's high-order off-grid interpolation utility
+// FindPoints to compare solution on two different meshes. FindPoints uses
+// GSLib's highly optimized communication kernels to first find arbitrary
 // number of points (given in physical-space) in a mesh in serial/parallel
-// and then interpolate a GridFunction/ParGridFunction at those points. 
+// and then interpolate a GridFunction/ParGridFunction at those points.
 // The GridFunction must be in H1 and in the same space as the mesh that is
 // used to find the points.
 //
