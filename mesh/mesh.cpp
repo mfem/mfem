@@ -5298,10 +5298,11 @@ void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
    int ori;
    switch (GetBdrElementBaseGeometry(bdr_el))
    {
-      case Geometry::POINT:    ori = 0; break;
-      case Geometry::SEGMENT:  ori = (fv[0] == bv[0]) ? 0 : 1; break;
-      case Geometry::TRIANGLE: ori = GetTriOrientation(fv, bv); break;
-      case Geometry::SQUARE:   ori = GetQuadOrientation(fv, bv); break;
+      case Geometry::POINT:       ori = 0; break;
+      case Geometry::SEGMENT:     ori = (fv[0] == bv[0]) ? 0 : 1; break;
+      case Geometry::TRIANGLE:    ori = GetTriOrientation(fv, bv); break;
+      case Geometry::SQUARE:      ori = GetQuadOrientation(fv, bv); break;
+      case Geometry::TETRAHEDRON: ori = GetTetOrientation(fv, bv); break;
       default: MFEM_ABORT("boundary element type not implemented"); ori = 0;
    }
    el   = fi.Elem1No;
