@@ -44,6 +44,8 @@ using namespace std;
 
 //#define EUCLID_INVERSE
 
+#define NO_SD_OPERATOR
+
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);

@@ -1,6 +1,7 @@
 #include "ddmesh.hpp"
 #include "ddoper.hpp"
 
+
 void NormalizeVector(MPI_Comm comm, Vector v)
 {
   const double nrm = sqrt(InnerProduct(comm, v, v));
@@ -212,8 +213,8 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 
 //#define K2_AIRY 2.0  // TODO: input k
 //#define K2_AIRY 10981.4158900991  // 5 GHz
-//#define K2_AIRY 43925.6635603965  // 10 GHz
-#define K2_AIRY 175702.65424  // 20 GHz
+#define K2_AIRY 43925.6635603965  // 10 GHz
+//#define K2_AIRY 175702.65424  // 20 GHz
 //#define K2_AIRY 1601.0
 
 void test_Airy1_E_exact(const Vector &x, Vector &E)
@@ -4714,8 +4715,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       // Real part
       SetToRealParameters();
 
+#ifndef NO_SD_OPERATOR
       AsdRe[m] = CreateSubdomainOperator(m);
-
+#endif
+      
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
       /*
       {
@@ -4746,9 +4749,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	
       // Imaginary part
       SetToImaginaryParameters();
-	
+      
+#ifndef NO_SD_OPERATOR
       AsdIm[m] = CreateSubdomainOperator(m);
-
+#endif
+      
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
       CreateSubdomainHypreBlocks(m, AsdIm_HypreBlocks[m],
 				 //#ifdef SERIAL_INTERFACES
@@ -4772,8 +4777,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       
       //gmres->SetOperator(*(AsdP[m]));  // TODO: maybe try an SPD version of Asd with a CG solver instead of GMRES.
 #else
+#ifndef NO_SD_OPERATOR
       Asd[m] = CreateSubdomainOperator(m);
-
+#endif
       //gmres->SetOperator(*(Asd[m]));
 #endif
 	
@@ -5339,6 +5345,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	block_ComplexOffsetsSD[m][2] = rowTrueOffsetsSD[m][2];
 	block_ComplexOffsetsSD[m].PartialSum();
 
+#ifndef NO_SD_OPERATOR	
 	if (sd_nonempty[m])
 	  {
 	    AsdComplex[m] = new BlockOperator(block_ComplexOffsetsSD[m]);
@@ -5353,6 +5360,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    //precAsdComplex[m]->SetDiagonalBlock(1, invAsd[m]);
 	  }
 	else
+#endif
 	  {
 	    AsdComplex[m] = NULL;
 	    precAsdComplex[m] = NULL;
@@ -5485,6 +5493,17 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 									       //#endif
 									       AsdIm_HypreBlockCoef[m], blockGI, blockProcOffsets, all_block_num_loc_rows);
 
+	    { // FreeSubdomainHypreBlocks(m);
+	      /*
+	      FreeHypreArray(AsdRe_HypreBlocks);
+	      FreeHypreArray(AsdIm_HypreBlocks);
+
+	      FreeSparseMatrixArray(AsdRe_SparseBlocks);
+	      FreeSparseMatrixArray(AsdIm_SparseBlocks);
+	      */
+	    }
+	    
+	    
 	    if (m == -1)
 	      {
 
@@ -5554,6 +5573,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    ComplexHypreParMatrix tmpComplex(HypreAsdComplexRe, HypreAsdComplexIm, false, false);
 	    HypreAsdComplex[m] = tmpComplex.GetSystemMatrix();
 
+	    {
+	      delete HypreAsdComplexRe;
+	      delete HypreAsdComplexIm;
+	    }
+	    
 	    /*
 	      { // This should do the same as ComplexHypreParMatrix::GetSystemMatrix().
 	      Array<int> complexOS(3);  // number of blocks + 1
@@ -5634,8 +5658,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      invAsdComplex[m] = gmres;
 	    }
 	    */
-#endif
 
+	    delete HypreAsdComplex[m];
+#endif
+	    
 	    //invAsdComplex[m] = HypreAsdComplex[m];
 	  }
 	else
@@ -6164,16 +6190,16 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 #ifdef DDMCOMPLEX
 	  // In the complex case, we map from the global u^{Re} and u^{Im} to [u_m^{Re} f_m^{Re} \rho_m^{Re} u_m^{Im} f_m^{Im} \rho_m^{Im}].
 
-	  MFEM_VERIFY(AsdComplex[m]->Height() == block_ComplexOffsetsSD[m][2], "");
-	  MFEM_VERIFY(AsdComplex[m]->Height() == 2*block_ComplexOffsetsSD[m][1], "");
-	  MFEM_VERIFY(AsdComplex[m]->Height() > 0, "");
+	  MFEM_VERIFY(invAsdComplex[m]->Height() == block_ComplexOffsetsSD[m][2], "");
+	  MFEM_VERIFY(invAsdComplex[m]->Height() == 2*block_ComplexOffsetsSD[m][1], "");
+	  MFEM_VERIFY(invAsdComplex[m]->Height() > 0, "");
 
 	  cout << rank << ": Setting real subdomain DOFs, sd " << m << ", size " << sdsize << endl;
 	    
-	  ySD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
-	  rhsSD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
+	  ySD[m] = new Vector(invAsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
+	  rhsSD[m] = new Vector(invAsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
 
-	  wSD.SetSize(AsdComplex[m]->Height());
+	  wSD.SetSize(invAsdComplex[m]->Height());	  
 	  wSD = 0.0;
 
 	  /*
@@ -6477,6 +6503,9 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
   Vector domainError(3), eSD(3), maxeSD(3);
   domainError = 0.0;
 
+  std::vector<double> eSDall;
+  eSDall.assign(3*numSubdomains, 0.0);
+  
 #ifdef TESTFEMSOL
   std::vector<Vector> uReSD(numSubdomains);
   Vector uReReduced(this->Height());
@@ -6500,16 +6529,16 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 #ifdef DDMCOMPLEX
 	  //MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets2[m+1] - block_trueOffsets2[m], "");  wrong
 	  //MFEM_VERIFY(ySD[m]->Size() > block_trueOffsets2[m+1] - block_trueOffsets2[m], "");
-	  MFEM_VERIFY(ySD[m]->Size() == AsdComplex[m]->Height(), "");
+	  MFEM_VERIFY(ySD[m]->Size() == invAsdComplex[m]->Height(), "");
 	  MFEM_VERIFY(invAsdComplex[m] != NULL, "");
 
 #ifdef DEBUG_RECONSTRUCTION
-	  dsolSD[m] = new Vector(AsdComplex[m]->Height());
+	  dsolSD[m] = new Vector(invAsdComplex[m]->Height());
 #endif
 	  
 	  // Put the [u_m^s, f_m, \rho_m] entries of w (real and imaginary parts) into wSD.
 	  wSD.SetSize(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
-	  uSD.SetSize(AsdComplex[m]->Height());
+	  uSD.SetSize(invAsdComplex[m]->Height());
 
 	  for (int i=0; i<block_trueOffsets2[m+1] - block_trueOffsets2[m]; ++i)
 	    wSD[i] = w[block_trueOffsets2[m] + i];
@@ -6636,16 +6665,25 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 #endif
 	}
 
+      for (int i=0; i<3; ++i)
+	eSDall[(3*m) + i] = eSD[i];
+    } // loop (m) over subdomains
+
+  for (int m=0; m<numSubdomains; ++m)
+    {
+      for (int i=0; i<3; ++i)
+	eSD[i] = eSDall[(3*m) + i];
+      
       maxeSD = 0.0;
       MPI_Allreduce(eSD.GetData(), maxeSD.GetData(), 3, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-      
+
       if (m_rank == 0)
 	{
 	  for (int i=0; i<3; ++i)
 	    domainError[i] += maxeSD[i] * maxeSD[i];
 	}
-    } // loop (m) over subdomains
-
+    }
+  
 #ifdef TESTFEMSOL
 #ifdef DEBUG_RECONSTRUCTION
   {
@@ -9040,6 +9078,17 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
   return op;
 }
 
+SparseMatrix * AddSp(double a, SparseMatrix * A, double b, SparseMatrix * B)
+{
+  if (a == 0.0 && b == 0.0)
+    return NULL;
+
+  if (b == 0.0)
+    return A;
+
+  return Add(a, *A, b, *B);
+}
+ 
 void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array2D<HypreParMatrix*>& block,
 						      //#ifdef SERIAL_INTERFACES
 						      Array2D<SparseMatrix*>& blockSp,
@@ -9109,6 +9158,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       // Add -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m)>_{S_{mn}} - beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{nm}(u_n)>_{S_{mn}} to A_m^{SS}.
 #ifdef DDMCOMPLEX
 #ifdef SERIAL_INTERFACES      
+      //SparseMatrix *ifSum = (ifNDtrue[interfaceIndex] == 0) ? NULL : AddSp(-alpha, (ifNDmassSp[interfaceIndex]), -beta, (ifNDcurlcurlSp[interfaceIndex]));
       SparseMatrix *ifSum = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(-alpha, *(ifNDmassSp[interfaceIndex]), -beta, *(ifNDcurlcurlSp[interfaceIndex]));
 #else
       HypreParMatrix *ifSum = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(-alpha, *(ifNDmass[interfaceIndex]), -beta, *(ifNDcurlcurl[interfaceIndex]));
@@ -9292,6 +9342,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 #endif
 	{
 #ifdef SERIAL_INTERFACES
+	  //SparseMatrix *ifSumF = (ifNDtrue[interfaceIndex] == 0) ? NULL : AddSp(1.0, (ifNDmassSp[interfaceIndex]), betaOverAlpha, (ifNDcurlcurlSp[interfaceIndex]));
 	  SparseMatrix *ifSumF = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(1.0, *(ifNDmassSp[interfaceIndex]), betaOverAlpha, *(ifNDcurlcurlSp[interfaceIndex]));
 #else
 	  HypreParMatrix *ifSumF = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(1.0, *(ifNDmass[interfaceIndex]), betaOverAlpha, *(ifNDcurlcurl[interfaceIndex]));
