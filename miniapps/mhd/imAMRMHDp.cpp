@@ -636,6 +636,7 @@ int main(int argc, char *argv[])
         dc->RegisterField("phi", &phi);
         dc->RegisterField("omega", &w);
       }
+      dc->RegisterField("j", &j);
 
       bool par_format = false;
       dc->SetFormat(!par_format ?
@@ -828,6 +829,8 @@ int main(int argc, char *argv[])
 
       if (visit)
       {
+         if(!visualization)
+            oper.UpdateJ(vx, &j);
          dc->SetCycle(ti);
          dc->SetTime(t);
          dc->Save();
