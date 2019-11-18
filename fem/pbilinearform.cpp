@@ -424,6 +424,12 @@ void ParBilinearForm::Update(FiniteElementSpace *nfes)
 {
    BilinearForm::Update(nfes);
 
+   if (X.ParFESpace() !=NULL)
+   {
+       X.Update();
+       Y.Update();
+   }
+
    if (nfes)
    {
       pfes = dynamic_cast<ParFiniteElementSpace *>(nfes);

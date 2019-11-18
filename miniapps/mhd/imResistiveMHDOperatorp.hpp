@@ -215,6 +215,13 @@ public:
    void UpdateGridFunction()
    {
       j.Update(); gftmp.Update();
+
+      //DSl and DRe contains ParGridFunctions that need to be updated
+      DSl.Update();    
+      DSl.Assemble();
+
+      DRe.Update();    
+      DRe.Assemble();
    }
 
    //set rhs E0 
@@ -242,7 +249,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
      visc_coeff(visc),  resi_coeff(resi),  
      reduced_oper(NULL), pnewton_solver(NULL), J_factory(NULL),
-     M_solver(f.GetComm()), K_solver(f.GetComm()), M_prec(NULL), K_prec(NULL),
+     M_solver(f.GetComm()), M_prec(NULL), K_solver(f.GetComm()),  K_prec(NULL),
      K_amg(NULL), K_pcg(NULL), z(height/3), zFull(f.GetVSize()), j(&fespace),
      DRetmp(NULL), DSltmp(NULL)
 {
@@ -428,11 +435,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    KB->Update(); 
    KB->Assemble();
 
-   DRe.Update();    
-   DRe.Assemble();
 
-   DSl.Update();    
-   DSl.Assemble();
   
    if (use_petsc)
    {
