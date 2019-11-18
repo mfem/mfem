@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
    bool derefine = false;
    int precision = 8;
    int nc_limit = 3;         // maximum level of hanging nodes
-   int ref_steps=2;
+   int ref_steps=4;
    //----end of amr----
    int icase = 1;
    alpha = 0.001; 
@@ -534,24 +534,15 @@ int main(int argc, char *argv[])
    }
 
    //set initial J
+   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), *jptr;
    if (icase==1)
-   {
-        FunctionCoefficient jInit(InitialJ);
-        j.ProjectCoefficient(jInit);
-        oper.SetInitialJ(jInit);
-   }
+       jptr=&jInit1;
    else if (icase==2)
-   {
-        FunctionCoefficient jInit2(InitialJ2);
-        j.ProjectCoefficient(jInit2);
-        oper.SetInitialJ(jInit2);
-   }
+       jptr=&jInit2;
    else if (icase==3)
-   {
-        FunctionCoefficient jInit3(InitialJ3);
-        j.ProjectCoefficient(jInit3);
-        oper.SetInitialJ(jInit3);
-   }
+       jptr=&jInit3;
+   j.ProjectCoefficient(*jptr);
+   oper.SetInitialJ(*jptr);
    j.SetTrueVector();
 
    //-----------------------------------AMR for the real computation---------------------------------
@@ -723,6 +714,12 @@ int main(int argc, char *argv[])
             //---assemble problem and update boundary condition---
             oper.UpdateProblem(ess_bdr); 
             ode_solver->Init(oper);
+
+            //---reset J just for the boundary condition
+            //Note J is an auxiliary variable in oper (the only thing needed is the updated boundary)
+            j.ProjectCoefficient(*jptr);
+            oper.SetInitialJ(*jptr);
+            j.SetTrueVector();
          }
          else //mesh is not refined or derefined
          {
@@ -797,6 +794,13 @@ int main(int argc, char *argv[])
          //---assemble problem and update boundary condition---
          oper.UpdateProblem(ess_bdr); 
          ode_solver->Init(oper);
+
+         //---reset J for the boundary condition
+         //Note J is an auxiliary variable in oper (the only thing needed is the updated boundary)
+         j.ProjectCoefficient(*jptr);
+         oper.SetInitialJ(*jptr);
+         j.SetTrueVector();
+         
       }
       //----------------------------AMR---------------------------------
 
@@ -807,6 +811,8 @@ int main(int argc, char *argv[])
          //phi.SetFromTrueVector();
          //w.SetFromTrueVector();
 
+         //J need to be updated again just for plotting
+         oper.UpdateJ(vx, &j);
          vis_phi << "parallel " << num_procs << " " << myid << "\n";
          vis_phi << "solution\n" << *pmesh << phi;
          if (icase==1) 
@@ -819,7 +825,6 @@ int main(int argc, char *argv[])
          vis_w << "parallel " << num_procs << " " << myid << "\n";
          vis_w << "solution\n" << *pmesh << w << flush;
       }
-
 
       if (visit)
       {
@@ -838,12 +843,14 @@ int main(int argc, char *argv[])
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));
       w.SetFromTrueDofs(vx.GetBlock(2));
+      oper.UpdateJ(vx, &j);
 
-      ostringstream mesh_name, phi_name, psi_name, w_name;
+      ostringstream mesh_name, phi_name, psi_name, w_name, j_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
       phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
       psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
       w_name << "sol_omega." << setfill('0') << setw(6) << myid;
+      j_name << "sol_j." << setfill('0') << setw(6) << myid;
 
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(8);
@@ -860,6 +867,10 @@ int main(int argc, char *argv[])
       ofstream osol4(w_name.str().c_str());
       osol4.precision(8);
       w.Save(osol4);
+
+      ofstream osol5(j_name.str().c_str());
+      osol5.precision(8);
+      j.Save(osol5);
    }
 
    if (myid == 0) 
