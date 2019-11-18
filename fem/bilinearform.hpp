@@ -104,6 +104,9 @@ public:
        condensation is not reduced, it is not enabled. */
    void EnableStaticCondensation();
 
+   /** Call to avoid deleting external parbilinear forms. */ 
+   void KeepExternalBfs() {extern_bfs = true; }
+
    /** Check if static condensation was actually enabled by a previous call to
        EnableStaticCondensation(). */
    bool StaticCondensationIsEnabled() const { return static_cond; }
