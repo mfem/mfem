@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "fe.hpp"
 #include "coefficient.hpp"
+#include "fespace.hpp"
 
 namespace mfem
 {
@@ -67,6 +68,50 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
+
+   // TODO: add support for other assembly levels (in addition to PA) and their
+   // actions.
+
+   // TODO: for mixed meshes the quadrature rules to be used by methods like
+   // Setup() can be given as a QuadratureSpace, e.g. using a new method:
+   // SetQuadratureSpace().
+
+   // TODO: the methods for the various assembly levels make sense even in the
+   // base class NonlinearFormIntegrator, except that not all assembly levels
+   // make sense for the action of the nonlinear operator (but they all make
+   // sense for its Jacobian).
+
+   /// Method defining partial assembly.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA() and AddMultTransposePA(). */
+   virtual void Setup(const FiniteElementSpace &fes);
+
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA() and AddMultTransposePA().
+       Used with BilinearFormIntegrators that have different spaces. */
+   virtual void Setup(const FiniteElementSpace &trial_fes,
+                      const FiniteElementSpace &test_fes);
+
+   /// Method for partially assembled action.
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method Setup() has been
+       called. */
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled transposed action.
+   /** Perform the transpose action of integrator on the input @a x and add the
+       result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
+       represent the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method Setup() has been
+       called. */
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled action. */
+   virtual void MultPA(const Vector &x, Vector &y) const {}
 
    virtual ~NonlinearFormIntegrator() { }
 };
@@ -283,6 +328,42 @@ public:
                                     ElementTransformation &Tr,
                                     const Array<const Vector *> &elfun,
                                     const Array2D<DenseMatrix *> &elmats);
+};
+
+class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
+{
+private:
+   Coefficient *Q{};
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   Vector shape;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq;
+public:
+   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+
+   VectorConvectionNLFIntegrator() = default;
+
+   static const IntegrationRule &GetRule(const FiniteElement &fe,
+                                         ElementTransformation &T);
+
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &trans,
+                                      const Vector &elfun,
+                                      Vector &elvect);
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat);
+
+   using NonlinearFormIntegrator::Setup;
+
+   virtual void Setup(const FiniteElementSpace &fes);
+
+   virtual void MultPA(const Vector &x, Vector &y) const;
 };
 
 }

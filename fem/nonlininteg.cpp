@@ -10,10 +10,35 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
 
+void NonlinearFormIntegrator::Setup(const FiniteElementSpace&)
+{
+   mfem_error ("NonlinearFormIntegrator::Setup(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::Setup(const FiniteElementSpace&,
+                                    const FiniteElementSpace&)
+{
+   mfem_error ("NonlinearFormIntegrator::SetupAssembly(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultTransposePA(...)\n"
+               "   is not implemented for this class.");
+}
 void NonlinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
@@ -671,6 +696,684 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
       }
    }
 
+}
+
+const IntegrationRule&
+VectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
+                                       ElementTransformation &T)
+{
+   const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
+   return IntRules.Get(fe.GetGeomType(), order);
+}
+
+void VectorConvectionNLFIntegrator::AssembleElementVector(
+   const FiniteElement &el,
+   ElementTransformation &T,
+   const Vector &elfun,
+   Vector &elvect)
+{
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   elvect.SetSize(nd * dim);
+   gradEF.SetSize(dim);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+   ELV.UseExternalData(elvect.GetData(), nd, dim);
+
+   Vector vec1(dim), vec2(dim);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   ELV = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      T.SetIntPoint(&ip);
+      el.CalcShape(ip, shape);
+      el.CalcPhysDShape(T, dshape);
+      double w = ip.weight * T.Weight();
+      if (Q) { w *= Q->Eval(T, ip); }
+      MultAtB(EF, dshape, gradEF);
+      EF.MultTranspose(shape, vec1);
+      gradEF.Mult(vec1, vec2);
+      vec2 *= w;
+      AddMultVWt(shape, vec2, ELV);
+   }
+}
+
+void VectorConvectionNLFIntegrator::AssembleElementGrad(
+   const FiniteElement &el,
+   ElementTransformation &trans,
+   const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   dshapex.SetSize(nd, dim);
+   elmat.SetSize(nd * dim);
+   elmat_comp.SetSize(nd);
+   gradEF.SetSize(dim);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+
+   double w;
+   Vector vec1(dim), vec2(dim), vec3(nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == nullptr)
+   {
+      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
+      ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+
+      Mult(dshape, trans.InverseJacobian(), dshapex);
+
+      w = ip.weight;
+
+      if (Q)
+      {
+         w *= Q->Eval(trans, ip);
+      }
+
+      MultAtB(EF, dshapex, gradEF);
+      EF.MultTranspose(shape, vec1);
+
+      trans.AdjugateJacobian().Mult(vec1, vec2);
+
+      vec2 *= w;
+      dshape.Mult(vec2, vec3);
+      MultVWt(shape, vec3, elmat_comp);
+
+      for (int i = 0; i < dim; i++)
+      {
+         elmat.AddMatrix(elmat_comp, i * nd, i * nd);
+      }
+
+      MultVVt(shape, elmat_comp);
+      w = ip.weight * trans.Weight();
+      if (Q)
+      {
+         w *= Q->Eval(trans, ip);
+      }
+      for (int i = 0; i < dim; i++)
+      {
+         for (int j = 0; j < dim; j++)
+         {
+            elmat.AddMatrix(w * gradEF(i, j), elmat_comp, i * nd, j * nd);
+         }
+      }
+   }
+}
+
+void VectorConvectionNLFIntegrator::Setup(const FiniteElementSpace &fes)
+{
+   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
+               "PA Only supports Ordering::byNODES!");
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   dim = mesh->Dimension();
+   ne = fes.GetMesh()->GetNE();
+   nq = ir->GetNPoints();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   pa_data.SetSize(ne*nq*dim*dim, Device::GetMemoryType());
+   double COEFF = 1.0;
+   if (Q)
+   {
+      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
+      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+      COEFF = cQ->constant;
+   }
+   const int NE = ne;
+   const int NQ = nq;
+   auto W = ir->GetWeights().Read();
+   if (dim==1) { MFEM_ABORT("dim==1 not supported!"); }
+   if (dim==2)
+   {
+      auto J = Reshape(geom->J.Read(), NQ, 2, 2,NE);
+      auto G = Reshape(pa_data.Write(), NQ, 2, 2, NE);
+      MFEM_FORALL(e, NE,
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            const double J11 = J(q,0,0,e);
+            const double J12 = J(q,0,1,e);
+            const double J21 = J(q,1,0,e);
+            const double J22 = J(q,1,1,e);
+            // Store wq * Q * adj(J)
+            G(q,0,0,e) = W[q] * COEFF *  J22; // 1,1
+            G(q,0,1,e) = W[q] * COEFF * -J12; // 1,2
+            G(q,1,0,e) = W[q] * COEFF * -J21; // 2,1
+            G(q,1,1,e) = W[q] * COEFF *  J11; // 2,2
+         }
+      });
+   }
+   if (dim==3)
+   {
+      auto J = Reshape(geom->J.Read(), NQ, 3, 3,NE);
+      auto G = Reshape(pa_data.Write(), NQ, 3, 3, NE);
+      MFEM_FORALL(e, NE,
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            const double J11 = J(q,0,0,e);
+            const double J21 = J(q,1,0,e);
+            const double J31 = J(q,2,0,e);
+            const double J12 = J(q,0,1,e);
+            const double J22 = J(q,1,1,e);
+            const double J32 = J(q,2,1,e);
+            const double J13 = J(q,0,2,e);
+            const double J23 = J(q,1,2,e);
+            const double J33 = J(q,2,2,e);
+            const double cw  = W[q] * COEFF;
+            // adj(J)
+            const double A11 = (J22 * J33) - (J23 * J32);
+            const double A12 = (J32 * J13) - (J12 * J33);
+            const double A13 = (J12 * J23) - (J22 * J13);
+            const double A21 = (J31 * J23) - (J21 * J33);
+            const double A22 = (J11 * J33) - (J13 * J31);
+            const double A23 = (J21 * J13) - (J11 * J23);
+            const double A31 = (J21 * J32) - (J31 * J22);
+            const double A32 = (J31 * J12) - (J11 * J32);
+            const double A33 = (J11 * J22) - (J12 * J21);
+            // Store wq * Q * adj(J)
+            G(q,0,0,e) = cw * A11; // 1,1
+            G(q,0,1,e) = cw * A12; // 1,2
+            G(q,0,2,e) = cw * A13; // 1,3
+            G(q,1,0,e) = cw * A21; // 2,1
+            G(q,1,1,e) = cw * A22; // 2,2
+            G(q,1,2,e) = cw * A23; // 2,3
+            G(q,2,0,e) = cw * A31; // 3,1
+            G(q,2,1,e) = cw * A32; // 3,2
+            G(q,2,2,e) = cw * A33; // 3,3
+         }
+      });
+   }
+}
+
+// PA Convection NL 2D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PAConvectionNLApply2D(const int NE,
+                           const Array<double> &b,
+                           const Array<double> &g,
+                           const Array<double> &bt,
+                           const Vector &q_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Q = Reshape(q_.Read(), Q1D*Q1D, 2, 2, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, 2, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, 2, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double data[max_Q1D][max_Q1D][2];
+      double grad0[max_Q1D][max_Q1D][2];
+      double grad1[max_Q1D][max_Q1D][2];
+      double Z[max_Q1D][max_Q1D][2];
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            data[qy][qx][0] = 0.0;
+            data[qy][qx][1] = 0.0;
+            grad0[qy][qx][0] = 0.0;
+            grad0[qy][qx][1] = 0.0;
+            grad1[qy][qx][0] = 0.0;
+            grad1[qy][qx][1] = 0.0;
+         }
+      }
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         double dataX[max_Q1D][2];
+         double gradX0[max_Q1D][2];
+         double gradX1[max_Q1D][2];
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            dataX[qx][0] = 0.0;
+            dataX[qx][1] = 0.0;
+            gradX0[qx][0] = 0.0;
+            gradX0[qx][1] = 0.0;
+            gradX1[qx][0] = 0.0;
+            gradX1[qx][1] = 0.0;
+         }
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double s0 = x(dx,dy,0,e);
+            const double s1 = x(dx,dy,1,e);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double Bx = B(qx,dx);
+               const double Gx = G(qx,dx);
+               dataX[qx][0] += s0 * Bx;
+               dataX[qx][1] += s1 * Bx;
+               gradX0[qx][0] += s0 * Gx;
+               gradX0[qx][1] += s0 * Bx;
+               gradX1[qx][0] += s1 * Gx;
+               gradX1[qx][1] += s1 * Bx;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double By = B(qy,dy);
+            const double Gy = G(qy,dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               data[qy][qx][0] += dataX[qx][0] * By;
+               data[qy][qx][1] += dataX[qx][1] * By;
+               grad0[qy][qx][0] += gradX0[qx][0] * By;
+               grad0[qy][qx][1] += gradX0[qx][1] * Gy;
+               grad1[qy][qx][0] += gradX1[qx][0] * By;
+               grad1[qy][qx][1] += gradX1[qx][1] * Gy;
+            }
+         }
+      }
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const int q = qx + qy * Q1D;
+            const double u1 = data[qy][qx][0];
+            const double u2 = data[qy][qx][1];
+            const double grad00 = grad0[qy][qx][0];
+            const double grad01 = grad0[qy][qx][1];
+            const double grad10 = grad1[qy][qx][0];
+            const double grad11 = grad1[qy][qx][1];
+            const double Dxu1 = grad00*Q(q,0,0,e) + grad01*Q(q,1,0,e);
+            const double Dyu1 = grad00*Q(q,0,1,e) + grad01*Q(q,1,1,e);
+            const double Dxu2 = grad10*Q(q,0,0,e) + grad11*Q(q,1,0,e);
+            const double Dyu2 = grad10*Q(q,0,1,e) + grad11*Q(q,1,1,e);
+            Z[qy][qx][0] = u1 * Dxu1 + u2 * Dyu1;
+            Z[qy][qx][1] = u1 * Dxu2 + u2 * Dyu2;
+         }
+      }
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         double Y[max_D1D][2];
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            Y[dx][0] = 0.0;
+            Y[dx][1] = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double Btx = Bt(dx,qx);
+               Y[dx][0] += Btx * Z[qy][qx][0];
+               Y[dx][1] += Btx * Z[qy][qx][1];
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double Bty = Bt(dy,qy);
+               y(dx,dy,0,e) += Bty * Y[dx][0];
+               y(dx,dy,1,e) += Bty * Y[dx][1];
+            }
+         }
+      }
+   });
+}
+
+// PA Convection NL 3D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PAConvectionNLApply3D(const int NE,
+                           const Array<double> &b,
+                           const Array<double> &g,
+                           const Array<double> &bt,
+                           const Vector &q_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
+{
+   constexpr int VDIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Q = Reshape(q_.Read(), Q1D*Q1D*Q1D, VDIM, VDIM, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      constexpr int VDIM = 3;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double data[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      double grad0[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      double grad1[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      double grad2[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      double Z[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               data[qz][qy][qx][0] = 0.0;
+               data[qz][qy][qx][1] = 0.0;
+               data[qz][qy][qx][2] = 0.0;
+
+               grad0[qz][qy][qx][0] = 0.0;
+               grad0[qz][qy][qx][1] = 0.0;
+               grad0[qz][qy][qx][2] = 0.0;
+
+               grad1[qz][qy][qx][0] = 0.0;
+               grad1[qz][qy][qx][1] = 0.0;
+               grad1[qz][qy][qx][2] = 0.0;
+
+               grad2[qz][qy][qx][0] = 0.0;
+               grad2[qz][qy][qx][1] = 0.0;
+               grad2[qz][qy][qx][2] = 0.0;
+            }
+         }
+      }
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         double dataXY[max_Q1D][max_Q1D][VDIM];
+         double gradXY0[max_Q1D][max_Q1D][VDIM];
+         double gradXY1[max_Q1D][max_Q1D][VDIM];
+         double gradXY2[max_Q1D][max_Q1D][VDIM];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               dataXY[qy][qx][0] = 0.0;
+               dataXY[qy][qx][1] = 0.0;
+               dataXY[qy][qx][2] = 0.0;
+
+               gradXY0[qy][qx][0] = 0.0;
+               gradXY0[qy][qx][1] = 0.0;
+               gradXY0[qy][qx][2] = 0.0;
+
+               gradXY1[qy][qx][0] = 0.0;
+               gradXY1[qy][qx][1] = 0.0;
+               gradXY1[qy][qx][2] = 0.0;
+
+               gradXY2[qy][qx][0] = 0.0;
+               gradXY2[qy][qx][1] = 0.0;
+               gradXY2[qy][qx][2] = 0.0;
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            double dataX[max_Q1D][VDIM];
+            double gradX0[max_Q1D][VDIM];
+            double gradX1[max_Q1D][VDIM];
+            double gradX2[max_Q1D][VDIM];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               dataX[qx][0] = 0.0;
+               dataX[qx][1] = 0.0;
+               dataX[qx][2] = 0.0;
+
+               gradX0[qx][0] = 0.0;
+               gradX0[qx][1] = 0.0;
+               gradX0[qx][2] = 0.0;
+
+               gradX1[qx][0] = 0.0;
+               gradX1[qx][1] = 0.0;
+               gradX1[qx][2] = 0.0;
+
+               gradX2[qx][0] = 0.0;
+               gradX2[qx][1] = 0.0;
+               gradX2[qx][2] = 0.0;
+            }
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double s0 = x(dx,dy,dz,0,e);
+               const double s1 = x(dx,dy,dz,1,e);
+               const double s2 = x(dx,dy,dz,2,e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double Bx = B(qx,dx);
+                  const double Gx = G(qx,dx);
+
+                  dataX[qx][0] += s0 * Bx;
+                  dataX[qx][1] += s1 * Bx;
+                  dataX[qx][2] += s2 * Bx;
+
+                  gradX0[qx][0] += s0 * Gx;
+                  gradX0[qx][1] += s0 * Bx;
+                  gradX0[qx][2] += s0 * Bx;
+
+                  gradX1[qx][0] += s1 * Gx;
+                  gradX1[qx][1] += s1 * Bx;
+                  gradX1[qx][2] += s1 * Bx;
+
+                  gradX2[qx][0] += s2 * Gx;
+                  gradX2[qx][1] += s2 * Bx;
+                  gradX2[qx][2] += s2 * Bx;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double By = B(qy,dy);
+               const double Gy = G(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  dataXY[qy][qx][0] += dataX[qx][0] * By;
+                  dataXY[qy][qx][1] += dataX[qx][1] * By;
+                  dataXY[qy][qx][2] += dataX[qx][2] * By;
+
+                  gradXY0[qy][qx][0] += gradX0[qx][0] * By;
+                  gradXY0[qy][qx][1] += gradX0[qx][1] * Gy;
+                  gradXY0[qy][qx][2] += gradX0[qx][2] * By;
+
+                  gradXY1[qy][qx][0] += gradX1[qx][0] * By;
+                  gradXY1[qy][qx][1] += gradX1[qx][1] * Gy;
+                  gradXY1[qy][qx][2] += gradX1[qx][2] * By;
+
+                  gradXY2[qy][qx][0] += gradX2[qx][0] * By;
+                  gradXY2[qy][qx][1] += gradX2[qx][1] * Gy;
+                  gradXY2[qy][qx][2] += gradX2[qx][2] * By;
+               }
+            }
+         }
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            const double Bz = B(qz,dz);
+            const double Gz = G(qz,dz);
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  data[qz][qy][qx][0] += dataXY[qy][qx][0] * Bz;
+                  data[qz][qy][qx][1] += dataXY[qy][qx][1] * Bz;
+                  data[qz][qy][qx][2] += dataXY[qy][qx][2] * Bz;
+
+                  grad0[qz][qy][qx][0] += gradXY0[qy][qx][0] * Bz;
+                  grad0[qz][qy][qx][1] += gradXY0[qy][qx][1] * Bz;
+                  grad0[qz][qy][qx][2] += gradXY0[qy][qx][2] * Gz;
+
+                  grad1[qz][qy][qx][0] += gradXY1[qy][qx][0] * Bz;
+                  grad1[qz][qy][qx][1] += gradXY1[qy][qx][1] * Bz;
+                  grad1[qz][qy][qx][2] += gradXY1[qy][qx][2] * Gz;
+
+                  grad2[qz][qy][qx][0] += gradXY2[qy][qx][0] * Bz;
+                  grad2[qz][qy][qx][1] += gradXY2[qy][qx][1] * Bz;
+                  grad2[qz][qy][qx][2] += gradXY2[qy][qx][2] * Gz;
+               }
+            }
+         }
+      }
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const int q = qx + Q1D * (qy + qz * Q1D);
+
+               const double u1 = data[qz][qy][qx][0];
+               const double u2 = data[qz][qy][qx][1];
+               const double u3 = data[qz][qy][qx][2];
+
+               const double grad00 = grad0[qz][qy][qx][0];
+               const double grad01 = grad0[qz][qy][qx][1];
+               const double grad02 = grad0[qz][qy][qx][2];
+
+               const double grad10 = grad1[qz][qy][qx][0];
+               const double grad11 = grad1[qz][qy][qx][1];
+               const double grad12 = grad1[qz][qy][qx][2];
+
+               const double grad20 = grad2[qz][qy][qx][0];
+               const double grad21 = grad2[qz][qy][qx][1];
+               const double grad22 = grad2[qz][qy][qx][2];
+
+               const double Dxu1 = grad00*Q(q,0,0,e) + grad01*Q(q,1,0,e) + grad02*Q(q,2,0,e);
+               const double Dyu1 = grad00*Q(q,0,1,e) + grad01*Q(q,1,1,e) + grad02*Q(q,2,1,e);
+               const double Dzu1 = grad00*Q(q,0,2,e) + grad01*Q(q,1,2,e) + grad02*Q(q,2,2,e);
+
+               const double Dxu2 = grad10*Q(q,0,0,e) + grad11*Q(q,1,0,e) + grad12*Q(q,2,0,e);
+               const double Dyu2 = grad10*Q(q,0,1,e) + grad11*Q(q,1,1,e) + grad12*Q(q,2,1,e);
+               const double Dzu2 = grad10*Q(q,0,2,e) + grad11*Q(q,1,2,e) + grad12*Q(q,2,2,e);
+
+               const double Dxu3 = grad20*Q(q,0,0,e) + grad21*Q(q,1,0,e) + grad22*Q(q,2,0,e);
+               const double Dyu3 = grad20*Q(q,0,1,e) + grad21*Q(q,1,1,e) + grad22*Q(q,2,1,e);
+               const double Dzu3 = grad20*Q(q,0,2,e) + grad21*Q(q,1,2,e) + grad22*Q(q,2,2,e);
+
+               Z[qz][qy][qx][0] = u1 * Dxu1 + u2 * Dyu1 + u3 * Dzu1;
+               Z[qz][qy][qx][1] = u1 * Dxu2 + u2 * Dyu2 + u3 * Dzu2;
+               Z[qz][qy][qx][2] = u1 * Dxu3 + u2 * Dyu3 + u3 * Dzu3;
+            }
+         }
+      }
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         double opXY[max_D1D][max_D1D][VDIM];
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               opXY[dy][dx][0] = 0.0;
+               opXY[dy][dx][1] = 0.0;
+               opXY[dy][dx][2] = 0.0;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            double opX[max_D1D][VDIM];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               opX[dx][0] = 0.0;
+               opX[dx][1] = 0.0;
+               opX[dx][2] = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double Btx = Bt(dx,qx);
+                  opX[dx][0] += Btx * Z[qz][qy][qx][0];
+                  opX[dx][1] += Btx * Z[qz][qy][qx][1];
+                  opX[dx][2] += Btx * Z[qz][qy][qx][2];
+               }
+            }
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double Bty = Bt(dy,qy);
+                  opXY[dy][dx][0] += Bty * opX[dx][0];
+                  opXY[dy][dx][1] += Bty * opX[dx][1];
+                  opXY[dy][dx][2] += Bty * opX[dx][2];
+               }
+            }
+         }
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double Btz = Bt(dz,qz);
+                  y(dx,dy,dz,0,e) += Btz * opXY[dy][dx][0];
+                  y(dx,dy,dz,1,e) += Btz * opXY[dy][dx][1];
+                  y(dx,dy,dz,2,e) += Btz * opXY[dy][dx][2];
+               }
+            }
+         }
+      }
+   });
+}
+
+void VectorConvectionNLFIntegrator::MultPA(const Vector &x, Vector &y) const
+{
+   const int NE = ne;
+   const int D1D = maps->ndof;
+   const int Q1D = maps->nqpt;
+   const Vector &Q = pa_data;
+   const Array<double> &B = maps->B;
+   const Array<double> &G = maps->G;
+   const Array<double> &Bt = maps->Bt;
+   const int DQ = (D1D << 4) | Q1D;
+   if (dim == 2)
+   {
+      switch (DQ)
+      {
+         case 0x22: return PAConvectionNLApply2D<2,2>(NE,B,G,Bt,Q,x,y);
+         case 0x34: return PAConvectionNLApply2D<3,4>(NE,B,G,Bt,Q,x,y);
+         case 0x45: return PAConvectionNLApply2D<4,5>(NE,B,G,Bt,Q,x,y);
+         case 0x57: return PAConvectionNLApply2D<5,7>(NE,B,G,Bt,Q,x,y);
+         case 0x68: return PAConvectionNLApply2D<6,8>(NE,B,G,Bt,Q,x,y);
+         case 0x7A: return PAConvectionNLApply2D<7,10>(NE,B,G,Bt,Q,x,y);
+         case 0x8B: return PAConvectionNLApply2D<8,11>(NE,B,G,Bt,Q,x,y);
+         case 0x9D: return PAConvectionNLApply2D<9,13>(NE,B,G,Bt,Q,x,y);
+         default: return PAConvectionNLApply2D(NE,B,G,Bt,Q,x,y,D1D,Q1D);
+      }
+   }
+   if (dim == 3)
+   {
+      switch (DQ)
+      {
+         case 0x23: return PAConvectionNLApply3D<2,3>(NE,B,G,Bt,Q,x,y);
+         case 0x34: return PAConvectionNLApply3D<3,4>(NE,B,G,Bt,Q,x,y);
+         case 0x35: return PAConvectionNLApply3D<3,5>(NE,B,G,Bt,Q,x,y);
+         case 0x48: return PAConvectionNLApply3D<4,8>(NE,B,G,Bt,Q,x,y);
+         case 0x5A: return PAConvectionNLApply3D<5,10>(NE,B,G,Bt,Q,x,y);
+         case 0x6D: return PAConvectionNLApply3D<6,13>(NE,B,G,Bt,Q,x,y);
+         case 0x7F: return PAConvectionNLApply3D<7,15>(NE,B,G,Bt,Q,x,y);
+         case 0x92: return PAConvectionNLApply3D<8,18>(NE,B,G,Bt,Q,x,y);
+         case 0x94: return PAConvectionNLApply3D<9,20>(NE,B,G,Bt,Q,x,y);
+         case 0x8C: return PAConvectionNLApply3D<8,12>(NE,B,G,Bt,Q,x,y);
+         default: printf ("%x, %x(%d): %X", D1D, Q1D, Q1D, DQ);
+      }
+   }
+   MFEM_ABORT("Not yet implemented!");
 }
 
 }
