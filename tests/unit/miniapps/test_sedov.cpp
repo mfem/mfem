@@ -61,8 +61,6 @@ using namespace mfem;
 namespace mfem
 {
 
-static int problem = 1;
-
 static void v0(const Vector &x, Vector &v) { v = 0.0; }
 static double rho0(const Vector &x) { return 1.0; }
 static double gamma(const Vector &x) { return 1.4; }
@@ -2018,7 +2016,6 @@ public:
 };
 
 static void ComputeDiagonal2D(const int height, const int nzones,
-                              const bool okina,
                               const QuadratureData &quad_data,
                               const FiniteElementSpace &FESpace,
                               const Tensors1D *tensors1D,
@@ -2053,9 +2050,7 @@ static void ComputeDiagonal2D(const int height, const int nzones,
    }
 }
 
-static void ComputeDiagonal3D(const int height,
-                              const int nzones,
-                              const bool okina,
+static void ComputeDiagonal3D(const int height, const int nzones,
                               const QuadratureData &quad_data,
                               const FiniteElementSpace &FESpace,
                               const Tensors1D *tensors1D,
@@ -2159,13 +2154,13 @@ public:
 
    void ComputeDiagonal2D(Vector &diag) const
    {
-      return hydrodynamics::ComputeDiagonal2D(FESpace.GetVSize(), nzones, true,
+      return hydrodynamics::ComputeDiagonal2D(FESpace.GetVSize(), nzones,
                                               quad_data, FESpace, tensors1D,
                                               diag);
    }
    void ComputeDiagonal3D(Vector &diag) const
    {
-      return hydrodynamics::ComputeDiagonal3D(FESpace.GetVSize(), nzones, true,
+      return hydrodynamics::ComputeDiagonal3D(FESpace.GetVSize(), nzones,
                                               quad_data, FESpace, tensors1D,
                                               diag);
    }
@@ -3091,7 +3086,7 @@ protected:
    const Array<int> &ess_tdofs;
    const int dim, nzones, l2dofs_cnt, h1dofs_cnt, source_type;
    const double cfl;
-   const bool use_viscosity, p_assembly, okina;
+   const bool use_viscosity;
    const double cg_rel_tol;
    const int cg_max_iter;
    const double ftz_tol;
@@ -3109,22 +3104,11 @@ protected:
    mutable DiagonalSolver VMassPA_prec;
    CGSolver CG_VMass, CG_EMass, locCG;
    mutable TimingData timer;
-   const bool qupdate;
    const double gamma;
    mutable QUpdate Q;
    mutable Vector X, B, one, rhs, e_rhs;
    mutable ParGridFunction rhs_c_gf, dvc_gf;
    mutable Array<int> c_tdofs[3];
-   virtual void ComputeMaterialProperties(int nvalues, const double gamma[],
-                                          const double rho[], const double e[],
-                                          double p[], double cs[]) const
-   {
-      for (int v = 0; v < nvalues; v++)
-      {
-         p[v]  = (gamma[v] - 1.0) * rho[v] * e[v];
-         cs[v] = sqrt(gamma[v] * (gamma[v]-1.0) * e[v]);
-      }
-   }
 
    void UpdateQuadratureData(const Vector &S) const
    {
@@ -3132,17 +3116,6 @@ protected:
                                     quad_data_is_current,
                                     quad_data,
                                     &tensors1D);
-   }
-
-   void AssembleForceMatrix() const
-   {
-      if (forcemat_is_assembled || p_assembly) { return; }
-      Force = 0.0;
-      timer.sw_force.Start();
-      Force.Assemble();
-      timer.sw_force.Stop();
-
-      forcemat_is_assembled = true;
    }
 
 public:
@@ -3156,24 +3129,21 @@ public:
                            const double cfl_,
                            Coefficient *material_,
                            const bool visc,
-                           const bool pa,
                            const double cgt,
                            const int cgiter,
                            double ftz,
                            const int order_q,
-                           const bool qupt,
                            const double gm,
-                           const bool ok,
                            int h1_basis_type):
       TimeDependentOperator(size),
       H1FESpace(h1_fes), L2FESpace(l2_fes),
       H1compFESpace(h1_fes.GetParMesh(), h1_fes.FEColl(), 1),
       H1Vsize(H1FESpace.GetVSize()),
-      H1TVSize(H1FESpace.GetTrueVSize()),
+      H1TVSize(H1FESpace.TrueVSize()),
       H1GTVSize(H1FESpace.GlobalTrueVSize()),
       H1compTVSize(H1compFESpace.GetTrueVSize()),
       L2Vsize(L2FESpace.GetVSize()),
-      L2TVSize(L2FESpace.GetTrueVSize()),
+      L2TVSize(L2FESpace.TrueVSize()),
       L2GTVSize(L2FESpace.GlobalTrueVSize()),
       block_offsets(4),
       x_gf(&H1FESpace),
@@ -3183,8 +3153,7 @@ public:
       l2dofs_cnt(l2_fes.GetFE(0)->GetDof()),
       h1dofs_cnt(h1_fes.GetFE(0)->GetDof()),
       source_type(source_type_), cfl(cfl_),
-      use_viscosity(visc), p_assembly(pa),
-      okina(ok),
+      use_viscosity(visc),
       cg_rel_tol(cgt), cg_max_iter(cgiter),ftz_tol(ftz),
       material_pcf(material_),
       Mv(&h1_fes), Mv_spmat_copy(),
@@ -3199,12 +3168,11 @@ public:
                 int(floor(0.7 + pow(integ_rule.GetNPoints(), 1.0 / dim))),
                 h1_basis_type == BasisType::Positive),
       Force(&l2_fes, &h1_fes),
-      VMassPA_prec(okina?H1compFESpace:H1FESpace),
+      VMassPA_prec(H1compFESpace),
       CG_VMass(PFesGetParMeshGetComm(H1FESpace)),
       CG_EMass(PFesGetParMeshGetComm(L2FESpace)),
       locCG(),
-      timer(okina? L2TVSize: p_assembly? l2dofs_cnt: 1),
-      qupdate(qupt),
+      timer(L2TVSize),
       gamma(gm),
       Q(dim, nzones, use_viscosity, cfl, gamma,
         &timer, integ_rule, H1FESpace, L2FESpace),
@@ -3275,6 +3243,7 @@ public:
       CG_VMass.SetAbsTol(0.0);
       CG_VMass.SetMaxIter(cg_max_iter);
       CG_VMass.SetPrintLevel(0);
+
       CG_EMass.SetOperator(*EMassPA);
       CG_EMass.iterative_mode = false;
       CG_EMass.SetRelTol(1e-8);
@@ -3297,24 +3266,26 @@ public:
       ParGridFunction v;
       const int VsizeH1 = H1FESpace.GetVSize();
       v.MakeRef(&H1FESpace, *sptr, VsizeH1);
+
       ParGridFunction dx;
       dx.MakeRef(&H1FESpace, dS_dt, 0);
       dx = v;
+
       SolveVelocity(S, dS_dt);
       SolveEnergy(S, v, dS_dt);
       quad_data_is_current = false;
    }
 
-   virtual MemoryClass GetMemoryClass() const
-   { return Device::GetMemoryClass(); }
+   MemoryClass GetMemoryClass() const  { return Device::GetMemoryClass(); }
 
    void SolveVelocity(const Vector &S, Vector &dS_dt) const
    {
       UpdateQuadratureData(S);
-      AssembleForceMatrix();
+
       ParGridFunction dv;
       dv.MakeRef(&H1FESpace, dS_dt, H1Vsize);
       dv = 0.0;
+
       timer.sw_force.Start();
       ForcePA->Mult(one, rhs);
       if (ftz_tol>0.0)
@@ -3331,16 +3302,14 @@ public:
       rhs.Neg();
       const int size = H1compFESpace.GetVSize();
       const Operator *Pconf = H1compFESpace.GetProlongationMatrix();
-      const Operator *Rrest = H1compFESpace.GetRestrictionMatrix();
-      PAMassOperator *kVMassPA = static_cast<PAMassOperator*>(VMassPA);
+      PAMassOperator *kVMassPA = VMassPA;
       for (int c = 0; c < dim; c++)
       {
          dvc_gf.MakeRef(&H1compFESpace, dS_dt, H1Vsize + c*size);
          rhs_c_gf.MakeRef(&H1compFESpace, rhs, c*size);
          if (Pconf) { Pconf->MultTranspose(rhs_c_gf, B); }
          else { B = rhs_c_gf; }
-         if (Rrest) { Rrest->Mult(dvc_gf, X); }
-         else { X = dvc_gf; }
+         H1compFESpace.GetRestrictionMatrix()->Mult(dvc_gf, X);
          kVMassPA->SetEssentialTrueDofs(c_tdofs[c]);
          kVMassPA->EliminateRHS(B);
          timer.sw_cgH1.Start();
@@ -3352,10 +3321,10 @@ public:
          dvc_gf.GetMemory().SyncAlias(dS_dt.GetMemory(), dvc_gf.Size());
       }
    }
+
    void SolveEnergy(const Vector &S, const Vector &v, Vector &dS_dt) const
    {
       UpdateQuadratureData(S);
-      AssembleForceMatrix();
       ParGridFunction de;
       de.MakeRef(&L2FESpace, dS_dt, H1Vsize*2);
       de = 0.0;
@@ -3378,7 +3347,7 @@ public:
    {
       Vector* sptr = const_cast<Vector*>(&S);
       x_gf.MakeRef(&H1FESpace, *sptr, 0);
-      H1FESpace.GetMesh()->NewNodes(x_gf, false);
+      H1FESpace.GetParMesh()->NewNodes(x_gf, false);
    }
 
    double GetTimeStepEstimate(const Vector &S) const
@@ -3390,10 +3359,12 @@ public:
                     H1FESpace.GetParMesh()->GetComm());
       return glob_dt_est;
    }
+
    void ResetTimeStepEstimate() const
    {
       quad_data.dt_est = std::numeric_limits<double>::infinity();
    }
+
    void ResetQuadratureData() const { quad_data_is_current = false; }
 
    void ComputeDensity(ParGridFunction &rho) const
@@ -3438,7 +3409,7 @@ public:
       MPI_Reduce(mydata, alldata, 3, HYPRE_MPI_INT, MPI_SUM, 0, com);
       if (IamRoot)
       {
-         const int H1iter = okina ? (timer.H1iter/dim) : timer.H1iter;
+         const int H1iter = timer.H1iter/dim;
          const double FOM1 = 1e-6 * H1GTVSize * H1iter / rt_max[0];
          const double FOM2 = 1e-6 * steps * (H1GTVSize + L2GTVSize) / rt_max[2];
          const double FOM3 = 1e-6 * alldata[1] * integ_rule.GetNPoints() / rt_max[3];
@@ -3514,11 +3485,11 @@ static long GetMaxRssMB()
 
 int sedov(MPI_Session &mpi, int argc, char *argv[])
 {
-   int myid = mpi.WorldRank();
+   const int myid = mpi.WorldRank();
 
-   problem = 1;
+   const int problem = 1;
    const char *mesh_file = "data/cube01_hex.mesh";
-   const int rs_levels = 0;
+   int rs_levels = 0;
    const int rp_levels = 0;
    Array<int> cxyz;
    int order_v = 2;
@@ -3531,18 +3502,11 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    double ftz_tol = 0.0;
    int cg_max_iter = 300;
    int max_tsteps = -1;
-   bool p_assembly = true;
-   bool impose_visc = false;
    bool visualization = false;
-   int vis_steps = 5;
+   int vis_steps = 100;
    bool visit = false;
    bool gfprint = false;
-   const char *basename = "results/Laghos";
-   int partition_type = 111;
-   bool okina = false;
-   bool qupdate = false;
    const char *dev_opt = "cpu";
-   bool check = true;
    bool mem_usage = false;
    bool fom = false;
    bool gpu_aware_mpi = false;
@@ -3552,9 +3516,10 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&rs_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&cxyz, "-c", "--cartesian-partitioning",
                   "Use Cartesian partitioning.");
-   args.AddOption(&problem, "-p", "--problem", "Problem setup to use.");
    args.AddOption(&order_v, "-ok", "--order-kinematic",
                   "Order (degree) of the kinematic finite element space.");
    args.AddOption(&order_e, "-ot", "--order-thermo",
@@ -3576,12 +3541,6 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
                   "Maximum number of CG iterations (velocity linear solve).");
    args.AddOption(&max_tsteps, "-ms", "--max-steps",
                   "Maximum number of steps (negative means no restriction).");
-   args.AddOption(&p_assembly, "-pa", "--partial-assembly", "-fa",
-                  "--full-assembly",
-                  "Activate 1D tensor-based assembly (partial assembly).");
-   args.AddOption(&impose_visc, "-iv", "--impose-viscosity", "-niv",
-                  "--no-impose-viscosity",
-                  "Use active viscosity terms even for smooth problems.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -3591,25 +3550,8 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
                   "Enable or disable VisIt visualization.");
    args.AddOption(&gfprint, "-print", "--print", "-no-print", "--no-print",
                   "Enable or disable result output (files in mfem format).");
-   args.AddOption(&basename, "-k", "--outputfilename",
-                  "Name of the visit dump files");
-   args.AddOption(&partition_type, "-pt", "--partition",
-                  "Customized x/y/z Cartesian MPI partitioning of the serial mesh.\n\t"
-                  "Here x,y,z are relative task ratios in each direction.\n\t"
-                  "Example: with 48 mpi tasks and -pt 321, one would get a Cartesian\n\t"
-                  "partition of the serial mesh by (6,4,2) MPI tasks in (x,y,z).\n\t"
-                  "NOTE: the serially refined mesh must have the appropriate number\n\t"
-                  "of zones in each direction, e.g., the number of zones in direction x\n\t"
-                  "must be divisible by the number of MPI tasks in direction x.\n\t"
-                  "Available options: 11, 21, 111, 211, 221, 311, 321, 322, 432.");
-   args.AddOption(&okina, "-o", "--okina", "-no-o", "--no-okina",
-                  "Activate OKINA kernels.");
-   args.AddOption(&qupdate, "-q", "--qupdate", "-no-q", "--no-qupdate",
-                  "Enable or disable QUpdate function.");
    args.AddOption(&dev_opt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&check, "-chk", "--checks", "-no-chk", "--no-checks",
-                  "Enable 2D checks.");
    args.AddOption(&mem_usage, "-mb", "--mem", "-no-mem", "--no-mem",
                   "Enable memory usage.");
    args.AddOption(&fom, "-f", "--fom", "-no-fom", "--no-fom",
@@ -3624,150 +3566,36 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
       if (mpi.Root()) { args.PrintUsage(cout); }
       return -1;
    }
-   if (mpi.Root()) { args.PrintOptions(cout); }
+   //if (mpi.Root()) { args.PrintOptions(cout); }
 
-   Mesh *msh = new Mesh(mesh_file, 1, 1);
-   const int dim = msh->Dimension();
-   for (int lev = 0; lev < rs_levels; lev++) { msh->UniformRefinement(); }
-   const int mesh_NE = msh->GetNE();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   const int dim = mesh->Dimension();
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   const int mesh_NE = mesh->GetNE();
    if (mpi.Root())
    {
       cout << "Number of zones in the serial mesh: " << mesh_NE << endl;
    }
 
    ParMesh *pmesh = NULL;
-   const int num_tasks = mpi.WorldSize(); int unit;
-   int *nxyz = new int[dim];
-   switch (partition_type)
+   if (myid == 0)
    {
-      case 11:
-      case 111:
-         unit = static_cast<int>(floor(pow(num_tasks, 1.0 / dim) + 1e-2));
-         for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
-         break;
-      case 21: // 2D
-         unit = static_cast<int>(floor(pow(num_tasks / 2, 1.0 / 2) + 1e-2));
-         nxyz[0] = 2 * unit; nxyz[1] = unit;
-         break;
-      case 31: // 2D
-         unit = static_cast<int>(floor(pow(num_tasks / 3, 1.0 / 2) + 1e-2));
-         nxyz[0] = 3 * unit; nxyz[1] = unit;
-         break;
-      case 32: // 2D
-         unit = static_cast<int>(floor(pow(2 * num_tasks / 3, 1.0 / 2) + 1e-2));
-         nxyz[0] = 3 * unit / 2; nxyz[1] = unit;
-         break;
-      case 49: // 2D
-         unit = static_cast<int>(floor(pow(9 * num_tasks / 4, 1.0 / 2) + 1e-2));
-         nxyz[0] = 4 * unit / 9; nxyz[1] = unit;
-         break;
-      case 51: // 2D
-         unit = static_cast<int>(floor(pow(num_tasks / 5, 1.0 / 2) + 1e-2));
-         nxyz[0] = 5 * unit; nxyz[1] = unit;
-         break;
-      case 211: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 2, 1.0 / 3) + 1e-2));
-         nxyz[0] = 2 * unit; nxyz[1] = unit; nxyz[2] = unit;
-         break;
-      case 221: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 4, 1.0 / 3) + 1e-2));
-         nxyz[0] = 2 * unit; nxyz[1] = 2 * unit; nxyz[2] = unit;
-         break;
-      case 311: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 3, 1.0 / 3) + 1e-2));
-         nxyz[0] = 3 * unit; nxyz[1] = unit; nxyz[2] = unit;
-         break;
-      case 321: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 6, 1.0 / 3) + 1e-2));
-         nxyz[0] = 3 * unit; nxyz[1] = 2 * unit; nxyz[2] = unit;
-         break;
-      case 322: // 3D.
-         unit = static_cast<int>(floor(pow(2 * num_tasks / 3, 1.0 / 3) + 1e-2));
-         nxyz[0] = 3 * unit / 2; nxyz[1] = unit; nxyz[2] = unit;
-         break;
-      case 432: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 3, 1.0 / 3) + 1e-2));
-         nxyz[0] = 2 * unit; nxyz[1] = 3 * unit / 2; nxyz[2] = unit;
-         break;
-      case 511: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 5, 1.0 / 3) + 1e-2));
-         nxyz[0] = 5 * unit; nxyz[1] = unit; nxyz[2] = unit;
-         break;
-      case 521: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 10, 1.0 / 3) + 1e-2));
-         nxyz[0] = 5 * unit; nxyz[1] = 2 * unit; nxyz[2] = unit;
-         break;
-      case 522: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 20, 1.0 / 3) + 1e-2));
-         nxyz[0] = 5 * unit; nxyz[1] = 2 * unit; nxyz[2] = 2 * unit;
-         break;
-      case 911: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 9, 1.0 / 3) + 1e-2));
-         nxyz[0] = 9 * unit; nxyz[1] = unit; nxyz[2] = unit;
-         break;
-      case 921: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 18, 1.0 / 3) + 1e-2));
-         nxyz[0] = 9 * unit; nxyz[1] = 2 * unit; nxyz[2] = unit;
-         break;
-      case 922: // 3D.
-         unit = static_cast<int>(floor(pow(num_tasks / 36, 1.0 / 3) + 1e-2));
-         nxyz[0] = 9 * unit; nxyz[1] = 2 * unit; nxyz[2] = 2 * unit;
-         break;
-      default:
-         if (myid == 0)
-         {
-            cout << "Unknown partition type: " << partition_type << '\n';
-         }
-         delete msh;
-         //MPI_Finalize();
-         return -1;
-   }
-   int nproduct = 1;
-   for (int d = 0; d < dim; d++) { nproduct *= nxyz[d]; }
-   const bool cartesian_partitioning = (cxyz.Size()>0)?true:false;
-   if (nproduct == num_tasks || cartesian_partitioning)
-   {
-      if (cartesian_partitioning)
-      {
-         int cproduct = 1;
-         for (int d = 0; d < dim; d++) { cproduct *= cxyz[d]; }
-         MFEM_VERIFY(!cartesian_partitioning || cxyz.Size() == dim,
-                     "Expected " << msh->SpaceDimension() << " integers with the "
-                     "option --cartesian-partitioning.");
-         MFEM_VERIFY(!cartesian_partitioning || num_tasks == cproduct,
-                     "Expected cartesian partitioning product to match number of ranks.");
-      }
-      int *partitioning = cartesian_partitioning ? msh->CartesianPartitioning(cxyz):
-                          msh->CartesianPartitioning(nxyz);
-#ifdef MFEM_USE_MPI
-      pmesh = new ParMesh(MPI_COMM_WORLD, *msh, partitioning);
-#else
-      pmesh = new Mesh(*msh);
-#endif
-      delete [] partitioning;
-   }
-   else
-   {
-      if (myid == 0)
-      {
-         cout << "Non-Cartesian partitioning through METIS will be used.\n";
+      cout << "Non-Cartesian partitioning through METIS will be used.\n";
 #ifndef MFEM_USE_METIS
-         cout << "MFEM was built without METIS. "
-              << "Adjust the number of tasks to use a Cartesian split." << endl;
+      cout << "MFEM was built without METIS. "
+           << "Adjust the number of tasks to use a Cartesian split." << endl;
 #endif
-      }
+   }
 #ifndef MFEM_USE_METIS
-      return -1;
+   return -1;
 #endif
 #ifdef MFEM_USE_MPI
-      pmesh = new ParMesh(MPI_COMM_WORLD, *msh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 #else
-      pmesh = new Mesh(*msh);
+   pmesh = new Mesh(*mesh);
 #endif
-   }
-   delete [] nxyz;
-   delete msh;
 
+   delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
    int nzones = pmesh->GetNE(), nzones_min, nzones_max;
    MPI_Reduce(&nzones, &nzones_min, 1, MPI_INT, MPI_MIN, 0, pmesh->GetComm());
@@ -3807,6 +3635,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    true_offset[2] = true_offset[1] + H1Vsize;
    true_offset[3] = true_offset[2] + L2Vsize;
    BlockVector S(true_offset, Device::GetMemoryType());
+   S.UseDevice(true);
    ParGridFunction x_gf, v_gf, e_gf;
    x_gf.MakeRef(&H1FESpace, S, true_offset[0]);
    v_gf.MakeRef(&H1FESpace, S, true_offset[1]);
@@ -3835,27 +3664,17 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    FunctionCoefficient mat_coeff(gamma);
    mat_gf.ProjectCoefficient(mat_coeff);
    GridFunctionCoefficient *mat_gf_coeff = new GridFunctionCoefficient(&mat_gf);
-   int source = 0; bool visc = true;
-   switch (problem)
-   {
-      case 0: if (pmesh->Dimension() == 2) { source = 1; }
-         visc = false; break;
-      case 1: visc = true; break;
-      case 2: visc = true; break;
-      case 3: visc = true; break;
-      case 4: visc = false; break;
-      case 5: visc = true; break;
-      case 6: visc = true; break;
-      default: MFEM_ABORT("Wrong problem specification!");
-   }
-   if (impose_visc) { visc = true; }
-   mfem::hydrodynamics::LagrangianHydroOperator
-   oper(rho_coeff, S.Size(),
-        H1FESpace, L2FESpace,
-        ess_tdofs, rho, source, cfl, mat_gf_coeff,
-        visc, p_assembly, cg_tol, cg_max_iter, ftz_tol,
-        order_q, qupdate, gamma(S), okina,
-        H1FEC.GetBasisType());
+   const int source = 0; bool visc = true;
+
+   mfem::hydrodynamics::LagrangianHydroOperator oper(rho_coeff, S.Size(),
+                                                     H1FESpace, L2FESpace,
+                                                     ess_tdofs, rho, source,
+                                                     cfl, mat_gf_coeff,
+                                                     visc, cg_tol, cg_max_iter,
+                                                     ftz_tol, order_q,
+                                                     gamma(S),
+                                                     H1FEC.GetBasisType());
+
    ode_solver->Init(oper);
    oper.ResetTimeStepEstimate();
    double t = 0.0, dt = oper.GetTimeStepEstimate(S), t_old;
@@ -3924,51 +3743,50 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
             cout << endl;
          }
       }
-      if (check)
+      REQUIRE(problem==1);
+      double loc_norm = e_gf * e_gf, tot_norm;
+      MPI_Allreduce(&loc_norm, &tot_norm, 1, MPI_DOUBLE, MPI_SUM,
+                    pmesh->GetComm());
+      const double stm = sqrt(tot_norm);
+      //printf("\n\033[33m%.15e\033[m", stm); fflush(0);
+      REQUIRE((rs_levels==0 || rs_levels==1));
+      REQUIRE(rp_levels==0);
+      REQUIRE(order_v==2);
+      REQUIRE(order_e==1);
+      REQUIRE(ode_solver_type==4);
+      REQUIRE(t_final==Approx(0.6));
+      REQUIRE(cfl==Approx(0.5));
+      REQUIRE(cg_tol==Approx(1.e-14));
+      const int dim = strcmp(mesh_file,"data/square01_quad.mesh")==0?2:
+                      strcmp(mesh_file,"data/cube01_hex.mesh")==0?3:1;
+      REQUIRE((dim==2 || dim==3));
+      if (dim==2)
       {
-         REQUIRE(problem==1);
-         const double eps = 1.e-13;
-         double loc_norm = e_gf * e_gf, tot_norm;
-         MPI_Allreduce(&loc_norm, &tot_norm, 1, MPI_DOUBLE, MPI_SUM,
-                       pmesh->GetComm());
-         const double stm = sqrt(tot_norm);
-         MFEM_VERIFY(rs_levels==0, "check: rs, rp");
-         MFEM_VERIFY(order_v==2, "check: order_v");
-         MFEM_VERIFY(order_e==1, "check: order_e");
-         MFEM_VERIFY(ode_solver_type==4, "check: ode_solver_type");
-         MFEM_VERIFY(fabs(t_final-0.6)<eps, "check: t_final");
-         MFEM_VERIFY(cfl==0.5, "check: cfl");
-         //MFEM_VERIFY(cg_tol==1.e-14, "check: cg_tol");
-         const int dim = strcmp(mesh_file,"data/square01_quad.mesh")==0?2:
-                         strcmp(mesh_file,"data/cube01_hex.mesh")==0?3:1;
-         MFEM_VERIFY(dim==2 || dim==3, "check: mesh_file");
-         if (dim==2)
-         {
-            const double p1_05 = 3.50825494522579e+00;
-            const double p1_15 = 2.75644459682321e+00;
-            if (ti==05) {checks++; REQUIRE(fabs(stm-p1_05)<eps);}
-            if (ti==15) {checks++; REQUIRE(fabs(stm-p1_15)<eps);}
-         }
-         if (dim==3)
-         {
-            const double eps = 1.e-12;
-            const double p1_05 = 1.33916371859257e+01;
-            const double p1_28 = 7.52107367739800e+00;
-            if (ti==05) {checks++; REQUIRE(fabs(stm-p1_05)<eps);}
-            if (ti==28) {checks++; REQUIRE(fabs(stm-p1_28)<eps);}
-         }
+         const double p1_05[2] = {3.508254945225794e+00,
+                                  1.403249766367977e+01
+                                 };
+         const double p1_15[2] = {2.756444596823211e+00,
+                                  1.104093401469385e+01
+                                 };
+         if (ti==05) {checks++; REQUIRE(stm==Approx(p1_05[rs_levels]));}
+         if (ti==15) {checks++; REQUIRE(stm==Approx(p1_15[rs_levels]));}
+      }
+      if (dim==3)
+      {
+         const double p1_05[2] = {1.339163718592567e+01,
+                                  1.071277540097426e+02
+                                 };
+         const double p1_28[2] = {7.521073677398005e+00,
+                                  5.985720905709158e+01
+                                 };
+         if (ti==05) {checks++; REQUIRE(stm==Approx(p1_05[rs_levels]));}
+         if (ti==28) {checks++; REQUIRE(stm==Approx(p1_28[rs_levels]));}
       }
    }
-   MFEM_VERIFY((!check)||(checks==2),"");
-   switch (ode_solver_type)
-   {
-      case 2: steps *= 2; break;
-      case 3: steps *= 3; break;
-      case 4: steps *= 4; break;
-      case 6: steps *= 6; break;
-      case 7: steps *= 2;
-   }
-   oper.PrintTimingData(mpi.Root(), steps, fom);
+   REQUIRE(checks==2);
+   REQUIRE(ode_solver_type==4);
+   steps *= 4;
+   //oper.PrintTimingData(mpi.Root(), steps, fom);
    if (mem_usage)
    {
       mem = GetMaxRssMB();
@@ -3998,23 +3816,42 @@ static int argn(const char *argv[], int argc =0)
    return argc;
 }
 
-#ifndef MFEM_DEV_UNIT_TESTS
-
-TEST_CASE("Sedov", "[Sedov]")
+static void sedov_tests(MPI_Session &mpi)
 {
-   MPI_Session mpi;
-   const char *argv3D[]= {"unit_tests",
-                          "-m", "data/cube01_hex.mesh",
-                          nullptr
-                         };
-   REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
-
    const char *argv2D[]= {"unit_tests_dev",
                           "-m", "data/square01_quad.mesh",
                           nullptr
                          };
    REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
 
+   const char *argv2Drs1[]= {"unit_tests_dev",
+                             "-rs", "1", "-ms", "20",
+                             "-m", "data/square01_quad.mesh",
+                             nullptr
+                            };
+   REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
+
+
+   const char *argv3D[]= {"unit_tests",
+                          "-m", "data/cube01_hex.mesh",
+                          nullptr
+                         };
+   REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
+
+   const char *argv3Drs1[]= {"unit_tests",
+                             "-rs", "1", "-ms", "28",
+                             "-m", "data/cube01_hex.mesh",
+                             nullptr
+                            };
+   REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
+}
+
+#ifndef MFEM_DEV_UNIT_TESTS
+
+TEST_CASE("Sedov", "[Sedov]")
+{
+   MPI_Session mpi;
+   sedov_tests(mpi);
 }
 
 #else
@@ -4025,18 +3862,7 @@ TEST_CASE("Sedov", "[Sedov]")
    Device device;
    device.Configure(MFEM_DEV_UNIT);
    if (mpi.Root()) {device.Print();}
-
-   const char *argv3D[]= {"unit_tests_dev",
-                          "-m", "data/cube01_hex.mesh",
-                          nullptr
-                         };
-   REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
-
-   const char *argv2D[]= {"unit_tests_dev",
-                          "-m", "data/square01_quad.mesh",
-                          nullptr
-                         };
-   REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
+   sedov_tests(mpi);
 }
 
 #endif

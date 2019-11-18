@@ -36,6 +36,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_quadraturefunc.cpp
+  miniapps/test_sedov.cpp
   )
 
 # All unit tests are built into a single executable 'unit_tests'.
