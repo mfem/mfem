@@ -355,9 +355,9 @@ public:
                                       Vector &elvect);
 
    virtual void AssembleElementGrad(const FiniteElement &el,
-                            ElementTransformation &trans,
-                            const Vector &elfun,
-                            DenseMatrix &elmat);
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat);
 
    using NonlinearFormIntegrator::Setup;
 
