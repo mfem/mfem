@@ -370,7 +370,13 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    //update problem size
-   width = height = fespace.GetTrueVSize()*3;
+   int sc = fespace.GetTrueVSize();
+   int scFull = fespace.GetVSize();
+   width = height = sc*3;
+
+   //update z holder
+   z.SetSize(sc);
+   zFull.SetSize(scFull);
 
    //mass matrix
    M->Update();
