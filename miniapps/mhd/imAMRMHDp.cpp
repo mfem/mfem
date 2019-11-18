@@ -788,15 +788,15 @@ int main(int argc, char *argv[])
          AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
          oper.UpdateGridFunction();
 
-         global_size = fespace.GlobalTrueVSize();
-         cout << "Number of total scalar unknowns: " << global_size << endl;
+         if (myid == 0)
+         {
+           global_size = fespace.GlobalTrueVSize();
+           cout << "Number of total scalar unknowns: " << global_size << endl;
+         }
 
          //---assemble problem and update boundary condition---
          oper.UpdateProblem(ess_bdr); 
          ode_solver->Init(oper);
-
-         //FIXME: debug only
-         break;
       }
       //----------------------------AMR---------------------------------
 
