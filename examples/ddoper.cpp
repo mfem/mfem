@@ -693,6 +693,9 @@ SparseMatrix* GatherHypreParMatrix(HypreParMatrix *A)
   if (alldata)
     delete alldata;
 
+  if (csr)
+    delete csr;
+  
   return S;
 }
 
@@ -1398,6 +1401,9 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
     delete globalI;
 
   delete[] allg;
+  
+  if (csr_op)
+    delete csr_op;
   
   return S;
 }
@@ -4113,7 +4119,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   injSD = new BlockOperator*[numSubdomains];
   precAsd = new Solver*[numSubdomains];
   sdND = new HypreParMatrix*[numSubdomains];
-  sdNDcopy = new HypreParMatrix*[numSubdomains];
+  //sdNDcopy = new HypreParMatrix*[numSubdomains];
   A_SS = new HypreParMatrix*[numSubdomains];
   sdNDinv = new Operator*[numSubdomains];
   sdNDPen = new HypreParMatrix*[numSubdomains];
@@ -4677,7 +4683,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       if (pmeshSD[m] == NULL)
 	{
 	  sdND[m] = NULL;
-	  sdNDcopy[m] = NULL;
+	  //sdNDcopy[m] = NULL;
 	    
 	  /*
 	    Asd[m] = NULL;
@@ -5638,8 +5644,36 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    
 	    invAsdComplex[m] = gmres;
 #else
+#ifdef SD_ITERATIVE
+	    {
+	      GMRESSolver *gmres = new GMRESSolver(sd_com[m]);
+
+	      gmres->SetOperator(*(HypreAsdComplex[m]));
+
+	      gmres->SetRelTol(1e-12);
+	      gmres->SetMaxIter(100);
+	      gmres->SetPrintLevel(1);
+
+	      BlockOperator *sdprecRe = new BlockOperator(rowTrueOffsetsSD[m]);
+	      sdprecRe->SetBlock(0, 0, AuuInvRe);
+	      
+	      BlockOperator *sdprec = new BlockOperator(block_ComplexOffsetsSD[m]);
+	      
+	      sdprec->SetBlock(0, 0, sdprecRe);
+	      sdprec->SetBlock(0, 1, sdprecIm, -1.0);
+	      sdprec->SetBlock(1, 0, sdprecIm);
+	      sdprec->SetBlock(1, 1, sdprecRe);
+	      
+	      gmres->SetPreconditioner(*sdprec);
+	      gmres->SetName("invAsdComplexIter" + std::to_string(m));
+	      gmres->iterative_mode = false;
+	    
+	      invAsdComplex[m] = gmres;
+	    }
+#else
 	    invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), sd_com[m]);
 	    //invAsdComplex[m] = CreateStrumpackSolverApproxV2(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), sd_com[m]);
+#endif
 	    /*
 	    {
 	      GMRESSolver *gmres = new GMRESSolver(sd_com[m]);
@@ -8190,7 +8224,7 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain)
   bf_sdND[subdomain]->Assemble();
 
   sdND[subdomain] = new HypreParMatrix();
-  sdNDcopy[subdomain] = new HypreParMatrix();
+  //sdNDcopy[subdomain] = new HypreParMatrix();
 
   Array<int> ess_tdof_list;  // empty
 
@@ -8289,7 +8323,7 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain)
   }
 
   //bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdND[subdomain]));
-  bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdNDcopy[subdomain]));  // TODO: is there a way to avoid making a copy of this matrix?
+  //bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdNDcopy[subdomain]));  // TODO: is there a way to avoid making a copy of this matrix?
 
   /*
     { // debugging
@@ -8327,7 +8361,6 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain)
       bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, *(srcSD[subdomain]));
       delete b;
     }
-
     
   // Add sum over all interfaces of 
   // -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m)>_{S_{mn}} - beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{mn}(u_m)>_{S_{mn}}
@@ -8764,7 +8797,7 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 
 	      if (A_SS[subdomain] == NULL)
 		{
-		  A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
+		  A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdND[subdomain], sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
 									 InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 									 ifespace[interfaceIndex], NULL, true, PENALTY_U_S);
 		}
@@ -9183,8 +9216,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 	
       if (A_SS_op == NULL)
 	{
-	  // TODO: try with sdND, to see if sdNDcopy is unnecessary.
-	  A_SS_op = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifSum, //InterfaceToSurfaceInjectionData[subdomain][i],
+	  A_SS_op = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdND[subdomain], ifSum, //InterfaceToSurfaceInjectionData[subdomain][i],
 							 //InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 							 dofmap,
 							 GlobalInterfaceToSurfaceInjectionGlobalData[subdomain][interfaceIndex],
@@ -9223,7 +9255,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 
       //if (ifNDmass[interfaceIndex] != NULL)
 	{
-	  HypreParMatrix* injectedM = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDmass[interfaceIndex],
+	  HypreParMatrix* injectedM = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdND[subdomain], ifNDmass[interfaceIndex],
 									   dofmap,
 									   GlobalInterfaceToSurfaceInjectionGlobalData[subdomain][interfaceIndex],
 									   ifespace[interfaceIndex], NULL, false);
@@ -9250,9 +9282,9 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
 
 #ifdef SERIAL_INTERFACES
-      HypreParMatrix* injectedTr = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDH1gradSp[interfaceIndex],
+      HypreParMatrix* injectedTr = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdND[subdomain], ifNDH1gradSp[interfaceIndex],
 #else
-      HypreParMatrix* injectedTr = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDH1grad[interfaceIndex],
+      HypreParMatrix* injectedTr = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdND[subdomain], ifNDH1grad[interfaceIndex],
 #endif
 									//InterfaceToSurfaceInjectionData[subdomain][i],
 									//InterfaceToSurfaceInjectionGlobalData[subdomain][i],
@@ -9347,7 +9379,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 #else
 	  HypreParMatrix *ifSumF = (ifNDtrue[interfaceIndex] == 0) ? NULL : Add(1.0, *(ifNDmass[interfaceIndex]), betaOverAlpha, *(ifNDcurlcurl[interfaceIndex]));
 #endif
-	  HypreParMatrix *matrixSum = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifSumF,
+	  HypreParMatrix *matrixSum = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdND[subdomain], ifSumF,
 									   //InterfaceToSurfaceInjectionData[subdomain][i],
 									   //InterfaceToSurfaceInjectionGlobalData[subdomain][i],
 									   dofmap,
@@ -9365,9 +9397,9 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
       else
 	{
 #ifdef SERIAL_INTERFACES
-	  HypreParMatrix *matrixSum = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDcurlcurlSp[interfaceIndex],
+	  HypreParMatrix *matrixSum = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdND[subdomain], ifNDcurlcurlSp[interfaceIndex],
 #else
-	  HypreParMatrix *matrixSum = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDcurlcurl[interfaceIndex],
+	  HypreParMatrix *matrixSum = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdND[subdomain], ifNDcurlcurl[interfaceIndex],
 #endif
 									   //InterfaceToSurfaceInjectionData[subdomain][i],
 									   //InterfaceToSurfaceInjectionGlobalData[subdomain][i],

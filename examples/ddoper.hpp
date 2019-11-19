@@ -46,6 +46,8 @@ using namespace std;
 
 #define NO_SD_OPERATOR
 
+//#define SD_ITERATIVE
+
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -988,7 +990,7 @@ private:
   ParFiniteElementSpace **fespace;
   Operator **ifNDmassInv, **ifH1massInv;
   HypreParMatrix **sdND;
-  HypreParMatrix **sdNDcopy;
+  //HypreParMatrix **sdNDcopy;
   HypreParMatrix **A_SS;
   HypreParMatrix **sdNDPen;
   HypreParMatrix **sdNDPlusPen;
