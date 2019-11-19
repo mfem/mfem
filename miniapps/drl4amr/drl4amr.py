@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 from ctypes import *
 from random import *
@@ -12,8 +13,8 @@ def sign(f, args_t, res_t):
     f.argtypes = args_t
 
 class Ctrl(object):
-    def __init__(self, order): self.obj = MFEM.Ctrl(order)
-    sign(MFEM.Ctrl, [c_int], c_void_p)
+    def __init__(self, order, seed): self.obj = MFEM.Ctrl(order, seed)
+    sign(MFEM.Ctrl, [c_int, c_int], c_void_p)
 
     def Compute(self): return MFEM.Compute(self.obj)
     sign(MFEM.Compute, [c_void_p], c_int)
@@ -30,9 +31,19 @@ class Ctrl(object):
     def GetNDofs(self): return MFEM.GetNDofs(self.obj)
     sign(MFEM.GetNDofs, [c_void_p], c_int)
 
+    # Get the image of the solution, of size GetImageSize
     def GetImage(self): return MFEM.GetImage(self.obj)
     sign(MFEM.GetImage, [c_void_p], c_double_p)
 
+    # Get the image of the elem id, of size GetImageSize
+    def GetIdField(self): return MFEM.GetIdField(self.obj)
+    sign(MFEM.GetIdField, [c_void_p], c_double_p)
+
+    # Get the image of the elem depth, of size GetImageSize
+    def GetDepthField(self): return MFEM.GetDepthField(self.obj)
+    sign(MFEM.GetDepthField, [c_void_p], c_double_p)
+
+    # Get images sizes: GetImageSize = GetImageX * GetImageY
     def GetImageSize(self): return MFEM.GetImageSize(self.obj)
     sign(MFEM.GetImageSize, [c_void_p], c_int)
 
@@ -43,14 +54,16 @@ class Ctrl(object):
     sign(MFEM.GetImageY, [c_void_p], c_int)
 
 
+seed = 0
 order = 2
 
-sim = Ctrl(order)
+sim = Ctrl(order, seed)
 
 NE = sim.GetNE()
 NX = sim.GetImageX()
 NY = sim.GetImageY()
-#print(NX,NY)
+print(NX,NY)
+
 
 while sim.GetNorm() > 0.01:
     sim.Compute()
@@ -58,19 +71,28 @@ while sim.GetNorm() > 0.01:
     #sim.Refine(-1); # Will refine using the internal refiner
     sim.Refine(int(NE*random()))
 
-    image_d = sim.GetImage()
-    #image_s = sim.GetImageSize()
-    #print("image_s: " + str(image_s))
+    image_p = sim.GetImage()
+    id_p = sim.GetIdField()
+    depth_p = sim.GetDepthField()
 
-    # Get the data back, two ways:
-    #data = np.fromiter(image_d, dtype=np.double, count=NX*NY) # copy
-    # or:
-    data = np.frombuffer((c_double*NX*NY).from_address(addressof(image_d.contents))) # address
+    # Get the data back
+    image_d = np.frombuffer((c_double*NX*NY).from_address(addressof(image_p.contents)))
+    id_d = np.frombuffer((c_double*NX*NY).from_address(addressof(id_p.contents)))
+    depth_d = np.frombuffer((c_double*NX*NY).from_address(addressof(depth_p.contents)))
 
     # Scale and convert the image
-    image_f = (data * 255 / np.max(data)).astype('uint8')
+    image_f = (image_d * 255 / np.max(image_d)).astype('uint8')
     image = Image.fromarray(image_f.reshape(NX,NY),'L')
     image.save('image.jpg')
+
+    id_f = (id_d * 255 / np.max(id_d)).astype('uint8')
+    id = Image.fromarray(id_f.reshape(NX,NY),'L')
+    id.save('id.jpg')
+
+    depth_f = (depth_d * 255 / np.max(depth_d)).astype('uint8')
+    depth = Image.fromarray(depth_f.reshape(NX,NY),'L')
+    depth.save('depth.jpg')
+
     print("Norm: "+str(sim.GetNorm()))
 
 print("Done, final norm: "+str(sim.GetNorm()))
