@@ -3733,7 +3733,6 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
       }
 
       // assign numbers to the different matrices used
-      int used_geoms = 0;
       for (int i = 0; i < transforms.embeddings.Size(); i++)
       {
          int code = transforms.embeddings[i].matrix;
@@ -3745,14 +3744,12 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
             int &matrix = mat_no[geom][ref_type_child];
             if (!matrix) { matrix = mat_no[geom].size(); }
             transforms.embeddings[i].matrix = matrix - 1;
-
-            used_geoms |= (1 << geom);
          }
       }
 
       for (int g = 0; g < Geometry::NumGeom; g++)
       {
-         if (used_geoms & (1 << g))
+         if (Geoms & (1 << g))
          {
             Geometry::Type geom = Geometry::Type(g);
             const PointMatrix &identity = GetGeomIdentity(geom);
