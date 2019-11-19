@@ -195,7 +195,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 #ifdef MFEM_USE_CEED
-   if (Device::Allows(Backend::CEED_MASK))
+   if (DeviceCanUseCeed())
    {
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
@@ -1102,7 +1102,7 @@ static void PADiffusionApply(const int dim,
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_CEED
-   if (Device::Allows(Backend::CEED_MASK))
+   if (DeviceCanUseCeed())
    {
       const CeedScalar *x_ptr;
       CeedScalar *y_ptr;

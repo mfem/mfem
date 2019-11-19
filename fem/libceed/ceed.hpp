@@ -12,24 +12,17 @@
 #ifndef MFEM_LIBCEED_HPP
 #define MFEM_LIBCEED_HPP
 
-#include "../gridfunc.hpp"
-#include "../fespace.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_CEED
+#include "../gridfunc.hpp"
+#include "../fespace.hpp"
 #include <ceed.h>
-#else
-typedef void* Ceed;
-typedef int CeedInt;
-typedef double CeedScalar;
-#define CEED_QFUNCTION(name) int name
-#endif
 
 namespace mfem
 {
 
-#ifdef MFEM_USE_CEED
-
-namespace internal { extern Ceed ceed; }
+namespace internal { extern Ceed ceed; } // defined in device.cpp
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
@@ -63,7 +56,8 @@ struct CeedData
    CeedVector u, v;
 };
 
-/// Identifies the type of coefficient of the Integrator to initialize accordingly the CeedData
+/** @brief Identifies the type of coefficient of the Integrator to initialize
+    accordingly the CeedData. */
 void InitCeedCoeff(Coefficient* Q, CeedData* ptr);
 
 /// Initialize a tensor CeedBasis and a CeedElemRestriction
@@ -72,10 +66,20 @@ void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                                        Ceed ceed, CeedBasis *basis,
                                        CeedElemRestriction *restr);
 
+/// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
 
-#endif
-
+/** @brief Function that determines if a CEED kernel should be used, based on
+    the current mfem::Device configuration. */
+inline bool DeviceCanUseCeed()
+{
+   return Device::Allows(Backend::CEED_CUDA) ||
+          (Device::Allows(Backend::CEED_CPU) &&
+           !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
 }
+
+} // namespace mfem
+
+#endif // MFEM_USE_CEED
 
 #endif // MFEM_LIBCEED_HPP

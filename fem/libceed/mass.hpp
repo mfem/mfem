@@ -13,19 +13,19 @@
 #define MFEM_LIBCEED_MASS_HPP
 
 #include "ceed.hpp"
+
+#ifdef MFEM_USE_CEED
 #include "../fespace.hpp"
 
 namespace mfem
 {
 
-#ifdef MFEM_USE_CEED
-
 /// Initialize a Mass Integrator using libCEED
 void CeedPAMassAssemble(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &ir,  CeedData& ceedData);
 
-#endif
-
 }
+
+#endif // MFEM_USE_CEED
 
 #endif // MFEM_LIBCEED_MASS_HPP

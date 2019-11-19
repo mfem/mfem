@@ -13,6 +13,7 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "../general/forall.hpp"
+#include "libceed/ceed.hpp"
 #include "bilinearform.hpp"
 
 namespace mfem
@@ -102,7 +103,8 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (Device::Allows(Backend::CEED_MASK))
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
    {
       for (int i = 0; i < iSz; ++i)
       {
@@ -110,6 +112,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
    }
    else
+#endif
    {
       if (elem_restrict_lex)
       {

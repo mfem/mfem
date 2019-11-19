@@ -31,7 +31,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
 #ifdef MFEM_USE_CEED
-   if (Device::Allows(Backend::CEED_MASK))
+   if (DeviceCanUseCeed())
    {
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
@@ -797,7 +797,7 @@ static void PAMassApply(const int dim,
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_CEED
-   if (Device::Allows(Backend::CEED_MASK))
+   if (DeviceCanUseCeed())
    {
       const CeedScalar *x_ptr;
       CeedScalar *y_ptr;

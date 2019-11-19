@@ -10,8 +10,9 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "ceed.hpp"
-#include "../../general/device.hpp"
 
+#ifdef MFEM_USE_CEED
+#include "../../general/device.hpp"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -35,7 +36,6 @@ std::string ceed_path;
 
 }
 
-#ifdef MFEM_USE_CEED
 void InitCeedCoeff(Coefficient* Q, CeedData* ptr)
 {
    if (ConstantCoefficient* coeff = dynamic_cast<ConstantCoefficient*>(Q))
@@ -158,13 +158,12 @@ const std::string &GetCeedPath()
          MFEM_ABORT("Cannot find libCEED kernels in MFEM_INSTALL_DIR or "
                     "MFEM_SOURCE_DIR");
       }
+      // Could be useful for debugging:
+      // mfem::out << "Using libCEED dir: " << internal::ceed_path << std::endl;
    }
-#ifdef MFEM_DEBUG
-   mfem::out << "Using libCEED dir: " << internal::ceed_path << std::endl;
-#endif
    return internal::ceed_path;
 }
 
-#endif
-
 } // namespace mfem
+
+#endif // MFEM_USE_CEED
