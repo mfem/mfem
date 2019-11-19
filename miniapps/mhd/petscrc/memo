@@ -33,6 +33,19 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+11/18
+debug:
+-m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -tf .5 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3
+
+a bug fixed in ParBilinearForm define
+
+this is ok (using refine step=4)
+mpirun -n 16 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 1 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3
+
+this is ok (I may try a fine mesh to start with instead; here the derefine is aggressive):
+mpirun -n 16 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 1 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine
+
+
 11/16
 avoid SetFromTrueVector() when mesh is changed; this gives the wrong answer!
 

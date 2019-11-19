@@ -215,11 +215,9 @@ public:
    void UpdateGridFunction()
    {
       j.Update(); gftmp.Update();
-
       //DSl and DRe contains ParGridFunctions that need to be updated
       DSl.Update();    
       DSl.Assemble();
-
       DRe.Update();    
       DRe.Assemble();
    }
@@ -230,7 +228,7 @@ public:
 
    void UpdateJ(Vector &k, ParGridFunction *jGf);
 
-   //only for explicit solver
+   //functions for explicit solver
    void UpdatePhi(Vector &vx);
    void assembleNv(ParGridFunction *gf);
    void assembleNb(ParGridFunction *gf);
@@ -434,8 +432,6 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
 
    KB->Update(); 
    KB->Assemble();
-
-
   
    if (use_petsc)
    {
@@ -799,7 +795,6 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
  * [  Pw  Sc  0    ]
  * [  K   0   M    ]
 */
-
 Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
    MFEM_ASSERT(initialMdt, "Mdt not initialized correctly!"); 

@@ -3,8 +3,9 @@
 // Compile with: make imAMRMHDp
 //
 // Sample runs:
+// mpirun -n 4 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -tf 1 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine
 //
-// Description:  this function will only support amr and implicit solvers
+// Description:  this function only supports amr and implicit solvers
 // Author: QT
 
 #include "mfem.hpp"
@@ -14,6 +15,7 @@
 #include "AMRResistiveMHDOperatorp.hpp"
 #include "BlockZZEstimator.hpp"
 #include "PCSolver.hpp"
+#include "InitialConditions.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -24,88 +26,6 @@
 
 using namespace std;
 using namespace mfem;
-
-double alpha; //a global value of magnetude for the pertubation
-double Lx;  //size of x domain
-double lambda;
-double resiG;
-
-//initial condition
-double InitialPhi(const Vector &x)
-{
-    return 0.0;
-}
-
-double InitialW(const Vector &x)
-{
-    return 0.0;
-}
-
-double InitialJ(const Vector &x)
-{
-   return -M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-double InitialPsi(const Vector &x)
-{
-   return -x(1)+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-double BackPsi(const Vector &x)
-{
-   //this is the background psi (for post-processing/plotting only)
-   return -x(1);
-}
-
-double InitialJ2(const Vector &x)
-{
-   return lambda/pow(cosh(lambda*(x(1)-.5)),2)
-       -M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-double InitialPsi2(const Vector &x)
-{
-   return log(cosh(lambda*(x(1)-.5)))/lambda
-       +alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-double BackPsi2(const Vector &x)
-{
-   //this is the background psi (for post-processing/plotting only)
-   return log(cosh(lambda*(x(1)-.5)))/lambda;
-}
-
-double E0rhs(const Vector &x)
-{
-   //for icase 2 only, there is a rhs
-   return resiG*lambda/pow(cosh(lambda*(x(1)-.5)),2);
-}
-
-double InitialJ3(const Vector &x)
-{
-   double ep=.2;
-   return (ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2)
-        -M_PI*M_PI*1.25*alpha*cos(.5*M_PI*x(1))*cos(M_PI*x(0));
-}
-
-double InitialPsi3(const Vector &x)
-{
-   double ep=.2;
-   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) )
-          +alpha*cos(M_PI*.5*x(1))*cos(M_PI*x(0));
-}
-
-double BackPsi3(const Vector &x)
-{
-   double ep=.2;
-   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
-}
-
-double E0rhs3(const Vector &x)
-{
-   double ep=.2;
-   return resiG*(ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
-}
 
 //this is an AMR update function for VSize (instead of TrueVSize)
 //It is only called in the initial stage of AMR to generate an adaptive mesh
@@ -164,7 +84,6 @@ void AMRUpdateTrue(BlockVector &S,
    psi.SetFromTrueDofs(S.GetBlock(1));
    w.SetFromTrueDofs(S.GetBlock(2));
 
-
    //update fem space
    H1FESpace->Update();
 
@@ -173,7 +92,7 @@ void AMRUpdateTrue(BlockVector &S,
    psi.Update();
    w.Update();
    
-   // Note j stores data differently as a regular gridfunction
+   // Note j stores data as a regular gridfunction
    j.Update();
 
    int fe_size = H1FESpace->GetTrueVSize();
@@ -194,7 +113,6 @@ void AMRUpdateTrue(BlockVector &S,
 
    H1FESpace->UpdatesFinished();
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -379,7 +297,7 @@ int main(int argc, char *argv[])
    }
 
    //-----------------------------------Generate adaptive grid---------------------------------
-   //the first part of the code is copied for an explicit code to have a good initial adapative mesh
+   //the first part of the code is copied from an explicit code to have a good initial adapative mesh
    //If there is a simple way to initialize the mesh, then we can drop this part.
    //But last time I tried, the solver has some issue in terms of wrong ordering and refined levels 
    //after an adaptive mesh is saved and loaded. This is a simple work around for now.
@@ -546,7 +464,7 @@ int main(int argc, char *argv[])
    j.SetTrueVector();
 
    //-----------------------------------AMR for the real computation---------------------------------
-   BlockZZEstimator estimator(*integ, j, *integ, psi, flux_fespace1, flux_fespace2);
+   BlockZZEstimator estimator(*integ, j, *integ, w, flux_fespace1, flux_fespace2);
 
    ThresholdRefiner refiner(estimator);
    //refiner.SetTotalErrorFraction(0.0);   // here 0.0 means we use local threshold; default is 0.5
@@ -623,7 +541,6 @@ int main(int argc, char *argv[])
       else if (icase==2)
       {
         dc = new VisItDataCollection("case2", pmesh);
-        //dc->RegisterField("psiPer", &psiPer);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("phi", &phi);
         dc->RegisterField("omega", &w);
@@ -631,7 +548,6 @@ int main(int argc, char *argv[])
       else
       {
         dc = new VisItDataCollection("case3", pmesh);
-        //dc->RegisterField("psiPer", &psiPer);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("phi", &phi);
         dc->RegisterField("omega", &w);
@@ -642,7 +558,7 @@ int main(int argc, char *argv[])
       dc->SetFormat(!par_format ?
                       DataCollection::SERIAL_FORMAT :
                       DataCollection::PARALLEL_FORMAT);
-      dc->SetPrecision(8);
+      dc->SetPrecision(5);
       dc->SetCycle(0);
       dc->SetTime(t);
       dc->Save();
@@ -652,6 +568,7 @@ int main(int argc, char *argv[])
    double start = MPI_Wtime();
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
+
    //++++Perform time-integration (looping over the time iterations, ti, with a time-step dt).
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -678,16 +595,21 @@ int main(int argc, char *argv[])
       //---the main solve step---
       ode_solver->Step(vx, t, dt_real);
 
+      last_step = (t >= t_final - 1e-8*dt);
+      if (last_step)
+      {
+          refineMesh=false;
+          derefineMesh=false;
+      }
+
       //update J and psi as it is needed in the refine or derefine step
       if (refineMesh || derefineMesh)
       {
-          psi.SetFromTrueDofs(vx.GetBlock(1));
+          w.SetFromTrueDofs(vx.GetBlock(2));
           oper.UpdateJ(vx, &j);
       }
 
-      last_step = (t >= t_final - 1e-8*dt);
-
-      if (myid == 0 && (ti % 1)==0)
+      if (myid == 0 && (ti % 5)==0)
       {
           global_size = fespace.GlobalTrueVSize();
           cout << "Number of total scalar unknowns: " << global_size << endl;
@@ -717,7 +639,6 @@ int main(int argc, char *argv[])
             ode_solver->Init(oper);
 
             //---reset J just for the boundary condition
-            //Note J is an auxiliary variable in oper (the only thing needed is the updated boundary)
             j.ProjectCoefficient(*jptr);
             oper.SetInitialJ(*jptr);
             j.SetTrueVector();
@@ -726,13 +647,17 @@ int main(int argc, char *argv[])
          {
             if ( (last_step || (ti % vis_steps) == 0) )
             {
-               if (visualization)
+               if (visualization || visit)
                {
                   //for the plotting purpose we have to reset those solutions
                   phi.SetFromTrueDofs(vx.GetBlock(0));
+                  psi.SetFromTrueDofs(vx.GetBlock(1));
                   w.SetFromTrueDofs(vx.GetBlock(2));
                   oper.UpdateJ(vx, &j);
+               }
 
+               if (visualization)
+               {
                   vis_phi << "parallel " << num_procs << " " << myid << "\n";
                   vis_phi << "solution\n" << *pmesh << phi;
                   if (icase==1) 
@@ -748,15 +673,6 @@ int main(int argc, char *argv[])
 
                if (visit)
                {
-                  if(!visualization)
-                  {
-                     phi.SetFromTrueDofs(vx.GetBlock(0));
-                     w.SetFromTrueDofs(vx.GetBlock(2));
-                     oper.UpdateJ(vx, &j);
-                  }
-
-                  if (icase!=1)
-                     psi.SetFromTrueDofs(vx.GetBlock(1));
                   dc->SetCycle(ti);
                   dc->SetTime(t);
                   dc->Save();
@@ -771,10 +687,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         if (myid == 0) 
-         {
-             cout<<"Mesh refine..."<<endl;
-         }
+         if (myid == 0) cout<<"Mesh refine..."<<endl;
 
          //---Update solutions first---
          AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
@@ -786,34 +699,27 @@ int main(int argc, char *argv[])
          AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
          oper.UpdateGridFunction();
 
-         if (myid == 0)
-         {
-           global_size = fespace.GlobalTrueVSize();
-           cout << "Number of total scalar unknowns: " << global_size << endl;
-         }
-
          //---assemble problem and update boundary condition---
          oper.UpdateProblem(ess_bdr); 
          ode_solver->Init(oper);
 
          //---reset J for the boundary condition
-         //Note J is an auxiliary variable in oper (the only thing needed is the updated boundary)
+         //   Note J is treated as an auxiliary variable 
          j.ProjectCoefficient(*jptr);
          oper.SetInitialJ(*jptr);
          j.SetTrueVector();
-         
       }
       //----------------------------AMR---------------------------------
 
-      //reach here only if mesh is refined/derefined
-      if (visualization)
+      //++++always plot solutions when mesh is refined/derefined
+      if (visualization || visit)
       {
-         //SetFromTrueVector leads to the wrong answer if mesh is changed 
-         //phi.SetFromTrueVector();
-         //w.SetFromTrueVector();
-
          //J need to be updated again just for plotting
          oper.UpdateJ(vx, &j);
+      }
+
+      if (visualization)
+      {
          vis_phi << "parallel " << num_procs << " " << myid << "\n";
          vis_phi << "solution\n" << *pmesh << phi;
          if (icase==1) 
@@ -829,8 +735,6 @@ int main(int argc, char *argv[])
 
       if (visit)
       {
-         if(!visualization)
-            oper.UpdateJ(vx, &j);
          dc->SetCycle(ti);
          dc->SetTime(t);
          dc->Save();
