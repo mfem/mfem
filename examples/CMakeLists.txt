@@ -28,7 +28,7 @@ list(APPEND ALL_EXE_SRCS
   ex19.cpp
   ex20.cpp
   ex21.cpp
-  )
+    )
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
@@ -54,6 +54,13 @@ if (MFEM_USE_MPI)
     ex20p.cpp
     ex21p.cpp
     )
+endif()
+
+# Tag ALL_EXE_SRCS files to be compiled with nvcc.
+if (MFEM_USE_CUDA)
+   foreach(file IN LISTS ALL_EXE_SRCS)
+      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
+   endforeach()
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.

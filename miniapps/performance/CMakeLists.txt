@@ -21,7 +21,7 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
     "-fslp-vectorize"
     "-fslp-vectorize-aggressive"
     "-ffp-contract=fast")
-elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
+elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU" AND NOT MFEM_USE_CUDA )
   list(APPEND PERFORMANCE_CXX_OPTIONS
     "-march=native"
     "-std=c++11"
@@ -35,6 +35,11 @@ add_mfem_miniapp(performance_ex1
   LIBRARIES mfem
   EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
 
+if (MFEM_USE_CUDA)
+   set_property(SOURCE ex1.cpp PROPERTY LANGUAGE CUDA)
+   set(PERFORMANCE_CXX_OPTIONS)
+endif()
+
 add_test(NAME performance_ex1_ser
   COMMAND performance_ex1 -no-vis -r 2)
 
@@ -44,6 +49,10 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem
     EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
 
+  if (MFEM_USE_CUDA)
+     set_property(SOURCE ex1p.cpp PROPERTY LANGUAGE CUDA)
+  endif()
+   
   add_test(NAME performance_ex1p_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_ex1p> -no-vis -rs 2

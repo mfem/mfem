@@ -25,5 +25,11 @@ if (MFEM_USE_MPI)
     pfem_extras.hpp)
 endif()
 
+if (MFEM_USE_CUDA)
+   foreach(file IN LISTS MFEM_MINIAPPS_COMMON_SOURCES)
+      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
+   endforeach()
+endif()
+
 add_library(mfem_miniapps_common ${MFEM_MINIAPPS_COMMON_SOURCES}
             ${MFEM_MINIAPPS_COMMON_HEADERS})

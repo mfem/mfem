@@ -13,6 +13,12 @@ add_mfem_miniapp(nurbs_ex1
   MAIN ex1.cpp
   LIBRARIES mfem)
 
+if (MFEM_USE_CUDA)
+   set_property(SOURCE ex1.cpp PROPERTY LANGUAGE CUDA)
+   set_property(SOURCE ex1p.cpp PROPERTY LANGUAGE CUDA)
+   set_property(SOURCE ex11p.cpp PROPERTY LANGUAGE CUDA)
+endif()
+
 add_test(NAME nurbs_ex1_ser
   COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis)
 
