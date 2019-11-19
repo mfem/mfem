@@ -3829,4 +3829,456 @@ void QuadratureInterpolator::MultTranspose(
    MFEM_ABORT("this method is not implemented yet");
 }
 
+FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace &fes,
+                                               const IntegrationRule &ir)
+{
+   fespace = &fes;
+   qspace = NULL;
+   IntRule = &ir;
+   use_tensor_products = true; // not implemented yet (not used)
+
+   if (fespace->GetNE() == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
+               "Only scalar finite elements are supported");
+}
+
+FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace &fes,
+                                               const QuadratureSpace &qs)
+{
+   fespace = &fes;
+   qspace = &qs;
+   IntRule = NULL;
+   use_tensor_products = true; // not implemented yet (not used)
+
+   if (fespace->GetNE() == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
+               "Only scalar finite elements are supported");
+}
+
+template<const int T_VDIM, const int T_ND, const int T_NQ>
+void FaceQuadratureInterpolator::Eval2D(
+   const int NF,
+   const int vdim,
+   const DofToQuad &maps,
+   const Vector &e_vec,
+   Vector &q_val,
+   // Vector &q_der,
+   Vector &q_det,
+   Vector &q_nor,
+   const int eval_flags)
+{
+   //TODO check tensor, and Gauss-Lobato
+   const int nd = maps.ndof;//TODO ndof per face
+   const int nq = maps.nqpt;//TODO nqpt per face
+   const int ND = T_ND ? T_ND : nd;
+   const int NQ = T_NQ ? T_NQ : nq;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+   MFEM_VERIFY(ND <= MAX_ND2D, "");
+   MFEM_VERIFY(NQ <= MAX_NQ2D, "");
+   MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
+   auto B = Reshape(maps.B.Read(), NQ, ND);//TODO B1d
+   auto G = Reshape(maps.G.Read(), NQ, ND);//TODO G1d
+   auto F = Reshape(e_vec.Read(), ND, VDIM, NF);
+   auto val = Reshape(q_val.Write(), NQ, VDIM, NF);
+   // auto der = Reshape(q_der.Write(), NQ, VDIM, NF);//Only tangential der
+   auto det = Reshape(q_det.Write(), NQ, NF);
+   auto n   = Reshape(q_nor.Write(), NQ, 2, NF);
+   //if Gauss-Lobatto
+   MFEM_FORALL(f, NF,
+   {
+      const int ND = T_ND ? T_ND : nd;
+      const int NQ = T_NQ ? T_NQ : nq;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int max_ND = T_ND ? T_ND : MAX_ND2D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
+      double s_F[max_VDIM*max_ND];
+      for (int d = 0; d < ND; d++)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            s_F[c+d*VDIM] = F(d,c,f);
+         }
+      }
+      for (int q = 0; q < NQ; ++q)
+      {
+         if (eval_flags & VALUES)
+         {
+            double ed[max_VDIM];
+            for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
+            for (int d = 0; d < ND; ++d)
+            {
+               const double b = B(q,d);
+               for (int c = 0; c < VDIM; c++) { ed[c] += b*s_E[c+d*VDIM]; }
+            }
+            for (int c = 0; c < VDIM; c++) { val(q,c,e) = ed[c]; }
+         }
+         if ((eval_flags & DERIVATIVES) || (eval_flags & DETERMINANTS) || (eval_flags & NORMALS))
+         {
+            double D[VDIM];
+            for (int i = 0; i < VDIM; i++) { D[i] = 0.0; }
+            for (int d = 0; d < ND; ++d)
+            {
+               const double wx = G(q,d);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  double s_e = s_E[c+d*VDIM];
+                  D[c] += s_e * w;
+               }
+            }
+            // if (eval_flags & DERIVATIVES)
+            // {
+            //    //FIXME doesn't work with Gauss-Lobato
+            //    for (int c = 0; c < VDIM; c++)
+            //    {
+            //       der(q,c,f) = D[c];
+            //    }
+            // }
+            if (VDIM == 2 && ((eval_flags & NORMALS) || (eval_flags & DETERMINANTS)))
+            {
+               const double norm = sqrt(D[0]*D[0]+D[1]*D[1]);
+               if (eval_flags & DETERMINANTS)
+               {
+                  det(q,e) = norm;  
+               }
+               if (eval_flags & NORMALS)
+               {
+                  n(q,0,f) = -D[1]/norm;
+                  n(q,1,f) =  D[0]/norm;
+               }
+            }
+         }
+      }
+   });
+}
+
+template<const int T_VDIM, const int T_ND, const int T_NQ>
+void FaceQuadratureInterpolator::Eval3D(
+   const int NF,
+   const int vdim,
+   const DofToQuad &maps,
+   const Vector &e_vec,
+   Vector &q_val,
+   // Vector &q_der,
+   Vector &q_det,
+   Vector &q_nor,
+   const int eval_flags)
+{
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+   const int ND = T_ND ? T_ND : nd;
+   const int NQ = T_NQ ? T_NQ : nq;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+   MFEM_VERIFY(ND <= MAX_ND3D, "");
+   MFEM_VERIFY(NQ <= MAX_NQ3D, "");
+   MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
+   auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
+   auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
+   auto F = Reshape(e_vec.Read(), ND1D, ND1D, VDIM, NF);
+   auto val = Reshape(q_val.Write(), NQ, VDIM, NF);
+   // auto der = Reshape(q_der.Write(), NQ, VDIM, 3, NF);
+   auto det = Reshape(q_det.Write(), NQ, NF);
+   auto n   = Reshape(q_nor.Write(), NQ, 3, NF);
+   MFEM_FORALL(f, NF,
+   {
+      const int ND = T_ND ? T_ND : nd;
+      const int NQ = T_NQ ? T_NQ : nq;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int max_ND = T_ND ? T_ND : MAX_ND3D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
+      double r_F[max_VDIM*max_ND];
+      for (int d1 = 0; d1 < ND1D; d1++)
+      {
+         for (int d2 = 0; d2 < ND1D; d2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               const int d = d1 + d2*ND1D;
+               r_F[c+d*VDIM] = F(d1,d2,c,f);
+            }
+         }
+      }
+      if (eval_flags & VALUES)
+      {
+         double Bu[NQ1D][ND1D][VDIM];
+         for (int d2 = 0; d2 < ND1D; ++d2)
+         {
+            for (int q = 0; q < NQ1D; ++q)
+            {
+               for (int c = 0; c < VDIM; c++) Bu[q][d2][c] = 0.0;
+               for (int d1 = 0; d1 < ND1D; ++d1)
+               {
+                  const int b = B(q,d1);
+                  for (int c = 0; c < VDIM; c++)
+                     Bu[q][d2][c] += b*r_F[c+(d1+d2*ND1D)*VDIM];
+               }
+            }
+         }
+         double BBu[NQ1D][NQ1D][VDIM];
+         for (int q2 = 0; q2 < NQ1D; ++q2)
+         {
+            for (int q1 = 0; q1 < NQ1D; ++q1)
+            {
+               for (int c = 0; c < VDIM; c++) BBu[q2][q1][c] = 0.0;
+               for (int d2 = 0; d2 < ND1D; ++d2)
+               {
+                  const int b = B(q2,d2);
+                  for (int c = 0; c < VDIM; c++)
+                     BBu[q2][q1][c] += b*Bu[q1][d2][c];
+               }
+               for (int c = 0; c < VDIM; c++)
+                  val(q1+q2*NQ1D,c,f) = BBu[q2][q1][c];
+            }
+         }
+      }
+      if ((eval_flags & DERIVATIVES) || (eval_flags & DETERMINANTS) || (eval_flags & NORMALS))
+      {
+         //We only compute the tangential derivatives
+         double Gu[NQ1D][ND1D][VDIM];
+         double Bu[NQ1D][ND1D][VDIM];
+         for (int d2 = 0; d2 < ND1D; ++d2)
+         {
+            for (int q = 0; q < NQ1D; ++q)
+            {
+               for (int c = 0; c < VDIM; c++)
+               {
+                  Gu[q][d2][c] = 0.0;
+                  Bu[q][d2][c] = 0.0;
+               }
+               for (int d1 = 0; d1 < ND1D; ++d1)
+               {
+                  const int b = B(q,d1);
+                  const int g = G(q,d1);
+                  for (int c = 0; c < VDIM; c++)
+                  {
+                     const double u = r_F[c+(d1+d2*ND1D)*VDIM]
+                     Gu[q][d2][c] += g*u;
+                     Bu[q][d2][c] += b*u;
+                  }
+               }
+            }
+         }
+         double BGu[NQ1D][NQ1D][VDIM];
+         double GBu[NQ1D][NQ1D][VDIM];
+         for (int q2 = 0; q2 < NQ1D; ++q2)
+         {
+            for (int q1 = 0; q1 < NQ1D; ++q1)
+            {
+               for (int c = 0; c < VDIM; c++)
+               {
+                  BGu[q2][q1][c] = 0.0;
+                  GBu[q2][q1][c] = 0.0;
+               }
+               for (int d2 = 0; d2 < ND1D; ++d2)
+               {
+                  const int b = B(q2,d2);
+                  const int g = G(q2,d2);
+                  for (int c = 0; c < VDIM; c++){
+                     BGu[q2][q1][c] += b*Gu[q1][d2][c];
+                     GBu[q2][q1][c] += g*Bu[q1][d2][c];
+                  }
+               }
+               // for (int c = 0; c < VDIM; c++)
+               //    val(q1+q2*NQ1D,c,f) = BBu[q2][q1][c];
+            }
+         }
+         // use MAX_VDIM3D to avoid "subscript out of range" warnings
+         // double D[MAX_VDIM3D*2];
+         // for (int i = 0; i < 2*VDIM; i++) { D[i] = 0.0; }
+         //    //TODO tensor contraction
+         // for (int d = 0; d < ND; ++d)
+         // {
+         //    const double wB = B(q,d);
+         //    const double wG = G(q,d);
+         //    for (int c = 0; c < VDIM; c++)
+         //    {
+         //       double s_e = s_E[c+d*VDIM];
+         //       D[c+VDIM*0] += s_e * wx;
+         //       D[c+VDIM*1] += s_e * wy;
+         //    }
+         // }
+         // if (eval_flags & DERIVATIVES)
+         // {
+         //    for (int c = 0; c < VDIM; c++)
+         //    {
+         //       der(q,c,0,e) = D[c+VDIM*0];
+         //       der(q,c,1,e) = D[c+VDIM*1];
+         //       der(q,c,2,e) = D[c+VDIM*2];
+         //    }
+         // }
+         if (VDIM == 3 && ((eval_flags & NORMALS) || (eval_flags & DETERMINANTS)))
+         {
+            double n[3];
+            for (int q2 = 0; q2 < NQ1D; ++q2)
+            {
+               for (int q1 = 0; q1 < NQ1D; ++q1)
+               {
+                  n[0] = BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*BGu[q2][q1][2];
+                  n[1] = BGu[q2][q1][0]*GBu[q2][q1][2]-GBu[q2][q1][0]*BGu[q2][q1][2];
+                  n[2] = BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*BGu[q2][q1][1];
+                  const int norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
+                  const int q = q1+q2*NQ1D;
+                  if (eval_flags & DETERMINANTS) det(q,f) = norm;
+                  if (eval_flags & NORMALS)
+                  {
+                     n(q,0,f) = n[0]/norm;
+                     n(q,1,f) = n[1]/norm;
+                     n(q,2,f) = n[2]/norm;
+                  }
+               }
+            }
+         }
+      }
+   });
+}
+
+void FaceQuadratureInterpolator::Mult(
+   const Vector &e_vec, unsigned eval_flags,
+   Vector &q_val, Vector &q_der, Vector &q_det) const
+{
+   const int ne = fespace->GetNE();
+   if (ne == 0) { return; }
+   const int vdim = fespace->GetVDim();
+   const int dim = fespace->GetMesh()->Dimension();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::FULL);
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+   void (*eval_func)(
+      const int NE,
+      const int vdim,
+      const DofToQuad &maps,
+      const Vector &e_vec,
+      Vector &q_val,
+      Vector &q_der,
+      Vector &q_det,
+      const int eval_flags) = NULL;
+   if (vdim == 1)
+   {
+      if (dim == 2)
+      {
+         switch (100*nd + nq)
+         {
+            // Q0
+            case 101: eval_func = &Eval2D<1,1,1>; break;
+            case 104: eval_func = &Eval2D<1,1,4>; break;
+            // Q1
+            case 404: eval_func = &Eval2D<1,4,4>; break;
+            case 409: eval_func = &Eval2D<1,4,9>; break;
+            // Q2
+            case 909: eval_func = &Eval2D<1,9,9>; break;
+            case 916: eval_func = &Eval2D<1,9,16>; break;
+            // Q3
+            case 1616: eval_func = &Eval2D<1,16,16>; break;
+            case 1625: eval_func = &Eval2D<1,16,25>; break;
+            case 1636: eval_func = &Eval2D<1,16,36>; break;
+            // Q4
+            case 2525: eval_func = &Eval2D<1,25,25>; break;
+            case 2536: eval_func = &Eval2D<1,25,36>; break;
+            case 2549: eval_func = &Eval2D<1,25,49>; break;
+            case 2564: eval_func = &Eval2D<1,25,64>; break;
+         }
+         if (nq >= 100 || !eval_func)
+         {
+            eval_func = &Eval2D<1>;
+         }
+      }
+      else if (dim == 3)
+      {
+         switch (1000*nd + nq)
+         {
+            // Q0
+            case 1001: eval_func = &Eval3D<1,1,1>; break;
+            case 1008: eval_func = &Eval3D<1,1,8>; break;
+            // Q1
+            case 8008: eval_func = &Eval3D<1,8,8>; break;
+            case 8027: eval_func = &Eval3D<1,8,27>; break;
+            // Q2
+            case 27027: eval_func = &Eval3D<1,27,27>; break;
+            case 27064: eval_func = &Eval3D<1,27,64>; break;
+            // Q3
+            case 64064: eval_func = &Eval3D<1,64,64>; break;
+            case 64125: eval_func = &Eval3D<1,64,125>; break;
+            case 64216: eval_func = &Eval3D<1,64,216>; break;
+            // Q4
+            case 125125: eval_func = &Eval3D<1,125,125>; break;
+            case 125216: eval_func = &Eval3D<1,125,216>; break;
+         }
+         if (nq >= 1000 || !eval_func)
+         {
+            eval_func = &Eval3D<1>;
+         }
+      }
+   }
+   else if (vdim == dim)
+   {
+      if (dim == 2)
+      {
+         switch (100*nd + nq)
+         {
+            // Q1
+            case 404: eval_func = &Eval2D<2,4,4>; break;
+            case 409: eval_func = &Eval2D<2,4,9>; break;
+            // Q2
+            case 909: eval_func = &Eval2D<2,9,9>; break;
+            case 916: eval_func = &Eval2D<2,9,16>; break;
+            // Q3
+            case 1616: eval_func = &Eval2D<2,16,16>; break;
+            case 1625: eval_func = &Eval2D<2,16,25>; break;
+            case 1636: eval_func = &Eval2D<2,16,36>; break;
+            // Q4
+            case 2525: eval_func = &Eval2D<2,25,25>; break;
+            case 2536: eval_func = &Eval2D<2,25,36>; break;
+            case 2549: eval_func = &Eval2D<2,25,49>; break;
+            case 2564: eval_func = &Eval2D<2,25,64>; break;
+         }
+         if (nq >= 100 || !eval_func)
+         {
+            eval_func = &Eval2D<2>;
+         }
+      }
+      else if (dim == 3)
+      {
+         switch (1000*nd + nq)
+         {
+            // Q1
+            case 8008: eval_func = &Eval3D<3,8,8>; break;
+            case 8027: eval_func = &Eval3D<3,8,27>; break;
+            // Q2
+            case 27027: eval_func = &Eval3D<3,27,27>; break;
+            case 27064: eval_func = &Eval3D<3,27,64>; break;
+            // Q3
+            case 64064: eval_func = &Eval3D<3,64,64>; break;
+            case 64125: eval_func = &Eval3D<3,64,125>; break;
+            case 64216: eval_func = &Eval3D<3,64,216>; break;
+            // Q4
+            case 125125: eval_func = &Eval3D<3,125,125>; break;
+            case 125216: eval_func = &Eval3D<3,125,216>; break;
+         }
+         if (nq >= 1000 || !eval_func)
+         {
+            eval_func = &Eval3D<3>;
+         }
+      }
+   }
+   if (eval_func)
+   {
+      eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, eval_flags);
+   }
+   else
+   {
+      MFEM_ABORT("case not supported yet");
+   }
+}
+
+void FaceQuadratureInterpolator::MultTranspose(
+   unsigned eval_flags, const Vector &q_val, const Vector &q_der,
+   Vector &e_vec) const
+{
+   MFEM_ABORT("this method is not implemented yet");
+}
+
 } // namespace mfem
