@@ -97,10 +97,12 @@ static void PAAdvectionSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * COEFF / ((J11*J22)-(J21*J12));
-         y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
-         y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
-         y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+         const double w = W[q] * COEFF;
+         //w*J^-T
+         y(q,0,0,e) =  w * J22; // 1,1
+         y(q,0,1,e) = -w * J21; // 1,2
+         y(q,1,0,e) = -w * J12; // 2,1
+         y(q,1,1,e) =  w * J11; // 2,2
       }
    });
 }
@@ -130,10 +132,10 @@ static void PAAdvectionSetup3D(const int Q1D,
          const double J13 = J(q,0,2,e);
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
-         const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * COEFF / detJ;
+         // const double detJ = J11 * (J22 * J33 - J32 * J23) -
+         // /* */               J21 * (J12 * J33 - J32 * J13) +
+         // /* */               J31 * (J12 * J23 - J22 * J13);
+         const double c_detJ = W[q] * COEFF;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -144,13 +146,16 @@ static void PAAdvectionSetup3D(const int Q1D,
          const double A31 = (J21 * J32) - (J31 * J22);
          const double A32 = (J31 * J12) - (J11 * J32);
          const double A33 = (J11 * J22) - (J12 * J21);
-         // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
-         y(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-         y(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-         y(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-         y(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-         y(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-         y(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+         // detJ J^{-1} J^{-T} = adj(J)^T
+         y(q,0,0,e) = c_detJ * A11; // 1,1
+         y(q,0,1,e) = c_detJ * A21; // 1,2
+         y(q,0,2,e) = c_detJ * A31; // 1,3
+         y(q,1,0,e) = c_detJ * A12; // 2,1
+         y(q,1,1,e) = c_detJ * A22; // 2,2
+         y(q,1,2,e) = c_detJ * A32; // 2,3
+         y(q,2,0,e) = c_detJ * A13; // 3,1
+         y(q,2,1,e) = c_detJ * A23; // 3,2
+         y(q,2,2,e) = c_detJ * A33; // 3,3
       }
    });
 }
