@@ -3023,6 +3023,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       orientation = inf1 % 64;
       face_id = inf1 / 64;
+      // Assumes Gauss-Lobato basis
       if(dof_reorder){
          if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
          GetFaceDofsLex(vdim, face_id, dof1d, faceMap);//Only for hex

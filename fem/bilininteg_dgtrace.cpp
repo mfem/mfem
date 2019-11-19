@@ -17,7 +17,7 @@ using namespace std;
 
 namespace mfem
 {
-#if 0
+// #if 0
 // PA DG Trace Integrator
 
 // PA DG Trace Assemble 2D kernel for constant velocity
@@ -34,15 +34,68 @@ static void PADGTraceSetup2D(const int Q1D,
    elem_restr->Mult(*nodes, Enodes);
 
    const int VDIM = 2;
-   const int FACES = 4;
-   enum face {LEFT, RIGHT, BOTTOM, TOP};
+   const int NF = mesh->GetNFaces();
 
-   const int nbFaces = mesh->GetNFaces();
-
-   auto E = Reshape(Enodes.Read(), D1D, D1D, VDIM, NE);
+   auto det = Reshape(det.Read(), Q1D, NF);
+   auto n = Reshape(nor.Read(), Q1D, VDIM, NF);
+   auto coeff = Reshape(coeff.Read(), Q1D, VDIM, NF);
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, 2, 2, FACES, nbFaces);
 
+   MFEM_FORALL(f, NF,//can be optimized with Q1D thread for NF blocks
+   {
+      for (int q = 0; q < Q1D; ++q)
+      {
+         const double dot = n(q,0,f) * coeff(q,0,f) + n(q,1,f) * coeff(q,1,f);
+         const double abs = dot > 0.0 ? dot : -dot;
+         const double w = W[q]*det[q];
+         qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
+         qd(q,1,0,f) = w*( alpha/2 * dot - beta * abs );
+         qd(q,0,1,f) = w*(-alpha/2 * dot - beta * abs );
+         qd(q,1,1,f) = w*(-alpha/2 * dot + beta * abs );
+      }
+   });
+}
+
+// PA DG Trace Assemble 2D kernel for constant velocity
+static void PADGTraceSetup3D(const int Q1D,
+                             const int D1D,
+                             const int NE,
+                             const Array<double> &w,
+                             const Vector &j,
+                             const double COEFF,
+                             Vector &op)
+{
+   const Operator *elem_restr =
+      fespace->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   elem_restr->Mult(*nodes, Enodes);
+
+   const int VDIM = 3;
+   const int NF = mesh->GetNFaces();
+   const int Q = Q1D*Q1D;
+
+   auto det = Reshape(det.Read(), Q, NF);
+   auto n = Reshape(nor.Read(), Q, VDIM, NF);
+   auto coeff = Reshape(coeff.Read(), Q, VDIM, NF);
+   auto W = w.Read();
+   auto qd = Reshape(op.Write(), Q, 2, 2, nbFaces);
+
+   MFEM_FORALL(f, NF,//can be optimized with Q1D*Q1D threads for NF blocks
+   {
+      for (int q = 0; q < Q; ++q)
+      {
+         const double dot = n(q,0,f) * coeff(q,0,f) + n(q,1,f) * coeff(q,1,f) + n(q,2,f) * coeff(q,2,f);
+         const double abs = dot > 0.0 ? dot : -dot;
+         const double w = W[q]*det[q];
+         qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
+         qd(q,1,0,f) = w*( alpha/2 * dot - beta * abs );
+         qd(q,0,1,f) = w*(-alpha/2 * dot - beta * abs );
+         qd(q,1,1,f) = w*(-alpha/2 * dot + beta * abs );
+      }
+   });
+}
+
+#if 0
    MFEM_FORALL_3D(e, NE, Q1D, 1, 1, //Iterate over faces?
    {
       MFEM_SHARED double s_E[VDIM][D1D][D1D];
