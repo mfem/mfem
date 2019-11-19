@@ -738,6 +738,7 @@ int main (int argc, char *argv[])
       cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
            << endl;
    }
+   newton->ReportTime();
    delete newton;
 
    // 21. Save the optimized mesh to a file. This output can be viewed later

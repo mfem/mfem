@@ -1261,7 +1261,10 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
+   timer.sw_mult.Start();
    oper->Mult(x, r);
+   timer.sw_mult.Stop();
+
    if (have_b)
    {
       r -= b;
@@ -1299,11 +1302,20 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
+      timer.sw_grad.Start();
       prec->SetOperator(oper->GetGradient(x));
+      timer.sw_grad.Stop();
 
+      timer.sw_linsolve.Start();
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      timer.sw_linsolve.Stop();
+      timer.lin_iter += dynamic_cast<IterativeSolver *>
+                        (prec)->GetNumIterations();
 
+      timer.sw_scaling.Start();
       const double c_scale = ComputeScalingFactor(x, b);
+      timer.sw_scaling.Stop();
+
       if (c_scale == 0.0)
       {
          converged = 0;
@@ -1311,7 +1323,10 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
       add(x, -c_scale, c, x);
 
+      timer.sw_mult.Start();
       oper->Mult(x, r);
+      timer.sw_mult.Stop();
+
       if (have_b)
       {
          r -= b;
@@ -1321,6 +1336,39 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
    final_iter = it;
    final_norm = norm;
+}
+
+void NewtonSolver::ReportTime() const
+{
+   int myid = 0;
+   double times[4];
+   times[0] = timer.sw_mult.RealTime();
+   times[1] = timer.sw_grad.RealTime();
+   times[2] = timer.sw_linsolve.RealTime(),
+   times[3] = timer.sw_scaling.RealTime();
+
+#ifdef MFEM_USE_MPI
+   if (par)
+   {
+      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+      double glob[4];
+      MPI_Reduce(times, glob, 4, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      for (int i = 0; i < 4; i++) { times[i] = glob[i]; }
+   }
+#endif
+
+   if (myid == 0)
+   {
+      mfem::out << setprecision(4);
+      mfem::out << "Newton iter: " << final_iter << std::endl
+                << "LinSov iter: " << timer.lin_iter << std::endl
+                << "Mult:  " << times[0] << std::endl
+                << "Grad:  " << times[1] << std::endl
+                << "LinS:  " << times[2] << std::endl
+                << "Scale: " << times[3] << std::endl;
+      mfem::out << setprecision(6);
+   }
 }
 
 

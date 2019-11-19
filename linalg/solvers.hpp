@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "operator.hpp"
+#include "../general/tic_toc.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -261,11 +262,20 @@ class NewtonSolver : public IterativeSolver
 protected:
    mutable Vector r, c;
 
+   const bool par;
+   struct Timer
+   {
+      int lin_iter;
+      StopWatch sw_mult, sw_grad, sw_linsolve, sw_scaling;
+
+      Timer() : lin_iter(0) { }
+   } mutable timer;
+
 public:
-   NewtonSolver() { }
+   NewtonSolver() : par(false) { }
 
 #ifdef MFEM_USE_MPI
-   NewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   NewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm), par(true) { }
 #endif
    virtual void SetOperator(const Operator &op);
 
@@ -283,6 +293,8 @@ public:
        value of 0 indicates a failure, interrupting the Newton iteration. */
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const
    { return 1.0; }
+
+   void ReportTime() const;
 };
 
 /** Adaptive restarted GMRES.
