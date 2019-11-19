@@ -95,6 +95,208 @@ static void PADGTraceSetup3D(const int Q1D,
    });
 }
 
+// PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PADGTraceApply2D(const int NE,
+                      const Array<double> &b,
+                      const Array<double> &g,
+                      const Array<double> &bt,
+                      const Array<double> &gt,
+                      const Vector &_op,
+                      const Vector &_x,
+                      Vector &_y,
+                      const int d1d = 0,
+                      const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+
+   MFEM_FORALL(f, nbFaces,
+   {
+      double u0[D1D][VDIM];
+      double u1[D1D][VDIM];
+      for (int d = 0; d < D1D; d++)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            u0[d][c] = F(d,c,0,f);
+            u1[d][c] = F(d,c,1,f);
+         }
+      }
+      double Bu0[Q1D][VDIM];
+      double Bu1[Q1D][VDIM];
+      for (int q = 0; q < Q1D; ++q)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            Bu0[q][c] = 0.0;
+            Bu1[q][c] = 0.0;
+         }
+         for (int d = 0; d < D1D; ++d)
+         {
+            const int b = B(q,d);
+            for (int c = 0; c < VDIM; c++)
+            {
+               Bu0[q][c] += b*u0[c+d*VDIM];
+               Bu1[q][c] += b*u1[c+d*VDIM];
+            }
+         }
+      }
+      for (int q = 0; q < Q1D; ++q)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            flux(q,f) = qd(q,0,0,f)*Bu0[q] + qd(q,1,0,f)*Bu1[q];
+         }
+      }
+      //TODO Bt
+   });
+}
+
+// PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PADGTraceApply3D(const int NE,
+                      const Array<double> &b,
+                      const Array<double> &g,
+                      const Array<double> &bt,
+                      const Array<double> &gt,
+                      const Vector &_op,
+                      const Vector &_x,
+                      Vector &_y,
+                      const int d1d = 0,
+                      const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+
+   MFEM_FORALL(f, nbFaces,
+   {
+      double u0[D1D][D1D][VDIM];
+      double u1[D1D][D1D][VDIM];
+      for (int d1 = 0; d1 < D1D; d1++)
+      {
+         for (int d2 = 0; d2 < D1D; d2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               u0[d1][d2][c] = F(d1,d2,c,0,f);
+               u1[d1][d2][c] = F(d1,d2,c,1,f);
+            }
+         }
+      }
+      double Bu0[Q1D][D1D][VDIM];
+      double Bu1[Q1D][D1D][VDIM];
+      for (int q = 0; q < Q1D; ++q)
+      {
+         for (int d2 = 0; d2 < D1D; d2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               Bu0[q][d2][c] = 0.0;
+               Bu1[q][d2][c] = 0.0;
+            }
+            for (int d1 = 0; d1 < D1D; ++d1)
+            {
+               const int b = B(q,d1);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  Bu0[q][d2][c] += b*u0[d1][d2][c];
+                  Bu1[q][d2][c] += b*u1[d1][d2][c];
+               }
+            }
+         }
+      }
+      double BBu0[Q1D][Q1D][VDIM];
+      double BBu1[Q1D][Q1D][VDIM];
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               BBu0[q1][q2][c] = 0.0;
+               BBu1[q1][q2][c] = 0.0;
+            }
+            for (int d2 = 0; d2 < D1D; ++d2)
+            {
+               const int b = B(q2,d2);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  BBu0[q1][q2][c] += b*Bu0[q1][d2][c];
+                  BBu1[q1][q2][c] += b*Bu1[q1][d2][c];
+               }
+            }
+         }
+      }
+      double DBBu[Q1D][Q1D][VDIM];
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               const int q = q1+q2*Q1D;
+               DBBu[q1][q2][c] = qd(q,0,0,f)*BBu0[q1][q2][c] + qd(q,1,0,f)*BBu1[q1][q2][c];
+            }
+         }
+      }
+      double BDBBu[Q1D][D1D][VDIM];
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int d2 = 0; d2 < D1D; d2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               BDBBu[q1][d2][c] = 0.0;
+            }
+            for (int q2 = 0; q2 < Q1D; ++q2)
+            {
+               const int b = B(q2,d2);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  BDBBu[q1][d2][c] += b*DBBu[q1][q2][c];
+               }
+            }
+         }
+      }
+      double BBDBBu[D1D][D1D][VDIM];
+      for (int d1 = 0; d1 < D1D; ++d1)
+      {
+         for (int d2 = 0; d2 < D1D; d2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               BBDBBu[d1][d2][c] = 0.0;
+            }
+            for (int q1 = 0; q1 < Q1D; ++q1)
+            {
+               const int b = B(q1,d1);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  BBDBBu[d1][d2][c] += b*BDBBu[q1][d2][c];
+               }
+            }
+            y(d1,d2,c,0,f) =  BBDBBu[d1][d2][c];
+            y(d1,d2,c,1,f) = -BBDBBu[d1][d2][c];
+         }
+      }
+   });
+}
+
 #if 0
    MFEM_FORALL_3D(e, NE, Q1D, 1, 1, //Iterate over faces?
    {
