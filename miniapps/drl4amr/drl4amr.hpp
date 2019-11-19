@@ -18,9 +18,10 @@ private:
    const double sy = 1.0;
    const int oversample = 2;
 
+   Mesh mesh;
+
    int order;
    int dim;
-   int sdim;
 
    Device device;
    socketstream vis[3];
@@ -28,7 +29,6 @@ private:
    Vector image;
    Vector local_image;
 
-   Mesh mesh;
    H1_FECollection fec;
    FiniteElementSpace fespace;
 
@@ -58,7 +58,7 @@ public:
    int GetFullHeight() const { return GetFullWidth(); }
    void ShowFullImage();
 
-   double* GetLocalImage(int element) const;
+   double* GetLocalImage(int element);
    int GetLocalWidth() const { return (oversample*order + 1) + 2; }
    int GetLocalHeight() const { return GetLocalWidth(); }
 };

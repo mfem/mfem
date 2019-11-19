@@ -3,6 +3,8 @@
 #include "mfem.hpp"
 #include "drl4amr.hpp"
 
+#include "linalg/dtensor.hpp"
+
 #include <fstream>
 #include <iostream>
 
@@ -31,17 +33,19 @@ double x0(const Vector &x)
 {
    double result = 0.0;
    const double t = x[0] + tan(theta)*x[1];
-   for (double o: offsets) { result += 1.0 + tanh(sharpness*(o - t)); }
-   return result/static_cast<double>(discs<<1); // should be in [0,1]
+   for (double o : offsets)
+   {
+      result += 1.0 + tanh(sharpness*(o - t));
+   }
+   return result / (discs << 1); // should be in [0,1]
 }
 
 // *****************************************************************************
 Drl4Amr::Drl4Amr(int order):
-   order(order),
-   device(device_config),
    mesh(nx, ny, elem_type, true, sx, sy, false),
+   order(order),
    dim(mesh.Dimension()),
-   sdim(mesh.SpaceDimension()),
+   device(device_config),
    fec(order, dim, BasisType::Positive),
    fespace(&mesh, &fec),
    one(1.0),
@@ -50,7 +54,7 @@ Drl4Amr::Drl4Amr(int order):
    xcoeff(x0),
    x(&fespace),
    iteration(0),
-   flux_fespace(&mesh, &fec, sdim),
+   flux_fespace(&mesh, &fec),
    estimator(*integ, x, flux_fespace),
    refiner(estimator)
 {
@@ -117,7 +121,7 @@ Drl4Amr::Drl4Amr(int order):
    // recover a smoothed flux (gradient) that is subtracted from the element
    // flux to get an error indicator. We need to supply the space for the
    // smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
-   estimator.SetAnisotropic();
+   //estimator.SetAnisotropic();
 
    // A refiner selects and refines elements based on a refinement strategy.
    // The strategy here is to refine elements with errors larger than a
@@ -225,13 +229,15 @@ double Drl4Amr::GetNorm()
 
 
 // *****************************************************************************
-double *Drl4Amr::GetImage()
+double *Drl4Amr::GetFullImage()
 {
    Array<int> vert;
    Vector sln;
 
-   image.SetSize(GetImageSize());
-   int imwidth = GetImageX();
+   int width = GetFullWidth();
+   int height = GetFullHeight();
+
+   image.SetSize(width * height);
 
    // rasterize each element into the image
    for (int k = 0; k < mesh.GetNE(); k++)
@@ -253,26 +259,26 @@ double *Drl4Amr::GetImage()
       for (int j = 0; j <= subdiv; j++)
       {
          int n = i*(subdiv+1) + j;
-         int m = (oy + i)*imwidth + (ox + j);
+         int m = (oy + i)*width + (ox + j);
 
          image(m) = sln(n);
       }
    }
 
-   if (visualization) { ShowImage(); }
+   if (visualization) { ShowFullImage(); }
 
    return image.GetData();
 }
 
 // *****************************************************************************
 
-double* Drl4Amr::GetLocalImage(int element) const
+double* Drl4Amr::GetLocalImage(int element)
 {
-   const NCMesh *ncmesh = mesh.ncmesh;
+   NCMesh *ncmesh = mesh.ncmesh;
    MFEM_ASSERT(ncmesh, "");
 
-   int width = GetElementImageWidth();
-   int height = GetElementImageHeight();
+   int width = GetLocalWidth();
+   int height = GetLocalHeight();
    int subdiv = oversample*order;
 
    local_image.SetSize(width * height);
@@ -312,15 +318,21 @@ double* Drl4Amr::GetLocalImage(int element) const
 
       for (int e = 0; e < edges.Size(); e++)
       {
-         const NCMesh::NCList &edge_list = ncmesh->GetEdgeList();
-
          int type;
-         const NCMesh::MeshId &eid = edge_list.LookUp(edges[e], &type);
+         const NCMesh::NCList &elist = ncmesh->GetEdgeList();
+         const NCMesh::MeshId &eid = elist.LookUp(edges[e], &type);
 
          if (type == 0) // conforming
          {
-            GetEdgeValues(x, eid.index, sln);
-            GetEdgeGradients(x, eid.index, grad);
+            int el1, el2;
+            mesh.GetFaceElements(eid.index, &el1, &el2);
+            int side = (element == el1) ? 1 : 0;
+
+            DenseMatrix tr;
+            x.GetFaceValues(eid.index, side, ir, sln, tr);
+
+            /*GetEdgeValues(x, eid.index, sln);
+            GetEdgeGradients(x, eid.index, grad);*/
 
          }
          else if (type == 1) // master
@@ -345,11 +357,11 @@ double* Drl4Amr::GetLocalImage(int element) const
 }
 
 // *****************************************************************************
-void Drl4Amr::ShowImage()
+void Drl4Amr::ShowFullImage()
 {
    if (!vis[2].good()) { return; }
 
-   Mesh imesh(GetImageX(), GetImageY(), elem_type, false, sx, sy, false);
+   Mesh imesh(GetFullWidth(), GetFullHeight(), elem_type, false, sx, sy, false);
 
    L2_FECollection fec(0, imesh.Dimension());
    FiniteElementSpace fes(&imesh, &fec);
@@ -358,17 +370,18 @@ void Drl4Amr::ShowImage()
    vis[2] << "solution" << endl << imesh << gridfn << flush;
 }
 
-
 // *****************************************************************************
 extern "C" {
-   Drl4Amr* Ctrl(int order) { return new Drl4Amr(order); }
-   int Compute(Drl4Amr *ctrl) { return ctrl->Compute(); }
-   int Refine(Drl4Amr *ctrl, int el) { return ctrl->Refine(el); }
-   int GetNDofs(Drl4Amr *ctrl) { return ctrl->GetNDofs(); }
-   int GetNE(Drl4Amr *ctrl) { return ctrl->GetNE(); }
-   double GetNorm(Drl4Amr *ctrl) { return ctrl->GetNorm(); }
-   double *GetImage(Drl4Amr *ctrl) { return ctrl->GetImage(); }
-   int GetImageSize(Drl4Amr *ctrl) { return ctrl->GetImageSize(); }
-   int GetImageX(Drl4Amr *ctrl) { return ctrl->GetImageX(); }
-   int GetImageY(Drl4Amr *ctrl) { return ctrl->GetImageY(); }
-}
+
+Drl4Amr* Ctrl(int order) { return new Drl4Amr(order); }
+int Compute(Drl4Amr *ctrl) { return ctrl->Compute(); }
+int Refine(Drl4Amr *ctrl, int el) { return ctrl->Refine(el); }
+int GetNDofs(Drl4Amr *ctrl) { return ctrl->GetNDofs(); }
+int GetNE(Drl4Amr *ctrl) { return ctrl->GetNE(); }
+double GetNorm(Drl4Amr *ctrl) { return ctrl->GetNorm(); }
+
+double *GetFullImage(Drl4Amr *ctrl) { return ctrl->GetFullImage(); }
+int GetFullWidth(Drl4Amr *ctrl) { return ctrl->GetFullWidth(); }
+int GetFullHeight(Drl4Amr *ctrl) { return ctrl->GetFullHeight(); }
+
+} // extern "C"

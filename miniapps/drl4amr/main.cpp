@@ -18,8 +18,8 @@ int main(int argc, char *argv[])
       const int el = static_cast<int>(drand48()*sim.GetNE());
       sim.Compute();
       sim.Refine(el);
-      sim.GetImage();
-      sim.GetImageSize();
+      sim.GetFullImage();
+      sim.GetFullWidth();
    }
    return 0;
 }
