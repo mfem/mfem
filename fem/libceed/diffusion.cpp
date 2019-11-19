@@ -9,15 +9,15 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "diffusion.hpp"
+
+#ifdef MFEM_USE_CEED
 #include "ceed.hpp"
 #include "../../general/device.hpp"
-
 #include "diffusion.h"
 
 namespace mfem
 {
-
-#ifdef MFEM_USE_CEED
 
 void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &irm, CeedData& ceedData)
@@ -29,11 +29,13 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
    mesh->EnsureNodes();
-   InitCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+   InitCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis,
+                                     &ceedData.restr);
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   InitCeedTensorBasisAndRestriction(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   InitCeedTensorBasisAndRestriction(*mesh_fes, ir, ceed, &ceedData.mesh_basis,
+                                     &ceedData.mesh_restr);
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
@@ -93,8 +95,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    if (ceedData.coeff_type==CeedCoeff::Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      InitCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
-                   &ceedCoeff->restr);
+      InitCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed,
+                                        &ceedCoeff->basis,
+                                        &ceedCoeff->restr);
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
@@ -140,6 +143,6 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
 
-#endif
+} // namespace mfem
 
-}
+#endif // MFEM_USE_CEED

@@ -39,17 +39,19 @@ Ceed ceed;
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
-   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CEED_CUDA, Backend::CUDA,
+   Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
    Backend::HIP,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
-   Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CEED_CPU, Backend::CPU
+   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "ceed-cuda", "cuda", "hip", "occa-omp", "raja-omp", "omp",
-   "occa-cpu", "raja-cpu", "ceed-cpu", "cpu"
+   "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
+   "hip",
+   "occa-omp", "raja-omp", "omp",
+   "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
 };
 
 } // namespace mfem::internal
@@ -139,6 +141,14 @@ void Device::Print(std::ostream &out)
       }
    }
    out << '\n';
+#ifdef MFEM_USE_CEED
+   if (Allows(Backend::CEED_MASK))
+   {
+      const char *ceed_backend;
+      CeedGetResource(internal::ceed, &ceed_backend);
+      out << "libCEED backend: " << ceed_backend << '\n';
+   }
+#endif
 }
 
 void Device::UpdateMemoryTypeAndClass()
@@ -258,10 +268,11 @@ static void CeedDeviceSetup(const char* ceed_spec)
    CeedInit(ceed_spec, &internal::ceed);
    const char *ceed_backend;
    CeedGetResource(internal::ceed, &ceed_backend);
-   mfem::out << "libCEED backend: " << ceed_backend << std::endl;
    if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self"))
    {
-      std::cout << std::endl << "WARNING!!!\nlibCEED is not using the requested backend!!!\nWARNING!!!\n" << std::endl;
+      mfem::out << std::endl << "WARNING!!!\n"
+                "libCEED is not using the requested backend!!!\n"
+                "WARNING!!!\n" << std::endl;
    }
 #endif
 }
@@ -288,6 +299,13 @@ void Device::Setup(const int device)
    MFEM_VERIFY(!Allows(Backend::OMP|Backend::RAJA_OMP),
                "the OpenMP and RAJA OpenMP backends require MFEM built with"
                " MFEM_USE_OPENMP=YES");
+#endif
+#ifndef MFEM_USE_CEED
+   MFEM_VERIFY(!Allows(Backend::CEED_MASK),
+               "the CEED backends require MFEM built with MFEM_USE_CEED=YES");
+#else
+   MFEM_VERIFY(!Allows(Backend::CEED_CPU) || !Allows(Backend::CEED_CUDA),
+               "Only one CEED backend can be enabled at a time!");
 #endif
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }

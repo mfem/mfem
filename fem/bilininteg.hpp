@@ -1682,7 +1682,7 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
-   
+
 #ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
@@ -1747,7 +1747,7 @@ protected:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   
+
 #ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;

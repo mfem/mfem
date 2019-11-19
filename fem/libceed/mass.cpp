@@ -9,15 +9,15 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "mass.hpp"
+
+#ifdef MFEM_USE_CEED
 #include "ceed.hpp"
 #include "../../general/device.hpp"
-
 #include "mass.h"
 
 namespace mfem
 {
-
-#ifdef MFEM_USE_CEED
 
 void CeedPAMassAssemble(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &irm, CeedData& ceedData)
@@ -29,11 +29,13 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE();
 
-   InitCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+   InitCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis,
+                                     &ceedData.restr);
    mesh->EnsureNodes();
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   InitCeedTensorBasisAndRestriction(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   InitCeedTensorBasisAndRestriction(*mesh_fes, ir, ceed, &ceedData.mesh_basis,
+                                     &ceedData.mesh_restr);
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
@@ -75,7 +77,8 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
       default:
          MFEM_ABORT("This coeff_type is not handled");
    }
-   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", mesh->SpaceDimension()*mesh->SpaceDimension(),
+   CeedQFunctionAddInput(ceedData.build_qfunc, "dx",
+                         mesh->SpaceDimension()*mesh->SpaceDimension(),
                          CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
    CeedQFunctionAddOutput(ceedData.build_qfunc, "rho", 1, CEED_EVAL_NONE);
@@ -93,13 +96,15 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    if (ceedData.coeff_type==CeedCoeff::Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      InitCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
-                   &ceedCoeff->restr);
+      InitCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed,
+                                        &ceedCoeff->basis,
+                                        &ceedCoeff->restr);
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
                          ceedCoeff->coeff->GetData());
-      CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr, CEED_NOTRANSPOSE,
+      CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr,
+                           CEED_NOTRANSPOSE,
                            ceedCoeff->basis, ceedCoeff->coeffVector);
    }
    CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, lmode,
@@ -136,6 +141,6 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
 
-#endif
+} // namespace mfem
 
-}
+#endif // MFEM_USE_CEED
