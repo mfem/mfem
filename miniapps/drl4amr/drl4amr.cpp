@@ -303,11 +303,8 @@ void Drl4Amr::GetImage(GridFunction &gf, Vector &image)
       constexpr Geometry::Type geom = Geometry::SQUARE;
       const int depth = mesh.ncmesh->GetElementDepth(k);
       const int times = (1 << (max_depth - depth)) * order - 1;
-      //printf("\033[33mtimes: %d",times);
       IntegrationRule &ir = GlobGeometryRefiner.Refine(geom, times)->RefPts;
-      //const IntegrationRule *ir = GlobGeometryRefiner.RefineInterior(geom, times);
       gf.GetValues(k, ir, vals);
-      //printf("\nvals (%d):", vals.Size()); vals.Print();
       mesh.GetElementVertices(k, vert);
       const double *v = mesh.GetVertex(vert[0]);
       const int ox = int(v[0] * nw);
@@ -319,10 +316,8 @@ void Drl4Amr::GetImage(GridFunction &gf, Vector &image)
             const int n = i * (times + 1) + j;
             const int m = (oy + i) * (nw - 1) + (ox + j);
             image(m) = vals(n);
-            //printf("\n(%f, %f)",ir.IntPoint(n).x, ir.IntPoint(n).y);
          }
       }
-      //printf("\033[m"); fflush(0); exit(0);
    }
 }
 
