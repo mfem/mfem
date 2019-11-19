@@ -18,10 +18,10 @@ using namespace std;
 namespace mfem
 {
 
-// PA Vector Divergence Integrator
+// PA Divergence Integrator
 
-// PA Vector Divergence Assemble 2D kernel
-static void PAVectorDivergenceSetup2D(const int Q1D,
+// PA Divergence Assemble 2D kernel
+static void PADivergenceSetup2D(const int Q1D,
                                       const int NE,
                                       const Array<double> &w,
                                       const Vector &j,
@@ -50,8 +50,8 @@ static void PAVectorDivergenceSetup2D(const int Q1D,
    });
 }
 
-// PA Vector Divergence Assemble 3D kernel
-static void PAVectorDivergenceSetup3D(const int Q1D,
+// PA Divergence Assemble 3D kernel
+static void PADivergenceSetup3D(const int Q1D,
                                       const int NE,
                                       const Array<double> &w,
                                       const Vector &j,
@@ -100,7 +100,7 @@ static void PAVectorDivergenceSetup3D(const int Q1D,
    });
 }
 
-static void PAVectorDivergenceSetup(const int dim,
+static void PADivergenceSetup(const int dim,
                                     const int TR_D1D,
                                     const int TE_D1D,
                                     const int Q1D,
@@ -110,18 +110,18 @@ static void PAVectorDivergenceSetup(const int dim,
                                     const double COEFF,
                                     Vector &op)
 {
-   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAVectorDivergenceSetup"); }
+   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADivergenceSetup"); }
    if (dim == 2)
    {
-      PAVectorDivergenceSetup2D(Q1D, NE, W, J, COEFF, op);
+      PADivergenceSetup2D(Q1D, NE, W, J, COEFF, op);
    }
    if (dim == 3)
    {
-      PAVectorDivergenceSetup3D(Q1D, NE, W, J, COEFF, op);
+      PADivergenceSetup3D(Q1D, NE, W, J, COEFF, op);
    }
 }
 
-void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+void DivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                             const FiniteElementSpace &test_fes)
 {
    // Assumes tensor-product elements ordered by nodes
@@ -154,13 +154,13 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
       coeff = cQ->constant;
    }
-   PAVectorDivergenceSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
+   PADivergenceSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
                            ne, ir->GetWeights(), geom->J, coeff, pa_data);
 }
 
-// PA VectorDivergence Apply 2D kernel
+// PA Divergence Apply 2D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void PAVectorDivergenceApply2D(const int NE,
+static void PADivergenceApply2D(const int NE,
                                       const Array<double> &b,
                                       const Array<double> &g,
                                       const Array<double> &bt,
@@ -278,10 +278,10 @@ static void PAVectorDivergenceApply2D(const int NE,
    });
 }
 
-// Shared memory PA VectorDivergence Apply 2D kernel
+// Shared memory PA Divergence Apply 2D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0,
          const int T_NBZ = 0>
-static void SmemPAVectorDivergenceApply2D(const int NE,
+static void SmemPADivergenceApply2D(const int NE,
                                           const Array<double> &_b,
                                           const Array<double> &_g,
                                           const Array<double> &_bt,
@@ -296,9 +296,9 @@ static void SmemPAVectorDivergenceApply2D(const int NE,
    MFEM_ASSERT(false, "SHARED MEM NOT PROGRAMMED YET");
 }
 
-// PA VectorDivergence Apply 2D kernel transpose
+// PA Divergence Apply 2D kernel transpose
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void PAVectorDivergenceApplyTranspose2D(const int NE,
+static void PADivergenceApplyTranspose2D(const int NE,
                                                const Array<double> &bt,
                                                const Array<double> &gt,
                                                const Array<double> &b,
@@ -414,7 +414,7 @@ static void PAVectorDivergenceApplyTranspose2D(const int NE,
 
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void PAVectorDivergenceApply3D(const int NE,
+static void PADivergenceApply3D(const int NE,
                                       const Array<double> &b,
                                       const Array<double> &g,
                                       const Array<double> &bt,
@@ -597,7 +597,7 @@ static void PAVectorDivergenceApply3D(const int NE,
 
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void PAVectorDivergenceApplyTranspose3D(const int NE,
+static void PADivergenceApplyTranspose3D(const int NE,
                                                const Array<double> &bt,
                                                const Array<double> &gt,
                                                const Array<double> &b,
@@ -775,7 +775,7 @@ static void PAVectorDivergenceApplyTranspose3D(const int NE,
 
 // Shared memory PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
-static void SmemPAVectorDivergenceApply3D(const int NE,
+static void SmemPADivergenceApply3D(const int NE,
                                           const Array<double> &_b,
                                           const Array<double> &_g,
                                           const Array<double> &_bt,
@@ -790,7 +790,7 @@ static void SmemPAVectorDivergenceApply3D(const int NE,
    MFEM_ASSERT(false, "SHARED MEM NOT PROGRAMMED YET");
 }
 
-static void PAVectorDivergenceApply(const int dim,
+static void PADivergenceApply(const int dim,
                                     const int TR_D1D,
                                     const int TE_D1D,
                                     const int Q1D,
@@ -805,28 +805,28 @@ static void PAVectorDivergenceApply(const int dim,
 {
    if (dim == 2)
    {
-      return PAVectorDivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      return PADivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
    }
    if (dim == 3)
    {
-      return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      return PADivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
    }
    MFEM_ABORT("Unknown kernel.");
 }
 
-// PA VectorDivergence Apply kernel
-void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
+// PA Divergence Apply kernel
+void DivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PAVectorDivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
+   PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
                            trial_maps->B, trial_maps->G, test_maps->Bt, pa_data, x, y,
                            false);
 }
 
-// PA VectorDivergence Apply kernel
-void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
+// PA Divergence Apply kernel
+void DivergenceIntegrator::AddMultTransposePA(const Vector &x,
                                                     Vector &y) const
 {
-   PAVectorDivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
+   PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
                            trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y,
                            true);
 }

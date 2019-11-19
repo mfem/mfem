@@ -1922,8 +1922,6 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
 
@@ -2136,7 +2134,7 @@ public:
 
 /** Integrator for (Q div u, p) where u=(v1,...,vn) and all vi are in the same
     scalar FE space; p is also in a (different) scalar FE space.  */
-class VectorDivergenceIntegrator : public BilinearFormIntegrator
+class DivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
@@ -2155,13 +2153,13 @@ private:
    int trial_dofs1D, test_dofs1D, quad1D;
 
 public:
-   VectorDivergenceIntegrator() :
+   DivergenceIntegrator() :
       Q(NULL), trial_maps(NULL), test_maps(NULL), geom(NULL)
    {  }
-   VectorDivergenceIntegrator(Coefficient *_q) :
+   DivergenceIntegrator(Coefficient *_q) :
       Q(_q), trial_maps(NULL), test_maps(NULL), geom(NULL)
    { }
-   VectorDivergenceIntegrator(Coefficient &q) :
+   DivergenceIntegrator(Coefficient &q) :
       Q(&q), trial_maps(NULL), test_maps(NULL), geom(NULL)
    { }
 
