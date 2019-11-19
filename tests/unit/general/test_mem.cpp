@@ -91,19 +91,20 @@ TEST_CASE("MemoryManager", "[MemoryManager]")
 {
    SECTION("Debug")
    {
-      const long pagesize = sysconf(_SC_PAGE_SIZE);
-      REQUIRE(pagesize > 0);
-      Device device("debug");
-      for (int n = 1; n < 2*pagesize; n+=7)
-      {
-         Aliases(n);
-         mm.PrintPtrs();
-         mm.PrintAliases();
-      }
-      MmuCatch();
-      ScanMemoryTypes();
-      mm.PrintPtrs();
-      mm.PrintAliases();
+      /*
+        const long pagesize = sysconf(_SC_PAGE_SIZE);
+        REQUIRE(pagesize > 0);
+        Device device("debug");
+        for (int n = 1; n < 2*pagesize; n+=7)
+        {
+           Aliases(n);
+           mm.PrintPtrs();
+           mm.PrintAliases();
+        }
+        MmuCatch();
+        ScanMemoryTypes();
+        mm.PrintPtrs();
+        mm.PrintAliases();*/
    }
 }
 
