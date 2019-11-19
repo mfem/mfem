@@ -10,9 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "catch.hpp"
-
-#include <sys/time.h>
-#include <sys/resource.h>
 #include <unordered_map>
 
 #include "mfem.hpp"
@@ -22,16 +19,16 @@
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
-typedef int HYPRE_Int;
 typedef int MPI_Comm;
+typedef int HYPRE_Int;
 #define ParMesh Mesh
+#define GetParMesh GetMesh
+#define GlobalTrueVSize GetVSize
 #define ParBilinearForm BilinearForm
 #define ParGridFunction GridFunction
 #define ParFiniteElementSpace FiniteElementSpace
 #define PFesGetParMeshGetComm(...)
 #define PFesGetParMeshGetComm0(...) 0
-#define GetParMesh GetMesh
-#define GlobalTrueVSize GetVSize
 #define MPI_Finalize()
 #define MPI_Allreduce(src,dst,...) *dst = *src
 #define MPI_INT int
@@ -66,7 +63,7 @@ static double rho0(const Vector &x) { return 1.0; }
 static double gamma(const Vector &x) { return 1.4; }
 
 MFEM_HOST_DEVICE static inline
-double norml2(const int size, const double* __restrict__ data)
+double norml2(const int size, const double *data)
 {
    if (0 == size) { return 0.0; }
    if (1 == size) { return std::abs(data[0]); }
@@ -92,7 +89,7 @@ double norml2(const int size, const double* __restrict__ data)
 }
 
 MFEM_HOST_DEVICE static inline
-void symmetrize(const int n, double* __restrict__ d)
+void symmetrize(const int n, double *d)
 {
    for (int i = 0; i<n; i++)
    {
@@ -105,12 +102,8 @@ void symmetrize(const int n, double* __restrict__ d)
 }
 
 MFEM_HOST_DEVICE static inline
-void multABt(const int ah,
-             const int aw,
-             const int bh,
-             const double* __restrict__ A,
-             const double* __restrict__ B,
-             double* __restrict__ C)
+void multABt(const int ah, const int aw, const int bh,
+             const double *A, const double *B, double *C)
 {
    const int ah_x_bh = ah*bh;
    for (int i=0; i<ah_x_bh; i+=1)
@@ -137,15 +130,14 @@ void multABt(const int ah,
 namespace blas
 {
 
-MFEM_HOST_DEVICE static inline
-void Swap(double &a, double &b)
+MFEM_HOST_DEVICE static inline void Swap(double &a, double &b)
 {
    double tmp = a;
    a = b;
    b = tmp;
 }
 
-const double Epsilon = std::numeric_limits<double>::epsilon();
+const static double Epsilon = std::numeric_limits<double>::epsilon();
 
 template<int dim> double Det(const double *d);
 
@@ -194,7 +186,7 @@ void CalcInverse<3>(const double *a, double *inva)
    inva[2*n+2] = (a[0*n+0]*a[1*n+1]-a[0*n+1]*a[1*n+0])*t;
 }
 
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE static inline
 void Add(const int height, const int width, const double alpha,
          const double *A, const double *B, double *C)
 {
@@ -208,7 +200,7 @@ void Add(const int height, const int width, const double alpha,
    }
 }
 
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE static inline
 void Mult(const int ah, const int aw, const int bw,
           const double *B, const double *C, double *A)
 {
@@ -226,7 +218,7 @@ void Mult(const int ah, const int aw, const int bw,
    }
 }
 
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE static inline
 void MultV(const int height, const int width,
            double *data, const double *x, double *y)
 {
@@ -1111,18 +1103,16 @@ double CalcSingularvalue<3>(const double *d)
 have_aa:
    return sqrt(fabs(aa))*mult;
 }
-}
+} // namespace blas
 
 namespace hydrodynamics
 {
 
 struct QuadratureData
 {
-   DenseTensor Jac0inv;
-   DenseTensor stressJinvT;
+   DenseTensor Jac0inv, stressJinvT;
    Vector rho0DetJ0w;
-   double h0;
-   double dt_est;
+   double h0, dt_est;
    QuadratureData(int dim, int nzones, int quads_per_zone)
       : Jac0inv(dim, dim, nzones * quads_per_zone),
         stressJinvT(nzones * quads_per_zone, dim, dim),
@@ -1133,8 +1123,7 @@ struct Tensors1D
 {
    DenseMatrix HQshape1D, HQgrad1D, LQshape1D;
    Tensors1D(int H1order, int L2order, int nqp1D, bool bernstein_v)
-      : HQshape1D(H1order + 1, nqp1D),
-        HQgrad1D(H1order + 1, nqp1D),
+      : HQshape1D(H1order + 1, nqp1D), HQgrad1D(H1order + 1, nqp1D),
         LQshape1D(L2order + 1, nqp1D)
    {
       const double *quad1D_pos =
@@ -1986,7 +1975,7 @@ public:
       gVecH1.SetSize(h1sz);
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const
    {
       if (l2restrict)
       {
@@ -2003,7 +1992,7 @@ public:
       h1restrict->MultTranspose(gVecH1, y);
    }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const
    {
       h1restrict->Mult(x, gVecH1);
       kForceMultTranspose(dim, D1D, Q1D, L1D, H1D, nzones,
@@ -2213,8 +2202,7 @@ public:
       diag.SetSize(P->Width());
       P->MultTranspose(d, diag);
    }
-
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const
    {
       const int N = x.Size();
       auto d_diag = diag.Read();
@@ -2222,15 +2210,14 @@ public:
       auto d_y = y.Write();
       MFEM_FORALL(i, N, d_y[i] = d_x[i] / d_diag[i];);
    }
-   virtual void SetOperator(const Operator &op) { }
+   void SetOperator(const Operator &op) { }
 };
 
 struct TimingData
 {
    StopWatch sw_cgH1, sw_cgL2, sw_force, sw_qdata;
    const HYPRE_Int L2dof;
-   HYPRE_Int H1iter, L2iter;
-   HYPRE_Int quad_tstep;
+   HYPRE_Int H1iter, L2iter, quad_tstep;
    TimingData(const HYPRE_Int l2d) :
       L2dof(l2d), H1iter(0), L2iter(0), quad_tstep(0) { }
 };
@@ -2833,27 +2820,26 @@ void QBody(const int nzones, const int z,
            const double h1order,
            const double cfl,
            const double infinity,
-           double* __restrict__ Jinv,
-           double* __restrict__ stress,
-           double* __restrict__ sgrad_v,
-           double* __restrict__ eig_val_data,
-           double* __restrict__ eig_vec_data,
-           double* __restrict__ compr_dir,
-           double* __restrict__ Jpi,
-           double* __restrict__ ph_dir,
-           double* __restrict__ stressJiT,
-           const double* __restrict__ d_weights,
-           const double* __restrict__ d_Jacobians,
-           const double* __restrict__ d_rho0DetJ0w,
-           const double* __restrict__ d_e_quads,
-           const double* __restrict__ d_grad_v_ext,
-           const double* __restrict__ d_Jac0inv,
+           double *Jinv,
+           double *stress,
+           double *sgrad_v,
+           double *eig_val_data,
+           double *eig_vec_data,
+           double *compr_dir,
+           double *Jpi,
+           double *ph_dir,
+           double *stressJiT,
+           const double *d_weights,
+           const double *d_Jacobians,
+           const double *d_rho0DetJ0w,
+           const double *d_e_quads,
+           const double *d_grad_v_ext,
+           const double *d_Jac0inv,
            double *d_dt_est,
            double *d_stressJinvT)
 {
    constexpr int dim2 = dim*dim;
    double min_detJ = infinity;
-
    const int zq = z * nqp + q;
    const double weight =  d_weights[q];
    const double inv_weight = 1. / weight;
@@ -3097,7 +3083,7 @@ protected:
    const IntegrationRule &integ_rule;
    mutable QuadratureData quad_data;
    mutable bool quad_data_is_current, forcemat_is_assembled;
-   Tensors1D tensors1D;
+   Tensors1D T1D;
    mutable MixedBilinearForm Force;
    PAForceOperator *ForcePA;
    PAMassOperator *VMassPA, *EMassPA;
@@ -3112,10 +3098,7 @@ protected:
 
    void UpdateQuadratureData(const Vector &S) const
    {
-      return Q.UpdateQuadratureData(S,
-                                    quad_data_is_current,
-                                    quad_data,
-                                    &tensors1D);
+      return Q.UpdateQuadratureData(S, quad_data_is_current, quad_data, &T1D);
    }
 
 public:
@@ -3139,11 +3122,11 @@ public:
       H1FESpace(h1_fes), L2FESpace(l2_fes),
       H1compFESpace(h1_fes.GetParMesh(), h1_fes.FEColl(), 1),
       H1Vsize(H1FESpace.GetVSize()),
-      H1TVSize(H1FESpace.TrueVSize()),
+      H1TVSize(H1FESpace.GetTrueVSize()),
       H1GTVSize(H1FESpace.GlobalTrueVSize()),
       H1compTVSize(H1compFESpace.GetTrueVSize()),
       L2Vsize(L2FESpace.GetVSize()),
-      L2TVSize(L2FESpace.TrueVSize()),
+      L2TVSize(L2FESpace.GetTrueVSize()),
       L2GTVSize(L2FESpace.GlobalTrueVSize()),
       block_offsets(4),
       x_gf(&H1FESpace),
@@ -3164,9 +3147,9 @@ public:
                               3*h1_fes.GetOrder(0) + l2_fes.GetOrder(0) - 1)),
       quad_data(dim, nzones, integ_rule.GetNPoints()),
       quad_data_is_current(false), forcemat_is_assembled(false),
-      tensors1D(H1FESpace.GetFE(0)->GetOrder(), L2FESpace.GetFE(0)->GetOrder(),
-                int(floor(0.7 + pow(integ_rule.GetNPoints(), 1.0 / dim))),
-                h1_basis_type == BasisType::Positive),
+      T1D(H1FESpace.GetFE(0)->GetOrder(), L2FESpace.GetFE(0)->GetOrder(),
+          int(floor(0.7 + pow(integ_rule.GetNPoints(), 1.0 / dim))),
+          h1_basis_type == BasisType::Positive),
       Force(&l2_fes, &h1_fes),
       VMassPA_prec(H1compFESpace),
       CG_VMass(PFesGetParMeshGetComm(H1FESpace)),
@@ -3192,9 +3175,9 @@ public:
       one = 1.0;
       ForcePA = new PAForceOperator(quad_data, h1_fes,l2_fes, integ_rule);
       VMassPA = new PAMassOperator(rho_coeff, quad_data, H1compFESpace,
-                                   integ_rule, &tensors1D);
+                                   integ_rule, &T1D);
       EMassPA = new PAMassOperator(rho_coeff, quad_data, L2FESpace,
-                                   integ_rule, &tensors1D);
+                                   integ_rule, &T1D);
       H1FESpace.GetParMesh()->GetNodes()->ReadWrite();
       const int bdr_attr_max = H1FESpace.GetMesh()->bdr_attributes.Max();
       Array<int> ess_bdr(bdr_attr_max);
@@ -3219,16 +3202,10 @@ public:
       MPI_Allreduce(&loc_z_cnt, &glob_z_cnt, 1, MPI_INT, MPI_SUM, pm->GetComm());
       switch (pm->GetElementBaseGeometry(0))
       {
-         case Geometry::SEGMENT:
-            quad_data.h0 = glob_area / glob_z_cnt; break;
          case Geometry::SQUARE:
             quad_data.h0 = sqrt(glob_area / glob_z_cnt); break;
-         case Geometry::TRIANGLE:
-            quad_data.h0 = sqrt(2.0 * glob_area / glob_z_cnt); break;
          case Geometry::CUBE:
             quad_data.h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
-         case Geometry::TETRAHEDRON:
-            quad_data.h0 = pow(6.0 * glob_area / glob_z_cnt, 1.0/3.0); break;
          default: MFEM_ABORT("Unknown zone type!");
       }
       quad_data.h0 /= (double) H1FESpace.GetOrder(0);
@@ -3266,11 +3243,9 @@ public:
       ParGridFunction v;
       const int VsizeH1 = H1FESpace.GetVSize();
       v.MakeRef(&H1FESpace, *sptr, VsizeH1);
-
       ParGridFunction dx;
       dx.MakeRef(&H1FESpace, dS_dt, 0);
       dx = v;
-
       SolveVelocity(S, dS_dt);
       SolveEnergy(S, v, dS_dt);
       quad_data_is_current = false;
@@ -3281,11 +3256,9 @@ public:
    void SolveVelocity(const Vector &S, Vector &dS_dt) const
    {
       UpdateQuadratureData(S);
-
       ParGridFunction dv;
       dv.MakeRef(&H1FESpace, dS_dt, H1Vsize);
       dv = 0.0;
-
       timer.sw_force.Start();
       ForcePA->Mult(one, rhs);
       if (ftz_tol>0.0)
@@ -3302,6 +3275,7 @@ public:
       rhs.Neg();
       const int size = H1compFESpace.GetVSize();
       const Operator *Pconf = H1compFESpace.GetProlongationMatrix();
+      const Operator *Rconf = H1compFESpace.GetRestrictionMatrix();
       PAMassOperator *kVMassPA = VMassPA;
       for (int c = 0; c < dim; c++)
       {
@@ -3309,7 +3283,8 @@ public:
          rhs_c_gf.MakeRef(&H1compFESpace, rhs, c*size);
          if (Pconf) { Pconf->MultTranspose(rhs_c_gf, B); }
          else { B = rhs_c_gf; }
-         H1compFESpace.GetRestrictionMatrix()->Mult(dvc_gf, X);
+         if (Rconf) { Rconf->Mult(dvc_gf, X); }
+         else { X = dvc_gf; }
          kVMassPA->SetEssentialTrueDofs(c_tdofs[c]);
          kVMassPA->EliminateRHS(B);
          timer.sw_cgH1.Start();
@@ -3379,109 +3354,8 @@ public:
          rho.SetSubVector(dofs, rho_z);
       }
    }
-
-   double InternalEnergy(const ParGridFunction &e) const
-   {
-      return 0.0;
-   }
-
-   double KineticEnergy(const ParGridFunction &v) const
-   {
-      return 0.0;
-   }
-
-   void PrintTimingData(bool IamRoot, int steps, const bool fom) const
-   {
-#ifdef MFEM_USE_MPI
-      const MPI_Comm com = PFesGetParMeshGetComm0(H1FESpace);
-#endif
-      double my_rt[5], rt_max[5];
-      my_rt[0] = timer.sw_cgH1.RealTime();
-      my_rt[1] = timer.sw_cgL2.RealTime();
-      my_rt[2] = timer.sw_force.RealTime();
-      my_rt[3] = timer.sw_qdata.RealTime();
-      my_rt[4] = my_rt[0] + my_rt[2] + my_rt[3];
-      MPI_Reduce(my_rt, rt_max, 5, MPI_DOUBLE, MPI_MAX, 0, com);
-      int mydata[3], alldata[3];
-      mydata[0] = timer.L2dof * timer.L2iter;
-      mydata[1] = timer.quad_tstep;
-      mydata[2] = nzones;
-      MPI_Reduce(mydata, alldata, 3, HYPRE_MPI_INT, MPI_SUM, 0, com);
-      if (IamRoot)
-      {
-         const int H1iter = timer.H1iter/dim;
-         const double FOM1 = 1e-6 * H1GTVSize * H1iter / rt_max[0];
-         const double FOM2 = 1e-6 * steps * (H1GTVSize + L2GTVSize) / rt_max[2];
-         const double FOM3 = 1e-6 * alldata[1] * integ_rule.GetNPoints() / rt_max[3];
-         const double FOM = (FOM1 * rt_max[0] + FOM2 * rt_max[2] + FOM3 *rt_max[3]) /
-                            rt_max[4];
-         cout << endl;
-         cout << "CG (H1) total time: " << rt_max[0] << endl;
-         cout << "CG (H1) rate (megadofs x cg_iterations / second): "
-              << FOM1 << endl;
-         cout << endl;
-         cout << "CG (L2) total time: " << rt_max[1] << endl;
-         cout << "CG (L2) rate (megadofs x cg_iterations / second): "
-              << 1e-6 * alldata[0] / rt_max[1] << endl;
-         cout << endl;
-         cout << "Forces total time: " << rt_max[2] << endl;
-         cout << "Forces rate (megadofs x timesteps / second): "
-              << FOM2 << endl;
-         cout << endl;
-         cout << "UpdateQuadData total time: " << rt_max[3] << endl;
-         cout << "UpdateQuadData rate (megaquads x timesteps / second): "
-              << FOM3 << endl;
-         cout << endl;
-         cout << "Major kernels total time (seconds): " << rt_max[4] << endl;
-         cout << "Major kernels total rate (megadofs x time steps / second): "
-              << FOM << endl;
-         if (!fom) { return; }
-         const int QPT = integ_rule.GetNPoints();
-         const int GNZones = alldata[2];
-         const long ndofs = 2*H1GTVSize + L2GTVSize + QPT*GNZones;
-         cout << endl;
-         cout << "| Ranks " << "| Zones   "
-              << "| H1 dofs " << "| L2 dofs "
-              << "| QP "      << "| N dofs   "
-              << "| FOM1    " << "| T1    "
-              << "| FOM2   " << "| T2   "
-              << "| FOM3   " << "| T3   "
-              << "| FOM    " << "| TT   |"<< endl;
-         cout << setprecision(3);
-         cout << "| " << setw(6) << 1 //H1FESpace.GetNRanks()
-              << "| " << setw(8) << GNZones
-              << "| " << setw(8) << H1GTVSize
-              << "| " << setw(8) << L2GTVSize
-              << "| " << setw(3) << QPT
-              << "| " << setw(9) << ndofs
-              << "| " << setw(8) << FOM1
-              << "| " << setw(6) << rt_max[0]
-              << "| " << setw(7) << FOM2
-              << "| " << setw(5) << rt_max[2]
-              << "| " << setw(7) << FOM3
-              << "| " << setw(5) << rt_max[3]
-              << "| " << setw(7) << FOM
-              << "| " << setw(5) << rt_max[4]
-              << "| " << endl;
-      }
-   }
-   int GetH1VSize() const { return H1FESpace.GetVSize(); }
-   const Array<int> &GetBlockOffsets() const { return block_offsets; }
 };
 } // namespace hydrodynamics
-} // namespace mfem
-
-static long GetMaxRssMB()
-{
-   struct rusage usage;
-   if (getrusage(RUSAGE_SELF, &usage)) { return -1; }
-#ifndef __APPLE__
-   const long unit = 1024;
-#else
-   const long unit = 1024*1024;
-#endif
-   return usage.ru_maxrss/unit;
-}
 
 int sedov(MPI_Session &mpi, int argc, char *argv[])
 {
@@ -3503,11 +3377,10 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    int cg_max_iter = 300;
    int max_tsteps = -1;
    bool visualization = false;
-   int vis_steps = 100;
+   int vis_steps = 5;
    bool visit = false;
    bool gfprint = false;
    const char *dev_opt = "cpu";
-   bool mem_usage = false;
    bool fom = false;
    bool gpu_aware_mpi = false;
    int dev = -1;
@@ -3552,8 +3425,6 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
                   "Enable or disable result output (files in mfem format).");
    args.AddOption(&dev_opt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&mem_usage, "-mb", "--mem", "-no-mem", "--no-mem",
-                  "Enable memory usage.");
    args.AddOption(&fom, "-f", "--fom", "-no-fom", "--no-fom",
                   "Enable figure of merit output.");
    args.AddOption(&gpu_aware_mpi, "-gam", "--gpu-aware-mpi", "-no-gam",
@@ -3566,35 +3437,18 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
       if (mpi.Root()) { args.PrintUsage(cout); }
       return -1;
    }
-   //if (mpi.Root()) { args.PrintOptions(cout); }
+   if (mpi.Root()) { args.PrintOptions(cout); }
 
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    const int dim = mesh->Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int mesh_NE = mesh->GetNE();
-   if (mpi.Root())
-   {
-      cout << "Number of zones in the serial mesh: " << mesh_NE << endl;
-   }
-
    ParMesh *pmesh = NULL;
-   if (myid == 0)
-   {
-      cout << "Non-Cartesian partitioning through METIS will be used.\n";
-#ifndef MFEM_USE_METIS
-      cout << "MFEM was built without METIS. "
-           << "Adjust the number of tasks to use a Cartesian split." << endl;
-#endif
-   }
-#ifndef MFEM_USE_METIS
-   return -1;
-#endif
 #ifdef MFEM_USE_MPI
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 #else
    pmesh = new Mesh(*mesh);
 #endif
-
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
    int nzones = pmesh->GetNE(), nzones_min, nzones_max;
@@ -3681,7 +3535,6 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    bool last_step = false;
    int steps = 0;
    BlockVector S_old(S);
-   long mem=0, mem_max=0, mem_sum=0;
    int checks = 0;
    for (int ti = 1; !last_step; ti++)
    {
@@ -3719,12 +3572,6 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
          double loc_norm = e_gf * e_gf, tot_norm;
          MPI_Allreduce(&loc_norm, &tot_norm, 1, MPI_DOUBLE, MPI_SUM,
                        pmesh->GetComm());
-         if (mem_usage)
-         {
-            mem = GetMaxRssMB();
-            MPI_Reduce(&mem, &mem_max, 1, MPI_LONG, MPI_MAX, 0, pmesh->GetComm());
-            MPI_Reduce(&mem, &mem_sum, 1, MPI_LONG, MPI_SUM, 0, pmesh->GetComm());
-         }
          if (mpi.Root())
          {
             const double sqrt_tot_norm = sqrt(tot_norm);
@@ -3734,12 +3581,6 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
                  << ",\tdt = " << setw(5) << setprecision(6) << dt
                  << ",\t|e| = " << setprecision(10)
                  << sqrt_tot_norm;
-            if (mem_usage)
-            {
-               cout << ", mem: "
-                    << mem_max << "/"
-                    << mem_sum << " MB";
-            }
             cout << endl;
          }
       }
@@ -3787,28 +3628,12 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    REQUIRE(ode_solver_type==4);
    steps *= 4;
    //oper.PrintTimingData(mpi.Root(), steps, fom);
-   if (mem_usage)
-   {
-      mem = GetMaxRssMB();
-      MPI_Reduce(&mem, &mem_max, 1, MPI_LONG, MPI_MAX, 0, pmesh->GetComm());
-      MPI_Reduce(&mem, &mem_sum, 1, MPI_LONG, MPI_SUM, 0, pmesh->GetComm());
-   }
-   if (mpi.Root())
-   {
-      cout << endl;
-      if (mem_usage)
-      {
-         cout << "Maximum memory resident set size: "
-              << mem_max << "/"
-              << mem_sum << " MB"
-              << endl;
-      }
-   }
    delete ode_solver;
    delete pmesh;
    delete mat_gf_coeff;
    return 0;
 }
+} // namespace mfem
 
 static int argn(const char *argv[], int argc =0)
 {
