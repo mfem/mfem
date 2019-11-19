@@ -141,7 +141,7 @@ Drl4Amr::Drl4Amr(int order, int seed):
              << "window_geometry "
              << (vish + border) << " " << 0
              << " " << visw << " " << vish  << endl
-             << "keys mgA" << endl;
+             << "keys mgeA" << endl;
    }
 
    if (visualization && vis[2].good())
@@ -297,26 +297,32 @@ void Drl4Amr::GetImage(GridFunction &gf, Vector &image)
    const int nw = GetImageX() + 1;
    const int nh = GetImageY() + 1;
    // rasterize each element into the image
+   GlobGeometryRefiner.SetType(Quadrature1D::OpenUniform);
    for (int k = 0; k < mesh.GetNE(); k++)
    {
       constexpr Geometry::Type geom = Geometry::SQUARE;
       const int depth = mesh.ncmesh->GetElementDepth(k);
-      const int times = (1 << (max_depth - depth)) * order;
+      const int times = (1 << (max_depth - depth)) * order - 1;
+      //printf("\033[33mtimes: %d",times);
       IntegrationRule &ir = GlobGeometryRefiner.Refine(geom, times)->RefPts;
+      //const IntegrationRule *ir = GlobGeometryRefiner.RefineInterior(geom, times);
       gf.GetValues(k, ir, vals);
+      //printf("\nvals (%d):", vals.Size()); vals.Print();
       mesh.GetElementVertices(k, vert);
       const double *v = mesh.GetVertex(vert[0]);
       const int ox = int(v[0] * nw);
       const int oy = int(v[1] * nh);
-      for (int i = 0; i < times; i++)
+      for (int i = 0; i <= times; i++)
       {
-         for (int j = 0; j < times; j++)
+         for (int j = 0; j <= times; j++)
          {
             const int n = i * (times + 1) + j;
             const int m = (oy + i) * (nw - 1) + (ox + j);
             image(m) = vals(n);
+            //printf("\n(%f, %f)",ir.IntPoint(n).x, ir.IntPoint(n).y);
          }
       }
+      //printf("\033[m"); fflush(0); exit(0);
    }
 }
 
