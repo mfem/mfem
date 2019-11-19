@@ -1998,7 +1998,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    }
 }
 
-void VectorDivergenceIntegrator::AssembleElementMatrix2(
+void DivergenceIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
    ElementTransformation &Trans,
@@ -2048,7 +2048,7 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
    }
 }
 
-const IntegrationRule &VectorDivergenceIntegrator::GetRule(
+const IntegrationRule &DivergenceIntegrator::GetRule(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
    ElementTransformation &Trans)
