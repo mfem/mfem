@@ -50,7 +50,8 @@ add_executable(unit_tests ${UNIT_TESTS_SRCS})
 target_link_libraries(unit_tests mfem)
 
 
-# All device unit tests are built in another executable, to be able to change the device.
+# All device unit tests are built in another executable,
+# to be able to change the device.
 set(UNIT_TESTS_SRCS_SEDOV
     unit_test_main.cpp
     miniapps/test_sedov.cpp
@@ -91,9 +92,9 @@ endif()
    
 # Copy data to the build directory.
 add_custom_command(TARGET unit_tests POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/data data
-    COMMENT "Copying the unit tests data directory ...")
+COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/data data
+        COMMENT "Copying the unit tests data directory ...")
 
 # Add unit tests
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests unit_tests_cpu unit_tests_dbg)
@@ -111,15 +112,17 @@ add_test(NAME unit_tests_dbg COMMAND unit_tests_dbg)
 
 # Additional CUDA unit tests
 if (MFEM_USE_CUDA)
-foreach(dev cuda cuda_dbg cuda_uvm)
-   add_test(NAME unit_tests_${dev} COMMAND unit_tests_${dev})
-endforeach()
+    foreach(dev cuda cuda_dbg cuda_uvm)
+        add_test(NAME unit_tests_${dev} COMMAND unit_tests_${dev})
+    endforeach()
+endif()
 
 # Additional MPI unit tests
 if (MFEM_USE_MPI)
    function(add_mpi_unit_test NAME NP)
       set(test_name unit_tests_${NAME})
-      add_test(NAME ${test_name}_np${NP} COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${test_name})
+      add_test(NAME ${test_name}_np${NP}
+               COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${test_name})
    endfunction()
    set(MPI_NPS 1 2 3)   
    foreach(np ${MPI_NPS})
