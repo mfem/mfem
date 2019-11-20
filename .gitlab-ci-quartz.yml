@@ -1,0 +1,136 @@
+.quartz_common:
+    tags:
+        - shell
+        - quartz
+    variables:
+        PLAT: quartz
+        MPIEXEC: srun
+        MPIEXEC_NP: "-n"
+
+#Precleanup
+
+quartz_precleanup:
+    extends: [.quartz_common, .precleanup]
+
+# Setup
+
+quartz_setup:
+    extends: [.quartz_common, .setup]
+
+
+#Build libs
+
+quartz_build_hypre_gcc_6_1_0:
+    extends: [.quartz_common, .build_hypre]
+    variables:
+        BUILD_DIR: gcc_6_1_0
+    before_script:
+        - module load gcc/6.1.0
+
+quartz_build_metis_gcc_6_1_0:
+    extends: [.quartz_common, .build_metis]
+    variables:
+        BUILD_DIR: gcc_6_1_0
+    before_script:
+        - module load gcc/6.1.0
+
+# Build MFEM
+
+quartz_build_mfem_gcc_4_9_3_debug_ser:
+    extends: [.quartz_common, .build_mfem]
+    variables:
+        BUILD_DIR: gcc_4_9_3
+        MFEM_DEBUG: "YES"
+        MFEM_USE_MPI: "NO"
+    before_script:
+        - module load gcc/4.9.3
+
+quartz_build_mfem_gcc_6_1_0_debug_ser:
+    extends: [.quartz_common, .build_mfem]
+    variables:
+        BUILD_DIR: gcc_6_1_0
+        MFEM_DEBUG: "YES"
+        MFEM_USE_MPI: "NO"
+    before_script:
+        - module load gcc/6.1.0
+
+quartz_build_mfem_gcc_6_1_0_debug_par:
+    extends: [.quartz_common, .build_mfem]
+    variables:
+        BUILD_DIR: gcc_6_1_0
+        MFEM_DEBUG: "YES"
+        MFEM_USE_MPI: "YES"
+    needs: [quartz_build_hypre_gcc_6_1_0, quartz_build_metis_gcc_6_1_0]
+    before_script:
+        - module load gcc/6.1.0
+
+quartz_build_mfem_gcc_6_1_0_opt_ser:
+    extends: [.quartz_common, .build_mfem]
+    variables:
+        BUILD_DIR: gcc_6_1_0
+        MFEM_DEBUG: "NO"
+        MFEM_USE_MPI: "NO"
+    before_script:
+        - module load gcc/6.1.0
+
+quartz_build_mfem_gcc_6_1_0_opt_par:
+    extends: [.quartz_common, .build_mfem]
+    variables:
+        BUILD_DIR: gcc_6_1_0
+        MFEM_DEBUG: "NO"
+        MFEM_USE_MPI: "YES"
+    needs: [quartz_build_hypre_gcc_6_1_0, quartz_build_metis_gcc_6_1_0]
+    before_script:
+        - module load gcc/6.1.0
+
+## Tests
+# Code style check
+quartz_stylecheck_mfem:
+    extends: [.quartz_common, .stylecheck_mfem]
+
+# Sanity check
+
+quartz_sanitycheck_mfem_gcc_4_9_3_debug_ser:
+    extends: [.quartz_common, .sanitycheck_mfem]
+    variables:
+        BUILD_DIR: gcc_4_9_3
+        MFEM_DEBUG: "YES"
+        MFEM_USE_MPI: "NO"
+    needs: [quartz_build_mfem_gcc_4_9_3_debug_ser]
+    before_script:
+        - module load gcc/4.9.3
+
+quartz_sanitycheck_mfem_gcc_6_1_0_debug_ser:
+    extends: [.quartz_common, .sanitycheck_mfem]
+    variables:
+        BUILD_DIR: gcc_6_1_0
+        MFEM_DEBUG: "YES"
+        MFEM_USE_MPI: "NO"
+    needs: [quartz_build_mfem_gcc_6_1_0_debug_ser]
+    before_script:
+        - module load gcc/6.1.0
+
+quartz_sanitycheck_mfem_gcc_6_1_0_opt_ser:
+    extends: [.quartz_common, .sanitycheck_mfem]
+    variables:
+        BUILD_DIR: gcc_6_1_0
+        MFEM_DEBUG: "NO"
+        MFEM_USE_MPI: "NO"
+    needs: [quartz_build_mfem_gcc_6_1_0_opt_ser]
+    before_script:
+        - module load gcc/6.1.0
+
+quartz_sanitycheck_mfem_gcc_6_1_0_opt_par:
+    extends: [.quartz_common, .sanitycheck_mfem]
+    variables:
+        BUILD_DIR: gcc_6_1_0
+        MFEM_DEBUG: "NO"
+        MFEM_USE_MPI: "YES"
+    before_script:
+        - module load gcc/6.1.0
+    needs: [quartz_build_mfem_gcc_6_1_0_opt_par]
+
+# Postcleanup
+
+quartz_postcleanup:
+    extends: [.quartz_common, .postcleanup]
