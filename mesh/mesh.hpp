@@ -1014,7 +1014,7 @@ public:
    // Nodes are only active for higher order meshes, and share locations with
    // the vertices, plus all the higher- order control points within the element
    // and along the edges and on the faces.
-   void GetNode(int i, double *coord);
+   void GetNode(int i, double *coord) const;
    void SetNode(int i, const double *coord);
 
    // Node operations for curved mesh.

@@ -4759,7 +4759,13 @@ void Mesh::GenerateNCFaceInfo()
    for (unsigned i = 0; i < list.slaves.size(); i++)
    {
       const NCMesh::Slave &slave = list.slaves[i];
-      if (slave.index >= nfaces || slave.master >= nfaces) { continue; }
+
+      if (slave.index < 0 || // degenerate slave face
+          slave.index >= nfaces || // ghost slave
+          slave.master >= nfaces) // has ghost master
+      {
+         continue;
+      }
 
       FaceInfo &slave_fi = faces_info[slave.index];
       FaceInfo &master_fi = faces_info[slave.master];
@@ -5783,7 +5789,7 @@ void Mesh::SetVertices(const Vector &vert_coord)
       }
 }
 
-void Mesh::GetNode(int i, double *coord)
+void Mesh::GetNode(int i, double *coord) const
 {
    if (Nodes)
    {
@@ -7196,13 +7202,13 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
    else if (nonconforming < 0)
    {
       // determine if nonconforming refinement is suitable
-      if (meshgen & 2)
+      if ((meshgen & 2) || (meshgen & 4))
       {
-         nonconforming = 1;
+         nonconforming = 1; // tensor product elements and wedges
       }
       else
       {
-         nonconforming = 0;
+         nonconforming = 0; // simplices
       }
    }
 
@@ -7257,8 +7263,9 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
 
    if (!ncmesh)
    {
-      if ((meshgen & 2) /* quads/hexes */ ||
-          (triangles_nonconforming && Dim == 2 && (meshgen & 1)))
+      if ((meshgen & 0x2) /* quads/hexes */ ||
+          (meshgen & 0x4) /* wedges */ ||
+          (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
       {
          MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
                      "mixed meshes are not supported");
@@ -7681,12 +7688,7 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
 void Mesh::InitRefinementTransforms()
 {
    // initialize CoarseFineTr
-   map<Geometry::Type,DenseTensor> &pms = CoarseFineTr.point_matrices;
-   map<Geometry::Type,DenseTensor>::iterator pms_iter;
-   for (pms_iter = pms.begin(); pms_iter != pms.end(); ++pms_iter)
-   {
-      pms_iter->second.SetSize(0, 0, 0);
-   }
+   CoarseFineTr.Clear();
    CoarseFineTr.embeddings.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
    {
