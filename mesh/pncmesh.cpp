@@ -1362,6 +1362,12 @@ void ParNCMesh::Prune()
 
 void ParNCMesh::Refine(const Array<Refinement> &refinements)
 {
+   if (NRanks == 1)
+   {
+      NCMesh::Refine(refinements);
+      return;
+   }
+
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
