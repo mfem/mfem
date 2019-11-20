@@ -87,7 +87,8 @@ static void PAAdvectionSetup2D(const int Q1D,
    auto W = w.Read();
 
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto y = Reshape(op.Write(), NQ, 3, NE);
+   auto c = Reshape(coeff.Read(), NQ, 2, NE);
+   auto y = Reshape(op.Write(), NQ, 2, 2, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -97,12 +98,12 @@ static void PAAdvectionSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double w = W[q] * COEFF;
+         const double w = W[q];
+         const double wx = w * c(q,0,e);
+         const double wy = w * c(q,1,e);
          //w*J^-T
-         y(q,0,0,e) =  w * J22; // 1,1
-         y(q,0,1,e) = -w * J21; // 1,2
-         y(q,1,0,e) = -w * J12; // 2,1
-         y(q,1,1,e) =  w * J11; // 2,2
+         y(q,0,e) =  wx * J22 - wy * J21; // 1
+         y(q,1,e) = -wy * J21 + wy * J11; // 2
       }
    });
 }
@@ -118,6 +119,7 @@ static void PAAdvectionSetup3D(const int Q1D,
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
+   auto c = Reshape(coeff.Read(), NQ, 2, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
@@ -135,7 +137,10 @@ static void PAAdvectionSetup3D(const int Q1D,
          // const double detJ = J11 * (J22 * J33 - J32 * J23) -
          // /* */               J21 * (J12 * J33 - J32 * J13) +
          // /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * COEFF;
+         const double w = W[q];
+         const double wx = w * c(q,0,e);
+         const double wy = w * c(q,1,e);
+         const double wz = w * c(q,2,e);
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -146,16 +151,10 @@ static void PAAdvectionSetup3D(const int Q1D,
          const double A31 = (J21 * J32) - (J31 * J22);
          const double A32 = (J31 * J12) - (J11 * J32);
          const double A33 = (J11 * J22) - (J12 * J21);
-         // detJ J^{-1} J^{-T} = adj(J)^T
-         y(q,0,0,e) = c_detJ * A11; // 1,1
-         y(q,0,1,e) = c_detJ * A21; // 1,2
-         y(q,0,2,e) = c_detJ * A31; // 1,3
-         y(q,1,0,e) = c_detJ * A12; // 2,1
-         y(q,1,1,e) = c_detJ * A22; // 2,2
-         y(q,1,2,e) = c_detJ * A32; // 2,3
-         y(q,2,0,e) = c_detJ * A13; // 3,1
-         y(q,2,1,e) = c_detJ * A23; // 3,2
-         y(q,2,2,e) = c_detJ * A33; // 3,3
+         // detJ q . J^{-T} = q . adj(J)^T
+         y(q,0,e) =  wx * A11 + wy * A21 + wz * A31; // 1,1
+         y(q,1,e) =  wx * A12 + wy * A22 + wz * A32; // 1,1
+         y(q,2,e) =  wx * A13 + wy * A23 + wz * A33; // 1,1
       }
    });
 }
@@ -172,28 +171,137 @@ static void PAAdvectionSetup(const int dim,
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAAdvectionSetup"); }
    if (dim == 2)
    {
-#ifdef MFEM_USE_OCCA
-      if (DeviceCanUseOcca())
-      {
-         OccaPAAdvectionSetup2D(D1D, Q1D, NE, W, J, COEFF, op);
-         return;
-      }
-#endif // MFEM_USE_OCCA
       PAAdvectionSetup2D(Q1D, NE, W, J, COEFF, op);
    }
    if (dim == 3)
    {
-#ifdef MFEM_USE_OCCA
-      if (DeviceCanUseOcca())
-      {
-         OccaPAAdvectionSetup3D(D1D, Q1D, NE, W, J, COEFF, op);
-         return;
-      }
-#endif // MFEM_USE_OCCA
       PAAdvectionSetup3D(Q1D, NE, W, J, COEFF, op);
    }
 }
 
+// PA Advection Apply 2D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PAAdvectionApply2D(const int NE,
+                        const Array<double> &b,
+                        const Array<double> &g,
+                        const Array<double> &bt,
+                        const Array<double> &gt,
+                        const Vector &_op,
+                        const Vector &_x,
+                        Vector &_y,
+                        const int d1d = 0,
+                        const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double u[D1D][D1D];
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+        for (int dx = 0; dx < D1D; ++dx)
+        {
+          u[dy][dx] = x(dx,dy,e);
+        }
+      }
+      double Bu[D1D][Q1D];
+      double Gu[D1D][Q1D];
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+        for (int qx = 0; qx < Q1D; ++qx)
+        {
+          Bu[dy][qx] = 0.0;
+          Gu[dy][qx] = 0.0;
+          for (int dx = 0; dx < D1D; ++dx)
+          {
+            const double bx  = B(qx,dx);
+            const double gx  = G(qx,dx);
+            const double x = u[dy][dx];
+            Bu[dy][qx] += bx * x;
+            Gu[dy][qx] += gx * x;
+          }
+        }
+      }
+      double GBu[Q1D][Q1D];
+      double BGu[Q1D][Q1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+        for (int qy = 0; qy < Q1D; ++qy)
+        {
+          GBu[qy][qx] = 0.0;
+          BGu[qy][qx] = 0.0;
+          for (int dy = 0; dy < D1D; ++dy)
+          {
+            const double bx  = B(qy,dy);
+            const double gx  = G(qy,dy);
+            GBu[qy][qx] += gx * Bu[dy][qx];
+            BGu[qy][qx] += bx * Gu[dy][qx];
+          }
+        }
+      }
+      // Calculate Dxy, xDy in plane
+      double DGu[max_Q1D][max_Q1D];
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const int q = qx + qy * Q1D;
+
+            const double O1 = op(q,0,e);
+            const double O2 = op(q,1,e);
+
+            const double gradX = GBu[qy][qx];
+            const double gradY = BGu[qy][qx];
+
+            DGu[qy][qx] = (O1 * gradX) + (O2 * gradY);
+         }
+      }
+      double BDGu[max_D1D][max_Q1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+        for (int dy = 0; dy < D1D; ++dy)
+        {
+          BDGu[dy][qx] = 0.0;
+          for (int qy = 0; qy < Q1D; ++qy)
+          {
+            const double wx  = Bt(dy,qy);
+            BDGu[dy][qx] += wx * DGu[qy][qx];
+          }
+        }
+      }
+      double BBDGu[max_D1D][max_Q1D];
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+        for (int dy = 0; dy < D1D; ++dy)
+        {
+          BBDGu[dy][dx] = 0.0;
+          for (int qx = 0; qx < Q1D; ++qx)
+          {
+            const double wx  = Bt(dx,qx);
+            BBDGu[dy][dx] += wx * BDGu[dy][qx];
+          }
+          y(dx,dy,e) += BBDGu[dy][dx];
+        }
+      }
+   });
+}
+
+#if 0
 void AdvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
@@ -1097,5 +1205,7 @@ void AdvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
                     maps->B, maps->G, maps->Bt, maps->Gt,
                     pa_data, x, y);
 }
+
+#endif
 
 } // namespace mfem
