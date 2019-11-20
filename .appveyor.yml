@@ -46,7 +46,7 @@ build_script:
 
 after_build:
 # - cmake --build build_parallel --target check
-- cmake --build build_serial --target RUN_TESTS
+# - cmake --build build_serial --target RUN_TESTS
 - cd build_serial
 - ctest -R dbg --debug --output-on-failure
 
