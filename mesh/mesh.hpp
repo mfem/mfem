@@ -1170,7 +1170,7 @@ public:
    void PrintVTU(std::ostream &out, int ref=1);
    /** Print the mesh in VTK format with file name fname.*/
    void PrintVTU(std::string fname);
-   
+
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
    /** @brief Prints the mesh with boundary elements given by the boundary of
