@@ -20,6 +20,12 @@ GPU support
   backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
   "omp", "occa-cpu", "raja-cpu", and "cpu".
 
+Discretization improvements
+---------------------------
+- Added support for non-conforming prism AMR, including coarsening and parallel
+  load balancing. Anisotropic prism refinement is only available in the serial
+  version at the moment.
+
 Miscellaneous
 -------------
 - Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This 
