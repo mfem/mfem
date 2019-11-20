@@ -2572,7 +2572,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
 
          // Create the transformation that embeds the fine low-order element
          // within the coarse high-order element in reference space
-         emb_tr.GetPointMat() = pmats(iref);
+         emb_tr.GetPointMat() = pmats(cf_tr.embeddings[ilor].matrix);
          emb_tr.FinalizeTransformation();
 
          int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
