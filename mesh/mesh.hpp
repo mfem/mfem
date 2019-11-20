@@ -386,11 +386,6 @@ protected:
       return FaceIsInterior(FaceNo) || (faces_info[FaceNo].Elem2Inf >= 0);
    }
 
-   // shift cyclically 3 integers left-to-right
-   inline static void ShiftL2R(int &, int &, int &);
-   // shift cyclically 3 integers so that the smallest is first
-   inline static void Rotate3(int &, int &, int &);
-
    void FreeElement(Element *E);
 
    void GenerateFaces();
@@ -1271,6 +1266,11 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+#ifdef MFEM_DEBUG
+   /// Output an NCMesh-compatible debug dump.
+   void DebugDump(std::ostream &out) const;
+#endif
 };
 
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
@@ -1359,33 +1359,11 @@ public:
 };
 
 
-// inline functions
-inline void Mesh::ShiftL2R(int &a, int &b, int &c)
+// shift cyclically 3 integers left-to-right
+inline void ShiftRight(int &a, int &b, int &c)
 {
    int t = a;
    a = c;  c = b;  b = t;
-}
-
-inline void Mesh::Rotate3(int &a, int &b, int &c)
-{
-   if (a < b)
-   {
-      if (a > c)
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
-   else
-   {
-      if (b < c)
-      {
-         ShiftL2R(c, b, a);
-      }
-      else
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
 }
 
 }
