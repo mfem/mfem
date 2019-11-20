@@ -115,17 +115,33 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
 
+   if (mesh->NURBSext)
+   {
+      // reodering of NURBS meshes not supported by ReorderElements
+      mesh->SetCurvature(2);
+   }
+
+   Array<int> ordering;
+   mesh->GetHilbertElementOrdering(ordering);
+   mesh->ReorderElements(ordering);
+
+   Array<int> part(mesh->GetNE());
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      part[i] = i * num_procs / mesh->GetNE();
+   }
+
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, part);
    delete mesh;
    {
       int par_ref_levels = 2;

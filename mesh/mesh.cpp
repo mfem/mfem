@@ -63,12 +63,12 @@ void Mesh::GetElementJacobian(int i, DenseMatrix &J)
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 
-void Mesh::GetElementCenter(int i, Vector &cent)
+void Mesh::GetElementCenter(int i, Vector &center)
 {
-   cent.SetSize(spaceDim);
+   center.SetSize(spaceDim);
    int geom = GetElementBaseGeometry(i);
    ElementTransformation *eltransf = GetElementTransformation(i);
-   eltransf->Transform(Geometries.GetCenter(geom), cent);
+   eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
 double Mesh::GetElementSize(int i, int type)
@@ -1381,6 +1381,77 @@ void Mesh::GetGeckoElementOrdering(Array<int> &ordering,
    delete functional;
 }
 #endif
+
+typedef std::uint64_t HbIndex;
+static const int HbSize = (1 << 20);
+
+static void HilbertRotate(int n, int &x, int &y, int rx, int ry)
+{
+   if (ry == 0) // only lower quadrants need rotating
+   {
+      if (rx == 1) // lower-right quadrant
+      {
+         x = n-1 - x;
+         y = n-1 - y;
+      }
+      std::swap(x, y);
+   }
+}
+
+// Adapted from https://en.wikipedia.org/wiki/Hilbert_curve
+static HbIndex PointToHilbertIndex(int n, int x, int y)
+{
+   HbIndex index = 0;
+   for (int s = n/2; s > 0; s /= 2)
+   {
+       int rx = (x & s) ? 1 : 0;
+       int ry = (y & s) ? 1 : 0;
+       index += HbIndex(s) * s * ((3 * rx) ^ ry);
+       HilbertRotate(n, x, y, rx, ry);
+   }
+   return index;
+}
+
+void Mesh::GetHilbertElementOrdering(Array<int> &ordering)
+{
+   MFEM_VERIFY(spaceDim == 2, "Not implemented yet for Dim > 2");
+
+   Vector min, max, center;
+   GetBoundingBox(min, max);
+
+   Array<Pair<HbIndex, int> > indices(GetNE());
+   for (int i = 0; i < GetNE(); i++)
+   {
+      GetElementCenter(i, center);
+
+      int icoord[3];
+      for (int j = 0; j < spaceDim; j++)
+      {
+         icoord[j] = (HbSize-1) * (center(j) - min(j)) / (max(j) - min(j));
+      }
+
+      indices[i].one = PointToHilbertIndex(HbSize, icoord[0], icoord[1]);
+      indices[i].two = i;
+   }
+   indices.Sort();
+
+   ordering.SetSize(GetNE());
+   for (int i = 0; i < GetNE(); i++)
+   {
+      ordering[indices[i].two] = i;
+   }
+
+#if 0
+   ofstream f("curve.m");
+   f << "P = [\n";
+   for (int i = 0; i < GetNE(); i++)
+   {
+      GetElementCenter(indices[i].two, center);
+      f << center(0) << " " << center(1) << "\n";
+   }
+   f << "];\n";
+#endif
+}
 
 
 void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
