@@ -22,11 +22,11 @@ namespace mfem
 
 // PA Divergence Assemble 2D kernel
 static void PADivergenceSetup2D(const int Q1D,
-                                      const int NE,
-                                      const Array<double> &w,
-                                      const Vector &j,
-                                      const double COEFF,
-                                      Vector &op)
+                                const int NE,
+                                const Array<double> &w,
+                                const Vector &j,
+                                const double COEFF,
+                                Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -52,11 +52,11 @@ static void PADivergenceSetup2D(const int Q1D,
 
 // PA Divergence Assemble 3D kernel
 static void PADivergenceSetup3D(const int Q1D,
-                                      const int NE,
-                                      const Array<double> &w,
-                                      const Vector &j,
-                                      const double COEFF,
-                                      Vector &op)
+                                const int NE,
+                                const Array<double> &w,
+                                const Vector &j,
+                                const double COEFF,
+                                Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -101,14 +101,14 @@ static void PADivergenceSetup3D(const int Q1D,
 }
 
 static void PADivergenceSetup(const int dim,
-                                    const int TR_D1D,
-                                    const int TE_D1D,
-                                    const int Q1D,
-                                    const int NE,
-                                    const Array<double> &W,
-                                    const Vector &J,
-                                    const double COEFF,
-                                    Vector &op)
+                              const int TR_D1D,
+                              const int TE_D1D,
+                              const int Q1D,
+                              const int NE,
+                              const Array<double> &W,
+                              const Vector &J,
+                              const double COEFF,
+                              Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADivergenceSetup"); }
    if (dim == 2)
@@ -122,7 +122,7 @@ static void PADivergenceSetup(const int dim,
 }
 
 void DivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
-                                            const FiniteElementSpace &test_fes)
+                                      const FiniteElementSpace &test_fes)
 {
    // Assumes tensor-product elements ordered by nodes
    MFEM_ASSERT(trial_fes.GetOrdering() == Ordering::byNODES,
@@ -155,21 +155,21 @@ void DivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       coeff = cQ->constant;
    }
    PADivergenceSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
-                           ne, ir->GetWeights(), geom->J, coeff, pa_data);
+                     ne, ir->GetWeights(), geom->J, coeff, pa_data);
 }
 
 // PA Divergence Apply 2D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PADivergenceApply2D(const int NE,
-                                      const Array<double> &b,
-                                      const Array<double> &g,
-                                      const Array<double> &bt,
-                                      const Vector &_op,
-                                      const Vector &_x,
-                                      Vector &_y,
-                                      const int tr_d1d = 0,
-                                      const int te_d1d = 0,
-                                      const int q1d = 0)
+                                const Array<double> &b,
+                                const Array<double> &g,
+                                const Array<double> &bt,
+                                const Vector &_op,
+                                const Vector &_x,
+                                Vector &_y,
+                                const int tr_d1d = 0,
+                                const int te_d1d = 0,
+                                const int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -282,15 +282,15 @@ static void PADivergenceApply2D(const int NE,
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0,
          const int T_NBZ = 0>
 static void SmemPADivergenceApply2D(const int NE,
-                                          const Array<double> &_b,
-                                          const Array<double> &_g,
-                                          const Array<double> &_bt,
-                                          const Vector &_op,
-                                          const Vector &_x,
-                                          Vector &_y,
-                                          const int tr_d1d = 0,
-                                          const int te_d1d = 0,
-                                          const int q1d = 0)
+                                    const Array<double> &_b,
+                                    const Array<double> &_g,
+                                    const Array<double> &_bt,
+                                    const Vector &_op,
+                                    const Vector &_x,
+                                    Vector &_y,
+                                    const int tr_d1d = 0,
+                                    const int te_d1d = 0,
+                                    const int q1d = 0)
 {
    // TODO
    MFEM_ASSERT(false, "SHARED MEM NOT PROGRAMMED YET");
@@ -299,15 +299,15 @@ static void SmemPADivergenceApply2D(const int NE,
 // PA Divergence Apply 2D kernel transpose
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PADivergenceApplyTranspose2D(const int NE,
-                                               const Array<double> &bt,
-                                               const Array<double> &gt,
-                                               const Array<double> &b,
-                                               const Vector &_op,
-                                               const Vector &_x,
-                                               Vector &_y,
-                                               const int tr_d1d = 0,
-                                               const int te_d1d = 0,
-                                               const int q1d = 0)
+                                         const Array<double> &bt,
+                                         const Array<double> &gt,
+                                         const Array<double> &b,
+                                         const Vector &_op,
+                                         const Vector &_x,
+                                         Vector &_y,
+                                         const int tr_d1d = 0,
+                                         const int te_d1d = 0,
+                                         const int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -415,15 +415,15 @@ static void PADivergenceApplyTranspose2D(const int NE,
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PADivergenceApply3D(const int NE,
-                                      const Array<double> &b,
-                                      const Array<double> &g,
-                                      const Array<double> &bt,
-                                      const Vector &_op,
-                                      const Vector &_x,
-                                      Vector &_y,
-                                      int tr_d1d = 0,
-                                      int te_d1d = 0,
-                                      int q1d = 0)
+                                const Array<double> &b,
+                                const Array<double> &g,
+                                const Array<double> &bt,
+                                const Vector &_op,
+                                const Vector &_x,
+                                Vector &_y,
+                                int tr_d1d = 0,
+                                int te_d1d = 0,
+                                int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -598,15 +598,15 @@ static void PADivergenceApply3D(const int NE,
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PADivergenceApplyTranspose3D(const int NE,
-                                               const Array<double> &bt,
-                                               const Array<double> &gt,
-                                               const Array<double> &b,
-                                               const Vector &_op,
-                                               const Vector &_x,
-                                               Vector &_y,
-                                               int tr_d1d = 0,
-                                               int te_d1d = 0,
-                                               int q1d = 0)
+                                         const Array<double> &bt,
+                                         const Array<double> &gt,
+                                         const Array<double> &b,
+                                         const Vector &_op,
+                                         const Vector &_x,
+                                         Vector &_y,
+                                         int tr_d1d = 0,
+                                         int te_d1d = 0,
+                                         int q1d = 0)
 {
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -776,32 +776,271 @@ static void PADivergenceApplyTranspose3D(const int NE,
 // Shared memory PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPADivergenceApply3D(const int NE,
-                                          const Array<double> &_b,
-                                          const Array<double> &_g,
-                                          const Array<double> &_bt,
-                                          const Vector &_op,
-                                          const Vector &_x,
-                                          Vector &_y,
-                                          const int tr_d1d = 0,
-                                          const int te_d1d = 0,
-                                          const int q1d = 0)
+                                    const Array<double> &_b,
+                                    const Array<double> &_g,
+                                    const Array<double> &_bt,
+                                    const Vector &_op,
+                                    const Vector &_x,
+                                    Vector &_y,
+                                    const int tr_d1d = 0,
+                                    const int te_d1d = 0,
+                                    const int q1d = 0)
 {
-   // TODO
-   MFEM_ASSERT(false, "SHARED MEM NOT PROGRAMMED YET");
+   const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
+   const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+
+   auto b = Reshape(b_.Read(), Q1D, TR_D1D);
+   auto g = Reshape(g_.Read(), Q1D, TR_D1D);
+   auto bt = Reshape(bt_.Read(), TE_D1D, Q1D);
+   auto Q = Reshape(q_.Read(), Q1D*Q1D*Q1D, 3,3, NE);
+   auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
+   auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      constexpr int VDIM = 3;
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1DR = T_TR_D1D ? T_TR_D1D : tr_d1d;
+      const int D1DE = T_TE_D1D ? T_TE_D1D : te_d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1R = T_TR_D1D ? T_TR_D1D : MAX_D1D;
+      constexpr int MD1E = T_TE_D1D ? T_TE_D1D : MAX_D1D;
+      constexpr int MD1 = MD1E > MD1R ? MD1E : MD1R;
+      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+      MFEM_SHARED double sBG[2][MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
+      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
+      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
+      MFEM_SHARED double sm0[3][MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[3][MDQ*MDQ*MDQ];
+      double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
+      double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
+      double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);
+      double (*DQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+0);
+      double (*DQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+1);
+      double (*DQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+2);
+      double (*QQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+0);
+      double (*QQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+1);
+      double (*QQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+2);
+      double (*QQD0)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+0);
+      //double (*QQD1)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+1);
+      //double (*QQD2)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+2);
+      double (*QDD0)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+0);
+      //double (*QDD1)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+1);
+      //double (*QDD2)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+2);
+      MFEM_SHARED double div[MQ1][MQ1][MQ1];
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1DR)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               div[qz][qy][qx] = 0.0;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int c = 0; c < VDIM; ++c)
+      {
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  QQQ0[qz][qy][qx] = 0.0;
+                  QQQ1[qz][qy][qx] = 0.0;
+                  QQQ2[qz][qy][qx] = 0.0;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,D1DR)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1DR)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1DR)
+               {
+                  X[dz][dy][dx] = x(dx,dy,dz,c,e);
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,D1DR)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1DR)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  for (int dx = 0; dx < D1DR; ++dx)
+                  {
+                     const double coord = X[dz][dy][dx];
+                     u += coord * B[qx][dx];
+                     v += coord * G[qx][dx];
+                  }
+                  DDQ0[dz][dy][qx] = u;
+                  DDQ1[dz][dy][qx] = v;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,D1DR)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dy = 0; dy < D1DR; ++dy)
+                  {
+                     u += DDQ1[dz][dy][qx] * B[qy][dy];
+                     v += DDQ0[dz][dy][qx] * G[qy][dy];
+                     w += DDQ0[dz][dy][qx] * B[qy][dy];
+                  }
+                  DQQ0[dz][qy][qx] = u;
+                  DQQ1[dz][qy][qx] = v;
+                  DQQ2[dz][qy][qx] = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dz = 0; dz < D1DR; ++dz)
+                  {
+                     u += DQQ0[dz][qy][qx] * B[qz][dz];
+                     v += DQQ1[dz][qy][qx] * B[qz][dz];
+                     w += DQQ2[dz][qy][qx] * G[qz][dz];
+                  }
+                  QQQ0[qz][qy][qx] = u;
+                  QQQ1[qz][qy][qx] = v;
+                  QQQ2[qz][qy][qx] = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  const int q = qx + (qy + qz * Q1D) * Q1D;
+                  const double gX = QQQ0[qz][qy][qx];
+                  const double gY = QQQ1[qz][qy][qx];
+                  const double gZ = QQQ2[qz][qy][qx];
+                  div[qz][qy][qx] += gX*Q(q,0,c,e) + gY*Q(q,1,c,e) + gZ*Q(q,2,c,e);
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1DE)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bt[d][q] = bt(d,q);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1DE)
+            {
+               double u = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  u += div[qz][qy][qx] * Bt[dx][qx];
+               }
+               QQD0[qz][qy][dx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1DE)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1DE)
+            {
+               double u = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  u += QQD0[qz][qy][dx] * Bt[dy][qy];
+               }
+               QDD0[qz][dy][dx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1DE)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1DE)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1DE)
+            {
+               double u = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  u += QDD0[qz][dy][dx] * Bt[dz][qz];
+               }
+               y(dx,dy,dz,e) += u;
+            }
+         }
+      }
+   });
 }
 
 static void PADivergenceApply(const int dim,
-                                    const int TR_D1D,
-                                    const int TE_D1D,
-                                    const int Q1D,
-                                    const int NE,
-                                    const Array<double> &B,
-                                    const Array<double> &G,
-                                    const Array<double> &Bt,
-                                    const Vector &op,
-                                    const Vector &x,
-                                    Vector &y,
-                                    bool transpose=false)
+                              const int TR_D1D,
+                              const int TE_D1D,
+                              const int Q1D,
+                              const int NE,
+                              const Array<double> &B,
+                              const Array<double> &G,
+                              const Array<double> &Bt,
+                              const Vector &op,
+                              const Vector &x,
+                              Vector &y,
+                              bool transpose=false)
 {
    if (dim == 2)
    {
@@ -818,17 +1057,17 @@ static void PADivergenceApply(const int dim,
 void DivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                           trial_maps->B, trial_maps->G, test_maps->Bt, pa_data, x, y,
-                           false);
+                     trial_maps->B, trial_maps->G, test_maps->Bt, pa_data, x, y,
+                     false);
 }
 
 // PA Divergence Apply kernel
 void DivergenceIntegrator::AddMultTransposePA(const Vector &x,
-                                                    Vector &y) const
+                                              Vector &y) const
 {
    PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                           trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y,
-                           true);
+                     trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y,
+                     true);
 }
 
 } // namespace mfem
