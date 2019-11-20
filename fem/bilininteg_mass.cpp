@@ -769,6 +769,7 @@ static void PAMassApply(const int dim,
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
+         case 0x24: return SmemPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
          case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
          case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
