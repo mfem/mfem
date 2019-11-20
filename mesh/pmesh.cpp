@@ -3055,6 +3055,9 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    long glob_size = ReduceInt(derefs.Size());
    if (!glob_size) { return false; }
 
+   // Destroy face-neighbor data only when actually de-refining.
+   DeleteFaceNbrData();
+
    pncmesh->Derefine(derefs);
 
    ParMesh* mesh2 = new ParMesh(*pncmesh);
