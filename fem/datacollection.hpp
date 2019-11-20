@@ -232,7 +232,7 @@ protected:
    // Helper method
    static int create_directory(const std::string &dir_name,
                                const Mesh *mesh, int myid);
-   
+
 
 public:
    /// Initialize the collection with its name and Mesh.
@@ -475,59 +475,61 @@ class ParaviewDataCollection : public DataCollection
 {
 private:
 #ifdef MFEM_USE_MPI
-    MPI_Comm lcomm;
+   MPI_Comm lcomm;
 #endif
 
-    int myrank;
-    int nprocs;
-    int levels_of_detail;
-    
-    std::fstream pvd_stream;
-    
+   int myrank;
+   int nprocs;
+   int levels_of_detail;
+
+   std::fstream pvd_stream;
+
 protected:
-    
-    
-    void SaveDataVTU(std::ostream &out, int ref);
-    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
-    void SaveQFieldVTU(std::ostream &out, int ref, const QFieldMapIterator& it);
-    
-    std::string  GenerateCollectionPath();
-    std::string  GenerateVTUFileName();
-    std::string  GenerateVTUFileName(int rank);
-    std::string  GenerateVTUPath();
-    std::string  GeneratePVDFileName();
-    std::string  GeneratePVTUFileName();
-    std::string  GeneratePVTUPath();
-    
-public: 
+
+
+   void SaveDataVTU(std::ostream &out, int ref);
+   void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
+   void SaveQFieldVTU(std::ostream &out, int ref, const QFieldMapIterator& it);
+
+   std::string  GenerateCollectionPath();
+   std::string  GenerateVTUFileName();
+   std::string  GenerateVTUFileName(int rank);
+   std::string  GenerateVTUPath();
+   std::string  GeneratePVDFileName();
+   std::string  GeneratePVTUFileName();
+   std::string  GeneratePVTUPath();
+
+public:
 #ifndef MFEM_USE_MPI
-    /// Constructor. The collection name is used when saving the data.
-    /** If @a mesh_ is NULL, then the mesh can be set later by calling either
-       SetMesh() or Load(). The latter works only in serial. */
-    ParaviewDataCollection(const std::string& collection_name, mfem::Mesh *mesh_ = NULL);
-#else 
-    /// Construct a parallel ParaviewDataCollection to be loaded from files.
+   /// Constructor. The collection name is used when saving the data.
+   /** If @a mesh_ is NULL, then the mesh can be set later by calling either
+      SetMesh() or Load(). The latter works only in serial. */
+   ParaviewDataCollection(const std::string& collection_name,
+                          mfem::Mesh *mesh_ = NULL);
+#else
+   /// Construct a parallel ParaviewDataCollection to be loaded from files.
    /** Before loading the collection with Load(), some parameters in the
        collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
-    ParaviewDataCollection(const std::string& collection_name,
-                                            mfem::ParMesh *mesh_ = NULL);
-    
+   ParaviewDataCollection(const std::string& collection_name,
+                          mfem::ParMesh *mesh_ = NULL);
+
 #endif
-    
-    virtual ~ParaviewDataCollection() override;
-    
-#ifndef MFEM_USE_MPI    
-    virtual void SetMesh(mfem::Mesh * new_mesh) override;
-#else    
-    /// Set/change the mesh associated with the collection.
-    virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override; 
-#endif    
+
+   virtual ~ParaviewDataCollection() override;
+
+#ifndef MFEM_USE_MPI
+   virtual void SetMesh(mfem::Mesh * new_mesh) override;
+#else
+   /// Set/change the mesh associated with the collection.
+   virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override;
+#endif
 
    /// Add a grid function to the collection and update the root file
-   virtual void RegisterField(const std::string& field_name, mfem::GridFunction *gf) override;    
-   
+   virtual void RegisterField(const std::string& field_name,
+                              mfem::GridFunction *gf) override;
 
-   /// Set refinement levels 
+
+   /// Set refinement levels
    void SetLevelsOfDetail(int levels_of_detail_);
 
    /// Save the collection and a VisIt root file
@@ -535,14 +537,15 @@ public:
 
    /// Load the collection  - not implemented in the paraview writer
    virtual void Load(int cycle_ = 0) override;
-   
-   
+
+
 #ifndef MFEM_USE_MPI
    static int create_directory(const std::string &dir_name);
 #else
-   static int create_directory(const std::string &dir_name, int myid, MPI_Comm mycom);
-#endif   
-};    
+   static int create_directory(const std::string &dir_name, int myid,
+                               MPI_Comm mycom);
+#endif
+};
 
 
 
