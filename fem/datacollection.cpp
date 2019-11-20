@@ -998,14 +998,13 @@ int ParaviewDataCollection::create_directory(const std::string &dir_name){
 
 
 #ifdef MFEM_USE_MPI
-ParaviewDataCollection::ParaviewDataCollection(MPI_Comm comm, 
-                                                const std::string& collection_name,
-                                                mfem::Mesh *mesh_)
+ParaviewDataCollection::ParaviewDataCollection(const std::string& collection_name,
+                                                mfem::ParMesh *mesh_)
 :DataCollection(collection_name,mesh_){
     
-    lcomm=comm;
-    MPI_Comm_rank(comm, &myrank);
-    MPI_Comm_size(comm, &nprocs);
+    lcomm=mesh_->GetComm();
+    MPI_Comm_rank(lcomm, &myrank);
+    MPI_Comm_size(lcomm, &nprocs);
     levels_of_detail=1;
 
     std::string dpath=GenerateCollectionPath();
