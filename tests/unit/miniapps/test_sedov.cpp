@@ -9,13 +9,13 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "catch.hpp"
-#include <unordered_map>
-
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
 #endif
+
+#include "catch.hpp"
+#include <unordered_map>
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
