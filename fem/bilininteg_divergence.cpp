@@ -776,12 +776,12 @@ static void PADivergenceApplyTranspose3D(const int NE,
 // Shared memory PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPADivergenceApply3D(const int NE,
-                                    const Array<double> &_b,
-                                    const Array<double> &_g,
-                                    const Array<double> &_bt,
-                                    const Vector &_op,
-                                    const Vector &_x,
-                                    Vector &_y,
+                                    const Array<double> &b_,
+                                    const Array<double> &g_,
+                                    const Array<double> &bt_,
+                                    const Vector &q_,
+                                    const Vector &x_,
+                                    Vector &y_,
                                     const int tr_d1d = 0,
                                     const int te_d1d = 0,
                                     const int q1d = 0)
