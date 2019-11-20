@@ -1,0 +1,111 @@
+variables:
+    BUILD_ROOT: $CI_BUILDS_DIR/mfem_$CI_COMMIT_REF_SLUG
+    REBASELINE: "NO"
+    ASTYLE: $BUILD_ROOT/tpls/install/astyle/astyle
+    BUILD_QUARTZ_ALLOC_NAME: mfem_ci_$CI_COMMIT_SHORT_SHA
+
+stages:
+    - precleanup
+    - setup
+    - libs
+    - build
+    - test
+    - rebaseline
+    - postcleanup
+
+.precleanup:
+    stage: precleanup
+    variables:
+        GIT_STRATEGY: none
+    script:
+        rm -rf ${BUILD_ROOT}/${PLAT}
+
+.setup:
+    stage: setup
+    variables:
+        GIT_STRATEGY: none
+    script:
+        - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
+        - if [ ! -d "tpls" ]; then git clone ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git; fi
+        - if [ ! -d "tests" ]; then git clone ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git; fi
+        - cd tpls && git pull && cd ..
+        - cd tests && git pull && cd ..
+
+build_astyle:
+    stage: libs
+    variables:
+        GIT_STRATEGY: none
+    script:
+        - cd ${BUILD_ROOT}/tpls
+        - make astyle PREFIX=${BUILD_ROOT}/tpls/install/ BUILD_DIR=${BUILD_ROOT}/tpls/install/ LOG_DIR=${BUILD_ROOT}/tpls/install/
+
+.build_hypre:
+    stage: libs
+    variables:
+        GIT_STRATEGY: none
+    script:
+        - cd ${BUILD_ROOT}/tpls
+        - make clean
+        - make -j 4 hypre PREFIX=${BUILD_ROOT}/${PLAT}/${BUILD_DIR}/hypre/src/ BUILD_DIR=${BUILD_ROOT}/${PLAT}/${BUILD_DIR} LOG_DIR=${BUILD_ROOT}/${PLAT}/${BUILD_DIR}
+
+.build_metis:
+    stage: libs
+    variables:
+        GIT_STRATEGY: none
+    script:
+        - cd ${BUILD_ROOT}/tpls
+        - export BUILD_PATH=${BUILD_ROOT}/${PLAT}/${BUILD_DIR}
+        - export PREFIX=${BUILD_PATH}/
+        - make parmetis PREFIX=${PREFIX} BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
+        - make metis4 PREFIX=${PREFIX} BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
+        - make metis5 PREFIX=${PREFIX} BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
+    allow_failure: true
+
+.build_mfem:
+    stage: build
+    script:
+        - mkdir -p ${BUILD_ROOT}/${PLAT}
+        - mkdir -p ${BUILD_ROOT}/${PLAT}/${BUILD_DIR}
+        - cd ..
+        - cp -r mfem ${BUILD_ROOT}/${PLAT}/${BUILD_DIR}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+        - cd ${BUILD_ROOT}/${PLAT}/${BUILD_DIR}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+        - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC=$MPIEXEC MFEM_MPIEXEC_NP=$MPIEXEC_NP
+        - make -j 4
+
+.sanitycheck_mfem:
+    stage: test
+    variables:
+        GIT_STRATEGY: none
+    script:
+        - cd ${BUILD_ROOT}/${PLAT}/${BUILD_DIR}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+        - make test
+
+.stylecheck_mfem:
+    stage: test
+    variables:
+        GIT_STRATEGY: none
+    script:
+        - echo "Stylecheck goes here"
+
+
+.rebaseline:
+    stage: rebaseline
+    only:
+        refs:
+            - master
+        variables:
+            - $REBASELINE == "YES"
+    script:
+        - ls
+
+.postcleanup:
+    stage: postcleanup
+    variables:
+        GIT_STRATEGY: none
+    script:
+        rm -rf ${BUILD_ROOT}/${PLAT}
+
+
+include:
+    - local: .gitlab-ci-quartz.yml
+    #- local: .gitlab-ci-lassen.yml
