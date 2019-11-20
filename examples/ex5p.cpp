@@ -241,8 +241,8 @@ int main(int argc, char *argv[])
    //     Check the norm of the unpreconditioned residual.
 
    int maxIter(500);
-   double rtol(1.e-3);
-   double atol(1.e-5);
+   double rtol(1.e-6);
+   double atol(1.e-12);
 
    chrono.Clear();
    chrono.Start();
