@@ -422,6 +422,12 @@ PetscParVector& PetscParVector::operator*=(PetscScalar s)
    return *this;
 }
 
+PetscParVector& PetscParVector::operator+=(PetscScalar s)
+{
+   ierr = VecShift(x,s); PCHKERRQ(x,ierr);
+   return *this;
+}
+
 void PetscParVector::PlaceArray(PetscScalar *temp_data)
 {
    ierr = VecPlaceArray(x,temp_data); PCHKERRQ(x,ierr);
@@ -2500,7 +2506,7 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
    }
 }
 
-void PetscLinearSolver::Mult(const Vector &b, Vector &x) const
+void PetscLinearSolver::MultKernel(const Vector &b, Vector &x, bool trans) const
 {
    KSP ksp = (KSP)obj;
 
@@ -2528,9 +2534,26 @@ void PetscLinearSolver::Mult(const Vector &b, Vector &x) const
    PCHKERRQ(ksp, ierr);
 
    // Solve the system.
-   ierr = KSPSolve(ksp, B->x, X->x); PCHKERRQ(ksp,ierr);
+   if (trans)
+   {
+      ierr = KSPSolveTranspose(ksp, B->x, X->x); PCHKERRQ(ksp,ierr);
+   }
+   else
+   {
+      ierr = KSPSolve(ksp, B->x, X->x); PCHKERRQ(ksp,ierr);
+   }
    B->ResetArray();
    X->ResetArray();
+}
+
+void PetscLinearSolver::Mult(const Vector &b, Vector &x) const
+{
+   (*this).MultKernel(b,x,false);
+}
+
+void PetscLinearSolver::MultTranspose(const Vector &b, Vector &x) const
+{
+   (*this).MultKernel(b,x,true);
 }
 
 PetscLinearSolver::~PetscLinearSolver()
@@ -2654,7 +2677,8 @@ void PetscPreconditioner::SetOperator(const Operator &op)
    if (delete_pA) { delete pA; };
 }
 
-void PetscPreconditioner::Mult(const Vector &b, Vector &x) const
+void PetscPreconditioner::MultKernel(const Vector &b, Vector &x,
+                                     bool trans) const
 {
    PC pc = (PC)obj;
 
@@ -2679,9 +2703,26 @@ void PetscPreconditioner::Mult(const Vector &b, Vector &x) const
    Customize();
 
    // Apply the preconditioner.
-   ierr = PCApply(pc, B->x, X->x); PCHKERRQ(pc, ierr);
+   if (trans)
+   {
+      ierr = PCApplyTranspose(pc, B->x, X->x); PCHKERRQ(pc, ierr);
+   }
+   else
+   {
+      ierr = PCApply(pc, B->x, X->x); PCHKERRQ(pc, ierr);
+   }
    B->ResetArray();
    X->ResetArray();
+}
+
+void PetscPreconditioner::Mult(const Vector &b, Vector &x) const
+{
+   (*this).MultKernel(b,x,false);
+}
+
+void PetscPreconditioner::MultTranspose(const Vector &b, Vector &x) const
+{
+   (*this).MultKernel(b,x,true);
 }
 
 PetscPreconditioner::~PetscPreconditioner()
