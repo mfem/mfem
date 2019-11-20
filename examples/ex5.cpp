@@ -264,7 +264,17 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("pressure", &p);
    visit_dc.Save();
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 14. Save data in the Paraview format
+   ParaviewDataCollection paraview_dc("PExample5", mesh);
+   paraview_dc.SetLevelsOfDetail(2); //1 is default, 2-refines the mesh with factor 2
+   paraview_dc.SetCycle(1); 
+   paraview_dc.SetTime(0.0); //set the time 
+   paraview_dc.RegisterField("velocity",&u);
+   paraview_dc.RegisterField("pressure",&p);
+   paraview_dc.Save();
+   
+   
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -277,7 +287,7 @@ int main(int argc, char *argv[])
       p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
    }
 
-   // 15. Free the used memory.
+   // 16. Free the used memory.
    delete fform;
    delete gform;
    delete invM;

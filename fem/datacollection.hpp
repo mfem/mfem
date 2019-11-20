@@ -509,8 +509,8 @@ public:
     /// Construct a parallel ParaviewDataCollection to be loaded from files.
    /** Before loading the collection with Load(), some parameters in the
        collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
-    ParaviewDataCollection(MPI_Comm comm, const std::string& collection_name,
-                       mfem::Mesh *mesh_ = NULL);
+    ParaviewDataCollection(const std::string& collection_name,
+                                            mfem::ParMesh *mesh_ = NULL);
     
 #endif
     
