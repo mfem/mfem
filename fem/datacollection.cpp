@@ -728,12 +728,15 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 
 
 ParaviewDataCollection::~ParaviewDataCollection(){
+    if(myrank==0){
     //close the data colection
     pvd_stream<<"</Collection>"<<std::endl;
     pvd_stream<<"</VTKFile>"<<std::endl;
-    pvd_stream.close();
+    pvd_stream.close();}
 }
 
+
+#ifndef MFEM_USE_MPI
 ParaviewDataCollection::ParaviewDataCollection(const std::string& collection_name,  mfem::Mesh *mesh_ )                                                
    :DataCollection(collection_name, mesh_)
 {
@@ -741,8 +744,9 @@ ParaviewDataCollection::ParaviewDataCollection(const std::string& collection_nam
     nprocs=1;
     levels_of_detail=1;
     
-    std::string pvdname=GeneratePVDFileName();
-    create_directory(pvdname); //this one is a serial
+    std::string dpath=GenerateCollectionPath();
+    std::string pvdname=dpath+"/"+GeneratePVDFileName();
+    create_directory(dpath); //this one is a serial
     pvd_stream.open(pvdname.c_str(),std::ios::out);
     //initialize the file
     pvd_stream<<"<?xml version=\"1.0\"?>"<<std::endl;
@@ -754,36 +758,11 @@ ParaviewDataCollection::ParaviewDataCollection(const std::string& collection_nam
     
 }
 
-#ifdef MFEM_USE_MPI
-ParaviewDataCollection::ParaviewDataCollection(MPI_Comm comm, const std::string& collection_name, 
-                                               mfem::Mesh *mesh_ )                                                
-   :DataCollection(collection_name, mesh_)
-{
-    lcomm=comm;
-    MPI_Comm_rank(comm, &myrank);
-    MPI_Comm_size(comm, &nprocs);
-    levels_of_detail=1;
-    
-    if(myrank==0){
-        std::string pvdname=GeneratePVDFileName();
-        create_directory(pvdname);
-        pvd_stream.open(pvdname.c_str(),std::ios::out);
-    }
-    
-} 
-#endif
 
 void ParaviewDataCollection::SetMesh(mfem::Mesh * new_mesh){
     DataCollection::SetMesh(new_mesh);
 }
 
-#ifdef MFEM_USE_MPI
-void ParaviewDataCollection::SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh){
-    SetMesh(new_mesh);
-    lcomm=comm;
-    MPI_Comm_rank(comm, &myrank);
-    MPI_Comm_size(comm, &nprocs);
-}
 #endif
 
 void ParaviewDataCollection::RegisterField(const std::string& field_name, mfem::GridFunction *gf){
@@ -800,13 +779,13 @@ void ParaviewDataCollection::Load(int ){
 
 std::string  ParaviewDataCollection::GenerateCollectionPath(){
     std::string out="";
-    out=DataCollection::GetPrefixPath()+"/"+DataCollection::GetCollectionName();
+    out=DataCollection::GetPrefixPath()+DataCollection::GetCollectionName();
     return out;
 }
 
 std::string ParaviewDataCollection::GeneratePVTUPath(){
-    std::string out=GenerateCollectionPath();
-    out=out+"/Cycle"+to_padded_string(cycle,pad_digits_cycle);
+    //std::string out=GenerateCollectionPath();
+    std::string out="Cycle"+to_padded_string(cycle,pad_digits_cycle);
     return out;
 }
 
@@ -816,24 +795,21 @@ std::string ParaviewDataCollection::GenerateVTUPath(){
 }
 
 std::string ParaviewDataCollection::GeneratePVDFileName(){
-    std::string out=GenerateCollectionPath();
-    out=out+"/"+GetCollectionName()+".pvd";
+    std::string out=GetCollectionName()+".pvd";
     return out;
 }
 
 std::string ParaviewDataCollection::GeneratePVTUFileName(){
-    std::string out=GeneratePVTUPath();
-    out=out+"/data.pvtu";
+    std::string out="data.pvtu";
     return out;
 }
 
 std::string ParaviewDataCollection::GenerateVTUFileName(){
-    std::string out=GenerateVTUFileName(myrank);
+    std::string out="proc"+to_padded_string(myrank,pad_digits_rank)+".vtu";
     return out;
 }
-std::string ParaviewDataCollection::GenerateVTUFileName(int rank){
-    std::string out=GenerateVTUPath();
-    out=out+"/proc"+to_padded_string(rank,pad_digits_rank)+".vtu";
+std::string ParaviewDataCollection::GenerateVTUFileName(int crank){
+    std::string out="proc"+to_padded_string(crank,pad_digits_rank)+".vtu";
     return out;
 }
 
@@ -846,11 +822,11 @@ void ParaviewDataCollection::Save(){
     //check if the directories are created 
     { 
         //check the GenerateVTUPath
-        std::string path=GenerateVTUPath();
-#ifdef MFEM_USE_MPI
-        int err=create_directory(path,myid, lcomm);
-#else
+        std::string path=GenerateCollectionPath()+"/"+GenerateVTUPath();
+#ifndef MFEM_USE_MPI        
         int err=create_directory(path);
+#else
+        int err=create_directory(path,myrank,lcomm);
 #endif
         if (err)
         {
@@ -862,19 +838,47 @@ void ParaviewDataCollection::Save(){
     //now the directory is created 
     //define the vtu file
     {
-        std::string fname=GenerateVTUFileName(); 
+        std::string fname=GenerateCollectionPath()+"/"+GenerateVTUPath()+"/"+GenerateVTUFileName(); 
         std::fstream out; out.open(fname.c_str(), std::ios::out);
         SaveDataVTU(out,levels_of_detail);
         out.close();
     }
     //define the pvtu file only on process 0
     if(myrank==0){
-        std::string fname=GeneratePVTUFileName();
+        std::string fname=GenerateCollectionPath()+"/"+GeneratePVTUPath()+"/"+GeneratePVTUFileName();
         std::fstream out; out.open(fname.c_str(), std::ios::out);
-        out<<"<?xml version=\"1.0\"?>"<<std::endl;
-        out<<"<VTKFile type=\"PUnstructuredGrid\">"<<std::endl;
-        out<<"<PUnstructuredGrid GhostLevel=\"0\">"<<std::endl;
+
+        out<< "<?xml version=\"1.0\"?>" << std::endl;
+        out<< "<VTKFile type=\"PUnstructuredGrid\" version =\"0.1\" byte_order=\"LittleEndian\"> " << std::endl;
+        out<< "<PUnstructuredGrid GhostLevel=\"0\">" << std::endl ;
+   
+        out<< "<PPoints>" << std::endl;
+        out<< "\t<PDataArray type=\"Float32\" Name=\"Points\" NumberOfComponents=\"3\"/>" << std::endl;
+        out<< "</PPoints>" << std::endl;
+    
+        out<< "<PCells>" << std::endl ; 
+        out<< "\t<PDataArray type=\"Int32\" Name=\"connectivity\" NumberOfComponents=\"1\"/>" << std::endl ;  
+        out<< "\t<PDataArray type=\"Int32\" Name=\"offsets\"      NumberOfComponents=\"1\"/>" << std::endl ; 
+        out<< "\t<PDataArray type=\"UInt8\" Name=\"types\"        NumberOfComponents=\"1\"/>" << std::endl ;  
+        out<< "</PCells>" << std::endl ; 
+
+        
+        out<< "<PPointData>" << std::endl ;
+        for(FieldMapIterator it=field_map.begin(); it!=field_map.end();++it){
+            out<<"<PDataArray type=\"Float32\" Name=\""<<it->first;
+            int vec_dim=it->second->VectorDim();
+            out<<"\" NumberOfComponents=\""<<vec_dim<<"\" format=\"ascii\" />"<<std::endl;
+        }
+        out<<"</PPointData>" << std::endl ;
+        
+        //CELL DATA
+        out<< "<PCellData>" << std::endl ; 
+        out<< "\t<PDataArray type=\"Int32\" Name=\"" << "material" <<"\" NumberOfComponents=\"1\"/> " << std::endl ;
+        out<< "\t<PDataArray type=\"Int32\" Name=\"" << "element_coloring" <<"\" NumberOfComponents=\"1\"/> " << std::endl ;
+        out<< "</PCellData>" << std::endl ; 
+        
         for(int ii=0;ii<nprocs;ii++){
+            //this one is generated without the path
             std::string nfname=GenerateVTUFileName(ii);
             out<<"<Piece Source=\""<<nfname<<"\"/>"<<std::endl;
         }
@@ -882,8 +886,10 @@ void ParaviewDataCollection::Save(){
         out<<"</VTKFile>"<<std::endl;
         out.close();
         
+        
+        fname=GeneratePVTUPath()+"/"+GeneratePVTUFileName();
         //add the pvtu file to the pvd_stream
-        pvd_stream<<"<DataSet timestep=\""<<GetCycle();
+        pvd_stream<<"<DataSet timestep=\""<<GetTime();  //GetCycle();
         pvd_stream<<"\" group=\"\" part=\""<<0<<"\" file=\"";
         pvd_stream<<fname<<"\"/>"<<std::endl;
     }
@@ -969,36 +975,14 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
    out.flush(); 
 }
 
+#ifndef MFEM_USE_MPI
 //static method
-#ifdef MFEM_USE_MPI
-int ParaviewDataCollection::create_directory(const std::string &dir_name,int myid,
-                                                         MPI_Comm lcomm_){
-#else
 int ParaviewDataCollection::create_directory(const std::string &dir_name){
-#endif
    // create directories recursively
    const char path_delim = '/';
    std::string::size_type pos = 0;
    int err;
 
-#ifdef MFEM_USE_MPI   
-   //create the directories only on process 0
-   do
-   {
-      pos = dir_name.find(path_delim, pos+1);
-      std::string subdir = dir_name.substr(0, pos);
-      if(myid==0){
-        err = mkdir(subdir.c_str(), 0777);
-        err = (err && (errno != EEXIST)) ? 1 : 0;
-      }
-   }
-   while ( pos != std::string::npos );
-   //broadcast the error
-   MPI_Bcast(&err, 1, MPI_INT, 0, lcomm_);
-   
-   return err;
-   
-#else
    do
    {
       pos = dir_name.find(path_delim, pos+1);
@@ -1009,9 +993,77 @@ int ParaviewDataCollection::create_directory(const std::string &dir_name){
    while ( pos != std::string::npos );
 
    return err;
-#endif
-    
 }
+#endif
+
+
+#ifdef MFEM_USE_MPI
+ParaviewDataCollection::ParaviewDataCollection(MPI_Comm comm, 
+                                                const std::string& collection_name,
+                                                mfem::Mesh *mesh_)
+:DataCollection(collection_name,mesh_){
+    
+    lcomm=comm;
+    MPI_Comm_rank(comm, &myrank);
+    MPI_Comm_size(comm, &nprocs);
+    levels_of_detail=1;
+
+    std::string dpath=GenerateCollectionPath();
+    std::string pvdname=dpath+"/"+GeneratePVDFileName();
+    int err=create_directory(dpath,myrank,lcomm);
+    if(err){ MFEM_ABORT("Cannot create the directory:"<<dpath);}
+    if(myrank==0){ 
+        pvd_stream.open(pvdname.c_str(),std::ios::out);
+        pvd_stream<<"<?xml version=\"1.0\"?>"<<std::endl;
+        pvd_stream<<"<VTKFile type=\"Collection\" version=\"0.1\""<<std::endl;
+        pvd_stream<<"     byte_order=\"LittleEndian\""<<std::endl;
+        pvd_stream<<"     compressor=\"vtkZLibDataCompressor\">"<<std::endl;
+        pvd_stream<<"<Collection>"<<std::endl;
+    }
+}
+
+
+int ParaviewDataCollection::create_directory(const std::string &dir_name,
+                                                        int myid,
+                                                        MPI_Comm lcomm_){
+
+   // create directories recursively
+   const char path_delim = '/';
+   std::string::size_type pos = 0;
+   int err;
+
+   //create the directories only on process 0
+   if(myid==0){
+    do
+    {
+      pos = dir_name.find(path_delim, pos+1);
+      std::string subdir = dir_name.substr(0, pos);
+      err = mkdir(subdir.c_str(), 0777);
+      err = (err && (errno != EEXIST)) ? 1 : 0;
+    }
+    while ( pos != std::string::npos );
+   }
+   //broadcast the error
+   MPI_Bcast(&err, 1, MPI_INT, 0, lcomm_);
+   
+   return err;
+
+   
+   
+}
+
+
+void ParaviewDataCollection::SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh){
+    DataCollection::SetMesh(new_mesh);
+    lcomm=comm;
+    MPI_Comm_rank(comm, &myrank);
+    MPI_Comm_size(comm, &nprocs);
+}
+
+
+#endif
+
+
 
 
 }  // end namespace MFEM

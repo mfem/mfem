@@ -469,13 +469,15 @@ public:
    virtual ~VisItDataCollection() {}
 };
 
-/// Data collection with VisIt I/O routines
+
+
 class ParaviewDataCollection : public DataCollection
 {
 private:
 #ifdef MFEM_USE_MPI
     MPI_Comm lcomm;
 #endif
+
     int myrank;
     int nprocs;
     int levels_of_detail;
@@ -498,26 +500,28 @@ protected:
     std::string  GeneratePVTUPath();
     
 public: 
+#ifndef MFEM_USE_MPI
     /// Constructor. The collection name is used when saving the data.
     /** If @a mesh_ is NULL, then the mesh can be set later by calling either
        SetMesh() or Load(). The latter works only in serial. */
     ParaviewDataCollection(const std::string& collection_name, mfem::Mesh *mesh_ = NULL);
-#ifdef MFEM_USE_MPI
+#else 
     /// Construct a parallel ParaviewDataCollection to be loaded from files.
    /** Before loading the collection with Load(), some parameters in the
        collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
     ParaviewDataCollection(MPI_Comm comm, const std::string& collection_name,
                        mfem::Mesh *mesh_ = NULL);
+    
 #endif
     
     virtual ~ParaviewDataCollection() override;
     
+#ifndef MFEM_USE_MPI    
     virtual void SetMesh(mfem::Mesh * new_mesh) override;
-    
-#ifdef MFEM_USE_MPI
-   /// Set/change the mesh associated with the collection.
-   virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override;
-#endif
+#else    
+    /// Set/change the mesh associated with the collection.
+    virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override; 
+#endif    
 
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const std::string& field_name, mfem::GridFunction *gf) override;    
@@ -533,13 +537,11 @@ public:
    virtual void Load(int cycle_ = 0) override;
    
    
-
-#ifdef MFEM_USE_MPI   
-   static int create_directory(const std::string &dir_name, int myid, MPI_Comm mycom);
-#else
+#ifndef MFEM_USE_MPI
    static int create_directory(const std::string &dir_name);
-#endif
-    
+#else
+   static int create_directory(const std::string &dir_name, int myid, MPI_Comm mycom);
+#endif   
 };    
 
 
