@@ -47,17 +47,28 @@ double test_vector_pa_integrator(int dim)
    return difference;
 }
 
-TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
+TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA]")
 {
    SECTION("2D")
    {
       REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(2) == Approx(0.0));
-      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(2) == Approx(0.0));
    }
 
    SECTION("3D")
    {
       REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(3) == Approx(0.0));
+   }
+}
+
+TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA]")
+{
+   SECTION("2D")
+   {
+      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(2) == Approx(0.0));
+   }
+
+   SECTION("3D")
+   {
       REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(3) == Approx(0.0));
    }
 }
