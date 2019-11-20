@@ -3085,7 +3085,18 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    return true;
 }
 
+
 void ParMesh::Rebalance()
+{
+   RebalanceImpl(NULL); // default SFC-based partition
+}
+
+void ParMesh::Rebalance(const Array<int> &partition)
+{
+   RebalanceImpl(&partition);
+}
+
+void ParMesh::RebalanceImpl(const Array<int> *partition)
 {
    if (Conforming())
    {
@@ -3112,7 +3123,7 @@ void ParMesh::Rebalance()
 
    DeleteFaceNbrData();
 
-   pncmesh->Rebalance();
+   pncmesh->Rebalance(partition);
 
    ParMesh* pmesh2 = new ParMesh(*pncmesh);
    pncmesh->OnMeshUpdated(pmesh2);
