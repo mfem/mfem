@@ -137,10 +137,14 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    const Vector &px = Prolongate(x);
    if (P) { aux2.SetSize(P->Height()); }
 
+   // If we are in parallel, ParNonLinearForm::Mult uses the aux2 vector.
+   // In serial, place the result directly in y.
+   Vector &py = P ? aux2 : y;
+
    if (ext)
    {
-      ext->Mult(px, aux2);
-      aux2.HostRead();
+      ext->Mult(px, py);
+      py.HostRead();
       return;
    }
 
@@ -149,7 +153,6 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    const FiniteElement *fe;
    ElementTransformation *T;
    Mesh *mesh = fes->GetMesh();
-   Vector &py = P ? aux2 : y;
 
    py = 0.0;
 
