@@ -2935,8 +2935,6 @@ void QKernel(const int nzones,
              Vector &dt_est,
              DenseTensor &stressJinvT)
 {
-   constexpr int DIM = dim;
-   constexpr int DIM2 = dim*dim;
    auto d_weights = weights.Read();
    auto d_Jacobians = Jacobians.Read();
    auto d_rho0DetJ0w = rho0DetJ0w.Read();
@@ -2950,6 +2948,8 @@ void QKernel(const int nzones,
    {
       MFEM_FORALL_2D(z, nzones, Q1D, Q1D, 1,
       {
+         constexpr int DIM = dim;
+         constexpr int DIM2 = dim*dim;
          double Jinv[DIM2];
          double stress[DIM2];
          double sgrad_v[DIM2];
@@ -2979,6 +2979,8 @@ void QKernel(const int nzones,
    {
       MFEM_FORALL_3D(z, nzones, Q1D, Q1D, Q1D,
       {
+         constexpr int DIM = dim;
+         constexpr int DIM2 = dim*dim;
          double Jinv[DIM2];
          double stress[DIM2];
          double sgrad_v[DIM2];
