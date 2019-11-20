@@ -92,6 +92,7 @@ struct Alias
    Memory *const mem;
    const size_t offset, bytes;
    size_t counter;
+   const MemoryType h_mt;
 };
 
 /// Maps for the Memory and the Alias classes
@@ -386,7 +387,7 @@ public:
 class MmuDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
-   MmuDeviceMemorySpace(): DeviceMemorySpace() { MmuInit(); }
+   MmuDeviceMemorySpace(): DeviceMemorySpace() { }
    void Alloc(Memory &m) { MmuAlloc(&m.d_ptr, m.bytes); }
    void Dealloc(Memory &m) { MmuDealloc(m.d_ptr, m.bytes); }
    void Protect(const Memory &m) { MmuProtect(m.d_ptr, m.bytes); }
@@ -657,7 +658,7 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
    {
       if (flags & Mem::ALIAS)
       {
-         const MemoryType h_mt = maps->aliases.at(h_ptr).mem->h_mt;
+         const MemoryType h_mt = maps->aliases.at(h_ptr).h_mt;
          mm.EraseAlias(h_ptr);
          return h_mt;
       }
@@ -1015,8 +1016,9 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
       offset += alias.offset;
    }
    internal::Memory &mem = maps->memories.at(base_ptr);
-   auto res = maps->aliases.emplace(alias_ptr,
-                                    internal::Alias{&mem, offset, bytes, 1});
+   auto res =
+      maps->aliases.emplace(alias_ptr,
+                            internal::Alias{&mem, offset, bytes, 1, mem.h_mt});
    if (res.second == false) // alias_ptr was already in the map
    {
       if (res.first->second.mem != &mem || res.first->second.offset != offset)
