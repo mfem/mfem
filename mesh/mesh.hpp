@@ -570,9 +570,9 @@ public:
        @param[in] window Initial window size (default 2).
        @param[in] period Iterations between window increment (default 1).
        @param[in] seed Random number seed (default 0). */
-   void GetGeckoElementReordering(Array<int> &ordering,
-                                  int iterations = 1, int window = 2,
-                                  int period = 1, int seed = 0);
+   void GetGeckoElementOrdering(Array<int> &ordering,
+                                int iterations = 1, int window = 2,
+                                int period = 1, int seed = 0);
 #endif
 
    /** Rebuilds the mesh with a different order of elements.  The ordering

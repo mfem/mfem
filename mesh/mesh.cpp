@@ -1341,9 +1341,9 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 
 
 #ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementReordering(Array<int> &ordering,
-                                     int iterations, int window,
-                                     int period, int seed)
+void Mesh::GetGeckoElementOrdering(Array<int> &ordering,
+                                   int iterations, int window,
+                                   int period, int seed)
 {
    Gecko::Graph graph;
 
