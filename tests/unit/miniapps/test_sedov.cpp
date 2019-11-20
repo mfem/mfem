@@ -2935,7 +2935,8 @@ void QKernel(const int nzones,
              Vector &dt_est,
              DenseTensor &stressJinvT)
 {
-   constexpr int dim2 = dim*dim;
+   constexpr int DIM = dim;
+   constexpr int DIM2 = dim*dim;
    auto d_weights = weights.Read();
    auto d_Jacobians = Jacobians.Read();
    auto d_rho0DetJ0w = rho0DetJ0w.Read();
@@ -2949,15 +2950,15 @@ void QKernel(const int nzones,
    {
       MFEM_FORALL_2D(z, nzones, Q1D, Q1D, 1,
       {
-         double Jinv[dim2];
-         double stress[dim2];
-         double sgrad_v[dim2];
+         double Jinv[DIM2];
+         double stress[DIM2];
+         double sgrad_v[DIM2];
          double eig_val_data[3];
          double eig_vec_data[9];
-         double compr_dir[dim];
-         double Jpi[dim2];
-         double ph_dir[dim];
-         double stressJiT[dim2];
+         double compr_dir[DIM];
+         double Jpi[DIM2];
+         double ph_dir[DIM];
+         double stressJiT[DIM2];
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -2978,15 +2979,15 @@ void QKernel(const int nzones,
    {
       MFEM_FORALL_3D(z, nzones, Q1D, Q1D, Q1D,
       {
-         double Jinv[dim2];
-         double stress[dim2];
-         double sgrad_v[dim2];
+         double Jinv[DIM2];
+         double stress[DIM2];
+         double sgrad_v[DIM2];
          double eig_val_data[3];
          double eig_vec_data[9];
-         double compr_dir[dim];
-         double Jpi[dim2];
-         double ph_dir[dim];
-         double stressJiT[dim2];
+         double compr_dir[DIM];
+         double Jpi[DIM2];
+         double ph_dir[DIM];
+         double stressJiT[DIM2];
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
