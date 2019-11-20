@@ -1584,38 +1584,13 @@ void VectorConvectionNLFIntegrator::MultPA(const Vector &x, Vector &y) const
    const Array<double> &B = maps->B;
    const Array<double> &G = maps->G;
    const Array<double> &Bt = maps->Bt;
-   const int DQ = (D1D << 4) | Q1D;
    if (dim == 2)
    {
-      switch (DQ)
-      {
-         case 0x22: return PAConvectionNLApply2D<2,2>(NE,B,G,Bt,Q,x,y);
-         case 0x34: return PAConvectionNLApply2D<3,4>(NE,B,G,Bt,Q,x,y);
-         case 0x45: return PAConvectionNLApply2D<4,5>(NE,B,G,Bt,Q,x,y);
-         case 0x57: return PAConvectionNLApply2D<5,7>(NE,B,G,Bt,Q,x,y);
-         case 0x68: return PAConvectionNLApply2D<6,8>(NE,B,G,Bt,Q,x,y);
-         case 0x7A: return PAConvectionNLApply2D<7,10>(NE,B,G,Bt,Q,x,y);
-         case 0x8B: return PAConvectionNLApply2D<8,11>(NE,B,G,Bt,Q,x,y);
-         case 0x9D: return PAConvectionNLApply2D<9,13>(NE,B,G,Bt,Q,x,y);
-         default: return PAConvectionNLApply2D(NE,B,G,Bt,Q,x,y,D1D,Q1D);
-      }
+      return PAConvectionNLApply2D(NE,B,G,Bt,Q,x,y,D1D,Q1D);
    }
    if (dim == 3)
    {
-      switch (DQ)
-      {
-         case 0x23: return PAConvectionNLApply3D<2,3>(NE,B,G,Bt,Q,x,y);
-         case 0x34: return PAConvectionNLApply3D<3,4>(NE,B,G,Bt,Q,x,y);
-         case 0x35: return PAConvectionNLApply3D<3,5>(NE,B,G,Bt,Q,x,y);
-         case 0x48: return PAConvectionNLApply3D<4,8>(NE,B,G,Bt,Q,x,y);
-         case 0x5A: return PAConvectionNLApply3D<5,10>(NE,B,G,Bt,Q,x,y);
-         case 0x6D: return PAConvectionNLApply3D<6,13>(NE,B,G,Bt,Q,x,y);
-         case 0x7F: return PAConvectionNLApply3D<7,15>(NE,B,G,Bt,Q,x,y);
-         case 0x92: return PAConvectionNLApply3D<8,18>(NE,B,G,Bt,Q,x,y);
-         case 0x94: return PAConvectionNLApply3D<9,20>(NE,B,G,Bt,Q,x,y);
-         case 0x8C: return PAConvectionNLApply3D<8,12>(NE,B,G,Bt,Q,x,y);
-         default: printf ("%x, %x(%d): %X", D1D, Q1D, Q1D, DQ);
-      }
+      return SmemPAConvectionNLApply3D(NE,B,G,Q,x,y,D1D,Q1D);
    }
    MFEM_ABORT("Not yet implemented!");
 }
