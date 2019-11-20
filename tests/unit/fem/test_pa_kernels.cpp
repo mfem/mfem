@@ -93,14 +93,82 @@ double pa_divergence_testnd(int dim, void(*f1)(const Vector&, Vector&),
    dform.Assemble();
 
    // Project u = f1
-   VectorFunctionCoefficient fcoeff2(dim, f1);
-   field.ProjectCoefficient(fcoeff2);
+   VectorFunctionCoefficient fcoeff1(dim, f1);
+   field.ProjectCoefficient(fcoeff1);
 
    // Check if div(u) = divf1
    dform.Mult(field, field2);
-   FunctionCoefficient fcoeff3(divf1);
+   FunctionCoefficient fcoeff2(divf1);
    LinearForm lf(&fes2);
-   lf.AddDomainIntegrator(new DomainLFIntegrator(fcoeff3));
+   lf.AddDomainIntegrator(new DomainLFIntegrator(fcoeff2));
+   lf.Assemble();
+   field2 -= lf;
+
+   delete mesh;
+
+   return field2.Norml2();
+}
+
+double testfunc(const Vector &x)
+{
+   double r = cos(x(0)) + sin(x(1));
+   if (x.Size() == 3)
+   {
+      r += cos(x(2));
+   }
+   return r;
+}
+
+void grad_testfunc(const Vector &x, Vector &u)
+{
+   u(0) = -sin(x(0));
+   u(1) = cos(x(1));
+   if (x.Size() == 3)
+   {
+      u(2) = -sin(x(2));
+   }
+}
+
+double pa_gradient_testnd(int dim, double(*f1)(const Vector&),
+                          void(*gradf1)(const Vector &, Vector &))
+{
+
+   Mesh *mesh = nullptr;
+   if (dim == 2)
+   {
+      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+   }
+   if (dim == 3)
+   {
+      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
+   }
+
+   int order = 4;
+
+   // Scalar
+   H1_FECollection fec1(order, dim);
+   FiniteElementSpace fes1(mesh, &fec1);
+
+   // Vector valued
+   H1_FECollection fec2(order, dim);
+   FiniteElementSpace fes2(mesh, &fec2, dim);
+
+   GridFunction field(&fes1), field2(&fes2);
+
+   MixedBilinearForm gform(&fes1, &fes2);
+   gform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   gform.AddDomainIntegrator(new GradientIntegrator);
+   gform.Assemble();
+
+   // Project u = f1
+   FunctionCoefficient fcoeff1(f1);
+   field.ProjectCoefficient(fcoeff1);
+
+   // Check if grad(u) = gradf1
+   gform.Mult(field, field2);
+   VectorFunctionCoefficient fcoeff2(dim, gradf1);
+   LinearForm lf(&fes2);
+   lf.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff2));
    lf.Assemble();
    field2 -= lf;
 
@@ -129,6 +197,20 @@ TEST_CASE("PA Divergence", "[PartialAssembly], [MixedBilinearFormBC]")
       // Check if div([Cos[x] Cos[y], Sin[x] Sin[z], Cos[z] Sin[x]]) == -Cos[y] Sin[x] - Sin[x] Sin[z]
       REQUIRE(pa_divergence_testnd(3, non_solenoidal_field3d,
                                    div_non_solenoidal_field3d) == Approx(0.0));
+   }
+}
+
+TEST_CASE("PA Gradient", "[PartialAssembly], [MixedBilinearFormBC]")
+{
+   SECTION("2D")
+   {
+      // Check if grad(Cos[x] + Sin[y]) == [-Sin[x], Cos[y]]
+      REQUIRE(pa_gradient_testnd(2, testfunc, grad_testfunc) == Approx(0.0));
+   }
+   SECTION("3D")
+   {
+      // Check if grad(Cos[x] + Sin[y] + Cos[z]) == [-Sin[x], Cos[y], -Sin[z]]
+      REQUIRE(pa_gradient_testnd(3, testfunc, grad_testfunc) == Approx(0.0));
    }
 }
 
