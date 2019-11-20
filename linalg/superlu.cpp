@@ -20,6 +20,10 @@
 #include "superlu_defs.h"
 #include "superlu_ddefs.h"
 
+#if XSDK_INDEX_SIZE == 64
+#error "SuperLUDist has been built with 64bit integers. This is not supported"
+#endif
+
 using namespace std;
 
 namespace mfem
