@@ -87,6 +87,7 @@ double norml2(const int size, const double *data)
             scale = absdata;
             continue;
          }
+         MFEM_VERIFY(scale>0.0,"");
          const double sqr_arg = absdata / scale;
          sum += (sqr_arg * sqr_arg);
       }
