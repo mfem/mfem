@@ -9698,6 +9698,54 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    qi->Mult(Enodes, eval_flags, X, J, detJ);
 }
 
+FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
+                                           int flags)
+{
+   this->mesh = mesh;
+   IntRule = &ir;
+   computed_factors = flags;
+
+   const GridFunction *nodes = mesh->GetNodes();
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int vdim = fespace->GetVDim();
+   const int NE   = fespace->GetNE();
+   const int NF   = mesh->GetNFaces();
+   const int ND   = fe->GetDof();//FIXME has to use the face element
+   const int NQ   = ir.GetNPoints();//FIXME has to use the face element
+
+   Vector Fnodes(vdim*ND*NF);
+   const Operator *elem_restr = fespace->GetFaceRestriction(
+                                   ElementDofOrdering::LEXICOGRAPHIC);
+   elem_restr->Mult(*nodes, Fnodes);//We want the interpolation on the face
+
+   unsigned eval_flags = 0;
+   if (flags & FaceGeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::VALUES;
+   }
+   if (flags & FaceGeometricFactors::JACOBIANS)
+   {
+      J.SetSize(vdim*vdim*NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
+   }
+   if (flags & FaceGeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::DETERMINANTS;
+   }
+   if (flags & FaceGeometricFactors::NORMALS)
+   {
+      detJ.SetSize(NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::NORMALS;
+   }
+
+   const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(ir);
+   // For now, we are not using tensor product evaluation (not implemented)
+   // qi->DisableTensorProducts();
+   qi->Mult(Enodes, eval_flags, X, J, detJ);
+}
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
                                                const double _s)

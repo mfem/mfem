@@ -1322,6 +1322,57 @@ public:
    Vector detJ;
 };
 
+/** @brief Structure for storing mesh geometric factors: coordinates, Jacobians,
+    and determinants of the Jacobians. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetGeometricFactors(). */
+class FaceGeometricFactors
+{
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+      NORMALS      = 1 << 3,
+   };
+
+   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
+       where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NF = number of faces in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NE) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NF = number of faces in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NE) where
+       - NQ = number of quadrature points per face, and
+       - NF = number of faces in the mesh. */
+   Vector detJ;
+
+   /// Normals at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x DIM x NE) where
+       - NQ = number of quadrature points per face, and
+       - DIM = Dimension of the mesh space
+       - NF = number of faces in the mesh. */
+   Vector normal;
+};
 
 /// Class used to extrude the nodes of a mesh
 class NodeExtrudeCoefficient : public VectorCoefficient

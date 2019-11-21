@@ -2234,6 +2234,11 @@ protected:
    Coefficient *rho;
    VectorCoefficient *u;
    double alpha, beta;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;             ///< Not owned
+   const FaceGeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
 
 private:
    Vector shape1, shape2;
