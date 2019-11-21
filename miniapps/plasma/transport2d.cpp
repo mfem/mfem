@@ -821,6 +821,7 @@ public:
 void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
+                      ParFiniteElementSpace &vfespace,
                       ParGridFunctionArray & gf, Array<Coefficient*> &coef,
                       Vector &weights,
                       int p, double tol, bool visualization = false);
@@ -1147,8 +1148,8 @@ int main(int argc, char *argv[])
       // Finite element space for a scalar (thermodynamic quantity)
       ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
 
-      AdaptInitialMesh(mpi, pmesh, err_fes, fes, coef_gf, coef, amr_weights,
-                       2, tol_init, visualization);
+      AdaptInitialMesh(mpi, pmesh, err_fes, fes, vfes, coef_gf, coef,
+		       amr_weights, 2, tol_init, visualization);
 
       for (int i=0; i<5; i++)
       {
@@ -2117,6 +2118,7 @@ int main(int argc, char *argv[])
 void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
+                      ParFiniteElementSpace &vfespace,
                       ParGridFunctionArray & gf, Array<Coefficient*> &coef,
                       Vector &weights,
                       int p, double tol, bool visualization)
@@ -2206,6 +2208,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
       //     still represent the same function as before refinement.
       err_fespace.Update();
       fespace.Update();
+      vfespace.Update();
       gf.Update();
 
       // 22. Load balance the mesh, and update the space and solution. Currently
@@ -2218,6 +2221,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
          // redistributes the GridFunction among the processors.
          err_fespace.Update();
          fespace.Update();
+         vfespace.Update();
          gf.Update();
       }
    }
