@@ -1785,6 +1785,11 @@ class ConvectionIntegrator : public BilinearFormIntegrator
 protected:
    VectorCoefficient *Q;
    double alpha;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
 
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -1798,6 +1803,13 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe);
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization
