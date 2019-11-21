@@ -500,15 +500,14 @@ protected:
    std::string  GeneratePVTUPath();
 
 public:
-#ifndef MFEM_USE_MPI
+
    /// Constructor. The collection name is used when saving the data.
-   /** If @a mesh_ is NULL, then the mesh can be set later by calling either
-      SetMesh() or Load(). The latter works only in serial. */
+   /** If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh(). The construtor works only in serial. */
    ParaviewDataCollection(const std::string& collection_name,
                           mfem::Mesh *mesh_ = NULL);
-#else
-   /// Construct a parallel ParaviewDataCollection to be loaded from files.
-   /** Before loading the collection with Load(), some parameters in the
+#ifdef MFEM_USE_MPI
+   /// Construct a parallel ParaviewDataCollection.
+   /** Before saving the data collection, some parameddters in the
        collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
    ParaviewDataCollection(const std::string& collection_name,
                           mfem::ParMesh *mesh_ = NULL);
@@ -517,9 +516,9 @@ public:
 
    virtual ~ParaviewDataCollection() override;
 
-#ifndef MFEM_USE_MPI
    virtual void SetMesh(mfem::Mesh * new_mesh) override;
-#else
+
+#ifdef MFEM_USE_MPI
    /// Set/change the mesh associated with the collection.
    virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override;
 #endif
@@ -539,9 +538,8 @@ public:
    virtual void Load(int cycle_ = 0) override;
 
 
-#ifndef MFEM_USE_MPI
    static int create_directory(const std::string &dir_name);
-#else
+#ifdef MFEM_USE_MPI
    static int create_directory(const std::string &dir_name, int myid,
                                MPI_Comm mycom);
 #endif
