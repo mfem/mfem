@@ -739,7 +739,6 @@ ParaviewDataCollection::~ParaviewDataCollection()
 }
 
 
-#ifndef MFEM_USE_MPI
 ParaviewDataCollection::ParaviewDataCollection(const std::string&
                                                collection_name,  mfem::Mesh *mesh_ )
    :DataCollection(collection_name, mesh_)
@@ -747,6 +746,10 @@ ParaviewDataCollection::ParaviewDataCollection(const std::string&
    myrank=0;
    nprocs=1;
    levels_of_detail=1;
+
+#ifdef MFEM_USE_MPI
+   lcomm=MPI_COMM_SELF;
+#endif
 
    std::string dpath=GenerateCollectionPath();
    std::string pvdname=dpath+"/"+GeneratePVDFileName();
@@ -768,7 +771,6 @@ void ParaviewDataCollection::SetMesh(mfem::Mesh * new_mesh)
    DataCollection::SetMesh(new_mesh);
 }
 
-#endif
 
 void ParaviewDataCollection::RegisterField(const std::string& field_name,
                                            mfem::GridFunction *gf)
@@ -840,7 +842,15 @@ void ParaviewDataCollection::Save()
 #ifndef MFEM_USE_MPI
       int err=create_directory(path);
 #else
-      int err=create_directory(path,myrank,lcomm);
+      int err;
+      if (nprocs==1)
+      {
+         err=create_directory(path);
+      }
+      else
+      {
+         err=create_directory(path,myrank,lcomm);
+      }
 #endif
       if (err)
       {
@@ -1011,8 +1021,7 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
    out.flush();
 }
 
-#ifndef MFEM_USE_MPI
-//static method
+
 int ParaviewDataCollection::create_directory(const std::string &dir_name)
 {
    // create directories recursively
@@ -1031,7 +1040,6 @@ int ParaviewDataCollection::create_directory(const std::string &dir_name)
 
    return err;
 }
-#endif
 
 
 #ifdef MFEM_USE_MPI
@@ -1088,8 +1096,6 @@ int ParaviewDataCollection::create_directory(const std::string &dir_name,
    MPI_Bcast(&err, 1, MPI_INT, 0, lcomm_);
 
    return err;
-
-
 
 }
 
