@@ -738,8 +738,40 @@ int main (int argc, char *argv[])
       cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
            << endl;
    }
-   newton->ReportTime();
+   double tmult, tgrad, tlin, tscale;
+   int lin_iter;
+   newton->GetTimes(tmult, tgrad, tlin, tscale, lin_iter);
+   const int ne = pmesh->ReduceInt(pmesh->GetNE());
+   const int niter = newton->GetNumIterations();
    delete newton;
+
+   if (myid == 0)
+   {
+      const int tot_size = pfespace->GlobalTrueVSize();
+      const int ntasks = pmesh->GetNRanks();
+
+      mfem::out << setprecision(4) << "-------\n";
+      mfem::out << "Spatial dim: " << pmesh->Dimension() << std::endl
+                << "Space order: " << mesh_poly_deg << std::endl
+                << "Total zones: " << ne << std::endl
+                << "Quad points: " << ir->GetNPoints() << std::endl
+                << "Total  size: " << tot_size << std::endl
+                << "Newton iter: " << niter << std::endl
+                << "LinSol iter: " <<  lin_iter << std::endl
+                << "Mult:  " << tmult << std::endl
+                << "Grad:  " << tgrad << std::endl
+                << "LinS:  " << tlin << std::endl
+                << "Scale: " << tscale << std::endl
+                << "Newton iter / [sec]    : "
+                << niter / (tmult+tgrad+tlin+tscale) << std::endl
+                << "Newton iter / [sec-mpi]: "
+                << niter / (tmult+tgrad+tlin+tscale) / ntasks << std::endl
+                << "Dofs / [sec]           : "
+                << tot_size / (tmult+tgrad+tlin+tscale) << std::endl
+                << "Dofs / [sec-mpi]       : "
+                << tot_size / (tmult+tgrad+tlin+tscale) / ntasks << std::endl;
+      mfem::out << setprecision(6) << "-------\n";
+   }
 
    // 21. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".

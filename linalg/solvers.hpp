@@ -294,7 +294,8 @@ public:
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const
    { return 1.0; }
 
-   void ReportTime() const;
+   void GetTimes(double &tmult, double &tgrad,
+                 double &tlin, double &tscale, int &lin_iter) const;
 };
 
 /** Adaptive restarted GMRES.

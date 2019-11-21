@@ -1338,7 +1338,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 }
 
-void NewtonSolver::ReportTime() const
+void NewtonSolver::GetTimes(double &tmult, double &tgrad,
+                            double &tlin, double &tscale, int &lin_iter) const
 {
    int myid = 0;
    double times[4];
@@ -1358,17 +1359,11 @@ void NewtonSolver::ReportTime() const
    }
 #endif
 
-   if (myid == 0)
-   {
-      mfem::out << setprecision(4);
-      mfem::out << "Newton iter: " << final_iter << std::endl
-                << "LinSov iter: " << timer.lin_iter << std::endl
-                << "Mult:  " << times[0] << std::endl
-                << "Grad:  " << times[1] << std::endl
-                << "LinS:  " << times[2] << std::endl
-                << "Scale: " << times[3] << std::endl;
-      mfem::out << setprecision(6);
-   }
+   tmult = times[0];
+   tgrad = times[1];
+   tlin  = times[2];
+   tscale = times[3];
+   lin_iter = timer.lin_iter;
 }
 
 
