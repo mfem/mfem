@@ -576,9 +576,9 @@ public:
        ReorderElements. This is a cheap alternative to GetGeckoElementOrdering.*/
    void GetHilbertElementOrdering(Array<int> &ordering);
 
-   /** Rebuilds the mesh with a different order of elements.  The ordering
-       vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements. */
+   /** Rebuilds the mesh with a different order of elements. For each element i,
+       the array ordering[i] contains its desired new index. Note that the method
+       reorders vertices, edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into

@@ -1382,6 +1382,7 @@ void Mesh::GetGeckoElementOrdering(Array<int> &ordering,
 }
 #endif
 
+#if 0
 typedef std::uint64_t HbIndex;
 static const int HbSize = (1 << 20);
 
@@ -1452,6 +1453,91 @@ void Mesh::GetHilbertElementOrdering(Array<int> &ordering)
    f << "];\n";
 #endif
 }
+#else
+
+struct HilbertCmp
+{
+   int coord;
+   bool dir;
+   const Array<double> &points;
+   double mid;
+
+   HilbertCmp(int coord, bool dir, const Array<double> &points, double mid)
+      : coord(coord), dir(dir), points(points), mid(mid) {}
+
+   bool operator()(int i) const
+   {
+      return (points[3*i + coord] < mid) != dir;
+   }
+};
+
+void HilbertSort(int coord1, bool dir1, bool dir2,
+                 const Array<double> &points, int *beg, int *end,
+                 double xmin, double ymin, double xmax, double ymax)
+{
+   if (end - beg <= 1) { return; }
+
+   double xmid = (xmin + xmax)*0.5;
+   double ymid = (ymin + ymax)*0.5;
+
+   int coord2 = (coord1 + 1) % 2;
+
+   int *p0 = beg, *p4 = end;
+   int *p2 = std::partition(p0, p4, HilbertCmp(coord1,  dir1, points, xmid));
+   int *p1 = std::partition(p0, p2, HilbertCmp(coord2,  dir2, points, ymid));
+   int *p3 = std::partition(p2, p4, HilbertCmp(coord2, !dir2, points, ymid));
+
+   if (p1 != p4)
+   {
+      HilbertSort(coord2, dir2, dir1, points, p0, p1, ymin, xmin, ymid, xmid);
+   }
+   if (p1 != p0 || p2 != p4)
+   {
+      HilbertSort(coord1, dir1, dir2, points, p1, p2, xmin, ymid, xmid, ymax);
+   }
+   if (p2 != p0 || p3 != p4)
+   {
+      HilbertSort(coord1, dir1, dir2, points, p2, p3, xmid, ymid, xmax, ymax);
+   }
+   if (p3 != p0)
+   {
+      HilbertSort(coord2, !dir2, !dir1, points, p3, p4, ymid, xmax, ymin, xmid);
+   }
+}
+
+void Mesh::GetHilbertElementOrdering(Array<int> &ordering)
+{
+   MFEM_VERIFY(spaceDim <= 3, "");
+
+   Array<int> indices(GetNE());
+   Array<double> points(3*GetNE());
+   points = 0.0;
+
+   Vector min, max, center;
+   GetBoundingBox(min, max);
+
+   for (int i = 0; i < GetNE(); i++)
+   {
+      GetElementCenter(i, center);
+      for (int j = 0; j < spaceDim; j++)
+      {
+         points[3*i + j] = center(j);
+      }
+      indices[i] = i;
+   }
+
+   // recursively partition the points in 2 dimensions
+   HilbertSort(0, false, false, points, indices.begin(), indices.end(),
+               min(0), min(1), max(0), max(1));
+
+   // return ordering in the format required by ReorderElements
+   ordering.SetSize(GetNE());
+   for (int i = 0; i < GetNE(); i++)
+   {
+      ordering[indices[i]] = i;
+   }
+}
+#endif
 
 
 void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
