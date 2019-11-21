@@ -106,8 +106,8 @@ endif()
 # The unit tests can be built and run separately from the rest of the tests:
 #   make unit_tests
 #   ctest -R unit_tests [-V]
-add_test(NAME unit_tests COMMAND unit_tests CONFIGURATIONS Release Debug)
-add_test(NAME unit_tests_cpu COMMAND unit_tests_cpu CONFIGURATIONS Release Debug)
+add_test(NAME unit_tests COMMAND unit_tests CONFIGURATIONS Release)
+add_test(NAME unit_tests_cpu COMMAND unit_tests_cpu CONFIGURATIONS Release)
 add_test(NAME unit_tests_dbg COMMAND unit_tests_dbg CONFIGURATIONS Release Debug)
 
 # Additional CUDA unit tests

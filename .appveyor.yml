@@ -49,5 +49,5 @@ after_build:
 # - cmake --build build_parallel --target check
 # - cmake --build build_serial --target RUN_TESTS
 - cd build_serial
-- ctest -C Debug -R dbg --output-on-failure
+- ctest -R dbg --output-on-failure
 
