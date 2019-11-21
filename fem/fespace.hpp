@@ -314,6 +314,9 @@ public:
        The returned Operator is owned by the FiniteElementSpace. */
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
 
+   /// Return an Operator that converts L-vectors to E-vectors on each face.
+   const Operator *GetFaceRestriction(ElementDofOrdering e_ordering) const;
+
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
    /** An E-vector represents the element-wise discontinuous version of the FE
@@ -335,6 +338,11 @@ public:
        QuadratureSpace, @a qs. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const QuadratureSpace &qs) const;
+
+   /** @brief Return a FaceQuadratureInterpolator that interpolates E-vectors to
+       quadrature point values and/or derivatives (Q-vectors). */
+   const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
+      const IntegrationRule &ir) const;
 
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
@@ -1054,7 +1062,7 @@ public:
 };
 
 /** @brief A class that performs interpolation from an E-vector to quadrature
-    point values and/or derivatives (Q-vectors) and the faces. */
+    point values and/or derivatives (Q-vectors) on the faces. */
 /** An E-vector represents the element-wise discontinuous version of the FE
     space and can be obtained, for example, from a GridFunction using the
     Operator returned by FiniteElementSpace::GetElementRestriction().
