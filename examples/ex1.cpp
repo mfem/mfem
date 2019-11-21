@@ -112,6 +112,7 @@ int main(int argc, char *argv[])
       }
    }
 
+#if 0
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -210,6 +211,29 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+#else
+
+   Array<int> ordering;
+   mesh->GetHilbertElementOrdering(ordering);
+   mesh->ReorderElements(ordering);
+
+   FiniteElementCollection* fec = new L2_FECollection(0, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   GridFunction x(fespace);
+
+   const int num_procs = 512;
+
+   Array<int> part(mesh->GetNE());
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      x(i) = i * num_procs / mesh->GetNE();
+      mesh->SetAttribute(i, x(i)+1);
+   }
+
+   char *a = NULL;
+   char *b = NULL;
+
+#endif
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
