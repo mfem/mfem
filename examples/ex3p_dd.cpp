@@ -59,8 +59,8 @@ int dim;
 //#define SUBDOMAIN_MESH
 
 #ifdef AIRY_TEST
-//#define SIGMAVAL -10981.4158900991  // 5 GHz
-#define SIGMAVAL -43925.6635603965  // 10 GHz
+#define SIGMAVAL -10981.4158900991  // 5 GHz
+//#define SIGMAVAL -43925.6635603965  // 10 GHz
 //#define SIGMAVAL -175702.65424  // 20 GHz
 //#define SIGMAVAL -1601.0
 //#define SIGMAVAL -1009.0
@@ -343,6 +343,92 @@ void PrintDenseMatrixOfOperator(Operator const& op, const int nprocs, const int 
   */
 }
 
+void VerifyMeshesAreEqual(Mesh *a, Mesh *b)
+{
+  if (a == NULL)
+    {
+      MFEM_VERIFY(b == NULL, "");
+      return;
+    }
+
+  MFEM_VERIFY(b != NULL, "");
+
+  // Compare vertex coordinates
+  MFEM_VERIFY(a->GetNV() == b->GetNV(), "");
+
+  const int dim = a->SpaceDimension();
+  MFEM_VERIFY(dim == b->SpaceDimension(), "");
+
+  const double tol = 1.0e-12;
+  
+  bool eq = true;
+  for (int i=0; i<a->GetNV(); ++i)
+    {
+      for (int j=0; j<dim; ++j)
+	{
+	  if (fabs(a->GetVertex(i)[j] - b->GetVertex(i)[j]) > tol)
+	    eq = false;
+	}
+    }
+  
+  // Compare edge vertex indices
+
+  MFEM_VERIFY(a->GetNEdges() == b->GetNEdges(), "");
+
+  Array<int> av, bv, ao, bo;
+  for (int i=0; i<a->GetNEdges(); ++i)
+    {
+      a->GetEdgeVertices(i, av);
+      b->GetEdgeVertices(i, bv);
+
+      MFEM_VERIFY(av.Size() == 2 && bv.Size() == 2, "");
+
+      for (int j=0; j<2; ++j)
+	{
+	  if (av[j] != bv[j])
+	    eq = false;
+	}
+    }
+  
+  // Compare face edge indices
+  
+  MFEM_VERIFY(a->GetNFaces() == b->GetNFaces(), "");
+
+  for (int i=0; i<a->GetNFaces(); ++i)
+    {
+      a->GetFaceEdges(i, av, ao);
+      b->GetFaceEdges(i, bv, bo);
+
+      MFEM_VERIFY(av.Size() == bv.Size(), "");
+
+      for (int j=0; j<av.Size(); ++j)
+	{
+	  if (av[j] != bv[j] || ao[j] != bo[j])
+	    eq = false;
+	}
+    }
+
+  // Compare element face indices
+  
+  MFEM_VERIFY(a->GetNE() == b->GetNE(), "");
+
+  for (int i=0; i<a->GetNE(); ++i)
+    {
+      a->GetElementFaces(i, av, ao);
+      b->GetElementFaces(i, bv, bo);
+
+      MFEM_VERIFY(av.Size() == bv.Size(), "");
+
+      for (int j=0; j<av.Size(); ++j)
+	{
+	  if (av[j] != bv[j] || ao[j] != bo[j])
+	    eq = false;
+	}
+    }
+
+  MFEM_VERIFY(eq, "");
+}
+
 int main(int argc, char *argv[])
 {
    StopWatch chronoMain;
@@ -358,8 +444,8 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    //const char *mesh_file = "../data/beam-tet.mesh";
 #ifdef AIRY_TEST
-   //const char *mesh_file = "inline-tetHalf.mesh";
-   const char *mesh_file = "inline-tetHalf2.mesh";
+   const char *mesh_file = "inline-tetHalf.mesh";
+   //const char *mesh_file = "inline-tetHalf2.mesh";
 #else
    const char *mesh_file = "../data/inline-tet.mesh";
 #endif
@@ -430,7 +516,7 @@ int main(int argc, char *argv[])
       int ref_levels =
 	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
 	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-	//(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+      //(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
 
@@ -446,7 +532,7 @@ int main(int argc, char *argv[])
 #ifndef SUBDOMAIN_MESH
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {3, 3, 4};
+   int nxyzSubdomains[3] = {2, 2, 2};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -463,6 +549,9 @@ int main(int argc, char *argv[])
        MFEM_VERIFY(numSubdomains < 10000, "SubdomainInterface::SetGlobalIndex will overflow");
        return 3;
      }
+
+   if (myid == 0)
+     cout << "Serial mesh number of elements: " << mesh->GetNE() << endl;
 
    std::vector<int> sdOrder(numSubdomains);
    
@@ -595,8 +684,8 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {1, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
-       int nxyzGlobal[3] = {3, 3, 4};
-       //int nxyzGlobal[3] = {4, 4, 4};
+       //int nxyzGlobal[3] = {3, 3, 4};
+       int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {6, 6, 2};
        //int nxyzGlobal[3] = {2, 2, 8};
        //int nxyzGlobal[3] = {6, 6, 8};  // 288
@@ -608,7 +697,7 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {12, 12, 8};  // 1152
        //int nxyzGlobal[3] = {6, 12, 16};  // 1152
        //int nxyzGlobal[3] = {6, 6, 32};  // 1152
-       //int nxyzGlobal[3] = {8, 8, 8};
+       //int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {12, 12, 12};  // 1728
        //int nxyzGlobal[3] = {24, 12, 12};  // 3456
        //int nxyzGlobal[3] = {24, 24, 12};  // 6912
@@ -655,15 +744,70 @@ int main(int argc, char *argv[])
      }
    
    delete mesh;
+   
+   FiniteElementCollection *fec = new ND_FECollection(order, dim);
+   
+#ifdef SD_ITERATIVE_GMG
+   ParMesh** pmeshSDcoarse = NULL;
    {
-      int par_ref_levels = 1;
+     SubdomainParMeshGenerator sdCoarseMeshGen(numSubdomains, pmesh);
+     pmeshSDcoarse = sdCoarseMeshGen.CreateParallelSubdomainMeshes();
+
+     if (pmeshSDcoarse == NULL)
+       return 2;
+   }
+
+   std::vector<std::vector<HypreParMatrix*> > sdP(numSubdomains);
+   std::vector<ParFiniteElementSpace*> sdfespace(numSubdomains);
+#endif
+   
+   {
+      int par_ref_levels = 2;
+      
+#ifdef SD_ITERATIVE_GMG
+      for (int sd=0; sd<numSubdomains; ++sd)
+	{
+	  if (pmeshSDcoarse[sd] != NULL)
+	    {
+	      sdP[sd].resize(par_ref_levels);
+	      sdfespace[sd] = new ParFiniteElementSpace(pmeshSDcoarse[sd], fec);
+	    }
+	}
+#endif
+      
       for (int l = 0; l < par_ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+#ifdef SD_ITERATIVE_GMG
+	for (int sd=0; sd<numSubdomains; ++sd)
+	  {
+	    if (pmeshSDcoarse[sd] != NULL)
+	      {
+		const ParFiniteElementSpace cfespace(*(sdfespace[sd]));
+		pmeshSDcoarse[sd]->UniformRefinement();
+		sdfespace[sd]->Update();
+		OperatorHandle Tr(Operator::Hypre_ParCSR);
+		sdfespace[sd]->GetTrueTransferOperator(cfespace, Tr);
+		Tr.SetOperatorOwner(false);
+		Tr.Get(sdP[sd][l]);
+	      }
+	  }
+#endif
+	
+	pmesh->UniformRefinement();
       }
    }
    pmesh->ReorientTetMesh();
-
+   
+#ifdef SD_ITERATIVE_GMG
+   for (int sd=0; sd<numSubdomains; ++sd)
+     {
+       if (pmeshSDcoarse[sd] != NULL)
+	 {
+	   pmeshSDcoarse[sd]->ReorientTetMesh();
+	 }
+     }
+#endif
+   
    double hmin = 0.0;   
    {
      double minsize = pmesh->GetElementSize(0);
@@ -705,6 +849,20 @@ int main(int argc, char *argv[])
 
    if (pmeshSD == NULL)
      return 2;
+
+#ifdef SD_ITERATIVE_GMG
+	for (int sd=0; sd<numSubdomains; ++sd)
+	  {
+	    VerifyMeshesAreEqual(pmeshSDcoarse[sd], pmeshSD[sd]);
+
+	    // Now we can delete everything related to pmeshSDcoarse except sdP.
+	    if (pmeshSDcoarse[sd] != NULL)
+	      {
+		delete sdfespace[sd];
+		delete pmeshSDcoarse[sd];
+	      }
+	  }
+#endif
 
    // 5.3. Create interface meshes.
    
@@ -1086,7 +1244,7 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
-   FiniteElementCollection *fec = new ND_FECollection(order, dim);
+   //FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    long globalNE = pmesh->GetGlobalNE();
@@ -1138,6 +1296,9 @@ int main(int argc, char *argv[])
 			    &interfaces, &interfaceGlobalToLocalMap, -SIGMAVAL,
 #ifdef GPWD
 			    1,
+#endif
+#ifdef SD_ITERATIVE_GMG
+			    sdP,
 #endif
 			    hmin);
 

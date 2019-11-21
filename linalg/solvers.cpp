@@ -1681,6 +1681,180 @@ slbqp_done:
    }
 }
 
+#ifdef MFEM_USE_MPI
+
+ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
+                     std::vector<HypreParMatrix *> P_, CoarseSolver cs)
+   : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
+
+   NumGrids = P.size();
+   S.resize(NumGrids);
+   A.resize(NumGrids + 1);
+   block_OffsetsI.SetSize(3);
+   block_OffsetsJ.SetSize(3);
+   block_OffsetsI[0]=0;
+   block_OffsetsJ[0]=0;
+
+   A[NumGrids] = Af;
+
+   for (int i = NumGrids ; i > 0; i--)
+   {
+      A[i - 1] = new ComplexHypreParMatrix(RAP(&A[i]->real(), P[i - 1]),
+                                           RAP(&A[i]->imag(), P[i - 1]),
+                                           false, false, ComplexOperator::HERMITIAN);
+   }
+   // Set up coarse solve operator
+   switch(cs)
+   {
+      case PETSC:
+#ifndef MFEM_USE_PETSC
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with PETSC");
+#else
+         petsc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
+         // Convert to PetscParMatrix
+         petsc->SetOperator(PetscParMatrix(A[0]->GetSystemMatrix(), Operator::PETSC_MATAIJ));
+         invAc = petsc;
+#endif
+      break;   
+      case SUPERLU:
+#ifndef MFEM_USE_SUPERLU
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with SUPERLU");
+#else
+         SluA = new SuperLURowLocMatrix(*A[0]->GetSystemMatrix());
+         superlu = new SuperLUSolver(*SluA);
+         superlu->SetPrintStatistics(false);
+         superlu->SetSymmetricPattern(true);
+         superlu->SetColumnPermutation(superlu::PARMETIS);
+         // superlu->SetColumnPermutation(superlu::NATURAL);
+         superlu->SetOperator(*SluA);
+         invAc = superlu;
+#endif
+      break;
+      case STRUMPACK:
+#ifndef MFEM_USE_STRUMPACK
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with STRUMPACK");
+#else
+         StpA = new STRUMPACKRowLocMatrix(*A[0]->GetSystemMatrix());
+         strumpack = new STRUMPACKSolver(*StpA);
+         strumpack->SetPrintFactorStatistics(false);
+         strumpack->SetPrintSolveStatistics(false);
+         strumpack->SetOperator(*StpA);
+         strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+         strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+         strumpack->DisableMatching();
+         invAc = strumpack;
+#endif
+         break;
+   }   
+   // Check if direct solver is found 
+   if (!invAc) MFEM_ABORT("Direct Solver of coarse solve not found");
+
+    // construct smoothers
+   for (int i = NumGrids - 1; i >= 0 ; i--)
+   {
+      S[i] = new HypreSmoother;
+      S[i]->SetType(HypreSmoother::Jacobi);
+      S[i]->SetOperator(*A[i+1]->GetSystemMatrix());
+   }
+}
+
+void ComplexGMGSolver::SetSmootherType(const HypreSmoother::Type type) const
+{
+   for (int i = NumGrids - 1; i >= 0 ; i--)
+   {
+      S[i]->SetType(type);
+      S[i]->SetOperator(*A[i+1]->GetSystemMatrix());
+   }
+}
+void ComplexGMGSolver::Mult(const Vector &r, Vector &z) const
+{
+   // Residual vectors
+   std::vector<Vector> rv(NumGrids + 1);
+   // correction vectors
+   std::vector<Vector> zv(NumGrids + 1);
+   // allocation
+
+   for (int i = 0; i <= NumGrids ; i++)
+   {
+      int n = A[i]->Width();
+      rv[i].SetSize(n);
+      zv[i].SetSize(n);
+   }
+   // Initial residual
+   rv[NumGrids] = r;
+   // smooth and update residuals down to the coarsest level
+   for (int i = NumGrids; i > 0 ; i--)
+   {
+      // Pre smooth
+      S[i - 1]->Mult(rv[i], zv[i]); zv[i] *= theta;
+      // compute residual
+      Vector w(A[i]->Height());
+      A[i]->Mult(zv[i], w);
+      rv[i] -= w;
+      // Restrict
+      block_OffsetsI[1] = P[i - 1]->GetNumRows();
+      block_OffsetsI[2] = P[i - 1]->GetNumRows();
+      block_OffsetsI.PartialSum();
+      block_OffsetsJ[1] = P[i - 1]->GetNumCols();
+      block_OffsetsJ[2] = P[i - 1]->GetNumCols();
+      block_OffsetsJ.PartialSum();
+      BlockOperator BlkP(block_OffsetsI,block_OffsetsJ);
+      BlkP.SetBlock(0,0,P[i-1]);
+      BlkP.SetBlock(1,1,P[i-1]);
+      BlkP.MultTranspose(rv[i], rv[i - 1]);
+   }
+   // Coarse grid Stiffness matrix
+   invAc->Mult(rv[0], zv[0]);
+   //
+   for (int i = 1; i <= NumGrids ; i++)
+   {
+      // Prolong correction
+      block_OffsetsI[1] = P[i - 1]->GetNumRows();
+      block_OffsetsI[2] = P[i - 1]->GetNumRows();
+      block_OffsetsI.PartialSum();
+      block_OffsetsJ[1] = P[i - 1]->GetNumCols();
+      block_OffsetsJ[2] = P[i - 1]->GetNumCols();
+      block_OffsetsJ.PartialSum();
+      BlockOperator BlkP(block_OffsetsI,block_OffsetsJ);
+      BlkP.SetBlock(0,0,P[i-1]);
+      BlkP.SetBlock(1,1,P[i-1]);
+      Vector u(BlkP.Height());
+      BlkP.Mult(zv[i - 1], u);
+      // Update correction
+      zv[i] += u;
+      // Update residual
+      Vector v(A[i]->Height());
+      A[i]->Mult(u, v); rv[i] -= v;
+      // Post smooth
+      S[i - 1]->Mult(rv[i], v); v *= theta;
+      // Update correction
+      zv[i] += v;
+   }
+   z = zv[NumGrids];
+}
+ComplexGMGSolver::~ComplexGMGSolver() {
+   int n = S.size();
+   for (int i = n - 1; i >= 0 ; i--)
+   {
+      delete S[i];
+   }
+#ifdef MFEM_USE_PETSC
+   // delete petsc;
+#endif   
+#ifdef MFEM_USE_STRUMPACK
+   delete StpA;
+   delete strumpack;
+#endif   
+#ifdef MFEM_USE_SUPERLU   
+   // delete SluA;
+   // delete superlu;
+#endif   
+   // delete invAc;
+}
+
+#endif
+
+
 #ifdef MFEM_USE_SUITESPARSE
 
 void UMFPackSolver::Init()

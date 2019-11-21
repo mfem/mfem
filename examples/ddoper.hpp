@@ -46,7 +46,10 @@ using namespace std;
 
 #define NO_SD_OPERATOR
 
-//#define SD_ITERATIVE
+#define SD_ITERATIVE
+#define SD_ITERATIVE_COMPLEX
+//#define SD_ITERATIVE_GMG
+//#define SD_ITERATIVE_FULL
 
 
 void test1_E_exact(const Vector &x, Vector &E);
@@ -367,6 +370,58 @@ private:
 };
 #endif
 
+class BlockSubdomainPreconditioner : public Solver
+{
+public:
+  BlockSubdomainPreconditioner(const int size, Operator *invSD_, Operator *sdImag_, Operator *invAuxComplex_)
+    : Solver(size), invSD(invSD_), sdImag(sdImag_), invAuxComplex(invAuxComplex_)
+  {
+#ifdef SD_ITERATIVE_COMPLEX
+    nSD = invSD->Height() / 2;
+#else
+    nSD = invSD->Height();
+    MFEM_VERIFY(nSD == sdImag->Height(), "");
+#endif
+    
+    nAux = invAuxComplex->Height() / 2;
+    MFEM_VERIFY(2*(nSD + nAux) == size, "");
+    //MFEM_VERIFY(, "");
+
+    osIm = size / 2;
+
+    xaux.SetSize(2*nAux);
+    yaux.SetSize(2*nAux);
+
+#ifdef SD_ITERATIVE_COMPLEX
+    xsd.SetSize(2*nSD);
+    ysd.SetSize(2*nSD);
+#else
+    xsd.SetSize(nSD);
+ 
+    ysdRe.SetSize(nSD);
+    ysdIm.SetSize(nSD);
+#endif
+  }
+  
+  ~BlockSubdomainPreconditioner()
+  {
+  }
+
+  virtual void Mult(const Vector & x, Vector & y) const;
+
+  virtual void SetOperator(const Operator &op)
+  {
+  }
+
+private:
+  Operator *invSD;
+  Operator *sdImag;
+  Operator *invAuxComplex;
+
+  int nSD, nAux, osIm;
+
+  mutable Vector xaux, yaux, xsd, ysd, ysdRe, ysdIm;
+};
 
 #define DDMCOMPLEX
 
@@ -383,6 +438,9 @@ public:
 		       std::vector<int> *interfaceLocalIndex_, const double k2_,
 #ifdef GPWD
 		       const int Nphi_,
+#endif
+#ifdef SD_ITERATIVE_GMG
+		       std::vector<std::vector<HypreParMatrix*> > const& sdP,
 #endif
 		       const double h_);
 
@@ -1010,6 +1068,17 @@ private:
   std::vector<Array2D<double> > AsdIm_HypreBlockCoef;
   std::vector<MPI_Comm> sd_com;
   std::vector<bool> sd_nonempty;
+#ifdef SD_ITERATIVE
+  HypreParMatrix **HypreDsdComplex;
+  std::vector<Array2D<HypreParMatrix*> > DsdRe_HypreBlocks;
+  std::vector<Array2D<HypreParMatrix*> > DsdIm_HypreBlocks;
+  std::vector<Array2D<double> > DsdRe_HypreBlockCoef;
+  std::vector<Array2D<double> > DsdIm_HypreBlockCoef;
+  std::vector<Array2D<SparseMatrix*> > DsdRe_SparseBlocks;
+  std::vector<Array2D<SparseMatrix*> > DsdIm_SparseBlocks;
+  std::vector<Array<int> > trueOffsetsAuxSD;
+  std::vector<Operator*> sdImag;
+#endif
 #endif
 #endif
   BlockOperator **AsdComplex;
@@ -1312,6 +1381,10 @@ private:
 
   void CreateSubdomainMatrices(const int subdomain);
 
+#ifdef SD_ITERATIVE
+  Operator* CreateSubdomainImaginaryPart(const int subdomain);
+#endif
+  
   STRUMPACKSolver* CreateStrumpackSolver(Operator *Arow, MPI_Comm comm)
   {
     //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
@@ -1361,6 +1434,9 @@ private:
   Solver* CreateSubdomainPreconditionerStrumpack(const int subdomain);
 
   void SetOffsetsSD(const int subdomain);
+#ifdef SD_ITERATIVE  
+  void SetOffsetsAuxSD(const int subdomain);
+#endif
   
   //#define SCHURCOMPSD
   
@@ -1374,6 +1450,13 @@ private:
 				  Array2D<SparseMatrix*>& blockSp,
 				  //#endif
 				  Array2D<double>& blockCoefficient);
+#ifdef SD_ITERATIVE
+  void CreateSubdomainAuxiliaryHypreBlocks(const int subdomain, Array2D<HypreParMatrix*>& block,
+					   Array2D<SparseMatrix*>& blockSp, Array2D<double>& blockCoefficient);
+  
+  void CreateSubdomainDiagHypreBlocks(const int subdomain, Array2D<HypreParMatrix*>& block,
+				      Array2D<SparseMatrix*>& blockSp, Array2D<double>& blockCoefficient);
+#endif
 #endif
   
   // This is the same operator as CreateSubdomainOperator, except it is stored as a strumpack matrix rather than a block operator. 
