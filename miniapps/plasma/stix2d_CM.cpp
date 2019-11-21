@@ -84,6 +84,9 @@
 //
 // ./stix2d_CM -m simple_antenna.mesh -f 8e7 -s 3 -rs 0 -o 1 -maxit 1 -ants '5 6' -antv '0.0 1.0 0.0 0.0 1.0 0.0' -B '0 0 5.4' -dp 0 -dpp 2e20 -tp 1 -tpp '2 0 0 0 1e2 1e2 1e2' -kz 10.8
 //
+// An attempt to match the Kohno paper (work in progress)
+// mpirun -np 10 ./stix2d_CM -m simple_antenna_Kohno_per.mesh -f 8e7 -s 1 -rs 0 -o 1 -maxit 1 -ants '5 6' -antv '0.0 1.0 0.0 0.0 1.0 0.0' -dbcs '2' -dbcv '0 0 0' -B '1.5 0.5 4' -dp 0 -dpp 2e18 -tp 0 -tpp '10' -kz 10.8
+//
 #include "cold_plasma_dielectric_coefs.hpp"
 #include "cold_plasma_dielectric_solver.hpp"
 #include "../common/mesh_extras.hpp"
@@ -260,7 +263,8 @@ int main(int argc, char *argv[])
    Array<int> abcs;  // Absorbing BC attributes
    Array<int> sbcs;  // Sheath BC attributes
    Array<int> dbca;  // Dirichlet BC attributes
-   Array<int> ants_; // Antenna Dirichlet BC attributes
+   Array<int> nbca;  // Dirichlet BC attributes
+   Array<int> ants_; // Antenna Neumann BC attributes
    int num_elements = 10;
 
    SolverOptions solOpts;
@@ -366,6 +370,8 @@ int main(int argc, char *argv[])
                   "Imaginary part of complex Dirichlet values");
    args.AddOption(&dbcv_im_, "-dbcv_im", "--dirichlet-bc-im-val",
                   "Real part of complex Dirichlet values");
+   args.AddOption(&nbca, "-nbcs", "--neumann-bc-surf",
+                  "Neumann Boundary Condition Surfaces");
    args.AddOption(&ants_, "-ants", "--antenna-attr",
                   "Boundary attributes of antenna");
    args.AddOption(&antv_, "-antv", "--antenna-vals",
@@ -682,6 +688,10 @@ int main(int argc, char *argv[])
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
 
+   if (mpi.Root())
+   {
+      cout << "Projecting B." << endl;
+   }
    BField.ProjectCoefficient(BCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -704,6 +714,10 @@ int main(int argc, char *argv[])
    PlasmaProfile rhoCoef(dpt, dpp);
    PlasmaProfile tempCoef(tpt, tpp);
 
+   if (mpi.Root())
+   {
+      cout << "Projecting rho." << endl;
+   }
    for (int i=0; i<numbers.Size(); i++)
    {
       // ConstantCoefficient rhoCoef(numbers[i]);
@@ -711,6 +725,10 @@ int main(int argc, char *argv[])
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
+   if (mpi.Root())
+   {
+      cout << "Projecting T." << endl;
+   }
    for (int i=0; i<=numbers.Size(); i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
@@ -816,7 +834,7 @@ int main(int argc, char *argv[])
 
    Vector zeroVec(3); zeroVec = 0.0;
    VectorConstantCoefficient zeroCoef(zeroVec);
-   Array<ComplexVectorCoefficientByAttr> dbcs(dbca.Size()+ants_.Size());
+   Array<ComplexVectorCoefficientByAttr> dbcs(dbca.Size());
 
    if ( dbcv_.Size() > 0 )
    {
@@ -864,48 +882,6 @@ int main(int argc, char *argv[])
       }
    }
 
-
-   if ( ants_.Size() > 0 )
-   {
-      MFEM_VERIFY(antv_.Size() == 3*ants_.Size(),
-                  "Each Dirichlet boundary condition value must be associated"
-                  "with exactly one Dirichlet boundary surface.");
-
-      VectorFunctionCoefficient *antz_Coef_lhs_r = new VectorFunctionCoefficient(
-         pmesh.SpaceDimension(), antenna_func_lhs_r);
-      VectorFunctionCoefficient *antz_Coef_rhs_r = new VectorFunctionCoefficient(
-         pmesh.SpaceDimension(), antenna_func_rhs_r);
-      VectorFunctionCoefficient *antz_Coef_lhs_i = new VectorFunctionCoefficient(
-         pmesh.SpaceDimension(), antenna_func_lhs_i);
-      VectorFunctionCoefficient *antz_Coef_rhs_i = new VectorFunctionCoefficient(
-         pmesh.SpaceDimension(), antenna_func_rhs_i);
-
-      Array<int> resize(1);
-      dbcs[dbca.Size()].attr = resize;
-      dbcs[dbca.Size()].attr = ants_[0];
-      dbcs[dbca.Size()].real = antz_Coef_lhs_r;
-      dbcs[dbca.Size()].imag = antz_Coef_lhs_i;
-
-      dbcs[1+dbca.Size()].attr = resize;
-      dbcs[1+dbca.Size()].attr = ants_[1];
-      dbcs[1+dbca.Size()].real = antz_Coef_rhs_r;
-      dbcs[1+dbca.Size()].imag = antz_Coef_rhs_i;
-
-      /*for (int i=0; i<ants_.Size(); i++)
-      {
-         Vector antz_(3); antz_[0] = antv_[i]; antz_[1] = antv_[i+1]; antz_[2] = antv_[i+2];
-         VectorCoefficient *antz_Coef = new VectorConstantCoefficient(antz_);
-
-         Array<int> resize(1);
-         dbcs[i+dbca.Size()].attr = resize;
-
-         dbcs[i+dbca.Size()].attr = ants_[i];
-         dbcs[i+dbca.Size()].real = antz_Coef;
-         dbcs[i+dbca.Size()].imag = &zeroCoef;
-      }
-       */
-   }
-
    /*
    Vector y(3); yVec = 0.0; yVec[1] = 1.0;
    Vector yNegVec(3); yNegVec = 0.0; yNegVec[1] = -1.0;
@@ -930,17 +906,49 @@ int main(int argc, char *argv[])
    dbcs[2].real = &yNegCoef;
    dbcs[2].imag = &zeroCoef;
    */
+   Array<ComplexVectorCoefficientByAttr> nbcs(ants_.Size());
+   
+   if ( ants_.Size() > 0 )
+   {
+      MFEM_VERIFY(antv_.Size() == 3*ants_.Size(),
+                  "Each Neumann boundary condition value must be associated"
+                  "with exactly one Neumann boundary surface.");
+
+      VectorFunctionCoefficient *antz_Coef_lhs_r = new VectorFunctionCoefficient(
+         pmesh.SpaceDimension(), antenna_func_lhs_r);
+      VectorFunctionCoefficient *antz_Coef_rhs_r = new VectorFunctionCoefficient(
+         pmesh.SpaceDimension(), antenna_func_rhs_r);
+      VectorFunctionCoefficient *antz_Coef_lhs_i = new VectorFunctionCoefficient(
+         pmesh.SpaceDimension(), antenna_func_lhs_i);
+      VectorFunctionCoefficient *antz_Coef_rhs_i = new VectorFunctionCoefficient(
+         pmesh.SpaceDimension(), antenna_func_rhs_i);
+
+      Array<int> resize(1);
+      nbcs[nbca.Size()].attr = resize;
+      nbcs[nbca.Size()].attr = ants_[0];
+      nbcs[nbca.Size()].real = antz_Coef_lhs_r;
+      nbcs[nbca.Size()].imag = antz_Coef_lhs_i;
+
+      nbcs[1+nbca.Size()].attr = resize;
+      nbcs[1+nbca.Size()].attr = ants_[1];
+      nbcs[1+nbca.Size()].real = antz_Coef_rhs_r;
+      nbcs[1+nbca.Size()].imag = antz_Coef_rhs_i;
+   }
 
    cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;
 
    // Create the Magnetostatic solver
+   if (mpi.Root())
+   {
+      cout << "Creating Cold Plasma Dielectric Solver." << endl;
+   }
    CPDSolver CPD(pmesh, order, omega,
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
                  conv, BCoef, epsilon_real, epsilon_imag, epsilon_abs,
                  muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
                  (phase_shift) ? &kCoef : NULL,
-                 abcs, sbcs, dbcs,
+                 abcs, sbcs, dbcs, nbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
                  (rod_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);

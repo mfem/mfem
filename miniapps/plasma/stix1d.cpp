@@ -895,6 +895,8 @@ int main(int argc, char *argv[])
       dbcs[0].real = &EReCoef;
       dbcs[0].imag = &EImCoef;
    }
+   
+   Array<ComplexVectorCoefficientByAttr> nbcs(0);
 
    // Create the Magnetostatic solver
    CPDSolver CPD(pmesh, order, omega,
@@ -903,7 +905,7 @@ int main(int argc, char *argv[])
                  conv, *BCoef, epsilon_real, epsilon_imag, epsilon_abs,
                  muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
                  (phase_shift) ? &kCoef : NULL,
-                 abcs, sbcs, dbcs,
+                 abcs, sbcs, dbcs, nbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
                  (slab_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);

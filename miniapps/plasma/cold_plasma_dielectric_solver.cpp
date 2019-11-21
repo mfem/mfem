@@ -252,6 +252,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      Array<int> & sbcs,
                      // Array<int> & dbcs,
                      Array<ComplexVectorCoefficientByAttr> & dbcs,
+                     Array<ComplexVectorCoefficientByAttr> & nbcs,
                      // void   (*e_r_bc )(const Vector&, Vector&),
                      // void   (*e_i_bc )(const Vector&, Vector&),
                      // VectorCoefficient & EReCoef,
@@ -333,6 +334,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      // e_r_bc_(e_r_bc),
      // e_i_bc_(e_i_bc),
      dbcs_(&dbcs),
+     nbcs_(&nbcs),
+     nkbcs_(NULL),
      visit_dc_(NULL)
 {
    // Initialize MPI variables
@@ -540,6 +543,26 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
    rhsrCoef_ = new ScalarVectorProductCoefficient(omega_, *jiCoef_);
    rhsiCoef_ = new ScalarVectorProductCoefficient(-omega_, *jrCoef_);
+
+   if (nbcs_->Size() > 0)
+   {
+     nkbcs_ = new Array<ComplexVectorCoefficientByAttr>(nbcs_->Size());
+     for (int i=0; i<nbcs_->Size(); i++)
+     {
+       (*nkbcs_)[i].attr = (*nbcs_)[i].attr;
+       (*nkbcs_)[i].attr_marker.SetSize(pmesh.bdr_attributes.Max());
+       (*nkbcs_)[i].attr_marker = 0;
+       for (int j=0; j<(*nbcs_)[i].attr.Size(); j++)
+       {
+	 (*nkbcs_)[i].attr_marker[(*nbcs_)[i].attr[j] - 1] = 1;
+       }
+       
+       (*nkbcs_)[i].real =
+	 new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i].imag);
+       (*nkbcs_)[i].imag =
+	 new ScalarVectorProductCoefficient(-omega_, *(*nbcs_)[i].real);
+     }
+   }
    /*
    // Magnetization
    if ( m_src_ != NULL )
@@ -592,6 +615,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    rhs_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
    rhs_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*rhsrCoef_),
                              new VectorFEDomainLFIntegrator(*rhsiCoef_));
+   if (nkbcs_ != NULL)
+   {
+     for (int i=0; i<nkbcs_->Size(); i++)
+     {
+       rhs_->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(*(*nkbcs_)[i].real),
+				   new VectorFEBoundaryTangentLFIntegrator(*(*nkbcs_)[i].imag),
+				   (*nkbcs_)[i].attr_marker);
+       
+     }
+   }
    rhs_->real().Vector::operator=(0.0);
    rhs_->imag().Vector::operator=(0.0);
 
