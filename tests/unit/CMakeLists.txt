@@ -72,11 +72,6 @@ target_compile_definitions(unit_tests_dbg PUBLIC MFEM_DEV_UNIT_TESTS=1)
 target_compile_definitions(unit_tests_dbg PUBLIC MFEM_DEV_UNIT="debug")
 target_link_libraries(unit_tests_dbg mfem)
 
-add_executable(unit_dbg_tests ${UNIT_TESTS_SRCS_SEDOV})
-target_compile_definitions(unit_dbg_tests PUBLIC MFEM_DEV_UNIT_TESTS=1)
-target_compile_definitions(unit_dbg_tests PUBLIC MFEM_DEV_UNIT="debug")
-target_link_libraries(unit_dbg_tests mfem)
-
 if (MFEM_USE_CUDA)
    # Pure CUDA test
    add_executable(unit_tests_cuda ${UNIT_TESTS_SRCS_SEDOV})
@@ -102,7 +97,7 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory
         COMMENT "Copying the unit tests data directory ...")
 
 # Add unit tests
-add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests unit_tests_cpu unit_tests_dbg unit_dbg_tests)
+add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests unit_tests_cpu unit_tests_dbg)
 if (MFEM_USE_CUDA)
    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests_cuda unit_tests_cuda_uvm unit_tests_cuda_dbg)
 endif()
@@ -111,10 +106,9 @@ endif()
 # The unit tests can be built and run separately from the rest of the tests:
 #   make unit_tests
 #   ctest -R unit_tests [-V]
-add_test(NAME unit_tests COMMAND unit_tests)
-add_test(NAME unit_tests_cpu COMMAND unit_tests_cpu)
-add_test(NAME unit_tests_dbg COMMAND unit_tests_dbg)
-add_test(NAME unit_dbg_tests COMMAND unit_dbg_tests)
+add_test(NAME unit_tests COMMAND unit_tests CONFIGURATIONS Release Debug)
+add_test(NAME unit_tests_cpu COMMAND unit_tests_cpu CONFIGURATIONS Release Debug)
+add_test(NAME unit_tests_dbg COMMAND unit_tests_dbg CONFIGURATIONS Release Debug)
 
 # Additional CUDA unit tests
 if (MFEM_USE_CUDA)
