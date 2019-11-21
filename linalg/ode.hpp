@@ -472,6 +472,7 @@ public:
 class ODEEmbeddedSolver : public ODESolver
 {
 public:
+   virtual void Step(Vector &x, double &t, double &dt) = 0;
    virtual void Step(Vector &x, Vector &e, double &t, double &dt) = 0;
 };
 
