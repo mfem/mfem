@@ -33,6 +33,28 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+11/20
+there is a bug in the boundary condition in the implicit case (I probaby need to use bchandler).
+[I 0] |x| = |a| 
+[D A] |y|   |b|
+is not necessary equivalent to
+[0 0] |x| = |0| 
+[D A] |y|   |b|
+by setting the initial guess being x=a
+
+11/19
+resi=1e-4 imAMR the first run stuck at t=6.8 (the mesh looks good; but it probably needs slightly more damping)
+
+mpirun -n 32 ../imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 5 -tf 8 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 10
+
+resi=1e-5 very oscillatory; the solve got stuck at 4.2
+mpirun -n 32 ../imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 5 -tf 8 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-5 -visc 1e-5 -refs 10
+
+mpirun -n 32 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 5 -tf 1 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5
+
+low-order
+mpirun -n 42 ../imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 2 -i 3 -vs 5 -tf 8 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-4 -derefine -resi 1e-6 -visc 1e-3 -refs 10
+
 11/18
 debug:
 -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -tf .5 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3
