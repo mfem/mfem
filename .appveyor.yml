@@ -43,7 +43,7 @@ build_script:
 #- cmake --build build_parallel
 - cmake --build build_serial -j 8
 #- cmake --build build_serial --target exec
-- cmake --build build_serial --target tests -j 8
+- cmake --build build_serial --target tests -C Release -j 8
 
 after_build:
 # - cmake --build build_parallel --target check
