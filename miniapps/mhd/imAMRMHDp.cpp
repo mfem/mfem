@@ -180,6 +180,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&ref_steps, "-refs", "--refine-steps",
+                  "Refine or derefine every n-th timestep.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
