@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -144,13 +144,14 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, part);
    delete mesh;
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 0;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
    }
 
+#if 0
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
@@ -255,6 +256,22 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
+#else
+
+   FiniteElementCollection* fec = new L2_FECollection(0, dim);
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   ParGridFunction x(fespace);
+
+   for (int i = 0; i < pmesh->GetNE(); i++)
+   {
+      x(i) = myid;
+      pmesh->SetAttribute(i, myid+1);
+   }
+
+   char *a = NULL;
+   char *b = NULL;
+
+#endif
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
