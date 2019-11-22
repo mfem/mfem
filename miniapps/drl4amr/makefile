@@ -55,7 +55,7 @@ py python:;python drl4amr.py
 tst test:;$(MAKE) go && $(MAKE) python
 
 drl4amr: main.cpp libdrl4amr.so
-	$(MFEM_CXX) $(MFEM_FLAGS) main.cpp -o drl4amr $(MFEM_LIBS) -L. -Wl,-rpath,. -ldrl4amr
+	$(MFEM_CXX) $(MFEM_FLAGS) main.cpp -o drl4amr -L. -Wl,-rpath,. -ldrl4amr
 
 libdrl4amr.so: $(MINIOBJS)
 	$(MFEM_CXX) -shared -Wl,-$(SOPREFIX)name,libdrl4amr.so -o libdrl4amr.so $(MINIOBJS) $(MFEM_LIBS)

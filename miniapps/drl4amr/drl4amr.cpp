@@ -281,10 +281,10 @@ double* Drl4Amr::GetLocalImage(int element)
    int height = GetLocalHeight();
    int subdiv = oversample*order;
 
-   local_image.SetSize(width * height);
+   local_image.SetSize(width*height*3);
    local_image = 0.0;
 
-   auto im = Reshape(local_image.Write(), 3, height, width);
+   auto im = Reshape(local_image.Write(false), height, width, 3);
 
    Vector sln;
    DenseMatrix grad;
@@ -302,12 +302,13 @@ double* Drl4Amr::GetLocalImage(int element)
       {
          int k = i*(subdiv+1) + j;
 
-         im(0, i+1, j+1) = sln(k);
-         im(1, i+1, j+1) = grad(0, k);
-         im(2, i+1, j+1) = grad(1, k);
+         im(i+1, j+1, 0) = sln(k);
+         im(i+1, j+1, 1) = grad(0, k);
+         im(i+1, j+1, 2) = grad(1, k);
       }
    }
 
+#if 0
    // rasterize neighbor edges
    {
       Array<int> edges, ori;
@@ -352,7 +353,7 @@ double* Drl4Amr::GetLocalImage(int element)
          }
       }
    }
-
+#endif
    return local_image.GetData();
 }
 
