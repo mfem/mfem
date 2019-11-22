@@ -143,6 +143,8 @@ protected:
    void Construct();
    void Destroy();
 
+   void ConstructDoFTrans();
+
    void BuildElementToDofTable() const;
 
    /// Helper to remove encoded sign from a DOF
