@@ -727,20 +727,25 @@ public:
 
    double &operator()(int i, int j, int k)
    {
-      MFEM_ASSERT(i >= 0 && i < SizeI(), "i=" << i);
-      MFEM_ASSERT(j >= 0 && j < SizeJ(), "j=" << j);
-      MFEM_ASSERT(k >= 0 && k < SizeK(), "k=" << k);
-      return tdata[i+SizeI()*(j+SizeJ()*k)];
-   }
-   const double &operator()(int i, int j, int k) const
-   {
-      MFEM_ASSERT(i >= 0 && i < SizeI(), "i=" << i);
-      MFEM_ASSERT(j >= 0 && j < SizeJ(), "j=" << j);
-      MFEM_ASSERT(k >= 0 && k < SizeK(), "k=" << k);
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       return tdata[i+SizeI()*(j+SizeJ()*k)];
    }
 
-   double *GetData(int k) { return tdata+k*Mk.Height()*Mk.Width(); }
+   const double &operator()(int i, int j, int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
+
+   double *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata+k*Mk.Height()*Mk.Width();
+   }
 
    double *Data() { return tdata; }
 
