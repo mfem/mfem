@@ -67,11 +67,6 @@ extern OutStream out;
     changed.
     @sa OutStream. */
 extern OutStream err;
-// TODO: add documentation
-extern OutStream trc;
-
-// TODO: add documentation
-void OpenTraceFile();
 
 
 /** @brief Construct a string of the form "<prefix><myid><suffix>" where the

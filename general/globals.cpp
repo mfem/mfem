@@ -15,38 +15,12 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
-#include <fstream>
-
-#ifndef _WIN32
-#include <sys/types.h>
-#include <unistd.h>   // getpid()
-#else
-#include <process.h>  // _getpid()
-#define getpid _getpid
-#endif
 
 namespace mfem
 {
 
 OutStream out(std::cout);
 OutStream err(std::cerr);
-OutStream trc(std::cout);
-
-
-std::ofstream trace_stream;
-
-
-void OpenTraceFile()
-{
-   if (!trace_stream.is_open())
-   {
-      std::stringstream fname;
-      fname << "mfem-trace-" << getpid();
-      trace_stream.open(fname.str());
-      trc.SetStream(trace_stream);
-      trc.precision(16);
-   }
-}
 
 
 std::string MakeParFilename(const std::string &prefix, const int myid,
