@@ -1488,6 +1488,8 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       UpdateNURBS();
       cP = cR = NULL;
       cP_is_set = false;
+
+      ConstructDoFTrans();
    }
    else
    {
@@ -1496,6 +1498,11 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       Construct();
    }
 
+   BuildElementToDofTable();
+}
+
+void FiniteElementSpace::ConstructDoFTrans()
+{
    VDoFTrans.SetVDim(vdim);
    DoFTrans.SetSize(Geometry::NUM_GEOMETRIES);
    for (int i=0; i<DoFTrans.Size(); i++)
@@ -1512,8 +1519,6 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
             new ND_TetDofTransformation(nd_tet->GetOrder());
       }
    }
-
-   BuildElementToDofTable();
 }
 
 NURBSExtension *FiniteElementSpace::StealNURBSext()
@@ -1604,6 +1609,8 @@ void FiniteElementSpace::Construct()
    }
 
    ndofs = nvdofs + nedofs + nfdofs + nbdofs;
+
+   ConstructDoFTrans();
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
