@@ -144,6 +144,7 @@ protected:
    void Destroy();
 
    void ConstructDoFTrans();
+   void DestroyDoFTrans();
 
    void BuildElementToDofTable() const;
 

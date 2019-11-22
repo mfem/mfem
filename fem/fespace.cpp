@@ -1503,6 +1503,8 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
 
 void FiniteElementSpace::ConstructDoFTrans()
 {
+   DestroyDoFTrans();
+
    VDoFTrans.SetVDim(vdim);
    DoFTrans.SetSize(Geometry::NUM_GEOMETRIES);
    for (int i=0; i<DoFTrans.Size(); i++)
@@ -2056,11 +2058,7 @@ void FiniteElementSpace::Destroy()
    }
    E2Q_array.SetSize(0);
 
-   for (int i = 0; i < DoFTrans.Size(); i++)
-   {
-      delete DoFTrans[i];
-   }
-   DoFTrans.SetSize(0);
+   DestroyDoFTrans();
 
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
@@ -2078,6 +2076,15 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
       delete [] fdofs;
    }
+}
+
+void FiniteElementSpace::DestroyDoFTrans()
+{
+   for (int i = 0; i < DoFTrans.Size(); i++)
+   {
+      delete DoFTrans[i];
+   }
+   DoFTrans.SetSize(0);
 }
 
 void FiniteElementSpace::GetTransferOperator(
