@@ -98,6 +98,8 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    gcomm = NULL;
 
+   gfdofs = NULL;
+
    P = NULL;
    Pconf = NULL;
    R = NULL;
@@ -148,20 +150,37 @@ void ParFiniteElementSpace::Construct()
       // cut space.
       ConstructTrueDofs();
 
+      ngedofs = ngfdofs = 0;
+      gfdofs = NULL;
+
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
                 * fec->DofForGeometry(Geometry::POINT);
 
-      ngedofs = ngfdofs = 0;
       if (pmesh->Dimension() > 1)
       {
          ngedofs = pncmesh->GetNGhostEdges()
                    * fec->DofForGeometry(Geometry::SEGMENT);
       }
+
       if (pmesh->Dimension() > 2)
       {
-         ngfdofs = pncmesh->GetNGhostFaces()
-                   * fec->DofForGeometry(pncmesh->GetGhostFaceGeometry(0));
+         if (fdofs != NULL) // have mixed faces
+         {
+            gfdofs = new int[pncmesh->GetNGhostFaces()+1];
+            gfdofs[0] = 0;
+            for (int i = 0; i < pncmesh->GetNGhostFaces(); i++)
+            {
+               int ghost = pncmesh->GetNFaces() + i;
+               ngfdofs += fec->DofForGeometry(pncmesh->GetFaceGeometry(ghost));
+               gfdofs[i+1] = ngfdofs;
+            }
+         }
+         else
+         {
+            ngfdofs = pncmesh->GetNGhostFaces()
+                      * fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
+         }
       }
 
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
@@ -1324,20 +1343,18 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
 void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
                                              Array<int> &dofs) const
 {
-   const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
-   MFEM_ASSERT(pncmesh->GetGhostFaceGeometry(ghost_face_index)
-               == Geometry::SQUARE, "");
+   int nfv, V[4], E[4], Eo[4];
+   nfv = pmesh->pncmesh->GetFaceVerticesEdges(face_id, V, E, Eo);
 
    int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
-   int nf = fec->DofForGeometry(Geometry::SQUARE);
-   dofs.SetSize(4*nv + 4*ne + nf);
+   int nf = fec->DofForGeometry((nfv == 3) ?
+                                Geometry::TRIANGLE : Geometry::SQUARE);
 
-   int V[4], E[4], Eo[4];
-   pmesh->pncmesh->GetFaceVerticesEdges(face_id, V, E, Eo);
+   dofs.SetSize(nfv*(nv + ne) + nf);
 
    int offset = 0;
-   for (int i = 0; i < 4; i++)
+   for (int i = 0; i < nfv; i++)
    {
       int ghost = pncmesh->GetNVertices();
       int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
@@ -1347,7 +1364,7 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
       }
    }
 
-   for (int i = 0; i < 4; i++)
+   for (int i = 0; i < nfv; i++)
    {
       int ghost = pncmesh->GetNEdges();
       int first = (E[i] < ghost) ? nvdofs + E[i]*ne
@@ -1360,8 +1377,10 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
       }
    }
 
-   // Assuming all ghost faces have the same number of dofs:
-   int first = ndofs + ngvdofs + ngedofs + ghost_face_index*nf;
+   const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
+   int first = ndofs + ngvdofs + ngedofs;
+   first += gfdofs ? gfdofs[ghost_face_index] : nf*ghost_face_index;
+
    for (int j = 0; j < nf; j++)
    {
       dofs[offset++] = first + j;
@@ -1403,12 +1422,19 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
          break;
 
       default:
-         MFEM_ASSERT(!pmesh->HasGeometry(Geometry::TRIANGLE), "");
-         ned = fec->DofForGeometry(Geometry::SQUARE);
+         ned = fec->DofForGeometry(pncmesh->GetFaceGeometry(index));
          ghost = pncmesh->GetNFaces();
-         first = (index < ghost)
-                 ? nvdofs + nedofs + index*ned // regular face
-                 : ndofs + ngvdofs + ngedofs + (index - ghost)*ned; // ghost
+
+         if (index < ghost) // regular face
+         {
+            first = nvdofs + nedofs + (fdofs ? fdofs[index] : index*ned);
+         }
+         else // ghost face
+         {
+            index -= ghost;
+            first = ndofs + ngvdofs + ngedofs +
+                    (gfdofs ? gfdofs[index] : index*ned);
+         }
          break;
    }
 
@@ -1444,14 +1470,28 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
                 : ndofs + ngvdofs + (index - ghost)*ned + edof; // ghost edge
 
       default:
-         MFEM_ASSERT(!pmesh->HasGeometry(Geometry::TRIANGLE), "");
          ghost = pncmesh->GetNFaces();
-         ned = fec->DofForGeometry(Geometry::SQUARE);
+         ned = fec->DofForGeometry(pncmesh->GetFaceGeometry(index));
 
-         return (index < ghost)
-                ? nvdofs + nedofs + index*ned + edof // regular face
-                : ndofs + ngvdofs + ngedofs + (index - ghost)*ned + edof; //ghost
+         if (index < ghost) // regular face
+         {
+            return nvdofs + nedofs + (fdofs ? fdofs[index] : index*ned) + edof;
+         }
+         else // ghost face
+         {
+            index -= ghost;
+            return ndofs + ngvdofs + ngedofs +
+                   (gfdofs ? gfdofs[index] : index*ned) + edof;
+         }
    }
+}
+
+static int bisect(int* array, int size, int value)
+{
+   int* end = array + size;
+   int* pos = std::upper_bound(array, end, value);
+   MFEM_VERIFY(pos != end, "value not found");
+   return pos - array;
 }
 
 /** Dissect a DOF number to obtain the entity type (0=vertex, 1=edge, 2=face),
@@ -1479,9 +1519,17 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= nedofs;
       if (dof < nfdofs) // regular face
       {
-         MFEM_ASSERT(!pmesh->HasGeometry(Geometry::TRIANGLE), "");
-         int nf = fec->DofForGeometry(Geometry::SQUARE);
-         entity = 2, index = dof / nf, edof = dof % nf;
+         if (fdofs) // have mixed faces
+         {
+            index = bisect(fdofs+1, mesh->GetNFaces(), dof);
+            edof = dof - fdofs[index];
+         }
+         else // uniform faces
+         {
+            int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
+            index = dof / nf, edof = dof % nf;
+         }
+         entity = 2;
          return;
       }
       MFEM_ABORT("Cannot unpack internal DOF");
@@ -1505,8 +1553,17 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= ngedofs;
       if (dof < ngfdofs) // ghost face
       {
-         int nf = fec->DofForGeometry(pncmesh->GetGhostFaceGeometry(0));
-         entity = 2, index = pncmesh->GetNFaces() + dof / nf, edof = dof % nf;
+         if (gfdofs) // have mixed faces
+         {
+            index = bisect(gfdofs+1, pncmesh->GetNGhostFaces(), dof);
+            edof = dof - gfdofs[index];
+         }
+         else // uniform faces
+         {
+            int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
+            index = pncmesh->GetNFaces() + dof / nf, edof = dof % nf;
+         }
+         entity = 2;
          return;
       }
       MFEM_ABORT("Out of range DOF.");
@@ -1689,7 +1746,7 @@ void NeighborRowMessage::Encode(int rank)
          mfem::out << "Rank " << pncmesh->MyRank << " sending to " << rank
                    << ": ent " << ri.entity << ", index " << ri.index
                    << ", edof " << ri.edof << " (id " << id.element << "/"
-                   << id.local << ")" << std::endl;
+                   << int(id.local) << ")" << std::endl;
 #endif
 
          // handle orientation and sign change
@@ -1732,8 +1789,6 @@ void NeighborRowMessage::Decode(int rank)
    rows.clear();
    rows.reserve(nrows);
 
-   Geometry::Type fgeom = pncmesh->GetFaceGeometry();
-
    // read rows
    for (int ent = 0, gi = 0; ent < 3; ent++)
    {
@@ -1752,8 +1807,9 @@ void NeighborRowMessage::Decode(int rank)
          }
          else if (ent == 2)
          {
+            Geometry::Type geom = pncmesh->GetFaceGeometry(id.index);
             int fo = pncmesh->GetFaceOrientation(id.index);
-            ind = fec->DofOrderForOrientation(fgeom, fo);
+            ind = fec->DofOrderForOrientation(geom, fo);
          }
 
          double s = 1.0;
@@ -1842,7 +1898,7 @@ void ParFiniteElementSpace
    for (int i = 0; i < dof_group.Size(); i++)
    {
       os << i << ": ";
-      if (i < (nvdofs + nedofs + nfdofs) || i > ndofs)
+      if (i < (nvdofs + nedofs + nfdofs) || i >= ndofs)
       {
          int ent, idx, edof;
          UnpackDof(i, ent, idx, edof);
@@ -1924,15 +1980,7 @@ int ParFiniteElementSpace
          if (!list.masters.size()) { continue; }
 
          IsoparametricTransformation T;
-         if (entity > 1) { T.SetFE(&QuadrilateralFE); }
-         else { T.SetFE(&SegmentFE); }
-
-         Geometry::Type geom = (entity > 1) ?
-                               Geometry::SQUARE : Geometry::SEGMENT;
-         const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
-         if (!fe) { continue; }
-
-         DenseMatrix I(fe->GetDof());
+         DenseMatrix I;
 
          // process masters that we own or that affect our edges/faces
          for (unsigned mi = 0; mi < list.masters.size(); mi++)
@@ -1945,6 +1993,17 @@ int ParFiniteElementSpace
             : GetEntityDofs(entity, mf.index, master_dofs);
 
             if (!master_dofs.Size()) { continue; }
+
+            const FiniteElement* fe = fec->FiniteElementForGeometry(mf.Geom());
+            if (!fe) { continue; }
+
+            switch (mf.Geom())
+            {
+               case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
+               case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
+               case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
+               default: MFEM_ABORT("unsupported geometry");
+            }
 
             // constrain slaves that exist in our mesh
             for (int si = mf.slaves_begin; si < mf.slaves_end; si++)
@@ -1995,6 +2054,8 @@ int ParFiniteElementSpace
                   (l == 0) ? list.conforming[i] :
                   (l == 1) ? (const MeshId&) list.masters[i]
                   /*    */ : (const MeshId&) list.slaves[i];
+
+               if (id.index < 0) { continue; }
 
                GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
                GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
@@ -2492,6 +2553,9 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
 
    MFEM_VERIFY(Nonconforming(), "Not implemented for conforming meshes.");
+   MFEM_VERIFY(pmesh->GetNumGeometries(pmesh->Dimension()) == 1,
+               "Not implemented for mixed meshes.");
+
    MFEM_VERIFY(old_dof_offsets[nrk], "Missing previous (finer) space.");
    MFEM_VERIFY(dof_offsets[nrk] <= old_dof_offsets[nrk],
                "Previous space is not finer.");
@@ -2505,7 +2569,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Vector row;
 
    ParNCMesh* pncmesh = pmesh->pncmesh;
-   Geometry::Type geom = pncmesh->GetElementGeometry();
+   Geometry::Type geom = pncmesh->GetElementGeometry(0); // TODO mixed meshes
    int ldof = fec->FiniteElementForGeometry(geom)->GetDof();
 
    const CoarseFineTransformations &dtrans = pncmesh->GetDerefinementTransforms();
@@ -2728,6 +2792,8 @@ void ParFiniteElementSpace::Destroy()
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
    delete R; R = NULL;
+
+   delete [] gfdofs; gfdofs = NULL;
 
    delete gcomm; gcomm = NULL;
 
