@@ -713,6 +713,7 @@ MFEM_USE_PUMI
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_RAJA
+MFEM_USE_SIDRE
 
 The following options are CMake specific:
 
@@ -761,6 +762,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - PUMI
  - OCCA
  - RAJA
+ - AXOM - Used when MFEM_USE_SIDRE is enabled
 
 The following built-in CMake packages are also used:
 
