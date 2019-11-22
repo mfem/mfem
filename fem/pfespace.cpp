@@ -13,9 +13,6 @@
 
 #ifdef MFEM_USE_MPI
 
-/*#include <fstream>
-#define MFEM_DEBUG_PMATRIX*/
-
 #include "pfespace.hpp"
 #include "../general/forall.hpp"
 #include "../general/sort_pairs.hpp"
@@ -790,7 +787,7 @@ int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const
 {
    if (Nonconforming())
    {
-      Dof_TrueDof_Matrix(); // inline method
+      Dof_TrueDof_Matrix(); // make sure P has been built
 
       return ldof_ltdof[ldof]; // NOTE: contains -1 for slaves/DOFs we don't own
    }
@@ -2251,7 +2248,7 @@ int ParFiniteElementSpace
       }
 
 #ifdef MFEM_DEBUG_PMATRIX
-      static int dump = 0;
+      /*static int dump = 0;
       if (dump < 10)
       {
          char fname[100];
@@ -2259,7 +2256,7 @@ int ParFiniteElementSpace
          std::ofstream f(fname);
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;
-      }
+      }*/
 #endif
 
       // send current batch of messages
@@ -2565,8 +2562,10 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    MFEM_VERIFY(Nonconforming(), "Not implemented for conforming meshes.");
    MFEM_VERIFY(old_dof_offsets[nrk], "Missing previous (finer) space.");
 
-   /*MFEM_VERIFY(dof_offsets[nrk] <= old_dof_offsets[nrk],
-               "Previous space is not finer.");*/
+#if 0 // check no longer seems to work with NC tet refinement
+   MFEM_VERIFY(dof_offsets[nrk] <= old_dof_offsets[nrk],
+               "Previous space is not finer.");
+#endif
 
    // Note to the reader: please make sure you first read
    // FiniteElementSpace::RefinementMatrix, then

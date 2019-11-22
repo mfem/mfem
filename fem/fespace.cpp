@@ -994,10 +994,12 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
    : fespace(fespace)
    , old_elem_dof(old_elem_dof)
 {
-   /*const Mesh* mesh = fespace->GetMesh();
+#if 0 // with NC tet AMR this check no longer seems to work correctly in parallel
+   const Mesh* mesh = fespace->GetMesh();
    MFEM_VERIFY(mesh->ReduceInt(fespace->GetNDofs()) >=
                mesh->ReduceInt(old_ndofs),
-               "Previous space is not coarser.");*/
+               "Previous space is not coarser.");
+#endif
 
    width = old_ndofs * fespace->GetVDim();
    height = fespace->GetVSize();
