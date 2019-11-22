@@ -45,6 +45,8 @@ using namespace mfem;
 
 #ifdef TEST_AIRY
 #include "gsl_sf_airy.h"
+
+#define XSHIFT 0.0 // 0.25
 #endif
 
 // Exact solution, E, and r.h.s., f. See below for implementation.
@@ -62,7 +64,7 @@ void test_Airy_epsilon(const Vector &x, Vector &e)
 {
   e(0) = 1.0;
   e(1) = 1.0;
-  e(2) = (4.0 * x(0)) - 1.0;
+  e(2) = (4.0 * (x(0) + XSHIFT)) - 1.0;
 
   e *= -K2_VALUE;
 }
@@ -78,6 +80,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    //const char *mesh_file = "../data/beam-tet.mesh";
    const char *mesh_file = "../data/inline-tetHalf.mesh";
+   //const char *mesh_file = "inline-tetSlab.mesh";
    //const char *mesh_file = "../data/inline-hexHalf.mesh";
    //const char *mesh_file = "../data/inline-tet.mesh";
    int order = 2;
@@ -137,6 +140,7 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
          (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
+      ref_levels = 0;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -375,7 +379,7 @@ void E_exact(const Vector &x, Vector &E)
    if (dim == 3)
    {
 #ifdef TEST_AIRY
-     const double y = (4.0 * x(0)) - 1.0;
+     const double y = (4.0 * (x(0) + XSHIFT)) - 1.0;
      const double k = sqrt(K2_VALUE);
      const double beta = pow(0.25 * k, 2.0/3.0);
   

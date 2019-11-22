@@ -52,9 +52,11 @@ int dim;
 //#define SOLVE_A2
 //#define ITER_A2
 
-#define USE_CSL
+//#define USE_CSL
 
-#define USE_HELMHOLTZ
+//#define USE_HELMHOLTZ
+
+//#define TEST_MULTIPLE_SP
 
 #ifdef USE_HELMHOLTZ
 void GetHelmholtzMatrix(ParMesh *pmesh, const int dir, HypreParMatrix *A)
@@ -165,7 +167,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
-   int order = 1;
+   int order = 2;
    bool static_cond = false;
    bool visualization = 1;
 #ifdef MFEM_USE_STRUMPACK
@@ -219,7 +221,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -413,7 +415,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
      {
-       const bool fullDirect = false;
+       const bool fullDirect = true;
 
 #ifdef USE_CSL
        const double beta1 = 1.0;
@@ -522,6 +524,37 @@ int main(int argc, char *argv[])
 	   delete strumpack;
 	   delete Arow;
 #else
+	   cout << "Solving with STRUMPACK" << endl;
+
+#ifdef TEST_MULTIPLE_SP
+	   const int Ns = 2;
+	   std::vector<Operator*> Arows(Ns);
+	   std::vector<STRUMPACKSolver*> strumpacks(Ns);
+
+	   //Operator * Arow = new STRUMPACKRowLocMatrix(A);
+
+	   for (int m=0; m<Ns; ++m)
+	     {
+	       Arows[m] = new STRUMPACKRowLocMatrix(A);
+
+	       //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+	       strumpacks[m] = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+	       strumpacks[m]->SetPrintFactorStatistics(true);
+	       strumpacks[m]->SetPrintSolveStatistics(false);
+	       strumpacks[m]->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+	       strumpacks[m]->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+	       // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+	       // strumpack->SetSymmetricPattern(true);
+	       strumpacks[m]->SetOperator(*Arows[m]);
+	       strumpacks[m]->SetFromCommandLine();
+	       //Solver * precond = strumpack;
+
+	       strumpacks[m]->Mult(B, X);
+       
+	       //delete strumpack;
+	       //delete Arow;
+	     }
+#else	   
 	   Operator * Arow = new STRUMPACKRowLocMatrix(A);
 
 	   STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
@@ -535,10 +568,13 @@ int main(int argc, char *argv[])
 	   strumpack->SetFromCommandLine();
 	   //Solver * precond = strumpack;
 
+	   cout << "Solving with strumpack one time" << endl;
+	   
 	   strumpack->Mult(B, X);
        
 	   delete strumpack;
 	   delete Arow;
+#endif
 #endif
 	 }
        else

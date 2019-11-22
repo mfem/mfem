@@ -56,6 +56,8 @@ int dim;
 
 #define NO_GLOBAL_FEM
 
+//#define TEST_GMG
+
 //#define SUBDOMAIN_MESH
 
 #ifdef AIRY_TEST
@@ -429,6 +431,103 @@ void VerifyMeshesAreEqual(Mesh *a, Mesh *b)
   MFEM_VERIFY(eq, "");
 }
 
+#ifdef TEST_GMG
+void TestGlobalGMG(ParMesh *pmesh, ParFiniteElementSpace *fespace, std::vector<HypreParMatrix*> const& P)
+{
+  ParGridFunction x(fespace);
+  const int sdim = 3;
+  VectorFunctionCoefficient E(sdim, test2_E_exact);
+   
+  x.ProjectCoefficient(E);
+
+  Array<int> ess_tdof_list;
+  Array<int> ess_bdr;
+  if (pmesh->bdr_attributes.Size())
+    {
+      //Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+    }
+
+  // 8. Set up the parallel linear form b(.) which corresponds to the
+  //    right-hand side of the FEM linear system, which in this case is
+  //    (f,phi_i) where f is given by the function f_exact and phi_i are the
+  //    basis functions in the finite element fespace.
+  //VectorFunctionCoefficient f(sdim, f_exact);
+  VectorFunctionCoefficient f(sdim, test2_RHS_exact);
+  ParLinearForm *b = new ParLinearForm(fespace);
+  b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+  b->Assemble();
+
+  // 9. Define the solution vector x as a parallel finite element grid function
+  //    corresponding to fespace. Initialize x by projecting the exact
+  //    solution. Note that only values from the boundary edges will be used
+  //    when eliminating the non-homogeneous boundary condition to modify the
+  //    r.h.s. vector b.
+  //VectorFunctionCoefficient E(sdim, E_exact);
+ 
+  // 10. Set up the parallel bilinear form corresponding to the EM diffusion
+  //     operator curl muinv curl + sigma I, by adding the curl-curl and the
+  //     mass domain integrators.
+  Coefficient *muinv = new ConstantCoefficient(1.0);
+  Coefficient *sigma = new ConstantCoefficient(SIGMAVAL);
+  //Coefficient *sigmaAbs = new ConstantCoefficient(fabs(SIGMAVAL));
+  ParBilinearForm *a = new ParBilinearForm(fespace);
+  a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+
+#ifdef AIRY_TEST
+  VectorFunctionCoefficient epsilon(3, test_Airy_epsilon);
+  a->AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
+#else
+  a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
+#endif
+   
+  //cout << myid << ": NBE " << pmesh->GetNBE() << endl;
+
+  // 11. Assemble the parallel bilinear form and the corresponding linear
+  //     system, applying any necessary transformations such as: parallel
+  //     assembly, eliminating boundary conditions, applying conforming
+  //     constraints for non-conforming AMR, static condensation, etc.
+  a->Assemble();
+  a->Finalize();
+
+  /*
+    Vector exactSol(fespace->GetTrueVSize());
+    x.GetTrueDofs(exactSol);
+  */
+   
+  HypreParMatrix A;
+  Vector B, X;
+  a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+  GMGSolver *gmg = new GMGSolver(&A, P, GMGSolver::CoarseSolver::STRUMPACK);
+  gmg->SetTheta(0.5);
+  gmg->SetSmootherType(HypreSmoother::Jacobi);  // Some options: Jacobi, l1Jacobi, l1GS, GS
+
+  GMRESSolver *gmres = new GMRESSolver(A.GetComm());
+
+  gmres->SetOperator(A);
+
+  gmres->SetRelTol(1e-12);
+  gmres->SetMaxIter(50);
+  gmres->SetPrintLevel(1);
+
+  gmres->SetPreconditioner(*gmg);
+  gmres->SetName("TestGlobalGMG");
+  gmres->iterative_mode = false;
+
+  cout << "TestGlobalGMG gmres" << endl;
+  
+  gmres->Mult(B, X);
+
+  cout << "TestGlobalGMG gmres done" << endl;
+  
+  delete gmres;
+  delete gmg;
+}
+#endif
+
 int main(int argc, char *argv[])
 {
    StopWatch chronoMain;
@@ -446,6 +545,8 @@ int main(int argc, char *argv[])
 #ifdef AIRY_TEST
    const char *mesh_file = "inline-tetHalf.mesh";
    //const char *mesh_file = "inline-tetHalf2.mesh";
+   //const char *mesh_file = "../data/inline-tet.mesh";
+   //const char *mesh_file = "inline-hexHalf.mesh";
 #else
    const char *mesh_file = "../data/inline-tet.mesh";
 #endif
@@ -515,7 +616,7 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
 	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
-	//(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+      //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
       //(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
@@ -744,7 +845,8 @@ int main(int argc, char *argv[])
      }
    
    delete mesh;
-   
+   //pmesh->ReorientTetMesh();
+
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    
 #ifdef SD_ITERATIVE_GMG
@@ -760,15 +862,25 @@ int main(int argc, char *argv[])
    std::vector<std::vector<HypreParMatrix*> > sdP(numSubdomains);
    std::vector<ParFiniteElementSpace*> sdfespace(numSubdomains);
 #endif
+
+#ifdef TEST_GMG
+   std::vector<HypreParMatrix*> gmgP;
+   ParFiniteElementSpace *gmgfespace = new ParFiniteElementSpace(pmesh, fec);
+#endif
    
    {
       int par_ref_levels = 2;
-      
+
+#ifdef TEST_GMG
+      gmgP.resize(par_ref_levels);
+#endif
+
 #ifdef SD_ITERATIVE_GMG
       for (int sd=0; sd<numSubdomains; ++sd)
 	{
 	  if (pmeshSDcoarse[sd] != NULL)
 	    {
+	      //pmeshSDcoarse[sd]->ReorientTetMesh();
 	      sdP[sd].resize(par_ref_levels);
 	      sdfespace[sd] = new ParFiniteElementSpace(pmeshSDcoarse[sd], fec);
 	    }
@@ -784,6 +896,8 @@ int main(int argc, char *argv[])
 	      {
 		const ParFiniteElementSpace cfespace(*(sdfespace[sd]));
 		pmeshSDcoarse[sd]->UniformRefinement();
+		//pmeshSDcoarse[sd]->ReorientTetMesh();
+
 		sdfespace[sd]->Update();
 		OperatorHandle Tr(Operator::Hypre_ParCSR);
 		sdfespace[sd]->GetTrueTransferOperator(cfespace, Tr);
@@ -792,12 +906,31 @@ int main(int argc, char *argv[])
 	      }
 	  }
 #endif
+
+#ifdef TEST_GMG
+	const ParFiniteElementSpace cgmgfespace(*gmgfespace);
+#endif
 	
 	pmesh->UniformRefinement();
+
+#ifdef TEST_GMG
+	gmgfespace->Update();
+	OperatorHandle Tr(Operator::Hypre_ParCSR);
+	gmgfespace->GetTrueTransferOperator(cgmgfespace, Tr);
+	Tr.SetOperatorOwner(false);
+	Tr.Get(gmgP[l]);
+#endif
       }
    }
    pmesh->ReorientTetMesh();
-   
+
+#ifdef TEST_GMG
+   TestGlobalGMG(pmesh, gmgfespace, gmgP);
+
+   return 0;
+#endif
+ 
+   /*
 #ifdef SD_ITERATIVE_GMG
    for (int sd=0; sd<numSubdomains; ++sd)
      {
@@ -807,6 +940,7 @@ int main(int argc, char *argv[])
 	 }
      }
 #endif
+   */
    
    double hmin = 0.0;   
    {

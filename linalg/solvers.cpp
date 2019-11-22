@@ -1683,6 +1683,155 @@ slbqp_done:
 
 #ifdef MFEM_USE_MPI
 
+GMGSolver::GMGSolver(HypreParMatrix * Af_,
+                     std::vector<HypreParMatrix *> P_, CoarseSolver cs)
+   : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
+
+   NumGrids = P.size();
+   S.resize(NumGrids);
+   A.resize(NumGrids + 1);
+
+   A[NumGrids] = Af;
+
+   for (int i = NumGrids ; i > 0; i--)
+   {
+      A[i - 1] = RAP(A[i], P[i - 1]);
+   }
+   // Set up coarse solve operator
+   switch(cs)
+   {
+      case PETSC:
+#ifndef MFEM_USE_PETSC
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with PETSC");
+#else
+         petsc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
+         // Convert to PetscParMatrix
+         petsc->SetOperator(PetscParMatrix(A[0], Operator::PETSC_MATAIJ));
+         invAc = petsc;
+#endif
+      break;   
+      case SUPERLU:
+#ifndef MFEM_USE_SUPERLU
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with SUPERLU");
+#else
+         SluA = new SuperLURowLocMatrix(*A[0]);
+         superlu = new SuperLUSolver(*SluA);
+         superlu->SetPrintStatistics(false);
+         superlu->SetSymmetricPattern(true);
+         superlu->SetColumnPermutation(superlu::PARMETIS);
+         // superlu->SetColumnPermutation(superlu::NATURAL); // Sometimes parmetis crashes for multiple processos. 
+         superlu->SetOperator(*SluA);
+         invAc = superlu;
+#endif
+      break;
+      case STRUMPACK:
+#ifndef MFEM_USE_STRUMPACK
+         MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with STRUMPACK");
+#else
+         StpA = new STRUMPACKRowLocMatrix(*A[0]);
+         strumpack = new STRUMPACKSolver(*StpA);
+         strumpack->SetPrintFactorStatistics(false);
+         strumpack->SetPrintSolveStatistics(false);
+         strumpack->SetOperator(*StpA);
+         strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+         strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+         strumpack->DisableMatching();
+         invAc = strumpack;
+#endif
+         break;
+   }   
+   // Check if direct solver is found 
+   if (!invAc) MFEM_ABORT("Direct Solver of coarse solve not found");
+   // construct smoothers
+   for (int i = NumGrids - 1; i >= 0 ; i--)
+   {
+      S[i] = new HypreSmoother;
+      S[i]->SetType(HypreSmoother::Jacobi);
+      S[i]->SetOperator(*A[i+1]);
+   }
+}
+
+void GMGSolver::SetSmootherType(const HypreSmoother::Type type) const
+{
+   for (int i = NumGrids - 1; i >= 0 ; i--)
+   {
+      S[i]->SetType(type);
+      S[i]->SetOperator(*A[i+1]);
+   }
+}
+
+void GMGSolver::Mult(const Vector &r, Vector &z) const
+{
+   // Residual vectors
+   std::vector<Vector> rv(NumGrids + 1);
+   // correction vectors
+   std::vector<Vector> zv(NumGrids + 1);
+   // allocation
+   for (int i = 0; i <= NumGrids ; i++)
+   {
+      int n = A[i]->Width();
+      rv[i].SetSize(n);
+      zv[i].SetSize(n);
+   }
+   // Initial residual
+   rv[NumGrids] = r;
+   // smooth and update residuals down to the coarsest level
+   for (int i = NumGrids; i > 0 ; i--)
+   {
+      // Pre smooth
+      S[i - 1]->Mult(rv[i], zv[i]); zv[i] *= theta;
+      // compute residual
+      Vector w(A[i]->Height());
+      A[i]->Mult(zv[i], w);
+      rv[i] -= w;
+      // Restrict
+      P[i - 1]->MultTranspose(rv[i], rv[i - 1]);
+   }
+
+   // Coarse grid Solve
+   invAc->Mult(rv[0], zv[0]);
+   //
+   for (int i = 1; i <= NumGrids ; i++)
+   {
+      // Prolong correction
+      Vector u(P[i - 1]->Height());
+      P[i - 1]->Mult(zv[i - 1], u);
+      // Update correction
+      zv[i] += u;
+      // Update residual
+      Vector v(A[i]->Height());
+      A[i]->Mult(u, v); rv[i] -= v;
+      // Post smooth
+      S[i - 1]->Mult(rv[i], v); v *= theta;
+      // Update correction
+      zv[i] += v;
+   }
+   z = zv[NumGrids];
+}
+
+GMGSolver::~GMGSolver() {
+   int n = S.size();
+   for (int i = n - 1; i >= 0 ; i--)
+   {
+      delete S[i];
+      delete A[i];
+   }
+   S.clear();
+   A.clear();
+#ifdef MFEM_USE_PETSC
+   // delete petsc;
+#endif   
+#ifdef MFEM_USE_STRUMPACK
+   delete StpA;
+   delete strumpack;
+#endif   
+#ifdef MFEM_USE_SUPERLU   
+   // delete SluA;
+   // delete superlu;
+#endif   
+   //delete invAc;
+}
+
 ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
                      std::vector<HypreParMatrix *> P_, CoarseSolver cs)
    : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {

@@ -2495,8 +2495,19 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	  {
 	    // Use the minimum global face DOF on the face, as a global identification for the face. The minimum resolves ambiguity resulting from orientations
 	    // depending on the process.
+	    /*
 	    MFEM_VERIFY(nf == 2, "For nf > 2, generalize the computation of the minimum.");
 	    const HYPRE_Int gtdof = std::min(fespaceGlobal->GetGlobalTDofNumber(pdofs[osf]), fespaceGlobal->GetGlobalTDofNumber(pdofs[osf+1]));
+	    */
+
+	    HYPRE_Int gtdof = fespaceGlobal->GetGlobalTDofNumber(pdofs[osf]);
+	    for (int j=1; j<nf; ++j)
+	      {
+		const HYPRE_Int gtdof_j = fespaceGlobal->GetGlobalTDofNumber(pdofs[osf+j]);
+		if (gtdof_j < gtdof)
+		  gtdof = gtdof_j;
+	      }
+	    
 	    pgdofToFSet[gtdof] = i;
 	  }
       }
@@ -2538,8 +2549,17 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	  fespaceGlobal->GetFaceDofs(pmeshFace, pdofs);
 
 	  // Use the minimum global face DOF on the face, as a global identification for the face.
+	  /*
 	  MFEM_VERIFY(nf == 2, "For nf > 2, generalize the computation of the minimum.");
 	  const HYPRE_Int gtdof = std::min(fespaceGlobal->GetGlobalTDofNumber(pdofs[osf]), fespaceGlobal->GetGlobalTDofNumber(pdofs[osf + 1]));
+	  */
+	  HYPRE_Int gtdof = fespaceGlobal->GetGlobalTDofNumber(pdofs[osf]);
+	  for (int j=1; j<nf; ++j)
+	    {
+	      const HYPRE_Int gtdof_j = fespaceGlobal->GetGlobalTDofNumber(pdofs[osf+j]);
+	      if (gtdof_j < gtdof)
+		gtdof = gtdof_j;
+	    }
 	  
 #ifdef SERIAL_INTERFACES
 	  ifgi[i] = gtdof;
@@ -2806,7 +2826,8 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	const FiniteElement *ife0 = ifespace->GetFE(0);
 	MFEM_VERIFY(fe0->GetOrder() == ife0->GetOrder(), "");
 
-	int intorder = (2*ife0->GetOrder()) + 1;
+	//int intorder = (2*ife0->GetOrder()) + 1;  // works for tets
+	int intorder = (3*ife0->GetOrder()) + 1;
 	const IntegrationRule *ir = &(IntRules.Get(ife0->GetGeomType(), intorder));
 
 	const int nip = ir->Size();
@@ -2978,11 +2999,12 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	    if (pElFaces[j] == pmeshFace)
 	      pmeshFaceOri = pOri[j];
 	  }
+
+	if (pElFaces.Size() == 4) // tetrahedral case
+	  MFEM_VERIFY(pmeshFaceOri == 0 || pmeshFaceOri == 5, "pmeshFaceOri");
       }
 
       //cout << "Interface face " << i << " has pmeshFaceOri " << pmeshFaceOri << endl;
-
-      MFEM_VERIFY(pmeshFaceOri == 0 || pmeshFaceOri == 5, "pmeshFaceOri");
       
       // Find the neighboring sdMesh element, which coincides with pmeshElem in pmesh.
       std::map<int, int>::const_iterator itse = pmeshElemToSDmesh.find(pmeshElem);
@@ -4096,6 +4118,86 @@ void BlockSubdomainPreconditioner::Mult(const Vector & x, Vector & y) const
       y[osIm + i] = ysdIm[i];
     }
 #endif
+}
+
+void TestGMG(HypreParMatrix * A, std::vector<HypreParMatrix*> P)
+{
+  GMGSolver *gmg = new GMGSolver(A, P, GMGSolver::CoarseSolver::STRUMPACK);
+  gmg->SetTheta(0.5);
+  gmg->SetSmootherType(HypreSmoother::Jacobi);  // Some options: Jacobi, l1Jacobi, l1GS, GS
+
+  const int n = A->Height();
+  
+  Vector x(n);
+  Vector y(n);
+
+  for (int i=0; i<n; ++i)
+    {
+      x[i] = i;
+    }
+
+  GMRESSolver *gmres = new GMRESSolver(A->GetComm());
+
+  gmres->SetOperator(*(A));
+
+  gmres->SetRelTol(1e-12);
+  gmres->SetMaxIter(50);
+  gmres->SetPrintLevel(1);
+
+  gmres->SetPreconditioner(*gmg);
+  gmres->SetName("TestGMG");
+  gmres->iterative_mode = false;
+
+  cout << "TestGMG gmres" << endl;
+  
+  gmres->Mult(x, y);
+
+  cout << "TestGMG gmres done" << endl;
+  
+  delete gmres;
+  delete gmg;
+}
+
+void TestCGMG(HypreParMatrix * Re, HypreParMatrix * Im, std::vector<HypreParMatrix*> P)
+{
+  (*Im) *= 0.0;
+  ComplexHypreParMatrix *AZ = new ComplexHypreParMatrix(Re, Im, false, false);
+  //ComplexHypreParMatrix *AZ = new ComplexHypreParMatrix(Re, NULL, false, false);
+  ComplexGMGSolver *cgmg = new ComplexGMGSolver(AZ, P, ComplexGMGSolver::CoarseSolver::STRUMPACK);
+  cgmg->SetTheta(0.5);
+  cgmg->SetSmootherType(HypreSmoother::Jacobi);  // Some options: Jacobi, l1Jacobi, l1GS, GS
+
+  const int n = AZ->Height();
+  
+  Vector x(n);
+  Vector y(n);
+
+  for (int i=0; i<n; ++i)
+    {
+      x[i] = i;
+    }
+
+  GMRESSolver *gmres = new GMRESSolver(Re->GetComm());
+
+  gmres->SetOperator(*(AZ));
+
+  gmres->SetRelTol(1e-12);
+  gmres->SetMaxIter(50);
+  gmres->SetPrintLevel(1);
+
+  gmres->SetPreconditioner(*cgmg);
+  gmres->SetName("TestCGMG");
+  gmres->iterative_mode = false;
+
+  cout << "TestCGMG gmres" << endl;
+  
+  gmres->Mult(x, y);
+
+  cout << "TestCGMG gmres done" << endl;
+  
+  delete gmres;
+  delete cgmg;
+  delete AZ;
 }
 
 DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int numInterfaces_, ParMesh *pmesh_,
@@ -5822,6 +5924,12 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		cgmg->SetTheta(0.5);
 		cgmg->SetSmootherType(HypreSmoother::Jacobi);  // Some options: Jacobi, l1Jacobi, l1GS, GS
 		sdNDinv[m] = cgmg;
+
+		if (m == 0)
+		  {
+		    TestGMG(AsdRe_HypreBlocks[m](0,0), sdP[m]);
+		    //TestCGMG(AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), sdP[m]);
+		  }
 	      }
 #else
 	      {

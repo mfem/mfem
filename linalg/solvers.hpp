@@ -345,6 +345,44 @@ public:
 
 
 #ifdef MFEM_USE_MPI
+
+class GMGSolver : public Solver {
+private:
+   /// The linear system matrix
+   HypreParMatrix * Af;
+   std::vector<HypreParMatrix *> A;
+   std::vector<HypreParMatrix *> P;
+   std::vector<HypreSmoother  *> S;
+   int NumGrids;
+//   
+#ifdef MFEM_USE_PETSC
+   PetscLinearSolver *petsc = nullptr;
+#endif   
+#ifdef MFEM_USE_STRUMPACK
+   STRUMPACKRowLocMatrix *StpA = nullptr;
+   STRUMPACKSolver *strumpack = nullptr;
+#endif   
+#ifdef MFEM_USE_SUPERLU   
+   SuperLURowLocMatrix *SluA = nullptr;
+   SuperLUSolver *superlu = nullptr;
+#endif   
+   Solver * invAc=nullptr;
+   double theta = 1.0;
+public:
+   enum CoarseSolver { PETSC, SUPERLU, STRUMPACK};
+
+   GMGSolver(HypreParMatrix * Af_, std::vector<HypreParMatrix *> P_, CoarseSolver);
+
+   virtual void SetOperator(const Operator &op) {}
+
+   virtual void SetSmootherType(const HypreSmoother::Type type) const;
+
+   virtual void SetTheta(const double a) {theta = a;}
+
+   virtual void Mult(const Vector &r, Vector &z) const;
+   virtual ~GMGSolver();
+};
+
 class ComplexGMGSolver : public Solver {
 private:
    /// The linear system matrix
