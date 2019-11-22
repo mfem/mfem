@@ -9744,7 +9744,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRu
    const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(ir);
    // For now, we are not using tensor product evaluation (not implemented)
    // qi->DisableTensorProducts();
-   qi->Mult(Enodes, eval_flags, X, J, detJ);
+   qi->Mult(Fnodes, eval_flags, X, J, detJ);
 }
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,

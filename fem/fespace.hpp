@@ -78,6 +78,7 @@ class NURBSExtension;
 class BilinearFormIntegrator;
 class QuadratureSpace;
 class QuadratureInterpolator;
+class FaceQuadratureInterpolator;
 
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the

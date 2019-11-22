@@ -2238,7 +2238,7 @@ protected:
    Vector pa_data;
    const DofToQuad *maps;             ///< Not owned
    const FaceGeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D;
+   int dim, nf, nq, dofs1D, quad1D;
 
 private:
    Vector shape1, shape2;
@@ -2257,6 +2257,13 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe);
 };
 
 /** Integrator for the DG form:
