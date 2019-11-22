@@ -30,6 +30,7 @@ namespace mfem
 // Data type mesh
 
 class GeometricFactors;
+class FaceGeometricFactors;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
@@ -692,6 +693,11 @@ public:
        integration rule. */
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
                                                const int flags);
+
+  /** @brief Return the mesh geometric factors for the faces corresponding
+       to the given integration rule. */
+   const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
+                                                       const int flags);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
