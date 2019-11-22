@@ -301,9 +301,6 @@ public:
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
 
-   // TODO: add documentation
-   void PrintTrace() const;
-
    /// Set random values in the vector.
    void Randomize(int seed = 0);
    /// Returns the l2 norm of the vector.

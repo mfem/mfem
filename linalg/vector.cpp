@@ -687,12 +687,6 @@ void Vector::Print_HYPRE(std::ostream &out) const
    out.flags(old_fmt);
 }
 
-void Vector::PrintTrace() const
-{
-   Print(mfem::trc, 1);
-   mfem::trc.flush();
-}
-
 void Vector::Randomize(int seed)
 {
    // static unsigned int seed = time(0);
