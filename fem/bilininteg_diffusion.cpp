@@ -1053,40 +1053,7 @@ static void PADiffusionApply(const int dim,
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-
-   if (Device::Allows(Backend::RAJA_CUDA))
-   {
-      if (dim == 2)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x22: return PADiffusionApply2D<2,2>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x33: return PADiffusionApply2D<3,3>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x44: return PADiffusionApply2D<4,4>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x55: return PADiffusionApply2D<5,5>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x66: return PADiffusionApply2D<6,6>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x77: return PADiffusionApply2D<7,7>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x88: return PADiffusionApply2D<8,8>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x99: return PADiffusionApply2D<9,9>(NE,B,G,Bt,Gt,op,x,y);
-            default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-         }
-      }
-      if (dim == 3)
-      {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x23: return PADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x34: return PADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x45: return PADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x56: return PADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x67: return PADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x78: return PADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
-            case 0x89: return PADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
-            default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-         }
-      }
-   }
-   else if (dim == 2)
+   if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {

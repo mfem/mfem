@@ -84,27 +84,75 @@ void OmpWrap(const int N, HBODY &&h_body)
 
 
 /// RAJA Cuda backend
-template <int BLOCKS, typename DBODY>
-void RajaCudaWrap(const int N, DBODY &&d_body)
-{
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-   RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N),d_body);
-#else
-   MFEM_ABORT("RAJA::Cuda requested but RAJA::Cuda is not enabled!");
-#endif
+
+using RAJA::statement::Segs;
+
+template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
+void RajaCudaWrap1D(const int N, DBODY &&d_body)
+{
+   //true denotes asynchronous kernel
+   RAJA::forall<RAJA::cuda_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
 }
+
+template <typename DBODY>
+void RajaCudaWrap2D(const int N, DBODY &&d_body,
+                    const int X, const int Y, const int BZ)
+{
+   MFEM_VERIFY(N>0, "");
+   MFEM_VERIFY(BZ>0, "");
+   const int G = (N+BZ-1)/BZ;
+   RAJA::kernel<RAJA::KernelPolicy<
+   RAJA::statement::CudaKernelAsync<
+   RAJA::statement::For<0, RAJA::cuda_block_x_direct,
+        RAJA::statement::For<1, RAJA::cuda_thread_x_direct,
+        RAJA::statement::For<2, RAJA::cuda_thread_y_direct,
+        RAJA::statement::For<3, RAJA::cuda_thread_z_direct,
+        RAJA::statement::Lambda<0, Segs<0>>>>>>>>>
+        (RAJA::make_tuple(RAJA::RangeSegment(0,G), RAJA::RangeSegment(0,X),
+                          RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,BZ)),
+         [=] RAJA_DEVICE (const int n)
+   {
+      const int k = n*BZ + threadIdx.z;
+      if (k >= N) { return; }
+      d_body(k);
+   });
+   MFEM_GPU_CHECK(cudaGetLastError());
+}
+
+template <typename DBODY>
+void RajaCudaWrap3D(const int N, DBODY &&d_body,
+                    const int X, const int Y, const int Z)
+{
+   MFEM_VERIFY(N>0, "");
+   RAJA::kernel<RAJA::KernelPolicy<
+   RAJA::statement::CudaKernelAsync<
+   RAJA::statement::For<0, RAJA::cuda_block_x_direct,
+        RAJA::statement::For<1, RAJA::cuda_thread_x_direct,
+        RAJA::statement::For<2, RAJA::cuda_thread_y_direct,
+        RAJA::statement::For<3, RAJA::cuda_thread_z_direct,
+        RAJA::statement::Lambda<0, Segs<0>>>>>>>>>
+        (RAJA::make_tuple(RAJA::RangeSegment(0,N), RAJA::RangeSegment(0,X),
+                          RAJA::RangeSegment(0,Y), RAJA::RangeSegment(0,Z)),
+   [=] RAJA_DEVICE (const int k) { d_body(k); });
+   MFEM_GPU_CHECK(cudaGetLastError());
+}
+
+#endif
 
 
 /// RAJA OpenMP backend
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+
+using RAJA::statement::Segs;
+
 template <typename HBODY>
 void RajaOmpWrap(const int N, HBODY &&h_body)
 {
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0,N), h_body);
-#else
-   MFEM_ABORT("RAJA::OpenMP requested but RAJA::OpenMP is not enabled!");
-#endif
 }
+
+#endif
 
 
 /// RAJA sequential loop backend
@@ -160,6 +208,7 @@ void CuWrap2D(const int N, DBODY &&d_body,
               const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
+   MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
    CuKernel2D<<<GRID,BLCK>>>(N,d_body,BZ);
@@ -251,8 +300,14 @@ inline void ForallWrap(const bool use_dev, const int N,
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    // Handle all allowed CUDA backends except Backend::CUDA
-   if (Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA))
-   { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+   if (DIM == 1 && Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA))
+   { return RajaCudaWrap1D(N, d_body); }
+
+   if (DIM == 2 && Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA))
+   { return RajaCudaWrap2D(N, d_body, X, Y, Z); }
+
+   if (DIM == 3 && Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA))
+   { return RajaCudaWrap3D(N, d_body, X, Y, Z); }
 #endif
 
 #ifdef MFEM_USE_CUDA

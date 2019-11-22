@@ -488,6 +488,7 @@ The specific libraries and their options are:
 - SUNDIALS (optional), used when MFEM_USE_SUNDIALS = YES.
   Beginning with MFEM v3.3, SUNDIALS v2.7.0 is supported.
   Beginning with MFEM v3.3.2, SUNDIALS v3.0.0 is also supported.
+  Beginning with MFEM v4.1, only SUNDIALS v5.0.0+ is supported.
   If MFEM_USE_MPI is enabled, we expect that SUNDIALS is built with support for
   both MPI and hypre.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
@@ -570,6 +571,7 @@ The specific libraries and their options are:
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
 
 - RAJA, used when MFEM_USE_RAJA = YES.
+  Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
 

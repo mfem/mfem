@@ -386,11 +386,6 @@ protected:
       return FaceIsInterior(FaceNo) || (faces_info[FaceNo].Elem2Inf >= 0);
    }
 
-   // shift cyclically 3 integers left-to-right
-   inline static void ShiftL2R(int &, int &, int &);
-   // shift cyclically 3 integers so that the smallest is first
-   inline static void Rotate3(int &, int &, int &);
-
    void FreeElement(Element *E);
 
    void GenerateFaces();
@@ -1014,7 +1009,7 @@ public:
    // Nodes are only active for higher order meshes, and share locations with
    // the vertices, plus all the higher- order control points within the element
    // and along the edges and on the faces.
-   void GetNode(int i, double *coord);
+   void GetNode(int i, double *coord) const;
    void SetNode(int i, const double *coord);
 
    // Node operations for curved mesh.
@@ -1122,6 +1117,7 @@ public:
 
    ///@{ @name NURBS mesh refinement methods
    void KnotInsert(Array<KnotVector *> &kv);
+   void KnotInsert(Array<Vector *> &kv);
    /* For each knot vector:
          new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
@@ -1270,6 +1266,11 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+#ifdef MFEM_DEBUG
+   /// Output an NCMesh-compatible debug dump.
+   void DebugDump(std::ostream &out) const;
+#endif
 };
 
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
@@ -1358,33 +1359,11 @@ public:
 };
 
 
-// inline functions
-inline void Mesh::ShiftL2R(int &a, int &b, int &c)
+// shift cyclically 3 integers left-to-right
+inline void ShiftRight(int &a, int &b, int &c)
 {
    int t = a;
    a = c;  c = b;  b = t;
-}
-
-inline void Mesh::Rotate3(int &a, int &b, int &c)
-{
-   if (a < b)
-   {
-      if (a > c)
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
-   else
-   {
-      if (b < c)
-      {
-         ShiftL2R(c, b, a);
-      }
-      else
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
 }
 
 }
