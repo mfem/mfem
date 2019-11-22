@@ -205,6 +205,8 @@ void ParFiniteElementSpace::Construct()
       // to overlap its communication with processing between this constructor
       // and the point where the P matrix is actually needed.
    }
+
+   ConstructDoFTrans();
 }
 
 void ParFiniteElementSpace::PrintPartitionStats()
