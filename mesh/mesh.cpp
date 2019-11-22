@@ -25,6 +25,7 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <set>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -7073,6 +7074,59 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    if (!derefs.Size()) { return false; }
 
    ncmesh->Derefine(derefs);
+
+   Mesh* mesh2 = new Mesh(*ncmesh);
+   ncmesh->OnMeshUpdated(mesh2);
+
+   Swap(*mesh2, false);
+   delete mesh2;
+
+   GenerateNCFaceInfo();
+
+   last_operation = Mesh::DEREFINE;
+   sequence++;
+
+   if (Nodes) // update/interpolate mesh curvature
+   {
+      Nodes->FESpace()->Update();
+      Nodes->Update();
+   }
+
+   return true;
+}
+
+bool Mesh::GeneralDerefinement(Array<int>& derefs)
+{
+   MFEM_VERIFY(ncmesh, "Only supported for non-conforming meshes.");
+   MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
+               "Project the NURBS to Nodes first.");
+
+   DeleteLazyTables();
+
+   if (!derefs.Size()) { return false; }
+
+   const Table &dt = ncmesh->GetDerefinementTable();
+
+   // map elements to rows in table
+   Table dtT;
+   Transpose(dt, dtT);
+
+   // Find the set of rows in the refinement table which correspond to
+   // the specified elements to derefine
+   std::set<int> set_rows;
+   for (int i = 0; i < derefs.Size(); i++) {
+      int el = derefs[i];
+      const int *row = dtT.GetRow(el);
+      set_rows.insert(row[0]);
+   }
+
+   Array<int> deref_rows;
+   std::set<int>::iterator it;
+   for (it = set_rows.begin(); it != set_rows.end(); ++it) {
+      deref_rows.Append(*it);
+   }
+   
+   ncmesh->Derefine(deref_rows);
 
    Mesh* mesh2 = new Mesh(*ncmesh);
    ncmesh->OnMeshUpdated(mesh2);

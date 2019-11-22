@@ -1103,6 +1103,9 @@ public:
    bool RefineByError(const Vector &elem_error, double threshold,
                       int nonconforming = -1, int nc_limit = 0);
 
+   /** Derefine specified elements (and associated children as required) */
+   bool GeneralDerefinement(Array<int> &el);
+
    /** Derefine the mesh based on an error measure associated with each
        element. A derefinement is performed if the sum of errors of its fine
        elements is smaller than 'threshold'. If 'nc_limit' > 0, derefinements
