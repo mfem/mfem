@@ -718,7 +718,7 @@ public:
 
    DenseMatrix &operator()(int k)
    {
-      MFEM_ASSERT(k >= 0 && k < SizeK(), "k=" << k);
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       Mk.data = GetData(k);
       return Mk;
    }
