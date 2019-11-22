@@ -11,9 +11,37 @@
 Version 4.0.1 (development)
 ===========================
 
-- Added support for non-conforming AMR on wedges and tetrahedra, including
-  coarsening and parallel load balancing. Anisotropic wedge refinement is only
+Improved GPU support
+--------------------
+- Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
+  language that can run on both AMD and NVIDIA hardware. With this change, the
+  list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",
+  "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+
+- Improved RAJA backend.
+
+- Improved multi-GPU MPI communication.
+
+Miscellaneous
+-------------
+- Improved element numbering after uniform mesh refinement.
+
+Discretization improvements
+---------------------------
+- Added support for non-conforming AMR on prisms and tetrahedra, including
+  coarsening and parallel load balancing. Anisotropic prism refinement is only
   available in the serial version at the moment.
+
+Miscellaneous
+-------------
+- Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This
+  necessitated a complete rework of the interface and requires changes at
+  the application level.  Example usage of this new interface can be found
+  in the examples/sundials directory.
+
+- Added support for creating refined versions of periodic meshes, making use of
+  the new L2ElementRestriction class. This class also allows for computing
+  geometric factors on periodic meshes using partial assembly.
 
 
 Version 4.0, released on May 24, 2019
@@ -171,6 +199,9 @@ Miscellaneous
 - Altered the way FGMRES counts its iterations so that it matches GMRES.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+- Construct abstract parallel rectangular truedof-to-truedof operators via
+  Operator::FormDiscreteOperator().
 
 API changes
 -----------

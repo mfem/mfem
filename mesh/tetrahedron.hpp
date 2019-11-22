@@ -52,7 +52,8 @@ public:
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
    /// Initialize the vertex indices and the attribute of a Tetrahedron.
-   void Init(int ind1, int ind2, int ind3, int ind4, int attr = 1);
+   void Init(int ind1, int ind2, int ind3, int ind4, int attr = 1,
+             int ref_flag = 0);
 
    /// Return element's type.
    virtual Type GetType() const { return Element::TETRAHEDRON; }

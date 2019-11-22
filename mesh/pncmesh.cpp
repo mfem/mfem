@@ -1379,6 +1379,12 @@ void ParNCMesh::Prune()
 
 void ParNCMesh::Refine(const Array<Refinement> &refinements)
 {
+   if (NRanks == 1)
+   {
+      NCMesh::Refine(refinements);
+      return;
+   }
+
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
@@ -1777,7 +1783,7 @@ void ParNCMesh::CheckDerefinementNCLevel(const Table &deref_table,
 
 //// Rebalance /////////////////////////////////////////////////////////////////
 
-void ParNCMesh::Rebalance()
+void ParNCMesh::Rebalance(const Array<int> *custom_partition)
 {
    send_rebalance_dofs.clear();
    recv_rebalance_dofs.clear();
@@ -1785,30 +1791,46 @@ void ParNCMesh::Rebalance()
    Array<int> old_elements;
    leaf_elements.GetSubArray(0, NElements, old_elements);
 
-   // figure out new assignments for Element::rank
-   long local_elems = NElements, total_elems = 0;
-   MPI_Allreduce(&local_elems, &total_elems, 1, MPI_LONG, MPI_SUM, MyComm);
-
-   long first_elem_global = 0;
-   MPI_Scan(&local_elems, &first_elem_global, 1, MPI_LONG, MPI_SUM, MyComm);
-   first_elem_global -= local_elems;
-
-   Array<int> new_ranks(leaf_elements.Size());
-   new_ranks = -1;
-
-   for (int i = 0, j = 0; i < leaf_elements.Size(); i++)
+   if (!custom_partition) // SFC based partitioning
    {
-      if (elements[leaf_elements[i]].rank == MyRank)
+      Array<int> new_ranks(leaf_elements.Size());
+      new_ranks = -1;
+
+      // figure out new assignments for Element::rank
+      long local_elems = NElements, total_elems = 0;
+      MPI_Allreduce(&local_elems, &total_elems, 1, MPI_LONG, MPI_SUM, MyComm);
+
+      long first_elem_global = 0;
+      MPI_Scan(&local_elems, &first_elem_global, 1, MPI_LONG, MPI_SUM, MyComm);
+      first_elem_global -= local_elems;
+
+      for (int i = 0, j = 0; i < leaf_elements.Size(); i++)
       {
-         new_ranks[i] = Partition(first_elem_global + (j++), total_elems);
+         if (elements[leaf_elements[i]].rank == MyRank)
+         {
+            new_ranks[i] = Partition(first_elem_global + (j++), total_elems);
+         }
       }
+
+      int target_elements = PartitionFirstIndex(MyRank+1, total_elems)
+                            - PartitionFirstIndex(MyRank, total_elems);
+
+      // assign the new ranks and send elements (plus ghosts) to new owners
+      RedistributeElements(new_ranks, target_elements, true);
    }
+   else // whatever partitioning the user has passed
+   {
+      MFEM_VERIFY(custom_partition->Size() == NElements,
+                  "Size of the partition array must match the number "
+                  "of local mesh elements (ParMesh::GetNE()).");
 
-   int target_elements = PartitionFirstIndex(MyRank+1, total_elems)
-                         - PartitionFirstIndex(MyRank, total_elems);
+      Array<int> new_ranks;
+      custom_partition->Copy(new_ranks);
 
-   // assign the new ranks and send elements (plus ghosts) to new owners
-   RedistributeElements(new_ranks, target_elements, true);
+      new_ranks.SetSize(leaf_elements.Size(), -1); // make room for ghosts
+
+      RedistributeElements(new_ranks, -1, true);
+   }
 
    // set up the old index array
    old_index_or_rank.SetSize(NElements);
@@ -1826,6 +1848,8 @@ void ParNCMesh::Rebalance()
 void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
                                      bool record_comm)
 {
+   bool sfc = (target_elements >= 0);
+
    UpdateLayers();
 
    // *** STEP 1: communicate new rank assignments for the ghost layer ***
@@ -1914,6 +1938,8 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
       el.rank = new_ranks[i];
    }
 
+   int nsent = 0, nrecv = 0; // for debug check
+
    RebalanceMessage::Map send_elems;
    {
       // sort elements we own by the new rank
@@ -1964,7 +1990,16 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
                // disrupting the termination mechanism in Step 4.
             }
 
-            msg.Isend(rank, MyComm);
+            if (sfc)
+            {
+               msg.Isend(rank, MyComm);
+            }
+            else
+            {
+               // custom partitioning needs synchronous sends
+               msg.Issend(rank, MyComm);
+            }
+            nsent++;
 
             // also: record what elements we sent (excluding the ghosts)
             // so that SendRebalanceDofs can later send data for them
@@ -1980,41 +2015,108 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
    // *** STEP 3: receive elements from others ***
 
-   /* We don't know from whom we're going to receive so we need to probe.
-      Fortunately, we do know how many elements we're going to own eventually
-      so the termination condition is easy. */
-
    RebalanceMessage msg;
    msg.SetNCMesh(this);
 
-   while (received_elements < target_elements)
+   if (sfc)
    {
-      int rank, size;
-      RebalanceMessage::Probe(rank, size, MyComm);
+      /* We don't know from whom we're going to receive, so we need to probe.
+         However, for the default SFC partitioning, we do know how many elements
+         we're going to own eventually, so the termination condition is easy. */
 
-      // receive message; note: elements are created as the message is decoded
-      msg.Recv(rank, size, MyComm);
-
-      for (int i = 0; i < msg.Size(); i++)
+      while (received_elements < target_elements)
       {
-         int elem_rank = msg.values[i];
-         elements[msg.elements[i]].rank = elem_rank;
+         int rank, size;
+         RebalanceMessage::Probe(rank, size, MyComm);
 
-         if (elem_rank == MyRank) { received_elements++; }
+         // receive message; note: elements are created as the message is decoded
+         msg.Recv(rank, size, MyComm);
+         nrecv++;
+
+         for (int i = 0; i < msg.Size(); i++)
+         {
+            int elem_rank = msg.values[i];
+            elements[msg.elements[i]].rank = elem_rank;
+
+            if (elem_rank == MyRank) { received_elements++; }
+         }
+
+         // save the ranks we received from, for later use in RecvRebalanceDofs
+         if (record_comm)
+         {
+            recv_rebalance_dofs[rank].SetNCMesh(this);
+         }
       }
 
-      // save the ranks we received from, for later use in RecvRebalanceDofs
-      if (record_comm)
+      Update();
+
+      RebalanceMessage::WaitAllSent(send_elems);
+   }
+   else
+   {
+      /* The case (target_elements < 0) is used for custom partitioning.
+         Here we need to employ the "non-blocking consensus" algorithm
+         (https://scorec.rpi.edu/REPORTS/2015-9.pdf) to determine when the
+         element exchange is finished. The algorithm uses a non-blocking
+         barrier. */
+
+      MPI_Request barrier = MPI_REQUEST_NULL;
+      int done = 0;
+
+      while (!done)
       {
-         recv_rebalance_dofs[rank].SetNCMesh(this);
+         int rank, size;
+         while (RebalanceMessage::IProbe(rank, size, MyComm))
+         {
+            // receive message; note: elements are created as the msg is decoded
+            msg.Recv(rank, size, MyComm);
+            nrecv++;
+
+            for (int i = 0; i < msg.Size(); i++)
+            {
+               elements[msg.elements[i]].rank = msg.values[i];
+            }
+
+            // save the ranks we received from, for later use in RecvRebalanceDofs
+            if (record_comm)
+            {
+               recv_rebalance_dofs[rank].SetNCMesh(this);
+            }
+         }
+
+         if (barrier != MPI_REQUEST_NULL)
+         {
+            MPI_Test(&barrier, &done, MPI_STATUS_IGNORE);
+         }
+         else
+         {
+            if (RebalanceMessage::TestAllSent(send_elems))
+            {
+               int err = MPI_Ibarrier(MyComm, &barrier);
+
+               MFEM_VERIFY(err == MPI_SUCCESS, "");
+               MFEM_VERIFY(barrier != MPI_REQUEST_NULL, "");
+            }
+         }
       }
+
+      Update();
    }
 
-   Update();
-
-   // make sure we can delete all send buffers
    NeighborElementRankMessage::WaitAllSent(send_ghost_ranks);
-   NeighborElementRankMessage::WaitAllSent(send_elems);
+
+#ifdef MFEM_DEBUG
+   int glob_sent, glob_recv;
+   MPI_Reduce(&nsent, &glob_sent, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&nrecv, &glob_recv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+
+   if (MyRank == 0)
+   {
+      MFEM_ASSERT(glob_sent == glob_recv,
+                  "(glob_sent, glob_recv) = ("
+                  << glob_sent << ", " << glob_recv << ")");
+   }
+#endif
 }
 
 
