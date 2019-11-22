@@ -129,6 +129,8 @@ protected:
 
    /// The element restriction operators, see GetElementRestriction().
    mutable OperatorHandle L2E_nat, L2E_lex;
+   /// The face restriction operators, see GetFaceRestriction().
+   mutable OperatorHandle L2F_nat, L2F_lex;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
 
@@ -1082,6 +1084,10 @@ protected:
 
    mutable bool use_tensor_products;
 
+   static const int MAX_NQ1D = 10;
+   static const int MAX_ND1D = 10;
+   static const int MAX_VDIM1D = 1;
+
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
    static const int MAX_VDIM2D = 2;
@@ -1124,11 +1130,11 @@ public:
        form a matrix at each quadrature point (i.e. the associated
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det. */
-   void Mult(const Vector &e_vec, unsigned eval_flags,
+   void Mult(const Vector &e_vec, unsigned eval_flags, const Array<double> &W,
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
-   void MultTranspose(unsigned eval_flags, const Vector &q_val,
+   void MultTranspose(unsigned eval_flags, const Array<double> &W, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
 
    // Compute kernels follow (cannot be private or protected with nvcc)
@@ -1139,6 +1145,7 @@ public:
                       const int vdim,
                       const DofToQuad &maps,
                       const Vector &e_vec,
+                      const Array<double> &W,
                       Vector &q_val,
                       Vector &q_der,
                       Vector &q_det,
@@ -1150,6 +1157,7 @@ public:
                       const int vdim,
                       const DofToQuad &maps,
                       const Vector &e_vec,
+                      const Array<double> &W,
                       Vector &q_val,
                       Vector &q_der,
                       Vector &q_det,

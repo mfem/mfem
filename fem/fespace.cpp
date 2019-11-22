@@ -855,6 +855,47 @@ const Operator *FiniteElementSpace::GetElementRestriction(
    return L2E_nat.Ptr();
 }
 
+const Operator *FiniteElementSpace::GetFaceRestriction(
+   ElementDofOrdering e_ordering) const
+{
+   // Check if we have a discontinuous space using the FE collection:
+   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
+   if (dg_space)
+   {
+      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+      {
+         if (L2F_lex.Ptr() == NULL)
+         {
+            L2F_lex.Reset(new L2FaceRestriction(*this, e_ordering));
+         }
+         return L2F_lex.Ptr();
+      }
+      // e_ordering == ElementDofOrdering::NATIVE
+      if (L2F_nat.Ptr() == NULL)
+      {
+         L2F_nat.Reset(new L2FaceRestriction(*this, e_ordering));
+      }
+      return L2F_nat.Ptr();
+   }
+   else
+   {
+      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+      {
+         if (L2F_lex.Ptr() == NULL)
+         {
+            L2F_lex.Reset(new H1FaceRestriction(*this, e_ordering));
+         }
+         return L2F_lex.Ptr();
+      }
+      // e_ordering == ElementDofOrdering::NATIVE
+      if (L2F_nat.Ptr() == NULL)
+      {
+         L2F_nat.Reset(new H1FaceRestriction(*this, e_ordering));
+      }
+      return L2F_nat.Ptr();
+   }
+}
+
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const IntegrationRule &ir) const
 {
@@ -3096,9 +3137,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      indices2(nf*dof)
 {
    //if fespace == L2
-   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
-   if(!dg_space)
-      mfem_error("The L2FaceRestriction has to be used on a DG space");
    // Assuming all finite elements are the same.
    height = vdim*nf*dof;
    width = fes.GetVSize();
@@ -3196,26 +3234,27 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
 
 void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
-   Assumes all elements have the same number of dofs
+   // Assumes all elements have the same number of dofs
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   auto d_indices = indices.Read();
-   auto d_indices = indices.Read();
-   auto d_x = Reshape(x.Read(), nd, vd, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, 2, t?ndofs:vd);
+   auto d_indices1 = indices1.Read();
+   auto d_indices2 = indices2.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, nfdofs,
    {
       const int idx1 = d_indices1[i];
       const int idx2 = d_indices2[i];//TODO Add permutation
       for (int c = 0; c < vd; ++c)
       {
-         d_x(t?c:idx1,t:idx1:c) += d_y(i % nd, c, 0, i / nd);
-         d_x(t?c:idx2,t:idx2:c) += d_y(i % nd, c, 1, i / nd);
+         d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, 0, i / nd);
+         d_y(t?c:idx2,t?idx2:c) += d_x(i % nd, c, 1, i / nd);
       }
    });
 }
 
+#if 0
 static int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind,
                               const int quads, Tensor<1,int>& ind_f)
 {
@@ -3472,6 +3511,7 @@ static int GetFaceQuadIndex3D(const int face_id, const int orientation, const in
    }
    return k1 + quads*k2;
 }
+#endif
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir)
@@ -3858,12 +3898,13 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace 
                "Only scalar finite elements are supported");
 }
 
-template<const int T_VDIM, const int T_ND, const int T_NQ>
+template<const int T_VDIM, const int T_ND1D, const int T_NQ1D>
 void FaceQuadratureInterpolator::Eval2D(
    const int NF,
    const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
+   const Array<double> &W,
    Vector &q_val,
    // Vector &q_der,
    Vector &q_det,
@@ -3873,58 +3914,61 @@ void FaceQuadratureInterpolator::Eval2D(
    //TODO check tensor, and Gauss-Lobato
    const int nd = maps.ndof;//TODO ndof per face
    const int nq = maps.nqpt;//TODO nqpt per face
-   const int ND = T_ND ? T_ND : nd;
-   const int NQ = T_NQ ? T_NQ : nq;
+   const int ND1D = T_ND1D ? T_ND1D : nd;
+   const int NQ1D = T_NQ1D ? T_NQ1D : nq;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
-   MFEM_VERIFY(ND <= MAX_ND2D, "");
-   MFEM_VERIFY(NQ <= MAX_NQ2D, "");
+   MFEM_VERIFY(ND1D <= MAX_ND1D, "");
+   MFEM_VERIFY(NQ1D <= MAX_NQ1D, "");
    MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
-   auto B = Reshape(maps.B.Read(), NQ, ND);//TODO B1d
-   auto G = Reshape(maps.G.Read(), NQ, ND);//TODO G1d
-   auto F = Reshape(e_vec.Read(), ND, VDIM, NF);
-   auto val = Reshape(q_val.Write(), NQ, VDIM, NF);
-   // auto der = Reshape(q_der.Write(), NQ, VDIM, NF);//Only tangential der
-   auto det = Reshape(q_det.Write(), NQ, NF);
-   auto n   = Reshape(q_nor.Write(), NQ, 2, NF);
+   auto B = Reshape(maps.B.Read(), NQ1D, ND1D);//TODO B1d
+   auto G = Reshape(maps.G.Read(), NQ1D, ND1D);//TODO G1d
+   auto F = Reshape(e_vec.Read(), ND1D, VDIM, NF);
+   auto w = W.Read();
+   auto val = Reshape(q_val.Write(), NQ1D, VDIM, NF);
+   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF);//Only tangential der
+   auto det = Reshape(q_det.Write(), NQ1D, NF);
+   auto n   = Reshape(q_nor.Write(), NQ1D, 2, NF);
    //if Gauss-Lobatto
    MFEM_FORALL(f, NF,
    {
-      const int ND = T_ND ? T_ND : nd;
-      const int NQ = T_NQ ? T_NQ : nq;
+      const int ND1D = T_ND1D ? T_ND1D : nd;
+      const int NQ1D = T_NQ1D ? T_NQ1D : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int max_ND = T_ND ? T_ND : MAX_ND2D;
+      constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
-      double s_F[max_VDIM*max_ND];
-      for (int d = 0; d < ND; d++)
+      double r_F[max_ND1D][max_VDIM];
+      for (int d = 0; d < ND1D; d++)
       {
          for (int c = 0; c < VDIM; c++)
          {
-            s_F[c+d*VDIM] = F(d,c,f);
+            r_F[d][c] = F(d,c,f);
          }
       }
-      for (int q = 0; q < NQ; ++q)
+      for (int q = 0; q < NQ1D; ++q)
       {
          if (eval_flags & VALUES)
          {
             double ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
-            for (int d = 0; d < ND; ++d)
+            for (int d = 0; d < ND1D; ++d)
             {
                const double b = B(q,d);
-               for (int c = 0; c < VDIM; c++) { ed[c] += b*s_E[c+d*VDIM]; }
+               for (int c = 0; c < VDIM; c++) { ed[c] += b*r_F[d][c]; }
             }
-            for (int c = 0; c < VDIM; c++) { val(q,c,e) = ed[c]; }
+            for (int c = 0; c < VDIM; c++) { val(q,c,f) = ed[c]; }
          }
-         if ((eval_flags & DERIVATIVES) || (eval_flags & DETERMINANTS) || (eval_flags & NORMALS))
+         if ((eval_flags & DERIVATIVES)
+            || (eval_flags & DETERMINANTS)
+            || (eval_flags & NORMALS))
          {
-            double D[VDIM];
+            double D[max_VDIM];
             for (int i = 0; i < VDIM; i++) { D[i] = 0.0; }
-            for (int d = 0; d < ND; ++d)
+            for (int d = 0; d < ND1D; ++d)
             {
-               const double wx = G(q,d);
+               const double w = G(q,d);
                for (int c = 0; c < VDIM; c++)
                {
-                  double s_e = s_E[c+d*VDIM];
+                  double s_e = r_F[d][c];
                   D[c] += s_e * w;
                }
             }
@@ -3936,12 +3980,14 @@ void FaceQuadratureInterpolator::Eval2D(
             //       der(q,c,f) = D[c];
             //    }
             // }
-            if (VDIM == 2 && ((eval_flags & NORMALS) || (eval_flags & DETERMINANTS)))
+            if (VDIM == 2 &&
+               ((eval_flags & NORMALS)
+                  || (eval_flags & DETERMINANTS)))
             {
                const double norm = sqrt(D[0]*D[0]+D[1]*D[1]);
                if (eval_flags & DETERMINANTS)
                {
-                  det(q,e) = norm;  
+                  det(q,f) = norm;  
                }
                if (eval_flags & NORMALS)
                {
@@ -3954,12 +4000,13 @@ void FaceQuadratureInterpolator::Eval2D(
    });
 }
 
-template<const int T_VDIM, const int T_ND, const int T_NQ>
+template<const int T_VDIM, const int T_ND1D, const int T_NQ1D>
 void FaceQuadratureInterpolator::Eval3D(
    const int NF,
    const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
+   const Array<double> &W,
    Vector &q_val,
    // Vector &q_der,
    Vector &q_det,
@@ -3968,41 +4015,42 @@ void FaceQuadratureInterpolator::Eval3D(
 {
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
-   const int ND = T_ND ? T_ND : nd;
-   const int NQ = T_NQ ? T_NQ : nq;
+   const int ND1D = T_ND1D ? T_ND1D : nd;
+   const int NQ1D = T_NQ1D ? T_NQ1D : nq;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
-   MFEM_VERIFY(ND <= MAX_ND3D, "");
-   MFEM_VERIFY(NQ <= MAX_NQ3D, "");
+   MFEM_VERIFY(ND1D <= MAX_ND1D, "");
+   MFEM_VERIFY(NQ1D <= MAX_NQ1D, "");
    MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
    auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
    auto F = Reshape(e_vec.Read(), ND1D, ND1D, VDIM, NF);
-   auto val = Reshape(q_val.Write(), NQ, VDIM, NF);
-   // auto der = Reshape(q_der.Write(), NQ, VDIM, 3, NF);
-   auto det = Reshape(q_det.Write(), NQ, NF);
-   auto n   = Reshape(q_nor.Write(), NQ, 3, NF);
+   auto w = W.Read();
+   auto val = Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF);
+   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
+   auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
+   auto nor = Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF);
    MFEM_FORALL(f, NF,
    {
-      const int ND = T_ND ? T_ND : nd;
-      const int NQ = T_NQ ? T_NQ : nq;
+      const int ND1D = T_ND1D ? T_ND1D : nd;
+      const int NQ1D = T_NQ1D ? T_NQ1D : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int max_ND = T_ND ? T_ND : MAX_ND3D;
+      constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
+      constexpr int max_NQ1D = T_NQ1D ? T_NQ1D : MAX_NQ1D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
-      double r_F[max_VDIM*max_ND];
+      double r_F[max_ND1D][max_ND1D][max_VDIM];
       for (int d1 = 0; d1 < ND1D; d1++)
       {
          for (int d2 = 0; d2 < ND1D; d2++)
          {
             for (int c = 0; c < VDIM; c++)
             {
-               const int d = d1 + d2*ND1D;
-               r_F[c+d*VDIM] = F(d1,d2,c,f);
+               r_F[d1][d2][c] = F(d1,d2,c,f);
             }
          }
       }
       if (eval_flags & VALUES)
       {
-         double Bu[NQ1D][ND1D][VDIM];
+         double Bu[max_NQ1D][max_ND1D][VDIM];
          for (int d2 = 0; d2 < ND1D; ++d2)
          {
             for (int q = 0; q < NQ1D; ++q)
@@ -4012,11 +4060,11 @@ void FaceQuadratureInterpolator::Eval3D(
                {
                   const int b = B(q,d1);
                   for (int c = 0; c < VDIM; c++)
-                     Bu[q][d2][c] += b*r_F[c+(d1+d2*ND1D)*VDIM];
+                     Bu[q][d2][c] += b*r_F[d1][d2][c];
                }
             }
          }
-         double BBu[NQ1D][NQ1D][VDIM];
+         double BBu[max_NQ1D][max_NQ1D][VDIM];
          for (int q2 = 0; q2 < NQ1D; ++q2)
          {
             for (int q1 = 0; q1 < NQ1D; ++q1)
@@ -4029,15 +4077,17 @@ void FaceQuadratureInterpolator::Eval3D(
                      BBu[q2][q1][c] += b*Bu[q1][d2][c];
                }
                for (int c = 0; c < VDIM; c++)
-                  val(q1+q2*NQ1D,c,f) = BBu[q2][q1][c];
+                  val(q1,q2,c,f) = BBu[q2][q1][c];
             }
          }
       }
-      if ((eval_flags & DERIVATIVES) || (eval_flags & DETERMINANTS) || (eval_flags & NORMALS))
+      if ((eval_flags & DERIVATIVES)
+         || (eval_flags & DETERMINANTS)
+         || (eval_flags & NORMALS))
       {
          //We only compute the tangential derivatives
-         double Gu[NQ1D][ND1D][VDIM];
-         double Bu[NQ1D][ND1D][VDIM];
+         double Gu[max_NQ1D][max_ND1D][VDIM];
+         double Bu[max_NQ1D][max_ND1D][VDIM];
          for (int d2 = 0; d2 < ND1D; ++d2)
          {
             for (int q = 0; q < NQ1D; ++q)
@@ -4053,15 +4103,15 @@ void FaceQuadratureInterpolator::Eval3D(
                   const int g = G(q,d1);
                   for (int c = 0; c < VDIM; c++)
                   {
-                     const double u = r_F[c+(d1+d2*ND1D)*VDIM]
+                     const double u = r_F[d1][d2][c];
                      Gu[q][d2][c] += g*u;
                      Bu[q][d2][c] += b*u;
                   }
                }
             }
          }
-         double BGu[NQ1D][NQ1D][VDIM];
-         double GBu[NQ1D][NQ1D][VDIM];
+         double BGu[max_NQ1D][max_NQ1D][VDIM];
+         double GBu[max_NQ1D][max_NQ1D][VDIM];
          for (int q2 = 0; q2 < NQ1D; ++q2)
          {
             for (int q1 = 0; q1 < NQ1D; ++q1)
@@ -4094,7 +4144,7 @@ void FaceQuadratureInterpolator::Eval3D(
          //    const double wG = G(q,d);
          //    for (int c = 0; c < VDIM; c++)
          //    {
-         //       double s_e = s_E[c+d*VDIM];
+         //       double s_e = s_F[c+d*VDIM];
          //       D[c+VDIM*0] += s_e * wx;
          //       D[c+VDIM*1] += s_e * wy;
          //    }
@@ -4119,13 +4169,12 @@ void FaceQuadratureInterpolator::Eval3D(
                   n[1] = BGu[q2][q1][0]*GBu[q2][q1][2]-GBu[q2][q1][0]*BGu[q2][q1][2];
                   n[2] = BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*BGu[q2][q1][1];
                   const int norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
-                  const int q = q1+q2*NQ1D;
-                  if (eval_flags & DETERMINANTS) det(q,f) = norm;
+                  if (eval_flags & DETERMINANTS) det(q1,q2,f) = norm;
                   if (eval_flags & NORMALS)
                   {
-                     n(q,0,f) = n[0]/norm;
-                     n(q,1,f) = n[1]/norm;
-                     n(q,2,f) = n[2]/norm;
+                     nor(q1,q2,0,f) = n[0]/norm;
+                     nor(q1,q2,1,f) = n[1]/norm;
+                     nor(q1,q2,2,f) = n[2]/norm;
                   }
                }
             }
@@ -4135,7 +4184,7 @@ void FaceQuadratureInterpolator::Eval3D(
 }
 
 void FaceQuadratureInterpolator::Mult(
-   const Vector &e_vec, unsigned eval_flags,
+   const Vector &e_vec, unsigned eval_flags, const Array<double> &W,
    Vector &q_val, Vector &q_der, Vector &q_det) const
 {
    const int ne = fespace->GetNE();
@@ -4153,6 +4202,7 @@ void FaceQuadratureInterpolator::Mult(
       const int vdim,
       const DofToQuad &maps,
       const Vector &e_vec,
+      const Array<double> &W,
       Vector &q_val,
       Vector &q_der,
       Vector &q_det,
@@ -4267,7 +4317,7 @@ void FaceQuadratureInterpolator::Mult(
    }
    if (eval_func)
    {
-      eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, eval_flags);
+      eval_func(ne, vdim, maps, e_vec, W, q_val, q_der, q_det, eval_flags);
    }
    else
    {
@@ -4276,8 +4326,8 @@ void FaceQuadratureInterpolator::Mult(
 }
 
 void FaceQuadratureInterpolator::MultTranspose(
-   unsigned eval_flags, const Vector &q_val, const Vector &q_der,
-   Vector &e_vec) const
+   unsigned eval_flags, const Array<double> &W, const Vector &q_val,
+   const Vector &q_der, Vector &e_vec) const
 {
    MFEM_ABORT("this method is not implemented yet");
 }
