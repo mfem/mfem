@@ -759,6 +759,30 @@ public:
    long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
    ~DenseTensor() { tdata.Delete(); }
+
+  /// Shortcut for mfem::Read( GetMemory(), Size(), on_dev).
+  const double *Read(bool on_dev = true) const
+  { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+  /// Shortcut for mfem::Read(GetMemory(), Size(), false).
+  const double *HostRead() const
+  { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+  /// Shortcut for mfem::Write(GetMemory(), Size(), on_dev).
+  double *Write(bool on_dev = true)
+  { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+  /// Shortcut for mfem::Write(GetMemory(), Size(), false).
+  double *HostWrite()
+  { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+  /// Shortcut for mfem::ReadWrite(GetMemory(), Size(), on_dev).
+  double *ReadWrite(bool on_dev = true)
+  { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+  /// Shortcut for mfem::ReadWrite(GetMemory(), Size(), false).
+  double *HostReadWrite()
+  { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
 };
 
 

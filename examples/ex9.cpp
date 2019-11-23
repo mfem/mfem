@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -193,6 +193,37 @@ int main(int argc, char *argv[])
 
    m.Assemble();
    m.Finalize();
+
+   ConstantCoefficient one(1.0);
+   MassIntegrator *dgMass = new MassIntegrator(one);
+
+   dgMass->AssemblePA(fes);
+
+   DenseTensor M;
+   dgMass->L2FA(M);
+
+   //Calculate difference
+   int NE   = mesh.GetNE();
+   int dofs = (order+1)*(order+1);
+   double error(0);
+   for(int e=0; e<NE; ++e)
+   {
+     for(int r=0; r<dofs; ++r){
+       for(int c=0; c<dofs; ++c){
+
+	 int row = r + dofs*e;
+	 int col = c + dofs*e;
+	 double refData = m.SpMat()(row,col);
+	 double data = M(r,c,e);
+	 error += (data-refData)*(data-refData);
+       }
+     }
+   }
+
+   printf("Difference in mass matrix %g \n", error);
+   printf("quit early \n");
+   exit(-1);
+
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
    k.Finalize(skip_zeros);

@@ -797,4 +797,96 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
 }
 
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void FAMassAssemble2D(DenseTensor &Ma,
+			  const int NE,
+                          const Array<double> &B_,
+                          const Array<double> &Bt_,
+                          const Vector &op_,
+                          const int d1d = 0,
+                          const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+
+   Ma.SetSize(D1D*D1D,D1D*D1D,NE);
+   auto B1D = Reshape(B_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto M = mfem::Reshape(Ma.Write(), D1D,D1D,D1D,D1D,NE);
+
+   MFEM_FORALL(e, NE,
+   {
+     const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+     const int Q1D = T_Q1D ? T_Q1D : q1d;
+     // the following variables are evaluated at compile time
+     constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+     constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+     double sol_xy[max_Q1D][max_Q1D];
+
+     double B[6][5][5];
+     double U[6][5][5];
+
+     for(int j1=0; j1<D1D; ++j1){
+       for(int i1=0; i1<D1D; ++i1){
+	 for(int k1=0; k1<Q1D; k1++){
+	   B[k1][i1][j1] = B1D(k1,i1)*B1D(k1,j1);
+	 }
+       }
+     }
+
+     for(int j2=0; j2<D1D; ++j2){
+       for(int i2=0; i2<D1D; ++i2){
+	 for(int k1=0; k1<Q1D; ++k1){
+
+	   double dot(0.0);
+	   for(int k2=0; k2<Q1D; ++k2){
+	     dot += B[k2][i2][j2]*op(k1,k2,e);
+	   }
+	   U[k1][i2][j2] = dot;
+	 }
+       }
+     }
+
+     for(int j2=0; j2<D1D; ++j2) {
+       for(int j1=0; j1<D1D; ++j1) {
+
+	 for(int i2=0; i2<D1D; ++i2) {
+	   for(int i1=0; i1<D1D; ++i1) {
+
+	     double dot(0.0);
+	     for(int k1=0; k1<Q1D; ++k1) {
+	       dot += B[k1][i1][j1]*U[k1][i2][j2];
+	     }
+	     M(i1,i2,j1,j2,e) = dot;
+	   }
+	 }
+       }
+     }
+   });
+}
+
+static void L2MassAssemble(DenseTensor &M,
+			   const int dim,
+			   const int D1D,
+			   const int Q1D,
+			   const int NE,
+			   const Array<double> &B,
+			   const Array<double> &Bt,
+			   const Vector &op)
+{
+   if (dim == 2)
+   {
+     return FAMassAssemble2D(M, NE, B, Bt, op, D1D, Q1D);
+   }
+   MFEM_ABORT("Unknown kernel.");
+}
+
+void MassIntegrator::L2FA(DenseTensor &M)
+{
+   L2MassAssemble(M, dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data);
+}
+
 } // namespace mfem

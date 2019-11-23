@@ -1764,6 +1764,9 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace&);
 
+   //Assemble block diagonal matrix
+   void L2FA(DenseTensor &M);
+
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
