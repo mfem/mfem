@@ -27,7 +27,8 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
                          Coefficient & epsCoef,
                          double (*phi_bc )(const Vector&),
                          double (*rho_src)(const Vector&),
-                         void   (*p_src  )(const Vector&, Vector&))
+                         void   (*p_src  )(const Vector&, Vector&),
+                         Vector & point_charges)
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -47,10 +48,10 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
      hCurlHDivEps_(NULL),
      hCurlHDiv_(NULL),
      weakDiv_(NULL),
+     rhod_(NULL),
      grad_(NULL),
      phi_(NULL),
      rho_(NULL),
-     rhod_(NULL),
      sigma_(NULL),
      e_(NULL),
      d_(NULL),
@@ -61,7 +62,9 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
      pCoef_(NULL),
      phi_bc_(phi_bc),
      rho_src_(rho_src),
-     p_src_(p_src)
+     p_src_(p_src),
+     point_charge_params_(point_charges),
+     point_charges_(0)
 {
    // Initialize MPI variables
    MPI_Comm_size(pmesh_->GetComm(), &num_procs_);
@@ -113,14 +116,38 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    hCurlHDivEps_ = new ParMixedBilinearForm(HCurlFESpace_,HDivFESpace_);
    hCurlHDivEps_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsCoef_));
 
+   rhod_ = new ParLinearForm(H1FESpace_);
+
    // Discrete Grad operator
    grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
 
    // Build grid functions
    phi_  = new ParGridFunction(H1FESpace_);
-   rhod_ = new ParGridFunction(H1FESpace_);
    d_    = new ParGridFunction(HDivFESpace_);
    e_    = new ParGridFunction(HCurlFESpace_);
+
+   if ( point_charge_params_.Size() > 0 )
+   {
+      int dim = pmesh_->Dimension();
+      int npts = point_charge_params_.Size() / (dim + 1);
+      point_charges_.resize(npts);
+
+      Vector cent(dim);
+      for (int i=0; i<npts; i++)
+      {
+         for (int d=0; d<dim; d++)
+         {
+            cent[d] = point_charge_params_[(dim + 1) * i + d];
+         }
+         double s = point_charge_params_[(dim + 1) * i + dim];
+
+         point_charges_[i] = new DeltaCoefficient();
+         point_charges_[i]->SetScale(s);
+         point_charges_[i]->SetDeltaCenter(cent);
+
+         rhod_->AddDomainIntegrator(new DomainLFIntegrator(*point_charges_[i]));
+      }
+   }
 
    if ( rho_src_ )
    {
@@ -179,6 +206,11 @@ VoltaSolver::~VoltaSolver()
    delete HCurlFESpace_;
    delete HDivFESpace_;
 
+   for (unsigned int i=0; i<point_charges_.size(); i++)
+   {
+      delete point_charges_[i];
+   }
+
    map<string,socketstream*>::iterator mit;
    for (mit=socks_.begin(); mit!=socks_.end(); mit++)
    {
@@ -218,6 +250,9 @@ void VoltaSolver::Assemble()
 
    hCurlHDivEps_->Assemble();
    hCurlHDivEps_->Finalize();
+
+   *rhod_ = 0.0;
+   rhod_->Assemble();
 
    grad_->Assemble();
    grad_->Finalize();
@@ -288,9 +323,6 @@ VoltaSolver::Solve()
 
    // Initialize the electric potential with its boundary conditions
    *phi_ = 0.0;
-
-   // Initialize the charge density dual vector (rhs) to zero
-   *rhod_ = 0.0;
 
    if ( dbcs_->Size() > 0 )
    {

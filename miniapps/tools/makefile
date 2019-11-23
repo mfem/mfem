@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 
-SEQ_MINIAPPS = display-basis load-dc convert-dc
+SEQ_MINIAPPS = display-basis load-dc convert-dc lor-transfer
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -49,7 +49,8 @@ all: $(MINIAPPS)
 
 # Tools that depend on $(COMMON_O)
 display-basis: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_O) $(MFEM_LIBS)
 
 # Rules for compiling dependencies
 $(COMMON_O): %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
@@ -66,8 +67,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test,$<,, Tools miniapp)
 
 # Testing: Specific execution options
-# Do not test: display-basis, load-dc, convert-dc:
-NO_TEST_APPS = display-basis load-dc convert-dc
+# Do not test: display-basis, load-dc, convert-dc, lor-transfer
+NO_TEST_APPS = display-basis load-dc convert-dc lor-transfer
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 

@@ -1397,7 +1397,8 @@ private:
     strumpack->SetFromCommandLine();
     return strumpack;
   }
-  
+
+  /*
   STRUMPACKSolver* CreateStrumpackSolverApprox(Operator *Arow, MPI_Comm comm)
   {
     //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
@@ -1430,7 +1431,8 @@ private:
     strumpack->SetFromCommandLine();
     return strumpack;
   }
-
+  */
+  
   Solver* CreateSubdomainPreconditionerStrumpack(const int subdomain);
 
   void SetOffsetsSD(const int subdomain);

@@ -20,6 +20,10 @@
 #include "superlu_defs.h"
 #include "superlu_ddefs.h"
 
+#if XSDK_INDEX_SIZE == 64
+#error "SuperLUDist has been built with 64bit integers. This is not supported"
+#endif
+
 using namespace std;
 
 namespace mfem
@@ -289,7 +293,7 @@ void SuperLUSolver::Init()
    }
 
    npcol_ = (int)(numProcs_ / nprow_);
-   assert(nprow_ * npcol_ == numProcs_);
+   MFEM_ASSERT(nprow_ * npcol_ == numProcs_, "");
 
    PStatInit(stat); // Initialize the statistics variables.
 }
@@ -423,7 +427,7 @@ void SuperLUSolver::SetupGrid()
       }
 
       npcol_ = (int)(numProcs_ / nprow_);
-      assert(nprow_ * npcol_ == numProcs_);
+      MFEM_ASSERT(nprow_ * npcol_ == numProcs_, "");
    }
 
    superlu_gridinit(comm_, nprow_, npcol_, grid);

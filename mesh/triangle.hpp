@@ -50,7 +50,7 @@ public:
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
-   virtual void MarkEdge(DenseMatrix & pmat);
+   void MarkEdge(DenseMatrix & pmat);
 
    static void MarkEdge(int *indices, const DSTable &v_to_v, const int *length);
 
@@ -80,8 +80,13 @@ public:
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
 
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
    virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 0; return 0; }
+
+   virtual int GetNFaces() const { return 0; }
+
+   virtual int GetNFaceVertices(int) const { return 0; }
 
    virtual const int *GetFaceVertices(int fi) const
    { MFEM_ABORT("not implemented"); return NULL; }

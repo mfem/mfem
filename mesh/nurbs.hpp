@@ -119,7 +119,9 @@ public:
    void KnotInsert   (int dir, const KnotVector &knot);
    void KnotInsert   (int dir, const Vector     &knot);
 
+   void KnotInsert(Array<Vector *> &knot);
    void KnotInsert(Array<KnotVector *> &knot);
+
    void DegreeElevate(int t);
    void UniformRefinement();
 
@@ -182,6 +184,13 @@ protected:
    Array<KnotVector *> knotVectors;
    Vector weights;
 
+   // periodic BC info:
+   // - dof 2 dof map
+   // - master and slave boundary indices
+   Array<int> d_to_d;
+   Array<int> master;
+   Array<int> slave;
+
    // global offsets, meshOffsets == meshVertexOffsets
    Array<int> v_meshOffsets;
    Array<int> e_meshOffsets;
@@ -218,6 +227,16 @@ protected:
 
    void SetOrderFromOrders();
    void SetOrdersFromKnotVectors();
+
+   // periodic BC helper functions
+   void InitDofMap();
+   void ConnectBoundaries();
+   void ConnectBoundaries2D(int bnd0, int bnd1);
+   void ConnectBoundaries3D(int bnd0, int bnd1);
+   int DofMap(int dof) const
+   {
+      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
+   };
 
    // also count the global NumOfVertices and the global NumOfDofs
    void GenerateOffsets();
@@ -295,6 +314,12 @@ public:
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
+   // Generate connections between boundaries, such as periodic BCs
+   void ConnectBoundaries(Array<int> &master, Array<int> &slave);
+   const Array<int> &GetMaster() const { return  master; };
+   Array<int> &GetMaster()  { return  master; };
+   const Array<int> &GetSlave() const { return  slave; };
+   Array<int> &GetSlave()  { return  slave; };
    void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
                            GridFunction &merged);
 
@@ -366,6 +391,7 @@ public:
    void DegreeElevate(int rel_degree, int degree = 16);
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
+   void KnotInsert(Array<Vector *> &kv);
 };
 
 

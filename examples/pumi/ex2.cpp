@@ -209,15 +209,15 @@ int main(int argc, char *argv[])
       Transform(Geometries.GetCenter(mesh->GetElementBaseGeometry(el)),cent);
       if (cent(0) <= -0.05)
       {
-         mesh->SetAttribute(el , 1);
+         mesh->SetAttribute(el, 1);
       }
       else if (cent(0) >= 0.05)
       {
-         mesh->SetAttribute(el , 2);
+         mesh->SetAttribute(el, 2);
       }
       else
       {
-         mesh->SetAttribute(el , 3);
+         mesh->SetAttribute(el, 3);
       }
    }
    mesh->SetAttributes();

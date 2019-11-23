@@ -61,8 +61,8 @@ int dim;
 //#define SUBDOMAIN_MESH
 
 #ifdef AIRY_TEST
-#define SIGMAVAL -10981.4158900991  // 5 GHz
-//#define SIGMAVAL -43925.6635603965  // 10 GHz
+//#define SIGMAVAL -10981.4158900991  // 5 GHz
+#define SIGMAVAL -43925.6635603965  // 10 GHz
 //#define SIGMAVAL -175702.65424  // 20 GHz
 //#define SIGMAVAL -1601.0
 //#define SIGMAVAL -1009.0
@@ -615,9 +615,9 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-	(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
+	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-      //(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+      (int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
 
@@ -633,7 +633,7 @@ int main(int argc, char *argv[])
 #ifndef SUBDOMAIN_MESH
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {2, 2, 2};
+   int nxyzSubdomains[3] = {4, 4, 4};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -786,7 +786,7 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {3, 3, 4};
-       int nxyzGlobal[3] = {4, 4, 4};
+       //int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {6, 6, 2};
        //int nxyzGlobal[3] = {2, 2, 8};
        //int nxyzGlobal[3] = {6, 6, 8};  // 288
@@ -803,7 +803,7 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {24, 12, 12};  // 3456
        //int nxyzGlobal[3] = {24, 24, 12};  // 6912
        //int nxyzGlobal[3] = {16, 16, 8};
-       //int nxyzGlobal[3] = {8, 16, 8};
+       int nxyzGlobal[3] = {8, 8, 8};
        //int nxyzGlobal[3] = {12, 12, 16};  // 2304
        //int nxyzGlobal[3] = {24, 24, 4};  // 2304
        //int nxyzGlobal[3] = {24, 24, 8};  // 4608
@@ -869,7 +869,7 @@ int main(int argc, char *argv[])
 #endif
    
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 1;
 
 #ifdef TEST_GMG
       gmgP.resize(par_ref_levels);

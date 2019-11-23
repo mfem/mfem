@@ -652,6 +652,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
             case Geometry::PRISM:
                vtk_mfem = vtk_quadratic_wedge; break;
             default:
+               vtk_mfem = NULL; // suppress a warning
                break;
          }
 
@@ -730,7 +731,7 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
    }
 }
 
-void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
+void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
 {
    // Initialize to negative numbers so that we know if they've been set.  We're
    // using Element::POINT as our flag, since we're not going to make a 0D mesh,
@@ -861,7 +862,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
                   << "   ny = " << ny << "\n"
                   << "   sx = " << sx << "\n"
                   << "   sy = " << sy << "\n");
-      Make2D(nx, ny, type, generate_edges, sx, sy);
+      Make2D(nx, ny, type, sx, sy, generate_edges, true);
    }
    else if (type == Element::TETRAHEDRON || type == Element::WEDGE ||
             type == Element::HEXAHEDRON)
@@ -876,7 +877,8 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
                   << "   sx = " << sx << "\n"
                   << "   sy = " << sy << "\n"
                   << "   sz = " << sz << "\n");
-      Make3D(nx, ny, nz, type, generate_edges, sx, sy, sz);
+      Make3D(nx, ny, nz, type, sx, sy, sz, true);
+      // TODO: maybe have an option in the file to control ordering?
    }
    else
    {
@@ -1483,7 +1485,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    };
 
    CubitElementType cubit_element_type = ELEMENT_TRI3; // suppress a warning
-   CubitFaceType cubit_face_type;
+   CubitFaceType cubit_face_type = FACE_EDGE2; // suppress a warning
    int num_element_linear_nodes = 0; // initialize to suppress a warning
 
    if (num_dim == 2)
@@ -1970,27 +1972,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          }
       }
 
-      // Generate faces and edges so that we can define quadratic
-      // FE space on the mesh
-
-      // Generate faces
-      if (Dim > 2)
-      {
-         GetElementToFaceTable();
-         GenerateFaces();
-      }
-      else
-      {
-         NumOfFaces = 0;
-      }
-
-      // Generate edges
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      if (Dim == 2)
-      {
-         GenerateFaces(); // 'Faces' in 2D refers to the edges
-      }
+      FinalizeTopology();
 
       // Define quadratic FE space
       FiniteElementCollection *fec = new H1_FECollection(2,3);

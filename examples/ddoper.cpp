@@ -212,8 +212,8 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #include "gsl_sf_airy.h"
 
 //#define K2_AIRY 2.0  // TODO: input k
-#define K2_AIRY 10981.4158900991  // 5 GHz
-//#define K2_AIRY 43925.6635603965  // 10 GHz
+//#define K2_AIRY 10981.4158900991  // 5 GHz
+#define K2_AIRY 43925.6635603965  // 10 GHz
 //#define K2_AIRY 175702.65424  // 20 GHz
 //#define K2_AIRY 1601.0
 

@@ -123,8 +123,8 @@ ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
    : Vector(2*(f->GetVSize())),
      conv_(convention)
 {
-   lfr_ = new LinearForm(f, &data[0]);
-   lfi_ = new LinearForm(f, &data[f->GetVSize()]);
+  lfr_ = new LinearForm(f); //, &data[0]);
+  lfi_ = new LinearForm(f); //, &data[f->GetVSize()]);
 }
 
 ComplexLinearForm::~ComplexLinearForm()
@@ -493,8 +493,8 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    : Vector(2*(pfes->GetVSize())),
      conv_(convention)
 {
-   plfr_ = new ParLinearForm(pfes, &data[0]);
-   plfi_ = new ParLinearForm(pfes, &data[pfes->GetVSize()]);
+  plfr_ = new ParLinearForm(pfes); //, &data[0]);
+  plfi_ = new ParLinearForm(pfes); //, &data[pfes->GetVSize()]);
 
    HYPRE_Int * tdof_offsets = pfes->GetTrueDofOffsets();
 

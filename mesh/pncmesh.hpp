@@ -26,6 +26,9 @@
 namespace mfem
 {
 
+class FiniteElementSpace;
+
+
 /** \brief A parallel extension of the NCMesh class.
  *
  *  The basic idea (and assumption) is that all processors share the coarsest
@@ -61,7 +64,7 @@ namespace mfem
 class ParNCMesh : public NCMesh
 {
 public:
-   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh);
+   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
 
    ParNCMesh(const ParNCMesh &other);
 
@@ -84,8 +87,12 @@ public:
    virtual void Derefine(const Array<int> &derefs);
 
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
-       elements) so that each processor owns the same number of leaves (+-1). */
-   void Rebalance();
+       elements) so that each processor owns the same number of leaves (+-1).
+       The default partitioning strategy is based on equal splitting of the
+       space-filling sequence of leaf elements (custom_partition == NULL).
+       Alternatively, a used-defined element-rank assignemnt array can be
+       passed. */
+   void Rebalance(const Array<int> *custom_partition = NULL);
 
 
    // interface for ParFiniteElementSpace
@@ -96,9 +103,6 @@ public:
    int GetNGhostEdges() const { return NGhostEdges; }
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const { return NGhostElements; }
-
-   Geometry::Type GetGhostFaceGeometry(int ghost_face_id) const
-   { return Geometry::SQUARE; }
 
    // Return a list of vertices/edges/faces shared by this processor and at
    // least one other processor. These are subsets of NCMesh::<entity>_list. */
@@ -165,6 +169,12 @@ public:
    /// Return true if the specified vertex/edge/face is a ghost.
    bool IsGhost(int entity, int index) const
    {
+      if (index < 0) // special case prism edge-face constraint
+      {
+         MFEM_ASSERT(entity == 2, "");
+         entity = 1;
+         index = -1 - index;
+      }
       switch (entity)
       {
          case 0: return index >= NVertices;
@@ -179,13 +189,6 @@ public:
    {
       return elements[leaf_elements[index]].rank;
    }
-
-
-   // interface for ParMesh
-
-   /** Populate face neighbor members of ParMesh from the ghost layer, without
-       communication. */
-   void GetFaceNeighbors(class ParMesh &pmesh);
 
 
    // utility
@@ -232,7 +235,22 @@ public:
    void GetDebugMesh(Mesh &debug_mesh) const;
 
 
-protected:
+protected: // interface for ParMesh
+
+   friend class ParMesh;
+
+   /** For compatibility with conforming code in ParMesh and ParFESpace.
+       Initializes shared structures in ParMesh: gtopo, shared_*, group_s*, s*_l*.
+       The ParMesh then acts as a parallel mesh cut along the NC interfaces. */
+   void GetConformingSharedStructures(class ParMesh &pmesh);
+
+   /** Populate face neighbor members of ParMesh from the ghost layer, without
+       communication. */
+   void GetFaceNeighbors(class ParMesh &pmesh);
+
+
+protected: // implementation
+
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -245,10 +263,15 @@ protected:
    GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
    GroupMap group_id; // search index over groups
 
-   // owner rank for each vertex, edge and face (encoded as singleton groups)
+   // owner rank for each vertex, edge and face (encoded as singleton group)
    Array<GroupId> entity_owner[3];
-   // P matrix comm pattern groups for each vertex, edge and face (0/1/2)
+   // P matrix comm pattern groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_pmat_group[3];
+
+   // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
+   Array<GroupId> entity_conf_group[3];
+   // ParMesh compatibility helper arrays to order groups, also temporary
+   Array<int> leaf_glob_order, entity_elem_local[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices, shared_edges, shared_faces;
@@ -294,9 +317,9 @@ protected:
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
-   virtual void ElementSharesFace(int elem, int face);
-   virtual void ElementSharesEdge(int elem, int enode);
-   virtual void ElementSharesVertex(int elem, int vnode);
+   virtual void ElementSharesFace(int elem, int local, int face);
+   virtual void ElementSharesEdge(int elem, int local, int enode);
+   virtual void ElementSharesVertex(int elem, int local, int vnode);
 
    GroupId GetGroupId(const CommGroup &group);
    GroupId GetSingletonGroup(int rank);
@@ -318,6 +341,10 @@ protected:
    void CalcFaceOrientations();
 
    void UpdateLayers();
+
+   void MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
+                        Table &group_shared, Array<char> *entity_geom = NULL,
+                        char geom = 0);
 
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
@@ -487,7 +514,10 @@ protected:
 
    /** Assign new Element::rank to leaf elements and send them to their new
        owners, keeping the ghost layer up to date. Used by Rebalance() and
-       Derefine(). */
+       Derefine(). 'target_elements' is the number of elements this rank
+       is supposed to own after the exchange. If this number is not known
+       apriori, the parameter can be set to -1, but more expensive communication
+       (synchronous sends and a barrier) will be used in that case. */
    void RedistributeElements(Array<int> &new_ranks, int target_elements,
                              bool record_comm);
 
@@ -507,11 +537,9 @@ protected:
 
    long GroupsMemoryUsage() const;
 
-   static bool compare_ranks_indices(const Element* a, const Element* b);
-
-   friend class ParMesh;
    friend class NeighborRowMessage;
 };
+
 
 
 // comparison operator so that MeshId can be used as key in std::map

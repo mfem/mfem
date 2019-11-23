@@ -20,33 +20,14 @@
 #include "hypre.hpp"
 
 #include <mpi.h>
-#include <complex>
 
-//#include "StrumpackSparseSolverMPIDist.hpp"
-
-#ifdef MFEM_STRUMPACK_SRC
-// Only include Strumpack header when compiling the strumpack.cpp source file
 #include "StrumpackSparseSolverMPIDist.hpp"
-#else
-// Forward declarations to avoid instantiation of strumpack classes
-// whenever strumpack.hpp is included
-namespace strumpack
-{
-template<typename scalar_t, typename index_t> class CSRMatrixMPI;
-template<typename scalar_t, typename index_t>
-class StrumpackSparseSolverMPIDist;
-}
-#include<StrumpackOptions.hpp>
-  //class KrylovSolver;
-  //class ReorderingStrategy;
-  //class MC64Job;
-#endif
 
 namespace mfem
 {
 
   class HypreParMatrix;
-  
+
 class STRUMPACKRowLocMatrix : public Operator
 {
 public:
@@ -81,66 +62,29 @@ private:
 
 }; // mfem::STRUMPACKRowLocMatrix
 
-class STRUMPACKRowLocCmplxMatrix : public Operator
-{
-public:
-   /** Creates a general parallel matrix from a local CSR matrix on each
-       processor described by the I, J and data arrays. The local matrix should
-       be of size (local) nrows by (global) glob_ncols. The new parallel matrix
-       contains copies of all input arrays (so they can be deleted). */
-   STRUMPACKRowLocCmplxMatrix(MPI_Comm comm,
-                              int num_loc_rows, int first_loc_row,
-                              int glob_nrows, int glob_ncols,
-                              int *I, int *J, std::complex<double> *data);
-
-   /** Creates a copy of the parallel matrix hypParMats in STRUMPACK's RowLoc
-       format. All data is copied so the original matrices may be deleted.
-       The two matrices do not need to have the same sparsity pattern.
-   */
-   STRUMPACKRowLocCmplxMatrix(const HypreParMatrix & hypParMat_R,
-                              const HypreParMatrix & hypParMat_I);
-
-   ~STRUMPACKRowLocCmplxMatrix();
-
-   void Mult(const Vector &x, Vector &y) const
-   {
-      mfem_error("STRUMPACKRowLocMatrix::Mult(...)\n"
-                 "  matrix vector products are not supported.");
-   }
-
-   MPI_Comm GetComm() const { return comm_; }
-
-   strumpack::CSRMatrixMPI<std::complex<double>,int>* getA() const
-   { return A_; }
-
-private:
-   MPI_Comm   comm_;
-   strumpack::CSRMatrixMPI<std::complex<double>,int>* A_;
-
-}; // mfem::STRUMPACKRowLocCmplxMatrix
-
 /** The MFEM STRUMPACK Direct Solver class.
 
     The mfem::STRUMPACKSolver class uses the STRUMPACK library to perform LU
     factorization of a parallel sparse matrix. The solver is capable of handling
     double precision types. See http://portal.nersc.gov/project/sparse/strumpack
 */
-template<typename scalar_t, typename integer_t>
-class STRUMPACKBaseSolver : public mfem::Solver
+class STRUMPACKSolver : public mfem::Solver
 {
-protected:
-   // Constructor with MPI_Comm parameter.
-   STRUMPACKBaseSolver( int argc, char* argv[], MPI_Comm comm );
-
 public:
+   // Constructor with MPI_Comm parameter.
+   STRUMPACKSolver( int argc, char* argv[], MPI_Comm comm );
+
+   // Constructor with STRUMPACK Matrix Object.
+   STRUMPACKSolver( STRUMPACKRowLocMatrix & A);
+
    // Default destructor.
-   virtual ~STRUMPACKBaseSolver();
+   ~STRUMPACKSolver( void );
 
    // Factor and solve the linear system y = Op^{-1} x.
-   virtual void Mult( const Vector & x, Vector & y ) const = 0;
+   void Mult( const Vector & x, Vector & y ) const;
 
    // Set the operator.
-   virtual void SetOperator( const Operator & op ) = 0;
+   void SetOperator( const Operator & op );
 
    // Set various solver options. Refer to STRUMPACK documentation for
    // details.
@@ -172,18 +116,6 @@ public:
     */
    void SetKrylovSolver( strumpack::KrylovSolver method );
 
-  void SetHSS();
-  void SetHssAbsTol(double atol);
-  void SetHssRelTol(double rtol);
-
-  /**
-    * Disable static pivoting for stability. The static pivoting in strumpack
-    * permutes the sparse input matrix in order to get large (nonzero) elements
-    * on the diagonal. If the input matrix is already diagonally dominant, this
-    * reordering can be disabled.
-    */
-   void DisableMatching();
-  
    /**
     * Supported reorderings are:
     *    METIS, PARMETIS, SCOTCH, PTSCOTCH, RCM
@@ -191,21 +123,30 @@ public:
    void SetReorderingStrategy( strumpack::ReorderingStrategy method );
 
    /**
-    * MC64 performs (static) pivoting. Using a matching algorithm, it permutes
-    * the sparse input matrix in order to get nonzero elements on the
-    * diagonal. If the input matrix is already diagonally dominant, this
+    * Disable static pivoting for stability. The static pivoting in strumpack
+    * permutes the sparse input matrix in order to get large (nonzero) elements
+    * on the diagonal. If the input matrix is already diagonally dominant, this
     * reordering can be disabled.
-    * Possible values are:
-    *    NONE:                          Don't do anything
-    *    MAX_CARDINALITY:               Maximum cardinality
-    *    MAX_SMALLEST_DIAGONAL:         Maximize smallest diagonal value
-    *    MAX_SMALLEST_DIAGONAL_2:       Same as MAX_SMALLEST_DIAGONAL, but
-    *                                   different algorithm
-    *    MAX_DIAGONAL_SUM:              Maximize sum of diagonal values
-    *    MAX_DIAGONAL_PRODUCT_SCALING:  Maximize the product of the diagonal
-    *                                   values and perform row & column scaling
     */
-  // void SetMC64Job( strumpack::MC64Job job );
+   void DisableMatching();
+
+   /**
+    * Enable static pivoting for stability using the MC64 algorithm with
+    * job=5. Using a matching algorithm, this will permute the sparse input
+    * matrix in order to get nonzero elements (as large as possible) on the
+    * diagonal. And will also scale the rows and columns of the matrix.
+    */
+   void EnableMatching();
+
+#if STRUMPACK_VERSION_MAJOR >= 3
+   /**
+    * Use the AWPM (approximate weight perfect matching) algorithm from the
+    * Combinatorial BLAS library for static pivoting, i.e. getting large
+    * nonzeros on the diagonal. This requires that strumpack was compiled with
+    * support for Combinatorial BLAS.
+    */
+   void EnableParallelMatching();
+#endif
 
 private:
    void Init( int argc, char* argv[] );
@@ -219,74 +160,10 @@ protected:
    bool factor_verbose_;
    bool solve_verbose_;
 
-   strumpack::StrumpackSparseSolverMPIDist<scalar_t, integer_t> * solver_;
-
-}; // mfem::STRUMPACKBaseSolver class
-
-/** The MFEM STRUMPACK Direct Solver class.
-
-    The mfem::STRUMPACKSolver class uses the STRUMPACK library to perform LU
-    factorization of a parallel sparse matrix. The solver is capable of handling
-    double precision types. See http://portal.nersc.gov/project/sparse/strumpack
-*/
-class STRUMPACKSolver : public STRUMPACKBaseSolver<double,int>
-{
-public:
-   // Constructor with MPI_Comm parameter.
-   STRUMPACKSolver( int argc, char* argv[], MPI_Comm comm );
-
-   // Constructor with STRUMPACK Matrix Object.
-   STRUMPACKSolver( STRUMPACKRowLocMatrix & A);
-
-   // Default destructor.
-   ~STRUMPACKSolver() {}
-
-   // Factor and solve the linear system y = Op^{-1} x.
-   void Mult( const Vector & x, Vector & y ) const;
-
-   // Set the operator.
-   void SetOperator( const Operator & op );
-
-protected:
-
    const STRUMPACKRowLocMatrix * APtr_;
+   strumpack::StrumpackSparseSolverMPIDist<double,int> * solver_;
 
 }; // mfem::STRUMPACKSolver class
-
-/** The MFEM STRUMPACK Direct Solver class for Complex Matrices.
-
-    The mfem::STRUMPACKCmplxSolver class uses the STRUMPACK library to
-    perform LU factorization of a parallel sparse matrix. The solver is
-    capable of handling complex double precision types. See
-    http://portal.nersc.gov/project/sparse/strumpack
-*/
-class STRUMPACKCmplxSolver :
-   public STRUMPACKBaseSolver<std::complex<double>,int>
-{
-public:
-   // Constructor with MPI_Comm parameter.
-   STRUMPACKCmplxSolver( int argc, char* argv[], MPI_Comm comm );
-
-   // Constructor with STRUMPACK Matrix Object.
-   STRUMPACKCmplxSolver( STRUMPACKRowLocCmplxMatrix & A);
-
-   // Default destructor.
-   ~STRUMPACKCmplxSolver();
-
-   // Factor and solve the linear system y = Op^{-1} x.
-   void Mult( const Vector & x, Vector & y ) const;
-
-   // Set the operator.
-   void SetOperator( const Operator & op );
-
-protected:
-
-   const STRUMPACKRowLocCmplxMatrix * APtr_;
-
-   mutable std::complex<double> * xPtr_;
-   mutable std::complex<double> * yPtr_;
-
-}; // mfem::STRUMPACKCmplxSolver class
 
 } // mfem namespace
 
