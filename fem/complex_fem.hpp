@@ -100,16 +100,16 @@ public:
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
-			      LinearFormIntegrator *lfi_imag);
+                              LinearFormIntegrator *lfi_imag);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
-			      LinearFormIntegrator *lfi_imag,
-			      Array<int> &bdr_attr_marker);
+                              LinearFormIntegrator *lfi_imag,
+                              Array<int> &bdr_attr_marker);
 
    /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
-  void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
-			    LinearFormIntegrator *lfi_imag);
+   void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+                             LinearFormIntegrator *lfi_imag);
 
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes.
@@ -175,11 +175,11 @@ public:
 
    /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
    void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
-				  BilinearFormIntegrator *bfi_imag);
+                                  BilinearFormIntegrator *bfi_imag);
 
    /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
-			     BilinearFormIntegrator *bfi_imag);
+                             BilinearFormIntegrator *bfi_imag);
 
    /** @brief Adds new boundary Face Integrator, restricted to specific boundary
        attributes.
@@ -323,16 +323,16 @@ public:
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
-			      LinearFormIntegrator *lfi_imag);
+                              LinearFormIntegrator *lfi_imag);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
-			      LinearFormIntegrator *lfi_imag,
-			      Array<int> &bdr_attr_marker);
+                              LinearFormIntegrator *lfi_imag,
+                              Array<int> &bdr_attr_marker);
 
    /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
-  void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
-			    LinearFormIntegrator *lfi_imag);
+   void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+                             LinearFormIntegrator *lfi_imag);
 
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes.
@@ -403,11 +403,11 @@ public:
 
    /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
    void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
-				  BilinearFormIntegrator *bfi_imag);
+                                  BilinearFormIntegrator *bfi_imag);
 
    /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
-			     BilinearFormIntegrator *bfi_imag);
+                             BilinearFormIntegrator *bfi_imag);
 
    /** @brief Adds new boundary Face Integrator, restricted to specific boundary
        attributes.
