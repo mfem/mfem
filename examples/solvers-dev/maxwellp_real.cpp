@@ -9,7 +9,7 @@
 #include <iostream>
 #include <boost/math/special_functions/airy.hpp>
 // #include "Schwarzp.hpp"
-#include "multigrid.hpp"
+#include "mg/multigrid.hpp"
 using namespace std;
 using namespace mfem;
 using namespace boost;
@@ -185,17 +185,18 @@ int main(int argc, char *argv[])
    a->Assemble();
 
    Array<int> ess_tdof_list;
-   if (pmesh->bdr_attributes.Size())
-   {
+   // if (pmesh->bdr_attributes.Size())
+   // {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
+   // }
 
    ParGridFunction x(fespace);
    x = 0.0;
    VectorFunctionCoefficient E(sdim, E_exact);
-   x.ProjectCoefficient(E);
+   // x.ProjectCoefficient(E);
+   x.ProjectBdrCoefficientTangent(E,ess_bdr);
    ParGridFunction Eex(fespace);
    Eex.ProjectCoefficient(E);
 

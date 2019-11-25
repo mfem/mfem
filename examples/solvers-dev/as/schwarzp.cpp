@@ -1,6 +1,6 @@
 #include "mfem.hpp"
 #include "schwarzp.hpp"
-#include "util.hpp"
+#include "../mg/util.hpp"
 #include <iterator>
 #include <fstream>
 #include <iostream>

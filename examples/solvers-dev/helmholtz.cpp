@@ -4,7 +4,7 @@
 //
 
 #include "mfem.hpp"
-#include "schwarz.hpp"
+#include "as/schwarz.hpp"
 #include <fstream>
 #include <iostream>
 

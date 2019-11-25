@@ -7,7 +7,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "schwarz.hpp"
+#include "as/schwarz.hpp"
 
 using namespace std;
 using namespace mfem;

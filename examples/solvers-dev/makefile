@@ -12,14 +12,14 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/Smoother/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/solvers-dev/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = helmholtz maxwell_real helmholtzPrimalDPG FOSLS_maxwell FOSLS2D_maxwell 
-PAR_EXAMPLES = mpi_tests ex1p maxwellp_real FOSLS_maxwellp
+SEQ_EXAMPLES = helmholtz  maxwell  maxwell_real  FOSLS_maxwell FOSLS2D_maxwell helmholtzPrimalDPG 
+PAR_EXAMPLES = helmholtzp maxwellp maxwellp_real FOSLS_maxwellp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -31,7 +31,7 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O= util.o blkschwarzp.o blkams.o schwarzp.o schwarz.o multigrid.o
+COMMON_O= mg/util.o as/blkschwarzp.o ams/blkams.o as/schwarzp.o as/schwarz.o mg/multigrid.o
 
 # Remove built-in rules
 %: %.cpp

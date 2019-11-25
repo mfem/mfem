@@ -1,8 +1,8 @@
 #pragma once
 
 #include "mfem.hpp"
-#include "blkschwarzp.hpp"
-#include "util.hpp"
+#include "../as/blkschwarzp.hpp"
+#include "../mg/util.hpp"
 
 using namespace mfem;
 using namespace std;

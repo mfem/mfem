@@ -34,7 +34,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "Schwarz.hpp"
+#include "as/schwarz.hpp"
 using namespace std;
 using namespace mfem;
 

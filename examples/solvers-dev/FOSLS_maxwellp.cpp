@@ -3,8 +3,8 @@
 #include <fstream>
 #include <iostream>
 #include <boost/math/special_functions/airy.hpp>
-#include "multigrid.hpp"
-#include "blkams.hpp"
+#include "mg/multigrid.hpp"
+#include "ams/blkams.hpp"
 #include "petsc.h"
 
 using namespace std;
@@ -183,195 +183,195 @@ int main(int argc, char *argv[])
    E_gf->ProjectCoefficient(Eex);
    Exact_gf->ProjectCoefficient(Eex);
 
-   VectorFunctionCoefficient Hex(sdim, H_exact);
-   ParGridFunction * H_gf = new ParGridFunction;   
-   H_gf->MakeRef(fespace, x.GetBlock(1));
-   H_gf->ProjectCoefficient(Hex);
+   // VectorFunctionCoefficient Hex(sdim, H_exact);
+   // ParGridFunction * H_gf = new ParGridFunction;   
+   // H_gf->MakeRef(fespace, x.GetBlock(1));
+   // H_gf->ProjectCoefficient(Hex);
 
 
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient sigma(pow(omega, 2));
-   ConstantCoefficient neg(-abs(omega));
-   ConstantCoefficient pos(abs(omega));
+   // ConstantCoefficient one(1.0);
+   // ConstantCoefficient sigma(pow(omega, 2));
+   // ConstantCoefficient neg(-abs(omega));
+   // ConstantCoefficient pos(abs(omega));
 
-   // // 6. Set up the linear form
-   VectorFunctionCoefficient f_H(sdim,f_exact_H);
-   ScalarVectorProductCoefficient sf_H(neg,f_H);
+   // // // 6. Set up the linear form
+   // VectorFunctionCoefficient f_H(sdim,f_exact_H);
+   // ScalarVectorProductCoefficient sf_H(neg,f_H);
 
-   ParLinearForm *b_E = new ParLinearForm;
-   b_E->Update(fespace, rhs.GetBlock(0), 0);
-   b_E->AddDomainIntegrator(new VectorFEDomainLFIntegrator(sf_H));
-   b_E->Assemble();
+   // ParLinearForm *b_E = new ParLinearForm;
+   // b_E->Update(fespace, rhs.GetBlock(0), 0);
+   // b_E->AddDomainIntegrator(new VectorFEDomainLFIntegrator(sf_H));
+   // b_E->Assemble();
 
-   ParLinearForm *b_H = new ParLinearForm;
-   b_H->Update(fespace, rhs.GetBlock(1), 0);
-   b_H->AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(f_H));
-   b_H->Assemble();
+   // ParLinearForm *b_H = new ParLinearForm;
+   // b_H->Update(fespace, rhs.GetBlock(1), 0);
+   // b_H->AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(f_H));
+   // b_H->Assemble();
 
-   MatrixFunctionCoefficient epsilon(dim,epsilon_func);
-   MatrixFunctionCoefficient epsilon2(dim,epsilon2_func);
-   ScalarMatrixProductCoefficient coeff(neg,epsilon);
-   ScalarMatrixProductCoefficient coeff2(sigma,epsilon2);
-
-
-   // 7. Bilinear form a(.,.) on the finite element space
-   ParBilinearForm *a_EE = new ParBilinearForm(fespace);
-   a_EE->AddDomainIntegrator(new CurlCurlIntegrator(one)); 
-   a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(coeff2));
-   a_EE->Assemble();
-   a_EE->Finalize();
-   HypreParMatrix *A_EE = new HypreParMatrix;
-   a_EE->FormLinearSystem(ess_tdof_listE, x.GetBlock(0), rhs.GetBlock(0), *A_EE, trueX.GetBlock(0), trueRhs.GetBlock(0));
+   // MatrixFunctionCoefficient epsilon(dim,epsilon_func);
+   // MatrixFunctionCoefficient epsilon2(dim,epsilon2_func);
+   // ScalarMatrixProductCoefficient coeff(neg,epsilon);
+   // ScalarMatrixProductCoefficient coeff2(sigma,epsilon2);
 
 
-   ParBilinearForm *a_HH = new ParBilinearForm(fespace);
-   a_HH->AddDomainIntegrator(new CurlCurlIntegrator(one)); // one is the coeff
-   a_HH->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
-   a_HH->Assemble();
-   a_HH->Finalize();
-   HypreParMatrix *A_HH = new HypreParMatrix;
-   a_HH->FormLinearSystem(ess_tdof_listH, x.GetBlock(1), rhs.GetBlock(1), *A_HH, trueX.GetBlock(1), trueRhs.GetBlock(1));
-
-   ParMixedBilinearForm *a_HE = new ParMixedBilinearForm(fespace,fespace);
-   a_HE->AddDomainIntegrator(new MixedVectorCurlIntegrator(neg));
-   a_HE->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(coeff)); 
-   a_HE->Assemble();
-   a_HE->Finalize();
-   HypreParMatrix *A_HE = new HypreParMatrix;
-   a_HE->FormColLinearSystem(ess_tdof_listE,x.GetBlock(0),rhs.GetBlock(1),*A_HE,trueX.GetBlock(0),trueRhs.GetBlock(1));
-
-   HypreParMatrix *A_EH = A_HE->Transpose();
-
-   BlockOperator *LS_Maxwellop = new BlockOperator(block_trueOffsets);
-   LS_Maxwellop->SetBlock(0, 0, A_EE);
-   LS_Maxwellop->SetBlock(0, 1, A_EH);
-   LS_Maxwellop->SetBlock(1, 0, A_HE);
-   LS_Maxwellop->SetBlock(1, 1, A_HH);
+   // // 7. Bilinear form a(.,.) on the finite element space
+   // ParBilinearForm *a_EE = new ParBilinearForm(fespace);
+   // a_EE->AddDomainIntegrator(new CurlCurlIntegrator(one)); 
+   // a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(coeff2));
+   // a_EE->Assemble();
+   // a_EE->Finalize();
+   // HypreParMatrix *A_EE = new HypreParMatrix;
+   // a_EE->FormLinearSystem(ess_tdof_listE, x.GetBlock(0), rhs.GetBlock(0), *A_EE, trueX.GetBlock(0), trueRhs.GetBlock(0));
 
 
-   if (myid == 0)
-   {
-      cout << "Size of fine grid system: "
-           << 2.0 * A_EE->GetGlobalNumRows() << " x " << 2.0* A_EE->GetGlobalNumCols() << endl;
-   }
+   // ParBilinearForm *a_HH = new ParBilinearForm(fespace);
+   // a_HH->AddDomainIntegrator(new CurlCurlIntegrator(one)); // one is the coeff
+   // a_HH->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+   // a_HH->Assemble();
+   // a_HH->Finalize();
+   // HypreParMatrix *A_HH = new HypreParMatrix;
+   // a_HH->FormLinearSystem(ess_tdof_listH, x.GetBlock(1), rhs.GetBlock(1), *A_HH, trueX.GetBlock(1), trueRhs.GetBlock(1));
 
-   MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
+   // ParMixedBilinearForm *a_HE = new ParMixedBilinearForm(fespace,fespace);
+   // a_HE->AddDomainIntegrator(new MixedVectorCurlIntegrator(neg));
+   // a_HE->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(coeff)); 
+   // a_HE->Assemble();
+   // a_HE->Finalize();
+   // HypreParMatrix *A_HE = new HypreParMatrix;
+   // a_HE->FormColLinearSystem(ess_tdof_listE,x.GetBlock(0),rhs.GetBlock(1),*A_HE,trueX.GetBlock(0),trueRhs.GetBlock(1));
 
-   // Set up the preconditioner
-   Array2D<HypreParMatrix*> blockA(2,2);
-   for (int i=0; i<2; ++i)
-   {
-      for (int j=0; j<2; ++j)
-      {
-         blockA(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
-      }
-   }
+   // HypreParMatrix *A_EH = A_HE->Transpose();
 
-   // double nnz = A_HH->NNZ();
-   // double ndof = A_HH->GetGlobalNumRows();
-   // double est_mem_b = nnz*12.0 + (ndof+1.0)*4; 
-   // double gb = est_mem_b*4.0/pow(1024.0,3);
-
-   // mfem::out << "Estimated memory taken by the global matrix: " <<  gb << endl;
-
-   int maxit(500);
-   double rtol(1.e-6);
-   double atol(1.e-6);
-
-   // trueX = 0.0;
-   CGSolver pcg(MPI_COMM_WORLD);
-   pcg.SetAbsTol(atol);
-   pcg.SetRelTol(rtol);
-   pcg.SetMaxIter(maxit);
-   pcg.SetOperator(*LS_Maxwellop);
-   pcg.SetPrintLevel(1);
-   chrono.Clear();
-   chrono.Start();
-   BlockMGSolver * precMG = new BlockMGSolver(blockA,P,fespaces);
-   precMG->SetTheta(1.0/5.0);
-   // int lv_coarse = min(ref_levels,ref_levels-1);
-   // int levels = ref_levels - lv_coarse; 
-   // BlkParSchwarzSmoother * precAS = new BlkParSchwarzSmoother(fespaces[lv_coarse]->GetParMesh(),levels,fespaces[ref_levels],LS_Maxwellop);
-   chrono.Stop();
-   if (myid == 0)
-   {
-      cout << "MG Setup time: " << chrono.RealTime() << endl;
-   }
-   
-   chrono.Clear();
-   chrono.Start();
-   pcg.SetPreconditioner(*precMG);
-   // pcg.SetPreconditioner(*precAS);
-   pcg.Mult(trueRhs, trueX);
-   chrono.Stop();
-   delete precMG;
-   // delete precAS;
-   
-   // trueX = 0.0;
-   // invA->Mult(trueRhs,trueX);
-   MFEMFinalizePetsc();
-
-   if (myid == 0)
-   {
-      cout << "MG Solution time time: " << chrono.RealTime() << endl;
-   }   
-   // cin.get();
-   //  if(myid == 0)
-   //    cout << "MG prec Solution time: " << chrono.RealTime() << endl;
+   // BlockOperator *LS_Maxwellop = new BlockOperator(block_trueOffsets);
+   // LS_Maxwellop->SetBlock(0, 0, A_EE);
+   // LS_Maxwellop->SetBlock(0, 1, A_EH);
+   // LS_Maxwellop->SetBlock(1, 0, A_HE);
+   // LS_Maxwellop->SetBlock(1, 1, A_HH);
 
 
+   // if (myid == 0)
+   // {
+   //    cout << "Size of fine grid system: "
+   //         << 2.0 * A_EE->GetGlobalNumRows() << " x " << 2.0* A_EE->GetGlobalNumCols() << endl;
+   // }
+
+   // MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
+
+   // // Set up the preconditioner
+   // Array2D<HypreParMatrix*> blockA(2,2);
+   // for (int i=0; i<2; ++i)
+   // {
+   //    for (int j=0; j<2; ++j)
+   //    {
+   //       blockA(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
+   //    }
+   // }
+
+   // // double nnz = A_HH->NNZ();
+   // // double ndof = A_HH->GetGlobalNumRows();
+   // // double est_mem_b = nnz*12.0 + (ndof+1.0)*4; 
+   // // double gb = est_mem_b*4.0/pow(1024.0,3);
+
+   // // mfem::out << "Estimated memory taken by the global matrix: " <<  gb << endl;
+
+   // int maxit(500);
+   // double rtol(1.e-6);
+   // double atol(1.e-6);
+
+   // // trueX = 0.0;
+   // CGSolver pcg(MPI_COMM_WORLD);
+   // pcg.SetAbsTol(atol);
+   // pcg.SetRelTol(rtol);
+   // pcg.SetMaxIter(maxit);
+   // pcg.SetOperator(*LS_Maxwellop);
+   // pcg.SetPrintLevel(1);
    // chrono.Clear();
    // chrono.Start();
-   // Block_AMSSolver * precAMS = new Block_AMSSolver(block_trueOffsets,fespaces);
-   // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
-   // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
-   // precAMS->SetOperator(LS_Maxwellop);
-   // precAMS->SetTheta(1.0/5.0);
-   // // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
-   // precAMS->SetCycleType("023414320");
-   // precAMS->SetNumberofCycles(1);
+   // BlockMGSolver * precMG = new BlockMGSolver(blockA,P,fespaces);
+   // precMG->SetTheta(1.0/5.0);
+   // // int lv_coarse = min(ref_levels,ref_levels-1);
+   // // int levels = ref_levels - lv_coarse; 
+   // // BlkParSchwarzSmoother * precAS = new BlkParSchwarzSmoother(fespaces[lv_coarse]->GetParMesh(),levels,fespaces[ref_levels],LS_Maxwellop);
    // chrono.Stop();
-   // if(myid == 0)
-   //    cout << "BlkAMS Setup time: " << chrono.RealTime() << endl;
-
-   // // resolve with block AMS
-   // trueX = 0; 
+   // if (myid == 0)
+   // {
+   //    cout << "MG Setup time: " << chrono.RealTime() << endl;
+   // }
+   
    // chrono.Clear();
    // chrono.Start();
-   // pcg.SetPreconditioner(*precAMS);
+   // pcg.SetPreconditioner(*precMG);
+   // // pcg.SetPreconditioner(*precAS);
    // pcg.Mult(trueRhs, trueX);
    // chrono.Stop();
-   // delete precAMS;
+   // delete precMG;
+   // // delete precAS;
+   
+   // // trueX = 0.0;
+   // // invA->Mult(trueRhs,trueX);
+   // MFEMFinalizePetsc();
 
-   // if(myid == 0)
-   //    cout << "BlockAMS Solution time: " << chrono.RealTime() << endl;
+   // if (myid == 0)
+   // {
+   //    cout << "MG Solution time time: " << chrono.RealTime() << endl;
+   // }   
+   // // cin.get();
+   // //  if(myid == 0)
+   // //    cout << "MG prec Solution time: " << chrono.RealTime() << endl;
 
 
-   a_EE->RecoverFEMSolution(trueX.GetBlock(0), *b_E, *E_gf);
-   a_HH->RecoverFEMSolution(trueX.GetBlock(1), *b_H, *H_gf);
+   // // chrono.Clear();
+   // // chrono.Start();
+   // // Block_AMSSolver * precAMS = new Block_AMSSolver(block_trueOffsets,fespaces);
+   // // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::SCHWARZ);
+   // // precAMS->SetSmootherType(Block_AMS::BlkSmootherType::HYPRE);
+   // // precAMS->SetOperator(LS_Maxwellop);
+   // // precAMS->SetTheta(1.0/5.0);
+   // // // 0-Smoother, 1-Grad, 2,3,4-Pix,Piy,Piz
+   // // precAMS->SetCycleType("023414320");
+   // // precAMS->SetNumberofCycles(1);
+   // // chrono.Stop();
+   // // if(myid == 0)
+   // //    cout << "BlkAMS Setup time: " << chrono.RealTime() << endl;
+
+   // // // resolve with block AMS
+   // // trueX = 0; 
+   // // chrono.Clear();
+   // // chrono.Start();
+   // // pcg.SetPreconditioner(*precAMS);
+   // // pcg.Mult(trueRhs, trueX);
+   // // chrono.Stop();
+   // // delete precAMS;
+
+   // // if(myid == 0)
+   // //    cout << "BlockAMS Solution time: " << chrono.RealTime() << endl;
 
 
-   int order_quad = max(2, 2*order+1);
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
-   {
-      irs[i] = &(IntRules.Get(i, order_quad));
-   }
+   // a_EE->RecoverFEMSolution(trueX.GetBlock(0), *b_E, *E_gf);
+   // a_HH->RecoverFEMSolution(trueX.GetBlock(1), *b_H, *H_gf);
 
-   double Error_E = E_gf->ComputeL2Error(Eex, irs);
-   double norm_E = ComputeGlobalLpNorm(2, Eex, *pmesh, irs);
 
-   double Error_H = H_gf->ComputeL2Error(Hex, irs);
-   double norm_H = ComputeGlobalLpNorm(2, Hex , *pmesh, irs);
+   // int order_quad = max(2, 2*order+1);
+   // const IntegrationRule *irs[Geometry::NumGeom];
+   // for (int i=0; i < Geometry::NumGeom; ++i)
+   // {
+   //    irs[i] = &(IntRules.Get(i, order_quad));
+   // }
 
-   if (myid == 0)
-   {
-      cout << "|| E_h - E || = " << Error_E  << "\n";
-      cout << "|| E_h - E ||/||E|| = " << Error_E/norm_E  << "\n";
-      cout << "|| H_h - H || = " << Error_H  << "\n";
-      cout << "|| H_h - H ||/||H|| = " << Error_H/norm_H  << "\n";
-      cout << "Total error = " << setprecision(15) << sqrt(Error_H*Error_H+Error_E*Error_E) << "\n";
-   }
+   // double Error_E = E_gf->ComputeL2Error(Eex, irs);
+   // double norm_E = ComputeGlobalLpNorm(2, Eex, *pmesh, irs);
+
+   // double Error_H = H_gf->ComputeL2Error(Hex, irs);
+   // double norm_H = ComputeGlobalLpNorm(2, Hex , *pmesh, irs);
+
+   // if (myid == 0)
+   // {
+   //    cout << "|| E_h - E || = " << Error_E  << "\n";
+   //    cout << "|| E_h - E ||/||E|| = " << Error_E/norm_E  << "\n";
+   //    cout << "|| H_h - H || = " << Error_H  << "\n";
+   //    cout << "|| H_h - H ||/||H|| = " << Error_H/norm_H  << "\n";
+   //    cout << "Total error = " << setprecision(15) << sqrt(Error_H*Error_H+Error_E*Error_E) << "\n";
+   // }
 
    // ParGridFunction ExactE(fespace);
 
@@ -380,14 +380,14 @@ int main(int argc, char *argv[])
       // 8. Connect to GLVis.
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream E_sock(vishost, visport);
-      E_sock << "parallel " << num_procs << " " << myid << "\n";
-      E_sock.precision(8);
-      E_sock << "solution\n" << *pmesh << *E_gf << "window_title 'Electric field'" << endl;
-      // socketstream Exact_sock(vishost, visport);
-      // Exact_sock << "parallel " << num_procs << " " << myid << "\n";
-      // Exact_sock.precision(8);
-      // Exact_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Electric field'" << endl;
+      // socketstream E_sock(vishost, visport);
+      // E_sock << "parallel " << num_procs << " " << myid << "\n";
+      // E_sock.precision(8);
+      // E_sock << "solution\n" << *pmesh << *E_gf << "window_title 'Electric field'" << endl;
+      socketstream Exact_sock(vishost, visport);
+      Exact_sock << "parallel " << num_procs << " " << myid << "\n";
+      Exact_sock.precision(8);
+      Exact_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Electric field'" << endl;
  
     // MPI_Barrier(pmesh->GetComm());
       // socketstream Eex_sock(vishost, visport);
@@ -396,16 +396,16 @@ int main(int argc, char *argv[])
       // Eex_sock << "solution\n" << *pmesh << *Exact_gf << "window_title 'Exact Electric field'" << endl;
    }
 
-   delete A_EE;
-   delete A_HE;
-   delete A_EH;
-   delete A_HH;
-   delete LS_Maxwellop;
-   delete a_EE;
-   delete a_HE;
-   delete a_HH;
-   delete b_E;
-   delete b_H;
+   // delete A_EE;
+   // delete A_HE;
+   // delete A_EH;
+   // delete A_HH;
+   // delete LS_Maxwellop;
+   // delete a_EE;
+   // delete a_HE;
+   // delete a_HH;
+   // delete b_E;
+   // delete b_H;
    delete E_gf;
    delete Exact_gf;
    for (auto p: ParMeshes) delete p;

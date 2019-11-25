@@ -1,5 +1,5 @@
 #include "mfem.hpp"
-#include "util.hpp"
+#include "../mg/util.hpp"
 
 #include <fstream>
 #include <iostream>

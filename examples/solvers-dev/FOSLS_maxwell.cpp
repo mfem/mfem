@@ -5,7 +5,7 @@
 // Sample runs:  mg_maxwellp -m ../data/one-hex.mesh
 
 #include "mfem.hpp"
-#include "Schwarz.hpp"
+#include "as/schwarz.hpp"
 #include <fstream>
 #include <iostream>
 
