@@ -159,6 +159,23 @@ ComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
 }
 
 void
+ComplexLinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+					 LinearFormIntegrator *lfi_imag)
+{
+   if ( lfi_real ) { lfr_->AddBdrFaceIntegrator(lfi_real); }
+   if ( lfi_imag ) { lfi_->AddBdrFaceIntegrator(lfi_imag); }
+}
+
+void
+ComplexLinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+					 LinearFormIntegrator *lfi_imag,
+					 Array<int> &bdr_attr_marker)
+{
+  if ( lfi_real ) { lfr_->AddBdrFaceIntegrator(lfi_real, bdr_attr_marker); }
+  if ( lfi_imag ) { lfi_->AddBdrFaceIntegrator(lfi_imag, bdr_attr_marker); }
+}
+
+void
 ComplexLinearForm::Update()
 {
    FiniteElementSpace *fes = lfr_->FESpace();
@@ -234,6 +251,29 @@ SesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
 {
    if (bfi_real) { blfr_->AddBoundaryIntegrator(bfi_real, bdr_marker); }
    if (bfi_imag) { blfi_->AddBoundaryIntegrator(bfi_imag, bdr_marker); }
+}
+
+void
+SesquilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
+					    BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { blfr_->AddInteriorFaceIntegrator(bfi_real); }
+   if (bfi_imag) { blfi_->AddInteriorFaceIntegrator(bfi_imag); }
+}
+
+void SesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+					    BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { blfr_->AddBdrFaceIntegrator(bfi_real); }
+   if (bfi_imag) { blfi_->AddBdrFaceIntegrator(bfi_imag); }
+}
+
+void SesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+					    BilinearFormIntegrator *bfi_imag,
+					    Array<int> &bdr_marker)
+{
+  if (bfi_real) { blfr_->AddBdrFaceIntegrator(bfi_real, bdr_marker); }
+  if (bfi_imag) { blfi_->AddBdrFaceIntegrator(bfi_imag, bdr_marker); }
 }
 
 void
@@ -557,6 +597,23 @@ ParComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
 }
 
 void
+ParComplexLinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+					 LinearFormIntegrator *lfi_imag)
+{
+   if ( lfi_real ) { plfr_->AddBdrFaceIntegrator(lfi_real); }
+   if ( lfi_imag ) { plfi_->AddBdrFaceIntegrator(lfi_imag); }
+}
+
+void
+ParComplexLinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+					 LinearFormIntegrator *lfi_imag,
+					 Array<int> &bdr_attr_marker)
+{
+  if ( lfi_real ) { plfr_->AddBdrFaceIntegrator(lfi_real, bdr_attr_marker); }
+  if ( lfi_imag ) { plfi_->AddBdrFaceIntegrator(lfi_imag, bdr_attr_marker); }
+}
+
+void
 ParComplexLinearForm::Update(ParFiniteElementSpace *pf)
 {
    ParFiniteElementSpace *pfes = (pf!=NULL)?pf:plfr_->ParFESpace();
@@ -660,6 +717,31 @@ ParSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
 {
    if (bfi_real) { pblfr_->AddBoundaryIntegrator(bfi_real, bdr_marker); }
    if (bfi_imag) { pblfi_->AddBoundaryIntegrator(bfi_imag, bdr_marker); }
+}
+
+void
+ParSesquilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
+					       BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { pblfr_->AddInteriorFaceIntegrator(bfi_real); }
+   if (bfi_imag) { pblfi_->AddInteriorFaceIntegrator(bfi_imag); }
+}
+
+void
+ParSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+					    BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real) { pblfr_->AddBdrFaceIntegrator(bfi_real); }
+   if (bfi_imag) { pblfi_->AddBdrFaceIntegrator(bfi_imag); }
+}
+
+void
+ParSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+					    BilinearFormIntegrator *bfi_imag,
+					    Array<int> &bdr_marker)
+{
+  if (bfi_real) { pblfr_->AddBdrFaceIntegrator(bfi_real, bdr_marker); }
+  if (bfi_imag) { pblfi_->AddBdrFaceIntegrator(bfi_imag, bdr_marker); }
 }
 
 void
