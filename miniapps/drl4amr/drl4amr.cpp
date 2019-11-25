@@ -75,7 +75,7 @@ Drl4Amr::Drl4Amr(int order):
    }
 
    // Initialize theta, offsets and x from x0_coeff
-   srand48(time(NULL));
+   srand48(4);//time(NULL));
    theta = M_PI*drand48()/2.0;
    discs = static_cast<int>(1 + nb_discs_max*drand48());
    offsets.SetSize(discs);
@@ -272,6 +272,29 @@ double *Drl4Amr::GetFullImage()
 
 // *****************************************************************************
 
+static void GetFaceGradients(const GridFunction &gf,
+                            int face, int side, const IntegrationRule &ir,
+                            DenseMatrix &grad/*, DenseMatrix &tr*/)
+{
+   IntegrationRule tmp(ir.GetNPoints());
+   FaceElementTransformations *Transf;
+   Mesh *mesh = gf.FESpace()->GetMesh();
+
+   if (side == 0)
+   {
+      Transf = mesh->GetFaceElementTransformations(face, 4);
+      Transf->Loc1.Transform(ir, tmp);
+      gf.GetGradients(Transf->Elem1No, tmp, grad);
+   }
+   else
+   {
+      Transf = mesh->GetFaceElementTransformations(face, 8);
+      Transf->Loc2.Transform(ir, tmp);
+      gf.GetGradients(Transf->Elem2No, tmp, grad);
+   }
+}
+
+
 double* Drl4Amr::GetLocalImage(int element)
 {
    NCMesh *ncmesh = mesh.ncmesh;
@@ -284,7 +307,7 @@ double* Drl4Amr::GetLocalImage(int element)
    local_image.SetSize(width*height*3);
    local_image = 0.0;
 
-   auto im = Reshape(local_image.Write(false), height, width, 3);
+   auto im = Reshape(local_image.Write(false), width, height, 3);
 
    Vector sln;
    DenseMatrix grad;
@@ -302,13 +325,12 @@ double* Drl4Amr::GetLocalImage(int element)
       {
          int k = i*(subdiv+1) + j;
 
-         im(i+1, j+1, 0) = sln(k);
-         im(i+1, j+1, 1) = grad(0, k);
-         im(i+1, j+1, 2) = grad(1, k);
+         im(j+1, i+1, 0) = sln(k);
+         im(j+1, i+1, 1) = grad(0, k);
+         im(j+1, i+1, 2) = grad(1, k);
       }
    }
 
-#if 0
    // rasterize neighbor edges
    {
       Array<int> edges, ori;
@@ -323,18 +345,16 @@ double* Drl4Amr::GetLocalImage(int element)
          const NCMesh::NCList &elist = ncmesh->GetEdgeList();
          const NCMesh::MeshId &eid = elist.LookUp(edges[e], &type);
 
+         int side = 0;
          if (type == 0) // conforming
          {
             int el1, el2;
             mesh.GetFaceElements(eid.index, &el1, &el2);
-            int side = (element == el1) ? 1 : 0;
+            side = (element == el1 && el2 >= 0) ? 1 : 0;
 
             DenseMatrix tr;
             x.GetFaceValues(eid.index, side, ir, sln, tr);
-
-            /*GetEdgeValues(x, eid.index, sln);
-            GetEdgeGradients(x, eid.index, grad);*/
-
+            GetFaceGradients(x, eid.index, side, ir, grad);
          }
          else if (type == 1) // master
          {
@@ -347,13 +367,29 @@ double* Drl4Amr::GetLocalImage(int element)
             MFEM_ABORT("invalid edge type");
          }
 
+         const int edges[4][2][4] =
+         {
+            { { 1, 0, 1, 0 }, { width-2, 0, -1, 0 } },
+            { { width-1, 1, 0, 1 }, { width-1, height-2, 0, -1 } },
+            { { width-2, height-1, -1, 0 }, { 1, height-1, 1, 0 } },
+            { { 0, height-2, 0, -1 }, { 0, 1, 0, 1 } }
+         };
+
          // store edge values
+         int o = side ? 0 : 1;
+         int x = edges[e][o][0];
+         int y = edges[e][o][1];
          for (int i = 0; i <= subdiv; i++)
          {
+            im(x, y, 0) = sln(i);
+            im(x, y, 1) = grad(0, i);
+            im(x, y, 2) = grad(1, i);
+
+            x += edges[e][o][2];
+            y += edges[e][o][3];
          }
       }
    }
-#endif
    return local_image.GetData();
 }
 
