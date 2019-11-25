@@ -65,7 +65,7 @@ private:
                                  int coarseOrder, int coarseSteps)
    {
       // Reuse matrix for AMG
-      if (!partialAssembly && coarseOrder == 1)
+      if (!partialAssembly)
       {
          hypreCoarseMat = dynamic_cast<HypreParMatrix*>(opr);
       }
