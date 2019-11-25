@@ -692,26 +692,14 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &X, Vector &B,
                                       int ci)
 {
-   ParFiniteElementSpace * pfes = pblfr_->ParFESpace();
-
-   int tvs = pfes->TrueVSize();
-   cout << "TrueVSize returns " << tvs << endl;
-   cout << "GetVSize returns " << pfes->GetVSize() << endl;
-
    int vsize = x.Size() / 2;
-   // int vsize  = pfes->GetVSize();
-   // int tvsize = pfes->GetTrueVSize();
-
-   cout << "x.Size/2 returns " << vsize << endl;
 
    double s = (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0;
 
    // Allocate temporary vectors
    Vector b_0(vsize);  b_0 = 0.0;
-   // Vector B_0(tvsize); B_0 = 0.0;
 
    // Extract the real and imaginary parts of the input vectors
-   // MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
    Vector x_r(x.GetData(), vsize);
    Vector x_i(&(x.GetData())[vsize], vsize);
 
