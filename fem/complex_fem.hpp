@@ -107,6 +107,19 @@ public:
 			      LinearFormIntegrator *lfi_imag,
 			      Array<int> &bdr_attr_marker);
 
+   /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
+  void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+			    LinearFormIntegrator *lfi_imag);
+
+   /** @brief Add new Boundary Face Integrator, restricted to the given boundary
+       attributes.
+
+       Assumes ownership of @a lfi. The array @a bdr_attr_marker is stored
+       internally as a pointer to the given Array<int> object. */
+   void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+                             LinearFormIntegrator *lfi_imag,
+                             Array<int> &bdr_attr_marker);
+
    FiniteElementSpace *FESpace() const { return lfr_->FESpace(); }
 
    LinearForm & real() { return *lfr_; }
@@ -159,6 +172,23 @@ public:
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                               BilinearFormIntegrator *bfi_imag,
                               Array<int> &bdr_marker);
+
+   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
+				  BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+			     BilinearFormIntegrator *bfi_imag);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
+       as a pointer to the given Array<int> object. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                             BilinearFormIntegrator *bfi_imag,
+                             Array<int> &bdr_marker);
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
@@ -300,6 +330,19 @@ public:
 			      LinearFormIntegrator *lfi_imag,
 			      Array<int> &bdr_attr_marker);
 
+   /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
+  void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+			    LinearFormIntegrator *lfi_imag);
+
+   /** @brief Add new Boundary Face Integrator, restricted to the given boundary
+       attributes.
+
+       Assumes ownership of @a lfi. The array @a bdr_attr_marker is stored
+       internally as a pointer to the given Array<int> object. */
+   void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+                             LinearFormIntegrator *lfi_imag,
+                             Array<int> &bdr_attr_marker);
+
    ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
 
    ParLinearForm & real() { return *plfr_; }
@@ -357,6 +400,23 @@ public:
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                               BilinearFormIntegrator *bfi_imag,
                               Array<int> &bdr_marker);
+
+   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
+				  BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+			     BilinearFormIntegrator *bfi_imag);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
+       as a pointer to the given Array<int> object. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                             BilinearFormIntegrator *bfi_imag,
+                             Array<int> &bdr_marker);
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
