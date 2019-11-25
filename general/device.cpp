@@ -132,34 +132,16 @@ void Device::UpdateMemoryTypeAndClass()
 #else
    const bool umpire = false;
 #endif
-   const bool uvm = Device::Allows(Backend::UVM);
+   //const bool uvm = Device::Allows(Backend::UVM);
    const bool debug = Device::Allows(Backend::DEBUG);
-
-   // If MFEM has been compiled with Umpire support, use it as default
-   if (umpire)
-   {
-      host_mem_type = MemoryType::HOST_UMPIRE;
-      host_mem_class = MemoryClass::HOST;
-   }
-
-   // Enable the DEBUG mode when requested
-   if (debug)
-   {
-      host_mem_type = MemoryType::HOST_DEBUG;
-      host_mem_class = MemoryClass::DEBUG;
-      device_mem_type = MemoryType::DEVICE_DEBUG;
-      device_mem_class = MemoryClass::DEBUG;
-   }
 
    // Allow to tune the device memory type, with some restrictions
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       device_mem_type = MemoryType::DEVICE;
       device_mem_class = MemoryClass::DEVICE;
-
-      if (umpire && !debug) { device_mem_type = MemoryType::DEVICE_UMPIRE; }
-
-      if (uvm && !debug)
+      //if (umpire && !debug) { device_mem_type = MemoryType::DEVICE_UMPIRE; }
+      /*if (uvm && !debug)
       {
          // Enable the UVM shortcut when requested
          host_mem_type = MemoryType::HOST_MANAGED;
@@ -167,7 +149,25 @@ void Device::UpdateMemoryTypeAndClass()
          device_mem_type = MemoryType::DEVICE_MANAGED;
          device_mem_class = MemoryClass::MANAGED;
       }
-      if (uvm && debug) { MFEM_VERIFY(false, "Error in UVM and Debug mode!"); }
+      if (uvm && debug) { MFEM_VERIFY(false, "Error in UVM and Debug mode!"); }*/
+   }
+
+   // If MFEM has been compiled with Umpire support, use it as default
+   if (umpire)
+   {
+      host_mem_type = MemoryType::HOST_UMPIRE;
+      host_mem_class = MemoryClass::HOST;//UMPIRE;
+      device_mem_type = MemoryType::DEVICE_UMPIRE;
+      device_mem_class = MemoryClass::DEVICE;//UMPIRE;
+   }
+
+   // Enable the DEBUG mode when requested
+   if (debug)
+   {
+      host_mem_type = MemoryType::HOST_DEBUG;
+      host_mem_class = MemoryClass::HOST_DEBUG;
+      device_mem_type = MemoryType::DEVICE_DEBUG;
+      device_mem_class = MemoryClass::DEVICE_DEBUG;
    }
 
    // Update the memory manager with the new settings
@@ -176,9 +176,11 @@ void Device::UpdateMemoryTypeAndClass()
 
 void Device::Enable()
 {
+   dbg("");
    const bool accelerated =
       Get().backends & ~(Backend::CPU | Backend::DEBUG | Backend::UVM);
    if (accelerated) { Get().mode = Device::ACCELERATED;}
+   if (accelerated) { dbg("\033[7mDevice::ACCELERATED"); }
    // Update the host & device memory backends
    Get().UpdateMemoryTypeAndClass();
 }

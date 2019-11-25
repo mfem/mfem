@@ -273,7 +273,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
-   mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
+   mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
    list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);

@@ -85,7 +85,7 @@ double norml2(const int size, const double *data)
             scale = absdata;
             continue;
          }
-         MFEM_VERIFY(scale>0.0,"");
+         //MFEM_VERIFY(scale>0.0,"");
          const double sqr_arg = absdata / scale;
          sum += (sqr_arg * sqr_arg);
       }
@@ -2289,7 +2289,7 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
    auto V = Reshape(quad_data.rho0DetJ0w.Write(), NQ, NE);
    Memory<double> &Jinv_m = quad_data.Jac0inv.GetMemory();
-   auto invJ = Reshape(Jinv_m.Write(Device::GetMemoryClass(),
+   auto invJ = Reshape(Jinv_m.Write(Device::GetDeviceMemoryClass(),
                                     quad_data.Jac0inv.TotalSize()),
                        dim, dim, NQ, NE);
    Vector area(NE*NQ), one(NE*NQ);
@@ -3259,7 +3259,7 @@ public:
       quad_data_is_current = false;
    }
 
-   MemoryClass GetMemoryClass() const  { return Device::GetMemoryClass(); }
+   MemoryClass GetMemoryClass() const  { return Device::GetDeviceMemoryClass(); }
 
    void SolveVelocity(const Vector &S, Vector &dS_dt) const
    {
@@ -3496,7 +3496,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    true_offset[1] = true_offset[0] + H1Vsize;
    true_offset[2] = true_offset[1] + H1Vsize;
    true_offset[3] = true_offset[2] + L2Vsize;
-   BlockVector S(true_offset, Device::GetMemoryType());
+   BlockVector S(true_offset, Device::GetDeviceMemoryType());
    S.UseDevice(true);
    ParGridFunction x_gf, v_gf, e_gf;
    x_gf.MakeRef(&H1FESpace, S, true_offset[0]);
@@ -3664,7 +3664,6 @@ static void sedov_tests(MPI_Session &mpi)
                             };
    REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
 
-
    const char *argv3D[]= {"unit_tests",
                           "-m", "data/cube01_hex.mesh",
                           nullptr
@@ -3677,6 +3676,7 @@ static void sedov_tests(MPI_Session &mpi)
                              nullptr
                             };
    REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
+
 }
 
 #ifndef MFEM_DEV_UNIT_TESTS

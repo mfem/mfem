@@ -14,6 +14,7 @@
 
 #include "globals.hpp"
 #include "error.hpp"
+#include "dbg.hpp"
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
 
@@ -67,12 +68,13 @@ inline MemoryType& operator--(MemoryType &mt,int)
  *  use MemoryClass::DEVICE for their inputs. */
 enum class MemoryClass
 {
-   HOST,    ///< Memory types: { HOST, HOST_32, HOST_64, MANAGED }
-   HOST_32, ///< Memory types: { HOST_32, HOST_64 }
-   HOST_64, ///< Memory types: { HOST_64 }
-   DEVICE,  ///< Memory types: { DEVICE, MANAGED }
-   MANAGED, ///< Memory types: { MANAGED }
-   DEBUG    ///< Memory types: { DEBUG }
+   HOST,        ///< Memory types: { HOST, HOST_32, HOST_64, MANAGED }
+   HOST_32,     ///< Memory types: { HOST_32, HOST_64 }
+   HOST_64,     ///< Memory types: { HOST_64 }
+   HOST_DEBUG,  ///< Memory types: { DEBUG }
+   DEVICE,      ///< Memory types: { DEVICE, MANAGED }
+   MANAGED,     ///< Memory types: { MANAGED }
+   DEVICE_DEBUG ///< Memory types: { DEBUG }
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
@@ -446,9 +448,6 @@ private:
 
 private: // Static methods used by the Memory<T> class
 
-   /// Wrap an externally allocated host pointer.
-   //static void Wrap_(void *h_ptr, size_t bytes, unsigned &flags);
-
    /// Allocate and register a new pointer. Return the host pointer.
    /// h_tmp must be already allocated using new T[] if mt is a pure device
    /// memory type, e.g. CUDA (mt will not be HOST).
@@ -465,7 +464,7 @@ private: // Static methods used by the Memory<T> class
 
    /// Un-register and free memory identified by its host pointer. Returns the
    /// memory type of the host pointer.
-   static MemoryType Delete_(void *h_ptr, unsigned flags);
+   static MemoryType Delete_(void *h_ptr, MemoryType mt, unsigned flags);
 
    /// Free memory identified by its host pointer with its host deallocator.
    static void HostDelete_(void *h_ptr, MemoryType mt);
@@ -473,6 +472,9 @@ private: // Static methods used by the Memory<T> class
    /// Check if the memory types given the memory class are valid
    static bool MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                                  MemoryType h_mt, size_t bytes, unsigned flags);
+
+   /// Return the dual memory type of the given one.
+   static MemoryType GetDualMemoryType(MemoryType mt);
 
    /// Return a pointer to the memory identified by the host pointer h_ptr for
    /// access with the given MemoryClass.
@@ -587,37 +589,48 @@ inline void Memory<T>::New(int size)
    h_mt = size == 0 ?  MemoryType::HOST : MemoryManager::host_mem_type;
    h_ptr = (h_mt == MemoryType::HOST) ? (T*) new T[size] :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
+   dbg("h_ptr:%p, h_mt:%d, size:0x%x, flags:%x", h_ptr, h_mt, size, flags);
 }
 
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
-   if (MemoryType::HOST == mt || size == 0) { New(size); }
-   else
-   {
-      capacity = size;
-      h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
-      // Allocate the host pointer with new T[] if needed.
-      T *h_tmp = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
-      h_ptr = (T*)MemoryManager::New_(h_tmp, size*sizeof(T), mt, flags);
-   }
+   dbg("size:%d, mt:%d", size, mt);
+   if (size == 0) { return New(size); }
+   if (IsHostMemory(mt)) { flags = OWNS_HOST | VALID_HOST; }
+   else { flags = 0; }
+   capacity = size;
+   h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
+   dbg("h_mt:%d mt:%d", h_mt, mt);
+   // Allocate the host pointer with new T[] if needed.
+   T *h_tmp = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
+   h_ptr = (mt == MemoryType::HOST) ? h_tmp:
+           (T*)MemoryManager::New_(h_tmp, size*sizeof(T), mt, flags);
+   dbg("h_ptr:%p, size:0x%x, flags:%x", h_ptr, size, flags);
 }
 
 template <typename T>
 inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
 {
+   dbg("host_ptr:%p, size:0x%x, own:%d", host_ptr, size, own);
    capacity = size;
    h_ptr = host_ptr;
-   h_mt = MemoryType::HOST;
+   // fe.cpp, line 6505 comes here with host_ptr=NULL & size > 0
+   h_mt = (!host_ptr) ? MemoryType::HOST : MemoryManager::host_mem_type;
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
+   dbg("flags:0x%x", flags);
 }
 
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
-   if (mt == MemoryType::HOST || size == 0) { return Wrap(ptr, size, own); }
+   MFEM_VERIFY(ptr,"");
+   MFEM_VERIFY(size > 0,"");
+   //if (size == 0) { return Wrap(ptr, size, own); }
    capacity = size;
+   MFEM_VERIFY(IsHostMemory(mt),"");
    const size_t bytes = size*sizeof(T);
+   if (IsHostMemory(mt)) { flags = (own ? OWNS_HOST : 0) | VALID_HOST;}
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
    // Allocate the host pointer with new T[] if needed.
    // Can be needed when wrapping device memory and host was not allocated
@@ -631,12 +644,17 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    capacity = size;
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
+   dbg("h_ptr:%p h_mt:%d offset:%d, size:%d, base.flags:0x%x", h_ptr, h_mt, offset,
+       size, base.flags);
    if (!(base.flags & REGISTERED))
    {
+      dbg("!REGISTERED");
       flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE);
+      dbg("flags: 0x%x", flags);
    }
    else
    {
+      dbg("flags: 0x%x", flags);
       MemoryManager::Alias_(base.h_ptr, offset*sizeof(T), size*sizeof(T),
                             base.flags, flags);
    }
@@ -646,13 +664,9 @@ template <typename T>
 inline void Memory<T>::Delete()
 {
    if (!(flags & REGISTERED) ||
-       MemoryManager::Delete_((void*)h_ptr, flags) == MemoryType::HOST)
+       MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST)
    {
-      if (flags & OWNS_HOST)
-      {
-         if (h_mt == MemoryType::HOST) { delete [] h_ptr; }
-         else { MemoryManager::HostDelete_((void*)h_ptr, h_mt); }
-      }
+      if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
 }
 
@@ -674,6 +688,7 @@ inline const T &Memory<T>::operator[](int idx) const
 template <typename T>
 inline Memory<T>::operator T*()
 {
+   //dbg("%p 0x%x %d 0x%x",h_ptr, capacity, h_mt, flags);
    MFEM_ASSERT(Empty() ||
                ((flags & VALID_HOST) &&
                 (std::is_const<T>::value || !(flags & VALID_DEVICE))),
@@ -684,6 +699,7 @@ inline Memory<T>::operator T*()
 template <typename T>
 inline Memory<T>::operator const T*() const
 {
+   //dbg("%p 0x%x %d 0x%x",h_ptr, capacity, h_mt, flags);
    MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
    return h_ptr;
 }
@@ -691,6 +707,7 @@ inline Memory<T>::operator const T*() const
 template <typename T> template <typename U>
 inline Memory<T>::operator U*()
 {
+   //dbg("%p 0x%x %d 0x%x",h_ptr, capacity, h_mt, flags);
    MFEM_ASSERT(Empty() ||
                ((flags & VALID_HOST) &&
                 (std::is_const<U>::value || !(flags & VALID_DEVICE))),
@@ -701,6 +718,7 @@ inline Memory<T>::operator U*()
 template <typename T> template <typename U>
 inline Memory<T>::operator const U*() const
 {
+   //dbg("%p 0x%x %d 0x%x",h_ptr, capacity, h_mt, flags);
    MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
    return reinterpret_cast<U*>(h_ptr);
 }
@@ -711,7 +729,9 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
+      //dbg("ReadWrite !REGISTERED: %p 0x%x %d 0x%x",h_ptr, bytes, h_mt, flags);
       if (mc == MemoryClass::HOST) { return h_ptr; }
+      //if (IsHostMemory(mfem::GetMemoryType(mc))) { return h_ptr; }
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
@@ -724,7 +744,9 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
+      //dbg("Read !REGISTERED: %p 0x%x %d 0x%x", h_ptr, bytes, h_mt, flags);
       if (mc == MemoryClass::HOST) { return h_ptr; }
+      //if (IsHostMemory(mfem::GetMemoryType(mc))) { return h_ptr; }
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
@@ -737,7 +759,9 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
+      //dbg("Write !REGISTERED: %p 0x%x %d 0x%x",h_ptr, bytes, h_mt, flags);
       if (mc == MemoryClass::HOST) { return h_ptr; }
+      //if (IsHostMemory(mfem::GetMemoryType(mc))) { return h_ptr; }
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
@@ -747,6 +771,7 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
 template <typename T>
 inline void Memory<T>::Sync(const Memory &other) const
 {
+   //dbg("%p %d 0x%x", h_ptr, h_mt, flags);
    if (!(flags & REGISTERED) && (other.flags & REGISTERED))
    {
       MFEM_ASSERT(h_ptr == other.h_ptr &&
