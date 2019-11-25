@@ -235,11 +235,11 @@ public:
    /** @brief Get the current Device MemoryType. This is the MemoryType used by
        most MFEM classes when allocating memory to be used with device kernels.
    */
-   static inline MemoryType GetMemoryType() { return Get().device_mem_type; }
+   static inline MemoryType GetDeviceMemoryType() { return Get().device_mem_type; }
 
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
-   static inline MemoryClass GetMemoryClass() { return Get().device_mem_class; }
+   static inline MemoryClass GetDeviceMemoryClass() { return Get().device_mem_class; }
 
    static void SetGPUAwareMPI(const bool force = true)
    { Get().mpi_gpu_aware = force; }
@@ -251,8 +251,8 @@ public:
 };
 
 
-// Inline Memory access functions using the mfem::Device MemoryClass or
-// MemoryClass::HOST.
+// Inline Memory access functions using the mfem::Device DeviceMemoryClass or
+// the mfem::Device HostMemoryClass::HOST.
 
 /** @brief Get a pointer for read access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
@@ -262,12 +262,12 @@ inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
 {
    if (!on_dev)
    {
-      return mem.Read(MemoryClass::HOST, size);
+      return mem.Read(Device::GetHostMemoryClass(), size);
    }
    else
    {
       mem.UseDevice(true);
-      return mem.Read(Device::GetMemoryClass(), size);
+      return mem.Read(Device::GetDeviceMemoryClass(), size);
    }
 }
 
@@ -286,12 +286,12 @@ inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
 {
    if (!on_dev)
    {
-      return mem.Write(MemoryClass::HOST, size);
+      return mem.Write(Device::GetHostMemoryClass(), size);
    }
    else
    {
       mem.UseDevice(true);
-      return mem.Write(Device::GetMemoryClass(), size);
+      return mem.Write(Device::GetDeviceMemoryClass(), size);
    }
 }
 
@@ -310,12 +310,12 @@ inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
 {
    if (!on_dev)
    {
-      return mem.ReadWrite(MemoryClass::HOST, size);
+      return mem.ReadWrite(Device::GetHostMemoryClass(), size);
    }
    else
    {
       mem.UseDevice(true);
-      return mem.ReadWrite(Device::GetMemoryClass(), size);
+      return mem.ReadWrite(Device::GetDeviceMemoryClass(), size);
    }
 }
 

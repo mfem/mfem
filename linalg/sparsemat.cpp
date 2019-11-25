@@ -729,7 +729,7 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    MFEM_ASSERT(x.Size() == Width(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << Width() << ")");
 
-   y.SetSize(Height(), Device::GetMemoryType());
+   y.SetSize(Height(), Device::GetDeviceMemoryType());
 
    const int height = Height();
    const int nnz = J.Capacity();

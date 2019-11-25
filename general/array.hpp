@@ -608,7 +608,11 @@ template <class T>
 inline void Array<T>::GrowSize(int minsize)
 {
    const int nsize = std::max(minsize, 2 * data.Capacity());
+   const MemoryType data_mt = data.GetMemoryType();
    Memory<T> p(nsize, data.GetMemoryType());
+   const MemoryType p_mt = p.GetMemoryType();
+   if (data_mt != p_mt) { dbg("data_mt:%d, p_mt:%d", data_mt, p_mt); }
+   MFEM_VERIFY(data_mt == p_mt,"");
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();

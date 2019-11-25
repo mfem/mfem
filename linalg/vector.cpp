@@ -633,11 +633,18 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 {
    const bool use_dev = UseDevice() || dofs.UseDevice();
+   dbg("use_dev:%s", use_dev ? "true" : "false");
    const int n = dofs.Size();
    const int N = size;
-   Vector dofs_vals(n, use_dev ? Device::GetMemoryType() : MemoryType::HOST);
+   dbg("dofs_vals");
+   Vector dofs_vals(n, use_dev ?
+                    Device::GetDeviceMemoryType() :
+                    Device::GetHostMemoryType());
+   dbg("d_data = ReadWrite");
    auto d_data = ReadWrite(use_dev);
+   dbg("dofs_vals.Write");
    auto d_dofs_vals = dofs_vals.Write(use_dev);
+   dbg("dofs.Read");
    auto d_dofs = dofs.Read(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, n, d_dofs_vals[i] = d_data[d_dofs[i]];);
    MFEM_FORALL_SWITCH(use_dev, i, N, d_data[i] = val;);

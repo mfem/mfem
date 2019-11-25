@@ -6502,6 +6502,7 @@ Poly_1D::Basis::Basis(const int p, const double *nodes, EvalType etype)
          break;
       }
       case Positive:
+         dbg("");
          x.SetDataAndSize(NULL, p + 1); // use x to store (p + 1)
          break;
 
