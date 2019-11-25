@@ -142,6 +142,23 @@ ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 }
 
 void
+ComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+					 LinearFormIntegrator *lfi_imag)
+{
+   if ( lfi_real ) { lfr_->AddBoundaryIntegrator(lfi_real); }
+   if ( lfi_imag ) { lfi_->AddBoundaryIntegrator(lfi_imag); }
+}
+
+void
+ComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+					 LinearFormIntegrator *lfi_imag,
+					 Array<int> &bdr_attr_marker)
+{
+  if ( lfi_real ) { lfr_->AddBoundaryIntegrator(lfi_real, bdr_attr_marker); }
+  if ( lfi_imag ) { lfi_->AddBoundaryIntegrator(lfi_imag, bdr_attr_marker); }
+}
+
+void
 ComplexLinearForm::Update()
 {
    FiniteElementSpace *fes = lfr_->FESpace();
@@ -520,6 +537,23 @@ ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 {
    if ( lfi_real ) { plfr_->AddDomainIntegrator(lfi_real); }
    if ( lfi_imag ) { plfi_->AddDomainIntegrator(lfi_imag); }
+}
+
+void
+ParComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+					    LinearFormIntegrator *lfi_imag)
+{
+   if ( lfi_real ) { plfr_->AddBoundaryIntegrator(lfi_real); }
+   if ( lfi_imag ) { plfi_->AddBoundaryIntegrator(lfi_imag); }
+}
+
+void
+ParComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+					    LinearFormIntegrator *lfi_imag,
+					    Array<int> &bdr_attr_marker)
+{
+  if ( lfi_real ) { plfr_->AddBoundaryIntegrator(lfi_real, bdr_attr_marker); }
+  if ( lfi_imag ) { plfi_->AddBoundaryIntegrator(lfi_imag, bdr_attr_marker); }
 }
 
 void

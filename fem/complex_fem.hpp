@@ -98,6 +98,15 @@ public:
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
 
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+			      LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+			      LinearFormIntegrator *lfi_imag,
+			      Array<int> &bdr_attr_marker);
+
    FiniteElementSpace *FESpace() const { return lfr_->FESpace(); }
 
    LinearForm & real() { return *lfr_; }
@@ -227,10 +236,32 @@ public:
    FiniteElementSpace *FESpace() { return pgfr_->FESpace(); }
    const FiniteElementSpace *FESpace() const { return pgfr_->FESpace(); }
 
+   ParFiniteElementSpace *ParFESpace() { return pgfr_->ParFESpace(); }
+   const ParFiniteElementSpace *ParFESpace() const { return pgfr_->ParFESpace(); }
+
    ParGridFunction & real() { return *pgfr_; }
    ParGridFunction & imag() { return *pgfi_; }
    const ParGridFunction & real() const { return *pgfr_; }
    const ParGridFunction & imag() const { return *pgfi_; }
+
+   virtual double ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
+                                 const IntegrationRule *irs[] = NULL) const
+   {
+      double err_r = pgfr_->ComputeL2Error(exsolr, irs);
+      double err_i = pgfi_->ComputeL2Error(exsoli, irs);
+      return sqrt(err_r * err_r + err_i * err_i);
+   }
+
+   virtual double ComputeL2Error(VectorCoefficient &exsolr,
+                                 VectorCoefficient &exsoli,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
+   {
+      double err_r = pgfr_->ComputeL2Error(exsolr, irs, elems);
+      double err_i = pgfi_->ComputeL2Error(exsoli, irs, elems);
+      return sqrt(err_r * err_r + err_i * err_i);
+   }
+
 
    /// Destroys grid function.
    virtual ~ParComplexGridFunction() { Destroy(); }
@@ -259,6 +290,15 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+			      LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+			      LinearFormIntegrator *lfi_imag,
+			      Array<int> &bdr_attr_marker);
 
    ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
 
