@@ -13,6 +13,26 @@
 #include <set>
 #include <map>
 
+// Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
+// mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
+// Note: the same macros are defined in hypre.cpp and hypre_parser.cpp.
+#if MFEM_HYPRE_VERSION < 21400
+
+#define mfem_hypre_TAlloc(type, size) hypre_TAlloc(type, size)
+#define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
+
+#else // MFEM_HYPRE_VERSION >= 21400
+
+// See the notes about hypre 2.14.0 in hypre.cpp
+#define mfem_hypre_TAlloc(type, size) \
+   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_CTAlloc(type, size) \
+   hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
+
+#endif // #if MFEM_HYPRE_VERSION < 21400
+
 namespace mfem
 {
 
@@ -289,8 +309,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    HYPRE_Int global_num_cols = std::max(global_num_cols_r, global_num_cols_i);
 
    int row_starts_size = (HYPRE_AssumedPartitionCheck()) ? 2 : nranks_ + 1;
-   HYPRE_Int * row_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
-   HYPRE_Int * col_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_Int * row_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_Int * col_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
 
    const HYPRE_Int * row_starts_z = (A_r) ? A_r->RowPart() :
                                     ((A_i) ? A_i->RowPart() : NULL);
@@ -368,14 +388,14 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int offd_nnz = 2 * (offd_r_nnz + offd_i_nnz);
 
    // Allocate CSR arrays for the combined matrix
-   HYPRE_Int * diag_I = hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
-   HYPRE_Int * diag_J = hypre_CTAlloc(HYPRE_Int, diag_nnz);
-   double    * diag_D = hypre_CTAlloc(double, diag_nnz);
+   HYPRE_Int * diag_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * diag_J = mfem_hypre_CTAlloc(HYPRE_Int, diag_nnz);
+   double    * diag_D = mfem_hypre_CTAlloc(double, diag_nnz);
 
-   HYPRE_Int * offd_I = hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
-   HYPRE_Int * offd_J = hypre_CTAlloc(HYPRE_Int, offd_nnz);
-   double    * offd_D = hypre_CTAlloc(double, offd_nnz);
-   HYPRE_Int * cmap   = hypre_CTAlloc(HYPRE_Int, 2 * num_cols_offd);
+   HYPRE_Int * offd_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * offd_J = mfem_hypre_CTAlloc(HYPRE_Int, offd_nnz);
+   double    * offd_D = mfem_hypre_CTAlloc(double, offd_nnz);
+   HYPRE_Int * cmap   = mfem_hypre_CTAlloc(HYPRE_Int, 2 * num_cols_offd);
 
    // Fill the CSR arrays for the diagonal portion of the matrix
    const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
