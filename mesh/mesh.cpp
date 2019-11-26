@@ -1528,7 +1528,7 @@ void Mesh::GetHilbertElementOrdering(Array<int> &ordering)
    if (spaceDim == 1)
    {
       indices.Sort([&](int a, int b)
-                   { return points[3*a] < points[3*b]; });
+      { return points[3*a] < points[3*b]; });
    }
    else if (spaceDim == 2)
    {
