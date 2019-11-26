@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
 
    int maxIter(500);
    double rtol(1.e-6);
-   double atol(1.e-12);
+   double atol(1.e-10);
 
    chrono.Clear();
    chrono.Start();
