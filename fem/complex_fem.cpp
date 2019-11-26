@@ -820,6 +820,26 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    B_i *= s;
    b_i *= s;
 
+   // Modify RHS and offdiagonal blocks (Imaginary parts of the matrix)
+   // to conform with standard essential BC treatment i.e. zero out rows
+   // and columns and place ones on the diagonal.
+   if ( A_i.Type() == Operator::Hypre_ParCSR )
+   {
+      int n = ess_tdof_list.Size();
+      int j;
+
+      HypreParMatrix * Ah;  A_i.Get(Ah);
+      hypre_ParCSRMatrix * Aih =
+         (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
+      for (int k=0; k<n; k++)
+      {
+         j=ess_tdof_list[k];
+         Aih->diag->data[Aih->diag->i[j]] = 0.0;
+         B_r(j) = X_r(j);
+         B_i(j) = X_i(j);
+      }
+   }
+
    // A = A_r + i A_i
    A.Clear();
    if ( A_r.Type() == Operator::Hypre_ParCSR &&
