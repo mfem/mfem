@@ -22,10 +22,6 @@ Improved GPU support
 
 - Improved multi-GPU MPI communication.
 
-Miscellaneous
--------------
-- Improved element numbering after uniform mesh refinement.
-
 Discretization improvements
 ---------------------------
 - Added support for non-conforming prism AMR, including coarsening and parallel
@@ -42,6 +38,12 @@ Miscellaneous
 - Added support for creating refined versions of periodic meshes, making use of
   the new L2ElementRestriction class. This class also allows for computing
   geometric factors on periodic meshes using partial assembly.
+
+- New method Mesh::GetHilbertElementOrdering for sorting mesh elements along
+  the Hilbert curve. The ordering can be used to improve caching and parallel
+  partitioning in non-conforming AMR.
+
+- Improved element numbering after uniform mesh refinement.
 
 
 Version 4.0, released on May 24, 2019
