@@ -3656,27 +3656,27 @@ static void sedov_tests(MPI_Session &mpi)
                           nullptr
                          };
    REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
+   /*
+      const char *argv2Drs1[]= {"unit_tests_dev",
+                                "-rs", "1", "-ms", "20",
+                                "-m", "data/square01_quad.mesh",
+                                nullptr
+                               };
+      REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
 
-   const char *argv2Drs1[]= {"unit_tests_dev",
-                             "-rs", "1", "-ms", "20",
-                             "-m", "data/square01_quad.mesh",
-                             nullptr
-                            };
-   REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
-
-   const char *argv3D[]= {"unit_tests",
-                          "-m", "data/cube01_hex.mesh",
-                          nullptr
-                         };
-   REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
-
-   const char *argv3Drs1[]= {"unit_tests",
-                             "-rs", "1", "-ms", "28",
+      const char *argv3D[]= {"unit_tests",
                              "-m", "data/cube01_hex.mesh",
                              nullptr
                             };
-   REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
+      REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
 
+      const char *argv3Drs1[]= {"unit_tests",
+                                "-rs", "1", "-ms", "28",
+                                "-m", "data/cube01_hex.mesh",
+                                nullptr
+                               };
+      REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
+   */
 }
 
 #ifndef MFEM_DEV_UNIT_TESTS

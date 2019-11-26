@@ -385,6 +385,7 @@ inline int CheckFinite(const double *v, const int n)
 
 inline Vector::Vector(int s)
 {
+   //const MemoryType data_bkp_mt = data.GetMemoryType();
    if (s > 0)
    {
       size = s;
@@ -395,6 +396,8 @@ inline Vector::Vector(int s)
       size = 0;
       data.Reset();
    }
+   //dbg("data_bkp_mt:%d, data:%d", data_bkp_mt, data.GetMemoryType());
+   //MFEM_VERIFY(data_bkp_mt == data.GetMemoryType(),"");
 }
 
 inline void Vector::SetSize(int s)
@@ -419,6 +422,7 @@ inline void Vector::SetSize(int s)
 
 inline void Vector::SetSize(int s, MemoryType mt)
 {
+   //const MemoryType data_mt = data.GetMemoryType();
    if (mt == data.GetMemoryType())
    {
       if (s == size)
@@ -431,6 +435,8 @@ inline void Vector::SetSize(int s, MemoryType mt)
          return;
       }
    }
+   dbg("mt:%d, data:%d", mt, data.GetMemoryType());
+   //MFEM_VERIFY(mt == data.GetMemoryType(),"");
    const bool use_dev = data.UseDevice();
    data.Delete();
    if (s > 0)
@@ -444,6 +450,7 @@ inline void Vector::SetSize(int s, MemoryType mt)
       size = 0;
    }
    data.UseDevice(use_dev);
+   //MFEM_VERIFY(data_mt == data.GetMemoryType(),"");
 }
 
 inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
@@ -457,10 +464,13 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
 
 inline void Vector::Destroy()
 {
+   const MemoryType mt = data.GetMemoryType();
    const bool use_dev = data.UseDevice();
    data.Delete();
    size = 0;
    data.Reset();
+   dbg("mt:%d, data:%d", mt, data.GetMemoryType());
+   MFEM_VERIFY(mt == data.GetMemoryType(),"");
    data.UseDevice(use_dev);
 }
 

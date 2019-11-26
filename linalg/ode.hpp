@@ -27,7 +27,7 @@ protected:
    MemoryType mem_type;
 
 public:
-   ODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
+   ODESolver() : f(NULL) { mem_type = Device::GetHostMemoryType(); }
 
    /// Associate a TimeDependentOperator with the ODE solver.
    /** This method has to be called:
