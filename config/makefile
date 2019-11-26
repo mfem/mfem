@@ -36,6 +36,7 @@ CONFIG_MK = config.mk
 all: header config-mk
 
 MPI = $(MFEM_USE_MPI:NO=)
+GHV_CXX ?= $(MFEM_CXX)
 GHV = get_hypre_version
 GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
 SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
@@ -44,7 +45,7 @@ SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
 
 $(GHV): $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
-	$(MFEM_CXX) ${GHV_FLAGS} $(SRC)$(GHV).cpp -o $(GHV)
+	$(GHV_CXX) ${GHV_FLAGS} $(SRC)$(GHV).cpp -o $(GHV)
 $(GHV).out: $(GHV)
 	./$(GHV) > $(GHV).out
 .INTERMEDIATE: $(GHV) $(GHV).out
