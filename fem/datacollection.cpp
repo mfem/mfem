@@ -791,14 +791,13 @@ void ParaviewDataCollection::Load(int )
 std::string  ParaviewDataCollection::GenerateCollectionPath()
 {
    std::string out="";
-   out=DataCollection::GetPrefixPath()+DataCollection::GetCollectionName();
+   out=DataCollection::GetPrefixPath() + DataCollection::GetCollectionName();
    return out;
 }
 
 std::string ParaviewDataCollection::GeneratePVTUPath()
 {
-   //std::string out=GenerateCollectionPath();
-   std::string out="Cycle"+to_padded_string(cycle,pad_digits_cycle);
+   std::string out="Cycle" + to_padded_string(cycle,pad_digits_cycle);
    return out;
 }
 
@@ -822,12 +821,12 @@ std::string ParaviewDataCollection::GeneratePVTUFileName()
 
 std::string ParaviewDataCollection::GenerateVTUFileName()
 {
-   std::string out="proc"+to_padded_string(myrank,pad_digits_rank)+".vtu";
+   std::string out="proc" + to_padded_string(myrank,pad_digits_rank)+".vtu";
    return out;
 }
 std::string ParaviewDataCollection::GenerateVTUFileName(int crank)
 {
-   std::string out="proc"+to_padded_string(crank,pad_digits_rank)+".vtu";
+   std::string out="proc" + to_padded_string(crank,pad_digits_rank)+".vtu";
    return out;
 }
 
@@ -876,22 +875,22 @@ void ParaviewDataCollection::Save()
       std::fstream out; out.open(fname.c_str(), std::ios::out);
 
       out<< "<?xml version=\"1.0\"?>" << std::endl;
-      out<< "<VTKFile type=\"PUnstructuredGrid\" version =\"0.1\" byte_order=\"LittleEndian\"> "
-         << std::endl;
+      out<< "<VTKFile type=\"PUnstructuredGrid\"";
+      out<< " version =\"0.1\" byte_order=\"LittleEndian\"> "<< std::endl;
       out<< "<PUnstructuredGrid GhostLevel=\"0\">" << std::endl ;
 
       out<< "<PPoints>" << std::endl;
-      out<< "\t<PDataArray type=\"Float32\" Name=\"Points\" NumberOfComponents=\"3\"/>"
-         << std::endl;
+      out<< "\t<PDataArray type=\"Float32\" ";
+      out<< " Name=\"Points\" NumberOfComponents=\"3\"/>"  << std::endl;
       out<< "</PPoints>" << std::endl;
 
       out<< "<PCells>" << std::endl ;
-      out<< "\t<PDataArray type=\"Int32\" Name=\"connectivity\" NumberOfComponents=\"1\"/>"
-         << std::endl ;
-      out<< "\t<PDataArray type=\"Int32\" Name=\"offsets\"      NumberOfComponents=\"1\"/>"
-         << std::endl ;
-      out<< "\t<PDataArray type=\"UInt8\" Name=\"types\"        NumberOfComponents=\"1\"/>"
-         << std::endl ;
+      out<< "\t<PDataArray type=\"Int32\" ";
+      out<< " Name=\"connectivity\" NumberOfComponents=\"1\"/>"  << std::endl ;
+      out<< "\t<PDataArray type=\"Int32\" ";
+      out<< " Name=\"offsets\"      NumberOfComponents=\"1\"/>"  << std::endl ;
+      out<< "\t<PDataArray type=\"UInt8\" ";
+      out<< " Name=\"types\"        NumberOfComponents=\"1\"/>"  << std::endl ;
       out<< "</PCells>" << std::endl ;
 
 
@@ -900,7 +899,8 @@ void ParaviewDataCollection::Save()
       {
          out<<"<PDataArray type=\"Float32\" Name=\""<<it->first;
          int vec_dim=it->second->VectorDim();
-         out<<"\" NumberOfComponents=\""<<vec_dim<<"\" format=\"ascii\" />"<<std::endl;
+         out<<"\" NumberOfComponents=\""<< vec_dim <<"\" format=\"ascii\" />" <<
+            std::endl;
       }
       out<<"</PPointData>" << std::endl ;
 
@@ -937,7 +937,8 @@ void ParaviewDataCollection::Save()
 
 void ParaviewDataCollection::SaveDataVTU(std::ostream &out, int ref)
 {
-   out<<"<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"<<std::endl;
+   out<<"<VTKFile type=\"UnstructuredGrid\" ";
+   out<<" version=\"0.1\" byte_order=\"LittleEndian\">"<<std::endl;
    out<<"<UnstructuredGrid>"<<std::endl;
    mesh->PrintVTU(out,ref);
 
@@ -999,7 +1000,8 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
    {
       //vector data
       out<<"<DataArray type=\"Float32\" Name=\""<<it->first;
-      out<<"\" NumberOfComponents=\""<<vec_dim<<"\" format=\"ascii\" >"<<std::endl;
+      out<<"\" NumberOfComponents=\""<< vec_dim <<"\" format=\"ascii\" >" <<
+         std::endl;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
