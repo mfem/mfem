@@ -507,7 +507,7 @@ public:
                           mfem::Mesh *mesh_ = NULL);
 #ifdef MFEM_USE_MPI
    /// Construct a parallel ParaviewDataCollection.
-   /** Before saving the data collection, some parameddters in the
+   /** Before saving the data collection, some parameters in the
        collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
    ParaviewDataCollection(const std::string& collection_name,
                           mfem::ParMesh *mesh_ = NULL);
@@ -523,15 +523,15 @@ public:
    virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override;
 #endif
 
-   /// Add a grid function to the collection and update the root file
+   /// Add a grid function to the collection 
    virtual void RegisterField(const std::string& field_name,
                               mfem::GridFunction *gf) override;
 
 
-   /// Set refinement levels
+   /// Set refinement levels - every element is uniformly split based on levels_of_detail_ 
    void SetLevelsOfDetail(int levels_of_detail_);
 
-   /// Save the collection and a VisIt root file
+   /// Save the collection - the directory name is constructed based on the cycle value
    virtual void Save() override;
 
    /// Load the collection  - not implemented in the paraview writer
