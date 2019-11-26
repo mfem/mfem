@@ -169,7 +169,7 @@ protected:
 
 public:
    /// Default constructor: no initialization.
-   Memory() { }
+   Memory();
 
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
@@ -257,8 +257,8 @@ public:
        Empty().
 
        @note The current memory is NOT deleted by this method. */
-   void Reset()
-   { h_ptr = NULL; h_mt = MemoryType::HOST; capacity = 0; flags = 0; }
+   void Reset();
+   void Reset(MemoryType mt);
 
    /// Return true if the Memory object is empty, see Reset().
    /** Default-constructed objects are uninitialized, so they are not guaranteed
@@ -474,7 +474,7 @@ private: // Static methods used by the Memory<T> class
                                  MemoryType h_mt, size_t bytes, unsigned flags);
 
    /// Return the dual memory type of the given one.
-   static MemoryType GetDualMemoryType(MemoryType mt);
+   static MemoryType GetDualMemoryType_(MemoryType mt);
 
    /// Return a pointer to the memory identified by the host pointer h_ptr for
    /// access with the given MemoryClass.
@@ -494,6 +494,7 @@ private: // Static methods used by the Memory<T> class
    /// Return the type the of the currently valid memory. If more than one types
    /// are valid, return a device type.
    static MemoryType GetMemoryType_(void *h_ptr, unsigned flags);
+   static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
 
    /// Copy entries from valid memory type to valid memory type. Both dest_h_ptr
    /// and src_h_ptr are registered host pointers.
@@ -582,6 +583,35 @@ public:
 
 // Inline methods
 template <typename T>
+inline Memory<T>::Memory(): h_mt(MemoryManager::host_mem_type) { }
+
+template <typename T>
+inline void Memory<T>::Reset()
+{
+   h_ptr = NULL;
+   MFEM_VERIFY(h_mt == MemoryManager::host_mem_type, "");
+   /*if (h_mt != MemoryManager::host_mem_type)
+   {
+      dbg("\033[7m h_mt:%d, host_mem_type:%d", h_mt, MemoryManager::host_mem_type);
+   }*/
+   //#warning Reset
+   //h_mt = MemoryManager::host_mem_type;
+   capacity = 0;
+   flags = 0;
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
+}
+
+template <typename T>
+inline void Memory<T>::Reset(MemoryType mt)
+{
+   h_ptr = NULL;
+   h_mt = mt;
+   capacity = 0;
+   flags = 0;
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
+}
+
+template <typename T>
 inline void Memory<T>::New(int size)
 {
    capacity = size;
@@ -590,6 +620,7 @@ inline void Memory<T>::New(int size)
    h_ptr = (h_mt == MemoryType::HOST) ? (T*) new T[size] :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
    dbg("h_ptr:%p, h_mt:%d, size:0x%x, flags:%x", h_ptr, h_mt, size, flags);
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
 }
 
 template <typename T>
@@ -600,13 +631,15 @@ inline void Memory<T>::New(int size, MemoryType mt)
    if (IsHostMemory(mt)) { flags = OWNS_HOST | VALID_HOST; }
    else { flags = 0; }
    capacity = size;
-   h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
+   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
+   //MemoryManager::host_mem_type;
    dbg("h_mt:%d mt:%d", h_mt, mt);
    // Allocate the host pointer with new T[] if needed.
    T *h_tmp = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
    h_ptr = (mt == MemoryType::HOST) ? h_tmp:
            (T*)MemoryManager::New_(h_tmp, size*sizeof(T), mt, flags);
    dbg("h_ptr:%p, size:0x%x, flags:%x", h_ptr, size, flags);
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
 }
 
 template <typename T>
@@ -619,6 +652,7 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
    h_mt = (!host_ptr) ? MemoryType::HOST : MemoryManager::host_mem_type;
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
    dbg("flags:0x%x", flags);
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
 }
 
 template <typename T>
@@ -631,11 +665,13 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    MFEM_VERIFY(IsHostMemory(mt),"");
    const size_t bytes = size*sizeof(T);
    if (IsHostMemory(mt)) { flags = (own ? OWNS_HOST : 0) | VALID_HOST;}
-   h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
+   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
+   //MemoryManager::host_mem_type;
    // Allocate the host pointer with new T[] if needed.
    // Can be needed when wrapping device memory and host was not allocated
    T *h_tmp = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
    h_ptr = MemoryManager::Register_(ptr, h_tmp, bytes, mt, own, false, flags);
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
 }
 
 template <typename T>
@@ -654,6 +690,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    }
    else
    {
+      MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
       dbg("flags: 0x%x", flags);
       MemoryManager::Alias_(base.h_ptr, offset*sizeof(T), size*sizeof(T),
                             base.flags, flags);
@@ -663,6 +700,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 template <typename T>
 inline void Memory<T>::Delete()
 {
+   //MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    if (!(flags & REGISTERED) ||
        MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST)
    {
@@ -735,6 +773,7 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    return (T*)MemoryManager::ReadWrite_(h_ptr, h_mt, mc, bytes, flags);
 }
 
@@ -750,6 +789,7 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    return (const T*)MemoryManager::Read_(h_ptr, h_mt, mc, bytes, flags);
 }
 
@@ -765,6 +805,7 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    return (T*)MemoryManager::Write_(h_ptr, h_mt, mc, bytes, flags);
 }
 
@@ -798,6 +839,7 @@ template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
    if (!(flags & REGISTERED)) { return h_mt; }
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    return MemoryManager::GetMemoryType_(h_ptr, flags);
 }
 
@@ -816,6 +858,7 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
    }
    else
    {
+      MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
       MemoryManager::Copy_(h_ptr, src.h_ptr, size*sizeof(T), src.flags, flags);
    }
 }
@@ -835,6 +878,7 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
    }
    else
    {
+      MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
       MemoryManager::CopyFromHost_(h_ptr, src, size*sizeof(T), flags);
    }
 }
@@ -853,6 +897,7 @@ inline void Memory<T>::CopyToHost(T *dest, int size) const
    }
    else
    {
+      MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
       MemoryManager::CopyToHost_(dest, h_ptr, size*sizeof(T), flags);
    }
 }
