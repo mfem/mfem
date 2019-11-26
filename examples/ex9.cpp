@@ -84,6 +84,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
+   bool pa = false;
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;
@@ -104,6 +105,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -179,8 +182,13 @@ int main(int argc, char *argv[])
    FunctionCoefficient u0(u0_function);
 
    BilinearForm m(&fes);
-   m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
+   if (pa)
+   {
+      m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   m.AddDomainIntegrator(new MassIntegrator);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
