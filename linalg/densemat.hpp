@@ -1205,6 +1205,16 @@ public:
    /// Copy assignment operator (performs a deep copy)
    DenseTensor &operator=(const DenseTensor &other);
 
+   DenseTensor &operator+=(const real_t *m);
+   DenseTensor &operator+=(const DenseTensor &m);
+
+   DenseTensor &operator-=(const DenseTensor &m);
+
+   DenseTensor &operator*=(real_t c);
+
+   /// (*this) = -(*this)
+   void Neg();
+
    DenseMatrix &operator()(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());

@@ -4437,6 +4437,59 @@ DenseTensor &DenseTensor::operator=(const DenseTensor &other)
    return *this;
 }
 
+DenseTensor &DenseTensor::operator+=(const real_t *m)
+{
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i = 0; i < s; i++)
+   {
+      tdata[i] += m[i];
+   }
+   return *this;
+}
+
+DenseTensor &DenseTensor::operator+=(const DenseTensor &m)
+{
+   MFEM_ASSERT(SizeI() == m.SizeI() && SizeJ() == m.SizeJ() &&
+               SizeK() == m.SizeK(),
+               "incompatible tensor sizes.");
+   return *this += m.Data();
+}
+
+DenseTensor &DenseTensor::operator-=(const DenseTensor &m)
+{
+   for (int k = 0; k < SizeK(); k++)
+   {
+      for (int j = 0; j < SizeJ(); j++)
+      {
+         for (int i = 0; i < SizeI(); i++)
+         {
+            (*this)(i, j, k) -= m(i, j, k);
+         }
+      }
+   }
+
+   return *this;
+}
+
+DenseTensor &DenseTensor::operator*=(real_t c)
+{
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i = 0; i < s; i++)
+   {
+      tdata[i] *= c;
+   }
+   return *this;
+}
+
+void DenseTensor::Neg()
+{
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i = 0; i < s; i++)
+   {
+      tdata[i] = -tdata[i];
+   }
+}
+
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
    BatchedLinAlg::LUFactor(Mlu, P);
