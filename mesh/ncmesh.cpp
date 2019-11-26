@@ -3596,9 +3596,9 @@ int NCMesh::GetElementSizeReduction(int i) const
    int reduction = 1, parent;
    while ((parent = elements[elem].parent) != -1)
    {
-      if (elements[elements[elem].parent].ref_type & 1) { reduction *= 2; }
-      if (elements[elements[elem].parent].ref_type & 2) { reduction *= 2; }
-      if (elements[elements[elem].parent].ref_type & 4) { reduction *= 2; }
+      if (elements[parent].ref_type & 1) { reduction *= 2; }
+      if (elements[parent].ref_type & 2) { reduction *= 2; }
+      if (elements[parent].ref_type & 4) { reduction *= 2; }
       elem = parent;
    }
    return reduction;
