@@ -772,6 +772,25 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    return gf;
 }
 
+const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(const IntegrationRule& ir,
+                                                          const int flags)
+{
+   for (int i = 0; i < face_geom_factors.Size(); i++)
+   {
+      FaceGeometricFactors *gf = face_geom_factors[i];
+      if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags)
+      {
+         return gf;
+      }
+   }
+
+   this->EnsureNodes();
+
+   FaceGeometricFactors *gf = new FaceGeometricFactors(this, ir, flags);
+   face_geom_factors.Append(gf);
+   return gf;   
+}
+
 void Mesh::DeleteGeometricFactors()
 {
    for (int i = 0; i < geom_factors.Size(); i++)
@@ -9737,14 +9756,14 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRu
    }
    if (flags & FaceGeometricFactors::NORMALS)
    {
-      detJ.SetSize(NQ*NF);
+      normal.SetSize(vdim*NQ*NF);
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 
    const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(ir);
    // For now, we are not using tensor product evaluation (not implemented)
    // qi->DisableTensorProducts();
-   qi->Mult(Fnodes, eval_flags, X, J, detJ);
+   qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
