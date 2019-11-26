@@ -46,6 +46,8 @@ using namespace std;
 
 #define NO_SD_OPERATOR
 
+#define USE_SIGN_FLIP
+
 #define SD_ITERATIVE
 #define SD_ITERATIVE_COMPLEX
 //#define SD_ITERATIVE_GMG
@@ -84,6 +86,9 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 						     HypreParMatrix *I,
 #endif
 						     std::vector<int> & inj, std::vector<int> & ginj,
+#ifdef USE_SIGN_FLIP
+						     std::vector<int> & gflip, const bool fliprows, const bool flipcols,
+#endif
 #ifdef SERIAL_INTERFACES						     
 						     FiniteElementSpace *ifespace, FiniteElementSpace *ifespace2,
 #else
@@ -180,6 +185,10 @@ private:
   std::vector<int> m_alliftsize;  // TODO: not needed as a class member.
   std::vector<int> m_alltrueSD;
 
+#ifdef USE_SIGN_FLIP
+  std::vector<int> m_alltrueSDflip;
+#endif
+  
   std::vector<int> m_iftToSDrank;  // map from interface true DOF to rank owning the corresponding subdomain true DOF.
   
   mutable std::vector<double> m_recv, m_send;
@@ -189,7 +198,7 @@ private:
 public:
 
   InjectionOperator(MPI_Comm comm, ParFiniteElementSpace *subdomainSpace, FiniteElementSpace *interfaceSpace, int *a,
-		    std::vector<int> const& gdofmap);
+		    std::vector<int> const& gdofmap, std::vector<int> const& gflip);
   
   ~InjectionOperator()
   {
@@ -243,7 +252,11 @@ public:
 
     for (int i=0; i<m_recv.size(); ++i)
       {
+#ifdef USE_SIGN_FLIP
+	y[m_alltrueSD[i]] = (m_alltrueSDflip[i] == 1) ? -m_recv[i] : m_recv[i];
+#else
 	y[m_alltrueSD[i]] = m_recv[i];
+#endif
       }
 
   }
@@ -257,7 +270,11 @@ public:
 
     for (int i=0; i<m_recv.size(); ++i)
       {
+#ifdef USE_SIGN_FLIP
+	m_recv[i] = (m_alltrueSDflip[i] == 1) ? -x[m_alltrueSD[i]] : x[m_alltrueSD[i]];	
+#else
 	m_recv[i] = x[m_alltrueSD[i]];
+#endif
       }
 
     // The roles of receive and send data are reversed.
@@ -289,6 +306,12 @@ public:
     
     gf.GetTrueDofs(y);
     */
+  }
+
+  void GetAllTrueSD(std::set<int> tdof)
+  {
+    for (auto i : m_alltrueSD)
+      tdof.insert(i);
   }
 };
 
@@ -1179,7 +1202,8 @@ private:
   std::vector<std::vector<std::vector<int> > > InterfaceToSurfaceInjectionGlobalData;
 
   std::vector<std::vector<std::vector<int> > > GlobalInterfaceToSurfaceInjectionGlobalData;
-
+  std::vector<std::vector<std::vector<int> > > gflip;
+  
   std::vector<Array<int> > rowTrueOffsetsSD, colTrueOffsetsSD;
 #ifdef DDMCOMPLEX
   std::vector<Array<int> > rowTrueOffsetsComplexSD, colTrueOffsetsComplexSD;
