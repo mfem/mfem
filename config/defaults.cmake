@@ -42,7 +42,6 @@ option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
-option(MFEM_USE_MM "Enable MFEM's memory manager" OFF)
 option(MFEM_USE_CUDA "Enable CUDA" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
@@ -82,7 +81,7 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
-set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-3.0.0" CACHE PATH
+set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
     "Path to the SUNDIALS library.")
 # The following may be necessary, if SUNDIALS was built with KLU:
 # set(SUNDIALS_REQUIRED_PACKAGES "SuiteSparse/KLU/AMD/BTF/COLAMD/config"
