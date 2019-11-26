@@ -922,6 +922,26 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
    }
 }
 
+const IntegrationRule &ConvectionIntegrator::GetRule(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe)
+{
+   int order;
+   if (trial_fe.Space() == FunctionSpace::Pk)
+   {
+      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+   }
+   else
+   {
+      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+   }
+
+   if (trial_fe.Space() == FunctionSpace::rQk)
+   {
+      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
 
 void VectorMassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
@@ -2524,6 +2544,28 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          }
       }
    }
+}
+
+
+const IntegrationRule &DGTraceIntegrator::GetRule(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe)
+{
+   int order;
+   if (trial_fe.Space() == FunctionSpace::Pk)
+   {
+      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+   }
+   else
+   {
+      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+   }
+
+   if (trial_fe.Space() == FunctionSpace::rQk)
+   {
+      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
 void DGDiffusionIntegrator::AssembleFaceMatrix(

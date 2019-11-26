@@ -182,6 +182,7 @@ public:
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
+   Array<FaceGeometricFactors*> face_geom_factors; ///< Optional face geometric factors.
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value

@@ -924,6 +924,34 @@ const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    return qi;
 }
 
+const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpolator(
+   const IntegrationRule &ir) const
+{
+   for (int i = 0; i < E2FQ_array.Size(); i++)
+   {
+      const FaceQuadratureInterpolator *qi = E2FQ_array[i];
+      if (qi->IntRule == &ir) { return qi; }
+   }
+
+   FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir);
+   E2FQ_array.Append(qi);
+   return qi;
+}
+
+const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpolator(
+   const QuadratureSpace &qs) const
+{
+   for (int i = 0; i < E2FQ_array.Size(); i++)
+   {
+      const FaceQuadratureInterpolator *qi = E2FQ_array[i];
+      if (qi->qspace == &qs) { return qi; }
+   }
+
+   FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs);
+   E2FQ_array.Append(qi);
+   return qi;
+}
+
 SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    const int coarse_ndofs, const Table &coarse_elem_dof,
    const DenseTensor localP[]) const
@@ -3904,9 +3932,9 @@ void FaceQuadratureInterpolator::Eval2D(
    const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
-   const Array<double> &W,
+   // const Array<double> &W,
    Vector &q_val,
-   // Vector &q_der,
+   Vector &q_der,
    Vector &q_det,
    Vector &q_nor,
    const int eval_flags)
@@ -3923,7 +3951,7 @@ void FaceQuadratureInterpolator::Eval2D(
    auto B = Reshape(maps.B.Read(), NQ1D, ND1D);//TODO B1d
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);//TODO G1d
    auto F = Reshape(e_vec.Read(), ND1D, VDIM, NF);
-   auto w = W.Read();
+   // auto w = W.Read();
    auto val = Reshape(q_val.Write(), NQ1D, VDIM, NF);
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF);//Only tangential der
    auto det = Reshape(q_det.Write(), NQ1D, NF);
@@ -4006,9 +4034,9 @@ void FaceQuadratureInterpolator::Eval3D(
    const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
-   const Array<double> &W,
+   // const Array<double> &W,
    Vector &q_val,
-   // Vector &q_der,
+   Vector &q_der,
    Vector &q_det,
    Vector &q_nor,
    const int eval_flags)
@@ -4024,7 +4052,7 @@ void FaceQuadratureInterpolator::Eval3D(
    auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
    auto F = Reshape(e_vec.Read(), ND1D, ND1D, VDIM, NF);
-   auto w = W.Read();
+   // auto w = W.Read();
    auto val = Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF);
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
@@ -4184,8 +4212,8 @@ void FaceQuadratureInterpolator::Eval3D(
 }
 
 void FaceQuadratureInterpolator::Mult(
-   const Vector &e_vec, unsigned eval_flags, const Array<double> &W,
-   Vector &q_val, Vector &q_der, Vector &q_det) const
+   const Vector &e_vec, unsigned eval_flags, //const Array<double> &W,
+   Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const
 {
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
@@ -4202,10 +4230,11 @@ void FaceQuadratureInterpolator::Mult(
       const int vdim,
       const DofToQuad &maps,
       const Vector &e_vec,
-      const Array<double> &W,
+      // const Array<double> &W,
       Vector &q_val,
       Vector &q_der,
       Vector &q_det,
+      Vector &q_nor,
       const int eval_flags) = NULL;
    if (vdim == 1)
    {
@@ -4317,7 +4346,8 @@ void FaceQuadratureInterpolator::Mult(
    }
    if (eval_func)
    {
-      eval_func(ne, vdim, maps, e_vec, W, q_val, q_der, q_det, eval_flags);
+      // eval_func(ne, vdim, maps, e_vec, W, q_val, q_der, q_det, q_nor, eval_flags);
+      eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, q_nor, eval_flags);
    }
    else
    {
