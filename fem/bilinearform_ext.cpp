@@ -48,6 +48,15 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
       localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
       localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
+
+   face_restrict_lex = trialFes->GetFaceRestriction(
+                          ElementDofOrdering::LEXICOGRAPHIC);
+   if (face_restrict_lex)
+   {
+      faceX.SetSize(face_restrict_lex->Height(), Device::GetMemoryType());
+      faceY.SetSize(face_restrict_lex->Height(), Device::GetMemoryType());
+      faceY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+   }
 }
 
 void PABilinearFormExtension::Assemble()
@@ -57,6 +66,13 @@ void PABilinearFormExtension::Assemble()
    for (int i = 0; i < integratorCount; ++i)
    {
       integrators[i]->AssemblePA(*a->FESpace());
+   }
+
+   Array<BilinearFormIntegrator*> &faceIntegrators = *a->GetFBFI();
+   const int faceIntegratorCount = faceIntegrators.Size();
+   for (int i = 0; i < faceIntegratorCount; ++i)
+   {
+      faceIntegrators[i]->AssemblePA(*a->FESpace());
    }
 }
 
@@ -119,6 +135,29 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(x, y);
+      }
+   }
+
+   Array<BilinearFormIntegrator*> &faceIntegrators = *a->GetFBFI();
+
+   const int fISz = faceIntegrators.Size();
+   if (face_restrict_lex)
+   {
+      face_restrict_lex->Mult(x, faceX);
+      faceY = 0.0;
+      for (int i = 0; i < fISz; ++i)
+      {
+         faceIntegrators[i]->AddMultPA(faceX, faceY);
+      }
+      elem_restrict_lex->MultTranspose(faceY, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         faceIntegrators[i]->AddMultPA(x, y);
       }
    }
 }

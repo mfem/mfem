@@ -33,7 +33,9 @@ static void PAConvectionSetup2D(const int Q1D,
    auto W = w.Read();
 
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto c = Reshape(coeff.Read(), NQ, 2, NE);
+   // auto c = Reshape(coeff.Read(), NQ, 2, NE);
+   const double c0 = coeff[0];
+   const double c1 = coeff[1];
    auto y = Reshape(op.Write(), NQ, 2, NE);
 
    MFEM_FORALL(e, NE,
@@ -45,8 +47,10 @@ static void PAConvectionSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double w = alpha * W[q];
-         const double wx = w * c(q,0,e);
-         const double wy = w * c(q,1,e);
+         // const double wx = w * c(q,0,e);
+         // const double wy = w * c(q,1,e);
+         const double wx = w * c0;
+         const double wy = w * c1;
          //w*J^-T
          y(q,0,e) =  wx * J22 - wy * J21; // 1
          y(q,1,e) = -wy * J21 + wy * J11; // 2
@@ -66,7 +70,10 @@ static void PAConvectionSetup3D(const int Q1D,
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto c = Reshape(coeff.Read(), NQ, 2, NE);
+   // auto c = Reshape(coeff.Read(), NQ, 2, NE);
+   const double c0 = coeff[0];
+   const double c1 = coeff[1];
+   const double c2 = coeff[2];
    auto y = Reshape(op.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
    {
@@ -85,9 +92,12 @@ static void PAConvectionSetup3D(const int Q1D,
          // /* */               J21 * (J12 * J33 - J32 * J13) +
          // /* */               J31 * (J12 * J23 - J22 * J13);
          const double w = alpha * W[q];
-         const double wx = w * c(q,0,e);
-         const double wy = w * c(q,1,e);
-         const double wz = w * c(q,2,e);
+         // const double wx = w * c(q,0,e);
+         // const double wy = w * c(q,1,e);
+         // const double wz = w * c(q,2,e);
+         const double wx = w * c0;
+         const double wy = w * c1;
+         const double wz = w * c2;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);

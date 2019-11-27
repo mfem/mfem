@@ -48,6 +48,10 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          constant = const_coeff->constant;
       }
+      else if(!Q)
+      {
+         constant = 1.0;
+      }
       else
       {
          MFEM_ABORT("Coefficient type not supported");
@@ -76,6 +80,10 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       if (const_coeff)
       {
          constant = const_coeff->constant;
+      }
+      else if(!Q)
+      {
+         constant = 1.0;
       }
       else
       {
