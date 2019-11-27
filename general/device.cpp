@@ -174,7 +174,6 @@ void Device::Enable()
 {
    const bool accelerated = Get().backends & ~(Backend::CPU | Backend::DEBUG);
    if (accelerated) { Get().mode = Device::ACCELERATED;}
-   // Update the host & device memory backends
    Get().UpdateMemoryTypeAndClass();
 }
 

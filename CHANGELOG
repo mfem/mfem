@@ -73,7 +73,7 @@ GPU support
   same application. We plan on adding support for more programming models and
   devices in the future, without the need for significant modifications in user
   code. The list of current backends is: "occa-cuda", "raja-cuda", "cuda",
-  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", "cpu" and "debug".
+  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", "debug" and "cpu".
 
 - The "debug" device is to be used specifically for debugging purposes.
   It allows to test the "device" code-path without any hardware.
