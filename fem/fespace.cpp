@@ -3070,12 +3070,13 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
          if (el) { continue; }
          mfem_error("Finite element not suitable for lexicographic ordering");
       }
-      const FiniteElement *fe = fes.GetFaceElement(0);
-      const TensorBasisElement* el =
-         dynamic_cast<const TensorBasisElement*>(fe);
-      const Array<int> &fe_dof_map = el->GetDofMap();
-      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
-      dof_map = fe_dof_map.GetData();
+      // L2 case so no dof_map, don't fall in the trap!
+      // const FiniteElement *fe = fes.GetFaceElement(0);
+      // const TensorBasisElement* el =
+      //    dynamic_cast<const TensorBasisElement*>(fe);
+      // const Array<int> &fe_dof_map = el->GetDofMap();
+      // MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
+      // dof_map = fe_dof_map.GetData();
    }
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
@@ -3166,10 +3167,11 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
 {
    //if fespace == L2
    // Assuming all finite elements are the same.
-   height = vdim*nf*dof;
+   height = 2*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   const int *dof_map = NULL;
+   if(!dof_reorder) mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
+   // const int *dof_map = NULL;
    if (dof_reorder && nf > 0)
    {
       for (int f = 0; f < nf; ++f)
@@ -3201,7 +3203,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if(dof_reorder){
-         if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
+         // if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
          orientation = inf1 % 64;
          face_id = inf1 / 64;
          GetFaceDofsLex(vdim, face_id, dof1d, faceMap1);//Only for hex
@@ -3215,7 +3217,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       for (int d = 0; d < dof; ++d)
       {
          const int face_dof = faceMap1[d];
-         const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
+         const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof]; Always dof_map==NULL
          const int gid = elementMap[e1*elem_dofs + did];
          const int lid = dof*f + d;
          indices1[lid] = gid;
@@ -3223,7 +3225,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       for (int d = 0; d < dof; ++d)
       {
          const int face_dof = faceMap2[d];
-         const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
+         const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
          const int gid = elementMap[e2*elem_dofs + did];
          const int lid = dof*f + d;
          indices2[lid] = gid;//TODO Add permutation

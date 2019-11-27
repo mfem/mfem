@@ -61,7 +61,8 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   SparseMatrix &M, &K;
+   // SparseMatrix &M, &K;
+   Operator *M, *K;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
@@ -69,7 +70,8 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b);
+   // FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b);
+   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -177,7 +179,13 @@ int main(int argc, char *argv[])
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
-   VectorFunctionCoefficient velocity(dim, velocity_function);
+   // VectorFunctionCoefficient velocity(dim, velocity_function);
+   Vector velocity_vector(dim);
+   for (int i = 0; i < dim; ++i)
+   {
+      velocity_vector[i] = 1.0;
+   }
+   VectorConstantCoefficient velocity(velocity_vector);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
@@ -200,11 +208,14 @@ int main(int argc, char *argv[])
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
    m.Assemble();
-   m.Finalize();
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
-   k.Finalize(skip_zeros);
    b.Assemble();
+   if(!pa)
+   {
+      m.Finalize();
+      k.Finalize(skip_zeros);
+   }
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -272,7 +283,8 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m.SpMat(), k.SpMat(), b);
+   // FE_Evolution adv(m.SpMat(), k.SpMat(), b);
+   FE_Evolution adv(m, k, b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -322,25 +334,26 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
+FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b)
+   : TimeDependentOperator(_M.Height()), M(&_M), K(&_K), b(_b), z(_M.Height())
 {
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
+   // M_solver.SetPreconditioner(M_prec);
+   // M_solver.SetOperator(M);
 
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
+   // M_solver.iterative_mode = false;
+   // M_solver.SetRelTol(1e-9);
+   // M_solver.SetAbsTol(0.0);
+   // M_solver.SetMaxIter(100);
+   // M_solver.SetPrintLevel(0);
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
-   K.Mult(x, z);
+   K->Mult(x, z);
    z += b;
-   M_solver.Mult(z, y);
+   // M_solver.Mult(z, y);
+   CG(*M, z, y, 1, 2000, 1e-12, 0.0);
 }
 
 

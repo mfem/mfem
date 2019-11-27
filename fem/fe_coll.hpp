@@ -149,7 +149,14 @@ public:
 
    virtual const FiniteElement *FiniteElementForGeometry(
       Geometry::Type GeomType) const
-   { return L2_Elements[GeomType]; }
+   { 
+      FiniteElement * fe = L2_Elements[GeomType];
+      if (!fe)
+      {
+         fe = Tr_Elements[GeomType];
+      }
+      return fe;
+   }
    virtual int DofForGeometry(Geometry::Type GeomType) const
    {
       if (L2_Elements[GeomType])
