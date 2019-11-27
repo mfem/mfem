@@ -658,28 +658,41 @@ int main (int argc, char *argv[])
    // 18. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
+   HypreSmoother *sm = NULL;
    const double linsol_rtol = 1e-12;
-   if (lin_solver == 0)
+   switch (lin_solver)
    {
-      S = new DSmoother(1, 1.0, max_lin_iter);
-   }
-   else if (lin_solver == 1)
-   {
-      CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
-      cg->SetMaxIter(max_lin_iter);
-      cg->SetRelTol(linsol_rtol);
-      cg->SetAbsTol(0.0);
-      cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-      S = cg;
-   }
-   else
-   {
-      MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
-      minres->SetMaxIter(max_lin_iter);
-      minres->SetRelTol(linsol_rtol);
-      minres->SetAbsTol(0.0);
-      minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-      S = minres;
+      case 0: S = new DSmoother(1, 1.0, max_lin_iter); break;
+      case 1:
+      {
+         CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
+         cg->SetMaxIter(max_lin_iter);
+         cg->SetRelTol(linsol_rtol);
+         cg->SetAbsTol(0.0);
+         cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+         S = cg;
+         break;
+      }
+      case 2:
+      case 3:
+      {
+         MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
+         minres->SetMaxIter(max_lin_iter);
+         minres->SetRelTol(linsol_rtol);
+         minres->SetAbsTol(0.0);
+         minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+
+         if (lin_solver == 3)
+         {
+            sm = new HypreSmoother;
+            sm->SetType(HypreSmoother::l1Jacobi, 1);
+            minres->SetPreconditioner(*sm);
+         }
+
+         S = minres;
+         break;
+      }
+      default: MFEM_ABORT("Unknown linear solver type");
    }
 
    // 19. Compute the minimum det(J) of the starting mesh.
@@ -833,6 +846,7 @@ int main (int argc, char *argv[])
    }
 
    // 24. Free the used memory.
+   delete sm;
    delete S;
    delete target_c2;
    delete metric2;
