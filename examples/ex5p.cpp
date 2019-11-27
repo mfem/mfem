@@ -335,9 +335,6 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("pressure",p);
    paraview_dc.Save();
 
-
-
-
    // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
