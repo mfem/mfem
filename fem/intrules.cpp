@@ -851,33 +851,26 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
    own_rules = 1;
 
    PointIntRules.SetSize(2);
-   PointIntRules.GetMemory().UseDevice(false);
    PointIntRules = NULL;
 
    SegmentIntRules.SetSize(32);
-   SegmentIntRules.GetMemory().UseDevice(false);
    SegmentIntRules = NULL;
 
    // TriangleIntegrationRule() assumes that this size is >= 26
    TriangleIntRules.SetSize(32);
-   TriangleIntRules.GetMemory().UseDevice(false);
    TriangleIntRules = NULL;
 
    SquareIntRules.SetSize(32);
-   SquareIntRules.GetMemory().UseDevice(false);
    SquareIntRules = NULL;
 
    // TetrahedronIntegrationRule() assumes that this size is >= 10
    TetrahedronIntRules.SetSize(32);
-   TetrahedronIntRules.GetMemory().UseDevice(false);
    TetrahedronIntRules = NULL;
 
    PrismIntRules.SetSize(32);
-   PrismIntRules.GetMemory().UseDevice(false);
    PrismIntRules = NULL;
 
    CubeIntRules.SetSize(32);
-   CubeIntRules.GetMemory().UseDevice(false);
    CubeIntRules = NULL;
 }
 
@@ -975,6 +968,7 @@ void IntegrationRules::DeleteIntRuleArray(Array<IntegrationRule *> &ir_array)
 IntegrationRules::~IntegrationRules()
 {
    if (!own_rules) { return; }
+
    DeleteIntRuleArray(PointIntRules);
    DeleteIntRuleArray(SegmentIntRules);
    DeleteIntRuleArray(TriangleIntRules);
@@ -1032,16 +1026,12 @@ IntegrationRule *IntegrationRules::PointIntegrationRule(int Order)
 // Integration rules for line segment [0,1]
 IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
 {
-   MemoryType bkp = SegmentIntRules.GetMemory().GetMemoryType();
    int RealOrder = GetSegmentRealOrder(Order); // RealOrder >= Order
    // Order is one of {RealOrder-1,RealOrder}
    AllocIntRule(SegmentIntRules, RealOrder);
-   MFEM_VERIFY(bkp == SegmentIntRules.GetMemory().GetMemoryType(),"");
 
    IntegrationRule tmp, *ir;
    ir = refined ? &tmp : new IntegrationRule;
-   // Should keep underlying allocator
-   //MFEM_VERIFY(ir->GetMemory().GetMemoryType() == bkp, "");
 
    int n = 0;
    // n is the number of points to achieve the exact integral of a

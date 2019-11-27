@@ -77,6 +77,7 @@ struct Backend
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Biwise-OR of all device backends
       DEVICE_MASK = CUDA_MASK | HIP_MASK,
+
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
       /// Biwise-OR of all OCCA backends
