@@ -436,7 +436,7 @@ class BlockArray
 public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
-   ~BlockArray();
+   ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
    int Append();
@@ -465,6 +465,9 @@ public:
 
    /// Return the current capacity of the BlockArray.
    int Capacity() const { return blocks.Size()*(mask+1); }
+
+   /// Destroy all items, set size to zero.
+   void DeleteAll() { Destroy(); blocks.DeleteAll(); size = 0; }
 
    void Swap(BlockArray<T> &other);
 
@@ -570,6 +573,8 @@ protected:
       MFEM_ASSERT(index >= 0 && index < size,
                   "Out of bounds access: " << index << ", size = " << size);
    }
+
+   void Destroy();
 };
 
 
@@ -1001,7 +1006,7 @@ long BlockArray<T>::MemoryUsage() const
 }
 
 template<typename T>
-BlockArray<T>::~BlockArray()
+void BlockArray<T>::Destroy()
 {
    int bsize = size & mask;
    for (int i = blocks.Size(); i != 0; )
