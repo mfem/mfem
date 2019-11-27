@@ -57,8 +57,7 @@ struct Backend
       OCCA_CUDA = 1 << 9,
       /** @brief [host] Debug backend: host memory is READ/WRITE protected
           while a device is in use. */
-      DEBUG = 1 << 10,
-      UVM = 1 << 11
+      DEBUG = 1 << 10
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -66,7 +65,7 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 12,
+      NUM_BACKENDS = 11,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | DEBUG,

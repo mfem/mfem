@@ -6502,7 +6502,6 @@ Poly_1D::Basis::Basis(const int p, const double *nodes, EvalType etype)
          break;
       }
       case Positive:
-         dbg("\033[7;31m x.SetDataAndSize");
          x.SetDataAndSize(NULL, p + 1); // use x to store (p + 1)
          break;
 
@@ -6895,21 +6894,12 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
 
    if (points_container.find(btype) == points_container.end())
    {
-      points_container[btype] = new Array<double*>(MemoryType::HOST);
-      dbg("\033[31;7m points_container mt:%d",
-          points_container[btype]->GetMemory().GetMemoryType());
-      MFEM_VERIFY(points_container[btype]->GetMemory().GetMemoryType() ==
-                  MemoryType::HOST,"");
+      points_container[btype] = new Array<double*>(h_mt);
    }
    Array<double*> &pts = *points_container[btype];
    if (pts.Size() <= p)
    {
-      MemoryType bkp = pts.GetMemory().GetMemoryType();
-      MFEM_VERIFY(bkp == MemoryType::HOST,"");
-      dbg("\033[31;7m pts mt:%d", bkp);
       pts.SetSize(p + 1, NULL);
-      MFEM_VERIFY(bkp == MemoryType::HOST,"");
-      MFEM_VERIFY(bkp == pts.GetMemory().GetMemoryType(),"");
    }
    if (pts[p] == NULL)
    {
@@ -6926,8 +6916,7 @@ Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
    if ( bases_container.find(btype) == bases_container.end() )
    {
       // we haven't been asked for basis or points of this type yet
-      //#warning Should be out mt
-      bases_container[btype] = new Array<Basis*>(MemoryType::HOST);
+      bases_container[btype] = new Array<Basis*>(h_mt);
    }
    Array<Basis*> &bases = *bases_container[btype];
    if (bases.Size() <= p)

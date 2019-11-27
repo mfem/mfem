@@ -19,18 +19,11 @@ using namespace mfem;
 
 static void ScanMemoryTypes(const int N = 1024)
 {
-   constexpr int SIZE = static_cast<int>(MemoryType::SIZE);
+   constexpr int SIZE = static_cast<int>(MemoryType::HOST_UMPIRE);
    Vector v[SIZE];
    MemoryType mt = MemoryType::HOST;
    for (int i=0; i<SIZE; i++, mt++)
    {
-      if (!Device::Allows(Backend::DEVICE_MASK) &&
-          !IsHostMemory(mt)) { continue; }
-      if (i==static_cast<int>(MemoryType::HOST_MANAGED)) { continue; }
-#ifndef MFEM_USE_UMPIRE
-      if (i==static_cast<int>(MemoryType::HOST_UMPIRE)) { continue; }
-      if (i==static_cast<int>(MemoryType::DEVICE_UMPIRE)) { continue; }
-#endif
       Memory<double> mem(N, mt);
       REQUIRE(mem.Capacity() == N);
       Vector &y = v[i];

@@ -362,10 +362,7 @@ public:
 
 void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
-   MemoryType bkp = ir->GetMemory().GetMemoryType();
-   dbg("bkp:%d", bkp);
    ir->SetSize(np);
-   MFEM_VERIFY(bkp == ir->GetMemory().GetMemoryType(),"");
 
    switch (np)
    {
@@ -847,46 +844,38 @@ IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 IntegrationRules::IntegrationRules(int Ref, int _type):
    quad_type(_type)
 {
-   dbg("");
    refined = Ref;
 
    if (refined < 0) { own_rules = 0; return; }
 
    own_rules = 1;
 
-   dbg("PointIntRules");
    PointIntRules.SetSize(2);
    PointIntRules.GetMemory().UseDevice(false);
    PointIntRules = NULL;
 
-   dbg("SegmentIntRules");
    SegmentIntRules.SetSize(32);
    SegmentIntRules.GetMemory().UseDevice(false);
    SegmentIntRules = NULL;
 
-   dbg("TriangleIntRules");
    // TriangleIntegrationRule() assumes that this size is >= 26
    TriangleIntRules.SetSize(32);
    TriangleIntRules.GetMemory().UseDevice(false);
    TriangleIntRules = NULL;
 
-   dbg("SquareIntRules");
    SquareIntRules.SetSize(32);
    SquareIntRules.GetMemory().UseDevice(false);
    SquareIntRules = NULL;
 
-   dbg("TetrahedronIntRules");
    // TetrahedronIntegrationRule() assumes that this size is >= 10
    TetrahedronIntRules.SetSize(32);
    TetrahedronIntRules.GetMemory().UseDevice(false);
    TetrahedronIntRules = NULL;
 
-   dbg("PrismIntRules");
    PrismIntRules.SetSize(32);
    PrismIntRules.GetMemory().UseDevice(false);
    PrismIntRules = NULL;
 
-   dbg("CubeIntRules");
    CubeIntRules.SetSize(32);
    CubeIntRules.GetMemory().UseDevice(false);
    CubeIntRules = NULL;
@@ -894,7 +883,6 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
 
 const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
 {
-   dbg("");
    Array<IntegrationRule *> *ir_array;
 
    switch (GeomType)
@@ -918,7 +906,6 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
 
    if (!HaveIntRule(*ir_array, Order))
    {
-      dbg("\033[31;7m!HaveIntRule");
 #ifdef MFEM_USE_LEGACY_OPENMP
       #pragma omp critical
 #endif
@@ -928,7 +915,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
             IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
             int RealOrder = Order;
             while (RealOrder+1 < ir_array->Size() &&
-                   /*  */ (*ir_array)[RealOrder+1] == ir)
+            /*  */ (*ir_array)[RealOrder+1] == ir)
             {
                RealOrder++;
             }
@@ -988,19 +975,12 @@ void IntegrationRules::DeleteIntRuleArray(Array<IntegrationRule *> &ir_array)
 IntegrationRules::~IntegrationRules()
 {
    if (!own_rules) { return; }
-   dbg("1");
    DeleteIntRuleArray(PointIntRules);
-   dbg("2");
    DeleteIntRuleArray(SegmentIntRules);
-   dbg("3");
    DeleteIntRuleArray(TriangleIntRules);
-   dbg("4");
    DeleteIntRuleArray(SquareIntRules);
-   dbg("5");
    DeleteIntRuleArray(TetrahedronIntRules);
-   dbg("6");
    DeleteIntRuleArray(CubeIntRules);
-   dbg("7");
    DeleteIntRuleArray(PrismIntRules);
 }
 
@@ -1008,7 +988,6 @@ IntegrationRules::~IntegrationRules()
 IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
                                                            int Order)
 {
-   dbg("\033[31;7mGenerateIntegrationRule: %d %d", GeomType, Order);
    switch (GeomType)
    {
       case Geometry::POINT:
@@ -1054,7 +1033,6 @@ IntegrationRule *IntegrationRules::PointIntegrationRule(int Order)
 IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
 {
    MemoryType bkp = SegmentIntRules.GetMemory().GetMemoryType();
-   dbg("bkp:%d",bkp);
    int RealOrder = GetSegmentRealOrder(Order); // RealOrder >= Order
    // Order is one of {RealOrder-1,RealOrder}
    AllocIntRule(SegmentIntRules, RealOrder);
@@ -1129,7 +1107,6 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
 // Integration rules for reference triangle {[0,0],[1,0],[0,1]}
 IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
 {
-   dbg("");
    IntegrationRule *ir = NULL;
    // Note: Set TriangleIntRules[*] to ir only *after* ir is fully constructed.
    // This is needed in multithreaded environment.
@@ -1515,17 +1492,13 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
 // Integration rules for unit square
 IntegrationRule *IntegrationRules::SquareIntegrationRule(int Order)
 {
-   dbg("\033[31;7mSquareIntegrationRule: %d", Order);
    int RealOrder = GetSegmentRealOrder(Order);
    // Order is one of {RealOrder-1,RealOrder}
    if (!HaveIntRule(SegmentIntRules, RealOrder))
    {
-      dbg("!SegmentIntRules");
       SegmentIntegrationRule(RealOrder);
    }
-   dbg("AllocIntRule =>");
    AllocIntRule(SquareIntRules, RealOrder); // RealOrder >= Order
-   dbg("done AllocIntRule");
    SquareIntRules[RealOrder-1] =
       SquareIntRules[RealOrder] =
          new IntegrationRule(*SegmentIntRules[RealOrder],

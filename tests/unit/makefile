@@ -31,8 +31,7 @@ DATA_DIR = data
 
 DEV_UNIT_TESTS = unit_tests_cpu unit_tests_dbg
 DEV_UNIT_TESTS += $(if $(MFEM_CXX:nvcc=),,unit_tests_cuda)
-DEV_UNIT_TESTS += $(if $(MFEM_CXX:nvcc=),,unit_tests_cuda_dbg)
-DEV_UNIT_TESTS += $(if $(MFEM_CXX:nvcc=),,unit_tests_cuda_uvm)
+#DEV_UNIT_TESTS += $(if $(MFEM_CXX:nvcc=),,unit_tests_cuda_uvm)
 
 SEQ_UNIT_TESTS = unit_tests $(DEV_UNIT_TESTS)
 PAR_UNIT_TESTS = $(DEV_UNIT_TESTS)
@@ -41,8 +40,7 @@ DEV_SOURCE_FILES = miniapps/test_sedov.cpp
 CPU_OBJECT_FILES = $(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cpu.o)
 DBG_OBJECT_FILES = $(DEV_SOURCE_FILES:$(SRC)%.cpp=%.dbg.o)
 CUDA_OBJECT_FILES = $(if $(MFEM_CXX:nvcc=),,$(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cuda.o))
-CUDA_DBG_OBJECT_FILES = $(if $(MFEM_CXX:nvcc=),,$(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cuda_dbg.o))
-CUDA_UVM_OBJECT_FILES = $(if $(MFEM_CXX:nvcc=),,$(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+#CUDA_UVM_OBJECT_FILES = $(if $(MFEM_CXX:nvcc=),,$(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
 
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
@@ -81,8 +79,7 @@ $(eval $(call unit_tests_dev,cpu,CPU,cpu))
 $(eval $(call unit_tests_dev,dbg,DBG,debug))
 
 $(eval $(call unit_tests_dev,cuda,CUDA,cuda))
-$(eval $(call unit_tests_dev,cuda_dbg,CUDA_DBG,cuda$(comma)debug))
-$(eval $(call unit_tests_dev,cuda_uvm,CUDA_UVM,cuda$(comma)uvm))
+#$(eval $(call unit_tests_dev,cuda_uvm,CUDA_UVM,cuda$(comma)uvm))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
