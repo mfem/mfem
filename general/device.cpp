@@ -32,18 +32,17 @@ occa::device occaDevice;
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
-   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::HIP,
-   Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
-   Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU,
-   Backend::DEBUG, Backend::UVM
+   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA, Backend::HIP,
+   Backend::OCCA_OMP,  Backend::RAJA_OMP,  Backend::OMP,
+   Backend::OCCA_CPU,  Backend::RAJA_CPU,  Backend::DEBUG, Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp", "omp",
-   "occa-cpu", "raja-cpu", "cpu", "debug", "uvm"
+   "occa-cuda", "raja-cuda", "cuda", "hip",
+   "occa-omp", "raja-omp", "omp",
+   "occa-cpu", "raja-cpu", "debug", "cpu"
 };
 
 } // namespace mfem::internal
@@ -132,42 +131,39 @@ void Device::UpdateMemoryTypeAndClass()
 #else
    const bool umpire = false;
 #endif
-   //const bool uvm = Device::Allows(Backend::UVM);
    const bool debug = Device::Allows(Backend::DEBUG);
 
-   // Allow to tune the device memory type, with some restrictions
+   // Enable the device memory type
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       device_mem_type = MemoryType::DEVICE;
       device_mem_class = MemoryClass::DEVICE;
-      //if (umpire && !debug) { device_mem_type = MemoryType::DEVICE_UMPIRE; }
-      /*if (uvm && !debug)
-      {
-         // Enable the UVM shortcut when requested
-         host_mem_type = MemoryType::HOST_MANAGED;
-         host_mem_class = MemoryClass::MANAGED;
-         device_mem_type = MemoryType::DEVICE_MANAGED;
-         device_mem_class = MemoryClass::MANAGED;
-      }
-      if (uvm && debug) { MFEM_VERIFY(false, "Error in UVM and Debug mode!"); }*/
    }
 
-   // If MFEM has been compiled with Umpire support, use it as default
+   // If MFEM has been compiled with Umpire support, use it as the default
    if (umpire)
    {
       host_mem_type = MemoryType::HOST_UMPIRE;
-      host_mem_class = MemoryClass::HOST;//UMPIRE;
-      device_mem_type = MemoryType::DEVICE_UMPIRE;
-      device_mem_class = MemoryClass::DEVICE;//UMPIRE;
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         device_mem_type = MemoryType::DEVICE_UMPIRE;
+         device_mem_class = MemoryClass::DEVICE;
+      }
    }
 
    // Enable the DEBUG mode when requested
    if (debug)
    {
       host_mem_type = MemoryType::HOST_DEBUG;
-      host_mem_class = MemoryClass::HOST_DEBUG;
       device_mem_type = MemoryType::DEVICE_DEBUG;
-      device_mem_class = MemoryClass::DEVICE_DEBUG;
+      device_mem_class = MemoryClass::DEVICE;
+   }
+
+   // Enable the UVM shortcut when requested
+   if (getenv("UVM"))
+   {
+      device_mem_type = MemoryType::DEVICE_MANAGED;
+      device_mem_class = MemoryClass::DEVICE;
    }
 
    // Update the memory manager with the new settings
@@ -176,11 +172,8 @@ void Device::UpdateMemoryTypeAndClass()
 
 void Device::Enable()
 {
-   dbg("");
-   const bool accelerated =
-      Get().backends & ~(Backend::CPU | Backend::DEBUG | Backend::UVM);
+   const bool accelerated = Get().backends & ~(Backend::CPU | Backend::DEBUG);
    if (accelerated) { Get().mode = Device::ACCELERATED;}
-   if (accelerated) { dbg("\033[7mDevice::ACCELERATED"); }
    // Update the host & device memory backends
    Get().UpdateMemoryTypeAndClass();
 }

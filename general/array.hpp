@@ -57,7 +57,7 @@ public:
    /// Creates an empty array
    inline Array() : size(0) { data.Reset(); }
 
-   /// Creates an empty array
+   /// Creates an empty array with a given MemoryType
    inline Array(MemoryType mt) : size(0) { data.Reset(mt); }
 
    /// Creates array of asize elements
@@ -586,7 +586,6 @@ inline void Swap(T &a, T &b)
 template <class T>
 inline void Swap(Array<T> &a, Array<T> &b)
 {
-   MFEM_VERIFY(a.data.GetMemoryType()==b.data.GetMemoryType(),"");
    Swap(a.data, b.data);
    Swap(a.size, b.size);
 }
@@ -595,7 +594,6 @@ template <class T>
 inline Array<T>::Array(const Array &src)
    : size(src.Size())
 {
-   MFEM_VERIFY(data.GetMemoryType()==src.data.GetMemoryType(),"");
    size > 0 ? data.New(size, src.data.GetMemoryType()) : data.Reset();
    data.CopyFrom(src.data, size);
    data.UseDevice(src.data.UseDevice());
@@ -605,7 +603,6 @@ template <typename T> template <typename CT>
 inline Array<T>::Array(const Array<CT> &src)
    : size(src.Size())
 {
-   MFEM_VERIFY(data.GetMemoryType()==src.GetMemory().GetMemoryType(),"");
    size > 0 ? data.New(size) : data.Reset();
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
@@ -614,11 +611,7 @@ template <class T>
 inline void Array<T>::GrowSize(int minsize)
 {
    const int nsize = std::max(minsize, 2 * data.Capacity());
-   const MemoryType data_mt = data.GetMemoryType();
    Memory<T> p(nsize, data.GetMemoryType());
-   const MemoryType p_mt = p.GetMemoryType();
-   if (data_mt != p_mt) { dbg("data_mt:%d, p_mt:%d", data_mt, p_mt); }
-   MFEM_VERIFY(data_mt == p_mt,"");
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
@@ -628,7 +621,6 @@ inline void Array<T>::GrowSize(int minsize)
 template <typename T> template <typename CT>
 inline Array<T> &Array<T>::operator=(const Array<CT> &src)
 {
-   MFEM_VERIFY(data.GetMemoryType()==src.data.GetMemoryType(),"");
    SetSize(src.Size());
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
    return *this;
@@ -666,7 +658,6 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
 template <class T>
 inline void Array<T>::SetSize(int nsize, MemoryType mt)
 {
-   const MemoryType data_bkp_mt = data.GetMemoryType();
    MFEM_ASSERT(nsize >= 0, "invalid new size: " << nsize);
    if (mt == data.GetMemoryType())
    {
@@ -676,8 +667,6 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
          return;
       }
    }
-   dbg("SetSize: mt:%d, data:%d", mt, data.GetMemoryType());
-   //MFEM_VERIFY(data_bkp_mt == data.GetMemoryType(),"");
    const bool use_dev = data.UseDevice();
    data.Delete();
    if (nsize > 0)
@@ -691,11 +680,6 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
       size = 0;
    }
    data.UseDevice(use_dev);
-   dbg("data_bkp_mt:%d, data:%d", data_bkp_mt, data.GetMemoryType());
-   MFEM_VERIFY(
-      (data_bkp_mt == MemoryType::HOST_DEBUG &&
-       data.GetMemoryType()== MemoryType::DEVICE_DEBUG) ||
-      (data_bkp_mt == data.GetMemoryType()),"");
 }
 
 template <class T>
@@ -822,9 +806,6 @@ inline void Array<T>::DeleteAll()
 template <typename T>
 inline void Array<T>::Copy(Array &copy) const
 {
-   dbg("data.GetMemoryType():%d, copy.data.GetMemoryType():%d",
-       data.GetMemoryType(),copy.data.GetMemoryType());
-   //MFEM_VERIFY(data.GetMemoryType()==copy.data.GetMemoryType(),"");
    copy.SetSize(Size(), data.GetMemoryType());
    data.CopyTo(copy.data, Size());
    copy.data.UseDevice(data.UseDevice());

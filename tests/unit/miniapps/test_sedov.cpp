@@ -3388,10 +3388,8 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    int vis_steps = 5;
    bool visit = false;
    bool gfprint = false;
-   const char *dev_opt = "cpu";
    bool fom = false;
    bool gpu_aware_mpi = false;
-   int dev = -1;
    double blast_energy = 0.25;
    double blast_position[] = {0.0, 0.0, 0.0};
 
@@ -3431,13 +3429,10 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
                   "Enable or disable VisIt visualization.");
    args.AddOption(&gfprint, "-print", "--print", "-no-print", "--no-print",
                   "Enable or disable result output (files in mfem format).");
-   args.AddOption(&dev_opt, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&fom, "-f", "--fom", "-no-fom", "--no-fom",
                   "Enable figure of merit output.");
    args.AddOption(&gpu_aware_mpi, "-gam", "--gpu-aware-mpi", "-no-gam",
                   "--no-gpu-aware-mpi", "Enable GPU aware MPI communications.");
-   args.AddOption(&dev, "-dev", "--dev", "GPU device to use.");
 
    args.Parse();
    if (!args.Good())
@@ -3445,7 +3440,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
       if (mpi.Root()) { args.PrintUsage(cout); }
       return -1;
    }
-   if (mpi.Root()) { args.PrintOptions(cout); }
+   //if (mpi.Root()) { args.PrintOptions(cout); }
 
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    const int dim = mesh->Dimension();
@@ -3656,20 +3651,20 @@ static void sedov_tests(MPI_Session &mpi)
                           nullptr
                          };
    REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
-   /*
-      const char *argv2Drs1[]= {"unit_tests_dev",
-                                "-rs", "1", "-ms", "20",
-                                "-m", "data/square01_quad.mesh",
-                                nullptr
-                               };
-      REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
 
-      const char *argv3D[]= {"unit_tests",
-                             "-m", "data/cube01_hex.mesh",
+   const char *argv2Drs1[]= {"unit_tests",
+                             "-rs", "1", "-ms", "20",
+                             "-m", "data/square01_quad.mesh",
                              nullptr
                             };
-      REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
+   REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
 
+   const char *argv3D[]= {"unit_tests",
+                          "-m", "data/cube01_hex.mesh",
+                          nullptr
+                         };
+   REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
+   /*
       const char *argv3Drs1[]= {"unit_tests",
                                 "-rs", "1", "-ms", "28",
                                 "-m", "data/cube01_hex.mesh",
