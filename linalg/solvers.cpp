@@ -1932,6 +1932,8 @@ void ComplexGMGSolver::Mult(const Vector &r, Vector &z) const
    std::vector<Vector> zv(NumGrids + 1);
    // allocation
 
+   // TODO: make the block operators members of the class, so they do not reallocate their data (e.g. tmp) on every Mult() call.
+   
    for (int i = 0; i <= NumGrids ; i++)
    {
       int n = A[i]->Width();

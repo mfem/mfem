@@ -233,7 +233,7 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-   void GetElementCenter(int i, Vector &c);
+  //void GetElementCenter(int i, Vector &c);
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
@@ -477,6 +477,8 @@ public:
       }
       InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
    }
+
+  void GetElementCenter(int i, Vector &c);
 
    /** @name Methods for Mesh construction.
 

@@ -219,8 +219,9 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #include "gsl_sf_airy.h"
 
 //#define K2_AIRY 2.0  // TODO: input k
-//#define K2_AIRY 10981.4158900991  // 5 GHz
-#define K2_AIRY 43925.6635603965  // 10 GHz
+//#define K2_AIRY 686.3384931312 // 1.25 GHz
+#define K2_AIRY 10981.4158900991  // 5 GHz
+//#define K2_AIRY 43925.6635603965  // 10 GHz
 //#define K2_AIRY 175702.65424  // 20 GHz
 //#define K2_AIRY 1601.0
 
@@ -1105,7 +1106,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 		    }
 
 		  // TODO: find a better way to handle near-zero entries. Are they eliminated from the hypre matrix automatically?
-		  if (fabs(d) < 1.0e-15 && colid == -1)
+		  if (fabs(d) < 1.0e-14 && colid == -1)
 		    continue;
 
 		  if (colid >= 0)
@@ -2042,6 +2043,8 @@ int FindDofByPointValue(std::vector<double> const& facebv, const int dim, const 
 
   Vector e(facendofs);
 
+  int rdof = -1;
+  
   for (int i=0; i<facenip; ++i)
     {
       for (int j=0; j<dim; ++j)
@@ -2103,13 +2106,20 @@ int FindDofByPointValue(std::vector<double> const& facebv, const int dim, const 
 
 	  if (emin2 > 1.0e-4 && emin / emin2 < 0.1)
 	    {
-	      flip = signflip;
-	      return imin;
+	      if (rdof == -1)
+		{
+		  rdof = imin;
+		  flip = signflip;		  
+		}
+	      else
+		MFEM_VERIFY(rdof == imin && flip == signflip, "");
+	      
+	      //return imin;
 	    }
 	}
     }
   
-  return -1;
+  return rdof;
 }
 
 // For InterfaceToSurfaceInjection, we need a map from DOF's on the interfaces to the corresponding DOF's on the surfaces of the subdomains.

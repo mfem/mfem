@@ -61,8 +61,9 @@ int dim;
 //#define SUBDOMAIN_MESH
 
 #ifdef AIRY_TEST
-//#define SIGMAVAL -10981.4158900991  // 5 GHz
-#define SIGMAVAL -43925.6635603965  // 10 GHz
+//#define SIGMAVAL -686.3384931312 // 1.25 GHz
+#define SIGMAVAL -10981.4158900991  // 5 GHz
+//#define SIGMAVAL -43925.6635603965  // 10 GHz
 //#define SIGMAVAL -175702.65424  // 20 GHz
 //#define SIGMAVAL -1601.0
 //#define SIGMAVAL -1009.0
@@ -528,6 +529,258 @@ void TestGlobalGMG(ParMesh *pmesh, ParFiniteElementSpace *fespace, std::vector<H
 }
 #endif
 
+#ifdef SD_ITERATIVE_GMG
+void MapElementDofsByValue(const int dim, ParFiniteElementSpace *fespaceA, const int elemA, ParFiniteElementSpace *fespaceB, const int elemB,
+			   std::vector<int>& dofmap, std::vector<int>& flip)
+{
+  const FiniteElement *feA = fespaceA->GetFE(elemA);
+  MFEM_VERIFY(feA->GetRangeType() != FiniteElement::SCALAR, "");
+
+  ElementTransformation *TrA = fespaceA->GetElementTransformation(elemA);
+
+  Array<int> dofsA, dofsB;
+  fespaceA->GetElementDofs(elemA, dofsA);
+  const int ndofs = dofsA.Size();
+
+  const FiniteElement *feB = fespaceB->GetFE(elemB);
+  MFEM_VERIFY(feB->GetRangeType() != FiniteElement::SCALAR, "");
+
+  ElementTransformation *TrB = fespaceB->GetElementTransformation(elemB);
+  fespaceB->GetElementDofs(elemB, dofsB);
+
+  MFEM_VERIFY(ndofs == dofsB.Size(), "");
+  
+  dofmap.resize(ndofs);
+  flip.resize(ndofs);
+  
+  IntegrationPoint ip;
+
+  MFEM_VERIFY(dim == 3, "");
+
+  Vector x(dim);  // Point in physical space.
+  Vector va(dim);  // Basis function value at integration point.
+  Vector vb(dim);  // Basis function value at integration point.
+
+  int intorder = (2*feA->GetOrder()) + 1;
+  const IntegrationRule *ir = &(IntRules.Get(feA->GetGeomType(), intorder));
+
+  MFEM_VERIFY(feA->GetOrder() == feB->GetOrder() && feA->GetGeomType() == feB->GetGeomType(), "");
+
+  const int nip = ir->Size();
+
+  DenseMatrix vshape(ndofs, dim);
+  Vector dataA(ndofs);
+  Vector dataB(ndofs);
+
+  Vector e(ndofs);
+
+  for (int d=0; d<ndofs; ++d)
+    {
+      dataA = 0.0;
+      dataA[d] = (dofsA[d] >= 0) ? 1.0 : -1.0;
+
+      dofmap[d] = -1;
+      
+      for (int i=0; i<nip; ++i)
+	{
+	  ip = ir->IntPoint(i);
+	  TrA->Transform(ip, x);
+
+	  TrA->SetIntPoint(&ip);
+	  feA->CalcVShape(*TrA, vshape);
+
+	  vshape.MultTranspose(dataA, va);
+
+	  if (va.Norml2() < 1.0e-4)
+	    continue;
+	  
+	  const bool foundB = (TrB->TransformBack(x, ip) == 0);
+	  MFEM_VERIFY(foundB, "");
+	  
+	  TrB->SetIntPoint(&ip);
+	  feB->CalcVShape(*TrB, vshape);
+
+	  for (int signflip=0; signflip<1; ++signflip)
+	    {
+	      double emin = 0.0;
+	      int imin = 0;
+      
+	      for (int n=0; n<ndofs; ++n)
+		{
+		  dataB = 0.0;
+		  dataB[n] = (dofsB[n] >= 0) ? 1.0 : -1.0;
+		  
+		  vshape.MultTranspose(dataB, vb);
+		  
+		  const double vnrm = std::max(va.Norml2(), vb.Norml2());
+
+		  MFEM_VERIFY(vnrm > 1.0e-4, "");
+
+		  if (signflip == 0)
+		    vb -= va;
+		  else
+		    vb += va;
+	  
+		  e[n] = vb.Norml2() / vnrm;
+
+		  if (n == 0 || e[n] < emin)
+		    {
+		      emin = e[n];
+		      imin = n;
+		    }
+		}
+
+	      double emin2 = 0.0;
+	      int imin2 = -1;
+
+	      for (int n=0; n<ndofs; ++n)
+		{
+		  if (n != imin && (imin2 == -1 || e[n] < emin2))
+		    {
+		      emin2 = e[n];
+		      imin2 = n;
+		    }
+		}
+
+	      MFEM_VERIFY(imin != imin2 && imin2 >= 0, "");
+
+	      if (emin2 > 1.0e-4 && emin / emin2 < 0.1)
+		{
+		  flip[d] = signflip;
+		  MFEM_VERIFY(dofmap[d] == -1 || dofmap[d] == imin, "");
+		  
+		  dofmap[d] = imin;
+		}
+	    }
+	}
+
+      MFEM_VERIFY(dofmap[d] >= 0, "");
+    }
+}
+
+// This function assumes (i) pmeshA and pmeshB have the same elements on each process, but they can have different ordering for all mesh entities;
+// (ii) the element attribute in pmeshA and pmeshB is 1-based and distinct with respect to elements, and elements with the same attribute in the
+// two meshes coincide geometrically;
+// (iii) each DOF in fespaceA maps to exactly one DOF in fespaceB, with possibly a sign flip but no scaling (valid for hexahedral meshes);
+// (iv) A and B have the same MPI_Comm.
+// The matrix returned is the representation of the DOF map from fespaceA to fespaceB.
+HypreParMatrix * CreateFESpaceMapForReorderedMeshes(ParMesh *pmeshA, ParFiniteElementSpace *fespaceA, ParMesh *pmeshB, FiniteElementCollection * fec)
+{
+  std::map<int, int> attributeToIndex;
+
+  const int dim = pmeshA->SpaceDimension();
+  
+  for (int i=0; i<pmeshA->GetNE(); ++i)
+    {
+      const int attr = pmeshA->GetAttribute(i);
+
+      std::map<int, int>::const_iterator it = attributeToIndex.find(attr);
+      MFEM_VERIFY(it == attributeToIndex.end(), "");
+
+      attributeToIndex[attr] = i;
+    }
+
+  ParFiniteElementSpace *fespaceB = new ParFiniteElementSpace(pmeshB, fec);
+
+  const int ntdof = fespaceB->GetTrueVSize();
+  const int num_loc_rows = ntdof;
+  
+  MPI_Comm comm = pmeshA->GetComm();  // Note that A and B should have the same comm.
+
+  int nprocs, rank;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &nprocs);
+
+  std::vector<int> all_num_loc_rows(nprocs);
+  
+  MPI_Allgather(&num_loc_rows, 1, MPI_INT, all_num_loc_rows.data(), 1, MPI_INT, comm);
+  int glob_nrows = 0;
+  int first_loc_row = 0;  
+  for (int i=0; i<nprocs; ++i)
+    {
+      glob_nrows += all_num_loc_rows[i];
+      if (i < rank)
+	first_loc_row += all_num_loc_rows[i];
+    }
+
+  std::vector<HYPRE_Int> rowStarts2(2);
+  rowStarts2[0] = first_loc_row;
+  rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
+  
+  std::vector<int> opI(num_loc_rows+1);
+  std::vector<int> cnt(num_loc_rows);
+
+  opI[0] = 0;
+  for (int i=1; i<num_loc_rows+1; ++i)
+    {
+      opI[i] = 1;  // 1 entry per row
+      opI[i] += opI[i-1];  // partial sum for offsets.
+    }
+
+  const int nnz = opI[num_loc_rows];
+
+  std::vector<HYPRE_Int> opJ;
+  opJ.assign(nnz, -1);
+  std::vector<double> data;
+  data.assign(nnz, 0.0);
+
+  std::vector<int> elemMap, flip;
+  
+  for (int elemB=0; elemB<pmeshB->GetNE(); ++elemB)
+    {
+      const int attr = pmeshB->GetAttribute(elemB);
+
+      std::map<int, int>::const_iterator it = attributeToIndex.find(attr);
+      MFEM_VERIFY(it != attributeToIndex.end(), "");
+      MFEM_VERIFY(it->first == attr, "");
+
+      const int elemA = it->second;
+
+      MapElementDofsByValue(dim, fespaceA, elemA, fespaceB, elemB, elemMap, flip);
+
+      Array<int> dofsA, dofsB;
+      fespaceA->GetElementDofs(elemA, dofsA);
+      fespaceB->GetElementDofs(elemB, dofsB);
+
+      MFEM_VERIFY(dofsA.Size() == elemMap.size() && dofsB.Size() == elemMap.size(), "");
+
+      for (int i=0; i<elemMap.size(); ++i)
+	{
+	  const int dofB = (dofsB[elemMap[i]] >= 0) ? dofsB[elemMap[i]] : -1 - dofsB[elemMap[i]];
+	  
+	  const int ltdofB = fespaceB->GetLocalTDofNumber(dofB);
+
+	  if (ltdofB >= 0)
+	    {
+	      const int dofA = (dofsA[i] >= 0) ? dofsA[i] : -1 - dofsA[i];
+	      const HYPRE_Int gtdofA = fespaceA->GetGlobalTDofNumber(dofA);
+
+	      if (!(opJ[opI[ltdofB]] == gtdofA || opJ[opI[ltdofB]] == -1))
+		cout << "BUG" << endl;
+	  
+	      MFEM_VERIFY(opJ[opI[ltdofB]] == gtdofA || opJ[opI[ltdofB]] == -1, "");
+
+	      opJ[opI[ltdofB]] = gtdofA;
+	      data[opI[ltdofB]] = (flip[i] == 0) ? 1.0 : -1.0;
+	    }
+	}
+    }
+  
+  for (int i=0; i<nnz; ++i)
+    {
+      if (opJ[i] < 0)
+	MFEM_VERIFY(opJ[i] >= 0, "");	
+    }
+
+  delete fespaceB;
+  
+  HypreParMatrix *fesmap = new HypreParMatrix(comm, ntdof, glob_nrows, glob_nrows, (int*) opI.data(), (HYPRE_Int*) opJ.data(), (double*) data.data(),
+					      (HYPRE_Int*) rowStarts2.data(), (HYPRE_Int*) rowStarts2.data());
+
+  return fesmap;
+}
+#endif
+
 int main(int argc, char *argv[])
 {
    StopWatch chronoMain;
@@ -539,7 +792,7 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-
+   
    // 2. Parse command-line options.
    //const char *mesh_file = "../data/beam-tet.mesh";
 #ifdef AIRY_TEST
@@ -547,6 +800,7 @@ int main(int argc, char *argv[])
    //const char *mesh_file = "inline-tetHalf2.mesh";
    //const char *mesh_file = "../data/inline-tet.mesh";
    //const char *mesh_file = "inline-hexHalf.mesh";
+   //const char *mesh_file = "inline-hexHalf2.mesh";
 #else
    const char *mesh_file = "../data/inline-tet.mesh";
 #endif
@@ -593,6 +847,12 @@ int main(int argc, char *argv[])
    }
    kappa = freq * M_PI;
 
+   /*
+   // Redirect mfem output
+   ofstream outfile("mfem.txt");
+   mfem::out.SetStream(outfile);
+   */
+   
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -616,8 +876,8 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
 	//(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);  // h = 0.0701539, 1/16
-      //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
-      (int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
+	(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);  // h = 0.0350769, 1/32
+      //(int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);  // h = 0.0175385, 1/64
 	//(int)floor(log(10000000./mesh->GetNE())/log(2.)/dim);  // h = 0.00876923, 1/128
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
 
@@ -633,7 +893,7 @@ int main(int argc, char *argv[])
 #ifndef SUBDOMAIN_MESH
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {4, 4, 4};
+   int nxyzSubdomains[3] = {2, 2, 2};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -781,12 +1041,12 @@ int main(int argc, char *argv[])
    if (geometricPartition)
      {
        //int nxyzGlobal[3] = {1, 1, 1};
-       //int nxyzGlobal[3] = {1, 1, 2};
+       //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {1, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {3, 3, 4};
-       //int nxyzGlobal[3] = {4, 4, 4};
+       int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {6, 6, 2};
        //int nxyzGlobal[3] = {2, 2, 8};
        //int nxyzGlobal[3] = {6, 6, 8};  // 288
@@ -803,7 +1063,7 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {24, 12, 12};  // 3456
        //int nxyzGlobal[3] = {24, 24, 12};  // 6912
        //int nxyzGlobal[3] = {16, 16, 8};
-       int nxyzGlobal[3] = {8, 8, 8};
+       //int nxyzGlobal[3] = {8, 8, 8};
        //int nxyzGlobal[3] = {12, 12, 16};  // 2304
        //int nxyzGlobal[3] = {24, 24, 4};  // 2304
        //int nxyzGlobal[3] = {24, 24, 8};  // 4608
@@ -855,6 +1115,8 @@ int main(int argc, char *argv[])
      SubdomainParMeshGenerator sdCoarseMeshGen(numSubdomains, pmesh);
      pmeshSDcoarse = sdCoarseMeshGen.CreateParallelSubdomainMeshes();
 
+     // Note that the element attribute in pmeshSDcoarse[sd] is the index of the corresponding coarse pmesh element plus one.
+
      if (pmeshSDcoarse == NULL)
        return 2;
    }
@@ -870,7 +1132,10 @@ int main(int argc, char *argv[])
    
    {
       int par_ref_levels = 1;
-
+      
+      if (myid == 0)
+	cout << "Parallel refinement levels: " << par_ref_levels << endl;
+      
 #ifdef TEST_GMG
       gmgP.resize(par_ref_levels);
 #endif
@@ -890,6 +1155,48 @@ int main(int argc, char *argv[])
       for (int l = 0; l < par_ref_levels; l++)
       {
 #ifdef SD_ITERATIVE_GMG
+	const int numCoarseElem = pmesh->GetNE();
+#endif
+	
+	pmesh->UniformRefinement();
+	
+#ifdef SD_ITERATIVE_GMG
+	CoarseFineTransformations const& cftr = pmesh->GetRefinementTransforms();
+	MFEM_VERIFY(cftr.embeddings.Size() == pmesh->GetNE(), "");
+
+	std::vector<int> numFinePerCoarse;
+	numFinePerCoarse.assign(numCoarseElem, 0);
+	
+	for (int i=0; i<pmesh->GetNE(); ++i)
+	  {
+	    numFinePerCoarse[cftr.embeddings[i].parent]++;
+	  }
+
+	const int nfpc = numFinePerCoarse[0];
+	
+	{
+	  bool mixedMesh = false;
+	  for (int i=1; i<numCoarseElem; ++i)
+	    {
+	      if (numFinePerCoarse[i] != nfpc)
+		mixedMesh = true;
+	    }
+
+	  MFEM_VERIFY(!mixedMesh && nfpc > 1, "");
+	}
+	
+	std::vector<int> coarseToFine;
+	coarseToFine.assign(nfpc*numCoarseElem, -1);
+
+	numFinePerCoarse.assign(numCoarseElem, 0);
+
+	for (int i=0; i<pmesh->GetNE(); ++i)
+	  {
+	    const int coarse = cftr.embeddings[i].parent;
+	    coarseToFine[(nfpc*coarse) + numFinePerCoarse[coarse]] = i;
+	    numFinePerCoarse[coarse]++;
+	  }
+
 	for (int sd=0; sd<numSubdomains; ++sd)
 	  {
 	    if (pmeshSDcoarse[sd] != NULL)
@@ -903,6 +1210,30 @@ int main(int argc, char *argv[])
 		sdfespace[sd]->GetTrueTransferOperator(cfespace, Tr);
 		Tr.SetOperatorOwner(false);
 		Tr.Get(sdP[sd][l]);
+
+		// Update the element attribute in pmeshSDcoarse[sd] to be the index of the corresponding pmesh element plus one.
+		Vector pc(3);
+		Vector sc(3);
+		for (int i=0; i<pmeshSDcoarse[sd]->GetNE(); ++i)
+		  {
+		    pmeshSDcoarse[sd]->GetElementCenter(i, sc);
+		    const int pmeshCoarseElem = pmeshSDcoarse[sd]->GetAttribute(i) - 1;
+		    int pmeshElem = -1;
+		    for (int j=0; j<nfpc; ++j)
+		      {
+			const int pf = coarseToFine[(nfpc*pmeshCoarseElem) + j];
+			pmesh->GetElementCenter(pf, pc);
+			pc -= sc;
+			if (pc.Norml2() < 1.0e-4 * pmesh->GetElementSize(pf))
+			  {
+			    MFEM_VERIFY(pmeshElem == -1, "");
+			    pmeshElem = pf;
+			  }
+		      }
+
+		    MFEM_VERIFY(pmeshElem >= 0, "");
+		    pmeshSDcoarse[sd]->SetAttribute(i, pmeshElem+1);
+		  }
 	      }
 	  }
 #endif
@@ -911,8 +1242,6 @@ int main(int argc, char *argv[])
 	const ParFiniteElementSpace cgmgfespace(*gmgfespace);
 #endif
 	
-	pmesh->UniformRefinement();
-
 #ifdef TEST_GMG
 	gmgfespace->Update();
 	OperatorHandle Tr(Operator::Hypre_ParCSR);
@@ -985,17 +1314,35 @@ int main(int argc, char *argv[])
      return 2;
 
 #ifdef SD_ITERATIVE_GMG
-	for (int sd=0; sd<numSubdomains; ++sd)
-	  {
-	    VerifyMeshesAreEqual(pmeshSDcoarse[sd], pmeshSD[sd]);
+   std::vector<HypreParMatrix*> fesMapSD(numSubdomains);
 
-	    // Now we can delete everything related to pmeshSDcoarse except sdP.
-	    if (pmeshSDcoarse[sd] != NULL)
-	      {
-		delete sdfespace[sd];
-		delete pmeshSDcoarse[sd];
-	      }
-	  }
+   for (int sd=0; sd<numSubdomains; ++sd)
+     {
+       //VerifyMeshesAreEqual(pmeshSDcoarse[sd], pmeshSD[sd]);
+       if (pmeshSDcoarse[sd] != NULL)
+	 {
+	   MFEM_VERIFY(pmeshSD[sd] != NULL, "");
+
+	   // Note that the element attribute in pmeshSD[sd] and pmeshSDcoarse[sd] is the index of the corresponding pmesh element plus one.
+	   
+	   HypreParMatrix *fesMapSD = CreateFESpaceMapForReorderedMeshes(pmeshSDcoarse[sd], sdfespace[sd], pmeshSD[sd], fec);
+
+	   // On the finest level, replace sdP[sd][par_ref_levels-1] with fesMapSD times itself.
+	   HypreParMatrix * MP = ParMult(fesMapSD, sdP[sd][sdP[sd].size() - 1]);
+	   sdP[sd][sdP[sd].size() - 1] = MP;
+
+	   delete fesMapSD;
+	 }
+       else
+	 MFEM_VERIFY(pmeshSD[sd] == NULL, "");
+
+       // Now we can delete everything related to pmeshSDcoarse except sdP.
+       if (pmeshSDcoarse[sd] != NULL)
+	 {
+	   delete sdfespace[sd];
+	   delete pmeshSDcoarse[sd];
+	 }
+     }
 #endif
 
    // 5.3. Create interface meshes.
@@ -2056,6 +2403,8 @@ int main(int argc, char *argv[])
    
    MPI_Finalize();
 
+   //outfile.close();
+   
    return 0;
 }
 
