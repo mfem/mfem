@@ -942,7 +942,8 @@ public:
     mode = SubdomainMesh;
 
     int numSubdomainsOnProc = 0;
-    
+
+    /* Old version with too many MPI_Comm_split calls. 
     for (int s=0; s<numSubdomains; ++s)  // Loop over subdomains
       {
 	int elemOffset = 0;
@@ -969,8 +970,96 @@ public:
 	else
 	  pmeshSD[s] = NULL;
       }
+
+    //MFEM_VERIFY(numSubdomainsOnProc == 1, "Parallel partition crosses subdomain boundaries");    
+    */
     
-    //MFEM_VERIFY(numSubdomainsOnProc == 1, "Parallel partition crosses subdomain boundaries");
+    // New version with only one MPI_Comm_split call.
+
+    // There are different cases to consider and to check for. 
+    // 1) One or more processes per subdomain: the splitting color is the unique index of the subdomain each process touches.
+    // 2) More than one subdomain per process: the splitting color is the world rank of the process, so that each process has
+    // a serial communicator for handling multiple subdomains (the collective MPI operations reduce to serial operations). 
+    // 3) More than one subdomain per process and more than one process per subdomain: not allowed.
+    
+    std::vector<int> numProcsPerSubdomain, procTouchesSubdomain;
+    numProcsPerSubdomain.assign(numSubdomains, 0);
+    procTouchesSubdomain.assign(numSubdomains, 0);
+
+    std::vector<bool> sdNonempty;
+    sdNonempty.assign(numSubdomains, false);
+    
+    for (int s=0; s<numSubdomains; ++s)  // Loop over subdomains
+      {
+	sdNonempty[s] = (NumberOfLocalElementsForSubdomain(s+1) > 0);
+	
+	if (sdNonempty[s])
+	  {
+	    numSubdomainsOnProc++;
+	    procTouchesSubdomain[s] = 1;
+	  }
+      }
+    
+    int maxNumSubdomainsOnProc = 0;
+    
+    MPI_Allreduce(procTouchesSubdomain.data(), numProcsPerSubdomain.data(), numSubdomains, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(&numSubdomainsOnProc, &maxNumSubdomainsOnProc, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+    int maxNumProcsPerSubdomain = numProcsPerSubdomain[0];
+    for (int s=1; s<numSubdomains; ++s)
+      {
+	if (numProcsPerSubdomain[s] > maxNumProcsPerSubdomain)
+	  maxNumProcsPerSubdomain = numProcsPerSubdomain[s];
+      }
+
+    MFEM_VERIFY(maxNumSubdomainsOnProc > 0 && maxNumProcsPerSubdomain > 0, "");
+    MFEM_VERIFY(maxNumSubdomainsOnProc == 1 || maxNumProcsPerSubdomain == 1, "");  // Case (3) not allowed.
+
+    MPI_Comm sd_com;
+    int color = -1;
+    
+    if (maxNumSubdomainsOnProc == 1)  // Case (1): one or more processes per subdomain.
+      { // The splitting color is the unique index of the subdomain each process touches.
+	for (int s=0; s<numSubdomains; ++s)
+	  {
+	    if (sdNonempty[s])
+	      {
+		MFEM_VERIFY(color == -1, "");
+		color = s;
+	      }
+	  }
+      }
+    else  // Case (2): more than one subdomain per process.
+      { // The splitting color is the world rank of the process.
+	color = myid;
+      }
+    
+    MFEM_VERIFY(color >= 0, "");
+
+    const int status = MPI_Comm_split(MPI_COMM_WORLD, color, myid, &sd_com);
+    MFEM_VERIFY(status == MPI_SUCCESS, "Construction of comm failed");
+    
+    for (int s=0; s<numSubdomains; ++s)  // Loop over subdomains
+      {
+	int elemOffset = 0;
+	Mesh *sdmesh = CreateSerialSubdomainOrInterfaceMesh(elemOffset, s+1, NULL);
+
+	MFEM_VERIFY(sdNonempty[s] == (sdmesh != NULL), "");
+		    
+	if (sdmesh != NULL)
+	  {
+	    //TestSerialMeshLinearSystem(sdmesh);
+	    
+	    pmeshSD[s] = new ParMesh(sd_com, *sdmesh, sdPartition);
+	    delete sdmesh;
+
+	    //TestParallelMeshLinearSystem(pmeshSD[s]);
+	    
+	    cout << myid << ": Subdomain mesh NBE " << pmeshSD[s]->GetNBE() << endl;
+	  }
+	else
+	  pmeshSD[s] = NULL;
+      }
     
     return pmeshSD;
   }
