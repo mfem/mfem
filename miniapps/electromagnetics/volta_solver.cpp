@@ -128,7 +128,7 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    l2_vol_int_->AddDomainIntegrator(new DomainLFIntegrator(oneCoef_));
 
    rt_surf_int_ = new ParLinearForm(HDivFESpace_);
-   rt_surf_int_->AddBoundaryIntegrator(new VectorFEBoundaryLFIntegrator);
+   rt_surf_int_->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator);
 
    // Discrete derivative operator
    grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);

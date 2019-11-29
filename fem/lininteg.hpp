@@ -273,35 +273,18 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for boundary integration of (n, v) where n is the boudary's unit
-    normal vector and v is an RT vector test function. This integrator works
-    with RT spaces defined using the RT_FECollection class. */
-class VectorFEBoundaryLFIntegrator : public LinearFormIntegrator
-{
-private:
-   Vector shape;
-
-public:
-   VectorFEBoundaryLFIntegrator() { }
-
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
-};
-
 /** Class for boundary integration of (f, v.n) for scalar coefficient f and
     RT vector test function v. This integrator works with RT spaces defined
     using the RT_FECollection class. */
 class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
-   Coefficient &F;
+   Coefficient *F;
    Vector shape;
 
 public:
-   VectorFEBoundaryFluxLFIntegrator(Coefficient &f) : F(f) { }
+   VectorFEBoundaryFluxLFIntegrator() : F(NULL) { }
+   VectorFEBoundaryFluxLFIntegrator(Coefficient &f) : F(&f) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
