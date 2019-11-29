@@ -34,6 +34,9 @@ int main(int argc, char *argv[])
    socketstream vis1("localhost", 19916);
    socketstream vis2("localhost", 19916);
 
+   sim.Refine(9);
+   sim.Compute();
+
    while (sim.GetNorm() > 0.01)
    {
 #if 0
@@ -43,7 +46,7 @@ int main(int argc, char *argv[])
       sim.GetFullImage();
       sim.GetFullWidth();
 #else
-      double *img = sim.GetLocalImage(9);
+      double *img = sim.GetLocalImage(8);
       int w = sim.GetLocalWidth();
       int h = sim.GetLocalWidth();
       ShowImg(vis1, img, w, h, "Solution");

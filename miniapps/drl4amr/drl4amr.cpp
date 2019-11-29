@@ -70,8 +70,8 @@ Drl4Amr::Drl4Amr(int order):
    if (visualization)
    {
       vis[0].open(vishost, visport);
-      vis[1].open(vishost, visport);
-      vis[2].open(vishost, visport);
+//      vis[1].open(vishost, visport);
+//      vis[2].open(vishost, visport);
    }
 
    // Initialize theta, offsets and x from x0_coeff
@@ -336,6 +336,9 @@ double* Drl4Amr::GetLocalImage(int element)
       Array<int> edges, ori;
       mesh.GetElementEdges(element, edges, ori);
 
+      IsoparametricTransformation T;
+      T.SetFE(&SegmentFE);
+
       const IntegrationRule &ir =
          GlobGeometryRefiner.Refine(Geometry::SEGMENT, subdiv)->RefPts;
 
@@ -345,8 +348,8 @@ double* Drl4Amr::GetLocalImage(int element)
          const NCMesh::NCList &elist = ncmesh->GetEdgeList();
          const NCMesh::MeshId &eid = elist.LookUp(edges[e], &type);
 
-         int side = 0;
-         if (type == 0) // conforming
+         int side = 1;
+         if (type == 0 || type == 2) // conforming or slave face
          {
             int el1, el2;
             mesh.GetFaceElements(eid.index, &el1, &el2);
@@ -358,9 +361,8 @@ double* Drl4Amr::GetLocalImage(int element)
          }
          else if (type == 1) // master
          {
-         }
-         else if (type == 2) // slave
-         {
+            sln = 0.0;
+            grad = 0.0;
          }
          else
          {
@@ -379,6 +381,7 @@ double* Drl4Amr::GetLocalImage(int element)
          int o = side ? 0 : 1;
          int x = edges[e][o][0];
          int y = edges[e][o][1];
+
          for (int i = 0; i <= subdiv; i++)
          {
             im(x, y, 0) = sln(i);
@@ -388,6 +391,8 @@ double* Drl4Amr::GetLocalImage(int element)
             x += edges[e][o][2];
             y += edges[e][o][3];
          }
+
+         cout << "edge " << e << ", type = " << type << ", o = " << o << endl;
       }
    }
    return local_image.GetData();
