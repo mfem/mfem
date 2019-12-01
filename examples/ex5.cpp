@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
 
    // 14. Save data in the Paraview format
    ParaviewDataCollection paraview_dc("PExample5", mesh);
-   paraview_dc.SetLevelsOfDetail(2); 
+   paraview_dc.SetLevelsOfDetail(2);
    paraview_dc.SetCycle(1);
    paraview_dc.SetTime(0.0); //set the time
    paraview_dc.RegisterField("velocity",&u);
