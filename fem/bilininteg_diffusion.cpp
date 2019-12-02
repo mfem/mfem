@@ -255,7 +255,7 @@ static void PADiffusionDiagonal2D(const int NE,
                const double D2 = D(q,2,e);
                QD0[qx][dy] += B(qy, dy) * B(qy, dy) * D0;
                QD1[qx][dy] += B(qy, dy) * G(qy, dy) * D1;
-               QD2[qx][dy] += G(qy, dy) * B(qy, dy) * D2;
+               QD2[qx][dy] += G(qy, dy) * B(qy, dy) * D1;
                QD3[qx][dy] += G(qy, dy) * G(qy, dy) * D2;
             }
          }
