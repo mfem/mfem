@@ -4310,7 +4310,7 @@ int NCMesh::GetElementDepth(int i) const
 int NCMesh::GetElementSizeReduction(int i) const
 {
    int elem = leaf_elements[i];
-   int reduction = 1, parent;
+   int parent, reduction = 1;
    while ((parent = elements[elem].parent) != -1)
    {
       if (elements[parent].ref_type & 1) { reduction *= 2; }
