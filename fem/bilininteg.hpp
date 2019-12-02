@@ -15,13 +15,10 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
+#include "./libceed/ceed.hpp"
 
 namespace mfem
 {
-
-#ifdef MFEM_USE_CEED
-struct CeedData;
-#endif
 
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
@@ -1700,6 +1697,13 @@ public:
    DiffusionIntegrator(MatrixCoefficient &q)
       : MQ(&q) { Q = NULL; maps = NULL; geom = NULL; }
 
+   virtual ~DiffusionIntegrator()
+   {
+#ifdef MFEM_USE_CEED
+      delete ceedDataPtr;
+#endif
+   }
+
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -1761,6 +1765,12 @@ public:
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir), Q(&q) { maps = NULL; geom = NULL; }
 
+   virtual ~MassIntegrator()
+   {
+#ifdef MFEM_USE_CEED
+      delete ceedDataPtr;
+#endif
+   }
    /** Given a particular Finite Element
        computes the element mass matrix elmat. */
    virtual void AssembleElementMatrix(const FiniteElement &el,

@@ -13,8 +13,8 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "../general/forall.hpp"
-#include "libceed/ceed.hpp"
 #include "bilinearform.hpp"
+#include "libceed/ceed.hpp"
 
 namespace mfem
 {
