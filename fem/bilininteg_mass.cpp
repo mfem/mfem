@@ -818,8 +818,8 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
                          const_cast<CeedScalar*>(x_ptr));
       CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
 
-      CeedOperatorApply(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
-                        CEED_REQUEST_IMMEDIATE);
+      CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
+                           CEED_REQUEST_IMMEDIATE);
 
       CeedVectorSyncArray(ceedDataPtr->v, mem);
    }

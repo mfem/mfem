@@ -80,6 +80,17 @@ inline bool DeviceCanUseCeed()
 
 } // namespace mfem
 
+#else // MFEM_USE_CEED
+
+namespace mfem
+{
+inline bool DeviceCanUseCeed()
+{
+   return false;
+}
+
+} // namespace mfem
+
 #endif // MFEM_USE_CEED
 
 #endif // MFEM_LIBCEED_HPP
