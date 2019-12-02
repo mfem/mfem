@@ -118,6 +118,56 @@ public:
 
 };
 
+//my bchandler (Dirichlet bounary for all the components)
+class myBCHandler : public PetscBCHandler
+{
+private:
+    int component, componentSize;
+    Vector vx;
+
+public:
+    myBCHandler(Array<int>& ess_tdof_list, enum PetscBCHandler::Type _type, 
+                int _component, int _componentSize)
+   : PetscBCHandler(_type), 
+     component(_component), componentSize(_componentSize)
+    {
+       SetTDofs(ess_tdof_list);
+    }
+
+    void SetProblemSize(int component_, int componentSize_)
+    {component=component_; componentSize=componentSize_;}
+
+    //overwrite SetTDofs
+    void SetTDofs(Array<int>& list)
+    {
+       int iSize=list.Size();
+       ess_tdof_list.SetSize(component*iSize);
+       for (PetscInt j = 0; j < componentSize; j++)
+         for (PetscInt i = 0; i < iSize; i++)
+         {
+            ess_tdof_list[i+j*iSize] = j*componentSize+list[i];
+         }
+       setup = false;
+    }
+    void SetBoundary(const Vector &_vx)
+    {   
+        if (setup) return; 
+        vx=_vx;
+    }
+
+    void Eval(double t, Vector &g)
+    { 
+        MFEM_ASSERT(vx.size()==g.size(), "size not matched!"); 
+        g=0.;
+        for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+        {
+           g[ess_tdof_list[i]] = vx[ess_tdof_list[i]];
+        }
+    }
+
+    ~myBCHandler() {};
+};
+
 // Auxiliary class to provide preconditioners for matrix-free methods 
 class FullPreconditionerFactory : public PetscPreconditionerFactory
 {
@@ -178,6 +228,7 @@ protected:
    //for implicit stepping
    ReducedSystemOperator *reduced_oper;
    PetscNonlinearSolver *pnewton_solver;
+   myBCHandler *bchandler;
    PetscPreconditionerFactory *J_factory;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
@@ -246,7 +297,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL), E0rhs(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
      visc_coeff(visc),  resi_coeff(resi),  
-     reduced_oper(NULL), pnewton_solver(NULL), J_factory(NULL),
+     reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
      M_solver(f.GetComm()), M_prec(NULL), K_solver(f.GetComm()),  K_prec(NULL),
      K_amg(NULL), K_pcg(NULL), z(height/3), zFull(f.GetVSize()), j(&fespace),
      DRetmp(NULL), DSltmp(NULL)
@@ -343,6 +394,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
                          KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
                          ess_tdof_list, ess_bdr, useFull);
 
+
       const double rel_tol=1e-4;
       pnewton_solver = new PetscNonlinearSolver(fespace.GetComm(),*reduced_oper);
       if (use_factory)
@@ -366,6 +418,10 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       pnewton_solver->SetAbsTol(0.0);
       pnewton_solver->SetMaxIter(20);
       pnewton_solver->iterative_mode=true;
+
+      //3 components in block vector; each has the size of height/3
+      bchandler = new myBCHandler(ess_tdof_list, PetscBCHandler::CONSTANT, 3, height/3);
+      pnewton_solver->SetBCHandler(bchandler);
    }
 }
 
@@ -592,6 +648,7 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
    Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
    
    k = vx; //Provide the initial guess as vx and use iterative_mode
+   bchandler->SetBoundary(vx);   //setup the essential boundary (in the first solve)
    pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1}
    MFEM_VERIFY(pnewton_solver->GetConverged(),
                   "Newton solver did not converge.");
@@ -696,6 +753,7 @@ void ResistiveMHDOperator::DestroyHypre()
     delete reduced_oper;
     delete J_factory;
     delete pnewton_solver;
+    delete bchandler;
 }
 
 ResistiveMHDOperator::~ResistiveMHDOperator()

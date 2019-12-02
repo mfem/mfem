@@ -494,7 +494,7 @@ public:
    /// y = x-g on ess_tdof_list, the rest of y is unchanged
    void FixResidualBC(const Vector& x, Vector& y);
 
-private:
+protected:
    enum Type bctype;
    bool setup;
 
