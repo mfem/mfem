@@ -88,7 +88,10 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    ess_bdr_ = 0;   // Deselect all outer surfaces
    for (int i=0; i<dbcs_->Size(); i++)
    {
-      ess_bdr_[(*dbcs_)[i]-1] = 1;
+      if ((*dbcs_)[i] <= ess_bdr_.Size())
+      {
+         ess_bdr_[(*dbcs_)[i]-1] = 1;
+      }
    }
 
    // Setup various coefficients
@@ -370,7 +373,10 @@ VoltaSolver::Solve()
          {
             ConstantCoefficient voltage((*dbcv_)[i]);
             dbc_bdr_attr = 0;
-            dbc_bdr_attr[(*dbcs_)[i]-1] = 1;
+            if ((*dbcs_)[i] <= dbc_bdr_attr.Size())
+            {
+               dbc_bdr_attr[(*dbcs_)[i]-1] = 1;
+            }
             phi_->ProjectBdrCoefficient(voltage, dbc_bdr_attr);
          }
       }
@@ -400,7 +406,10 @@ VoltaSolver::Solve()
       {
          ConstantCoefficient sigma_coef((*nbcv_)[i]);
          nbc_bdr_attr = 0;
-         nbc_bdr_attr[(*nbcs_)[i]-1] = 1;
+         if ((*nbcs_)[i] <= nbc_bdr_attr.Size())
+         {
+            nbc_bdr_attr[(*nbcs_)[i]-1] = 1;
+         }
          sigma_src_->ProjectBdrCoefficient(sigma_coef, nbc_bdr_attr);
       }
       h1SurfMass_->AddMult(*sigma_src_, *rhod_);
