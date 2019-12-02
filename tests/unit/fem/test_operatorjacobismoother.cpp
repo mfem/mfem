@@ -87,4 +87,66 @@ TEST_CASE("operatorjacobismoother")
    }
 }
 
+TEST_CASE("operatorjacobifichera")
+{
+   const int refine = 2;
+   const int dimension = 3;
+   for (int refine = 1; refine < 4; ++refine)
+   {
+      std::cout << "Testing " << 3 << "D partial assembly smoother: "
+                << "fichera mesh, refine level " << refine << std::endl;
+      for (int order = 1; order < 5; ++order)
+      {
+         Mesh * mesh;
+         mesh = new Mesh("../../data/fichera.mesh", 1, refine, true);
+         FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
+         FiniteElementSpace h1_fespace(mesh, h1_fec);
+         Array<int> ess_tdof_list;
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         h1_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+         BilinearForm paform(&h1_fespace);
+         ConstantCoefficient one(1.0);
+         paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         paform.AddDomainIntegrator(new DiffusionIntegrator(one));
+         paform.Assemble();
+         Vector pa_diag(h1_fespace.GetVSize());
+         paform.AssembleDiagonal(pa_diag);
+         OperatorJacobiSmoother pa_smoother(pa_diag, ess_tdof_list);
+
+         GridFunction x(&h1_fespace);
+         x = 0.0;
+         GridFunction b(&h1_fespace);
+         b = 1.0;
+         BilinearForm assemblyform(&h1_fespace);
+         assemblyform.AddDomainIntegrator(new DiffusionIntegrator(one));
+         assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
+         assemblyform.Assemble();
+         assemblyform.Finalize();
+         OperatorPtr A_assembly;
+         Vector B, X;
+         assemblyform.FormLinearSystem(ess_tdof_list, x, b, A_assembly, X, B);
+         DSmoother assembly_smoother((SparseMatrix&)(*A_assembly));
+
+         Vector xin(h1_fespace.GetTrueVSize());
+         xin.Randomize();
+         Vector y_assembly(xin);
+         y_assembly = 0.0;
+         Vector y_pa(xin);
+         y_pa = 0.0;
+         assembly_smoother.Mult(xin, y_assembly);
+         pa_smoother.Mult(xin, y_pa);
+
+         y_assembly -= y_pa;
+         double error = y_assembly.Norml2();
+         std::cout << "    order: " << order << ", error norm: " << error << std::endl;
+         REQUIRE(y_assembly.Norml2() < 1.e-12);
+
+         delete mesh;
+         delete h1_fec;
+      }
+   }
+}
+
 } // namespace operatorjacobismoother
