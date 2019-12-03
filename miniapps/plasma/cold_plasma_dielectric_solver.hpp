@@ -48,6 +48,7 @@ struct SolverOptions
 struct ComplexVectorCoefficientByAttr
 {
    Array<int> attr;
+   Array<int> attr_marker;
    VectorCoefficient * real;
    VectorCoefficient * imag;
 };
@@ -225,6 +226,7 @@ public:
              Array<int> & sbcs,
              // Array<int> & dbcs,
              Array<ComplexVectorCoefficientByAttr> & dbcs,
+             Array<ComplexVectorCoefficientByAttr> & nbcs,
              void (*j_r_src)(const Vector&, Vector&),
              void (*j_i_src)(const Vector&, Vector&),
              bool vis_u = false);
@@ -371,6 +373,9 @@ private:
    Array<int> ess_bdr_tdofs_;
    Array<int> non_k_bdr_;
 
+   Array<ComplexVectorCoefficientByAttr> * nbcs_; // Surface current BCs
+   Array<ComplexVectorCoefficientByAttr> * nkbcs_; // Neumann BCs (-i*omega*K)
+  
    VisItDataCollection * visit_dc_;
 
    std::map<std::string,socketstream*> socks_;

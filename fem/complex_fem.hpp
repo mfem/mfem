@@ -100,6 +100,15 @@ public:
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
 
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+			      LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+			      LinearFormIntegrator *lfi_imag,
+			      Array<int> &bdr_attr_marker);
+
    FiniteElementSpace *FESpace() const { return lfr_->FESpace(); }
 
    LinearForm & real() { return *lfr_; }
@@ -284,6 +293,15 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+			      LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+			      LinearFormIntegrator *lfi_imag,
+			      Array<int> &bdr_attr_marker);
 
    ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
 

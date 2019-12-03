@@ -991,6 +991,8 @@ int main(int argc, char *argv[])
       }
    }
 
+   Array<ComplexVectorCoefficientByAttr> nbcs(0);
+   
    cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;
 
    // Create the Magnetostatic solver
@@ -1000,7 +1002,7 @@ int main(int argc, char *argv[])
                  conv, BCoef, epsilon_real, epsilon_imag, epsilon_abs,
                  muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
                  (phase_shift) ? &kCoef : NULL,
-                 abcs, sbcs, dbcs,
+                 abcs, sbcs, dbcs, nbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
                  (rod_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);
