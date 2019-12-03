@@ -54,7 +54,7 @@ public:
    //set rhs E0
    void SetRHSEfield(FunctionCoefficient Efield);
 
-   void UpdateJ(Vector &vx);
+   void UpdateJ(Vector &vx, ParGridFunction *j);
    void UpdatePhi(Vector &vx);
    void assembleNv(ParGridFunction *gf);
    void assembleNb(ParGridFunction *gf);
@@ -99,7 +99,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M_solver2.SetRelTol(1e-12); 
    M_solver2.SetAbsTol(0.0);
    M_solver2.SetMaxIter(2000);
-   M_solver2.SetPrintLevel(1);
+   M_solver2.SetPrintLevel(0);
    M_prec2.SetType(HypreSmoother::Jacobi);
    M_solver2.SetPreconditioner(M_prec2);
    M_solver2.SetOperator(*MrhsMat);
@@ -244,13 +244,29 @@ void ResistiveMHDOperator::assembleNb(ParGridFunction *gf)
    NbMat=Nb->ParallelAssemble();
 }
 
-void ResistiveMHDOperator::UpdateJ(Vector &vx)
+void ResistiveMHDOperator::UpdateJ(Vector &vx, ParGridFunction *j)
 {
    //the current is J=-M^{-1}*K*Psi
    int sc = height/4;
    Vector psi(vx.GetData() +  sc, sc);
-   Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
 
+   ParLinearForm zLF(&fespace);
+   KB->Mult(psi, zLF);
+   zLF.Neg(); // z = -z
+
+   int trueSize=fespace.GetTrueVSize();
+   //no boundary condition is applied here
+   Vector zTmp(trueSize), jTmp(trueSize);
+
+   zLF.ParallelAssemble(zTmp);
+   M_solver2.Mult(zTmp, jTmp);
+   j->SetFromTrueDofs(jTmp);
+
+   //another way
+   //const Operator &P= *fespace.GetProlongationMatrix();
+   //P.MultTranspose(zGf, zTmp);
+
+   /*
    KB->Mult(psi, z);
    z.Neg(); // z = -z
 
@@ -269,13 +285,13 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
    //   osol3.precision(8);
    //   J.Save(osol3);
 
- /* (this is the old way but J does not satisfies the essential boundary condition!)
-  */
+   // (this is the old way but J does not satisfies the essential boundary condition!)
    HypreParMatrix tmp;
    Vector Y, Z;
    M->FormLinearSystem(ess_tdof_list, j, z, tmp, Y, Z); //apply Dirichelt boundary (j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, j);
+   */
    
 }
 
