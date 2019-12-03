@@ -15,12 +15,18 @@
 #include "../../config/config.hpp"
 
 #ifdef MFEM_USE_CEED
-#include "../gridfunc.hpp"
-#include "../fespace.hpp"
+//#include "../gridfunc.hpp"
+//#include "../fespace.hpp"
+#include "../../general/device.hpp"
 #include <ceed.h>
 
 namespace mfem
 {
+
+class FiniteElementSpace;
+class GridFunction;
+class IntegrationRule;
+class Coefficient;
 
 namespace internal { extern Ceed ceed; } // defined in device.cpp
 
@@ -61,8 +67,8 @@ struct CeedData
 void InitCeedCoeff(Coefficient* Q, CeedData* ptr);
 
 /// Initialize a tensor CeedBasis and a CeedElemRestriction
-void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
-                                       const mfem::IntegrationRule &ir,
+void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
+                                       const IntegrationRule &ir,
                                        Ceed ceed, CeedBasis *basis,
                                        CeedElemRestriction *restr);
 
