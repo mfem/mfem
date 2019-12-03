@@ -50,9 +50,10 @@ using namespace std;
 
 #define SD_ITERATIVE
 #define SD_ITERATIVE_COMPLEX
-//#define SD_ITERATIVE_GMG
+#define SD_ITERATIVE_GMG
 //#define SD_ITERATIVE_FULL
 
+#define IF_ITERATIVE
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -444,6 +445,99 @@ private:
   int nSD, nAux, osIm;
 
   mutable Vector xaux, yaux, xsd, ysd, ysdRe, ysdIm;
+};
+
+class DDAuxSolver : public Operator
+{
+public:
+  DDAuxSolver(std::set<int> *allGlobalSubdomainInterfaces_, SparseMatrix **M_, const double alphaIm_, std::vector<int> *ifH1true_)
+    : allGlobalSubdomainInterfaces(allGlobalSubdomainInterfaces_), M(M_), aIm(1.0 / alphaIm_), ifH1true(ifH1true_)
+  {
+    int os = 0;
+    for (auto interfaceIndex : *allGlobalSubdomainInterfaces)
+      {
+	//HyprePCG *pcg = new HyprePCG(*(M[interfaceIndex]));
+	CGSolver *pcg = new CGSolver();
+	pcg->SetOperator(*(M[interfaceIndex]));
+	pcg->SetRelTol(1e-12);
+	pcg->SetAbsTol(1e-12);
+	pcg->SetMaxIter(100);
+	pcg->SetPrintLevel(-1);
+
+	Minv.push_back(pcg);
+	fOS.push_back(os);
+
+	os += 2 * ((*ifH1true)[interfaceIndex] + M[interfaceIndex]->Height());
+      }
+
+    height = os;
+    width = os;
+  }
+
+  virtual void Mult(const Vector & x, Vector & y) const
+  {
+    if (height == 0)
+      return;
+    
+    y = x;
+
+    int id = 0;
+    for (auto interfaceIndex : *allGlobalSubdomainInterfaces)
+      {
+	// For each interface, solve
+	// [0   -1/a*M] [ y_Re ] = [ x_Re ]
+	// [1/a*M   0 ] [ y_Im ]   [ x_Im ]
+	// for y_f, where a = alphaIm. Set y_rho = 0.
+
+	const int size = M[interfaceIndex]->Height();
+	
+	xt.SetSize(size);
+	yt.SetSize(size);
+
+	// Set xt = x_Re, f component.
+	for (int i=0; i<size; ++i)
+	  {
+	    xt[i] = x[fOS[id] + i];
+	  }
+
+	// Set yt = M^{-1} x_Re, f component.
+	Minv[id]->Mult(xt, yt);
+
+	// Set y_Im = -a M^{-1} x_Re, f component.
+	for (int i=0; i<size; ++i)
+	  {
+	    y[fOS[id] + size + (*ifH1true)[interfaceIndex] + i] = -aIm * yt[i];
+	  }
+
+	// Set xt = x_Im, f component.
+	for (int i=0; i<size; ++i)
+	  {
+	    xt[i] = x[fOS[id] + size + (*ifH1true)[interfaceIndex] + i];
+	  }
+
+	// Set yt = M^{-1} x_Im, f component.
+	Minv[id]->Mult(xt, yt);
+
+	// Set y_Re = a M^{-1} x_Im, f component.
+	for (int i=0; i<size; ++i)
+	  {
+	    y[fOS[id] + i] = aIm * yt[i];
+	  }
+	
+	id++;
+      }
+  }
+
+private:
+  std::set<int> *allGlobalSubdomainInterfaces;
+  SparseMatrix **M;
+  std::vector<Operator*> Minv;
+  const double aIm;
+
+  std::vector<int> *ifH1true;
+  std::vector<int> fOS;
+
+  mutable Vector xt, yt;
 };
 
 #define DDMCOMPLEX

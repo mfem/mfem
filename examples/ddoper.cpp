@@ -219,8 +219,8 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #include "gsl_sf_airy.h"
 
 //#define K2_AIRY 2.0  // TODO: input k
-//#define K2_AIRY 686.3384931312 // 1.25 GHz
-#define K2_AIRY 10981.4158900991  // 5 GHz
+#define K2_AIRY 686.3384931312 // 1.25 GHz
+//#define K2_AIRY 10981.4158900991  // 5 GHz
 //#define K2_AIRY 43925.6635603965  // 10 GHz
 //#define K2_AIRY 175702.65424  // 20 GHz
 //#define K2_AIRY 1601.0
@@ -6067,6 +6067,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
 	      gmres->SetRelTol(1e-12);
 	      gmres->SetMaxIter(50);
+	      gmres->SetKDim(50);
 	      gmres->SetPrintLevel(-1);
 
 	      if (m == -10)
@@ -6090,7 +6091,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		    //TestCGMG(AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), sdP[m]);
 		  }
 	      }
-#else
+#else  // not GMG
 	      {
 		ComplexHypreParMatrix tmpSDComplex(AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), false, false);
 		HypreParMatrix *HypreSDComplex = tmpSDComplex.GetSystemMatrix();
@@ -6099,13 +6100,25 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		delete HypreSDComplex;
 	      }
 #endif
-#else
+#else  // not SD_ITERATIVE_COMPLEX
 	      sdNDinv[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(sdND[m])), sd_com[m]);
 	      //sdNDinv[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(AsdRe_HypreBlocks[m](0,0))), sd_com[m]);  // sdND[m] plus the real interface terms.
 	      //sdImag[m] = CreateSubdomainImaginaryPart(m);
 	      sdImag[m] = AsdIm_HypreBlocks[m](0,0);
 #endif
+#ifdef IF_ITERATIVE
+	      /*
+	      HyprePCG *auxInv = new HyprePCG(*(HypreDsdComplex[m]));
+	      auxInv->SetTol(1e-12);
+	      auxInv->SetMaxIter(100);
+	      auxInv->SetPrintLevel(-1);
+	      //auxInv->SetPreconditioner(*ams);
+	      */
+	      
+	      DDAuxSolver *auxInv = new DDAuxSolver(&(allGlobalSubdomainInterfaces[m]), ifNDmassSp, alphaIm, &ifH1true);
+#else
 	      STRUMPACKSolver *auxInv = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreDsdComplex[m])), sd_com[m]);
+#endif
 	      Solver *sdprec = new BlockSubdomainPreconditioner(HypreAsdComplex[m]->Height(), sdNDinv[m], sdImag[m], auxInv);
 #endif
 
@@ -7433,25 +7446,25 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
 	(*(ifNDmassSp[interfaceIndex]))(dof,dof) = 1.0;
 	(*(ifNDcurlcurlSp[interfaceIndex]))(dof,dof) = 1.0;
       }
+
+#ifdef IF_ITERATIVE
+    CGSolver *cg = new CGSolver();
     
+    cg->SetOperator(*(ifNDmassSp[interfaceIndex]));
+    cg->SetRelTol(1e-12);
+    cg->SetMaxIter(100);
+    cg->SetPrintLevel(-1);
+    cg->iterative_mode = false;
+    
+    ifNDmassInv[interfaceIndex] = cg;
+#else
     UMFPackSolver *massInv = new UMFPackSolver();
     massInv->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
     massInv->SetOperator(*(ifNDmassSp[interfaceIndex]));
-
     ifNDmassInv[interfaceIndex] = massInv;
+#endif
 
     ifH1massSp[interfaceIndex] = new SparseMatrix();
-
-    /* TODO: remove this
-    // Note that we maintain a SparseMatrix and a HypreParMatrix. The only place a HypreParMatrix is needed is CreateSubdomainHypreBlocks,
-    // whose output is used by CreateHypreParMatrixFromBlocks. If CreateHypreParMatrixFromBlocks were generalized to take SparseMatrix blocks
-    // or HypreParMatrix, then this redundancy could be eliminated.
-
-    // Create HypreParMatrix copies of SparseMatrix for ifNDmass, ifH1mass, ifNDH1grad, ifNDH1gradT, to be used by CreateSubdomainHypreBlocks.
-    ifNDmass[interfaceIndex] = new HypreParMatrix();
-    
-    //HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *row_starts, SparseMatrix *diag); // constructor with 4 arguments, v1
-    */
   }
 #else
   ifNDmass[interfaceIndex] = new HypreParMatrix();
