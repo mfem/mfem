@@ -12,8 +12,10 @@
 #include "mass.hpp"
 
 #ifdef MFEM_USE_CEED
-#include "ceed.hpp"
 #include "../../general/device.hpp"
+#include "../../mesh/mesh.hpp"
+#include "../../fem/gridfunc.hpp"
+#include "ceed.hpp"
 #include "mass.h"
 
 namespace mfem

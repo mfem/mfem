@@ -13,6 +13,7 @@
 
 #ifdef MFEM_USE_CEED
 #include "../../general/device.hpp"
+#include "../../fem/gridfunc.hpp"
 
 #include <sys/types.h>
 #include <sys/stat.h>
