@@ -829,11 +829,7 @@ static void SmemPADivergenceApply3D(const int NE,
       double (*QQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+1);
       double (*QQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+2);
       double (*QQD0)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+0);
-      //double (*QQD1)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+1);
-      //double (*QQD2)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+2);
       double (*QDD0)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+0);
-      //double (*QDD1)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+1);
-      //double (*QDD2)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+2);
       MFEM_SHARED double div[MQ1][MQ1][MQ1];
 
       if (tidz == 0)

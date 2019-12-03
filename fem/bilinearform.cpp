@@ -1593,7 +1593,7 @@ void MixedBilinearForm::FormRectangularSystemMatrix(const Array<int>
 
    mat_e = new SparseMatrix(mat->Height(), mat->Width());
    mat->EliminateCols(ess_trial_tdof_marker, *mat_e);
-   // TODO: WP: are we doing the right thing here?
+
    for (int i=0; i<test_tdof_list.Size(); ++i)
    {
       mat->EliminateRow(test_tdof_list[i]);
