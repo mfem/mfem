@@ -27,6 +27,9 @@
 
 #include "mfem.hpp"
 
+#include <set>
+#include <string>
+
 using namespace std;
 using namespace mfem;
 
@@ -42,6 +45,8 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *coll_name = NULL;
    int cycle = 0;
+
+   const char *field_name_c_str = "ALL";
    Vector pts;
 
    OptionsParser args(argc, argv);
@@ -49,6 +54,8 @@ int main(int argc, char *argv[])
                   "Set the VisIt data collection root file prefix.", true);
    args.AddOption(&cycle, "-c", "--cycle", "Set the cycle index to read.");
    args.AddOption(&pts, "-p", "--points", "List of points.");
+   args.AddOption(&field_name_c_str, "-fn", "--field-names",
+                  "List of field names to get values from.");
    args.Parse();
    if (!args.Good())
    {
@@ -70,6 +77,13 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   mfem::out << endl;
+   mfem::out << "Collection Name: " << dc.GetCollectionName() << endl;
+   mfem::out << "Cycle:           " << dc.GetCycle() << endl;
+   mfem::out << "Time:            " << dc.GetTime() << endl;
+   mfem::out << "Time Step:       " << dc.GetTimeStep() << endl;
+   mfem::out << endl;
+
    typedef DataCollection::FieldMapType fields_t;
    const fields_t &fields = dc.GetFieldMap();
    // Print the names of all fields.
@@ -80,6 +94,53 @@ int main(int argc, char *argv[])
       mfem::out << it->first;
    }
    mfem::out << " ]" << endl;
+
+   // Parsing desired field names
+   set<string> field_names;
+   {
+      string field_name_str(field_name_c_str);
+      string field_name;
+
+      for (string::iterator it=field_name_str.begin();
+           it!=field_name_str.end(); it++)
+      {
+         if (*it == '\\')
+         {
+            it++;
+            field_name.push_back(*it);
+         }
+         else if (*it == ' ')
+         {
+            if (!field_name.empty())
+            {
+               field_names.insert(field_name);
+            }
+            field_name.clear();
+         }
+         else if (it == field_name_str.end() - 1)
+         {
+            field_name.push_back(*it);
+            field_names.insert(field_name);
+         }
+         else
+         {
+            field_name.push_back(*it);
+         }
+      }
+      if (field_names.size() == 0)
+      {
+         field_names.insert("ALL");
+      }
+   }
+
+   // Print field names to be extracted
+   mfem::out << "Extracting fields: ";
+   for (set<string>::iterator it=field_names.begin();
+        it!=field_names.end(); it++)
+   {
+      mfem::out << " \"" << *it << "\"";
+   }
+   mfem::out << endl;
 
    int spaceDim = dc.GetMesh()->SpaceDimension();
    int npts = pts.Size() / spaceDim;
@@ -101,21 +162,25 @@ int main(int argc, char *argv[])
             mfem::out << ' ' << pt_mat(d, e);
          }
 
-         // Evaluate all fields.
+         // Loop over all fields.
          for (fields_t::const_iterator it = fields.begin();
               it != fields.end(); ++it)
          {
-            if (isScalarField(*it->second))
+            if (field_names.find("ALL") != field_names.end() ||
+                field_names.find(it->first) != field_names.end())
             {
-               mfem::out << ' ' << it->second->GetValue(elem_ids[e], ip[e]);
-            }
-            else
-            {
-               Vector val;
-               it->second->GetVectorValue(elem_ids[e], ip[e], val);
-               for (int d=0; d<spaceDim; d++)
+               if (isScalarField(*it->second))
                {
-                  mfem::out << ' ' << val[d];
+                  mfem::out << ' ' << it->second->GetValue(elem_ids[e], ip[e]);
+               }
+               else
+               {
+                  Vector val;
+                  it->second->GetVectorValue(elem_ids[e], ip[e], val);
+                  for (int d=0; d<spaceDim; d++)
+                  {
+                     mfem::out << ' ' << val[d];
+                  }
                }
             }
          }
