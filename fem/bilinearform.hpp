@@ -532,7 +532,7 @@ public:
    void SetDiagonalPolicy(DiagonalPolicy policy);
 
    /// Indicate that integrators are not owned by the BilinearForm
-   void SetExternBFS(int e = 1) { extern_bfs = e; };
+   void UseExternalIntegrators() { extern_bfs = 1; };
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();
