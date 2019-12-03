@@ -177,29 +177,6 @@ public:
    virtual void Update() = 0;
 };
 
-/// Data and methods for fully-assembled mixed bilinear forms
-class FAMixedBilinearFormExtension : public MixedBilinearFormExtension
-{
-public:
-   FAMixedBilinearFormExtension(MixedBilinearForm *form)
-      : MixedBilinearFormExtension(form) { }
-
-   /// TODO
-   void Assemble() {}
-   void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
-                                      const Array<int> &test_tdof_list,
-                                      OperatorHandle &A)
-   {}
-   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    Vector &x, Vector &b,
-                                    OperatorHandle &A, Vector &X, Vector &B) {}
-   void Mult(const Vector &x, Vector &y) const {}
-   void MultTranspose(const Vector &x, Vector &y) const {}
-   void Update() {}
-   ~FAMixedBilinearFormExtension() {}
-};
-
 /// Data and methods for partially-assembled mixed bilinear forms
 class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
 {

@@ -271,24 +271,6 @@ static void PAGradientApply2D(const int NE,
 
 }
 
-// Shared memory PA Gradient Apply 2D kernel
-template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0,
-         const int T_NBZ = 0>
-static void SmemPAGradientApply2D(const int NE,
-                                  const Array<double> &_b,
-                                  const Array<double> &_g,
-                                  const Array<double> &_bt,
-                                  const Vector &_op,
-                                  const Vector &_x,
-                                  Vector &_y,
-                                  const int tr_d1d = 0,
-                                  const int te_d1d = 0,
-                                  const int q1d = 0)
-{
-   // TODO
-   MFEM_ASSERT(false, "SHARED MEM NOT PROGRAMMED YET");
-}
-
 // PA Gradient Apply 2D kernel transpose
 template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 static void PAGradientApplyTranspose2D(const int NE,
@@ -303,7 +285,7 @@ static void PAGradientApplyTranspose2D(const int NE,
                                        const int q1d = 0)
 {
    // TODO
-   MFEM_ASSERT(false, "Gradient PA Apply Transpose 2D NOT PROGRAMMED YET");
+   MFEM_ASSERT(false, "GradientPAApplyTranspose 3D not implemented.");
 }
 
 // PA Gradient Apply 3D kernel
@@ -770,14 +752,7 @@ static void PAGradientApply(const int dim,
    }
    if (dim == 3)
    {
-      if (transpose)
-      {
-         return PAGradientApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
-      }
-      else
-      {
-         return PAGradientApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
-      }
+     return PAGradientApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
    }
    MFEM_ABORT("Unknown kernel.");
 }
