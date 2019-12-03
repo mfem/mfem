@@ -35,6 +35,7 @@ using namespace mfem;
 
 bool isScalarField(GridFunction & gf);
 
+void parseFieldNames(const char * field_name_c_str, set<string> &field_names);
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
@@ -97,41 +98,7 @@ int main(int argc, char *argv[])
 
    // Parsing desired field names
    set<string> field_names;
-   {
-      string field_name_str(field_name_c_str);
-      string field_name;
-
-      for (string::iterator it=field_name_str.begin();
-           it!=field_name_str.end(); it++)
-      {
-         if (*it == '\\')
-         {
-            it++;
-            field_name.push_back(*it);
-         }
-         else if (*it == ' ')
-         {
-            if (!field_name.empty())
-            {
-               field_names.insert(field_name);
-            }
-            field_name.clear();
-         }
-         else if (it == field_name_str.end() - 1)
-         {
-            field_name.push_back(*it);
-            field_names.insert(field_name);
-         }
-         else
-         {
-            field_name.push_back(*it);
-         }
-      }
-      if (field_names.size() == 0)
-      {
-         field_names.insert("ALL");
-      }
-   }
+   parseFieldNames(field_name_c_str, field_names);
 
    // Print field names to be extracted
    mfem::out << "Extracting fields: ";
@@ -194,4 +161,41 @@ int main(int argc, char *argv[])
 bool isScalarField(GridFunction & gf)
 {
    return (gf.VectorDim() == 1);
+}
+
+void parseFieldNames(const char * field_name_c_str, set<string> &field_names)
+{
+   string field_name_str(field_name_c_str);
+   string field_name;
+
+   for (string::iterator it=field_name_str.begin();
+        it!=field_name_str.end(); it++)
+   {
+      if (*it == '\\')
+      {
+         it++;
+         field_name.push_back(*it);
+      }
+      else if (*it == ' ')
+      {
+         if (!field_name.empty())
+         {
+            field_names.insert(field_name);
+         }
+         field_name.clear();
+      }
+      else if (it == field_name_str.end() - 1)
+      {
+         field_name.push_back(*it);
+         field_names.insert(field_name);
+      }
+      else
+      {
+         field_name.push_back(*it);
+      }
+   }
+   if (field_names.size() == 0)
+   {
+      field_names.insert("ALL");
+   }
 }
