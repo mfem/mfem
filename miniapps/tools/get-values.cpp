@@ -54,6 +54,8 @@ int main(int argc, char *argv[])
    const char *pts_file_c_str = "";
    Vector pts;
 
+   const char *out_file_c_str = "";
+
    OptionsParser args(argc, argv);
    args.AddOption(&coll_name, "-r", "--root-file",
                   "Set the VisIt data collection root file prefix.", true);
@@ -63,6 +65,8 @@ int main(int argc, char *argv[])
                   "List of field names to get values from.");
    args.AddOption(&pts_file_c_str, "-pf", "--point-file",
                   "Filename containing a list of points.");
+   args.AddOption(&out_file_c_str, "-o", "--output-file",
+                  "Output filename.");
    args.Parse();
    if (!args.Good())
    {
@@ -127,6 +131,18 @@ int main(int argc, char *argv[])
    int nfound = dc.GetMesh()->FindPoints(pt_mat, elem_ids, ip);
    mfem::out << "Found " << nfound << " points." << endl;
 
+   ofstream ofs;
+   if (strcmp(out_file_c_str,"") != 0)
+   {
+      ofs.open(out_file_c_str);
+      if (!ofs)
+      {
+         MFEM_ABORT("Failed to open output file: " << out_file_c_str << '\n');
+      }
+      mfem::out.SetStream(ofs);
+      mfem::out << nfound << endl;
+   }
+
    for (int e=0; e<elem_ids.Size(); e++)
    {
       if (elem_ids[e] >= 0)
@@ -162,6 +178,7 @@ int main(int argc, char *argv[])
          mfem::out << endl;
       }
    }
+   if (ofs) { ofs.close(); }
 
    return 0;
 }
@@ -247,5 +264,6 @@ void parsePoints(int spaceDim, const char *pts_file_c_str, Vector &pts)
          ifs >> pts[o + i * dim + d];
       }
    }
+
    ifs.close();
 }
