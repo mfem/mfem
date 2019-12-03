@@ -16,7 +16,6 @@
 using namespace std;
 using namespace mfem;
 
-// #define DEFINITE
 
 // #ifndef MFEM_USE_PETSC
 // #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
@@ -29,7 +28,6 @@ void get_maxwell_solution_Re(const Vector & x, double E[], double curl2E[]);
 
 void E_exact_Im(const Vector & x, Vector & E);
 void f_exact_Im(const Vector & x, Vector & f);
-void get_maxwell_solution_Im(const Vector & x, double E[], double curl2E[]);
 
 double pml_detJ_inv_Re(const Vector &x);
 double pml_detJ_inv_Im(const Vector &x);
@@ -241,7 +239,8 @@ int main(int argc, char *argv[])
    E_gf = 0.0;
    VectorFunctionCoefficient E_Re(dim, E_exact_Re);
    VectorFunctionCoefficient E_Im(dim, E_exact_Im);
-   if (sol >=0)  E_gf.ProjectBdrCoefficientTangent(E_Re,E_Im,ess_bdr);
+   // if (sol >=0)  E_gf.ProjectBdrCoefficientTangent(E_Re,E_Im,ess_bdr);
+   if (sol >=0)  E_gf.ProjectBdrCoefficientTangent(E_Re,E_Re,ess_bdr);
    // E_gf.ProjectCoefficient(E_Re,E_Im);
 
    OperatorHandle Ah;
@@ -426,11 +425,10 @@ void get_maxwell_solution_Re(const Vector & x, double E[], double curl2E[])
          double x0 = x(0) + shift;
          double x1 = x(1) + shift;
          double r = sqrt(x0 * x0 + x1 * x1);
-         E[0] = cos(x0);
+         E[0] = cos(omega*r);
          E[1] = 0.0;
          double r_x = x0 / r;
          double r_y = x1 / r;
-         double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
          double r_xy = -(r_x / r) * r_y;
          double r_yx = r_xy;
          double r_yy = (1.0 / r) * (1.0 - r_y * r_y);

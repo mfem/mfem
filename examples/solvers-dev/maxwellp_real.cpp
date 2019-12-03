@@ -487,17 +487,21 @@ void get_maxwell_solution(const Vector & x, double E[], double curl2E[])
 
 void epsilon_func(const Vector &x, DenseMatrix &M)
 {
-   M.SetSize(3);
+   M.SetSize(dim);
 
    M = 0.0;
    M(0,0) = 1.0;
    M(1,1) = 1.0;
-   if (sol != 4)
+   if (dim == 3)
    {
-      M(2,2) = 1.0;
+      if (sol != 4)
+      {
+         M(2,2) = 1.0;
+      }
+      else
+      {
+         M(2,2) = 4.0*x(0)-1.0;
+      }
    }
-   else
-   {
-      M(2,2) = 4.0*x(0)-1.0;
-   }
+   
 }
