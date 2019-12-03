@@ -27,6 +27,7 @@
 
 #include "mfem.hpp"
 
+#include <fstream>
 #include <set>
 #include <string>
 
@@ -36,6 +37,8 @@ using namespace mfem;
 bool isScalarField(GridFunction & gf);
 
 void parseFieldNames(const char * field_name_c_str, set<string> &field_names);
+void parsePoints(int spaceDim, const char *pts_file_c_str, Vector &pts);
+
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
@@ -48,6 +51,7 @@ int main(int argc, char *argv[])
    int cycle = 0;
 
    const char *field_name_c_str = "ALL";
+   const char *pts_file_c_str = "";
    Vector pts;
 
    OptionsParser args(argc, argv);
@@ -57,6 +61,8 @@ int main(int argc, char *argv[])
    args.AddOption(&pts, "-p", "--points", "List of points.");
    args.AddOption(&field_name_c_str, "-fn", "--field-names",
                   "List of field names to get values from.");
+   args.AddOption(&pts_file_c_str, "-pf", "--point-file",
+                  "Filename containing a list of points.");
    args.Parse();
    if (!args.Good())
    {
@@ -110,6 +116,8 @@ int main(int argc, char *argv[])
    mfem::out << endl;
 
    int spaceDim = dc.GetMesh()->SpaceDimension();
+
+   parsePoints(spaceDim, pts_file_c_str, pts);
    int npts = pts.Size() / spaceDim;
 
    DenseMatrix pt_mat(pts.GetData(), spaceDim, npts);
@@ -198,4 +206,46 @@ void parseFieldNames(const char * field_name_c_str, set<string> &field_names)
    {
       field_names.insert("ALL");
    }
+}
+
+void parsePoints(int spaceDim, const char *pts_file_c_str, Vector &pts)
+{
+   ifstream ifs(pts_file_c_str);
+
+   if (!ifs)
+   {
+      MFEM_ABORT("Failed to open point file: " << pts_file_c_str << '\n');
+   }
+
+   int o, n, dim;
+   ifs >> n >> dim;
+
+   MFEM_VERIFY(dim == spaceDim, "Mismatch in mesh's space dimension "
+               "and point dimension.");
+
+   if (pts.Size() > 0 && pts.Size() % spaceDim == 0)
+   {
+      int size = pts.Size() + n * dim;
+      Vector tmp(size);
+      for (int i=0; i<pts.Size(); i++)
+      {
+         tmp[i] = pts[i];
+      }
+      o = pts.Size();
+      pts.Swap(tmp);
+   }
+   else
+   {
+      pts.SetSize(n * dim);
+      o = 0;
+   }
+
+   for (int i=0; i<n; i++)
+   {
+      for (int d=0; d<dim; d++)
+      {
+         ifs >> pts[o + i * dim + d];
+      }
+   }
+   ifs.close();
 }
