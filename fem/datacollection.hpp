@@ -470,7 +470,6 @@ public:
 };
 
 
-
 class ParaviewDataCollection : public DataCollection
 {
 private:
@@ -488,15 +487,23 @@ protected:
 
 
    void SaveDataVTU(std::ostream &out, int ref);
+
    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
+
    void SaveQFieldVTU(std::ostream &out, int ref, const QFieldMapIterator& it);
 
    std::string  GenerateCollectionPath();
+
    std::string  GenerateVTUFileName();
+
    std::string  GenerateVTUFileName(int rank);
+
    std::string  GenerateVTUPath();
+
    std::string  GeneratePVDFileName();
+
    std::string  GeneratePVTUFileName();
+
    std::string  GeneratePVTUPath();
 
 public:
@@ -505,6 +512,7 @@ public:
    /** If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh(). The construtor works only in serial. */
    ParaviewDataCollection(const std::string& collection_name,
                           mfem::Mesh *mesh_ = NULL);
+
 #ifdef MFEM_USE_MPI
    /// Construct a parallel ParaviewDataCollection.
    /** Before saving the data collection, some parameters in the
@@ -522,11 +530,10 @@ public:
    /// Set/change the mesh associated with the collection.
    virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override;
 #endif
-
+   
    /// Add a grid function to the collection
    virtual void RegisterField(const std::string& field_name,
                               mfem::GridFunction *gf) override;
-
 
    /// Set refinement levels - every element is uniformly split based on levels_of_detail_
    void SetLevelsOfDetail(int levels_of_detail_);
@@ -537,16 +544,13 @@ public:
    /// Load the collection  - not implemented in the paraview writer
    virtual void Load(int cycle_ = 0) override;
 
-
    static int create_directory(const std::string &dir_name);
+
 #ifdef MFEM_USE_MPI
    static int create_directory(const std::string &dir_name, int myid,
                                MPI_Comm mycom);
 #endif
 };
 
-
-
 }
-
 #endif
