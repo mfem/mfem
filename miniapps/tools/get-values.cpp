@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
    mfem::out << "Found " << nfound << " points." << endl;
 
    ofstream ofs;
-   if (strcmp(out_file_c_str,"") != 0)
+   if (strcmp(out_file_c_str,"") != 0 && mpi.Root())
    {
       ofs.open(out_file_c_str);
       if (!ofs)
