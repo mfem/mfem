@@ -227,6 +227,8 @@ void parseFieldNames(const char * field_name_c_str, set<string> &field_names)
 
 void parsePoints(int spaceDim, const char *pts_file_c_str, Vector &pts)
 {
+   if (strcmp(pts_file_c_str,"") == 0) { return; }
+
    ifstream ifs(pts_file_c_str);
 
    if (!ifs)
