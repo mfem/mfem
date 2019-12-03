@@ -142,7 +142,10 @@ public:
     {
        int iSize=list.Size();
        ess_tdof_list.SetSize(component*iSize);
-       for (PetscInt j = 0; j < componentSize; j++)
+       //cout <<"======vector size is "<<component<<" "<<iSize<<endl;
+       //cout <<"======component size is "<<componentSize<<endl;
+       //list.Print();
+       for (PetscInt j = 0; j < component; j++)
          for (PetscInt i = 0; i < iSize; i++)
          {
             ess_tdof_list[i+j*iSize] = j*componentSize+list[i];
