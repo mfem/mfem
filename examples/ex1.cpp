@@ -86,12 +86,12 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   //args.PrintOptions(cout);
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   device.Print();
+   //device.Print();
 
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -104,13 +104,36 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 3;
+         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
+
+   Array<int> ordering;
+   mesh->GetGeckoElementReordering(ordering,
+                                   2, // iter
+                                   5, // window
+                                   2, // period
+                                   0  // seed
+                                   );
+
+   Array<int> ordering2(mesh->GetNE());
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      ordering2[ordering[i]] = i;
+   }
+
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Vector c;
+      mesh->GetElementCenter(ordering2[i], c);
+      cout << c(0) << " " << c(1) << endl;
+   }
+
+   return EXIT_SUCCESS;
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we

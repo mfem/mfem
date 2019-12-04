@@ -233,8 +233,6 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-   void GetElementCenter(int i, Vector &c);
-
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
@@ -1200,6 +1198,8 @@ public:
    double GetElementSize(int i, const Vector &dir);
 
    double GetElementVolume(int i);
+
+   void GetElementCenter(int i, Vector &c);
 
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */
