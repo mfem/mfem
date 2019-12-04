@@ -1349,7 +1349,7 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering,
    // Run through all the elements and insert the nodes in the graph for them
    for (int elemid = 0; elemid < GetNE(); ++elemid)
    {
-      graph.insert();
+      graph.Insert();
    }
 
    // Run through all the elems and insert arcs to the graph for each element
@@ -1360,18 +1360,18 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering,
       const int *neighid = my_el_to_el.GetRow(elemid);
       for (int i = 0; i < my_el_to_el.RowSize(elemid); ++i)
       {
-         graph.insert(elemid + 1,  neighid[i] + 1);
+         graph.Insert(elemid + 1,  neighid[i] + 1);
       }
    }
 
    // Get the reordering from Gecko and copy it into the ordering Array<int>
-   graph.order(functional, iterations, window, period, seed);
+   graph.Order(functional, iterations, window, period, seed);
    ordering.DeleteAll();
    ordering.SetSize(GetNE());
    gecko::Node::Index NE = GetNE();
    for (gecko::Node::Index gnodeid = 1; gnodeid <= NE; ++gnodeid)
    {
-      ordering[gnodeid - 1] = graph.rank(gnodeid);
+      ordering[gnodeid - 1] = graph.Rank(gnodeid);
    }
 
    delete functional;

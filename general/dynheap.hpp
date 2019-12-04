@@ -30,22 +30,22 @@ public:
    DynamicHeap(size_t count = 0);
    ~DynamicHeap() {}
 
-   void insert(T data, P priority);
-   void update(T data, P priority);
+   void Insert(T data, P priority);
+   void Update(T data, P priority);
 
-   bool top(T& data);
-   bool top(T& data, P& priority);
+   bool Top(T& data);
+   bool Top(T& data, P& priority);
 
-   bool pop();
-   bool extract(T& data);
-   bool extract(T& data, P& priority);
-   bool erase(T data);
+   bool Pop();
+   bool Extract(T& data);
+   bool Extract(T& data, P& priority);
+   bool Erase(T data);
 
-   bool find(T data) const;
-   bool find(T data, P& priority) const;
+   bool Find(T data) const;
+   bool Find(T data, P& priority) const;
 
-   bool empty() const { return heap.empty(); }
-   size_t size() const { return heap.size(); }
+   bool Empty() const { return heap.empty(); }
+   size_t Size() const { return heap.size(); }
 
 private:
    struct HeapEntry
@@ -59,16 +59,16 @@ private:
    M index;
    C lower;
 
-   void ascend(unsigned i);
-   void descend(unsigned i);
-   void swap(unsigned i, unsigned j);
+   void Ascend(unsigned i);
+   void Descend(unsigned i);
+   void Swap(unsigned i, unsigned j);
 
-   bool ordered(unsigned i, unsigned j) const
+   bool Ordered(unsigned i, unsigned j) const
    { return !lower(heap[i].priority, heap[j].priority); }
 
-   unsigned parent(unsigned i) const { return (i - 1) / 2; }
-   unsigned left(unsigned i) const { return 2 * i + 1; }
-   unsigned right(unsigned i) const { return 2 * i + 2; }
+   unsigned Parent(unsigned i) const { return (i - 1) / 2; }
+   unsigned Left(unsigned i) const { return 2 * i + 1; }
+   unsigned Right(unsigned i) const { return 2 * i + 2; }
 };
 
 
@@ -81,31 +81,31 @@ DynamicHeap<T, P, C, M>::DynamicHeap(size_t count)
 }
 
 template < typename T, typename P, class C, class M >
-void DynamicHeap<T, P, C, M>::insert(T data, P priority)
+void DynamicHeap<T, P, C, M>::Insert(T data, P priority)
 {
    if (index.find(data) != index.end())
    {
-      update(data, priority);
+      Update(data, priority);
    }
    else
    {
       unsigned i = heap.size();
       heap.push_back(HeapEntry(priority, data));
-      ascend(i);
+      Ascend(i);
    }
 }
 
 template < typename T, typename P, class C, class M >
-void DynamicHeap<T, P, C, M>::update(T data, P priority)
+void DynamicHeap<T, P, C, M>::Update(T data, P priority)
 {
    unsigned i = index[data];
    heap[i].priority = priority;
-   ascend(i);
-   descend(i);
+   Ascend(i);
+   Descend(i);
 }
 
 template < typename T, typename P, class C, class M >
-bool DynamicHeap<T, P, C, M>::top(T& data)
+bool DynamicHeap<T, P, C, M>::Top(T& data)
 {
    if (!heap.empty())
    {
@@ -119,7 +119,7 @@ bool DynamicHeap<T, P, C, M>::top(T& data)
 }
 
 template < typename T, typename P, class C, class M >
-bool DynamicHeap<T, P, C, M>::top(T& data, P& priority)
+bool DynamicHeap<T, P, C, M>::Top(T& data, P& priority)
 {
    if (!heap.empty())
    {
@@ -134,17 +134,17 @@ bool DynamicHeap<T, P, C, M>::top(T& data, P& priority)
 }
 
 template < typename T, typename P, class C, class M >
-bool DynamicHeap<T, P, C, M>::pop()
+bool DynamicHeap<T, P, C, M>::Pop()
 {
    if (!heap.empty())
    {
       T data = heap[0].data;
-      swap(0, heap.size() - 1);
+      Swap(0, heap.size() - 1);
       index.erase(data);
       heap.pop_back();
       if (!heap.empty())
       {
-         descend(0);
+         Descend(0);
       }
       return true;
    }
@@ -155,12 +155,12 @@ bool DynamicHeap<T, P, C, M>::pop()
 }
 
 template < typename T, typename P, class C, class M >
-bool DynamicHeap<T, P, C, M>::extract(T& data)
+bool DynamicHeap<T, P, C, M>::Extract(T& data)
 {
    if (!heap.empty())
    {
       data = heap[0].data;
-      return pop();
+      return Pop();
    }
    else
    {
@@ -169,13 +169,13 @@ bool DynamicHeap<T, P, C, M>::extract(T& data)
 }
 
 template < typename T, typename P, class C, class M >
-bool DynamicHeap<T, P, C, M>::extract(T& data, P& priority)
+bool DynamicHeap<T, P, C, M>::Extract(T& data, P& priority)
 {
    if (!heap.empty())
    {
       data = heap[0].data;
       priority = heap[0].priority;
-      return pop();
+      return Pop();
    }
    else
    {
@@ -184,32 +184,32 @@ bool DynamicHeap<T, P, C, M>::extract(T& data, P& priority)
 }
 
 template < typename T, typename P, class C, class M >
-bool DynamicHeap<T, P, C, M>::erase(T data)
+bool DynamicHeap<T, P, C, M>::Erase(T data)
 {
    if (index.find(data) == index.end())
    {
       return false;
    }
    unsigned i = index[data];
-   swap(i, heap.size() - 1);
+   Swap(i, heap.size() - 1);
    index.erase(data);
    heap.pop_back();
    if (i < heap.size())
    {
-      ascend(i);
-      descend(i);
+      Ascend(i);
+      Descend(i);
    }
    return true;
 }
 
 template < typename T, typename P, class C, class M >
-bool DynamicHeap<T, P, C, M>::find(T data) const
+bool DynamicHeap<T, P, C, M>::Find(T data) const
 {
    return index.find(data) != index.end();
 }
 
 template < typename T, typename P, class C, class M >
-bool DynamicHeap<T, P, C, M>::find(T data, P& priority) const
+bool DynamicHeap<T, P, C, M>::Find(T data, P& priority) const
 {
    typename M::const_iterator p;
    if ((p = index.find(data)) == index.end())
@@ -222,30 +222,30 @@ bool DynamicHeap<T, P, C, M>::find(T data, P& priority) const
 }
 
 template < typename T, typename P, class C, class M >
-void DynamicHeap<T, P, C, M>::ascend(unsigned i)
+void DynamicHeap<T, P, C, M>::Ascend(unsigned i)
 {
-   for (unsigned j; i && !ordered(j = parent(i), i); i = j)
+   for (unsigned j; i && !Ordered(j = Parent(i), i); i = j)
    {
-      swap(i, j);
+      Swap(i, j);
    }
    index[heap[i].data] = i;
 }
 
 template < typename T, typename P, class C, class M >
-void DynamicHeap<T, P, C, M>::descend(unsigned i)
+void DynamicHeap<T, P, C, M>::Descend(unsigned i)
 {
    for (unsigned j, k;
-        (j = ((k =  left(i)) < heap.size() && !ordered(i, k) ? k : i),
-         j = ((k = right(i)) < heap.size() && !ordered(j, k) ? k : j)) != i;
+        (j = ((k =  Left(i)) < heap.size() && !Ordered(i, k) ? k : i),
+         j = ((k = Right(i)) < heap.size() && !Ordered(j, k) ? k : j)) != i;
         i = j)
    {
-      swap(i, j);
+      Swap(i, j);
    }
    index[heap[i].data] = i;
 }
 
 template < typename T, typename P, class C, class M >
-void DynamicHeap<T, P, C, M>::swap(unsigned i, unsigned j)
+void DynamicHeap<T, P, C, M>::Swap(unsigned i, unsigned j)
 {
    std::swap(heap[i], heap[j]);
    index[heap[i].data] = i;
