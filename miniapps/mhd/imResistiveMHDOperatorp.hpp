@@ -11,7 +11,7 @@ class ReducedSystemOperator : public Operator
 {
 private:
    ParFiniteElementSpace &fespace;
-   ParBilinearForm *M, *K, *KB, *DRe, *DSl; 
+   ParBilinearForm *M, *Mfull, *K, *KB, *DRe, *DSl; 
    HypreParMatrix &Mmat, &Kmat, *DRematpr, *DSlmatpr;
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl;
@@ -23,7 +23,7 @@ private:
    Array<int> block_trueOffsets;
    ParBilinearForm *Mlp; 
 
-   CGSolver *M_solver;
+   CGSolver *M_solver, *M_solver2;
 
    int myid;
    double dt, dtOld;
@@ -35,26 +35,28 @@ private:
    mutable ParBilinearForm *Nv, *Nb, *Pw;
    mutable ParLinearForm *PB_VPsi, *PB_VOmega, *PB_BJ;
    mutable BlockOperator *Jacobian;
-   mutable Vector z, zFull;
+   mutable Vector z, J, zFull;
+   mutable ParLinearForm zLF;
 
 public:
    ReducedSystemOperator(ParFiniteElementSpace &f,
                          ParBilinearForm *M_, HypreParMatrix &Mmat_,
                          ParBilinearForm *K_, HypreParMatrix &Kmat_,
                          ParBilinearForm *KB_, ParBilinearForm *DRe_, ParBilinearForm *DSl_,
-                         CGSolver *M_solver_, const Array<int> &ess_tdof_list_,
+                         CGSolver *M_solver_, CGSolver *M_solver2_, const Array<int> &ess_tdof_list_,
                          const Array<int> &ess_bdr_);
 
+   //this add the useFull option
    ReducedSystemOperator(ParFiniteElementSpace &f,
                          ParBilinearForm *M_, HypreParMatrix &Mmat_,
                          ParBilinearForm *K_, HypreParMatrix &Kmat_,
                          ParBilinearForm *KB_, 
                          ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
                          ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
-                         CGSolver *M_solver_, const Array<int> &ess_tdof_list_,
+                         CGSolver *M_solver_, CGSolver *M_solver2_, const Array<int> &ess_tdof_list_,
                          const Array<int> &ess_bdr_, int useFull_);
 
-   /// Set current values - needed to compute action and Jacobian.
+   // Set current values - needed to compute action and Jacobian.
    void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
    {   
        dtOld=dt; dt=dt_; phi=phi_; psi=psi_; w=w_;
@@ -206,7 +208,7 @@ public:
  *     dPsi/dt = M^{-1}*F1,
  *     dw  /dt = M^{-1}*F2,
  *  coupled with two linear systems
- *     j   = -M^{-1}*(K-B)*Psi 
+ *     j   = -Mfull^{-1}*(K-B)*Psi 
  *     Phi = -K^{-1}*M*w
  *  so far there seems no need to do a BlockNonlinearForm
  *
@@ -218,10 +220,11 @@ protected:
    ParFiniteElementSpace &fespace;
    Array<int> ess_tdof_list;
 
-   ParBilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
+   ParBilinearForm *M, *Mfull, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    ParBilinearForm *Nv, *Nb;
-   ParLinearForm *E0, *Sw; //two source terms
-   HypreParMatrix Kmat, Mmat, DSlmat, DRemat;
+   ParLinearForm *E0; //source terms
+   mutable ParLinearForm zLF; //LinearForm holder for updating J
+   HypreParMatrix Kmat, Mmat, *MfullMat, DSlmat, DRemat;
    HypreParVector *E0Vec;
    FunctionCoefficient *E0rhs;
    double viscosity, resistivity;
@@ -237,13 +240,16 @@ protected:
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother *M_prec;  // Preconditioner for the mass matrix M
 
+   CGSolver M_solver2; // Krylov solver for inverting the mass matrix M
+   HypreSmoother *M_prec2;  // Preconditioner for the mass matrix M
+
    CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
    HypreSmoother *K_prec;  // Preconditioner for the stiffness matrix K
 
    HypreSolver *K_amg; //BoomerAMG for stiffness matrix
    HyprePCG *K_pcg;
 
-   mutable Vector z, zFull; // auxiliary vector 
+   mutable Vector z, J, zFull; // auxiliary vector 
    mutable ParGridFunction j, gftmp;  //auxiliary variable (to store the boundary condition)
    ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
 
@@ -261,7 +267,7 @@ public:
    //Update problem in AMR case
    void UpdateProblem(Array<int> &ess_bdr);
 
-   //link gftmp with psi; this is an old way
+   //link gftmp with psi; this is an old way and not needed any more
    void BindingGF(Vector &vx)
    {int sc = height/3; gftmp.MakeTRef(&fespace, vx, sc);}
 
@@ -280,7 +286,7 @@ public:
    void SetRHSEfield( double(* f)( const Vector&) );
    void SetInitialJ(FunctionCoefficient initJ);
 
-   void UpdateJ(Vector &k, ParGridFunction *jGf);
+   void UpdateJ(Vector &k, ParGridFunction *jout);
 
    //functions for explicit solver
    void UpdatePhi(Vector &vx);
@@ -296,13 +302,13 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
                                          Array<int> &ess_bdr, double visc, double resi, 
                                          bool use_petsc_ = false, bool use_factory_=false)
    : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
-     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
-     Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL), E0rhs(NULL),
+     M(NULL), Mfull(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
+     Nv(NULL), Nb(NULL), E0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
      visc_coeff(visc),  resi_coeff(resi),  
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
-     M_solver(f.GetComm()), M_prec(NULL), K_solver(f.GetComm()),  K_prec(NULL),
-     K_amg(NULL), K_pcg(NULL), z(height/3), zFull(f.GetVSize()), j(&fespace),
+     M_solver(f.GetComm()), M_solver2(f.GetComm()), M_prec(NULL), K_solver(f.GetComm()),  K_prec(NULL),
+     K_amg(NULL), K_pcg(NULL), z(height/3), J(height/3), zFull(f.GetVSize()), j(&fespace),
      DRetmp(NULL), DSltmp(NULL)
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -313,6 +319,13 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
+   //full mass matrix 
+   Mfull = new ParBilinearForm(&fespace);
+   Mfull->AddDomainIntegrator(new MassIntegrator);
+   Mfull->Assemble();
+   Mfull->Finalize();
+   MfullMat=Mfull->ParallelAssemble();
+
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(1e-7);
    M_solver.SetAbsTol(0.0);
@@ -322,6 +335,16 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M_prec->SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
+
+   M_solver2.iterative_mode = false;
+   M_solver2.SetRelTol(1e-7);
+   M_solver2.SetAbsTol(0.0);
+   M_solver2.SetMaxIter(2000);
+   M_solver2.SetPrintLevel(0);
+   M_prec2 = new HypreSmoother;
+   M_prec2->SetType(HypreSmoother::Jacobi);
+   M_solver2.SetPreconditioner(*M_prec2);
+   M_solver2.SetOperator(*MfullMat);
 
    //stiffness matrix
    K = new ParBilinearForm(&fespace);
@@ -394,7 +417,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
       int useFull = 1;
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
-                         KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
+                         KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
                          ess_tdof_list, ess_bdr, useFull);
 
 
@@ -438,15 +461,23 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    int scFull = fespace.GetVSize();
    width = height = sc*3;
 
-   //update z holder
+   //update vector holder
    z.SetSize(sc);
+   J.SetSize(sc);
    zFull.SetSize(scFull);
+   zLF.Update();
 
    //mass matrix
    M->Update();
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
+   Mfull->Update();
+   Mfull->Assemble();
+   Mfull->Finalize();
+   MfullMat=Mfull->ParallelAssemble();
+
+   //update M_solvers
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(1e-7);
    M_solver.SetAbsTol(0.0);
@@ -457,6 +488,17 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    M_prec->SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
+
+   M_solver2.iterative_mode = false;
+   M_solver2.SetRelTol(1e-7);
+   M_solver2.SetAbsTol(0.0);
+   M_solver2.SetMaxIter(2000);
+   M_solver2.SetPrintLevel(0);
+   delete M_prec2;
+   M_prec2 = new HypreSmoother;
+   M_prec2->SetType(HypreSmoother::Jacobi);
+   M_solver2.SetPreconditioner(*M_prec2);
+   M_solver2.SetOperator(*MfullMat);
 
    //stiffness matrix
    K->Update();
@@ -521,7 +563,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
       int useFull = 1;
       //if needed, we can replace new with another update function
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
-                         KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
+                         KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
                          ess_tdof_list, ess_bdr, useFull);
 
       const double rel_tol=1e-4;
@@ -545,6 +587,10 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
       pnewton_solver->SetAbsTol(0.0);
       pnewton_solver->SetMaxIter(20);
       pnewton_solver->iterative_mode=true;
+
+      delete bchandler;
+      bchandler = new myBCHandler(ess_tdof_list, PetscBCHandler::CONSTANT, 3, height/3);
+      pnewton_solver->SetBCHandler(bchandler);
    }
 
    E0->Update();
@@ -577,6 +623,7 @@ void ResistiveMHDOperator::SetRHSEfield( double(* f)( const Vector&) )
       reduced_oper->setE0(E0Vec);
 }
 
+//this function is not needed any more!!
 void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ) 
 {
     j.ProjectCoefficient(initJ);
@@ -607,12 +654,21 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    gftmp.MakeTRef(&fespace, k_, sc);
    gftmp.SetFromTrueVector();  //recover psi
 
+   KB->Mult(gftmp, zLF);
+   zLF.Neg();
+   zLF.ParallelAssemble(z);
+   M_solver2.Mult(z, J);
+
+   
+   //this is the old and wrong way to update j
+   /*
    Vector J, Z;
    HypreParMatrix A;
    KB->Mult(gftmp, zFull);
    zFull.Neg(); // z = -z
    M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
    M_solver.Mult(Z, J);
+   */
 
    //evolve the dofs
    z=0.;
@@ -738,6 +794,14 @@ void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
    gftmp.MakeTRef(&fespace, k_, sc);
    gftmp.SetFromTrueVector();
 
+   KB->Mult(gftmp, zLF);
+   zLF.Neg();
+   zLF.ParallelAssemble(z);
+   M_solver2.Mult(z, J);
+   jout->SetFromTrueDofs(J);
+
+   // old way
+   /*
    Vector J, Z;
    HypreParMatrix A;
    KB->Mult(gftmp, zFull);
@@ -745,6 +809,7 @@ void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
    M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
    M_solver.Mult(Z, J);
    M->RecoverFEMSolution(J, zFull, *jout);
+   */
 }
 
 void ResistiveMHDOperator::DestroyHypre()
@@ -752,6 +817,7 @@ void ResistiveMHDOperator::DestroyHypre()
     //hypre and petsc needs to be deleted earilier
     delete K_amg;
     delete M_prec;
+    delete M_prec2;
     delete K_prec;
     delete reduced_oper;
     delete J_factory;
@@ -763,11 +829,12 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
 {
     //free used memory
     delete M;
+    delete Mfull;
+    delete MfullMat;
     delete K;
     delete E0;
     delete E0Vec;
     delete E0rhs;
-    delete Sw;
     delete KB;
     delete Nv;
     delete Nb;
@@ -780,15 +847,15 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *M_, HypreParMatrix &Mmat_,
    ParBilinearForm *K_, HypreParMatrix &Kmat_,
    ParBilinearForm *KB_, ParBilinearForm *DRe_, ParBilinearForm *DSl_,
-   CGSolver *M_solver_,
+   CGSolver *M_solver_, CGSolver *M_solver2_,
    const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
-     initialMdt(false), E0Vec(NULL), M_solver(M_solver_),
+     initialMdt(false), E0Vec(NULL), M_solver(M_solver_), M_solver2(M_solver2_),
      dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_),
      Nv(NULL), Nb(NULL), Pw(NULL), PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
-     Jacobian(NULL), z(height/3), zFull(f.GetVSize())
+     Jacobian(NULL), z(height/3), J(height/3), zFull(f.GetVSize()), zLF(&fespace)
 { 
     useFull=0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -814,16 +881,16 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *KB_, 
    ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
    ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
-   CGSolver *M_solver_,const Array<int> &ess_tdof_list_,
-   const Array<int> &ess_bdr_, int useFull_)
+   CGSolver *M_solver_, CGSolver *M_solver2_,
+   const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_, int useFull_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
      initialMdt(false),
-     E0Vec(NULL), M_solver(M_solver_), 
+     E0Vec(NULL), M_solver(M_solver_), M_solver2(M_solver2_), 
      dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_),
      Nv(NULL), Nb(NULL), Pw(NULL),  PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
-     Jacobian(NULL), z(height/3), zFull(f.GetVSize())
+     Jacobian(NULL), z(height/3), J(height/3), zFull(f.GetVSize()), zLF(&fespace)
 { 
     useFull = useFull_;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1077,13 +1144,20 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       PB_VOmega->Assemble();
    }
 
-   //------compute the current as an auxilary variable------
+   KB->Mult(psiGf, zLF);
+   zLF.Neg();
+   zLF.ParallelAssemble(z);
+   M_solver2->Mult(z, J);
+
+   //------compute the current as an auxilary variable (this is the old and wrong way------
+   /*
    Vector J, Z;
    HypreParMatrix A;
    KB->Mult(psiGf, zFull);
    zFull.Neg(); // z = -z
    M->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
    M_solver->Mult(Z, J); 
+   */
 
    //+++++compute y1
    Kmat.Mult(phiNew,y1);

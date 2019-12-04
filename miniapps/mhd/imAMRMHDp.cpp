@@ -24,9 +24,6 @@
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
 #endif
 
-using namespace std;
-using namespace mfem;
-
 //this is an AMR update function for VSize (instead of TrueVSize)
 //It is only called in the initial stage of AMR to generate an adaptive mesh
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
@@ -373,7 +370,7 @@ int main(int argc, char *argv[])
 
    for (int ref_it = 1; ; ref_it++)
    {
-     exOperator->UpdateJ(*vxTmp);
+     exOperator->UpdateJ(*vxTmp, &jTmp);
      refinerTmp.Apply(*pmesh);
      if (refinerTmp.Refined()==false)
      {
@@ -639,11 +636,6 @@ int main(int argc, char *argv[])
             //---assemble problem and update boundary condition---
             oper.UpdateProblem(ess_bdr); 
             ode_solver->Init(oper);
-
-            //---reset J just for the boundary condition
-            j.ProjectCoefficient(*jptr);
-            oper.SetInitialJ(*jptr);
-            j.SetTrueVector();
          }
          else //mesh is not refined or derefined
          {
@@ -705,12 +697,7 @@ int main(int argc, char *argv[])
          oper.UpdateProblem(ess_bdr); 
          ode_solver->Init(oper);
 
-         //---reset J for the boundary condition
-         //   Note J is treated as an auxiliary variable 
-         j.ProjectCoefficient(*jptr);
-         oper.SetInitialJ(*jptr);
-         j.SetTrueVector();
-      }
+     }
       //----------------------------AMR---------------------------------
 
       //++++always plot solutions when mesh is refined/derefined

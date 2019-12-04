@@ -290,7 +290,6 @@ int main(int argc, char *argv[])
         j.ProjectCoefficient(jInit3);
    }
    j.SetTrueVector();
-   oper.BindingGF(vx);
 
    socketstream vis_phi, vis_j, vis_psi, vis_w;
    subtract(psi,psiBack,psiPer);
