@@ -960,6 +960,18 @@ void BilinearForm::EliminateVDofsInRHS(
    mat->PartMult(vdofs, x, b);
 }
 
+void BilinearForm::Mult(const Vector &x, Vector &y) const
+{
+   if (ext)
+   {
+      ext->Mult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
+}
+
 void BilinearForm::Update(FiniteElementSpace *nfes)
 {
    bool full_update;
