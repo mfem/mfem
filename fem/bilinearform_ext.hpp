@@ -44,7 +44,7 @@ public:
    virtual void Assemble() = 0;
    virtual void AssembleDiagonal(Vector& diag) const
    {
-      mfem_error("Not implemented for this assembly level!");
+      MFEM_ABORT("Not implemented for this assembly level!");
    }
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
