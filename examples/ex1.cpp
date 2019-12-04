@@ -86,12 +86,12 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   //args.PrintOptions(cout);
+   args.PrintOptions(cout);
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   //device.Print();
+   device.Print();
 
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
