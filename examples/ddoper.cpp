@@ -219,8 +219,8 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #include "gsl_sf_airy.h"
 
 //#define K2_AIRY 2.0  // TODO: input k
-#define K2_AIRY 686.3384931312 // 1.25 GHz
-//#define K2_AIRY 10981.4158900991  // 5 GHz
+//#define K2_AIRY 686.3384931312 // 1.25 GHz
+#define K2_AIRY 10981.4158900991  // 5 GHz
 //#define K2_AIRY 43925.6635603965  // 10 GHz
 //#define K2_AIRY 175702.65424  // 20 GHz
 //#define K2_AIRY 1601.0
@@ -5883,6 +5883,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    HypreParMatrix *HypreDsdComplexIm = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], DsdIm_HypreBlocks[m], DsdIm_SparseBlocks[m],
 									       DsdIm_HypreBlockCoef[m]); // , blockGI, blockProcOffsets, all_block_num_loc_rows);
 #else
+#ifndef IF_ITERATIVE
 	    std::vector<std::vector<int> > blockProcOffsetsAux(numBlocks-1);
 	    std::vector<std::vector<int> > all_block_num_loc_rows_Aux(numBlocks-1);
 
@@ -5901,6 +5902,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 									       
 	    HypreParMatrix *HypreDsdComplexIm = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsAuxSD[m], DsdIm_HypreBlocks[m], DsdIm_SparseBlocks[m],
 									       DsdIm_HypreBlockCoef[m], blockGI, blockProcOffsetsAux, all_block_num_loc_rows_Aux);
+#endif
 #endif
 #endif
 
@@ -5990,6 +5992,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    }
 
 #ifdef SD_ITERATIVE
+#ifndef IF_ITERATIVE
 	    {
 	      ComplexHypreParMatrix tmpDiagComplex(HypreDsdComplexRe, HypreDsdComplexIm, false, false);
 	      HypreDsdComplex[m] = tmpDiagComplex.GetSystemMatrix();
@@ -5997,6 +6000,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      delete HypreDsdComplexRe;
 	      delete HypreDsdComplexIm;
 	    }
+#endif
 #endif
 	    
 	    /*
@@ -6150,6 +6154,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      invAsdComplex[m] = gmres;
 	    }
 	    */
+
+	    // Delete subdomain blocks. Note that interface blocks must be deleted after the loop over subdomains, since they can be shared.
+	    delete sdND[m];
 	    
 #ifndef SD_ITERATIVE
 	    delete HypreAsdComplex[m];
@@ -6340,6 +6347,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
   MPI_Barrier(MPI_COMM_WORLD);
 
+  // Note that interface matrices cannot be deleted here, because they are used by Cij (see CreateCij()).
+  
   chronoSD.Stop();
   if (m_rank == 0)
     cout << m_rank << ": DDM constructor SD loop 3 timing " << chronoSD.RealTime() << endl;
@@ -7402,7 +7411,8 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
   ParBilinearForm *H1stiff = new ParBilinearForm(iH1fespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
   ParMixedBilinearForm *NDH1grad = new ParMixedBilinearForm(iH1fespace[interfaceIndex], ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.  
 #endif
-  
+
+  // TODO: use variable wavenumber as coefficient?
   NDmass->AddDomainIntegrator(new VectorFEMassIntegrator(one));
   NDmass->Assemble();
 

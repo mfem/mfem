@@ -50,10 +50,10 @@ using namespace std;
 
 #define SD_ITERATIVE
 #define SD_ITERATIVE_COMPLEX
-#define SD_ITERATIVE_GMG
+//#define SD_ITERATIVE_GMG
 //#define SD_ITERATIVE_FULL
 
-#define IF_ITERATIVE
+//#define IF_ITERATIVE
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -458,16 +458,20 @@ public:
       {
 	//HyprePCG *pcg = new HyprePCG(*(M[interfaceIndex]));
 	CGSolver *pcg = new CGSolver();
-	pcg->SetOperator(*(M[interfaceIndex]));
-	pcg->SetRelTol(1e-12);
-	pcg->SetAbsTol(1e-12);
-	pcg->SetMaxIter(100);
-	pcg->SetPrintLevel(-1);
-
+	if (M[interfaceIndex] != NULL)
+	  {
+	    pcg->SetOperator(*(M[interfaceIndex]));
+	    pcg->SetRelTol(1e-12);
+	    pcg->SetAbsTol(1e-12);
+	    pcg->SetMaxIter(100);
+	    pcg->SetPrintLevel(-1);
+	  }
+	
 	Minv.push_back(pcg);
 	fOS.push_back(os);
 
-	os += 2 * ((*ifH1true)[interfaceIndex] + M[interfaceIndex]->Height());
+	if (M[interfaceIndex] != NULL)
+	  os += 2 * ((*ifH1true)[interfaceIndex] + M[interfaceIndex]->Height());
       }
 
     height = os;
