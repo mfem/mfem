@@ -26,12 +26,15 @@ protected:
    ParBilinearForm *Mrhs;
    ParBilinearForm *Nv, *Nb;
    ParLinearForm *E0, *Sw; //two source terms
-   HypreParMatrix Kmat, Mmat, *NbMat;
+   HypreParMatrix Kmat, Mmat, *MrhsMat, *NbMat;
    double viscosity, resistivity;
    bool useAMG;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother M_prec;  // Preconditioner for the mass matrix M
+
+   CGSolver M_solver2; // Krylov solver for inverting the mass matrix M without essential boundary
+   HypreSmoother M_prec2;  // Preconditioner for the mass matrix M
 
    CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
    HypreSmoother K_prec;  // Preconditioner for the stiffness matrix K
@@ -51,7 +54,7 @@ public:
    //set rhs E0
    void SetRHSEfield(FunctionCoefficient Efield);
 
-   void UpdateJ(Vector &vx);
+   void UpdateJ(Vector &vx, ParGridFunction *j);
    void UpdatePhi(Vector &vx);
    void assembleNv(ParGridFunction *gf);
    void assembleNb(ParGridFunction *gf);
@@ -65,8 +68,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f),
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Mrhs(NULL),
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
-     viscosity(visc),  resistivity(resi), NbMat(NULL), useAMG(false), 
-     M_solver(f.GetComm()), K_solver(f.GetComm()), 
+     viscosity(visc),  resistivity(resi), MrhsMat(NULL), NbMat(NULL), useAMG(false), 
+     M_solver(f.GetComm()), M_solver2(f.GetComm()), K_solver(f.GetComm()), 
      K_amg(NULL), K_pcg(NULL), z(height/4)
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -80,15 +83,26 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    Mrhs = new ParBilinearForm(&fespace);
    Mrhs->AddDomainIntegrator(new MassIntegrator);
    Mrhs->Assemble();
+   Mrhs->Finalize();
+   MrhsMat=Mrhs->ParallelAssemble();
 
    M_solver.iterative_mode = true;
-   M_solver.SetRelTol(1e-12);   //FIXME so small??
+   M_solver.SetRelTol(1e-12);   
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(2000);
    M_solver.SetPrintLevel(0);
    M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
+
+   M_solver2.iterative_mode = false;
+   M_solver2.SetRelTol(1e-12); 
+   M_solver2.SetAbsTol(0.0);
+   M_solver2.SetMaxIter(2000);
+   M_solver2.SetPrintLevel(0);
+   M_prec2.SetType(HypreSmoother::Jacobi);
+   M_solver2.SetPreconditioner(M_prec2);
+   M_solver2.SetOperator(*MrhsMat);
 
    //stiffness matrix
    K = new ParBilinearForm(&fespace);
@@ -230,21 +244,39 @@ void ResistiveMHDOperator::assembleNb(ParGridFunction *gf)
    NbMat=Nb->ParallelAssemble();
 }
 
-void ResistiveMHDOperator::UpdateJ(Vector &vx)
+void ResistiveMHDOperator::UpdateJ(Vector &vx, ParGridFunction *j)
 {
    //the current is J=-M^{-1}*K*Psi
    int sc = height/4;
    Vector psi(vx.GetData() +  sc, sc);
-   Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
 
+   ParLinearForm zLF(&fespace);
+   KB->Mult(psi, zLF);
+   zLF.Neg(); // z = -z
+
+   int trueSize=fespace.GetTrueVSize();
+
+   //no boundary condition is applied here
+   Vector zTmp(trueSize), jTmp(trueSize);
+
+   zLF.ParallelAssemble(zTmp);
+   M_solver2.Mult(zTmp, jTmp);
+   j->SetFromTrueDofs(jTmp);
+
+   //another equivalent way
+   //const Operator &P= *fespace.GetProlongationMatrix();
+   //P.MultTranspose(zGf, zTmp);
+
+   // (this is the old way but it has a bug: J should not the essential boundary condition!)
+   /* 
    KB->Mult(psi, z);
    z.Neg(); // z = -z
-
    HypreParMatrix tmp;
    Vector Y, Z;
    M->FormLinearSystem(ess_tdof_list, j, z, tmp, Y, Z); //apply Dirichelt boundary (j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, j);
+   */
    
 }
 
@@ -281,8 +313,6 @@ void ResistiveMHDOperator::DestroyHypre()
 
 ResistiveMHDOperator::~ResistiveMHDOperator()
 {
-    //cout <<"ResistiveMHDOperator::~ResistiveMHDOperator() is called"<<endl;
-    //free used memory
     delete M;
     delete K;
     delete E0;
@@ -290,14 +320,10 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete KB;
     delete Nv;
     delete Nb;
+    delete MrhsMat;
     delete NbMat;
     delete Mrhs;
     delete K_pcg;
-    //delete K_amg;
-    //delete M_solver;
-    //delete K_solver;
-    //delete M_prec;
-    //delete K_prec;
 }
 
 
