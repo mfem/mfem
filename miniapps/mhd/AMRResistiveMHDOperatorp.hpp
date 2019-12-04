@@ -25,7 +25,7 @@ protected:
    ParBilinearForm *M, *Mrhs, *K, *KB, *DSl, *DRe; //mass, stiffness, diffusion with SL and Re
    ParBilinearForm *Nv, *Nb;
    ParLinearForm *E0; //source terms
-   HypreParMatrix Mmat, Kmat;
+   HypreParMatrix Mmat, Kmat, *MrhsMat;
    ConstantCoefficient visc_coeff, resi_coeff;
    double viscosity, resistivity;
    FunctionCoefficient *E0rhs;
@@ -33,6 +33,9 @@ protected:
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother *M_prec;  // Preconditioner for the mass matrix M
+
+   CGSolver M_solver2; // Krylov solver for inverting the mass matrix Mrhs
+   HypreSmoother *M_prec2;  // Preconditioner for the mass matrix M
 
    CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
    HypreSmoother *K_prec;  // Preconditioner for the stiffness matrix K
@@ -52,7 +55,7 @@ public:
    //set rhs E0
    void SetRHSEfield( double(* f)( const Vector&) );
 
-   void UpdateJ(Vector &vx);
+   void UpdateJ(Vector &vx, ParGridFunction *j);
    void UpdatePhi(Vector &vx);
    void BackSolvePsi(Vector &vx);
    void assembleNv(ParGridFunction *gf);
@@ -67,11 +70,12 @@ public:
 AMRResistiveMHDOperator::AMRResistiveMHDOperator(ParFiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi)
    : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f), 
-     M(NULL), Mrhs(NULL), K(NULL), KB(NULL), DSl(NULL), DRe(NULL), Nv(NULL), Nb(NULL), E0(NULL),
+     M(NULL), Mrhs(NULL), K(NULL), KB(NULL), DSl(NULL), DRe(NULL), Nv(NULL), Nb(NULL), E0(NULL), MrhsMat(NULL),
      visc_coeff(visc), resi_coeff(resi),
      viscosity(visc),  resistivity(resi), useAMG(false),
-     M_solver(f.GetComm()), K_solver(f.GetComm()),
-     E0rhs(NULL), M_prec(NULL), K_prec(NULL), K_amg(NULL), K_pcg(NULL)
+     M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL), 
+     K_solver(f.GetComm()), K_prec(NULL),
+     E0rhs(NULL), K_amg(NULL), K_pcg(NULL)
 {
    //mass matrix
    M = new ParBilinearForm(&fespace);
@@ -104,6 +108,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    //update mass matrix
    M->Assemble();
    Mrhs->Assemble();
+   Mrhs->Finalize();
 
    //update stiffness matrix
    K->Assemble();
@@ -120,6 +125,19 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    M_prec->SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
+
+   delete MrhsMat;
+   MrhsMat=Mrhs->ParallelAssemble();
+   M_solver2.iterative_mode = false;
+   M_solver2.SetRelTol(1e-8); 
+   M_solver2.SetAbsTol(0.0);
+   M_solver2.SetMaxIter(200);
+   M_solver2.SetPrintLevel(0);
+   delete M_prec2;
+   M_prec2 = new HypreSmoother;
+   M_prec2->SetType(HypreSmoother::Jacobi);
+   M_solver2.SetPreconditioner(*M_prec2);
+   M_solver2.SetOperator(*MrhsMat);
 
    K->FormSystemMatrix(ess_tdof_list, Kmat);
    useAMG=true;
@@ -192,10 +210,6 @@ void AMRResistiveMHDOperator::UpdateProblem()
    }
 
    //this probably should be done in main loop
-   /*
-   cout<<"True V size = "<<fespace.GetTrueVSize()<<endl;
-   cout<<"Problem size = "<<fespace.GetVSize()<<endl;
-   */
    width = height = fespace.GetVSize()*4;
 }          
 
@@ -273,15 +287,29 @@ void AMRResistiveMHDOperator::assembleNb(ParGridFunction *gf)
    Nb->Assemble();
 }
 
-void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
+void AMRResistiveMHDOperator::UpdateJ(Vector &vx, ParGridFunction *j)
 {
    //the current is J=-M^{-1}*K*Psi
    int sc = height/4;
    Vector psi(vx.GetData() +  sc, sc);
-   Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
-   
-   z.SetSize(sc);
 
+   ParLinearForm zLF(&fespace);
+   KB->Mult(psi, zLF);
+   zLF.Neg(); // z = -z
+
+   int trueSize=fespace.GetTrueVSize();
+
+   //no boundary condition is applied here
+   Vector zTmp(trueSize), jTmp(trueSize);
+
+   zLF.ParallelAssemble(zTmp);
+   M_solver2.Mult(zTmp, jTmp);
+   j->SetFromTrueDofs(jTmp);
+   
+   //this is the wrong way
+   /*
+   Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
+   z.SetSize(sc);
    KB->Mult(psi, z);
    z.Neg(); // z = -z
 
@@ -293,6 +321,7 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    M->FormLinearSystem(ess_tdof_list, j, z, A, Y, Z);
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, j);
+   */
 
 }
 
@@ -346,6 +375,7 @@ AMRResistiveMHDOperator::~AMRResistiveMHDOperator()
     //free used memory
     delete M;
     delete Mrhs;
+    delete MrhsMat;
     delete K;
     delete KB;
     delete Nv;
@@ -355,6 +385,7 @@ AMRResistiveMHDOperator::~AMRResistiveMHDOperator()
     delete E0;
     delete E0rhs;
     delete M_prec;
+    delete M_prec2;
     delete K_prec;
     delete K_pcg;
 }

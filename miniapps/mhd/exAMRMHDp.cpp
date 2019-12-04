@@ -16,95 +16,10 @@
 #include "AMRResistiveMHDOperatorp.hpp"
 #include "BlockZZEstimator.hpp"
 #include "PCSolver.hpp"
+#include "InitialConditions.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
-
-using namespace std;
-using namespace mfem;
-
-double alpha; //a global value of magnetude for the pertubation
-double Lx;  //size of x domain
-double lambda;
-double resiG;
-
-//initial condition
-double InitialPhi(const Vector &x)
-{
-    return 0.0;
-}
-
-double InitialW(const Vector &x)
-{
-    return 0.0;
-}
-
-double InitialJ(const Vector &x)
-{
-   return -M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-double InitialPsi(const Vector &x)
-{
-   return -x(1)+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-
-double BackPsi(const Vector &x)
-{
-   //this is the background psi (for post-processing/plotting only)
-   return -x(1);
-}
-
-double InitialJ2(const Vector &x)
-{
-   return lambda/pow(cosh(lambda*(x(1)-.5)),2)
-       -M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-double InitialPsi2(const Vector &x)
-{
-   return log(cosh(lambda*(x(1)-.5)))/lambda
-       +alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-double BackPsi2(const Vector &x)
-{
-   //this is the background psi (for post-processing/plotting only)
-   return log(cosh(lambda*(x(1)-.5)))/lambda;
-}
-
-double E0rhs(const Vector &x)
-{
-   //for icase 2 only, there is a rhs
-   return resiG*lambda/pow(cosh(lambda*(x(1)-.5)),2);
-}
-
-double InitialJ3(const Vector &x)
-{
-   double ep=.2;
-   return (ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2)
-        -M_PI*M_PI*1.25*alpha*cos(.5*M_PI*x(1))*cos(M_PI*x(0));
-}
-
-double InitialPsi3(const Vector &x)
-{
-   double ep=.2;
-   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) )
-          +alpha*cos(M_PI*.5*x(1))*cos(M_PI*x(0));
-}
-
-double BackPsi3(const Vector &x)
-{
-   double ep=.2;
-   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
-}
-
-double E0rhs3(const Vector &x)
-{
-   double ep=.2;
-   return resiG*(ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
-}
 
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
                Array<int> &offset,
@@ -347,7 +262,7 @@ int main(int argc, char *argv[])
 
    for (int ref_it = 1; ; ref_it++)
    {
-     operTmp.UpdateJ(vxTmp);
+     operTmp.UpdateJ(vxTmp, &j);
      refiner.Apply(*pmesh);
      if (refiner.Refined()==false)
      {
@@ -455,6 +370,7 @@ int main(int argc, char *argv[])
          if (myid==0)
             cout<< "GLVis visualization paused."
                 << " Press space (in the GLVis window) to resume it.\n";
+         MPI_Barrier(MPI_COMM_WORLD);//without barrier, glvis may not open
 
          vis_j.open(vishost, visport);
          vis_j << "parallel " << num_procs << " " << myid << "\n";
@@ -462,6 +378,7 @@ int main(int argc, char *argv[])
          vis_j << "solution\n" << *pmesh << j;
          vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
          vis_j << flush;
+         MPI_Barrier(MPI_COMM_WORLD);//without barrier, glvis may not open
 
          vis_psi.open(vishost, visport);
          vis_psi << "parallel " << num_procs << " " << myid << "\n";
@@ -469,6 +386,7 @@ int main(int argc, char *argv[])
          vis_psi << "solution\n" << *pmesh << psi;
          vis_psi << "window_size 800 800\n"<< "window_title '" << "psi'" << "keys cm\n";
          vis_psi << flush;
+         MPI_Barrier(MPI_COMM_WORLD);//without barrier, glvis may not open
 
          vis_w.open(vishost, visport);
          vis_w << "parallel " << num_procs << " " << myid << "\n";
@@ -476,6 +394,7 @@ int main(int argc, char *argv[])
          vis_w << "solution\n" << *pmesh << w;
          vis_w << "window_size 800 800\n"<< "window_title '" << "omega'" << "keys cm\n";
          vis_w << flush;
+         MPI_Barrier(MPI_COMM_WORLD);//without barrier, glvis may not open
       }
    }
 
@@ -552,13 +471,13 @@ int main(int argc, char *argv[])
         oper.assembleNv(&phi);
         oper.assembleNb(&psi);
         ode_solver->StepP(vx, t, dt_real);
-        oper.UpdateJ(vx);
+        oper.UpdateJ(vx, &j);
 
         //---Corrector stage---
         //assemble the nonlinear terms (only psi is updated)
         oper.assembleNb(&psi);
         ode_solver->Step(vx, t, dt_real);
-        oper.UpdateJ(vx); 
+        oper.UpdateJ(vx, &j); 
         oper.UpdatePhi(vx);
 
         last_step = (t >= t_final - 1e-8*dt);
