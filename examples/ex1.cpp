@@ -81,8 +81,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_ginkgo_solver, "--use_ginkgo", "--ginkgo", "-ginkgo",
-                  "-gko",
+   args.AddOption(&use_ginkgo_solver, "-gko", "--use_gko_solver", "-no-gko",
+                  "--no-gko-solver",
                   "Solve using ginkgo.");
    args.Parse();
    if (!args.Good())
