@@ -3059,7 +3059,6 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    height = vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   const int *dof_map = NULL;
    if (dof_reorder && nf > 0)
    {
       for (int f = 0; f < nf; ++f)
@@ -3070,14 +3069,16 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
          if (el) { continue; }
          mfem_error("Finite element not suitable for lexicographic ordering");
       }
-      // L2 case so no dof_map, don't fall in the trap!
-      // const FiniteElement *fe = fes.GetFaceElement(0);
-      // const TensorBasisElement* el =
-      //    dynamic_cast<const TensorBasisElement*>(fe);
-      // const Array<int> &fe_dof_map = el->GetDofMap();
-      // MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
-      // dof_map = fe_dof_map.GetData();
+      const FiniteElement *fe = fes.GetFaceElement(0);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      const Array<int> &fe_dof_map = el->GetDofMap();
+      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
    }
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement* el =
+      dynamic_cast<const TensorBasisElement*>(fe);
+   const int *dof_map = el->GetDofMap().GetData();
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    int faceMap[dof];
@@ -3087,6 +3088,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    int orientation;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
+   const int dim = fes.GetMesh()->SpaceDimension();
    for (int f = 0; f < nf; ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
@@ -3096,7 +3098,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
       // Assumes Gauss-Lobato basis
       if(dof_reorder){
          if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
-         GetFaceDofsLex(vdim, face_id, dof1d, faceMap);//Only for hex
+         GetFaceDofsLex(dim, face_id, dof1d, faceMap);//Only for hex
       } else {
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?
@@ -3198,18 +3200,19 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    int orientation;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
+   const int dim = fes.GetMesh()->SpaceDimension();
    for (int f = 0; f < nf; ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if(dof_reorder){
-         // if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
          orientation = inf1 % 64;
+         // if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
          face_id = inf1 / 64;
-         GetFaceDofsLex(vdim, face_id, dof1d, faceMap1);//Only for hex
+         GetFaceDofsLex(dim, face_id, dof1d, faceMap1);//Only for hex
          orientation = inf2 % 64;
          face_id = inf2 / 64;
-         GetFaceDofsLex(vdim, face_id, dof1d, faceMap2);//Only for hex
+         GetFaceDofsLex(dim, face_id, dof1d, faceMap2);//Only for hex
       } else {
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?
@@ -3226,9 +3229,17 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       {
          const int face_dof = faceMap2[d];
          const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
-         const int gid = elementMap[e2*elem_dofs + did];
-         const int lid = dof*f + d;
-         indices2[lid] = gid;//TODO Add permutation
+         if (e2!=-1)//FIXME
+         {
+            const int gid = elementMap[e2*elem_dofs + did];
+            const int lid = dof*f + d;
+            indices2[lid] = gid;//TODO Add permutation
+         }
+         else
+         {
+            const int lid = dof*f + d;
+            indices2[lid] = -1;//TODO Add permutation
+         }
       }
    }
 }
@@ -3245,19 +3256,17 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
    auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
    MFEM_FORALL(i, nfdofs,
    {
+      const int dof = i % nd;
+      const int face = i / nd;
       const int idx1 = d_indices1[i];
-      const int dof1 = i % nd;
-      const int face1 = i / nd;
       for (int c = 0; c < vd; ++c)
       {
-         d_y(dof1, c, 0, face1) = d_x(t?c:idx1, t?idx1:c);
+         d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
       }
-      const int idx2 = d_indices2[i];//Permutation of d_indices2
-      const int dof2 = i % nd;
-      const int face2 = i / nd;
+      const int idx2 = d_indices2[i];//TODO Permutation of d_indices2
       for (int c = 0; c < vd; ++c)
       {
-         d_y(dof2, c, 1, face2) = d_x(t?c:idx2, t?idx2:c);//TODO Add permutation
+         d_y(dof, c, 1, face) = idx2!=-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);//TODO Add permutation
       }
    });
 }
@@ -3279,7 +3288,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
       for (int c = 0; c < vd; ++c)
       {
          d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, 0, i / nd);
-         d_y(t?c:idx2,t?idx2:c) += d_x(i % nd, c, 1, i / nd);
+         if(idx2!=-1) d_y(t?c:idx2,t?idx2:c) += d_x(i % nd, c, 1, i / nd);
       }
    });
 }
@@ -3933,7 +3942,7 @@ void FaceQuadratureInterpolator::Eval2D(
    const int NF,
    const int vdim,
    const DofToQuad &maps,
-   const Vector &e_vec,
+   const Vector &f_vec,
    // const Array<double> &W,
    Vector &q_val,
    Vector &q_der,
@@ -3942,22 +3951,22 @@ void FaceQuadratureInterpolator::Eval2D(
    const int eval_flags)
 {
    //TODO check tensor, and Gauss-Lobato
-   const int nd = maps.ndof;//TODO ndof per face
-   const int nq = maps.nqpt;//TODO nqpt per face
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
    const int ND1D = T_ND1D ? T_ND1D : nd;
    const int NQ1D = T_NQ1D ? T_NQ1D : nq;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
    MFEM_VERIFY(ND1D <= MAX_ND1D, "");
    MFEM_VERIFY(NQ1D <= MAX_NQ1D, "");
    MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
-   auto B = Reshape(maps.B.Read(), NQ1D, ND1D);//TODO B1d
-   auto G = Reshape(maps.G.Read(), NQ1D, ND1D);//TODO G1d
-   auto F = Reshape(e_vec.Read(), ND1D, VDIM, NF);
+   auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
+   auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
+   auto F = Reshape(f_vec.Read(), ND1D, VDIM, NF);
    // auto w = W.Read();
    auto val = Reshape(q_val.Write(), NQ1D, VDIM, NF);
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF);//Only tangential der
    auto det = Reshape(q_det.Write(), NQ1D, NF);
-   auto n   = Reshape(q_nor.Write(), NQ1D, 2, NF);
+   auto n   = Reshape(q_nor.Write(), NQ1D, VDIM, NF);
    //if Gauss-Lobatto
    MFEM_FORALL(f, NF,
    {
@@ -4217,14 +4226,14 @@ void FaceQuadratureInterpolator::Mult(
    const Vector &e_vec, unsigned eval_flags, //const Array<double> &W,
    Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const
 {
-   const int ne = fespace->GetNE();
-   if (ne == 0) { return; }
+   const int nf = fespace->GetNF();
+   if (nf == 0) { return; }
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetFaceElement(0);
    const IntegrationRule *ir =
       IntRule ? IntRule : &qspace->GetElementIntRule(0);
-   const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::FULL);
+   const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
    void (*eval_func)(
@@ -4348,8 +4357,7 @@ void FaceQuadratureInterpolator::Mult(
    }
    if (eval_func)
    {
-      // eval_func(ne, vdim, maps, e_vec, W, q_val, q_der, q_det, q_nor, eval_flags);
-      eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, q_nor, eval_flags);
+      eval_func(nf, vdim, maps, e_vec, q_val, q_der, q_det, q_nor, eval_flags);
    }
    else
    {

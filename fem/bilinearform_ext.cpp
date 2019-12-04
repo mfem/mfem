@@ -89,6 +89,13 @@ void PABilinearFormExtension::Update()
       localX.SetSize(elem_restrict_lex->Height());
       localY.SetSize(elem_restrict_lex->Height());
    }
+   face_restrict_lex = trialFes->GetFaceRestriction(
+                          ElementDofOrdering::LEXICOGRAPHIC);
+   if (face_restrict_lex)
+   {
+      faceX.SetSize(face_restrict_lex->Height());
+      faceY.SetSize(face_restrict_lex->Height());
+   }
 }
 
 void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -139,9 +146,8 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 
    Array<BilinearFormIntegrator*> &faceIntegrators = *a->GetFBFI();
-
    const int fISz = faceIntegrators.Size();
-   if (face_restrict_lex)
+   if (face_restrict_lex && fISz>0)
    {
       face_restrict_lex->Mult(x, faceX);
       faceY = 0.0;
@@ -149,16 +155,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       {
          faceIntegrators[i]->AddMultPA(faceX, faceY);
       }
-      elem_restrict_lex->MultTranspose(faceY, y);
-   }
-   else
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         faceIntegrators[i]->AddMultPA(x, y);
-      }
+      face_restrict_lex->MultTranspose(faceY, y);
    }
 }
 

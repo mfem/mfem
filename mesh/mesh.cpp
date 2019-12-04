@@ -9688,11 +9688,9 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
 
-   Vector Enodes(vdim*ND*NE);
    // For now, we are not using tensor product evaluation
    const Operator *elem_restr = fespace->GetElementRestriction(
                                    ElementDofOrdering::NATIVE);
-   elem_restr->Mult(*nodes, Enodes);
 
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
@@ -9714,7 +9712,16 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
    // For now, we are not using tensor product evaluation (not implemented)
    qi->DisableTensorProducts();
-   qi->Mult(Enodes, eval_flags, X, J, detJ);
+   if (elem_restr)
+   {
+      Vector Enodes(vdim*ND*NE);
+      elem_restr->Mult(*nodes, Enodes);
+      qi->Mult(Enodes, eval_flags, X, J, detJ);
+   }
+   else
+   {
+      qi->Mult(*nodes, eval_flags, X, J, detJ);      
+   }
 }
 
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
@@ -9726,17 +9733,17 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRu
 
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetFaceElement(0);
    const int vdim = fespace->GetVDim();
-   const int NE   = fespace->GetNE();
-   const int NF   = mesh->GetNFaces();
-   const int ND   = fe->GetDof();//FIXME has to use the face element
-   const int NQ   = ir.GetNPoints();//FIXME has to use the face element
+   const int NF   = mesh->GetNumFaces();
+   const int ND   = fe->GetDof();
+   const int NQ   = ir.GetNPoints();
 
-   Vector Fnodes(vdim*ND*NF);
-   const Operator *elem_restr = fespace->GetFaceRestriction(
+   
+   const Operator *face_restr = fespace->GetFaceRestriction(
                                    ElementDofOrdering::LEXICOGRAPHIC);
-   elem_restr->Mult(*nodes, Fnodes);//We want the interpolation on the face
+   Vector Fnodes(face_restr->Height());
+   face_restr->Mult(*nodes, Fnodes);
 
    unsigned eval_flags = 0;
    if (flags & FaceGeometricFactors::COORDINATES)
@@ -9761,8 +9768,6 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRu
    }
 
    const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(ir);
-   // For now, we are not using tensor product evaluation (not implemented)
-   // qi->DisableTensorProducts();
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 
