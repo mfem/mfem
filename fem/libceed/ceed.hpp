@@ -60,7 +60,27 @@ struct CeedData
    BuildContext build_ctx;
 
    CeedVector u, v;
+
+~CeedData()
+{
+  CeedOperatorDestroy(&build_oper);
+  CeedOperatorDestroy(&oper);
+  CeedBasisDestroy(&basis);
+  CeedBasisDestroy(&mesh_basis);
+  CeedElemRestrictionDestroy(&restr);
+  CeedElemRestrictionDestroy(&mesh_restr);
+  CeedElemRestrictionDestroy(&restr_i);
+  CeedElemRestrictionDestroy(&mesh_restr_i);
+  CeedQFunctionDestroy(&apply_qfunc);
+  CeedQFunctionDestroy(&build_qfunc);
+  CeedVectorDestroy(&node_coords);
+  CeedVectorDestroy(&rho);
+  CeedVectorDestroy(&u);
+  CeedVectorDestroy(&v);
+}
+
 };
+
 
 /** @brief Identifies the type of coefficient of the Integrator to initialize
     accordingly the CeedData. */
