@@ -13,18 +13,42 @@
 //    Get Values Miniapp:  Extract field values via DataCollection classes
 //    --------------------------------------------------------------------
 //
-// This miniapp loads and visualizes (in GLVis) previously saved data using
-// DataCollection sub-classes, see e.g. Example 5/5p. Currently, only the
-// VisItDataCollection class is supported.
+// This miniapp loads previously saved data using DataCollection sub-classes,
+// see e.g. load-dc miniapp and Example 5/5p, and output field values at a
+// set of points. Currently, only the VisItDataCollection class is supported.
 //
 // Compile with: make get-values
 //
 // Serial sample runs:
-//   > load-dc -r ../../examples/Example5
+//   > get-values -r ../../examples/Example5 -p "0 0 0.1 0" -fn pressure
 //
 // Parallel sample runs:
-//   > mpirun -np 4 load-dc -r ../../examples/Example5-Parallel
-
+//   > mpirun -np 4 get-values -r ../electromagnetics/Volta-AMR-Parallel
+//           -p "0 0 0 0.1 0.1 0.1" -fn ALL
+//
+// Point locations can be specified on the command line using -p or within a
+// data file whose name can be given with option -pf.  The data file format is:
+//
+// number_of_points space_dimension
+// x_0 y_0 ...
+// x_1 y_1 ...
+// etc.
+//
+// By default all available fields are evaluated.  The list of fields can be
+// reduced by specifying the desired field names with -fn. The -fn option
+// takes a space separated list of field names surrounded by qoutes.  Field
+// names containing spaces, such as "Field 1" and "Field 2", can be entered as:
+//    get-values -fn "Field\ 1 Field\ 2"
+//
+// By default the data is written to standard out.  This can be overwritten
+// with the -o [filename] option.
+//
+// The output format contains comments as well as sizing information to aid in
+// subsequent processing.  The bulk of the data consists of one line per point
+// with a 0-based integer index followed by the point coordinates and then the
+// field data.  A legend, appearing before the bulk data, shows the order of
+// the fields along with the number of values per field (for vector data).
+//
 #include "mfem.hpp"
 
 #include <fstream>
