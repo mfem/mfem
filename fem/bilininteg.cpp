@@ -28,7 +28,7 @@ void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 
 void BilinearFormIntegrator::AssembleDiagonalPA(Vector&) const
 {
-   mfem_error ("BilinearFormIntegrator::AssembleDiagonalPA (...)\n"
+   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA (...)\n"
                "   is not implemented for this class.");
 }
 
