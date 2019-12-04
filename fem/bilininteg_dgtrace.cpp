@@ -26,20 +26,17 @@ static void PADGTraceSetup2D(const int Q1D,
                              const Vector &det,
                              const Vector &nor,
                              const double rho,
-                             const Vector &u,
+                             const Vector &vel,
                              const double alpha,
                              const double beta,
                              Vector &op)
 {
-   // const Operator *elem_restr =
-   //    fespace->GetFaceRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-   // elem_restr->Mult(*nodes, Fnodes);//TODO replace with L2FaceRestriction
-
    const int VDIM = 2;
 
    auto d = Reshape(det.Read(), Q1D, NF);
    auto n = Reshape(nor.Read(), Q1D, VDIM, NF);
-   auto c = Reshape(u.Read(), Q1D, VDIM, NF);
+   // auto v = Reshape(vel.Read(), Q1D, VDIM, NF);//Not for constant velocity
+   auto c = vel.Read();
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, 2, 2, NF);
 
@@ -47,7 +44,9 @@ static void PADGTraceSetup2D(const int Q1D,
    {
       for (int q = 0; q < Q1D; ++q)
       {
-         const double dot = n(q,0,f) * c(q,0,f) + n(q,1,f) * c(q,1,f);
+         // const double dot = n(q,0,f) * c(q,0,f) + n(q,1,f) * c(q,1,f);
+         const double dot = n(q,0,f) * c[0] + n(q,1,f) * c[1];
+         // const double dot = c[0] + c[1];//just for debugging
          const double abs = dot > 0.0 ? dot : -dot;
          const double w = W[q]*d(q,f);
          qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
@@ -65,35 +64,35 @@ static void PADGTraceSetup3D(const int Q1D,
                              const Vector &det,
                              const Vector &nor,
                              const double rho,
-                             const Vector &u,
+                             const Vector &vel,
                              const double alpha,
                              const double beta,
                              Vector &op)
 {
-   // const Operator *elem_restr =
-   //    fespace->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-   // elem_restr->Mult(*nodes, Enodes);//TODO replace with L2FaceRestriction
-
    const int VDIM = 3;
-   const int Q = Q1D*Q1D;
 
-   auto d = Reshape(det.Read(), Q, NF);
-   auto n = Reshape(nor.Read(), Q, VDIM, NF);
-   auto c = Reshape(u.Read(), Q, VDIM, NF);
+   auto d = Reshape(det.Read(), Q1D, Q1D, NF);
+   auto n = Reshape(nor.Read(), Q1D, Q1D, VDIM, NF);
+   // auto c = Reshape(vel.Read(), Q1D, Q1D, VDIM, NF);
+   auto c = vel.Read();
    auto W = w.Read();
-   auto qd = Reshape(op.Write(), Q, 2, 2, NF);
+   auto qd = Reshape(op.Write(), Q1D, Q1D, 2, 2, NF);
 
    MFEM_FORALL(f, NF,//can be optimized with Q1D*Q1D threads for NF blocks
    {
-      for (int q = 0; q < Q; ++q)
+      for (int q1 = 0; q1 < Q1D; ++q1)
       {
-         const double dot = n(q,0,f) * c(q,0,f) + n(q,1,f) * c(q,1,f) + n(q,2,f) * c(q,2,f);
-         const double abs = dot > 0.0 ? dot : -dot;
-         const double w = W[q]*d(q,f);
-         qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
-         qd(q,1,0,f) = w*( alpha/2 * dot - beta * abs );
-         qd(q,0,1,f) = w*(-alpha/2 * dot - beta * abs );
-         qd(q,1,1,f) = w*(-alpha/2 * dot + beta * abs );
+         for (int q2 = 0; q2 < Q1D; ++q2)
+         {
+            // const double dot = n(q,0,f) * c(q,0,f) + n(q,1,f) * c(q,1,f) + n(q,2,f) * c(q,2,f);
+            const double dot = n(q1,q2,0,f) * c[0] + n(q1,q2,1,f) * c[1] + n(q1,q2,2,f) * c[2];
+            const double abs = dot > 0.0 ? dot : -dot;
+            const double w = W[q1]*W[q2]*d(q1,q2,f);
+            qd(q1,q2,0,0,f) = w*( alpha/2 * dot + beta * abs );
+            qd(q1,q2,1,0,f) = w*( alpha/2 * dot - beta * abs );
+            qd(q1,q2,0,1,f) = w*(-alpha/2 * dot - beta * abs );
+            qd(q1,q2,1,1,f) = w*(-alpha/2 * dot + beta * abs );
+         }
       }
    });
 }
@@ -127,26 +126,34 @@ void DGTraceIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetFaceElement(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+   const IntegrationRule *ir = &GetRule(el, el);//IntRule ? IntRule : &GetRule(el, el);
    const int dims = el.GetDim();
    const int symmDims = 4;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   nf = mesh->GetNFaces();
+   nf = mesh->GetNumFaces();
    geom = mesh->GetFaceGeometricFactors(*ir,
-      FaceGeometricFactors::DETERMINANTS & FaceGeometricFactors::NORMALS);
+      FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
-   ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho);
-   MFEM_VERIFY(c_rho != NULL, "only ConstantCoefficient is supported!");
-   const double r = c_rho->constant;
+   double r;
+   if(rho==NULL)
+   {
+      r = 1.0;
+   }
+   else
+   {
+      ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho);
+      MFEM_VERIFY(c_rho != NULL, "only ConstantCoefficient is supported!");
+      r = c_rho->constant;
+   }
    VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>(u);
    MFEM_VERIFY(c_u != NULL, "only ConstantCoefficient is supported!");
-   const Vector& Q = c_u->GetVec();
+   const Vector& vel = c_u->GetVec();
    PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
-                  geom->detJ, geom->normal, r, Q,
+                  geom->detJ, geom->normal, r, vel,
                   alpha, beta, pa_data);
 }
 
@@ -161,7 +168,7 @@ void PADGTraceApply2D(const int NF,
                       const int d1d = 0,
                       const int q1d = 0)
 {
-   const int VDIM = 2;
+   const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
@@ -200,7 +207,7 @@ void PADGTraceApply2D(const int NF,
          }
          for (int d = 0; d < D1D; ++d)
          {
-            const int b = B(q,d);
+            const double b = B(q,d);
             for (int c = 0; c < VDIM; c++)
             {
                Bu0[q][c] += b*u0[d][c];
@@ -225,7 +232,7 @@ void PADGTraceApply2D(const int NF,
          }
          for (int q = 0; q < Q1D; ++q)
          {
-            const int b = Bt(d,q);
+            const double b = Bt(d,q);
             for (int c = 0; c < VDIM; c++)
             {
                BDBu[d][c] += b*DBu[q][c];
@@ -233,8 +240,8 @@ void PADGTraceApply2D(const int NF,
          }
          for (int c = 0; c < VDIM; c++)
          {
-            y(d,c,0,f) =  BDBu[d][c];
-            y(d,c,1,f) = -BDBu[d][c];
+            y(d,c,0,f) +=  BDBu[d][c];
+            y(d,c,1,f) += -BDBu[d][c];
          }
       }
    });
@@ -251,7 +258,7 @@ void PADGTraceApply3D(const int NF,
                       const int d1d = 0,
                       const int q1d = 0)
 {
-   const int VDIM = 3;
+   const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
@@ -295,7 +302,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int d1 = 0; d1 < D1D; ++d1)
             {
-               const int b = B(q,d1);
+               const double b = B(q,d1);
                for (int c = 0; c < VDIM; c++)
                {
                   Bu0[q][d2][c] += b*u0[d1][d2][c];
@@ -317,7 +324,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               const int b = B(q2,d2);
+               const double b = B(q2,d2);
                for (int c = 0; c < VDIM; c++)
                {
                   BBu0[q1][q2][c] += b*Bu0[q1][d2][c];
@@ -348,7 +355,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const int b = B(q2,d2);
+               const double b = B(q2,d2);
                for (int c = 0; c < VDIM; c++)
                {
                   BDBBu[q1][d2][c] += b*DBBu[q1][q2][c];
@@ -367,7 +374,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const int b = B(q1,d1);
+               const double b = B(q1,d1);
                for (int c = 0; c < VDIM; c++)
                {
                   BBDBBu[d1][d2][c] += b*BDBBu[q1][d2][c];
@@ -375,8 +382,8 @@ void PADGTraceApply3D(const int NF,
             }
             for (int c = 0; c < VDIM; c++)
             {
-               y(d1,d2,c,0,f) =  BBDBBu[d1][d2][c];
-               y(d1,d2,c,1,f) = -BBDBBu[d1][d2][c];
+               y(d1,d2,c,0,f) +=  BBDBBu[d1][d2][c];
+               y(d1,d2,c,1,f) += -BBDBBu[d1][d2][c];
             }
          }
       }
@@ -397,14 +404,14 @@ static void PADGTraceApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return PADGTraceApply2D<2,2>(NF,B,Bt,op,x,y);
+         /*case 0x22: return PADGTraceApply2D<2,2>(NF,B,Bt,op,x,y);
          case 0x33: return PADGTraceApply2D<3,3>(NF,B,Bt,op,x,y);
          case 0x44: return PADGTraceApply2D<4,4>(NF,B,Bt,op,x,y);
          case 0x55: return PADGTraceApply2D<5,5>(NF,B,Bt,op,x,y);
          case 0x66: return PADGTraceApply2D<6,6>(NF,B,Bt,op,x,y);
          case 0x77: return PADGTraceApply2D<7,7>(NF,B,Bt,op,x,y);
          case 0x88: return PADGTraceApply2D<8,8>(NF,B,Bt,op,x,y);
-         case 0x99: return PADGTraceApply2D<9,9>(NF,B,Bt,op,x,y);
+         case 0x99: return PADGTraceApply2D<9,9>(NF,B,Bt,op,x,y);*/
          default:   return PADGTraceApply2D(NF,B,Bt,op,x,y,D1D,Q1D);
       }
    }
@@ -412,13 +419,13 @@ static void PADGTraceApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return PADGTraceApply3D<2,3>(NF,B,Bt,op,x,y);
+         /*case 0x23: return PADGTraceApply3D<2,3>(NF,B,Bt,op,x,y);
          case 0x34: return PADGTraceApply3D<3,4>(NF,B,Bt,op,x,y);
          case 0x45: return PADGTraceApply3D<4,5>(NF,B,Bt,op,x,y);
          case 0x56: return PADGTraceApply3D<5,6>(NF,B,Bt,op,x,y);
          case 0x67: return PADGTraceApply3D<6,7>(NF,B,Bt,op,x,y);
          case 0x78: return PADGTraceApply3D<7,8>(NF,B,Bt,op,x,y);
-         case 0x89: return PADGTraceApply3D<8,9>(NF,B,Bt,op,x,y);
+         case 0x89: return PADGTraceApply3D<8,9>(NF,B,Bt,op,x,y);*/
          default:   return PADGTraceApply3D(NF,B,Bt,op,x,y,D1D,Q1D);
       }
    }
