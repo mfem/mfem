@@ -12,7 +12,6 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
-#include <stdexcept>
 
 #include "../general/dynheap.hpp"
 #include "gecko.hpp"
@@ -308,8 +307,6 @@ void Subgraph::Optimize(uint p)
    }
 }
 
-
-/////////
 
 // Constructor.
 Graph::Graph(uint level) : level(level)

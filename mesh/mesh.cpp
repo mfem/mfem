@@ -16,6 +16,7 @@
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
 #include "../general/device.hpp"
+#include "../general/tic_toc.hpp"
 #include "gecko.hpp"
 
 #include <iostream>
@@ -1337,23 +1338,57 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 }
 
 
-void Mesh::GetGeckoElementReordering(Array<int> &ordering,
-                                     int iterations, int window,
-                                     int period, int seed)
+class GeckoProgress : public gecko::Progress
+{
+   double limit;
+   mutable StopWatch sw;
+public:
+   GeckoProgress(double limit) : limit(limit) { sw.Start(); }
+   virtual bool Quit() const { return limit > 0 && sw.UserTime() > limit; }
+};
+
+class GeckoVerboseProgress : public GeckoProgress
+{
+   using Float = gecko::Float;
+   using Graph = gecko::Graph;
+public:
+   GeckoVerboseProgress(double limit) : GeckoProgress(limit) {}
+
+   virtual void BeginOrder(const Graph* graph, Float cost) const
+   { mfem::out << "Begin Gecko ordering, cost = " << cost << std::endl; }
+   virtual void EndOrder(const Graph* graph, Float cost) const
+   { mfem::out << "End ordering, cost = " << cost << std::endl; }
+
+   virtual void BeginIter(const Graph* graph,
+                          uint iter, uint maxiter, uint window) const
+   {
+      mfem::out << "Iteration " << iter << "/" << maxiter << ", window "
+                << window << std::flush;
+   }
+   virtual void EndIter(const Graph* graph, Float mincost, Float cost) const
+   { mfem::out << ", cost = " << cost << endl; }
+};
+
+
+double Mesh::GetGeckoElementReordering(Array<int> &ordering,
+                                       int iterations, int window,
+                                       int period, int seed, bool verbose,
+                                       double time_limit)
 {
    gecko::Graph graph;
+   gecko::FunctionalGeometric functional; // edge product cost
 
-   gecko::Functional *functional =
-      new gecko::FunctionalGeometric(); // ordering functional
+   GeckoProgress progress(time_limit);
+   GeckoVerboseProgress vprogress(time_limit);
 
-   // Run through all the elements and insert the nodes in the graph for them
+   // insert elements as nodes in the graph
    for (int elemid = 0; elemid < GetNE(); ++elemid)
    {
       graph.Insert();
    }
 
-   // Run through all the elems and insert arcs to the graph for each element
-   // face Indices in Gecko are 1 based hence the +1 on the insertion
+   // insert graph edges for element neighbors
+   // NOTE: indices in Gecko are 1 based hence the +1 on insertion
    const Table &my_el_to_el = ElementToElementTable();
    for (int elemid = 0; elemid < GetNE(); ++elemid)
    {
@@ -1364,9 +1399,10 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering,
       }
    }
 
-   // Get the reordering from Gecko and copy it into the ordering Array<int>
-   graph.Order(functional, iterations, window, period, seed);
-   ordering.DeleteAll();
+   // get the ordering from Gecko and copy it into the Array<int>
+   graph.Order(&functional, iterations, window, period, seed,
+               verbose ? &vprogress : &progress);
+
    ordering.SetSize(GetNE());
    gecko::Node::Index NE = GetNE();
    for (gecko::Node::Index gnodeid = 1; gnodeid <= NE; ++gnodeid)
@@ -1374,7 +1410,7 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering,
       ordering[gnodeid - 1] = graph.Rank(gnodeid);
    }
 
-   delete functional;
+   return graph.Cost();
 }
 
 

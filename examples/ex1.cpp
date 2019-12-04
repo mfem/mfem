@@ -104,21 +104,34 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = 3;
-         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels =
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
 
-   Array<int> ordering;
-   mesh->GetGeckoElementReordering(ordering,
-                                   2, // iter
-                                   5, // window
-                                   2, // period
-                                   0  // seed
-                                   );
+   Array<int> ordering, tentative;
+   double best_cost = infinity();
+
+   for (int i = 0; i < 5; i++)
+   {
+      double cost = mesh->GetGeckoElementReordering(tentative,
+                                   20, // iter
+                                   4, // window
+                                   4, // period
+                                   i+1, // seed
+                                   true, 30);
+
+      if (cost < best_cost)
+      {
+         ordering = tentative;
+         best_cost = cost;
+      }
+   }
+
+   cout << "Final cost: " << best_cost << endl;
 
    Array<int> ordering2(mesh->GetNE());
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -126,11 +139,12 @@ int main(int argc, char *argv[])
       ordering2[ordering[i]] = i;
    }
 
+   ofstream f("curve.txt");
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       Vector c;
       mesh->GetElementCenter(ordering2[i], c);
-      cout << c(0) << " " << c(1) << endl;
+      f << c(0) << " " << c(1) << endl;
    }
 
    return EXIT_SUCCESS;
