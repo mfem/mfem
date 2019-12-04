@@ -554,7 +554,6 @@ public:
 
    void SetAttributes();
 
-#ifdef MFEM_USE_GECKO
    /** This is our integration with the Gecko library.  This will call the
        Gecko library to find an element ordering that will increase memory
        coherency by putting elements that are in physical proximity closer in
@@ -568,7 +567,6 @@ public:
    void GetGeckoElementReordering(Array<int> &ordering,
                                   int iterations = 1, int window = 2,
                                   int period = 1, int seed = 0);
-#endif
 
    /** Rebuilds the mesh with a different order of elements.  The ordering
        vector maps the old element number to the new element number.  This also

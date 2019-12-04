@@ -16,6 +16,7 @@
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
 #include "../general/device.hpp"
+#include "gecko.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -44,10 +45,6 @@ extern "C" {
    void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
                              int*, int*, int*, int*, int*, idxtype*);
 }
-#endif
-
-#ifdef MFEM_USE_GECKO
-#include "graph.h"
 #endif
 
 using namespace std;
@@ -1340,15 +1337,14 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 }
 
 
-#ifdef MFEM_USE_GECKO
 void Mesh::GetGeckoElementReordering(Array<int> &ordering,
                                      int iterations, int window,
                                      int period, int seed)
 {
-   Gecko::Graph graph;
+   gecko::Graph graph;
 
-   Gecko::Functional *functional =
-      new Gecko::FunctionalGeometric(); // ordering functional
+   gecko::Functional *functional =
+      new gecko::FunctionalGeometric(); // ordering functional
 
    // Run through all the elements and insert the nodes in the graph for them
    for (int elemid = 0; elemid < GetNE(); ++elemid)
@@ -1372,15 +1368,14 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering,
    graph.order(functional, iterations, window, period, seed);
    ordering.DeleteAll();
    ordering.SetSize(GetNE());
-   Gecko::Node::Index NE = GetNE();
-   for (Gecko::Node::Index gnodeid = 1; gnodeid <= NE; ++gnodeid)
+   gecko::Node::Index NE = GetNE();
+   for (gecko::Node::Index gnodeid = 1; gnodeid <= NE; ++gnodeid)
    {
       ordering[gnodeid - 1] = graph.rank(gnodeid);
    }
 
    delete functional;
 }
-#endif
 
 
 void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
