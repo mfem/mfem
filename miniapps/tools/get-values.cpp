@@ -34,10 +34,10 @@
 using namespace std;
 using namespace mfem;
 
-bool isScalarField(GridFunction & gf);
-
 void parseFieldNames(const char * field_name_c_str, set<string> &field_names);
 void parsePoints(int spaceDim, const char *pts_file_c_str, Vector &pts);
+void writeLegend(const DataCollection::FieldMapType &fields,
+                 const set<string> & field_names, int spaceDim);
 
 int main(int argc, char *argv[])
 {
@@ -88,8 +88,11 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   int spaceDim = dc.GetMesh()->SpaceDimension();
+
    mfem::out << endl;
    mfem::out << "Collection Name: " << dc.GetCollectionName() << endl;
+   mfem::out << "Space Dimension: " << spaceDim << endl;
    mfem::out << "Cycle:           " << dc.GetCycle() << endl;
    mfem::out << "Time:            " << dc.GetTime() << endl;
    mfem::out << "Time Step:       " << dc.GetTimeStep() << endl;
@@ -119,8 +122,6 @@ int main(int argc, char *argv[])
    }
    mfem::out << endl;
 
-   int spaceDim = dc.GetMesh()->SpaceDimension();
-
    parsePoints(spaceDim, pts_file_c_str, pts);
    int npts = pts.Size() / spaceDim;
 
@@ -139,9 +140,14 @@ int main(int argc, char *argv[])
       {
          MFEM_ABORT("Failed to open output file: " << out_file_c_str << '\n');
       }
+
       mfem::out.SetStream(ofs);
-      mfem::out << nfound << endl;
    }
+
+   // Write legend showing the order of the fields and their sizes
+   writeLegend(fields, field_names, spaceDim);
+
+   mfem::out << "# Number of points\n" << nfound << endl;
 
    for (int e=0; e<elem_ids.Size(); e++)
    {
@@ -160,7 +166,7 @@ int main(int argc, char *argv[])
             if (field_names.find("ALL") != field_names.end() ||
                 field_names.find(it->first) != field_names.end())
             {
-               if (isScalarField(*it->second))
+               if (it->second->VectorDim() == 1)
                {
                   mfem::out << ' ' << it->second->GetValue(elem_ids[e], ip[e]);
                }
@@ -168,7 +174,7 @@ int main(int argc, char *argv[])
                {
                   Vector val;
                   it->second->GetVectorValue(elem_ids[e], ip[e], val);
-                  for (int d=0; d<spaceDim; d++)
+                  for (int d=0; d<it->second->VectorDim(); d++)
                   {
                      mfem::out << ' ' << val[d];
                   }
@@ -181,11 +187,6 @@ int main(int argc, char *argv[])
    if (ofs) { ofs.close(); }
 
    return 0;
-}
-
-bool isScalarField(GridFunction & gf)
-{
-   return (gf.VectorDim() == 1);
 }
 
 void parseFieldNames(const char * field_name_c_str, set<string> &field_names)
@@ -268,4 +269,51 @@ void parsePoints(int spaceDim, const char *pts_file_c_str, Vector &pts)
    }
 
    ifs.close();
+}
+
+void writeLegend(const DataCollection::FieldMapType &fields,
+                 const set<string> & field_names, int spaceDim)
+{
+   typedef DataCollection::FieldMapType fields_t;
+
+   // Count the number of fields to be output
+   int nfields = 1;
+   for (fields_t::const_iterator it = fields.begin();
+        it != fields.end(); ++it)
+   {
+      if (field_names.find("ALL") != field_names.end() ||
+          field_names.find(it->first) != field_names.end())
+      {
+         nfields++;
+      }
+   }
+
+   // Write the legend showing each field name and its number of entries
+   mfem::out << "# Number of fields" << endl << nfields << endl;
+   mfem::out << "# Legend" << endl;
+   mfem::out << "# \"Index\" \"Location\":" << spaceDim;
+   for (fields_t::const_iterator it = fields.begin();
+        it != fields.end(); ++it)
+   {
+      if (field_names.find("ALL") != field_names.end() ||
+          field_names.find(it->first) != field_names.end())
+      {
+         mfem::out << " \"" << it->first << "\":" << it->second->VectorDim();
+      }
+   }
+   mfem::out << endl;
+
+   // Write the number of entries for each field without the names
+   // which should be more convenient for parsing the output file.
+   mfem::out << spaceDim;
+   for (fields_t::const_iterator it = fields.begin();
+        it != fields.end(); ++it)
+   {
+      if (field_names.find("ALL") != field_names.end() ||
+          field_names.find(it->first) != field_names.end())
+      {
+         mfem::out << " " << it->second->VectorDim();
+      }
+   }
+   mfem::out << endl;
 }
