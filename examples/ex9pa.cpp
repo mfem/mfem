@@ -15,7 +15,7 @@ Vector bb_min, bb_max;
 
 void AddDGIntegrators(BilinearForm &k, VectorCoefficient &velocity)
 {
-   double alpha = 0.0;
+   double alpha = 1.0;
    double beta = 1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    //k.AddDomainIntegrator(new MassIntegrator);
