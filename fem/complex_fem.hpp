@@ -230,7 +230,7 @@ public:
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-   ComplexSparseMatrix *AssembleCompSpMat();
+   ComplexSparseMatrix *AssembleComplexSparseMatrix();
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    FiniteElementSpace *FESpace() const { return blfr->FESpace(); }
