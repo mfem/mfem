@@ -143,7 +143,7 @@ protected:
     require access to the CSR matrix data such as SuperLU, STRUMPACK, or similar
     sparse linear solvers.
 
-    See ComplexOperator documentation in operator.hpp for more information.
+    See ComplexOperator documentation above for more information.
  */
 class ComplexSparseMatrix : public ComplexOperator
 {
@@ -183,7 +183,7 @@ public:
     matrix data such as SuperLU, STRUMPACK, or similar sparse linear
     solvers.
 
-    See ComplexOperator documentation in operator.hpp for more information.
+    See ComplexOperator documentation above for more information.
  */
 class ComplexHypreParMatrix : public ComplexOperator
 {

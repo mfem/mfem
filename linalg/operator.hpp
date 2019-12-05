@@ -354,7 +354,7 @@ private:
    double a_;
 
 public:
-   /// Create a scalar product operator related to A.
+   /// Create an operator which is a scalar multiple of A.
    explicit ScaledOperator(const Operator *A, double a)
       : Operator(A->Width(), A->Height()), A_(*A), a_(a) { }
 

@@ -77,6 +77,15 @@ public:
 
 };
 
+/** Class for a complex-valued linear form
+
+    The @a convention argument in the class's constructor is documented in
+    the mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the ComplexLinearForm either the real or
+    imaginary integrator can be NULL.  This indicates that the corresponding
+    portion of the complex-valued field is equal to zero.
+ */
 class ComplexLinearForm : public Vector
 {
 private:
@@ -102,7 +111,12 @@ public:
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                               LinearFormIntegrator *lfi_imag);
 
-   /// Adds new Boundary Integrator.
+   /** @brief Add new Boundary Integrator, restricted to the given boundary
+       attributes.
+
+       Assumes ownership of @a lfi_real and @a lfi_imag.
+       The array @a bdr_attr_marker is stored internally as a pointer to the
+       given Array<int> object. */
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                               LinearFormIntegrator *lfi_imag,
                               Array<int> &bdr_attr_marker);
@@ -114,8 +128,9 @@ public:
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes.
 
-       Assumes ownership of @a lfi. The array @a bdr_attr_marker is stored
-       internally as a pointer to the given Array<int> object. */
+       Assumes ownership of @a lfi_real and @a lfi_imag.
+       The array @a bdr_attr_marker is stored internally as a pointer to the
+       given Array<int> object. */
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
                              LinearFormIntegrator *lfi_imag,
                              Array<int> &bdr_attr_marker);
@@ -137,7 +152,20 @@ public:
 
 };
 
-// Class for sesquilinear form
+/** Class for sesquilinear form
+
+    A sesquilinear form is a generalization of a bilinear form to complex-valued
+    fields.  Sesquilinear forms are linear in the second argument but but
+    the first argument involves a complex conjugate in the sense that:
+       a(alpha u, beta v) = conj(alpha) beta a(u, v)
+
+    The @a convention argument in the class's constructor is documented in
+    the mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the SesquilinearForm either the real or
+    imaginary integrator can be NULL.  This indicates that the corresponding
+    portion of the complex-valued material coefficient is equal to zero.
+*/
 class SesquilinearForm
 {
 private:
@@ -298,6 +326,15 @@ public:
 
 };
 
+/** Class for a complex-valued, parallel linear form
+
+    The @a convention argument in the class's constructor is documented in
+    the mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the ParComplexLinearForm either the real or
+    imaginary integrator can be NULL.  This indicates that the corresponding
+    portion of the complex-valued field is equal to zero.
+ */
 class ParComplexLinearForm : public Vector
 {
 private:
@@ -325,7 +362,12 @@ public:
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                               LinearFormIntegrator *lfi_imag);
 
-   /// Adds new Boundary Integrator.
+   /** @brief Add new Boundary Integrator, restricted to the given boundary
+       attributes.
+
+       Assumes ownership of @a lfi_real and @a lfi_imag.
+       The array @a bdr_attr_marker is stored internally as a pointer to the
+       given Array<int> object. */
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                               LinearFormIntegrator *lfi_imag,
                               Array<int> &bdr_attr_marker);
@@ -337,8 +379,9 @@ public:
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes.
 
-       Assumes ownership of @a lfi. The array @a bdr_attr_marker is stored
-       internally as a pointer to the given Array<int> object. */
+       Assumes ownership of @a lfi_real and @a lfi_imag.
+       The array @a bdr_attr_marker is stored internally as a pointer to the
+       given Array<int> object. */
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
                              LinearFormIntegrator *lfi_imag,
                              Array<int> &bdr_attr_marker);
@@ -365,7 +408,20 @@ public:
 
 };
 
-// Class for parallel sesquilinear form
+/** Class for a parallel sesquilinear form
+
+    A sesquilinear form is a generalization of a bilinear form to complex-valued
+    fields.  Sesquilinear forms are linear in the second argument but but
+    the first argument involves a complex conjugate in the sense that:
+       a(alpha u, beta v) = conj(alpha) beta a(u, v)
+
+    The @a convention argument in the class's constructor is documented in
+    the mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the ParSesquilinearForm either the real or
+    imaginary integrator can be NULL.  This indicates that the corresponding
+    portion of the complex-valued material coefficient is equal to zero.
+*/
 class ParSesquilinearForm
 {
 private:
@@ -396,7 +452,11 @@ public:
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                               BilinearFormIntegrator *bfi_imag);
 
-   /// Adds new Boundary Integrator, restricted to specific boundary attributes.
+   /** @brief Adds new boundary Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
+       as a pointer to the given Array<int> object. */
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                               BilinearFormIntegrator *bfi_imag,
                               Array<int> &bdr_marker);
