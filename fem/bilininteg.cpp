@@ -2548,24 +2548,10 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
 
 const IntegrationRule &DGTraceIntegrator::GetRule(
-   const FiniteElement &trial_fe, const FiniteElement &test_fe)
+   Geometry::Type geom, int order, FaceElementTransformations &T)
 {
-   int order;
-   if (trial_fe.Space() == FunctionSpace::Pk)
-   {
-      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-   }
-   else
-   {
-      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
-      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
-   }
-
-   if (trial_fe.Space() == FunctionSpace::rQk)
-   {
-      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-   }
-   return IntRules.Get(trial_fe.GetGeomType(), order);
+   int int_order = T.Elem1->OrderW() + 2*order;
+   return IntRules.Get(geom, int_order);
 }
 
 void DGDiffusionIntegrator::AssembleFaceMatrix(
