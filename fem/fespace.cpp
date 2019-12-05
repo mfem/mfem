@@ -3266,7 +3266,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
       const int idx2 = d_indices2[i];//TODO Permutation of d_indices2
       for (int c = 0; c < vd; ++c)
       {
-         d_y(dof, c, 1, face) = idx2!=-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);//TODO Add permutation
+         d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);//TODO Add permutation
       }
    });
 }
