@@ -309,13 +309,11 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    FiniteElementSpace * fes = blfr->FESpace();
 
    int vsize  = fes->GetVSize();
-   // int tvsize = pfes->GetTrueVSize();
 
    double s = (conv == ComplexOperator::HERMITIAN)?1.0:-1.0;
 
    // Allocate temporary vectors
    Vector b_0(vsize);  b_0 = 0.0;
-   // Vector B_0(tvsize); B_0 = 0.0;
 
    // Extract the real and imaginary parts of the input vectors
    MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
@@ -326,15 +324,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    Vector b_r(b.GetData(), vsize);
    Vector b_i(&(b.GetData())[vsize], vsize);
    b_i *= s;
-   /*
-   X.SetSize(2 * tvsize);
-   Vector X_r(X.GetData(), tvsize);
-   Vector X_i(&(X.GetData())[tvsize], tvsize);
 
-   B.SetSize(2 * tvsize);
-   Vector B_r(B.GetData(), tvsize);
-   Vector B_i(&(B.GetData())[tvsize], tvsize);
-   */
    SparseMatrix * A_r = new SparseMatrix;
    SparseMatrix * A_i = new SparseMatrix;
    Vector X_0, B_0;
