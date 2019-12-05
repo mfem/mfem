@@ -4320,7 +4320,7 @@ int NCMesh::GetElementSizeReduction(int i) const
    }
    return reduction;
 }
-  
+
 void NCMesh::GetElementFacesAttributes(int i,
                                        Array<int> &faces,
                                        Array<int> &fattr) const
