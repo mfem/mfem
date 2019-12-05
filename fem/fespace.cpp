@@ -2971,13 +2971,13 @@ static void GetFaceDofsLex(const int dim, const int face_id, const int dof1d, in
          case 2://NORTH
          for (int i = 0; i < dof1d; ++i)
          {
-            faceMap[i] = (dof1d-1)*dof1d + i;
+            faceMap[i] = (dof1d-1)*dof1d + dof1d-1 - i;
          }
          break;
          case 3://WEST
          for (int i = 0; i < dof1d; ++i)
          {
-            faceMap[i] = i*dof1d;
+            faceMap[i] = (dof1d-1)*dof1d - i*dof1d;
          }
          break;
       }
@@ -4026,12 +4026,12 @@ void FaceQuadratureInterpolator::Eval2D(
                const double norm = sqrt(D[0]*D[0]+D[1]*D[1]);
                if (eval_flags & DETERMINANTS)
                {
-                  det(q,f) = norm;  
+                  det(q,f) = norm;
                }
                if (eval_flags & NORMALS)
                {
-                  n(q,0,f) = -D[1]/norm;
-                  n(q,1,f) =  D[0]/norm;
+                  n(q,0,f) =  D[1]/norm;
+                  n(q,1,f) = -D[0]/norm;
                }
             }
          }
