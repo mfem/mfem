@@ -103,6 +103,10 @@ public:
 
    virtual ~ComplexLinearForm();
 
+   ComplexOperator::Convention GetConvention() const { return conv; }
+   void SetConvention(const ComplexOperator::Convention &
+                      convention) { conv = convention; }
+
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
@@ -353,6 +357,10 @@ public:
                         convention = ComplexOperator::HERMITIAN);
 
    virtual ~ParComplexLinearForm();
+
+   ComplexOperator::Convention GetConvention() const { return conv; }
+   void SetConvention(const ComplexOperator::Convention &
+                      convention) { conv = convention; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
