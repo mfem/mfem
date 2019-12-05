@@ -233,9 +233,9 @@ int main(int argc, char *argv[])
       sol_sock_r.precision(8);
       sol_sock_i.precision(8);
       sol_sock_r << "solution\n" << *mesh << u_exact->real()
-                 << "window_title 'Exact Real Part'" << flush;
+                 << "window_title 'Exact: Real Part'" << flush;
       sol_sock_i << "solution\n" << *mesh << u_exact->imag()
-                 << "window_title 'Exact Imaginary Part'" << flush;
+                 << "window_title 'Exact: Imaginary Part'" << flush;
    }
 
    // 8. Set up the sesquilinear form a(.,.) on the finite element
@@ -366,9 +366,9 @@ int main(int argc, char *argv[])
       sol_sock_r.precision(8);
       sol_sock_i.precision(8);
       sol_sock_r << "solution\n" << *mesh << u.real()
-                 << "window_title 'Comp Real Part'" << flush;
+                 << "window_title 'Solution: Real Part'" << flush;
       sol_sock_i << "solution\n" << *mesh << u.imag()
-                 << "window_title 'Comp Imaginary Part'" << flush;
+                 << "window_title 'Solution: Imaginary Part'" << flush;
    }
    if (visualization && exact_sol)
    {
@@ -381,9 +381,9 @@ int main(int argc, char *argv[])
       sol_sock_r.precision(8);
       sol_sock_i.precision(8);
       sol_sock_r << "solution\n" << *mesh << u_exact->real()
-                 << "window_title 'Exact-Comp Real Part'" << flush;
+                 << "window_title 'Error: Real Part'" << flush;
       sol_sock_i << "solution\n" << *mesh << u_exact->imag()
-                 << "window_title 'Exact-Comp Imaginary Part'" << flush;
+                 << "window_title 'Error: Imaginary Part'" << flush;
    }
    if (visualization)
    {
