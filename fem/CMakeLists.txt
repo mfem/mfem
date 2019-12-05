@@ -17,7 +17,6 @@ set(SRCS
   bilininteg_mass.cpp
   coefficient.cpp
   complex_fem.cpp
-  complex_operator.cpp
   datacollection.cpp
   eltrans.cpp
   estimators.cpp
@@ -42,7 +41,6 @@ set(HDRS
   bilininteg.hpp
   coefficient.hpp
   complex_fem.hpp
-  complex_operator.hpp
   datacollection.hpp
   eltrans.hpp
   estimators.hpp
