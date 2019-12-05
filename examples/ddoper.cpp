@@ -1106,7 +1106,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 		    }
 
 		  // TODO: find a better way to handle near-zero entries. Are they eliminated from the hypre matrix automatically?
-		  if (fabs(d) < 1.0e-14 && colid == -1)
+		  if (fabs(d) < 1.0e-12 && colid == -1)
 		    continue;
 
 		  if (colid >= 0)
@@ -2062,6 +2062,9 @@ int FindDofByPointValue(std::vector<double> const& facebv, const int dim, const 
       CrossProduct3D(v, faceNormal, tmp);
       CrossProduct3D(faceNormal, tmp, v);
 
+      bool ambiguity_i = false;
+      bool rdof_set_on_i = false;
+      
       for (int signflip=0; signflip<2; ++signflip)
 	{
 	  double emin = 0.0;
@@ -2074,6 +2077,12 @@ int FindDofByPointValue(std::vector<double> const& facebv, const int dim, const 
 
 	      const double vnrm = std::max(v.Norml2(), fv.Norml2());
 
+	      if (vnrm < 1.0e-4)
+		{
+		  e[n] = 1.0;
+		  continue;
+		}
+	      
 	      MFEM_VERIFY(vnrm > 1.0e-4, "");
 
 	      if (signflip == 0)
@@ -2108,11 +2117,24 @@ int FindDofByPointValue(std::vector<double> const& facebv, const int dim, const 
 	    {
 	      if (rdof == -1)
 		{
-		  rdof = imin;
-		  flip = signflip;		  
+		  if (!ambiguity_i)
+		    {
+		      rdof = imin;
+		      flip = signflip;
+		      rdof_set_on_i = true;
+		    }
 		}
 	      else
-		MFEM_VERIFY(rdof == imin && flip == signflip, "");
+		{
+		  //MFEM_VERIFY(rdof == imin && flip == signflip, "");
+		  if (!(rdof == imin && flip == signflip))
+		    {
+		      ambiguity_i = true;
+
+		      if (rdof_set_on_i)
+			rdof = -1;
+		    }
+		}
 	      
 	      //return imin;
 	    }
@@ -2781,7 +2803,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 		  Array<int> ifdofs;
 		  ifespace->GetElementDofs(ifMeshElem, ifdofs);
 
-		  MFEM_VERIFY(ifespace->GetOrder(ifMeshElem) == 2, "hack only works for second order");
+		  //MFEM_VERIFY(ifespace->GetOrder(ifMeshElem) == 2, "hack only works for second order");
 		  MFEM_VERIFY(ifdofs[osf] + 1 == ifdofs[osf+1], "");
 
 		  const HYPRE_Int ifgtdof = ifdofs[osf];  // Just use the first face DOF on the face, as a global identification for the face.
@@ -3303,13 +3325,17 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	      const int fswitch2 = (pmeshFaceOri == 0) ? (1 - (2*(d - osf))) : 0; // ((d - osf) + 1) % 2;  // TODO: this is valid only for second order!
 #endif
 	      
-	      MFEM_VERIFY(fespace->GetOrder(sdMeshElem) == 2, "fswitch hack only works for second order");
-	      
+	      //MFEM_VERIFY(fespace->GetOrder(sdMeshElem) == 2, "fswitch hack only works for second order");
+
+#ifdef SERIAL_INTERFACES
+	      const int sdtdof = -1;  // not used
+#else
 	      const int sddof_d = (sddofs[d + fswitch] >= 0) ? sddofs[d + fswitch] : -1 - sddofs[d + fswitch];
-	      const int sddof_d2 = (sddofs[d + fswitch2] >= 0) ? sddofs[d + fswitch2] : -1 - sddofs[d + fswitch2];
-	      
-	      //const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 	      const int sdtdof = fespace->GetLocalTDofNumber(sddof_d);
+#endif
+
+	      const int sddof_d2 = (sddofs[d + fswitch2] >= 0) ? sddofs[d + fswitch2] : -1 - sddofs[d + fswitch2];
+	      //const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 	      const int sdtdof2 = fespace->GetLocalTDofNumber(sddof_d2);
 
 	      /*
@@ -3327,8 +3353,11 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	      MFEM_VERIFY(fdofmap[ifdof_d] == sddof_d || fdofmap[ifdof_d] == -1, "");
 	      fdofmap[ifdof_d] = sddof_d;
 	      */
-	      
+#ifdef SERIAL_INTERFACES
+	      if (sdtdof2 >= 0)  // if this is a true DOF of fespace.
+#else
 	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
+#endif
 		{
 		  if (faceInInterface)
 		    {
