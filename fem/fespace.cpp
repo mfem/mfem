@@ -3155,6 +3155,24 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    // });
 }
 
+static int PermuteFace(const int dim, const int face_id, const int orientation,
+                       const int size1d, const int index)
+{
+   switch(dim)
+   {
+   case 1:
+      return 0;
+   case 2:
+      return size1d - 1 - index;
+   case 3:
+      mfem_error("Not yet implemented.");
+      return 0;
+   default:
+      mfem_error("Incorrect dimension.");
+      return 0;
+   }
+}
+
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                                      ElementDofOrdering e_ordering)
    : fes(fes),
@@ -3227,10 +3245,11 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       }
       for (int d = 0; d < dof; ++d)
       {
-         const int face_dof = faceMap2[d];
-         const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
          if (e2!=-1)//FIXME
          {
+            const int pd = PermuteFace(dim, face_id, orientation, dof1d, d);
+            const int face_dof = faceMap2[pd];
+            const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
             const int gid = elementMap[e2*elem_dofs + did];
             const int lid = dof*f + d;
             indices2[lid] = gid;//TODO Add permutation
@@ -3238,7 +3257,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          else
          {
             const int lid = dof*f + d;
-            indices2[lid] = -1;//TODO Add permutation
+            indices2[lid] = -1;
          }
       }
    }
@@ -3259,6 +3278,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
       const int dof = i % nd;
       const int face = i / nd;
       const int idx1 = d_indices1[i];
+      //FIXME we might want to also set this to 0 when idx2==-1, to separate interior/boundary faces.
       for (int c = 0; c < vd; ++c)
       {
          d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
