@@ -46,7 +46,7 @@ Drl4Amr::Drl4Amr(int order):
    order(order),
    dim(mesh.Dimension()),
    device(device_config),
-   fec(order, dim, BasisType::Positive),
+   fec(order, dim/*, BasisType::Positive*/),
    fespace(&mesh, &fec),
    one(1.0),
    zero(0.0),
@@ -295,6 +295,52 @@ static void GetFaceGradients(const GridFunction &gf,
 }
 
 
+/// Evaluate slave face values in master face nodal points.
+static void GetMasterRestriction(const NCMesh::Master &master,
+                                 const NCMesh::NCList &nclist,
+                                 const GridFunction &gf,
+                                 Vector &values)
+{
+   const FiniteElementSpace *space = gf.FESpace();
+   const FiniteElement *fe =
+      space->FEColl()->FiniteElementForGeometry(Geometry::SEGMENT);
+
+   IsoparametricTransformation isotr;
+   isotr.SetIdentityTransformation(Geometry::SEGMENT);
+
+   Array<int> dofs;
+   Vector slave_vals;
+   DenseMatrix R(fe->GetDof());
+
+   for (int si = master.slaves_begin; si < master.slaves_end; si++)
+   {
+      const NCMesh::Slave &slave = nclist.slaves[si];
+
+      slave.OrientedPointMatrix(isotr.GetPointMat());
+      isotr.FinalizeTransformation();
+
+      fe->GetLocalRestriction(isotr, R);
+
+      space->GetEdgeDofs(slave.index, dofs);
+      gf.GetSubVector(dofs, slave_vals);
+      MFEM_ASSERT(slave_vals.Size() == R.Width(), "");
+
+      for (int i = 0; i < R.Height(); i++)
+      {
+         if (std::isfinite(R(i, 0)))
+         {
+            double v = 0.0;
+            for (int j = 0; j < R.Width(); j++)
+            {
+               v += R(i, j) * slave_vals(j);
+            }
+            values(i) = v;
+         }
+      }
+   }
+}
+
+
 double* Drl4Amr::GetLocalImage(int element)
 {
    NCMesh *ncmesh = mesh.ncmesh;
@@ -336,8 +382,8 @@ double* Drl4Amr::GetLocalImage(int element)
       Array<int> edges, ori;
       mesh.GetElementEdges(element, edges, ori);
 
-      IsoparametricTransformation T;
-      T.SetFE(&SegmentFE);
+      //IsoparametricTransformation T;
+      //T.SetFE(&SegmentFE);
 
       const IntegrationRule &ir =
          GlobGeometryRefiner.Refine(Geometry::SEGMENT, subdiv)->RefPts;
@@ -361,7 +407,9 @@ double* Drl4Amr::GetLocalImage(int element)
          }
          else if (type == 1) // master
          {
-            sln = 0.0;
+            const auto &master = static_cast<const NCMesh::Master&>(eid);
+            GetMasterRestriction(master, elist, x, sln);
+
             grad = 0.0;
          }
          else
