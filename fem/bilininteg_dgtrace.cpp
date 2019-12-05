@@ -127,6 +127,11 @@ void DGTraceIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetFaceElement(0);
    const IntegrationRule *ir = &GetRule(el, el);//IntRule ? IntRule : &GetRule(el, el);
+   // Note: GetFE(0) and GetFaceElement(0) return elements with *different*
+   // basis types (e.g. GaussLobatto and GaussLegendre)
+   // TODO: find a better solution for this
+   const FiniteElement &el_tmp = *fes.GetFE(0);
+   const IntegrationRule &ir_tmp = IntRules.Get(el_tmp.GetGeomType(), ir->GetOrder());
    const int dims = el.GetDim();
    const int symmDims = 4;
    const int nq = ir->GetNPoints();
@@ -134,7 +139,7 @@ void DGTraceIntegrator::AssemblePA(const FiniteElementSpace &fes)
    nf = mesh->GetNumFaces();
    geom = mesh->GetFaceGeometricFactors(*ir,
       FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   maps = &el_tmp.GetDofToQuad(ir_tmp, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
