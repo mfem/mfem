@@ -2262,8 +2262,8 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
-   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-                                         const FiniteElement &test_fe);
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         FaceElementTransformations &T);
 };
 
 /** Integrator for the DG form:
