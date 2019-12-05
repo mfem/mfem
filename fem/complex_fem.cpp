@@ -291,7 +291,7 @@ SesquilinearForm::Finalize(int skip_zeros)
 }
 
 ComplexSparseMatrix *
-SesquilinearForm::AssembleCompSpMat()
+SesquilinearForm::AssembleComplexSparseMatrix()
 {
    return new ComplexSparseMatrix(&blfr->SpMat(),
                                   &blfi->SpMat(),
