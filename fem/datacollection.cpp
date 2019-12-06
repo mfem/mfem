@@ -853,11 +853,11 @@ void ParaviewDataCollection::Save()
       }
    }
    // the directory is created
-   
+
    // define the vtu file
    {
       std::string fname = GenerateCollectionPath()+"/"+GenerateVTUPath()+"/"
-                        +GenerateVTUFileName();
+                          +GenerateVTUFileName();
       std::fstream out; out.open(fname.c_str(), std::ios::out);
       SaveDataVTU(out,levels_of_detail);
       out.close();
@@ -867,7 +867,7 @@ void ParaviewDataCollection::Save()
    if (myrank==0)
    {
       std::string fname = GenerateCollectionPath()+"/"+GeneratePVTUPath()+"/"
-                        +GeneratePVTUFileName();
+                          +GeneratePVTUFileName();
       std::fstream out; out.open(fname.c_str(), std::ios::out);
 
       out << "<?xml version=\"1.0\"?>" << std::endl;
@@ -992,7 +992,7 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
       // vector data
       out << "<DataArray type=\"Float32\" Name=\"" << it->first;
       out << "\" NumberOfComponents=\"" << vec_dim << "\" format=\"ascii\" >" <<
-         std::endl;
+          std::endl;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
