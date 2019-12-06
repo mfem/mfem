@@ -295,6 +295,7 @@ static void GetFaceGradients(const GridFunction &gf,
 }
 
 
+#if 0
 /// Evaluate slave face values in master face nodal points.
 static void GetMasterRestriction(const NCMesh::Master &master,
                                  const NCMesh::NCList &nclist,
@@ -339,6 +340,78 @@ static void GetMasterRestriction(const NCMesh::Master &master,
       }
    }
 }
+#else
+
+void InvertLinearTrans(ElementTransformation &trans,
+                       const IntegrationPoint &pt, Vector &x)
+{
+   // invert a linear transform with one Newton step
+   IntegrationPoint p0;
+   p0.Set3(0, 0, 0);
+   trans.Transform(p0, x);
+
+   double store[3];
+   Vector v(store, x.Size());
+   pt.Get(v, x.Size());
+   v -= x;
+
+   trans.InverseJacobian().Mult(v, x);
+}
+
+
+/// Sample the slave side of a master face in integration points 'ir'.
+/// Return both values and derivatives.
+static void SampleMasterFace(const NCMesh::Master &master,
+                             const NCMesh::NCList &nclist,
+                             const GridFunction &gf,
+                             const IntegrationRule &ir,
+                             Vector &sln, DenseMatrix &grad)
+{
+   const Geometry::Type geom = Geometry::SEGMENT;
+   const FiniteElementSpace *space = gf.FESpace();
+   const FiniteElement *fe =
+      space->FEColl()->FiniteElementForGeometry(geom);
+
+   IsoparametricTransformation isotr;
+   isotr.SetIdentityTransformation(geom);
+
+   Array<int> dofs;
+   Vector vals, shape;
+
+   IntegrationPoint ip;
+   Vector pt(&ip.x, fe->GetDim());
+
+   sln.SetSize(ir.Size());
+   grad.SetSize(2, ir.Size());
+   shape.SetSize(fe->GetDof());
+
+   // transform 'ir' into all slave edges
+   for (int si = master.slaves_begin; si < master.slaves_end; si++)
+   {
+      const NCMesh::Slave &slave = nclist.slaves[si];
+
+      slave.OrientedPointMatrix(isotr.GetPointMat());
+      isotr.SetIntPoint(ir);
+      isotr.FinalizeTransformation();
+
+      space->GetEdgeDofs(slave.index, dofs);
+      gf.GetSubVector(dofs, vals);
+
+      for (int i = 0; i < ir.Size(); i++)
+      {
+         InvertLinearTrans(isotr, ir[i], pt);
+         if (Geometries.CheckPoint(geom, ip)) // master point is within the slave?
+         {
+            fe->CalcShape(ip, shape);
+            sln(i) = shape * vals; // solution at 'ip'
+
+            //gf.GetGradient(
+         }
+      }
+   }
+}
+
+#endif
 
 
 double* Drl4Amr::GetLocalImage(int element)
@@ -408,9 +481,7 @@ double* Drl4Amr::GetLocalImage(int element)
          else if (type == 1) // master
          {
             const auto &master = static_cast<const NCMesh::Master&>(eid);
-            GetMasterRestriction(master, elist, x, sln);
-
-            grad = 0.0;
+            SampleMasterFace(master, elist, x, ir, sln, grad);
          }
          else
          {
