@@ -1936,7 +1936,8 @@ void NCMesh::CollectLeafElements(int elem, int state)
       }
       else
       {
-         for (int i = 0; i < 16; i++)
+         int childs = (el.geom == Geometry::PENTATOPE) ? 16 : 8;
+         for (int i = 0; i < childs; i++)
          {
             if (el.child[i] >= 0) { CollectLeafElements(el.child[i], state); }
          }
