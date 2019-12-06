@@ -197,7 +197,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      if(ceedDataPtr) delete ceedDataPtr;
+      if (ceedDataPtr) { delete ceedDataPtr; }
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
       InitCeedCoeff(Q, ptr);
