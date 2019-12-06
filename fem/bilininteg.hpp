@@ -1808,8 +1808,8 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
-   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-                                         const FiniteElement &test_fe);
+   static const IntegrationRule &GetRule(const FiniteElement &el,
+                                         ElementTransformation &Trans);
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization
