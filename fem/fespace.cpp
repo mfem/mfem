@@ -3043,6 +3043,35 @@ static void GetFaceDofsLex(const int dim, const int face_id, const int dof1d, in
    }
 }
 
+// static int PermuteFaceH1(const int dim, const int face_id, const int orientation,
+//                        const int size1d, const int index)
+// {
+//    switch(dim)
+//    {
+//    case 1:
+//       return 0;
+//    case 2:
+//       return index;
+//       // switch(face_id)
+//       // {
+//       //    case 0://BOTTOM
+//       //    return index;
+//       //    case 1://EAST
+//       //    return index;
+//       //    case 2://TOP
+//       //    return size1d - 1 - index;
+//       //    case 3://WEST
+//       //    return size1d - 1 - index;
+//       // }
+//    case 3:
+//       mfem_error("Not yet implemented.");
+//       return 0;
+//    default:
+//       mfem_error("Incorrect dimension.");
+//       return 0;
+//    }
+// }
+
 H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
                                      ElementDofOrdering e_ordering)
    : fes(fes),
@@ -3105,6 +3134,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
       }
       for (int d = 0; d < dof; ++d)
       {
+         // const int pd = PermuteFaceH1(dim, face_id, orientation, dof1d, d);
          const int face_dof = faceMap[d];
          const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
          const int gid = elementMap[e1*elem_dofs + did];
@@ -3155,7 +3185,7 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    // });
 }
 
-static int PermuteFace(const int dim, const int face_id, const int orientation,
+static int PermuteFaceL2(const int dim, const int face_id, const int orientation,
                        const int size1d, const int index)
 {
    switch(dim)
@@ -3247,7 +3277,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       {
          if (e2!=-1)//FIXME
          {
-            const int pd = PermuteFace(dim, face_id, orientation, dof1d, d);
+            const int pd = PermuteFaceL2(dim, face_id, orientation, dof1d, d);
             const int face_dof = faceMap2[pd];
             const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
             const int gid = elementMap[e2*elem_dofs + did];
