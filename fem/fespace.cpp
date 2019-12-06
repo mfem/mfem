@@ -1262,9 +1262,9 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    }
 
    SparseMatrix *R = (elem_geoms.Size() > 1)
-      ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
-      : new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
-                         localR[elem_geoms[0]].SizeI());
+                     ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
+                     : new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
+                                        localR[elem_geoms[0]].SizeI());
 
    Array<int> mark(R->Height());
    mark = 0;

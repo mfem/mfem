@@ -4772,9 +4772,9 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
       splits[0] = std::max(
-                    max4(flevel[0][0], flevel[1][0], flevel[2][0], flevel[3][0]),
-                    max6(elevel[0], elevel[1], elevel[2],
-                         elevel[3], elevel[4], elevel[5]));
+                     max4(flevel[0][0], flevel[1][0], flevel[2][0], flevel[3][0]),
+                     max6(elevel[0], elevel[1], elevel[2],
+                          elevel[3], elevel[4], elevel[5]));
 
       splits[1] = splits[0];
       splits[2] = splits[0];
