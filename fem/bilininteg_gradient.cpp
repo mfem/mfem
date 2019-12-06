@@ -752,7 +752,7 @@ static void PAGradientApply(const int dim,
    }
    if (dim == 3)
    {
-     return PAGradientApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      return PAGradientApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
    }
    MFEM_ABORT("Unknown kernel.");
 }
