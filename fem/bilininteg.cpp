@@ -29,7 +29,7 @@ void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 void BilinearFormIntegrator::AssembleDiagonalPA(Vector&) const
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA (...)\n"
-               "   is not implemented for this class.");
+              "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
