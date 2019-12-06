@@ -52,8 +52,6 @@
 using namespace std;
 using namespace mfem;
 
-#define TEST_PRODUCT
-
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -213,59 +211,15 @@ int main(int argc, char *argv[])
    //     * With partial assembly, use no preconditioner, for now.
    Solver *prec = NULL;
    if (!pa) { prec = new HypreBoomerAMG; }
-#ifdef TEST_PRODUCT
-   GMRESSolver cg(MPI_COMM_WORLD);
-#else
    CGSolver cg(MPI_COMM_WORLD);
-#endif
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
-#ifdef TEST_PRODUCT
-   ProductOperator *product = NULL;
-   GMRESSolver *gmres = NULL;
-
-   if (prec)
-     {
-       prec->SetOperator(*(A.Ptr()));
-
-       prec->iterative_mode = true;
-
-       gmres = new GMRESSolver(MPI_COMM_WORLD);
-       gmres->SetOperator(*(A.Ptr()));
-       gmres->SetPreconditioner(*prec);
-
-       gmres->iterative_mode = true;
-       
-       //product = new ProductOperator(prec, A.Ptr(), false, false);
-       //product = new ProductOperator(A.Ptr(), prec, false, false);
-       product = new ProductOperator(A.Ptr(), gmres, false, false);  // requires gmres->iterative_mode = false
-       
-       cg.SetOperator(*product);
-
-       /*
-       Vector Y(X.Size());
-       prec->Mult(B, Y);
-       B = Y;
-       */
-     }
-   else
-     cg.SetOperator(*A);
-#else
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
-#endif
    cg.Mult(B, X);
    delete prec;
-   
-#ifdef TEST_PRODUCT
-   if (prec)
-     {
-       delete product;
-       delete gmres;
-     }
-#endif
-     
+
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
