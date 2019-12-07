@@ -52,6 +52,10 @@
 #include <fstream>
 #include <iostream>
 
+#ifndef MFEM_USE_GINKGO
+#error This example requires that MFEM is built with MFEM_USE_GINKGO=YES
+#endif
+
 using namespace std;
 using namespace mfem;
 
@@ -81,6 +85,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_ginkgo_solver, "-gko", "--use_gko_solver", "-no-gko",
+                  "--no-gko-solver",
+                  "Solve using ginkgo.");
    args.Parse();
    if (!args.Good())
    {
@@ -183,6 +190,24 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
+      if (use_ginkgo_solver)
+      {
+#ifdef MFEM_USE_GINKGO
+         // 11a. Solve the linear system A X = B with Ginkgo.
+         std::string executor = "reference";
+         auto exec = gko::ReferenceExecutor::create();
+         auto ilu_precond =
+            gko::preconditioner::Ilu<gko::solver::LowerTrs<>,
+            gko::solver::UpperTrs<>, false>::build()
+            .on(exec);
+         GinkgoWrappers::CGSolver ginkgo_solver(executor, 1, 2000, 1e-6, 0.0,
+                                                ilu_precond.release() );
+         ginkgo_solver.solve(&((SparseMatrix&)(*A)), X, B);
+
+#endif
+      }
+      else
+      {
 #ifndef MFEM_USE_SUITESPARSE
          // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
          GSSmoother M((SparseMatrix&)(*A));
@@ -194,6 +219,7 @@ int main(int argc, char *argv[])
          umf_solver.SetOperator(*A);
          umf_solver.Mult(B, X);
 #endif
+      }
    }
    else // No preconditioning for now in partial assembly mode.
    {
