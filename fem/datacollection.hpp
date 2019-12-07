@@ -530,7 +530,7 @@ public:
    /// Set/change the mesh associated with the collection.
    virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override;
 #endif
-   
+
    /// Add a grid function to the collection
    virtual void RegisterField(const std::string& field_name,
                               mfem::GridFunction *gf) override;
