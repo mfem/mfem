@@ -1045,7 +1045,8 @@ void Mesh::Destroy()
 
    // TODO:
    // IsoparametricTransformations
-   // Transformation, Transformation2, BdrTransformation, FaceTransformation, EdgeTransformation;
+   // Transformation, Transformation2, BdrTransformation, FaceTransformation,
+   // EdgeTransformation;
    // FaceElementTransformations FaceElemTr;
 
    CoarseFineTr.Clear();
@@ -3843,9 +3844,11 @@ int Mesh::CheckElementOrientation(bool fix_it)
    }
 #if (!defined(MFEM_USE_MPI) || defined(MFEM_DEBUG))
    if (wo > 0)
+   {
       mfem::out << "Elements with wrong orientation: " << wo << " / "
                 << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
                 << ")" << endl;
+   }
 #endif
    return wo;
 }
@@ -5088,6 +5091,21 @@ int *Mesh::CartesianPartitioning(int nxyz[])
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
 #ifdef MFEM_USE_METIS
+
+   int print_messages = 1;
+   // If running in parallel, print messages only from rank 0.
+#ifdef MFEM_USE_MPI
+   int init_flag, fin_flag;
+   MPI_Initialized(&init_flag);
+   MPI_Finalized(&fin_flag);
+   if (init_flag && !fin_flag)
+   {
+      int rank;
+      MPI_Comm_rank(GetGlobalMPI_Comm(), &rank);
+      if (rank != 0) { print_messages = 0; }
+   }
+#endif
+
    int i, *partitioning;
 
    ElementToElementTable();
@@ -5197,8 +5215,10 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                         &edgecut,
                                         mpartitioning);
          if (err != 1)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphRecursive!");
+         }
 #endif
       }
 
@@ -5233,8 +5253,10 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                    &edgecut,
                                    mpartitioning);
          if (err != 1)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
+         }
 #endif
       }
 
@@ -5270,19 +5292,27 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                    &edgecut,
                                    mpartitioning);
          if (err != 1)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
+         }
 #endif
       }
 
 #ifdef MFEM_DEBUG
-      mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
-                << edgecut << endl;
+      if (print_messages)
+      {
+         mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
+                   << edgecut << endl;
+      }
 #endif
       nparts = (int) mparts;
       if (mpartitioning != (idx_t*)partitioning)
       {
-         for (int k = 0; k<NumOfElements; k++) { partitioning[k] = mpartitioning[k]; }
+         for (int k = 0; k<NumOfElements; k++)
+         {
+            partitioning[k] = mpartitioning[k];
+         }
       }
       if (freedata)
       {
@@ -5292,10 +5322,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       }
    }
 
-   if (el_to_el)
-   {
-      delete el_to_el;
-   }
+   delete el_to_el;
    el_to_el = NULL;
 
    // Check for empty partitionings (a "feature" in METIS)
@@ -5314,17 +5341,20 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
 
       int empty_parts = 0;
       for (i = 0; i < nparts; i++)
-         if (psize[i].one == 0)
-         {
-            empty_parts++;
-         }
+      {
+         if (psize[i].one == 0) { empty_parts++; }
+      }
 
       // This code just split the largest partitionings in two.
       // Do we need to replace it with something better?
       if (empty_parts)
       {
-         mfem::err << "Mesh::GeneratePartitioning returned " << empty_parts
-                   << " empty parts!" << endl;
+         if (print_messages)
+         {
+            mfem::err << "Mesh::GeneratePartitioning(...): METIS returned "
+                      << empty_parts << " empty parts!"
+                      << " Applying a crude fix ..." << endl;
+         }
 
          SortPairs<int,int>(psize, nparts);
 
@@ -5334,7 +5364,9 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          }
 
          for (int j = 0; j < NumOfElements; j++)
+         {
             for (i = nparts-1; i > nparts-1-empty_parts; i--)
+            {
                if (psize[i].one == 0 || partitioning[j] != psize[i].two)
                {
                   continue;
@@ -5344,6 +5376,8 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                   partitioning[j] = psize[nparts-1-i].two;
                   psize[i].one--;
                }
+            }
+         }
       }
    }
 
@@ -5984,7 +6018,7 @@ void Mesh::UpdateNodes()
    }
 }
 
-void Mesh::UniformRefinement2D()
+void Mesh::UniformRefinement2D_base(bool update_nodes)
 {
    DeleteLazyTables();
 
@@ -6127,10 +6161,13 @@ void Mesh::UniformRefinement2D()
    last_operation = Mesh::REFINE;
    sequence++;
 
-   UpdateNodes();
+   if (update_nodes) { UpdateNodes(); }
 
 #ifdef MFEM_DEBUG
-   CheckElementOrientation(false);
+   if (!Nodes || update_nodes)
+   {
+      CheckElementOrientation(false);
+   }
    CheckBdrElementOrientation(false);
 #endif
 }
@@ -6140,7 +6177,8 @@ static inline double sqr(const double &x)
    return x*x;
 }
 
-void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
+void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
+                                    bool update_nodes)
 {
    DeleteLazyTables();
 
@@ -6728,7 +6766,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
    last_operation = Mesh::REFINE;
    sequence++;
 
-   UpdateNodes();
+   if (update_nodes) { UpdateNodes(); }
 }
 
 void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
@@ -7085,11 +7123,7 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    last_operation = Mesh::DEREFINE;
    sequence++;
 
-   if (Nodes) // update/interpolate mesh curvature
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 
    return true;
 }
