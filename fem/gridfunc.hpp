@@ -47,6 +47,10 @@ protected:
 
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
+   int GetFaceElementTransformations(int i, int side,
+                                     FaceElementTransformations *&,
+                                     bool elem=false) const;
+
    // Project the delta coefficient without scaling and return the (local)
    // integral of the projection.
    void ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,

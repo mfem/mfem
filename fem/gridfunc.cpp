@@ -382,6 +382,52 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
    }
 }
 
+int GridFunction::GetFaceElementTransformations(int i, int side,
+                                                FaceElementTransformations *&Transf,
+                                                bool bElem) const
+{
+   int dir;
+
+   if (side == 2) // automatic choice of side
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
+      if (Transf->Elem2No < 0 ||
+          fes->GetAttribute(Transf->Elem1No) <=
+          fes->GetAttribute(Transf->Elem2No))
+      {
+         dir = 0;
+      }
+      else
+      {
+         dir = 1;
+      }
+   }
+   else
+   {
+      if (side == 1 && !fes->GetMesh()->FaceIsInterior(i))
+      {
+         dir = 0;
+      }
+      else
+      {
+         dir = side;
+      }
+   }
+
+   if (dir == 0)
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i,
+                                                             4 | ((bElem)?(0x1):(0x0)));
+   }
+   else
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i,
+                                                             8 | ((bElem)?(0x2):(0x0)));
+   }
+
+   return dir;
+}
+
 double GridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
 const
 {
@@ -489,31 +535,8 @@ double GridFunction::GetFaceValue(int i, int side, const IntegrationPoint &ip,
    FaceElementTransformations *Transf;
 
    IntegrationPoint eip;  // ---
-   if (side == 2) // automatic choice of side
-   {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
-      if (Transf->Elem2No < 0 ||
-          fes->GetAttribute(Transf->Elem1No) <=
-          fes->GetAttribute(Transf->Elem2No))
-      {
-         dir = 0;
-      }
-      else
-      {
-         dir = 1;
-      }
-   }
-   else
-   {
-      if (side == 1 && !fes->GetMesh()->FaceIsInterior(i))
-      {
-         dir = 0;
-      }
-      else
-      {
-         dir = side;
-      }
-   }
+
+   dir = GetFaceElementTransformations(i, side, Transf);
 
    if (pdir)
    {
@@ -522,13 +545,11 @@ double GridFunction::GetFaceValue(int i, int side, const IntegrationPoint &ip,
 
    if (dir == 0)
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
       Transf->Loc1.Transform(ip, eip);
       return GetValue(Transf->Elem1No, eip, vdim);
    }
    else
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
       Transf->Loc2.Transform(ip, eip);
       return GetValue(Transf->Elem2No, eip, vdim);
    }
@@ -542,31 +563,8 @@ void GridFunction::GetFaceVectorValue(int i, int side,
    FaceElementTransformations *Transf;
 
    IntegrationPoint eip;  // ---
-   if (side == 2) // automatic choice of side
-   {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
-      if (Transf->Elem2No < 0 ||
-          fes->GetAttribute(Transf->Elem1No) <=
-          fes->GetAttribute(Transf->Elem2No))
-      {
-         dir = 0;
-      }
-      else
-      {
-         dir = 1;
-      }
-   }
-   else
-   {
-      if (side == 1 && !fes->GetMesh()->FaceIsInterior(i))
-      {
-         dir = 0;
-      }
-      else
-      {
-         dir = side;
-      }
-   }
+
+   dir = GetFaceElementTransformations(i, side, Transf);
 
    if (pdir)
    {
@@ -575,13 +573,11 @@ void GridFunction::GetFaceVectorValue(int i, int side,
 
    if (dir == 0)
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
       Transf->Loc1.Transform(ip, eip);
       GetVectorValue(Transf->Elem1No, eip, val);
    }
    else
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
       Transf->Loc2.Transform(ip, eip);
       GetVectorValue(Transf->Elem2No, eip, val);
    }
@@ -686,40 +682,16 @@ int GridFunction::GetFaceValues(int i, int side, const IntegrationRule &ir,
 
    n = ir.GetNPoints();
    IntegrationRule eir(n);  // ---
-   if (side == 2) // automatic choice of side
-   {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
-      if (Transf->Elem2No < 0 ||
-          fes->GetAttribute(Transf->Elem1No) <=
-          fes->GetAttribute(Transf->Elem2No))
-      {
-         dir = 0;
-      }
-      else
-      {
-         dir = 1;
-      }
-   }
-   else
-   {
-      if (side == 1 && !fes->GetMesh()->FaceIsInterior(i))
-      {
-         dir = 0;
-      }
-      else
-      {
-         dir = side;
-      }
-   }
+
+   dir = GetFaceElementTransformations(i, side, Transf);
+
    if (dir == 0)
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
       Transf->Loc1.Transform(ir, eir);
       GetValues(Transf->Elem1No, eir, vals, vdim);
    }
    else
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
       Transf->Loc2.Transform(ir, eir);
       GetValues(Transf->Elem2No, eir, vals, vdim);
    }
@@ -736,40 +708,16 @@ int GridFunction::GetFaceValues(int i, int side, const IntegrationRule &ir,
 
    n = ir.GetNPoints();
    IntegrationRule eir(n);  // ---
-   if (side == 2) // automatic choice of side
-   {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
-      if (Transf->Elem2No < 0 ||
-          fes->GetAttribute(Transf->Elem1No) <=
-          fes->GetAttribute(Transf->Elem2No))
-      {
-         dir = 0;
-      }
-      else
-      {
-         dir = 1;
-      }
-   }
-   else
-   {
-      if (side == 1 && !fes->GetMesh()->FaceIsInterior(i))
-      {
-         dir = 0;
-      }
-      else
-      {
-         dir = side;
-      }
-   }
+
+   dir = GetFaceElementTransformations(i, side, Transf);
+
    if (dir == 0)
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
       Transf->Loc1.Transform(ir, eir);
       GetValues(Transf->Elem1No, eir, vals, tr, vdim);
    }
    else
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
       Transf->Loc2.Transform(ir, eir);
       GetValues(Transf->Elem2No, eir, vals, tr, vdim);
    }
@@ -918,86 +866,52 @@ int GridFunction::GetFaceVectorValues(
    int i, int side, const IntegrationRule &ir,
    DenseMatrix &vals) const
 {
-   int n, di;
+   int n, dir;
    FaceElementTransformations *Transf;
 
    n = ir.GetNPoints();
    IntegrationRule eir(n);  // ---
-   Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
-   if (side == 2)
+
+   dir = GetFaceElementTransformations(i, side, Transf, true);
+
+   if (dir == 0)
    {
-      if (Transf->Elem2No < 0 ||
-          fes->GetAttribute(Transf->Elem1No) <=
-          fes->GetAttribute(Transf->Elem2No))
-      {
-         di = 0;
-      }
-      else
-      {
-         di = 1;
-      }
-   }
-   else
-   {
-      di = side;
-   }
-   if (di == 0)
-   {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 5);
       Transf->Loc1.Transform(ir, eir);
       GetVectorValues(*(Transf->Elem1), eir, vals);
    }
    else
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 10);
       Transf->Loc2.Transform(ir, eir);
       GetVectorValues(*(Transf->Elem2), eir, vals);
    }
 
-   return di;
+   return dir;
 }
 
 int GridFunction::GetFaceVectorValues(
    int i, int side, const IntegrationRule &ir,
    DenseMatrix &vals, DenseMatrix &tr) const
 {
-   int n, di;
+   int n, dir;
    FaceElementTransformations *Transf;
 
    n = ir.GetNPoints();
    IntegrationRule eir(n);  // ---
-   Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
-   if (side == 2)
+
+   dir = GetFaceElementTransformations(i, side, Transf);
+
+   if (dir == 0)
    {
-      if (Transf->Elem2No < 0 ||
-          fes->GetAttribute(Transf->Elem1No) <=
-          fes->GetAttribute(Transf->Elem2No))
-      {
-         di = 0;
-      }
-      else
-      {
-         di = 1;
-      }
-   }
-   else
-   {
-      di = side;
-   }
-   if (di == 0)
-   {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
       Transf->Loc1.Transform(ir, eir);
       GetVectorValues(Transf->Elem1No, eir, vals, tr);
    }
    else
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
       Transf->Loc2.Transform(ir, eir);
       GetVectorValues(Transf->Elem2No, eir, vals, tr);
    }
 
-   return di;
+   return dir;
 }
 
 void GridFunction::GetBdrFaceVectorValues(int i, const IntegrationRule &ir,
