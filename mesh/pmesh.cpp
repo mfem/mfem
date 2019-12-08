@@ -4171,6 +4171,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
           "# SQUARE      = 3\n"
           "# TETRAHEDRON = 4\n"
           "# CUBE        = 5\n"
+          "# PRISM       = 6\n"
           "#\n";
 
       out << "\ndimension\n" << Dim;
@@ -4269,6 +4270,15 @@ void ParMesh::PrintAsOne(std::ostream &out)
    {
       switch (Dim)
       {
+         case 1:
+            for (i = 0; i < svert_lvert.Size(); i++)
+            {
+               ints.Append(Geometry::POINT);
+               ints.Append(svert_lvert[i]);
+               ne++;
+            }
+            break;
+
          case 2:
             for (i = 0; i < shared_edges.Size(); i++)
             {
