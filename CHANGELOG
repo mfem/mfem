@@ -39,7 +39,7 @@ Miscellaneous
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
 
-- Added support for output in the Paraview XML format. See Example 5/5 and the
+- Added support for output in the Paraview XML format. See Example 5/5p and the
   new ParaviewDataCollection class.
 
 - Added support for creating refined versions of periodic meshes, making use of
