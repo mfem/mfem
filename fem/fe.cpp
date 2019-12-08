@@ -11965,6 +11965,10 @@ Linear3DFiniteElement TetrahedronFE;
 // Object declared in mesh/wedge.hpp.
 // Defined here to ensure it is constructed after 'poly1d' and before
 // 'Geometries'.
+// TODO: define as thread_local to prevent race conditions in GLVis, because
+// there is no "LinearWedgeFiniteElement" and WedgeFE is in turn used from two
+// different threads for different things in GLVis. We also don't want to turn
+// MFEM_THREAD_SAFE on globally. (See PR #731)
 H1_WedgeElement WedgeFE(1);
 
 // Object declared in geom.hpp.
