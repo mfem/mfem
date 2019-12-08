@@ -26,6 +26,7 @@ Miscellaneous
   necessitated a complete rework of the interface and requires changes at
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
+
 - Added support for output in the Paraview XML format. See the new 
   ParaviewDataCollection class and examples ex5 for serial codes and  ex5p
   for parallel ones.
