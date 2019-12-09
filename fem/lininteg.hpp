@@ -135,8 +135,9 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
 };
 
 /// Class for boundary integration \f$ L(v) = (g \cdot n, v) \f$
