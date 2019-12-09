@@ -3211,26 +3211,27 @@ PetscFieldSplitSolver::PetscFieldSplitSolver(MPI_Comm comm, Operator &op,
    : PetscPreconditioner(comm,op,prefix)
 {
    PC pc = (PC)obj;
+   ierr = PCSetType(pc,PCFIELDSPLIT); PCHKERRQ(pc,ierr);
 
    Mat pA;
    ierr = PCGetOperators(pc,&pA,NULL); PCHKERRQ(pc,ierr);
 
    // Check if pA is of type MATNEST
-   // (this requirement can be removed when we can pass fields).
    PetscBool isnest;
    ierr = PetscObjectTypeCompare((PetscObject)pA,MATNEST,&isnest);
-   PCHKERRQ(pA,ierr);
-   MFEM_VERIFY(isnest,
-               "PetscFieldSplitSolver needs the matrix in nested format.");
 
-   PetscInt nr;
-   IS  *isrow;
-   ierr = PCSetType(pc,PCFIELDSPLIT); PCHKERRQ(pc,ierr);
-   ierr = MatNestGetSize(pA,&nr,NULL); PCHKERRQ(pc,ierr);
-   ierr = PetscCalloc1(nr,&isrow); CCHKERRQ(PETSC_COMM_SELF,ierr);
-   ierr = MatNestGetISs(pA,isrow,NULL); PCHKERRQ(pc,ierr);
+   PetscInt nr = 0;
+   IS  *isrow = NULL;
+   if (isnest) // we now the fields
+   {
+      ierr = MatNestGetSize(pA,&nr,NULL); PCHKERRQ(pc,ierr);
+      ierr = PetscCalloc1(nr,&isrow); CCHKERRQ(PETSC_COMM_SELF,ierr);
+      ierr = MatNestGetISs(pA,isrow,NULL); PCHKERRQ(pc,ierr);
+   }
 
    // We need to customize here, before setting the index sets.
+   // This is because PCFieldSplitSetType customizes the function
+   // pointers. SubSolver options will be processed during PCApply
    Customize();
 
    for (PetscInt i=0; i<nr; i++)
