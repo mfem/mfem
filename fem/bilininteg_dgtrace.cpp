@@ -438,12 +438,152 @@ static void PADGTraceApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
+// PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PADGTraceApplyTranspose2D(const int NF,
+                               const Array<double> &b,
+                               const Array<double> &bt,
+                               const Vector &_op,
+                               const Vector &_x,
+                               Vector &_y,
+                               const int d1d = 0,
+                               const int q1d = 0)
+{
+   const int VDIM = 1;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D, 2, 2, NF);
+   auto x = Reshape(_x.Read(), D1D, VDIM, 2, NF);
+   auto y = Reshape(_y.ReadWrite(), D1D, VDIM, 2, NF);
+
+   MFEM_FORALL(f, NF,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      double u0[max_D1D][VDIM];
+      double u1[max_D1D][VDIM];
+      for (int d = 0; d < D1D; d++)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            u0[d][c] = x(d,c,0,f);
+            u1[d][c] = x(d,c,1,f);
+         }
+      }
+      double Bu0[max_Q1D][VDIM];
+      double Bu1[max_Q1D][VDIM];
+      for (int q = 0; q < Q1D; ++q)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            Bu0[q][c] = 0.0;
+            Bu1[q][c] = 0.0;
+         }
+         for (int d = 0; d < D1D; ++d)
+         {
+            const double b = B(q,d);
+            for (int c = 0; c < VDIM; c++)
+            {
+               Bu0[q][c] += b*u0[d][c];
+               Bu1[q][c] += b*u1[d][c];
+            }
+         }
+      }
+      double DBu[max_Q1D][VDIM];
+      for (int q = 0; q < Q1D; ++q)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            DBu[q][c] = op(q,0,0,f)*Bu0[q][c] + op(q,0,1,f)*Bu1[q][c];
+         }
+      }
+      double BDBu[max_D1D][VDIM];
+      for (int d = 0; d < D1D; ++d)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            BDBu[d][c] = 0.0;
+         }
+         for (int q = 0; q < Q1D; ++q)
+         {
+            const double b = Bt(d,q);
+            for (int c = 0; c < VDIM; c++)
+            {
+               BDBu[d][c] += b*DBu[q][c];
+            }
+         }
+         for (int c = 0; c < VDIM; c++)
+         {
+            y(d,c,0,f) +=  BDBu[d][c];
+            y(d,c,1,f) += -BDBu[d][c];
+         }
+      }
+   });
+}
+
+static void PADGTraceApplyTranspose(const int dim,
+                                    const int D1D,
+                                    const int Q1D,
+                                    const int NF,
+                                    const Array<double> &B,
+                                    const Array<double> &Bt,
+                                    const Vector &op,
+                                    const Vector &x,
+                                    Vector &y)
+{
+   if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         /*case 0x22: return PADGTraceApply2D<2,2>(NF,B,Bt,op,x,y);
+         case 0x33: return PADGTraceApply2D<3,3>(NF,B,Bt,op,x,y);
+         case 0x44: return PADGTraceApply2D<4,4>(NF,B,Bt,op,x,y);
+         case 0x55: return PADGTraceApply2D<5,5>(NF,B,Bt,op,x,y);
+         case 0x66: return PADGTraceApply2D<6,6>(NF,B,Bt,op,x,y);
+         case 0x77: return PADGTraceApply2D<7,7>(NF,B,Bt,op,x,y);
+         case 0x88: return PADGTraceApply2D<8,8>(NF,B,Bt,op,x,y);
+         case 0x99: return PADGTraceApply2D<9,9>(NF,B,Bt,op,x,y);*/
+         default:   return PADGTraceApplyTranspose2D(NF,B,Bt,op,x,y,D1D,Q1D);
+      }
+   }
+   else if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         /*case 0x23: return PADGTraceApply3D<2,3>(NF,B,Bt,op,x,y);
+         case 0x34: return PADGTraceApply3D<3,4>(NF,B,Bt,op,x,y);
+         case 0x45: return PADGTraceApply3D<4,5>(NF,B,Bt,op,x,y);
+         case 0x56: return PADGTraceApply3D<5,6>(NF,B,Bt,op,x,y);
+         case 0x67: return PADGTraceApply3D<6,7>(NF,B,Bt,op,x,y);
+         case 0x78: return PADGTraceApply3D<7,8>(NF,B,Bt,op,x,y);
+         case 0x89: return PADGTraceApply3D<8,9>(NF,B,Bt,op,x,y);*/
+         // default:   return PADGTraceApply3D(NF,B,Bt,op,x,y,D1D,Q1D);
+         default: mfem_error("3d ApplyTranspose not yet implemented.");
+      }
+   }
+   MFEM_ABORT("Unknown kernel.");
+}
+
 // PA DGTraceIntegrator Apply kernel
 void DGTraceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    PADGTraceApply(dim, dofs1D, quad1D, nf,
                   maps->B, maps->Bt,
                   pa_data, x, y);
+}
+
+void DGTraceIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   PADGTraceApplyTranspose(dim, dofs1D, quad1D, nf,
+                           maps->B, maps->Bt,
+                           pa_data, x, y);
 }
 
 #if 0

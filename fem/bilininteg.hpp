@@ -194,6 +194,21 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   virtual void AssemblePA(const FiniteElementSpace& fes)
+   {
+      bfi->AssemblePA(fes);
+   }
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const
+   {
+      bfi->AddMultPA(x, y);
+   }
+
+   virtual void AddMultPA(const Vector& x, Vector& y) const
+   {
+      bfi->AddMultTransposePA(x, y);
+   }
+
    virtual ~TransposeIntegrator() { if (own_bfi) { delete bfi; } }
 };
 
@@ -2259,6 +2274,8 @@ public:
                                    DenseMatrix &elmat);
 
    virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
