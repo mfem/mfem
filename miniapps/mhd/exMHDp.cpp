@@ -12,7 +12,7 @@
 
 #include "mfem.hpp"
 #include "myCoefficient.hpp"
-#include "BoundaryGradIntegrator.hpp"
+#include "myIntegrator.hpp"
 #include "ResistiveMHDOperatorp.hpp"
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"

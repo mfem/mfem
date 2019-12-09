@@ -11,7 +11,7 @@
 
 #include "mfem.hpp"
 #include "myCoefficient.hpp"
-#include "BoundaryGradIntegrator.hpp"
+#include "myIntegrator.hpp"
 #include "imScale.hpp"
 #include "PCSolver.hpp"
 #include <memory>

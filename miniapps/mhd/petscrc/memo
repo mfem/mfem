@@ -33,6 +33,18 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+12/6
+some notes for the operators:
+grad(u)=J^{-T} hat_grad(hat_u)
+J^{-1}=(1/det(J)) adj(J)
+
+grad(u)*v*Weight()
+but Weight()=det(J) and therefore only adjJ is needed
+
+12/1
+MatZeroRowsColumnsIS is eliminating zeros in my jacobi? I assume I could skip it if I use EliminateEssentialBC through mfem?
+Should not I used a derived class from PetscBCHandler? So all those values should be protected for easier access?
+
 11/20
 there is a bug in the boundary condition in the implicit case (I probaby need to use bchandler).
 [I 0] |x| = |a| 
