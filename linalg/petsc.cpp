@@ -3598,6 +3598,7 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
 }  // namespace mfem
 
 #include "petsc/private/petscimpl.h"
+#include "petsc/private/matimpl.h"
 
 // auxiliary functions
 static PetscErrorCode __mfem_ts_monitor(TS ts, PetscInt it, PetscReal t, Vec x,
@@ -3753,16 +3754,36 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
       pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
    }
 
+   // Get nonzerostate
+   PetscObjectState nonzerostate;
+   ierr = MatGetNonzeroState(P,&nonzerostate); CHKERRQ(ierr);
+
    // Avoid unneeded copy of the matrix by hacking
    Mat B;
    B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   // Matrix-free case
    if (A && A != P)
    {
       ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
       ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
    }
+
+   // When using MATNEST and PCFIELDSPLIT, the second setup of the
+   // preconditioner fails because MatCreateSubMatrix_Nest does not
+   // actually return a matrix. Instead, for efficiency reasons,
+   // it returns a reference to the submatrix. The second time it
+   // is called, MAT_REUSE_MATRIX is used and MatCreateSubMatrix_Nest
+   // aborts since the two submatrices are actually different.
+   // We circumvent this issue by incrementing the nonzero state
+   // (i.e. PETSc thinks the operator sparsity pattern has changed)
+   // This does not impact performances in the case of MATNEST
+   PetscBool isnest;
+   ierr = PetscObjectTypeCompare((PetscObject)P,MATNEST,&isnest);
+   CHKERRQ(ierr);
+   if (isnest) P->nonzerostate = nonzerostate + 1;
 
    // Jacobian reusage
    ierr = PetscObjectStateGet((PetscObject)P,&ts_ctx->cached_ijacstate);
@@ -3920,6 +3941,7 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
       ierr = MatAXPY(*pJxp,-1.0,*pJx,SAME_NONZERO_PATTERN); PCHKERRQ(ts,ierr);
    }
 
+   // Matrix-free cases
    if (Ax && Ax != Jx)
    {
       ierr = MatAssemblyBegin(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
@@ -4006,12 +4028,31 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
       pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
    }
 
+   // Get nonzerostate
+   PetscObjectState nonzerostate;
+   ierr = MatGetNonzeroState(P,&nonzerostate); CHKERRQ(ierr);
+
    // Avoid unneeded copy of the matrix by hacking
    Mat B;
    B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
 
+   // When using MATNEST and PCFIELDSPLIT, the second setup of the
+   // preconditioner fails because MatCreateSubMatrix_Nest does not
+   // actually return a matrix. Instead, for efficiency reasons,
+   // it returns a reference to the submatrix. The second time it
+   // is called, MAT_REUSE_MATRIX is used and MatCreateSubMatrix_Nest
+   // aborts since the two submatrices are actually different.
+   // We circumvent this issue by incrementing the nonzero state
+   // (i.e. PETSc thinks the operator sparsity pattern has changed)
+   // This does not impact performances in the case of MATNEST
+   PetscBool isnest;
+   ierr = PetscObjectTypeCompare((PetscObject)P,MATNEST,&isnest);
+   CHKERRQ(ierr);
+   if (isnest) P->nonzerostate = nonzerostate + 1;
+
+   // Matrix-free case
    if (A && A != P)
    {
       ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
@@ -4115,10 +4156,30 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
       pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
    }
 
+   // Get nonzerostate
+   PetscObjectState nonzerostate;
+   ierr = MatGetNonzeroState(P,&nonzerostate); CHKERRQ(ierr);
+
    // Avoid unneeded copy of the matrix by hacking
    Mat B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   // When using MATNEST and PCFIELDSPLIT, the second setup of the
+   // preconditioner fails because MatCreateSubMatrix_Nest does not
+   // actually return a matrix. Instead, for efficiency reasons,
+   // it returns a reference to the submatrix. The second time it
+   // is called, MAT_REUSE_MATRIX is used and MatCreateSubMatrix_Nest
+   // aborts since the two submatrices are actually different.
+   // We circumvent this issue by incrementing the nonzero state
+   // (i.e. PETSc thinks the operator sparsity pattern has changed)
+   // This does not impact performances in the case of MATNEST
+   PetscBool isnest;
+   ierr = PetscObjectTypeCompare((PetscObject)P,MATNEST,&isnest);
+   CHKERRQ(ierr);
+   if (isnest) P->nonzerostate = nonzerostate + 1;
+
+   // Matrix-free case
    if (A && A != P)
    {
       ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
