@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -198,12 +198,12 @@ int main(int argc, char *argv[])
    }
    m.AddDomainIntegrator(new MassIntegrator);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   // k.AddInteriorFaceIntegrator(
-   //    new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   k.AddInteriorFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5));
-   // k.AddBdrFaceIntegrator(
-   //    new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   k.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5));
+   k.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   // k.AddInteriorFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5));
+   k.AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   // k.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
