@@ -32,7 +32,7 @@ add_mfem_examples(GINKGO_EXAMPLES_SRCS ${PFX} "" test_ginkgo)
 #   ctest -R ginkgo
 
 # Command line options for the tests.
-set(EX1_COMMON_OPTS ex1 -m ../data/star.mesh)
+set(EX1_COMMON_OPTS ex1 -m ../data/star.mesh --use_gko_solver)
 set(EX1_TEST_OPTS ${EX9_COMMON_OPTS})
 
 # Add the tests: one test per source file.
