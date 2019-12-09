@@ -2309,17 +2309,6 @@ void PetscLinearSolver::SetOperator(const Operator &op)
                               (dynamic_cast<const PetscParMatrix *>(&op));
    const Operator       *oA = dynamic_cast<const Operator *>(&op);
 
-   // Preserve Pmat if already set
-   KSP ksp = (KSP)obj;
-   Mat P = NULL;
-   PetscBool pmat;
-   ierr = KSPGetOperatorsSet(ksp,NULL,&pmat); PCHKERRQ(ksp,ierr);
-   if (pmat)
-   {
-      ierr = KSPGetOperators(ksp,NULL,&P); PCHKERRQ(ksp,ierr);
-      ierr = PetscObjectReference((PetscObject)P); PCHKERRQ(ksp,ierr);
-   }
-
    // update base classes: Operator, Solver, PetscLinearSolver
    bool delete_pA = false;
    if (!pA)
@@ -2342,6 +2331,7 @@ void PetscLinearSolver::SetOperator(const Operator &op)
    MFEM_VERIFY(pA, "Unsupported operation!");
 
    // Set operators into PETSc KSP
+   KSP ksp = (KSP)obj;
    Mat A = pA->A;
    if (operatorset)
    {
@@ -2362,15 +2352,7 @@ void PetscLinearSolver::SetOperator(const Operator &op)
          wrap = false;
       }
    }
-   if (P)
-   {
-      ierr = KSPSetOperators(ksp,A,P); PCHKERRQ(ksp,ierr);
-      ierr = MatDestroy(&P); PCHKERRQ(ksp,ierr);
-   }
-   else
-   {
-      ierr = KSPSetOperators(ksp,A,A); PCHKERRQ(ksp,ierr);
-   }
+   ierr = KSPSetOperators(ksp,A,A); PCHKERRQ(ksp,ierr);
 
    // Update PetscSolver
    operatorset = true;
