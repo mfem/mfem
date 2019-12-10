@@ -64,6 +64,15 @@ protected:
                                      FaceElementTransformations *&ftr,
                                      bool elem=false) const;
 
+   double GetElementValue(const FiniteElement *fe, const Array<int> &vdofs,
+                          const IntegrationPoint &ip) const;
+   void GetElementVectorValue(ElementTransformation *Tr, const FiniteElement *fe,
+                              const Array<int> &vdofs, const IntegrationPoint &ip, Vector &val) const;
+   void GetElementValues(const FiniteElement *fe, const Array<int> &vdofs,
+                         const IntegrationRule &ir, Vector &vals) const;
+   void GetElementVectorValues(ElementTransformation *Tr, const FiniteElement *fe,
+                               const Array<int> &vdofs, const IntegrationRule &ir, DenseMatrix &vals) const;
+
    // Project the delta coefficient without scaling and return the (local)
    // integral of the projection.
    void ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
