@@ -2691,7 +2691,9 @@ L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
 
 void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
 {
-   for (int iel=0; iel<ne; ++iel)
+   auto d_x = x.Read();
+   auto d_y = y.Write();
+   MFEM_FORALL(iel, ne,
    {
       for (int vd=0; vd<vdim; ++vd)
       {
@@ -2710,16 +2712,18 @@ void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
             {
                xidx = vd*ne*ndof + iel*ndof + idof;
             }
-            y[yidx] = x[xidx];
+            d_y[yidx] = d_x[xidx];
          }
       }
-   }
+   });
 }
 
 void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
 {
+   auto d_x = x.Read();
+   auto d_y = y.Write();
    // Since this restriction is a permutation, the transpose is the inverse
-   for (int iel=0; iel<ne; ++iel)
+   MFEM_FORALL(iel, ne,
    {
       for (int vd=0; vd<vdim; ++vd)
       {
@@ -2738,10 +2742,10 @@ void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
             {
                yidx = vd*ne*ndof + iel*ndof + idof;
             }
-            y[yidx] = x[xidx];
+            d_y[yidx] = d_x[xidx];
          }
       }
-   }
+   });
 }
 
 ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
