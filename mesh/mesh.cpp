@@ -9740,7 +9740,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRu
    const int NQ   = ir.GetNPoints();
 
    
-   const Operator *face_restr = fespace->GetFaceRestriction(
+   const Operator *face_restr = fespace->GetSingleValuedFaceRestriction(
                                    ElementDofOrdering::LEXICOGRAPHIC);
    Vector Fnodes(face_restr->Height());
    face_restr->Mult(*nodes, Fnodes);
