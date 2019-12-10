@@ -100,17 +100,10 @@ public:
    /** The GridFunction does not assume ownership of @a data which is assumed to
        be of size at least `f->GetVSize()`. Similar to the Vector constructor
        for externally allocated array, the pointer @a data can be NULL. The data
-<<<<<<< HEAD
        array can be replaced later using the method SetData(). */
-   GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
-=======
-       array can be replaced later using the method SetData().
-    */
    GridFunction(FiniteElementSpace *f, double *data)
       : Vector(data, f->GetVSize())
    { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
->>>>>>> gh-master
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
