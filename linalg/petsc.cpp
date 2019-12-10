@@ -24,10 +24,17 @@
 #include "petscmathypre.h"
 #endif
 
+// Backward compatibility
+#if PETSC_VERSION_LT(3,12,0)
+#define MatComputeOperator(A,B,C) MatComputeExplicitOperator(A,C)
+#define MatComputeOperatorTranspose(A,B,C) MatComputeExplicitOperatorTranspose(A,C)
+#endif
+
 #include <fstream>
 #include <iomanip>
 #include <cmath>
 #include <cstdlib>
+
 // Note: there are additional #include statements below.
 
 // Error handling
@@ -65,6 +72,7 @@ static PetscErrorCode __mfem_snes_monitor(SNES,PetscInt,PetscReal,void*);
 static PetscErrorCode __mfem_snes_jacobian(SNES,Vec,Mat,Mat,void*);
 static PetscErrorCode __mfem_snes_function(SNES,Vec,Vec,void*);
 static PetscErrorCode __mfem_snes_objective(SNES,Vec,PetscReal*,void*);
+static PetscErrorCode __mfem_snes_update(SNES,PetscInt);
 static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch,Vec,Vec,Vec,
                                             PetscBool*,PetscBool*,void*);
 static PetscErrorCode __mfem_ksp_monitor(KSP,PetscInt,PetscReal,void*);
@@ -122,6 +130,11 @@ typedef struct
    // PostCheck function (to be called after successfull line search)
    void (*postcheck)(mfem::Operator *op, const mfem::Vector&, mfem::Vector&,
                      mfem::Vector&, bool&, bool&);
+   // General purpose update function (to be called at the beginning of
+   // each nonlinear step)
+   void (*update)(mfem::Operator *op, int,
+                  const mfem::Vector&, const mfem::Vector&,
+                  const mfem::Vector&, const mfem::Vector&);
 } __mfem_snes_ctx;
 
 typedef struct
@@ -151,6 +164,16 @@ using namespace std;
 
 namespace mfem
 {
+
+void MFEMInitializePetsc()
+{
+   MFEMInitializePetsc(NULL,NULL,NULL,NULL);
+}
+
+void MFEMInitializePetsc(int *argc,char*** argv)
+{
+   MFEMInitializePetsc(argc,argv,NULL,NULL);
+}
 
 void MFEMInitializePetsc(int *argc,char ***argv,const char rc_file[],
                          const char help[])
@@ -396,6 +419,12 @@ PetscParVector& PetscParVector::operator-=(const PetscParVector &y)
 PetscParVector& PetscParVector::operator*=(PetscScalar s)
 {
    ierr = VecScale(x,s); PCHKERRQ(x,ierr);
+   return *this;
+}
+
+PetscParVector& PetscParVector::operator+=(PetscScalar s)
+{
+   ierr = VecShift(x,s); PCHKERRQ(x,ierr);
    return *this;
 }
 
@@ -708,15 +737,21 @@ BlockDiagonalConstructor(MPI_Comm comm,
       // Copy SparseMatrix into PETSc SeqAIJ format
       Mat lA;
       ierr = MatISGetLocalMat(A,&lA); PCHKERRQ(A,ierr);
-      if (sizeof(PetscInt) == sizeof(int))
-      {
-         ierr = MatSeqAIJSetPreallocationCSR(lA,diag->GetI(),diag->GetJ(),
-                                             diag->GetData()); PCHKERRQ(lA,ierr);
-      }
-      else
-      {
-         MFEM_ABORT("64bit indices not yet supported");
-      }
+      int *II = diag->GetI();
+      int *JJ = diag->GetJ();
+#if defined(PETSC_USE_64BIT_INDICES)
+      PetscInt *pII,*pJJ;
+      int m = diag->Height()+1, nnz = II[diag->Height()];
+      ierr = PetscMalloc2(m,&pII,nnz,&pJJ); PCHKERRQ(lA,ierr);
+      for (int i = 0; i < m; i++) { pII[i] = II[i]; }
+      for (int i = 0; i < nnz; i++) { pJJ[i] = JJ[i]; }
+      ierr = MatSeqAIJSetPreallocationCSR(lA,pII,pJJ,
+                                          diag->GetData()); PCHKERRQ(lA,ierr);
+      ierr = PetscFree2(pII,pJJ); PCHKERRQ(lA,ierr);
+#else
+      ierr = MatSeqAIJSetPreallocationCSR(lA,II,JJ,
+                                          diag->GetData()); PCHKERRQ(lA,ierr);
+#endif
    }
    else
    {
@@ -736,13 +771,16 @@ BlockDiagonalConstructor(MPI_Comm comm,
          CCHKERRQ(PETSC_COMM_SELF,ierr);
          ierr = PetscMemcpy(djj,diag->GetJ(),nnz*sizeof(PetscInt));
          CCHKERRQ(PETSC_COMM_SELF,ierr);
-         ierr = PetscMemcpy(da,diag->GetData(),nnz*sizeof(PetscScalar));
-         CCHKERRQ(PETSC_COMM_SELF,ierr);
       }
       else
       {
-         MFEM_ABORT("64bit indices not yet supported");
+         int *iii = diag->GetI();
+         int *jjj = diag->GetJ();
+         for (int i = 0; i < m; i++) { dii[i] = iii[i]; }
+         for (int i = 0; i < nnz; i++) { djj[i] = jjj[i]; }
       }
+      ierr = PetscMemcpy(da,diag->GetData(),nnz*sizeof(PetscScalar));
+      CCHKERRQ(PETSC_COMM_SELF,ierr);
       ierr = PetscCalloc1(m,&oii);
       CCHKERRQ(PETSC_COMM_SELF,ierr);
       if (commsize > 1)
@@ -832,6 +870,14 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
                           (dynamic_cast<const IdentityOperator *>(&op));
    SparseMatrix     *pS = const_cast<SparseMatrix *>
                           (dynamic_cast<const SparseMatrix *>(&op));
+
+   if (pA && tid == ANY_TYPE) // use same object and return
+   {
+      ierr = PetscObjectReference((PetscObject)(pA->A));
+      CCHKERRQ(pA->GetComm(),ierr);
+      *A = pA->A;
+      return;
+   }
 
    PetscBool avoidmatconvert = PETSC_FALSE;
    if (pA) // we test for these types since MatConvert will fail
@@ -978,7 +1024,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
 #endif
          CCHKERRQ(pH->GetComm(),ierr);
       }
-      else if (tid == PETSC_MATHYPRE)
+      else if (tid == PETSC_MATHYPRE || tid == ANY_TYPE)
       {
 #if defined(PETSC_HAVE_HYPRE)
          ierr = MatCreateFromParCSR(const_cast<HypreParMatrix&>(*pH),MATHYPRE,
@@ -1051,7 +1097,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          ierr = MatConvert(*A,MATIS,MAT_INPLACE_MATRIX,A); CCHKERRQ(comm,ierr);
 
          mfem::Array<Mat> *vmatsl2l = new mfem::Array<Mat>(nr);
-         for (PetscInt i=0; i<nr; i++) { (*vmatsl2l)[i] = matsl2l[i]; }
+         for (int i=0; i<(int)nr; i++) { (*vmatsl2l)[i] = matsl2l[i]; }
          ierr = PetscFree(matsl2l); CCHKERRQ(PETSC_COMM_SELF,ierr);
 
          PetscContainer c;
@@ -1165,15 +1211,15 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    }
    else // fallback to general operator
    {
-      MFEM_VERIFY(tid == PETSC_MATSHELL ||
-                  tid == PETSC_MATAIJ,"Supported types are PETSC_MATSHELL or PETSC_MATAIJ");
+      MFEM_VERIFY(tid == PETSC_MATSHELL || tid == PETSC_MATAIJ || tid == ANY_TYPE,
+                  "Supported types are ANY_TYPE, PETSC_MATSHELL or PETSC_MATAIJ");
       MakeWrapper(comm,&op,A);
       if (tid == PETSC_MATAIJ)
       {
          Mat B;
          PetscBool isaij;
 
-         ierr = MatComputeExplicitOperator(*A,&B); CCHKERRQ(comm,ierr);
+         ierr = MatComputeOperator(*A,MATMPIAIJ,&B); CCHKERRQ(comm,ierr);
          ierr = PetscObjectTypeCompare((PetscObject)B,MATMPIAIJ,&isaij);
          CCHKERRQ(comm,ierr);
          ierr = MatDestroy(A); CCHKERRQ(comm,ierr);
@@ -1936,7 +1982,14 @@ void PetscSolver::SetPreconditionerFactory(PetscPreconditionerFactory *factory)
    {
       MFEM_ABORT("No support for PetscPreconditionerFactory for this object");
    }
-   ierr = MakeShellPCWithFactory(pc,factory); PCHKERRQ(pc,ierr);
+   if (factory)
+   {
+      ierr = MakeShellPCWithFactory(pc,factory); PCHKERRQ(pc,ierr);
+   }
+   else
+   {
+      ierr = PCSetType(pc, PCNONE); PCHKERRQ(pc,ierr);
+   }
 }
 
 void PetscSolver::Customize(bool customize) const
@@ -2150,7 +2203,7 @@ void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
    y = x;
    if (bctype == ZERO)
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = 0.0;
       }
@@ -2162,7 +2215,7 @@ void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
          Eval(eval_t,eval_g);
          eval_t_cached = eval_t;
       }
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = eval_g[ess_tdof_list[i]];
       }
@@ -2174,7 +2227,7 @@ void PetscBCHandler::ApplyBC(Vector &x)
    (*this).SetUp(x.Size());
    if (bctype == ZERO)
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          x[ess_tdof_list[i]] = 0.0;
       }
@@ -2186,7 +2239,7 @@ void PetscBCHandler::ApplyBC(Vector &x)
          Eval(eval_t,eval_g);
          eval_t_cached = eval_t;
       }
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          x[ess_tdof_list[i]] = eval_g[ess_tdof_list[i]];
       }
@@ -2198,14 +2251,14 @@ void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
    (*this).SetUp(x.Size());
    if (bctype == ZERO)
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = x[ess_tdof_list[i]];
       }
    }
    else
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = x[ess_tdof_list[i]] - eval_g[ess_tdof_list[i]];
       }
@@ -2453,7 +2506,7 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
    }
 }
 
-void PetscLinearSolver::Mult(const Vector &b, Vector &x) const
+void PetscLinearSolver::MultKernel(const Vector &b, Vector &x, bool trans) const
 {
    KSP ksp = (KSP)obj;
 
@@ -2481,9 +2534,26 @@ void PetscLinearSolver::Mult(const Vector &b, Vector &x) const
    PCHKERRQ(ksp, ierr);
 
    // Solve the system.
-   ierr = KSPSolve(ksp, B->x, X->x); PCHKERRQ(ksp,ierr);
+   if (trans)
+   {
+      ierr = KSPSolveTranspose(ksp, B->x, X->x); PCHKERRQ(ksp,ierr);
+   }
+   else
+   {
+      ierr = KSPSolve(ksp, B->x, X->x); PCHKERRQ(ksp,ierr);
+   }
    B->ResetArray();
    X->ResetArray();
+}
+
+void PetscLinearSolver::Mult(const Vector &b, Vector &x) const
+{
+   (*this).MultKernel(b,x,false);
+}
+
+void PetscLinearSolver::MultTranspose(const Vector &b, Vector &x) const
+{
+   (*this).MultKernel(b,x,true);
 }
 
 PetscLinearSolver::~PetscLinearSolver()
@@ -2607,7 +2677,8 @@ void PetscPreconditioner::SetOperator(const Operator &op)
    if (delete_pA) { delete pA; };
 }
 
-void PetscPreconditioner::Mult(const Vector &b, Vector &x) const
+void PetscPreconditioner::MultKernel(const Vector &b, Vector &x,
+                                     bool trans) const
 {
    PC pc = (PC)obj;
 
@@ -2632,9 +2703,26 @@ void PetscPreconditioner::Mult(const Vector &b, Vector &x) const
    Customize();
 
    // Apply the preconditioner.
-   ierr = PCApply(pc, B->x, X->x); PCHKERRQ(pc, ierr);
+   if (trans)
+   {
+      ierr = PCApplyTranspose(pc, B->x, X->x); PCHKERRQ(pc, ierr);
+   }
+   else
+   {
+      ierr = PCApply(pc, B->x, X->x); PCHKERRQ(pc, ierr);
+   }
    B->ResetArray();
    X->ResetArray();
+}
+
+void PetscPreconditioner::Mult(const Vector &b, Vector &x) const
+{
+   (*this).MultKernel(b,x,false);
+}
+
+void PetscPreconditioner::MultTranspose(const Vector &b, Vector &x) const
+{
+   (*this).MultKernel(b,x,true);
 }
 
 PetscPreconditioner::~PetscPreconditioner()
@@ -2646,6 +2734,12 @@ PetscPreconditioner::~PetscPreconditioner()
 }
 
 // PetscBDDCSolver methods
+
+// Coordinates sampling function
+static void func_coords(const Vector &x, Vector &y)
+{
+   for (int i = 0; i < x.Size(); i++) { y(i) = x(i); }
+}
 
 void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
 {
@@ -2662,16 +2756,177 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
    PCHKERRQ(pA,ierr);
    MFEM_VERIFY(ismatis,"PetscBDDCSolver needs the matrix in unassembled format");
 
+   // Check options
+   ParFiniteElementSpace *fespace = opts.fespace;
+   if (opts.netflux && !fespace)
+   {
+      MFEM_WARNING("Don't know how to compute an auxiliary quadrature form without a ParFiniteElementSpace");
+   }
+
+   // Attach default near-null space to local matrices
+   {
+      MatNullSpace nnsp;
+      Mat lA;
+      ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(comm,ierr);
+      ierr = MatNullSpaceCreate(PetscObjectComm((PetscObject)lA),PETSC_TRUE,0,NULL,
+                                &nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+      ierr = MatSetNearNullSpace(lA,nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+      ierr = MatNullSpaceDestroy(&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+   }
+
    // set PETSc PC type to PCBDDC
    ierr = PCSetType(pc,PCBDDC); PCHKERRQ(obj,ierr);
 
-   // index sets for fields splitting
+   PetscInt rst,nl;
+   ierr = MatGetOwnershipRange(pA,&rst,NULL); PCHKERRQ(pA,ierr);
+   ierr = MatGetLocalSize(pA,&nl,NULL); PCHKERRQ(pA,ierr);
+
+   // index sets for fields splitting and coordinates for nodal spaces
    IS *fields = NULL;
    PetscInt nf = 0;
+   PetscInt sdim = 0;
+   PetscReal *coords = NULL;
+   if (fespace)
+   {
+      int vdim = fespace->GetVDim();
+
+      // Ideally, the block size should be set at matrix creation
+      // but the MFEM assembly does not allow to do so
+      if (fespace->GetOrdering() == Ordering::byVDIM)
+      {
+         Mat lA;
+         ierr = MatSetBlockSize(pA,vdim); PCHKERRQ(pA,ierr);
+         ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         ierr = MatSetBlockSize(lA,vdim); PCHKERRQ(pA,ierr);
+      }
+
+      // fields
+      if (vdim > 1)
+      {
+         PetscInt st = rst, bs, inc, nlf;
+         nf = vdim;
+         nlf = nl/nf;
+         ierr = PetscMalloc1(nf,&fields); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         if (fespace->GetOrdering() == Ordering::byVDIM)
+         {
+            inc = 1;
+            bs = vdim;
+         }
+         else
+         {
+            inc = nlf;
+            bs = 1;
+         }
+         for (PetscInt i = 0; i < nf; i++)
+         {
+            ierr = ISCreateStride(comm,nlf,st,bs,&fields[i]); CCHKERRQ(comm,ierr);
+            st += inc;
+         }
+      }
+
+      // coordinates
+      const FiniteElementCollection *fec = fespace->FEColl();
+      bool h1space = dynamic_cast<const H1_FECollection*>(fec);
+      if (h1space)
+      {
+         ParFiniteElementSpace *fespace_coords = fespace;
+
+         sdim = fespace->GetParMesh()->SpaceDimension();
+         if (vdim != sdim || fespace->GetOrdering() != Ordering::byVDIM)
+         {
+            fespace_coords = new ParFiniteElementSpace(fespace->GetParMesh(),fec,sdim,
+                                                       Ordering::byVDIM);
+         }
+         VectorFunctionCoefficient coeff_coords(sdim, func_coords);
+         ParGridFunction gf_coords(fespace_coords);
+         gf_coords.ProjectCoefficient(coeff_coords);
+         HypreParVector *hvec_coords = gf_coords.ParallelProject();
+
+         // likely elasticity -> we attach rigid-body modes as near-null space information to the local matrices
+         if (vdim == sdim)
+         {
+            MatNullSpace nnsp;
+            Mat lA;
+            Vec pvec_coords,lvec_coords;
+            ISLocalToGlobalMapping l2g;
+            PetscSF sf;
+            PetscLayout rmap;
+            const PetscInt *gidxs;
+            PetscInt nleaves;
+
+            ierr = VecCreateMPIWithArray(comm,sdim,hvec_coords->Size(),
+                                         hvec_coords->GlobalSize(),hvec_coords->GetData(),&pvec_coords);
+            CCHKERRQ(comm,ierr);
+            ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatCreateVecs(lA,&lvec_coords,NULL); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = VecSetBlockSize(lvec_coords,sdim); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatGetLocalToGlobalMapping(pA,&l2g,NULL); CCHKERRQ(comm,ierr);
+            ierr = MatGetLayouts(pA,&rmap,NULL); CCHKERRQ(comm,ierr);
+            ierr = PetscSFCreate(comm,&sf); CCHKERRQ(comm,ierr);
+            ierr = ISLocalToGlobalMappingGetIndices(l2g,&gidxs); CCHKERRQ(comm,ierr);
+            ierr = ISLocalToGlobalMappingGetSize(l2g,&nleaves); CCHKERRQ(comm,ierr);
+            ierr = PetscSFSetGraphLayout(sf,rmap,nleaves,NULL,PETSC_OWN_POINTER,gidxs);
+            CCHKERRQ(comm,ierr);
+            ierr = ISLocalToGlobalMappingRestoreIndices(l2g,&gidxs); CCHKERRQ(comm,ierr);
+            {
+               const PetscScalar *garray;
+               PetscScalar *larray;
+
+               ierr = VecGetArrayRead(pvec_coords,&garray); CCHKERRQ(PETSC_COMM_SELF,ierr);
+               ierr = VecGetArray(lvec_coords,&larray); CCHKERRQ(PETSC_COMM_SELF,ierr);
+               ierr = PetscSFBcastBegin(sf,MPIU_SCALAR,garray,larray); CCHKERRQ(comm,ierr);
+               ierr = PetscSFBcastEnd(sf,MPIU_SCALAR,garray,larray); CCHKERRQ(comm,ierr);
+               ierr = VecRestoreArrayRead(pvec_coords,&garray); CCHKERRQ(PETSC_COMM_SELF,ierr);
+               ierr = VecRestoreArray(lvec_coords,&larray); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            }
+            ierr = VecDestroy(&pvec_coords); CCHKERRQ(comm,ierr);
+            ierr = MatNullSpaceCreateRigidBody(lvec_coords,&nnsp);
+            CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = VecDestroy(&lvec_coords); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatSetNearNullSpace(lA,nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatNullSpaceDestroy(&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = PetscSFDestroy(&sf); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         }
+
+         // each single dof has associated a tuple of coordinates
+         ierr = PetscMalloc1(nl*sdim,&coords); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         if (nf > 0)
+         {
+            PetscScalar *data = hvec_coords->GetData();
+            for (PetscInt i = 0; i < nf; i++)
+            {
+               const PetscInt *idxs;
+               PetscInt nn;
+
+               // It also handles the case of fespace not ordered by VDIM
+               ierr = ISGetLocalSize(fields[i],&nn); CCHKERRQ(comm,ierr);
+               ierr = ISGetIndices(fields[i],&idxs); CCHKERRQ(comm,ierr);
+               for (PetscInt j = 0; j < nn; j++)
+               {
+                  PetscInt idx = idxs[j]-rst;
+                  for (PetscInt d = 0; d < sdim; d++)
+                  {
+                     coords[sdim*idx+d] = data[sdim*j+d];
+                  }
+               }
+               ierr = ISRestoreIndices(fields[i],&idxs); CCHKERRQ(comm,ierr);
+            }
+         }
+         else
+         {
+            ierr = PetscMemcpy(coords,hvec_coords->GetData(),nl*sdim*sizeof(PetscReal));
+            CCHKERRQ(comm,ierr);
+         }
+         if (fespace_coords != fespace)
+         {
+            delete fespace_coords;
+         }
+         delete hvec_coords;
+      }
+   }
 
    // index sets for boundary dofs specification (Essential = dir, Natural = neu)
    IS dir = NULL, neu = NULL;
-   PetscInt rst;
 
    // Extract l2l matrices
    Array<Mat> *l2l = NULL;
@@ -2709,7 +2964,6 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
 #endif
 
    // boundary sets
-   ierr = MatGetOwnershipRange(pA,&rst,NULL); PCHKERRQ(pA,ierr);
    if (opts.ess_dof)
    {
       PetscInt st = opts.ess_dof_local ? 0 : rst;
@@ -2748,35 +3002,41 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
    }
 
    // field splitting
-   if (nf)
+   if (fields)
    {
       ierr = PCBDDCSetDofsSplitting(pc,nf,fields); PCHKERRQ(pc,ierr);
-      for (int i = 0; i < nf; i++)
-      {
-         ierr = ISDestroy(&fields[i]); CCHKERRQ(comm,ierr);
-      }
-      ierr = PetscFree(fields); PCHKERRQ(pc,ierr);
    }
+   for (PetscInt i = 0; i < nf; i++)
+   {
+      ierr = ISDestroy(&fields[i]); CCHKERRQ(comm,ierr);
+   }
+   ierr = PetscFree(fields); CCHKERRQ(PETSC_COMM_SELF,ierr);
+
+   // coordinates
+   if (coords)
+   {
+      ierr = PCSetCoordinates(pc,sdim,nl,coords); PCHKERRQ(pc,ierr);
+   }
+   ierr = PetscFree(coords); CCHKERRQ(PETSC_COMM_SELF,ierr);
 
    // code for block size is disabled since we cannot change the matrix
    // block size after it has been setup
    // int bs = 1;
 
    // Customize using the finite element space (if any)
-   ParFiniteElementSpace *fespace = opts.fespace;
    if (fespace)
    {
       const     FiniteElementCollection *fec = fespace->FEColl();
-      bool      edgespace, rtspace;
-      bool      needint = false;
+      bool      edgespace, rtspace, h1space;
+      bool      needint = opts.netflux;
       bool      tracespace, rt_tracespace, edge_tracespace;
-      int       dim, p;
+      int       vdim, dim, p;
       PetscBool B_is_Trans = PETSC_FALSE;
 
       ParMesh *pmesh = (ParMesh *) fespace->GetMesh();
       dim = pmesh->Dimension();
-      // bs = fec->DofForGeometry(Geometry::POINT);
-      // bs = bs ? bs : 1;
+      vdim = fespace->GetVDim();
+      h1space = dynamic_cast<const H1_FECollection*>(fec);
       rtspace = dynamic_cast<const RT_FECollection*>(fec);
       edgespace = dynamic_cast<const ND_FECollection*>(fec);
       edge_tracespace = dynamic_cast<const ND_Trace_FECollection*>(fec);
@@ -2857,20 +3117,30 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
             needint = false;
          }
       }
-      //else if (bs == dim) // Elasticity?
-      //{
-      //   needint = true;
-      //}
+      else if (h1space) // H(grad), only for the vector case
+      {
+         if (vdim != dim) { needint = false; }
+      }
 
       PetscParMatrix *B = NULL;
       if (needint)
       {
          // Generate bilinear form in unassembled format which is used to
          // compute the net-flux across subdomain boundaries for H(div) and
-         // Elasticity, and the line integral \int u x n of 2D H(curl) fields
+         // Elasticity/Stokes, and the line integral \int u x n of 2D H(curl) fields
          FiniteElementCollection *auxcoll;
          if (tracespace) { auxcoll = new RT_Trace_FECollection(p,dim); }
-         else { auxcoll = new L2_FECollection(p,dim); };
+         else
+         {
+            if (h1space)
+            {
+               auxcoll = new H1_FECollection(std::max(p-1,1),dim);
+            }
+            else
+            {
+               auxcoll = new L2_FECollection(p,dim);
+            }
+         }
          ParFiniteElementSpace *pspace = new ParFiniteElementSpace(pmesh,auxcoll);
          ParMixedBilinearForm *b = new ParMixedBilinearForm(fespace,pspace);
 
@@ -2885,7 +3155,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
                b->AddDomainIntegrator(new VectorFECurlIntegrator);
             }
          }
-         else
+         else if (rtspace)
          {
             if (tracespace)
             {
@@ -2895,6 +3165,10 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
             {
                b->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
             }
+         }
+         else
+         {
+            b->AddDomainIntegrator(new VectorDivergenceIntegrator);
          }
          b->Assemble();
          b->Finalize();
@@ -3108,6 +3382,19 @@ void PetscNonlinearSolver::SetPostCheck(void (*post)(Operator *,const Vector&,
    ierr = SNESGetLineSearch(snes, &ls); PCHKERRQ(snes,ierr);
    ierr = SNESLineSearchSetPostCheck(ls, __mfem_snes_postcheck, (void *)snes_ctx);
    PCHKERRQ(ls, ierr);
+}
+
+void PetscNonlinearSolver::SetUpdate(void (*update)(Operator *,int,
+                                                    const mfem::Vector&,
+                                                    const mfem::Vector&,
+                                                    const mfem::Vector&,
+                                                    const mfem::Vector&))
+{
+   __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
+   snes_ctx->update = update;
+
+   SNES snes = (SNES)obj;
+   ierr = SNESSetUpdate(snes, __mfem_snes_update); PCHKERRQ(snes, ierr);
 }
 
 void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
@@ -3468,7 +3755,8 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA || pA->GetType() != ts_ctx->jacType)
+   if (!pA || (ts_ctx->jacType != mfem::Operator::ANY_TYPE &&
+               pA->GetType() != ts_ctx->jacType))
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -3486,18 +3774,23 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    // Avoid unneeded copy of the matrix by hacking
    Mat B;
    B = pA->ReleaseMat(false);
-   ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
+   ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+   if (A && A != P)
+   {
+      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
 
    // Jacobian reusage
-   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_ijacstate);
+   ierr = PetscObjectStateGet((PetscObject)P,&ts_ctx->cached_ijacstate);
    CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
 static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
-                                              Mat Jx,Mat precJx,
-                                              Mat Jxp,Mat precJxp)
+                                              Mat Ax,Mat Jx,
+                                              Mat Axp,Mat Jxp)
 {
    __mfem_ts_ctx*   ts_ctx;
    mfem::Vector     *xx;
@@ -3557,7 +3850,8 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
    bool delete_mat = false;
    mfem::PetscParMatrix *pJx = const_cast<mfem::PetscParMatrix *>
                                (dynamic_cast<const mfem::PetscParMatrix *>(&oJx));
-   if (!pJx || pJx->GetType() != ts_ctx->jacType)
+   if (!pJx || (ts_ctx->jacType != mfem::Operator::ANY_TYPE &&
+                pJx->GetType() != ts_ctx->jacType))
    {
       if (pJx)
       {
@@ -3602,7 +3896,8 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
       mfem::Operator& oJxp = op->GetImplicitGradient(*xx,yy,1.0);
       pJxp = const_cast<mfem::PetscParMatrix *>
              (dynamic_cast<const mfem::PetscParMatrix *>(&oJxp));
-      if (!pJxp || pJxp->GetType() != ts_ctx->jacType)
+      if (!pJxp || (ts_ctx->jacType != mfem::Operator::ANY_TYPE &&
+                    pJxp->GetType() != ts_ctx->jacType))
       {
          if (pJxp)
          {
@@ -3641,6 +3936,17 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
       // We don't do it with the class operator "-=" since we know that
       // the sparsity pattern of the two matrices is the same
       ierr = MatAXPY(*pJxp,-1.0,*pJx,SAME_NONZERO_PATTERN); PCHKERRQ(ts,ierr);
+   }
+
+   if (Ax && Ax != Jx)
+   {
+      ierr = MatAssemblyBegin(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
+   if (Axp && Axp != Jxp)
+   {
+      ierr = MatAssemblyBegin(Axp,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(Axp,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
    }
 
    // Jacobian reusage
@@ -3702,7 +4008,8 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA || pA->GetType() != ts_ctx->jacType)
+   if (!pA || (ts_ctx->jacType != mfem::Operator::ANY_TYPE &&
+               pA->GetType() != ts_ctx->jacType))
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -3720,8 +4027,14 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    // Avoid unneeded copy of the matrix by hacking
    Mat B;
    B = pA->ReleaseMat(false);
-   ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
+   ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   if (A && A != P)
+   {
+      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
 
    // Jacobian reusage
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR)
@@ -3804,7 +4117,8 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA || pA->GetType() != snes_ctx->jacType)
+   if (!pA || (snes_ctx->jacType != mfem::Operator::ANY_TYPE &&
+               pA->GetType() != snes_ctx->jacType))
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)snes),&J,
                                     snes_ctx->jacType);
@@ -3821,8 +4135,13 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
 
    // Avoid unneeded copy of the matrix by hacking
    Mat B = pA->ReleaseMat(false);
-   ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
+   ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+   if (A && A != P)
+   {
+      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
    PetscFunctionReturn(0);
 }
 
@@ -3875,15 +4194,46 @@ static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch ls,Vec X,Vec Y,Vec W,
                                             PetscBool *cy,PetscBool *cw, void* ctx)
 {
    __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
-   bool lcy,lcw;
+   bool lcy = false,lcw = false;
 
    PetscFunctionBeginUser;
    mfem::PetscParVector x(X,true);
    mfem::PetscParVector y(Y,true);
    mfem::PetscParVector w(W,true);
-   snes_ctx->postcheck(snes_ctx->op,x,y,w,lcy,lcw);
+   (*snes_ctx->postcheck)(snes_ctx->op,x,y,w,lcy,lcw);
    if (lcy) { *cy = PETSC_TRUE; }
    if (lcw) { *cw = PETSC_TRUE; }
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_snes_update(SNES snes, PetscInt it)
+{
+   Vec F,X,dX,pX;
+   __mfem_snes_ctx* snes_ctx;
+
+   PetscFunctionBeginUser;
+   /* Update callback does not use the context */
+   ierr = SNESGetFunction(snes,&F,NULL,(void **)&snes_ctx); CHKERRQ(ierr);
+   ierr = SNESGetSolution(snes,&X); CHKERRQ(ierr);
+   if (!it)
+   {
+      ierr = VecDuplicate(X,&pX); CHKERRQ(ierr);
+      ierr = PetscObjectCompose((PetscObject)snes,"_mfem_snes_xp",(PetscObject)pX);
+      CHKERRQ(ierr);
+      ierr = VecDestroy(&pX); CHKERRQ(ierr);
+   }
+   ierr = PetscObjectQuery((PetscObject)snes,"_mfem_snes_xp",(PetscObject*)&pX);
+   CHKERRQ(ierr);
+   if (!pX) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_USER,
+                       "Missing previous solution");
+   ierr = SNESGetSolutionUpdate(snes,&dX); CHKERRQ(ierr);
+   mfem::PetscParVector f(F,true);
+   mfem::PetscParVector x(X,true);
+   mfem::PetscParVector dx(dX,true);
+   mfem::PetscParVector px(pX,true);
+   (*snes_ctx->update)(snes_ctx->op,it,f,x,dx,px);
+   /* Store previous solution */
+   ierr = VecCopy(X,pX); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
@@ -4134,8 +4484,13 @@ PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
    ctx->factory = NULL;
    ctx->numprec = 0;
 
+   // In case the PC was already of type SHELL, this will destroy any
+   // previous user-defined data structure
+   // We cannot call PCReset as it will wipe out any operator already set
+   ierr = PCSetType(pc,PCNONE); CHKERRQ(ierr);
+
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
-   ierr = PCShellSetName(pc,"MFEM Solver"); CHKERRQ(ierr);
+   ierr = PCShellSetName(pc,"MFEM Solver (unknown Pmat)"); CHKERRQ(ierr);
    ierr = PCShellSetContext(pc,(void *)ctx); CHKERRQ(ierr);
    ierr = PCShellSetApply(pc,__mfem_pc_shell_apply); CHKERRQ(ierr);
    ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
@@ -4158,6 +4513,11 @@ PetscErrorCode MakeShellPCWithFactory(PC pc,
    ctx->factory = factory;
    ctx->numprec = 0;
 
+   // In case the PC was already of type SHELL, this will destroy any
+   // previous user-defined data structure
+   // We cannot call PCReset as it will wipe out any operator already set
+   ierr = PCSetType(pc,PCNONE); CHKERRQ(ierr);
+
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
    ierr = PCShellSetName(pc,factory->GetName()); CHKERRQ(ierr);
    ierr = PCShellSetContext(pc,(void *)ctx); CHKERRQ(ierr);
@@ -4176,8 +4536,8 @@ static PetscErrorCode Convert_Array_IS(MPI_Comm comm, bool islist,
                                        const mfem::Array<int> *list,
                                        PetscInt st, IS* is)
 {
-   PetscInt       n = list->Size(),*idxs;
-   const int      *data = list->GetData();
+   PetscInt       n = list ? list->Size() : 0,*idxs;
+   const int      *data = list ? list->GetData() : NULL;
    PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
@@ -4222,7 +4582,21 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
                          (const PetscInt**)&jj,&done); CHKERRQ(ierr);
       MFEM_VERIFY(done,"Unable to perform MatGetRowIJ on " << i << " l2l matrix");
       ierr = MatGetSize(pl2l[i],NULL,&n); CHKERRQ(ierr);
+#if defined(PETSC_USE_64BIT_INDICES)
+      int  nnz = (int)ii[m];
+      int *mii = new int[m+1];
+      int *mjj = new int[nnz];
+      for (int j = 0; j < m+1; j++) { mii[j] = (int)ii[j]; }
+      for (int j = 0; j < nnz; j++) { mjj[j] = (int)jj[j]; }
+      l2l[i] = new mfem::SparseMatrix(mii,mjj,NULL,m,n,true,true,true);
+#else
       l2l[i] = new mfem::SparseMatrix(ii,jj,NULL,m,n,false,true,true);
+#endif
+      ierr = MatRestoreRowIJ(pl2l[i],0,PETSC_FALSE,PETSC_FALSE,&m,
+                             (const PetscInt**)&ii,
+                             (const PetscInt**)&jj,&done); CHKERRQ(ierr);
+      MFEM_VERIFY(done,"Unable to perform MatRestoreRowIJ on "
+                  << i << " l2l matrix");
    }
    nl = 0;
    for (int i = 0; i < l2l.Size(); i++) { nl += l2l[i]->Width(); }
@@ -4242,20 +4616,16 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
    ierr = Convert_Array_IS(comm,false,&sub_dof_marker,st,is); CCHKERRQ(comm,ierr);
    for (int i = 0; i < pl2l.Size(); i++)
    {
-      PetscInt  m = l2l[i]->Height();
-      PetscInt  *ii = l2l[i]->GetI(),*jj = l2l[i]->GetJ();
-      PetscBool done;
-      ierr = MatRestoreRowIJ(pl2l[i],0,PETSC_FALSE,PETSC_FALSE,&m,
-                             (const PetscInt**)&ii,
-                             (const PetscInt**)&jj,&done); CHKERRQ(ierr);
-      MFEM_VERIFY(done,"Unable to perform MatRestoreRowIJ on "
-                  << i << " l2l matrix");
       delete l2l[i];
    }
    PetscFunctionReturn(0);
 }
 
 #if !defined(PETSC_HAVE_HYPRE)
+
+#if defined(HYPRE_MIXEDINT)
+#error "HYPRE_MIXEDINT not supported"
+#endif
 
 #include "_hypre_parcsr_mv.h"
 static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix* hA,Mat* pA)

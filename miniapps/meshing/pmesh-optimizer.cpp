@@ -126,7 +126,7 @@ double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
       x_gf.SetFromTrueVector();
 
       energy_out = nlf->GetParGridFunctionEnergy(x_gf);
-      if (energy_out > 1.2*energy_in || isnan(energy_out) != 0)
+      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
       {
          if (print_level >= 0)
          { cout << "Scale = " << scale << " Increasing energy." << endl; }
@@ -241,7 +241,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
       add(x, -scale, c, x_out);
 
       energy_out = nlf->GetEnergy(x_out);
-      if (energy_out > energy_in || isnan(energy_out) != 0)
+      if (energy_out > energy_in || std::isnan(energy_out) != 0)
       {
          scale *= 0.5;
       }

@@ -15,6 +15,7 @@
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
+#include "../general/device.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -33,6 +34,7 @@
 
 // METIS 4 prototypes
 #if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
+typedef int idx_t;
 typedef int idxtype;
 extern "C" {
    void METIS_PartGraphRecursive(int*, idxtype*, idxtype*, idxtype*, idxtype*,
@@ -345,14 +347,15 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
       DenseMatrix &pm = ElTr->GetPointMat();
       Array<int> vdofs;
       Nodes->FESpace()->GetElementVDofs(i, vdofs);
-
+      Nodes->HostRead();
+      const GridFunction &nodes = *Nodes;
       int n = vdofs.Size()/spaceDim;
       pm.SetSize(spaceDim, n);
       for (int k = 0; k < spaceDim; k++)
       {
          for (int j = 0; j < n; j++)
          {
-            pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+            pm(k,j) = nodes(vdofs[n*k+j]);
          }
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
@@ -410,35 +413,59 @@ ElementTransformation *Mesh::GetElementTransformation(int i)
 
 ElementTransformation *Mesh::GetBdrElementTransformation(int i)
 {
-   GetBdrElementTransformation(i, &FaceTransformation);
-   return &FaceTransformation;
+   GetBdrElementTransformation(i, &BdrTransformation);
+   return &BdrTransformation;
 }
 
 void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
 {
    ElTr->Attribute = GetBdrAttribute(i);
    ElTr->ElementNo = i; // boundary element number
+   DenseMatrix &pm = ElTr->GetPointMat();
    if (Nodes == NULL)
    {
-      GetBdrPointMatrix(i, ElTr->GetPointMat());
-      ElTr->SetFE(
-         GetTransformationFEforElementType(GetBdrElementType(i)));
+      GetBdrPointMatrix(i, pm);
+      ElTr->SetFE(GetTransformationFEforElementType(GetBdrElementType(i)));
    }
    else
    {
-      DenseMatrix &pm = ElTr->GetPointMat();
-      Array<int> vdofs;
-      Nodes->FESpace()->GetBdrElementVDofs(i, vdofs);
-      int n = vdofs.Size()/spaceDim;
-      pm.SetSize(spaceDim, n);
-      for (int k = 0; k < spaceDim; k++)
+      const FiniteElement *bdr_el = Nodes->FESpace()->GetBE(i);
+      if (bdr_el)
       {
-         for (int j = 0; j < n; j++)
+         Array<int> vdofs;
+         Nodes->FESpace()->GetBdrElementVDofs(i, vdofs);
+         int n = vdofs.Size()/spaceDim;
+         pm.SetSize(spaceDim, n);
+         for (int k = 0; k < spaceDim; k++)
          {
-            pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+            for (int j = 0; j < n; j++)
+            {
+               pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+            }
          }
+         ElTr->SetFE(bdr_el);
       }
-      ElTr->SetFE(Nodes->FESpace()->GetBE(i));
+      else // L2 Nodes (e.g., periodic mesh)
+      {
+         int elem_id, face_info;
+         GetBdrElementAdjacentElement(i, elem_id, face_info);
+
+         GetLocalFaceTransformation(GetBdrElementType(i),
+                                    GetElementType(elem_id),
+                                    FaceElemTr.Loc1.Transf, face_info);
+         // NOTE: FaceElemTr.Loc1 is overwritten here -- used as a temporary
+
+         const FiniteElement *face_el =
+            Nodes->FESpace()->GetTraceElement(elem_id,
+                                              GetBdrElementBaseGeometry(i));
+
+         IntegrationRule eir(face_el->GetDof());
+         FaceElemTr.Loc1.Transf.ElementNo = elem_id;
+         FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
+         Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
+
+         ElTr->SetFE(face_el);
+      }
    }
    ElTr->FinalizeTransformation();
 }
@@ -496,9 +523,9 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
                                                      face_geom);
 
          IntegrationRule eir(face_el->GetDof());
+         FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
-         // 'Transformation' is not used
-         Nodes->GetVectorValues(Transformation, eir, pm);
+         Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
          FTr->SetFE(face_el);
       }
@@ -726,6 +753,34 @@ void Mesh::GetLocalQuadToWdgTransformation(
    Transf.FinalizeTransformation();
 }
 
+const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
+                                                  const int flags)
+{
+   for (int i = 0; i < geom_factors.Size(); i++)
+   {
+      GeometricFactors *gf = geom_factors[i];
+      if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags)
+      {
+         return gf;
+      }
+   }
+
+   this->EnsureNodes();
+
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags);
+   geom_factors.Append(gf);
+   return gf;
+}
+
+void Mesh::DeleteGeometricFactors()
+{
+   for (int i = 0; i < geom_factors.Size(); i++)
+   {
+      delete geom_factors[i];
+   }
+   geom_factors.SetSize(0);
+}
+
 void Mesh::GetLocalFaceTransformation(
    int face_type, int elem_type, IsoparametricTransformation &Transf, int info)
 {
@@ -938,6 +993,7 @@ void Mesh::DestroyTables()
    delete el_to_edge;
    delete el_to_face;
    delete el_to_el;
+   DeleteGeometricFactors();
 
    if (Dim == 3)
    {
@@ -989,7 +1045,7 @@ void Mesh::Destroy()
 
    // TODO:
    // IsoparametricTransformations
-   // Transformation, Transformation2, FaceTransformation, EdgeTransformation;
+   // Transformation, Transformation2, BdrTransformation, FaceTransformation, EdgeTransformation;
    // FaceElementTransformations FaceElemTr;
 
    CoarseFineTr.Clear();
@@ -1007,6 +1063,7 @@ void Mesh::DeleteLazyTables()
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
    delete edge_vertex;  edge_vertex = NULL;
+   DeleteGeometricFactors();
 }
 
 void Mesh::SetAttributes()
@@ -1284,17 +1341,14 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 
 
 #ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementReordering(Array<int> &ordering)
+void Mesh::GetGeckoElementReordering(Array<int> &ordering,
+                                     int iterations, int window,
+                                     int period, int seed)
 {
    Gecko::Graph graph;
 
-   // We will put some accesors in for these later
    Gecko::Functional *functional =
       new Gecko::FunctionalGeometric(); // ordering functional
-   unsigned int iterations = 1;         // number of V cycles
-   unsigned int window = 2;             // initial window size
-   unsigned int period = 1;             // iterations between window increment
-   unsigned int seed = 0;               // random number seed
 
    // Run through all the elements and insert the nodes in the graph for them
    for (int elemid = 0; elemid < GetNE(); ++elemid)
@@ -1360,6 +1414,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    // - el_to_el    - no need to rebuild
    // - face_edge   - no need to rebuild
    // - edge_vertex - no need to rebuild
+   // - geom_factors - no need to rebuild
 
    // - be_to_edge  - 2D only
    // - be_to_face  - 3D only
@@ -1966,7 +2021,7 @@ void Mesh::FinalizeMesh(int refine, bool fix_orientation)
    Finalize(refine, fix_orientation);
 }
 
-void Mesh::FinalizeTopology()
+void Mesh::FinalizeTopology(bool generate_bdr)
 {
    // Requirements: the following should be defined:
    //   1) Dim
@@ -1991,7 +2046,7 @@ void Mesh::FinalizeTopology()
    {
       GetElementToFaceTable();
       GenerateFaces();
-      if (NumOfBdrElements == 0)
+      if (NumOfBdrElements == 0 && generate_bdr)
       {
          GenerateBoundaryElements();
          GetElementToFaceTable(); // update be_to_face
@@ -2011,7 +2066,7 @@ void Mesh::FinalizeTopology()
       if (Dim == 2)
       {
          GenerateFaces(); // 'Faces' in 2D refers to the edges
-         if (NumOfBdrElements == 0)
+         if (NumOfBdrElements == 0 && generate_bdr)
          {
             GenerateBoundaryElements();
          }
@@ -2115,7 +2170,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
-                  int generate_edges, double sx, double sy, double sz)
+                  double sx, double sy, double sz, bool sfc_ordering)
 {
    int x, y, z;
 
@@ -2158,31 +2213,58 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
 #define VTX(XC, YC, ZC) ((XC)+((YC)+(ZC)*(ny+1))*(nx+1))
 
    // Sets elements and the corresponding indices of vertices
-   for (z = 0; z < nz; z++)
+   if (sfc_ordering && type == Element::HEXAHEDRON)
    {
-      for (y = 0; y < ny; y++)
+      Array<int> sfc;
+      NCMesh::GridSfcOrdering3D(nx, ny, nz, sfc);
+      MFEM_VERIFY(sfc.Size() == 3*nx*ny*nz, "");
+
+      for (int k = 0; k < nx*ny*nz; k++)
       {
-         for (x = 0; x < nx; x++)
+         x = sfc[3*k + 0];
+         y = sfc[3*k + 1];
+         z = sfc[3*k + 2];
+
+         ind[0] = VTX(x  , y  , z  );
+         ind[1] = VTX(x+1, y  , z  );
+         ind[2] = VTX(x+1, y+1, z  );
+         ind[3] = VTX(x  , y+1, z  );
+         ind[4] = VTX(x  , y  , z+1);
+         ind[5] = VTX(x+1, y  , z+1);
+         ind[6] = VTX(x+1, y+1, z+1);
+         ind[7] = VTX(x  , y+1, z+1);
+
+         AddHex(ind, 1);
+      }
+   }
+   else
+   {
+      for (z = 0; z < nz; z++)
+      {
+         for (y = 0; y < ny; y++)
          {
-            ind[0] = VTX(x  , y  , z  );
-            ind[1] = VTX(x+1, y  , z  );
-            ind[2] = VTX(x+1, y+1, z  );
-            ind[3] = VTX(x  , y+1, z  );
-            ind[4] = VTX(x  , y  , z+1);
-            ind[5] = VTX(x+1, y  , z+1);
-            ind[6] = VTX(x+1, y+1, z+1);
-            ind[7] = VTX(x  , y+1, z+1);
-            if (type == Element::TETRAHEDRON)
+            for (x = 0; x < nx; x++)
             {
-               AddHexAsTets(ind, 1);
-            }
-            else if (type == Element::WEDGE)
-            {
-               AddHexAsWedges(ind, 1);
-            }
-            else
-            {
-               AddHex(ind, 1);
+               ind[0] = VTX(x  , y  , z  );
+               ind[1] = VTX(x+1, y  , z  );
+               ind[2] = VTX(x+1, y+1, z  );
+               ind[3] = VTX(x  , y+1, z  );
+               ind[4] = VTX(x  , y  , z+1);
+               ind[5] = VTX(x+1, y  , z+1);
+               ind[6] = VTX(x+1, y+1, z+1);
+               ind[7] = VTX(x  , y+1, z+1);
+               if (type == Element::TETRAHEDRON)
+               {
+                  AddHexAsTets(ind, 1);
+               }
+               else if (type == Element::WEDGE)
+               {
+                  AddHexAsWedges(ind, 1);
+               }
+               else
+               {
+                  AddHex(ind, 1);
+               }
             }
          }
       }
@@ -2191,6 +2273,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    // Sets boundary elements and the corresponding indices of vertices
    // bottom, bdr. attribute 1
    for (y = 0; y < ny; y++)
+   {
       for (x = 0; x < nx; x++)
       {
          ind[0] = VTX(x  , y  , 0);
@@ -2210,8 +2293,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 1);
          }
       }
+   }
    // top, bdr. attribute 6
    for (y = 0; y < ny; y++)
+   {
       for (x = 0; x < nx; x++)
       {
          ind[0] = VTX(x  , y  , nz);
@@ -2231,8 +2316,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 6);
          }
       }
+   }
    // left, bdr. attribute 5
    for (z = 0; z < nz; z++)
+   {
       for (y = 0; y < ny; y++)
       {
          ind[0] = VTX(0  , y  , z  );
@@ -2248,8 +2335,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 5);
          }
       }
+   }
    // right, bdr. attribute 3
    for (z = 0; z < nz; z++)
+   {
       for (y = 0; y < ny; y++)
       {
          ind[0] = VTX(nx, y  , z  );
@@ -2265,8 +2354,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 3);
          }
       }
+   }
    // front, bdr. attribute 2
    for (x = 0; x < nx; x++)
+   {
       for (z = 0; z < nz; z++)
       {
          ind[0] = VTX(x  , 0, z  );
@@ -2282,8 +2373,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 2);
          }
       }
+   }
    // back, bdr. attribute 4
    for (x = 0; x < nx; x++)
+   {
       for (z = 0; z < nz; z++)
       {
          ind[0] = VTX(x  , ny, z  );
@@ -2299,6 +2392,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 4);
          }
       }
+   }
+
+#undef VTX
 
 #if 0
    ofstream test_stream("debug.mesh");
@@ -2311,8 +2407,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    // Finalize(...) can be called after this method, if needed
 }
 
-void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
-                  double sx, double sy)
+void Mesh::Make2D(int nx, int ny, Element::Type type,
+                  double sx, double sy,
+                  bool generate_edges, bool sfc_ordering)
 {
    int i, j, k;
 
@@ -2349,17 +2446,37 @@ void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
       }
 
       // Sets elements and the corresponding indices of vertices
-      k = 0;
-      for (j = 0; j < ny; j++)
+      if (sfc_ordering)
       {
-         for (i = 0; i < nx; i++)
+         Array<int> sfc;
+         NCMesh::GridSfcOrdering2D(nx, ny, sfc);
+         MFEM_VERIFY(sfc.Size() == 2*nx*ny, "");
+
+         for (k = 0; k < nx*ny; k++)
          {
+            i = sfc[2*k + 0];
+            j = sfc[2*k + 1];
             ind[0] = i + j*(nx+1);
             ind[1] = i + 1 +j*(nx+1);
             ind[2] = i + 1 + (j+1)*(nx+1);
             ind[3] = i + (j+1)*(nx+1);
             elements[k] = new Quadrilateral(ind);
-            k++;
+         }
+      }
+      else
+      {
+         k = 0;
+         for (j = 0; j < ny; j++)
+         {
+            for (i = 0; i < nx; i++)
+            {
+               ind[0] = i + j*(nx+1);
+               ind[1] = i + 1 +j*(nx+1);
+               ind[2] = i + 1 + (j+1)*(nx+1);
+               ind[3] = i + (j+1)*(nx+1);
+               elements[k] = new Quadrilateral(ind);
+               k++;
+            }
          }
       }
 
@@ -3151,12 +3268,12 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 {
    Dim = orig_mesh->Dimension();
-   MFEM_VERIFY(ref_factor > 1, "the refinement factor must be > 1");
+   MFEM_VERIFY(ref_factor >= 1, "the refinement factor must be >= 1");
    MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
                ref_type == BasisType::GaussLobatto, "invalid refinement type");
-   MFEM_VERIFY(Dim == 2 || Dim == 3,
-               "only implemented for Hexahedron and Quadrilateral elements in "
-               "2D/3D");
+   MFEM_VERIFY(Dim == 1 || Dim == 2 || Dim == 3,
+               "only implemented for Segment, Quadrilateral and Hexahedron "
+               "elements in 1D/2D/3D");
    MFEM_VERIFY(orig_mesh->GetNumGeometries(Dim) <= 1,
                "meshes with mixed elements are not supported");
 
@@ -3165,7 +3282,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    H1_FECollection rfec(ref_factor, Dim, ref_type);
    FiniteElementSpace rfes(orig_mesh, &rfec);
 
-   int r_bndr_factor = ref_factor * (Dim == 2 ? 1 : ref_factor);
+   int r_bndr_factor = pow(ref_factor, Dim - 1);
    int r_elem_factor = ref_factor * r_bndr_factor;
 
    int r_num_vert = rfes.GetNDofs();
@@ -3181,6 +3298,10 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    Array<int> rdofs;
    DenseMatrix phys_pts;
    int max_nv = 0;
+
+   DenseMatrix node_coordinates(spaceDim*pow(2, Dim), r_num_elem);
+   H1_FECollection vertex_fec(1, Dim);
+
    for (int el = 0; el < orig_mesh->GetNE(); el++)
    {
       Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
@@ -3195,6 +3316,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       orig_mesh->GetElementTransformation(el)->Transform(rfe->GetNodes(),
                                                          phys_pts);
       const int *c2h_map = rfec.GetDofMap(geom);
+      const int *vertex_map = vertex_fec.GetDofMap(geom);
       for (int i = 0; i < phys_pts.Width(); i++)
       {
          vertices[rdofs[i]].SetCoords(spaceDim, phys_pts.GetColumn(i));
@@ -3209,9 +3331,24 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
             v[k] = rdofs[c2h_map[cid]];
          }
+         for (int k = 0; k < nvert; k++)
+         {
+            for (int j = 0; j < spaceDim; ++j)
+            {
+               node_coordinates(k*spaceDim + j, NumOfElements)
+                  = vertices[v[vertex_map[k]]](j);
+            }
+         }
          AddElement(elem);
       }
    }
+
+   SetCurvature(1, true, spaceDim);
+   Vector node_coordinates_vec(
+      node_coordinates.Data(),
+      node_coordinates.Width()*node_coordinates.Height());
+   SetNodes(node_coordinates_vec);
+
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
    {
@@ -3222,22 +3359,38 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
       rfes.GetBdrElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-      const int *c2h_map = rfec.GetDofMap(geom);
-      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+      if (Dim == 1)
       {
-         Element *elem = NewElement(geom);
-         elem->SetAttribute(attrib);
-         int *v = elem->GetVertices();
-         for (int k = 0; k < nvert; k++)
+         // Dim == 1 is a special case because the boundary elements are
+         // zero-dimensional points, and therefore don't have a DofMap
+         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
          {
-            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-            v[k] = rdofs[c2h_map[cid]];
+            Element *elem = NewElement(geom);
+            elem->SetAttribute(attrib);
+            int *v = elem->GetVertices();
+            v[0] = rdofs[RG.RefGeoms[nvert*j]];
+            AddBdrElement(elem);
          }
-         AddBdrElement(elem);
+      }
+      else
+      {
+         const int *c2h_map = rfec.GetDofMap(geom);
+         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+         {
+            Element *elem = NewElement(geom);
+            elem->SetAttribute(attrib);
+            int *v = elem->GetVertices();
+            for (int k = 0; k < nvert; k++)
+            {
+               int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
+               v[k] = rdofs[c2h_map[cid]];
+            }
+            AddBdrElement(elem);
+         }
       }
    }
 
-   FinalizeTopology();
+   FinalizeTopology(false);
    sequence = orig_mesh->GetSequence() + 1;
    last_operation = Mesh::REFINE;
 
@@ -3275,6 +3428,28 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)
+{
+   if (NURBSext == NULL)
+   {
+      mfem_error("Mesh::KnotInsert : Not a NURBS mesh!");
+   }
+
+   if (kv.Size() != NURBSext->GetNKV())
+   {
+      mfem_error("Mesh::KnotInsert : KnotVector array size mismatch!");
+   }
+
+   NURBSext->ConvertToPatches(*Nodes);
+
+   NURBSext->KnotInsert(kv);
+
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
+   UpdateNURBS();
+}
+
+void Mesh::KnotInsert(Array<Vector *> &kv)
 {
    if (NURBSext == NULL)
    {
@@ -3489,6 +3664,12 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 {
    GridFunction *nodes = new GridFunction(nfes);
    SetNodalGridFunction(nodes, true);
+}
+
+void Mesh::EnsureNodes()
+{
+   if (Nodes) { return; }
+   SetCurvature(1, false, -1, Ordering::byVDIM);
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
@@ -4620,7 +4801,13 @@ void Mesh::GenerateNCFaceInfo()
    for (unsigned i = 0; i < list.slaves.size(); i++)
    {
       const NCMesh::Slave &slave = list.slaves[i];
-      if (slave.index >= nfaces || slave.master >= nfaces) { continue; }
+
+      if (slave.index < 0 || // degenerate slave face
+          slave.index >= nfaces || // ghost slave
+          slave.master >= nfaces) // has ghost master
+      {
+         continue;
+      }
 
       FaceInfo &slave_fi = faces_info[slave.index];
       FaceInfo &master_fi = faces_info[slave.master];
@@ -4773,14 +4960,38 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    return NULL;
 }
 
+// shift cyclically 3 integers so that the smallest is first
+static inline
+void Rotate3(int &a, int &b, int &c)
+{
+   if (a < b)
+   {
+      if (a > c)
+      {
+         ShiftRight(a, b, c);
+      }
+   }
+   else
+   {
+      if (b < c)
+      {
+         ShiftRight(c, b, a);
+      }
+      else
+      {
+         ShiftRight(a, b, c);
+      }
+   }
+}
+
 void Mesh::ReorientTetMesh()
 {
-   int *v;
-
    if (Dim != 3 || !(meshgen & 1))
    {
       return;
    }
+
+   DeleteLazyTables();
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
@@ -4794,7 +5005,7 @@ void Mesh::ReorientTetMesh()
    {
       if (GetElementType(i) == Element::TETRAHEDRON)
       {
-         v = elements[i]->GetVertices();
+         int *v = elements[i]->GetVertices();
 
          Rotate3(v[0], v[1], v[2]);
          if (v[0] < v[3])
@@ -4803,7 +5014,7 @@ void Mesh::ReorientTetMesh()
          }
          else
          {
-            ShiftL2R(v[0], v[1], v[3]);
+            ShiftRight(v[0], v[1], v[3]);
          }
       }
    }
@@ -4812,7 +5023,7 @@ void Mesh::ReorientTetMesh()
    {
       if (GetBdrElementType(i) == Element::TRIANGLE)
       {
-         v = boundary[i]->GetVertices();
+         int *v = boundary[i]->GetVertices();
 
          Rotate3(v[0], v[1], v[2]);
       }
@@ -4899,21 +5110,42 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    }
    else
    {
-      int *I, *J, n;
+      idx_t *I, *J, n;
 #ifndef MFEM_USE_METIS_5
-      int wgtflag = 0;
-      int numflag = 0;
-      int options[5];
+      idx_t wgtflag = 0;
+      idx_t numflag = 0;
+      idx_t options[5];
 #else
-      int ncon = 1;
-      int err;
-      int options[40];
+      idx_t ncon = 1;
+      idx_t err;
+      idx_t options[40];
 #endif
-      int edgecut;
+      idx_t edgecut;
+
+      // In case METIS have been compiled with 64bit indices
+      bool freedata = false;
+      idx_t mparts = (idx_t) nparts;
+      idx_t *mpartitioning;
 
       n = NumOfElements;
-      I = el_to_el->GetI();
-      J = el_to_el->GetJ();
+      if (sizeof(idx_t) == sizeof(int))
+      {
+         I = (idx_t*) el_to_el->GetI();
+         J = (idx_t*) el_to_el->GetJ();
+         mpartitioning = (idx_t*) partitioning;
+      }
+      else
+      {
+         int *iI = el_to_el->GetI();
+         int *iJ = el_to_el->GetJ();
+         int m = iI[n];
+         I = new idx_t[n+1];
+         J = new idx_t[m];
+         for (int k = 0; k < n+1; k++) { I[k] = iI[k]; }
+         for (int k = 0; k < m; k++) { J[k] = iJ[k]; }
+         mpartitioning = new idx_t[n];
+         freedata = true;
+      }
 #ifndef MFEM_USE_METIS_5
       options[0] = 0;
 #else
@@ -4930,7 +5162,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
             // std::sort(J+I[i], J+I[i+1]);
 
             // Sort in decreasing order, as in previous versions of MFEM.
-            std::sort(J+I[i], J+I[i+1], std::greater<int>());
+            std::sort(J+I[i], J+I[i+1], std::greater<idx_t>());
          }
       }
 
@@ -4940,30 +5172,30 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       {
 #ifndef MFEM_USE_METIS_5
          METIS_PartGraphRecursive(&n,
-                                  (idxtype *) I,
-                                  (idxtype *) J,
-                                  (idxtype *) NULL,
-                                  (idxtype *) NULL,
+                                  I,
+                                  J,
+                                  NULL,
+                                  NULL,
                                   &wgtflag,
                                   &numflag,
-                                  &nparts,
+                                  &mparts,
                                   options,
                                   &edgecut,
-                                  (idxtype *) partitioning);
+                                  mpartitioning);
 #else
          err = METIS_PartGraphRecursive(&n,
                                         &ncon,
                                         I,
                                         J,
-                                        (idx_t *) NULL,
-                                        (idx_t *) NULL,
-                                        (idx_t *) NULL,
-                                        &nparts,
-                                        (real_t *) NULL,
-                                        (real_t *) NULL,
+                                        NULL,
+                                        NULL,
+                                        NULL,
+                                        &mparts,
+                                        NULL,
+                                        NULL,
                                         options,
                                         &edgecut,
-                                        partitioning);
+                                        mpartitioning);
          if (err != 1)
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphRecursive!");
@@ -4976,30 +5208,30 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       {
 #ifndef MFEM_USE_METIS_5
          METIS_PartGraphKway(&n,
-                             (idxtype *) I,
-                             (idxtype *) J,
-                             (idxtype *) NULL,
-                             (idxtype *) NULL,
+                             I,
+                             J,
+                             NULL,
+                             NULL,
                              &wgtflag,
                              &numflag,
-                             &nparts,
+                             &mparts,
                              options,
                              &edgecut,
-                             (idxtype *) partitioning);
+                             mpartitioning);
 #else
          err = METIS_PartGraphKway(&n,
                                    &ncon,
                                    I,
                                    J,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   &nparts,
-                                   (real_t *) NULL,
-                                   (real_t *) NULL,
+                                   NULL,
+                                   NULL,
+                                   NULL,
+                                   &mparts,
+                                   NULL,
+                                   NULL,
                                    options,
                                    &edgecut,
-                                   partitioning);
+                                   mpartitioning);
          if (err != 1)
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
@@ -5012,31 +5244,31 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       {
 #ifndef MFEM_USE_METIS_5
          METIS_PartGraphVKway(&n,
-                              (idxtype *) I,
-                              (idxtype *) J,
-                              (idxtype *) NULL,
-                              (idxtype *) NULL,
+                              I,
+                              J,
+                              NULL,
+                              NULL,
                               &wgtflag,
                               &numflag,
-                              &nparts,
+                              &mparts,
                               options,
                               &edgecut,
-                              (idxtype *) partitioning);
+                              mpartitioning);
 #else
          options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_VOL;
          err = METIS_PartGraphKway(&n,
                                    &ncon,
                                    I,
                                    J,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   &nparts,
-                                   (real_t *) NULL,
-                                   (real_t *) NULL,
+                                   NULL,
+                                   NULL,
+                                   NULL,
+                                   &mparts,
+                                   NULL,
+                                   NULL,
                                    options,
                                    &edgecut,
-                                   partitioning);
+                                   mpartitioning);
          if (err != 1)
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
@@ -5047,6 +5279,17 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
                 << edgecut << endl;
 #endif
+      nparts = (int) mparts;
+      if (mpartitioning != (idx_t*)partitioning)
+      {
+         for (int k = 0; k<NumOfElements; k++) { partitioning[k] = mpartitioning[k]; }
+      }
+      if (freedata)
+      {
+         delete[] I;
+         delete[] J;
+         delete[] mpartitioning;
+      }
    }
 
    if (el_to_el)
@@ -5612,7 +5855,7 @@ void Mesh::SetVertices(const Vector &vert_coord)
       }
 }
 
-void Mesh::GetNode(int i, double *coord)
+void Mesh::GetNode(int i, double *coord) const
 {
    if (Nodes)
    {
@@ -5763,16 +6006,19 @@ void Mesh::UniformRefinement2D()
    const int oedge = NumOfVertices;
    const int oelem = oedge + NumOfEdges;
 
+   Array<Element*> new_elements;
+   Array<Element*> new_boundary;
+
    vertices.SetSize(oelem + quad_counter);
-   elements.SetSize(4 * NumOfElements);
+   new_elements.SetSize(4 * NumOfElements);
    quad_counter = 0;
-   for (int i = 0; i < NumOfElements; i++)
+
+   for (int i = 0, j = 0; i < NumOfElements; i++)
    {
       const Element::Type el_type = elements[i]->GetType();
       const int attr = elements[i]->GetAttribute();
       int *v = elements[i]->GetVertices();
       const int *e = el_to_edge->GetRow(i);
-      const int j = NumOfElements + 3 * i;
       int vv[2];
 
       if (el_type == Element::TRIANGLE)
@@ -5786,12 +6032,14 @@ void Mesh::UniformRefinement2D()
             AverageVertices(vv, 2, oedge+e[ei]);
          }
 
-         elements[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
-         elements[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
-         elements[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
-
-         v[1] = oedge+e[0];
-         v[2] = oedge+e[2];
+         new_elements[j++] =
+            new Triangle(v[0], oedge+e[0], oedge+e[2], attr);
+         new_elements[j++] =
+            new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
+         new_elements[j++] =
+            new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
+         new_elements[j++] =
+            new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
       }
       else if (el_type == Element::QUADRILATERAL)
       {
@@ -5808,34 +6056,36 @@ void Mesh::UniformRefinement2D()
             AverageVertices(vv, 2, oedge+e[ei]);
          }
 
-         elements[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
-                                           oelem+qe, attr);
-         elements[j+1] = new Quadrilateral(oelem+qe, oedge+e[1],
-                                           v[2], oedge+e[2], attr);
-         elements[j+2] = new Quadrilateral(oedge+e[3], oelem+qe,
-                                           oedge+e[2], v[3], attr);
-
-         v[1] = oedge+e[0];
-         v[2] = oelem+qe;
-         v[3] = oedge+e[3];
+         new_elements[j++] =
+            new Quadrilateral(v[0], oedge+e[0], oelem+qe, oedge+e[3], attr);
+         new_elements[j++] =
+            new Quadrilateral(oedge+e[0], v[1], oedge+e[1], oelem+qe, attr);
+         new_elements[j++] =
+            new Quadrilateral(oelem+qe, oedge+e[1], v[2], oedge+e[2], attr);
+         new_elements[j++] =
+            new Quadrilateral(oedge+e[3], oelem+qe, oedge+e[2], v[3], attr);
       }
       else
       {
          MFEM_ABORT("unknown element type: " << el_type);
       }
+      FreeElement(elements[i]);
    }
+   mfem::Swap(elements, new_elements);
 
-   boundary.SetSize(2 * NumOfBdrElements);
-   for (int i = 0; i < NumOfBdrElements; i++)
+   // refine boundary elements
+   new_boundary.SetSize(2 * NumOfBdrElements);
+   for (int i = 0, j = 0; i < NumOfBdrElements; i++)
    {
       const int attr = boundary[i]->GetAttribute();
       int *v = boundary[i]->GetVertices();
-      const int j = NumOfBdrElements + i;
 
-      boundary[j] = new Segment(oedge+be_to_edge[i], v[1], attr);
+      new_boundary[j++] = new Segment(v[0], oedge+be_to_edge[i], attr);
+      new_boundary[j++] = new Segment(oedge+be_to_edge[i], v[1], attr);
 
-      v[1] = oedge+be_to_edge[i];
+      FreeElement(boundary[i]);
    }
+   mfem::Swap(boundary, new_boundary);
 
    static const double A = 0.0, B = 0.5, C = 1.0;
    static double tri_children[2*3*4] =
@@ -5853,17 +6103,17 @@ void Mesh::UniformRefinement2D()
       A,B, B,B, B,C, A,C  // upper-left
    };
 
-   CoarseFineTr.point_matrices[Geometry::TRIANGLE].
-   UseExternalData(tri_children, 2, 3, 4);
-   CoarseFineTr.point_matrices[Geometry::SQUARE].
-   UseExternalData(quad_children, 2, 4, 4);
+   CoarseFineTr.point_matrices[Geometry::TRIANGLE]
+   .UseExternalData(tri_children, 2, 3, 4);
+   CoarseFineTr.point_matrices[Geometry::SQUARE]
+   .UseExternalData(quad_children, 2, 4, 4);
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
    for (int i = 0; i < elements.Size(); i++)
    {
       Embedding &emb = CoarseFineTr.embeddings[i];
-      emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 3;
-      emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 3 + 1;
+      emb.parent = i / 4;
+      emb.matrix = i % 4;
    }
 
    NumOfVertices    = vertices.Size();
@@ -5995,17 +6245,20 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
    const int oface = oedge + NumOfEdges;
    const int oelem = oface + NumOfQuadFaces;
 
+   Array<Element*> new_elements;
+   Array<Element*> new_boundary;
+
    vertices.SetSize(oelem + hex_counter);
-   elements.SetSize(8 * NumOfElements);
-   CoarseFineTr.embeddings.SetSize(elements.Size());
+   new_elements.SetSize(8 * NumOfElements);
+   CoarseFineTr.embeddings.SetSize(new_elements.Size());
+
    hex_counter = 0;
-   for (int i = 0; i < NumOfElements; i++)
+   for (int i = 0, j = 0; i < NumOfElements; i++)
    {
       const Element::Type el_type = elements[i]->GetType();
       const int attr = elements[i]->GetAttribute();
       int *v = elements[i]->GetVertices();
       const int *e = el_to_edge->GetRow(i);
-      const int j = NumOfElements + 7 * i;
       int vv[4], ev[12];
 
       if (e2v.Size())
@@ -6151,51 +6404,54 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             const int (&mv)[4][4] = mv_all[rt];
 
 #ifndef MFEM_USE_MEMALLOC
-            elements[j+0] = new Tetrahedron(oedge+e[0], v[1],
-                                            oedge+e[3], oedge+e[4], attr);
-            elements[j+1] = new Tetrahedron(oedge+e[1], oedge+e[3],
-                                            v[2], oedge+e[5], attr);
-            elements[j+2] = new Tetrahedron(oedge+e[2], oedge+e[4],
-                                            oedge+e[5], v[3], attr);
+            new_elements[j+0] =
+               new Tetrahedron(v[0], oedge+e[0], oedge+e[1], oedge+e[2], attr);
+            new_elements[j+1] =
+               new Tetrahedron(oedge+e[0], v[1], oedge+e[3], oedge+e[4], attr);
+            new_elements[j+2] =
+               new Tetrahedron(oedge+e[1], oedge+e[3], v[2], oedge+e[5], attr);
+            new_elements[j+3] =
+               new Tetrahedron(oedge+e[2], oedge+e[4], oedge+e[5], v[3], attr);
+
             for (int k = 0; k < 4; k++)
             {
-               elements[j+k+3] =
+               new_elements[j+4+k] =
                   new Tetrahedron(oedge+e[mv[k][0]], oedge+e[mv[k][1]],
                                   oedge+e[mv[k][2]], oedge+e[mv[k][3]], attr);
             }
 #else
             Tetrahedron *tet;
-            elements[j+0] = tet = TetMemory.Alloc();
+            new_elements[j+0] = tet = TetMemory.Alloc();
+            tet->Init(v[0], oedge+e[0], oedge+e[1], oedge+e[2], attr);
+
+            new_elements[j+1] = tet = TetMemory.Alloc();
             tet->Init(oedge+e[0], v[1], oedge+e[3], oedge+e[4], attr);
-            elements[j+1] = tet = TetMemory.Alloc();
+
+            new_elements[j+2] = tet = TetMemory.Alloc();
             tet->Init(oedge+e[1], oedge+e[3], v[2], oedge+e[5], attr);
-            elements[j+2] = tet = TetMemory.Alloc();
+
+            new_elements[j+3] = tet = TetMemory.Alloc();
             tet->Init(oedge+e[2], oedge+e[4], oedge+e[5], v[3], attr);
+
             for (int k = 0; k < 4; k++)
             {
-               elements[j+k+3] = tet = TetMemory.Alloc();
+               new_elements[j+4+k] = tet = TetMemory.Alloc();
                tet->Init(oedge+e[mv[k][0]], oedge+e[mv[k][1]],
                          oedge+e[mv[k][2]], oedge+e[mv[k][3]], attr);
             }
 #endif
-
-            v[1] = oedge+e[0];
-            v[2] = oedge+e[1];
-            v[3] = oedge+e[2];
-            ((Tetrahedron*)elements[i])->SetRefinementFlag(0);
-
-            CoarseFineTr.embeddings[i].parent = i;
-            CoarseFineTr.embeddings[i].matrix = 0;
-            for (int k = 0; k < 3; k++)
+            for (int k = 0; k < 4; k++)
             {
                CoarseFineTr.embeddings[j+k].parent = i;
-               CoarseFineTr.embeddings[j+k].matrix = k+1;
+               CoarseFineTr.embeddings[j+k].matrix = k;
             }
             for (int k = 0; k < 4; k++)
             {
-               CoarseFineTr.embeddings[j+k+3].parent = i;
-               CoarseFineTr.embeddings[j+k+3].matrix = 4*(rt+1)+k;
+               CoarseFineTr.embeddings[j+4+k].parent = i;
+               CoarseFineTr.embeddings[j+4+k].matrix = 4*(rt+1)+k;
             }
+
+            j += 8;
          }
          break;
 
@@ -6225,33 +6481,37 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             const int qf3 = f2qf[f[3]];
             const int qf4 = f2qf[f[4]];
 
-            elements[j+0] = new Wedge(oedge+e[1], oedge+e[2], oedge+e[0],
-                                      oface+qf3, oface+qf4, oface+qf2,
-                                      attr);
-            elements[j+1] = new Wedge(oedge+e[0], v[1], oedge+e[1],
-                                      oface+qf2, oedge+e[7], oface+qf3,
-                                      attr);
-            elements[j+2] = new Wedge(oedge+e[2], oedge+e[1], v[2],
-                                      oface+qf4, oface+qf3, oedge+e[8],
-                                      attr);
-            elements[j+3] = new Wedge(oedge+e[6], oface+qf2, oface+qf4,
-                                      v[3], oedge+e[3], oedge+e[5],
-                                      attr);
-            elements[j+4] = new Wedge(oface+qf3, oface+qf4, oface+qf2,
-                                      oedge+e[4], oedge+e[5], oedge+e[3],
-                                      attr);
-            elements[j+5] = new Wedge(oface+qf2, oedge+e[7], oface+qf3,
-                                      oedge+e[3], v[4], oedge+e[4],
-                                      attr);
-            elements[j+6] = new Wedge(oface+qf4, oface+qf3, oedge+e[8],
-                                      oedge+e[5], oedge+e[4], v[5],
-                                      attr);
+            new_elements[j++] =
+               new Wedge(v[0], oedge+e[0], oedge+e[2],
+                         oedge+e[6], oface+qf2, oface+qf4, attr);
 
-            v[1] = oedge+e[0];
-            v[2] = oedge+e[2];
-            v[3] = oedge+e[6];
-            v[4] = oface+qf2;
-            v[5] = oface+qf4;
+            new_elements[j++] =
+               new Wedge(oedge+e[1], oedge+e[2], oedge+e[0],
+                         oface+qf3, oface+qf4, oface+qf2, attr);
+
+            new_elements[j++] =
+               new Wedge(oedge+e[0], v[1], oedge+e[1],
+                         oface+qf2, oedge+e[7], oface+qf3, attr);
+
+            new_elements[j++] =
+               new Wedge(oedge+e[2], oedge+e[1], v[2],
+                         oface+qf4, oface+qf3, oedge+e[8], attr);
+
+            new_elements[j++] =
+               new Wedge(oedge+e[6], oface+qf2, oface+qf4,
+                         v[3], oedge+e[3], oedge+e[5], attr);
+
+            new_elements[j++] =
+               new Wedge(oface+qf3, oface+qf4, oface+qf2,
+                         oedge+e[4], oedge+e[5], oedge+e[3], attr);
+
+            new_elements[j++] =
+               new Wedge(oface+qf2, oedge+e[7], oface+qf3,
+                         oedge+e[3], v[4], oedge+e[4], attr);
+
+            new_elements[j++] =
+               new Wedge(oface+qf4, oface+qf3, oedge+e[8],
+                         oedge+e[5], oedge+e[4], v[5], attr);
          }
          break;
 
@@ -6293,35 +6553,38 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
                AverageVertices(vv, 2, oedge+e[ei]);
             }
 
-            elements[j+0] = new Hexahedron(oedge+e[0], v[1], oedge+e[1],
-                                           oface+qf[0], oface+qf[1], oedge+e[9],
-                                           oface+qf[2], oelem+he, attr);
-            elements[j+1] = new Hexahedron(oface+qf[0], oedge+e[1], v[2],
-                                           oedge+e[2], oelem+he, oface+qf[2],
-                                           oedge+e[10], oface+qf[3], attr);
-            elements[j+2] = new Hexahedron(oedge+e[3], oface+qf[0], oedge+e[2],
-                                           v[3], oface+qf[4], oelem+he,
-                                           oface+qf[3], oedge+e[11], attr);
-            elements[j+3] = new Hexahedron(oedge+e[8], oface+qf[1], oelem+he,
-                                           oface+qf[4], v[4], oedge+e[4],
-                                           oface+qf[5], oedge+e[7], attr);
-            elements[j+4] = new Hexahedron(oface+qf[1], oedge+e[9], oface+qf[2],
-                                           oelem+he, oedge+e[4], v[5],
-                                           oedge+e[5], oface+qf[5], attr);
-            elements[j+5] = new Hexahedron(oelem+he, oface+qf[2], oedge+e[10],
-                                           oface+qf[3], oface+qf[5], oedge+e[5],
-                                           v[6], oedge+e[6], attr);
-            elements[j+6] = new Hexahedron(oface+qf[4], oelem+he, oface+qf[3],
-                                           oedge+e[11], oedge+e[7], oface+qf[5],
-                                           oedge+e[6], v[7], attr);
-
-            v[1] = oedge+e[0];
-            v[2] = oface+qf[0];
-            v[3] = oedge+e[3];
-            v[4] = oedge+e[8];
-            v[5] = oface+qf[1];
-            v[6] = oelem+he;
-            v[7] = oface+qf[4];
+            new_elements[j++] =
+               new Hexahedron(v[0], oedge+e[0], oface+qf[0],
+                              oedge+e[3], oedge+e[8], oface+qf[1],
+                              oelem+he, oface+qf[4], attr);
+            new_elements[j++] =
+               new Hexahedron(oedge+e[0], v[1], oedge+e[1],
+                              oface+qf[0], oface+qf[1], oedge+e[9],
+                              oface+qf[2], oelem+he, attr);
+            new_elements[j++] =
+               new Hexahedron(oface+qf[0], oedge+e[1], v[2],
+                              oedge+e[2], oelem+he, oface+qf[2],
+                              oedge+e[10], oface+qf[3], attr);
+            new_elements[j++] =
+               new Hexahedron(oedge+e[3], oface+qf[0], oedge+e[2],
+                              v[3], oface+qf[4], oelem+he,
+                              oface+qf[3], oedge+e[11], attr);
+            new_elements[j++] =
+               new Hexahedron(oedge+e[8], oface+qf[1], oelem+he,
+                              oface+qf[4], v[4], oedge+e[4],
+                              oface+qf[5], oedge+e[7], attr);
+            new_elements[j++] =
+               new Hexahedron(oface+qf[1], oedge+e[9], oface+qf[2],
+                              oelem+he, oedge+e[4], v[5],
+                              oedge+e[5], oface+qf[5], attr);
+            new_elements[j++] =
+               new Hexahedron(oelem+he, oface+qf[2], oedge+e[10],
+                              oface+qf[3], oface+qf[5], oedge+e[5],
+                              v[6], oedge+e[6], attr);
+            new_elements[j++] =
+               new Hexahedron(oface+qf[4], oelem+he, oface+qf[3],
+                              oedge+e[11], oedge+e[7], oface+qf[5],
+                              oedge+e[6], v[7], attr);
          }
          break;
 
@@ -6329,16 +6592,18 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             MFEM_ABORT("Unknown 3D element type \"" << el_type << "\"");
             break;
       }
+      FreeElement(elements[i]);
    }
+   mfem::Swap(elements, new_elements);
 
-   boundary.SetSize(4 * NumOfBdrElements);
-   for (int i = 0; i < NumOfBdrElements; i++)
+   // refine boundary elements
+   new_boundary.SetSize(4 * NumOfBdrElements);
+   for (int i = 0, j = 0; i < NumOfBdrElements; i++)
    {
       const Element::Type bdr_el_type = boundary[i]->GetType();
       const int attr = boundary[i]->GetAttribute();
       int *v = boundary[i]->GetVertices();
       const int *e = bel_to_edge->GetRow(i);
-      const int j = NumOfBdrElements + 3 * i;
       int ev[4];
 
       if (e2v.Size())
@@ -6350,34 +6615,36 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
 
       if (bdr_el_type == Element::TRIANGLE)
       {
-         boundary[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
-         boundary[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
-         boundary[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
-
-         v[1] = oedge+e[0];
-         v[2] = oedge+e[2];
+         new_boundary[j++] =
+            new Triangle(v[0], oedge+e[0], oedge+e[2], attr);
+         new_boundary[j++] =
+            new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
+         new_boundary[j++] =
+            new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
+         new_boundary[j++] =
+            new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
       }
       else if (bdr_el_type == Element::QUADRILATERAL)
       {
          const int qf =
             (f2qf.Size() == 0) ? be_to_face[i] : f2qf[be_to_face[i]];
 
-         boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
-                                           oface+qf, attr);
-         boundary[j+1] = new Quadrilateral(oface+qf, oedge+e[1], v[2],
-                                           oedge+e[2], attr);
-         boundary[j+2] = new Quadrilateral(oedge+e[3], oface+qf,
-                                           oedge+e[2], v[3], attr);
-
-         v[1] = oedge+e[0];
-         v[2] = oface+qf;
-         v[3] = oedge+e[3];
+         new_boundary[j++] =
+            new Quadrilateral(v[0], oedge+e[0], oface+qf, oedge+e[3], attr);
+         new_boundary[j++] =
+            new Quadrilateral(oedge+e[0], v[1], oedge+e[1], oface+qf, attr);
+         new_boundary[j++] =
+            new Quadrilateral(oface+qf, oedge+e[1], v[2], oedge+e[2], attr);
+         new_boundary[j++] =
+            new Quadrilateral(oedge+e[3], oface+qf, oedge+e[2], v[3], attr);
       }
       else
       {
          MFEM_ABORT("boundary Element is not a triangle or a quad!");
       }
+      FreeElement(boundary[i]);
    }
+   mfem::Swap(boundary, new_boundary);
 
    static const double A = 0.0, B = 0.5, C = 1.0;
    static double tet_children[3*4*16] =
@@ -6428,20 +6695,21 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
       A,B,B, B,B,B, B,C,B, A,C,B, A,B,C, B,B,C, B,C,C, A,C,C
    };
 
-   CoarseFineTr.point_matrices[Geometry::TETRAHEDRON].
-   UseExternalData(tet_children, 3, 4, 16);
-   CoarseFineTr.point_matrices[Geometry::PRISM].
-   UseExternalData(pri_children, 3, 6, 8);
-   CoarseFineTr.point_matrices[Geometry::CUBE].
-   UseExternalData(hex_children, 3, 8, 8);
+   CoarseFineTr.point_matrices[Geometry::TETRAHEDRON]
+   .UseExternalData(tet_children, 3, 4, 16);
+   CoarseFineTr.point_matrices[Geometry::PRISM]
+   .UseExternalData(pri_children, 3, 6, 8);
+   CoarseFineTr.point_matrices[Geometry::CUBE]
+   .UseExternalData(hex_children, 3, 8, 8);
 
    for (int i = 0; i < elements.Size(); i++)
    {
-      // Tetrahedron elements are handled above:
+      // tetrahedron elements are handled above:
       if (elements[i]->GetType() == Element::TETRAHEDRON) { continue; }
+
       Embedding &emb = CoarseFineTr.embeddings[i];
-      emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 7;
-      emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 7 + 1;
+      emb.parent = i / 8;
+      emb.matrix = i % 8;
    }
 
    NumOfVertices    = vertices.Size();
@@ -6931,6 +7199,8 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(attributes, other.attributes);
    mfem::Swap(bdr_attributes, other.bdr_attributes);
 
+   mfem::Swap(geom_factors, other.geom_factors);
+
    if (non_geometry)
    {
       mfem::Swap(NURBSext, other.NURBSext);
@@ -7023,13 +7293,13 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
    else if (nonconforming < 0)
    {
       // determine if nonconforming refinement is suitable
-      if (meshgen & 2)
+      if ((meshgen & 2) || (meshgen & 4))
       {
-         nonconforming = 1;
+         nonconforming = 1; // tensor product elements and wedges
       }
       else
       {
-         nonconforming = 0;
+         nonconforming = 0; // simplices
       }
    }
 
@@ -7084,8 +7354,9 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
 
    if (!ncmesh)
    {
-      if ((meshgen & 2) /* quads/hexes */ ||
-          (triangles_nonconforming && Dim == 2 && (meshgen & 1)))
+      if ((meshgen & 0x2) /* quads/hexes */ ||
+          (meshgen & 0x4) /* wedges */ ||
+          (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
       {
          MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
                      "mixed meshes are not supported");
@@ -7508,12 +7779,7 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
 void Mesh::InitRefinementTransforms()
 {
    // initialize CoarseFineTr
-   map<Geometry::Type,DenseTensor> &pms = CoarseFineTr.point_matrices;
-   map<Geometry::Type,DenseTensor>::iterator pms_iter;
-   for (pms_iter = pms.begin(); pms_iter != pms.end(); ++pms_iter)
-   {
-      pms_iter->second.SetSize(0, 0, 0);
-   }
+   CoarseFineTr.Clear();
    CoarseFineTr.embeddings.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
    {
@@ -9353,6 +9619,27 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
                }
             }
          }
+         // Try neighbours for non-conforming meshes
+         if (ncmesh)
+         {
+            Array<int> neigh;
+            int le = ncmesh->leaf_elements[e_idx[k]];
+            ncmesh->FindNeighbors(le,neigh);
+            for (int e = 0; e < neigh.Size(); e++)
+            {
+               int nn = neigh[e];
+               if (ncmesh->IsGhost(ncmesh->elements[nn])) { continue; }
+               int el = ncmesh->elements[nn].index;
+               inv_tr->SetTransformation(*GetElementTransformation(el));
+               int res = inv_tr->Transform(pt, ips[k]);
+               if (res == InverseElementTransformation::Inside)
+               {
+                  elem_ids[k] = el;
+                  pts_found++;
+                  goto next_point;
+               }
+            }
+         }
       next_point: ;
       }
       delete vtoel;
@@ -9365,6 +9652,52 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    }
    return pts_found;
 }
+
+
+GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
+                                   int flags)
+{
+   this->mesh = mesh;
+   IntRule = &ir;
+   computed_factors = flags;
+
+   const GridFunction *nodes = mesh->GetNodes();
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int vdim = fespace->GetVDim();
+   const int NE   = fespace->GetNE();
+   const int ND   = fe->GetDof();
+   const int NQ   = ir.GetNPoints();
+
+   Vector Enodes(vdim*ND*NE);
+   // For now, we are not using tensor product evaluation
+   const Operator *elem_restr = fespace->GetElementRestriction(
+                                   ElementDofOrdering::NATIVE);
+   elem_restr->Mult(*nodes, Enodes);
+
+   unsigned eval_flags = 0;
+   if (flags & GeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::VALUES;
+   }
+   if (flags & GeometricFactors::JACOBIANS)
+   {
+      J.SetSize(vdim*vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::DERIVATIVES;
+   }
+   if (flags & GeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NE);
+      eval_flags |= QuadratureInterpolator::DETERMINANTS;
+   }
+
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
+   // For now, we are not using tensor product evaluation (not implemented)
+   qi->DisableTensorProducts();
+   qi->Mult(Enodes, eval_flags, X, J, detJ);
+}
+
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
                                                const double _s)
@@ -9775,5 +10108,52 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    }
    return mesh3d;
 }
+
+#ifdef MFEM_DEBUG
+void Mesh::DebugDump(std::ostream &out) const
+{
+   // dump vertices and edges (NCMesh "nodes")
+   out << NumOfVertices + NumOfEdges << "\n";
+   for (int i = 0; i < NumOfVertices; i++)
+   {
+      const double *v = GetVertex(i);
+      out << i << " " << v[0] << " " << v[1] << " " << v[2]
+          << " 0 0 " << i << " -1 0\n";
+   }
+
+   Array<int> ev;
+   for (int i = 0; i < NumOfEdges; i++)
+   {
+      GetEdgeVertices(i, ev);
+      double mid[3] = {0, 0, 0};
+      for (int j = 0; j < 2; j++)
+      {
+         for (int k = 0; k < spaceDim; k++)
+         {
+            mid[k] += GetVertex(ev[j])[k];
+         }
+      }
+      out << NumOfVertices+i << " "
+          << mid[0]/2 << " " << mid[1]/2 << " " << mid[2]/2 << " "
+          << ev[0] << " " << ev[1] << " -1 " << i << " 0\n";
+   }
+
+   // dump elements
+   out << NumOfElements << "\n";
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      const Element* e = elements[i];
+      out << e->GetNVertices() << " ";
+      for (int j = 0; j < e->GetNVertices(); j++)
+      {
+         out << e->GetVertices()[j] << " ";
+      }
+      out << e->GetAttribute() << " 0 " << i << "\n";
+   }
+
+   // dump faces
+   out << "0\n";
+}
+#endif
 
 }

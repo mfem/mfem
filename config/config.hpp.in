@@ -30,6 +30,12 @@
 #define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
+// The absolute path of the MFEM source prefix
+// #define MFEM_SOURCE_DIR "@MFEM_SOURCE_DIR@"
+
+// The absolute path of the MFEM installation prefix
+// #define MFEM_INSTALL_DIR "@MFEM_INSTALL_DIR@"
+
 // Description of the git commit used to build MFEM.
 // #define MFEM_GIT_STRING "@MFEM_GIT_STRING@"
 
@@ -62,8 +68,11 @@
 // allocation and de-allocation.
 // #define MFEM_THREAD_SAFE
 
-// Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
+// Enable the OpenMP backend.
 // #define MFEM_USE_OPENMP
+
+// [Deprecated] Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
+// #define MFEM_USE_LEGACY_OPENMP
 
 // Internal MFEM option: enable group/batch allocation for some small objects.
 // #define MFEM_USE_MEMALLOC
@@ -111,6 +120,20 @@
 
 // Enable MFEM functionality based on the PUMI library
 // #define MFEM_USE_PUMI
+
+// Build the NVIDIA GPU/CUDA-enabled version of the MFEM library.
+// Requires a CUDA compiler (nvcc).
+// #define MFEM_USE_CUDA
+
+// Build the AMD GPU/HIP-enabled version of the MFEM library.
+// Requires a HIP compiler (hipcc).
+// #define MFEM_USE_HIP
+
+// Enable functionality based on the RAJA library.
+// #define MFEM_USE_RAJA
+
+// Enable functionality based on the OCCA library.
+// #define MFEM_USE_OCCA
 
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@

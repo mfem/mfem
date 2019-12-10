@@ -22,7 +22,7 @@ CCOPTS = -g
 CCC = $(CC) $(CCOPTS)
 
 # -I$(MFEM_DIR) is needed by some tests, e.g. to #include "general/text.hpp"
-INCLUDES = $(MFEM_FLAGS) -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
+INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
 SOURCE_FILES = $(SRC)unit_test_main.cpp $(sort $(wildcard $(SRC)*/*.cpp))
 HEADER_FILES = $(SRC)catch.hpp
@@ -44,13 +44,13 @@ all: $(UNIT_TESTS)
 .PHONY: all clean
 
 unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LIBS) -o $(@)
+	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
 $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
-	$(CCC) -c $(abspath $(<)) $(INCLUDES) -o $(@)
+	$(CCC) -c $(abspath $(<)) $(INCLUDES) $(MFEM_FLAGS) -o $(@)
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .

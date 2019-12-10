@@ -96,7 +96,7 @@ public:
    { constants.SetSize(c.Size()); constants=c; }
 
    /// Update constants
-   void UpdateConstants(Vector &c) {constants.SetSize(c.Size()); constants=c;}
+   void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
 
    /// Member function to access or modify the value of the i-th constant
    double &operator()(int i) { return constants(i-1); }
@@ -111,6 +111,7 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
+
 
 /// class for C-function coefficient
 class FunctionCoefficient : public Coefficient
@@ -371,6 +372,7 @@ class VectorArrayCoefficient : public VectorCoefficient
 {
 private:
    Array<Coefficient*> Coeff;
+   Array<bool> ownCoeff;
 
 public:
    /// Construct vector of dim coefficients.
@@ -382,7 +384,7 @@ public:
    Coefficient **GetCoeffs() { return Coeff; }
 
    /// Sets coefficient in the vector.
-   void Set(int i, Coefficient *c) { delete Coeff[i]; Coeff[i] = c; }
+   void Set(int i, Coefficient *c, bool own=true);
 
    /// Evaluates i'th component of the vector.
    double Eval(int i, ElementTransformation &T, const IntegrationPoint &ip)
@@ -454,6 +456,7 @@ public:
    void SetGridFunction(const GridFunction *gf);
    const GridFunction * GetGridFunction() const { return GridFunc; }
 
+   using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
@@ -504,9 +507,13 @@ public:
    void SetDeltaCoefficient(const DeltaCoefficient& _d) { d = _d; }
    /// Return the associated scalar DeltaCoefficient.
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
+
+   void SetScale(double s) { d.SetScale(s); }
    void SetDirection(const Vector& _d);
 
+   void SetDeltaCenter(const Vector& center) { d.SetDeltaCenter(center); }
    void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
+
    /** @brief Return the specified direction vector multiplied by the value
        returned by DeltaCoefficient::EvalDelta() of the associated scalar
        DeltaCoefficient. */
@@ -632,6 +639,7 @@ class MatrixArrayCoefficient : public MatrixCoefficient
 {
 private:
    Array<Coefficient *> Coeff;
+   Array<bool> ownCoeff;
 
 public:
 
@@ -639,7 +647,7 @@ public:
 
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
-   void Set(int i, int j, Coefficient * c) { delete Coeff[i*width+j]; Coeff[i*width+j] = c; }
+   void Set(int i, int j, Coefficient * c, bool own=true);
 
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
@@ -796,6 +804,7 @@ public:
    /// Evaluate the coefficient
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a product of a scalar and a vector
@@ -810,6 +819,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a cross product of two vectors
@@ -827,6 +837,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a matrix vector product
@@ -844,6 +855,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Matrix coefficient defined as the identity of dimension d
