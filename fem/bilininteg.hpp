@@ -2058,6 +2058,14 @@ protected:
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
 
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned
+   const DofToQuad *mapsC;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+   Array<int> dof_map;
+
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
    VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL); }
@@ -2074,6 +2082,9 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
 /** Integrator for (Q div u, p) where u=(v1,...,vn) and all vi are in the same

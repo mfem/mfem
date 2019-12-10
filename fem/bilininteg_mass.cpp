@@ -786,4 +786,306 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
 }
 
+// PA H(curl) Mass Assemble 3D kernel
+// TODO: can this be merged with PAVectorDiffusionSetup3D from branch vecmass-vecdiff-dev?
+static void PAHcurlSetup3D(const int Q1D,
+			   const int NE,
+			   const Array<double> &w,
+			   const Vector &j,
+			   const double COEFF,
+			   Vector &op)
+{
+   const int NQ = Q1D*Q1D*Q1D;
+   auto W = w.Read();
+   auto J = Reshape(j.Read(), NQ, 3, 3, NE);
+   auto y = Reshape(op.Write(), NQ, 6, NE);
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J31 = J(q,2,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double J32 = J(q,2,1,e);
+         const double J13 = J(q,0,2,e);
+         const double J23 = J(q,1,2,e);
+         const double J33 = J(q,2,2,e);
+         const double detJ = J11 * (J22 * J33 - J32 * J23) -
+         /* */               J21 * (J12 * J33 - J32 * J13) +
+         /* */               J31 * (J12 * J23 - J22 * J13);
+         const double c_detJ = W[q] * COEFF / detJ;
+         // adj(J)
+         const double A11 = (J22 * J33) - (J23 * J32);
+         const double A12 = (J32 * J13) - (J12 * J33);
+         const double A13 = (J12 * J23) - (J22 * J13);
+         const double A21 = (J31 * J23) - (J21 * J33);
+         const double A22 = (J11 * J33) - (J13 * J31);
+         const double A23 = (J21 * J13) - (J11 * J23);
+         const double A31 = (J21 * J32) - (J31 * J22);
+         const double A32 = (J31 * J12) - (J11 * J32);
+         const double A33 = (J11 * J22) - (J12 * J21);
+         // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
+         y(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+         y(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+         y(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+         y(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+         y(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+         y(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+      }
+   });
+}
+
+void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+  // Assumes tensor-product elements
+  Mesh *mesh = fes.GetMesh();
+  const FiniteElement *fel = fes.GetFE(0);
+
+  const ND_HexahedronElement *el = dynamic_cast<const ND_HexahedronElement*>(fel);
+  MFEM_VERIFY(el != NULL, "Only ND_HexahedronElement is supported!");
+
+  const IntegrationRule *ir
+    = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el, *mesh->GetElementTransformation(0));
+  const int dims = el->GetDim();
+  MFEM_VERIFY(dims == 3, "");
+
+  const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+  const int nq = ir->GetNPoints();
+  dim = mesh->Dimension();
+  MFEM_VERIFY(dim == 3, "");
+
+  ne = fes.GetNE();
+  geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+  mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+  mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+  dofs1D = mapsC->ndof;
+  quad1D = mapsC->nqpt;
+
+  MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+
+  pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+  double coeff = 1.0;
+  if (Q)
+    {
+      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
+      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+      coeff = cQ->constant;
+    }
+
+  if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
+    {
+      PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
+		     coeff, pa_data);
+    }
+  else
+    MFEM_ABORT("Unknown kernel.");
+
+  dof_map = el->GetDofMap();
+}
+
+static void PAHcurlMassApply3D(const int dim,
+			       const int D1D,
+			       const int Q1D,
+			       const int NE,
+			       const Array<int> &dof_map,
+			       const Array<double> &_Bo,
+			       const Array<double> &_Bc,
+			       const Array<double> &_Bot,
+			       const Array<double> &_Bct,
+			       const Vector &_op,
+			       const Vector &_x,
+			       Vector &_y)
+{
+  MFEM_VERIFY(dim == 3, "");
+
+  constexpr int VDIM = 3;
+
+  auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+  auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
+  auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
+  auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
+  auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+  auto x = Reshape(_x.Read(), D1D-1, D1D, D1D, VDIM, NE);  // Note that this is not the right shape in all dimensions.
+  auto y = Reshape(_y.ReadWrite(), D1D-1, D1D, D1D, VDIM, NE);  // Note that this is not the right shape in all dimensions.
+
+  const int esize = (D1D - 1) * D1D * D1D * VDIM;
+
+  MFEM_FORALL(e, NE,
+  {
+    const int ose = e * esize;
+    double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
+
+    for (int qz = 0; qz < Q1D; ++qz)
+      {
+	for (int qy = 0; qy < Q1D; ++qy)
+	  {
+	    for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		for (int c = 0; c < VDIM; ++c)
+		  {
+		    mass[qz][qy][qx][c] = 0.0;
+		  }
+	      }
+	  }
+      }
+
+    int osc = 0;
+
+    for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+	const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+	const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+	const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+	for (int dz = 0; dz < D1Dz; ++dz)
+	  {
+	    double massXY[MAX_Q1D][MAX_Q1D];
+	    for (int qy = 0; qy < Q1D; ++qy)
+	      {
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    massXY[qy][qx] = 0.0;
+		  }
+	      }
+
+	    for (int dy = 0; dy < D1Dy; ++dy)
+	      {
+		double massX[MAX_Q1D];
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    massX[qx] = 0.0;
+		  }
+
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    //const double s = x(dx,dy,dz,c,e);  // does not work, because dimensions depend on c.
+		    const double s = dof_map[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
+		    const double t = s * x[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose];
+		    for (int qx = 0; qx < Q1D; ++qx)
+		      {
+			massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
+		      }
+		  }
+
+		for (int qy = 0; qy < Q1D; ++qy)
+		  {
+		    const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
+		    for (int qx = 0; qx < Q1D; ++qx)
+		      {
+			const double wx = massX[qx];
+			massXY[qy][qx] += wx * wy;
+		      }
+		  }
+	      }
+
+	    for (int qz = 0; qz < Q1D; ++qz)
+	      {
+		const double wz = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
+		for (int qy = 0; qy < Q1D; ++qy)
+		  {
+		    for (int qx = 0; qx < Q1D; ++qx)
+		      {
+			mass[qz][qy][qx][c] += massXY[qy][qx] * wz;
+		      }
+		  }
+	      }
+	  }
+
+	osc += D1Dx * D1Dy * D1Dz;
+      }  // loop (c) over components
+
+    // Apply D operator.
+    for (int qz = 0; qz < Q1D; ++qz)
+      {
+	for (int qy = 0; qy < Q1D; ++qy)
+	  {
+	    for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		const int q = qx + (qy + qz * Q1D) * Q1D;
+		const double O11 = op(q,0,e);
+		const double O12 = op(q,1,e);
+		const double O13 = op(q,2,e);
+		const double O22 = op(q,3,e);
+		const double O23 = op(q,4,e);
+		const double O33 = op(q,5,e);
+		const double massX = mass[qz][qy][qx][0];
+		const double massY = mass[qz][qy][qx][1];
+		const double massZ = mass[qz][qy][qx][2];
+		mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
+		mass[qz][qy][qx][1] = (O12*massX)+(O22*massY)+(O23*massZ);
+		mass[qz][qy][qx][2] = (O13*massX)+(O23*massY)+(O33*massZ);
+	      }
+	  }
+      }
+
+    for (int qz = 0; qz < Q1D; ++qz)
+      {
+	double massXY[MAX_D1D][MAX_D1D];
+
+	osc = 0;
+
+	for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+	  {
+	    const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+	    const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+	    const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+	    for (int dy = 0; dy < D1Dy; ++dy)
+	      {
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    massXY[dy][dx] = 0;
+		  }
+	      }
+	    for (int qy = 0; qy < Q1D; ++qy)
+	      {
+		double massX[MAX_D1D];
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    massX[dx] = 0;
+		  }
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			massX[dx] += mass[qz][qy][qx][c] * ((c == 0) ? Bot(dx,qx) : Bct(dx,qx));
+		      }
+		  }
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    const double wy = (c == 1) ? Bot(dy,qy) : Bct(dy,qy);
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			massXY[dy][dx] += massX[dx] * wy;
+		      }
+		  }
+	      }
+
+	    for (int dz = 0; dz < D1Dz; ++dz)
+	      {
+		const double wz = (c == 2) ? Bot(dz,qz) : Bct(dz,qz);
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			//y(dx,dy,dz,c,e) += massXY[dy][dx] * wz;  // does not work, because dimensions depend on c.
+			const double s = dof_map[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
+			y[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * massXY[dy][dx] * wz;
+		      }
+		  }
+	      }
+
+	    osc += D1Dx * D1Dy * D1Dz;
+	  }  // loop c
+      }  // loop qz
+  }); // end of element loop
+}
+
+void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+  PAHcurlMassApply3D(dim, dofs1D, quad1D, ne, dof_map, mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt, pa_data, x, y);
+}
+
 } // namespace mfem

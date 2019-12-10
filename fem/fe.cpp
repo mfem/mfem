@@ -7035,7 +7035,8 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
             dof_map[p + (p + p*p1)*p1] = 6;
             dof_map[0 + (p + p*p1)*p1] = 7;
 
-            // edges (see Hexahedron::edges in mesh/hexahedron.cpp)
+            // edges (see Hexahedron::edges in mesh/hexahedron.cpp). 
+	    // edges (see Constants<Geometry::CUBE>::Edges in fem/geom.cpp).
             int o = 8;
             for (int i = 1; i < p; i++)
             {
@@ -10744,10 +10745,13 @@ ND_HexahedronElement::ND_HexahedronElement(const int p,
                                            const int cb_type, const int ob_type)
    : VectorFiniteElement(3, Geometry::CUBE, 3*p*(p + 1)*(p + 1), p,
                          H_CURL, FunctionSpace::Qk),
+     TensorBasisElement(3, p, cb_type, DofMapType::L2_DOF_MAP),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
-     dof_map(Dof), dof2tk(Dof)
+     dof2tk(Dof)
 {
+   dof_map.SetSize(Dof);
+
    const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
    const int dof3 = Dof/3;
@@ -11107,6 +11111,71 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
          }
 }
 
+const DofToQuad &ND_HexahedronElement::GetDofToQuad(const IntegrationRule &ir,
+						    DofToQuad::Mode mode) const
+{
+  MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+
+  return GetTensorDofToQuad(ir, mode, true);
+}
+
+const DofToQuad &ND_HexahedronElement::GetDofToQuadOpen(const IntegrationRule &ir,
+							DofToQuad::Mode mode) const
+{
+  MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+
+  return GetTensorDofToQuad(ir, mode, false);
+}
+
+const DofToQuad &ND_HexahedronElement::GetTensorDofToQuad(const IntegrationRule &ir,
+							  DofToQuad::Mode mode,
+							  const bool closed) const
+{
+   MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
+
+   for (int i = 0; i < closed ? dof2quad_array.Size() : dof2quad_array_open.Size(); i++)
+   {
+     const DofToQuad &d2q = closed ? *dof2quad_array[i] : *dof2quad_array_open[i];
+     if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+   }
+
+   DofToQuad *d2q = new DofToQuad;
+   const int ndof = closed ? Order + 1 : Order;
+   const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/Dim) + 0.5);
+   d2q->FE = this;
+   d2q->IntRule = &ir;
+   d2q->mode = mode;
+   d2q->ndof = ndof;
+   d2q->nqpt = nqpt;
+   d2q->B.SetSize(nqpt*ndof);
+   d2q->Bt.SetSize(ndof*nqpt);
+   d2q->G.SetSize(nqpt*ndof);
+   d2q->Gt.SetSize(ndof*nqpt);
+   Vector val(ndof), grad(ndof);
+   for (int i = 0; i < nqpt; i++)
+   {
+      // The first 'nqpt' points in 'ir' have the same x-coordinates as those
+      // of the 1D rule.
+
+      if (closed)
+	cbasis1d.Eval(ir.IntPoint(i).x, val, grad);
+      else
+	obasis1d.Eval(ir.IntPoint(i).x, val, grad);
+
+      for (int j = 0; j < ndof; j++)
+      {
+         d2q->B[i+nqpt*j] = d2q->Bt[j+ndof*i] = val(j);
+         d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
+      }
+   }
+
+   if (closed)
+     dof2quad_array.Append(d2q);
+   else
+     dof2quad_array_open.Append(d2q);
+
+   return *d2q;
+}
 
 const double ND_QuadrilateralElement::tk[8] =
 { 1.,0.,  0.,1., -1.,0., 0.,-1. };
