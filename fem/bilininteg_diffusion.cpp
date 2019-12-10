@@ -631,7 +631,7 @@ static void PADiffusionAssembleDiagonal(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-void DiffusionIntegrator::AssembleDiagonalPA(Vector& diag) const
+void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag) const
 {
    PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
                                maps->B, maps->G, pa_data, diag);

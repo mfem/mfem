@@ -609,7 +609,7 @@ void BilinearForm::ConformingAssemble()
 }
 
 
-void BilinearForm::AssembleDiagonal(Vector& diag) const
+void BilinearForm::AssembleDiagonal(Vector &diag) const
 {
    if (ext)
    {

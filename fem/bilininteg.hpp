@@ -45,7 +45,7 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    /// Assemble diagonal into Vector @a diag.
-   virtual void AssembleDiagonalPA(Vector& diag) const;
+   virtual void AssembleDiagonalPA(Vector &diag) const;
 
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
@@ -1722,7 +1722,7 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace&);
 
-   virtual void AssembleDiagonalPA(Vector& diag) const;
+   virtual void AssembleDiagonalPA(Vector &diag) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
@@ -1764,7 +1764,7 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace&);
 
-   virtual void AssembleDiagonalPA(Vector& diag) const;
+   virtual void AssembleDiagonalPA(Vector &diag) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 

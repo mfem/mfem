@@ -404,7 +404,7 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
    MFEM_ABORT("Unknown kernel.");
 }
 
-void MassIntegrator::AssembleDiagonalPA(Vector& diag) const
+void MassIntegrator::AssembleDiagonalPA(Vector &diag) const
 {
    PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
 }
