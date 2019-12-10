@@ -195,7 +195,7 @@ public:
 
    /// Returns the values of element @a i at IntegrationPoint%s from @a ir for
    /// dimension @a vdim.
-   /** The real-space evaluation points are returned in @a tr. */
+   /** The physical space evaluation points are returned in @a tr. */
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   DenseMatrix &tr, int vdim = 1) const;
 
@@ -206,7 +206,7 @@ public:
 
    /// Returns the values of boundary element @a i at IntegrationPoint%s from
    /// @a ir for dimension @a vdim.
-   /** The real-space evaluation points are returned in @a tr. */
+   /** The physical space evaluation points are returned in @a tr. */
    void GetBdrValues(int i, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
 
@@ -219,7 +219,7 @@ public:
 
    /// Returns the values of face element @a i on side @a side at
    /// IntegrationPoint%s from @a ir for dimension @a vdim.
-   /** The real-space evaluation points are returned in @a tr.
+   /** The physical space evaluation points are returned in @a tr.
        @returns Indication of the side used. See GetFaceElementTransformations()
        for further description. */
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
@@ -232,7 +232,7 @@ public:
 
    /// Returns the values of the face element corresponding to boundary element
    /// @a iBdrEl at IntegrationPoint%s from @a ir for dimension @a vdim.
-   /** The real-space evaluation points are returned in @a tr. */
+   /** The physical space evaluation points are returned in @a tr. */
    void GetBdrFaceValues(int iBdrEl, const IntegrationRule &ir,
                          Vector &vals, DenseMatrix &tr, int vdim = 1) const;
 
@@ -243,7 +243,7 @@ public:
 
    /// Returns the vector values of element associated with
    /// ElementTransformation @a T at IntegrationPoint%s from @a ir.
-   /** The real-space evaluation points are returned in @a tr. */
+   /** The physical space evaluation points are returned in @a tr. */
    void GetVectorValues(int i, const IntegrationRule &ir,
                         DenseMatrix &vals, DenseMatrix &tr) const;
 
@@ -254,7 +254,7 @@ public:
 
    /// Returns the vector values of boundary element associated with
    /// ElementTransformation @a T at IntegrationPoint%s from @a ir.
-   /** The real-space evaluation points are returned in @a tr. */
+   /** The physical space evaluation points are returned in @a tr. */
    void GetBdrVectorValues(int i, const IntegrationRule &ir,
                            DenseMatrix &vals, DenseMatrix &tr) const;
 
@@ -267,7 +267,7 @@ public:
 
    /// Returns the vector values of face element @a i on side @a side at
    /// IntegrationPoint%s from @a ir for dimension @a vdim.
-   /** The real-space evaluation points are returned in @a tr.
+   /** The physical space evaluation points are returned in @a tr.
        @returns Indication of the side used. See GetFaceElementTransformations()
        for further description. */
    int GetFaceVectorValues(int i, int side, const IntegrationRule &ir,
@@ -280,7 +280,7 @@ public:
 
    /// Returns the vector values of the face element corresponding to boundary
    /// element @a iBdrEl at IntegrationPoint%s from @a ir.
-   /** The real-space evaluation points are returned in @a tr. */
+   /** The physical space evaluation points are returned in @a tr. */
    void GetBdrFaceVectorValues(int iBdrEl, const IntegrationRule &ir,
                                DenseMatrix &vals, DenseMatrix &tr) const;
 
