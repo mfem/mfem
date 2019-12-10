@@ -982,7 +982,7 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          it->second->GetValues(i, RefG->RefPts, val, pmat);
          for (int j = 0; j < val.Size(); j++)
          {
-            out << val(j) << '\n';
+            out << (float)val(j) << '\n';
          }
       }
 
@@ -1004,7 +1004,7 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          {
             for (int ii = 0; ii < vval.Height(); ii++)
             {
-               out << vval(ii, jj) << ' ';
+               out << (float)vval(ii, jj) << ' ';
             }
             out << std::endl;
          }

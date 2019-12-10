@@ -8249,14 +8249,14 @@ void Mesh::PrintVTK(std::ostream &out)
 
 void Mesh::PrintVTU(std::string fname)
 {
-   fname=fname+".vtu";
+   fname = fname + ".vtu";
    std::fstream out(fname.c_str(),std::ios::out);
-   out<<"<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"<<std::endl;
-   out<<"<UnstructuredGrid>"<<std::endl;
+   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">" << std::endl;
+   out << "<UnstructuredGrid>" << std::endl;
    PrintVTU(out,1);
-   out<<"</Piece>"<<std::endl; //needed to close the piece open in the PrintVTU method
-   out<<"</UnstructuredGrid>"<<std::endl;
-   out<<"</VTKFile>"<<std::endl;
+   out << "</Piece>" << std::endl; //needed to close the piece open in the PrintVTU method
+   out << "</UnstructuredGrid>" << std::endl;
+   out << "</VTKFile>" << std::endl;
 
    out.close();
 
@@ -8281,13 +8281,11 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
    }
 
 
-   //out<<"<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"<<std::endl;
-   //out<<"<UnstructuredGrid>"<<std::endl;
-   out<<"<Piece NumberOfPoints=\""<<np<<"\" NumberOfCells=\""<<nc<<"\">"<<std::endl;
+   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\"" << nc << "\">" << std::endl;
 
    //print out the points
-   out<<"<Points>"<<std::endl;
-   out<<"<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">"<<std::endl;
+   out << "<Points>" << std::endl;
+   out << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">" << std::endl;
    for (int i = 0; i < GetNE(); i++)
    {
       RefG = GlobGeometryRefiner.Refine(
@@ -8297,34 +8295,34 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
 
       for (int j = 0; j < pmat.Width(); j++)
       {
-         out << pmat(0, j) << ' ';
+         out << (float)pmat(0, j) << ' ';
          if (pmat.Height() > 1)
          {
-            out << pmat(1, j) << ' ';
+            out << (float)pmat(1, j) << ' ';
             if (pmat.Height() > 2)
             {
-               out << pmat(2, j);
+               out << (float)pmat(2, j);
             }
             else
             {
-               out << 0.0;
+               out << (float)0.0;
             }
          }
          else
          {
-            out << 0.0 << ' ' << 0.0;
+            out << (float)0.0 << ' ' << (float)0.0;
          }
          out << '\n';
       }
    }
-   out<<"</DataArray>"<<std::endl;
-   out<<"</Points>"<<std::endl;
+   out << "</DataArray>" << std::endl;
+   out << "</Points>" << std::endl;
 
-   out<<"<Cells>"<<std::endl;
-   out<<"<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">"<<std::endl;
+   out << "<Cells>" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">"<<std::endl;
    //connectivity
    std::vector<int> offset;
-   int coff=0;
+   int coff = 0;
    np = 0;
    for (int i = 0; i < GetNE(); i++)
    {
@@ -8336,7 +8334,7 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
       for (int j = 0; j < RG.Size(); )
       {
          //out << nv;
-         coff=coff+nv;
+         coff = coff+nv;
          offset.push_back(coff);
 
          for (int k = 0; k < nv; k++, j++)
@@ -8347,13 +8345,13 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
       }
       np += RefG->RefPts.GetNPoints();
    }
-   out<<"</DataArray>"<<std::endl;
+   out << "</DataArray>" << std::endl;
 
-   out<<"<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">"<<std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">" << std::endl;
    //offsets
    for (size_t ii=0; ii<offset.size(); ii++) { out<<offset[ii]<<std::endl;}
-   out<<"</DataArray>"<<std::endl;
-   out<<"<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">"<<std::endl;
+   out << "</DataArray>" << std::endl;
+   out << "<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">" << std::endl;
    //cell types
    for (int i = 0; i < GetNE(); i++)
    {
@@ -8382,11 +8380,11 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
          out << vtk_cell_type << '\n';
       }
    }
-   out<<"</DataArray>"<<std::endl;
-   out<<"</Cells>"<<std::endl;
+   out << "</DataArray>" << std::endl;
+   out << "</Cells>" << std::endl;
 
-   out<<"<CellData Scalars=\"material\">"<<std::endl;
-   out<<"<DataArray type=\"Int32\" Name=\"material\" format=\"ascii\">"<<std::endl;
+   out << "<CellData Scalars=\"material\">" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"material\" format=\"ascii\">" << std::endl;
    for (int i = 0; i < GetNE(); i++)
    {
       Geometry::Type geom = GetElementBaseGeometry(i);
@@ -8398,11 +8396,11 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
          out << attr << '\n';
       }
    }
-   out<<"</DataArray>"<<std::endl;
+   out << "</DataArray>" << std::endl;
 
    if (Dim > 1)
    {
-      out<<"<DataArray type=\"Int32\" Name=\"element_coloring\" format=\"ascii\">"<<std::endl;
+      out << "<DataArray type=\"Int32\" Name=\"element_coloring\" format=\"ascii\">" << std::endl;
       Array<int> coloring;
       srand((unsigned)time(0));
       double a = double(rand()) / (double(RAND_MAX) + 1.);
@@ -8418,14 +8416,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
             out << coloring[i] + 1 << '\n';
          }
       }
-      out<<"</DataArray>"<<std::endl;
+      out << "</DataArray>" << std::endl;
    }
 
-   out<<"</CellData>"<<std::endl;
-
-   //out<<"</Piece>"<<std::endl;
-   //out<<"</UnstructuredGrid>"<<std::endl;
-   //out<<"</VTKFile>"<<std::endl;
+   out << "</CellData>" << std::endl;
 }
 
 
