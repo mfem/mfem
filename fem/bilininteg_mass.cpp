@@ -751,7 +751,7 @@ static void PAMassApply(const int dim,
 #endif // MFEM_USE_OCCA
    if (dim == 2)
    {
-      switch ((D1D << 4 ) | Q1D)
+      switch ((D1D << 4) | Q1D)
       {
          case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
          case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
@@ -766,7 +766,7 @@ static void PAMassApply(const int dim,
    }
    else if (dim == 3)
    {
-      switch ((D1D << 4 ) | Q1D)
+      switch ((D1D << 4) | Q1D)
       {
          case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
