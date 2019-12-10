@@ -167,21 +167,32 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
    }
 
    MFEM_VERIFY(b_norm.get()->at(0, 0) != 0.0, " rhs norm is zero");
-   // Pass the number of iterations and residual norm to the solver_control
-   // object. As both `residual_norm_d_master` and `b_norm` are seen as Dense
+   // Some residual norm and convergence print outs. As both `residual_norm_d_master` and `b_norm` are seen as Dense
    // matrices, we use the `at` function to get the first value here. In case
    // of multiple right hand sides, this will need to be modified.
+   auto fin_res_norm = std::pow(residual_norm_d_master->at(0,0) / b_norm->at(0,0),
+                                2);
    if (num_iteration==max_iter &&
-       (residual_norm_d_master->at(0, 0) / b_norm->at(0, 0)) > rel_tol )
+       fin_res_norm > rel_tol )
    {
-      converged = -1;
+      converged = 1;
    }
-   if ((residual_norm_d_master->at(0, 0) / b_norm->at(0, 0)) < rel_tol)
+   if (fin_res_norm < rel_tol)
    {
       converged =0;
    }
-   MFEM_VERIFY(converged ==0, " Solver did not converge"
-              );
+   if (converged!=0)
+   {
+      mfem::err << "No convergence!" << '\n';
+      mfem::out << "(B r_N, r_N) = " << fin_res_norm << '\n'
+                << "Number of iterations: " << num_iteration << '\n';
+   }
+   else if (print_lvl >=1 && converged==0 )
+   {
+      mfem::out << "Converged in " << num_iteration <<
+                " iterations with final residual norm "
+                << fin_res_norm << '\n';
+   }
 
    // Check if the solution is on a CUDA device, if so, copy it over to the
    // host.

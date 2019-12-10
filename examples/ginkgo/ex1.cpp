@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
             gko::preconditioner::Ilu<gko::solver::LowerTrs<>,
             gko::solver::UpperTrs<>, false>::build()
             .on(exec);
-         GinkgoWrappers::CGSolver ginkgo_solver(executor, 1, 2000, 1e-6, 0.0,
+         GinkgoWrappers::CGSolver ginkgo_solver(executor, 1, 2000, 1e-12, 0.0,
                                                 ilu_precond.release() );
          ginkgo_solver.solve(&((SparseMatrix&)(*A)), X, B);
 
