@@ -125,7 +125,7 @@ void DGTraceIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetFaceElement(0);
+   const FiniteElement &el = *fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0));
    FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = &GetRule(el.GetGeomType(), el.GetOrder(), T);
    // Note: GetFE(0) and GetFaceElement(0) return elements with *different*

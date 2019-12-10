@@ -3252,7 +3252,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
+     dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
      m(m),
      nfdofs(nf*dof),
      indices1(nf*dof),
@@ -3269,18 +3269,12 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    {
       for (int f = 0; f < nf; ++f)
       {
-         const FiniteElement *fe = fes.GetFaceElement(f);
+         const FiniteElement *fe = fes.GetTraceElement(f,fes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
          mfem_error("Finite element not suitable for lexicographic ordering");
       }
-      const FiniteElement *fe = fes.GetFaceElement(0);
-      const TensorBasisElement* el =
-         dynamic_cast<const TensorBasisElement*>(fe);
-      const Array<int> &fe_dof_map = el->GetDofMap();
-      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
-      dof_map = fe_dof_map.GetData();
    }
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
@@ -4356,7 +4350,7 @@ void FaceQuadratureInterpolator::Mult(
    if (nf == 0) { return; }
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe = fespace->GetFaceElement(0);
+   const FiniteElement *fe = fespace->GetTraceElement(0,fespace->GetMesh()->GetFaceBaseGeometry(0));
    const IntegrationRule *ir =
       IntRule ? IntRule : &qspace->GetElementIntRule(0);
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);

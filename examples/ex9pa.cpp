@@ -17,14 +17,14 @@ void AddDGIntegrators(BilinearForm &k, VectorCoefficient &velocity)
 {
    double alpha = 1.0;
    double beta = -0.5;
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -alpha));
+   // k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -alpha));
    // k.AddDomainIntegrator(new MassIntegrator);
    // k.AddInteriorFaceIntegrator(
    //    new TransposeIntegrator(new DGTraceIntegrator(velocity, alpha, beta)));
-   // k.AddInteriorFaceIntegrator(new DGTraceIntegrator(velocity, alpha, beta));
    // k.AddBdrFaceIntegrator(
    //    new TransposeIntegrator(new DGTraceIntegrator(velocity, alpha, beta)));
-   // k.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, alpha, beta));
+   k.AddInteriorFaceIntegrator(new DGTraceIntegrator(velocity, alpha, beta));
+   k.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, alpha, beta));
 }
 
 void SaveSolution(const std::string &fname, GridFunction &gf)
