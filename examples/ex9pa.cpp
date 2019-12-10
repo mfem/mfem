@@ -16,14 +16,14 @@ Vector bb_min, bb_max;
 void AddDGIntegrators(BilinearForm &k, VectorCoefficient &velocity)
 {
    double alpha = 1.0;
-   double beta = 1.0;
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   k.AddDomainIntegrator(new MassIntegrator);
-   k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, alpha, beta)));
+   double beta = -0.5;
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -alpha));
+   // k.AddDomainIntegrator(new MassIntegrator);
+   // k.AddInteriorFaceIntegrator(
+   //    new TransposeIntegrator(new DGTraceIntegrator(velocity, alpha, beta)));
    // k.AddInteriorFaceIntegrator(new DGTraceIntegrator(velocity, alpha, beta));
-   k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, alpha, beta)));
+   // k.AddBdrFaceIntegrator(
+   //    new TransposeIntegrator(new DGTraceIntegrator(velocity, alpha, beta)));
    // k.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, alpha, beta));
 }
 
@@ -68,6 +68,8 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+
+   mesh.EnsureNodes();
 
    for (int lev = 0; lev < ref_levels; lev++)
    {

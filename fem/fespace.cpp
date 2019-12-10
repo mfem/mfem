@@ -896,6 +896,48 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
    }
 }
 
+const Operator *FiniteElementSpace::GetSingleValuedFaceRestriction(
+   ElementDofOrdering e_ordering) const
+{
+   // Check if we have a discontinuous space using the FE collection:
+   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
+   if (dg_space)
+   {
+      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+      {
+         if (L2F_lex.Ptr() == NULL)
+         {
+            L2F_lex.Reset(new L2FaceRestriction(*this, e_ordering, L2FaceValues::Single));
+         }
+         return L2F_lex.Ptr();
+      }
+      // e_ordering == ElementDofOrdering::NATIVE
+      if (L2F_nat.Ptr() == NULL)
+      {
+         L2F_nat.Reset(new L2FaceRestriction(*this, e_ordering, L2FaceValues::Single));
+      }
+      return L2F_nat.Ptr();
+   }
+   else
+   {
+      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+      {
+         if (L2F_lex.Ptr() == NULL)
+         {
+            L2F_lex.Reset(new H1FaceRestriction(*this, e_ordering));
+         }
+         return L2F_lex.Ptr();
+      }
+      // e_ordering == ElementDofOrdering::NATIVE
+      if (L2F_nat.Ptr() == NULL)
+      {
+         L2F_nat.Reset(new H1FaceRestriction(*this, e_ordering));
+      }
+      return L2F_nat.Ptr();
+   }
+}
+
+
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const IntegrationRule &ir) const
 {
@@ -3204,20 +3246,21 @@ static int PermuteFaceL2(const int dim, const int face_id, const int orientation
 }
 
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
-                                     ElementDofOrdering e_ordering)
+                                     ElementDofOrdering e_ordering, L2FaceValues m)
    : fes(fes),
      nf(fes.GetNF()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
      dof(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
+     m(m),
      nfdofs(nf*dof),
      indices1(nf*dof),
-     indices2(nf*dof)
+     indices2(m==L2FaceValues::Double?nf*dof:0)
 {
    //if fespace == L2
    // Assuming all finite elements are the same.
-   height = 2*vdim*nf*dof;
+   height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if(!dof_reorder) mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
@@ -3273,21 +3316,24 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          const int lid = dof*f + d;
          indices1[lid] = gid;
       }
-      for (int d = 0; d < dof; ++d)
+      if (m==L2FaceValues::Double)
       {
-         if (e2!=-1)//FIXME
+         for (int d = 0; d < dof; ++d)
          {
-            const int pd = PermuteFaceL2(dim, face_id, orientation, dof1d, d);
-            const int face_dof = faceMap2[pd];
-            const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
-            const int gid = elementMap[e2*elem_dofs + did];
-            const int lid = dof*f + d;
-            indices2[lid] = gid;//TODO Add permutation
-         }
-         else
-         {
-            const int lid = dof*f + d;
-            indices2[lid] = -1;
+            if (e2!=-1)//FIXME
+            {
+               const int pd = PermuteFaceL2(dim, face_id, orientation, dof1d, d);
+               const int face_dof = faceMap2[pd];
+               const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
+               const int gid = elementMap[e2*elem_dofs + did];
+               const int lid = dof*f + d;
+               indices2[lid] = gid;//TODO Add permutation
+            }
+            else
+            {
+               const int lid = dof*f + d;
+               indices2[lid] = -1;
+            }
          }
       }
    }
@@ -3299,26 +3345,42 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   auto d_indices1 = indices1.Read();
-   auto d_indices2 = indices2.Read();
-   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-   auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
-   MFEM_FORALL(i, nfdofs,
-   {
-      const int dof = i % nd;
-      const int face = i / nd;
-      const int idx1 = d_indices1[i];
-      //FIXME we might want to also set this to 0 when idx2==-1, to separate interior/boundary faces.
-      for (int c = 0; c < vd; ++c)
+   if(m==L2FaceValues::Double){
+      auto d_indices1 = indices1.Read();
+      auto d_indices2 = indices2.Read();
+      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
+      MFEM_FORALL(i, nfdofs,
       {
-         d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
-      }
-      const int idx2 = d_indices2[i];//TODO Permutation of d_indices2
-      for (int c = 0; c < vd; ++c)
+         const int dof = i % nd;
+         const int face = i / nd;
+         const int idx1 = d_indices1[i];
+         //FIXME we might want to also set this to 0 when idx2==-1, to separate interior/boundary faces.
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
+         }
+         const int idx2 = d_indices2[i];//TODO Permutation of d_indices2
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);//TODO Add permutation
+         }
+      });
+   } else {
+      auto d_indices1 = indices1.Read();
+      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      MFEM_FORALL(i, nfdofs,
       {
-         d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);//TODO Add permutation
-      }
-   });
+         const int dof = i % nd;
+         const int face = i / nd;
+         const int idx1 = d_indices1[i];
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
+         }
+      });      
+   }
 }
 
 void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
@@ -3327,20 +3389,34 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   auto d_indices1 = indices1.Read();
-   auto d_indices2 = indices2.Read();
-   auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, nfdofs,
-   {
-      const int idx1 = d_indices1[i];
-      const int idx2 = d_indices2[i];//TODO Add permutation
-      for (int c = 0; c < vd; ++c)
+   if(m==L2FaceValues::Double){
+      auto d_indices1 = indices1.Read();
+      auto d_indices2 = indices2.Read();
+      auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
+      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      MFEM_FORALL(i, nfdofs,
       {
-         d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, 0, i / nd);
-         if(idx2!=-1) d_y(t?c:idx2,t?idx2:c) += d_x(i % nd, c, 1, i / nd);
-      }
-   });
+         const int idx1 = d_indices1[i];
+         const int idx2 = d_indices2[i];//TODO Add permutation
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, 0, i / nd);
+            if(idx2!=-1) d_y(t?c:idx2,t?idx2:c) += d_x(i % nd, c, 1, i / nd);
+         }
+      });
+   }else{
+      auto d_indices1 = indices1.Read();
+      auto d_x = Reshape(x.Read(), nd, vd, nf);
+      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      MFEM_FORALL(i, nfdofs,
+      {
+         const int idx1 = d_indices1[i];
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, i / nd);
+         }
+      });      
+   }
 }
 
 #if 0

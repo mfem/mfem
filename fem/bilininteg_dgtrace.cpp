@@ -185,8 +185,9 @@ void PADGTraceApply2D(const int NF,
    auto x = Reshape(_x.Read(), D1D, VDIM, 2, NF);
    auto y = Reshape(_y.ReadWrite(), D1D, VDIM, 2, NF);
 
-   MFEM_FORALL(f, NF,
-   {
+   // MFEM_FORALL(f, NF,
+   for(int f=0; f<NF; f++)
+   { 
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
@@ -250,7 +251,7 @@ void PADGTraceApply2D(const int NF,
             y(d,c,1,f) += -BDBu[d][c];
          }
       }
-   });
+   }//);
 }
 
 // PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein

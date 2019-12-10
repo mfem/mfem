@@ -321,6 +321,10 @@ public:
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    const Operator *GetFaceRestriction(ElementDofOrdering e_ordering) const;
 
+   /** Return an Operator that converts L-vectors to E-vectors on each face, for L2 spaces
+       only returns the value of element 1. */
+   const Operator *GetSingleValuedFaceRestriction(ElementDofOrdering e_ordering) const;
+
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
    /** An E-vector represents the element-wise discontinuous version of the FE
@@ -932,6 +936,10 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
+/** An enum type to specify if only e1 value is requested (Single) or both
+    e1 and e2 (Double). */
+enum class L2FaceValues : bool {Single, Double};
+
 /// Operator that extracts Face degrees of freedom.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
@@ -965,12 +973,13 @@ protected:
    const bool byvdim;
    const int ndofs;
    const int dof;
+   const L2FaceValues m;
    const int nfdofs;
    Array<int> indices1;
    Array<int> indices2;
 
 public:
-   L2FaceRestriction(const FiniteElementSpace&, ElementDofOrdering);
+   L2FaceRestriction(const FiniteElementSpace&, ElementDofOrdering, L2FaceValues m = L2FaceValues::Double);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 };
