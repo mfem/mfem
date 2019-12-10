@@ -9733,7 +9733,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRu
 
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
-   const FiniteElement *fe = fespace->GetFaceElement(0);
+   const FiniteElement *fe = fespace->GetTraceElement(0,fespace->GetMesh()->GetFaceBaseGeometry(0));
    const int vdim = fespace->GetVDim();
    const int NF   = mesh->GetNumFaces();
    const int ND   = fe->GetDof();
