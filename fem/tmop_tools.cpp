@@ -257,16 +257,18 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    {
       add(x, -scale, c, x_out);
 
-      if (serial) {
-          const SparseMatrix *cP = fes->GetConformingProlongation();
-          if (!cP) {x_out_loc.SetData(x_out.GetData());}
-          else {cP->Mult(x_out,x_out_loc);}
-          energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
+      if (serial)
+      {
+         const SparseMatrix *cP = fes->GetConformingProlongation();
+         if (!cP) {x_out_loc.SetData(x_out.GetData());}
+         else {cP->Mult(x_out,x_out_loc);}
+         energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
       }
 #ifdef MFEM_USE_MPI
-      else {
-          fes->GetProlongationMatrix()->Mult(x_out, x_out_loc);
-          energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
+      else
+      {
+         fes->GetProlongationMatrix()->Mult(x_out, x_out_loc);
+         energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
 
@@ -399,7 +401,8 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
                     p_nlf->ParFESpace()->GetComm());
    }
 #endif
-   if (print_level >= 0) {
+   if (print_level >= 0)
+   {
       mfem::out << "Minimum det(J) = " << min_detJ_all << '\n';
    }
 
@@ -410,16 +413,18 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    for (int i = 0; i < 7; i++)
    {
       add(x, -scale, c, x_out);
-      if (serial) {
-          const SparseMatrix *cP = fes->GetConformingProlongation();
-          if (!cP) {x_loc.SetData(x_out.GetData());}
-          else {cP->Mult(x_out,x_loc);}
-          energy_out = nlf->GetGridFunctionEnergy(x_loc);
+      if (serial)
+      {
+         const SparseMatrix *cP = fes->GetConformingProlongation();
+         if (!cP) {x_loc.SetData(x_out.GetData());}
+         else {cP->Mult(x_out,x_loc);}
+         energy_out = nlf->GetGridFunctionEnergy(x_loc);
       }
 #ifdef MFEM_USE_MPI
-      else {
-          fes->GetProlongationMatrix()->Mult(x_out, x_loc);
-          energy_out = p_nlf->GetParGridFunctionEnergy(x_loc);
+      else
+      {
+         fes->GetProlongationMatrix()->Mult(x_out, x_loc);
+         energy_out = p_nlf->GetParGridFunctionEnergy(x_loc);
       }
 #endif
 
