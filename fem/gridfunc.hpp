@@ -47,19 +47,19 @@ protected:
 
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
-   /// Returns FaceElementTransformations through @a ftr for face @a i
-   /// on side @a side.
-   /** @note The returned @a ftr contains only IntegrationPointTransformation
-       on the given side by default.
-       @param i      Face number
-       @param side   Side of the face (2 - automatic, side of the element
-                     with lower attribute is preferred; 1 - second element,
-                     if exists; 0 - first element)
-       @param ftr    Pointer to FaceElementTransformations provided by
-                     Mesh::GetFaceElementTransformations()
-       @param elem   Optionally include ElementTransformation to @a ftr
-       @returns Indication of the side used (0 - first element, 1 - second element)
-    * */
+   /// Returns FaceElementTransformations through @a ftr for face @a i on side
+   /// @a side.
+   /** @note The returned @a ftr contains only IntegrationPointTransformation on
+       the given side by default.
+       @param i     Face number
+       @param side  Side of the face (2 - automatic, side of the element with
+                    lower attribute is preferred; 1 - second element, if exists;
+                    0 - first element)
+       @param ftr   Pointer to FaceElementTransformations provided by
+                    Mesh::GetFaceElementTransformations()
+       @param elem  Optionally include ElementTransformation to @a ftr
+       @returns Indication of the side used (0 - first element, 1 - second
+       element) */
    int GetFaceElementTransformations(int i, int side,
                                      FaceElementTransformations *&ftr,
                                      bool elem=false) const;
@@ -99,8 +99,7 @@ public:
    /** The GridFunction does not assume ownership of @a data which is assumed to
        be of size at least `f->GetVSize()`. Similar to the Vector constructor
        for externally allocated array, the pointer @a data can be NULL. The data
-       array can be replaced later using the method SetData().
-    */
+       array can be replaced later using the method SetData(). */
    GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
    { fes = f; fec = NULL; sequence = f->GetSequence(); }
 
@@ -166,15 +165,16 @@ public:
    /// Returns the vector value of element @a i at @a ip.
    void GetBdrVectorValue(int i, const IntegrationPoint &ir, Vector &val) const;
 
-   /// Returns the value of face element @a i on side @a side at @a ip for dimension @a vdim.
-   /** Indication of the side used is optionally returned through @a pdir.
-       See GetFaceElementTransformations() for further description. */
+   /// Returns the value of face element @a i on side @a side at @a ip for
+   /// dimension @a vdim.
+   /** Indication of the side used is optionally returned through @a pdir. See
+       GetFaceElementTransformations() for further description. */
    double GetFaceValue(int i, int side, const IntegrationPoint &ip,
                        int vdim = 1, int *pdir = NULL) const;
 
    /// Returns the vector value of face element @a i on side @a side at @a ip.
-   /** Indication of the side used is optionally returned through @a pdir.
-       See GetFaceElementTransformations() for further description. */
+   /** Indication of the side used is optionally returned through @a pdir. See
+       GetFaceElementTransformations() for further description. */
    void GetFaceVectorValue(int i, int side, const IntegrationPoint &ip,
                            Vector &val, int *pdir = NULL) const;
 
@@ -188,13 +188,13 @@ public:
    void GetBdrFaceVectorValue(int iBdrEl, const IntegrationPoint &ip,
                               Vector &val) const;
 
-   /// Returns the values of element @a i at IntegrationPoint%s from
-   /// @a ir for dimension @a vdim.
+   /// Returns the values of element @a i at IntegrationPoint%s from @a ir for
+   /// dimension @a vdim.
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   int vdim = 1) const;
 
-   /// Returns the values of element @a i at IntegrationPoint%s from
-   /// @a ir for dimension @a vdim.
+   /// Returns the values of element @a i at IntegrationPoint%s from @a ir for
+   /// dimension @a vdim.
    /** The real-space evaluation points are returned in @a tr. */
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   DenseMatrix &tr, int vdim = 1) const;
@@ -210,15 +210,15 @@ public:
    void GetBdrValues(int i, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
 
-   /// Returns the values of face element @a i on side @a side at IntegrationPoint%s from
-   /// @a ir for dimension @a vdim.
+   /// Returns the values of face element @a i on side @a side at
+   /// IntegrationPoint%s from @a ir for dimension @a vdim.
    /** @returns Indication of the side used. See GetFaceElementTransformations()
        for further description. */
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      int vdim = 1) const;
 
-   /// Returns the values of face element @a i on side @a side at IntegrationPoint%s from
-   /// @a ir for dimension @a vdim.
+   /// Returns the values of face element @a i on side @a side at
+   /// IntegrationPoint%s from @a ir for dimension @a vdim.
    /** The real-space evaluation points are returned in @a tr.
        @returns Indication of the side used. See GetFaceElementTransformations()
        for further description. */
@@ -236,13 +236,13 @@ public:
    void GetBdrFaceValues(int iBdrEl, const IntegrationRule &ir,
                          Vector &vals, DenseMatrix &tr, int vdim = 1) const;
 
-   /// Returns the vector values of element associated with ElementTransformation
-   /// @a T at IntegrationPoint%s from @a ir.
+   /// Returns the vector values of element associated with
+   /// ElementTransformation @a T at IntegrationPoint%s from @a ir.
    void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
                         DenseMatrix &vals) const;
 
-   /// Returns the vector values of element associated with ElementTransformation
-   /// @a T at IntegrationPoint%s from @a ir.
+   /// Returns the vector values of element associated with
+   /// ElementTransformation @a T at IntegrationPoint%s from @a ir.
    /** The real-space evaluation points are returned in @a tr. */
    void GetVectorValues(int i, const IntegrationRule &ir,
                         DenseMatrix &vals, DenseMatrix &tr) const;

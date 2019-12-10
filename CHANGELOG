@@ -52,7 +52,7 @@ Other meshing improvements
 - The TMOP mesh optimization algorithms were extended to support user-defined
   space-dependent limiting terms. Improved the TMOP objective functions by
   more accurate normalization of the different terms.
-  
+
 Discretization improvements
 ---------------------------
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
@@ -90,7 +90,7 @@ Miscellaneous
 
 - Extended GridFunctionCoefficient and VectorGridFunctionCoefficient to return
   boundary (trace) values automatically. Corresponding methods were added
-  to GridFunction for easy access to these values.
+  to the GridFunction class for easy access to these values.
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
