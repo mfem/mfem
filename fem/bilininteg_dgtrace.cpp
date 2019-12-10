@@ -492,33 +492,38 @@ void PADGTraceApplyTranspose2D(const int NF,
             }
          }
       }
-      double DBu[max_Q1D][VDIM];
+      double DBu0[max_Q1D][VDIM];
+      double DBu1[max_Q1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
          {
-            DBu[q][c] = op(q,0,0,f)*Bu0[q][c] + op(q,0,1,f)*Bu1[q][c];
+            DBu0[q][c] = op(q,0,0,f)*Bu0[q][c] + op(q,0,1,f)*Bu1[q][c];
+            DBu1[q][c] = op(q,1,0,f)*Bu0[q][c] + op(q,1,1,f)*Bu1[q][c];
          }
       }
-      double BDBu[max_D1D][VDIM];
+      double BDBu0[max_D1D][VDIM];
+      double BDBu1[max_D1D][VDIM];
       for (int d = 0; d < D1D; ++d)
       {
          for (int c = 0; c < VDIM; c++)
          {
-            BDBu[d][c] = 0.0;
+            BDBu0[d][c] = 0.0;
+            BDBu1[d][c] = 0.0;
          }
          for (int q = 0; q < Q1D; ++q)
          {
             const double b = Bt(d,q);
             for (int c = 0; c < VDIM; c++)
             {
-               BDBu[d][c] += b*DBu[q][c];
+               BDBu0[d][c] += b*DBu0[q][c];
+               BDBu1[d][c] += b*DBu1[q][c];
             }
          }
          for (int c = 0; c < VDIM; c++)
          {
-            y(d,c,0,f) +=  BDBu[d][c];
-            y(d,c,1,f) += -BDBu[d][c];
+            y(d,c,0,f) += BDBu0[d][c];
+            y(d,c,1,f) += BDBu1[d][c];
          }
       }
    });
