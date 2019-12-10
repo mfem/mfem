@@ -48,6 +48,35 @@ int isValidAsInt(char * s)
    return 1;
 }
 
+int isValidAsUnsigned(char * s)
+{
+   if ( s == NULL || *s == '\0' )
+   {
+      return 0;   //Empty string
+   }
+
+   if ( *s == '+' )
+   {
+      ++s;
+   }
+
+   if ( *s == '\0')
+   {
+      return 0;   //sign character only
+   }
+
+   while (*s)
+   {
+      if ( !isdigit(*s) )
+      {
+         return 0;
+      }
+      ++s;
+   }
+
+   return 1;
+}
+
 int isValidAsDouble(char * s)
 {
    // A valid floating point number for atof using the "C" locale is formed by
@@ -200,6 +229,10 @@ void OptionsParser::Parse()
                   isValid = isValidAsInt(argv[i]);
                   *(int *)(options[j].var_ptr) = atoi(argv[i++]);
                   break;
+               case UNSIGNED:
+                  isValid = isValidAsUnsigned(argv[i]);
+                  *(unsigned *)(options[j].var_ptr) = strtoul(argv[i++], NULL, 0);
+                  break;
                case DOUBLE:
                   isValid = isValidAsDouble(argv[i]);
                   *(real_t *)(options[j].var_ptr) = atof(argv[i++]);
@@ -277,6 +310,10 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
    {
       case INT:
          os << *(int *)(opt.var_ptr);
+         break;
+
+      case UNSIGNED:
+         os << *(unsigned *)(opt.var_ptr);
          break;
 
       case DOUBLE:
@@ -408,9 +445,9 @@ void OptionsParser::PrintHelp(ostream &os) const
    static const char *seprtr = ", ";
    static const char *descr_sep = "\n\t";
    static const char *line_sep = "";
-   static const char *types[] = { " <int>", " <double>", " <string>",
-                                  " <string>", "", "", " '<int>...'",
-                                  " '<double>...'"
+   static const char *types[] = { " <int>", " <unsigned>", " <double>",
+                                  " <string>", " <string>", "", "",
+                                  " '<int>...'", " '<double>...'"
                                 };
 
    os << indent << "-h" << seprtr << "--help" << descr_sep
