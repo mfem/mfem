@@ -88,6 +88,10 @@ Miscellaneous
 
 - Altered the way FGMRES counts its iterations so that it matches GMRES.
 
+- Extended GridFunctionCoefficient and VectorGridFunctionCoefficient to return
+  boundary (trace) values automatically. Corresponding methods were added
+  to GridFunction for easy access to these values.
+
 - Various other simplifications, extensions, and bugfixes in the code.
 
 API changes

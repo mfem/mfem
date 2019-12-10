@@ -47,8 +47,21 @@ protected:
 
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
+   /// Returns FaceElementTransformations through @a ftr for face @a i
+   /// on side @a side.
+   /** @note The returned @a ftr contains only IntegrationPointTransformation
+       on the given side by default.
+       @param i      Face number
+       @param side   Side of the face (2 - automatic, side of the element
+                     with lower attribute is preferred; 1 - second element,
+                     if exists; 0 - first element)
+       @param ftr    Pointer to FaceElementTransformations provided by
+                     Mesh::GetFaceElementTransformations()
+       @param elem   Optionally include ElementTransformation to @a ftr
+       @returns Indication of the side used (0 - first element, 1 - second element)
+    * */
    int GetFaceElementTransformations(int i, int side,
-                                     FaceElementTransformations *&,
+                                     FaceElementTransformations *&ftr,
                                      bool elem=false) const;
 
    // Project the delta coefficient without scaling and return the (local)
@@ -140,72 +153,134 @@ public:
    /// Returns the values in the vertices of i'th element for dimension vdim.
    void GetNodalValues(int i, Array<double> &nval, int vdim = 1) const;
 
+   /// Returns the value of element @a i at @a ip for dimension @a vdim.
    virtual double GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
 
+   /// Returns the vector value of element @a i at @a ip.
    void GetVectorValue(int i, const IntegrationPoint &ip, Vector &val) const;
 
+   /// Returns the value of element @a i at @a ip for dimension @a vdim.
    double GetBdrValue(int i, const IntegrationPoint &ir, int vdim = 1) const;
 
+   /// Returns the vector value of element @a i at @a ip.
    void GetBdrVectorValue(int i, const IntegrationPoint &ir, Vector &val) const;
 
+   /// Returns the value of face element @a i on side @a side at @a ip for dimension @a vdim.
+   /** Indication of the side used is optionally returned through @a pdir.
+       See GetFaceElementTransformations() for further description. */
    double GetFaceValue(int i, int side, const IntegrationPoint &ip,
                        int vdim = 1, int *pdir = NULL) const;
 
+   /// Returns the vector value of face element @a i on side @a side at @a ip.
+   /** Indication of the side used is optionally returned through @a pdir.
+       See GetFaceElementTransformations() for further description. */
    void GetFaceVectorValue(int i, int side, const IntegrationPoint &ip,
                            Vector &val, int *pdir = NULL) const;
 
+   /// Returns the value of the face element corresponding to boundary element
+   /// @a iBdrEl at @a ip for dimension @a vdim.
    double GetBdrFaceValue(int iBdrEl, const IntegrationPoint &ip,
                           int vdim = 1) const;
 
+   /// Returns the vector value of the face element corresponding to boundary
+   /// element @a iBdrEl at @a ip.
    void GetBdrFaceVectorValue(int iBdrEl, const IntegrationPoint &ip,
                               Vector &val) const;
 
+   /// Returns the values of element @a i at IntegrationPoint%s from
+   /// @a ir for dimension @a vdim.
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   int vdim = 1) const;
 
+   /// Returns the values of element @a i at IntegrationPoint%s from
+   /// @a ir for dimension @a vdim.
+   /** The real-space evaluation points are returned in @a tr. */
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   DenseMatrix &tr, int vdim = 1) const;
 
+   /// Returns the values of boundary element @a i at IntegrationPoint%s from
+   /// @a ir for dimension @a vdim.
    void GetBdrValues(int i, const IntegrationRule &ir, Vector &vals,
                      int vdim = 1) const;
 
+   /// Returns the values of boundary element @a i at IntegrationPoint%s from
+   /// @a ir for dimension @a vdim.
+   /** The real-space evaluation points are returned in @a tr. */
    void GetBdrValues(int i, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
 
+   /// Returns the values of face element @a i on side @a side at IntegrationPoint%s from
+   /// @a ir for dimension @a vdim.
+   /** @returns Indication of the side used. See GetFaceElementTransformations()
+       for further description. */
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      int vdim = 1) const;
 
+   /// Returns the values of face element @a i on side @a side at IntegrationPoint%s from
+   /// @a ir for dimension @a vdim.
+   /** The real-space evaluation points are returned in @a tr.
+       @returns Indication of the side used. See GetFaceElementTransformations()
+       for further description. */
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
 
+   /// Returns the values of the face element corresponding to boundary element
+   /// @a iBdrEl at IntegrationPoint%s from @a ir for dimension @a vdim.
    void GetBdrFaceValues(int iBdrEl, const IntegrationRule &ir,
                          Vector &vals, int vdim = 1) const;
 
+   /// Returns the values of the face element corresponding to boundary element
+   /// @a iBdrEl at IntegrationPoint%s from @a ir for dimension @a vdim.
+   /** The real-space evaluation points are returned in @a tr. */
    void GetBdrFaceValues(int iBdrEl, const IntegrationRule &ir,
                          Vector &vals, DenseMatrix &tr, int vdim = 1) const;
 
+   /// Returns the vector values of element associated with ElementTransformation
+   /// @a T at IntegrationPoint%s from @a ir.
    void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
                         DenseMatrix &vals) const;
 
+   /// Returns the vector values of element associated with ElementTransformation
+   /// @a T at IntegrationPoint%s from @a ir.
+   /** The real-space evaluation points are returned in @a tr. */
    void GetVectorValues(int i, const IntegrationRule &ir,
                         DenseMatrix &vals, DenseMatrix &tr) const;
 
+   /// Returns the vector values of boundary element associated with
+   /// ElementTransformation @a T at IntegrationPoint%s from @a ir.
    void GetBdrVectorValues(ElementTransformation &T, const IntegrationRule &ir,
                            DenseMatrix &vals) const;
 
+   /// Returns the vector values of boundary element associated with
+   /// ElementTransformation @a T at IntegrationPoint%s from @a ir.
+   /** The real-space evaluation points are returned in @a tr. */
    void GetBdrVectorValues(int i, const IntegrationRule &ir,
                            DenseMatrix &vals, DenseMatrix &tr) const;
 
+   /// Returns the vector values of face element @a i on side @a side at
+   /// IntegrationPoint%s from @a ir for dimension @a vdim.
+   /** @returns Indication of the side used. See GetFaceElementTransformations()
+       for further description. */
    int GetFaceVectorValues(int i, int side, const IntegrationRule &ir,
                            DenseMatrix &vals) const;
 
+   /// Returns the vector values of face element @a i on side @a side at
+   /// IntegrationPoint%s from @a ir for dimension @a vdim.
+   /** The real-space evaluation points are returned in @a tr.
+       @returns Indication of the side used. See GetFaceElementTransformations()
+       for further description. */
    int GetFaceVectorValues(int i, int side, const IntegrationRule &ir,
                            DenseMatrix &vals, DenseMatrix &tr) const;
 
+   /// Returns the vector values of the face element corresponding to boundary
+   /// element @a iBdrEl at IntegrationPoint%s from @a ir.
    void GetBdrFaceVectorValues(int iBdrEl, const IntegrationRule &ir,
                                DenseMatrix &vals) const;
 
+   /// Returns the vector values of the face element corresponding to boundary
+   /// element @a iBdrEl at IntegrationPoint%s from @a ir.
+   /** The real-space evaluation points are returned in @a tr. */
    void GetBdrFaceVectorValues(int iBdrEl, const IntegrationRule &ir,
                                DenseMatrix &vals, DenseMatrix &tr) const;
 
