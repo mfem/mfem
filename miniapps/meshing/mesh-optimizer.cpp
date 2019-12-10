@@ -404,6 +404,8 @@ int main (int argc, char *argv[])
       for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
    x -= rdm;
+   x.SetTrueVector();
+   x.SetFromTrueVector();
 
    // 9. Save the starting (prior to the optimization) mesh to a file. This
    //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
@@ -665,15 +667,15 @@ int main (int argc, char *argv[])
    }
    else
    {
-      if ( (dim == 2 && metric_id != 22 && metric_id != 252) ||
-           (dim == 3 && metric_id != 352) )
-      {
-         cout << "The mesh is inverted. Use an untangling metric." << endl;
-         return 3;
-      }
-      tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
-      newton = new TMOPDescentNewtonSolver(*ir);
-      cout << "The TMOPDescentNewtonSolver is used (as some det(J) < 0).\n";
+     if ( (dim == 2 && metric_id != 22 && metric_id != 211 && metric_id !=252) ||
+          (dim == 3 && metric_id != 352) )
+     {
+        cout << "The mesh is inverted. Use an untangling metric." << endl;
+        return 3;
+     }
+     tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
+     newton = new TMOPDescentNewtonSolver(*ir);
+     cout << "The TMOPDescentNewtonSolver is used (as some det(J) < 0).\n";
    }
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
@@ -681,7 +683,9 @@ int main (int argc, char *argv[])
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(a);
-   newton->Mult(b, x);
+   newton->Mult(b, x.GetTrueVector());
+   x.SetFromTrueVector();
+
    if (newton->GetConverged() == false)
    {
       cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
