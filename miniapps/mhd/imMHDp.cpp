@@ -520,6 +520,21 @@ int main(int argc, char *argv[])
       ofstream osol5(j_name.str().c_str());
       osol5.precision(8);
       j.Save(osol5);
+
+      //output v1 and v2 for a comparision
+      ParGridFunction v1(&fespace), v2(&fespace);
+      oper.computeV(&phi, &v1, &v2);
+    
+      ostringstream v1_name, v2_name;
+      v1_name << "sol_v1." << setfill('0') << setw(6) << myid;
+      v2_name << "sol_v2." << setfill('0') << setw(6) << myid;
+      ofstream osol6(v1_name.str().c_str());
+      osol6.precision(8);
+      v1.Save(osol6);
+
+      ofstream osol7(v2_name.str().c_str());
+      osol7.precision(8);
+      v2.Save(osol7);
    }
 
    if (myid == 0) 

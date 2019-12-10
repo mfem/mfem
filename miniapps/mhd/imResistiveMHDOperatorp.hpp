@@ -271,6 +271,8 @@ public:
    void BindingGF(Vector &vx)
    {int sc = height/3; gftmp.MakeTRef(&fespace, vx, sc);}
 
+   void computeV(ParGridFunction *phi, ParGridFunction *v1, ParGridFunction *v2);
+
    //update grid functions (grid functions have to be updated immediately)
    void UpdateGridFunction()
    {
@@ -639,6 +641,29 @@ void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ)
     if (reduced_oper!=NULL)
         reduced_oper->setCurrent(&j);
 }
+   
+void ResistiveMHDOperator::computeV(ParGridFunction *phi, ParGridFunction *v1, ParGridFunction *v2)
+{
+    ParBilinearForm Dx(&fespace), Dy(&fespace);
+    ConstantCoefficient coeff(1.0);
+
+    //v2=Dx phi
+    Dx.AddDomainIntegrator(new DerivativeIntegrator(coeff, 0));
+    Dx.Assemble(); 
+    Dx.Mult(*phi, zLF);
+    zLF.ParallelAssemble(z);
+    M_solver2.Mult(z, z2);
+    v2->SetFromTrueDofs(z2);
+    
+    //v1=-Dy phi
+    Dy.AddDomainIntegrator(new DerivativeIntegrator(coeff, 1));
+    Dy.Assemble(); 
+    Dy.Mult(*phi, zLF);
+    zLF.ParallelAssemble(z);
+    z.Neg();
+    M_solver2.Mult(z, z2);
+    v1->SetFromTrueDofs(z2);
+}
 
 void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 {
@@ -710,7 +735,6 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
        //stabilized term for omega
        //first compute an auxilary variable as ∆ omega
-       Vector &k_ = const_cast<Vector &>(vx);
        gftmp.MakeTRef(&fespace, k_, 2*sc);
        gftmp.SetFromTrueVector();  //recover omega
        KB->Mult(gftmp, zLF);
@@ -722,7 +746,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        StabMass->TrueAddMult(z, dw_dt);
        StabNv->TrueAddMult(w, dw_dt);
        J.Neg();
-       StabBv->TrueAddMult(J, dw_dt);
+       StabNb->TrueAddMult(J, dw_dt);
    }
 }
 
@@ -800,7 +824,7 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
 
    delete StabE0;
    StabE0 = new ParLinearForm(&fespace);
-   StabE0->AddDomainIntegrator(new StabDomainLFIntegrator(dt, viscosity, velocity, E0rhs));
+   StabE0->AddDomainIntegrator(new StabDomainLFIntegrator(dt, viscosity, velocity, *E0rhs));
    StabE0->Assemble(); 
 }
 
