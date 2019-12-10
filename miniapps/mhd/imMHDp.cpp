@@ -385,6 +385,7 @@ int main(int argc, char *argv[])
    //++++Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
+   bool useStab = true; //use a stabilized formulation
    for (int ti = 1; !last_step; ti++)
    {
       double dt_real = min(dt, t_final - t);
@@ -393,13 +394,26 @@ int main(int argc, char *argv[])
       {
          //---Predictor stage---
          //assemble the nonlinear terms
-         phi.SetFromTrueVector(); oper.assembleNv(&phi);
-         psi.SetFromTrueVector(); oper.assembleNb(&psi);
+         phi.SetFromTrueVector(); 
+         psi.SetFromTrueVector(); 
+         if (useStab)
+         {
+            oper.assembleVoper(dt_real, &phi, &psi);
+            oper.assembleBoper(dt_real, &phi, &psi);
+         }
+         else{
+            oper.assembleNv(&phi);
+            oper.assembleNb(&psi);
+         }
          ode_solver->StepP(vx, t, dt_real);
 
          //---Corrector stage---
          //assemble the nonlinear terms (only psi is updated)
-         psi.SetFromTrueVector(); oper.assembleNb(&psi);
+         psi.SetFromTrueVector(); 
+         if (useStab)
+            oper.assembleBoper(dt_real, &phi, &psi);
+         else
+            oper.assembleNb(&psi);
          ode_solver->Step(vx, t, dt_real);
          oper.UpdatePhi(vx);
       }

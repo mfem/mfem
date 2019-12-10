@@ -221,8 +221,8 @@ protected:
    Array<int> ess_tdof_list;
 
    ParBilinearForm *M, *Mfull, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
-   ParBilinearForm *Nv, *Nb;
-   ParLinearForm *E0; //source terms
+   ParBilinearForm *Nv, *Nb, *StabMass, *StabNv, *StabNb;
+   ParLinearForm *E0, *StabE0; //source terms
    mutable ParLinearForm zLF; //LinearForm holder for updating J
    HypreParMatrix Kmat, Mmat, *MfullMat, DSlmat, DRemat;
    HypreParVector *E0Vec;
@@ -249,7 +249,7 @@ protected:
    HypreSolver *K_amg; //BoomerAMG for stiffness matrix
    HyprePCG *K_pcg;
 
-   mutable Vector z, J, zFull; // auxiliary vector 
+   mutable Vector z, J, z2, zFull; // auxiliary vector 
    mutable ParGridFunction j, gftmp;  //auxiliary variable (to store the boundary condition)
    ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
 
@@ -292,6 +292,8 @@ public:
    void UpdatePhi(Vector &vx);
    void assembleNv(ParGridFunction *gf);
    void assembleNb(ParGridFunction *gf);
+   void assembleVoper(double dt, ParGridFunction *phi, ParGridFunction *psi);
+   void assembleBoper(double dt, ParGridFunction *phi, ParGridFunction *psi);
 
    void DestroyHypre();
    virtual ~ResistiveMHDOperator();
@@ -303,12 +305,14 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
                                          bool use_petsc_ = false, bool use_factory_=false)
    : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
      M(NULL), Mfull(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
-     Nv(NULL), Nb(NULL), E0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
+     Nv(NULL), Nb(NULL), StabMass(NULL), StabNv(NULL), StabNb(NULL),  
+     E0(NULL), StabE0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
      visc_coeff(visc),  resi_coeff(resi),  
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
      M_solver(f.GetComm()), M_solver2(f.GetComm()), M_prec(NULL), K_solver(f.GetComm()),  K_prec(NULL),
-     K_amg(NULL), K_pcg(NULL), z(height/3), J(height/3), zFull(f.GetVSize()), j(&fespace),
+     K_amg(NULL), K_pcg(NULL), z(height/3), J(height/3), z2(height/3), 
+     zFull(f.GetVSize()), j(&fespace),
      DRetmp(NULL), DSltmp(NULL)
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -463,6 +467,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
 
    //update vector holder
    z.SetSize(sc);
+   z2.SetSize(sc);
    J.SetSize(sc);
    zFull.SetSize(scFull);
    zLF.Update();
@@ -693,6 +698,32 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Nb->TrueAddMult(J, z); 
    z.SetSubVector(ess_tdof_list,0.0);
    M_solver.Mult(z, dw_dt);
+
+   if (StabNv!=NULL)
+   {
+       //stabilized term for psi
+       add(dpsi_dt, resistivity, J, z);
+       StabMass->TrueAddMult(z, dpsi_dt);
+       StabNv->TrueAddMult(psi, dpsi_dt);
+       StabE0->ParallelAssemble(z);
+       dpsi_dt+=z;
+
+       //stabilized term for omega
+       //first compute an auxilary variable as ∆ omega
+       Vector &k_ = const_cast<Vector &>(vx);
+       gftmp.MakeTRef(&fespace, k_, 2*sc);
+       gftmp.SetFromTrueVector();  //recover omega
+       KB->Mult(gftmp, zLF);
+       zLF.Neg();
+       zLF.ParallelAssemble(z);
+       M_solver2.Mult(z, z2);
+
+       add(dw_dt, viscosity, z2, z);
+       StabMass->TrueAddMult(z, dw_dt);
+       StabNv->TrueAddMult(w, dw_dt);
+       J.Neg();
+       StabBv->TrueAddMult(J, dw_dt);
+   }
 }
 
 void ResistiveMHDOperator::ImplicitSolve(const double dt,
@@ -746,6 +777,46 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
       osol4.precision(8);
       w1.Save(osol4);
    }
+}
+
+void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGridFunction *psi) 
+{
+   MyCoefficient velocity(phi, 2);   //we update velocity
+
+   delete Nv;
+   Nv = new ParBilinearForm(&fespace);
+   Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
+   Nv->Assemble(); 
+
+   delete StabNv;
+   StabNv = new ParBilinearForm(&fespace);
+   StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+   StabNv->Assemble(); 
+
+   delete StabMass;
+   StabMass = new ParBilinearForm(&fespace);
+   StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
+   StabMass->Assemble(); 
+
+   delete StabE0;
+   StabE0 = new ParLinearForm(&fespace);
+   StabE0->AddDomainIntegrator(new StabDomainLFIntegrator(dt, viscosity, velocity, E0rhs));
+   StabE0->Assemble(); 
+}
+
+void ResistiveMHDOperator::assembleBoper(double dt, ParGridFunction *phi, ParGridFunction *psi) 
+{
+   MyCoefficient velocity(phi, 2), Bfield(psi, 2);     //we update B and velocity
+
+   delete Nb;
+   Nb = new ParBilinearForm(&fespace);
+   Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
+   Nb->Assemble();
+
+   delete StabNb;
+   StabNb = new ParBilinearForm(&fespace);
+   StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
+   StabNb->Assemble(); 
 }
 
 void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
@@ -838,6 +909,10 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete KB;
     delete Nv;
     delete Nb;
+    delete StabNv;
+    delete StabNb;
+    delete StabMass;
+    delete StabE0;
     delete K_pcg;
     delete DRetmp;
     delete DSltmp;
@@ -1127,6 +1202,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    }
    else
    {
+      //FIXME ParallelAssemble is needed
       delete PB_VPsi;
       PB_VPsi = new ParLinearForm(&fespace);
       PBCoefficient pbCoeff(&phiGf, &psiGf);
@@ -1209,7 +1285,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
           //NbMat->Mult(-1., J, 1., y3);
           NbMat->MultTranspose(1., J, 1., y3);
       }
- 
    }
    else
    {
