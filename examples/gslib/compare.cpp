@@ -219,7 +219,7 @@ int main (int argc, char *argv[])
    task_id_out.SetSize(nodes_cnt);
    pos_r_out.SetSize(nodes_cnt * dim); dist_p_out.SetSize(nodes_cnt * dim);
    interp_vals_2.SetSize(nodes_cnt);
-   finder.Setup(mesh_1, rel_bbox_el, newton_tol, npts_at_once);
+   finder.Setup(mesh_2, rel_bbox_el, newton_tol, npts_at_once);
    finder.FindPoints(vxyz, code_out, task_id_out,
                      el_id_out, pos_r_out, dist_p_out);
    finder.Interpolate(code_out, task_id_out, el_id_out,
