@@ -184,7 +184,8 @@ public:
                        const IntegrationPoint &ip);
 };
 
-/// Coefficient defined by the faces of a GridFunction. This coefficient is mesh dependent.
+/// Coefficient defined by the faces of a GridFunction. This coefficient is mesh
+/// dependent.
 class GridFunctionFaceCoefficient : public Coefficient
 {
 private:
@@ -194,8 +195,8 @@ private:
 public:
    GridFunctionFaceCoefficient() : GridF(NULL), Component(1), Side(2) { }
    /** Construct GridFunctionFaceCoefficient from a given GridFunction, and
-       optionally specify a component to use if it is a vector GridFunction
-       and the side of the face on which to evaluate the GridFunction. */
+       optionally specify: 1) a component to use if it is a vector GridFunction,
+       and 2) the side of the face on which to evaluate the GridFunction. */
    GridFunctionFaceCoefficient (const GridFunction *gf, int comp = 1, int side = 2)
    { GridF = gf; Component = comp; Side = side; }
 
@@ -456,8 +457,8 @@ public:
    VectorGridFunctionFaceCoefficient() : VectorCoefficient(0), GridFunc(NULL),
       Side(2) { }
    /** Construct VectorGridFunctionFaceCoefficient from a given GridFunction,
-       and optionally specify the side of the face on which to evaluate
-       the GridFunction. */
+       and optionally specify the side of the face on which to evaluate the
+       GridFunction. */
    VectorGridFunctionFaceCoefficient(const GridFunction *gf, int side = 2);
 
    void SetGridFunction(const GridFunction *gf);
