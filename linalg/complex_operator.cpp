@@ -39,16 +39,17 @@ namespace mfem
 ComplexOperator::ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
                                  bool ownReal, bool ownImag,
                                  Convention convention)
-   : Operator(2*Op_Real->Height(), 2*Op_Real->Width())
+   : Operator(2*((Op_Real)?Op_Real->Height():Op_Imag->Height()),
+              2*((Op_Real)?Op_Real->Width():Op_Imag->Width()))
    , Op_Real_(Op_Real)
    , Op_Imag_(Op_Imag)
    , ownReal_(ownReal)
    , ownImag_(ownImag)
    , convention_(convention)
-   , x_r_(NULL, Op_Real->Width())
-   , x_i_(NULL, Op_Real->Width())
-   , y_r_(NULL, Op_Real->Height())
-   , y_i_(NULL, Op_Real->Height())
+   , x_r_(NULL, width / 2)
+   , x_i_(NULL, width / 2)
+   , y_r_(NULL, height / 2)
+   , y_i_(NULL, height / 2)
    , u_(NULL)
    , v_(NULL)
 {}
@@ -89,10 +90,10 @@ void ComplexOperator::Mult(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
    x_r_.SetData(x_data);
-   x_i_.SetData(&x_data[Op_Real_->Width()]);
+   x_i_.SetData(&x_data[width / 2]);
 
    y_r_.SetData(&y[0]);
-   y_i_.SetData(&y[Op_Real_->Height()]);
+   y_i_.SetData(&y[height / 2]);
 
    this->Mult(x_r_, x_i_, y_r_, y_i_);
 }
@@ -129,10 +130,10 @@ void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
    y_r_.SetData(x_data);
-   y_i_.SetData(&x_data[Op_Real_->Height()]);
+   y_i_.SetData(&x_data[height / 2]);
 
    x_r_.SetData(&y[0]);
-   x_i_.SetData(&y[Op_Real_->Width()]);
+   x_i_.SetData(&y[width / 2]);
 
    this->MultTranspose(y_r_, y_i_, x_r_, x_i_);
 }
