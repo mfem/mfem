@@ -162,7 +162,7 @@ public:
 
     void Eval(double t, Vector &g)
     { 
-        MFEM_ASSERT(vx.size()==g.size(), "size not matched!"); 
+        MFEM_ASSERT(vx.Size()==g.Size(), "size not matched!"); 
         g=0.;
         for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
         {
@@ -312,7 +312,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
      visc_coeff(visc),  resi_coeff(resi),  
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
-     M_solver(f.GetComm()), M_solver2(f.GetComm()), M_prec(NULL), K_solver(f.GetComm()),  K_prec(NULL),
+     M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL),
+     K_solver(f.GetComm()),  K_prec(NULL),
      K_amg(NULL), K_pcg(NULL), z(height/3), J(height/3), z2(height/3), 
      zFull(f.GetVSize()), j(&fespace),
      DRetmp(NULL), DSltmp(NULL)

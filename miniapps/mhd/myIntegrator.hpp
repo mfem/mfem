@@ -3,6 +3,8 @@
 using namespace std;
 using namespace mfem;
 
+int itau=2; 
+
 // Integrator for the boundary gradient integral from the Laplacian operator
 // this is used in the auxiliary variable where the boundary condition is not needed
 class BoundaryGradIntegrator: public BilinearFormIntegrator
@@ -103,9 +105,9 @@ class StabConvectionIntegrator : public BilinearFormIntegrator
 {
 private:
    DenseMatrix dshape, gshape, Jinv, V_ir, Q_ir;
-   double dt;
    Coefficient *nuCoef;
    MyCoefficient *V, *Q; 
+   double dt;
 
 public:
    StabConvectionIntegrator (double dt_, double visc, MyCoefficient &q) : 
@@ -132,6 +134,10 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
     int dim = 2;
     int nd = el.GetDof();
     Vector advGrad(nd), advGrad2(nd), vec1(dim), vec2(dim);
+
+    dshape.SetSize(nd, dim);
+    gshape.SetSize(nd, dim);
+    Jinv  .SetSize(dim);
 
     //here we assume 2d quad
     double eleLength = sqrt( Geometry::Volume[el.GetGeomType()] * Tr.Weight() );   
@@ -162,7 +168,12 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
         double nu = nuCoef->Eval (Tr, ip);
         V_ir.GetColumnReference(i, vec1);
         Unorm = vec1.Norml2();
-        invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+        if (itau==1)
+            invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+        else if (itau==2)
+            invtau = sqrt( pow(2./dt,2) +  pow(2.0 * Unorm / eleLength, 2) );
+        else
+            invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
         tau = 1.0/invtau;
         norm *= tau;
  
@@ -185,9 +196,9 @@ class StabMassIntegrator : public BilinearFormIntegrator
 private:
    Vector shape;
    DenseMatrix dshape, gshape, Jinv, V_ir;
-   double dt;
    Coefficient *nuCoef;
    MyCoefficient *V; 
+   double dt;
 
 public:
    StabMassIntegrator (double dt_, double visc, MyCoefficient &q) : 
@@ -210,6 +221,11 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
     int dim = 2;
     int nd = el.GetDof();
     Vector advGrad(nd), vec1(dim);
+
+    shape.SetSize(nd);
+    dshape.SetSize(nd, dim);
+    gshape.SetSize(nd, dim);
+    Jinv  .SetSize(dim);
 
     //here we assume 2d quad
     double eleLength = sqrt( Geometry::Volume[el.GetGeomType()] * Tr.Weight() );   
@@ -240,7 +256,12 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
         double nu = nuCoef->Eval (Tr, ip);
         V_ir.GetColumnReference(i, vec1);
         Unorm = vec1.Norml2();
-        invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+        if (itau==1)
+            invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+        else if (itau==2)
+            invtau = sqrt( pow(2./dt,2) +  pow(2.0 * Unorm / eleLength, 2) );
+        else
+            invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
         tau = 1.0/invtau;
         norm *= tau;
  
@@ -255,13 +276,13 @@ class StabDomainLFIntegrator : public LinearFormIntegrator
 {
 private:
    DenseMatrix dshape, gshape, Jinv, V_ir;
-   double dt;
-   Coefficient *nuCoef, &Q;
    MyCoefficient *V; 
+   Coefficient *nuCoef, &Q;
+   double dt;
 
 public:
    StabDomainLFIntegrator (double dt_, double visc, MyCoefficient &q, Coefficient &QF) : 
-       V(&q), dt(dt_), Q(QF) 
+       V(&q),  Q(QF), dt(dt_)
    { nuCoef = new ConstantCoefficient(visc); }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -281,6 +302,10 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
     int dim = 2;
     int nd = el.GetDof();
     Vector advGrad(nd), vec1(dim);
+
+    dshape.SetSize(nd, dim);
+    gshape.SetSize(nd, dim);
+    Jinv  .SetSize(dim);
 
     //here we assume 2d quad
     double eleLength = sqrt( Geometry::Volume[el.GetGeomType()] * Tr.Weight() );   
@@ -309,7 +334,12 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
         double nu = nuCoef->Eval (Tr, ip);
         V_ir.GetColumnReference(i, vec1);
         Unorm = vec1.Norml2();
-        invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+        if (itau==1)
+            invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+        else if (itau==2)
+            invtau = sqrt( pow(2./dt,2) +  pow(2.0 * Unorm / eleLength, 2) );
+        else
+            invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
         tau = 1.0/invtau;
 
         norm *= (tau * Q.Eval (Tr, ip));
