@@ -1,5 +1,7 @@
 //                                MFEM DRL4AMR
 
+#define protected public // FIXME!
+
 #include "mfem.hpp"
 #include "drl4amr.hpp"
 
@@ -211,6 +213,14 @@ int Drl4Amr::Refine(int el_to_refine)
 }
 
 
+void Drl4Amr::RandomRefine(double p)
+{
+   mesh.RandomRefinement(p);
+   fespace.Update();
+   x.Update();
+}
+
+
 // *****************************************************************************
 double Drl4Amr::GetNorm()
 {
@@ -414,6 +424,7 @@ static void SampleMasterFace(const NCMesh::Master &master,
 #endif
 
 
+#if 0
 double* Drl4Amr::GetLocalImage(int element)
 {
    NCMesh *ncmesh = mesh.ncmesh;
@@ -443,10 +454,12 @@ double* Drl4Amr::GetLocalImage(int element)
       for (int j = 0; j <= subdiv; j++)
       {
          int k = i*(subdiv+1) + j;
+         int x = j + context;
+         int y = i + context;
 
-         im(j+1, i+1, 0) = sln(k);
-         im(j+1, i+1, 1) = grad(0, k);
-         im(j+1, i+1, 2) = grad(1, k);
+         im(x, y, 0) = sln(k);
+         im(x, y, 1) = grad(0, k);
+         im(x, y, 2) = grad(1, k);
       }
    }
 
@@ -516,6 +529,90 @@ double* Drl4Amr::GetLocalImage(int element)
    }
    return local_image.GetData();
 }
+
+#else
+
+double* Drl4Amr::GetLocalImage(int element)
+{
+   NCMesh *ncmesh = mesh.ncmesh;
+   MFEM_ASSERT(ncmesh, "");
+
+   int width = GetLocalWidth();
+   int height = GetLocalHeight();
+   int subdiv = oversample*order;
+
+   local_image.SetSize(width*height*4);
+   local_image = 0.0;
+
+   auto im = Reshape(local_image.Write(false), width, height, 4);
+
+   // find neighbors of the current element
+   // TODO: fix the protected access hack
+   Array<int> neighbors;
+   ncmesh->FindNeighbors(ncmesh->leaf_elements[element], neighbors);
+   for (int i = 0; i < neighbors.Size(); i++)
+   {
+      neighbors[i] = ncmesh->elements[neighbors[i]].index;
+   }
+
+   // add the element itself at the end of the list
+   neighbors.Append(element);
+
+   Array<IsoparametricTransformation*> elemT(neighbors.Size());
+   Array<InverseElementTransformation*> invT(neighbors.Size());
+
+   // prepare forward and inverse transforms for all the elements
+   for (int i = 0; i < neighbors.Size(); i++)
+   {
+      elemT[i] = new IsoparametricTransformation;
+      mesh.GetElementTransformation(neighbors[i], elemT[i]);
+      invT[i] = new InverseElementTransformation(elemT[i]);
+   }
+
+   Vector phys, grad;
+
+   // sample solution at a regular grid of points centered on 'element'
+   for (int y = 0; y < height; y++)
+   for (int x = 0; x < width; x++)
+   {
+      IntegrationPoint ip;
+      ip.Set2((x - context + 0.5) / subdiv,
+              (y - context + 0.5) / subdiv);
+
+      // use the local element to transform forward
+      elemT.Last()->Transform(ip, phys);
+
+      // see what neighbor, if any, the physical point lies in
+      for (int k = 0; k < neighbors.Size(); k++)
+      {
+         if (invT[k]->Transform(phys, ip)
+             == InverseElementTransformation::Inside)
+         {
+            im(x, y, 0) = this->x.GetValue(neighbors[k], ip);
+
+            elemT[k]->SetIntPoint(&ip);
+            this->x.GetGradient(*elemT[k], grad);
+
+            im(x, y, 1) = grad(0);
+            im(x, y, 2) = grad(1);
+
+            im(x, y, 3) = ncmesh->GetElementDepth(neighbors[k])
+                          - ncmesh->GetElementDepth(element);
+            break;
+         }
+      }
+   }
+
+   for (int i = 0; i < neighbors.Size(); i++)
+   {
+      delete elemT[i];
+      delete invT[i];
+   }
+
+   return local_image.GetData();
+}
+#endif
+
 
 // *****************************************************************************
 void Drl4Amr::ShowFullImage()

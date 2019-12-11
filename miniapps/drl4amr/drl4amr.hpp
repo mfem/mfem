@@ -16,7 +16,9 @@ private:
    const Element::Type elem_type = Element::QUADRILATERAL;
    const double sx = 1.0;
    const double sy = 1.0;
-   const int oversample = 2;
+
+   const int oversample = 8;
+   const int context = 4;
 
    Mesh mesh;
 
@@ -59,8 +61,10 @@ public:
    void ShowFullImage();
 
    double* GetLocalImage(int element);
-   int GetLocalWidth() const { return (oversample*order + 1) + 2; }
+   int GetLocalWidth() const { return oversample*order + 2*context; }
    int GetLocalHeight() const { return GetLocalWidth(); }
+
+   void RandomRefine(double p = 0.5);
 };
 
 #endif // DRL4AMR_HPP
