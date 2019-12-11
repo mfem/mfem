@@ -107,4 +107,9 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 
 } // namespace mfem
 
+
+// Request a global object to be instantiated for each thread in its TLS.
+#define MFEM_THREAD_LOCAL thread_local
+
+
 #endif
