@@ -67,6 +67,12 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
    }
 }
 
+double GridFunctionFaceCoefficient::Eval (ElementTransformation &T,
+                                          const IntegrationPoint &ip)
+{
+   return GridF -> GetFaceValue (T.ElementNo, Side, ip, Component);
+}
+
 double TransformedCoefficient::Eval(ElementTransformation &T,
                                     const IntegrationPoint &ip)
 {
@@ -226,6 +232,33 @@ void VectorGridFunctionCoefficient::Eval(
          GridFunc->GetBdrFaceVectorValues(T.ElementNo, ir, M);
       }
    }
+}
+
+VectorGridFunctionFaceCoefficient::VectorGridFunctionFaceCoefficient (
+   const GridFunction *gf, int side)
+   : VectorCoefficient ((gf) ? gf -> VectorDim() : 0)
+{
+   GridFunc = gf;
+   Side = side;
+}
+
+void VectorGridFunctionFaceCoefficient::SetGridFunction(const GridFunction *gf)
+{
+   GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
+}
+
+void VectorGridFunctionFaceCoefficient::Eval(Vector &V,
+                                             ElementTransformation &T,
+                                             const IntegrationPoint &ip)
+{
+   GridFunc->GetFaceVectorValue(T.ElementNo, Side, ip, V);
+}
+
+void VectorGridFunctionFaceCoefficient::Eval(DenseMatrix &M,
+                                             ElementTransformation &T,
+                                             const IntegrationRule &ir)
+{
+   GridFunc->GetFaceVectorValues(T.ElementNo, Side, ir, M);
 }
 
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (

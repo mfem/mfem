@@ -184,6 +184,28 @@ public:
                        const IntegrationPoint &ip);
 };
 
+/// Coefficient defined by the faces of a GridFunction. This coefficient is mesh dependent.
+class GridFunctionFaceCoefficient : public Coefficient
+{
+private:
+   const GridFunction *GridF;
+   int Component, Side;
+
+public:
+   GridFunctionFaceCoefficient() : GridF(NULL), Component(1), Side(2) { }
+   /** Construct GridFunctionFaceCoefficient from a given GridFunction, and
+       optionally specify a component to use if it is a vector GridFunction
+       and the side of the face on which to evaluate the GridFunction. */
+   GridFunctionFaceCoefficient (const GridFunction *gf, int comp = 1, int side = 2)
+   { GridF = gf; Component = comp; Side = side; }
+
+   void SetGridFunction(const GridFunction *gf) { GridF = gf; }
+   const GridFunction * GetGridFunction() const { return GridF; }
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
 class TransformedCoefficient : public Coefficient
 {
 private:
@@ -421,6 +443,33 @@ public:
                      const IntegrationRule &ir);
 
    virtual ~VectorGridFunctionCoefficient() { }
+};
+
+/// Vector coefficient defined by the faces of a vector GridFunction
+class VectorGridFunctionFaceCoefficient : public VectorCoefficient
+{
+protected:
+   const GridFunction *GridFunc;
+   int Side;
+
+public:
+   VectorGridFunctionFaceCoefficient() : VectorCoefficient(0), GridFunc(NULL),
+      Side(2) { }
+   /** Construct VectorGridFunctionFaceCoefficient from a given GridFunction,
+       and optionally specify the side of the face on which to evaluate
+       the GridFunction. */
+   VectorGridFunctionFaceCoefficient(const GridFunction *gf, int side = 2);
+
+   void SetGridFunction(const GridFunction *gf);
+   const GridFunction * GetGridFunction() const { return GridFunc; }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationRule &ir);
+
+   virtual ~VectorGridFunctionFaceCoefficient() { }
 };
 
 /// Vector coefficient defined as the Gradient of a scalar GridFunction
