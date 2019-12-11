@@ -138,4 +138,10 @@ void mfem_warning(const char *msg = NULL);
 // Generate a warning message - always generated, regardless of MFEM_DEBUG.
 #define MFEM_WARNING(msg) _MFEM_MESSAGE("MFEM Warning: " << msg, 1)
 
+// Macro that checks (in MFEM_DEBUG mode) that i is in the range [imin,imax).
+#define MFEM_ASSERT_INDEX_IN_RANGE(i,imin,imax) \
+   MFEM_ASSERT((imin) <= (i) && (i) < (imax), \
+   "invalid index " #i << " = " << (i) << \
+   ", valid range is [" << (imin) << ',' << (imax) << ')')
+
 #endif
