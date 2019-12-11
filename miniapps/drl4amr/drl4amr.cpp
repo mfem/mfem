@@ -93,7 +93,7 @@ Drl4Amr::Drl4Amr(int order):
    }
    x.ProjectCoefficient(xcoeff); // TODO: call Compute?
 
-   if (visualization && vis[0].good())
+/*   if (visualization && vis[0].good())
    {
       vis[0].precision(8);
       vis[0] << "solution" << endl << mesh << x << flush;
@@ -116,7 +116,7 @@ Drl4Amr::Drl4Amr(int order):
              <<  (2 * vish + 10) << " " << 0
              << " " << visw << " " << vish << endl
              << "keys RjgA" << endl; // mn
-   }
+   }*/
 
    // Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
    // that uses the ComputeElementFlux method of the DiffusionIntegrator to
@@ -281,257 +281,6 @@ double *Drl4Amr::GetFullImage()
 }
 
 // *****************************************************************************
-
-static void GetFaceGradients(const GridFunction &gf,
-                            int face, int side, const IntegrationRule &ir,
-                            DenseMatrix &grad/*, DenseMatrix &tr*/)
-{
-   IntegrationRule tmp(ir.GetNPoints());
-   FaceElementTransformations *Transf;
-   Mesh *mesh = gf.FESpace()->GetMesh();
-
-   if (side == 0)
-   {
-      Transf = mesh->GetFaceElementTransformations(face, 4);
-      Transf->Loc1.Transform(ir, tmp);
-      gf.GetGradients(Transf->Elem1No, tmp, grad);
-   }
-   else
-   {
-      Transf = mesh->GetFaceElementTransformations(face, 8);
-      Transf->Loc2.Transform(ir, tmp);
-      gf.GetGradients(Transf->Elem2No, tmp, grad);
-   }
-}
-
-
-#if 0
-/// Evaluate slave face values in master face nodal points.
-static void GetMasterRestriction(const NCMesh::Master &master,
-                                 const NCMesh::NCList &nclist,
-                                 const GridFunction &gf,
-                                 Vector &values)
-{
-   const FiniteElementSpace *space = gf.FESpace();
-   const FiniteElement *fe =
-      space->FEColl()->FiniteElementForGeometry(Geometry::SEGMENT);
-
-   IsoparametricTransformation isotr;
-   isotr.SetIdentityTransformation(Geometry::SEGMENT);
-
-   Array<int> dofs;
-   Vector slave_vals;
-   DenseMatrix R(fe->GetDof());
-
-   for (int si = master.slaves_begin; si < master.slaves_end; si++)
-   {
-      const NCMesh::Slave &slave = nclist.slaves[si];
-
-      slave.OrientedPointMatrix(isotr.GetPointMat());
-      isotr.FinalizeTransformation();
-
-      fe->GetLocalRestriction(isotr, R);
-
-      space->GetEdgeDofs(slave.index, dofs);
-      gf.GetSubVector(dofs, slave_vals);
-      MFEM_ASSERT(slave_vals.Size() == R.Width(), "");
-
-      for (int i = 0; i < R.Height(); i++)
-      {
-         if (std::isfinite(R(i, 0)))
-         {
-            double v = 0.0;
-            for (int j = 0; j < R.Width(); j++)
-            {
-               v += R(i, j) * slave_vals(j);
-            }
-            values(i) = v;
-         }
-      }
-   }
-}
-#else
-
-void InvertLinearTrans(ElementTransformation &trans,
-                       const IntegrationPoint &pt, Vector &x)
-{
-   // invert a linear transform with one Newton step
-   IntegrationPoint p0;
-   p0.Set3(0, 0, 0);
-   trans.Transform(p0, x);
-
-   double store[3];
-   Vector v(store, x.Size());
-   pt.Get(v, x.Size());
-   v -= x;
-
-   trans.InverseJacobian().Mult(v, x);
-}
-
-
-/// Sample the slave side of a master face in integration points 'ir'.
-/// Return both values and derivatives.
-static void SampleMasterFace(const NCMesh::Master &master,
-                             const NCMesh::NCList &nclist,
-                             const GridFunction &gf,
-                             const IntegrationRule &ir,
-                             Vector &sln, DenseMatrix &grad)
-{
-   const Geometry::Type geom = Geometry::SEGMENT;
-   const FiniteElementSpace *space = gf.FESpace();
-   const FiniteElement *fe =
-      space->FEColl()->FiniteElementForGeometry(geom);
-
-   IsoparametricTransformation isotr;
-   isotr.SetIdentityTransformation(geom);
-
-   Array<int> dofs;
-   Vector vals, shape;
-
-   IntegrationPoint ip;
-   Vector pt(&ip.x, fe->GetDim());
-
-   sln.SetSize(ir.Size());
-   grad.SetSize(2, ir.Size());
-   shape.SetSize(fe->GetDof());
-
-   // transform 'ir' into all slave edges
-   for (int si = master.slaves_begin; si < master.slaves_end; si++)
-   {
-      const NCMesh::Slave &slave = nclist.slaves[si];
-
-      slave.OrientedPointMatrix(isotr.GetPointMat());
-      isotr.SetIntPoint(ir);
-      isotr.FinalizeTransformation();
-
-      space->GetEdgeDofs(slave.index, dofs);
-      gf.GetSubVector(dofs, vals);
-
-      for (int i = 0; i < ir.Size(); i++)
-      {
-         InvertLinearTrans(isotr, ir[i], pt);
-         if (Geometries.CheckPoint(geom, ip)) // master point is within the slave?
-         {
-            fe->CalcShape(ip, shape);
-            sln(i) = shape * vals; // solution at 'ip'
-
-            //gf.GetGradient(
-         }
-      }
-   }
-}
-
-#endif
-
-
-#if 0
-double* Drl4Amr::GetLocalImage(int element)
-{
-   NCMesh *ncmesh = mesh.ncmesh;
-   MFEM_ASSERT(ncmesh, "");
-
-   int width = GetLocalWidth();
-   int height = GetLocalHeight();
-   int subdiv = oversample*order;
-
-   local_image.SetSize(width*height*3);
-   local_image = 0.0;
-
-   auto im = Reshape(local_image.Write(false), width, height, 3);
-
-   Vector sln;
-   DenseMatrix grad;
-
-   // rasterize element interior
-   {
-      const IntegrationRule &ir =
-         GlobGeometryRefiner.Refine(Geometry::SQUARE, subdiv)->RefPts;
-
-      x.GetValues(element, ir, sln);
-      x.GetGradients(element, ir, grad);
-
-      for (int i = 0; i <= subdiv; i++)
-      for (int j = 0; j <= subdiv; j++)
-      {
-         int k = i*(subdiv+1) + j;
-         int x = j + context;
-         int y = i + context;
-
-         im(x, y, 0) = sln(k);
-         im(x, y, 1) = grad(0, k);
-         im(x, y, 2) = grad(1, k);
-      }
-   }
-
-   // rasterize neighbor edges
-   {
-      Array<int> edges, ori;
-      mesh.GetElementEdges(element, edges, ori);
-
-      //IsoparametricTransformation T;
-      //T.SetFE(&SegmentFE);
-
-      const IntegrationRule &ir =
-         GlobGeometryRefiner.Refine(Geometry::SEGMENT, subdiv)->RefPts;
-
-      for (int e = 0; e < edges.Size(); e++)
-      {
-         int type;
-         const NCMesh::NCList &elist = ncmesh->GetEdgeList();
-         const NCMesh::MeshId &eid = elist.LookUp(edges[e], &type);
-
-         int side = 1;
-         if (type == 0 || type == 2) // conforming or slave face
-         {
-            int el1, el2;
-            mesh.GetFaceElements(eid.index, &el1, &el2);
-            side = (element == el1 && el2 >= 0) ? 1 : 0;
-
-            DenseMatrix tr;
-            x.GetFaceValues(eid.index, side, ir, sln, tr);
-            GetFaceGradients(x, eid.index, side, ir, grad);
-         }
-         else if (type == 1) // master
-         {
-            const auto &master = static_cast<const NCMesh::Master&>(eid);
-            SampleMasterFace(master, elist, x, ir, sln, grad);
-         }
-         else
-         {
-            MFEM_ABORT("invalid edge type");
-         }
-
-         const int edges[4][2][4] =
-         {
-            { { 1, 0, 1, 0 }, { width-2, 0, -1, 0 } },
-            { { width-1, 1, 0, 1 }, { width-1, height-2, 0, -1 } },
-            { { width-2, height-1, -1, 0 }, { 1, height-1, 1, 0 } },
-            { { 0, height-2, 0, -1 }, { 0, 1, 0, 1 } }
-         };
-
-         // store edge values
-         int o = side ? 0 : 1;
-         int x = edges[e][o][0];
-         int y = edges[e][o][1];
-
-         for (int i = 0; i <= subdiv; i++)
-         {
-            im(x, y, 0) = sln(i);
-            im(x, y, 1) = grad(0, i);
-            im(x, y, 2) = grad(1, i);
-
-            x += edges[e][o][2];
-            y += edges[e][o][3];
-         }
-
-         cout << "edge " << e << ", type = " << type << ", o = " << o << endl;
-      }
-   }
-   return local_image.GetData();
-}
-
-#else
-
 double* Drl4Amr::GetLocalImage(int element)
 {
    NCMesh *ncmesh = mesh.ncmesh;
@@ -595,7 +344,6 @@ double* Drl4Amr::GetLocalImage(int element)
 
             im(x, y, 1) = grad(0);
             im(x, y, 2) = grad(1);
-
             im(x, y, 3) = ncmesh->GetElementDepth(neighbors[k])
                           - ncmesh->GetElementDepth(element);
             break;
@@ -611,7 +359,6 @@ double* Drl4Amr::GetLocalImage(int element)
 
    return local_image.GetData();
 }
-#endif
 
 
 // *****************************************************************************

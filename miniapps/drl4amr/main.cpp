@@ -33,8 +33,14 @@ int main(int argc, char *argv[])
 
    socketstream vis1("localhost", 19916);
    socketstream vis2("localhost", 19916);
+   socketstream vis3("localhost", 19916);
+   socketstream vis4("localhost", 19916);
 
-   sim.Refine(9);
+   //sim.Refine(9);
+   sim.RandomRefine();
+   sim.RandomRefine();
+   sim.RandomRefine();
+
    sim.Compute();
 
    while (sim.GetNorm() > 0.01)
@@ -46,11 +52,13 @@ int main(int argc, char *argv[])
       sim.GetFullImage();
       sim.GetFullWidth();
 #else
-      double *img = sim.GetLocalImage(8);
+      double *img = sim.GetLocalImage(142);
       int w = sim.GetLocalWidth();
       int h = sim.GetLocalWidth();
       ShowImg(vis1, img, w, h, "Solution");
       ShowImg(vis2, img + w*h, w, h, "dx");
+      ShowImg(vis3, img + 2*w*h, w, h, "dy");
+      ShowImg(vis4, img + 3*w*h, w, h, "Depth");
       break;
 #endif
    }
