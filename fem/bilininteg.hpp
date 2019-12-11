@@ -12,10 +12,10 @@
 #ifndef MFEM_BILININTEG
 #define MFEM_BILININTEG
 
-#include "./libceed/ceed.hpp"
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
+#include "libceed/ceed.hpp"
 
 namespace mfem
 {
