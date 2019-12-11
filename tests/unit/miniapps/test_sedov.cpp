@@ -1975,22 +1975,15 @@ public:
       gVecH1(h1sz)
    {
       MFEM_ASSERT(h1f.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC),"");
-      MFEM_ASSERT(!l2f.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC),"");
+      MFEM_ASSERT(l2f.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC),"");
       gVecL2.SetSize(l2sz);
       gVecH1.SetSize(h1sz);
    }
 
    void Mult(const Vector &x, Vector &y) const
    {
-      if (l2restrict)
-      {
-         l2restrict->Mult(x, gVecL2);
-      }
-      else
-      {
-         MFEM_ASSERT(x.Size() == gVecL2.Size(), "x.Size() == gVecL2.Size()");
-         gVecL2 = x;
-      }
+
+      l2restrict->Mult(x, gVecL2);
       kForceMult(dim, D1D, Q1D, L1D, H1D, nzones,
                  l2D2Q->B, h1D2Q->Bt, h1D2Q->Gt, quad_data.stressJinvT,
                  gVecL2, gVecH1);
@@ -2004,8 +1997,7 @@ public:
                           l2D2Q->Bt, h1D2Q->B, h1D2Q->G,
                           quad_data.stressJinvT,
                           gVecH1, gVecL2);
-      if (l2restrict) { l2restrict->MultTranspose(gVecL2, y); }
-      else { y = gVecL2; }
+      l2restrict->MultTranspose(gVecL2, y);
    }
 };
 
