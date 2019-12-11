@@ -15,8 +15,6 @@
 #include "../../config/config.hpp"
 
 #ifdef MFEM_USE_CEED
-//#include "../gridfunc.hpp"
-//#include "../fespace.hpp"
 #include "../../general/device.hpp"
 #include <ceed.h>
 

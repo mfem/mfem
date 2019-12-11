@@ -576,7 +576,7 @@ The specific libraries and their options are:
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
 
 - CEED, used when MFEM_USE_CEED = YES. Requires libCEED's master branch,
-  specifically, git-hash c360dbd or later.
+  specifically, git-hash c00ee0d or later.
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
