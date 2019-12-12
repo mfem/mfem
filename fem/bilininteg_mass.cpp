@@ -42,76 +42,88 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else
 #endif
    {
-      dim = mesh->Dimension();
-      ne = fes.GetMesh()->GetNE();
-      nq = ir->GetNPoints();
-      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                       GeometricFactors::JACOBIANS);
-      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-      dofs1D = maps->ndof;
-      quad1D = maps->nqpt;
-      pa_data.SetSize(ne*nq, Device::GetMemoryType());
-      ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
-      // TODO: other types of coefficients ...
-      if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
-      if (dim==2)
+   dim = mesh->Dimension();
+   ne = fes.GetMesh()->GetNE();
+   nq = ir->GetNPoints();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
+                                    GeometricFactors::JACOBIANS);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   pa_data.SetSize(ne*nq, Device::GetMemoryType());
+   Vector coeff;
+   if (Q == nullptr)
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
+   }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   {
+      coeff.SetSize(1);
+      coeff(0) = cQ->constant;
+   }
+   else
+   {
+      coeff.SetSize(nq * ne);
+      auto C = Reshape(coeff.Write(), nq, ne);
+      for (int e = 0; e < ne; ++e)
       {
-         double constant = 0.0;
-         if (const_coeff)
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
          {
-            constant = const_coeff->constant;
+            C(q,e) = Q->Eval(T, ir->IntPoint(q));
          }
-         else
-         {
-            MFEM_ABORT("Coefficient type not supported");
-         }
-         const int NE = ne;
-         const int NQ = nq;
-         auto w = ir->GetWeights().Read();
-         auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
-         auto v = Reshape(pa_data.Write(), NQ, NE);
-         MFEM_FORALL(e, NE,
-         {
-            for (int q = 0; q < NQ; ++q)
-            {
-               const double J11 = J(q,0,0,e);
-               const double J12 = J(q,1,0,e);
-               const double J21 = J(q,0,1,e);
-               const double J22 = J(q,1,1,e);
-               const double detJ = (J11*J22)-(J21*J12);
-               v(q,e) =  w[q] * constant * detJ;
-            }
-         });
       }
-      if (dim==3)
+   }
+   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
+   if (dim==2)
+   {
+      const int NE = ne;
+      const int NQ = nq;
+      const bool const_c = coeff.Size() == 1;
+      auto w = ir->GetWeights().Read();
+      auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+      auto C =
+         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
+      auto v = Reshape(pa_data.Write(), NQ, NE);
+      MFEM_FORALL(e, NE,
       {
-         double constant = 0.0;
-         if (const_coeff)
+         for (int q = 0; q < NQ; ++q)
          {
-            constant = const_coeff->constant;
+            const double J11 = J(q,0,0,e);
+            const double J12 = J(q,1,0,e);
+            const double J21 = J(q,0,1,e);
+            const double J22 = J(q,1,1,e);
+            const double detJ = (J11*J22)-(J21*J12);
+            const double coeff = const_c ? C(0,0) : C(q,e);
+            v(q,e) =  w[q] * coeff * detJ;
          }
-         else
+      });
+   }
+   if (dim==3)
+   {
+      const int NE = ne;
+      const int NQ = nq;
+      const bool const_c = coeff.Size() == 1;
+      auto W = ir->GetWeights().Read();
+      auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+      auto C =
+         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
+      auto v = Reshape(pa_data.Write(), NQ,NE);
+      MFEM_FORALL(e, NE,
+      {
+         for (int q = 0; q < NQ; ++q)
          {
-            MFEM_ABORT("Coefficient type not supported");
+            const double J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
+            const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
+            const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
+            const double detJ = J11 * (J22 * J33 - J32 * J23) -
+            /* */               J21 * (J12 * J33 - J32 * J13) +
+            /* */               J31 * (J12 * J23 - J22 * J13);
+            const double coeff = const_c ? C(0,0) : C(q,e);
+            v(q,e) = W[q] * coeff * detJ;
          }
-         const int NE = ne;
-         const int NQ = nq;
-         auto W = ir->GetWeights().Read();
-         auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
-         auto v = Reshape(pa_data.Write(), NQ,NE);
-         MFEM_FORALL(e, NE,
-         {
-            for (int q = 0; q < NQ; ++q)
-            {
-               const double J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
-               const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
-               const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
-               const double detJ = J11 * (J22 * J33 - J32 * J23) -
-               /* */               J21 * (J12 * J33 - J32 * J13) +
-               /* */               J31 * (J12 * J23 - J22 * J13);
-               v(q,e) = W[q] * constant * detJ;
-            }
-         });
+      });
       }
    }
 }

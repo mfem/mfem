@@ -768,7 +768,7 @@ void TMOP_Metric_352::AssembleH(const DenseMatrix &Jpt,
 void TargetConstructor::ComputeAvgVolume() const
 {
    MFEM_VERIFY(nodes, "Nodes are not given!");
-   MFEM_ASSERT(avg_volume == 0.0, "the average volume is already computed!");
+   MFEM_ASSERT(avg_volume == 0.0, "The average volume is already computed!");
 
    Mesh *mesh = nodes->FESpace()->GetMesh();
    const int NE = mesh->GetNE();
@@ -787,9 +787,13 @@ void TargetConstructor::ComputeAvgVolume() const
          volume += ip.weight * Tr.Weight();
       }
    }
-   if (!Parallel())
+
+   NCMesh *ncmesh = mesh->ncmesh;
+   if (Parallel() == false)
    {
-      avg_volume = volume / NE;
+      avg_volume = (ncmesh == NULL) ?
+                   volume / NE : volume / ncmesh->GetNumRootElements();
+
    }
 #ifdef MFEM_USE_MPI
    else
@@ -797,7 +801,8 @@ void TargetConstructor::ComputeAvgVolume() const
       double area_NE[4];
       area_NE[0] = volume; area_NE[1] = NE;
       MPI_Allreduce(area_NE, area_NE + 2, 2, MPI_DOUBLE, MPI_SUM, comm);
-      avg_volume = area_NE[2] / area_NE[3];
+      avg_volume = (ncmesh == NULL) ?
+                   area_NE[2] / area_NE[3] : area_NE[2] / ncmesh->GetNumRootElements();
    }
 #endif
 }
@@ -827,7 +832,15 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
       {
          if (avg_volume == 0.0) { ComputeAvgVolume(); }
          DenseMatrix W(Wideal.Height());
-         W.Set(std::pow(volume_scale * avg_volume / Wideal.Det(),
+
+         NCMesh *ncmesh = nodes->FESpace()->GetMesh()->ncmesh;
+         double el_volume = avg_volume;
+         if (ncmesh)
+         {
+            el_volume = avg_volume / ncmesh->GetElementSizeReduction(e_id);
+         }
+
+         W.Set(std::pow(volume_scale * el_volume / Wideal.Det(),
                         1./W.Height()), Wideal);
          for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = W; }
          break;
