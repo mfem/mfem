@@ -1791,7 +1791,7 @@ public:
       geom = NULL;
 #ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif 
+#endif
    }
 
    /// Construct a mass integrator with coefficient q
@@ -1802,7 +1802,7 @@ public:
       geom = NULL;
 #ifdef MFEM_USE_CEED
       ceedDataPtr = NULL;
-#endif 
+#endif
    }
 
    virtual ~MassIntegrator()
