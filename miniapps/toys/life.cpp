@@ -26,6 +26,7 @@
 #include <iostream>
 #include <bitset>
 #include <vector>
+#include <stdlib.h> // for random number functions
 
 using namespace std;
 using namespace mfem;
