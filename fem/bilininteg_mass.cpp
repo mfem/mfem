@@ -37,17 +37,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-/*<<<<<<< HEAD
-   pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
-   ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
-   // TODO: other types of coefficients ...
-   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
-   if (dim==2)
-   =======*/
    pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
    Vector coeff;
    if (Q == nullptr)
-//>>>>>>> master
    {
       coeff.SetSize(1);
       coeff(0) = 1.0;

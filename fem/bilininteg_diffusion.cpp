@@ -214,14 +214,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-/*<<<<<<< HEAD
-   pa_data.SetSize(symmDims * nq * ne, Device::GetDeviceMemoryType());
-   ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-   MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-   const double coeff = cQ->constant;
-   PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
-                    coeff, pa_data);
-                    =======*/
    pa_data.SetSize(symmDims * nq * ne, Device::GetDeviceMemoryType());
    Vector coeff;
    if (Q == nullptr)
@@ -249,7 +241,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff,
                     pa_data);
-//>>>>>>> master
 }
 
 #ifdef MFEM_USE_OCCA
