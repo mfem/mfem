@@ -36,13 +36,13 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
    }
 }
 
-void PANonlinearFormExtension::Setup()
+void PANonlinearFormExtension::AssemblePA()
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int Ni = integrators.Size();
    for (int i = 0; i < Ni; ++i)
    {
-      integrators[i]->Setup(*n->FESpace());
+      integrators[i]->AssemblePA(*n->FESpace());
    }
 }
 
