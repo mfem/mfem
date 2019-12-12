@@ -4307,6 +4307,20 @@ int NCMesh::GetElementDepth(int i) const
    return depth;
 }
 
+int NCMesh::GetElementSizeReduction(int i) const
+{
+   int elem = leaf_elements[i];
+   int parent, reduction = 1;
+   while ((parent = elements[elem].parent) != -1)
+   {
+      if (elements[parent].ref_type & 1) { reduction *= 2; }
+      if (elements[parent].ref_type & 2) { reduction *= 2; }
+      if (elements[parent].ref_type & 4) { reduction *= 2; }
+      elem = parent;
+   }
+   return reduction;
+}
+
 void NCMesh::GetElementFacesAttributes(int i,
                                        Array<int> &faces,
                                        Array<int> &fattr) const
