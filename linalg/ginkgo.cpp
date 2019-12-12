@@ -121,7 +121,7 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
    initialize_ginkgo_log(gko::lend(b));
 
    MFEM_VERIFY(convergence_logger, "convergence logger not initialized" );
-   if (print_lvl>=2)
+   if (print_lvl==1)
    {
       MFEM_VERIFY(residual_logger, "residual logger not initialized" );
       solver_gen->add_logger(residual_logger);
