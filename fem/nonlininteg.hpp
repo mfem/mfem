@@ -84,20 +84,20 @@ public:
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA() and AddMultTransposePA(). */
-   virtual void Setup(const FiniteElementSpace &fes);
+   virtual void AssemblePA(const FiniteElementSpace &fes);
 
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA() and AddMultTransposePA().
        Used with BilinearFormIntegrators that have different spaces. */
-   virtual void Setup(const FiniteElementSpace &trial_fes,
-                      const FiniteElementSpace &test_fes);
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
 
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
        the element-wise discontinuous version of the FE space.
 
-       This method can be called only after the method Setup() has been
+       This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
@@ -106,7 +106,7 @@ public:
        result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
        represent the element-wise discontinuous version of the FE space.
 
-       This method can be called only after the method Setup() has been
+       This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
@@ -359,9 +359,9 @@ public:
                                     const Vector &elfun,
                                     DenseMatrix &elmat);
 
-   using NonlinearFormIntegrator::Setup;
+   using NonlinearFormIntegrator::AssemblePA;
 
-   virtual void Setup(const FiniteElementSpace &fes);
+   virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void MultPA(const Vector &x, Vector &y) const;
 };
