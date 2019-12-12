@@ -42,6 +42,9 @@ int main (int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+#ifdef MFEM_USE_MPI
+     MFEM_ABORT("Serial example is not compatible with parallel build.");
+#endif
 
    // Initialize and refine the starting mesh.
    Mesh mesh(mesh_file, 1, 1, false);
