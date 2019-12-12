@@ -18,35 +18,6 @@ using namespace std;
 namespace mfem
 {
 
-// PA Mass Integrator
-
-static inline MFEM_HOST_DEVICE
-double LaghosRho0(const double problem, const double *x)
-{
-   //printf("\n\033[1;37m[LaghosRho0] problem:%f", problem);
-   if (problem == -2.0) { return (x[0] < 0.5) ? 1.0 : 0.1; }
-   if (problem == -3.0) { return (x[0] > 1.0 && x[1] > 1.5) ? 0.125 : 1.0; }
-   if (problem == -5.0)
-   {
-      return
-         (x[0] >= 0.5 && x[1] >= 0.5) ? 0.5313 : // 1
-         (x[0] <  0.5 && x[1] >= 0.5) ? 1.0 : // 2
-         (x[0] <  0.5 && x[1] <  0.5) ? 0.8 : // 3
-         (x[0] >= 0.5 && x[1] <  0.5) ? 1.0 : // 4
-         -1.0;
-   }
-   if (problem == -6.0)
-   {
-      return
-         (x[0] >= 0.5 && x[1] >= 0.5) ? 1.0 : // 1
-         (x[0] <  0.5 && x[1] >= 0.5) ? 2.0 : // 2
-         (x[0] <  0.5 && x[1] <  0.5) ? 1.0 : // 3
-         (x[0] >= 0.5 && x[1] <  0.5) ? 3.0 : // 4
-         -1.0;
-   }
-   return 1.0;
-}
-
 // PA Mass Assemble kernel
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
@@ -65,25 +36,41 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetMemoryType());
-   ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
-   // TODO: other types of coefficients ...
+   Vector coeff;
+   if (Q == nullptr)
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
+   }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   {
+      coeff.SetSize(1);
+      coeff(0) = cQ->constant;
+   }
+   else
+   {
+      coeff.SetSize(nq * ne);
+      auto C = Reshape(coeff.Write(), nq, ne);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            C(q,e) = Q->Eval(T, ir->IntPoint(q));
+         }
+      }
+   }
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
-      double constant = 0.0;
-      if (const_coeff)
-      {
-         constant = const_coeff->constant;
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
       const int NE = ne;
       const int NQ = nq;
+      const bool const_c = coeff.Size() == 1;
       auto w = ir->GetWeights().Read();
       auto X = Reshape(geom->X.Read(), NQ,2,NE);
       auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+      auto C =
+         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -94,28 +81,21 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double J21 = J(q,0,1,e);
             const double J22 = J(q,1,1,e);
             const double detJ = (J11*J22)-(J21*J12);
-            const double x[2] = { X(q,0,e), X(q,1,e)};
-            const double coeff = LaghosRho0(constant, x);
+            const double coeff = const_c ? C(0,0) : C(q,e);
             v(q,e) =  w[q] * coeff * detJ;
          }
       });
    }
    if (dim==3)
    {
-      double constant = 0.0;
-      if (const_coeff)
-      {
-         constant = const_coeff->constant;
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
       const int NE = ne;
       const int NQ = nq;
+      const bool const_c = coeff.Size() == 1;
       auto W = ir->GetWeights().Read();
       auto X = Reshape(geom->X.Read(), NQ,3,NE);
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+      auto C =
+         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
@@ -127,8 +107,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double detJ = J11 * (J22 * J33 - J32 * J23) -
             /* */               J21 * (J12 * J33 - J32 * J13) +
             /* */               J31 * (J12 * J23 - J22 * J13);
-            const double x[3] = { X(q,0,e), X(q,1,e), X(q,2,e)};
-            const double coeff = LaghosRho0(constant, x);
+            const double coeff = const_c ? C(0,0) : C(q,e);
             v(q,e) = W[q] * coeff * detJ;
          }
       });
@@ -785,6 +764,7 @@ static void PAMassApply(const int dim,
    const int id = (D1D << 4) | Q1D;
    if (dim == 2)
    {
+<<<<<<< HEAD
       switch (id)
       {
          case 0x24: return SmemPAMassApply2D<2,4,16>(NE, B, Bt, op, x, y);
@@ -793,11 +773,28 @@ static void PAMassApply(const int dim,
          case 0x46: return SmemPAMassApply2D<4,6,4>(NE, B, Bt, op, x, y);
          case 0x48: return SmemPAMassApply2D<4,8,4>(NE, B, Bt, op, x, y);
          case 0x58: return SmemPAMassApply2D<5,8,2>(NE, B, Bt, op, x, y);
+=======
+      switch ((D1D << 4) | Q1D)
+      {
+         case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
+         case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
+         case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
+         case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, Bt, op, x, y);
+         case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, Bt, op, x, y);
+         case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, Bt, op, x, y);
+         case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, Bt, op, x, y);
+         case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, Bt, op, x, y);
+         default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
+>>>>>>> master
       }
    }
    else if (dim == 3)
    {
+<<<<<<< HEAD
       switch (id)
+=======
+      switch ((D1D << 4) | Q1D)
+>>>>>>> master
       {
          case 0x24: return SmemPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
