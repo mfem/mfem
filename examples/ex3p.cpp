@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
    bool static_cond = false;
+   bool pa = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -70,6 +71,8 @@ int main(int argc, char *argv[])
                   " solution.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -171,6 +174,7 @@ int main(int argc, char *argv[])
    Coefficient *muinv = new ConstantCoefficient(1.0);
    Coefficient *sigma = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
 
@@ -181,26 +185,43 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
+   // TODO: is there a way to cast OperatorPtr as HypreParMatrix, to avoid having A and A_pa?
    HypreParMatrix A;
+   OperatorPtr A_pa;
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
-   if (myid == 0)
-   {
-      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
-   }
+   if (pa)
+     a->FormLinearSystem(ess_tdof_list, x, *b, A_pa, X, B);
+   else
+     a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    // 12. Define and apply a parallel PCG solver for AX=B with the AMS
-   //     preconditioner from hypre.
-   ParFiniteElementSpace *prec_fespace =
-      (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-   HypreSolver *ams = new HypreAMS(A, prec_fespace);
-   HyprePCG *pcg = new HyprePCG(A);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(500);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*ams);
-   pcg->Mult(B, X);
+   //     preconditioner from hypre, in the full assembly case.
+   //     With partial assembly, use no preconditioner, for now.
+
+   if (pa)
+     {
+       CGSolver cg(MPI_COMM_WORLD);
+       cg.SetRelTol(1e-12);
+       cg.SetMaxIter(100);
+       cg.SetPrintLevel(1);
+       cg.SetOperator(*A_pa);
+       cg.Mult(B, X);
+     }
+   else
+     {
+       ParFiniteElementSpace *prec_fespace =
+	 (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+       HypreSolver *ams = new HypreAMS(A, prec_fespace);
+       HyprePCG *pcg = new HyprePCG(A);
+       pcg->SetTol(1e-12);
+       pcg->SetMaxIter(500);
+       pcg->SetPrintLevel(2);
+       pcg->SetPreconditioner(*ams);
+       pcg->Mult(B, X);
+
+       delete pcg;
+       delete ams;
+     }
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -243,8 +264,6 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
-   delete pcg;
-   delete ams;
    delete a;
    delete sigma;
    delete muinv;
