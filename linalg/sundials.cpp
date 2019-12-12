@@ -155,12 +155,16 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 
    // Get the vector length
    long local_size = f_.Height();
+#ifdef MFEM_USE_MPI
    long global_size;
+#endif
 
    if (Parallel())
    {
+#ifdef MFEM_USE_MPI
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
+#endif
    }
 
    // Get current time
@@ -169,7 +173,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
    if (sundials_mem)
    {
       // Check if the problem size has changed since the last Init() call
-      int resize;
+      int resize = 0;
       if (!Parallel())
       {
          resize = (NV_LENGTH_S(y) != local_size);
@@ -565,12 +569,16 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
 
    // Get the vector length
    long local_size = f_.Height();
+#ifdef MFEM_USE_MPI
    long global_size;
+#endif
 
    if (Parallel())
    {
+#ifdef MFEM_USE_MPI
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
+#endif
    }
 
    // Get current time
@@ -579,7 +587,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    if (sundials_mem)
    {
       // Check if the problem size has changed since the last Init() call
-      int resize;
+      int resize = 0;
       if (!Parallel())
       {
          resize = (NV_LENGTH_S(y) != local_size);
@@ -1049,18 +1057,22 @@ void KINSolver::SetOperator(const Operator &op)
 
    // Get the vector length
    long local_size = height;
+#ifdef MFEM_USE_MPI
    long global_size;
+#endif
 
    if (Parallel())
    {
+#ifdef MFEM_USE_MPI
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
+#endif
    }
 
    if (sundials_mem)
    {
       // Check if the problem size has changed since the last SetOperator call
-      int resize;
+      int resize = 0;
       if (!Parallel())
       {
          resize = (NV_LENGTH_S(y) != local_size);
