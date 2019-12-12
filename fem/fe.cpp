@@ -9635,6 +9635,7 @@ void L2_TetrahedronElement::ProjectDelta(int vertex, Vector &dofs) const
             const IntegrationPoint &ip = Nodes.IntPoint(i);
             dofs[i] = pow(ip.y, Order);
          }
+         break;
       case 3:
          for (int i = 0; i < Dof; i++)
          {
