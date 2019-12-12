@@ -214,11 +214,9 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
       InitCeedCoeff(Q, ptr);
-      CeedPADiffusionAssemble(fes, *ir, *ptr);
+      return CeedPADiffusionAssemble(fes, *ir, *ptr);
    }
-   else
 #endif
-   {
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -255,7 +253,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff,
                     pa_data);
-   }
 }
 
 #ifdef MFEM_USE_OCCA

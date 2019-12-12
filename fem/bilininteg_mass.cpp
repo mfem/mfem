@@ -37,11 +37,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
       InitCeedCoeff(Q, ptr);
-      CeedPAMassAssemble(fes, *ir, *ptr);
+      return CeedPAMassAssemble(fes, *ir, *ptr);
    }
-   else
 #endif
-   {
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
@@ -124,7 +122,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             v(q,e) = W[q] * coeff * detJ;
          }
       });
-      }
    }
 }
 
