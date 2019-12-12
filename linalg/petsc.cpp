@@ -3784,7 +3784,7 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    PetscBool isnest;
    ierr = PetscObjectTypeCompare((PetscObject)P,MATNEST,&isnest);
    CHKERRQ(ierr);
-   if (isnest) P->nonzerostate = nonzerostate + 1;
+   if (isnest) { P->nonzerostate = nonzerostate + 1; }
 
    // Jacobian reusage
    ierr = PetscObjectStateGet((PetscObject)P,&ts_ctx->cached_ijacstate);
@@ -4051,7 +4051,7 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    PetscBool isnest;
    ierr = PetscObjectTypeCompare((PetscObject)P,MATNEST,&isnest);
    CHKERRQ(ierr);
-   if (isnest) P->nonzerostate = nonzerostate + 1;
+   if (isnest) { P->nonzerostate = nonzerostate + 1; }
 
    // Matrix-free case
    if (A && A != P)
@@ -4178,7 +4178,7 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
    PetscBool isnest;
    ierr = PetscObjectTypeCompare((PetscObject)P,MATNEST,&isnest);
    CHKERRQ(ierr);
-   if (isnest) P->nonzerostate = nonzerostate + 1;
+   if (isnest) { P->nonzerostate = nonzerostate + 1; }
 
    // Matrix-free case
    if (A && A != P)
