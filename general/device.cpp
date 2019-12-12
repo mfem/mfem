@@ -132,9 +132,10 @@ void Device::UpdateMemoryTypeAndClass()
    const bool umpire = false;
 #endif
    const bool debug = Device::Allows(Backend::DEBUG);
+   const bool device = Device::Allows(Backend::DEVICE_MASK);
 
    // Enable the device memory type
-   if (Device::Allows(Backend::DEVICE_MASK))
+   if (device)
    {
       device_mem_type = MemoryType::DEVICE;
       device_mem_class = MemoryClass::DEVICE;
@@ -144,25 +145,21 @@ void Device::UpdateMemoryTypeAndClass()
    if (umpire)
    {
       host_mem_type = MemoryType::HOST_UMPIRE;
-      if (Device::Allows(Backend::DEVICE_MASK))
-      {
-         device_mem_type = MemoryType::DEVICE_UMPIRE;
-         device_mem_class = MemoryClass::DEVICE;
-      }
-   }
-
-   // Enable the DEBUG mode when requested
-   if (debug)
-   {
-      host_mem_type = MemoryType::HOST_DEBUG;
-      device_mem_type = MemoryType::DEVICE_DEBUG;
-      device_mem_class = MemoryClass::DEVICE;
+      if (device) { device_mem_type = MemoryType::DEVICE_UMPIRE; }
    }
 
    // Enable the UVM shortcut when requested
    if (getenv("UVM"))
    {
       device_mem_type = MemoryType::DEVICE_MANAGED;
+      device_mem_class = MemoryClass::DEVICE;
+   }
+
+   // Enable the DEBUG mode when requested
+   if (debug)
+   {
+      host_mem_type = MemoryType::HOST_DEBUG;
+      if (!device) { device_mem_type = MemoryType::DEVICE_DEBUG; }
       device_mem_class = MemoryClass::DEVICE;
    }
 

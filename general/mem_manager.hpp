@@ -609,10 +609,9 @@ inline void Memory<T>::Reset(MemoryType mt)
 template <typename T>
 inline void Memory<T>::New(int size)
 {
-   //MFEM_ASSERT(size > 0, "size must be positive!");
    capacity = size;
    flags = OWNS_HOST | VALID_HOST;
-   h_mt = /*size == 0 ?  MemoryType::HOST :*/ MemoryManager::host_mem_type;
+   h_mt = MemoryManager::host_mem_type;
    h_ptr = (h_mt == MemoryType::HOST) ? new T[size] :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
    MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
@@ -624,7 +623,6 @@ inline void Memory<T>::New(int size, MemoryType mt)
    capacity = size;
    if (mt == MemoryType::HOST) { flags = OWNS_HOST | VALID_HOST; }
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
-   // Allocate the host pointer with new T[] if needed.
    T *h_tmp = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
    h_ptr = (mt == MemoryType::HOST) ? h_tmp:
            (T*)MemoryManager::New_(h_tmp, size*sizeof(T), mt, flags);
@@ -636,6 +634,8 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
 {
    capacity = size;
    h_ptr = host_ptr;
+   h_mt = MemoryType::HOST;
+   flags = (own ? OWNS_HOST : 0) | VALID_HOST;
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
    {
@@ -643,21 +643,16 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
       MFEM_VERIFY(!MemoryManager::IsAlias_(h_ptr), "Wrap but existing alias");
    }
 #endif
-   h_mt = MemoryType::HOST;
-   flags = (own ? OWNS_HOST : 0) | VALID_HOST;
 }
 
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
-   MFEM_VERIFY(ptr,"");
-   MFEM_VERIFY(size > 0,"");
-   capacity = size;
    h_mt = mt;
-   // Allocate the host pointer with new T[] if needed.
+   capacity = size;
    T *h_tmp = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
-   h_ptr = (T*)MemoryManager::Register_(ptr, h_tmp, size*sizeof(T), mt, own,
-                                        false, flags);
+   h_ptr = (T*)MemoryManager::Register_(ptr, h_tmp, size*sizeof(T),
+                                        mt, own, false, flags);
 }
 
 template <typename T>

@@ -84,10 +84,10 @@ if (MFEM_USE_CUDA)
    #target_compile_definitions(unit_tests_cuda_uvm PUBLIC MFEM_DEV_UNIT="cuda,uvm")
    #target_link_libraries(unit_tests_cuda_uvm mfem)
    # CUDA + debug test
-   #add_executable(unit_tests_cuda_dbg ${UNIT_TESTS_SRCS_SEDOV})
-   #target_compile_definitions(unit_tests_cuda_dbg PUBLIC MFEM_DEV_UNIT_TESTS=1)
-   #target_compile_definitions(unit_tests_cuda_dbg PUBLIC MFEM_DEV_UNIT="cuda,debug")
-   #target_link_libraries(unit_tests_cuda_dbg mfem)
+   add_executable(unit_tests_cuda_dbg ${UNIT_TESTS_SRCS_SEDOV})
+   target_compile_definitions(unit_tests_cuda_dbg PUBLIC MFEM_DEV_UNIT_TESTS=1)
+   target_compile_definitions(unit_tests_cuda_dbg PUBLIC MFEM_DEV_UNIT="cuda,debug")
+   target_link_libraries(unit_tests_cuda_dbg mfem)
 endif()
    
 # Copy data to the build directory.
@@ -99,7 +99,7 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory
 # Add unit tests
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests unit_tests_cpu unit_tests_dbg)
 if (MFEM_USE_CUDA)
-   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests_cuda) # unit_tests_cuda_uvm unit_tests_cuda_dbg)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests_cuda unit_tests_cuda_dbg) # unit_tests_cuda_uvm)
 endif()
    
 # Create a test called 'unit_tests' that runs the 'unit_tests' executable.
@@ -112,7 +112,7 @@ add_test(NAME unit_tests_dbg COMMAND unit_tests_dbg)
 
 # Additional CUDA unit tests
 if (MFEM_USE_CUDA)
-    foreach(dev cuda) #cuda_dbg cuda_uvm)
+    foreach(dev cuda cuda_dbg) # cuda_uvm)
         add_test(NAME unit_tests_${dev} COMMAND unit_tests_${dev})
     endforeach()
 endif()
@@ -130,7 +130,7 @@ if (MFEM_USE_MPI)
       add_mpi_unit_test(dbg ${np})
    endforeach()
    if (MFEM_USE_CUDA)
-      foreach(dev cuda) #cuda_dbg cuda_uvm)
+      foreach(dev cuda cuda_dbg) #cuda_uvm)
          foreach(np ${MPI_NPS})
             add_mpi_unit_test(${dev} ${np})
          endforeach()

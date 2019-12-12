@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <algorithm> // std::max
 
-// Uncomment to try on _WIN32 platform
+// Uncomment to try _WIN32 platform
 //#define _WIN32
 //#define _aligned_malloc(s,a) malloc(s)
 
@@ -55,13 +55,13 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 {
    switch (mt)
    {
-      case MemoryType::HOST:           return MemoryType::DEVICE;
+      case MemoryType::HOST:           return mm.GetDeviceMemoryType();
       case MemoryType::HOST_32:        return MemoryType::DEVICE;
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
-      case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
+      case MemoryType::HOST_DEBUG:     return mm.GetDeviceMemoryType();
       case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
       case MemoryType::HOST_MANAGED:   return MemoryType::DEVICE_MANAGED;
-      case MemoryType::DEVICE:         return MemoryType::HOST;
+      case MemoryType::DEVICE:         return mm.GetHostMemoryType();
       case MemoryType::DEVICE_DEBUG:   return MemoryType::HOST_DEBUG;
       case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST_UMPIRE;
       case MemoryType::DEVICE_MANAGED: return MemoryType::HOST_MANAGED;
@@ -73,16 +73,24 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
-   MFEM_VERIFY(IsHostMemory(h_mt),"");
-   MFEM_VERIFY(!IsHostMemory(d_mt),"");
+   MFEM_ASSERT(IsHostMemory(h_mt),"");
+   MFEM_ASSERT(!IsHostMemory(d_mt),"");
    const bool sync =
       (h_mt == MemoryType::HOST_MANAGED && d_mt == MemoryType::DEVICE_MANAGED) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
-      //(h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE) ||
+      (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_DEBUG) ||
       (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE);
+   if (!sync)
+   {
+      printf("\033[33;1m(%d,%d)\033[m",
+             static_cast<int>(h_mt), static_cast<int>(d_mt));
+      fflush(0);
+      while (true) ;
+   }
    MFEM_VERIFY(sync, "");
 }
 
@@ -281,7 +289,7 @@ static void MmuInit()
    if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
    if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
    pagesize = (uintptr_t) sysconf(_SC_PAGE_SIZE);
-   MFEM_VERIFY(pagesize > 0, "pagesize must not be less than 1");
+   MFEM_ASSERT(pagesize > 0, "pagesize must not be less than 1");
    pagemask = pagesize - 1;
 }
 
@@ -513,6 +521,7 @@ public:
       }
 
       const bool debug = Device::Allows(Backend::DEBUG);
+      const bool device_mask = Device::Allows(Backend::DEVICE_MASK);
 
       // Filling the host memory backends
       // HOST, HOST_32 & HOST_64 are always ready
@@ -542,7 +551,7 @@ public:
       // Filling the device memory backends, shifting with the host size
       device[static_cast<int>(MemoryType::DEVICE)-HostMemoryTypeSize] =
 #if defined(MFEM_USE_CUDA)
-         debug ?
+         (debug && !device_mask) ?
          static_cast<DeviceMemorySpace*>(new MmuDeviceMemorySpace()):
          static_cast<DeviceMemorySpace*>(new CudaDeviceMemorySpace());
 #elif defined(MFEM_USE_HIP)
@@ -597,8 +606,8 @@ static internal::Ctrl *ctrl;
 void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
                           unsigned &flags)
 {
-   MFEM_VERIFY(exists, "internal error");
-   MFEM_VERIFY(mt != MemoryType::HOST, "internal error");
+   MFEM_ASSERT(exists, "internal error");
+   MFEM_ASSERT(mt != MemoryType::HOST, "internal error");
    const bool host_reg = IsHostRegisteredMemory(mt);
    const bool host_std = IsHostMemory(mt) && !IsHostRegisteredMemory(mt);
    const MemType h_mt = IsHostMemory(mt) ? mt : GetDualMemoryType_(mt);
@@ -634,9 +643,9 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
                                MemoryType mt,
                                bool own, bool alias, unsigned &flags)
 {
-   MFEM_VERIFY(IsHostMemory(mt),"");
-   MFEM_VERIFY(exists, "internal error");
-   MFEM_VERIFY(!alias, "cannot register an alias!");
+   MFEM_ASSERT(IsHostMemory(mt),"");
+   MFEM_ASSERT(exists, "internal error");
+   MFEM_ASSERT(!alias, "cannot register an alias!");
    const bool host_reg = IsHostRegisteredMemory(mt);
    const bool host_std = IsHostMemory(mt) && !IsHostRegisteredMemory(mt);
    const MemType h_mt = mt;
@@ -688,7 +697,7 @@ void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
 
 MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
 {
-   MFEM_VERIFY(flags & Mem::REGISTERED,"");
+   MFEM_ASSERT(flags & Mem::REGISTERED,"");
    MFEM_ASSERT(!(flags & Mem::OWNS_DEVICE) || (flags & Mem::OWNS_INTERNAL),
                "invalid Memory state");
    if (mm.exists && (flags & Mem::OWNS_INTERNAL))
@@ -696,14 +705,14 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
       if (flags & Mem::ALIAS)
       {
          const MemoryType h_mt = maps->aliases.at(h_ptr).h_mt;
-         MFEM_VERIFY(mt == h_mt,"");
+         MFEM_ASSERT(mt == h_mt,"");
          mm.EraseAlias(h_ptr);
          return h_mt;
       }
       else
       {
          const MemoryType h_mt = maps->memories.at(h_ptr).h_mt;
-         MFEM_VERIFY(mt == h_mt,"");
+         MFEM_ASSERT(mt == h_mt,"");
          if ((flags & Mem::OWNS_HOST) && (h_mt != MemoryType::HOST))
          { ctrl->Host(h_mt)->Dealloc(h_ptr); }
          mm.Erase(h_ptr, flags & Mem::OWNS_DEVICE);
@@ -764,7 +773,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                 size_t bytes, unsigned &flags)
 {
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
-   MFEM_VERIFY(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
+   MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)))
    {
       const bool copy = !(flags & Mem::VALID_HOST);
@@ -787,7 +796,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
-   MFEM_VERIFY(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
+   MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)))
    {
       const bool copy = !(flags & Mem::VALID_HOST);
@@ -810,7 +819,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
-   MFEM_VERIFY(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
+   MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)))
    {
       flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
@@ -979,7 +988,7 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
    }
    else
    {
-      MFEM_VERIFY(IsKnown_(src_h_ptr), "internal error");
+      MFEM_ASSERT(IsKnown_(src_h_ptr), "internal error");
       const void *src_d_ptr = (src_flags & Mem::ALIAS) ?
                               mm.GetAliasDevicePtr(src_h_ptr, bytes, false) :
                               mm.GetDevicePtr(src_h_ptr, bytes, false);
@@ -1044,12 +1053,11 @@ void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr, size_t bytes,
                                  MemoryType h_mt, MemoryType d_mt)
 {
    MFEM_VERIFY_TYPES(h_mt, d_mt);
-   MFEM_VERIFY(h_ptr != NULL, "internal error");
+   MFEM_ASSERT(h_ptr != NULL, "internal error");
    Insert(h_ptr, bytes, h_mt, d_mt);
    internal::Memory &mem = maps->memories.at(h_ptr);
    if (d_ptr == NULL) { ctrl->Device(d_mt)->Alloc(mem); }
    else { mem.d_ptr = d_ptr; }
-   //ctrl->Device(d_mt)->Unprotect(mem);
 }
 
 void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
@@ -1066,7 +1074,7 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
    if (base_is_alias)
    {
       const internal::Alias &alias = maps->aliases.at(base_ptr);
-      MFEM_VERIFY(alias.mem,"");
+      MFEM_ASSERT(alias.mem,"");
       base_ptr = alias.mem->h_ptr;
       offset += alias.offset;
    }
@@ -1123,7 +1131,7 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    ctrl->Device(d_mt)->Unprotect(mem);
    if (copy_data)
    {
-      MFEM_VERIFY(bytes <= mem.bytes, "invalid copy size");
+      MFEM_ASSERT(bytes <= mem.bytes, "invalid copy size");
       ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes);
    }
    ctrl->Host(h_mt)->Protect(h_ptr, bytes);
@@ -1151,7 +1159,7 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    void *alias_h_ptr = static_cast<char*>(mem.h_ptr) + offset;
    void *alias_d_ptr = static_cast<char*>(mem.d_ptr) + offset;
    MFEM_ASSERT(alias_h_ptr == alias_ptr, "internal error");
-   MFEM_VERIFY(bytes <= alias.bytes, "internal error");
+   MFEM_ASSERT(bytes <= alias.bytes, "internal error");
    ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes);
    ctrl->Host(h_mt)->AliasUnprotect(alias_ptr, bytes);
    if (copy) { ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes); }
@@ -1162,8 +1170,8 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
 void *MemoryManager::GetHostPtr(const void *ptr, size_t bytes, bool copy)
 {
    const internal::Memory &mem = maps->memories.at(ptr);
-   MFEM_VERIFY(mem.h_ptr == ptr, "internal error");
-   MFEM_VERIFY(bytes == mem.bytes, "internal error")
+   MFEM_ASSERT(mem.h_ptr == ptr, "internal error");
+   MFEM_ASSERT(bytes == mem.bytes, "internal error")
    const MemoryType &h_mt = mem.h_mt;
    const MemoryType &d_mt = mem.d_mt;
    MFEM_VERIFY_TYPES(h_mt, d_mt);
