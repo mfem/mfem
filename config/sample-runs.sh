@@ -467,25 +467,27 @@ fi
 
 TIMEFORMAT="${base_timeformat}"
 
-# Setup devices
-have_occa="no"
-have_raja="no"
-have_ceed="no"
-if [ "${device_runs}" == "yes" ]; then
-   if [ -n "${CUDA_ARCH}" ]; then
-      mfem_config+=" CUDA_ARCH=${CUDA_ARCH}"
-   fi
-   if [ -d "${mfem_dir}/../occa" ]; then
-      mfem_config+=" MFEM_USE_OCCA=YES"
-      have_occa="yes"
-   fi
-   if [ -d "${mfem_dir}/../raja" ]; then
-      mfem_config+=" MFEM_USE_RAJA=YES"
-      have_raja="yes"
-   fi
-   if [ -d "${mfem_dir}/../libCEED" ]; then
-      mfem_config+=" MFEM_USE_CEED=YES"
-      have_ceed="yes"
+# Setup optional libraries when not using externally built MFEM:
+if [ "${built}" == "no" ]; then
+   have_occa="no"
+   have_raja="no"
+   have_ceed="no"
+   if [ "${device_runs}" == "yes" ]; then
+      if [ -n "${CUDA_ARCH}" ]; then
+         mfem_config+=" CUDA_ARCH=${CUDA_ARCH}"
+      fi
+      if [ -d "${mfem_dir}/../occa" ]; then
+         mfem_config+=" MFEM_USE_OCCA=YES"
+         have_occa="yes"
+      fi
+      if [ -d "${mfem_dir}/../raja" ]; then
+         mfem_config+=" MFEM_USE_RAJA=YES"
+         have_raja="yes"
+      fi
+      if [ -d "${mfem_dir}/../libCEED" ]; then
+         mfem_config+=" MFEM_USE_CEED=YES"
+         have_ceed="yes"
+      fi
    fi
 fi
 
