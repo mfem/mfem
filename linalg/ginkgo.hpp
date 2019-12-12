@@ -12,6 +12,14 @@
 #ifndef MFEM_GINKGO
 #define MFEM_GINKGO
 
+#include <iomanip>
+#include<ios>
+#include <string>
+#include <vector>
+#include <fstream>
+#include <iostream>
+
+
 #include "../config/config.hpp"
 #include "operator.hpp"
 #include "sparsemat.hpp"
@@ -25,17 +33,164 @@ namespace mfem
 {
 namespace GinkgoWrappers
 {
+// Utility function which gets the scalar value of a Ginkgo gko::matrix::Dense
+// matrix representing the norm of a vector.
+template <typename ValueType=double>
+double get_norm(const gko::matrix::Dense<ValueType> *norm)
+{
+   // Put the value on CPU thanks to the master executor
+   auto cpu_norm = clone(norm->get_executor()->get_master(), norm);
+   // Return the scalar value contained at position (0, 0)
+   return cpu_norm->at(0, 0);
+}
+
+// Utility function which computes the norm of a Ginkgo gko::matrix::Dense
+// vector.
+template <typename ValueType=double>
+double compute_norm(const gko::matrix::Dense<ValueType> *b)
+{
+   // Get the executor of the vector
+   auto exec = b->get_executor();
+   // Initialize a result scalar containing the value 0.0.
+   auto b_norm = gko::initialize<gko::matrix::Dense<ValueType>>({0.0}, exec);
+   // Use the dense `compute_norm2` function to compute the norm.
+   b->compute_norm2(lend(b_norm));
+   // Use the other utility function to return the norm contained in `b_norm``
+   return std::pow(get_norm(lend(b_norm)),2);
+}
+
 /**
- * This class forms the base class for all of Ginkgo's iterative solvers.
- * The various derived classes only take
- * the additional data that is specific to them and solve the given linear
- * system. The entire collection of solvers that Ginkgo implements is
- * available at <a Ginkgo
- * href="https://ginkgo-project.github.io/ginkgo/doc/develop/"> documentation
- * and manual pages</a>.
+ * Custom logger class which intercepts the residual norm scalar and solution
+ * vector in order to print a table of real vs recurrent (internal to the
+ * solvers) residual norms.
+ *
+ * This has been taken from the custom-logger example of
+ * Ginkgo. See the custom-logger example to understand how to write and modify
+ * your own loggers with ginkgo
  *
  * @ingroup GinkgoWrappers
  */
+template <typename ValueType=double>
+struct ResidualLogger : gko::log::Logger
+{
+   // Output the logger's data in a table format
+   void write() const
+   {
+      // Print a header for the table
+      std::cout << "Iteration log with real residual norms:" << std::endl;
+      std::cout << '|' << std::setw(10) << "Iteration" << '|' << std::setw(25)
+                << "Real Residual Norm" << '|' << std::endl;
+      // Print a separation line. Note that for creating `10` characters
+      // `std::setw()` should be set to `11`.
+      std::cout << '|' << std::setfill('-') << std::setw(11) << '|' <<
+                std::setw(26) << '|' << std::setfill(' ') << std::endl;
+      // Print the data one by one in the form
+      std::cout << std::scientific;
+      for (std::size_t i = 0; i < iterations.size(); i++)
+      {
+         std::cout << '|' << std::setw(10) << iterations[i] << '|'
+                   << std::setw(25) << real_norms[i] << '|' << std::endl;
+      }
+      // std::defaultfloat could be used here but some compilers
+      // do not support it properly, e.g. the Intel compiler
+      std::cout.unsetf(std::ios_base::floatfield);
+      // Print a separation line
+      std::cout << '|' << std::setfill('-') << std::setw(11) << '|' <<
+                std::setw(26) << '|' << std::setfill(' ') << std::endl;
+   }
+
+   using gko_dense = gko::matrix::Dense<ValueType>;
+
+   // Customize the logging hook which is called everytime an iteration is
+   // completed
+   void on_iteration_complete(const gko::LinOp *,
+                              const gko::size_type &iteration,
+                              const gko::LinOp *residual,
+                              const gko::LinOp *solution,
+                              const gko::LinOp *residual_norm) const override
+   {
+      // // If the solver shares a residual norm, log its value
+      // if (residual_norm)
+      // {
+      //    auto dense_norm = gko::as<gko_dense>(residual_norm);
+      //    // Add the norm to the `recurrent_norms` vector
+      //    recurrent_norms.push_back(get_norm(dense_norm));
+      //    // Otherwise, use the recurrent residual vector
+      // }
+      // else
+      // {
+      //    auto dense_residual = gko::as<gko_dense>(residual);
+      //    // Compute the residual vector's norm
+      //    auto norm = compute_norm(gko::lend(dense_residual));
+      //    // Add the computed norm to the `recurrent_norms` vector
+      //    recurrent_norms.push_back(norm);
+      // }
+
+      // If the solver shares the current solution vector
+      if (solution)
+      {
+         // Store the matrix's executor
+         auto exec = matrix->get_executor();
+         // Create a scalar containing the value 1.0
+         auto one = gko::initialize<gko_dense>({1.0}, exec);
+         // Create a scalar containing the value -1.0
+         auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
+         // Instantiate a temporary result variable
+         auto res = gko::clone(b);
+         // Compute the real residual vector by calling apply on the system
+         // matrix
+         matrix->apply(gko::lend(one), gko::lend(solution),
+                       gko::lend(neg_one), gko::lend(res));
+
+         // Compute the norm of the residual vector and add it to the
+         // `real_norms` vector
+         real_norms.push_back(compute_norm(gko::lend(res)));
+      }
+      else
+      {
+         // Add to the `real_norms` vector the value -1.0 if it could not be
+         // computed
+         real_norms.push_back(-1.0);
+      }
+
+      // Add the current iteration number to the `iterations` vector
+      iterations.push_back(iteration);
+   }
+
+   // Construct the logger and store the system matrix and b vectors
+   ResidualLogger(std::shared_ptr<const gko::Executor> exec,
+                  const gko::LinOp *matrix, const gko_dense *b)
+      : gko::log::Logger(exec,
+                         gko::log::Logger::iteration_complete_mask),
+        matrix{matrix},
+        b{b}
+   {}
+
+private:
+   // Pointer to the system matrix
+   const gko::LinOp *matrix;
+   // Pointer to the right hand sides
+   const gko_dense *b;
+   // Vector which stores all the recurrent residual norms
+   mutable std::vector<ValueType> recurrent_norms{};
+   // Vector which stores all the real residual norms
+   mutable std::vector<ValueType> real_norms{};
+   // Vector which stores all the iteration numbers
+   mutable std::vector<std::size_t> iterations{};
+};
+
+
+/**
+* This class forms the base class for all of Ginkgo's iterative solvers.
+* The various derived classes only take
+* the additional data that is specific to them and solve the given linear
+* system. The entire collection of solvers that Ginkgo implements is
+* available at <a Ginkgo
+* href="https://ginkgo-project.github.io/ginkgo/doc/develop/"> documentation
+* and manual pages</a>.
+*
+* @ingroup GinkgoWrappers
+*/
 class GinkgoIterativeSolverBase
 {
 public:
@@ -148,6 +303,12 @@ protected:
    std::shared_ptr<gko::log::Convergence<>> convergence_logger;
 
    /**
+    * The residual logger object used to check for convergence and other
+    * solver data if needed.
+    */
+   std::shared_ptr<ResidualLogger<>> residual_logger;
+
+   /**
     * The Ginkgo combined factory object is used to create a combined stopping
     * criterion to be passed to the solver.
     */
@@ -168,7 +329,7 @@ private:
     * logging event masks.</a>
     */
    void
-   initialize_ginkgo_log();
+   initialize_ginkgo_log(gko::matrix::Dense<double>* b);
 
    /**
     * Ginkgo matrix data structure. First template parameter is for storing the
