@@ -109,6 +109,9 @@ int main(int argc, char *argv[])
       }
    }
 
+   if (myid == 0)
+     cout << "Serial mesh number of elements " << mesh->GetNE() << endl;
+
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
@@ -197,29 +200,36 @@ int main(int argc, char *argv[])
      ParGridFunction y_pa(fespace);
 
      x_test.Randomize(1);
+     //x_test = 0.0;
+     //x_test[0] = 1.0;
 
      ParBilinearForm *a_fa = new ParBilinearForm(fespace);
      a_fa->AddDomainIntegrator(new VectorFEMassIntegrator);
+     a_fa->AddDomainIntegrator(new CurlCurlIntegrator);
+
      a_fa->Assemble();
      a_fa->Finalize();
 
      ParBilinearForm *a_pa = new ParBilinearForm(fespace);
      a_pa->SetAssemblyLevel(AssemblyLevel::PARTIAL);
      a_pa->AddDomainIntegrator(new VectorFEMassIntegrator);
+     a_pa->AddDomainIntegrator(new CurlCurlIntegrator);
      a_pa->Assemble();
 
      a_fa->Mult(x_test, y_fa);
      a_pa->Mult(x_test, y_pa);
 
-     cout << "Norm of y_fa " << y_fa.Norml2() << endl;
-     cout << "Norm of y_pa " << y_pa.Norml2() << endl;
+     cout << myid << ": Norm of y_fa " << y_fa.Norml2() << endl;
+     cout << myid << ": Norm of y_pa " << y_pa.Norml2() << endl;
 
      y_fa -= y_pa;
      
-     cout << "Norm of diff " << y_fa.Norml2() << endl;
+     cout << myid << ": Norm of diff " << y_fa.Norml2() << endl;
 
      delete a_fa;
      delete a_pa;
+
+     MPI_Barrier(MPI_COMM_WORLD);
    }
 
    return 0;
