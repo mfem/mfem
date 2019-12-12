@@ -54,10 +54,13 @@ public:
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
 
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
    virtual int GetNFaces(int &nFaceVertices) const;
 
-   virtual int GetNFaceVerticess(int fi) const
-   { return ( ( fi < 2 ) ? 3 : 4); }
+   virtual int GetNFaces() const { return 5; }
+
+   virtual int GetNFaceVertices(int fi) const
+   { return (fi < 2) ? 3 : 4; }
 
    virtual const int *GetFaceVertices(int fi) const
    { return geom_t::FaceVert[fi]; }
@@ -69,7 +72,7 @@ public:
 };
 
 // Defined in fe.cpp to ensure construction after 'mfem::poly1d'.
-extern class H1_WedgeElement WedgeFE;
+extern H1_WedgeElement WedgeFE;
 
 }
 
