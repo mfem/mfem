@@ -32,6 +32,10 @@ Discretization improvements
   load balancing. Anisotropic prism refinement is only available in the serial
   version at the moment.
 
+Meshing improvements
+--------------------------
+- The TMOP mesh optimization algorithms have been improved to support AMR meshes.
+
 Miscellaneous
 -------------
 - Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This
@@ -45,16 +49,20 @@ Miscellaneous
 
 - Added support for GSLIB-FindPoints, a high-order off-grid interpolation
   utility. See INSTALL for details on building MFEM with GSLIB, and
-  examples/gslib for an example of this feature. 
+  examples/gslib for an example of this feature.
 
 New and updated examples and miniapps
 -------------------------------------
-- Added examples (exs.cpp,exp.cpp,compare.cpp) in examples/gslib that show 
-  how GSLIB-FindPoints can be used to find arbitrary number of points (in
-  physical-space) in a 2D/3D mesh in parallel, and interpolate a
-  GridFunction/ParGridFunction at those points. The GridFunction must 
-  be in H1 and in the same space as the mesh that is used to find the points.
-  
+- Added examples (exs.cpp,exp.cpp,compare.cpp) in examples/gslib that show how
+  GSLIB-FindPoints can be used to find arbitrary number of points (in physical
+  space) in a 2D/3D mesh in parallel, and interpolate a (Par)GridFunction at
+  those points. The GridFunction must be in H1 and in the same space as the mesh
+  that is used to find the points.
+
+- The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
+  optimization for an AMR mesh.
+
+
 Version 4.0, released on May 24, 2019
 =====================================
 
