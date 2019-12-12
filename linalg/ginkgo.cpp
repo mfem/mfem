@@ -72,12 +72,15 @@ GinkgoIterativeSolverBase::GinkgoIterativeSolverBase(
 
 
 void
-GinkgoIterativeSolverBase::initialize_ginkgo_log()
+GinkgoIterativeSolverBase::initialize_ginkgo_log(gko::matrix::Dense<double>* b)
 {
    // Add the logger object. See the different masks available in Ginkgo's
    // documentation
    convergence_logger = gko::log::Convergence<>::create(
                            executor, gko::log::Logger::criterion_check_completed_mask);
+   residual_logger = std::make_shared<ResidualLogger<>>(executor,
+                                                        gko::lend(system_matrix),b);
+
 }
 
 
@@ -94,9 +97,6 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
    MFEM_VERIFY(executor, "executor is not initialized");
    MFEM_VERIFY(rhs.Size() == solution.Size(),
                "Mismatching sizes for rhs and solution");
-
-   // Generate the solver from the solver using the system matrix.
-   auto solver = solver_gen->generate(system_matrix);
    // Create the rhs vector in Ginkgo's format.
    std::vector<double> f(rhs.Size());
    std::copy(rhs.GetData(), rhs.GetData() + rhs.Size(), f.begin());
@@ -118,9 +118,18 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
 
    // Create the logger object to log some data from the solvers to confirm
    // convergence.
-   initialize_ginkgo_log();
+   initialize_ginkgo_log(gko::lend(b));
 
-   MFEM_VERIFY(convergence_logger, "logger not initialized" );
+   MFEM_VERIFY(convergence_logger, "convergence logger not initialized" );
+   if (print_lvl>=2)
+   {
+      MFEM_VERIFY(residual_logger, "residual logger not initialized" );
+      solver_gen->add_logger(residual_logger);
+   }
+
+   // Generate the solver from the solver using the system matrix.
+   auto solver = solver_gen->generate(system_matrix);
+
    // Add the convergence logger object to the combined factory to retrieve the
    // solver and other data
    combined_factory->add_logger(convergence_logger);
@@ -192,6 +201,10 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
       mfem::out << "Converged in " << num_iteration <<
                 " iterations with final residual norm "
                 << fin_res_norm << '\n';
+   }
+   if (print_lvl >=2)
+   {
+      residual_logger->write();
    }
 
    // Check if the solution is on a CUDA device, if so, copy it over to the

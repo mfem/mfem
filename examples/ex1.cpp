@@ -184,15 +184,15 @@ int main(int argc, char *argv[])
    if (!pa)
    {
 #ifndef MFEM_USE_SUITESPARSE
-         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-         GSSmoother M((SparseMatrix&)(*A));
-         PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+      GSSmoother M((SparseMatrix&)(*A));
+      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
 #else
-         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-         UMFPackSolver umf_solver;
-         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         umf_solver.SetOperator(*A);
-         umf_solver.Mult(B, X);
+      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(*A);
+      umf_solver.Mult(B, X);
 #endif
    }
    else // No preconditioning for now in partial assembly mode.
