@@ -1989,6 +1989,14 @@ protected:
    Coefficient *Q;
    MatrixCoefficient *MQ;
 
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned
+   const DofToQuad *mapsC;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+   Array<int> dof_map;
+
 public:
    CurlCurlIntegrator() { Q = NULL; MQ = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
@@ -2009,6 +2017,9 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
 /** Integrator for (curl u, curl v) for FE spaces defined by 'dim' copies of a
