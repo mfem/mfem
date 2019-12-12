@@ -190,21 +190,21 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
    {
       converged =0;
    }
+   if (print_lvl ==1)
+     {
+       residual_logger->write();
+     }
    if (converged!=0)
    {
       mfem::err << "No convergence!" << '\n';
       mfem::out << "(B r_N, r_N) = " << fin_res_norm << '\n'
                 << "Number of iterations: " << num_iteration << '\n';
    }
-   else if (print_lvl >=1 && converged==0 )
+   if (print_lvl >=2 && converged==0 )
    {
       mfem::out << "Converged in " << num_iteration <<
                 " iterations with final residual norm "
                 << fin_res_norm << '\n';
-   }
-   if (print_lvl >=2)
-   {
-      residual_logger->write();
    }
 
    // Check if the solution is on a CUDA device, if so, copy it over to the
