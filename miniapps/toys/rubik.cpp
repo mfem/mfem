@@ -73,7 +73,8 @@
 #include "../common/mesh_extras.hpp"
 #include <fstream>
 #include <iostream>
-#include<set>
+#include <set>
+#include <stdlib.h> // for random number functions
 
 using namespace std;
 using namespace mfem;
