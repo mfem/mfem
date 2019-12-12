@@ -10,23 +10,47 @@
 
 Version 4.0.1 (development)
 ===========================
-- Improved RAJA backend
-- Improved multi-GPU MPI communication.
 
-GPU support
------------
+Improved GPU support
+--------------------
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
-  language that can run on both AMD and NVIDIA hardware. The list of current
-  backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
-  "omp", "occa-cpu", "raja-cpu", and "cpu".
+  language that can run on both AMD and NVIDIA hardware. With this change, the
+  list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",
+  "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+
+- Improved RAJA backend.
+
+- Improved multi-GPU MPI communication.
 
 Miscellaneous
 -------------
-- Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This 
+- Improved element numbering after uniform mesh refinement.
+
+Discretization improvements
+---------------------------
+- Added support for non-conforming prism AMR, including coarsening and parallel
+  load balancing. Anisotropic prism refinement is only available in the serial
+  version at the moment.
+
+Meshing improvements
+--------------------------
+- The TMOP mesh optimization algorithms have been improved to support AMR meshes.
+
+Miscellaneous
+-------------
+- Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This
   necessitated a complete rework of the interface and requires changes at
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
 
+- Added support for creating refined versions of periodic meshes, making use of
+  the new L2ElementRestriction class. This class also allows for computing
+  geometric factors on periodic meshes using partial assembly.
+
+New and updated examples and miniapps
+-------------------------------------
+- The (p)mesh-optimizer miniapp has been updated to demonstrate mesh optimization 
+  for an AMR mesh.
 
 Version 4.0, released on May 24, 2019
 =====================================
@@ -69,7 +93,6 @@ GPU support
 
 Discretization improvements
 ---------------------------
-
 - Partial assembled finite element operators are now available in the core
   library, based on the new classes PABilinearFormExtension, ElementRestriction,
   DofToQuad and GeometricFactors (associated with the classes BilinearForm,

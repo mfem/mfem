@@ -146,6 +146,8 @@ protected:
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
+   // Get degenerate face DOFs: see explanation in method implementation.
+   void GetDegenerateFaceDofs(int index, Array<int> &dofs) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
@@ -156,6 +158,7 @@ protected:
    static bool DofFinalizable(int dof, const Array<bool>& finalized,
                               const SparseMatrix& deps);
 
+   /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
    /// GridFunction interpolation operator applicable after mesh refinement.
@@ -304,8 +307,9 @@ public:
        The parameter @a e_ordering describes how the local DOFs in each element
        should be ordered, see ElementDofOrdering.
 
-       For discontinuous spaces, where the element-restriction is the identity,
-       this method will return NULL.
+       For discontinuous spaces, the element restriction corresponds to a
+       permutation of the degrees of freedom, implemented by the
+       L2ElementRestriction class.
 
        The returned Operator is owned by the FiniteElementSpace. */
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
@@ -896,6 +900,22 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
+/// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetElementRestriction(). L-vectors
+    corresponding to grid functions in L2 finite element spaces differ from
+    E-vectors only in the ordering of the degrees of freedom. */
+class L2ElementRestriction : public Operator
+{
+   const int ne;
+   const int vdim;
+   const bool byvdim;
+   const int ndof;
+public:
+   L2ElementRestriction(const FiniteElementSpace&);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
 
 /** @brief A class that performs interpolation from an E-vector to quadrature
     point values and/or derivatives (Q-vectors). */
