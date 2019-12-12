@@ -571,6 +571,7 @@ The specific libraries and their options are:
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
 
 - RAJA, used when MFEM_USE_RAJA = YES.
+  Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
 

@@ -38,24 +38,40 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetMemoryType());
-   ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
-   // TODO: other types of coefficients ...
+   Vector coeff;
+   if (Q == nullptr)
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
+   }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   {
+      coeff.SetSize(1);
+      coeff(0) = cQ->constant;
+   }
+   else
+   {
+      coeff.SetSize(nq * ne);
+      auto C = Reshape(coeff.Write(), nq, ne);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            C(q,e) = Q->Eval(T, ir->IntPoint(q));
+         }
+      }
+   }
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
-      double constant = 0.0;
-      if (const_coeff)
-      {
-         constant = const_coeff->constant;
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
       const int NE = ne;
       const int NQ = nq;
+      const bool const_c = coeff.Size() == 1;
       auto w = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+      auto C =
+         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -66,25 +82,20 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double J21 = J(q,0,1,e);
             const double J22 = J(q,1,1,e);
             const double detJ = (J11*J22)-(J21*J12);
-            v(q,e) =  w[q] * constant * detJ;
+            const double coeff = const_c ? C(0,0) : C(q,e);
+            v(q,e) =  w[q] * coeff * detJ;
          }
       });
    }
    if (dim==3)
    {
-      double constant = 0.0;
-      if (const_coeff)
-      {
-         constant = const_coeff->constant;
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
       const int NE = ne;
       const int NQ = nq;
+      const bool const_c = coeff.Size() == 1;
       auto W = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+      auto C =
+         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
@@ -96,7 +107,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double detJ = J11 * (J22 * J33 - J32 * J23) -
             /* */               J21 * (J12 * J33 - J32 * J13) +
             /* */               J31 * (J12 * J23 - J22 * J13);
-            v(q,e) = W[q] * constant * detJ;
+            const double coeff = const_c ? C(0,0) : C(q,e);
+            v(q,e) = W[q] * coeff * detJ;
          }
       });
    }
@@ -932,7 +944,7 @@ static void PAMassApply(const int dim,
 #endif // MFEM_USE_OCCA
    if (dim == 2)
    {
-      switch ((D1D << 4 ) | Q1D)
+      switch ((D1D << 4) | Q1D)
       {
          case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
          case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
@@ -947,34 +959,31 @@ static void PAMassApply(const int dim,
    }
    else if (dim == 3)
    {
-      static const bool occa = (printf("\033[33m[init]\033[m"), getenv("OCCA"));
-      if (occa)
+      
+      switch ((D1D << 4 ) | Q1D)
       {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x23: return OccaPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-            case 0x34: return OccaPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-            case 0x45: return OccaPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-            case 0x56: return OccaPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-            case 0x67: return OccaPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
-            case 0x78: return OccaPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
-            case 0x89: return OccaPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
-               //default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
-         }
+      case 0x23: return OccaPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
+      case 0x34: return OccaPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
+      case 0x45: return OccaPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
+      case 0x56: return OccaPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
+      case 0x67: return OccaPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
+      case 0x78: return OccaPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
+      case 0x89: return OccaPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
+         //default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
-      else
+   }
+   else
+   {
+      switch ((D1D << 4 ) | Q1D)
       {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-            case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-            case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-            case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-            case 0x67: return SmemPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
-            case 0x78: return SmemPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
-            case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
-               //default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
-         }
+      case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
+      case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
+      case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
+      case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
+      case 0x67: return SmemPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
+      case 0x78: return SmemPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
+      case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
+         //default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
