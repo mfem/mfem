@@ -8378,7 +8378,7 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
 
    //print out the points
    out << "<Points>" << std::endl;
-   out << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">" << std::endl;
+   out << "<DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">" << std::endl;
    for (int i = 0; i < GetNE(); i++)
    {
       RefG = GlobGeometryRefiner.Refine(
@@ -8388,22 +8388,22 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
 
       for (int j = 0; j < pmat.Width(); j++)
       {
-         out << (float)pmat(0, j) << ' ';
+         out << pmat(0, j) << ' ';
          if (pmat.Height() > 1)
          {
-            out << (float)pmat(1, j) << ' ';
+            out << pmat(1, j) << ' ';
             if (pmat.Height() > 2)
             {
-               out << (float)pmat(2, j);
+               out << pmat(2, j);
             }
             else
             {
-               out << (float)0.0;
+               out << 0.0;
             }
          }
          else
          {
-            out << (float)0.0 << ' ' << (float)0.0;
+            out << 0.0 << ' ' << 0.0;
          }
          out << '\n';
       }
