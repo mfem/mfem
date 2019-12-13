@@ -876,7 +876,7 @@ void ParaviewDataCollection::Save()
       out << "<PUnstructuredGrid GhostLevel=\"0\">" << std::endl ;
 
       out << "<PPoints>" << std::endl;
-      out << "\t<PDataArray type=\"Float32\" ";
+      out << "\t<PDataArray type=\"Float64\" ";
       out << " Name=\"Points\" NumberOfComponents=\"3\"/>"  << std::endl;
       out << "</PPoints>" << std::endl;
 
@@ -892,7 +892,7 @@ void ParaviewDataCollection::Save()
       out << "<PPointData>" << std::endl ;
       for (FieldMapIterator it=field_map.begin(); it!=field_map.end(); ++it)
       {
-         out << "<PDataArray type=\"Float32\" Name=\"" << it->first;
+         out << "<PDataArray type=\"Float64\" Name=\"" << it->first;
          int vec_dim=it->second->VectorDim();
          out<<"\" NumberOfComponents=\""<< vec_dim <<"\" format=\"ascii\" />" <<
             std::endl;
@@ -973,7 +973,7 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
    if (vec_dim == 1)
    {
       // scalar data
-      out << "<DataArray type=\"Float32\" Name=\"" << it->first;
+      out << "<DataArray type=\"Float64\" Name=\"" << it->first;
       out << "\" NumberOfComponents=\"1\" format=\"ascii\" >" << std::endl;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
@@ -982,7 +982,7 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          it->second->GetValues(i, RefG->RefPts, val, pmat);
          for (int j = 0; j < val.Size(); j++)
          {
-            out << (float)val(j) << '\n';
+            out << val(j) << '\n';
          }
       }
 
@@ -990,7 +990,7 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
    else
    {
       // vector data
-      out << "<DataArray type=\"Float32\" Name=\"" << it->first;
+      out << "<DataArray type=\"Float64\" Name=\"" << it->first;
       out << "\" NumberOfComponents=\"" << vec_dim << "\" format=\"ascii\" >" <<
           std::endl;
       for (int i = 0; i < mesh->GetNE(); i++)
@@ -1004,7 +1004,7 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          {
             for (int ii = 0; ii < vval.Height(); ii++)
             {
-               out << (float)vval(ii, jj) << ' ';
+               out << vval(ii, jj) << ' ';
             }
             out << std::endl;
          }
