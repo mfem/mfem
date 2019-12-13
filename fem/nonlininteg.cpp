@@ -34,11 +34,6 @@ void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
                "   is not implemented for this class.");
 }
 
-void NonlinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
-{
-   mfem_error ("NonlinearFormIntegrator::AddMultTransposePA(...)\n"
-               "   is not implemented for this class.");
-}
 void NonlinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
