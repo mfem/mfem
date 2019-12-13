@@ -480,8 +480,7 @@ static void PAGradientApplyTranspose3D(const int NE,
                                        int te_d1d = 0,
                                        int q1d = 0)
 {
-   // TODO
-   MFEM_ASSERT(false, "Gradient PA Apply Transpose 3D NOT PROGRAMMED YET");
+   MFEM_ASSERT(false, "Gradient PA Apply Transpose 3D not implemented.");
 }
 
 // Shared memory PA Gradient Apply 3D kernel
@@ -768,7 +767,7 @@ void GradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
 // PA Gradient Apply kernel
 void GradientIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
-   MFEM_ABORT("PA Gradient AddMultTransposePA not yet programmed!");
+   MFEM_ABORT("PA Gradient AddMultTransposePA not implemented.");
 }
 
 } // namespace mfem
