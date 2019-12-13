@@ -698,14 +698,17 @@ public:
    /// Get the input finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return trial_fes->GetProlongationMatrix(); }
+
    /// Get the input finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return trial_fes->GetRestrictionMatrix(); }
-   /// Get the output finite element space prolongation matrix
-   virtual const Operator *GetOutputProlongation() const
+
+   /// Get the test finite element space prolongation matrix
+   virtual const Operator *GetTestProlongation() const
    { return test_fes->GetProlongationMatrix(); }
-   /// Get the output finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const
+
+   /// Get the test finite element space restriction matrix
+   virtual const Operator *GetTestRestriction() const
    { return test_fes->GetRestrictionMatrix(); }
 
    /** For partially conforming trial and/or test FE spaces, complete the
