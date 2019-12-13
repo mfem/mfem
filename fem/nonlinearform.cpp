@@ -144,7 +144,6 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    if (ext)
    {
       ext->Mult(px, py);
-      py.HostRead();
       return;
    }
 
