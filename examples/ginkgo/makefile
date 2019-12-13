@@ -78,4 +78,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh sol.gf mesh.* sol.* displaced.mesh
+	@rm -f refined.mesh sol.gf mesh.* sol.*
