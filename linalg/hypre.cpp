@@ -1913,7 +1913,7 @@ HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
    SetOperator(_A);
 }
 
-void HypreSmoother::SetType(HypreSmoother::Type _type, int _relax_times)
+void HypreSmoother::SetType(int _type, int _relax_times)
 {
    type = static_cast<int>(_type);
    relax_times = _relax_times;

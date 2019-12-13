@@ -606,7 +606,7 @@ public:
                  double poly_fraction = .3);
 
    /// Set the relaxation type and number of sweeps
-   void SetType(HypreSmoother::Type type, int relax_times = 1);
+   void SetType(int type, int relax_times = 1);
    /// Set SOR-related parameters
    void SetSOROptions(double relax_weight, double omega);
    /// Set parameters for polynomial smoothing

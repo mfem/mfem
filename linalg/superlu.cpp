@@ -131,6 +131,10 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op,0);
 
+// #if MFEM_HYPRE_VERSION >= 21600
+//    hypre_CSRMatrixBigJtoJ(csr_op);
+// #endif
+
    int m         = parcsr_op->global_num_rows;
    int n         = parcsr_op->global_num_cols;
    int fst_row   = parcsr_op->first_row_index;
