@@ -184,6 +184,33 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    isSorted = mat.isSorted;
 }
 
+SparseMatrix::SparseMatrix(const Vector &v)
+   : AbstractSparseMatrix(v.Size(), v.Size())
+   , Rows(NULL)
+   , ColPtrJ(NULL)
+   , ColPtrNode(NULL)
+   , At(NULL)
+   , isSorted(true)
+{
+#ifdef MFEM_USE_MEMALLOC
+   NodesMem = NULL;
+#endif
+   I.New(height + 1);
+   J.New(height);
+   A.New(height);
+
+   for (int i = 0; i <= height; i++)
+   {
+      I[i] = i;
+   }
+
+   for (int r=0; r<height; r++)
+   {
+      J[r] = r;
+      A[r] = v[r];
+   }
+}
+
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 {
    Clear();
