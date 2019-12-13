@@ -13,8 +13,11 @@
 //               Life Miniapp:  Model of the Game of Life
 //               ----------------------------------------
 //
-// This miniapp provides a light-hearted example of mesh manipulation and
-// GLVis integration.
+// This miniapp implements Conway's Game of Life.  A few simple starting
+// positions are available as well as a default random initial state.  The
+// game will terminate only if two successive iterations are identical.
+//
+// See the output of 'life -h' for more options.
 //
 // Compile with: make life
 //
@@ -22,6 +25,7 @@
 //              life -nx 100 -ny 100 -r 0.3
 
 #include "mfem.hpp"
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <bitset>
@@ -31,11 +35,7 @@
 using namespace std;
 using namespace mfem;
 
-//void Update(char * b[], int r, int s);
-//void ProjectStep(char b[], GridFunction & x, int ns, int s);
-
-//void PrintRule(bitset<8> & r);
-void Update(vector<bool> * b[], int nx, int ny);
+bool GameStep(vector<bool> * b[], int nx, int ny);
 void ProjectStep(const vector<bool> & b, GridFunction & x, int n);
 
 void InitSketchPad(vector<bool> & b, int nx, int ny, const Array<int> & params);
@@ -45,7 +45,6 @@ void InitGlider(vector<bool> & b, int nx, int ny, const Array<int> & params);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   // int ns = 20;
    int nx = 20;
    int ny = 20;
    int rs = -1;
@@ -56,8 +55,6 @@ int main(int argc, char *argv[])
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
-   // args.AddOption(&ns, "-ns", "--num-steps",
-   //             "Number of steps of the 2D cellular automaton.");
    args.AddOption(&nx, "-nx", "--num-elems-x",
                   "Number of elements in the x direction.");
    args.AddOption(&ny, "-ny", "--num-elems-y",
@@ -68,13 +65,18 @@ int main(int argc, char *argv[])
                   "Seed for the random number generator.");
    args.AddOption(&sketch_pad_params, "-sp", "--sketch-pad",
                   "Specify the starting coordinates and values on a grid"
-                  " of cells.");
+                  " of cells.  The values can be 0, 1, or 2.  Where 0 and 1"
+                  " indicate cells that are off or on and 2 represents a"
+                  " newline character.");
    args.AddOption(&blinker_params, "-b", "--blinker",
-                  "Specify the starting coordinates and orientation"
-                  " of the blinker.");
+                  "Specify the starting coordinates and orientation (0 or 1)"
+                  " of the blinker. Multiple blinkers can be specified as "
+                  "'x0 y0 o0 x1 y1 o1 ...'.");
    args.AddOption(&glider_params, "-g", "--glider",
-                  "Specify the starting coordinates and orientation"
-                  " of the glider.");
+                  "Specify the starting coordinates and "
+                  "orientation (0,1,2, or 3) of the glider. "
+                  "Multiple gliders can be specified as "
+                  "'x0 y0 o0 x1 y1 o1 ...'.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -86,39 +88,20 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
-   Mesh *mesh = new Mesh(nx, ny, Element::QUADRILATERAL, 0, nx, ny);
-   // mesh->Print(*(new ofstream("zzz")));
-   int dim = mesh->Dimension();
+   // 2. Build a rectangular mesh of quadrilateral elements.
+   Mesh *mesh = new Mesh(nx, ny, Element::QUADRILATERAL, 0, nx, ny, false);
 
-   // 3. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec = new L2_FECollection(0, dim);
+   // 3. Define a finite element space on the mesh. Here we use discontinuous
+   //    Lagrange finite elements of order zero i.e. piecewise constant basis
+   //    functions.
+   FiniteElementCollection *fec = new L2_FECollection(0, 2);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
-   // 4. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
-   GridFunction x(fespace);
-   x = 0.0;
-
-   // 5. Open a socket to GLVis
-   socketstream sol_sock;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      sol_sock.open(vishost, visport);
-   }
-
-   // 6. Initialize a pair of bit arrays
+   // 4. Initialize a pair of bit arrays to store two copies of the
+   //    playing field.
    int len = nx * ny;
 
    vector<bool> * vbp[2];
-   vector<bool> * vbptmp = NULL;
    vector<bool> vb0(len);
    vector<bool> vb1(len);
 
@@ -130,7 +113,6 @@ int main(int argc, char *argv[])
       long seed;
       if ( rs < 0 )
       {
-         // srandomdev(); // not available on Linux?
          srandom(time(NULL));
          seed = random();
          srand48(seed);
@@ -145,7 +127,6 @@ int main(int argc, char *argv[])
    for (int i=0; i<len; i++)
    {
       double rv = drand48();
-      // double rv = (double)random()/(pow(2.0,31)-1);
       vb0[i] = (rv <= r);
       vb1[i] = false;
    }
@@ -161,28 +142,37 @@ int main(int argc, char *argv[])
    {
       InitGlider(vb0, nx, ny, glider_params);
    }
-   // InitBlinker(vb0, nx, ny, nx/2, ny/3);
+
+   // 5. Define the vector x as a finite element grid function corresponding
+   //    to fespace which will be used to visualize the playing field.
+   //    Initialize x with the starting layout set above.
+   GridFunction x(fespace);
 
    ProjectStep(*vbp[0], x, len);
 
-   // 7. Create the rule as a bitset and display it for the user
-   // bitset<8> rbs = r;
-   // PrintRule(rbs);
-
-   // 8. Apply the rule iteratively
-   cout << endl << "Running the Game of Life..." << flush;
-   // for (int s=1; s<ns; s++)
-   bool is_good = true;
-   while ( is_good && visualization )
+   // 6. Open a socket to GLVis
+   socketstream sol_sock;
+   if (visualization)
    {
-      Update(vbp, nx, ny);
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      sol_sock.open(vishost, visport);
+   }
+
+   // 7. Apply the rule iteratively
+   cout << endl << "Running the Game of Life..." << flush;
+
+   bool is_good = true;
+   bool is_stable = false;
+   while ( is_good && visualization && !is_stable )
+   {
+      is_stable = GameStep(vbp, nx, ny);
       ProjectStep(*vbp[1], x, len);
 
-      vbptmp = vbp[0];
-      vbp[0] = vbp[1];
-      vbp[1] = vbptmp;
+      // Swap bit arrays
+      std::swap(vbp[0], vbp[1]);
 
-      // 9. Send the solution by socket to a GLVis server.
+      // 8. Send the solution by socket to a GLVis server.
       is_good = sol_sock.good();
 
       if (visualization && is_good )
@@ -200,17 +190,11 @@ int main(int argc, char *argv[])
             }
          }
       }
-
-      // char foo;
-      //if (cin.eof()) cout << "cin.eof is true" << endl;
-      // foo = getchar();
-      // cout << "foo = " << foo << endl;
-      // cout << cin.peek() << endl;
    }
    cout << "done." << endl;
 
-   // 10. Save the refined mesh and the solution. This output can be
-   //     viewed later using GLVis: "glvis -m refined.mesh -g sol.gf".
+   // 9. Save the mesh and the final state of the game. This output can be
+   //    viewed later using GLVis: "glvis -m life.mesh -g life.gf".
    ofstream mesh_ofs("life.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
@@ -218,41 +202,22 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 11. Free the used memory.
+   // 10. Free the used memory.
    delete fespace;
    delete fec;
    delete mesh;
 
    return 0;
 }
-/*
-bool Rule(bitset<8> & r, bool b0, bool b1, bool b2)
-{
-   return r[(b0?1:0)+(b1?2:0)+(b2?4:0)];
-}
 
-void PrintRule(bitset<8> & r)
-{
-   cout << endl << "Rule:" << endl;
-   for (int i=7; i>=0; i--)
-   {
-      cout << " " << i/4 << (i/2)%2 << i%2;
-   }
-   cout << endl;
-   for (int i=7; i>=0; i--)
-   {
-      cout << "  " << Rule(r,i%2,(i/2)%2,i/4) << " ";
-   }
-   cout << endl;
-}
-*/
 inline int index(int i, int j, int nx, int ny)
 {
    return ((j + ny) % ny) * nx + ((i + nx) % nx);
 }
 
-void Update(vector<bool> * b[], int nx, int ny)
+bool GameStep(vector<bool> * b[], int nx, int ny)
 {
+   bool is_stable = true;
    for (int j=0; j<ny; j++)
    {
       for (int i=0; i<nx; i++)
@@ -279,8 +244,10 @@ void Update(vector<bool> * b[], int nx, int ny)
                (*b[1])[index(i,j,nx,ny)] = false;
                break;
          }
+         is_stable &= (*b[1])[index(i,j,nx,ny)] == (*b[0])[index(i,j,nx,ny)];
       }
    }
+   return is_stable;
 }
 
 void ProjectStep(const vector<bool> & b, GridFunction & x, int n)
