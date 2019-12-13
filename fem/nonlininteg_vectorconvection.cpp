@@ -784,7 +784,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
    });
 }
 
-void VectorConvectionNLFIntegrator::MultPA(const Vector &x, Vector &y) const
+void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    const int NE = ne;
    const int D1D = maps->ndof;

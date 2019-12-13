@@ -56,7 +56,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->MultPA(localX, localY);
+         integrators[i]->AddMultPA(localX, localY);
       }
       elem_restrict_lex->MultTranspose(localY, y);
    }
@@ -66,7 +66,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->MultPA(x, y);
+         integrators[i]->AddMultPA(x, y);
       }
    }
 }
