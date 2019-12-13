@@ -2134,7 +2134,7 @@ public:
 
 /** Integrator for (Q div u, p) where u=(v1,...,vn) and all vi are in the same
     scalar FE space; p is also in a (different) scalar FE space.  */
-class DivergenceIntegrator : public BilinearFormIntegrator
+class VectorDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
@@ -2153,13 +2153,13 @@ private:
    int trial_dofs1D, test_dofs1D, quad1D;
 
 public:
-   DivergenceIntegrator() :
+   VectorDivergenceIntegrator() :
       Q(NULL), trial_maps(NULL), test_maps(NULL), geom(NULL)
    {  }
-   DivergenceIntegrator(Coefficient *_q) :
+   VectorDivergenceIntegrator(Coefficient *_q) :
       Q(_q), trial_maps(NULL), test_maps(NULL), geom(NULL)
    { }
-   DivergenceIntegrator(Coefficient &q) :
+   VectorDivergenceIntegrator(Coefficient &q) :
       Q(&q), trial_maps(NULL), test_maps(NULL), geom(NULL)
    { }
 
