@@ -19,7 +19,13 @@ namespace mfem
 FindPointsGSLib::FindPointsGSLib()
    : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
 {
+#ifdef MFEM_USE_MPI
+   MPI_Init(NULL, NULL);
+   MPI_Comm comm = MPI_COMM_WORLD;;
+   comm_init(&gsl_comm, comm);
+#else
    comm_init(&gsl_comm, 0);
+#endif
 }
 
 #ifdef MFEM_USE_MPI
