@@ -121,8 +121,8 @@ static void PADivergenceSetup(const int dim,
    }
 }
 
-void DivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
-                                      const FiniteElementSpace &test_fes)
+void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                            const FiniteElementSpace &test_fes)
 {
    // Assumes tensor-product elements ordered by nodes
    MFEM_ASSERT(trial_fes.GetOrdering() == Ordering::byNODES,
@@ -1050,7 +1050,7 @@ static void PADivergenceApply(const int dim,
 }
 
 // PA Divergence Apply kernel
-void DivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
+void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
                      trial_maps->B, trial_maps->G, test_maps->Bt, pa_data, x, y,
@@ -1058,8 +1058,8 @@ void DivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 }
 
 // PA Divergence Apply kernel
-void DivergenceIntegrator::AddMultTransposePA(const Vector &x,
-                                              Vector &y) const
+void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
+                                                    Vector &y) const
 {
    PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
                      trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y,
