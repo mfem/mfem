@@ -641,11 +641,11 @@ static void SmemPAMassApply2D(const int NE,
       }
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(D,y,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[q][D] = b(q,D);
+               B[q][dy] = b(q,dy);
             }
          }
       }
@@ -678,11 +678,11 @@ static void SmemPAMassApply2D(const int NE,
       MFEM_SYNC_THREAD;
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(D,y,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bt[D][q] = b(q,D);
+               Bt[dy][q] = b(q,dy);
             }
          }
       }
