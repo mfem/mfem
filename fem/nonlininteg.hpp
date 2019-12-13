@@ -101,9 +101,6 @@ public:
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
-   /// Method for partially assembled action. */
-   virtual void MultPA(const Vector &x, Vector &y) const {}
-
    virtual ~NonlinearFormIntegrator() { }
 };
 
@@ -354,7 +351,7 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   virtual void MultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
 }
