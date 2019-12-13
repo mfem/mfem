@@ -1,5 +1,5 @@
-#include "mfem.hpp"
 #include "catch.hpp"
+#include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -7,7 +7,6 @@ using namespace mfem;
 
 namespace pa_kernels
 {
-
 double zero_field(const Vector &x)
 {
    return 0.0;
@@ -29,7 +28,6 @@ double div_non_solenoidal_field2d(const Vector &x)
 {
    return 1.0 + x(1);
 }
-
 
 void solenoidal_field3d(const Vector &x, Vector &u)
 {
@@ -58,12 +56,12 @@ double div_non_solenoidal_field3d(const Vector &x)
    double xi = x(0);
    double yi = x(1);
    double zi = x(2);
-   return -cos(yi)*sin(xi)-sin(xi)*sin(zi);
+   return -cos(yi) * sin(xi) - sin(xi) * sin(zi);
 }
 
-
-double pa_divergence_testnd(int dim, void(*f1)(const Vector&, Vector&),
-                            double(*divf1)(const Vector&))
+double pa_divergence_testnd(int dim,
+                            void (*f1)(const Vector &, Vector &),
+                            double (*divf1)(const Vector &))
 {
    Mesh *mesh = nullptr;
    if (dim == 2)
@@ -89,7 +87,7 @@ double pa_divergence_testnd(int dim, void(*f1)(const Vector&, Vector&),
 
    MixedBilinearForm dform(&fes1, &fes2);
    dform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   dform.AddDomainIntegrator(new DivergenceIntegrator);
+   dform.AddDomainIntegrator(new VectorDivergenceIntegrator);
    dform.Assemble();
 
    // Project u = f1
@@ -129,10 +127,10 @@ void grad_testfunc(const Vector &x, Vector &u)
    }
 }
 
-double pa_gradient_testnd(int dim, double(*f1)(const Vector&),
-                          void(*gradf1)(const Vector &, Vector &))
+double pa_gradient_testnd(int dim,
+                          double (*f1)(const Vector &),
+                          void (*gradf1)(const Vector &, Vector &))
 {
-
    Mesh *mesh = nullptr;
    if (dim == 2)
    {
@@ -177,26 +175,38 @@ double pa_gradient_testnd(int dim, double(*f1)(const Vector&),
    return field2.Norml2();
 }
 
-TEST_CASE("PA Divergence", "[PartialAssembly]")
+TEST_CASE("PA VectorDivergence", "[PartialAssembly]")
 {
    SECTION("2D")
    {
       // Check if div([y, -x]) == 0
-      REQUIRE(pa_divergence_testnd(2, solenoidal_field2d, zero_field) == Approx(0.0));
+      REQUIRE(pa_divergence_testnd(2, solenoidal_field2d, zero_field)
+              == Approx(0.0));
 
       // Check if div([x*y, -x+y]) == 1 + y
-      REQUIRE(pa_divergence_testnd(2, non_solenoidal_field2d,
-                                   div_non_solenoidal_field2d) == Approx(0.0));
+      REQUIRE(pa_divergence_testnd(2,
+                                   non_solenoidal_field2d,
+                                   div_non_solenoidal_field2d)
+              == Approx(0.0));
    }
 
    SECTION("3D")
    {
-      // Check if div([-Cos[z] Sin[x], -Cos[x] Cos[z], Cos[x] Sin[y] + Cos[x] Sin[z]) == 0
-      REQUIRE(pa_divergence_testnd(3, solenoidal_field3d, zero_field) == Approx(0.0));
+      // Check if
+      // div([-Cos[z] Sin[x],
+      //      -Cos[x] Cos[z],
+      //       Cos[x] Sin[y] + Cos[x] Sin[z]) == 0
+      REQUIRE(pa_divergence_testnd(3, solenoidal_field3d, zero_field)
+              == Approx(0.0));
 
-      // Check if div([Cos[x] Cos[y], Sin[x] Sin[z], Cos[z] Sin[x]]) == -Cos[y] Sin[x] - Sin[x] Sin[z]
-      REQUIRE(pa_divergence_testnd(3, non_solenoidal_field3d,
-                                   div_non_solenoidal_field3d) == Approx(0.0));
+      // Check if
+      // div([Cos[x] Cos[y],
+      //      Sin[x] Sin[z],
+      //      Cos[z] Sin[x]]) == -Cos[y] Sin[x] - Sin[x] Sin[z]
+      REQUIRE(pa_divergence_testnd(3,
+                                   non_solenoidal_field3d,
+                                   div_non_solenoidal_field3d)
+              == Approx(0.0));
    }
 }
 
@@ -214,4 +224,4 @@ TEST_CASE("PA Gradient", "[PartialAssembly]")
    }
 }
 
-}
+} // namespace pa_kernels
