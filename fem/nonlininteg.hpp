@@ -83,11 +83,11 @@ public:
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA() and AddMultTransposePA(). */
+       used later in the methods AddMultPA(). */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA() and AddMultTransposePA().
+       used later in the methods AddMultPA().
        Used with BilinearFormIntegrators that have different spaces. */
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
@@ -100,15 +100,6 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
-
-   /// Method for partially assembled transposed action.
-   /** Perform the transpose action of integrator on the input @a x and add the
-       result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
-       represent the element-wise discontinuous version of the FE space.
-
-       This method can be called only after the method AssemblePA() has been
-       called. */
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Method for partially assembled action. */
    virtual void MultPA(const Vector &x, Vector &y) const {}
