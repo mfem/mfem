@@ -71,10 +71,10 @@
 //
 #include "mfem.hpp"
 #include "../common/mesh_extras.hpp"
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <set>
-#include <stdlib.h> // for random number functions
 
 using namespace std;
 using namespace mfem;
@@ -1179,7 +1179,7 @@ void determine_random_moves(Array<Move> & moves)
 {
    for (int i=0; i<moves.Size(); i++)
    {
-      double ran = drand48();
+      double ran = double(rand()) / RAND_MAX;
       int  ir   = (int)(26 * ran);
       int  incr = (ir % 3) + 1; ir /= 3;
       int  tier = (ir % 3) + 1; ir /= 3;
