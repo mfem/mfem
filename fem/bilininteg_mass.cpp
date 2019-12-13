@@ -18,35 +18,6 @@ using namespace std;
 namespace mfem
 {
 
-// PA Mass Integrator
-
-static inline MFEM_HOST_DEVICE
-double LaghosRho0(const double problem, const double *x)
-{
-   //printf("\n\033[1;37m[LaghosRho0] problem:%f", problem);
-   if (problem == -2.0) { return (x[0] < 0.5) ? 1.0 : 0.1; }
-   if (problem == -3.0) { return (x[0] > 1.0 && x[1] > 1.5) ? 0.125 : 1.0; }
-   if (problem == -5.0)
-   {
-      return
-         (x[0] >= 0.5 && x[1] >= 0.5) ? 0.5313 : // 1
-         (x[0] <  0.5 && x[1] >= 0.5) ? 1.0 : // 2
-         (x[0] <  0.5 && x[1] <  0.5) ? 0.8 : // 3
-         (x[0] >= 0.5 && x[1] <  0.5) ? 1.0 : // 4
-         -1.0;
-   }
-   if (problem == -6.0)
-   {
-      return
-         (x[0] >= 0.5 && x[1] >= 0.5) ? 1.0 : // 1
-         (x[0] <  0.5 && x[1] >= 0.5) ? 2.0 : // 2
-         (x[0] <  0.5 && x[1] <  0.5) ? 1.0 : // 3
-         (x[0] >= 0.5 && x[1] <  0.5) ? 3.0 : // 4
-         -1.0;
-   }
-   return 1.0;
-}
-
 // PA Mass Assemble kernel
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
@@ -96,7 +67,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
       auto w = ir->GetWeights().Read();
-      auto X = Reshape(geom->X.Read(), NQ,2,NE);
       auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
       auto C =
          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
@@ -121,7 +91,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
       auto W = ir->GetWeights().Read();
-      auto X = Reshape(geom->X.Read(), NQ,3,NE);
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
       auto C =
          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
@@ -594,6 +563,7 @@ static void PAMassApply3D(const int NE,
    });
 }
 
+#ifdef PA_MASS_OPT
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,
@@ -615,7 +585,178 @@ static void SmemPAMassApply3D(const int NE,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1, 
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      MFEM_SHARED double sDQ[MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) sDQ;
+      double (*Bt)[MQ1] = (double (*)[MQ1]) sDQ;
+      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+      double (*X)[MD1][MD1]   = (double (*)[MD1][MD1]) sm0;
+      double (*DDQ)[MD1][MQ1] = (double (*)[MD1][MQ1]) sm1;
+      double (*DQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm0;
+      double (*QQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm1;
+      double (*QQD)[MQ1][MD1] = (double (*)[MQ1][MD1]) sm0;
+      double (*QDD)[MD1][MD1] = (double (*)[MD1][MD1]) sm1;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               X[dz][dy][dx] = x(dx,dy,dz,e);
+            }
+         }
+      }
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  u += X[dz][dy][dx] * B[qx][dx];
+               }
+               DDQ[dz][dy][qx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  u += DDQ[dz][dy][qx] * B[qy][dy];
+               }
+               DQQ[dz][qy][qx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  u += DQQ[dz][qy][qx] * B[qz][dz];
+               }
+               QQQ[qz][qy][qx] = u * op(qx,qy,qz,e);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bt[d][q] = b(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double u = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  u += QQQ[qz][qy][qx] * Bt[dx][qx];
+               }
+               QQD[qz][qy][dx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double u = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  u += QQD[qz][qy][dx] * Bt[dy][qy];
+               }
+               QDD[qz][dy][dx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double u = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  u += QDD[qz][dy][dx] * Bt[dz][qz];
+               }
+               y(dx,dy,dz,e) += u;
+            }
+         }
+      }
+   });
+}
+#endif
+
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void SmemPAMassApply3D(const int NE,
+                              const Array<double> &b_,
+                              const Array<double> &bt_,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
+                              const int d1d = 0,
+                              const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= M1D, "");
+   MFEM_VERIFY(Q1D <= M1Q, "");
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -638,7 +779,7 @@ static void SmemPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             _Pragma("unroll D1D")
-            for (int dz = 0; dz < D1D; ++dz) 
+            for (int dz = 0; dz < D1D; ++dz)
             {
                X[dz][dy][dx] = x(dx,dy,dz,e);
             }
@@ -655,7 +796,7 @@ static void SmemPAMassApply3D(const int NE,
          {
             double u[D1D];
             _Pragma("unroll D1D")
-            for(int dz = 0; dz < D1D; dz++)
+            for (int dz = 0; dz < D1D; dz++)
             {
                u[dz] = 0;
             }
@@ -696,7 +837,7 @@ static void SmemPAMassApply3D(const int NE,
                }
             }
             _Pragma("unroll D1D")
-            for (int dz = 0; dz < D1D; dz++) 
+            for (int dz = 0; dz < D1D; dz++)
             {
                DQQ[dz][qy][qx] = u[dz];
             }
@@ -709,7 +850,7 @@ static void SmemPAMassApply3D(const int NE,
          {
             double u[Q1D];
             _Pragma("unroll Q1D")
-            for (int qz = 0; qz < Q1D; qz++) 
+            for (int qz = 0; qz < Q1D; qz++)
             {
                u[qz] = 0;
             }
@@ -806,13 +947,13 @@ static void SmemPAMassApply3D(const int NE,
             for (int qz = 0; qz < Q1D; ++qz)
             {
                _Pragma("unroll D1D")
-               for (int dz = 0; dz < D1D; ++dz) 
+               for (int dz = 0; dz < D1D; ++dz)
                {
                   u[dz] += QDD[qz][dy][dx] * Bt[dz][qz];
                }
             }
             _Pragma("unroll D1D")
-            for (int dz = 0; dz < D1D; ++dz) 
+            for (int dz = 0; dz < D1D; ++dz)
             {
                y(dx,dy,dz,e) += u[dz];
             }
