@@ -177,7 +177,7 @@ double pa_gradient_testnd(int dim, double(*f1)(const Vector&),
    return field2.Norml2();
 }
 
-TEST_CASE("PA Divergence", "[PartialAssembly], [MixedBilinearFormBC]")
+TEST_CASE("PA Divergence", "[PartialAssembly]")
 {
    SECTION("2D")
    {
@@ -200,7 +200,7 @@ TEST_CASE("PA Divergence", "[PartialAssembly], [MixedBilinearFormBC]")
    }
 }
 
-TEST_CASE("PA Gradient", "[PartialAssembly], [MixedBilinearFormBC]")
+TEST_CASE("PA Gradient", "[PartialAssembly]")
 {
    SECTION("2D")
    {
