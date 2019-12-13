@@ -26,11 +26,11 @@
 
 #include "mfem.hpp"
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <bitset>
 #include <vector>
-#include <stdlib.h> // for random number functions
 
 using namespace std;
 using namespace mfem;
@@ -110,23 +110,23 @@ int main(int argc, char *argv[])
 
    if ( r > 0.0 )
    {
-      long seed;
+      unsigned int seed;
       if ( rs < 0 )
       {
-         srandom(time(NULL));
-         seed = random();
-         srand48(seed);
+         srand(time(NULL));
+         seed = (unsigned int)rand();
       }
       else
       {
-         seed = (long)rs;
+         seed = (unsigned int)rs;
       }
       cout << "Using random seed:  " << seed << endl;
+      srand(seed);
    }
 
    for (int i=0; i<len; i++)
    {
-      double rv = drand48();
+      double rv = double(rand()) / RAND_MAX;
       vb0[i] = (rv <= r);
       vb1[i] = false;
    }
