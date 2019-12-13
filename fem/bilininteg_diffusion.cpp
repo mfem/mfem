@@ -912,12 +912,12 @@ static void SmemPADiffusionApply2D(const int NE,
       }
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(D,y,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[q][D] = b(q,D);
-               G[q][D] = g(q,D);
+               B[q][dy] = b(q,dy);
+               G[q][dy] = g(q,dy);
             }
          }
       }
@@ -972,12 +972,12 @@ static void SmemPADiffusionApply2D(const int NE,
       MFEM_SYNC_THREAD;
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(D,y,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bt[D][q] = b(q,D);
-               Gt[D][q] = g(q,D);
+               Bt[dy][q] = b(q,dy);
+               Gt[dy][q] = g(q,dy);
             }
          }
       }
