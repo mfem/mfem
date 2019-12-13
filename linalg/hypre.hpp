@@ -530,6 +530,7 @@ public:
        matrix and Ae sum to the original matrix. */
    HypreParMatrix* EliminateCols(const Array<int> &cols);
 
+   /// Eliminate rows from the diagonal and off-diagonal blocks of the matrix.
    void EliminateRows(const Array<int> &rows);
 
    /// Prints the locally owned rows in parallel
