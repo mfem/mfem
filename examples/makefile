@@ -41,6 +41,10 @@ endif
 ifeq ($(MFEM_USE_PUMI),YES)
    SUBDIRS += pumi
 endif
+ifeq ($(MFEM_USE_GINKGO),YES)
+   SUBDIRS += ginkgo
+endif
+
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
 SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
