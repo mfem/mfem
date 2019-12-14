@@ -191,9 +191,9 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
       converged =0;
    }
    if (print_lvl ==1)
-     {
-       residual_logger->write();
-     }
+   {
+      residual_logger->write();
+   }
    if (converged!=0)
    {
       mfem::err << "No convergence!" << '\n';
