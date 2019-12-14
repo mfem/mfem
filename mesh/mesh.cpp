@@ -8491,26 +8491,6 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
    }
    out << "</DataArray>" << std::endl;
 
-   if (Dim > 1)
-   {
-      out << "<DataArray type=\"Int32\" Name=\"element_coloring\" format=\"ascii\">" << std::endl;
-      Array<int> coloring;
-      srand((unsigned)time(0));
-      double a = double(rand()) / (double(RAND_MAX) + 1.);
-      int el0 = (int)floor(a * GetNE());
-      GetElementColoring(coloring, el0);
-      for (int i = 0; i < GetNE(); i++)
-      {
-         Geometry::Type geom = GetElementBaseGeometry(i);
-         int nv = Geometries.GetVertices(geom)->GetNPoints();
-         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-         for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
-         {
-            out << coloring[i] + 1 << '\n';
-         }
-      }
-      out << "</DataArray>" << std::endl;
-   }
 
    out << "</CellData>" << std::endl;
 }
