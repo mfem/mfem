@@ -413,8 +413,8 @@ EXTRA_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(EXTRA_SOURCE_FILES:.cpp=.o))
 
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
-lib-extras: $(if $(static),$(BLD)libmfem-extras.a) \
-        $(if $(shared),$(BLD)libmfem-extras.$(SO_EXT))
+lib-extras: $(if $(static),$(BLD)miniapps/libmfem-extras.a) \
+        $(if $(shared),$(BLD)miniapps/libmfem-extras.$(SO_EXT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -450,11 +450,11 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 	@$(MAKE) deprecation-warnings
 
-$(BLD)libmfem-extras.a: $(EXTRA_OBJECT_FILES)
+$(BLD)miniapps/libmfem-extras.a: $(EXTRA_OBJECT_FILES)
 	$(AR) $(ARFLAGS) $(@) $(EXTRA_OBJECT_FILES)
 	$(RANLIB) $(@)
 
-$(BLD)libmfem-extras.$(SO_EXT): $(BLD)libmfem-extras.$(SO_VER)
+$(BLD)miniapps/libmfem-extras.$(SO_EXT): $(BLD)miniapps/libmfem-extras.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 
 # If some of the external libraries are build without -fPIC, linking shared MFEM
@@ -464,7 +464,7 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
-$(BLD)libmfem-extras.$(SO_VER): $(EXTRA_OBJECT_FILES)
+$(BLD)miniapps/libmfem-extras.$(SO_VER): $(EXTRA_OBJECT_FILES)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(EXTRA_OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
@@ -538,7 +538,8 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
+	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* \
+	miniapps/libmfem-extras.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
