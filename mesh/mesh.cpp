@@ -8416,7 +8416,8 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
    out << "</Points>" << std::endl;
 
    out << "<Cells>" << std::endl;
-   out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">"<<std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">" <<
+       std::endl;
    //connectivity
    std::vector<int> offset;
    int coff = 0;
