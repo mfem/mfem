@@ -50,7 +50,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else
    {
       coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.Write(), nq, ne);
+      auto C = Reshape(coeff.HostWrite(), nq, ne);
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
@@ -67,7 +67,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
       auto w = ir->GetWeights().Read();
-      auto X = Reshape(geom->X.Read(), NQ,2,NE);
       auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
       auto C =
          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
@@ -92,7 +91,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
       auto W = ir->GetWeights().Read();
-      auto X = Reshape(geom->X.Read(), NQ,3,NE);
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
       auto C =
          const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
@@ -764,7 +762,6 @@ static void PAMassApply(const int dim,
    const int id = (D1D << 4) | Q1D;
    if (dim == 2)
    {
-<<<<<<< HEAD
       switch (id)
       {
          case 0x24: return SmemPAMassApply2D<2,4,16>(NE, B, Bt, op, x, y);
@@ -773,9 +770,6 @@ static void PAMassApply(const int dim,
          case 0x46: return SmemPAMassApply2D<4,6,4>(NE, B, Bt, op, x, y);
          case 0x48: return SmemPAMassApply2D<4,8,4>(NE, B, Bt, op, x, y);
          case 0x58: return SmemPAMassApply2D<5,8,2>(NE, B, Bt, op, x, y);
-=======
-      switch ((D1D << 4) | Q1D)
-      {
          case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
          case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
          case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
@@ -785,16 +779,11 @@ static void PAMassApply(const int dim,
          case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, Bt, op, x, y);
          case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, Bt, op, x, y);
          default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
->>>>>>> master
       }
    }
    else if (dim == 3)
    {
-<<<<<<< HEAD
       switch (id)
-=======
-      switch ((D1D << 4) | Q1D)
->>>>>>> master
       {
          case 0x24: return SmemPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
