@@ -326,8 +326,8 @@ int main(int argc, char *argv[])
                       DataCollection::PARALLEL_FORMAT);
    visit_dc.Save();
 
-   // 16. Save data in the Paraview format
-   ParaviewDataCollection paraview_dc("PWExample5", pmesh);
+   // 16. Save data in the ParaView format
+   ParaViewDataCollection paraview_dc("PWExample5", pmesh);
    paraview_dc.SetLevelsOfDetail(1);
    paraview_dc.SetCycle(1);
    paraview_dc.SetTime(0.0);
