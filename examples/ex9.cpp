@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if(paraview)
    {
-      pd = new ParaViewDataCollection("PVExample9", &mesh);
+      pd = new ParaViewDataCollection("PVExample9S", &mesh);
       pd->RegisterField("solution", &u);
       pd->SetLevelsOfDetail(2);
       pd->SetCycle(0);

@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
    visit_dc.Save();
 
    // 14. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("PExample5", mesh);
+   ParaViewDataCollection paraview_dc("PVExample5S", mesh);
    paraview_dc.SetLevelsOfDetail(2);
    paraview_dc.SetCycle(1);
    paraview_dc.SetTime(0.0); //set the time
