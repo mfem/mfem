@@ -1,8 +1,9 @@
 variables:
-    BUILD_ROOT: $CI_BUILDS_DIR/mfem_$CI_COMMIT_REF_SLUG
+    BUILD_ROOT: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}
+    BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}/${PLAT}/${TOOLCHAIN}
     REBASELINE: "NO"
-    ASTYLE: $BUILD_ROOT/tpls/install/astyle/astyle
-    BUILD_QUARTZ_ALLOC_NAME: mfem_ci_$CI_COMMIT_SHORT_SHA
+    ASTYLE: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}/tpls/install/astyle/astyle
+    BUILD_QUARTZ_ALLOC_NAME: mfem_ci_${CI_COMMIT_SHORT_SHA}
 
 stages:
     - precleanup
@@ -39,14 +40,27 @@ build_astyle:
         - cd ${BUILD_ROOT}/tpls
         - make astyle PREFIX=${BUILD_ROOT}/tpls/install/ BUILD_DIR=${BUILD_ROOT}/tpls/install/ LOG_DIR=${BUILD_ROOT}/tpls/install/
 
+.with_gcc_6_1_0:
+    variables:
+        TOOLCHAIN: gcc_6_1_0
+    before_script:
+        - module load gcc/6.1.0
+
+.with_gcc_4_9_3:
+    variables:
+        TOOLCHAIN: gcc_4_9_3
+    before_script:
+        - module load gcc/4.9.3
+
 .build_hypre:
     stage: libs
     variables:
         GIT_STRATEGY: none
     script:
         - cd ${BUILD_ROOT}/tpls
+        - mkdir -p ${BUILD_PATH}
         - make clean
-        - make -j 4 hypre PREFIX=${BUILD_ROOT}/${PLAT}/${BUILD_DIR}/hypre/src/ BUILD_DIR=${BUILD_ROOT}/${PLAT}/${BUILD_DIR} LOG_DIR=${BUILD_ROOT}/${PLAT}/${BUILD_DIR}
+        - make -j 4 hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
 
 .build_metis:
     stage: libs
@@ -54,21 +68,16 @@ build_astyle:
         GIT_STRATEGY: none
     script:
         - cd ${BUILD_ROOT}/tpls
-        - export BUILD_PATH=${BUILD_ROOT}/${PLAT}/${BUILD_DIR}
-        - export PREFIX=${BUILD_PATH}/
-        - make parmetis PREFIX=${PREFIX} BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
-        - make metis4 PREFIX=${PREFIX} BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
-        - make metis5 PREFIX=${PREFIX} BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
-    allow_failure: true
+        - mkdir -p ${BUILD_PATH}
+        - make ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
 
 .build_mfem:
     stage: build
     script:
-        - mkdir -p ${BUILD_ROOT}/${PLAT}
-        - mkdir -p ${BUILD_ROOT}/${PLAT}/${BUILD_DIR}
+        - mkdir -p ${BUILD_PATH}
         - cd ..
-        - cp -r mfem ${BUILD_ROOT}/${PLAT}/${BUILD_DIR}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
-        - cd ${BUILD_ROOT}/${PLAT}/${BUILD_DIR}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+        - cp -r mfem ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+        - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
         - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC=$MPIEXEC MFEM_MPIEXEC_NP=$MPIEXEC_NP
         - make -j 4
 
@@ -77,7 +86,7 @@ build_astyle:
     variables:
         GIT_STRATEGY: none
     script:
-        - cd ${BUILD_ROOT}/${PLAT}/${BUILD_DIR}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+        - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
         - make test
 
 .stylecheck_mfem:
