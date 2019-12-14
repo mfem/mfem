@@ -24,7 +24,7 @@ namespace mfem
 class NonlinearForm : public Operator
 {
 protected:
-   /// The form assembly level (full, partial, etc.)
+   /// The assembly level.
    AssemblyLevel assembly;
 
    /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
@@ -74,7 +74,7 @@ public:
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
 
-   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /// Set the desired assembly level. The default is AssemblyLevel::NONE.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 

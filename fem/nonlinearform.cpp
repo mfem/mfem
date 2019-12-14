@@ -23,20 +23,14 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    assembly = assembly_level;
    switch (assembly)
    {
-      case AssemblyLevel::FULL:
-         // Use the original NonlinearForm implementation for now
-         break;
-      case AssemblyLevel::ELEMENT:
-         mfem_error("Element assembly not supported yet... stay tuned!");
-         break;
-      case AssemblyLevel::PARTIAL:
-         ext = new PANonlinearFormExtension(this);
-         break;
-      case AssemblyLevel::NONE:
-         mfem_error("Matrix-free action not supported yet... stay tuned!");
-         break;
-      default:
-         mfem_error("Unknown assembly level");
+   case AssemblyLevel::NONE:
+      // This is the default behavior.
+      break;
+   case AssemblyLevel::PARTIAL:
+      ext = new PANonlinearFormExtension(this);
+      break;
+   default:
+      mfem_error("Unknown assembly level for this form.");
    }
 }
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
