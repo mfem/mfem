@@ -727,7 +727,7 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 }
 
 
-ParaviewDataCollection::~ParaviewDataCollection()
+ParaViewDataCollection::~ParaViewDataCollection()
 {
    if (myrank==0)
    {
@@ -738,7 +738,7 @@ ParaviewDataCollection::~ParaviewDataCollection()
    }
 }
 
-ParaviewDataCollection::ParaviewDataCollection(const std::string&
+ParaViewDataCollection::ParaViewDataCollection(const std::string&
                                                collection_name,  mfem::Mesh *mesh_ )
    :DataCollection(collection_name, mesh_)
 {
@@ -762,70 +762,70 @@ ParaviewDataCollection::ParaviewDataCollection(const std::string&
    pvd_stream << "<Collection>" << std::endl;
 }
 
-void ParaviewDataCollection::SetMesh(mfem::Mesh * new_mesh)
+void ParaViewDataCollection::SetMesh(mfem::Mesh * new_mesh)
 {
    DataCollection::SetMesh(new_mesh);
 }
 
-void ParaviewDataCollection::RegisterField(const std::string& field_name,
+void ParaViewDataCollection::RegisterField(const std::string& field_name,
                                            mfem::GridFunction *gf)
 {
    DataCollection::RegisterField(field_name,gf);
 }
 
-void ParaviewDataCollection::SetLevelsOfDetail(int levels_of_detail_)
+void ParaViewDataCollection::SetLevelsOfDetail(int levels_of_detail_)
 {
    levels_of_detail = levels_of_detail_;
 }
 
-void ParaviewDataCollection::Load(int )
+void ParaViewDataCollection::Load(int )
 {
-   MFEM_WARNING("ParaviewDataCollection::Load() is not implemented!!!" );
+   MFEM_WARNING("ParaViewDataCollection::Load() is not implemented!!!" );
 }
 
-std::string  ParaviewDataCollection::GenerateCollectionPath()
+std::string  ParaViewDataCollection::GenerateCollectionPath()
 {
    std::string out = "";
    out=DataCollection::GetPrefixPath() + DataCollection::GetCollectionName();
    return out;
 }
 
-std::string ParaviewDataCollection::GeneratePVTUPath()
+std::string ParaViewDataCollection::GeneratePVTUPath()
 {
    std::string out = "Cycle" + to_padded_string(cycle,pad_digits_cycle);
    return out;
 }
 
-std::string ParaviewDataCollection::GenerateVTUPath()
+std::string ParaViewDataCollection::GenerateVTUPath()
 {
    std::string out = GeneratePVTUPath();
    return out;
 }
 
-std::string ParaviewDataCollection::GeneratePVDFileName()
+std::string ParaViewDataCollection::GeneratePVDFileName()
 {
    std::string out = GetCollectionName()+".pvd";
    return out;
 }
 
-std::string ParaviewDataCollection::GeneratePVTUFileName()
+std::string ParaViewDataCollection::GeneratePVTUFileName()
 {
    std::string out = "data.pvtu";
    return out;
 }
 
-std::string ParaviewDataCollection::GenerateVTUFileName()
+std::string ParaViewDataCollection::GenerateVTUFileName()
 {
    std::string out = "proc" + to_padded_string(myrank,pad_digits_rank)+".vtu";
    return out;
 }
-std::string ParaviewDataCollection::GenerateVTUFileName(int crank)
+std::string ParaViewDataCollection::GenerateVTUFileName(int crank)
 {
    std::string out = "proc" + to_padded_string(crank,pad_digits_rank)+".vtu";
    return out;
 }
 
-void ParaviewDataCollection::Save()
+void ParaViewDataCollection::Save()
 {
    // add a new collection to the PDV file
 
@@ -925,7 +925,7 @@ void ParaviewDataCollection::Save()
    }
 }
 
-void ParaviewDataCollection::SaveDataVTU(std::ostream &out, int ref)
+void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
 {
    out << "<VTKFile type=\"UnstructuredGrid\" ";
    out << " version=\"0.1\" byte_order=\"LittleEndian\">" << std::endl;
@@ -957,13 +957,13 @@ void ParaviewDataCollection::SaveDataVTU(std::ostream &out, int ref)
    out << "</VTKFile>" << std::endl;
 }
 
-void ParaviewDataCollection::SaveQFieldVTU(std::ostream &out, int ref,
+void ParaViewDataCollection::SaveQFieldVTU(std::ostream &out, int ref,
                                            const QFieldMapIterator& it )
 {
    MFEM_WARNING("SaveQFieldVTU is wotk in progress - field name:"<<it->second);
 }
 
-void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
+void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
                                            const FieldMapIterator& it)
 {
    RefinedGeometry *RefG;
@@ -1014,7 +1014,7 @@ void ParaviewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
    out.flush();
 }
 
-int ParaviewDataCollection::create_directory(const std::string &dir_name)
+int ParaViewDataCollection::create_directory(const std::string &dir_name)
 {
    // create directories recursively
    const char path_delim = '/';
@@ -1034,7 +1034,7 @@ int ParaviewDataCollection::create_directory(const std::string &dir_name)
 }
 
 #ifdef MFEM_USE_MPI
-ParaviewDataCollection::ParaviewDataCollection(const std::string&
+ParaViewDataCollection::ParaViewDataCollection(const std::string&
                                                collection_name,
                                                mfem::ParMesh *mesh_)
    :DataCollection(collection_name,mesh_)
@@ -1060,7 +1060,7 @@ ParaviewDataCollection::ParaviewDataCollection(const std::string&
    }
 }
 
-int ParaviewDataCollection::create_directory(const std::string &dir_name,
+int ParaViewDataCollection::create_directory(const std::string &dir_name,
                                              int myid,
                                              MPI_Comm lcomm_)
 {
@@ -1087,7 +1087,7 @@ int ParaviewDataCollection::create_directory(const std::string &dir_name,
    return err;
 }
 
-void ParaviewDataCollection::SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh)
+void ParaViewDataCollection::SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh)
 {
    DataCollection::SetMesh(new_mesh);
    lcomm = comm;

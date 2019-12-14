@@ -470,7 +470,7 @@ public:
 };
 
 
-class ParaviewDataCollection : public DataCollection
+class ParaViewDataCollection : public DataCollection
 {
 private:
 #ifdef MFEM_USE_MPI
@@ -510,19 +510,19 @@ public:
 
    /// Constructor. The collection name is used when saving the data.
    /** If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh(). The construtor works only in serial. */
-   ParaviewDataCollection(const std::string& collection_name,
+   ParaViewDataCollection(const std::string& collection_name,
                           mfem::Mesh *mesh_ = NULL);
 
 #ifdef MFEM_USE_MPI
-   /// Construct a parallel ParaviewDataCollection.
+   /// Construct a parallel ParaViewDataCollection.
    /** Before saving the data collection, some parameters in the
        collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
-   ParaviewDataCollection(const std::string& collection_name,
+   ParaViewDataCollection(const std::string& collection_name,
                           mfem::ParMesh *mesh_ = NULL);
 
 #endif
 
-   virtual ~ParaviewDataCollection() override;
+   virtual ~ParaViewDataCollection() override;
 
    virtual void SetMesh(mfem::Mesh * new_mesh) override;
 
