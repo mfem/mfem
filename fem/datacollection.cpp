@@ -903,8 +903,6 @@ void ParaViewDataCollection::Save()
       out << "<PCellData>" << std::endl ;
       out << "\t<PDataArray type=\"Int32\" Name=\"" << "material"
           <<"\" NumberOfComponents=\"1\"/> " << std::endl ;
-      out << "\t<PDataArray type=\"Int32\" Name=\"" << "element_coloring"
-          <<"\" NumberOfComponents=\"1\"/> " << std::endl ;
       out << "</PCellData>" << std::endl ;
 
       for (int ii=0; ii<nprocs; ii++)
