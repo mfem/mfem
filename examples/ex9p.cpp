@@ -286,13 +286,13 @@ int main(int argc, char *argv[])
    }
 
    ParaViewDataCollection *pd = NULL;
-   if(paraview)
+   if (paraview)
    {
       pd = new ParaViewDataCollection("PVExample9P", pmesh);
       pd->RegisterField("solution", u);
       pd->SetLevelsOfDetail(2);
       pd->SetCycle(0);
-      pd->SetTime(0.0);	   
+      pd->SetTime(0.0);
       pd->Save();
    }
 
@@ -368,12 +368,12 @@ int main(int argc, char *argv[])
             dc->Save();
          }
 
-	 if(paraview)
-	 {
-	    pd->SetCycle(ti);
+         if (paraview)
+         {
+            pd->SetCycle(ti);
             pd->SetTime(t);
-            pd->Save();		 
-	 }
+            pd->Save();
+         }
       }
    }
 

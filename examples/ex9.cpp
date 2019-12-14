@@ -26,7 +26,7 @@
 //               conditions through periodic meshes, as well as the use of GLVis
 //               for persistent visualization of a time-evolving solution. The
 //               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) and ParaView (www.paraview.org) is 
+//               with VisIt (visit.llnl.gov) and ParaView (www.paraview.org) is
 //               also illustrated.
 
 #include "mfem.hpp"
@@ -243,13 +243,13 @@ int main(int argc, char *argv[])
    }
 
    ParaViewDataCollection *pd = NULL;
-   if(paraview)
+   if (paraview)
    {
       pd = new ParaViewDataCollection("PVExample9S", &mesh);
       pd->RegisterField("solution", &u);
       pd->SetLevelsOfDetail(2);
       pd->SetCycle(0);
-      pd->SetTime(0.0);	   
+      pd->SetTime(0.0);
    }
 
    socketstream sout;
@@ -310,12 +310,12 @@ int main(int argc, char *argv[])
             dc->Save();
          }
 
-	 if(paraview)
-	 {
-	    pd->SetCycle(ti);
+         if (paraview)
+         {
+            pd->SetCycle(ti);
             pd->SetTime(t);
-            pd->Save();		 
-	 }
+            pd->Save();
+         }
       }
    }
 
