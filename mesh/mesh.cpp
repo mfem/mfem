@@ -8344,10 +8344,12 @@ void Mesh::PrintVTU(std::string fname)
 {
    fname = fname + ".vtu";
    std::fstream out(fname.c_str(),std::ios::out);
-   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">" << std::endl;
+   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"
+       << std::endl;
    out << "<UnstructuredGrid>" << std::endl;
    PrintVTU(out,1);
-   out << "</Piece>" << std::endl; //needed to close the piece open in the PrintVTU method
+   out << "</Piece>" <<
+       std::endl; //needed to close the piece open in the PrintVTU method
    out << "</UnstructuredGrid>" << std::endl;
    out << "</VTKFile>" << std::endl;
 
@@ -8374,11 +8376,13 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
    }
 
 
-   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\"" << nc << "\">" << std::endl;
+   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\"" << nc << "\">"
+       << std::endl;
 
    //print out the points
    out << "<Points>" << std::endl;
-   out << "<DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">" << std::endl;
+   out << "<DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">"
+       << std::endl;
    for (int i = 0; i < GetNE(); i++)
    {
       RefG = GlobGeometryRefiner.Refine(
@@ -8440,11 +8444,13 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
    }
    out << "</DataArray>" << std::endl;
 
-   out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">" <<
+       std::endl;
    //offsets
    for (size_t ii=0; ii<offset.size(); ii++) { out<<offset[ii]<<std::endl;}
    out << "</DataArray>" << std::endl;
-   out << "<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">" << std::endl;
+   out << "<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">" <<
+       std::endl;
    //cell types
    for (int i = 0; i < GetNE(); i++)
    {
@@ -8477,7 +8483,8 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
    out << "</Cells>" << std::endl;
 
    out << "<CellData Scalars=\"material\">" << std::endl;
-   out << "<DataArray type=\"Int32\" Name=\"material\" format=\"ascii\">" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"material\" format=\"ascii\">" <<
+       std::endl;
    for (int i = 0; i < GetNE(); i++)
    {
       Geometry::Type geom = GetElementBaseGeometry(i);
