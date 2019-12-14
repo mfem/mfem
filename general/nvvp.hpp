@@ -16,7 +16,7 @@
 #ifndef OKINA_NVVP_HPP
 #define OKINA_NVVP_HPP
 
-#define __NVVP__
+#undef __NVVP__
 #ifdef __NVVP__
 
 #include "dbg.hpp"

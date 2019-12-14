@@ -172,30 +172,7 @@ const double &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const double *x, double *y) const
 {
-   if (width == 0)
-   {
-      for (int row = 0; row < height; row++)
-      {
-         y[row] = 0.0;
-      }
-      return;
-   }
-   double *d_col = data;
-   double x_col = x[0];
-   for (int row = 0; row < height; row++)
-   {
-      y[row] = x_col*d_col[row];
-   }
-   d_col += height;
-   for (int col = 1; col < width; col++)
-   {
-      x_col = x[col];
-      for (int row = 0; row < height; row++)
-      {
-         y[row] += x_col*d_col[row];
-      }
-      d_col += height;
-   }
+   blas::MultV(height, width, data, x, y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -2523,13 +2500,14 @@ void DenseMatrix::Symmetrize()
       mfem_error("DenseMatrix::Symmetrize() : not a square matrix!");
    }
 #endif
-
+   symmetrize(Height(), Data());
+   /*
    for (int i = 0; i < Height(); i++)
       for (int j = 0; j < i; j++)
       {
          double a = 0.5 * ((*this)(i,j) + (*this)(j,i));
          (*this)(j,i) = (*this)(i,j) = a;
-      }
+      }*/
 }
 
 void DenseMatrix::Lump()
@@ -3025,18 +3003,10 @@ DenseMatrix::~DenseMatrix()
    }
 }
 
-
-
 void Add(const DenseMatrix &A, const DenseMatrix &B,
          double alpha, DenseMatrix &C)
 {
-   for (int j = 0; j < C.Width(); j++)
-   {
-      for (int i = 0; i < C.Height(); i++)
-      {
-         C(i,j) = A(i,j) + alpha * B(i,j);
-      }
-   }
+   blas::Add(C.Height(), C.Width(), alpha, A.Data(), B.Data(), C.Data());
 }
 
 void Add(double alpha, const double *A,
@@ -3080,20 +3050,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    double *ad = a.Data();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   for (int i = 0; i < ah*aw; i++)
-   {
-      ad[i] = 0.0;
-   }
-   for (int j = 0; j < aw; j++)
-   {
-      for (int k = 0; k < bw; k++)
-      {
-         for (int i = 0; i < ah; i++)
-         {
-            ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
-         }
-      }
-   }
+   blas::Mult(ah,aw,bw,bd,cd,ad);
 #endif
 }
 
@@ -3290,32 +3247,19 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
                "singular matrix!");
    t = 1.0 / t;
 #else
-   t = 1.0 / a.Det();
+   //t = 1.0 / a.Det();
 #endif
 
    switch (a.Height())
    {
       case 1:
-         inva(0,0) = t;
+         inva(0,0) = 1.0 / a.Det();
          break;
       case 2:
-         inva(0,0) = a(1,1) * t ;
-         inva(0,1) = -a(0,1) * t ;
-         inva(1,0) = -a(1,0) * t ;
-         inva(1,1) = a(0,0) * t ;
+         blas::CalcInverse<2>(a.Data(), inva.Data());
          break;
       case 3:
-         inva(0,0) = (a(1,1)*a(2,2)-a(1,2)*a(2,1))*t;
-         inva(0,1) = (a(0,2)*a(2,1)-a(0,1)*a(2,2))*t;
-         inva(0,2) = (a(0,1)*a(1,2)-a(0,2)*a(1,1))*t;
-
-         inva(1,0) = (a(1,2)*a(2,0)-a(1,0)*a(2,2))*t;
-         inva(1,1) = (a(0,0)*a(2,2)-a(0,2)*a(2,0))*t;
-         inva(1,2) = (a(0,2)*a(1,0)-a(0,0)*a(1,2))*t;
-
-         inva(2,0) = (a(1,0)*a(2,1)-a(1,1)*a(2,0))*t;
-         inva(2,1) = (a(0,1)*a(2,0)-a(0,0)*a(2,1))*t;
-         inva(2,2) = (a(0,0)*a(1,1)-a(0,1)*a(1,0))*t;
+         blas::CalcInverse<3>(a.Data(), inva.Data());
          break;
    }
 }
@@ -3472,6 +3416,8 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    const double *bd = B.Data();
    double *cd = ABt.Data();
 
+   multABt(ah, aw, bh, ad, bd, cd);
+   /*
    for (int i = 0, s = ah*bh; i < s; i++)
    {
       cd[i] = 0.0;
@@ -3490,7 +3436,7 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
       }
       ad += ah;
       bd += bh;
-   }
+   }*/
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();

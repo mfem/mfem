@@ -50,7 +50,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else
    {
       coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.Write(), nq, ne);
+      auto C = Reshape(coeff.HostWrite(), nq, ne);
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
