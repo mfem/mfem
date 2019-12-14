@@ -264,8 +264,8 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("pressure", &p);
    visit_dc.Save();
 
-   // 14. Save data in the Paraview format
-   ParaviewDataCollection paraview_dc("PExample5", mesh);
+   // 14. Save data in the ParaView format
+   ParaViewDataCollection paraview_dc("PExample5", mesh);
    paraview_dc.SetLevelsOfDetail(2);
    paraview_dc.SetCycle(1);
    paraview_dc.SetTime(0.0); //set the time
