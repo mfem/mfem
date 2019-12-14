@@ -319,12 +319,20 @@ public:
    Geometry::Type GetFaceGeometry(int index) const
    { return Geometry::Type(face_geom[index]); }
 
+   /// Return the number of root elements.
+   int GetNumRootElements() { return root_state.Size(); }
+
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
+
+   /** Return the size reduction compared to the root element (ignoring local
+       stretching and curvature). */
+   int GetElementSizeReduction(int i) const;
 
    /// Return the faces and face attributes of leaf element 'i'.
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;
+
 
    /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
    void PrintVertexParents(std::ostream &out) const;
