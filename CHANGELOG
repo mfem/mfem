@@ -33,10 +33,21 @@ Meshing improvements
   (e.g. spatial dependence of size, aspect ratio, etc., for each element) or via
   a (Par)GridFunction specified on the original mesh.
 
+- The TMOP mesh optimization algorithms have been improved to support AMR meshes.
+
+- Added support for creating refined versions of periodic meshes, making use of
+  the new L2ElementRestriction class. This class also allows for computing
+  geometric factors on periodic meshes using partial assembly.
+
+- Improved element numbering after uniform mesh refinement.
+
 New and updated examples and miniapps
 -------------------------------------
 - The mesh-optimizer and pmesh-optimizer miniapps have been updated to
   demonstrate the new r-adaptivity capabilities of TMOP.
+
+- The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
+  optimization for an AMR mesh.
 
 Miscellaneous
 -------------
@@ -44,12 +55,6 @@ Miscellaneous
   necessitated a complete rework of the interface and requires changes at
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
-
-- Improved element numbering after uniform mesh refinement.
-
-- Added support for creating refined versions of periodic meshes, making use of
-  the new L2ElementRestriction class. This class also allows for computing
-  geometric factors on periodic meshes using partial assembly.
 
 
 Version 4.0, released on May 24, 2019
