@@ -92,6 +92,8 @@ make distclean
    installation directory.
 make style
    Format the MFEM C++ source files using Artistic Style (astyle).
+make style-check
+   Check the formatting of the MFEM C++ source files using Artistic Style (astyle).   
 
 endef
 
@@ -168,7 +170,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda hip pcuda cudebug pcudebug hpc style
+ cuda hip pcuda cudebug pcudebug hpc style style-check
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -396,8 +398,8 @@ OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
-	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
-	deprecation-warnings
+	debug pdebug cuda hip pcuda cudebug pcudebug hpc style style-check check test  \
+	unittest deprecation-warnings
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -656,7 +658,8 @@ status info:
 	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
 	@true
 
-ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
+ASTYLE_BIN = astyle
+ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
@@ -679,6 +682,16 @@ style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
 	   echo "No source files were changed.";\
 	fi
+
+style-check:
+	@if ! command -v $(ASTYLE_BIN); then\
+	   echo "astyle not found.  Please install version 2.05.1.";\
+	   false;\
+	fi
+	@if $(ASTYLE) --dry-run $(FORMAT_FILES) | grep Formatted; then\
+	   echo "Style check failed, please run make style.";\
+	   false;\
+	else echo "Style check passed."; fi
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:
