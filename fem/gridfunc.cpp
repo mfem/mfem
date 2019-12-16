@@ -524,7 +524,7 @@ int GridFunction::GetFaceValues(int i, int side, const IntegrationRule &ir,
 
    return dir;
 }
-
+/*
 void GridFunction::GetVectorValues(ElementTransformation &T,
                                    const IntegrationRule &ir,
                                    DenseMatrix &vals) const
@@ -578,6 +578,106 @@ void GridFunction::GetVectorValues(int i, const IntegrationRule &ir,
 
    GetVectorValues(*Tr, ir, vals);
 }
+*/
+double GridFunction::GetValue(ElementTransformation &T,
+                              const IntegrationPoint &ip,
+                              int comp, Vector *tr) const
+{
+   if (tr)
+   {
+      T.SetIntPoint(&ip);
+      T.Transform(ip, *tr);
+   }
+   Array<int> dofs;
+   const FiniteElement * fe = NULL;
+   if (T.ElementType == ElementTransformation::ELEMENT)
+   {
+      fes->GetElementDofs(T.ElementNo, dofs);
+      fe = fes->GetFE(T.ElementNo);
+   }
+   else if (T.ElementType == ElementTransformation::BDR_ELEMENT)
+   {
+      fes->GetBdrElementDofs(T.ElementNo, dofs);
+      fe = fes->GetBE(T.ElementNo);
+
+      if (fe == NULL)
+      {
+         // This must be a DG field called in a non-DG context.
+         FaceElementTransformations * FET =
+            fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         return GetValue(*FET, ip, comp);
+      }
+   }
+   fes->DofsToVDofs(comp-1, dofs);
+   Vector DofVal(dofs.Size()), LocVec;
+   MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
+   fe->CalcShape(ip, DofVal);
+   GetSubVector(dofs, LocVec);
+
+   return (DofVal * LocVec);
+}
+
+double GridFunction::GetValue(FaceElementTransformations &FET,
+                              const IntegrationPoint &ip,
+                              int comp, Vector *tr) const
+{
+   ElementTransformation * T = FET.GetActiveElementTransformation();
+
+   IntegrationPoint eip;
+   FET.GetActivePointTransformation()->Transform(ip, eip);
+
+   return GetValue(*T, eip, comp, tr);
+}
+
+void GridFunction::GetVectorValues(ElementTransformation &T,
+                                   const IntegrationRule &ir,
+                                   DenseMatrix &vals,
+                                   DenseMatrix *tr) const
+{
+   if (tr)
+   {
+      T.Transform(ir, *tr);
+   }
+   const FiniteElement *FElem = fes->GetFE(T.ElementNo);
+   int dof = FElem->GetDof();
+   Array<int> vdofs;
+   fes->GetElementVDofs(T.ElementNo, vdofs);
+   Vector loc_data;
+   GetSubVector(vdofs, loc_data);
+   int nip = ir.GetNPoints();
+   if (FElem->GetRangeType() == FiniteElement::SCALAR)
+   {
+      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+                  "invalid FE map type");
+      Vector shape(dof);
+      int vdim = fes->GetVDim();
+      vals.SetSize(vdim, nip);
+      for (int j = 0; j < nip; j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         FElem->CalcShape(ip, shape);
+         for (int k = 0; k < vdim; k++)
+         {
+            vals(k,j) = shape * ((const double *)loc_data + dof * k);
+         }
+      }
+   }
+   else
+   {
+      int spaceDim = fes->GetMesh()->SpaceDimension();
+      DenseMatrix vshape(dof, spaceDim);
+      vals.SetSize(spaceDim, nip);
+      Vector val_j;
+      for (int j = 0; j < nip; j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         T.SetIntPoint(&ip);
+         FElem->CalcVShape(T, vshape);
+         vals.GetColumnReference(j, val_j);
+         vshape.MultTranspose(loc_data, val_j);
+      }
+   }
+}
 
 int GridFunction::GetFaceVectorValues(
    int i, int side, const IntegrationRule &ir,
@@ -610,13 +710,13 @@ int GridFunction::GetFaceVectorValues(
    {
       Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
       Transf->Loc1.Transform(ir, eir);
-      GetVectorValues(Transf->Elem1No, eir, vals, tr);
+      GetVectorValues(*Transf->Elem1, eir, vals, &tr);
    }
    else
    {
       Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
       Transf->Loc2.Transform(ir, eir);
-      GetVectorValues(Transf->Elem2No, eir, vals, tr);
+      GetVectorValues(*Transf->Elem2, eir, vals, &tr);
    }
 
    return di;
@@ -2686,7 +2786,9 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
          RefG = GlobGeometryRefiner.Refine(
                    mesh->GetElementBaseGeometry(i), ref, 1);
 
-         GetVectorValues(i, RefG->RefPts, vval, pmat);
+         // GetVectorValues(i, RefG->RefPts, vval, pmat);
+         ElementTransformation * T = mesh->GetElementTransformation(i);
+         GetVectorValues(*T, RefG->RefPts, vval, &pmat);
 
          for (int j = 0; j < vval.Width(); j++)
          {
