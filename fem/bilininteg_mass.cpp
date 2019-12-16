@@ -792,7 +792,7 @@ static void PAHcurlSetup2D(const int Q1D,
 			   const int NE,
 			   const Array<double> &w,
 			   const Vector &j,
-			   const double COEFF,
+			   Vector *coeff,
 			   Vector &op)
 {
    const int NQ = Q1D*Q1D;
@@ -809,7 +809,8 @@ static void PAHcurlSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * COEFF / ((J11*J22)-(J21*J12));
+	 const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
+         const double c_detJ = W[q] * c / ((J11*J22)-(J21*J12));
          y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
          y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
          y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
@@ -823,13 +824,14 @@ static void PAHcurlSetup3D(const int Q1D,
 			   const int NE,
 			   const Array<double> &w,
 			   const Vector &j,
-			   const double COEFF,
+			   Vector *coeff,
 			   Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 6, NE);
+
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -846,7 +848,8 @@ static void PAHcurlSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * COEFF / detJ;
+	 const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
+         const double c_detJ = W[q] * c / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -897,12 +900,18 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-  double coeff = 1.0;
+
+  Vector *coeff = NULL;
   if (Q)
     {
-      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-      coeff = cQ->constant;
+      coeff = new Vector(ne * nq);
+
+      for (int e=0; e<ne; ++e)
+	{
+	  ElementTransformation *tr = mesh->GetElementTransformation(e);
+	  for (int p=0; p<nq; ++p)
+	    (*coeff)[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
+	}
     }
 
   if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
@@ -917,6 +926,8 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
     }
   else
     MFEM_ABORT("Unknown kernel.");
+
+  if (coeff) delete coeff;
 
   dof_map = el->GetDofMap();
 }
@@ -1061,8 +1072,8 @@ static void PAHcurlMassApply3D(const int D1D,
 			       const Array<double> &_Bot,
 			       const Array<double> &_Bct,
 			       const Vector &_op,
-			       const Vector &_x,
-			       Vector &_y)
+			       const Vector &x,
+			       Vector &y)
 {
   constexpr int VDIM = 3;
 
@@ -1071,8 +1082,6 @@ static void PAHcurlMassApply3D(const int D1D,
   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
   auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
-  auto x = Reshape(_x.Read(), D1D-1, D1D, D1D, VDIM, NE);  // Note that this is not the right shape in all dimensions.
-  auto y = Reshape(_y.ReadWrite(), D1D-1, D1D, D1D, VDIM, NE);  // Note that this is not the right shape in all dimensions.
 
   const int esize = (D1D - 1) * D1D * D1D * VDIM;
 
@@ -1124,7 +1133,6 @@ static void PAHcurlMassApply3D(const int D1D,
 
 		for (int dx = 0; dx < D1Dx; ++dx)
 		  {
-		    //const double s = x(dx,dy,dz,c,e);  // does not work, because dimensions depend on c.
 		    const double s = dof_map[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
 		    const double t = s * x[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose];
 		    for (int qx = 0; qx < Q1D; ++qx)
@@ -1234,9 +1242,8 @@ static void PAHcurlMassApply3D(const int D1D,
 		  {
 		    for (int dx = 0; dx < D1Dx; ++dx)
 		      {
-			//y(dx,dy,dz,c,e) += massXY[dy][dx] * wz;  // does not work, because dimensions depend on c.
 			const double s = dof_map[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
-			y[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * massXY[dy][dx] * wz;
+			y.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * massXY[dy][dx] * wz;
 		      }
 		  }
 	      }
@@ -1260,7 +1267,7 @@ static void PACurlCurlSetup2D(const int Q1D,
 			      const int NE,
 			      const Array<double> &w,
 			      const Vector &j,
-			      const double COEFF,
+			      Vector *coeff,
 			      Vector &op)
 {
    const int NQ = Q1D*Q1D;
@@ -1276,7 +1283,8 @@ static void PACurlCurlSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double detJ = (J11*J22)-(J21*J12);
-	 y(q,e) = W[q] * COEFF / detJ;
+	 const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
+	 y(q,e) = W[q] * c / detJ;
       }
    });
 }
@@ -1286,7 +1294,7 @@ static void PACurlCurlSetup3D(const int Q1D,
 			      const int NE,
 			      const Array<double> &w,
 			      const Vector &j,
-			      const double COEFF,
+			      Vector *coeff,
 			      Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
@@ -1329,7 +1337,8 @@ static void PACurlCurlSetup3D(const int Q1D,
          y(q,6,e) = A31 / detJ;
          y(q,7,e) = A32 / detJ;
          y(q,8,e) = A33 / detJ;
-	 y(q,9,e) = W[q] * COEFF * detJ;
+	 const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
+	 y(q,9,e) = W[q] * c * detJ;
       }
    });
 }
@@ -1363,12 +1372,18 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
   const int ndata = (dim == 2) ? 1 : 10;
   pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
-  double coeff = 1.0;
+
+  Vector *coeff = NULL;
   if (Q)
     {
-      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-      coeff = cQ->constant;
+      coeff = new Vector(ne * nq);
+
+      for (int e=0; e<ne; ++e)
+	{
+	  ElementTransformation *tr = mesh->GetElementTransformation(e);
+	  for (int p=0; p<nq; ++p)
+	    (*coeff)[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
+	}
     }
 
   if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
@@ -1384,6 +1399,8 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
   else
     MFEM_ABORT("Unknown kernel.");
 
+  if (coeff) delete coeff;
+
   dof_map = el->GetDofMap();
 }
 
@@ -1396,8 +1413,8 @@ static void PACurlCurlApply2D(const int D1D,
 			      const Array<double> &_Gc,
 			      const Array<double> &_Gct,
 			      const Vector &_op,
-			      const Vector &_x,
-			      Vector &_y)
+			      const Vector &x,
+			      Vector &y)
 {
   constexpr int VDIM = 2;
 
@@ -1406,13 +1423,10 @@ static void PACurlCurlApply2D(const int D1D,
   auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
   auto op = Reshape(_op.Read(), Q1D*Q1D, NE);
-  auto x = Reshape(_x.Read(), D1D-1, D1D, VDIM, NE);  // Note that this is not the right shape in all dimensions.
-  auto y = Reshape(_y.ReadWrite(), D1D-1, D1D, VDIM, NE);  // Note that this is not the right shape in all dimensions.
 
   const int esize = (D1D - 1) * D1D * VDIM;
 
   MFEM_FORALL(e, NE,
-  //for (int e=0; e<NE; ++e)
   {
     const int ose = e * esize;
 
@@ -1504,14 +1518,13 @@ static void PACurlCurlApply2D(const int D1D,
 		for (int dx = 0; dx < D1Dx; ++dx)
 		  {
 		    const double s = dof_map[dx + (dy * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
-		    y[dx + (dy * D1Dx) + osc + ose] += s * gradX[dx] * wy;
+		    y.GetData()[dx + (dy * D1Dx) + osc + ose] += s * gradX[dx] * wy;
 		  }
 	      }
 
 	    osc += D1Dx * D1Dy;
 	  }  // loop c
       }  // loop qy
-    //}
   }); // end of element loop
 }
 
@@ -1528,8 +1541,8 @@ static void PACurlCurlApply3D(const int D1D,
 			      const Array<double> &_Got,
 			      const Array<double> &_Gct,
 			      const Vector &_op,
-			      const Vector &_x,
-			      Vector &_y)
+			      const Vector &x,
+			      Vector &y)
 {
   // Note that _Go and _Got are never actually used. They are used in the diagonal of the gradient, which is not used in the curl.
   // This implementation is based on the identity [\nabla\times u] F = dF^{-T} [\hat{\nabla}\times\hat{u}] dF^{-1} (p. 77 of Monk).
@@ -1546,8 +1559,6 @@ static void PACurlCurlApply3D(const int D1D,
   auto Got = Reshape(_Got.Read(), D1D-1, Q1D);
   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 10, NE);
-  auto x = Reshape(_x.Read(), D1D-1, D1D, D1D, VDIM, NE);  // Note that this is not the right shape in all dimensions.
-  auto y = Reshape(_y.ReadWrite(), D1D-1, D1D, D1D, VDIM, NE);  // Note that this is not the right shape in all dimensions.
 
   const int esize = (D1D - 1) * D1D * D1D * VDIM;
   int idJ[3][3];
@@ -1621,7 +1632,6 @@ static void PACurlCurlApply3D(const int D1D,
 
 		for (int dx = 0; dx < D1Dx; ++dx)
 		  {
-		    //const double s = x(dx,dy,dz,c,e);  // does not work, because dimensions depend on c.
 		    const double s = dof_map[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
 		    const double t = s * x[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose];
 		    for (int qx = 0; qx < Q1D; ++qx)
@@ -1854,7 +1864,6 @@ static void PACurlCurlApply3D(const int D1D,
 		  {
 		    for (int dx = 0; dx < D1Dx; ++dx)
 		      {
-			//y(dx,dy,dz,c,e) += gradXY[dy][dx] * wz;  // does not work, because dimensions depend on c.
 			const double s = dof_map[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
 
 			// s * [gradXY[dy][dx][0] * wz, gradXY[dy][dx][1] * wz, gradXY[dy][dx][2] * wDz] is grad(u_c), except for the c entry (not used).
@@ -1902,7 +1911,7 @@ static void PACurlCurlApply3D(const int D1D,
 				// t7 = wx * wy times J^{-1}_{(0,m)} g[n][2]
 				// t8 = wx * wy times J^{-1}_{(2,m)} g[n][0]
 
-				y[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * ((t1 * wz) + (t7 * wDz) - (t2 * wz) - (t8 * wDz));
+				y.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * ((t1 * wz) + (t7 * wDz) - (t2 * wz) - (t8 * wDz));
 			      }
 			    else if (c == 1)
 			      {
@@ -1924,7 +1933,7 @@ static void PACurlCurlApply3D(const int D1D,
 				// t7 = wx * wy times J^{-1}_{(1,m)} g[n][2]
 				// t8 = wx * wy times J^{-1}_{(2,m)} g[n][1]
 
-				y[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * (-(t2 * wz) + (t1 * wz) + (t7 * wDz) - (t8 * wDz));
+				y.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * (-(t2 * wz) + (t1 * wz) + (t7 * wDz) - (t8 * wDz));
 			      }
 			    else  // c == 2
 			      {
@@ -1946,7 +1955,7 @@ static void PACurlCurlApply3D(const int D1D,
 				// t7 = wx * wDy times J^{-1}_{(2,m)} g[n][1]
 				// t8 = wx * wDy times J^{-1}_{(1,m)} g[n][2]
 
-				y[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * wz * (-t2 - t8 + t1 + t7);
+				y.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * wz * (-t2 - t8 + t1 + t7);
 			      }
 			  }
 		      }
