@@ -3,14 +3,16 @@ variables:
     BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}/${PLAT}/${TOOLCHAIN}
     REBASELINE: "NO"
     ASTYLE: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}/tpls/install/astyle/astyle
-    BUILD_QUARTZ_ALLOC_NAME: mfem_ci_${CI_COMMIT_SHORT_SHA}
+    MFEM_ALLOC_NAME: mfem_ci_${CI_COMMIT_SHORT_SHA}
 
 stages:
     - precleanup
     - setup
+    - allocate
     - libs
     - build
     - test
+    - release
     - rebaseline
     - postcleanup
 
@@ -56,6 +58,8 @@ build_astyle:
         - module load gcc/4.9.3
 
 .build_hypre:
+    variables:
+        EXEC_PREFIX: ""
     stage: libs
     variables:
         GIT_STRATEGY: none
@@ -63,26 +67,48 @@ build_astyle:
         - cd ${BUILD_ROOT}/tpls
         - mkdir -p ${BUILD_PATH}
         - make clean
-        - make -j 4 hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
+        - |
+          if [[ "${MPIEXEC}" == "srun" ]]
+          then
+              export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+              export EXEC_PREFIX="srun --jobid=${JOB_ID}"
+          fi
+        - $EXEC_PREFIX make -j 4 hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
 
 .build_metis:
+    variables:
+        EXEC_PREFIX: ""
     stage: libs
     variables:
         GIT_STRATEGY: none
     script:
         - cd ${BUILD_ROOT}/tpls
         - mkdir -p ${BUILD_PATH}
-        - make ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
+        - |
+          if [[ "${MPIEXEC}" == "srun" ]]
+          then
+              export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+              export EXEC_PREFIX="srun --jobid=${JOB_ID}"
+          fi
+        - $EXEC_PREFIX make -j 4 ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
 
 .build_mfem:
+    variables:
+        EXEC_PREFIX: ""
     stage: build
     script:
         - mkdir -p ${BUILD_PATH}
         - cd ..
         - cp -r mfem ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
         - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
-        - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC=$MPIEXEC MFEM_MPIEXEC_NP=$MPIEXEC_NP
-        - make -j 4
+        - |
+          if [[ "${MPIEXEC}" == "srun" ]]
+          then
+              export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+              export EXEC_PREFIX="srun --jobid=${JOB_ID}"
+          fi
+        - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="$EXEC_PREFIX" MFEM_MPIEXEC_NP=$MPIEXEC_NP
+        - $EXEC_PREFIX make -j 4 all
 
 .sanitycheck_mfem:
     stage: test
@@ -140,7 +166,6 @@ build_astyle:
         GIT_STRATEGY: none
     script:
         rm -rf ${BUILD_ROOT}/${PLAT}
-
 
 include:
     - local: .gitlab-ci-quartz.yml

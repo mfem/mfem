@@ -17,6 +17,36 @@ quartz_precleanup:
 quartz_setup:
     extends: [.quartz_common, .setup]
 
+# Allocate
+
+quartz_allocate:
+    variables:
+        GIT_STRATEGY: none
+    extends: .quartz_common
+    stage: allocate
+    script:
+        - |
+          if [[ "${MPIEXEC}" == "srun" ]]
+          then
+              salloc -N 1 -c 36 -p pdebug -t 30 --no-shell --job-name=${MFEM_ALLOC_NAME}
+          fi
+
+# Release
+
+quartz_release:
+  variables:
+    GIT_STRATEGY: none
+  extends: .quartz_common
+  stage: release
+  script:
+      - |
+        if [[ "${MPIEXEC}" == "srun" ]]
+        then
+            export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+            ([[ -n "${JOB_ID}" ]] && scancel ${JOB_ID})
+        fi
+  when: always
+
 #Build libs
 
 quartz_build_hypre_gcc_6_1_0:
@@ -57,7 +87,7 @@ quartz_build_mfem_gcc_6_1_0_debug_par:
     variables:
         MFEM_DEBUG: "YES"
         MFEM_USE_MPI: "YES"
-    needs: [quartz_build_hypre_gcc_6_1_0, quartz_build_parmetis_gcc_6_1_0]
+    needs: [quartz_build_hypre_gcc_6_1_0, quartz_build_parmetis_gcc_6_1_0, quartz_allocate]
 
 quartz_build_mfem_gcc_6_1_0_opt_ser:
     extends: [.quartz_common, .with_gcc_6_1_0, .build_mfem]
@@ -70,7 +100,7 @@ quartz_build_mfem_gcc_6_1_0_opt_par:
     variables:
         MFEM_DEBUG: "NO"
         MFEM_USE_MPI: "YES"
-    needs: [quartz_build_hypre_gcc_6_1_0, quartz_build_parmetis_gcc_6_1_0]
+    needs: [quartz_build_hypre_gcc_6_1_0, quartz_build_parmetis_gcc_6_1_0, quartz_allocate]
 
 ## Tests
 # Code style check
@@ -84,28 +114,28 @@ quartz_sanitycheck_mfem_gcc_4_9_3_debug_ser:
     variables:
         MFEM_DEBUG: "YES"
         MFEM_USE_MPI: "NO"
-    needs: [quartz_build_mfem_gcc_4_9_3_debug_ser]
+    needs: [quartz_build_mfem_gcc_4_9_3_debug_ser, quartz_allocate]
 
 quartz_sanitycheck_mfem_gcc_6_1_0_debug_ser:
     extends: [.quartz_common, .with_gcc_6_1_0, .sanitycheck_mfem]
     variables:
         MFEM_DEBUG: "YES"
         MFEM_USE_MPI: "NO"
-    needs: [quartz_build_mfem_gcc_6_1_0_debug_ser]
+    needs: [quartz_build_mfem_gcc_6_1_0_debug_ser, quartz_allocate]
 
 quartz_sanitycheck_mfem_gcc_6_1_0_opt_ser:
     extends: [.quartz_common, .with_gcc_6_1_0, .sanitycheck_mfem]
     variables:
         MFEM_DEBUG: "NO"
         MFEM_USE_MPI: "NO"
-    needs: [quartz_build_mfem_gcc_6_1_0_opt_ser]
+    needs: [quartz_build_mfem_gcc_6_1_0_opt_ser, quartz_allocate]
 
 quartz_sanitycheck_mfem_gcc_6_1_0_opt_par:
     extends: [.quartz_common, .with_gcc_6_1_0, .sanitycheck_mfem]
     variables:
         MFEM_DEBUG: "NO"
         MFEM_USE_MPI: "YES"
-    needs: [quartz_build_mfem_gcc_6_1_0_opt_par]
+    needs: [quartz_build_mfem_gcc_6_1_0_opt_par, quartz_allocate]
 
 # Postcleanup
 
