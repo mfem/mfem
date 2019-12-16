@@ -27,8 +27,8 @@ protected:
    /// The assembly level.
    AssemblyLevel assembly;
 
-   /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
-       Partial Assembly (PA), or Matrix Free assembly (MF). */
+   /** Extension for supporting Partial Assembly (PA) or
+       Matrix Free assembly (MF). */
    NonlinearFormExtension *ext;
 
    /// FE space on which the form lives.
@@ -68,7 +68,7 @@ public:
    /** As an Operator, the NonlinearForm has input and output size equal to the
        number of true degrees of freedom, i.e. f->GetTrueVSize(). */
    NonlinearForm(FiniteElementSpace *f)
-      : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::FULL),
+      : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::NONE),
         ext(NULL), fes(f), Grad(NULL), cGrad(NULL),
         sequence(f->GetSequence()), P(f->GetProlongationMatrix()),
         cP(dynamic_cast<const SparseMatrix*>(P))

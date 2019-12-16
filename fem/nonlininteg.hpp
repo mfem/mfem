@@ -69,18 +69,6 @@ public:
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 
-   // TODO: add support for other assembly levels (in addition to PA) and their
-   // actions.
-
-   // TODO: for mixed meshes the quadrature rules to be used by methods like
-   // Setup() can be given as a QuadratureSpace, e.g. using a new method:
-   // SetQuadratureSpace().
-
-   // TODO: the methods for the various assembly levels make sense even in the
-   // base class NonlinearFormIntegrator, except that not all assembly levels
-   // make sense for the action of the nonlinear operator (but they all make
-   // sense for its Jacobian).
-
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA(). */
