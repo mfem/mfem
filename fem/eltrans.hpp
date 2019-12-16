@@ -46,7 +46,15 @@ protected:
    const DenseMatrix &EvalInverseJ();
 
 public:
-   int Attribute, ElementNo;
+   enum IndexType
+   {
+      ELEMENT     = 1,
+      BDR_ELEMENT = 2,
+      EDGE        = 3,
+      FACE        = 4
+   };
+
+   int Attribute, ElementNo, ElementType;
 
    ElementTransformation();
 
