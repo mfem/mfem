@@ -299,7 +299,7 @@ SIDRE_LIB = \
    -Wl,-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
+   -laxom -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 $(ZLIB_LIB) -ldl
 
 # PUMI
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
