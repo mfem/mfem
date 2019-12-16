@@ -7177,6 +7177,18 @@ PositiveTensorFiniteElement::PositiveTensorFiniteElement(
                            dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
      TensorBasisElement(dims, p, BasisType::Positive, dmtype) { }
 
+VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims, 
+						     const int d,
+						     const int p, 
+						     const int cbtype,
+						     const int obtype,
+						     const int M,
+						     const DofMapType dmtype)
+  : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
+			p, M, FunctionSpace::Qk),
+    TensorBasisElement(dims, p, VerifyNodal(cbtype), dmtype),
+    cbasis1d(poly1d.GetBasis(p, VerifyClosed(cbtype))),
+    obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(obtype))) { }
 
 H1_SegmentElement::H1_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyClosed(btype), H1_DOF_MAP)
@@ -10743,12 +10755,9 @@ const double ND_HexahedronElement::tk[18] =
 
 ND_HexahedronElement::ND_HexahedronElement(const int p,
                                            const int cb_type, const int ob_type)
-   : VectorFiniteElement(3, Geometry::CUBE, 3*p*(p + 1)*(p + 1), p,
-                         H_CURL, FunctionSpace::Qk),
-     TensorBasisElement(3, p, cb_type, DofMapType::L2_DOF_MAP),
-     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
-     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
-     dof2tk(Dof)
+  : VectorTensorFiniteElement(3, 3*p*(p + 1)*(p + 1), p, cb_type, ob_type,
+			      H_CURL, DofMapType::L2_DOF_MAP),
+    dof2tk(Dof)
 {
    dof_map.SetSize(Dof);
 
@@ -11111,25 +11120,25 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
          }
 }
 
-const DofToQuad &ND_HexahedronElement::GetDofToQuad(const IntegrationRule &ir,
-						    DofToQuad::Mode mode) const
+const DofToQuad &VectorTensorFiniteElement::GetDofToQuad(const IntegrationRule &ir,
+							 DofToQuad::Mode mode) const
 {
   MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
 
   return GetTensorDofToQuad(ir, mode, true);
 }
 
-const DofToQuad &ND_HexahedronElement::GetDofToQuadOpen(const IntegrationRule &ir,
-							DofToQuad::Mode mode) const
+const DofToQuad &VectorTensorFiniteElement::GetDofToQuadOpen(const IntegrationRule &ir,
+							     DofToQuad::Mode mode) const
 {
   MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
 
   return GetTensorDofToQuad(ir, mode, false);
 }
 
-const DofToQuad &ND_HexahedronElement::GetTensorDofToQuad(const IntegrationRule &ir,
-							  DofToQuad::Mode mode,
-							  const bool closed) const
+const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(const IntegrationRule &ir,
+							       DofToQuad::Mode mode,
+							       const bool closed) const
 {
    MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
 
@@ -11183,12 +11192,12 @@ const double ND_QuadrilateralElement::tk[8] =
 ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
                                                  const int cb_type,
                                                  const int ob_type)
-   : VectorFiniteElement(2, Geometry::SQUARE, 2*p*(p + 1), p,
-                         H_CURL, FunctionSpace::Qk),
-     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
-     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
-     dof_map(Dof), dof2tk(Dof)
+  : VectorTensorFiniteElement(2, 2*p*(p + 1), p, cb_type, ob_type,
+			      H_CURL, DofMapType::L2_DOF_MAP),
+    dof2tk(Dof)
 {
+   dof_map.SetSize(Dof);
+
    const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
    const int dof2 = Dof/2;

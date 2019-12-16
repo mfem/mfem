@@ -185,14 +185,9 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   // TODO: is there a way to cast OperatorPtr as HypreParMatrix, to avoid having A and A_pa?
-   HypreParMatrix A;
-   OperatorPtr A_pa;
+   OperatorPtr A;
    Vector B, X;
-   if (pa)
-     a->FormLinearSystem(ess_tdof_list, x, *b, A_pa, X, B);
-   else
-     a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    // 12. Define and apply a parallel PCG solver for AX=B with the AMS
    //     preconditioner from hypre, in the full assembly case.
@@ -202,17 +197,18 @@ int main(int argc, char *argv[])
      {
        CGSolver cg(MPI_COMM_WORLD);
        cg.SetRelTol(1e-12);
-       cg.SetMaxIter(100);
+       cg.SetMaxIter(1000);
        cg.SetPrintLevel(1);
-       cg.SetOperator(*A_pa);
+       cg.SetOperator(*A);
        cg.Mult(B, X);
      }
    else
      {
+       HypreParMatrix *Amat = dynamic_cast<HypreParMatrix*> (A.Ptr());
        ParFiniteElementSpace *prec_fespace =
 	 (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-       HypreSolver *ams = new HypreAMS(A, prec_fespace);
-       HyprePCG *pcg = new HyprePCG(A);
+       HypreSolver *ams = new HypreAMS(*Amat, prec_fespace);
+       HyprePCG *pcg = new HyprePCG(*Amat);
        pcg->SetTol(1e-12);
        pcg->SetMaxIter(500);
        pcg->SetPrintLevel(2);

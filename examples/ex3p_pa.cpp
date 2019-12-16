@@ -1,23 +1,23 @@
 //                       MFEM Example 3 - Parallel Version
 //
-// Compile with: make ex3p
+// Compile with: make ex3p_pa
 //
-// Sample runs:  mpirun -np 4 ex3p -m ../data/star.mesh
-//               mpirun -np 4 ex3p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex3p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex3p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex3p -m ../data/escher.mesh
-//               mpirun -np 4 ex3p -m ../data/escher.mesh -o 2
-//               mpirun -np 4 ex3p -m ../data/fichera.mesh
-//               mpirun -np 4 ex3p -m ../data/fichera-q2.vtk
-//               mpirun -np 4 ex3p -m ../data/fichera-q3.mesh
-//               mpirun -np 4 ex3p -m ../data/square-disc-nurbs.mesh
-//               mpirun -np 4 ex3p -m ../data/beam-hex-nurbs.mesh
-//               mpirun -np 4 ex3p -m ../data/amr-quad.mesh -o 2
-//               mpirun -np 4 ex3p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex3p -m ../data/star-surf.mesh -o 2
-//               mpirun -np 4 ex3p -m ../data/mobius-strip.mesh -o 2 -f 0.1
-//               mpirun -np 4 ex3p -m ../data/klein-bottle.mesh -o 2 -f 0.1
+// Sample runs:  mpirun -np 4 ex3p_pa -m ../data/star.mesh
+//               mpirun -np 4 ex3p_pa -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 ex3p_pa -m ../data/beam-tet.mesh
+//               mpirun -np 4 ex3p_pa -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex3p_pa -m ../data/escher.mesh
+//               mpirun -np 4 ex3p_pa -m ../data/escher.mesh -o 2
+//               mpirun -np 4 ex3p_pa -m ../data/fichera.mesh
+//               mpirun -np 4 ex3p_pa -m ../data/fichera-q2.vtk
+//               mpirun -np 4 ex3p_pa -m ../data/fichera-q3.mesh
+//               mpirun -np 4 ex3p_pa -m ../data/square-disc-nurbs.mesh
+//               mpirun -np 4 ex3p_pa -m ../data/beam-hex-nurbs.mesh
+//               mpirun -np 4 ex3p_pa -m ../data/amr-quad.mesh -o 2
+//               mpirun -np 4 ex3p_pa -m ../data/amr-hex.mesh
+//               mpirun -np 4 ex3p_pa -m ../data/star-surf.mesh -o 2
+//               mpirun -np 4 ex3p_pa -m ../data/mobius-strip.mesh -o 2 -f 0.1
+//               mpirun -np 4 ex3p_pa -m ../data/klein-bottle.mesh -o 2 -f 0.1
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
