@@ -47,6 +47,16 @@ void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
+double alphaCoefficient(const Vector & x)
+{
+  if (x.Size() == 3)
+    {
+      return (10.0 * x(0)) + (5.0 * x(1)) + x(2);
+    }
+  else
+    return (10.0 * x(0)) + (5.0 * x(1));
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -199,21 +209,24 @@ int main(int argc, char *argv[])
      ParGridFunction y_fa(fespace);
      ParGridFunction y_pa(fespace);
 
+     FunctionCoefficient alpha(alphaCoefficient);
+     //ConstantCoefficient alpha(10.0);
+
      x_test.Randomize(1);
      //x_test = 0.0;
      //x_test[0] = 1.0;
 
      ParBilinearForm *a_fa = new ParBilinearForm(fespace);
-     a_fa->AddDomainIntegrator(new VectorFEMassIntegrator);
-     a_fa->AddDomainIntegrator(new CurlCurlIntegrator);
+     a_fa->AddDomainIntegrator(new VectorFEMassIntegrator(alpha));
+     a_fa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
 
      a_fa->Assemble();
      a_fa->Finalize();
 
      ParBilinearForm *a_pa = new ParBilinearForm(fespace);
      a_pa->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-     a_pa->AddDomainIntegrator(new VectorFEMassIntegrator);
-     a_pa->AddDomainIntegrator(new CurlCurlIntegrator);
+     a_pa->AddDomainIntegrator(new VectorFEMassIntegrator(alpha));
+     a_pa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
      a_pa->Assemble();
 
      a_fa->Mult(x_test, y_fa);
