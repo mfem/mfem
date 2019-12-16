@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-TEST_CASE("ComplexOperator Quaterion Tests", "[ComplexOperator]")
+TEST_CASE("ComplexOperator Quaternion Tests", "[ComplexOperator]")
 {
    double tol = 1e-12;
 
