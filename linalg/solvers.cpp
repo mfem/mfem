@@ -987,6 +987,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    DenseMatrix H(m+1,m);
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector r(b.Size());
+   double resid;
 
    int i, j, k;
 
@@ -1075,7 +1076,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         double resid = fabs(s(i+1));
+         resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_level == 1)
          {
@@ -1142,6 +1143,9 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if (v[i]) { delete v[i]; }
       if (z[i]) { delete z[i]; }
    }
+
+   final_norm = resid;
+   final_iter = max_iter;
    converged = 0;
 
    if (print_level >= 0)
