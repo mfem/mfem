@@ -49,7 +49,13 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   return GridF -> GetValue (T.ElementNo, ip, Component);
+   return GridF -> GetValue (T, ip, Component);
+}
+
+double GridFunctionCoefficient::Eval (FaceElementTransformations &T,
+                                      const IntegrationPoint &ip)
+{
+   return GridF -> GetValue (T, ip, Component);
 }
 
 double TransformedCoefficient::Eval(ElementTransformation &T,

@@ -179,6 +179,8 @@ public:
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+   virtual double Eval(FaceElementTransformations &T,
+                       const IntegrationPoint &ip);
 };
 
 class TransformedCoefficient : public Coefficient
