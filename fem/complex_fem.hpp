@@ -159,8 +159,8 @@ public:
 /** Class for sesquilinear form
 
     A sesquilinear form is a generalization of a bilinear form to complex-valued
-    fields.  Sesquilinear forms are linear in the second argument but but
-    the first argument involves a complex conjugate in the sense that:
+    fields.  Sesquilinear forms are linear in the second argument but the
+    first argument involves a complex conjugate in the sense that:
        a(alpha u, beta v) = conj(alpha) beta a(u, v)
 
     The @a convention argument in the class's constructor is documented in
