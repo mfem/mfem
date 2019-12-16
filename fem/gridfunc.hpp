@@ -154,15 +154,41 @@ public:
 
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
+   /*
+    void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
+                         DenseMatrix &vals) const;
 
-   void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
-                        DenseMatrix &vals) const;
-
-   void GetVectorValues(int i, const IntegrationRule &ir,
-                        DenseMatrix &vals, DenseMatrix &tr) const;
-
+    void GetVectorValues(int i, const IntegrationRule &ir,
+                         DenseMatrix &vals, DenseMatrix &tr) const;
+   */
    int GetFaceVectorValues(int i, int side, const IntegrationRule &ir,
                            DenseMatrix &vals, DenseMatrix &tr) const;
+
+   double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+                   int comp = 0, Vector *tr = NULL) const;
+
+   double GetValue(FaceElementTransformations &T, const IntegrationPoint &ip,
+                   int comp = 0, Vector *tr = NULL) const;
+
+   void GetValues(ElementTransformation &T, const IntegrationRule &ir,
+                  Vector &vals, int comp = 0, DenseMatrix *tr = NULL) const;
+
+   void GetValues(FaceElementTransformations &T, const IntegrationRule &ir,
+                  Vector &vals, int comp = 0, DenseMatrix *tr = NULL) const;
+
+   void GetVectorValue(ElementTransformation &T, const IntegrationPoint &ip,
+                       Vector &val, Vector *tr = NULL) const;
+
+   void GetVectorValue(FaceElementTransformations &T,
+                       const IntegrationPoint &ip,
+                       Vector &val, Vector *tr = NULL) const;
+
+   void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
+                        DenseMatrix &vals, DenseMatrix *tr = NULL) const;
+
+   void GetVectorValues(FaceElementTransformations &T,
+                        const IntegrationRule &ir,
+                        DenseMatrix &vals, DenseMatrix *tr = NULL) const;
 
    void GetValuesFrom(const GridFunction &orig_func);
 
