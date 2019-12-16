@@ -536,4 +536,105 @@ void IntegrationPointTransformation::Transform (const IntegrationRule &ir1,
    }
 }
 
+int FaceElementTransformations::SetActiveSide(int s)
+{
+   int dir;
+
+   if (s == 2) // automatic choice of side
+   {
+      if (Elem1 && Elem2)
+      {
+         dir = (Elem1->Attribute <= Elem2->Attribute) ? 0 : 1;
+      }
+      else if (Elem1)
+      {
+         dir = 0;
+      }
+      else if (Elem2)
+      {
+         dir = 1;
+      }
+      else
+      {
+         MFEM_ABORT("FaceElementTransformation: both Elem1 and Elem2 are NULL. "
+                    "Automatic side selection failed!");
+      }
+   }
+   else
+   {
+      if (s == 0 && Elem1)
+      {
+         dir = 0;
+      }
+      else if (s == 1 && Elem2)
+      {
+         dir = 1;
+      }
+      else
+      {
+         MFEM_ABORT("FaceElementTransformation: the ElementTransformation "
+                    "for the requested side is NULL.");
+      }
+   }
+   side = dir;
+
+   return dir;
+}
+
+ElementTransformation *
+FaceElementTransformations::GetActiveElementTransformation()
+{
+   if (side == 0)
+   {
+      return Elem1;
+   }
+   else if (side == 1)
+   {
+      return Elem2;
+   }
+
+   // Automatic selection has not yet occured.
+   SetActiveSide(2);
+   return GetActiveElementTransformation();
+}
+
+IntegrationPointTransformation *
+FaceElementTransformations::GetActivePointTransformation()
+{
+   if (side == 0)
+   {
+      return &Loc1;
+   }
+   else if (side == 1)
+   {
+      return &Loc2;
+   }
+
+   // Automatic selection has not yet occured.
+   SetActiveSide(2);
+   return GetActivePointTransformation();
+}
+
+void FaceElementTransformations::Transform(const IntegrationPoint &ip,
+                                           Vector &tr)
+{
+   IntegrationPoint eip;
+   GetActivePointTransformation()->Transform(ip, eip);
+
+   ElementTransformation * T = GetActiveElementTransformation();
+   T->SetIntPoint(&eip);
+   T->Transform(eip, tr);
+}
+
+void FaceElementTransformations::Transform(const IntegrationRule &ir,
+                                           DenseMatrix &tr)
+{
+   IntegrationRule eir;
+   eir.SetSize(ir.GetNPoints());
+   GetActivePointTransformation()->Transform(ir, eir);
+
+   ElementTransformation * T = GetActiveElementTransformation();
+   T->Transform(eir, tr);
+}
+
 }
