@@ -516,13 +516,6 @@ public:
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
 
-   /** TODO: is this the best design in general? Does this even need to be virtual? */
-   virtual const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
-					     DofToQuad::Mode mode) const
-   {
-     MFEM_ABORT("GetDofToQuadOpen not implemented");
-   }
-
    virtual ~FiniteElement();
 
    static bool IsClosedType(int b_type)
@@ -1889,6 +1882,31 @@ public:
    }
 };
 
+class VectorTensorFiniteElement : public VectorFiniteElement,
+   public TensorBasisElement
+{
+private:
+  mutable Array<DofToQuad*> dof2quad_array_open;
+
+protected:
+  Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+  VectorTensorFiniteElement(const int dims, const int d, const int p, 
+			    const int cbtype, const int obtype, 
+			    const int M, const DofMapType dmtype);
+
+  const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+				DofToQuad::Mode mode) const;
+
+  const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
+				    DofToQuad::Mode mode) const;
+
+  const DofToQuad &GetTensorDofToQuad(const IntegrationRule &ir, 
+				      DofToQuad::Mode mode, 
+				      const bool closed) const;
+};
+
 class H1_SegmentElement : public NodalTensorFiniteElement
 {
 private:
@@ -2585,19 +2603,14 @@ public:
 };
 
 
-class ND_HexahedronElement : public VectorFiniteElement, public TensorBasisElement
+class ND_HexahedronElement : public VectorTensorFiniteElement
 {
    static const double tk[18];
-
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2tk;
-
-private:
-   mutable Array<DofToQuad*> dof2quad_array_open;
 
 public:
    ND_HexahedronElement(const int p,
@@ -2651,30 +2664,19 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
-
-   virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-					 DofToQuad::Mode mode) const;
-
-   const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
-				     DofToQuad::Mode mode) const;
-
-   const DofToQuad &GetTensorDofToQuad(const IntegrationRule &ir, 
-				       DofToQuad::Mode mode, 
-				       const bool closed) const;
-
 };
 
 
-class ND_QuadrilateralElement : public VectorFiniteElement
+class ND_QuadrilateralElement : public VectorTensorFiniteElement
 {
    static const double tk[8];
 
-   Poly_1D::Basis &cbasis1d, &obasis1d;
+  //Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
-   Array<int> dof_map, dof2tk;
+   Array<int> dof2tk;
 
 public:
    ND_QuadrilateralElement(const int p,
