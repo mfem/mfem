@@ -34,6 +34,9 @@ stages:
 
 build_astyle:
     stage: libs
+    tags:
+        - shell
+        - quartz
     variables:
         GIT_STRATEGY: none
     script:
@@ -94,10 +97,23 @@ build_astyle:
     variables:
         GIT_STRATEGY: none
     script:
-        - echo "Stylecheck goes here"
+        - make style-check ASTYLE_BIN=$ASTYLE
 
+.baselinecheck_mfem:
+    stage: test
+    except:
+        refs:
+            - master
+    script:
+        - cd ${BUILD_PATH}
+        - ln -s ${CI_PROJECT_DIR} mfem
+        - cd tests
+        - mkdir -p runs
+        - cd runs
+        - rm -f *
+        - ../runtest ../../mfem baseline
 
-.rebaseline:
+.rebaseline_mfem:
     stage: rebaseline
     only:
         refs:
@@ -105,7 +121,18 @@ build_astyle:
         variables:
             - $REBASELINE == "YES"
     script:
-        - ls
+        - cd ${BUILD_PATH}
+        - ln -s ${CI_PROJECT_DIR} mfem
+        - cd tests
+        - mkdir -p runs
+        - cd runs
+        - rm -f *
+        - ../runtest ../../mfem baseline
+        - cp baseline.out ../baseline-${SYS_TYPE}.saved
+        - cd ..
+        - git add baseline-${SYS_TYPE}.saved
+        - git commit -m "Rebaselined"
+        - git push origin master
 
 .postcleanup:
     stage: postcleanup
