@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../general/forall.hpp"
-#include "../general/dbg.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 
@@ -1013,7 +1012,6 @@ static void PAMassApply(const int dim,
    {
       if (getenv("REG"))
       {
-         dbg("SmemReg");
          switch (id)
          {
             case 0x23: return SmemRegPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
@@ -1029,7 +1027,6 @@ static void PAMassApply(const int dim,
       }
       else
       {
-         dbg("SMEM");
          switch (id)
          {
             case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
