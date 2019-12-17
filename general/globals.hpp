@@ -90,7 +90,7 @@ std::string MakeParFilename(const std::string &prefix, const int myid,
     Functions for getting and setting the MPI communicator used by the library
     as the "global" communicator.
 
-    One place where the MFEM "global" communicator is used by the function
+    The MFEM "global" communicator is used for example in the function
     mfem_error(), invoked when an error is detected - the "global" communicator
     is used as a parameter to MPI_Abort() to terminate all "global" tasks. */
 ///@{
