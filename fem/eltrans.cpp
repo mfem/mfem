@@ -615,26 +615,4 @@ FaceElementTransformations::GetActivePointTransformation()
    return GetActivePointTransformation();
 }
 
-void FaceElementTransformations::Transform(const IntegrationPoint &ip,
-                                           Vector &tr)
-{
-   IntegrationPoint eip;
-   GetActivePointTransformation()->Transform(ip, eip);
-
-   ElementTransformation * T = GetActiveElementTransformation();
-   T->SetIntPoint(&eip);
-   T->Transform(eip, tr);
-}
-
-void FaceElementTransformations::Transform(const IntegrationRule &ir,
-                                           DenseMatrix &tr)
-{
-   IntegrationRule eir;
-   eir.SetSize(ir.GetNPoints());
-   GetActivePointTransformation()->Transform(ir, eir);
-
-   ElementTransformation * T = GetActiveElementTransformation();
-   T->Transform(eir, tr);
-}
-
 }

@@ -349,14 +349,14 @@ public:
    void Transform (const IntegrationRule  &, IntegrationRule  &);
 };
 
-class FaceElementTransformations
+class FaceElementTransformations : public IsoparametricTransformation
 {
 private:
    int side;
 
 public:
-   int Elem1No, Elem2No, FaceGeom;
-   ElementTransformation *Elem1, *Elem2, *Face;
+   int Elem1No, Elem2No;
+   ElementTransformation *Elem1, *Elem2;
    IntegrationPointTransformation Loc1, Loc2;
 
    FaceElementTransformations() : side(2) {}
@@ -366,8 +366,6 @@ public:
 
    ElementTransformation * GetActiveElementTransformation();
    IntegrationPointTransformation * GetActivePointTransformation();
-   void Transform(const IntegrationPoint &, Vector &);
-   void Transform(const IntegrationRule &, DenseMatrix &);
 };
 
 /*                 Elem1(Loc1(x)) = Face(x) = Elem2(Loc2(x))
