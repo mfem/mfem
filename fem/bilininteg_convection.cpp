@@ -49,7 +49,6 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    coeff.SetSize(dim*ne*nq);
    Vector e_coeff(dim);
    auto h_C = Reshape(coeff.HostWrite(),dim,nq, ne);
-   printf("alpha = %f \n",alpha);
    if ( Q == nullptr)
    {
      if(dim == 2)
