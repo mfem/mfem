@@ -31,6 +31,14 @@
 namespace mfem
 {
 
+// Embedding a #pragma directive within the MFEM_FORALL macro is not supported.
+// The information given by this macro could still be useful by some compilers.
+#ifndef _WIN32
+#define MFEM_PRAGMA(...) _Pragma(__VA_ARGS__)
+#else
+#define MFEM_PRAGMA(...)
+#endif
+
 // Maximum size of dofs and quads in 1D.
 const int MAX_D1D = 16;
 const int MAX_Q1D = 16;
@@ -253,7 +261,7 @@ void CuWrap3D(const int N, DBODY &&d_body,
     int grid = numSM;                                                      \
     KER##_v2<DOFS,QUAD,0,QUAD*QUAD*BZ,NBLOCK><<<grid,blck>>>(__VA_ARGS__); \
   }
-  
+
 #endif // MFEM_USE_CUDA
 
 

@@ -776,7 +776,7 @@ static void SmemRegPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dz = 0; dz < D1D; ++dz)
             {
                X[dz][dy][dx] = x(dx,dy,dz,e);
@@ -793,21 +793,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u[D1D];
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dz = 0; dz < D1D; dz++)
             {
                u[dz] = 0;
             }
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dx = 0; dx < D1D; ++dx)
             {
-               _Pragma("unroll D1D")
+               MFEM_PRAGMA("unroll D1D")
                for (int dz = 0; dz < D1D; ++dz)
                {
                   u[dz] += X[dz][dy][dx] * B[qx][dx];
                }
             }
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dz = 0; dz < D1D; ++dz)
             {
                DDQ[dz][dy][qx] = u[dz];
@@ -820,21 +820,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u[D1D];
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dz = 0; dz < D1D; dz++)
             {
                u[dz] = 0;
             }
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dy = 0; dy < D1D; ++dy)
             {
-               _Pragma("unroll D1D")
+               MFEM_PRAGMA("unroll D1D")
                for (int dz = 0; dz < D1D; dz++)
                {
                   u[dz] += DDQ[dz][dy][qx] * B[qy][dy];
                }
             }
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dz = 0; dz < D1D; dz++)
             {
                DQQ[dz][qy][qx] = u[dz];
@@ -847,21 +847,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u[Q1D];
-            _Pragma("unroll Q1D")
+            MFEM_PRAGMA("unroll Q1D")
             for (int qz = 0; qz < Q1D; qz++)
             {
                u[qz] = 0;
             }
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dz = 0; dz < D1D; ++dz)
             {
-               _Pragma("unroll Q1D")
+               MFEM_PRAGMA("unroll Q1D")
                for (int qz = 0; qz < Q1D; qz++)
                {
                   u[qz] += DQQ[dz][qy][qx] * B[qz][dz];
                }
             }
-            _Pragma("unroll Q1D")
+            MFEM_PRAGMA("unroll Q1D")
             for (int qz = 0; qz < Q1D; qz++)
             {
                QQQ[qz][qy][qx] = u[qz] * op(qx,qy,qz,e);
@@ -882,21 +882,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u[Q1D];
-            _Pragma("unroll Q1D")
+            MFEM_PRAGMA("unroll Q1D")
             for (int qz = 0; qz < Q1D; ++qz)
             {
                u[qz] = 0;
             }
-            _Pragma("unroll Q1D")
+            MFEM_PRAGMA("unroll Q1D")
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               _Pragma("unroll Q1D")
+               MFEM_PRAGMA("unroll Q1D")
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u[qz] += QQQ[qz][qy][qx] * Bt[dx][qx];
                }
             }
-            _Pragma("unroll Q1D")
+            MFEM_PRAGMA("unroll Q1D")
             for (int qz = 0; qz < Q1D; ++qz)
             {
                QQD[qz][qy][dx] = u[qz];
@@ -909,21 +909,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u[Q1D];
-            _Pragma("unroll Q1D")
+            MFEM_PRAGMA("unroll Q1D")
             for (int qz = 0; qz < Q1D; ++qz)
             {
                u[qz] = 0;
             }
-            _Pragma("unroll Q1D")
+            MFEM_PRAGMA("unroll Q1D")
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               _Pragma("unroll Q1D")
+               MFEM_PRAGMA("unroll Q1D")
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u[qz] += QQD[qz][qy][dx] * Bt[dy][qy];
                }
             }
-            _Pragma("unroll Q1D")
+            MFEM_PRAGMA("unroll Q1D")
             for (int qz = 0; qz < Q1D; ++qz)
             {
                QDD[qz][dy][dx] = u[qz];
@@ -936,21 +936,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u[D1D];
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dz = 0; dz < D1D; ++dz)
             {
                u[dz] = 0;
             }
-            _Pragma("unroll Q1D")
+            MFEM_PRAGMA("unroll Q1D")
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               _Pragma("unroll D1D")
+               MFEM_PRAGMA("unroll D1D")
                for (int dz = 0; dz < D1D; ++dz)
                {
                   u[dz] += QDD[qz][dy][dx] * Bt[dz][qz];
                }
             }
-            _Pragma("unroll D1D")
+            MFEM_PRAGMA("unroll D1D")
             for (int dz = 0; dz < D1D; ++dz)
             {
                y(dx,dy,dz,e) += u[dz];
