@@ -153,7 +153,6 @@ static void PAMassAssembleDiagonal2D(const int NE,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               // might need absolute values on next line
                Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * QD[qx][dy];
             }
          }
