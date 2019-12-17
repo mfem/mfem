@@ -1443,12 +1443,14 @@ static void PACurlCurlSetup3D(const int Q1D,
 			      const Array<double> &w,
 			      const Vector &j,
 			      Vector *coeff,
-			      Vector &op)
+			      Vector &op,
+			      Vector &op2)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 10, NE);
+   auto y2 = Reshape(op2.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -1487,6 +1489,16 @@ static void PACurlCurlSetup3D(const int Q1D,
          y(q,8,e) = A33 / detJ;
 	 const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
 	 y(q,9,e) = W[q] * c * detJ;
+
+	 // set y2 to the 6 entries of J^T J / det^2
+	 const double c_detJ = W[q] * c / detJ;
+
+         y2(q,0,e) = c_detJ * (J11*J11 + J21*J21 + J31*J31); // 1,1
+         y2(q,1,e) = c_detJ * (J11*J12 + J21*J22 + J31*J32); // 1,2
+         y2(q,2,e) = c_detJ * (J11*J13 + J21*J23 + J31*J33); // 1,3
+         y2(q,3,e) = c_detJ * (J12*J12 + J22*J22 + J32*J32); // 2,2
+         y2(q,4,e) = c_detJ * (J12*J13 + J22*J23 + J32*J33); // 2,3
+         y2(q,5,e) = c_detJ * (J13*J13 + J23*J23 + J33*J33); // 3,3
       }
    });
 }
@@ -1536,8 +1548,10 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
   if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
     {
+      pa_data_2.SetSize(6 * nq * ne, Device::GetMemoryType());
+
       PACurlCurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
-			coeff, pa_data);
+			coeff, pa_data, pa_data_2);
     }
   else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
     {
@@ -1847,7 +1861,7 @@ static void PACurlCurlApply3D(const int D1D,
 		invJ[2][1] = op(q,7,e);
 		invJ[2][2] = op(q,8,e);
 
-		const double det = op(q,9,e);
+		const double det = op(q,9,e);  // determinant times quadrature weight times coefficient
 		MFEM_VERIFY(det > 0, "");
 
 		for (int c = 0; c < 3; ++c)
@@ -2125,5 +2139,269 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
     PACurlCurlApply2D(dofs1D, quad1D, ne, dof_map, mapsO->B, mapsO->Bt,
 		      mapsC->G, mapsC->Gt, pa_data, x, y);
 }
+
+static void PACurlCurlAssembleDiagonal2D(const int D1D,
+					 const int Q1D,
+					 const int NE,
+					 const Array<int> &dof_map,
+					 const Array<double> &_Bo,
+					 const Array<double> &_Gc,
+					 const Vector &_op,
+					 Vector &diag)
+{
+  constexpr int VDIM = 2;
+
+  auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+  auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
+  auto op = Reshape(_op.Read(), Q1D*Q1D, NE);
+
+  const int esize = (D1D - 1) * D1D * VDIM;
+
+  MFEM_FORALL(e, NE,
+  {
+    const int ose = e * esize;
+
+    int osc = 0;
+
+    for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+	const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+	const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+	double t[MAX_Q1D];
+
+	for (int dy = 0; dy < D1Dy; ++dy)
+	  {
+	    for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		t[qx] = 0.0;
+		for (int qy = 0; qy < Q1D; ++qy)
+		  {
+		    const double wy = (c == 1) ? Bo(qy,dy) : -Gc(qy,dy);
+
+		    const int q = qx + qy * Q1D;
+
+		    t[qx] += wy * wy * op(q,e);
+		  }
+	      }
+
+	    for (int dx = 0; dx < D1Dx; ++dx)
+	      {
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    const double wx = ((c == 0) ? Bo(qx,dx) : Gc(qx,dx));
+		    
+		    const double s = dof_map[dx + (dy * D1Dx) + osc] >= 0 ? 1.0 : -1.0;  
+		    // s counteracts the signs applied by elem_restrict_lex->MultTranspose after this function is called.
+
+		    diag.GetData()[dx + (dy * D1Dx) + osc + ose] += t[qx] * wx * wx * s;
+		  }
+	      }
+	  }
+
+	osc += D1Dx * D1Dy;
+      }  // loop c
+  }); // end of element loop
+}
+
+static void PACurlCurlAssembleDiagonal3D(const int D1D,
+					 const int Q1D,
+					 const int NE,
+					 const Array<int> &dof_map,
+					 const Array<double> &_Bo,
+					 const Array<double> &_Bc,
+					 const Array<double> &_Go,
+					 const Array<double> &_Gc,
+					 const Vector &_op,
+					 Vector &diag)
+{
+  constexpr int VDIM = 3;
+
+  auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+  auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
+  auto Go = Reshape(_Go.Read(), Q1D, D1D-1);
+  auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
+  auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+
+  const int esize = (D1D - 1) * D1D * D1D * VDIM;
+
+  MFEM_FORALL(e, NE,
+  {
+    const int ose = e * esize;
+
+    // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
+    // (\nabla\times u) \cdot (\nabla\times u) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{u}
+    // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+    // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+    // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+    // For each c, we will keep 6 arrays for derivatives multiplied by the 6 entries of the symmetric 3x3 matrix (dF^T dF).
+
+    int osc = 0;
+
+    for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+	const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+	const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+	const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+	double zt[MAX_Q1D][MAX_Q1D][MAX_D1D][6][3];
+
+	// z contraction
+	for (int qx = 0; qx < Q1D; ++qx)
+	  {
+	    for (int qy = 0; qy < Q1D; ++qy)
+	      {
+		for (int dz = 0; dz < D1Dz; ++dz)
+		  {
+		    for (int i=0; i<6; ++i)
+		      {
+			for (int d=0; d<3; ++d)
+			  {
+			    zt[qx][qy][dz][i][d] = 0.0;
+			  }
+		      }
+
+		    for (int qz = 0; qz < Q1D; ++qz)
+		      {
+			const int q = qx + (qy + qz * Q1D) * Q1D;
+
+			const double wz = ((c == 2) ? Bo(qz,dz) : Bc(qz,dz));
+			const double wDz = ((c == 2) ? Go(qz,dz) : Gc(qz,dz));
+
+			for (int i=0; i<6; ++i)
+			  {
+			    zt[qx][qy][dz][i][0] += wz * wz * op(q,i,e);
+			    zt[qx][qy][dz][i][1] += wDz * wz * op(q,i,e);
+			    zt[qx][qy][dz][i][2] += wDz * wDz * op(q,i,e);
+			  }
+		      }
+		  }
+	      }
+	  }  // end of z contraction
+
+	double yt[MAX_Q1D][MAX_D1D][MAX_D1D][6][3][3];
+
+	// y contraction
+	for (int qx = 0; qx < Q1D; ++qx)
+	  {
+	    for (int dz = 0; dz < D1Dz; ++dz)
+	      {
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    for (int i=0; i<6; ++i)
+		      {
+			for (int d=0; d<3; ++d)
+			  for (int j=0; j<3; ++j)
+			    yt[qx][dy][dz][i][d][j] = 0.0;
+		      }
+
+		    for (int qy = 0; qy < Q1D; ++qy)
+		      {
+			const double wy = ((c == 1) ? Bo(qy,dy) : Bc(qy,dy));
+			const double wDy = ((c == 1) ? Go(qy,dy) : Gc(qy,dy));
+
+			for (int i=0; i<6; ++i)
+			  {
+			    for (int d=0; d<3; ++d)
+			      {
+				yt[qx][dy][dz][i][d][0] += wy * wy * zt[qx][qy][dz][i][d];
+				yt[qx][dy][dz][i][d][1] += wDy * wy * zt[qx][qy][dz][i][d];
+				yt[qx][dy][dz][i][d][2] += wDy * wDy * zt[qx][qy][dz][i][d];
+			      }
+			  }
+		      }
+		  }
+	      }
+	  }  // end of y contraction
+
+	// x contraction
+	for (int dz = 0; dz < D1Dz; ++dz)
+	  {
+	    for (int dy = 0; dy < D1Dy; ++dy)
+	      {
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    const double s = dof_map[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
+
+		    for (int qx = 0; qx < Q1D; ++qx)
+		      {
+			const double wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
+			const double wDx = ((c == 0) ? Go(qx,dx) : Gc(qx,dx));
+
+			// Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
+			// (\nabla\times u) \cdot (\nabla\times u) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{u}
+			// If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+			// If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+			// If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+			/*
+			  const double O11 = op(q,0,e);
+			  const double O12 = op(q,1,e);
+			  const double O13 = op(q,2,e);
+			  const double O22 = op(q,3,e);
+			  const double O23 = op(q,4,e);
+			  const double O33 = op(q,5,e);
+			*/
+
+			if (c == 0)
+			  {
+			    // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
+
+			    // (u_0)_{x_2} O22 (u_0)_{x_2}
+			    diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += yt[qx][dy][dz][3][2][0] * wx * wx * s;
+
+			    // -(u_0)_{x_2} O23 (u_0)_{x_1} - (u_0)_{x_1} O32 (u_0)_{x_2}
+			    diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += -2.0 * yt[qx][dy][dz][4][1][1] * wx * wx * s;
+
+			    // (u_0)_{x_1} O33 (u_0)_{x_1}
+			    diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += yt[qx][dy][dz][5][0][2] * wx * wx * s;
+			  }
+			else if (c == 1)
+			  {
+			    // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
+
+			    // (u_1)_{x_2} O11 (u_1)_{x_2}
+			    diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += yt[qx][dy][dz][0][2][0] * wx * wx * s;
+
+			    // -(u_1)_{x_2} O13 (u_1)_{x_0} - (u_1)_{x_0} O31 (u_1)_{x_2}
+			    diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += -2.0 * yt[qx][dy][dz][2][1][0] * wDx * wx * s;
+
+			    // (u_1)_{x_0} O33 (u_1)_{x_0})
+			    diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += yt[qx][dy][dz][5][0][0] * wDx * wDx * s;
+			  }
+			else
+			  {
+			    // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
+
+			    // (u_2)_{x_1} O11 (u_2)_{x_1}
+			    diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += yt[qx][dy][dz][0][0][2] * wx * wx * s;
+
+			    // -(u_2)_{x_1} O12 (u_2)_{x_0} - (u_2)_{x_0} O21 (u_2)_{x_1}
+			    diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += -2.0 * yt[qx][dy][dz][1][0][1] * wDx * wx * s;
+
+			    // (u_2)_{x_0} O22 (u_2)_{x_0}
+			    diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += yt[qx][dy][dz][3][0][0] * wDx * wDx * s;
+			  }
+		      }
+		  }
+	      }
+	  }  // end of x contraction
+
+	osc += D1Dx * D1Dy * D1Dz;
+      }  // loop c
+  }); // end of element loop
+}
+
+void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag) const
+{
+  if (dim == 3)
+    PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, ne, dof_map,
+				 mapsO->B, mapsC->B, mapsO->G, mapsC->G, pa_data_2, diag);
+  else
+    PACurlCurlAssembleDiagonal2D(dofs1D, quad1D, ne, dof_map,
+				 mapsO->B, mapsC->G, pa_data, diag);
+}
+
 
 } // namespace mfem
