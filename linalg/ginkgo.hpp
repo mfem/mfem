@@ -13,7 +13,7 @@
 #define MFEM_GINKGO
 
 #include <iomanip>
-#include<ios>
+#include <ios>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -66,7 +66,7 @@ double compute_norm(const gko::matrix::Dense<ValueType> *b)
  *
  * This has been taken from the custom-logger example of
  * Ginkgo. See the custom-logger example to understand how to write and modify
- * your own loggers with ginkgo
+ * your own loggers with Ginkgo.
  *
  * @ingroup GinkgoWrappers
  */
@@ -360,13 +360,11 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the CG solver from the CG factory which
-    * solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the CG solver.
-    *
-    * @param[in] data The additional data required by the solver.
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    CGSolver(
       const std::string &   exec_type,
@@ -379,15 +377,12 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the CG solver from the CG factory which
-    * solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the CG solver.
-    *
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
-    *
-    * @param[in] data The additional data required by the solver.
     */
    CGSolver(
       const std::string &   exec_type,
@@ -411,13 +406,11 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the Bicgstab solver from the Bicgstab
-    * factory which solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the Bicgstab solver.
-    *
-    * @param[in] data The additional data required by the solver.
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    BICGSTABSolver(
       const std::string &   exec_type,
@@ -430,15 +423,12 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the Bicgstab solver from the Bicgstab
-    * factory which solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the Bicgstab solver.
-    *
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
-    *
-    * @param[in] data The additional data required by the solver.
     */
    BICGSTABSolver(
       const std::string &   exec_type,
@@ -465,13 +455,11 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the CGS solver from the CGS factory which
-    * solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the CGS solver.
-    *
-    * @param[in] data The additional data required by the solver.
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    CGSSolver(
       const std::string &   exec_type,
@@ -484,15 +472,12 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the CGS solver from the CGS factory which
-    * solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the CGS solver.
-    *
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
-    *
-    * @param[in] data The additional data required by the solver.
     */
    CGSSolver(
       const std::string &   exec_type,
@@ -527,13 +512,11 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the FCG solver from the FCG factory which
-    * solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the FCG solver.
-    *
-    * @param[in] data The additional data required by the solver.
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    FCGSolver(
       const std::string &   exec_type,
@@ -546,15 +529,12 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the FCG solver from the FCG factory which
-    * solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the FCG solver.
-    *
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
-    *
-    * @param[in] data The additional data required by the solver.
     */
    FCGSolver(
       const std::string &   exec_type,
@@ -580,13 +560,11 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the GMRES solver from the GMRES factory
-    * which solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the GMRES solver.
-    *
-    * @param[in] data The additional data required by the solver.
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    GMRESSolver(
       const std::string &   exec_type,
@@ -599,15 +577,12 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the GMRES solver from the GMRES factory
-    * which solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the GMRES solver.
-    *
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
-    *
-    * @param[in] data The additional data required by the solver.
     */
    GMRESSolver(
       const std::string &   exec_type,
@@ -637,13 +612,11 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the IR solver from the IR factory which
-    * solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the IR solver.
-    *
-    * @param[in] data The additional data required by the solver.
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    IRSolver(
       const std::string &   exec_type,
@@ -656,15 +629,12 @@ public:
    /**
     * Constructor.
     *
-    * @param[in,out] solver_control The solver control object is then used to
-    * set the parameters and setup the IR solver from the IR factory which
-    * solves the linear system.
-    *
-    * @param[in] exec_type The execution paradigm for the IR solver.
-    *
-    * @param[in] inner_solver The Inner solver for the IR solver.
-    *
-    * @param[in] data The additional data required by the solver.
+    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] inner_solver  The inner solver for the main solver.
     */
    IRSolver(
       const std::string &   exec_type,
