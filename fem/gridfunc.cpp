@@ -602,16 +602,43 @@ double GridFunction::GetValue(ElementTransformation &T,
 
       if (fe == NULL)
       {
-         // This must be a DG field called in a non-DG context.
+         // This must be a DG field.  Check for DG context.
          FaceElementTransformations * FET =
-            fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+            dynamic_cast<FaceElementTransformations *>(&T);
+         if (FET == NULL)
+         {
+            // non-DG context
+            FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         }
          return GetValue(*FET, ip, comp);
       }
    }
+   else if (T.ElementType == ElementTransformation::FACE)
+   {
+      // This must be a DG field called in a DG context.
+      FaceElementTransformations * FET =
+         dynamic_cast<FaceElementTransformations *>(&T);
+      if (FET != NULL)
+      {
+         return GetValue(*FET, ip, comp);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("GridFunction::GetValue: Unsupported element type \""
+                 << T.ElementType << "\"");
+   }
+
    fes->DofsToVDofs(comp-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
-   MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
-   fe->CalcShape(ip, DofVal);
+   if (fe->GetMapType() == FiniteElement::VALUE)
+   {
+      fe->CalcShape(ip, DofVal);
+   }
+   else
+   {
+      fe->CalcPhysShape(T, DofVal);
+   }
    GetSubVector(dofs, LocVec);
 
    return (DofVal * LocVec);
@@ -625,8 +652,106 @@ double GridFunction::GetValue(FaceElementTransformations &FET,
 
    IntegrationPoint eip;
    FET.GetActivePointTransformation()->Transform(ip, eip);
+   T->SetIntPoint(&eip);
 
    return GetValue(*T, eip, comp, tr);
+}
+
+void GridFunction::GetVectorValue(ElementTransformation &T,
+                                  const IntegrationPoint &ip,
+                                  Vector &val, Vector *tr) const
+{
+   if (tr)
+   {
+      T.SetIntPoint(&ip);
+      T.Transform(ip, *tr);
+   }
+   Array<int> vdofs;
+   const FiniteElement *fe = NULL;
+   if (T.ElementType == ElementTransformation::ELEMENT)
+   {
+      fes->GetElementVDofs(T.ElementNo, vdofs);
+      fe = fes->GetFE(T.ElementNo);
+   }
+   else if (T.ElementType == ElementTransformation::BDR_ELEMENT)
+   {
+      fes->GetBdrElementVDofs(T.ElementNo, vdofs);
+      fe = fes->GetBE(T.ElementNo);
+
+      if (fe == NULL)
+      {
+         // This must be a DG field. Check for DG context.
+         FaceElementTransformations * FET =
+            dynamic_cast<FaceElementTransformations *>(&T);
+         if (FET == NULL)
+         {
+            // non-DG context
+            FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         }
+         GetVectorValue(*FET, ip, val);
+         return;
+      }
+   }
+   else if (T.ElementType == ElementTransformation::FACE)
+   {
+      // This must be a DG field called in a DG context.
+      FaceElementTransformations * FET =
+         dynamic_cast<FaceElementTransformations *>(&T);
+      if (FET != NULL)
+      {
+         GetVectorValue(*FET, ip, val);
+         return;
+      }
+   }
+   else
+   {
+      MFEM_ABORT("GridFunction::GetVectorValue: Unsupported element type \""
+                 << T.ElementType << "\"");
+   }
+
+   int dof = fe->GetDof();
+   Vector loc_data;
+   GetSubVector(vdofs, loc_data);
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      Vector shape(dof);
+      if (fe->GetMapType() == FiniteElement::VALUE)
+      {
+         fe->CalcShape(ip, shape);
+      }
+      else
+      {
+         fe->CalcPhysShape(T, shape);
+      }
+      int vdim = fes->GetVDim();
+      val.SetSize(vdim);
+      for (int k = 0; k < vdim; k++)
+      {
+         val(k) = shape * ((const double *)loc_data + dof * k);
+      }
+   }
+   else
+   {
+      int spaceDim = fes->GetMesh()->SpaceDimension();
+      DenseMatrix vshape(dof, spaceDim);
+      T.SetIntPoint(&ip);
+      fe->CalcVShape(T, vshape);
+      val.SetSize(spaceDim);
+      vshape.MultTranspose(loc_data, val);
+   }
+}
+
+void GridFunction::GetVectorValue(FaceElementTransformations &FET,
+                                  const IntegrationPoint &ip,
+                                  Vector &val, Vector *tr) const
+{
+   ElementTransformation * T = FET.GetActiveElementTransformation();
+
+   IntegrationPoint eip;
+   FET.GetActivePointTransformation()->Transform(ip, eip);
+   T->SetIntPoint(&eip);
+
+   GetVectorValue(*T, eip, val, tr);
 }
 
 void GridFunction::GetVectorValues(ElementTransformation &T,
@@ -2165,7 +2290,7 @@ double GridFunction::ComputeH1Error(
             }
          intorder = 2 * intorder;  // <-------------
          const IntegrationRule &ir =
-            IntRules.Get(face_elem_transf->FaceGeom, intorder);
+            IntRules.Get(face_elem_transf->GetGeometryType(), intorder);
          err_val.SetSize(ir.GetNPoints());
          ell_coeff_val.SetSize(ir.GetNPoints());
          // side 1
@@ -2222,7 +2347,7 @@ double GridFunction::ComputeH1Error(
             }
          }
          face_elem_transf = mesh->GetFaceElementTransformations(i, 16);
-         transf = face_elem_transf->Face;
+         transf = face_elem_transf;
          for (j = 0; j < ir.GetNPoints(); j++)
          {
             const IntegrationPoint &ip = ir.IntPoint(j);
