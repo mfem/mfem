@@ -121,10 +121,10 @@ void OperatorJacobiSmoother::Setup()
    residual.UseDevice(true);
    const double delta = damping;
    auto D = diag.Read();
-   auto X = dinv.Write();
-   MFEM_FORALL(i, N, X[i] = delta / D[i]; );
+   auto DI = dinv.Write();
+   MFEM_FORALL(i, N, DI[i] = delta / D[i]; );
    auto I = ess_tdof_list.Read();
-   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = delta; );
+   MFEM_FORALL(i, ess_tdof_list.Size(), DI[I[i]] = delta; );
 }
 
 void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
