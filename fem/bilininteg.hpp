@@ -44,6 +44,9 @@ public:
        used later in the methods AddMultPA() and AddMultTransposePA(). */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   /// assemble diagonal into vector diag
+   virtual void AssembleDiagonalPA(Vector& diag) const;
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -2096,6 +2099,7 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AssembleDiagonalPA(Vector& diag) const;
 };
 
 /** Integrator for (Q div u, p) where u=(v1,...,vn) and all vi are in the same

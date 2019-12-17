@@ -1063,6 +1063,154 @@ static void PAHcurlMassApply2D(const int D1D,
   }); // end of element loop
 }
 
+static void PAHcurlMassAssembleDiagonal2D(const int D1D,
+					  const int Q1D,
+					  const int NE,
+					  const Array<int> &dof_map,
+					  const Array<double> &_Bo,
+					  const Array<double> &_Bc,
+					  const Vector &_op,
+					  Vector &diag)
+{
+  constexpr int VDIM = 2;
+
+  auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+  auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
+  auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+
+  const int esize = (D1D - 1) * D1D * VDIM;
+
+  MFEM_FORALL(e, NE,
+  {
+    const int ose = e * esize;
+
+    int osc = 0;
+
+    for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+	const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+	const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+	double mass[MAX_Q1D];
+
+	for (int dy = 0; dy < D1Dy; ++dy)
+	  {
+	    for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		mass[qx] = 0.0;
+		for (int qy = 0; qy < Q1D; ++qy)
+		  {
+		    const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
+
+		    const int q = qx + qy * Q1D;
+
+		    mass[qx] += wy * wy * ((c == 0) ? op(q,0,e) : op(q,2,e));
+		  }
+	      }
+
+	    for (int dx = 0; dx < D1Dx; ++dx)
+	      {
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    const double wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
+		    
+		    const double s = dof_map[dx + (dy * D1Dx) + osc] >= 0 ? 1.0 : -1.0;  
+		    // s counteracts the signs applied by elem_restrict_lex->MultTranspose after this function is called.
+
+		    diag.GetData()[dx + (dy * D1Dx) + osc + ose] += mass[qx] * wx * wx * s;
+		  }
+	      }
+	  }
+
+	osc += D1Dx * D1Dy;
+      }  // loop c
+  }); // end of element loop
+}
+
+static void PAHcurlMassAssembleDiagonal3D(const int D1D,
+					  const int Q1D,
+					  const int NE,
+					  const Array<int> &dof_map,
+					  const Array<double> &_Bo,
+					  const Array<double> &_Bc,
+					  const Vector &_op,
+					  Vector &diag)
+{
+  constexpr int VDIM = 3;
+
+  auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+  auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
+  auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+
+  const int esize = (D1D - 1) * D1D * D1D * VDIM;
+
+  MFEM_FORALL(e, NE,
+  {
+    const int ose = e * esize;
+    int osc = 0;
+
+    for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+	const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+	const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+	const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+	const int opc = (c == 0) ? 0 : ((c == 1) ? 3 : 5);
+
+	double mass[MAX_Q1D];
+
+	for (int dz = 0; dz < D1Dz; ++dz)
+	  {
+	    for (int dy = 0; dy < D1Dy; ++dy)
+	      {
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    mass[qx] = 0.0;
+		    for (int qy = 0; qy < Q1D; ++qy)
+		      {
+			const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
+
+			for (int qz = 0; qz < Q1D; ++qz)
+			  {
+			    const int q = qx + (qy + qz * Q1D) * Q1D;
+
+			    const double wz = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
+
+			    mass[qx] += wy * wy * wz * wz * op(q,opc,e);
+			  }
+		      }
+		  }
+
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    for (int qx = 0; qx < Q1D; ++qx)
+		      {
+			const double wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
+		    
+			const double s = dof_map[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] >= 0 ? 1.0 : -1.0;  
+			// s counteracts the signs applied by elem_restrict_lex->MultTranspose after this function is called.
+
+			diag.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += mass[qx] * wx * wx * s;
+		      }
+		  }
+	      }
+	  }
+
+	osc += D1Dx * D1Dy * D1Dz;
+      }  // loop c
+  }); // end of element loop
+}
+
+void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag) const
+{
+  if (dim == 3)
+    PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne, dof_map,
+				  mapsO->B, mapsC->B, pa_data, diag);
+  else
+    PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne, dof_map,
+				  mapsO->B, mapsC->B, pa_data, diag);
+}
+
 static void PAHcurlMassApply3D(const int D1D,
 			       const int Q1D,
 			       const int NE,

@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
 
      ParBilinearForm *a_fa = new ParBilinearForm(fespace);
      a_fa->AddDomainIntegrator(new VectorFEMassIntegrator(alpha));
-     a_fa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
+     //a_fa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
 
      a_fa->Assemble();
      a_fa->Finalize();
@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
      ParBilinearForm *a_pa = new ParBilinearForm(fespace);
      a_pa->SetAssemblyLevel(AssemblyLevel::PARTIAL);
      a_pa->AddDomainIntegrator(new VectorFEMassIntegrator(alpha));
-     a_pa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
+     //a_pa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
      a_pa->Assemble();
 
      a_fa->Mult(x_test, y_fa);
@@ -238,6 +238,50 @@ int main(int argc, char *argv[])
      y_fa -= y_pa;
      
      cout << myid << ": Norm of diff " << y_fa.Norml2() << endl;
+
+     const bool testDiag = true;
+     if (testDiag)
+       {
+	 ParGridFunction diag_pa(fespace);
+	 diag_pa = 0.0;
+	 a_pa->AssembleDiagonal(diag_pa);
+
+	 Vector tdiag_pa(fespace->GetTrueVSize());
+	 diag_pa.GetTrueDofs(tdiag_pa);
+
+	 Vector ej(fespace->GetTrueVSize());
+	 HYPRE_Int *tdos = fespace->GetTrueDofOffsets();
+
+	 double maxRelErr = 0.0;
+
+	 for (int i=0; i<fespace->GlobalTrueVSize(); ++i)
+	   {
+	     ej = 0.0;
+
+	     if (tdos[0] <= i && i < tdos[1])
+	       ej[i - tdos[0]] = 1.0;
+
+	     x_test.SetFromTrueDofs(ej);
+	     a_pa->Mult(x_test, y_pa);
+
+	     y_pa.GetTrueDofs(ej);
+
+	     if (tdos[0] <= i && i < tdos[1])
+	       {
+		 const double d_i = ej[i - tdos[0]];
+		 const double relErr = fabs(tdiag_pa[i - tdos[0]] - d_i) / std::max(fabs(tdiag_pa[i - tdos[0]]), fabs(d_i));
+		 if (relErr > 1.0)
+		   cout << "diag " << i << ": " << d_i << " = " << tdiag_pa[i - tdos[0]] << ", error " << fabs(tdiag_pa[i - tdos[0]] - d_i) << endl;
+
+		 if (relErr > maxRelErr)
+		   maxRelErr = relErr;
+	       }
+	   }
+
+	 cout << myid << ": maximum relative error in diagonal assembly: " << maxRelErr << endl;
+
+	 MPI_Barrier(MPI_COMM_WORLD);
+       }
 
      delete a_fa;
      delete a_pa;
