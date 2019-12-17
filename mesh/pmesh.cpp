@@ -2241,16 +2241,16 @@ Table *ParMesh::GetFaceToAllElementTable() const
    return face_elem;
 }
 
-ElementTransformation* ParMesh::GetGhostFaceTransformation(
+void ParMesh::GetGhostFaceTransformation(
    FaceElementTransformations* FETr, Element::Type face_type,
    Geometry::Type face_geom)
 {
    // calculate composition of FETr->Loc1 and FETr->Elem1
-   DenseMatrix &face_pm = FaceTransformation.GetPointMat();
+   DenseMatrix &face_pm = FETr->GetPointMat();
    if (Nodes == NULL)
    {
       FETr->Elem1->Transform(FETr->Loc1.Transf.GetPointMat(), face_pm);
-      FaceTransformation.SetFE(GetTransformationFEforElementType(face_type));
+      FETr->SetFE(GetTransformationFEforElementType(face_type));
    }
    else
    {
@@ -2266,10 +2266,9 @@ ElementTransformation* ParMesh::GetGhostFaceTransformation(
       FETr->Loc1.Transform(face_el->GetNodes(), eir);
       Nodes->GetVectorValues(*FETr->Elem1, eir, face_pm);
 #endif
-      FaceTransformation.SetFE(face_el);
+      FETr->SetFE(face_el);
    }
-   FaceTransformation.FinalizeTransformation();
-   return &FaceTransformation;
+   FETr->FinalizeTransformation();
 }
 
 FaceElementTransformations *ParMesh::
@@ -2307,10 +2306,10 @@ GetSharedFaceTransformations(int sf, bool fill2)
    }
 
    // setup the face transformation if the face is not a ghost
-   FaceElemTr.FaceGeom = face_geom;
+   // FaceElemTr.FaceGeom = face_geom;
    if (!is_ghost)
    {
-      FaceElemTr.Face = GetFaceTransformation(FaceNo);
+      GetFaceTransformation(FaceNo, &FaceElemTr);
       // NOTE: The above call overwrites FaceElemTr.Loc1
    }
 
@@ -2351,8 +2350,7 @@ GetSharedFaceTransformations(int sf, bool fill2)
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
-      FaceElemTr.Face =
-         GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
    }
 
    return &FaceElemTr;

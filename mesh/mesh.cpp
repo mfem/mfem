@@ -867,8 +867,7 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    }
 
    // setup the face transformation
-   FaceElemTr.FaceGeom = GetFaceGeometryType(FaceNo);
-   FaceElemTr.Face = (mask & 16) ? GetFaceTransformation(FaceNo) : NULL;
+   GetFaceTransformation(FaceNo, &FaceElemTr);
 
    // setup Loc1 & Loc2
    int face_type = GetFaceElementType(FaceNo);
@@ -943,9 +942,9 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
       return NULL;
    }
    tr = GetFaceElementTransformations(fn);
-   tr->Face->Attribute = boundary[BdrElemNo]->GetAttribute();
-   tr->Face->ElementNo = BdrElemNo;
-   tr->Face->ElementType = ElementTransformation::BDR_ELEMENT;
+   tr->Attribute = boundary[BdrElemNo]->GetAttribute();
+   tr->ElementNo = BdrElemNo;
+   tr->ElementType = ElementTransformation::BDR_ELEMENT;
    return tr;
 }
 
