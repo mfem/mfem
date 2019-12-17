@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
 
      ParBilinearForm *a_fa = new ParBilinearForm(fespace);
      a_fa->AddDomainIntegrator(new VectorFEMassIntegrator(alpha));
-     //a_fa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
+     a_fa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
 
      a_fa->Assemble();
      a_fa->Finalize();
@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
      ParBilinearForm *a_pa = new ParBilinearForm(fespace);
      a_pa->SetAssemblyLevel(AssemblyLevel::PARTIAL);
      a_pa->AddDomainIntegrator(new VectorFEMassIntegrator(alpha));
-     //a_pa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
+     a_pa->AddDomainIntegrator(new CurlCurlIntegrator(alpha));
      a_pa->Assemble();
 
      a_fa->Mult(x_test, y_fa);
@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
 	       {
 		 const double d_i = ej[i - tdos[0]];
 		 const double relErr = fabs(tdiag_pa[i - tdos[0]] - d_i) / std::max(fabs(tdiag_pa[i - tdos[0]]), fabs(d_i));
-		 if (relErr > 1.0)
+		 if (relErr > 1.0e-1)
 		   cout << "diag " << i << ": " << d_i << " = " << tdiag_pa[i - tdos[0]] << ", error " << fabs(tdiag_pa[i - tdos[0]] - d_i) << endl;
 
 		 if (relErr > maxRelErr)
