@@ -52,12 +52,6 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
    return GridF -> GetValue (T, ip, Component);
 }
 
-double GridFunctionCoefficient::Eval (FaceElementTransformations &T,
-                                      const IntegrationPoint &ip)
-{
-   return GridF -> GetValue (T, ip, Component);
-}
-
 double TransformedCoefficient::Eval(ElementTransformation &T,
                                     const IntegrationPoint &ip)
 {
@@ -180,7 +174,7 @@ void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
-   GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   GridFunc->GetVectorValue(T, ip, V);
 }
 
 void VectorGridFunctionCoefficient::Eval(
