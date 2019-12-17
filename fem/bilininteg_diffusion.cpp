@@ -271,14 +271,14 @@ static void PADiffusionDiagonal2D(const int NE,
       // gradphi \cdot Q \gradphi has four terms
       double QD0[MQ1][MD1];
       double QD1[MQ1][MD1];
-      double QD3[MQ1][MD1];
+      double QD2[MQ1][MD1];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dy = 0; dy < D1D; ++dy)
          {
             QD0[qx][dy] = 0.0;
             QD1[qx][dy] = 0.0;
-            QD3[qx][dy] = 0.0;
+            QD2[qx][dy] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int q = qx + qy * Q1D;
@@ -287,7 +287,7 @@ static void PADiffusionDiagonal2D(const int NE,
                const double D2 = D(q,2,e);
                QD0[qx][dy] += B(qy, dy) * B(qy, dy) * D0;
                QD1[qx][dy] += B(qy, dy) * G(qy, dy) * D1;
-               QD3[qx][dy] += G(qy, dy) * G(qy, dy) * D2;
+               QD2[qx][dy] += G(qy, dy) * G(qy, dy) * D2;
             }
          }
       }
@@ -300,7 +300,7 @@ static void PADiffusionDiagonal2D(const int NE,
                Y(dx,dy,e) += G(qx, dx) * G(qx, dx) * QD0[qx][dy];
                Y(dx,dy,e) += G(qx, dx) * B(qx, dx) * QD1[qx][dy];
                Y(dx,dy,e) += B(qx, dx) * G(qx, dx) * QD1[qx][dy];
-               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * QD3[qx][dy];
+               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * QD2[qx][dy];
             }
          }
       }
@@ -342,7 +342,7 @@ static void SmemPADiffusionDiagonal2D(const int NE,
       MFEM_SHARED double QD[4][NBZ][MD1][MQ1];
       double (*QD0)[MD1] = (double (*)[MD1])(QD[0] + tidz);
       double (*QD1)[MD1] = (double (*)[MD1])(QD[1] + tidz);
-      double (*QD3)[MD1] = (double (*)[MD1])(QD[3] + tidz);
+      double (*QD2)[MD1] = (double (*)[MD1])(QD[3] + tidz);
       if (tidz == 0)
       {
          MFEM_FOREACH_THREAD(d,y,D1D)
@@ -361,7 +361,7 @@ static void SmemPADiffusionDiagonal2D(const int NE,
          {
             QD0[qx][dy] = 0.0;
             QD1[qx][dy] = 0.0;
-            QD3[qx][dy] = 0.0;
+            QD2[qx][dy] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int q = qx + qy * Q1D;
@@ -375,7 +375,7 @@ static void SmemPADiffusionDiagonal2D(const int NE,
                const double GG = Gy * Gy;
                QD0[qx][dy] += BB * D0;
                QD1[qx][dy] += BG * D1;
-               QD3[qx][dy] += GG * D2;
+               QD2[qx][dy] += GG * D2;
             }
          }
       }
@@ -394,7 +394,7 @@ static void SmemPADiffusionDiagonal2D(const int NE,
                Y(dx,dy,e) += GG * QD0[qx][dy];
                Y(dx,dy,e) += BG * QD1[qx][dy];
                Y(dx,dy,e) += BG * QD1[qx][dy];
-               Y(dx,dy,e) += BB * QD3[qx][dy];
+               Y(dx,dy,e) += BB * QD2[qx][dy];
             }
          }
       }
