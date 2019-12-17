@@ -22,6 +22,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int log = 0;
    bool dg = false;
+   bool mtv = true;
    bool di = true;  // Domain Integration
    bool bi = true;  // Boundary Integration
    bool fi = true;  // Interior Face Integration
@@ -42,6 +43,8 @@ int main(int argc, char *argv[])
                   "Adjust level of screen output.");
    args.AddOption(&dg, "-dg", "--discontinuous-galerkin", "-h1",
                   "--continuous", "Select H1 or DG space.");
+   args.AddOption(&mtv, "-mtv", "--map-type-value", "-mti",
+                  "--map-type-integral", "Select VALUE or INTEGRAL map type.");
    args.AddOption(&di, "-di", "--domain-integration", "-no-di",
                   "--no-domain-integration",
                   "Enable or disable domain integration test.");
@@ -107,7 +110,9 @@ int main(int argc, char *argv[])
    FiniteElementCollection *h1_fec;
    FiniteElementCollection *dg_fec;
    h1_fec = new H1_FECollection(order, dim);
-   dg_fec = new DG_FECollection(order, dim);
+   dg_fec = new DG_FECollection(order, dim, BasisType::GaussLegendre,
+                                mtv ? FiniteElement::VALUE
+                                : FiniteElement::INTEGRAL);
 
    ParFiniteElementSpace *h1_fespace = new ParFiniteElementSpace(pmesh, h1_fec);
    ParFiniteElementSpace *dg_fespace = new ParFiniteElementSpace(pmesh, dg_fec);
@@ -158,7 +163,8 @@ int main(int argc, char *argv[])
 
             if (fabs(f_val - gf_val) > tol)
             {
-               cout << f_val << " " << gf_val << endl;
+               cout << i << ":" << j << " " << f_val << " " << gf_val
+                    << " " << fabs(f_val - gf_val) << endl;
             }
          }
       }
@@ -190,7 +196,8 @@ int main(int argc, char *argv[])
 
             if (fabs(f_val - gf_val) > tol)
             {
-               cout << f_val << " " << gf_val << endl;
+               cout << i << ":" << j << " " << f_val << " " << gf_val
+                    << " " << fabs(f_val - gf_val) << endl;
             }
          }
       }
@@ -224,7 +231,8 @@ int main(int argc, char *argv[])
 
             if (fabs(f_val - gf_val) > tol)
             {
-               cout << f_val << " " << gf_val << endl;
+               cout << i << ":" << j << " " << f_val << " " << gf_val
+                    << " " << fabs(f_val - gf_val) << endl;
             }
          }
       }
@@ -245,7 +253,8 @@ int main(int argc, char *argv[])
             pmesh->GetInteriorFaceTransformations(i);
          if (T != NULL)
          {
-            const IntegrationRule &ir = IntRules.Get(T->FaceGeom, 2*order + 2);
+            const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(),
+                                                     2*order + 2);
 
             if (log > 0)
             {
@@ -294,15 +303,13 @@ int main(int argc, char *argv[])
                   }
                }
 
-               if (T->Face)
-               {
-                  T->Face->SetIntPoint(&ip);
-                  T->Face->Transform(ip, tip);
-               }
+               T->SetIntPoint(&ip);
+               T->Transform(ip, tip);
 
                double f_val = func(tip);
                // double gf_val = (T->Face) ? xCoef.Eval(*T->Face, ip) : NAN;
                double gf_val = xCoef.Eval(*T, ip);
+
                if (log > 0)
                {
                   cout << "Face  (" << tip[0] << "," << tip[1] << ","
@@ -311,7 +318,8 @@ int main(int argc, char *argv[])
 
                if (fabs(f_val - gf_val) > tol)
                {
-                  cout << i << " " << f_val << " " << gf_val << endl;
+                  cout << i << " " << f_val << " " << gf_val
+                       << " " << fabs(f_val - gf_val) << endl;
                }
             }
          }
@@ -325,7 +333,7 @@ int main(int argc, char *argv[])
       // Boundary Face Integrators
       npts = 0;
       cout << "Checking " << pmesh->GetNBE()
-           << " boundary faces in a DG contextx" << endl;
+           << " boundary faces in a DG context" << endl;
       for (int i=0; i<pmesh->GetNBE(); i++)
       {
          if (log > 0)
@@ -335,7 +343,8 @@ int main(int argc, char *argv[])
          FaceElementTransformations *T = pmesh->GetBdrFaceTransformations(i);
          if (T != NULL)
          {
-            const IntegrationRule &ir = IntRules.Get(T->FaceGeom, 2*order + 2);
+            const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(),
+                                                     2*order + 2);
 
             if (log > 0)
             {
@@ -368,8 +377,8 @@ int main(int argc, char *argv[])
                   }
                }
 
-               T->Face->SetIntPoint(&ip);
-               T->Face->Transform(ip, tip);
+               T->SetIntPoint(&ip);
+               T->Transform(ip, tip);
 
                double f_val = func(tip);
                // double gf_val = xCoef.Eval(*T->Face, ip);
@@ -383,7 +392,8 @@ int main(int argc, char *argv[])
 
                if (fabs(f_val - gf_val) > tol)
                {
-                  cout << i << " " << f_val << " " << gf_val << endl;
+                  cout << i << ":" << j << " " << f_val << " " << gf_val
+                       << " " << fabs(f_val - gf_val) << endl;
                }
             }
          }
