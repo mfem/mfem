@@ -777,7 +777,7 @@ static void SmemRegPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dz = 0; dz < D1D; ++dz)
             {
                X[dz][dy][dx] = x(dx,dy,dz,e);
@@ -794,21 +794,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u[D1D];
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dz = 0; dz < D1D; dz++)
             {
                u[dz] = 0;
             }
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dx = 0; dx < D1D; ++dx)
             {
-               _Pragma("unroll D1D")
+               _Pragma("unroll D1D");
                for (int dz = 0; dz < D1D; ++dz)
                {
                   u[dz] += X[dz][dy][dx] * B[qx][dx];
                }
             }
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dz = 0; dz < D1D; ++dz)
             {
                DDQ[dz][dy][qx] = u[dz];
@@ -821,21 +821,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u[D1D];
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dz = 0; dz < D1D; dz++)
             {
                u[dz] = 0;
             }
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dy = 0; dy < D1D; ++dy)
             {
-               _Pragma("unroll D1D")
+               _Pragma("unroll D1D");
                for (int dz = 0; dz < D1D; dz++)
                {
                   u[dz] += DDQ[dz][dy][qx] * B[qy][dy];
                }
             }
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dz = 0; dz < D1D; dz++)
             {
                DQQ[dz][qy][qx] = u[dz];
@@ -848,21 +848,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u[Q1D];
-            _Pragma("unroll Q1D")
+            _Pragma("unroll Q1D");
             for (int qz = 0; qz < Q1D; qz++)
             {
                u[qz] = 0;
             }
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dz = 0; dz < D1D; ++dz)
             {
-               _Pragma("unroll Q1D")
+               _Pragma("unroll Q1D");
                for (int qz = 0; qz < Q1D; qz++)
                {
                   u[qz] += DQQ[dz][qy][qx] * B[qz][dz];
                }
             }
-            _Pragma("unroll Q1D")
+            _Pragma("unroll Q1D");
             for (int qz = 0; qz < Q1D; qz++)
             {
                QQQ[qz][qy][qx] = u[qz] * op(qx,qy,qz,e);
@@ -883,21 +883,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u[Q1D];
-            _Pragma("unroll Q1D")
+            _Pragma("unroll Q1D");
             for (int qz = 0; qz < Q1D; ++qz)
             {
                u[qz] = 0;
             }
-            _Pragma("unroll Q1D")
+            _Pragma("unroll Q1D");
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               _Pragma("unroll Q1D")
+               _Pragma("unroll Q1D");
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u[qz] += QQQ[qz][qy][qx] * Bt[dx][qx];
                }
             }
-            _Pragma("unroll Q1D")
+            _Pragma("unroll Q1D");
             for (int qz = 0; qz < Q1D; ++qz)
             {
                QQD[qz][qy][dx] = u[qz];
@@ -910,21 +910,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u[Q1D];
-            _Pragma("unroll Q1D")
+            _Pragma("unroll Q1D");
             for (int qz = 0; qz < Q1D; ++qz)
             {
                u[qz] = 0;
             }
-            _Pragma("unroll Q1D")
+            _Pragma("unroll Q1D");
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               _Pragma("unroll Q1D")
+               _Pragma("unroll Q1D");
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u[qz] += QQD[qz][qy][dx] * Bt[dy][qy];
                }
             }
-            _Pragma("unroll Q1D")
+            _Pragma("unroll Q1D");
             for (int qz = 0; qz < Q1D; ++qz)
             {
                QDD[qz][dy][dx] = u[qz];
@@ -937,21 +937,21 @@ static void SmemRegPAMassApply3D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u[D1D];
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dz = 0; dz < D1D; ++dz)
             {
                u[dz] = 0;
             }
-            _Pragma("unroll Q1D")
+            _Pragma("unroll Q1D");
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               _Pragma("unroll D1D")
+               _Pragma("unroll D1D");
                for (int dz = 0; dz < D1D; ++dz)
                {
                   u[dz] += QDD[qz][dy][dx] * Bt[dz][qz];
                }
             }
-            _Pragma("unroll D1D")
+            _Pragma("unroll D1D");
             for (int dz = 0; dz < D1D; ++dz)
             {
                y(dx,dy,dz,e) += u[dz];
@@ -995,12 +995,12 @@ static void PAMassApply(const int dim,
          case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
          case 0x24: return SmemPAMassApply2D<2,4,16>(NE, B, Bt, op, x, y);
          case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
-            //case 0x34: return SmemPAMassApply2D<3,4,16>(NE, B, Bt, op, x, y);
-            //case 0x36: return SmemPAMassApply2D<3,6,16>(NE, B, Bt, op, x, y);
-            //case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
-            //case 0x46: return SmemPAMassApply2D<4,6,4>(NE, B, Bt, op, x, y);
-            //case 0x48: return SmemPAMassApply2D<4,8,4>(NE, B, Bt, op, x, y);
-            //case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, Bt, op, x, y);
+         //case 0x34: return SmemPAMassApply2D<3,4,16>(NE, B, Bt, op, x, y);
+         //case 0x36: return SmemPAMassApply2D<3,6,16>(NE, B, Bt, op, x, y);
+         case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
+         //case 0x46: return SmemPAMassApply2D<4,6,4>(NE, B, Bt, op, x, y);
+         //case 0x48: return SmemPAMassApply2D<4,8,4>(NE, B, Bt, op, x, y);
+         case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, Bt, op, x, y);
             //case 0x58: return SmemPAMassApply2D<5,8,2>(NE, B, Bt, op, x, y);
             //case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, Bt, op, x, y);
             //case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, Bt, op, x, y);
@@ -1017,11 +1017,13 @@ static void PAMassApply(const int dim,
          switch (id)
          {
             case 0x23: return SmemRegPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-               //case 0x24: return SmemRegPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
-               //case 0x34: return SmemRegPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-               //case 0x36: return SmemRegPAMassApply3D<3,6>(NE, B, Bt, op, x, y);
-               //case 0x46: return SmemRegPAMassApply3D<4,6>(NE, B, Bt, op, x, y);
-               //case 0x48: return SmemRegPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
+            //case 0x24: return SmemRegPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
+            case 0x34: return SmemRegPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
+            //case 0x36: return SmemRegPAMassApply3D<3,6>(NE, B, Bt, op, x, y);
+            case 0x45: return SmemRegPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
+            //case 0x46: return SmemRegPAMassApply3D<4,6>(NE, B, Bt, op, x, y);
+            //case 0x48: return SmemRegPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
+            case 0x56: return SmemRegPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
                //case 0x58: return SmemRegPAMassApply3D<5,8>(NE, B, Bt, op, x, y);
          }
       }
@@ -1031,11 +1033,13 @@ static void PAMassApply(const int dim,
          switch (id)
          {
             case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-               //case 0x24: return SmemPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
-               //case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-               //case 0x36: return SmemPAMassApply3D<3,6>(NE, B, Bt, op, x, y);
-               //case 0x46: return SmemPAMassApply3D<4,6>(NE, B, Bt, op, x, y);
-               //case 0x48: return SmemPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
+            //case 0x24: return SmemPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
+            case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
+            //case 0x36: return SmemPAMassApply3D<3,6>(NE, B, Bt, op, x, y);
+            case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
+            //case 0x46: return SmemPAMassApply3D<4,6>(NE, B, Bt, op, x, y);
+            //case 0x48: return SmemPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
+            case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
                //case 0x58: return SmemPAMassApply3D<5,8>(NE, B, Bt, op, x, y);
          }
       }
