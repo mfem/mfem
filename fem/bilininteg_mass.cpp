@@ -283,10 +283,12 @@ static void PAMassAssembleDiagonal3D(const int NE,
          {
             for (int dx = 0; dx < D1D; ++dx)
             {
+               double t = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * QDD[qx][dy][dz];
+                  t += B(qx, dx) * B(qx, dx) * QDD[qx][dy][dz];
                }
+               Y(dx, dy, dz, e) += t;
             }
          }
       }
@@ -367,10 +369,12 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
+               double t = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  Y(dx, dy, dz, e) += B[qx][dx] * B[qx][dx] * QDD[qx][dy][dz];
+                  t += B[qx][dx] * B[qx][dx] * QDD[qx][dy][dz];
                }
+               Y(dx, dy, dz, e) += t;
             }
          }
       }
