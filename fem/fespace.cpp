@@ -11,7 +11,6 @@
 
 // Implementation of FiniteElementSpace
 
-#include "../general/dbg.hpp"
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
@@ -3240,7 +3239,8 @@ void QuadratureInterpolator::Mult(
    }
    else
    {
-      dbg("dim=%d, vdim=%d, nd=%d, nq=%d", dim, vdim, nd, nq);
+      printf("\033[33mdim=%d, vdim=%d, nd=%d, nq=%d\033[m", dim, vdim, nd, nq);
+      fflush(0);
       MFEM_ABORT("case not supported yet");
    }
 }
