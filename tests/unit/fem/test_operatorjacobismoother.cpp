@@ -56,29 +56,29 @@ TEST_CASE("operatorjacobismoother")
             x = 0.0;
             GridFunction b(&h1_fespace);
             b = 1.0;
-            BilinearForm assemblyform(&h1_fespace);
-            assemblyform.AddDomainIntegrator(new DiffusionIntegrator(one));
-            assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
-            assemblyform.Assemble();
-            assemblyform.Finalize();
-            OperatorPtr A_assembly;
+            BilinearForm faform(&h1_fespace);
+            faform.AddDomainIntegrator(new DiffusionIntegrator(one));
+            faform.SetDiagonalPolicy(Matrix::DIAG_ONE);
+            faform.Assemble();
+            faform.Finalize();
+            OperatorPtr A_fa;
             Vector B, X;
-            assemblyform.FormLinearSystem(ess_tdof_list, x, b, A_assembly, X, B);
-            DSmoother assembly_smoother((SparseMatrix&)(*A_assembly));
+            faform.FormLinearSystem(ess_tdof_list, x, b, A_fa, X, B);
+            DSmoother fa_smoother((SparseMatrix&)(*A_fa));
 
             Vector xin(h1_fespace.GetTrueVSize());
             xin.Randomize();
-            Vector y_assembly(xin);
-            y_assembly = 0.0;
+            Vector y_fa(xin);
+            y_fa = 0.0;
             Vector y_pa(xin);
             y_pa = 0.0;
-            assembly_smoother.Mult(xin, y_assembly);
+            fa_smoother.Mult(xin, y_fa);
             pa_smoother.Mult(xin, y_pa);
 
-            y_assembly -= y_pa;
-            double error = y_assembly.Norml2();
+            y_fa -= y_pa;
+            double error = y_fa.Norml2();
             std::cout << "    order: " << order << ", error norm: " << error << std::endl;
-            REQUIRE(y_assembly.Norml2() < 1.e-12);
+            REQUIRE(y_fa.Norml2() < 1.e-12);
 
             delete mesh;
             delete h1_fec;
@@ -119,29 +119,29 @@ TEST_CASE("operatorjacobifichera")
          x = 0.0;
          GridFunction b(&h1_fespace);
          b = 1.0;
-         BilinearForm assemblyform(&h1_fespace);
-         assemblyform.AddDomainIntegrator(new DiffusionIntegrator(one));
-         assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
-         assemblyform.Assemble();
-         assemblyform.Finalize();
-         OperatorPtr A_assembly;
+         BilinearForm faform(&h1_fespace);
+         faform.AddDomainIntegrator(new DiffusionIntegrator(one));
+         faform.SetDiagonalPolicy(Matrix::DIAG_ONE);
+         faform.Assemble();
+         faform.Finalize();
+         OperatorPtr A_fa;
          Vector B, X;
-         assemblyform.FormLinearSystem(ess_tdof_list, x, b, A_assembly, X, B);
-         DSmoother assembly_smoother((SparseMatrix&)(*A_assembly));
+         faform.FormLinearSystem(ess_tdof_list, x, b, A_fa, X, B);
+         DSmoother fa_smoother((SparseMatrix&)(*A_fa));
 
          Vector xin(h1_fespace.GetTrueVSize());
          xin.Randomize();
-         Vector y_assembly(xin);
-         y_assembly = 0.0;
+         Vector y_fa(xin);
+         y_fa = 0.0;
          Vector y_pa(xin);
          y_pa = 0.0;
-         assembly_smoother.Mult(xin, y_assembly);
+         fa_smoother.Mult(xin, y_fa);
          pa_smoother.Mult(xin, y_pa);
 
-         y_assembly -= y_pa;
-         double error = y_assembly.Norml2();
+         y_fa -= y_pa;
+         double error = y_fa.Norml2();
          std::cout << "    order: " << order << ", error norm: " << error << std::endl;
-         REQUIRE(y_assembly.Norml2() < 1.e-12);
+         REQUIRE(y_fa.Norml2() < 1.e-12);
 
          delete mesh;
          delete h1_fec;
