@@ -788,6 +788,8 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    int nd1 = el1.GetDof();
    double w;
 
+   Trans.SetActiveSide(0);
+
 #ifdef MFEM_THREAD_SAFE
    Vector shape;
 #endif
@@ -799,7 +801,7 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    {
       int order = 2 * el1.GetOrder();
 
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    elmat = 0.0;
@@ -810,11 +812,11 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
       Trans.Loc1.Transform(ip, eip);
       el1.CalcShape(eip, shape);
 
-      Trans.Face->SetIntPoint(&ip);
-      w = Trans.Face->Weight() * ip.weight;
+      Trans.SetIntPoint(&ip);
+      w = Trans.Weight() * ip.weight;
       if (Q)
       {
-         w *= Q -> Eval(*Trans.Face, ip);
+         w *= Q -> Eval(Trans, ip);
       }
 
       AddMult_a_VVt(w, shape, elmat);
@@ -2435,7 +2437,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       {
          order++;
       }
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -2449,7 +2451,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       }
       el1.CalcShape(eip1, shape1);
 
-      Trans.Face->SetIntPoint(&ip);
+      Trans.SetIntPoint(&ip);
       Trans.Elem1->SetIntPoint(&eip1);
 
       u->Eval(vu, *Trans.Elem1, eip1);
@@ -2460,7 +2462,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       }
       else
       {
-         CalcOrtho(Trans.Face->Jacobian(), nor);
+         CalcOrtho(Trans.Jacobian(), nor);
       }
 
       un = vu * nor;
@@ -2583,7 +2585,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          order = 2*el1.GetOrder();
       }
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    // assemble: < {(Q \nabla u).n},[v] >      --> elmat
@@ -2594,14 +2596,14 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       IntegrationPoint eip1, eip2;
 
       Trans.Loc1.Transform(ip, eip1);
-      Trans.Face->SetIntPoint(&ip);
+      Trans.SetIntPoint(&ip);
       if (dim == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }
       else
       {
-         CalcOrtho(Trans.Face->Jacobian(), nor);
+         CalcOrtho(Trans.Jacobian(), nor);
       }
 
       el1.CalcShape(eip1, shape1);
@@ -2865,7 +2867,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    {
       // a simple choice for the integration order; is this OK?
       const int order = 2 * max(el1.GetOrder(), ndofs2 ? el2.GetOrder() : 0);
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    for (int pind = 0; pind < ir->GetNPoints(); ++pind)
@@ -2873,7 +2875,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       const IntegrationPoint &ip = ir->IntPoint(pind);
       IntegrationPoint eip1, eip2; // integration point in the reference space
       Trans.Loc1.Transform(ip, eip1);
-      Trans.Face->SetIntPoint(&ip);
+      Trans.SetIntPoint(&ip);
       Trans.Elem1->SetIntPoint(&eip1);
 
       el1.CalcShape(eip1, shape1);
@@ -2888,7 +2890,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       }
       else
       {
-         CalcOrtho(Trans.Face->Jacobian(), nor);
+         CalcOrtho(Trans.Jacobian(), nor);
       }
 
       double w, wLM;
@@ -3025,9 +3027,9 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
       order += trial_face_fe.GetOrder();
       if (trial_face_fe.GetMapType() == FiniteElement::VALUE)
       {
-         order += Trans.Face->OrderW();
+         order += Trans.OrderW();
       }
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -3035,7 +3037,7 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
       const IntegrationPoint &ip = ir->IntPoint(p);
       IntegrationPoint eip1, eip2;
       // Trace finite element shape function
-      Trans.Face->SetIntPoint(&ip);
+      Trans.SetIntPoint(&ip);
       trial_face_fe.CalcShape(ip, face_shape);
       // Side 1 finite element shape function
       Trans.Loc1.Transform(ip, eip1);
@@ -3051,7 +3053,7 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
       w = ip.weight;
       if (trial_face_fe.GetMapType() == FiniteElement::VALUE)
       {
-         w *= Trans.Face->Weight();
+         w *= Trans.Weight();
       }
       face_shape *= w;
       for (i = 0; i < ndof1; i++)
@@ -3116,7 +3118,7 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
          order = test_fe1.GetOrder() - 1;
       }
       order += trial_face_fe.GetOrder();
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)

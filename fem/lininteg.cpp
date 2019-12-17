@@ -276,7 +276,7 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
-      ir = &IntRules.Get(Tr.FaceGeom, intorder);
+      ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -285,9 +285,12 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
       IntegrationPoint eip;
       Tr.Loc1.Transform(ip, eip);
 
-      Tr.Face->SetIntPoint(&ip);
-      Q.Eval(vec, *Tr.Face, ip);
-      vec *= Tr.Face->Weight() * ip.weight;
+      Tr.SetIntPoint(&ip);
+      Tr.SetActiveSide(0);
+
+      // Use Tr transformation in case Q depends on boundary attribute
+      Q.Eval(vec, Tr, ip);
+      vec *= Tr.Weight() * ip.weight;
       el.CalcShape(eip, shape);
       for (int k = 0; k < vdim; k++)
       {
@@ -477,7 +480,7 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       {
          order++;
       }
-      ir = &IntRules.Get(Tr.FaceGeom, order);
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
    shape.SetSize(ndof);
@@ -491,9 +494,11 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       Tr.Loc1.Transform(ip, eip);
       el.CalcShape(eip, shape);
 
-      Tr.Face->SetIntPoint(&ip);
-
-      u->Eval(vu, *Tr.Elem1, eip);
+      Tr.SetIntPoint(&ip);
+      Tr.SetActiveSide(0);
+      
+      // Use Tr transformation in case u or f depends on boundary attribute
+      u->Eval(vu, Tr, ip);
 
       if (dim == 1)
       {
@@ -501,12 +506,12 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       }
       else
       {
-         CalcOrtho(Tr.Face->Jacobian(), nor);
+         CalcOrtho(Tr.Jacobian(), nor);
       }
 
       un = vu * nor;
       w = 0.5*alpha*un - beta*fabs(un);
-      w *= ip.weight*f->Eval(*Tr.Elem1, eip);
+      w *= ip.weight*f->Eval(Tr, ip);
       elvect.Add(w, shape);
    }
 }
@@ -549,7 +554,7 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
    {
       // a simple choice for the integration order; is this OK?
       int order = 2*el.GetOrder();
-      ir = &IntRules.Get(Tr.FaceGeom, order);
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -558,33 +563,34 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       IntegrationPoint eip;
 
       Tr.Loc1.Transform(ip, eip);
-      Tr.Face->SetIntPoint(&ip);
+      Tr.SetIntPoint(&ip);
+      Tr.SetActiveSide(0);
       if (dim == 1)
       {
          nor(0) = 2*eip.x - 1.0;
       }
       else
       {
-         CalcOrtho(Tr.Face->Jacobian(), nor);
+         CalcOrtho(Tr.Jacobian(), nor);
       }
 
       el.CalcShape(eip, shape);
       el.CalcDShape(eip, dshape);
       Tr.Elem1->SetIntPoint(&eip);
       // compute uD through the face transformation
-      w = ip.weight * uD->Eval(*Tr.Face, ip) / Tr.Elem1->Weight();
+      w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem1->Weight();
       if (!MQ)
       {
          if (Q)
          {
-            w *= Q->Eval(*Tr.Elem1, eip);
+            w *= Q->Eval(Tr, ip);
          }
          ni.Set(w, nor);
       }
       else
       {
          nh.Set(w, nor);
-         MQ->Eval(mq, *Tr.Elem1, eip);
+         MQ->Eval(mq, Tr, ip);
          mq.MultTranspose(nh, ni);
       }
       CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
@@ -643,7 +649,7 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       const int order = 2*el.GetOrder(); // <-----
-      ir = &IntRules.Get(Tr.FaceGeom, order);
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
    for (int pi = 0; pi < ir->GetNPoints(); ++pi)
@@ -651,11 +657,12 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(pi);
       IntegrationPoint eip;
       Tr.Loc1.Transform(ip, eip);
-      Tr.Face->SetIntPoint(&ip);
+      Tr.SetIntPoint(&ip);
+      Tr.SetActiveSide(0);
       Tr.Elem1->SetIntPoint(&eip);
 
       // Evaluate the Dirichlet b.c. using the face transformation.
-      uD.Eval(u_dir, *Tr.Face, ip);
+      uD.Eval(u_dir, Tr, ip);
 
       el.CalcShape(eip, shape);
       el.CalcDShape(eip, dshape);
@@ -669,14 +676,14 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       }
       else
       {
-         CalcOrtho(Tr.Face->Jacobian(), nor);
+         CalcOrtho(Tr.Jacobian(), nor);
       }
 
       double wL, wM, jcoef;
       {
          const double w = ip.weight / Tr.Elem1->Weight();
-         wL = w * lambda->Eval(*Tr.Elem1, eip);
-         wM = w * mu->Eval(*Tr.Elem1, eip);
+         wL = w * lambda->Eval(Tr, ip);
+         wM = w * mu->Eval(Tr, ip);
          jcoef = kappa * (wL + 2.0*wM) * (nor*nor);
          dshape_ps.Mult(nor, dshape_dn);
          dshape_ps.Mult(u_dir, dshape_du);
