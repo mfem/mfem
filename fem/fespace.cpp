@@ -3146,7 +3146,7 @@ void QuadratureInterpolator::Mult(
          }
          if (nq >= 100 || !eval_func)
          {
-            //eval_func = &Eval2D<1>;
+            eval_func = &Eval2D<1>;
          }
       }
       else if (dim == 3)
@@ -3176,7 +3176,7 @@ void QuadratureInterpolator::Mult(
          }
          if (nq >= 1000 || !eval_func)
          {
-            //eval_func = &Eval3D<1>;
+            eval_func = &Eval3D<1>;
          }
       }
    }
@@ -3190,6 +3190,7 @@ void QuadratureInterpolator::Mult(
             case 404: eval_func = &Eval2D<2,4,4>; break;
             case 409: eval_func = &Eval2D<2,4,9>; break;
             //case 416: eval_func = &Eval2D<2,4,16>; break;
+            //case 425: eval_func = &Eval2D<2,4,25>; break;
             // Q2
             case 909: eval_func = &Eval2D<2,9,9>; break;
             case 916: eval_func = &Eval2D<2,9,16>; break;
@@ -3205,7 +3206,7 @@ void QuadratureInterpolator::Mult(
          }
          if (nq >= 100 || !eval_func)
          {
-            // eval_func = &Eval2D<2>;
+            eval_func = &Eval2D<2>;
          }
       }
       else if (dim == 3)
@@ -3229,7 +3230,7 @@ void QuadratureInterpolator::Mult(
          }
          if (nq >= 1000 || !eval_func)
          {
-            // eval_func = &Eval3D<3>;
+            eval_func = &Eval3D<3>;
          }
       }
    }
