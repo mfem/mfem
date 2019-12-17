@@ -20,10 +20,11 @@ Improved GPU support
 
 - Improved RAJA backend and multi-GPU MPI communications.
 
-Discretization improvements --------------------------- - Added support for
-non-conforming prism AMR, including coarsening and parallel load
-balancing. Anisotropic prism refinement is only available in the serial version
-at the moment.
+Discretization improvements
+---------------------------
+- Added support for non-conforming prism AMR, including coarsening and parallel
+  load balancing. Anisotropic prism refinement is only available in the serial
+  version at the moment.
 
 Meshing improvements
 --------------------
