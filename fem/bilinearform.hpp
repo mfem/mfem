@@ -319,6 +319,9 @@ public:
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
+  
+   /// Assemble diagonal of bilinear form into diag
+   void AssembleDiagonal(Vector& diag) const;
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
