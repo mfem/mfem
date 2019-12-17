@@ -98,8 +98,6 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    gcomm = NULL;
 
-   gfdofs = NULL;
-
    P = NULL;
    Pconf = NULL;
    R = NULL;
@@ -151,7 +149,6 @@ void ParFiniteElementSpace::Construct()
       ConstructTrueDofs();
 
       ngedofs = ngfdofs = 0;
-      gfdofs = NULL;
 
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
@@ -165,22 +162,8 @@ void ParFiniteElementSpace::Construct()
 
       if (pmesh->Dimension() > 2)
       {
-         if (fdofs != NULL) // have mixed faces
-         {
-            gfdofs = new int[pncmesh->GetNGhostFaces()+1];
-            gfdofs[0] = 0;
-            for (int i = 0; i < pncmesh->GetNGhostFaces(); i++)
-            {
-               int ghost = pncmesh->GetNFaces() + i;
-               ngfdofs += fec->DofForGeometry(pncmesh->GetFaceGeometry(ghost));
-               gfdofs[i+1] = ngfdofs;
-            }
-         }
-         else
-         {
-            ngfdofs = pncmesh->GetNGhostFaces()
-                      * fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
-         }
+         int stride = fec->DofForGeometry(Geometry::SQUARE);
+         ngfdofs = pncmesh->GetNGhostFaces() * stride;
       }
 
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
@@ -1350,8 +1333,9 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
 
    int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
-   int nf = fec->DofForGeometry((nfv == 3) ?
-                                Geometry::TRIANGLE : Geometry::SQUARE);
+   int nf_tri = fec->DofForGeometry(Geometry::TRIANGLE);
+   int nf_quad = fec->DofForGeometry(Geometry::SQUARE);
+   int nf = (nfv == 3) ? nf_tri : nf_quad;
 
    dofs.SetSize(nfv*(nv + ne) + nf);
 
@@ -1380,8 +1364,7 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
    }
 
    const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
-   int first = ndofs + ngvdofs + ngedofs;
-   first += gfdofs ? gfdofs[ghost_face_index] : nf*ghost_face_index;
+   int first = ndofs + ngvdofs + ngedofs + nf_quad*ghost_face_index;
 
    for (int j = 0; j < nf; j++)
    {
@@ -1438,8 +1421,8 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
          else // ghost face
          {
             index -= ghost;
-            first = ndofs + ngvdofs + ngedofs +
-                    (gfdofs ? gfdofs[index] : index*ned);
+            int stride = fec->DofForGeometry(Geometry::SQUARE);
+            first = ndofs + ngvdofs + ngedofs + index*stride;
          }
          break;
    }
@@ -1486,8 +1469,8 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
          else // ghost face
          {
             index -= ghost;
-            return ndofs + ngvdofs + ngedofs +
-                   (gfdofs ? gfdofs[index] : index*ned) + edof;
+            int stride = fec->DofForGeometry(Geometry::SQUARE);
+            return ndofs + ngvdofs + ngedofs + index*stride + edof;
          }
    }
 }
@@ -1559,16 +1542,8 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= ngedofs;
       if (dof < ngfdofs) // ghost face
       {
-         if (gfdofs) // have mixed faces
-         {
-            index = bisect(gfdofs+1, pncmesh->GetNGhostFaces(), dof);
-            edof = dof - gfdofs[index];
-         }
-         else // uniform faces
-         {
-            int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
-            index = pncmesh->GetNFaces() + dof / nf, edof = dof % nf;
-         }
+         int stride = fec->DofForGeometry(Geometry::SQUARE);
+         index = pncmesh->GetNFaces() + dof / stride, edof = dof % stride;
          entity = 2;
          return;
       }
@@ -2816,8 +2791,6 @@ void ParFiniteElementSpace::Destroy()
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
    delete R; R = NULL;
-
-   delete [] gfdofs; gfdofs = NULL;
 
    delete gcomm; gcomm = NULL;
 
