@@ -77,25 +77,25 @@ struct ResidualLogger : gko::log::Logger
    void write() const
    {
       // Print a header for the table
-      std::cout << "Iteration log with real residual norms:" << std::endl;
-      std::cout << '|' << std::setw(10) << "Iteration" << '|' << std::setw(25)
+      mfem::out << "Iteration log with real residual norms:" << std::endl;
+      mfem::out << '|' << std::setw(10) << "Iteration" << '|' << std::setw(25)
                 << "Real Residual Norm" << '|' << std::endl;
       // Print a separation line. Note that for creating `10` characters
       // `std::setw()` should be set to `11`.
-      std::cout << '|' << std::setfill('-') << std::setw(11) << '|' <<
+      mfem::out << '|' << std::setfill('-') << std::setw(11) << '|' <<
                 std::setw(26) << '|' << std::setfill(' ') << std::endl;
       // Print the data one by one in the form
-      std::cout << std::scientific;
+      mfem::out << std::scientific;
       for (std::size_t i = 0; i < iterations.size(); i++)
       {
-         std::cout << '|' << std::setw(10) << iterations[i] << '|'
+         mfem::out << '|' << std::setw(10) << iterations[i] << '|'
                    << std::setw(25) << real_norms[i] << '|' << std::endl;
       }
       // std::defaultfloat could be used here but some compilers
       // do not support it properly, e.g. the Intel compiler
-      std::cout.unsetf(std::ios_base::floatfield);
+      mfem::out.unsetf(std::ios_base::floatfield);
       // Print a separation line
-      std::cout << '|' << std::setfill('-') << std::setw(11) << '|' <<
+      mfem::out << '|' << std::setfill('-') << std::setw(11) << '|' <<
                 std::setw(26) << '|' << std::setfill(' ') << std::endl;
    }
 
