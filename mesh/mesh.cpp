@@ -5353,7 +5353,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          {
             mfem::err << "Mesh::GeneratePartitioning(...): METIS returned "
                       << empty_parts << " empty parts!"
-                      << " Applying a crude fix ..." << endl;
+                      << " Applying a simple fix ..." << endl;
          }
 
          SortPairs<int,int>(psize, nparts);
