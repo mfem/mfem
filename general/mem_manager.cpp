@@ -45,7 +45,7 @@ MemoryType GetMemoryType(MemoryClass mc)
       case MemoryClass::HOST_32: return MemoryType::HOST_32;
       case MemoryClass::HOST_64: return MemoryType::HOST_64;
       case MemoryClass::DEVICE:  return mm.GetDeviceMemoryType();
-      case MemoryClass::MANAGED: return MemoryType::DEVICE_MANAGED;
+      case MemoryClass::MANAGED: return MemoryType::HOST_MANAGED;
    }
    MFEM_VERIFY(false,"");
    return MemoryType::HOST;
@@ -55,13 +55,13 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 {
    switch (mt)
    {
-      case MemoryType::HOST:           return mm.GetDeviceMemoryType();
+      case MemoryType::HOST:           return MemoryType::DEVICE;
       case MemoryType::HOST_32:        return MemoryType::DEVICE;
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
-      case MemoryType::HOST_DEBUG:     return mm.GetDeviceMemoryType();
+      case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
       case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
       case MemoryType::HOST_MANAGED:   return MemoryType::DEVICE_MANAGED;
-      case MemoryType::DEVICE:         return mm.GetHostMemoryType();
+      case MemoryType::DEVICE:         return MemoryType::HOST;
       case MemoryType::DEVICE_DEBUG:   return MemoryType::HOST_DEBUG;
       case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST_UMPIRE;
       case MemoryType::DEVICE_MANAGED: return MemoryType::HOST_MANAGED;
@@ -79,18 +79,9 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
       (h_mt == MemoryType::HOST_MANAGED && d_mt == MemoryType::DEVICE_MANAGED) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
-      (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
-      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_DEBUG) ||
       (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE);
-   if (!sync)
-   {
-      printf("\033[33;1m(%d,%d)\033[m",
-             static_cast<int>(h_mt), static_cast<int>(d_mt));
-      fflush(0);
-      while (true) ;
-   }
    MFEM_VERIFY(sync, "");
 }
 
@@ -359,7 +350,7 @@ class UvmHostMemorySpace : public HostMemorySpace
 public:
    UvmHostMemorySpace() { }
    ~UvmHostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) { CuMallocManaged(ptr, bytes); }
+   void Alloc(void **ptr, size_t bytes) { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
    void Dealloc(void *ptr) { CuMemFree(ptr); }
 };
 
@@ -420,7 +411,8 @@ public:
    void *HtoD(void *dst, const void *src, size_t bytes) { return dst; }
    void *DtoD(void* dst, const void* src, size_t bytes)
    { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes) { return dst; }
+   void *DtoH(void *dst, const void *src, size_t bytes)
+   { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
 /// The MMU device memory space
@@ -521,7 +513,6 @@ public:
       }
 
       const bool debug = Device::Allows(Backend::DEBUG);
-      const bool device_mask = Device::Allows(Backend::DEVICE_MASK);
 
       // Filling the host memory backends
       // HOST, HOST_32 & HOST_64 are always ready
@@ -549,16 +540,17 @@ public:
          static_cast<HostMemorySpace*>(new UvmHostMemorySpace());
 
       // Filling the device memory backends, shifting with the host size
+      // Debug is special because of wrap(HOST) => uses DEVICE
       device[static_cast<int>(MemoryType::DEVICE)-HostMemoryTypeSize] =
 #if defined(MFEM_USE_CUDA)
-         (debug && !device_mask) ?
+         (debug) ?
          static_cast<DeviceMemorySpace*>(new MmuDeviceMemorySpace()):
          static_cast<DeviceMemorySpace*>(new CudaDeviceMemorySpace());
 #elif defined(MFEM_USE_HIP)
          static_cast<DeviceMemorySpace*>(new HipDeviceMemorySpace());
 #else
-         (debug && !Device::Allows(Backend::DEVICE_MASK)) ?
-         static_cast<DeviceMemorySpace*>(new StdDeviceMemorySpace()):
+         (debug) ?
+         static_cast<DeviceMemorySpace*>(new MmuDeviceMemorySpace()):
          static_cast<DeviceMemorySpace*>(new NoDeviceMemorySpace());
 #endif
 
@@ -759,9 +751,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
       case MemoryClass::MANAGED:
       {
          MFEM_VERIFY((h_mt == MemoryType::HOST_MANAGED &&
-                      d_mt == MemoryType::DEVICE_MANAGED) ||
-                     (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE),
-                     "");
+                      d_mt == MemoryType::DEVICE_MANAGED),"");
          return true;
       }
       default: break;

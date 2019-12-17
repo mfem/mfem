@@ -149,8 +149,9 @@ void Device::UpdateMemoryTypeAndClass()
    }
 
    // Enable the UVM shortcut when requested
-   if (getenv("UVM"))
+   if (getenv("UVM") && device)
    {
+      host_mem_type = MemoryType::HOST_MANAGED;
       device_mem_type = MemoryType::DEVICE_MANAGED;
       device_mem_class = MemoryClass::DEVICE;
    }
@@ -159,7 +160,7 @@ void Device::UpdateMemoryTypeAndClass()
    if (debug)
    {
       host_mem_type = MemoryType::HOST_DEBUG;
-      if (!device) { device_mem_type = MemoryType::DEVICE_DEBUG; }
+      device_mem_type = MemoryType::DEVICE_DEBUG;
       device_mem_class = MemoryClass::DEVICE;
    }
 
