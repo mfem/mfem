@@ -98,7 +98,6 @@ public:
       oper = &op;
    }
 
-   void Setup();
 
 private:
    const int N;
@@ -110,6 +109,8 @@ private:
    /// could use IterativeSolver as base class to have this
    /// but don't want tolerances, preconditioner, etc.
    const Operator *oper;
+
+   void Setup();
 };
 
 

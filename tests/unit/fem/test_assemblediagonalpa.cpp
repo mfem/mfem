@@ -46,12 +46,12 @@ TEST_CASE("massdiag")
             Vector pa_diag(h1_fespace.GetVSize());
             paform.AssembleDiagonal(pa_diag);
 
-            BilinearForm assemblyform(&h1_fespace);
-            assemblyform.AddDomainIntegrator(new MassIntegrator(one));
-            assemblyform.Assemble();
-            assemblyform.Finalize();
+            BilinearForm faform(&h1_fespace);
+            faform.AddDomainIntegrator(new MassIntegrator(one));
+            faform.Assemble();
+            faform.Finalize();
             Vector assembly_diag(h1_fespace.GetVSize());
-            assemblyform.SpMat().GetDiag(assembly_diag);
+            faform.SpMat().GetDiag(assembly_diag);
 
             assembly_diag -= pa_diag;
             double error = assembly_diag.Norml2();
@@ -95,12 +95,12 @@ TEST_CASE("diffusiondiag")
             Vector pa_diag(h1_fespace.GetVSize());
             paform.AssembleDiagonal(pa_diag);
 
-            BilinearForm assemblyform(&h1_fespace);
-            assemblyform.AddDomainIntegrator(new DiffusionIntegrator(one));
-            assemblyform.Assemble();
-            assemblyform.Finalize();
+            BilinearForm faform(&h1_fespace);
+            faform.AddDomainIntegrator(new DiffusionIntegrator(one));
+            faform.Assemble();
+            faform.Finalize();
             Vector assembly_diag(h1_fespace.GetVSize());
-            assemblyform.SpMat().GetDiag(assembly_diag);
+            faform.SpMat().GetDiag(assembly_diag);
 
             assembly_diag -= pa_diag;
             double error = assembly_diag.Norml2();
