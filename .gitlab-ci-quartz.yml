@@ -106,6 +106,7 @@ quartz_build_mfem_gcc_6_1_0_opt_par:
 # Code style check
 quartz_stylecheck_mfem:
     extends: [.quartz_common, .stylecheck_mfem]
+    allow_failure: true
 
 # Sanity check
 
@@ -137,7 +138,16 @@ quartz_sanitycheck_mfem_gcc_6_1_0_opt_par:
         MFEM_USE_MPI: "YES"
     needs: [quartz_build_mfem_gcc_6_1_0_opt_par, quartz_allocate]
 
+# Baseline
+
+quartz_baselinecheck_mfem_gcc_6_1_0:
+    extends: [.quartz_common, .with_gcc_6_1_0, .baselinecheck_mfem]
+
+quartz_baselinepublish_mfem:
+    extends: [.quartz_common, .rebaseline_mfem]
+
 # Postcleanup
 
 quartz_postcleanup:
     extends: [.quartz_common, .postcleanup]
+

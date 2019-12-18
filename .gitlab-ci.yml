@@ -13,7 +13,8 @@ stages:
     - build
     - test
     - release
-    - rebaseline
+    - baseline_check
+    - baseline_publish
     - postcleanup
 
 .precleanup:
@@ -126,39 +127,35 @@ build_astyle:
         - make style-check ASTYLE_BIN=$ASTYLE
 
 .baselinecheck_mfem:
-    stage: test
-    except:
-        refs:
-            - master
+    stage: baseline_check
     script:
-        - cd ${BUILD_PATH}
+        - cd ${BUILD_ROOT}
         - ln -s ${CI_PROJECT_DIR} mfem
         - cd tests
-        - mkdir -p runs
-        - cd runs
+        - mkdir -p runs_${CI_COMMIT_REF_SLUG}
+        - cd runs_${CI_COMMIT_REF_SLUG}
         - rm -f *
         - ../runtest ../../mfem baseline
+        - cp baseline.out ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt
+    artifacts:
+        paths:
+            - baseline-${SYS_TYPE}-saved.txt
 
 .rebaseline_mfem:
-    stage: rebaseline
-    only:
-        refs:
-            - master
-        variables:
-            - $REBASELINE == "YES"
+    stage: baseline_publish
+    #    only:
+    #        refs:
+    #            - master
+    #        variables:
+    #            - $REBASELINE == "YES"
     script:
-        - cd ${BUILD_PATH}
-        - ln -s ${CI_PROJECT_DIR} mfem
-        - cd tests
-        - mkdir -p runs
-        - cd runs
-        - rm -f *
-        - ../runtest ../../mfem baseline
-        - cp baseline.out ../baseline-${SYS_TYPE}.saved
-        - cd ..
-        - git add baseline-${SYS_TYPE}.saved
-        - git commit -m "Rebaselined"
-        - git push origin master
+        - echo "cd ${BUILD_PATH}/tests"
+        - echo "cp ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt ./baseline-${SYS_TYPE}.saved"
+        - echo "git add baseline-${SYS_TYPE}.saved"
+        - echo "git commit -m Rebaselined"
+        - echo "git push origin master"
+    when: manual
+    allow_failure: false
 
 .postcleanup:
     stage: postcleanup
