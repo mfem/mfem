@@ -35,7 +35,11 @@ patch_nod_info::patch_nod_info(Mesh *mesh_, int ref_levels_)
 
    // First we need to construct a list of non-essential coarse grid vertices
 
-   SparseMatrix *Pr = nullptr;
+   // SparseMatrix *Pr = nullptr;
+   //initialize Pr with the Identity
+   Vector ones(fespace->GetTrueVSize());
+   ones = 1.0;
+   SparseMatrix * Pr = new SparseMatrix(ones);
    // 4. Refine the mesh
    for (int i = 0; i < ref_levels; i++)
    {
@@ -57,6 +61,7 @@ patch_nod_info::patch_nod_info(Mesh *mesh_, int ref_levels_)
          Pr = Mult(*P, *Pr);
       }
    }
+   // if there is no refinement the prolongation is the identity
    Pr->Threshold(0.0);
    int nvert = mesh->GetNV();
    vertex_contr.resize(nvert);
@@ -70,6 +75,8 @@ patch_nod_info::patch_nod_info(Mesh *mesh_, int ref_levels_)
          vertex_contr[iv][i] = col[i];
       }
    }
+
+   delete Pr;
 
    Array<int> edge_vertices;
    int nedge = mesh->GetNEdges();
@@ -132,6 +139,7 @@ patch_assembly::patch_assembly(Mesh *cmesh_, int ref_levels_, FiniteElementSpace
 
    nrpatch = patches->nrpatch;
    Pid.SetSize(nrpatch);
+   patch_dof_map.SetSize(nrpatch);
    // Build a sparse matrix out of this map to extract the patch submatrix
    Array<int> dofoffset(nrpatch);
    dofoffset = 0;
@@ -227,19 +235,36 @@ patch_assembly::patch_assembly(Mesh *cmesh_, int ref_levels_, FiniteElementSpace
    {
       Pid[i]->SetWidth(dofoffset[i]);
       Pid[i]->Finalize();
+
+      patch_dof_map[i].SetSize(Pid[i]->Width());
+      // copy from sparse matrix to a simple injection map
+      // use the traspose
+      SparseMatrix * temp = Transpose(*Pid[i]);
+      // Extract row by row of the transpose
+      for (int k =0; k<temp->Height(); ++k)
+      {
+         int * col = temp->GetRowColumns(k);
+         patch_dof_map[i][k] = col[0];
+      }
+      delete temp;
    }
+   delete patches;
+}
+
+patch_assembly:: ~patch_assembly()
+{
+   for (int i=0; i<nrpatch; i++)
+   {
+      delete Pid[i];
+   }
+   Pid.DeleteAll();
 }
 
 // constructor
 SchwarzSmoother::SchwarzSmoother(Mesh *cmesh_, int ref_levels_, FiniteElementSpace *fespace_, SparseMatrix *A_, Array<int> ess_bdr)
     : Solver(A_->Height(), A_->Width()), A(A_)
 {
-   StopWatch chrono;
-   chrono.Clear();
-   chrono.Start();
    P = new patch_assembly(cmesh_, ref_levels_, fespace_);
-   chrono.Stop();
-   cout << "Total patch dofs info time " << chrono.RealTime() << "s. \n";
 
    ess_bdr = 0;
    GetNonEssentialPatches(cmesh_, ess_bdr, patch_ids);
@@ -249,21 +274,18 @@ SchwarzSmoother::SchwarzSmoother(Mesh *cmesh_, int ref_levels_, FiniteElementSpa
    A_local.SetSize(nrpatch);
    invA_local.SetSize(nrpatch);
 
-   chrono.Clear();
-   chrono.Start();
    for (int i = 0; i < nrpatch; i++)
    {
       int k = patch_ids[i];
       SparseMatrix *Pr = P->Pid[k];
       // construct the local problems. Factor the patch matrices
       A_local[i] = RAP(*Pr, *A, *Pr);
-      invA_local[i] = new UMFPackSolver;
-      invA_local[i]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      // if (i == 0) A_local[i]->PrintMatlab(cout);
+      invA_local[i] = new KLUSolver;
+      // invA_local[i] = new UMFPackSolver;
+      // invA_local[i]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       invA_local[i]->SetOperator(*A_local[i]);
    }
-
-   chrono.Stop();
-   cout << "Matrix extraction and setting up UMFPACK time " << chrono.RealTime() << "s. \n";
 }
 
 void SchwarzSmoother::GetNonEssentialPatches(Mesh *cmesh, const Array<int> &ess_bdr, vector<int> &patch_ids)
@@ -316,12 +338,11 @@ void SchwarzSmoother::GetNonEssentialPatches(Mesh *cmesh, const Array<int> &ess_
 void SchwarzSmoother::Mult(const Vector &r, Vector &z) const
 {
    // Apply the smoother patch on the restriction of the residual
-   Array<Vector> res_local(nrpatch);
-   Array<Vector> sol_local(nrpatch);
-   Array<Vector> zaux(nrpatch);
    z = 0.0;
    Vector rnew(r);
    Vector znew(z);
+   Vector raux(znew.Size());
+   Vector res_local, sol_local;
    switch (sType)
    {
    case Schwarz::SmootherType::ADDITIVE:
@@ -332,24 +353,31 @@ void SchwarzSmoother::Mult(const Vector &r, Vector &z) const
          for (int i = 0; i < nrpatch; i++)
          {
             int k = patch_ids[i];
-            SparseMatrix *Pr = P->Pid[k];
-            res_local[i].SetSize(Pr->NumCols());
-            sol_local[i].SetSize(Pr->NumCols());
-            Pr->MultTranspose(rnew, res_local[i]);
-            invA_local[i]->Mult(res_local[i], sol_local[i]);
-            zaux[i].SetSize(r.Size());
-            zaux[i] = 0.0;
-            Pr->Mult(sol_local[i], zaux[i]);
-            znew += zaux[i];
+            Array<int> * dof_map = &P->patch_dof_map[k];
+            // SparseMatrix *Pr = P->Pid[k];
+            // res_local.SetSize(Pr->NumCols());
+            // sol_local.SetSize(Pr->NumCols());
+            // Pr->MultTranspose(rnew, res_local[i]);
+            int ndofs = dof_map->Size();
+            res_local.SetSize(ndofs);
+            sol_local.SetSize(ndofs);
+            rnew.GetSubVector(*dof_map, res_local);
+
+            invA_local[i]->Mult(res_local, sol_local);
+            znew.AddElementVector(*dof_map,sol_local);
+            // Pr->Mult(sol_local[i], zaux[i]);
+            // znew += zaux[i];
          }
          // Relaxation parameter
          znew *= theta;
          z += znew;
 
          //Update residual
-         Vector raux(znew.Size());
-         A->Mult(znew, raux);
-         rnew -= raux;
+         if (iter + 1 < maxit)
+         {
+            A->Mult(znew, raux);
+            rnew -= raux;
+         }
       }
    }
    break;
@@ -365,6 +393,19 @@ void SchwarzSmoother::Mult(const Vector &r, Vector &z) const
    break;
    }
 }
+
+SchwarzSmoother:: ~SchwarzSmoother() 
+{
+   delete P;
+   for (int ip=0; ip<nrpatch; ++ip)
+   {
+      delete A_local[ip]; 
+      delete invA_local[ip]; 
+   }
+   A_local.DeleteAll();
+   invA_local.DeleteAll();
+}
+
 
 
 BlkSchwarzSmoother::BlkSchwarzSmoother(Mesh *cmesh_, int ref_levels_, FiniteElementSpace* fespace_, SparseMatrix *A_) 

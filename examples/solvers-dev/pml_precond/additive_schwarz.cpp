@@ -1,13 +1,11 @@
-
-#include "patch_gen.hpp"
-
+#include "additive_schwarz.hpp"
 
 // constructor
 mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
 {
    nrpatch = mesh->GetNV();
    int dim = mesh->Dimension();
-   element_map.SetSize(nrpatch);
+   element_map.resize(nrpatch);
    //every element will contribute to the the patches of its vertices
    // loop through the elements
    int nrelems = mesh->GetNE();
@@ -24,25 +22,20 @@ mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
          element_map[ip].Append(iel);
       }
    }
-   // Print patch element list
-   // for (int ip=0; ip<nrpatch; ++ip)
-   // {
-   //    cout << "ip: " << ip << ", element numbers: "; element_map[ip].Print(cout, 10);
-   // }
 
    // Compute and store vertices coordinates of the global mesh
-   mesh->EnsureNodes();
-   GridFunction * nodes = mesh->GetNodes();
-   int ndofs = nodes->FESpace()->GetNDofs();
-   Array2D<double> coords(ndofs,dim);
-   for (int comp = 0; comp < dim; comp++)
-   {
-      // cout << comp << endl;
-      for (int i = 0; i < ndofs; i++)
-      {
-         coords(i,comp) = (*nodes)[nodes->FESpace()->DofToVDof(i, comp)];
-      }
-   }
+   // mesh->EnsureNodes();
+   // GridFunction * nodes = mesh->GetNodes();
+   // int ndofs = nodes->FESpace()->GetNDofs();
+   // Array2D<double> coords(ndofs,dim);
+   // for (int comp = 0; comp < dim; comp++)
+   // {
+   //    // cout << comp << endl;
+   //    for (int i = 0; i < ndofs; i++)
+   //    {
+   //       coords(i,comp) = (*nodes)[nodes->FESpace()->DofToVDof(i, comp)];
+   //    }
+   // }
 
    patch_mesh.SetSize(nrpatch);
    for (int ip = 0; ip<nrpatch; ++ip)
@@ -73,11 +66,11 @@ mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
       for (int iv = 0; iv<patch_nrvertices; ++iv)
       {
          int vert_idx = patch_vertices[iv];
-         for (int comp=0; comp<dim; ++comp) vert[comp] = coords(vert_idx,comp);
-         patch_mesh[ip]->AddVertex(vert);
+         // for (int comp=0; comp<dim; ++comp) vert[comp] = coords(vert_idx,comp);
+         patch_mesh[ip]->AddVertex(mesh->GetVertex(vert_idx));
       }
 
-      // Add the elements (for now a search through all the vertices in the patch is need)
+      // Add the elements (for now search through all the vertices in the patch is need)
       for (int iel=0; iel<patch_nrelems; ++iel)
       {
          // get the vertices list for the element
@@ -97,8 +90,6 @@ mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
       }
       patch_mesh[ip]->FinalizeTopology();
    }
-   // print_element_map();
-   // save_mesh_partition();
 }
 
 void mesh_partition::AddElementToMesh(Mesh * mesh,mfem::Element::Type elem_type,int * ind)
@@ -154,24 +145,24 @@ mesh_partition::~mesh_partition()
 }
 
 
-
 // constructor
-patch_assembly::patch_assembly(FiniteElementSpace *fespace_) : fespace(fespace_)
+PatchAssembly::PatchAssembly(BilinearForm *bf_) : bf(bf_)
 {
+   fespace = bf->FESpace();
    Mesh * mesh = fespace->GetMesh();
    const FiniteElementCollection *fec = fespace->FEColl();
 
    mesh_partition * p = new mesh_partition(mesh); 
    nrpatch = p->nrpatch;
-   
    patch_fespaces.SetSize(nrpatch);
-   // create finite element spaces for each patch
-   // Table element_table = fespace->GetElementDofs()
-   patch_dof_map.SetSize(nrpatch);
+   patch_dof_map.resize(nrpatch);
+   patch_mat.SetSize(nrpatch);
+   patch_mat_inv.SetSize(nrpatch);
+   ess_tdof_list.resize(nrpatch);
    for (int ip=0; ip<nrpatch; ++ip)
    {
+      // create finite element spaces for each patch
       patch_fespaces[ip] = new FiniteElementSpace(p->patch_mesh[ip],fec);
-
       // construct the patch tdof to global tdof map
       int nrdof = patch_fespaces[ip]->GetTrueVSize();
       patch_dof_map[ip].SetSize(nrdof);
@@ -197,15 +188,29 @@ patch_assembly::patch_assembly(FiniteElementSpace *fespace_) : fespace(fespace_)
             int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
             patch_dof_map[ip][pdof] = gdof;
          }
-         // TODO: remove the essential dofs
       }
+      // Define the patch bilinear form and apply boundary conditions (only the LHS)
+      if (p->patch_mesh[ip]->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(p->patch_mesh[ip]->bdr_attributes.Max());
+         ess_bdr = 1;
+         patch_fespaces[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list[ip]);
+      }
+      BilinearForm a(patch_fespaces[ip], bf);
+      a.Assemble(); 
+      OperatorPtr Alocal;
+      a.FormSystemMatrix(ess_tdof_list[ip],Alocal);
+      delete patch_fespaces[ip];
+      patch_mat[ip] = new SparseMatrix((SparseMatrix&)(*Alocal));
+      patch_mat[ip]->Threshold(0.0);
+      // Save the inverse
+      patch_mat_inv[ip] = new KLUSolver;
+      patch_mat_inv[ip]->SetOperator(*patch_mat[ip]);
    }
-
-   print_patch_dof_map();
    delete p;
 }
 
-void patch_assembly::print_patch_dof_map()
+void PatchAssembly::print_patch_dof_map()
 {
    mfem::out << "Patch dof map" << endl;
    for (int ip = 0; ip<nrpatch; ++ip)
@@ -215,12 +220,63 @@ void patch_assembly::print_patch_dof_map()
    }
 }
 
-patch_assembly::~patch_assembly()
+PatchAssembly::~PatchAssembly()
 {
    for (int ip=0; ip<nrpatch; ++ip)
    {
-      delete patch_fespaces[ip]; patch_fespaces[ip]=nullptr;
+      // delete patch_fespaces[ip]; patch_fespaces[ip]=nullptr;
+      delete patch_mat_inv[ip]; patch_mat_inv[ip]=nullptr;
+      delete patch_mat[ip]; patch_mat[ip]=nullptr;
    }
    patch_fespaces.DeleteAll();
+   patch_mat.DeleteAll();
+   patch_mat_inv.DeleteAll();
+}
 
+AddSchwarz::AddSchwarz(BilinearForm * bf_) 
+: Solver(bf_->FESpace()->GetTrueVSize(), bf_->FESpace()->GetTrueVSize())
+{
+   p = new PatchAssembly(bf_);
+   nrpatch = p->nrpatch;
+}
+
+void AddSchwarz::Mult(const Vector &r, Vector &z) const
+{
+   z = 0.0;
+   Vector rnew(r);
+   Vector znew(z);
+   Vector raux(znew.Size());
+   Vector res_local, sol_local;
+   for (int iter = 0; iter < maxit; iter++)
+   {
+      znew = 0.0;
+      for (int ip = 0; ip < nrpatch; ip++)
+      {
+         Array<int> * dof_map = &p->patch_dof_map[ip];
+         int ndofs = dof_map->Size();
+         res_local.SetSize(ndofs);
+         sol_local.SetSize(ndofs);
+
+         rnew.GetSubVector(*dof_map, res_local);
+         Array<int> ess_bdr_indices = p->ess_tdof_list[ip];
+         // need to zero out the entries corresponding to the ess_bdr
+         p->patch_mat_inv[ip]->Mult(res_local, sol_local);
+         sol_local.SetSubVector(ess_bdr_indices,0.0);
+         znew.AddElementVector(*dof_map,sol_local);
+      }
+      // Relaxation parameter
+      znew *= theta;
+      z += znew;
+      // Update residual
+      if (iter + 1 < maxit)
+      {
+         A->Mult(znew, raux);
+         rnew -= raux;
+      }
+   }
+}
+
+AddSchwarz::~AddSchwarz()
+{
+   delete p;
 }

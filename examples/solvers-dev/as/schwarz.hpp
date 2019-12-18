@@ -33,8 +33,10 @@ struct patch_assembly
    Mesh cmesh;
    int ref_levels;
    Array<SparseMatrix *> Pid; 
+   Array<Array<int>> patch_dof_map;
    // constructor
    patch_assembly(Mesh * cmesh_, int ref_levels_,FiniteElementSpace *fespace);
+   ~patch_assembly();
 };
 
 class SchwarzSmoother : virtual public Solver {
@@ -44,7 +46,8 @@ private:
    SparseMatrix * A;
    patch_assembly * P;
    Array<SparseMatrix  *> A_local;
-   Array<UMFPackSolver *> invA_local;
+   // Array<UMFPackSolver *> invA_local;
+   Array<KLUSolver *> invA_local;
    Array<int>vert_dofs;
    Schwarz::SmootherType sType=Schwarz::SmootherType::ADDITIVE; 
    vector<int> patch_ids;
@@ -59,7 +62,7 @@ public:
    virtual void SetOperator(const Operator &op) {}
    virtual void Mult(const Vector &r, Vector &z) const;
    void GetNonEssentialPatches(Mesh * cmesh, const Array<int> &ess_bdr, vector <int> & patch_ids);
-   virtual ~SchwarzSmoother() {}
+   virtual ~SchwarzSmoother();
 };
 
 

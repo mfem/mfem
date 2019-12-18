@@ -83,7 +83,6 @@ par_patch_nod_info::par_patch_nod_info(ParMesh *cpmesh_, int ref_levels_)
 
    MPI_Allreduce(&mynrpatch, &nrpatch, 1, MPI_INT, MPI_SUM, comm);
 
-
    patch_global_dofs_ids.SetSize(nrpatch);
    // Create a list of patches identifiers to all procs
    int num_procs, myid;

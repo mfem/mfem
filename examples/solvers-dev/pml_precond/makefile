@@ -19,7 +19,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = example1
-PAR_EXAMPLES = 
+PAR_EXAMPLES = example1p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -31,7 +31,7 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O= patch_gen.o
+COMMON_O= additive_schwarz.o additive_schwarzp.o ../as/schwarz.o ../as/schwarzp.o
 
 # Remove built-in rules
 %: %.cpp
