@@ -388,35 +388,25 @@ int main(int argc, char *argv[])
       switch (prob)
       {
          case 0:
-            pc_r =
-               new HypreBoomerAMG(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
-            pc_i = new ScaledOperator(pc_r,
-                                      (conv == ComplexOperator::HERMITIAN) ?
-                                      1.0:-1.0);
+            pc_r = new HypreBoomerAMG(*PCOp.As<HypreParMatrix>());
             break;
          case 1:
-            pc_r = new HypreAMS(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
-                                fespace);
-            pc_i = new ScaledOperator(pc_r,
-                                      (conv == ComplexOperator::HERMITIAN) ?
-                                      1.0:-1.0);
+            pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
             break;
          case 2:
             if (dim == 2 )
             {
-               pc_r = new HypreAMS(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
-                                   fespace);
+               pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
             }
             else
             {
-               pc_r = new HypreADS(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
-                                   fespace);
+               pc_r = new HypreADS(*PCOp.As<HypreParMatrix>(), fespace);
             }
-            pc_i = new ScaledOperator(pc_r,
-                                      (conv == ComplexOperator::HERMITIAN) ?
-                                      1.0:-1.0);
             break;
       }
+      pc_i = new ScaledOperator(pc_r,
+                                (conv == ComplexOperator::HERMITIAN) ?
+                                1.0:-1.0);
       BDP.SetDiagonalBlock(0, pc_r);
       BDP.SetDiagonalBlock(1, pc_i);
       BDP.owns_blocks = 0;
