@@ -305,7 +305,7 @@ public:
    void Randomize(int seed = 0);
    /// Returns the l2 norm of the vector.
    MFEM_HOST_DEVICE static inline
-   double norml2(const int size, const double* __restrict__ data)
+   double norml2(const int size, const double *data)
    {
       if (0 == size) { return 0.0; }
       if (1 == size) { return std::abs(data[0]); }

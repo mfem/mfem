@@ -290,7 +290,7 @@ public:
 
    /// (*this) = 1/2 ((*this) + (*this)^t)
    MFEM_HOST_DEVICE static inline
-   void symmetrize(const int n, double* __restrict__ d)
+   void symmetrize(const int n, double *d)
    {
       for (int i = 0; i<n; i++)
       {
@@ -424,9 +424,9 @@ MFEM_HOST_DEVICE static inline
 void multABt(const int ah,
              const int aw,
              const int bh,
-             const double* __restrict__ A,
-             const double* __restrict__ B,
-             double* __restrict__ C)
+             const double *A,
+             const double *B,
+             double *C)
 {
    const int ah_x_bh = ah*bh;
    for (int i=0; i<ah_x_bh; i+=1)
