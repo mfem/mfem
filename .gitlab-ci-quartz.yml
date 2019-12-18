@@ -33,11 +33,11 @@ quartz_allocate:
 
 # Release
 
-quartz_release:
+quartz_deallocate:
   variables:
     GIT_STRATEGY: none
   extends: .quartz_common
-  stage: release
+  stage: deallocate
   script:
       - |
         if [[ "${MPIEXEC}" == "srun" ]]
