@@ -33,7 +33,7 @@ occa::device occaDevice;
 #endif
 
 #ifdef MFEM_USE_CEED
-Ceed ceed;
+Ceed ceed = NULL;
 #endif
 
 // Backends listed by priority, high to low:
@@ -66,6 +66,9 @@ Device::~Device()
    if (destroy_mm)
    {
       free(ceed_option);
+#ifdef MFEM_USE_CEED
+      CeedDestroy(&internal::ceed);
+#endif
       mm.Destroy();
    }
 }
