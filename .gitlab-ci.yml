@@ -7,12 +7,12 @@ variables:
 stages:
     - precleanup
     - setup
-    - style
+    - static_tests
     - allocate
     - libs
     - build
     - test
-    - release
+    - deallocate
     - baseline_check
     - baseline_publish
     - postcleanup
@@ -22,7 +22,8 @@ stages:
     variables:
         GIT_STRATEGY: none
     script:
-        rm -rf ${BUILD_ROOT}/${PLAT}
+        - rm -rf ${BUILD_ROOT}/${PLAT}
+        - rm -f ${BUILD_ROOT}/mfem
 
 .setup:
     stage: setup
@@ -36,7 +37,7 @@ stages:
         - cd tests && git pull && cd ..
 
 stylecheck:
-    stage: style
+    stage: static_tests
     tags:
         - shell
         - quartz
@@ -44,9 +45,26 @@ stylecheck:
         - cd ${BUILD_ROOT}/tpls
         - export TPLS_INSTALL=${BUILD_ROOT}/tpls/install/
         - export ASTYLE=${TPLS_INSTALL}/astyle/astyle
-        - make astyle PREFIX=${TPLS_INSTALL} BUILD_DIR=${TPLS_INSTALL} LOG_DIR=${TPLS_INSTALL}
+        - make astyle-clean
+        - make astyle PREFIX=${TPLS_INSTALL}
         - cd ${CI_PROJECT_DIR}
         - make style-check ASTYLE_BIN=${ASTYLE}
+    allow_failure: false
+
+doccheck:
+    stage: static_tests
+    tags:
+        - shell
+        - quartz
+    script:
+        - cd ${BUILD_ROOT}
+        - ln -snf ${CI_PROJECT_DIR} mfem
+        - cd tests
+        - mkdir -p runs_${CI_COMMIT_REF_SLUG}
+        - cd runs_${CI_COMMIT_REF_SLUG}
+        - ../runtest ${BUILD_ROOT}/mfem documentation
+        - cat documentation.err
+        - if [[ ! $(head -n1 documentation.err) ]]; then true; else false; fi
     allow_failure: true
 
 .with_gcc_6_1_0:
@@ -112,7 +130,7 @@ stylecheck:
               export EXEC_PREFIX="srun --jobid=${JOB_ID}"
           fi
         - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="$EXEC_PREFIX" MFEM_MPIEXEC_NP=$MPIEXEC_NP
-        - $EXEC_PREFIX make -j 4 all
+        - $EXEC_PREFIX make -j 8 all
 
 .sanitycheck_mfem:
     stage: test
@@ -126,16 +144,21 @@ stylecheck:
     stage: baseline_check
     script:
         - cd ${BUILD_ROOT}
-        - ln -s ${CI_PROJECT_DIR} mfem
+        - ln -snf ${CI_PROJECT_DIR} mfem
         - cd tests
         - mkdir -p runs_${CI_COMMIT_REF_SLUG}
         - cd runs_${CI_COMMIT_REF_SLUG}
         - rm -f *
-        - ../runtest ../../mfem baseline
+        - ../runtest ../../mfem "baseline ${BUILD_ROOT}/tpls"
         - cp baseline.out ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt
+        - diff baseline.out ../baseline-${SYS_TYPE}.saved > baseline-diff.txt || true
+        - cp baseline-diff.txt ${CI_PROJECT_DIR}
+        - if [[ ! $(head -n1 baseline-diff.txt) ]]; then true; else false; fi
+    allow_failure: false
     artifacts:
         paths:
             - baseline-${SYS_TYPE}-saved.txt
+            - baseline-diff.txt
 
 .rebaseline_mfem:
     stage: baseline_publish
@@ -158,7 +181,8 @@ stylecheck:
     variables:
         GIT_STRATEGY: none
     script:
-        rm -rf ${BUILD_ROOT}/${PLAT}
+        - rm -rf ${BUILD_ROOT}/${PLAT}
+        - rm -f ${BUILD_ROOT}/mfem
 
 include:
     - local: .gitlab-ci-quartz.yml
