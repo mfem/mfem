@@ -834,9 +834,10 @@ double Vector::Sum() const
 {
    double sum = 0.0;
 
+   const double *h_data = this->HostRead();
    for (int i = 0; i < size; i++)
    {
-      sum += data[i];
+      sum += h_data[i];
    }
 
    return sum;
@@ -1042,13 +1043,6 @@ vector_min_cpu:
 
 
 #ifdef MFEM_USE_SUNDIALS
-
-#ifndef SUNTRUE
-#define SUNTRUE TRUE
-#endif
-#ifndef SUNFALSE
-#define SUNFALSE FALSE
-#endif
 
 Vector::Vector(N_Vector nv)
 {
