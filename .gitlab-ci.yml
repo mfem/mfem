@@ -2,12 +2,12 @@ variables:
     BUILD_ROOT: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}
     BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}/${PLAT}/${TOOLCHAIN}
     REBASELINE: "NO"
-    ASTYLE: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}/tpls/install/astyle/astyle
     MFEM_ALLOC_NAME: mfem_ci_${CI_COMMIT_SHORT_SHA}
 
 stages:
     - precleanup
     - setup
+    - style
     - allocate
     - libs
     - build
@@ -35,16 +35,19 @@ stages:
         - cd tpls && git pull && cd ..
         - cd tests && git pull && cd ..
 
-build_astyle:
-    stage: libs
+stylecheck:
+    stage: style
     tags:
         - shell
         - quartz
-    variables:
-        GIT_STRATEGY: none
     script:
         - cd ${BUILD_ROOT}/tpls
-        - make astyle PREFIX=${BUILD_ROOT}/tpls/install/ BUILD_DIR=${BUILD_ROOT}/tpls/install/ LOG_DIR=${BUILD_ROOT}/tpls/install/
+        - export TPLS_INSTALL=${BUILD_ROOT}/tpls/install/
+        - export ASTYLE=${TPLS_INSTALL}/astyle/astyle
+        - make astyle PREFIX=${TPLS_INSTALL} BUILD_DIR=${TPLS_INSTALL} LOG_DIR=${TPLS_INSTALL}
+        - cd ${CI_PROJECT_DIR}
+        - make style-check ASTYLE_BIN=${ASTYLE}
+    allow_failure: true
 
 .with_gcc_6_1_0:
     variables:
@@ -118,13 +121,6 @@ build_astyle:
     script:
         - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
         - make test
-
-.stylecheck_mfem:
-    stage: test
-    variables:
-        GIT_STRATEGY: none
-    script:
-        - make style-check ASTYLE_BIN=$ASTYLE
 
 .baselinecheck_mfem:
     stage: baseline_check
