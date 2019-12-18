@@ -73,6 +73,18 @@ struct CeedData
       CeedQFunctionDestroy(&build_qfunc);
       CeedVectorDestroy(&node_coords);
       CeedVectorDestroy(&rho);
+      if (coeff_type==CeedCoeff::Grid)
+      {
+         CeedGridCoeff* c = (CeedGridCoeff*)coeff;
+         CeedBasisDestroy(&c->basis);
+         CeedElemRestrictionDestroy(&c->restr);
+         CeedVectorDestroy(&c->coeffVector);
+         delete c;
+      }
+      else
+      {
+         delete (CeedConstCoeff*)coeff;
+      }
       CeedVectorDestroy(&u);
       CeedVectorDestroy(&v);
    }
