@@ -81,7 +81,7 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
-set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-3.0.0" CACHE PATH
+set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
     "Path to the SUNDIALS library.")
 # The following may be necessary, if SUNDIALS was built with KLU:
 # set(SUNDIALS_REQUIRED_PACKAGES "SuiteSparse/KLU/AMD/BTF/COLAMD/config"
@@ -154,7 +154,7 @@ set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
 
 set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
-set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
+set(Axom_REQUIRED_PACKAGES "Conduit/relay/blueprint" CACHE STRING
     "Additional packages required by Axom.")
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
