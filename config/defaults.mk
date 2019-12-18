@@ -41,7 +41,10 @@ SHARED = NO
 # CUDA configuration options
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
-CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
+CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH) 
+ifeq ($(USE_NVTX),yes)
+   CUDA_FLAGS := $(CUDA_FLAGS) -DUSE_NVTX
+endif
 # Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
@@ -299,7 +302,7 @@ SIDRE_LIB = \
    -Wl,-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
+   -laxom -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 $(ZLIB_LIB) -ldl
 
 # PUMI
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
