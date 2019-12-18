@@ -994,18 +994,18 @@ static void PAMassApply(const int dim,
          case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
          case 0x24: return SmemPAMassApply2D<2,4,16>(NE, B, Bt, op, x, y);
          case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
-         //case 0x34: return SmemPAMassApply2D<3,4,16>(NE, B, Bt, op, x, y);
-         //case 0x36: return SmemPAMassApply2D<3,6,16>(NE, B, Bt, op, x, y);
+         case 0x34: return SmemPAMassApply2D<3,4,16>(NE, B, Bt, op, x, y);
+         case 0x36: return SmemPAMassApply2D<3,6,16>(NE, B, Bt, op, x, y);
          case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
-         //case 0x46: return SmemPAMassApply2D<4,6,4>(NE, B, Bt, op, x, y);
-         //case 0x48: return SmemPAMassApply2D<4,8,4>(NE, B, Bt, op, x, y);
+         case 0x46: return SmemPAMassApply2D<4,6,4>(NE, B, Bt, op, x, y);
+         case 0x48: return SmemPAMassApply2D<4,8,4>(NE, B, Bt, op, x, y);
          case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, Bt, op, x, y);
-            //case 0x58: return SmemPAMassApply2D<5,8,2>(NE, B, Bt, op, x, y);
-            //case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, Bt, op, x, y);
-            //case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, Bt, op, x, y);
-            //case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, Bt, op, x, y);
-            //case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, Bt, op, x, y);
-            //default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
+         case 0x58: return SmemPAMassApply2D<5,8,2>(NE, B, Bt, op, x, y);
+         case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, Bt, op, x, y);
+         case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, Bt, op, x, y);
+         case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, Bt, op, x, y);
+         case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, Bt, op, x, y);
+         default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
    }
    else if (dim == 3)
@@ -1015,14 +1015,14 @@ static void PAMassApply(const int dim,
          switch (id)
          {
             case 0x23: return SmemRegPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-            //case 0x24: return SmemRegPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
+            case 0x24: return SmemRegPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
             case 0x34: return SmemRegPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-            //case 0x36: return SmemRegPAMassApply3D<3,6>(NE, B, Bt, op, x, y);
+            case 0x36: return SmemRegPAMassApply3D<3,6>(NE, B, Bt, op, x, y);
             case 0x45: return SmemRegPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-            //case 0x46: return SmemRegPAMassApply3D<4,6>(NE, B, Bt, op, x, y);
-            //case 0x48: return SmemRegPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
+            case 0x46: return SmemRegPAMassApply3D<4,6>(NE, B, Bt, op, x, y);
+            case 0x48: return SmemRegPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
             case 0x56: return SmemRegPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-               //case 0x58: return SmemRegPAMassApply3D<5,8>(NE, B, Bt, op, x, y);
+            case 0x58: return SmemRegPAMassApply3D<5,8>(NE, B, Bt, op, x, y);
          }
       }
       else
@@ -1030,14 +1030,14 @@ static void PAMassApply(const int dim,
          switch (id)
          {
             case 0x23: return SmemPAMassApply3D<2,3>(NE, B, Bt, op, x, y);
-            //case 0x24: return SmemPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
+            case 0x24: return SmemPAMassApply3D<2,4>(NE, B, Bt, op, x, y);
             case 0x34: return SmemPAMassApply3D<3,4>(NE, B, Bt, op, x, y);
-            //case 0x36: return SmemPAMassApply3D<3,6>(NE, B, Bt, op, x, y);
+            case 0x36: return SmemPAMassApply3D<3,6>(NE, B, Bt, op, x, y);
             case 0x45: return SmemPAMassApply3D<4,5>(NE, B, Bt, op, x, y);
-            //case 0x46: return SmemPAMassApply3D<4,6>(NE, B, Bt, op, x, y);
-            //case 0x48: return SmemPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
+            case 0x46: return SmemPAMassApply3D<4,6>(NE, B, Bt, op, x, y);
+            case 0x48: return SmemPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
             case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
-               //case 0x58: return SmemPAMassApply3D<5,8>(NE, B, Bt, op, x, y);
+            case 0x58: return SmemPAMassApply3D<5,8>(NE, B, Bt, op, x, y);
          }
       }
    }
