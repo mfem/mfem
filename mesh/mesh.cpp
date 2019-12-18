@@ -1403,7 +1403,9 @@ struct HilbertCmp
    }
 };
 
-static void HilbertSort2D(int coord1, bool dir1, bool dir2,
+static void HilbertSort2D(int coord1, // major coordinate to sort points by
+                          bool dir1,  // sort coord1 ascending/descending?
+                          bool dir2,  // sort coord2 ascending/descending?
                           const Array<double> &points, int *beg, int *end,
                           double xmin, double ymin, double xmax, double ymax)
 {
@@ -1412,8 +1414,9 @@ static void HilbertSort2D(int coord1, bool dir1, bool dir2,
    double xmid = (xmin + xmax)*0.5;
    double ymid = (ymin + ymax)*0.5;
 
-   int coord2 = (coord1 + 1) % 2;
+   int coord2 = (coord1 + 1) % 2; // the 'other' coordinate
 
+   // sort (partition) points into four quadrants
    int *p0 = beg, *p4 = end;
    int *p2 = std::partition(p0, p4, HilbertCmp(coord1,  dir1, points, xmid));
    int *p1 = std::partition(p0, p2, HilbertCmp(coord2,  dir2, points, ymid));
@@ -1455,6 +1458,7 @@ static void HilbertSort3D(int coord1, bool dir1, bool dir2, bool dir3,
    int coord2 = (coord1 + 1) % 3;
    int coord3 = (coord1 + 2) % 3;
 
+   // sort (partition) points into eight octants
    int *p0 = beg, *p8 = end;
    int *p4 = std::partition(p0, p8, HilbertCmp(coord1,  dir1, points, xmid));
    int *p2 = std::partition(p0, p4, HilbertCmp(coord2,  dir2, points, ymid));
