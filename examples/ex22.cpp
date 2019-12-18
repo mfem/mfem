@@ -11,7 +11,7 @@
 //               ex22 -m ../data/inline-hex.mesh -o 2
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 1
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 2
-//               ex22 -m ../data/star.mesh -o 2 -sigma 10.0
+//               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
 //
 // Description:  This example code demonstrates the use of MFEM to define and
 //               solve simple complex-valued linear systems.  We implement three
@@ -279,11 +279,44 @@ int main(int argc, char *argv[])
          break;
    }
 
+   // 8a. Set up the bilinear form for the preconditioner
+   //     corresponding to the appropriate operator
+   //
+   //      0) A scalar H1 field
+   //         -Div(a Grad) - omega^2 b + omega c
+   //
+   //      1) A vector H(Curl) field
+   //         Curl(a Curl) + omega^2 b + omega c
+   //
+   //      2) A vector H(Div) field
+   //         -Grad(a Div) - omega^2 b + omega c
+   //
+   BilinearForm *pcOp = new BilinearForm(fespace);
+   switch (prob)
+   {
+      case 0:
+         pcOp->AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef));
+         pcOp->AddDomainIntegrator(new MassIntegrator(massCoef));
+         pcOp->AddDomainIntegrator(new MassIntegrator(lossCoef));
+         break;
+      case 1:
+         pcOp->AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef));
+         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(negMassCoef));
+         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
+         break;
+      case 2:
+         pcOp->AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef));
+         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef));
+         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
+         break;
+   }
+
    // 9. Assemble the bilinear form and the corresponding linear
    //    system, applying any necessary transformations such as:
    //    assembly, eliminating boundary conditions, applying conforming
    //    constraints for non-conforming AMR, etc.
    a->Assemble();
+   pcOp->Assemble();
 
    OperatorHandle A;
    Vector B, U;
@@ -291,6 +324,9 @@ int main(int argc, char *argv[])
    a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
    u = 0.0;
    U = 0.0;
+
+   OperatorHandle PCOp;
+   pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
 
    {
       ComplexSparseMatrix * Asp =
@@ -300,9 +336,41 @@ int main(int argc, char *argv[])
            << 2 * Asp->real().Width() << endl << endl;
    }
 
-   // 10. Define and apply a GMRES solver for AU=B.
+   // 10. Define and apply a GMRES solver for AU=B with a block diagonal
+   //     preconditioner based on the appropriate sparse smoother.
    {
+      Array<int> blockOffsets;
+      blockOffsets.SetSize(3);
+      blockOffsets[0] = 0;
+      blockOffsets[1] = PCOp.Ptr()->Height();
+      blockOffsets[2] = PCOp.Ptr()->Height();
+      blockOffsets.PartialSum();
+
+      BlockDiagonalPreconditioner BDP(blockOffsets);
+
+      Operator * pc_r = NULL;
+      Operator * pc_i = NULL;
+
+      switch (prob)
+      {
+         case 0:
+         case 2:
+            pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
+            break;
+         case 1:
+            pc_r = new GSSmoother(*PCOp.As<SparseMatrix>());
+            break;
+      }
+      pc_i = new ScaledOperator(pc_r,
+                                (conv == ComplexOperator::HERMITIAN) ?
+                                1.0:-1.0);
+
+      BDP.SetDiagonalBlock(0, pc_r);
+      BDP.SetDiagonalBlock(1, pc_i);
+      BDP.owns_blocks = 0;
+
       GMRESSolver gmres;
+      gmres.SetPreconditioner(BDP);
       gmres.SetOperator(*A.Ptr());
       gmres.SetRelTol(1e-12);
       gmres.SetMaxIter(1000);
@@ -418,6 +486,7 @@ int main(int argc, char *argv[])
    // 14. Free the used memory.
    delete a;
    delete u_exact;
+   delete pcOp;
    delete fespace;
    delete fec;
    delete mesh;
