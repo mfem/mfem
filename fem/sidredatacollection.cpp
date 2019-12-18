@@ -16,9 +16,7 @@
 
 #include "fem.hpp"
 
-#ifdef MFEM_USE_MPI
-#include <sidre/IOManager.hpp>
-#endif
+#include <axom/sidre.hpp>
 
 #include <string>
 #include <iomanip>      // for setw, setfill
@@ -204,10 +202,10 @@ SidreDataCollection::get_file_path(const std::string &filename) const
 
 axom::sidre::View *
 SidreDataCollection::AllocNamedBuffer(const std::string& buffer_name,
-                                      axom::sidre::SidreLength sz,
+                                      axom::sidre::IndexType sz,
                                       axom::sidre::TypeID type)
 {
-   sz = std::max(sz, sidre::SidreLength(0));
+   sz = std::max(sz, sidre::IndexType(0));
    sidre::Group *f = named_buffers_grp();
    sidre::View  *v = NULL;
 
@@ -825,7 +823,7 @@ void SidreDataCollection::Save(const std::string& filename,
 void SidreDataCollection::
 addScalarBasedGridFunction(const std::string &field_name, GridFunction *gf,
                            const std::string &buffer_name,
-                           axom::sidre::SidreLength offset)
+                           axom::sidre::IndexType offset)
 {
    sidre::Group* grp = m_bp_grp->getGroup("fields/" + field_name);
    MFEM_ASSERT(grp != NULL, "field " << field_name << " does not exist");
@@ -888,7 +886,7 @@ addScalarBasedGridFunction(const std::string &field_name, GridFunction *gf,
 void SidreDataCollection::
 addVectorBasedGridFunction(const std::string& field_name, GridFunction *gf,
                            const std::string &buffer_name,
-                           axom::sidre::SidreLength offset)
+                           axom::sidre::IndexType offset)
 {
    sidre::Group* grp = m_bp_grp->getGroup("fields/" + field_name);
    MFEM_ASSERT(grp != NULL, "field " << field_name << " does not exist");
@@ -1013,7 +1011,7 @@ DeregisterFieldInBPIndex(const std::string& field_name)
 void SidreDataCollection::RegisterField(const std::string &field_name,
                                         GridFunction *gf,
                                         const std::string &buffer_name,
-                                        axom::sidre::SidreLength offset)
+                                        axom::sidre::IndexType offset)
 {
    if ( field_name.empty() || buffer_name.empty() ||
         gf == NULL || gf->FESpace() == NULL )

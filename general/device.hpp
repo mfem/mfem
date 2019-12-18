@@ -276,7 +276,7 @@ inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
 
 /** @brief Shortcut to Write(const Memory<T> &mem, int size, false) */
 template <typename T>
-inline const T *HostWrite(const Memory<T> &mem, int size)
+inline T *HostWrite(Memory<T> &mem, int size)
 {
    return mfem::Write(mem, size, false);
 }
