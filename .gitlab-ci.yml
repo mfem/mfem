@@ -186,5 +186,4 @@ doccheck:
         - rm -f ${BUILD_ROOT}/mfem
 
 include:
-    - local: .gitlab-ci-quartz.yml
-    #- local: .gitlab-ci-lassen.yml
+    - local: .gitlab/quartz.yml
