@@ -154,7 +154,7 @@ set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
 
 set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
-set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
+set(Axom_REQUIRED_PACKAGES "Conduit/relay/blueprint" CACHE STRING
     "Additional packages required by Axom.")
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING

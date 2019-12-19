@@ -18,13 +18,7 @@ Improved GPU support
   list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",
   "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
 
-- Improved RAJA backend.
-
-- Improved multi-GPU MPI communication.
-
-Miscellaneous
--------------
-- Improved element numbering after uniform mesh refinement.
+- Improved RAJA backend and multi-GPU MPI communications.
 
 Discretization improvements
 ---------------------------
@@ -32,9 +26,38 @@ Discretization improvements
   load balancing. Anisotropic prism refinement is only available in the serial
   version at the moment.
 
+- Added support for GSLIB-FindPoints, a high-order off-grid interpolation
+  utility. See INSTALL for details on building MFEM with GSLIB, and
+  examples/gslib for an example of this feature.
+
 Meshing improvements
---------------------------
+--------------------
+- The TMOP mesh optimization algorithms were extended to support r-adaptivity.
+  Target matrices can now be constructed either via a given analytical function
+  (e.g. spatial dependence of size, aspect ratio, etc., for each element) or via
+  a (Par)GridFunction specified on the original mesh.
+
 - The TMOP mesh optimization algorithms have been improved to support AMR meshes.
+
+- Added support for creating refined versions of periodic meshes, making use of
+  the new L2ElementRestriction class. This class also allows for computing
+  geometric factors on periodic meshes using partial assembly.
+
+- Improved element numbering after uniform mesh refinement.
+
+New and updated examples and miniapps
+-------------------------------------
+- The mesh-optimizer and pmesh-optimizer miniapps have been updated to
+  demonstrate the new r-adaptivity capabilities of TMOP.
+
+- The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
+  optimization for an AMR mesh.
+
+- Added examples (exs.cpp,exp.cpp,compare.cpp) in examples/gslib that show how
+  GSLIB-FindPoints can be used to find arbitrary number of points (in physical
+  space) in a 2D/3D mesh in parallel, and interpolate a (Par)GridFunction at
+  those points. The GridFunction must be in H1 and in the same space as the mesh
+  that is used to find the points.
 
 Miscellaneous
 -------------
@@ -42,25 +65,6 @@ Miscellaneous
   necessitated a complete rework of the interface and requires changes at
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
-
-- Added support for creating refined versions of periodic meshes, making use of
-  the new L2ElementRestriction class. This class also allows for computing
-  geometric factors on periodic meshes using partial assembly.
-
-- Added support for GSLIB-FindPoints, a high-order off-grid interpolation
-  utility. See INSTALL for details on building MFEM with GSLIB, and
-  examples/gslib for an example of this feature.
-
-New and updated examples and miniapps
--------------------------------------
-- Added examples (exs.cpp,exp.cpp,compare.cpp) in examples/gslib that show how
-  GSLIB-FindPoints can be used to find arbitrary number of points (in physical
-  space) in a 2D/3D mesh in parallel, and interpolate a (Par)GridFunction at
-  those points. The GridFunction must be in H1 and in the same space as the mesh
-  that is used to find the points.
-
-- The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
-  optimization for an AMR mesh.
 
 
 Version 4.0, released on May 24, 2019
