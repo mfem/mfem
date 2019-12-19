@@ -2765,7 +2765,8 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
      dof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
      nedofs(ne*dof),
      offsets(ndofs+1),
-     indices(ne*dof)
+     indices(ne*dof),
+     gatherMap(ne*dof)
 {
    // Assuming all finite elements are the same.
    height = vdim*ne*dof;
@@ -2817,6 +2818,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          const int did = (!dof_reorder)?d:dof_map[d];
          const int gid = elementMap[dof*e + did];
          const int lid = dof*e + d;
+         gatherMap[lid] = gid;
          indices[offsets[gid]++] = lid;
       }
    }
@@ -2839,20 +2841,36 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
-   MFEM_FORALL(i, ndofs,
+   if (getenv("GATHER"))
    {
-      const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i+1];
-      for (int c = 0; c < vd; ++c)
+      auto d_gatherMap = gatherMap.Read();
+      MFEM_FORALL(i, dof*ne,
       {
-         const double dofValue = d_x(t?c:i,t?i:c);
-         for (int j = offset; j < nextOffset; ++j)
+         const int j = d_gatherMap[i];
+         for (int c = 0; c < vd; ++c)
          {
-            const int idx_j = d_indices[j];
-            d_y(idx_j % nd, c, idx_j / nd) = dofValue;
+            const double dofValue = d_x(t?c:j, t?j:c);
+            d_y(i % nd, c, i / nd) = dofValue;
          }
-      }
-   });
+      });
+   }
+   else
+   {
+      MFEM_FORALL(i, ndofs,
+      {
+         const int offset = d_offsets[i];
+         const int nextOffset = d_offsets[i+1];
+         for (int c = 0; c < vd; ++c)
+         {
+            const double dofValue = d_x(t?c:i,t?i:c);
+            for (int j = offset; j < nextOffset; ++j)
+            {
+               const int idx_j = d_indices[j];
+               d_y(idx_j % nd, c, idx_j / nd) = dofValue;
+            }
+         }
+      });
+   }
 }
 
 void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
