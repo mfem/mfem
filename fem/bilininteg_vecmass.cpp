@@ -46,7 +46,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(cQ != NULL, "Only ConstantCoefficient is supported.");
       coeff = cQ->constant;
    }
-   if (!(dim == 1 || dim == 3))
+   if (!(dim == 2 || dim == 3))
    {
       MFEM_ABORT("Dimension not supported.");
    }
