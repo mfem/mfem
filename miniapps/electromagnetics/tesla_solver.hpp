@@ -23,12 +23,12 @@
 namespace mfem
 {
 
-using miniapps::H1_ParFESpace;
-using miniapps::ND_ParFESpace;
-using miniapps::RT_ParFESpace;
-using miniapps::ParDiscreteGradOperator;
-using miniapps::ParDiscreteCurlOperator;
-using miniapps::DivergenceFreeProjector;
+using extras::H1_ParFESpace;
+using extras::ND_ParFESpace;
+using extras::RT_ParFESpace;
+using extras::ParDiscreteGradOperator;
+using extras::ParDiscreteCurlOperator;
+using extras::DivergenceFreeProjector;
 
 namespace electromagnetics
 {

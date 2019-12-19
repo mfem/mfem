@@ -80,7 +80,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::extras;
 using namespace mfem::electromagnetics;
 
 // Permittivity Function
