@@ -430,6 +430,8 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
    else
    {
       const FiniteElement *bdr_el = Nodes->FESpace()->GetBE(i);
+      Nodes->HostRead();
+      const GridFunction &nodes = *Nodes;
       if (bdr_el)
       {
          Array<int> vdofs;
@@ -440,7 +442,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
          {
             for (int j = 0; j < n; j++)
             {
-               pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+               pm(k,j) = nodes(vdofs[n*k+j]);
             }
          }
          ElTr->SetFE(bdr_el);
@@ -492,6 +494,8 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
    else // curved mesh
    {
       const FiniteElement *face_el = Nodes->FESpace()->GetFaceElement(FaceNo);
+      Nodes->HostRead();
+      const GridFunction &nodes = *Nodes;
       if (face_el)
       {
          Array<int> vdofs;
@@ -502,7 +506,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
          {
             for (int j = 0; j < n; j++)
             {
-               pm(i, j) = (*Nodes)(vdofs[n*i+j]);
+               pm(i, j) = nodes(vdofs[n*i+j]);
             }
          }
          FTr->SetFE(face_el);
