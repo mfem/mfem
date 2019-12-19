@@ -3,7 +3,7 @@
 // Compile with: make exp
 //
 // Sample runs:
-//    mpirun -np 2 exp -m ../../data/rtaylor2D-q3.mesh -o 3
+//    mpirun -np 2 exp -m ../../data/rt-2d-q3.mesh -o 3
 //    mpirun -np 2 exp -m ../../data/fichera.mesh -o 3
 
 #include "mfem.hpp"
@@ -28,10 +28,11 @@ int main (int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Set the method's default parameters.
-   const char *mesh_file = "RT2D.mesh";
+   const char *mesh_file = "../../data/rt-2d-q3.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    int rp_levels         = 0;
+   bool visualization    = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -43,6 +44,9 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&rp_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -99,26 +103,29 @@ int main (int argc, char *argv[])
    field_vals.ProjectCoefficient(fc);
 
    // Display the mesh and the field through glvis.
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sout;
-   sout.open(vishost, visport);
-   if (!sout)
+   if (visualization)
    {
-      if (myid == 0)
-      {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
-      }
-   }
-   else
-   {
-      sout << "parallel " << num_procs << " " << myid << "\n";
-      sout.precision(8);
-      sout << "solution\n" << pmesh << field_vals;
-      if (dim == 2) { sout << "keys RmjA*****\n"; }
-      if (dim == 3) { sout << "keys mA\n"; }
-      sout << flush;
+       char vishost[] = "localhost";
+       int  visport   = 19916;
+       socketstream sout;
+       sout.open(vishost, visport);
+       if (!sout)
+       {
+          if (myid == 0)
+          {
+             cout << "Unable to connect to GLVis server at "
+                  << vishost << ':' << visport << endl;
+          }
+       }
+       else
+       {
+          sout << "parallel " << num_procs << " " << myid << "\n";
+          sout.precision(8);
+          sout << "solution\n" << pmesh << field_vals;
+          if (dim == 2) { sout << "keys RmjA*****\n"; }
+          if (dim == 3) { sout << "keys mA\n"; }
+          sout << flush;
+       }
    }
 
    // Setup the gslib mesh.

@@ -30,21 +30,14 @@
 using namespace mfem;
 using namespace std;
 
-double field_func(const Vector &x)
-{
-   const int dim = x.Size();
-   double res = 0.0;
-   for (int d = 0; d < dim; d++) { res += x(d) * x(d); }
-   return res;
-}
-
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
-   const char *mesh_file_1 = "sltn1.mesh";
-   const char *mesh_file_2 = "sltn2.mesh";
-   const char *sltn_file_1 = "sltn1.gf";
-   const char *sltn_file_2 = "sltn2.gf";
+   const char *mesh_file_1 = "triple-pt-1.mesh";
+   const char *mesh_file_2 = "triple-pt-2.mesh";
+   const char *sltn_file_1 = "triple-pt-1.gf";
+   const char *sltn_file_2 = "triple-pt-2.gf";
+   bool visualization    = true;
    int pts_cnt_1D = 100;
 
    // Parse command-line options.
@@ -59,6 +52,9 @@ int main (int argc, char *argv[])
                   "Grid function for solution 2.");
    args.AddOption(&pts_cnt_1D, "-p", "--points1D",
                   "Number of comparison points in one direction");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -93,33 +89,37 @@ int main (int argc, char *argv[])
    GridFunction func_1(&mesh_1, mat_stream_1);
    GridFunction func_2(&mesh_2, mat_stream_2);
 
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sout1, sout2;
-   sout1.open(vishost, visport);
-   sout2.open(vishost, visport);
-   if (!sout1)
+   // Display the meshes and the fields through glvis.
+   if (visualization)
    {
-      cout << "Unable to connect to GLVis server at "
-           << vishost << ':' << visport << endl;
-   }
-   else
-   {
-      sout1.precision(8);
-      sout1 << "solution\n" << mesh_1 << func_1
-            << "window_title 'Solution 1'"
-            << "window_geometry 0 0 600 600";
-      if (dim == 2) { sout1 << "keys RmjAc"; }
-      if (dim == 3) { sout1 << "keys mA\n"; }
-      sout1 << flush;
+       char vishost[] = "localhost";
+       int  visport   = 19916;
+       socketstream sout1, sout2;
+       sout1.open(vishost, visport);
+       sout2.open(vishost, visport);
+       if (!sout1)
+       {
+          cout << "Unable to connect to GLVis server at "
+               << vishost << ':' << visport << endl;
+       }
+       else
+       {
+          sout1.precision(8);
+          sout1 << "solution\n" << mesh_1 << func_1
+                << "window_title 'Solution 1'"
+                << "window_geometry 0 0 600 600";
+          if (dim == 2) { sout1 << "keys RmjAc"; }
+          if (dim == 3) { sout1 << "keys mA\n"; }
+          sout1 << flush;
 
-      sout2.precision(8);
-      sout2 << "solution\n" << mesh_2 << func_2
-            << "window_title 'Solution 2'"
-            << "window_geometry 600 0 600 600";
-      if (dim == 2) { sout2 << "keys RmjAc"; }
-      if (dim == 3) { sout2 << "keys mA\n"; }
-      sout2 << flush;
+          sout2.precision(8);
+          sout2 << "solution\n" << mesh_2 << func_2
+                << "window_title 'Solution 2'"
+                << "window_geometry 600 0 600 600";
+          if (dim == 2) { sout2 << "keys RmjAc"; }
+          if (dim == 3) { sout2 << "keys mA\n"; }
+          sout2 << flush;
+       }
    }
 
    // Generate equidistant points in physical coordinates over the whole mesh.
@@ -228,15 +228,21 @@ int main (int argc, char *argv[])
    {
       diff(n) = fabs(func_1(n) - interp_vals_2(n));
    }
-   socketstream sout3;
-   sout3.open(vishost, visport);
-   sout3.precision(8);
-   sout3 << "solution\n" << mesh_1 << diff
-         << "window_title 'Difference'"
-         << "window_geometry 1200 0 600 600";
-   if (dim == 2) { sout3 << "keys RmjAcpppppppppppppppppppppp"; }
-   if (dim == 3) { sout3 << "keys mA\n"; }
-   sout3 << flush;
+
+   if (visualization)
+   {
+       char vishost[] = "localhost";
+       int  visport   = 19916;
+       socketstream sout3;
+       sout3.open(vishost, visport);
+       sout3.precision(8);
+       sout3 << "solution\n" << mesh_1 << diff
+             << "window_title 'Difference'"
+             << "window_geometry 1200 0 600 600";
+       if (dim == 2) { sout3 << "keys RmjAcpppppppppppppppppppppp"; }
+       if (dim == 3) { sout3 << "keys mA\n"; }
+       sout3 << flush;
+   }
 
    ConstantCoefficient coeff1(1.0);
    DomainLFIntegrator *lf_integ = new DomainLFIntegrator(coeff1);
