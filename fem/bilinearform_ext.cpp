@@ -176,4 +176,129 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
+MixedBilinearFormExtension::MixedBilinearFormExtension(MixedBilinearForm *form)
+  : Operator(form->Height(), form->Width()), a(form)
+{
+   // empty
+}
+
+// Data and methods for partially-assembled bilinear forms
+PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(MixedBilinearForm *form)
+   : MixedBilinearFormExtension(form),
+     trialFes(a->TrialFESpace()), testFes(a->TestFESpace())
+{
+   trial_elem_restrict_lex = trialFes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   test_elem_restrict_lex = testFes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+						       
+   if (trial_elem_restrict_lex && test_elem_restrict_lex)
+   {
+      localX.SetSize(trial_elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(test_elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+   }
+}
+
+void PAMixedBilinearFormExtension::Assemble()
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int integratorCount = integrators.Size();
+   for (int i = 0; i < integratorCount; ++i)
+   {
+     integrators[i]->AssembleMixedPA(*a->TrialFESpace(), *a->TestFESpace());
+   }
+}
+
+void PAMixedBilinearFormExtension::Update()
+{
+   trialFes = a->TrialFESpace();
+   testFes = a->TestFESpace();
+   height = testFes->GetVSize();
+   width = trialFes->GetVSize();
+   trial_elem_restrict_lex = trialFes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   test_elem_restrict_lex = testFes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+							     
+   if (trial_elem_restrict_lex && test_elem_restrict_lex)
+   {
+     localX.SetSize(trial_elem_restrict_lex->Height());
+     localY.SetSize(test_elem_restrict_lex->Height());
+   }
+}
+
+// TODO: should there be an ess_tdof_list for trial and test spaces?
+void PAMixedBilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
+						    OperatorHandle &A)
+{
+   const Operator* trialP = trialFes->GetProlongationMatrix();
+   const Operator* testP  = testFes->GetProlongationMatrix();
+   Operator *rap = this;
+   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
+   const bool own_A = (rap!=this);
+   // TODO: what about the following line?
+   //A.Reset(new ConstrainedOperator(rap, ess_tdof_list, own_A));
+}
+
+// TODO: should there be an ess_tdof_list for trial and test spaces?
+// Question: why does this even exist for PA?
+void PAMixedBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
+						    Vector &x, Vector &b,
+						    OperatorHandle &A,
+						    Vector &X, Vector &B,
+						    int copy_interior)
+{
+   Operator *oper;
+   Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
+   A.Reset(oper); // A will own oper
+}
+
+void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
+   const int iSz = integrators.Size();
+   if (trial_elem_restrict_lex && test_elem_restrict_lex)
+   {
+      trial_elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultPA(localX, localY);
+      }
+      test_elem_restrict_lex->MultTranspose(localY, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultPA(x, y);
+      }
+   }
+}
+
+void PAMixedBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int iSz = integrators.Size();
+   if (trial_elem_restrict_lex && test_elem_restrict_lex)
+   {
+      test_elem_restrict_lex->Mult(x, localY);
+      localX = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultTransposePA(localY, localX);
+      }
+      trial_elem_restrict_lex->MultTranspose(localX, y);
+   }
+   else
+   {
+      y.UseDevice(true);
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultTransposePA(x, y);
+      }
+   }
+}
+
 } // namespace mfem

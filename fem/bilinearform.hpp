@@ -557,6 +557,13 @@ protected:
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
 
+   /// The form assembly level (full, partial, etc.)
+   AssemblyLevel assembly;
+
+   /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
+       Partial Assembly (PA), or Matrix Free assembly (MF). */
+   MixedBilinearFormExtension *ext;
+
    /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
        #tfbfi and #btfbfi are owned by another MixedBilinearForm. */
    int extern_bfs;
@@ -605,6 +612,10 @@ public:
    MixedBilinearForm(FiniteElementSpace *tr_fes,
                      FiniteElementSpace *te_fes,
                      MixedBilinearForm *mbf);
+
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    virtual double &Elem(int i, int j);
 
@@ -744,6 +755,12 @@ public:
    virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
 
    void Update();
+
+   /// Return the trial FE space associated with the MixedBilinearForm.
+   FiniteElementSpace *TrialFESpace() { return trial_fes; }
+
+   /// Return the FE space associated with the MixedBilinearForm.
+   FiniteElementSpace *TestFESpace() { return test_fes; }
 
    virtual ~MixedBilinearForm();
 };
