@@ -1921,6 +1921,7 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
    Array<int> vdofs;
    Vector vals;
 
+   HostWrite();
    // maximal element attribute for each dof
    dof_attr.SetSize(fes->GetVSize());
    dof_attr = -1;
