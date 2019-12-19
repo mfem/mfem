@@ -25,6 +25,8 @@ Improved GPU support
 Miscellaneous
 -------------
 - Improved element numbering after uniform mesh refinement.
+- Collected object files from miniapps/common into libmfem-extras for the
+  convenience of application developers.
 
 Discretization improvements
 ---------------------------
