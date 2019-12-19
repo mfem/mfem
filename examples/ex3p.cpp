@@ -6,6 +6,7 @@
 //               mpirun -np 4 ex3p -m ../data/square-disc.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex3p -m ../data/beam-hex.mesh -o 2 -pa
 //               mpirun -np 4 ex3p -m ../data/escher.mesh
 //               mpirun -np 4 ex3p -m ../data/escher.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/fichera.mesh
@@ -195,20 +196,28 @@ int main(int argc, char *argv[])
 
    if (pa)
      {
+       ParGridFunction diag_pa(fespace);
+       a->AssembleDiagonal(diag_pa);
+
+       Vector tdiag_pa(fespace->GetTrueVSize());
+       diag_pa.GetTrueDofs(tdiag_pa);
+
+       OperatorJacobiSmoother Jacobi(tdiag_pa, ess_tdof_list, 1.0);
+
        CGSolver cg(MPI_COMM_WORLD);
        cg.SetRelTol(1e-12);
        cg.SetMaxIter(1000);
        cg.SetPrintLevel(1);
        cg.SetOperator(*A);
+       cg.SetPreconditioner(Jacobi);
        cg.Mult(B, X);
      }
    else
      {
-       HypreParMatrix *Amat = dynamic_cast<HypreParMatrix*> (A.Ptr());
        ParFiniteElementSpace *prec_fespace =
 	 (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-       HypreSolver *ams = new HypreAMS(*Amat, prec_fespace);
-       HyprePCG *pcg = new HyprePCG(*Amat);
+       HypreSolver *ams = new HypreAMS(*A.As<HypreParMatrix>(), prec_fespace);
+       HyprePCG *pcg = new HyprePCG(*A.As<HypreParMatrix>());
        pcg->SetTol(1e-12);
        pcg->SetMaxIter(500);
        pcg->SetPrintLevel(2);

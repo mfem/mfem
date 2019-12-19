@@ -126,21 +126,7 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 7. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
-   /*
-   if (pmesh->bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-   */
-
-   // 8. Define the solution vector x as a parallel finite element grid function
+   // 7. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
    //    solution. Note that only values from the boundary edges will be used
    //    when eliminating the non-homogeneous boundary condition to modify the
@@ -152,7 +138,7 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
 
-   // 9. Set up the parallel bilinear form corresponding to the EM diffusion
+   // 8. Set up the parallel bilinear form corresponding to the EM diffusion
    //    operator curl muinv curl + sigma I, by adding the curl-curl and the
    //    mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
@@ -168,10 +154,10 @@ int main(int argc, char *argv[])
 
    a_NDH1->AddDomainIntegrator(new MixedVectorGradientIntegrator(*muinv));
 
-   // 10. Assemble the parallel bilinear form and the corresponding linear
-   //     system, applying any necessary transformations such as: parallel
-   //     assembly, eliminating boundary conditions, applying conforming
-   //     constraints for non-conforming AMR, static condensation, etc.
+   // 9. Assemble the parallel bilinear form and the corresponding linear
+   //    system, applying any necessary transformations such as: parallel
+   //    assembly, eliminating boundary conditions, applying conforming
+   //    constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
 
    a->Assemble();
@@ -179,8 +165,6 @@ int main(int argc, char *argv[])
 
    a_NDH1->Assemble();
    if (!pa) a_NDH1->Finalize();
-
-   // TODO: try applying BC.
 
    Vector B(fespace->GetTrueVSize());
    Vector X(fespace->GetTrueVSize());
@@ -195,7 +179,6 @@ int main(int argc, char *argv[])
        HypreParMatrix *NDH1 = a_NDH1->ParallelAssemble();
 
        Vector P(H1fespace->GetTrueVSize());
-
        p.GetTrueDofs(P);
 
        NDH1->Mult(P,B);
@@ -203,9 +186,9 @@ int main(int argc, char *argv[])
        delete NDH1;
      }
 
-   // 11. Define and apply a parallel PCG solver for AX=B with the AMS
+   // 10. Define and apply a parallel PCG solver for AX=B with the AMS
    //     preconditioner from hypre, in the full assembly case.
-   //     With partial assembly, use no preconditioner, for now.
+   //     With partial assembly, use Jacobi preconditioner, for now.
 
    if (pa)
      {
@@ -216,7 +199,7 @@ int main(int argc, char *argv[])
        Vector tdiag_pa(fespace->GetTrueVSize());
        diag_pa.GetTrueDofs(tdiag_pa);
 
-       //OperatorJacobiSmoother Jacobi(tdiag_pa, ess_tdof_list, 1.0);
+       Array<int> ess_tdof_list;
        OperatorJacobiSmoother Jacobi(diag_pa, ess_tdof_list, 1.0);
 
        CGSolver cg(MPI_COMM_WORLD);
@@ -226,7 +209,6 @@ int main(int argc, char *argv[])
        cg.SetOperator(*a);
        cg.SetPreconditioner(Jacobi);
 
-       //cg.Mult(B, X);
        ParGridFunction rhs(fespace);
        rhs = x;
        cg.Mult(rhs, x);
@@ -246,7 +228,7 @@ int main(int argc, char *argv[])
        x.SetFromTrueDofs(X);
      }
 
-   // 12. Compute and print the L^2 norm of the error.
+   // 11. Compute and print the L^2 norm of the error.
    {
       double err = x.ComputeL2Error(gradp_coef);
       if (myid == 0)
@@ -255,7 +237,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 13. Save the refined mesh and the solution in parallel. This output can
+   // 12. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -271,7 +253,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -282,7 +264,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 15. Free the used memory.
+   // 14. Free the used memory.
    delete a;
    delete a_NDH1;
    delete sigma;

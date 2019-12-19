@@ -224,30 +224,21 @@ void PAMixedBilinearFormExtension::Update()
    }
 }
 
-// TODO: should there be an ess_tdof_list for trial and test spaces?
+// TODO: Generalize with ess_tdof_list for trial and test spaces.
 void PAMixedBilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
 						    OperatorHandle &A)
 {
-   const Operator* trialP = trialFes->GetProlongationMatrix();
-   const Operator* testP  = testFes->GetProlongationMatrix();
-   Operator *rap = this;
-   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
-   const bool own_A = (rap!=this);
-   // TODO: what about the following line?
-   //A.Reset(new ConstrainedOperator(rap, ess_tdof_list, own_A));
+  mfem_error("FormSystemMatrix not supported for mixed bilinear forms.");
 }
 
-// TODO: should there be an ess_tdof_list for trial and test spaces?
-// Question: why does this even exist for PA?
+// TODO: Generalize with ess_tdof_list for trial and test spaces.
 void PAMixedBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 						    Vector &x, Vector &b,
 						    OperatorHandle &A,
 						    Vector &X, Vector &B,
 						    int copy_interior)
 {
-   Operator *oper;
-   Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
-   A.Reset(oper); // A will own oper
+  mfem_error("FormLinearSystem not supported for mixed bilinear forms.");
 }
 
 void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
