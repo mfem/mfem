@@ -109,7 +109,10 @@ static void PAVectorDiffusionSetup(const int dim,
                                    const double COEFF,
                                    Vector &op)
 {
-   if (!(dim == 1 || dim == 3)) { MFEM_ABORT("Dimension not supported."); }
+   if (!(dim == 1 || dim == 3))
+   {
+      MFEM_ABORT("Dimension not supported.");
+   }
    if (dim == 2)
    {
       PAVectorDiffusionSetup2D(Q1D, NE, W, J, COEFF, op);
