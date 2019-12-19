@@ -26,7 +26,7 @@ PAR_EXAMPLES = exp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
-   EXAMPLES = $(PAR_EXAMPLES) 
+   EXAMPLES = $(PAR_EXAMPLES)
 endif
 
 .SUFFIXES:
@@ -61,7 +61,7 @@ PARALLEL_NAME := Parallel GSLIB_FPT example
 
 # Testing: Specific execution options:
 # Example 9: test explicit CVODE time stepping
-EXS_COMMON_ARGS := -m ../../data/periodic-hexagon.mesh -o 1 -qo 3 
+EXS_COMMON_ARGS := -m ../../data/periodic-hexagon.mesh -o 1 -qo 3
 EXS_ARGS  := $(EX9_COMMON_ARGS)
 EXP_ARGS := $(EX9_COMMON_ARGS)
 exs-test-seq: exs

@@ -16,23 +16,43 @@
 namespace mfem
 {
 
+#ifndef __GNUC__
+
+#include "gslib.h"
+
+#else // Ignore warnings from the gslib header (GCC version)
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#include "gslib.h"
+#pragma GCC diagnostic pop
+
+#endif // GCC
+
 FindPointsGSLib::FindPointsGSLib()
    : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
 {
+   gsl_comm = new comm;
 #ifdef MFEM_USE_MPI
    MPI_Init(NULL, NULL);
    MPI_Comm comm = MPI_COMM_WORLD;;
-   comm_init(&gsl_comm, comm);
+   comm_init(gsl_comm, comm);
 #else
-   comm_init(&gsl_comm, 0);
+   comm_init(gsl_comm, 0);
 #endif
+}
+
+FindPointsGSLib::~FindPointsGSLib()
+{
+   delete gsl_comm;
 }
 
 #ifdef MFEM_USE_MPI
 FindPointsGSLib::FindPointsGSLib(MPI_Comm _comm)
    : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
 {
-   comm_init(&gsl_comm, _comm);
+   gsl_comm = new comm;
+   comm_init(gsl_comm, _comm);
 }
 #endif
 
@@ -79,7 +99,7 @@ void FindPointsGSLib::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
       unsigned nr[2] = {dof1D, dof1D};
       unsigned mr[2] = {2*dof1D, 2*dof1D};
       double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
-      fdata2D = findpts_setup_2(&gsl_comm, elx, nr, NE, mr, bb_t,
+      fdata2D = findpts_setup_2(gsl_comm, elx, nr, NE, mr, bb_t,
                                 pts_cnt, pts_cnt, npt_max, newt_tol);
    }
    else
@@ -88,7 +108,7 @@ void FindPointsGSLib::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
       unsigned mr[3] = {2*dof1D, 2*dof1D, 2*dof1D};
       double * const elx[3] =
       { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
-      fdata3D = findpts_setup_3(&gsl_comm, elx, nr, NE, mr, bb_t,
+      fdata3D = findpts_setup_3(gsl_comm, elx, nr, NE, mr, bb_t,
                                 pts_cnt, pts_cnt, npt_max, newt_tol);
    }
 }
