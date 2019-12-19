@@ -41,10 +41,7 @@ SHARED = NO
 # CUDA configuration options
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
-CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH) 
-ifeq ($(USE_NVTX),yes)
-   CUDA_FLAGS := $(CUDA_FLAGS) -DUSE_NVTX
-endif
+CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
 # Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=

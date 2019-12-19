@@ -19,7 +19,6 @@
 #include <cmath>
 #include <cstdarg>
 #include <limits>
-#include <unordered_map>
 
 using namespace std;
 
@@ -2837,40 +2836,18 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   auto d_offsets = offsets.Read();
-   auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
-   if (getenv("GATHER"))
+   auto d_gatherMap = gatherMap.Read();
+   MFEM_FORALL(i, dof*ne,
    {
-      auto d_gatherMap = gatherMap.Read();
-      MFEM_FORALL(i, dof*ne,
+      const int j = d_gatherMap[i];
+      for (int c = 0; c < vd; ++c)
       {
-         const int j = d_gatherMap[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            const double dofValue = d_x(t?c:j, t?j:c);
-            d_y(i % nd, c, i / nd) = dofValue;
-         }
-      });
-   }
-   else
-   {
-      MFEM_FORALL(i, ndofs,
-      {
-         const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i+1];
-         for (int c = 0; c < vd; ++c)
-         {
-            const double dofValue = d_x(t?c:i,t?i:c);
-            for (int j = offset; j < nextOffset; ++j)
-            {
-               const int idx_j = d_indices[j];
-               d_y(idx_j % nd, c, idx_j / nd) = dofValue;
-            }
-         }
-      });
-   }
+         const double dofValue = d_x(t?c:j, t?j:c);
+         d_y(i % nd, c, i / nd) = dofValue;
+      }
+   });
 }
 
 void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
@@ -3176,20 +3153,16 @@ void QuadratureInterpolator::Mult(
             // Q1
             case 8008: eval_func = &Eval3D<1,8,8>; break;
             case 8027: eval_func = &Eval3D<1,8,27>; break;
-            case 8064: eval_func = &Eval3D<1,8,64>; break;
             // Q2
             case 27027: eval_func = &Eval3D<1,27,27>; break;
             case 27064: eval_func = &Eval3D<1,27,64>; break;
-            case 27216: eval_func = &Eval3D<1,27,216>; break;
             // Q3
             case 64064: eval_func = &Eval3D<1,64,64>; break;
             case 64125: eval_func = &Eval3D<1,64,125>; break;
             case 64216: eval_func = &Eval3D<1,64,216>; break;
-            case 64512: eval_func = &Eval3D<1,64,512>; break;
             // Q4
             case 125125: eval_func = &Eval3D<1,125,125>; break;
             case 125216: eval_func = &Eval3D<1,125,216>; break;
-            case 125512: eval_func = &Eval3D<1,125,512>; break;
          }
          if (nq >= 1000 || !eval_func)
          {
@@ -3206,8 +3179,6 @@ void QuadratureInterpolator::Mult(
             // Q1
             case 404: eval_func = &Eval2D<2,4,4>; break;
             case 409: eval_func = &Eval2D<2,4,9>; break;
-            //case 416: eval_func = &Eval2D<2,4,16>; break;
-            //case 425: eval_func = &Eval2D<2,4,25>; break;
             // Q2
             case 909: eval_func = &Eval2D<2,9,9>; break;
             case 916: eval_func = &Eval2D<2,9,16>; break;
@@ -3243,7 +3214,7 @@ void QuadratureInterpolator::Mult(
             // Q4
             case 125125: eval_func = &Eval3D<3,125,125>; break;
             case 125216: eval_func = &Eval3D<3,125,216>; break;
-            case 125512: eval_func = &Eval3D<3,125,512>; break;
+               //case 125512: eval_func = &Eval3D<3,125,512>; break;
          }
          if (nq >= 1000 || !eval_func)
          {
@@ -3257,8 +3228,6 @@ void QuadratureInterpolator::Mult(
    }
    else
    {
-      printf("\033[33mdim=%d, vdim=%d, nd=%d, nq=%d\033[m", dim, vdim, nd, nq);
-      fflush(0);
       MFEM_ABORT("case not supported yet");
    }
 }
@@ -3270,11 +3239,20 @@ void QuadratureInterpolator::MultTranspose(
    MFEM_ABORT("this method is not implemented yet");
 }
 
-// *****************************************************************************
-template<int D1D, int Q1D, int NBZ> static inline
-void D2QValues2D(const int NE, const Array<double> &b_,
-                 const Vector &x_, Vector &y_)
+template<int T_D1D =0, int T_Q1D =0, int T_NBZ =0>
+static void D2QValues2D(const int NE,
+                        const Array<double> &b_,
+                        const Vector &x_,
+                        Vector &y_,
+                        const int d1d =0,
+                        const int q1d =0)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.Write(), Q1D, Q1D, NE);
@@ -3282,13 +3260,13 @@ void D2QValues2D(const int NE, const Array<double> &b_,
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int zid = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
+      MFEM_SHARED double B[MQ1][MD1];
 
-      MFEM_SHARED double DDz[NBZ][D1D*D1D];
-      double (*DD)[D1D] = (double (*)[D1D])(DDz + zid);
+      MFEM_SHARED double DDz[NBZ][MD1*MD1];
+      double (*DD)[MD1] = (double (*)[MD1])(DDz + zid);
 
-      MFEM_SHARED double DQz[NBZ][D1D*Q1D];
-      double (*DQ)[Q1D] = (double (*)[Q1D])(DQz + zid);
+      MFEM_SHARED double DQz[NBZ][MD1*MQ1];
+      double (*DQ)[MQ1] = (double (*)[MQ1])(DQz + zid);
 
       if (zid == 0)
       {
@@ -3339,11 +3317,20 @@ void D2QValues2D(const int NE, const Array<double> &b_,
    });
 }
 
-// *****************************************************************************
-template<int D1D, int Q1D> static inline
-void D2QValues3D(const int NE, const Array<double> &b_,
-                 const Vector &x_, Vector &y_)
+template<int T_D1D =0, int T_Q1D =0, int MAX_D =0, int MAX_Q =0>
+static void D2QValues3D(const int NE,
+                        const Array<double> &b_,
+                        const Vector &x_,
+                        Vector &y_,
+                        const int d1d =0,
+                        const int q1d =0)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
+   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.Write(), Q1D, Q1D, Q1D, NE);
@@ -3351,12 +3338,12 @@ void D2QValues3D(const int NE, const Array<double> &b_,
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double sm0[Q1D*Q1D*Q1D];
-      MFEM_SHARED double sm1[Q1D*Q1D*Q1D];
-      double (*X)[D1D][D1D]   = (double (*)[D1D][D1D]) sm0;
-      double (*DDQ)[D1D][Q1D] = (double (*)[D1D][Q1D]) sm1;
-      double (*DQQ)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) sm0;
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+      double (*X)[MD1][MD1]   = (double (*)[MD1][MD1]) sm0;
+      double (*DDQ)[MD1][MQ1] = (double (*)[MD1][MQ1]) sm1;
+      double (*DQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm0;
 
       if (tidz == 0)
       {
@@ -3432,13 +3419,6 @@ void D2QValues3D(const int NE, const Array<double> &b_,
    });
 }
 
-// *****************************************************************************
-typedef void (*fD2QValues)(const int NE,
-                           const Array<double> &B,
-                           const Vector &e_vec,
-                           Vector &q_val);
-
-// ***************************************************************************
 static void D2QValues(const FiniteElementSpace &fes,
                       const DofToQuad *maps,
                       const IntegrationRule& ir,
@@ -3446,30 +3426,39 @@ static void D2QValues(const FiniteElementSpace &fes,
                       Vector &q_val)
 {
    const int dim = fes.GetMesh()->Dimension();
-   const int nzones = fes.GetNE();
-   const int dofs1D = fes.GetFE(0)->GetOrder() + 1;
-   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
-   const int id = (dim<<8)|(dofs1D<<4)|(quad1D);
-   static std::unordered_map<int, fD2QValues> call =
+   const int NE = fes.GetNE();
+   const int D1D = fes.GetFE(0)->GetOrder() + 1;
+   const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
+   const int id = (D1D<<4) | Q1D;
+
+   if (dim==2)
    {
-      // 2D
-      {0x224,&D2QValues2D<2,4,8>},
-      {0x236,&D2QValues2D<3,6,4>},
-      {0x248,&D2QValues2D<4,8,2>},
-      // 3D
-      {0x324,&D2QValues3D<2,4>},
-      {0x336,&D2QValues3D<3,6>},
-      {0x348,&D2QValues3D<4,8>},
-   };
-   if (!call[id])
-   {
-      mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-      MFEM_ABORT("Unknown kernel");
+      switch (id)
+      {
+         case 0x24: return D2QValues2D<2,4,8>(NE, maps->B, e_vec, q_val);
+         case 0x36: return D2QValues2D<3,6,4>(NE, maps->B, e_vec, q_val);
+         case 0x48: return D2QValues2D<4,8,2>(NE, maps->B, e_vec, q_val);
+         default: return D2QValues2D(NE, maps->B, e_vec, q_val, D1D, Q1D);
+      }
    }
-   call[id](nzones, maps->B, e_vec, q_val);
+   if (dim==3)
+   {
+      switch (id)
+      {
+         case 0x24: return D2QValues3D<2,4>(NE, maps->B, e_vec, q_val);
+         case 0x36: return D2QValues3D<3,6>(NE, maps->B, e_vec, q_val);
+         case 0x48: return D2QValues3D<4,8>(NE, maps->B, e_vec, q_val);
+         default:
+         {
+            MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
+            return D2QValues3D<0,0,8,8>(NE, maps->B, e_vec, q_val, D1D, Q1D);
+         }
+      }
+   }
+   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
+   MFEM_ABORT("Unknown kernel");
 }
 
-// **************************************************************************
 void QuadratureInterpolator::Values(const Vector &e_vec, Vector &q_val) const
 {
    const IntegrationRule &ir = *IntRule;
@@ -3478,15 +3467,21 @@ void QuadratureInterpolator::Values(const Vector &e_vec, Vector &q_val) const
    D2QValues(*fespace, &d2q,ir, e_vec, q_val);
 }
 
-// **************************************************************************
-template<int D1D, int Q1D, int NBZ> static inline
-void D2QGrad2D(const int NE,
-               const Array<double> &b_,
-               const Array<double> &g_,
-               const Vector &x_,
-               Vector &y_)
+template<int T_D1D =0, int T_Q1D =0, int T_NBZ =0>
+static void D2QGrad2D(const int NE,
+                      const Array<double> &b_,
+                      const Array<double> &g_,
+                      const Vector &x_,
+                      Vector &y_,
+                      const int d1d =0,
+                      const int q1d =0)
 {
    constexpr int VDIM = 2;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
@@ -3496,15 +3491,15 @@ void D2QGrad2D(const int NE,
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double G[Q1D][D1D];
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double G[MQ1][MD1];
 
-      MFEM_SHARED double Xz[NBZ][D1D][D1D];
-      double (*X)[D1D] = (double (*)[D1D])(Xz + tidz);
+      MFEM_SHARED double Xz[NBZ][MD1][MD1];
+      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
 
-      MFEM_SHARED double GD[2][NBZ][D1D][Q1D];
-      double (*DQ0)[Q1D] = (double (*)[Q1D])(GD[0] + tidz);
-      double (*DQ1)[Q1D] = (double (*)[Q1D])(GD[1] + tidz);
+      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
+      double (*DQ0)[MQ1] = (double (*)[MQ1])(GD[0] + tidz);
+      double (*DQ1)[MQ1] = (double (*)[MQ1])(GD[1] + tidz);
 
       if (tidz == 0)
       {
@@ -3566,15 +3561,21 @@ void D2QGrad2D(const int NE,
    });
 }
 
-// **************************************************************************
-template<int D1D, int Q1D> static inline
-void D2QGrad3D(const int NE,
-               const Array<double> &b_,
-               const Array<double> &g_,
-               const Vector &x_,
-               Vector &y_)
+template<int T_D1D =0, int T_Q1D =0, int MAX_D =0, int MAX_Q =0>
+static  void D2QGrad3D(const int NE,
+                       const Array<double> &b_,
+                       const Array<double> &g_,
+                       const Vector &x_,
+                       Vector &y_,
+                       const int d1d =0,
+                       const int q1d =0)
 {
    constexpr int VDIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
+
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
@@ -3583,17 +3584,17 @@ void D2QGrad3D(const int NE,
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double G[Q1D][D1D];
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double G[MQ1][MD1];
 
-      MFEM_SHARED double sm0[3][Q1D*Q1D*Q1D];
-      MFEM_SHARED double sm1[3][Q1D*Q1D*Q1D];
-      double (*X)[D1D][D1D]    = (double (*)[D1D][D1D]) (sm0+2);
-      double (*DDQ0)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+0);
-      double (*DDQ1)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+1);
-      double (*DQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+0);
-      double (*DQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+1);
-      double (*DQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+2);
+      MFEM_SHARED double sm0[3][MQ1*MQ1*MQ1];
+      MFEM_SHARED double sm1[3][MQ1*MQ1*MQ1];
+      double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
+      double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
+      double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);
+      double (*DQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+0);
+      double (*DQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+1);
+      double (*DQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+2);
 
       if (tidz == 0)
       {
@@ -3691,14 +3692,6 @@ void D2QGrad3D(const int NE,
    });
 }
 
-// *****************************************************************************
-typedef void (*fD2QGrad)(const int NE,
-                         const Array<double> &B,
-                         const Array<double> &G,
-                         const Vector &e_vec,
-                         Vector &q_der);
-
-// **************************************************************************
 static void D2QGrad(const FiniteElementSpace &fes,
                     const DofToQuad *maps,
                     const IntegrationRule& ir,
@@ -3709,24 +3702,33 @@ static void D2QGrad(const FiniteElementSpace &fes,
    const int NE = fes.GetNE();
    const int D1D = fes.GetFE(0)->GetOrder() + 1;
    const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
-   const int id = (dim<<8)|(D1D<<4)|(Q1D);
-   static std::unordered_map<int, fD2QGrad> call =
+   const int id = (D1D<<4) | Q1D;
+   if (dim==2)
    {
-      // 2D
-      {0x234,&D2QGrad2D<3,4,8>},
-      {0x246,&D2QGrad2D<4,6,4>},
-      {0x258,&D2QGrad2D<5,8,2>},
-      // 3D
-      {0x334,&D2QGrad3D<3,4>},
-      {0x346,&D2QGrad3D<4,6>},
-      {0x358,&D2QGrad3D<5,8>},
-   };
-   if (!call[id])
-   {
-      mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-      MFEM_ABORT("Unknown kernel");
+      switch (id)
+      {
+         case 0x34: return D2QGrad2D<3,4,8>(NE, maps->B, maps->G, e_vec, q_der);
+         case 0x46: return D2QGrad2D<4,6,4>(NE, maps->B, maps->G, e_vec, q_der);
+         case 0x58: return D2QGrad2D<5,8,2>(NE, maps->B, maps->G, e_vec, q_der);
+         default: return D2QGrad2D(NE, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
+      }
    }
-   call[id](NE, maps->B, maps->G, e_vec, q_der);
+   if (dim==3)
+   {
+      switch (id)
+      {
+         case 0x34: return D2QGrad3D<3,4>(NE, maps->B, maps->G, e_vec, q_der);
+         case 0x46: return D2QGrad3D<4,6>(NE, maps->B, maps->G, e_vec, q_der);
+         case 0x58: return D2QGrad3D<5,8>(NE, maps->B, maps->G, e_vec, q_der);
+         default:
+         {
+            MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
+            return D2QGrad3D<0,0,8,8>(NE, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
+         }
+      }
+   }
+   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
+   MFEM_ABORT("Unknown kernel");
 }
 
 void QuadratureInterpolator::Derivatives(const Vector &e_vec,
