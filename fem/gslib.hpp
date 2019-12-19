@@ -17,6 +17,10 @@
 
 #ifdef MFEM_USE_GSLIB
 
+struct comm;
+struct findpts_data_2;
+struct findpts_data_3;
+
 namespace mfem
 {
 
