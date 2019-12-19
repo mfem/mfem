@@ -33,7 +33,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::extras;
 
 // Data structure used to collect visualization window layout parameters
 struct VisWinLayout
