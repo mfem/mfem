@@ -2801,8 +2801,6 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int did = (!dof_reorder)?d:dof_map[d];
-         gatherMap[dof*e + d] = elementMap[dof*e + did];
          const int gid = elementMap[dof*e + d];
          ++offsets[gid + 1];
       }
@@ -2820,6 +2818,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          const int did = (!dof_reorder)?d:dof_map[d];
          const int gid = elementMap[dof*e + did];
          const int lid = dof*e + d;
+         gatherMap[lid] = gid;
          indices[offsets[gid]++] = lid;
       }
    }
@@ -2847,11 +2846,11 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
       auto d_gatherMap = gatherMap.Read();
       MFEM_FORALL(i, dof*ne,
       {
+         const int j = d_gatherMap[i];
          for (int c = 0; c < vd; ++c)
          {
-            const int j = d_gatherMap[i];
-            const double dofValue = d_x(t?c:j,t?j:c);
-            d_y(i % dof, c, i / dof) = dofValue;
+            const double dofValue = d_x(t?c:j, t?j:c);
+            d_y(i % nd, c, i / nd) = dofValue;
          }
       });
    }
