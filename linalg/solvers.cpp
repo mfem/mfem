@@ -1353,6 +1353,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
       add(x, -c_scale, c, x);
 
+      ProcessNewState(x);
+
       oper->Mult(x, r);
       if (have_b)
       {
