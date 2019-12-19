@@ -12,12 +12,10 @@
 #ifndef MFEM_GSLIB
 #define MFEM_GSLIB
 
+#include "../config/config.hpp"
 #include "gridfunc.hpp"
-#include "pgridfunc.hpp"
 
 #ifdef MFEM_USE_GSLIB
-
-#include "gslib.h"
 
 namespace mfem
 {
@@ -31,7 +29,7 @@ protected:
    struct findpts_data_3 *fdata3D;
    int dim;
 
-   struct comm gsl_comm;
+   struct comm *gsl_comm;
 
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
 
@@ -42,7 +40,7 @@ public:
    FindPointsGSLib(MPI_Comm _comm);
 #endif
 
-   ~FindPointsGSLib() { }
+   ~FindPointsGSLib();
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of @a mesh.
@@ -99,4 +97,5 @@ public:
 } // namespace mfem
 
 #endif //MFEM_USE_GSLIB
+
 #endif //MFEM_GSLIB guard

@@ -25,7 +25,6 @@
 //
 
 #include "mfem.hpp"
-#include "fem/gslib.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -55,9 +54,9 @@ int main (int argc, char *argv[])
    args.AddOption(&mesh_file_2, "-m2", "--mesh2",
                   "Mesh file for solution 2.");
    args.AddOption(&sltn_file_1, "-s1", "--solution1",
-                  "Solution file 1.");
+                  "Grid function for solution 1.");
    args.AddOption(&sltn_file_2, "-s2", "--solution2",
-                  "Solution file 2.");
+                  "Grid function for solution 2.");
    args.AddOption(&pts_cnt_1D, "-p", "--points1D",
                   "Number of comparison points in one direction");
    args.Parse();
@@ -82,9 +81,9 @@ int main (int argc, char *argv[])
    Vector pos_min, pos_max;
    MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be positive.");
    mesh_1.GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
-   cout << "--- Generating equidistant points for:\n"
-        << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
-        << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
+   cout << "Generating equidistant points for:\n"
+        << "  x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
+        << "  y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
    if (dim == 3)
    {
       cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
@@ -108,7 +107,7 @@ int main (int argc, char *argv[])
    {
       sout1.precision(8);
       sout1 << "solution\n" << mesh_1 << func_1
-            << "window_title 'solution1'"
+            << "window_title 'Solution 1'"
             << "window_geometry 0 0 600 600";
       if (dim == 2) { sout1 << "keys RmjAc"; }
       if (dim == 3) { sout1 << "keys mA\n"; }
@@ -116,7 +115,7 @@ int main (int argc, char *argv[])
 
       sout2.precision(8);
       sout2 << "solution\n" << mesh_2 << func_2
-            << "window_title 'solution2'"
+            << "window_title 'Solution 2'"
             << "window_geometry 600 0 600 600";
       if (dim == 2) { sout2 << "keys RmjAc"; }
       if (dim == 3) { sout2 << "keys mA\n"; }
@@ -124,8 +123,8 @@ int main (int argc, char *argv[])
    }
 
    // Generate equidistant points in physical coordinates over the whole mesh.
-   // Note that some points might be outside, if the mesh is not a box.
-   // Note that all tasks search the same points (not mandatory).
+   // Note that some points might be outside, if the mesh is not a box. Note
+   // also that all tasks search the same points (not mandatory).
    const int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
@@ -174,6 +173,7 @@ int main (int argc, char *argv[])
    finder.Interpolate(code_out, task_id_out, el_id_out,
                       pos_r_out, func_2, interp_vals_2);
 
+   // Compute differences between the two sets of values.
    double avg_diff = 0.0, max_diff = 0.0, diff_p;
    for (int p = 0; p < pts_cnt; p++)
    {
@@ -208,8 +208,8 @@ int main (int argc, char *argv[])
              << "Max diff: " << max_diff << std::endl
              << "Avg diff: " << avg_diff << std::endl;
 
-   // This is used only for visualization and approximating the
-   // volume of the differences.
+   // This is used only for visualization and approximating the volume of the
+   // differences.
    GridFunction diff(func_1.FESpace());
    vxyz = *mesh_1.GetNodes();
    const int nodes_cnt = vxyz.Size() / dim;
@@ -232,9 +232,9 @@ int main (int argc, char *argv[])
    sout3.open(vishost, visport);
    sout3.precision(8);
    sout3 << "solution\n" << mesh_1 << diff
-         << "window_title 'difference'"
+         << "window_title 'Difference'"
          << "window_geometry 1200 0 600 600";
-   if (dim == 2) { sout3 << "keys RmjApppppppppppppppppppppp"; }
+   if (dim == 2) { sout3 << "keys RmjAcpppppppppppppppppppppp"; }
    if (dim == 3) { sout3 << "keys mA\n"; }
    sout3 << flush;
 
@@ -246,7 +246,7 @@ int main (int argc, char *argv[])
    const double vol_diff = diff * lf;
    std::cout << "Vol diff: " << vol_diff << std::endl;
 
-   // Free internal gslib internal data.
+   // Free the internal gslib data.
    finder.FreeData();
 
    return 0;

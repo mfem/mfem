@@ -7,7 +7,6 @@
 //    ./exs -m ../../data/fichera.mesh -o 3
 
 #include "mfem.hpp"
-#include "fem/gslib.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -103,8 +102,8 @@ int main (int argc, char *argv[])
    finder.Setup(mesh, rel_bbox_el, newton_tol, npts_at_once);
 
    // Generate equidistant points in physical coordinates over the whole mesh.
-   // Note that some points might be outside, if the mesh is not a box.
-   // Note that all tasks search the same points (not mandatory).
+   // Note that some points might be outside, if the mesh is not a box. Note
+   // also that all tasks search the same points (not mandatory).
    const int pts_cnt_1D = 5;
    const int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
@@ -144,7 +143,7 @@ int main (int argc, char *argv[])
    finder.Interpolate(code_out, task_id_out, el_id_out,
                       pos_r_out, field_vals, interp_vals);
 
-   // Free internal gslib internal data.
+   // Free the internal gslib data.
    finder.FreeData();
 
    int face_pts = 0, not_found = 0, found = 0;
