@@ -26,7 +26,7 @@ PAR_EXAMPLES = exp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
-   EXAMPLES = $(PAR_EXAMPLES)
+   EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
 
 .SUFFIXES:
@@ -52,8 +52,8 @@ include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-SERIAL_NAME := Serial GSLIB_FPT example
-PARALLEL_NAME := Parallel GSLIB_FPT example
+SERIAL_NAME := Serial GSLIB example
+PARALLEL_NAME := Parallel GSLIB example
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
 %-test-seq: %

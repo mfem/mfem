@@ -3,7 +3,7 @@
 // Compile with: make exs
 //
 // Sample runs:
-//    ./exs -m ../../data/rtaylor2D-q3.mesh -o 3
+//    ./exs -m ../../data/rt-2d-q3.mesh -o 3
 //    ./exs -m ../../data/fichera.mesh -o 3
 
 #include "mfem.hpp"
@@ -22,9 +22,10 @@ double field_func(const Vector &x)
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
-   const char *mesh_file = "RT2D.mesh";
+   const char *mesh_file = "../../data/rt-2d-q3.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
+   bool visualization    = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -34,6 +35,9 @@ int main (int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -76,22 +80,25 @@ int main (int argc, char *argv[])
    field_vals.ProjectCoefficient(fc);
 
    // Display the mesh and the field through glvis.
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sout;
-   sout.open(vishost, visport);
-   if (!sout)
+   if (visualization)
    {
-      cout << "Unable to connect to GLVis server at "
-           << vishost << ':' << visport << endl;
-   }
-   else
-   {
-      sout.precision(8);
-      sout << "solution\n" << mesh << field_vals;
-      if (dim == 2) { sout << "keys RmjA*****\n"; }
-      if (dim == 3) { sout << "keys mA\n"; }
-      sout << flush;
+       char vishost[] = "localhost";
+       int  visport   = 19916;
+       socketstream sout;
+       sout.open(vishost, visport);
+       if (!sout)
+       {
+          cout << "Unable to connect to GLVis server at "
+               << vishost << ':' << visport << endl;
+       }
+       else
+       {
+          sout.precision(8);
+          sout << "solution\n" << mesh << field_vals;
+          if (dim == 2) { sout << "keys RmjA*****\n"; }
+          if (dim == 3) { sout << "keys mA\n"; }
+          sout << flush;
+       }
    }
 
    // Setup the gslib mesh.
