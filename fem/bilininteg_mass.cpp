@@ -982,7 +982,7 @@ static void PAMassApply(const int dim,
       }
       if (dim == 3)
       {
-         OccaPAMassApply3D(D1D, Q1D, NE, B, Bt, op, x, y);
+          OccaPAMassApply3D(D1D, Q1D, NE, B, Bt, op, x, y);
          return;
       }
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
@@ -1025,6 +1025,10 @@ static void PAMassApply(const int dim,
             case 0x48: return SmemRegPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
             case 0x56: return SmemRegPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
             case 0x58: return SmemRegPAMassApply3D<5,8>(NE, B, Bt, op, x, y);
+            case 0x67: return SmemRegPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
+            case 0x78: return SmemRegPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
+            case 0x89: return SmemRegPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
+            case 0x9A: return SmemRegPAMassApply3D<9,10>(NE, B, Bt, op, x, y);
          }
       }
       else
@@ -1040,6 +1044,10 @@ static void PAMassApply(const int dim,
             case 0x48: return SmemPAMassApply3D<4,8>(NE, B, Bt, op, x, y);
             case 0x56: return SmemPAMassApply3D<5,6>(NE, B, Bt, op, x, y);
             case 0x58: return SmemPAMassApply3D<5,8>(NE, B, Bt, op, x, y);
+            case 0x67: return SmemPAMassApply3D<6,7>(NE, B, Bt, op, x, y);
+            case 0x78: return SmemPAMassApply3D<7,8>(NE, B, Bt, op, x, y);
+            case 0x89: return SmemPAMassApply3D<8,9>(NE, B, Bt, op, x, y);
+            case 0x9A: return SmemPAMassApply3D<9,10>(NE, B, Bt, op, x, y);
          }
       }
    }
