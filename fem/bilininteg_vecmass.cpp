@@ -43,11 +43,14 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (Q)
    {
       ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+      MFEM_VERIFY(cQ != NULL, "Only ConstantCoefficient is supported.");
       coeff = cQ->constant;
    }
-   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
-   if (dim==2)
+   if (!(dim == 1 || dim == 3))
+   {
+      MFEM_ABORT("Dimension not supported.");
+   }
+   if (dim == 2)
    {
       const double constant = coeff;
       const int NE = ne;
@@ -68,7 +71,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       });
    }
-   if (dim==3)
+   if (dim == 3)
    {
       const double constant = coeff;
       const int NE = ne;
