@@ -48,9 +48,8 @@ int main(int argc, char *argv[])
    }
 
 
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   // Mesh * mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1, 1, false);
-
+   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   Mesh * mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1, 1, false);
    int dim = mesh->Dimension();
 
    for (int l = 0; l < ref_levels; l++)
@@ -64,6 +63,7 @@ int main(int argc, char *argv[])
    delete mesh;
 
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
+   // FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 
    ParLinearForm *b = new ParLinearForm(fespace);
    ConstantCoefficient one(1.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   // b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
    ParGridFunction x(fespace);
@@ -89,6 +89,7 @@ int main(int argc, char *argv[])
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   // a->AddDomainIntegrator(new CurlCurlIntegrator(one));
    a->Assemble();
 
    OperatorPtr A;

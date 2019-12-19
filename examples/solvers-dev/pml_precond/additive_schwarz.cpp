@@ -62,11 +62,9 @@ mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
       // create the mesh
       patch_mesh[ip] = new Mesh(dim,patch_nrvertices,patch_nrelems);
       // Add the vertices
-      double vert[dim];
       for (int iv = 0; iv<patch_nrvertices; ++iv)
       {
          int vert_idx = patch_vertices[iv];
-         // for (int comp=0; comp<dim; ++comp) vert[comp] = coords(vert_idx,comp);
          patch_mesh[ip]->AddVertex(mesh->GetVertex(vert_idx));
       }
 
@@ -143,7 +141,6 @@ mesh_partition::~mesh_partition()
    }
    patch_mesh.DeleteAll();
 }
-
 
 // constructor
 PatchAssembly::PatchAssembly(BilinearForm *bf_) : bf(bf_)
