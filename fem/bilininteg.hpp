@@ -44,6 +44,15 @@ public:
        used later in the methods AddMultPA() and AddMultTransposePA(). */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   /// Method defining partial assembly.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA() and AddMultTransposePA(). */
+   virtual void AssembleMixedPA(const FiniteElementSpace &trial_fes, 
+				const FiniteElementSpace &test_fes)
+   {
+     mfem_error("Not implemented for this integrator!");
+   }
+
    /// assemble diagonal into vector diag
    virtual void AssembleDiagonalPA(Vector& diag) const;
 
@@ -1540,8 +1549,21 @@ protected:
       trial_fe.CalcPhysDShape(Trans, shape);
    }
 
+   virtual void AssembleMixedPA(const FiniteElementSpace &trial_fes, 
+				const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
 private:
    DenseMatrix Jinv;
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned
+   const DofToQuad *mapsC;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+   Array<int> dof_map;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q curl u, v) in 3D and

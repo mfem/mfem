@@ -2403,5 +2403,400 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag) const
 				 mapsO->B, mapsC->G, pa_data, diag);
 }
 
+void MixedVectorGradientIntegrator::AssembleMixedPA(const FiniteElementSpace &trial_fes, 
+						    const FiniteElementSpace &test_fes)
+{
+  // Assumes tensor-product elements, with a vector test space and H^1 trial space.
+  Mesh *mesh = trial_fes.GetMesh();
+  const FiniteElement *trial_fel = trial_fes.GetFE(0);
+  const FiniteElement *test_fel = test_fes.GetFE(0);
+
+  const NodalTensorFiniteElement *trial_el = dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);
+  MFEM_VERIFY(trial_el != NULL, "Only NodalTensorFiniteElement is supported!");
+
+  const VectorTensorFiniteElement *test_el = dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
+  MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
+
+  const IntegrationRule *ir
+    = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el, *mesh->GetElementTransformation(0));
+  const int dims = trial_el->GetDim();
+  MFEM_VERIFY(dims == 2 || dims == 3, "");
+
+  const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+  const int nq = ir->GetNPoints();
+  dim = mesh->Dimension();
+  MFEM_VERIFY(dim == 2 || dim == 3, "");
+
+  MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(), "");
+
+  ne = trial_fes.GetNE();
+  geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+  mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+  mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+  dofs1D = mapsC->ndof;
+  quad1D = mapsC->nqpt;
+
+  MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+
+  pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+
+  Vector *coeff = NULL;
+  if (Q)
+    {
+      coeff = new Vector(ne * nq);
+
+      for (int e=0; e<ne; ++e)
+	{
+	  ElementTransformation *tr = mesh->GetElementTransformation(e);
+	  for (int p=0; p<nq; ++p)
+	    (*coeff)[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
+	}
+    }
+
+  // Use the same setup functions as VectorFEMassIntegrator.
+  if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
+    {
+      PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
+		     coeff, pa_data);
+    }
+  else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
+    {
+      PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
+		     coeff, pa_data);
+    }
+  else
+    MFEM_ABORT("Unknown kernel.");
+
+  if (coeff) delete coeff;
+
+  dof_map = test_el->GetDofMap();
+}
+
+// Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
+// against H(curl) test functions corresponding to y.
+static void PAHcurlH1Apply3D(const int D1D,
+			     const int Q1D,
+			     const int NE,
+			     const Array<int> &dof_map,
+			     const Array<double> &_Bc,
+			     const Array<double> &_Gc,
+			     const Array<double> &_Bot,
+			     const Array<double> &_Bct,
+			     const Vector &_op,
+			     const Vector &_x,
+			     Vector &y)
+{
+  constexpr int VDIM = 3;
+
+  auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
+  auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
+  auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
+  auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
+  auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+  auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
+
+  const int esize = (D1D - 1) * D1D * D1D * VDIM;
+
+  MFEM_FORALL(e, NE,
+  {
+    const int ose = e * esize;
+    double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
+
+    for (int qz = 0; qz < Q1D; ++qz)
+      {
+	for (int qy = 0; qy < Q1D; ++qy)
+	  {
+	    for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		for (int c = 0; c < VDIM; ++c)
+		  {
+		    mass[qz][qy][qx][c] = 0.0;
+		  }
+	      }
+	  }
+      }
+
+    for (int dz = 0; dz < D1D; ++dz)
+      {
+	double gradXY[MAX_Q1D][MAX_Q1D][3];
+	for (int qy = 0; qy < Q1D; ++qy)
+	  {
+            for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		gradXY[qy][qx][0] = 0.0;
+		gradXY[qy][qx][1] = 0.0;
+		gradXY[qy][qx][2] = 0.0;
+	      }
+	  }
+	for (int dy = 0; dy < D1D; ++dy)
+	  {
+            double gradX[MAX_Q1D][2];
+            for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		gradX[qx][0] = 0.0;
+		gradX[qx][1] = 0.0;
+	      }
+            for (int dx = 0; dx < D1D; ++dx)
+	      {
+		const double s = x(dx,dy,dz,e);
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    gradX[qx][0] += s * Bc(qx,dx);
+		    gradX[qx][1] += s * Gc(qx,dx);
+		  }
+	      }
+            for (int qy = 0; qy < Q1D; ++qy)
+	      {
+		const double wy  = Bc(qy,dy);
+		const double wDy = Gc(qy,dy);
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    const double wx  = gradX[qx][0];
+		    const double wDx = gradX[qx][1];
+		    gradXY[qy][qx][0] += wDx * wy;
+		    gradXY[qy][qx][1] += wx * wDy;
+		    gradXY[qy][qx][2] += wx * wy;
+		  }
+	      }
+	  }
+	for (int qz = 0; qz < Q1D; ++qz)
+	  {
+            const double wz  = Bc(qz,dz);
+            const double wDz = Gc(qz,dz);
+            for (int qy = 0; qy < Q1D; ++qy)
+	      {
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    mass[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
+		    mass[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
+		    mass[qz][qy][qx][2] += gradXY[qy][qx][2] * wDz;
+		  }
+	      }
+	  }
+      }
+
+    // Apply D operator.
+    for (int qz = 0; qz < Q1D; ++qz)
+      {
+	for (int qy = 0; qy < Q1D; ++qy)
+	  {
+	    for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		const int q = qx + (qy + qz * Q1D) * Q1D;
+		const double O11 = op(q,0,e);
+		const double O12 = op(q,1,e);
+		const double O13 = op(q,2,e);
+		const double O22 = op(q,3,e);
+		const double O23 = op(q,4,e);
+		const double O33 = op(q,5,e);
+		const double massX = mass[qz][qy][qx][0];
+		const double massY = mass[qz][qy][qx][1];
+		const double massZ = mass[qz][qy][qx][2];
+		mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
+		mass[qz][qy][qx][1] = (O12*massX)+(O22*massY)+(O23*massZ);
+		mass[qz][qy][qx][2] = (O13*massX)+(O23*massY)+(O33*massZ);
+	      }
+	  }
+      }
+
+    for (int qz = 0; qz < Q1D; ++qz)
+      {
+	double massXY[MAX_D1D][MAX_D1D];
+
+	int osc = 0;
+
+	for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+	  {
+	    const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+	    const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+	    const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+	    for (int dy = 0; dy < D1Dy; ++dy)
+	      {
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    massXY[dy][dx] = 0;
+		  }
+	      }
+	    for (int qy = 0; qy < Q1D; ++qy)
+	      {
+		double massX[MAX_D1D];
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    massX[dx] = 0;
+		  }
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			massX[dx] += mass[qz][qy][qx][c] * ((c == 0) ? Bot(dx,qx) : Bct(dx,qx));
+		      }
+		  }
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    const double wy = (c == 1) ? Bot(dy,qy) : Bct(dy,qy);
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			massXY[dy][dx] += massX[dx] * wy;
+		      }
+		  }
+	      }
+
+	    for (int dz = 0; dz < D1Dz; ++dz)
+	      {
+		const double wz = (c == 2) ? Bot(dz,qz) : Bct(dz,qz);
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			const double s = dof_map[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
+			y.GetData()[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc + ose] += s * massXY[dy][dx] * wz;
+		      }
+		  }
+	      }
+
+	    osc += D1Dx * D1Dy * D1Dz;
+	  }  // loop c
+      }  // loop qz
+  }); // end of element loop
+}
+
+// Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
+// against H(curl) test functions corresponding to y.
+static void PAHcurlH1Apply2D(const int D1D,
+			     const int Q1D,
+			     const int NE,
+			     const Array<int> &dof_map,
+			     const Array<double> &_Bc,
+			     const Array<double> &_Gc,
+			     const Array<double> &_Bot,
+			     const Array<double> &_Bct,
+			     const Vector &_op,
+			     const Vector &_x,
+			     Vector &y)
+{
+  constexpr int VDIM = 2;
+
+  auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
+  auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
+  auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
+  auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
+  auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+  auto x = Reshape(_x.Read(), D1D, D1D, NE);
+
+  const int esize = (D1D - 1) * D1D * VDIM;
+
+  MFEM_FORALL(e, NE,
+  {
+    const int ose = e * esize;
+    double mass[MAX_Q1D][MAX_Q1D][VDIM];
+
+    for (int qy = 0; qy < Q1D; ++qy)
+      {
+	for (int qx = 0; qx < Q1D; ++qx)
+	  {
+	    for (int c = 0; c < VDIM; ++c)
+	      {
+		mass[qy][qx][c] = 0.0;
+	      }
+	  }
+      }
+
+    for (int dy = 0; dy < D1D; ++dy)
+      {
+	double gradX[MAX_Q1D][2];
+	for (int qx = 0; qx < Q1D; ++qx)
+	  {
+	    gradX[qx][0] = 0.0;
+	    gradX[qx][1] = 0.0;
+	  }
+	for (int dx = 0; dx < D1D; ++dx)
+	  {
+	    const double s = x(dx,dy,e);
+	    for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		gradX[qx][0] += s * Bc(qx,dx);
+		gradX[qx][1] += s * Gc(qx,dx);
+	      }
+	  }
+	for (int qy = 0; qy < Q1D; ++qy)
+	  {
+	    const double wy  = Bc(qy,dy);
+	    const double wDy = Gc(qy,dy);
+	    for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		const double wx  = gradX[qx][0];
+		const double wDx = gradX[qx][1];
+		mass[qy][qx][0] += wDx * wy;
+		mass[qy][qx][1] += wx * wDy;
+	      }
+	  }
+      }
+
+    // Apply D operator.
+    for (int qy = 0; qy < Q1D; ++qy)
+      {
+	for (int qx = 0; qx < Q1D; ++qx)
+	  {
+	    const int q = qx + qy * Q1D;
+
+	    const double O11 = op(q,0,e);
+	    const double O12 = op(q,1,e);
+	    const double O22 = op(q,2,e);
+	    const double massX = mass[qy][qx][0];
+	    const double massY = mass[qy][qx][1];
+	    mass[qy][qx][0] = (O11*massX)+(O12*massY);
+	    mass[qy][qx][1] = (O12*massX)+(O22*massY);
+	  }
+      }
+
+    for (int qy = 0; qy < Q1D; ++qy)
+      {
+	int osc = 0;
+
+	for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+	  {
+	    const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+	    const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+	    double massX[MAX_D1D];
+	    for (int dx = 0; dx < D1Dx; ++dx)
+	      {
+		massX[dx] = 0;
+	      }
+	    for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    massX[dx] += mass[qy][qx][c] * ((c == 0) ? Bot(dx,qx) : Bct(dx,qx));
+		  }
+	      }
+
+	    for (int dy = 0; dy < D1Dy; ++dy)
+	      {
+		const double wy = (c == 1) ? Bot(dy,qy) : Bct(dy,qy);
+
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    const double s = dof_map[dx + (dy * D1Dx) + osc] >= 0 ? 1.0 : -1.0;
+		    y.GetData()[dx + (dy * D1Dx) + osc + ose] += s * massX[dx] * wy;
+		  }
+	      }
+
+	    osc += D1Dx * D1Dy;
+	  }  // loop c
+      }
+  }); // end of element loop
+}
+
+void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+  if (dim == 3)
+    PAHcurlH1Apply3D(dofs1D, quad1D, ne, dof_map, mapsC->B, mapsC->G, 
+		     mapsO->Bt, mapsC->Bt, pa_data, x, y);
+  else if (dim == 2)
+    PAHcurlH1Apply2D(dofs1D, quad1D, ne, dof_map, mapsC->B, mapsC->G, 
+		     mapsO->Bt, mapsC->Bt, pa_data, x, y);
+}
 
 } // namespace mfem
