@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "catch.hpp"
 
+#ifdef MFEM_USE_EXCEPTIONS
+
 using namespace mfem;
 
 TEST_CASE("Operator", "[Operator]")
@@ -46,3 +48,5 @@ TEST_CASE("Operator", "[Operator]")
      REQUIRE_NOTHROW(rap = new RAPOperator(A, cg, cg));
    }
 }
+
+#endif  // MFEM_USE_EXCEPTIONS
