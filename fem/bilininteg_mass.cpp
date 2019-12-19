@@ -18,6 +18,8 @@ using namespace std;
 namespace mfem
 {
 
+// PA Mass Integrator
+
 // PA Mass Assemble kernel
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {

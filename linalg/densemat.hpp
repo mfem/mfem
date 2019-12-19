@@ -287,7 +287,6 @@ public:
    void Transpose();
    /// (*this) = A^t
    void Transpose(const DenseMatrix &A);
-
    /// (*this) = 1/2 ((*this) + (*this)^t)
    MFEM_HOST_DEVICE static inline
    void symmetrize(const int n, double *d)

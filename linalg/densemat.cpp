@@ -2501,13 +2501,6 @@ void DenseMatrix::Symmetrize()
    }
 #endif
    symmetrize(Height(), Data());
-   /*
-   for (int i = 0; i < Height(); i++)
-      for (int j = 0; j < i; j++)
-      {
-         double a = 0.5 * ((*this)(i,j) + (*this)(j,i));
-         (*this)(j,i) = (*this)(i,j) = a;
-      }*/
 }
 
 void DenseMatrix::Lump()
@@ -3245,9 +3238,6 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
    t = a.Det();
    MFEM_ASSERT(std::abs(t) > 1.0e-14 * pow(a.FNorm()/a.Width(), a.Width()),
                "singular matrix!");
-   t = 1.0 / t;
-#else
-   //t = 1.0 / a.Det();
 #endif
 
    switch (a.Height())
@@ -3417,26 +3407,6 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    double *cd = ABt.Data();
 
    multABt(ah, aw, bh, ad, bd, cd);
-   /*
-   for (int i = 0, s = ah*bh; i < s; i++)
-   {
-      cd[i] = 0.0;
-   }
-   for (int k = 0; k < aw; k++)
-   {
-      double *cp = cd;
-      for (int j = 0; j < bh; j++)
-      {
-         const double bjk = bd[j];
-         for (int i = 0; i < ah; i++)
-         {
-            cp[i] += ad[i] * bjk;
-         }
-         cp += ah;
-      }
-      ad += ah;
-      bd += bh;
-   }*/
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
