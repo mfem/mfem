@@ -64,6 +64,8 @@ Miscellaneous
   the Hilbert curve. The ordering can be used to improve caching and parallel
   partitioning in non-conforming AMR.
 
+- New options to reorder and partition the mesh in the mesh-explorer miniapp.
+
 - Improved element numbering after uniform mesh refinement.
 
 New and updated examples and miniapps
