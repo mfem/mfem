@@ -547,17 +547,28 @@ distclean: clean config/clean doc/clean
 INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
+INSTALL_EXTRA_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
+   $(EXTRA_OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem-extras.$(SO_VER)\
+   && \
+   cd $(PREFIX_LIB) && ln -sf libmfem-extras.$(SO_VER) libmfem-extras.$(SO_EXT)
 
-install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+install: $(if $(static),$(BLD)libmfem.a)\
+   $(if $(shared),$(BLD)libmfem.$(SO_EXT))\
+   $(if $(static),$(BLD)miniapps/libmfem-extras.a)\
+   $(if $(shared),$(BLD)miniapps/libmfem-extras.$(SO_EXT))
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
+	$(if $(static),$(INSTALL) -m 640 $(BLD)miniapps/libmfem-extras.a\
+   $(PREFIX_LIB))
+	$(if $(shared),$(INSTALL_EXTRA_SHARED_LIB))
 # install top level includes
 	mkdir -p $(PREFIX_INC)/mfem
 	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
+	$(SRC)mfem-extras.hpp \
 	   $(PREFIX_INC)/mfem
-	for hdr in mfem.hpp mfem-performance.hpp; do \
+	for hdr in mfem.hpp mfem-extras.hpp mfem-performance.hpp; do \
 	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
 	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; done
 # install config include
