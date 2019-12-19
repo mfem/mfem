@@ -22,13 +22,14 @@ namespace mfem
 
 // PA Convection Assemble 2D kernel
 static void PAConvectionSetup2D(const int Q1D,
-                               const int NE,
+                               const int ne,
                                const Array<double> &w,
                                const Vector &j,
                                const Vector &coeff,
                                const double alpha,
                                Vector &op)
 {
+   const int NE = ne;
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
 
@@ -259,7 +260,7 @@ void PAConvectionApply2D(const int NE,
 
 // PA Convection Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
-void PAConvectionApply3D(const int NE,
+void PAConvectionApply3D(const int ne,
                         const Array<double> &b,
                         const Array<double> &g,
                         const Array<double> &bt,
@@ -270,6 +271,7 @@ void PAConvectionApply3D(const int NE,
                         const int d1d = 0,
                         const int q1d = 0)
 {
+  const int NE = ne;
   const int D1D = T_D1D ? T_D1D : d1d;
   const int Q1D = T_Q1D ? T_Q1D : q1d;
   MFEM_VERIFY(D1D <= MAX_D1D, "");
@@ -344,9 +346,9 @@ void PAConvectionApply3D(const int NE,
         }
       }
     }
-    double GBBu[max_D1D][max_Q1D][max_Q1D];
-    double BGBu[max_D1D][max_Q1D][max_Q1D];
-    double BBGu[max_D1D][max_Q1D][max_Q1D];
+    double GBBu[max_Q1D][max_Q1D][max_Q1D];
+    double BGBu[max_Q1D][max_Q1D][max_Q1D];
+    double BBGu[max_Q1D][max_Q1D][max_Q1D];
     for (int qx = 0; qx < Q1D; ++qx)
     {
       for (int qy = 0; qy < Q1D; ++qy)
@@ -377,7 +379,7 @@ void PAConvectionApply3D(const int NE,
          {
             const double O1 = op(qx,qy,qz,0,e);
             const double O2 = op(qx,qy,qz,1,e);
-            const double O3 = op(qx,qy,qz,1,e);
+            const double O3 = op(qx,qy,qz,2,e);
 
             const double gradX = BBGu[qz][qy][qx];
             const double gradY = BGBu[qz][qy][qx];
@@ -403,7 +405,7 @@ void PAConvectionApply3D(const int NE,
         }
       }
     }
-    double BBDGu[max_D1D][max_Q1D][max_Q1D];
+    double BBDGu[max_D1D][max_D1D][max_Q1D];
     for (int dz = 0; dz < D1D; ++dz)
     {
       for (int qx = 0; qx < Q1D; ++qx)
@@ -419,7 +421,7 @@ void PAConvectionApply3D(const int NE,
         }
       }
     }
-    double BBBDGu[max_D1D][max_Q1D][max_Q1D];
+    double BBBDGu[max_D1D][max_D1D][max_D1D];
     for (int dz = 0; dz < D1D; ++dz)
     {
       for (int dy = 0; dy < D1D; ++dy)
