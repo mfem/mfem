@@ -16,18 +16,13 @@
 namespace mfem
 {
 
-#ifndef __GNUC__
-
-#include "gslib.h"
-
-#else // Ignore warnings from the gslib header (GCC version)
-
-#pragma GCC diagnostic push
+#ifdef __GNUC__
+// Ignore warnings from the gslib header (GCC version)
 #pragma GCC diagnostic ignored "-Wunused-function"
-#include "gslib.h"
-#pragma GCC diagnostic pop
+#endif // __GNUC__
 
-#endif // GCC
+#include "gslib.h"
+
 
 FindPointsGSLib::FindPointsGSLib()
    : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
