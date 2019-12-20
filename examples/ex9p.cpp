@@ -152,6 +152,7 @@ int main(int argc, char *argv[])
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   mesh->EnsureNodes();
    int dim = mesh->Dimension();
 
    // 4. Define the ODE solver used for time integration. Several explicit
