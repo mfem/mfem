@@ -1,10 +1,33 @@
-﻿//          Serial example of utilizing GSLib's FindPoints methods
+﻿// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
-// Compile with: make exs
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+//
+//          ---------------------------------------------------------
+//          Parallel miniapp demonstrating GSLIB's FindPoints methods
+//          ---------------------------------------------------------
+// This miniapp demonstrates high-order interpolation of a gridfunction on a
+// set of points in physical-space using GSLIB/FindPoints.
+// FindPoints provides two key functionalities. First, for a given set of points in
+// the physical-space, it determines the computational coordinates (element number,
+// reference-space coordinates inside the element, and processor number [in parallel])
+// for each point. These computational coordinates require use of a Hash Table to identify
+// the candidate processor and element for each point, followed by use of the Newton's
+// method to determine the reference-space coordinates inside the candidate element.
+// Next, using the computational coordinates, FindPoints interpolates a gridfunction
+// on the given set of points.
+//
+// Compile with: make pfindpts
 //
 // Sample runs:
-//    ./exs -m ../../data/rt-2d-q3.mesh -o 3
-//    ./exs -m ../../data/fichera.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/fichera.mesh -o 3
 
 #include "mfem.hpp"
 
@@ -21,10 +44,17 @@ double field_func(const Vector &x)
 
 int main (int argc, char *argv[])
 {
+   // Initialize MPI.
+   int num_procs, myid;
+   MPI_Init(&argc, &argv);
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
    // Set the method's default parameters.
    const char *mesh_file = "../../data/rt-2d-q3.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
+   int rp_levels         = 0;
    bool visualization    = true;
 
    // Parse command-line options.
@@ -35,6 +65,8 @@ int main (int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&rp_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -44,37 +76,51 @@ int main (int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0) { args.PrintOptions(cout); }
 
    // Initialize and refine the starting mesh.
-   Mesh mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
-   const int dim = mesh.Dimension();
-   cout << "Mesh curvature of the original mesh: ";
-   if (mesh.GetNodes()) { cout << mesh.GetNodes()->OwnFEC()->Name(); }
-   else { cout << "(NONE)"; }
-   cout << endl;
+   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   const int dim = mesh->Dimension();
+   if (myid == 0)
+   {
+      cout << "Mesh curvature of the original mesh: ";
+      if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
+      else { cout << "(NONE)"; }
+      cout << endl;
+   }
 
-   // Mesh bounding box.
+   // Mesh bounding box (for the full serial mesh).
    Vector pos_min, pos_max;
    MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be positive.");
-   mesh.GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
-   cout << "--- Generating equidistant point for:\n"
-        << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
-        << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
-   if (dim == 3)
+   mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
+   if (myid == 0)
    {
-      cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
+      cout << "--- Generating equidistant point for:\n"
+           << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
+           << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
+      if (dim == 3)
+      {
+         cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
+      }
    }
+
+   // Distribute the mesh.
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   for (int lev = 0; lev < rp_levels; lev++) { pmesh.UniformRefinement(); }
 
    // Curve the mesh based on the chosen polynomial degree.
    H1_FECollection fec(mesh_poly_deg, dim);
-   FiniteElementSpace fespace(&mesh, &fec, dim);
-   mesh.SetNodalFESpace(&fespace);
-   cout << "Mesh curvature of the curved mesh: " << fec.Name() << endl;
+   ParFiniteElementSpace pfespace(&pmesh, &fec, dim);
+   pmesh.SetNodalFESpace(&pfespace);
+   if (myid == 0)
+   {
+      cout << "Mesh curvature of the curved mesh: " << fec.Name() << endl;
+   }
 
    // Define a scalar function on the mesh.
-   FiniteElementSpace sc_fes(&mesh, &fec, 1);
+   ParFiniteElementSpace sc_fes(&pmesh, &fec, 1);
    GridFunction field_vals(&sc_fes);
    FunctionCoefficient fc(field_func);
    field_vals.ProjectCoefficient(fc);
@@ -88,13 +134,17 @@ int main (int argc, char *argv[])
        sout.open(vishost, visport);
        if (!sout)
        {
-          cout << "Unable to connect to GLVis server at "
-               << vishost << ':' << visport << endl;
+          if (myid == 0)
+          {
+             cout << "Unable to connect to GLVis server at "
+                  << vishost << ':' << visport << endl;
+          }
        }
        else
        {
+          sout << "parallel " << num_procs << " " << myid << "\n";
           sout.precision(8);
-          sout << "solution\n" << mesh << field_vals;
+          sout << "solution\n" << pmesh << field_vals;
           if (dim == 2) { sout << "keys RmjA*****\n"; }
           if (dim == 3) { sout << "keys mA\n"; }
           sout << flush;
@@ -102,11 +152,11 @@ int main (int argc, char *argv[])
    }
 
    // Setup the gslib mesh.
-   FindPointsGSLib finder;
+   FindPointsGSLIB finder(MPI_COMM_WORLD);
    const double rel_bbox_el = 0.05;
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
-   finder.Setup(mesh, rel_bbox_el, newton_tol, npts_at_once);
+   finder.Setup(pmesh, rel_bbox_el, newton_tol, npts_at_once);
 
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
@@ -153,14 +203,15 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
-   int face_pts = 0, not_found = 0, found = 0;
+   int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double max_err = 0.0, max_dist = 0.0;
    Vector pos(dim);
    for (int i = 0; i < pts_cnt; i++)
    {
+      (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
+
       if (code_out[i] < 2)
       {
-         found++;
          for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
          const double exact_val = field_func(pos);
 
@@ -171,13 +222,20 @@ int main (int argc, char *argv[])
       else { not_found++; }
    }
 
-   cout << setprecision(16)
-        << "Searched points:     "   << pts_cnt
-        << "\nFound points:        " << found
-        << "\nMax interp error:    " << max_err
-        << "\nMax dist (of found): " << max_dist
-        << "\nPoints not found:    " << not_found
-        << "\nPoints on faces:     " << face_pts << endl;
+   // We print only the task 0 result (other tasks should be identical except
+   // the number of points found locally).
+   if (myid == 0)
+   {
+      cout << setprecision(16) << "--- Task " << myid << ": "
+           << "\nSearched points:      " << pts_cnt
+           << "\nFound on local mesh:  " << found_loc
+           << "\nFound on other tasks: " << found_away
+           << "\nMax interp error:     " << max_err
+           << "\nMax dist (of found):  " << max_dist
+           << "\nPoints not found:     " << not_found
+           << "\nPoints on faces:      " << face_pts << endl;
+   }
 
+   MPI_Finalize();
    return 0;
 }
