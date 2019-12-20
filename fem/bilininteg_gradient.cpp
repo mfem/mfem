@@ -20,6 +20,55 @@ namespace mfem
 
 // PA Gradient Integrator
 
+/* Description of the *SetupND functions
+   Inputs are as follows
+   \b Q1D number of quadrature points in one dimension.
+   \b w quadrature weights.
+   \b j element jacobians.
+   \b COEFF coefficient at quadrature points.
+
+   The function is used precompute data needed at quadrature points during
+   the action. */
+
+/* Description of the *ApplyND functions
+   The template parameters are
+   \b T_D1D number of degrees of freedom in one dimension,
+   \b T_Q1D number of quadrature points in one dimension,
+   and are necessary to allow for compiler optimiations inside the kernel.
+
+   Inputs are as follows
+   \b NE number of elements.
+   \b B matrix of basis functions.
+   \b G matrix of derivatives of the basis functions.
+   \b Bt transpose of matrix of basis functions.
+   \b Gt transpose matrix of derivatives of the basis functions.
+   \b op data used during action of the element matrix in the tensor
+   product application.
+
+   \b x input vector of degrees of freedom on the element.
+   \b y output vector of degrees of freedom on the element.
+
+   The function computes the kernel for one dimension that is suiteable for
+   tensor product action to form ND operators.
+   Most of the ND inputs are reshaped as NQ*(ND*ND)*NE data structure, i.e
+   to allow indexing such as op(qpt,i,j,el).
+
+   The output data structure is dependent on the kernel and layout of the
+   dimension ND and element number, but in general resembles the action of the
+   element matrix in the tensor product application. */
+
+/* Description of the Smem*ApplyND functions
+   The shared memory (Smem) versions of the kernels differ from the regular
+   versions in the following properties.
+
+   \b MFEM_FORALL is using only one level of parallelism.
+   \b MFEM_FORALL_ND uses an additional level of parlellism
+   \b MFEM_FOREACH_THREAD
+
+   These macros allow automatic mapping of manually defined blocks to
+   underlying hardware threads. These threads can share memory by using
+   the \b MFEM_SHARED keyword for local arrays. */
+
 // PA Gradient Assemble 2D kernel
 static void PAGradientSetup2D(const int Q1D,
                               const int NE,
