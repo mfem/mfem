@@ -71,8 +71,9 @@ public:
                               Note: the gslib reference frame is [-1,1].
        @param[out] dist       Distance between the seeked and the found point
                               in physical space. */
-   void FindPoints(Vector &point_pos, Array<uint> &codes, Array<uint> &proc_ids,
-                   Array<uint> &elem_ids, Vector &ref_pos, Vector &dist);
+   void FindPoints(Vector &point_pos, Array<unsigned int> &codes,
+                   Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
+                   Vector &ref_pos, Vector &dist);
 
    /** Interpolation of field values at prescribed reference space positions.
 
@@ -88,8 +89,8 @@ public:
                               @a field_in is in H1 and in the same space as the
                               mesh that was given to Setup().
        @param[out] field_out  Interpolated values. */
-   void Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
-                    Array<uint> &elem_ids, Vector &ref_pos,
+   void Interpolate(Array<unsigned int> &codes, Array<unsigned int> &proc_ids,
+                    Array<unsigned int> &elem_ids, Vector &ref_pos,
                     const GridFunction &field_in, Vector &field_out);
 
    /** Cleans up memory allocated internally by gslib.

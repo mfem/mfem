@@ -65,16 +65,6 @@ PARALLEL_NAME := Parallel GSLIB miniapp
 %-test-seq: %
 	@$(call mfem-test,$<,, $(SERIAL_NAME))
 
-# Testing: Specific execution options:
-# Example 9: test explicit CVODE time stepping
-EXS_COMMON_ARGS := -m ../../data/periodic-hexagon.mesh -o 1 -qo 3
-EXS_ARGS  := $(EX9_COMMON_ARGS)
-EXP_ARGS := $(EX9_COMMON_ARGS)
-exs-test-seq: findpts
-	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EXS_ARGS))
-exp-test-par: pfindpts
-	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EXP_ARGS))
-
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit

@@ -107,8 +107,9 @@ void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
    }
 }
 
-void FindPointsGSLIB::FindPoints(Vector &point_pos, Array<uint> &codes,
-                                 Array<uint> &proc_ids, Array<uint> &elem_ids,
+void FindPointsGSLIB::FindPoints(Vector &point_pos, Array<unsigned int> &codes,
+                                 Array<unsigned int> &proc_ids,
+                                 Array<unsigned int> &elem_ids,
                                  Vector &ref_pos, Vector &dist)
 {
    const int points_cnt = point_pos.Size() / dim;
@@ -120,9 +121,9 @@ void FindPointsGSLIB::FindPoints(Vector &point_pos, Array<uint> &codes,
       unsigned xv_stride[2];
       xv_stride[0] = sizeof(double);
       xv_stride[1] = sizeof(double);
-      findpts_2(codes.GetData(), sizeof(uint),
-                proc_ids.GetData(), sizeof(uint),
-                elem_ids.GetData(), sizeof(uint),
+      findpts_2(codes.GetData(), sizeof(unsigned int),
+                proc_ids.GetData(), sizeof(unsigned int),
+                elem_ids.GetData(), sizeof(unsigned int),
                 ref_pos.GetData(), sizeof(double) * dim,
                 dist.GetData(), sizeof(double),
                 xv_base, xv_stride, points_cnt, fdata2D);
@@ -137,18 +138,19 @@ void FindPointsGSLIB::FindPoints(Vector &point_pos, Array<uint> &codes,
       xv_stride[0] = sizeof(double);
       xv_stride[1] = sizeof(double);
       xv_stride[2] = sizeof(double);
-      findpts_3(codes.GetData(), sizeof(uint),
-                proc_ids.GetData(), sizeof(uint),
-                elem_ids.GetData(), sizeof(uint),
+      findpts_3(codes.GetData(), sizeof(unsigned int),
+                proc_ids.GetData(), sizeof(unsigned int),
+                elem_ids.GetData(), sizeof(unsigned int),
                 ref_pos.GetData(), sizeof(double) * dim,
                 dist.GetData(), sizeof(double),
                 xv_base, xv_stride, points_cnt, fdata3D);
    }
 }
 
-void FindPointsGSLIB::Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
-                                  Array<uint> &elem_ids, Vector &ref_pos,
-                                  const GridFunction &field_in,
+void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
+                                  Array<unsigned int> &proc_ids,
+                                  Array<unsigned int> &elem_ids,
+                                  Vector &ref_pos, const GridFunction &field_in,
                                   Vector &field_out)
 {
    Vector node_vals;
@@ -158,18 +160,18 @@ void FindPointsGSLIB::Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
    if (dim==2)
    {
       findpts_eval_2(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(uint),
-                     proc_ids.GetData(), sizeof(uint),
-                     elem_ids.GetData(), sizeof(uint),
+                     codes.GetData(), sizeof(unsigned int),
+                     proc_ids.GetData(), sizeof(unsigned int),
+                     elem_ids.GetData(), sizeof(unsigned int),
                      ref_pos.GetData(), sizeof(double) * dim,
                      points_cnt, node_vals.GetData(), fdata2D);
    }
    else
    {
       findpts_eval_3(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(uint),
-                     proc_ids.GetData(), sizeof(uint),
-                     elem_ids.GetData(), sizeof(uint),
+                     codes.GetData(), sizeof(unsigned int),
+                     proc_ids.GetData(), sizeof(unsigned int),
+                     elem_ids.GetData(), sizeof(unsigned int),
                      ref_pos.GetData(), sizeof(double) * dim,
                      points_cnt, node_vals.GetData(), fdata3D);
    }
