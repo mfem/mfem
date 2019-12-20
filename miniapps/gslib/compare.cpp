@@ -93,34 +93,34 @@ int main (int argc, char *argv[])
    // Display the meshes and the fields through glvis.
    if (visualization)
    {
-       char vishost[] = "localhost";
-       int  visport   = 19916;
-       socketstream sout1, sout2;
-       sout1.open(vishost, visport);
-       sout2.open(vishost, visport);
-       if (!sout1)
-       {
-          cout << "Unable to connect to GLVis server at "
-               << vishost << ':' << visport << endl;
-       }
-       else
-       {
-          sout1.precision(8);
-          sout1 << "solution\n" << mesh_1 << func_1
-                << "window_title 'Solution 1'"
-                << "window_geometry 0 0 600 600";
-          if (dim == 2) { sout1 << "keys RmjAc"; }
-          if (dim == 3) { sout1 << "keys mA\n"; }
-          sout1 << flush;
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sout1, sout2;
+      sout1.open(vishost, visport);
+      sout2.open(vishost, visport);
+      if (!sout1)
+      {
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+      }
+      else
+      {
+         sout1.precision(8);
+         sout1 << "solution\n" << mesh_1 << func_1
+               << "window_title 'Solution 1'"
+               << "window_geometry 0 0 600 600";
+         if (dim == 2) { sout1 << "keys RmjAc"; }
+         if (dim == 3) { sout1 << "keys mA\n"; }
+         sout1 << flush;
 
-          sout2.precision(8);
-          sout2 << "solution\n" << mesh_2 << func_2
-                << "window_title 'Solution 2'"
-                << "window_geometry 600 0 600 600";
-          if (dim == 2) { sout2 << "keys RmjAc"; }
-          if (dim == 3) { sout2 << "keys mA\n"; }
-          sout2 << flush;
-       }
+         sout2.precision(8);
+         sout2 << "solution\n" << mesh_2 << func_2
+               << "window_title 'Solution 2'"
+               << "window_geometry 600 0 600 600";
+         if (dim == 2) { sout2 << "keys RmjAc"; }
+         if (dim == 3) { sout2 << "keys mA\n"; }
+         sout2 << flush;
+      }
    }
 
    // Generate equidistant points in physical coordinates over the whole mesh.
@@ -232,17 +232,17 @@ int main (int argc, char *argv[])
 
    if (visualization)
    {
-       char vishost[] = "localhost";
-       int  visport   = 19916;
-       socketstream sout3;
-       sout3.open(vishost, visport);
-       sout3.precision(8);
-       sout3 << "solution\n" << mesh_1 << diff
-             << "window_title 'Difference'"
-             << "window_geometry 1200 0 600 600";
-       if (dim == 2) { sout3 << "keys RmjAcpppppppppppppppppppppp"; }
-       if (dim == 3) { sout3 << "keys mA\n"; }
-       sout3 << flush;
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sout3;
+      sout3.open(vishost, visport);
+      sout3.precision(8);
+      sout3 << "solution\n" << mesh_1 << diff
+            << "window_title 'Difference'"
+            << "window_geometry 1200 0 600 600";
+      if (dim == 2) { sout3 << "keys RmjAcpppppppppppppppppppppp"; }
+      if (dim == 3) { sout3 << "keys mA\n"; }
+      sout3 << flush;
    }
 
    ConstantCoefficient coeff1(1.0);

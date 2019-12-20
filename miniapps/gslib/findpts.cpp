@@ -105,23 +105,23 @@ int main (int argc, char *argv[])
    // Display the mesh and the field through glvis.
    if (visualization)
    {
-       char vishost[] = "localhost";
-       int  visport   = 19916;
-       socketstream sout;
-       sout.open(vishost, visport);
-       if (!sout)
-       {
-          cout << "Unable to connect to GLVis server at "
-               << vishost << ':' << visport << endl;
-       }
-       else
-       {
-          sout.precision(8);
-          sout << "solution\n" << mesh << field_vals;
-          if (dim == 2) { sout << "keys RmjA*****\n"; }
-          if (dim == 3) { sout << "keys mA\n"; }
-          sout << flush;
-       }
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sout;
+      sout.open(vishost, visport);
+      if (!sout)
+      {
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+      }
+      else
+      {
+         sout.precision(8);
+         sout << "solution\n" << mesh << field_vals;
+         if (dim == 2) { sout << "keys RmjA*****\n"; }
+         if (dim == 3) { sout << "keys mA\n"; }
+         sout << flush;
+      }
    }
 
    // Setup the gslib mesh.
