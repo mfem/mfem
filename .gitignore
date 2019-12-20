@@ -53,6 +53,8 @@ examples/displaced.mesh
 examples/mesh.*
 examples/ex5.mesh
 examples/Example5*
+examples/PVExample5S
+examples/PVExample5P
 examples/Example9*
 examples/Example15*
 examples/Example16*
