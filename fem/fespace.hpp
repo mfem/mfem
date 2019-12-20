@@ -319,7 +319,7 @@ public:
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
-   const Operator *GetFaceRestriction(ElementDofOrdering e_ordering) const;
+   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering) const;
 
    /** Return an Operator that converts L-vectors to E-vectors on each face, for L2 spaces
        only returns the value of element 1. */

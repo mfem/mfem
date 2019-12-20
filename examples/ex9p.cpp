@@ -60,7 +60,7 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   HypreParMatrix &M, &K;
+   Operator *M, *K;
    const Vector &b;
    HypreSmoother M_prec;
    CGSolver M_solver;
@@ -68,7 +68,8 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b);
+   // FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b);
+   FE_Evolution(Operator *_M, Operator *_K, const Vector &_b, MPI_Comm _comm);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -90,6 +91,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
+   bool pa = false;
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;
@@ -112,6 +114,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -193,11 +197,13 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-
+   pmesh->ExchangeFaceNbrData();
+   
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
+   fes->ExchangeFaceNbrData();
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
@@ -208,13 +214,24 @@ int main(int argc, char *argv[])
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
    //    DGTraceIntegrator involves integrals over mesh interior faces.
-   VectorFunctionCoefficient velocity(dim, velocity_function);
+   // VectorFunctionCoefficient velocity(dim, velocity_function);
+   Vector velocity_vector(dim);
+   for (int i = 0; i < dim; ++i)
+   {
+      velocity_vector[i] = 1.0;
+   }
+   VectorConstantCoefficient velocity(velocity_vector);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
    ParBilinearForm *m = new ParBilinearForm(fes);
-   m->AddDomainIntegrator(new MassIntegrator);
    ParBilinearForm *k = new ParBilinearForm(fes);
+   if (pa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   m->AddDomainIntegrator(new MassIntegrator);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k->AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
@@ -226,14 +243,19 @@ int main(int argc, char *argv[])
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
    m->Assemble();
-   m->Finalize();
    int skip_zeros = 0;
    k->Assemble(skip_zeros);
-   k->Finalize(skip_zeros);
    b->Assemble();
+   HypreParMatrix *M;
+   HypreParMatrix *K;
+   if (!pa)
+   {
+      m->Finalize();
+      k->Finalize(skip_zeros);
 
-   HypreParMatrix *M = m->ParallelAssemble();
-   HypreParMatrix *K = k->ParallelAssemble();
+      M = m->ParallelAssemble();
+      K = k->ParallelAssemble();
+   }
    HypreParVector *B = b->ParallelAssemble();
 
    // 9. Define the initial conditions, save the corresponding grid function to
@@ -314,7 +336,18 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*M, *K, *B);
+   Operator *m_op, *k_op;
+   if (pa)
+   {
+      m_op = m;
+      k_op = k;
+   }
+   else
+   {
+      m_op = M;
+      k_op = K;
+   }
+   FE_Evolution adv(m_op, k_op, *B, fes->GetComm());
 
    double t = 0.0;
    adv.SetTime(t);
@@ -386,14 +419,14 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b)
-   : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height())
+FE_Evolution::FE_Evolution(Operator *_M, Operator *_K,
+                           const Vector &_b, MPI_Comm _comm)
+   : TimeDependentOperator(_M->Height()),
+     M(_M), K(_K), b(_b), M_solver(_comm), z(_M->Height())
 {
-   M_prec.SetType(HypreSmoother::Jacobi);
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
+   // M_prec.SetType(HypreSmoother::Jacobi);
+   // M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(*M);
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
@@ -405,7 +438,7 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
-   K.Mult(x, z);
+   K->Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
 }

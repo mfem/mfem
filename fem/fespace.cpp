@@ -3264,7 +3264,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if(!dof_reorder) mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
-   // const int *dof_map = NULL;
    if (dof_reorder && nf > 0)
    {
       for (int f = 0; f < nf; ++f)
@@ -3321,7 +3320,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
                const int gid = elementMap[e2*elem_dofs + did];
                const int lid = dof*f + d;
-               indices2[lid] = gid;//TODO Add permutation
+               indices2[lid] = gid;
             }
             else
             {
@@ -3339,6 +3338,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
+
    if(m==L2FaceValues::Double){
       auto d_indices1 = indices1.Read();
       auto d_indices2 = indices2.Read();
