@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/gslib/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/gslib/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -21,12 +21,13 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = exs compare
-PAR_EXAMPLES = exp
+SEQ_MINIAPPS = findpts compare
+PAR_MINIAPPS = pfindpts
+
 ifeq ($(MFEM_USE_MPI),NO)
-   EXAMPLES = $(SEQ_EXAMPLES)
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -40,20 +41,20 @@ endif
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(EXAMPLES)
+all: $(MINIAPPS)
 
 ifeq ($(MFEM_USE_GSLIB),NO)
-$(EXAMPLES):
+$(MINIAPPS):
 	$(error MFEM is not configured with GSLIB)
 endif
 
-MFEM_TESTS = EXAMPLES
+MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-SERIAL_NAME := Serial GSLIB example
-PARALLEL_NAME := Parallel GSLIB example
+SERIAL_NAME := Serial GSLIB miniapp
+PARALLEL_NAME := Parallel GSLIB miniapp
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
 %-test-seq: %
@@ -64,9 +65,9 @@ PARALLEL_NAME := Parallel GSLIB example
 EXS_COMMON_ARGS := -m ../../data/periodic-hexagon.mesh -o 1 -qo 3
 EXS_ARGS  := $(EX9_COMMON_ARGS)
 EXP_ARGS := $(EX9_COMMON_ARGS)
-exs-test-seq: exs
+exs-test-seq: findpts
 	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EXS_ARGS))
-exp-test-par: exp
+exp-test-par: pfindpts
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EXP_ARGS))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
@@ -78,7 +79,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

@@ -10,11 +10,11 @@
 // Software Foundation) version 2.1 dated February 1999.
 //
 //          ------------------------------------------------------
-//          Serial example of utilizing GSLib's FindPoints methods
+//          Serial miniapp of utilizing GSLIB's FindPoints methods
 //          ------------------------------------------------------
-// This example utilizes GSLib's high-order off-grid interpolation utility
+// This miniapp utilizes GSLIB's high-order off-grid interpolation utility
 // FindPoints to compare solution on two different meshes. FindPoints uses
-// GSLib's highly optimized communication kernels to first find arbitrary
+// GSLIB's highly optimized communication kernels to first find arbitrary
 // number of points (given in physical-space) in a mesh in serial/parallel
 // and then interpolate a GridFunction/ParGridFunction at those points.
 // The GridFunction must be in H1 and in the same space as the mesh that is
@@ -68,6 +68,7 @@ int main (int argc, char *argv[])
    Mesh mesh_2(mesh_file_2, 1, 1, false);
    const int dim = mesh_1.Dimension();
 
+   MFEM_VERIFY(dim > 1, "GSLIB accepts only 2D or 3D meshes" );
    MFEM_VERIFY(mesh_1.GetNodes() && mesh_2.GetNodes(), "No nodes");
    const int mesh_poly_deg = mesh_1.GetNodes()->FESpace()->GetOrder(0);
    cout << "Mesh curvature: "
@@ -151,7 +152,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   FindPointsGSLib finder;
+   FindPointsGSLIB finder;
    const double rel_bbox_el = 0.05;
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;

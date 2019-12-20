@@ -23,7 +23,7 @@
 namespace mfem
 {
 
-FindPointsGSLib::FindPointsGSLib()
+FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
 {
    gsl_comm = new comm;
@@ -36,13 +36,13 @@ FindPointsGSLib::FindPointsGSLib()
 #endif
 }
 
-FindPointsGSLib::~FindPointsGSLib()
+FindPointsGSLIB::~FindPointsGSLIB()
 {
    delete gsl_comm;
 }
 
 #ifdef MFEM_USE_MPI
-FindPointsGSLib::FindPointsGSLib(MPI_Comm _comm)
+FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
    : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
 {
    gsl_comm = new comm;
@@ -50,7 +50,7 @@ FindPointsGSLib::FindPointsGSLib(MPI_Comm _comm)
 }
 #endif
 
-void FindPointsGSLib::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
+void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
 
@@ -107,7 +107,7 @@ void FindPointsGSLib::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
    }
 }
 
-void FindPointsGSLib::FindPoints(Vector &point_pos, Array<uint> &codes,
+void FindPointsGSLIB::FindPoints(Vector &point_pos, Array<uint> &codes,
                                  Array<uint> &proc_ids, Array<uint> &elem_ids,
                                  Vector &ref_pos, Vector &dist)
 {
@@ -146,7 +146,7 @@ void FindPointsGSLib::FindPoints(Vector &point_pos, Array<uint> &codes,
    }
 }
 
-void FindPointsGSLib::Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
+void FindPointsGSLIB::Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
                                   Array<uint> &elem_ids, Vector &ref_pos,
                                   const GridFunction &field_in,
                                   Vector &field_out)
@@ -175,12 +175,12 @@ void FindPointsGSLib::Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
    }
 }
 
-void FindPointsGSLib::FreeData()
+void FindPointsGSLIB::FreeData()
 {
    (dim == 2) ? findpts_free_2(fdata2D) : findpts_free_3(fdata3D);
 }
 
-void FindPointsGSLib::GetNodeValues(const GridFunction &gf_in,
+void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
                                     Vector &node_vals)
 {
    MFEM_ASSERT(gf_in.FESpace()->GetVDim() == 1, "Scalar function expected.");

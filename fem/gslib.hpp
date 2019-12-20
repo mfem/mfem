@@ -24,7 +24,7 @@ struct findpts_data_3;
 namespace mfem
 {
 
-class FindPointsGSLib
+class FindPointsGSLIB
 {
 protected:
    Mesh *mesh;
@@ -38,13 +38,13 @@ protected:
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
 
 public:
-   FindPointsGSLib();
+   FindPointsGSLIB();
 
 #ifdef MFEM_USE_MPI
-   FindPointsGSLib(MPI_Comm _comm);
+   FindPointsGSLIB(MPI_Comm _comm);
 #endif
 
-   ~FindPointsGSLib();
+   ~FindPointsGSLIB();
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of @a mesh.
