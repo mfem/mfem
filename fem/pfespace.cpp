@@ -510,6 +510,48 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }
 }
 
+
+const Operator *ParFiniteElementSpace::GetFaceRestriction(
+   ElementDofOrdering e_ordering) const
+{
+   // Check if we have a discontinuous space using the FE collection:
+   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
+   if (dg_space)
+   {
+      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+      {
+         if (L2F_lex.Ptr() == NULL)
+         {
+            L2F_lex.Reset(new ParL2FaceRestriction(*this, e_ordering));
+         }
+         return L2F_lex.Ptr();
+      }
+      // e_ordering == ElementDofOrdering::NATIVE
+      if (L2F_nat.Ptr() == NULL)
+      {
+         L2F_nat.Reset(new ParL2FaceRestriction(*this, e_ordering));
+      }
+      return L2F_nat.Ptr();
+   }
+   else
+   {
+      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+      {
+         if (L2F_lex.Ptr() == NULL)
+         {
+            L2F_lex.Reset(new H1FaceRestriction(*this, e_ordering));
+         }
+         return L2F_lex.Ptr();
+      }
+      // e_ordering == ElementDofOrdering::NATIVE
+      if (L2F_nat.Ptr() == NULL)
+      {
+         L2F_nat.Reset(new H1FaceRestriction(*this, e_ordering));
+      }
+      return L2F_nat.Ptr();
+   }
+}
+
 void ParFiniteElementSpace::GetSharedEdgeDofs(
    int group, int ei, Array<int> &dofs) const
 {
@@ -3246,6 +3288,333 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
    ReduceLocalCopy(x, y);
    MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
    ReduceEndAssemble(y); // assemble from 'shr_buf'
+}
+
+
+static void GetFaceDofs(const int dim, const int face_id, const int dof1d, int* faceMap)
+{
+   switch(dim)
+   {
+      case 1:
+      switch(face_id){
+         case 0://WEST
+         faceMap[0] = 0;
+         break;
+         case 1://EAST
+         faceMap[0] = dof1d-1;
+         break;
+      }
+      break;
+      case 2:
+      switch(face_id){
+         case 0://SOUTH
+         for (int i = 0; i < dof1d; ++i)
+         {
+            faceMap[i] = i;
+         }
+         break;
+         case 1://EAST
+         for (int i = 0; i < dof1d; ++i)
+         {
+            faceMap[i] = dof1d-1 + i*dof1d;
+         }
+         break;
+         case 2://NORTH
+         for (int i = 0; i < dof1d; ++i)
+         {
+            faceMap[i] = (dof1d-1)*dof1d + dof1d-1 - i;
+         }
+         break;
+         case 3://WEST
+         for (int i = 0; i < dof1d; ++i)
+         {
+            faceMap[i] = (dof1d-1)*dof1d - i*dof1d;
+         }
+         break;
+      }
+      break;
+      case 3:
+      switch(face_id){
+         case 0://BOTTOM
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = i + j*dof1d;
+            }
+         }
+         break;
+         case 1://SOUTH
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = i + j*dof1d*dof1d;
+            }
+         }
+         break;
+         case 2://EAST
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
+            }
+         }
+         break;
+         case 3://NORTH
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
+            }
+         }
+         break;
+         case 4://WEST
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;
+            }
+         }
+         break;
+         case 5://TOP
+         for (int i = 0; i < dof1d; ++i)
+         {
+            for (int j = 0; j < dof1d; ++j)
+            {
+               faceMap[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
+            }
+         }
+         break;
+      }
+      break;
+   }
+}
+
+
+static int PermuteFaceL2(const int dim, const int face_id, const int orientation,
+                       const int size1d, const int index)
+{
+   switch(dim)
+   {
+   case 1:
+      return 0;
+   case 2:
+      return size1d - 1 - index;
+   case 3:
+      mfem_error("Not yet implemented.");
+      return 0;
+   default:
+      mfem_error("Incorrect dimension.");
+      return 0;
+   }
+}
+
+ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
+                                           ElementDofOrdering e_ordering, L2FaceValues m)
+   : fes(fes),
+     nf(fes.GetNF()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
+     m(m),
+     nfdofs(nf*dof),
+     indices1(nf*dof),
+     indices2(m==L2FaceValues::Double?nf*dof:0)
+{
+   //if fespace == L2
+   // Assuming all finite elements are the same.
+   height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
+   width = fes.GetVSize();
+   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   if(!dof_reorder) mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
+   if (dof_reorder && nf > 0)
+   {
+      for (int f = 0; f < nf; ++f)
+      {
+         const FiniteElement *fe = fes.GetTraceElement(f,fes.GetMesh()->GetFaceBaseGeometry(f));
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(fe);
+         if (el) { continue; }
+         mfem_error("Finite element not suitable for lexicographic ordering");
+      }
+   }
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elementMap = e2dTable.GetJ();
+   int faceMap1[dof], faceMap2[dof];
+   int e1, e2;
+   int inf1, inf2;
+   int face_id;
+   int orientation;
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_dofs = fes.GetFE(0)->GetDof();
+   const int dim = fes.GetMesh()->SpaceDimension();
+   for (int f = 0; f < nf; ++f)
+   {
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      if(dof_reorder){
+         orientation = inf1 % 64;
+         // if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
+         face_id = inf1 / 64;
+         GetFaceDofs(dim, face_id, dof1d, faceMap1);//Only for hex
+         orientation = inf2 % 64;
+         face_id = inf2 / 64;
+         GetFaceDofs(dim, face_id, dof1d, faceMap2);//Only for hex
+      } else {
+         mfem_error("FaceRestriction not yet implemented for this type of element.");
+         //TODO Something with GetFaceDofs?
+      }
+      for (int d = 0; d < dof; ++d)
+      {
+         const int face_dof = faceMap1[d];
+         const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof]; Always dof_map==NULL
+         const int gid = elementMap[e1*elem_dofs + did];
+         const int lid = dof*f + d;
+         indices1[lid] = gid;
+      }
+      if (m==L2FaceValues::Double)
+      {
+         if (e2>=0)
+         {
+            for (int d = 0; d < dof; ++d)
+            {
+               const int pd = PermuteFaceL2(dim, face_id, orientation, dof1d, d);
+               const int face_dof = faceMap2[pd];
+               const int did = face_dof;
+               const int gid = elementMap[e2*elem_dofs + did];
+               const int lid = dof*f + d;
+               indices2[lid] = gid;
+            }
+         }
+         else //Either true boundary or shared face
+         {
+            if (inf2<0) //true boundary
+            {
+               for (int d = 0; d < dof; ++d)
+               {
+                  const int lid = dof*f + d;
+                  indices2[lid] = -1;
+               }
+            }
+            else //shared boundary
+            {
+               const int se2 = -1 - e2;
+               Array<int> sharedDofs;
+               fes.GetFaceNbrElementVDofs(se2, sharedDofs);
+               for (int d = 0; d < dof; ++d)
+               {
+                  const int pd = PermuteFaceL2(dim, face_id, orientation, dof1d, d);
+                  const int face_dof = faceMap2[pd];
+                  const int did = face_dof;
+                  const int gid = sharedDofs[did];
+                  const int lid = dof*f + d;
+                  indices2[lid] = ndofs+gid; //trick to differentiate dof location inter/shared
+               }
+            }
+         }
+      }
+   }
+}
+
+void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
+{
+   ParGridFunction x_gf(const_cast<ParFiniteElementSpace*>(&fes), x.GetData());
+   x_gf.ExchangeFaceNbrData();
+
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+
+   if(m==L2FaceValues::Double){
+      auto d_indices1 = indices1.Read();
+      auto d_indices2 = indices2.Read();
+      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
+      MFEM_FORALL(i, nfdofs,
+      {
+         const int dof = i % nd;
+         const int face = i / nd;
+         const int idx1 = d_indices1[i];
+         //FIXME we might want to also set this to 0 when idx2==-1, to separate interior/boundary faces.
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
+         }
+         const int idx2 = d_indices2[i];
+         for (int c = 0; c < vd; ++c)
+         {
+            if(idx2>-1 && idx2<ndofs) //interior face
+            {
+               d_y(dof, c, 1, face) = d_x(t?c:idx2, t?idx2:c);
+            }
+            else if(idx2>ndofs) //shared boundary
+            {
+               d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-ndofs), t?(idx2-ndofs):c);   
+            }
+            else //true boundary
+            {
+               d_y(dof, c, 1, face) = 0.0;   
+            }
+         }
+      });
+   } else {
+      auto d_indices1 = indices1.Read();
+      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.Write(), nd, vd, nf);
+      MFEM_FORALL(i, nfdofs,
+      {
+         const int dof = i % nd;
+         const int face = i / nd;
+         const int idx1 = d_indices1[i];
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
+         }
+      });      
+   }
+}
+
+void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   if(m==L2FaceValues::Double){
+      auto d_indices1 = indices1.Read();
+      auto d_indices2 = indices2.Read();
+      auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
+      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      MFEM_FORALL(i, nfdofs,
+      {
+         const int idx1 = d_indices1[i];
+         const int idx2 = d_indices2[i];//TODO Add permutation
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, 0, i / nd);
+            if(idx2>-1 && idx2<ndofs) d_y(t?c:idx2,t?idx2:c) += d_x(i % nd, c, 1, i / nd);
+         }
+      });
+   }else{
+      auto d_indices1 = indices1.Read();
+      auto d_x = Reshape(x.Read(), nd, vd, nf);
+      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      MFEM_FORALL(i, nfdofs,
+      {
+         const int idx1 = d_indices1[i];
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, i / nd);
+         }
+      });      
+   }
 }
 
 } // namespace mfem

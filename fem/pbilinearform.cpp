@@ -123,6 +123,12 @@ void ParBilinearForm::pAllocMat()
 
 void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 {
+   if (ext)
+   {
+      ext->Assemble();
+      return;
+   }
+
    A.Clear();
 
    if (A_local == NULL) { return; }

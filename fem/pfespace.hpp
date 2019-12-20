@@ -264,6 +264,9 @@ public:
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+   
+   /// Return an Operator that converts L-vectors to E-vectors on each face.
+   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
    void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;
@@ -432,6 +435,29 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+/// Operator that extracts Face degrees of freedom.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetElementRestriction(). */
+class ParL2FaceRestriction : public Operator
+{
+protected:
+   const ParFiniteElementSpace &fes;
+   const int nf;
+   const int vdim;
+   const bool byvdim;
+   const int ndofs;
+   const int dof;
+   const L2FaceValues m;
+   const int nfdofs;
+   Array<int> indices1;
+   Array<int> indices2;
+
+public:
+   ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering, L2FaceValues m = L2FaceValues::Double);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
 };
 
 }
