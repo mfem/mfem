@@ -13,10 +13,10 @@
 
 #ifdef MFEM_USE_GSLIB
 
-#ifdef __GNUC__
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 // Ignore warnings from the gslib header (GCC version)
 #pragma GCC diagnostic ignored "-Wunused-function"
-#endif // __GNUC__
+#endif
 
 #include "gslib.h"
 
