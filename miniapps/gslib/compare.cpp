@@ -14,11 +14,11 @@
 //          ------------------------------------------------------
 // This miniapp utilizes GSLIB's high-order off-grid interpolation utility
 // FindPoints to compare solution on two different meshes. Using a set of points
-// defined with the bounding box for the domain, FindPoints is used to
-// interpolate gridfunction for two different meshes. The difference between
-// the interpolated values is output by this miniapp. FindPoints is also used
-// to interpolate the solution from one mesh onto another, and output the
-// difference that can be visualized using GLVis.
+// defined within the bounding box of the domain, FindPoints is used to
+// interpolate gridfunctions for two different meshes and output the difference
+// between the interpolated values. This miniapp also used FindPoints to
+// interpolate the solution from one mesh onto another, and visualize the
+// difference using GLVis.
 //
 // Compile with: make compare
 // Sample run  : ./compare
