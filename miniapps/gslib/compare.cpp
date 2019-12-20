@@ -13,12 +13,12 @@
 //          Serial miniapp of utilizing GSLIB's FindPoints methods
 //          ------------------------------------------------------
 // This miniapp utilizes GSLIB's high-order off-grid interpolation utility
-// FindPoints to compare solution on two different meshes. FindPoints uses
-// GSLIB's highly optimized communication kernels to first find arbitrary
-// number of points (given in physical-space) in a mesh in serial/parallel
-// and then interpolate a GridFunction/ParGridFunction at those points.
-// The GridFunction must be in H1 and in the same space as the mesh that is
-// used to find the points.
+// FindPoints to compare solution on two different meshes. Using a set of points
+// defined with the bounding box for the domain, FindPoints is used to
+// interpolate gridfunction for two different meshes. The difference between
+// the interpolated values is output by this miniapp. FindPoints is also used
+// to interpolate the solution from one mesh onto another, and output the
+// difference that can be visualized using GLVis.
 //
 // Compile with: make compare
 // Sample run  : ./compare
@@ -68,8 +68,9 @@ int main (int argc, char *argv[])
    Mesh mesh_2(mesh_file_2, 1, 1, false);
    const int dim = mesh_1.Dimension();
 
-   MFEM_VERIFY(dim > 1, "GSLIB accepts only 2D or 3D meshes" );
-   MFEM_VERIFY(mesh_1.GetNodes() && mesh_2.GetNodes(), "No nodes");
+   MFEM_VERIFY(dim > 1, "GSLIB requires a 2D or a 3D mesh" );
+   if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1); }
+   if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(1); }
    const int mesh_poly_deg = mesh_1.GetNodes()->FESpace()->GetOrder(0);
    cout << "Mesh curvature: "
         << mesh_1.GetNodes()->OwnFEC()->Name() << " " << mesh_poly_deg << endl;
@@ -156,7 +157,7 @@ int main (int argc, char *argv[])
    const double rel_bbox_el = 0.05;
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
-   Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
+   Array<unsigned int> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
    Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
    Vector interp_vals_1(pts_cnt), interp_vals_2(pts_cnt);
 
