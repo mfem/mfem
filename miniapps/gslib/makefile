@@ -21,8 +21,13 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = findpts compare
-PAR_MINIAPPS = pfindpts
+ifeq ($(MFEM_USE_GSLIB),YES)
+   SEQ_MINIAPPS = findpts compare
+   PAR_MINIAPPS = pfindpts
+else
+   SEQ_MINIAPPS = 
+   PAR_MINIAPPS = 
+endif
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
