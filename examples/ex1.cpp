@@ -104,14 +104,27 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 2;
+         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
 
+
+   Array<int> submesh, part1, part2;
+   Vector fvec;
+
+   submesh.SetSize(mesh->GetNE());
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      submesh[i] = i;
+   }
+
+   mesh->BisectSubmesh(submesh, part1, part2, &fvec);
+
+#if 0
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -210,6 +223,27 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+#else
+
+   FiniteElementCollection *fec = new L2_FECollection(0, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   GridFunction x(fespace);
+#if 1
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      x(i) = fvec(i);
+   }
+#else
+   ifstream f("fvec.txt");
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      f >> x(i);
+   }
+#endif
+
+   int *a = NULL, *b = NULL;
+
+#endif
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)

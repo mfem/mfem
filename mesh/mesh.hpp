@@ -998,6 +998,10 @@ public:
    int *GeneratePartitioning(int nparts, int part_method = 1);
    void CheckPartitioning(int *partitioning);
 
+   void BisectSubmesh(const Array<int> &submesh,
+                      Array<int> &part1, Array<int> &part2,
+                      Vector *fvec = NULL);
+
    void CheckDisplacements(const Vector &displacements, double &tmax);
 
    // Vertices are only at the corners of elements, where you would expect them

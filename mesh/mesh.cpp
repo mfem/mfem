@@ -26,6 +26,11 @@
 #include <ctime>
 #include <functional>
 
+#include <Eigen/Core>
+#include <Eigen/SparseCore>
+#include <Spectra/SymEigsSolver.h>
+#include <Spectra/MatOp/SparseSymMatProd.h>
+
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
 #if defined(MFEM_USE_METIS) && defined(MFEM_USE_METIS_5)
@@ -5488,6 +5493,75 @@ void Mesh::CheckPartitioning(int *partitioning)
    }
    el_to_el = NULL;
 }
+
+void Mesh::BisectSubmesh(const Array<int> &submesh,
+                         Array<int> &part1, Array<int> &part2,
+                         Vector *fvec)
+{
+   const int ne = GetNE();
+
+   ElementToElementTable();
+
+   // convert submesh list to a marker array
+   Array<char> mark(ne);
+   mark = 0;
+   for (int i = 0; i < submesh.Size(); i++)
+   {
+      mark[submesh[i]] = 1;
+   }
+
+   // construct the Laplacian matrix for the submesh
+   Eigen::SparseMatrix<double> L(ne, ne);
+   for (int i = 0; i < ne; i++)
+   {
+      int nn = el_to_el->RowSize(i);
+      const int* neigh = el_to_el->GetRow(i);
+
+      for (int j = 0; j < nn; j++)
+      {
+         L.insert(i, neigh[j]) = -1; // FIXME renumber, check mark
+      }
+      L.insert(i, i) = nn;
+   }
+   L.makeCompressed();
+
+   {
+      std::ofstream f("laplace.m");
+      f << Eigen::MatrixXd(L) << std::endl;
+   }
+
+   // calculate two largest eigenvalues with eigenvectors
+   using namespace Spectra;
+   SparseSymMatProd<double> op(L);
+   SymEigsSolver<double, LARGEST_MAGN, SparseSymMatProd<double>>
+      solver(&op, 2, 6);
+
+   solver.init();
+   int nconv = solver.compute(10000, 1e-10);
+
+   MFEM_VERIFY(solver.info() == SUCCESSFUL, "Eigensolver failed.");
+   MFEM_VERIFY(nconv == 2, "Could not obtain two eigenvectors");
+
+   Eigen::MatrixXd eigenvec = solver.eigenvectors(2);
+
+   // reserve about half of the original array in partN
+   int half = submesh.Size() * 11 / (10 * 2);
+   part1.SetSize(half); part1.SetSize(0);
+   part2.SetSize(half); part2.SetSize(0);
+
+   //
+   //for ()
+
+   if (fvec)
+   {
+      fvec->SetSize(ne);
+      for (int i = 0; i < ne; i++)
+      {
+         (*fvec)(i) = eigenvec(i, 1);
+      }
+   }
+}
+
 
 // compute the coefficients of the polynomial in t:
 //   c(0)+c(1)*t+...+c(d)*t^d = det(A+t*B)
