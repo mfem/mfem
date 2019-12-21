@@ -983,11 +983,11 @@ public:
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
    /// This computation uses tensor product structure.
-   void PAValues(const Vector &e_vec, Vector &q_val) const;
+   void Values(const Vector &e_vec, Vector &q_val) const;
 
    /// Interpolate the derivatives of the E-vector @a e_vec at quadrature points.
    /// This computation uses tensor product structure.
-   void PADerivatives(const Vector &e_vec, Vector &q_der) const;
+   void Derivatives(const Vector &e_vec, Vector &q_der) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,

@@ -12,8 +12,13 @@
 #ifndef MFEM_BLAS_HPP
 #define MFEM_BLAS_HPP
 
-#include "../config/config.hpp"
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
 #include <cmath>
+#endif
+
+#include "../config/config.hpp"
+
 #include "../general/globals.hpp"
 #include "../general/forall.hpp"
 #include "matrix.hpp"
