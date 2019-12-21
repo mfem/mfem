@@ -338,13 +338,13 @@ public:
    void SetInequalityConstraint(const Vector &dl, const Vector &dh);
    void SetSolutionBounds(const Vector &xl, const Vector &xh);
 
-   const Operator * const GetC() const { return C; }
-   const Operator * const GetD() const { return D; }
-   const Vector * const GetEqualityVec() const { return c_e; }
-   const Vector * const GetInequalityVec_Lo() const { return d_lo; }
-   const Vector * const GetInequalityVec_Hi() const { return d_hi; }
-   const Vector * const GetBoundsVec_Lo() const { return x_lo; }
-   const Vector * const GetBoundsVec_Hi() const { return x_hi; }
+   const Operator * GetC() const { return C; }
+   const Operator * GetD() const { return D; }
+   const Vector * GetEqualityVec() const { return c_e; }
+   const Vector * GetInequalityVec_Lo() const { return d_lo; }
+   const Vector * GetInequalityVec_Hi() const { return d_hi; }
+   const Vector * GetBoundsVec_Lo() const { return x_lo; }
+   const Vector * GetBoundsVec_Hi() const { return x_hi; }
 
    int GetNumConstraints() const;
 };
