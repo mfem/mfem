@@ -122,36 +122,19 @@ int main(int argc, char *argv[])
       }
    }
 
-   if (mesh->NURBSext)
-   {
-      // reodering of NURBS meshes not supported by ReorderElements
-      mesh->SetCurvature(2);
-   }
-
-   Array<int> ordering;
-   mesh->GetHilbertElementOrdering(ordering);
-   mesh->ReorderElements(ordering);
-
-   Array<int> part(mesh->GetNE());
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      part[i] = i * num_procs / mesh->GetNE();
-   }
-
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, part);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 0;
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
    }
 
-#if 0
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
@@ -256,22 +239,6 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
-#else
-
-   FiniteElementCollection* fec = new L2_FECollection(0, dim);
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   ParGridFunction x(fespace);
-
-   for (int i = 0; i < pmesh->GetNE(); i++)
-   {
-      x(i) = myid;
-      pmesh->SetAttribute(i, myid+1);
-   }
-
-   char *a = NULL;
-   char *b = NULL;
-
-#endif
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
