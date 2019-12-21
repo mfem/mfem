@@ -1149,7 +1149,7 @@ int main(int argc, char *argv[])
       ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
 
       AdaptInitialMesh(mpi, pmesh, err_fes, fes, vfes, coef_gf, coef,
-		       amr_weights, 2, tol_init, visualization);
+                       amr_weights, 2, tol_init, visualization);
 
       for (int i=0; i<5; i++)
       {

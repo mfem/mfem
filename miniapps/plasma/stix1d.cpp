@@ -895,7 +895,7 @@ int main(int argc, char *argv[])
       dbcs[0].real = &EReCoef;
       dbcs[0].imag = &EImCoef;
    }
-   
+
    Array<ComplexVectorCoefficientByAttr> nbcs(0);
 
    // Create the Magnetostatic solver

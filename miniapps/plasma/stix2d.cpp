@@ -992,7 +992,7 @@ int main(int argc, char *argv[])
    }
 
    Array<ComplexVectorCoefficientByAttr> nbcs(0);
-   
+
    cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;
 
    // Create the Magnetostatic solver

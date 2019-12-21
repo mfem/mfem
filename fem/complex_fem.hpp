@@ -102,12 +102,12 @@ public:
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
-			      LinearFormIntegrator *lfi_imag);
+                              LinearFormIntegrator *lfi_imag);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
-			      LinearFormIntegrator *lfi_imag,
-			      Array<int> &bdr_attr_marker);
+                              LinearFormIntegrator *lfi_imag,
+                              Array<int> &bdr_attr_marker);
 
    FiniteElementSpace *FESpace() const { return lfr_->FESpace(); }
 
@@ -296,12 +296,12 @@ public:
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
-			      LinearFormIntegrator *lfi_imag);
+                              LinearFormIntegrator *lfi_imag);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
-			      LinearFormIntegrator *lfi_imag,
-			      Array<int> &bdr_attr_marker);
+                              LinearFormIntegrator *lfi_imag,
+                              Array<int> &bdr_attr_marker);
 
    ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
 

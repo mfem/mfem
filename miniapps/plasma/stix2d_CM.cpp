@@ -907,7 +907,7 @@ int main(int argc, char *argv[])
    dbcs[2].imag = &zeroCoef;
    */
    Array<ComplexVectorCoefficientByAttr> nbcs(ants_.Size());
-   
+
    if ( ants_.Size() > 0 )
    {
       MFEM_VERIFY(antv_.Size() == 3*ants_.Size(),
@@ -1310,7 +1310,7 @@ void antenna_func_lhs_r(const Vector &x, Vector &Ej)
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    double kz = 0.0;
-   
+
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
@@ -1326,7 +1326,7 @@ void antenna_func_rhs_r(const Vector &x, Vector &Ej)
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    double kz = 0.0;
-   
+
    Ej.SetSize(x.Size());
    Ej = 0.0;
 
