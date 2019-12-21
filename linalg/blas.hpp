@@ -12,11 +12,8 @@
 #ifndef MFEM_BLAS_HPP
 #define MFEM_BLAS_HPP
 
-#ifdef _WIN32
-#define M_PI 3.14159265358979323846
-#endif
-
 #include "../config/config.hpp"
+#include <cmath>
 #include "../general/globals.hpp"
 #include "../general/forall.hpp"
 #include "matrix.hpp"
