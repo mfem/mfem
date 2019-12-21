@@ -13,12 +13,17 @@
 
 #ifdef MFEM_USE_GSLIB
 
-#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 // Ignore warnings from the gslib header (GCC version)
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
 #include "gslib.h"
+
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic pop // remove for older GCC versions, e.g. 5.4.0
+#endif
 
 namespace mfem
 {

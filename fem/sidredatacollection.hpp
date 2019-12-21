@@ -17,6 +17,8 @@
 #ifdef MFEM_USE_SIDRE
 
 #include "datacollection.hpp"
+
+// Ignore warnings from the axom/sidre header (GCC + Clang versions)
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 # pragma GCC diagnostic push
 # if defined(__clang__)
@@ -27,7 +29,7 @@
 #endif
 #include <axom/sidre.hpp>
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
-# pragma GCC diagnostic pop
+# pragma GCC diagnostic pop // remove for older GCC versions, e.g. 5.4.0
 #endif
 
 namespace mfem
