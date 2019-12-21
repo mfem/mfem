@@ -23,14 +23,14 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    assembly = assembly_level;
    switch (assembly)
    {
-   case AssemblyLevel::NONE:
-      // This is the default behavior.
-      break;
-   case AssemblyLevel::PARTIAL:
-      ext = new PANonlinearFormExtension(this);
-      break;
-   default:
-      mfem_error("Unknown assembly level for this form.");
+      case AssemblyLevel::NONE:
+         // This is the default behavior.
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PANonlinearFormExtension(this);
+         break;
+      default:
+         mfem_error("Unknown assembly level for this form.");
    }
 }
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
