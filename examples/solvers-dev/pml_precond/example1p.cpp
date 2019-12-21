@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 
    ParLinearForm *b = new ParLinearForm(fespace);
    ConstantCoefficient one(1.0);
-   // b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
    ParGridFunction x(fespace);
@@ -92,28 +92,31 @@ int main(int argc, char *argv[])
    // a->AddDomainIntegrator(new CurlCurlIntegrator(one));
    a->Assemble();
 
-   OperatorPtr A;
+   HypreParMatrix A;
+   // OperatorPtr A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   // ParSchwarzSmoother *prec = new ParSchwarzSmoother(pmesh, 0, fespace, &(HypreParMatrix &)(*A));
-   // prec->SetDumpingParam(2.0/3.0); 
-   // prec->SetNumSmoothSteps(1);
-
-
    ParAddSchwarz *prec2 = new ParAddSchwarz(a);
+   prec2->SetOperator(A);
+   prec2->SetNumSmoothSteps(1);
 
 
-   // CGSolver cg(MPI_COMM_WORLD);
-   // cg.SetRelTol(1e-12);
-   // cg.SetMaxIter(2000);
-   // cg.SetPrintLevel(1);
-   // if (prec) { cg.SetPreconditioner(*prec); }
-   // cg.SetOperator(*A);
-   // cg.Mult(B, X);
-   // delete prec;
 
-   // a->RecoverFEMSolution(X, *b, x);
+   int maxit = 2000;
+   double rtol = 1e-8;
+   double atol = 1e-8;
+   CGSolver pcg(MPI_COMM_WORLD);
+   pcg.SetPrintLevel(1);
+   pcg.SetMaxIter(maxit);
+   pcg.SetRelTol(rtol);
+   pcg.SetAbsTol(atol);
+   pcg.SetOperator(A);
+   pcg.SetPreconditioner(*prec2); 
+   X = 0.0;
+   pcg.Mult(B, X);
+
+   a->RecoverFEMSolution(X, *b, x);
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)

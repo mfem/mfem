@@ -39,8 +39,8 @@ int main(int argc, char *argv[])
 
 
    Mesh *mesh;
-   mesh = new Mesh(mesh_file, 1, 1);
-   // mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1, 1, false);
+   // mesh = new Mesh(mesh_file, 1, 1);
+   mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1, 1, false);
    int dim = mesh->Dimension();
 
    for (int l = 0; l < ref_levels; l++)
@@ -94,24 +94,27 @@ int main(int argc, char *argv[])
 
    // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
    // GSSmoother M((SparseMatrix&)(*A));
-   Array<double> times;
-   GSSmoother M((SparseMatrix&)(*A));
-   chrono.Clear();
-   chrono.Start();
+   // Array<double> times;
+   // GSSmoother M((SparseMatrix&)(*A));
+   // chrono.Clear();
+   // chrono.Start();
    AddSchwarz * S1 = new AddSchwarz(a);
    S1->SetOperator((SparseMatrix&)(*A));
-   S1->SetDumpingParam(2.0/3.0);
-   S1->SetNumSmoothSteps(3);
-   chrono.Stop();
-   times.Append(chrono.RealTime());
+   // B = 1.0;
+   // B.Randomize(1);
+   // S1->Mult(B,X);
+   // S1->SetDumpingParam(2.0/3.0);
+   S1->SetNumSmoothSteps(1);
+   // chrono.Stop();
+   // times.Append(chrono.RealTime());
 
-   chrono.Clear();
-   chrono.Start();
-   SchwarzSmoother * S2 = new SchwarzSmoother(mesh, 0, fespace,&(SparseMatrix&)(*A), ess_tdof_list);
-   S2->SetDumpingParam(2.0/3.0);
-   S2->SetNumSmoothSteps(3);
-   chrono.Stop();
-   times.Append(chrono.RealTime());
+   // chrono.Clear();
+   // chrono.Start();
+   // SchwarzSmoother * S2 = new SchwarzSmoother(mesh, 0, fespace,&(SparseMatrix&)(*A), ess_tdof_list);
+   // S2->SetDumpingParam(2.0/3.0);
+   // S2->SetNumSmoothSteps(3);
+   // chrono.Stop();
+   // times.Append(chrono.RealTime());
    int maxit = 2000;
    double rtol = 1e-8;
    double atol = 1e-8;
@@ -123,25 +126,25 @@ int main(int argc, char *argv[])
    pcg.SetOperator((SparseMatrix&)(*A));
    X = 0.0;
    // pcg.SetPreconditioner(M);
-   // pcg.Mult(B, X);
-   // X = 0.0;
-   chrono.Clear();
-   chrono.Start();
+   // // pcg.Mult(B, X);
+   // // X = 0.0;
+   // chrono.Clear();
+   // chrono.Start();
    pcg.SetPreconditioner(*S1);
    pcg.Mult(B, X);
-   chrono.Stop();
-   times.Append(chrono.RealTime());
-   X = 0.0;
+   // chrono.Stop();
+   // times.Append(chrono.RealTime());
+   // X = 0.0;
 
-   chrono.Clear();
-   chrono.Start();
-   pcg.SetPreconditioner(*S2);
-   pcg.Mult(B, X);
-   chrono.Stop();
-   times.Append(chrono.RealTime());
+   // chrono.Clear();
+   // chrono.Start();
+   // pcg.SetPreconditioner(*S2);
+   // pcg.Mult(B, X);
+   // chrono.Stop();
+   // times.Append(chrono.RealTime());
 
-   cout << "S1 Times: " << times[0] << ", " << times[2] << endl;
-   cout << "S2 Times: " << times[1] << ", " << times[3] << endl;
+   // cout << "S1 Times: " << times[0] << ", " << times[2] << endl;
+   // cout << "S2 Times: " << times[1] << ", " << times[3] << endl;
 
 
 
@@ -160,7 +163,7 @@ int main(int argc, char *argv[])
 
    // 15. Free the used memory.
    delete S1;
-   delete S2;
+   // delete S2;
    delete a;
    delete b;
    delete fespace;

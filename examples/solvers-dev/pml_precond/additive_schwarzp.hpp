@@ -63,7 +63,7 @@ public:
    vector<Array<int>> PatchTrueDofs; // list of only
    Array<FiniteElementSpace *> patch_fespaces;
    std::vector<Array<int>> patch_dof_map;
-
+   ParMeshPartition * p;
    // constructor
    ParPatchDofInfo(ParFiniteElementSpace *fespace);
    // void Print();
@@ -76,28 +76,60 @@ public:
 
 class ParPatchAssembly // for now every vertex defines a patch 
 {
-   MPI_Comm comm;
    std::vector<int> tdof_offsets;
-   ParFiniteElementSpace *fespace=nullptr;
    ParBilinearForm *bf=nullptr;
    void compute_trueoffsets();
-   int get_rank(int tdof);
+   void AssemblePatchMatrices(ParPatchDofInfo * p);
    void print_patch_dof_map(){};
 public:
+   MPI_Comm comm;
    int nrpatch;
-   std::vector<Array<int>> patch_dof_map;
+   ParFiniteElementSpace *fespace=nullptr;
+   Array<int> patch_rank;
+   std::vector<Array<int>> patch_true_dofs;
+   std::vector<Array<int>> patch_local_dofs;
+   std::vector<Array<int>> patch_other_dofs;
+
    Array<SparseMatrix *> patch_mat;
    Array<KLUSolver * > patch_mat_inv;
    std::vector<Array<int>> ess_tdof_list;
 
    // constructor
    ParPatchAssembly(ParBilinearForm * bf_);
+   int get_rank(int tdof);
    ~ParPatchAssembly();
 };
+
+
+class ParPatchRestriction  {
+private:
+   MPI_Comm comm;
+   int num_procs, myid;
+   Array<int> patch_rank;
+   ParPatchAssembly * P;
+   int nrpatch;
+   Array<int> send_count;
+   Array<int> send_displ;
+   Array<int> recv_count;
+   Array<int> recv_displ;
+   int sbuff_size, rbuff_size;
+public:
+   ParPatchRestriction(ParPatchAssembly * P_);
+   // void Mult(const Vector & r , Array<BlockVector *> & res);
+   void Mult(const Vector & r , Array<Vector > & res);
+   // void MultTranspose(const Array<BlockVector*> & sol, Vector & z);
+   void MultTranspose(const Array<Vector> & sol, Vector & z);
+   virtual ~ParPatchRestriction() {}
+};
+
+
+
+
 
 class ParAddSchwarz : public Solver// 
 {
 private:
+   MPI_Comm comm;
    int nrpatch;
    int maxit = 1;
    double theta = 0.5;
@@ -105,12 +137,13 @@ private:
    ParPatchAssembly * p;
    const Operator * A;
    BilinearForm * bf;
+   ParPatchRestriction * R;
 public:
    ParAddSchwarz(ParBilinearForm * bf_);
    void SetNumSmoothSteps(const int iter) {maxit = iter;}
    void SetDumpingParam(const double dump_param) {theta = dump_param;}
    virtual void SetOperator(const Operator &op) {A = &op;}
-   virtual void Mult(const Vector &r, Vector &z) const {} 
+   virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~ParAddSchwarz(){};
 };
 
