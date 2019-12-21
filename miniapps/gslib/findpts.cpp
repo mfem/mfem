@@ -163,7 +163,7 @@ int main (int argc, char *argv[])
    }
 
    Array<unsigned int> el_id_out(pts_cnt), code_out(pts_cnt),
-                       task_id_out(pts_cnt);
+         task_id_out(pts_cnt);
    Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
 
    // Finds points stored in vxyz.
