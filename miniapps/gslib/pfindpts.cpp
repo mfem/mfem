@@ -53,7 +53,7 @@ int main (int argc, char *argv[])
 
    // Set the method's default parameters.
    const char *mesh_file = "../../data/rt-2d-q3.mesh";
-   int mesh_poly_deg     = 1;
+   int mesh_poly_deg     = 3;
    int rs_levels         = 0;
    int rp_levels         = 0;
    bool visualization    = true;
