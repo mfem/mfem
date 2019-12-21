@@ -54,9 +54,9 @@ New and updated examples and miniapps
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
 
-- Added miniapps (findpts.cpp,pfindpts.cpp,compare.cpp) in miniapps/gslib that
-  show how GSLIB-FindPoints can be used to find arbitrary number of points (in
-  physical space) in a 2D/3D mesh in parallel, and interpolate a
+- Added miniapps (findpts.cpp,pfindpts.cpp,field-diff.cpp) in miniapps/gslib
+  that show how GSLIB-FindPoints can be used to find arbitrary number of points
+  (in physical space) in a 2D/3D mesh in parallel, and interpolate a
   (Par)GridFunction at those points. The GridFunction must be in H1 and in the
   same space as the mesh that is used to find the points.
 
