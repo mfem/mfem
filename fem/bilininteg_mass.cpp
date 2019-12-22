@@ -1090,7 +1090,7 @@ static void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                           const Vector &_op,
                                           Vector &diag)
 {
-   constexpr int VDIM = 2;
+   constexpr static int VDIM = 2;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -1154,7 +1154,7 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                           const Vector &_op,
                                           Vector &diag)
 {
-   constexpr int VDIM = 3;
+   constexpr static int VDIM = 3;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -1243,7 +1243,7 @@ static void PAHcurlMassApply3D(const int D1D,
                                const Vector &x,
                                Vector &y)
 {
-   constexpr int VDIM = 3;
+   constexpr static int VDIM = 3;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -1613,7 +1613,7 @@ static void PACurlCurlApply2D(const int D1D,
                               const Vector &x,
                               Vector &y)
 {
-   constexpr int VDIM = 2;
+   constexpr static int VDIM = 2;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
@@ -1745,7 +1745,7 @@ static void PACurlCurlApply3D(const int D1D,
    // This implementation is based on the identity [\nabla\times u] F = dF^{-T} [\hat{\nabla}\times\hat{u}] dF^{-1} (p. 77 of Monk).
    // It may have been simpler to use the identity (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk).
 
-   constexpr int VDIM = 3;
+   constexpr static int VDIM = 3;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -2199,7 +2199,7 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
                                          const Vector &_op,
                                          Vector &diag)
 {
-   constexpr int VDIM = 2;
+   constexpr static int VDIM = 2;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
@@ -2265,7 +2265,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
                                          const Vector &_op,
                                          Vector &diag)
 {
-   constexpr int VDIM = 3;
+   constexpr static int VDIM = 3;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -2556,7 +2556,7 @@ static void PAHcurlH1Apply3D(const int D1D,
                              const Vector &_x,
                              Vector &y)
 {
-   constexpr int VDIM = 3;
+   constexpr static int VDIM = 3;
 
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
@@ -2747,7 +2747,7 @@ static void PAHcurlH1Apply2D(const int D1D,
                              const Vector &_x,
                              Vector &y)
 {
-   constexpr int VDIM = 2;
+   constexpr static int VDIM = 2;
 
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
