@@ -9,32 +9,33 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//          -------------------------------------------------------
-//          Serial miniapp demonstrating GSLIB's FindPoints methods
-//          -------------------------------------------------------
-// This miniapp demonstrates high-order interpolation of a gridfunction on a
-// set of points in physical-space using GSLIB/FindPoints.  FindPoints provides
-// two key functionalities. First, for a given set of points in the
-// physical-space, it determines the computational coordinates (element number,
-// reference-space coordinates inside the element, and processor number [in
-// parallel]) for each point. Inside GSLIB, computation of the coordinates
-// requires use of a Hash Table to identify the candidate processor and element
-// for each point, followed by the Newton's method to determine the
-// reference-space coordinates inside the candidate element.  Using the
-// computational coordinates, this miniapp interpolates a gridfunction on the
-// given points.
+//      -------------------------------------------------------------
+//      Find Points Miniapp: Evaluate grid function in physical space
+//      -------------------------------------------------------------
+//
+// This miniapp demonstrates the interpolation of a high-order grid function on
+// a set of points in physical-space. The miniapp is based on GSLIB-FindPoints,
+// which provides two key functionalities. First, for a given set of points in
+// the physical-space, it determines the computational coordinates (element
+// number, reference-space coordinates inside the element, and processor number
+// [in parallel]) for each point. Second, based on computational coordinates, it
+// interpolates a grid function in the given points. Inside GSLIB, computation
+// of the coordinates requires use of a Hash Table to identify the candidate
+// processor and element for each point, followed by the Newton's method to
+// determine the reference-space coordinates inside the candidate element.
 //
 // Compile with: make findpts
 //
 // Sample runs:
-//    ./findpts -m ../../data/rt-2d-q3.mesh -o 3
-//    ./findpts -m ../../data/fichera.mesh -o 3
+//    findpts -m ../../data/rt-2d-q3.mesh -o 3
+//    findpts -m ../../data/fichera.mesh -o 3
 
 #include "mfem.hpp"
 
 using namespace mfem;
 using namespace std;
 
+// Scalar function to project
 double field_func(const Vector &x)
 {
    const int dim = x.Size();

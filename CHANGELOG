@@ -26,10 +26,10 @@ Discretization improvements
   load balancing. Anisotropic prism refinement is only available in the serial
   version at the moment.
 
-- Added support for GSLIB-FindPoints, a general high-order interpolation
-  utility that can robustly evaluate a GridFunction in a collection of points
+- Added support for GSLIB-FindPoints, a general high-order interpolation utility
+  that can robustly evaluate a GridFunction in an arbitrary collection of points
   in physical space. See INSTALL for details on building MFEM with GSLIB, and
-  examples/gslib for an example of this feature.
+  miniapps/gslib for examples of how to use this feature.
 
 Meshing improvements
 --------------------
@@ -54,11 +54,11 @@ New and updated examples and miniapps
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
 
-- Added miniapps (findpts.cpp,pfindpts.cpp,field-diff.cpp) in miniapps/gslib
-  that show how GSLIB-FindPoints can be used to find arbitrary number of points
-  (in physical space) in a 2D/3D mesh in parallel, and interpolate a
-  (Par)GridFunction at those points. The GridFunction must be in H1 and in the
-  same space as the mesh that is used to find the points.
+- Added two new miniapps: Find Points (serial + parallel) and Field Diff in
+  miniapps/gslib that show how GSLIB-FindPoints can be used to interpolate a
+  (Par)GridFunction in an arbitrary number of physical space points in 2D and
+  3D. The GridFunction must be in H1 and in the same space as the mesh that is
+  used to find the points.
 
 Miscellaneous
 -------------

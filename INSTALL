@@ -593,9 +593,9 @@ The specific libraries and their options are:
   URL: https://zlib.net
   Options: ZLIB_OPT, ZLIB_LIB.
 
-- GSLIB, used when MFEM_USE_GSLIB = YES. GSLIB must be built prior to the MFEM
-  build, as follows: Download GSLIB (v1.0.5), untar it at the same
-  level as MFEM, and create a symbolic link: "ln -s gslib-1.0.5 gslib".
+- GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
+  built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.5 gslib".
   Build gslib in parallel or in serial based on the desired MFEM build: "make
   clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
   MFEM_USE_GSLIB=YES.
