@@ -35,13 +35,15 @@ double coeffFunction(const Vector& x)
 
 double linearFunction(const Vector & x)
 {
-  if (dimension == 3)
-    {
+   if (dimension == 3)
+   {
       return (10.0 * x(0)) + (5.0 * x(1)) + x(2);
-    }
-  else
-    return (10.0 * x(0)) + (5.0 * x(1));
-}  
+   }
+   else
+   {
+      return (10.0 * x(0)) + (5.0 * x(1));
+   }
+}
 
 TEST_CASE("H1 pa_coeff")
 {
@@ -193,7 +195,7 @@ TEST_CASE("Hcurl pa_coeff")
                }
                else if (coeffType == 1)
                {
-		  coeff = new FunctionCoefficient(&coeffFunction);
+                  coeff = new FunctionCoefficient(&coeffFunction);
                   curlCoeff = new FunctionCoefficient(&linearFunction);
                }
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -203,7 +205,7 @@ TEST_CASE("Hcurl pa_coeff")
                }
                if (integrator > 0)
                {
-		  paform.AddDomainIntegrator(new CurlCurlIntegrator(*curlCoeff));
+                  paform.AddDomainIntegrator(new CurlCurlIntegrator(*curlCoeff));
                }
                paform.Assemble();
                OperatorHandle paopr;
@@ -217,7 +219,7 @@ TEST_CASE("Hcurl pa_coeff")
                }
                if (integrator > 0)
                {
-		  assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*curlCoeff));
+                  assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*curlCoeff));
                }
                assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
                assemblyform.Assemble();
@@ -291,7 +293,7 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
                FiniteElementCollection* h1_fec =
                   new H1_FECollection(order, dimension);
                FiniteElementSpace h1_fespace(mesh, h1_fec);
-	       
+
                Array<int> ess_tdof_list;
 
                MixedBilinearForm paform(&h1_fespace, &ND_fespace);
@@ -302,7 +304,7 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
                }
                else if (coeffType == 1)
                {
-		  coeff = new FunctionCoefficient(&coeffFunction);
+                  coeff = new FunctionCoefficient(&coeffFunction);
                }
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
                if (integrator < 1)

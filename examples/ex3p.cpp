@@ -195,38 +195,38 @@ int main(int argc, char *argv[])
    //     With partial assembly, use no preconditioner, for now.
 
    if (pa)
-     {
-       ParGridFunction diag_pa(fespace);
-       a->AssembleDiagonal(diag_pa);
+   {
+      ParGridFunction diag_pa(fespace);
+      a->AssembleDiagonal(diag_pa);
 
-       Vector tdiag_pa(fespace->GetTrueVSize());
-       diag_pa.GetTrueDofs(tdiag_pa);
+      Vector tdiag_pa(fespace->GetTrueVSize());
+      diag_pa.GetTrueDofs(tdiag_pa);
 
-       OperatorJacobiSmoother Jacobi(tdiag_pa, ess_tdof_list, 1.0);
+      OperatorJacobiSmoother Jacobi(tdiag_pa, ess_tdof_list, 1.0);
 
-       CGSolver cg(MPI_COMM_WORLD);
-       cg.SetRelTol(1e-12);
-       cg.SetMaxIter(1000);
-       cg.SetPrintLevel(1);
-       cg.SetOperator(*A);
-       cg.SetPreconditioner(Jacobi);
-       cg.Mult(B, X);
-     }
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(1000);
+      cg.SetPrintLevel(1);
+      cg.SetOperator(*A);
+      cg.SetPreconditioner(Jacobi);
+      cg.Mult(B, X);
+   }
    else
-     {
-       ParFiniteElementSpace *prec_fespace =
-	 (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-       HypreSolver *ams = new HypreAMS(*A.As<HypreParMatrix>(), prec_fespace);
-       HyprePCG *pcg = new HyprePCG(*A.As<HypreParMatrix>());
-       pcg->SetTol(1e-12);
-       pcg->SetMaxIter(500);
-       pcg->SetPrintLevel(2);
-       pcg->SetPreconditioner(*ams);
-       pcg->Mult(B, X);
+   {
+      ParFiniteElementSpace *prec_fespace =
+         (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+      HypreSolver *ams = new HypreAMS(*A.As<HypreParMatrix>(), prec_fespace);
+      HyprePCG *pcg = new HyprePCG(*A.As<HypreParMatrix>());
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(500);
+      pcg->SetPrintLevel(2);
+      pcg->SetPreconditioner(*ams);
+      pcg->Mult(B, X);
 
-       delete pcg;
-       delete ams;
-     }
+      delete pcg;
+      delete ams;
+   }
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
