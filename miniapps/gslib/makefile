@@ -58,12 +58,11 @@ include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-SERIAL_NAME := Serial GSLIB miniapp
-PARALLEL_NAME := Parallel GSLIB miniapp
+TEST_NAME := GSLIB miniapp
 %-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
 %-test-seq: %
-	@$(call mfem-test,$<,, $(SERIAL_NAME))
+	@$(call mfem-test,$<,, $(TEST_NAME))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

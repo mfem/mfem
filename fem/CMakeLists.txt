@@ -33,6 +33,7 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop_tools.cpp
+  gslib.cpp
   )
 
 set(HDRS
@@ -66,6 +67,7 @@ set(HDRS
   tintrules.hpp
   tmop.hpp
   tmop_tools.hpp
+  gslib.hpp
   )
 
 if (MFEM_USE_SIDRE)

@@ -9,20 +9,23 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//          ------------------------------------------------------
-//          Serial miniapp of utilizing GSLIB's FindPoints methods
-//          ------------------------------------------------------
-// This miniapp utilizes GSLIB's high-order off-grid interpolation utility
-// FindPoints to compare solution on two different meshes. Using a set of points
-// defined within the bounding box of the domain, FindPoints is used to
-// interpolate gridfunctions for two different meshes and output the difference
-// between the interpolated values. This miniapp also used FindPoints to
-// interpolate the solution from one mesh onto another, and visualize the
-// difference using GLVis.
+//      --------------------------------------------------------------
+//      Field Diff Miniapp: Compare grid functions on different meshes
+//      --------------------------------------------------------------
 //
-// Compile with: make compare
-// Sample run  : ./compare
+// This miniapp compares two different high-order grid functions, defined on two
+// different high-order meshes, based on the GSLIB-FindPoints general off-grid
+// interpolation utility. Using a set of points defined within the bounding box
+// of the domain, FindPoints is used to interpolate the grid functions from the
+// two different meshes and output the difference between the interpolated
+// values. The miniapp also uses FindPoints to interpolate the solution from one
+// mesh onto another, and visualize the difference using GLVis.
 //
+// Compile with: make field-diff
+//
+// Sample runs:
+//    compare
+//    compare -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -s2 triple-pt-1.gf -p 200
 
 #include "mfem.hpp"
 #include <fstream>
