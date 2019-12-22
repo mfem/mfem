@@ -7035,8 +7035,8 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
             dof_map[p + (p + p*p1)*p1] = 6;
             dof_map[0 + (p + p*p1)*p1] = 7;
 
-            // edges (see Hexahedron::edges in mesh/hexahedron.cpp). 
-	    // edges (see Constants<Geometry::CUBE>::Edges in fem/geom.cpp).
+            // edges (see Hexahedron::edges in mesh/hexahedron.cpp).
+            // edges (see Constants<Geometry::CUBE>::Edges in fem/geom.cpp).
             int o = 8;
             for (int i = 1; i < p; i++)
             {
@@ -7177,18 +7177,18 @@ PositiveTensorFiniteElement::PositiveTensorFiniteElement(
                            dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
      TensorBasisElement(dims, p, BasisType::Positive, dmtype) { }
 
-VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims, 
-						     const int d,
-						     const int p, 
-						     const int cbtype,
-						     const int obtype,
-						     const int M,
-						     const DofMapType dmtype)
-  : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
-			p, M, FunctionSpace::Qk),
-    TensorBasisElement(dims, p, VerifyNodal(cbtype), dmtype),
-    cbasis1d(poly1d.GetBasis(p, VerifyClosed(cbtype))),
-    obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(obtype))) { }
+VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
+                                                     const int d,
+                                                     const int p,
+                                                     const int cbtype,
+                                                     const int obtype,
+                                                     const int M,
+                                                     const DofMapType dmtype)
+   : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
+                         p, M, FunctionSpace::Qk),
+     TensorBasisElement(dims, p, VerifyNodal(cbtype), dmtype),
+     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cbtype))),
+     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(obtype))) { }
 
 H1_SegmentElement::H1_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyClosed(btype), H1_DOF_MAP)
@@ -10756,9 +10756,9 @@ const double ND_HexahedronElement::tk[18] =
 
 ND_HexahedronElement::ND_HexahedronElement(const int p,
                                            const int cb_type, const int ob_type)
-  : VectorTensorFiniteElement(3, 3*p*(p + 1)*(p + 1), p, cb_type, ob_type,
-			      H_CURL, DofMapType::L2_DOF_MAP),
-    dof2tk(Dof)
+   : VectorTensorFiniteElement(3, 3*p*(p + 1)*(p + 1), p, cb_type, ob_type,
+                               H_CURL, DofMapType::L2_DOF_MAP),
+     dof2tk(Dof)
 {
    dof_map.SetSize(Dof);
 
@@ -11121,32 +11121,36 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
          }
 }
 
-const DofToQuad &VectorTensorFiniteElement::GetDofToQuad(const IntegrationRule &ir,
-							 DofToQuad::Mode mode) const
+const DofToQuad &VectorTensorFiniteElement::GetDofToQuad(
+   const IntegrationRule &ir,
+   DofToQuad::Mode mode) const
 {
-  MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+   MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
 
-  return GetTensorDofToQuad(ir, mode, true);
+   return GetTensorDofToQuad(ir, mode, true);
 }
 
-const DofToQuad &VectorTensorFiniteElement::GetDofToQuadOpen(const IntegrationRule &ir,
-							     DofToQuad::Mode mode) const
+const DofToQuad &VectorTensorFiniteElement::GetDofToQuadOpen(
+   const IntegrationRule &ir,
+   DofToQuad::Mode mode) const
 {
-  MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+   MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
 
-  return GetTensorDofToQuad(ir, mode, false);
+   return GetTensorDofToQuad(ir, mode, false);
 }
 
-const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(const IntegrationRule &ir,
-							       DofToQuad::Mode mode,
-							       const bool closed) const
+const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(
+   const IntegrationRule &ir,
+   DofToQuad::Mode mode,
+   const bool closed) const
 {
    MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
 
-   for (int i = 0; i < closed ? dof2quad_array.Size() : dof2quad_array_open.Size(); i++)
+   for (int i = 0; i < closed ? dof2quad_array.Size() : dof2quad_array_open.Size();
+        i++)
    {
-     const DofToQuad &d2q = closed ? *dof2quad_array[i] : *dof2quad_array_open[i];
-     if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+      const DofToQuad &d2q = closed ? *dof2quad_array[i] : *dof2quad_array_open[i];
+      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
    }
 
    DofToQuad *d2q = new DofToQuad;
@@ -11168,9 +11172,13 @@ const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(const Integration
       // of the 1D rule.
 
       if (closed)
-	cbasis1d.Eval(ir.IntPoint(i).x, val, grad);
+      {
+         cbasis1d.Eval(ir.IntPoint(i).x, val, grad);
+      }
       else
-	obasis1d.Eval(ir.IntPoint(i).x, val, grad);
+      {
+         obasis1d.Eval(ir.IntPoint(i).x, val, grad);
+      }
 
       for (int j = 0; j < ndof; j++)
       {
@@ -11180,9 +11188,13 @@ const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(const Integration
    }
 
    if (closed)
-     dof2quad_array.Append(d2q);
+   {
+      dof2quad_array.Append(d2q);
+   }
    else
-     dof2quad_array_open.Append(d2q);
+   {
+      dof2quad_array_open.Append(d2q);
+   }
 
    return *d2q;
 }
@@ -11193,9 +11205,9 @@ const double ND_QuadrilateralElement::tk[8] =
 ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
                                                  const int cb_type,
                                                  const int ob_type)
-  : VectorTensorFiniteElement(2, 2*p*(p + 1), p, cb_type, ob_type,
-			      H_CURL, DofMapType::L2_DOF_MAP),
-    dof2tk(Dof)
+   : VectorTensorFiniteElement(2, 2*p*(p + 1), p, cb_type, ob_type,
+                               H_CURL, DofMapType::L2_DOF_MAP),
+     dof2tk(Dof)
 {
    dof_map.SetSize(Dof);
 

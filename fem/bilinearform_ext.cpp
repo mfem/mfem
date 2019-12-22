@@ -85,7 +85,10 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    }
 
    for (int i = 0; i < y.Size(); ++i)
-     y[i] = fabs(y[i]);  // necessary due to asymmetric signs applied by elem_restrict_lex->MultTranspose.
+   {
+      y[i] = fabs(
+                y[i]);   // necessary due to asymmetric signs applied by elem_restrict_lex->MultTranspose.
+   }
 }
 
 void PABilinearFormExtension::Update()
@@ -177,19 +180,22 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 }
 
 MixedBilinearFormExtension::MixedBilinearFormExtension(MixedBilinearForm *form)
-  : Operator(form->Height(), form->Width()), a(form)
+   : Operator(form->Height(), form->Width()), a(form)
 {
    // empty
 }
 
 // Data and methods for partially-assembled bilinear forms
-PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(MixedBilinearForm *form)
+PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(
+   MixedBilinearForm *form)
    : MixedBilinearFormExtension(form),
      trialFes(a->TrialFESpace()), testFes(a->TestFESpace())
 {
-   trial_elem_restrict_lex = trialFes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-   test_elem_restrict_lex = testFes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-						       
+   trial_elem_restrict_lex = trialFes->GetElementRestriction(
+                                ElementDofOrdering::LEXICOGRAPHIC);
+   test_elem_restrict_lex = testFes->GetElementRestriction(
+                               ElementDofOrdering::LEXICOGRAPHIC);
+
    if (trial_elem_restrict_lex && test_elem_restrict_lex)
    {
       localX.SetSize(trial_elem_restrict_lex->Height(), Device::GetMemoryType());
@@ -204,7 +210,7 @@ void PAMixedBilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-     integrators[i]->AssembleMixedPA(*a->TrialFESpace(), *a->TestFESpace());
+      integrators[i]->AssembleMixedPA(*a->TrialFESpace(), *a->TestFESpace());
    }
 }
 
@@ -214,31 +220,35 @@ void PAMixedBilinearFormExtension::Update()
    testFes = a->TestFESpace();
    height = testFes->GetVSize();
    width = trialFes->GetVSize();
-   trial_elem_restrict_lex = trialFes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-   test_elem_restrict_lex = testFes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-							     
+   trial_elem_restrict_lex = trialFes->GetElementRestriction(
+                                ElementDofOrdering::LEXICOGRAPHIC);
+   test_elem_restrict_lex = testFes->GetElementRestriction(
+                               ElementDofOrdering::LEXICOGRAPHIC);
+
    if (trial_elem_restrict_lex && test_elem_restrict_lex)
    {
-     localX.SetSize(trial_elem_restrict_lex->Height());
-     localY.SetSize(test_elem_restrict_lex->Height());
+      localX.SetSize(trial_elem_restrict_lex->Height());
+      localY.SetSize(test_elem_restrict_lex->Height());
    }
 }
 
 // TODO: Generalize with ess_tdof_list for trial and test spaces.
-void PAMixedBilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
-						    OperatorHandle &A)
+void PAMixedBilinearFormExtension::FormSystemMatrix(const Array<int>
+                                                    &ess_tdof_list,
+                                                    OperatorHandle &A)
 {
-  mfem_error("FormSystemMatrix not supported for mixed bilinear forms.");
+   mfem_error("FormSystemMatrix not supported for mixed bilinear forms.");
 }
 
 // TODO: Generalize with ess_tdof_list for trial and test spaces.
-void PAMixedBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
-						    Vector &x, Vector &b,
-						    OperatorHandle &A,
-						    Vector &X, Vector &B,
-						    int copy_interior)
+void PAMixedBilinearFormExtension::FormLinearSystem(const Array<int>
+                                                    &ess_tdof_list,
+                                                    Vector &x, Vector &b,
+                                                    OperatorHandle &A,
+                                                    Vector &X, Vector &B,
+                                                    int copy_interior)
 {
-  mfem_error("FormLinearSystem not supported for mixed bilinear forms.");
+   mfem_error("FormLinearSystem not supported for mixed bilinear forms.");
 }
 
 void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
@@ -267,7 +277,8 @@ void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void PAMixedBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
+void PAMixedBilinearFormExtension::MultTranspose(const Vector &x,
+                                                 Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();

@@ -2789,7 +2789,8 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
- 	 const int gid = (elementMap[dof*e + d] >= 0) ? elementMap[dof*e + d] : -1 - elementMap[dof*e + d];
+         const int gid = (elementMap[dof*e + d] >= 0) ? elementMap[dof*e + d] : -1 -
+                         elementMap[dof*e + d];
          ++offsets[gid + 1];
       }
    }
@@ -2803,8 +2804,10 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
-	 const int did = (!dof_reorder)?d:(dof_map[d] >= 0 ? dof_map[d] : -1 - dof_map[d]);
-         const int gid = (elementMap[dof*e + did] >= 0) ? elementMap[dof*e + did] : -1 - elementMap[dof*e + did];
+         const int did = (!dof_reorder)?d:(dof_map[d] >= 0 ? dof_map[d] : -1 -
+                                           dof_map[d]);
+         const int gid = (elementMap[dof*e + did] >= 0) ? elementMap[dof*e + did] : -1 -
+                         elementMap[dof*e + did];
          const int lid = dof*e + d;
 
          indices[offsets[gid]++] = (elementMap[dof*e + did] >= 0) ? lid : -1 - lid;
@@ -2839,7 +2842,7 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
          const double dofValue = d_x(t?c:i,t?i:c);
          for (int j = offset; j < nextOffset; ++j)
          {
-	    const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
             d_y(idx_j % nd, c, idx_j / nd) = (d_indices[j] >= 0) ? dofValue : -dofValue;
          }
       }
@@ -2865,8 +2868,9 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
          double dofValue = 0;
          for (int j = offset; j < nextOffset; ++j)
          {
-	    const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            dofValue += (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
+            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+            dofValue += (d_indices[j] >= 0) ? d_x(idx_j % nd, c,
+            idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
          }
          d_y(t?c:i,t?i:c) = dofValue;
       }

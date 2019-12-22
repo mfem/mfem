@@ -19,7 +19,7 @@
 //               mpirun -np 4 exNDH1 -m ../data/mobius-strip.mesh -o 2 -f 0.1
 //               mpirun -np 4 exNDH1 -m ../data/klein-bottle.mesh -o 2 -f 0.1
 //
-// Description:  This example code solves a projection of a gradient of a 
+// Description:  This example code solves a projection of a gradient of a
 //               function in H^1 to H(curl).
 //
 //               We recommend viewing examples 1-3 before viewing this example.
@@ -145,9 +145,10 @@ int main(int argc, char *argv[])
    Coefficient *sigma = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    ParMixedBilinearForm *a_NDH1 = new ParMixedBilinearForm(H1fespace, fespace);
-   if (pa) { 
-     a->SetAssemblyLevel(AssemblyLevel::PARTIAL); 
-     a_NDH1->SetAssemblyLevel(AssemblyLevel::PARTIAL); 
+   if (pa)
+   {
+      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a_NDH1->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
 
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
@@ -161,72 +162,72 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
 
    a->Assemble();
-   if (!pa) a->Finalize();
+   if (!pa) { a->Finalize(); }
 
    a_NDH1->Assemble();
-   if (!pa) a_NDH1->Finalize();
+   if (!pa) { a_NDH1->Finalize(); }
 
    Vector B(fespace->GetTrueVSize());
    Vector X(fespace->GetTrueVSize());
 
    if (pa)
-     {
-       a_NDH1->Mult(p, x);
-       x.GetTrueDofs(B);
-     }
+   {
+      a_NDH1->Mult(p, x);
+      x.GetTrueDofs(B);
+   }
    else
-     {
-       HypreParMatrix *NDH1 = a_NDH1->ParallelAssemble();
+   {
+      HypreParMatrix *NDH1 = a_NDH1->ParallelAssemble();
 
-       Vector P(H1fespace->GetTrueVSize());
-       p.GetTrueDofs(P);
+      Vector P(H1fespace->GetTrueVSize());
+      p.GetTrueDofs(P);
 
-       NDH1->Mult(P,B);
+      NDH1->Mult(P,B);
 
-       delete NDH1;
-     }
+      delete NDH1;
+   }
 
    // 10. Define and apply a parallel PCG solver for AX=B with the AMS
    //     preconditioner from hypre, in the full assembly case.
    //     With partial assembly, use Jacobi preconditioner, for now.
 
    if (pa)
-     {
-       ParGridFunction diag_pa(fespace);
-       diag_pa = 0.0;
-       a->AssembleDiagonal(diag_pa);
+   {
+      ParGridFunction diag_pa(fespace);
+      diag_pa = 0.0;
+      a->AssembleDiagonal(diag_pa);
 
-       Vector tdiag_pa(fespace->GetTrueVSize());
-       diag_pa.GetTrueDofs(tdiag_pa);
+      Vector tdiag_pa(fespace->GetTrueVSize());
+      diag_pa.GetTrueDofs(tdiag_pa);
 
-       Array<int> ess_tdof_list;
-       OperatorJacobiSmoother Jacobi(diag_pa, ess_tdof_list, 1.0);
+      Array<int> ess_tdof_list;
+      OperatorJacobiSmoother Jacobi(diag_pa, ess_tdof_list, 1.0);
 
-       CGSolver cg(MPI_COMM_WORLD);
-       cg.SetRelTol(1e-12);
-       cg.SetMaxIter(1000);
-       cg.SetPrintLevel(1);
-       cg.SetOperator(*a);
-       cg.SetPreconditioner(Jacobi);
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(1000);
+      cg.SetPrintLevel(1);
+      cg.SetOperator(*a);
+      cg.SetPreconditioner(Jacobi);
 
-       ParGridFunction rhs(fespace);
-       rhs = x;
-       cg.Mult(rhs, x);
-     }
+      ParGridFunction rhs(fespace);
+      rhs = x;
+      cg.Mult(rhs, x);
+   }
    else
-     {
-       HypreParMatrix *Amat = a->ParallelAssemble();
-       HyprePCG *pcg = new HyprePCG(*Amat);
-       pcg->SetTol(1e-12);
-       pcg->SetMaxIter(500);
-       pcg->SetPrintLevel(2);
-       pcg->Mult(B, X);
+   {
+      HypreParMatrix *Amat = a->ParallelAssemble();
+      HyprePCG *pcg = new HyprePCG(*Amat);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(500);
+      pcg->SetPrintLevel(2);
+      pcg->Mult(B, X);
 
-       delete pcg;
-       delete Amat;
+      delete pcg;
+      delete Amat;
 
-       x.SetFromTrueDofs(X);
-     }
+      x.SetFromTrueDofs(X);
+   }
 
    // 11. Compute and print the L^2 norm of the error.
    {
@@ -284,11 +285,11 @@ double p_exact(const Vector &x)
 {
    if (dim == 3)
    {
-     return sin(x(0)) * sin(x(1)) * sin(x(2));
+      return sin(x(0)) * sin(x(1)) * sin(x(2));
    }
    else if (dim == 2)
    {
-     return sin(x(0)) * sin(x(1));
+      return sin(x(0)) * sin(x(1));
    }
 
    return 0.0;
