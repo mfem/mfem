@@ -157,12 +157,14 @@ public:
    virtual const Operator *GetProlongation() const
    {
       mfem_error("Not implemented for this assembly level!");
+      return NULL;
    }
 
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    {
       mfem_error("Not implemented for this assembly level!");
+      return NULL;
    }
 
    virtual void Assemble() = 0;
