@@ -22,7 +22,7 @@ namespace mfem
 class Pyramid : public Element
 {
 protected:
-   int indices[6];
+   int indices[5];
 
 public:
    typedef Geometry::Constants<Geometry::PYRAMID> geom_t;
@@ -56,7 +56,9 @@ public:
 
    virtual int GetNFaces(int &nFaceVertices) const;
 
-   virtual int GetNFaceVerticess(int fi) const
+   virtual int GetNFaces() const { return 5; }
+
+   virtual int GetNFaceVertices(int fi) const
    { return ( ( fi < 1 ) ? 4 : 3); }
 
    virtual const int *GetFaceVertices(int fi) const
