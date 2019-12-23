@@ -99,6 +99,57 @@ void BoundaryGradIntegrator::AssembleFaceMatrix(
    }
 }
 
+//this is a test integrator (from diffusion integrator)
+class TestIntegrator : public BilinearFormIntegrator
+{
+private:
+   DenseMatrix dshape, gshape, Jinv;
+   Coefficient *nuCoef;
+
+public:
+   TestIntegrator (double visc)  
+   { nuCoef = new ConstantCoefficient(visc); }
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      DenseMatrix &elmat);
+
+   virtual ~TestIntegrator()
+   { delete nuCoef; }
+};
+
+void TestIntegrator::AssembleElementMatrix(const FiniteElement &el,
+                                        ElementTransformation &Tr,
+                                        DenseMatrix &elmat)
+{
+    int dim = 2;
+    int nd = el.GetDof();
+
+    dshape.SetSize(nd, dim);
+    gshape.SetSize(nd, dim);
+    Jinv  .SetSize(dim);
+
+
+    elmat.SetSize(nd);
+    elmat=0.;
+    
+    double w;
+    const IntegrationRule *ir = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
+    for (int i = 0; i < ir->GetNPoints(); i++)
+    {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcDShape(ip, dshape);
+
+      Tr.SetIntPoint(&ip);
+      w = Tr.Weight();
+      w = ip.weight / w;
+      Mult(dshape, Tr.AdjugateJacobian(), gshape);
+            
+      w *= nuCoef->Eval(Tr, ip);;
+      AddMult_a_AAt(w, gshape, elmat);
+    }
+}
+
 // Integrator for (tau * Q.grad func , V.grad v)
 // Here we always assume V is the advection speed
 class StabConvectionIntegrator : public BilinearFormIntegrator
@@ -139,53 +190,75 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
     gshape.SetSize(nd, dim);
     Jinv  .SetSize(dim);
 
-    //here we assume 2d quad
-    double eleLength = sqrt( Geometry::Volume[el.GetGeomType()] * Tr.Weight() );   
 
     elmat.SetSize(nd);
     elmat=0.;
-    
-    //integration order is el.order + grad.order-1 (-1 due to another derivative taken in V)
-    int intorder = 2 * (el.GetOrder() + Tr.OrderGrad(&el)-1);
-    const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
-
-    V->Eval(V_ir, Tr, ir);
-    if(Q!=NULL) Q->Eval(Q_ir, Tr, ir);
   
-    for (int i = 0; i < ir.GetNPoints(); i++)
+    if (true)
     {
-        const IntegrationPoint &ip = ir.IntPoint(i);
-        
-        el.CalcDShape(ip, dshape);
-        
-        Tr.SetIntPoint(&ip);
-        norm = ip.weight * Tr.Weight();
-        CalcInverse (Tr.Jacobian(), Jinv);
-        
-        Mult(dshape, Jinv, gshape); 
-        
-        //compute tau
-        double nu = nuCoef->Eval (Tr, ip);
-        V_ir.GetColumnReference(i, vec1);
-        Unorm = vec1.Norml2();
-        if (itau==1)
-            invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
-        else if (itau==2)
-            invtau = sqrt( pow(2./dt,2) +  pow(2.0 * Unorm / eleLength, 2) );
-        else
-            invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
-        tau = 1.0/invtau;
-        norm *= tau;
- 
-        gshape.Mult(vec1, advGrad);
-        if (Q==NULL) 
+        //here we assume 2d quad
+        double eleLength = sqrt( Geometry::Volume[el.GetGeomType()] * Tr.Weight() );   
+        //integration order is el.order + grad.order-1 (-1 due to another derivative taken in V)
+        int intorder = 2 * (el.GetOrder() + Tr.OrderGrad(&el)-1);
+        const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
+
+        V->Eval(V_ir, Tr, ir);
+        if(Q!=NULL) Q->Eval(Q_ir, Tr, ir);
+        for (int i = 0; i < ir.GetNPoints(); i++)
         {
-            AddMult_a_VVt(norm, advGrad, elmat);
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            el.CalcDShape(ip, dshape);
+            
+            Tr.SetIntPoint(&ip);
+            norm = ip.weight * Tr.Weight();
+            CalcInverse (Tr.Jacobian(), Jinv);
+            Mult(dshape, Jinv, gshape); 
+            
+            //compute tau
+            double nu = nuCoef->Eval (Tr, ip);
+            V_ir.GetColumnReference(i, vec1);
+            Unorm = vec1.Norml2();
+            if (itau==1)
+                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            else if (itau==2)
+                invtau = sqrt( pow(2./dt,2) +  pow(2.0 * Unorm / eleLength, 2) );
+                //invtau = 2./dt;
+            else
+                invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+
+            cout <<"invtau ="<<invtau<<" length="<<eleLength<<" ";
+            tau = 1.0/invtau;
+            norm *= tau;
+
+            gshape.Mult(vec1, advGrad);
+            if (Q==NULL) 
+            {
+                AddMult_a_VVt(norm, advGrad, elmat);
+            }
+            else{
+                Q_ir.GetColumnReference(i, vec2);
+                gshape.Mult(vec2, advGrad2);
+                AddMult_a_VWt(norm, advGrad, advGrad2, elmat);
+            }
         }
-        else{
-            Q_ir.GetColumnReference(i, vec2);
-            gshape.Mult(vec2, advGrad2);
-            AddMult_a_VWt(norm, advGrad, advGrad2, elmat);
+    }
+    else
+    {
+        double w;
+        const IntegrationRule *ir = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
+        for (int i = 0; i < ir->GetNPoints(); i++)
+        {
+          const IntegrationPoint &ip = ir->IntPoint(i);
+          el.CalcDShape(ip, dshape);
+
+          Tr.SetIntPoint(&ip);
+          w = Tr.Weight();
+          w = ip.weight / w;
+          Mult(dshape, Tr.AdjugateJacobian(), gshape);
+                
+          //a fixed diffusion of 1e-3 is used here
+          w *= 1e-3;
+          AddMult_a_AAt(w, gshape, elmat);
         }
     }
 }
@@ -233,7 +306,7 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
     elmat.SetSize(nd);
     elmat=0.;
     
-    //this is from ConvectionIntegrator, too high?
+    //this is from ConvectionIntegrator, maybe too high?
     int intorder = el.GetOrder() + Tr.OrderGrad(&el) + Tr.Order();
     const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
 
@@ -249,7 +322,6 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
         Tr.SetIntPoint(&ip);
         norm = ip.weight * Tr.Weight();
         CalcInverse (Tr.Jacobian(), Jinv);
-        
         Mult(dshape, Jinv, gshape); 
         
         //compute tau
@@ -327,7 +399,6 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
         Tr.SetIntPoint(&ip);
         norm = ip.weight * Tr.Weight();
         CalcInverse (Tr.Jacobian(), Jinv);
-        
         Mult(dshape, Jinv, gshape); 
         
         //compute tau

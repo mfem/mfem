@@ -33,6 +33,15 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+12/22
+note that different resi gives different E0rhs!
+at least stabilization terms has impact now but the stabilization parameter is funny
+
+12/12
+does the explicit supg make sense? I am not sure now...
+maybe remove all other operators and only use (V.grad u, V.grad h) to make sure diffusion is doing something
+dt/2(V.grad u, V.grad h) should be a reasonable diffusion term
+
 12/10
 testing:
 mpirun -n 4 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 100 -tf .002 -dt .002 -resi 1e-6 -visc 1e-6

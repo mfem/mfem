@@ -87,7 +87,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    MrhsMat=Mrhs->ParallelAssemble();
 
    M_solver.iterative_mode = true;
-   M_solver.SetRelTol(1e-12);   
+   M_solver.SetRelTol(1e-7);    //solving too tight can be problematic
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(2000);
    M_solver.SetPrintLevel(0);
@@ -96,7 +96,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M_solver.SetOperator(Mmat);
 
    M_solver2.iterative_mode = false;
-   M_solver2.SetRelTol(1e-12); 
+   M_solver2.SetRelTol(1e-7); 
    M_solver2.SetAbsTol(0.0);
    M_solver2.SetMaxIter(2000);
    M_solver2.SetPrintLevel(0);
