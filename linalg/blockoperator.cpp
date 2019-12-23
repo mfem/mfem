@@ -85,7 +85,7 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
       tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
       for (int jCol=0; jCol < nColBlocks; ++jCol)
       {
-         if (op(iRow,jCol))
+         if (op(iRow,jCol) && coef(iRow,jCol) != 0.)
          {
             op(iRow,jCol)->Mult(xblock.GetBlock(jCol), tmp);
             yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
@@ -121,7 +121,7 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
       tmp.SetSize(col_offsets[iRow+1] - col_offsets[iRow]);
       for (int jCol=0; jCol < nRowBlocks; ++jCol)
       {
-         if (op(jCol,iRow))
+         if (op(jCol,iRow) && coef(jCol,iRow) != 0.)
          {
             op(jCol,iRow)->MultTranspose(xblock.GetBlock(jCol), tmp);
             yblock.GetBlock(iRow).Add(coef(jCol,iRow), tmp);
