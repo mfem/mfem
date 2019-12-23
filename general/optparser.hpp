@@ -43,6 +43,8 @@ private:
       const char *description;
       bool required;
 
+      Option() = default;
+
       Option(OptionType _type, void *_var_ptr, const char *_short_name,
              const char *_long_name, const char *_description, bool req)
          : type(_type), var_ptr(_var_ptr), short_name(_short_name),

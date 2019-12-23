@@ -26,24 +26,25 @@ install:
 - cd ..
 
 # Install hypre
-- ps: Start-FileDownload 'https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz'
-- 7z x hypre-2.10.0b.tar.gz -so | 7z x -si -ttar > nul
-- cd hypre-2.10.0b
-- cmake -Hsrc -Bbuild -DMPI_C_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DMPI_C_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
-# - cmake -Hsrc -Bbuild -DCMAKE_BUILD_TYPE=Release -DMPI_C_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DMPI_C_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
+- ps: Start-FileDownload 'https://github.com/hypre-space/hypre/archive/V2-10-0b.tar.gz'
+- 7z x V2-10-0b.tar.gz -so | 7z x -si -ttar > nul
+- cd hypre-2-10-0b
+- cmake -H. -Bbuild -DHYPRE_USING_FEI=OFF -DMPI_C_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DMPI_C_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
 - cmake --build build
 - cmake --build build --target install
 - cd ..
 
 # MFEM
 before_build:
-- cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_parallel -DMFEM_USE_MPI=TRUE -DMFEM_USE_METIS_5=TRUE -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DHYPRE_LIBRARIES=%cd%\hypre-2.10.0b\src\hypre\lib\HYPRE.lib -DHYPRE_INCLUDE_DIRS=%cd%\hypre-2.10.0b\src\hypre\include -DHYPRE_VERSION=21000 -DMETIS_LIBRARIES=%cd%\metis-5.1.0\build\libmetis\Debug\metis.lib -DMETIS_INCLUDE_DIRS=%cd%\metis-5.1.0\include
-- cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_serial -DMFEM_USE_MPI=FALSE -DMFEM_USE_METIS_5=TRUE -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DHYPRE_LIBRARIES=%cd%\hypre-2.10.0b\src\hypre\lib\HYPRE.lib -DHYPRE_INCLUDE_DIRS=%cd%\hypre-2.10.0b\src\hypre\include -DHYPRE_VERSION=21000 -DMETIS_LIBRARIES=%cd%\metis-5.1.0\build\libmetis\Debug\metis.lib -DMETIS_INCLUDE_DIRS=%cd%\metis-5.1.0\include
+- cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_parallel -DMFEM_USE_MPI=TRUE -DMFEM_USE_METIS_5=TRUE -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DHYPRE_LIBRARIES=%cd%\hypre-2-10-0b\hypre\lib\HYPRE.lib -DHYPRE_INCLUDE_DIRS=%cd%\hypre-2-10-0b\hypre\include -DHYPRE_VERSION=21000 -DMETIS_LIBRARIES=%cd%\metis-5.1.0\build\libmetis\Debug\metis.lib -DMETIS_INCLUDE_DIRS=%cd%\metis-5.1.0\include
+- cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_serial -DMFEM_USE_MPI=FALSE
 
 build_script:
 - cmake --build build_parallel
 - cmake --build build_serial
+- cmake --build build_serial --target exec
 
 after_build:
 # - cmake --build build_parallel --target check
-- cmake --build build_serial --target check
+- cmake --build build_serial --target RUN_TESTS
+

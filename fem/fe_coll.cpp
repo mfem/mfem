@@ -2349,26 +2349,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
             int k3 = p*pm1 - 2 - 3*j - i - (i+j)*(i+j);
             int k4 = p*pm1 - 2 - 3*i - j - (i+j)*(i+j);
             int k5 = p*pm1 - (p - i)*(pm1 - i) + 2*j;
-            /*
-                 // (0,1,2)
-                 TriDofOrd[0][k0  ] = k0;
-                 TriDofOrd[0][k0+1] = k0 + 1;
-                 // (1,0,2)
-                 TriDofOrd[1][k0  ] = k1 + 1;
-                 TriDofOrd[1][k0+1] = k1;
-                 // (2,0,1)
-                 TriDofOrd[2][k0  ] = k2;
-                 TriDofOrd[2][k0+1] = k2 + 1;
-                 // (2,1,0)
-                 TriDofOrd[3][k0  ] = k3 + 1;
-                 TriDofOrd[3][k0+1] = k3;
-                 // (1,2,0)
-                 TriDofOrd[4][k0  ] = k4;
-                 TriDofOrd[4][k0+1] = k4 + 1;
-                 // (0,2,1)
-                 TriDofOrd[5][k0  ] = k5 + 1;
-                 TriDofOrd[5][k0+1] = k5;
-            */
+
             // (0,1,2)
             TriDofOrd[0][k0  ] = k0;
             TriDofOrd[0][k0+1] = k0 + 1;
@@ -2387,10 +2368,6 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
             // (0,2,1)
             TriDofOrd[5][k0  ] = k5;
             TriDofOrd[5][k0+1] = k5 + 1;
-
-            // The other orientations can not be supported with the current
-            // interface. The method Mesh::ReorientTetMesh will ensure that
-            // only orientations 0 and 5 are generated.
          }
       }
    }
@@ -2415,13 +2392,6 @@ const int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    }
    else if (GeomType == Geometry::TRIANGLE)
    {
-      /*
-      if (Or != 0 && Or != 5)
-      {
-         MFEM_ABORT("triangle face orientation " << Or << " is not supported! "
-                    "Use Mesh::ReorientTetMesh to fix it.");
-      }
-      */
       return TriDofOrd[Or%6];
    }
    else if (GeomType == Geometry::SQUARE)

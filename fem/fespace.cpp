@@ -12,6 +12,7 @@
 // Implementation of FiniteElementSpace
 
 #include "../general/text.hpp"
+#include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
 
@@ -176,14 +177,14 @@ FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {
    DofTransformation * doftrans = GetElementDofs(i, vdofs);
    DofsToVDofs(vdofs);
-   if (doftrans)
+   if (vdim == 1 || doftrans == NULL)
    {
-      VDoFTrans.SetDofTransformation(*doftrans);
-      return &VDoFTrans;
+      return doftrans;
    }
    else
    {
-      return NULL;
+      VDoFTrans.SetDofTransformation(*doftrans);
+      return &VDoFTrans;
    }
 }
 
@@ -418,6 +419,7 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
                                       Array<int> &list)
 {
    int num_marked = 0;
+   marker.HostRead(); // make sure we can read the array on host
    for (int i = 0; i < marker.Size(); i++)
    {
       if (marker[i]) { num_marked++; }
@@ -598,6 +600,40 @@ bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
    return true;
 }
 
+void FiniteElementSpace::GetDegenerateFaceDofs(int index,
+                                               Array<int> &dofs) const
+{
+   // In NC meshes with prisms, a special constraint occurs where a prism edge
+   // is slave to a quadrilateral face. Rather than introduce a new edge-face
+   // constraint type, we handle such cases as degenerate face-face constraints,
+   // where the point-matrix rectangle has zero height. This method returns
+   // DOFs for the first edge of the rectangle, duplicated in the orthogonal
+   // direction, to resemble DOFs for a quadrilateral face. The extra DOFs are
+   // ignored by FiniteElementSpace::AddDependencies.
+
+   Array<int> edof;
+   GetEdgeDofs(-1 - index, edof);
+
+   int nv = fec->DofForGeometry(Geometry::POINT);
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   int nn = 2*nv + ne;
+
+   dofs.SetSize(nn*nn);
+   dofs = edof[0];
+
+   // copy first two vertex DOFs
+   for (int i = 0; i < nv; i++)
+   {
+      dofs[i] = edof[i];
+      dofs[nv+i] = edof[nv+i];
+   }
+   // copy first edge DOFs
+   for (int i = 0; i < ne; i++)
+   {
+      dofs[4*nv + i] = edof[2*nv + i];
+   }
+}
+
 void
 FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
 {
@@ -605,7 +641,8 @@ FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
    {
       case 0: GetVertexDofs(index, dofs); break;
       case 1: GetEdgeDofs(index, dofs); break;
-      case 2: GetFaceDofs(index, dofs); break;
+      case 2: (index >= 0) ? GetFaceDofs(index, dofs)
+         /*             */ : GetDegenerateFaceDofs(index, dofs);
    }
 }
 
@@ -628,27 +665,32 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // collect local edge/face dependencies
    for (int entity = 1; entity <= 2; entity++)
    {
-      const NCMesh::NCList &list = (entity > 1) ? mesh->ncmesh->GetFaceList()
-                                   /*        */ : mesh->ncmesh->GetEdgeList();
+      const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
       if (!list.masters.size()) { continue; }
 
-      IsoparametricTransformation T;
-      if (entity > 1) { T.SetFE(&QuadrilateralFE); }
-      else { T.SetFE(&SegmentFE); }
-
-      Geometry::Type geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
-      const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
-      if (!fe) { continue; }
-
       Array<int> master_dofs, slave_dofs;
-      DenseMatrix I(fe->GetDof());
+
+      IsoparametricTransformation T;
+      DenseMatrix I;
 
       // loop through all master edges/faces, constrain their slave edges/faces
       for (unsigned mi = 0; mi < list.masters.size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
+
          GetEntityDofs(entity, master.index, master_dofs);
          if (!master_dofs.Size()) { continue; }
+
+         const FiniteElement* fe = fec->FiniteElementForGeometry(master.Geom());
+         if (!fe) { continue; }
+
+         switch (master.geom)
+         {
+            case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
+            case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
+            case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
+            default: MFEM_ABORT("unsupported geometry");
+         }
 
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
@@ -685,9 +727,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // create the conforming restriction matrix cR
    int *cR_J;
    {
-      int *cR_I = mfem::New<int>(n_true_dofs+1);
-      double *cR_A = mfem::New<double>(n_true_dofs);
-      cR_J = mfem::New<int>(n_true_dofs);
+      int *cR_I = new int[n_true_dofs+1];
+      double *cR_A = new double[n_true_dofs];
+      cR_J = new int[n_true_dofs];
       for (int i = 0; i < n_true_dofs; i++)
       {
          cR_I[i] = i;
@@ -765,6 +807,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       MakeVDimMatrix(*cP);
       MakeVDimMatrix(*cR);
    }
+
+   if (Device::IsEnabled()) { cP->BuildTranspose(); }
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
@@ -815,10 +859,69 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
+const Operator *FiniteElementSpace::GetElementRestriction(
+   ElementDofOrdering e_ordering) const
+{
+   // Check if we have a discontinuous space using the FE collection:
+   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
+   if (dg_space)
+   {
+      if (L2E_nat.Ptr() == NULL)
+      {
+         L2E_nat.Reset(new L2ElementRestriction(*this));
+      }
+      return L2E_nat.Ptr();
+   }
+   if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+   {
+      if (L2E_lex.Ptr() == NULL)
+      {
+         L2E_lex.Reset(new ElementRestriction(*this, e_ordering));
+      }
+      return L2E_lex.Ptr();
+   }
+   // e_ordering == ElementDofOrdering::NATIVE
+   if (L2E_nat.Ptr() == NULL)
+   {
+      L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
+   }
+   return L2E_nat.Ptr();
+}
+
+const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
+   const IntegrationRule &ir) const
+{
+   for (int i = 0; i < E2Q_array.Size(); i++)
+   {
+      const QuadratureInterpolator *qi = E2Q_array[i];
+      if (qi->IntRule == &ir) { return qi; }
+   }
+
+   QuadratureInterpolator *qi = new QuadratureInterpolator(*this, ir);
+   E2Q_array.Append(qi);
+   return qi;
+}
+
+const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
+   const QuadratureSpace &qs) const
+{
+   for (int i = 0; i < E2Q_array.Size(); i++)
+   {
+      const QuadratureInterpolator *qi = E2Q_array[i];
+      if (qi->qspace == &qs) { return qi; }
+   }
+
+   QuadratureInterpolator *qi = new QuadratureInterpolator(*this, qs);
+   E2Q_array.Append(qi);
+   return qi;
+}
+
 SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    const int coarse_ndofs, const Table &coarse_elem_dof,
-   const DenseTensor localP[]) const
+   const Table *coarse_elem_fos, const DenseTensor localP[]) const
 {
+   /// TODO: Implement DofTransformation support
+
    MFEM_VERIFY(mesh->GetLastOperation() == Mesh::REFINE, "");
 
    Array<int> dofs, coarse_dofs, coarse_vdofs;
@@ -883,7 +986,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-   const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
+   const DenseTensor &pmats = rtrans.point_matrices[geom];
 
    int nmat = pmats.SizeK();
    int ldof = fe->GetDof(); // assuming the same FE everywhere
@@ -902,7 +1005,8 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
 }
 
 SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
-                                                   const Table* old_elem_dof)
+                                                   const Table* old_elem_dof,
+                                                   const Table* old_elem_fos)
 {
    MFEM_VERIFY(ndofs >= old_ndofs, "Previous space is not coarser.");
 
@@ -914,15 +1018,20 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
       GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
    }
 
-   return RefinementMatrix_main(old_ndofs, *old_elem_dof, localP);
+   return RefinementMatrix_main(old_ndofs, *old_elem_dof, old_elem_fos,
+                                localP);
 }
 
 FiniteElementSpace::RefinementOperator::RefinementOperator
-(const FiniteElementSpace* fespace, Table* old_elem_dof, int old_ndofs)
+(const FiniteElementSpace* fespace, Table* old_elem_dof, Table* old_elem_fos,
+ int old_ndofs)
    : fespace(fespace)
    , old_elem_dof(old_elem_dof)
+   , old_elem_fos(old_elem_fos)
 {
-   MFEM_VERIFY(fespace->GetNDofs() >= old_ndofs,
+   const Mesh* mesh = fespace->GetMesh();
+   MFEM_VERIFY(mesh->ReduceInt(fespace->GetNDofs()) >=
+               mesh->ReduceInt(old_ndofs),
                "Previous space is not coarser.");
 
    width = old_ndofs * fespace->GetVDim();
@@ -934,6 +1043,8 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
    {
       fespace->GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
    }
+
+   ConstructDoFTrans();
 }
 
 FiniteElementSpace::RefinementOperator::RefinementOperator(
@@ -951,11 +1062,42 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
 
    // Make a copy of the coarse elem_dof Table.
    old_elem_dof = new Table(coarse_fes->GetElementToDofTable());
+
+   // Make a copy of the coarse elem_fos Table if it exists.
+   if (coarse_fes->GetElementToFaceOrientationTable())
+   {
+      old_elem_fos = new Table(*coarse_fes->GetElementToFaceOrientationTable());
+   }
+
+   ConstructDoFTrans();
 }
 
 FiniteElementSpace::RefinementOperator::~RefinementOperator()
 {
    delete old_elem_dof;
+   delete old_elem_fos;
+}
+
+void FiniteElementSpace::RefinementOperator
+::ConstructDoFTrans()
+{
+   old_DoFTrans.SetSize(Geometry::NUM_GEOMETRIES);
+   for (int i=0; i<old_DoFTrans.Size(); i++)
+   {
+      old_DoFTrans[i] = NULL;
+   }
+
+   const FiniteElementCollection *fec = fespace->FEColl();
+   if (dynamic_cast<const ND_FECollection*>(fec))
+   {
+      const FiniteElement * nd_tet =
+         fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+      if (nd_tet)
+      {
+         old_DoFTrans[Geometry::TETRAHEDRON] =
+            new ND_TetDofTransformation(nd_tet->GetOrder());
+      }
+   }
 }
 
 void FiniteElementSpace::RefinementOperator
@@ -964,7 +1106,8 @@ void FiniteElementSpace::RefinementOperator
    Mesh* mesh = fespace->GetMesh();
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
 
-   Array<int> dofs, old_dofs, old_vdofs;
+   Array<int> dofs, vdofs, old_dofs, old_vdofs, old_Fo;
+   Vector local_x, local_x_t, local_y, local_y_t;
 
    Array<char> processed(fespace->GetVSize());
    processed = 0;
@@ -972,42 +1115,77 @@ void FiniteElementSpace::RefinementOperator
    int vdim = fespace->GetVDim();
    int old_ndofs = width / vdim;
 
+   old_VDoFTrans.SetVDim(vdim);
+
    for (int k = 0; k < mesh->GetNE(); k++)
    {
       const Embedding &emb = rtrans.embeddings[k];
       const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
-      fespace->GetElementDofs(k, dofs);
+      DofTransformation *doftrans = fespace->GetElementDofs(k, dofs);
       old_elem_dof->GetRow(emb.parent, old_dofs);
 
-      for (int vd = 0; vd < vdim; vd++)
+      if (!doftrans)
       {
-         old_dofs.Copy(old_vdofs);
-         fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
-
-         for (int i = 0; i < dofs.Size(); i++)
+         for (int vd = 0; vd < vdim; vd++)
          {
-            double rsign, osign;
-            int r = fespace->DofToVDof(dofs[i], vd);
-            r = DecodeDof(r, rsign);
+            old_dofs.Copy(old_vdofs);
+            fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
 
-            if (!processed[r])
+            for (int i = 0; i < dofs.Size(); i++)
             {
-               double value = 0.0;
-               for (int j = 0; j < old_vdofs.Size(); j++)
+               double rsign, osign;
+               int r = fespace->DofToVDof(dofs[i], vd);
+               r = DecodeDof(r, rsign);
+
+               if (!processed[r])
                {
-                  int o = DecodeDof(old_vdofs[j], osign);
-                  value += x[o] * lP(i, j) * osign;
+                  double value = 0.0;
+                  for (int j = 0; j < old_vdofs.Size(); j++)
+                  {
+                     int o = DecodeDof(old_vdofs[j], osign);
+                     value += x[o] * lP(i, j) * osign;
+                  }
+                  y[r] = value * rsign;
+                  processed[r] = 1;
                }
-               y[r] = value * rsign;
-               processed[r] = 1;
             }
          }
+      }
+      else
+      {
+         old_elem_fos->GetRow(emb.parent, old_Fo);
+         old_DoFTrans[geom]->SetFaceOrientations(old_Fo);
+         old_VDoFTrans.SetDofTransformation(*old_DoFTrans[geom]);
+
+         old_dofs.Copy(old_vdofs);
+         fespace->DofsToVDofs(old_vdofs, old_ndofs);
+
+         dofs.Copy(vdofs);
+         fespace->DofsToVDofs(vdofs);
+
+         x.GetSubVector(old_vdofs, local_x_t);
+         old_VDoFTrans.InvTransformPrimal(local_x_t, local_x);
+
+         local_y.SetSize(vdofs.Size());
+
+         int size = dofs.Size();
+         int old_size = old_dofs.Size();
+
+         for (int vd = 0; vd < vdim; vd++)
+         {
+            lP.Mult(&local_x[vd * old_size], &local_y[vd * size]);
+         }
+
+         doftrans->TransformPrimal(local_y, local_y_t);
+
+         y.SetSubVector(vdofs, local_y_t);
       }
    }
 }
 
+/// TODO: Implement DofTransformation support
 FiniteElementSpace::DerefinementOperator::DerefinementOperator(
    const FiniteElementSpace *f_fes, const FiniteElementSpace *c_fes,
    BilinearFormIntegrator *mass_integ)
@@ -1032,7 +1210,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
          f_fes->fec->FiniteElementForGeometry(geom);
       const FiniteElement *coarse_fe =
          c_fes->fec->FiniteElementForGeometry(geom);
-      const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
+      const DenseTensor &pmats = rtrans.point_matrices[geom];
 
       lP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), pmats.SizeK());
       lM.SetSize(fine_fe->GetDof(),   fine_fe->GetDof(), pmats.SizeK());
@@ -1148,7 +1326,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
 
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
-   const DenseTensor &pmats = dtrans.GetPointMatrices(geom);
+   const DenseTensor &pmats = dtrans.point_matrices[geom];
 
    const int nmat = pmats.SizeK();
    const int ldof = fe->GetDof();
@@ -1168,8 +1346,11 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
 }
 
 SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
-                                                     const Table* old_elem_dof)
+                                                     const Table* old_elem_dof,
+                                                     const Table* old_elem_fos)
 {
+   /// TODO: Implement DofTransformation support
+
    MFEM_VERIFY(Nonconforming(), "Not implemented for conforming meshes.");
    MFEM_VERIFY(old_ndofs, "Missing previous (finer) space.");
    MFEM_VERIFY(ndofs <= old_ndofs, "Previous space is not finer.");
@@ -1253,7 +1434,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
       coarse_fes.fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-   const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
+   const DenseTensor &pmats = rtrans.point_matrices[geom];
 
    int nmat = pmats.SizeK();
 
@@ -1307,6 +1488,8 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       UpdateNURBS();
       cP = cR = NULL;
       cP_is_set = false;
+
+      ConstructDoFTrans();
    }
    else
    {
@@ -1315,23 +1498,29 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       Construct();
    }
 
+   BuildElementToDofTable();
+}
+
+void FiniteElementSpace::ConstructDoFTrans()
+{
+   DestroyDoFTrans();
+
+   VDoFTrans.SetVDim(vdim);
    DoFTrans.SetSize(Geometry::NUM_GEOMETRIES);
-   cout << " size of DoFTrans: " << DoFTrans.Size() << endl;
    for (int i=0; i<DoFTrans.Size(); i++)
    {
       DoFTrans[i] = NULL;
    }
    if (dynamic_cast<const ND_FECollection*>(fec))
    {
-      cout << "Setting ND_TetDof..." << endl;
-      DoFTrans[Geometry::TETRAHEDRON] =
-         new ND_TetDofTransformation(fec->FiniteElementForGeometry(
-                                        Geometry::TETRAHEDRON)->GetOrder());
+      const FiniteElement * nd_tet =
+         fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+      if (nd_tet)
+      {
+         DoFTrans[Geometry::TETRAHEDRON] =
+            new ND_TetDofTransformation(nd_tet->GetOrder());
+      }
    }
-
-   cout << "Calling   BuildElementToDofTable();" << endl;
-   BuildElementToDofTable();
-   cout << "Done Calling   BuildElementToDofTable();" << endl;
 }
 
 NURBSExtension *FiniteElementSpace::StealNURBSext()
@@ -1364,32 +1553,27 @@ void FiniteElementSpace::UpdateNURBS()
 void FiniteElementSpace::Construct()
 {
    // This method should be used only for non-NURBS spaces.
-   MFEM_ASSERT(!NURBSext, "internal error");
+   MFEM_VERIFY(!NURBSext, "internal error");
 
    elem_dof = NULL;
    elem_fos = NULL;
    bdrElem_dof = NULL;
 
-   nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT);
-
-   if ( mesh->Dimension() > 1 )
-   {
-      nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT);
-   }
-   else
-   {
-      nedofs = 0;
-   }
-
    ndofs = 0;
-   nfdofs = 0;
-   nbdofs = 0;
+   nedofs = nfdofs = nbdofs = 0;
    bdofs = NULL;
    fdofs = NULL;
    cP = NULL;
    cR = NULL;
    cP_is_set = false;
-   // Th is initialized/destroyed before this method is called.
+   // 'Th' is initialized/destroyed before this method is called.
+
+   nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT);
+
+   if (mesh->Dimension() > 1)
+   {
+      nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT);
+   }
 
    if (mesh->GetNFaces() > 0)
    {
@@ -1421,13 +1605,14 @@ void FiniteElementSpace::Construct()
       bdofs[0] = 0;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
-         Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-         nbdofs += fec->DofForGeometry(geom);
+         nbdofs += fec->DofForGeometry(mesh->GetElementBaseGeometry(i));
          bdofs[i+1] = nbdofs;
       }
    }
 
    ndofs = nvdofs + nedofs + nfdofs + nbdofs;
+
+   ConstructDoFTrans();
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
@@ -1557,6 +1742,10 @@ return NULL;
 */
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
+   if (i < 0 || !mesh->GetNE()) { return NULL; }
+   MFEM_VERIFY(i < mesh->GetNE(),
+               "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
+
    const FiniteElement *FE =
       fec->FiniteElementForGeometry(mesh->GetElementBaseGeometry(i));
 
@@ -1861,6 +2050,15 @@ void FiniteElementSpace::Destroy()
    delete cR;
    delete cP;
    Th.Clear();
+   L2E_nat.Clear();
+   L2E_lex.Clear();
+   for (int i = 0; i < E2Q_array.Size(); i++)
+   {
+      delete E2Q_array[i];
+   }
+   E2Q_array.SetSize(0);
+
+   DestroyDoFTrans();
 
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
@@ -1880,6 +2078,15 @@ void FiniteElementSpace::Destroy()
    }
 }
 
+void FiniteElementSpace::DestroyDoFTrans()
+{
+   for (int i = 0; i < DoFTrans.Size(); i++)
+   {
+      delete DoFTrans[i];
+   }
+   DoFTrans.SetSize(0);
+}
+
 void FiniteElementSpace::GetTransferOperator(
    const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
 {
@@ -1897,6 +2104,8 @@ void FiniteElementSpace::GetTransferOperator(
       }
       T.Reset(RefinementMatrix_main(coarse_fes.GetNDofs(),
                                     coarse_fes.GetElementToDofTable(),
+                                    coarse_fes.
+                                    GetElementToFaceOrientationTable(),
                                     localP));
    }
    else
@@ -1966,13 +2175,16 @@ void FiniteElementSpace::Update(bool want_transform)
    }
 
    Table* old_elem_dof = NULL;
+   Table* old_elem_fos = NULL;
    int old_ndofs;
 
    // save old DOF table
    if (want_transform)
    {
       old_elem_dof = elem_dof;
+      old_elem_fos = elem_fos;
       elem_dof = NULL;
+      elem_fos = NULL;
       old_ndofs = ndofs;
    }
 
@@ -1989,7 +2201,8 @@ void FiniteElementSpace::Update(bool want_transform)
          {
             if (Th.Type() != Operator::MFEM_SPARSEMAT)
             {
-               Th.Reset(new RefinementOperator(this, old_elem_dof, old_ndofs));
+               Th.Reset(new RefinementOperator(this, old_elem_dof,
+                                               old_elem_fos, old_ndofs));
                // The RefinementOperator takes ownership of 'old_elem_dof', so
                // we no longer own it:
                old_elem_dof = NULL;
@@ -1997,7 +2210,8 @@ void FiniteElementSpace::Update(bool want_transform)
             else
             {
                // calculate fully assembled matrix
-               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof));
+               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof,
+                                         old_elem_fos));
             }
             break;
          }
@@ -2005,7 +2219,7 @@ void FiniteElementSpace::Update(bool want_transform)
          case Mesh::DEREFINE:
          {
             BuildConformingInterpolation();
-            Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof));
+            Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof, old_elem_fos));
             if (cP && cR)
             {
                Th.SetOperatorOwner(false);
@@ -2406,7 +2620,8 @@ const Operator &InterpolationGridTransfer::ForwardOperator()
                                             localP[elem_geoms[i]]);
       }
       F.Reset(ran_fes.RefinementMatrix_main(
-                 dom_fes.GetNDofs(), dom_fes.GetElementToDofTable(), localP));
+                 dom_fes.GetNDofs(), dom_fes.GetElementToDofTable(),
+                 dom_fes.GetElementToFaceOrientationTable(), localP));
    }
    else
    {
@@ -2423,8 +2638,7 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
       return *B.Ptr();
    }
 
-   // Construct B
-   // If not set, define a suitable mass_integ
+   // Construct B, if not set, define a suitable mass_integ
    if (!mass_integ && ran_fes.GetNE() > 0)
    {
       const FiniteElement *f_fe_0 = ran_fes.GetFE(0);
@@ -2521,7 +2735,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
    Vector shape_lor(ndof_lor);
 
    const Geometry::Type geom = fe_ho->GetGeomType();
-   const DenseTensor &pmats = cf_tr.GetPointMatrices(geom);
+   const DenseTensor &pmats = cf_tr.point_matrices[geom];
    emb_tr.SetIdentityTransformation(geom);
 
    for (int iho=0; iho<nel_ho; ++iho)
@@ -2544,7 +2758,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
 
          // Create the transformation that embeds the fine low-order element
          // within the coarse high-order element in reference space
-         emb_tr.GetPointMat() = pmats(iref);
+         emb_tr.GetPointMat() = pmats(cf_tr.embeddings[ilor].matrix);
          emb_tr.FinalizeTransformation();
 
          int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
@@ -2587,7 +2801,7 @@ void L2ProjectionGridTransfer::L2Projection::Mult(
       fes_ho.GetElementVDofs(iho, vdofs);
       x.GetSubVector(vdofs, xel_mat.GetData());
       mfem::Mult(R(iho), xel_mat, yel_mat);
-      // Place result correctly into low-order vector
+      // Place result correctly into the low-order vector
       for (int iref=0; iref<nref; ++iref)
       {
          int ilor = ho2lor.GetRow(iho)[iref];
@@ -2643,6 +2857,556 @@ const Operator &L2ProjectionGridTransfer::BackwardOperator()
       B = new L2Prolongation(*F);
    }
    return *B;
+}
+
+L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
+   : ne(fes.GetNE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndof(ne > 0 ? fes.GetFE(0)->GetDof() : 0)
+{
+   height = vdim*ne*ndof;
+   width = vdim*ne*ndof;
+}
+
+void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
+{
+   for (int iel=0; iel<ne; ++iel)
+   {
+      for (int vd=0; vd<vdim; ++vd)
+      {
+         for (int idof=0; idof<ndof; ++idof)
+         {
+            // E-vector dimensions (dofs, vdim, elements)
+            // L-vector dimensions: byVDIM:  (vdim, dofs, element)
+            //                      byNODES: (dofs, elements, vdim)
+            int yidx = iel*vdim*ndof + vd*ndof + idof;
+            int xidx;
+            if (byvdim)
+            {
+               xidx = iel*ndof*vdim + idof*vdim + vd;
+            }
+            else
+            {
+               xidx = vd*ne*ndof + iel*ndof + idof;
+            }
+            y[yidx] = x[xidx];
+         }
+      }
+   }
+}
+
+void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
+{
+   // Since this restriction is a permutation, the transpose is the inverse
+   for (int iel=0; iel<ne; ++iel)
+   {
+      for (int vd=0; vd<vdim; ++vd)
+      {
+         for (int idof=0; idof<ndof; ++idof)
+         {
+            // E-vector dimensions (dofs, vdim, elements)
+            // L-vector dimensions: byVDIM:  (vdim, dofs, element)
+            //                      byNODES: (dofs, elements, vdim)
+            int xidx = iel*vdim*ndof + vd*ndof + idof;
+            int yidx;
+            if (byvdim)
+            {
+               yidx = iel*ndof*vdim + idof*vdim + vd;
+            }
+            else
+            {
+               yidx = vd*ne*ndof + iel*ndof + idof;
+            }
+            y[yidx] = x[xidx];
+         }
+      }
+   }
+}
+
+ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
+                                       ElementDofOrdering e_ordering)
+   : fes(f),
+     ne(fes.GetNE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
+     nedofs(ne*dof),
+     offsets(ndofs+1),
+     indices(ne*dof)
+{
+   // Assuming all finite elements are the same.
+   height = vdim*ne*dof;
+   width = fes.GetVSize();
+   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   const int *dof_map = NULL;
+   if (dof_reorder && ne > 0)
+   {
+      for (int e = 0; e < ne; ++e)
+      {
+         const FiniteElement *fe = fes.GetFE(e);
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(fe);
+         if (el) { continue; }
+         mfem_error("Finite element not suitable for lexicographic ordering");
+      }
+      const FiniteElement *fe = fes.GetFE(0);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      const Array<int> &fe_dof_map = el->GetDofMap();
+      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
+      dof_map = fe_dof_map.GetData();
+   }
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elementMap = e2dTable.GetJ();
+   // We will be keeping a count of how many local nodes point to its global dof
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      offsets[i] = 0;
+   }
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int d = 0; d < dof; ++d)
+      {
+         const int gid = elementMap[dof*e + d];
+         ++offsets[gid + 1];
+      }
+   }
+   // Aggregate to find offsets for each global dof
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+   // For each global dof, fill in all local nodes that point to it
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int d = 0; d < dof; ++d)
+      {
+         const int did = (!dof_reorder)?d:dof_map[d];
+         const int gid = elementMap[dof*e + did];
+         const int lid = dof*e + d;
+         indices[offsets[gid]++] = lid;
+      }
+   }
+   // We shifted the offsets vector by 1 by using it as a counter.
+   // Now we shift it back.
+   for (int i = ndofs; i > 0; --i)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
+}
+
+void ElementRestriction::Mult(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, ne);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i+1];
+      for (int c = 0; c < vd; ++c)
+      {
+         const double dofValue = d_x(t?c:i,t?i:c);
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = d_indices[j];
+            d_y(idx_j % nd, c, idx_j / nd) = dofValue;
+         }
+      }
+   });
+}
+
+void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dofValue = 0;
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = d_indices[j];
+            dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
+         }
+         d_y(t?c:i,t?i:c) = dofValue;
+      }
+   });
+}
+
+
+QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
+                                               const IntegrationRule &ir)
+{
+   fespace = &fes;
+   qspace = NULL;
+   IntRule = &ir;
+   use_tensor_products = true; // not implemented yet (not used)
+
+   if (fespace->GetNE() == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
+               "Only scalar finite elements are supported");
+}
+
+QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
+                                               const QuadratureSpace &qs)
+{
+   fespace = &fes;
+   qspace = &qs;
+   IntRule = NULL;
+   use_tensor_products = true; // not implemented yet (not used)
+
+   if (fespace->GetNE() == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
+               "Only scalar finite elements are supported");
+}
+
+template<const int T_VDIM, const int T_ND, const int T_NQ>
+void QuadratureInterpolator::Eval2D(
+   const int NE,
+   const int vdim,
+   const DofToQuad &maps,
+   const Vector &e_vec,
+   Vector &q_val,
+   Vector &q_der,
+   Vector &q_det,
+   const int eval_flags)
+{
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+   const int ND = T_ND ? T_ND : nd;
+   const int NQ = T_NQ ? T_NQ : nq;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+   MFEM_VERIFY(ND <= MAX_ND2D, "");
+   MFEM_VERIFY(NQ <= MAX_NQ2D, "");
+   MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
+   auto B = Reshape(maps.B.Read(), NQ, ND);
+   auto G = Reshape(maps.G.Read(), NQ, 2, ND);
+   auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
+   auto val = Reshape(q_val.Write(), NQ, VDIM, NE);
+   auto der = Reshape(q_der.Write(), NQ, VDIM, 2, NE);
+   auto det = Reshape(q_det.Write(), NQ, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int ND = T_ND ? T_ND : nd;
+      const int NQ = T_NQ ? T_NQ : nq;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int max_ND = T_ND ? T_ND : MAX_ND2D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
+      double s_E[max_VDIM*max_ND];
+      for (int d = 0; d < ND; d++)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            s_E[c+d*VDIM] = E(d,c,e);
+         }
+      }
+      for (int q = 0; q < NQ; ++q)
+      {
+         if (eval_flags & VALUES)
+         {
+            double ed[max_VDIM];
+            for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
+            for (int d = 0; d < ND; ++d)
+            {
+               const double b = B(q,d);
+               for (int c = 0; c < VDIM; c++) { ed[c] += b*s_E[c+d*VDIM]; }
+            }
+            for (int c = 0; c < VDIM; c++) { val(q,c,e) = ed[c]; }
+         }
+         if ((eval_flags & DERIVATIVES) || (eval_flags & DETERMINANTS))
+         {
+            // use MAX_VDIM2D to avoid "subscript out of range" warnings
+            double D[MAX_VDIM2D*2];
+            for (int i = 0; i < 2*VDIM; i++) { D[i] = 0.0; }
+            for (int d = 0; d < ND; ++d)
+            {
+               const double wx = G(q,0,d);
+               const double wy = G(q,1,d);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  double s_e = s_E[c+d*VDIM];
+                  D[c+VDIM*0] += s_e * wx;
+                  D[c+VDIM*1] += s_e * wy;
+               }
+            }
+            if (eval_flags & DERIVATIVES)
+            {
+               for (int c = 0; c < VDIM; c++)
+               {
+                  der(q,c,0,e) = D[c+VDIM*0];
+                  der(q,c,1,e) = D[c+VDIM*1];
+               }
+            }
+            if (VDIM == 2 && (eval_flags & DETERMINANTS))
+            {
+               // The check (VDIM == 2) should eliminate this block when VDIM is
+               // known at compile time and (VDIM != 2).
+               det(q,e) = D[0]*D[3] - D[1]*D[2];
+            }
+         }
+      }
+   });
+}
+
+template<const int T_VDIM, const int T_ND, const int T_NQ>
+void QuadratureInterpolator::Eval3D(
+   const int NE,
+   const int vdim,
+   const DofToQuad &maps,
+   const Vector &e_vec,
+   Vector &q_val,
+   Vector &q_der,
+   Vector &q_det,
+   const int eval_flags)
+{
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+   const int ND = T_ND ? T_ND : nd;
+   const int NQ = T_NQ ? T_NQ : nq;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+   MFEM_VERIFY(ND <= MAX_ND3D, "");
+   MFEM_VERIFY(NQ <= MAX_NQ3D, "");
+   MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
+   auto B = Reshape(maps.B.Read(), NQ, ND);
+   auto G = Reshape(maps.G.Read(), NQ, 3, ND);
+   auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
+   auto val = Reshape(q_val.Write(), NQ, VDIM, NE);
+   auto der = Reshape(q_der.Write(), NQ, VDIM, 3, NE);
+   auto det = Reshape(q_det.Write(), NQ, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int ND = T_ND ? T_ND : nd;
+      const int NQ = T_NQ ? T_NQ : nq;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int max_ND = T_ND ? T_ND : MAX_ND3D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
+      double s_E[max_VDIM*max_ND];
+      for (int d = 0; d < ND; d++)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            s_E[c+d*VDIM] = E(d,c,e);
+         }
+      }
+      for (int q = 0; q < NQ; ++q)
+      {
+         if (eval_flags & VALUES)
+         {
+            double ed[max_VDIM];
+            for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
+            for (int d = 0; d < ND; ++d)
+            {
+               const double b = B(q,d);
+               for (int c = 0; c < VDIM; c++) { ed[c] += b*s_E[c+d*VDIM]; }
+            }
+            for (int c = 0; c < VDIM; c++) { val(q,c,e) = ed[c]; }
+         }
+         if ((eval_flags & DERIVATIVES) || (eval_flags & DETERMINANTS))
+         {
+            // use MAX_VDIM3D to avoid "subscript out of range" warnings
+            double D[MAX_VDIM3D*3];
+            for (int i = 0; i < 3*VDIM; i++) { D[i] = 0.0; }
+            for (int d = 0; d < ND; ++d)
+            {
+               const double wx = G(q,0,d);
+               const double wy = G(q,1,d);
+               const double wz = G(q,2,d);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  double s_e = s_E[c+d*VDIM];
+                  D[c+VDIM*0] += s_e * wx;
+                  D[c+VDIM*1] += s_e * wy;
+                  D[c+VDIM*2] += s_e * wz;
+               }
+            }
+            if (eval_flags & DERIVATIVES)
+            {
+               for (int c = 0; c < VDIM; c++)
+               {
+                  der(q,c,0,e) = D[c+VDIM*0];
+                  der(q,c,1,e) = D[c+VDIM*1];
+                  der(q,c,2,e) = D[c+VDIM*2];
+               }
+            }
+            if (VDIM == 3 && (eval_flags & DETERMINANTS))
+            {
+               // The check (VDIM == 3) should eliminate this block when VDIM is
+               // known at compile time and (VDIM != 3).
+               det(q,e) = D[0] * (D[4] * D[8] - D[5] * D[7]) +
+                          D[3] * (D[2] * D[7] - D[1] * D[8]) +
+                          D[6] * (D[1] * D[5] - D[2] * D[4]);
+            }
+         }
+      }
+   });
+}
+
+void QuadratureInterpolator::Mult(
+   const Vector &e_vec, unsigned eval_flags,
+   Vector &q_val, Vector &q_der, Vector &q_det) const
+{
+   const int ne = fespace->GetNE();
+   if (ne == 0) { return; }
+   const int vdim = fespace->GetVDim();
+   const int dim = fespace->GetMesh()->Dimension();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::FULL);
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+   void (*eval_func)(
+      const int NE,
+      const int vdim,
+      const DofToQuad &maps,
+      const Vector &e_vec,
+      Vector &q_val,
+      Vector &q_der,
+      Vector &q_det,
+      const int eval_flags) = NULL;
+   if (vdim == 1)
+   {
+      if (dim == 2)
+      {
+         switch (100*nd + nq)
+         {
+            // Q0
+            case 101: eval_func = &Eval2D<1,1,1>; break;
+            case 104: eval_func = &Eval2D<1,1,4>; break;
+            // Q1
+            case 404: eval_func = &Eval2D<1,4,4>; break;
+            case 409: eval_func = &Eval2D<1,4,9>; break;
+            // Q2
+            case 909: eval_func = &Eval2D<1,9,9>; break;
+            case 916: eval_func = &Eval2D<1,9,16>; break;
+            // Q3
+            case 1616: eval_func = &Eval2D<1,16,16>; break;
+            case 1625: eval_func = &Eval2D<1,16,25>; break;
+            case 1636: eval_func = &Eval2D<1,16,36>; break;
+            // Q4
+            case 2525: eval_func = &Eval2D<1,25,25>; break;
+            case 2536: eval_func = &Eval2D<1,25,36>; break;
+            case 2549: eval_func = &Eval2D<1,25,49>; break;
+            case 2564: eval_func = &Eval2D<1,25,64>; break;
+         }
+         if (nq >= 100 || !eval_func)
+         {
+            eval_func = &Eval2D<1>;
+         }
+      }
+      else if (dim == 3)
+      {
+         switch (1000*nd + nq)
+         {
+            // Q0
+            case 1001: eval_func = &Eval3D<1,1,1>; break;
+            case 1008: eval_func = &Eval3D<1,1,8>; break;
+            // Q1
+            case 8008: eval_func = &Eval3D<1,8,8>; break;
+            case 8027: eval_func = &Eval3D<1,8,27>; break;
+            // Q2
+            case 27027: eval_func = &Eval3D<1,27,27>; break;
+            case 27064: eval_func = &Eval3D<1,27,64>; break;
+            // Q3
+            case 64064: eval_func = &Eval3D<1,64,64>; break;
+            case 64125: eval_func = &Eval3D<1,64,125>; break;
+            case 64216: eval_func = &Eval3D<1,64,216>; break;
+            // Q4
+            case 125125: eval_func = &Eval3D<1,125,125>; break;
+            case 125216: eval_func = &Eval3D<1,125,216>; break;
+         }
+         if (nq >= 1000 || !eval_func)
+         {
+            eval_func = &Eval3D<1>;
+         }
+      }
+   }
+   else if (vdim == dim)
+   {
+      if (dim == 2)
+      {
+         switch (100*nd + nq)
+         {
+            // Q1
+            case 404: eval_func = &Eval2D<2,4,4>; break;
+            case 409: eval_func = &Eval2D<2,4,9>; break;
+            // Q2
+            case 909: eval_func = &Eval2D<2,9,9>; break;
+            case 916: eval_func = &Eval2D<2,9,16>; break;
+            // Q3
+            case 1616: eval_func = &Eval2D<2,16,16>; break;
+            case 1625: eval_func = &Eval2D<2,16,25>; break;
+            case 1636: eval_func = &Eval2D<2,16,36>; break;
+            // Q4
+            case 2525: eval_func = &Eval2D<2,25,25>; break;
+            case 2536: eval_func = &Eval2D<2,25,36>; break;
+            case 2549: eval_func = &Eval2D<2,25,49>; break;
+            case 2564: eval_func = &Eval2D<2,25,64>; break;
+         }
+         if (nq >= 100 || !eval_func)
+         {
+            eval_func = &Eval2D<2>;
+         }
+      }
+      else if (dim == 3)
+      {
+         switch (1000*nd + nq)
+         {
+            // Q1
+            case 8008: eval_func = &Eval3D<3,8,8>; break;
+            case 8027: eval_func = &Eval3D<3,8,27>; break;
+            // Q2
+            case 27027: eval_func = &Eval3D<3,27,27>; break;
+            case 27064: eval_func = &Eval3D<3,27,64>; break;
+            // Q3
+            case 64064: eval_func = &Eval3D<3,64,64>; break;
+            case 64125: eval_func = &Eval3D<3,64,125>; break;
+            case 64216: eval_func = &Eval3D<3,64,216>; break;
+            // Q4
+            case 125125: eval_func = &Eval3D<3,125,125>; break;
+            case 125216: eval_func = &Eval3D<3,125,216>; break;
+         }
+         if (nq >= 1000 || !eval_func)
+         {
+            eval_func = &Eval3D<3>;
+         }
+      }
+   }
+   if (eval_func)
+   {
+      eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, eval_flags);
+   }
+   else
+   {
+      MFEM_ABORT("case not supported yet");
+   }
+}
+
+void QuadratureInterpolator::MultTranspose(
+   unsigned eval_flags, const Vector &q_val, const Vector &q_der,
+   Vector &e_vec) const
+{
+   MFEM_ABORT("this method is not implemented yet");
 }
 
 } // namespace mfem
