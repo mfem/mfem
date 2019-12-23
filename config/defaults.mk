@@ -46,6 +46,14 @@ CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
+# HIP configuration options
+HIP_CXX = hipcc
+# The HIP_ARCH option specifies the AMD GPU processor, similar to CUDA_ARCH. For
+# example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
+# gfx900, gfx1010, etc.
+HIP_ARCH = gfx900
+HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
@@ -122,9 +130,9 @@ MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_CUDA          = NO
+MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
-MFEM_USE_MM            = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -136,7 +144,7 @@ LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 
 # HYPRE library configuration (needed to build the parallel version)
-HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
+HYPRE_DIR = @MFEM_DIR@/../hypre/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
@@ -174,9 +182,9 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
-SUNDIALS_DIR = @MFEM_DIR@/../sundials-3.0.0
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib -L$(SUNDIALS_DIR)/lib\
+SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib64\
  -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
 
 ifeq ($(MFEM_USE_MPI),YES)
@@ -201,7 +209,7 @@ SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
 # SuperLU library configuration
 SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
-SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/SRC -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
+SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
 # STRUMPACK >= v2.2.0)
@@ -291,7 +299,7 @@ SIDRE_LIB = \
    -Wl,-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
+   -laxom -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 $(ZLIB_LIB) -ldl
 
 # PUMI
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
@@ -300,19 +308,21 @@ PUMI_OPT = -I$(PUMI_DIR)/include
 PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
    -llion -lmth -lapf_zoltan -lspr
 
-# CUDA library configuration. Since we compile and link with nvcc (when CUDA is
-# enabled) we only need to explicitly link with the CUDA driver, libcuda.*,
-# which is usually in a system path.
+# CUDA library configuration (currently not needed)
 CUDA_OPT =
-CUDA_LIB = $(if $(NOTMAC),,-L/usr/local/cuda/lib) -lcuda
+CUDA_LIB =
+
+# HIP library configuration (currently not needed)
+HIP_OPT =
+HIP_LIB =
 
 # OCCA library configuration
-OCCA_DIR ?= @MFEM_DIR@/../occa
+OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
 # RAJA library configuration
-RAJA_DIR ?= @MFEM_DIR@/../raja
+RAJA_DIR = @MFEM_DIR@/../raja
 RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)

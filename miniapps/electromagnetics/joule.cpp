@@ -115,14 +115,9 @@ using namespace mfem::electromagnetics;
 
 void display_banner(ostream & os);
 
-static double aj_ = 0.0;
 static double mj_ = 0.0;
 static double sj_ = 0.0;
 static double wj_ = 0.0;
-static double kj_ = 0.0;
-static double hj_ = 0.0;
-static double dtj_ = 0.0;
-static double rj_ = 0.0;
 
 int main(int argc, char *argv[])
 {
@@ -141,12 +136,10 @@ int main(int argc, char *argv[])
    int ode_solver_type = 1;
    double t_final = 100.0;
    double dt = 0.5;
-   double amp = 2.0;
    double mu = 1.0;
    double sigma = 2.0*M_PI*10;
    double Tcapacity = 1.0;
    double Tconductivity = 0.01;
-   double alpha = Tconductivity/Tcapacity;
    double freq = 1.0/60.0;
    bool visualization = true;
    bool visit = true;
@@ -214,14 +207,9 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   aj_  = amp;
    mj_  = mu;
    sj_  = sigma;
    wj_  = 2.0*M_PI*freq;
-   kj_  = sqrt(0.5*wj_*mj_*sj_);
-   hj_  = alpha;
-   dtj_ = dt;
-   rj_  = 1.0;
 
    if (mpi.Root())
    {
@@ -416,18 +404,14 @@ int main(int argc, char *argv[])
       ref_list.DeleteAll();
    }
 
-   // 10. Reorient the mesh. Must be done after refinement but before definition
-   //     of higher order Nedelec spaces
-   // pmesh->ReorientTetMesh();
-
-   // 11. Rebalance the mesh. Since the mesh was adaptively refined in a
+   // 10. Rebalance the mesh. Since the mesh was adaptively refined in a
    //     non-uniform way it will be computationally unbalanced.
    if (pmesh->Nonconforming())
    {
       pmesh->Rebalance();
    }
 
-   // 12. Define the parallel finite element spaces. We use:
+   // 11. Define the parallel finite element spaces. We use:
    //
    //     H(curl) for electric field,
    //     H(div) for magnetic flux,
@@ -475,13 +459,14 @@ int main(int argc, char *argv[])
    int Vsize_rt = HDivFESpace.GetVSize();
    int Vsize_h1 = HGradFESpace.GetVSize();
 
-   // the big BlockVector stores the fields as
-   //    0 Temperature
-   //    1 Temperature Flux
-   //    2 P field
-   //    3 E field
-   //    4 B field
-   //    5 Joule Heating
+   // 12. Declare storage for field data.
+   //     The big BlockVector stores the fields as
+   //       0 Temperature
+   //       1 Temperature Flux
+   //       2 P field
+   //       3 E field
+   //       4 B field
+   //       5 Joule Heating
 
    Array<int> true_offset(7);
    true_offset[0] = 0;

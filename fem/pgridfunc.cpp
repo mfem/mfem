@@ -225,11 +225,13 @@ void ParGridFunction::ExchangeFaceNbrData()
    MPI_Request *recv_requests = requests + num_face_nbrs;
    MPI_Status  *statuses = new MPI_Status[num_face_nbrs];
 
+   const double *h_data = this->HostRead();
    for (int i = 0; i < send_data.Size(); i++)
    {
-      send_data[i] = data[send_ldof[i]];
+      send_data[i] = h_data[send_ldof[i]];
    }
 
+   double *h_face_nbr_data = face_nbr_data.HostWrite();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
@@ -239,7 +241,7 @@ void ParGridFunction::ExchangeFaceNbrData()
                 send_offset[fn+1] - send_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
 
-      MPI_Irecv(&face_nbr_data(recv_offset[fn]),
+      MPI_Irecv(&h_face_nbr_data[recv_offset[fn]],
                 recv_offset[fn+1] - recv_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
    }
@@ -367,10 +369,10 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
    gcomm.Bcast(zones_per_vdof);
-   // Accumulate for all tdofs.
-   HypreParVector *tv = this->ParallelAssemble();
-   this->Distribute(tv);
-   delete tv;
+
+   // Accumulate for all vdofs.
+   gcomm.Reduce<double>(data, GroupCommunicator::Sum);
+   gcomm.Bcast<double>(data);
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -389,10 +391,10 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
    gcomm.Bcast(zones_per_vdof);
-   // Accumulate for all tdofs.
-   HypreParVector *tv = this->ParallelAssemble();
-   this->Distribute(tv);
-   delete tv;
+
+   // Accumulate for all vdofs.
+   gcomm.Reduce<double>(data, GroupCommunicator::Sum);
+   gcomm.Bcast<double>(data);
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -425,8 +427,8 @@ void ParGridFunction::ProjectBdrCoefficient(
    }
    else
    {
-      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
-      //        merged?
+      // TODO: is this the same as the conforming case (after the merge of
+      //       cut-mesh-groups-dev)?
       ComputeMeans(ARITHMETIC, values_counter);
    }
 #ifdef MFEM_DEBUG
@@ -469,8 +471,8 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    }
    else
    {
-      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
-      //        merged?
+      // TODO: is this the same as the conforming case (after the merge of
+      //       cut-mesh-groups-dev)?
       ComputeMeans(ARITHMETIC, values_counter);
    }
 #ifdef MFEM_DEBUG
@@ -487,16 +489,17 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 
 void ParGridFunction::Save(std::ostream &out) const
 {
+   double *data_  = const_cast<double*>(HostRead());
    for (int i = 0; i < size; i++)
    {
-      if (pfes->GetDofSign(i) < 0) { data[i] = -data[i]; }
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
 
    GridFunction::Save(out);
 
    for (int i = 0; i < size; i++)
    {
-      if (pfes->GetDofSign(i) < 0) { data[i] = -data[i]; }
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
 }
 

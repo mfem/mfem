@@ -103,18 +103,18 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.Nonconforming())
    {
-      if (partitioning_ && MyRank == 0)
+      if (partitioning_)
       {
-         MFEM_WARNING("Prescribed partitioning is not supported for NC meshes.");
+         partitioning = partitioning_;
       }
-
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh);
-
-      // save the element partitioning before Prune()
-      partitioning = new int[mesh.GetNE()];
-      for (int i = 0; i < mesh.GetNE(); i++)
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
+      if (!partitioning)
       {
-         partitioning[i] = pncmesh->InitialPartition(i);
+         partitioning = new int[mesh.GetNE()];
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            partitioning[i] = pncmesh->InitialPartition(i);
+         }
       }
 
       pncmesh->Prune();
@@ -2398,7 +2398,34 @@ int ParMesh::GetSharedFace(int sface) const
              : shared.slaves[sface - csize].index;
    }
 }
+
 /*
+// shift cyclically 3 integers a, b, c, so that the smallest of
+// order[a], order[b], order[c] is first
+static inline
+void Rotate3Indirect(int &a, int &b, int &c,
+                     const Array<std::int64_t> &order)
+{
+   if (order[a] < order[b])
+   {
+      if (order[a] > order[c])
+      {
+         ShiftRight(a, b, c);
+      }
+   }
+   else
+   {
+      if (order[b] < order[c])
+      {
+         ShiftRight(c, b, a);
+      }
+      else
+      {
+         ShiftRight(a, b, c);
+      }
+   }
+}
+
 void ParMesh::ReorientTetMesh()
 {
    if (Dim != 3 || !(meshgen & 1))
@@ -2406,7 +2433,109 @@ void ParMesh::ReorientTetMesh()
       return;
    }
 
-   Mesh::ReorientTetMesh();
+   DeleteLazyTables();
+
+   DSTable *old_v_to_v = NULL;
+   Table *old_elem_vert = NULL;
+
+   if (Nodes)
+   {
+      PrepareNodeReorder(&old_v_to_v, &old_elem_vert);
+   }
+
+   // create a GroupCommunicator over shared vertices
+   GroupCommunicator svert_comm(gtopo);
+   {
+      // initialize svert_comm
+      Table &gr_svert = svert_comm.GroupLDofTable();
+      // gr_svert differs from group_svert - the latter does not store gr. 0
+      gr_svert.SetDims(GetNGroups(), svert_lvert.Size());
+      gr_svert.GetI()[0] = 0;
+      for (int gr = 1; gr <= GetNGroups(); gr++)
+      {
+         gr_svert.GetI()[gr] = group_svert.GetI()[gr-1];
+      }
+      for (int k = 0; k < svert_lvert.Size(); k++)
+      {
+         gr_svert.GetJ()[k] = group_svert.GetJ()[k];
+      }
+      svert_comm.Finalize();
+   }
+
+   // communicate the local index of each shared vertex from the group master to
+   // other ranks in the group
+   Array<int> svert_master_rank(svert_lvert.Size());
+   Array<int> svert_master_index(svert_lvert);
+   {
+      for (int i = 0; i < group_svert.Size(); i++)
+      {
+         int rank = gtopo.GetGroupMasterRank(i+1);
+         for (int j = 0; j < group_svert.RowSize(i); j++)
+         {
+            svert_master_rank[group_svert.GetRow(i)[j]] = rank;
+         }
+      }
+      svert_comm.Bcast(svert_master_index);
+   }
+
+   // the pairs (master rank, master local index) define a globally consistent
+   // vertex ordering
+   Array<std::int64_t> glob_vert_order(vertices.Size());
+   {
+      Array<int> lvert_svert(vertices.Size());
+      lvert_svert = -1;
+      for (int i = 0; i < svert_lvert.Size(); i++)
+      {
+         lvert_svert[svert_lvert[i]] = i;
+      }
+
+      for (int i = 0; i < vertices.Size(); i++)
+      {
+         int s = lvert_svert[i];
+         if (s >= 0)
+         {
+            glob_vert_order[i] =
+               (std::int64_t(svert_master_rank[s]) << 32) + svert_master_index[s];
+         }
+         else
+         {
+            glob_vert_order[i] = (std::int64_t(MyRank) << 32) + i;
+         }
+      }
+   }
+
+   // rotate tetrahedra so that vertex zero is the lowest (global) index vertex,
+   // vertex 1 is the second lowest (global) index and vertices 2 and 3 preserve
+   // positive orientation of the element
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      if (GetElementType(i) == Element::TETRAHEDRON)
+      {
+         int *v = elements[i]->GetVertices();
+
+         Rotate3Indirect(v[0], v[1], v[2], glob_vert_order);
+
+         if (glob_vert_order[v[0]] < glob_vert_order[v[3]])
+         {
+            Rotate3Indirect(v[1], v[2], v[3], glob_vert_order);
+         }
+         else
+         {
+            ShiftRight(v[0], v[1], v[3]);
+         }
+      }
+   }
+
+   // rotate also boundary triangles
+   for (int i = 0; i < NumOfBdrElements; i++)
+   {
+      if (GetBdrElementType(i) == Element::TRIANGLE)
+      {
+         int *v = boundary[i]->GetVertices();
+
+         Rotate3Indirect(v[0], v[1], v[2], glob_vert_order);
+      }
+   }
 
    const bool check_consistency = true;
    if (check_consistency)
@@ -2433,37 +2562,56 @@ void ParMesh::ReorientTetMesh()
       for (int i = 0; i < stria_flag.Size(); i++)
       {
          const int *v = shared_trias[i].v;
-         if (v[0] < v[1])
+         if (glob_vert_order[v[0]] < glob_vert_order[v[1]])
          {
-            stria_flag[i] = (v[0] < v[2]) ? 0 : 2;
+            stria_flag[i] = (glob_vert_order[v[0]] < glob_vert_order[v[2]]) ? 0 : 2;
          }
          else // v[1] < v[0]
          {
-            stria_flag[i] = (v[1] < v[2]) ? 1 : 2;
+            stria_flag[i] = (glob_vert_order[v[1]] < glob_vert_order[v[2]]) ? 1 : 2;
          }
       }
+
       Array<int> stria_master_flag(stria_flag);
       stria_comm.Bcast(stria_master_flag);
       for (int i = 0; i < stria_flag.Size(); i++)
       {
+         const int *v = shared_trias[i].v;
          MFEM_VERIFY(stria_flag[i] == stria_master_flag[i],
-                     "inconsistent vertex ordering found");
+                     "inconsistent vertex ordering found, shared triangle "
+                     << i << ": ("
+                     << v[0] << ", " << v[1] << ", " << v[2] << "), "
+                     << "local flag: " << stria_flag[i]
+                     << ", master flag: " << stria_master_flag[i]);
       }
    }
 
-   // Rotate shared triangle faces.
-   // Note that no communication is needed to ensure that the shared
-   // faces are rotated in the same way in both processors. This is
-   // automatic due to various things, e.g. the global to local vertex
-   // mapping preserves the global order; also the way new vertices
-   // are introduced during refinement is essential.
+   // rotate shared triangle faces
    for (int i = 0; i < shared_trias.Size(); i++)
    {
       int *v = shared_trias[i].v;
-      Rotate3(v[0], v[1], v[2]);
+
+      Rotate3Indirect(v[0], v[1], v[2], glob_vert_order);
    }
 
-   // The local edge and face numbering is changed therefore we need to
+   // finalize
+   if (!Nodes)
+   {
+      GetElementToFaceTable();
+      GenerateFaces();
+      if (el_to_edge)
+      {
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+      }
+   }
+   else
+   {
+      DoNodeReorder(old_v_to_v, old_elem_vert);
+      delete old_elem_vert;
+      delete old_v_to_v;
+   }
+
+   // the local edge and face numbering is changed therefore we need to
    // update sedge_ledge and sface_lface.
    FinalizeParTopo();
 }
@@ -3055,6 +3203,9 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    long glob_size = ReduceInt(derefs.Size());
    if (!glob_size) { return false; }
 
+   // Destroy face-neighbor data only when actually de-refining.
+   DeleteFaceNbrData();
+
    pncmesh->Derefine(derefs);
 
    ParMesh* mesh2 = new ParMesh(*pncmesh);
@@ -3082,33 +3233,24 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    return true;
 }
 
+
 void ParMesh::Rebalance()
+{
+   RebalanceImpl(NULL); // default SFC-based partition
+}
+
+void ParMesh::Rebalance(const Array<int> &partition)
+{
+   RebalanceImpl(&partition);
+}
+
+void ParMesh::RebalanceImpl(const Array<int> *partition)
 {
    if (Conforming())
    {
       MFEM_ABORT("Load balancing is currently not supported for conforming"
                  " meshes.");
    }
-
-   DeleteFaceNbrData();
-
-   pncmesh->Rebalance();
-
-   ParMesh* pmesh2 = new ParMesh(*pncmesh);
-   pncmesh->OnMeshUpdated(pmesh2);
-
-   attributes.Copy(pmesh2->attributes);
-   bdr_attributes.Copy(pmesh2->bdr_attributes);
-
-   Swap(*pmesh2, false);
-   delete pmesh2;
-
-   pncmesh->GetConformingSharedStructures(*this);
-
-   GenerateNCFaceInfo();
-
-   last_operation = Mesh::REBALANCE;
-   sequence++;
 
    // Make sure the Nodes use a ParFiniteElementSpace
    if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
@@ -3126,6 +3268,27 @@ void ParMesh::Rebalance()
       delete Nodes;
       Nodes = new_nodes;
    }
+
+   DeleteFaceNbrData();
+
+   pncmesh->Rebalance(partition);
+
+   ParMesh* pmesh2 = new ParMesh(*pncmesh);
+   pncmesh->OnMeshUpdated(pmesh2);
+
+   attributes.Copy(pmesh2->attributes);
+   bdr_attributes.Copy(pmesh2->bdr_attributes);
+
+   Swap(*pmesh2, false);
+   delete pmesh2;
+
+   pncmesh->GetConformingSharedStructures(*this);
+
+   GenerateNCFaceInfo();
+
+   last_operation = Mesh::REBALANCE;
+   sequence++;
+
    UpdateNodes();
 }
 
@@ -3146,16 +3309,16 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
 
-   I_group_svert = mfem::New<int>(GetNGroups()+1);
-   I_group_sedge = mfem::New<int>(GetNGroups()+1);
+   I_group_svert = new int[GetNGroups()+1];
+   I_group_sedge = new int[GetNGroups()+1];
 
    I_group_svert[0] = I_group_svert[1] = 0;
    I_group_sedge[0] = I_group_sedge[1] = 0;
 
    // overestimate the size of the J arrays
-   J_group_svert = mfem::New<int>(group_svert.Size_of_connections()
-                                  + group_sedge.Size_of_connections());
-   J_group_sedge = mfem::New<int>(2*group_sedge.Size_of_connections());
+   J_group_svert = new int[group_svert.Size_of_connections()
+                           + group_sedge.Size_of_connections()];
+   J_group_sedge = new int[2*group_sedge.Size_of_connections()];
 
    for (int group = 0; group < GetNGroups()-1; group++)
    {
@@ -3393,16 +3556,16 @@ void ParMesh::UniformRefineGroups2D(int old_nv)
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
 
-   I_group_svert = mfem::New<int>(GetNGroups());
-   I_group_sedge = mfem::New<int>(GetNGroups());
+   I_group_svert = new int[GetNGroups()];
+   I_group_sedge = new int[GetNGroups()];
 
    I_group_svert[0] = 0;
    I_group_sedge[0] = 0;
 
    // compute the size of the J arrays
-   J_group_svert = mfem::New<int>(group_svert.Size_of_connections()
-                                  + group_sedge.Size_of_connections());
-   J_group_sedge = mfem::New<int>(2*group_sedge.Size_of_connections());
+   J_group_svert = new int[group_svert.Size_of_connections()
+                           + group_sedge.Size_of_connections()];
+   J_group_sedge = new int[2*group_sedge.Size_of_connections()];
 
    for (int group = 0; group < GetNGroups()-1; group++)
    {
@@ -3451,10 +3614,10 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
    int *I_group_stria, *J_group_stria;
    int *I_group_squad, *J_group_squad;
 
-   I_group_svert = mfem::New<int>(GetNGroups());
-   I_group_sedge = mfem::New<int>(GetNGroups());
-   I_group_stria = mfem::New<int>(GetNGroups());
-   I_group_squad = mfem::New<int>(GetNGroups());
+   I_group_svert = new int[GetNGroups()];
+   I_group_sedge = new int[GetNGroups()];
+   I_group_stria = new int[GetNGroups()];
+   I_group_squad = new int[GetNGroups()];
 
    I_group_svert[0] = 0;
    I_group_sedge[0] = 0;
@@ -3462,14 +3625,14 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
    I_group_squad[0] = 0;
 
    // compute the size of the J arrays
-   J_group_svert = mfem::New<int>(group_svert.Size_of_connections()
-                                  + group_sedge.Size_of_connections()
-                                  + group_squad.Size_of_connections());
-   J_group_sedge = mfem::New<int>(2*group_sedge.Size_of_connections()
-                                  + 3*group_stria.Size_of_connections()
-                                  + 4*group_squad.Size_of_connections());
-   J_group_stria = mfem::New<int>(4*group_stria.Size_of_connections());
-   J_group_squad = mfem::New<int>(4*group_squad.Size_of_connections());
+   J_group_svert = new int[group_svert.Size_of_connections()
+                           + group_sedge.Size_of_connections()
+                           + group_squad.Size_of_connections()];
+   J_group_sedge = new int[2*group_sedge.Size_of_connections()
+                           + 3*group_stria.Size_of_connections()
+                           + 4*group_squad.Size_of_connections()];
+   J_group_stria = new int[4*group_stria.Size_of_connections()];
+   J_group_squad = new int[4*group_squad.Size_of_connections()];
 
    const int oface = old_nv + old_nedges;
 
@@ -4009,6 +4172,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
           "# SQUARE      = 3\n"
           "# TETRAHEDRON = 4\n"
           "# CUBE        = 5\n"
+          "# PRISM       = 6\n"
           "#\n";
 
       out << "\ndimension\n" << Dim;
@@ -4107,6 +4271,15 @@ void ParMesh::PrintAsOne(std::ostream &out)
    {
       switch (Dim)
       {
+         case 1:
+            for (i = 0; i < svert_lvert.Size(); i++)
+            {
+               ints.Append(Geometry::POINT);
+               ints.Append(svert_lvert[i]);
+               ne++;
+            }
+            break;
+
          case 2:
             for (i = 0; i < shared_edges.Size(); i++)
             {

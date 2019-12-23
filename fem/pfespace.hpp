@@ -46,6 +46,7 @@ private:
 
    /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
    int ngvdofs, ngedofs, ngfdofs, ngdofs;
+   int* gfdofs;
 
    /// The group of each local dof.
    Array<int> ldof_group;
@@ -75,6 +76,12 @@ private:
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
+
+   /// Flag indicating the existence of shared triangles with interior ND dofs
+   bool nd_strias;
+
+   /// Resets nd_strias flag at constuction or after rebalancing
+   void CheckNDSTriaDofs();
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
@@ -113,7 +120,7 @@ private:
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
-   // Return the dofs associated with the interior of the given mesh entity.
+   /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
@@ -163,14 +170,16 @@ private:
        The result is a parallel permutation matrix that can be used to update
        all grid functions defined on this space. */
    HypreParMatrix* RebalanceMatrix(int old_ndofs,
-                                   const Table* old_elem_dof);
+                                   const Table* old_elem_dof,
+                                   const Table* old_elem_fos);
 
    /** Calculate a GridFunction restriction matrix after mesh derefinement.
        The matrix is constructed so that the new grid function interpolates
        the original function, i.e., the original function is evaluated at the
        nodes of the coarse function. */
    HypreParMatrix* ParallelDerefinementMatrix(int old_ndofs,
-                                              const Table *old_elem_dof);
+                                              const Table *old_elem_dof,
+                                              const Table *old_elem_fos);
 
 public:
    // Face-neighbor data
@@ -346,6 +355,8 @@ public:
    bool Conforming() const { return pmesh->pncmesh == NULL; }
    bool Nonconforming() const { return pmesh->pncmesh != NULL; }
 
+   bool SharedNDTriangleDofs() const { return nd_strias; }
+
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the
    // base class, FiniteElementSpace::GetTrueTransferOperator.
@@ -378,9 +389,57 @@ class ConformingProlongationOperator : public Operator
 protected:
    Array<int> external_ldofs;
    const GroupCommunicator &gc;
+   const ParFiniteElementSpace &pfes;
+   mutable Vector xtmp;
 
 public:
    ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+/// Auxiliary device class used by ParFiniteElementSpace.
+class DeviceConformingProlongationOperator: public
+   ConformingProlongationOperator
+{
+protected:
+   bool mpi_gpu_aware;
+   Array<int> shr_ltdof, ext_ldof;
+   mutable Vector shr_buf, ext_buf;
+   int *shr_buf_offsets, *ext_buf_offsets;
+   Array<int> ltdof_ldof, unq_ltdof;
+   Array<int> unq_shr_i, unq_shr_j;
+   MPI_Request *requests;
+   // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
+   //         shr_buf[i] = src[shr_ltdof[i]]
+   void BcastBeginCopy(const Vector &src) const;
+
+   // Kernel: copy ltdofs from 'src' to ldofs in 'dst'.
+   //         dst[ltdof_ldof[i]] = src[i]
+   void BcastLocalCopy(const Vector &src, Vector &dst) const;
+
+   // Kernel: copy ext. dofs from 'ext_buf' to 'dst' - after recv.
+   //         dst[ext_ldof[i]] = ext_buf[i]
+   void BcastEndCopy(Vector &dst) const;
+
+   // Kernel: copy ext. dofs from 'src' to 'ext_buf' - prepare for send.
+   //         ext_buf[i] = src[ext_ldof[i]]
+   void ReduceBeginCopy(const Vector &src) const;
+
+   // Kernel: copy owned ldofs from 'src' to ltdofs in 'dst'.
+   //         dst[i] = src[ltdof_ldof[i]]
+   void ReduceLocalCopy(const Vector &src, Vector &dst) const;
+
+   // Kernel: assemble dofs from 'shr_buf' into to 'dst' - after recv.
+   //         dst[shr_ltdof[i]] += shr_buf[i]
+   void ReduceEndAssemble(Vector &dst) const;
+
+public:
+   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
+   virtual ~DeviceConformingProlongationOperator();
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
