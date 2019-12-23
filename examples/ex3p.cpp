@@ -6,6 +6,7 @@
 //               mpirun -np 4 ex3p -m ../data/square-disc.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex3p -m ../data/beam-hex.mesh -o 2 -pa
 //               mpirun -np 4 ex3p -m ../data/escher.mesh
 //               mpirun -np 4 ex3p -m ../data/escher.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/fichera.mesh
@@ -59,6 +60,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
    bool static_cond = false;
+   bool pa = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -70,6 +72,8 @@ int main(int argc, char *argv[])
                   " solution.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -171,6 +175,7 @@ int main(int argc, char *argv[])
    Coefficient *muinv = new ConstantCoefficient(1.0);
    Coefficient *sigma = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
 
@@ -181,26 +186,47 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   HypreParMatrix A;
+   OperatorPtr A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   if (myid == 0)
-   {
-      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
-   }
-
    // 12. Define and apply a parallel PCG solver for AX=B with the AMS
-   //     preconditioner from hypre.
-   ParFiniteElementSpace *prec_fespace =
-      (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-   HypreSolver *ams = new HypreAMS(A, prec_fespace);
-   HyprePCG *pcg = new HyprePCG(A);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(500);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*ams);
-   pcg->Mult(B, X);
+   //     preconditioner from hypre, in the full assembly case.
+   //     With partial assembly, use no preconditioner, for now.
+
+   if (pa)
+   {
+      ParGridFunction diag_pa(fespace);
+      a->AssembleDiagonal(diag_pa);
+
+      Vector tdiag_pa(fespace->GetTrueVSize());
+      diag_pa.GetTrueDofs(tdiag_pa);
+
+      OperatorJacobiSmoother Jacobi(tdiag_pa, ess_tdof_list, 1.0);
+
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(1000);
+      cg.SetPrintLevel(1);
+      cg.SetOperator(*A);
+      cg.SetPreconditioner(Jacobi);
+      cg.Mult(B, X);
+   }
+   else
+   {
+      ParFiniteElementSpace *prec_fespace =
+         (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+      HypreSolver *ams = new HypreAMS(*A.As<HypreParMatrix>(), prec_fespace);
+      HyprePCG *pcg = new HyprePCG(*A.As<HypreParMatrix>());
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(500);
+      pcg->SetPrintLevel(2);
+      pcg->SetPreconditioner(*ams);
+      pcg->Mult(B, X);
+
+      delete pcg;
+      delete ams;
+   }
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -243,8 +269,6 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
-   delete pcg;
-   delete ams;
    delete a;
    delete sigma;
    delete muinv;

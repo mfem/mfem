@@ -2309,17 +2309,6 @@ void PetscLinearSolver::SetOperator(const Operator &op)
                               (dynamic_cast<const PetscParMatrix *>(&op));
    const Operator       *oA = dynamic_cast<const Operator *>(&op);
 
-   // Preserve Pmat if already set
-   KSP ksp = (KSP)obj;
-   Mat P = NULL;
-   PetscBool pmat;
-   ierr = KSPGetOperatorsSet(ksp,NULL,&pmat); PCHKERRQ(ksp,ierr);
-   if (pmat)
-   {
-      ierr = KSPGetOperators(ksp,NULL,&P); PCHKERRQ(ksp,ierr);
-      ierr = PetscObjectReference((PetscObject)P); PCHKERRQ(ksp,ierr);
-   }
-
    // update base classes: Operator, Solver, PetscLinearSolver
    bool delete_pA = false;
    if (!pA)
@@ -2342,6 +2331,7 @@ void PetscLinearSolver::SetOperator(const Operator &op)
    MFEM_VERIFY(pA, "Unsupported operation!");
 
    // Set operators into PETSc KSP
+   KSP ksp = (KSP)obj;
    Mat A = pA->A;
    if (operatorset)
    {
@@ -2362,15 +2352,7 @@ void PetscLinearSolver::SetOperator(const Operator &op)
          wrap = false;
       }
    }
-   if (P)
-   {
-      ierr = KSPSetOperators(ksp,A,P); PCHKERRQ(ksp,ierr);
-      ierr = MatDestroy(&P); PCHKERRQ(ksp,ierr);
-   }
-   else
-   {
-      ierr = KSPSetOperators(ksp,A,A); PCHKERRQ(ksp,ierr);
-   }
+   ierr = KSPSetOperators(ksp,A,A); PCHKERRQ(ksp,ierr);
 
    // Update PetscSolver
    operatorset = true;
@@ -3229,26 +3211,27 @@ PetscFieldSplitSolver::PetscFieldSplitSolver(MPI_Comm comm, Operator &op,
    : PetscPreconditioner(comm,op,prefix)
 {
    PC pc = (PC)obj;
+   ierr = PCSetType(pc,PCFIELDSPLIT); PCHKERRQ(pc,ierr);
 
    Mat pA;
    ierr = PCGetOperators(pc,&pA,NULL); PCHKERRQ(pc,ierr);
 
    // Check if pA is of type MATNEST
-   // (this requirement can be removed when we can pass fields).
    PetscBool isnest;
    ierr = PetscObjectTypeCompare((PetscObject)pA,MATNEST,&isnest);
-   PCHKERRQ(pA,ierr);
-   MFEM_VERIFY(isnest,
-               "PetscFieldSplitSolver needs the matrix in nested format.");
 
-   PetscInt nr;
-   IS  *isrow;
-   ierr = PCSetType(pc,PCFIELDSPLIT); PCHKERRQ(pc,ierr);
-   ierr = MatNestGetSize(pA,&nr,NULL); PCHKERRQ(pc,ierr);
-   ierr = PetscCalloc1(nr,&isrow); CCHKERRQ(PETSC_COMM_SELF,ierr);
-   ierr = MatNestGetISs(pA,isrow,NULL); PCHKERRQ(pc,ierr);
+   PetscInt nr = 0;
+   IS  *isrow = NULL;
+   if (isnest) // we now the fields
+   {
+      ierr = MatNestGetSize(pA,&nr,NULL); PCHKERRQ(pc,ierr);
+      ierr = PetscCalloc1(nr,&isrow); CCHKERRQ(PETSC_COMM_SELF,ierr);
+      ierr = MatNestGetISs(pA,isrow,NULL); PCHKERRQ(pc,ierr);
+   }
 
    // We need to customize here, before setting the index sets.
+   // This is because PCFieldSplitSetType customizes the function
+   // pointers. SubSolver options will be processed during PCApply
    Customize();
 
    for (PetscInt i=0; i<nr; i++)
@@ -3616,6 +3599,7 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
 }  // namespace mfem
 
 #include "petsc/private/petscimpl.h"
+#include "petsc/private/matimpl.h"
 
 // auxiliary functions
 static PetscErrorCode __mfem_ts_monitor(TS ts, PetscInt it, PetscReal t, Vec x,
@@ -3771,16 +3755,36 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
       pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
    }
 
+   // Get nonzerostate
+   PetscObjectState nonzerostate;
+   ierr = MatGetNonzeroState(P,&nonzerostate); CHKERRQ(ierr);
+
    // Avoid unneeded copy of the matrix by hacking
    Mat B;
    B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   // Matrix-free case
    if (A && A != P)
    {
       ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
       ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
    }
+
+   // When using MATNEST and PCFIELDSPLIT, the second setup of the
+   // preconditioner fails because MatCreateSubMatrix_Nest does not
+   // actually return a matrix. Instead, for efficiency reasons,
+   // it returns a reference to the submatrix. The second time it
+   // is called, MAT_REUSE_MATRIX is used and MatCreateSubMatrix_Nest
+   // aborts since the two submatrices are actually different.
+   // We circumvent this issue by incrementing the nonzero state
+   // (i.e. PETSc thinks the operator sparsity pattern has changed)
+   // This does not impact performances in the case of MATNEST
+   PetscBool isnest;
+   ierr = PetscObjectTypeCompare((PetscObject)P,MATNEST,&isnest);
+   CHKERRQ(ierr);
+   if (isnest) { P->nonzerostate = nonzerostate + 1; }
 
    // Jacobian reusage
    ierr = PetscObjectStateGet((PetscObject)P,&ts_ctx->cached_ijacstate);
@@ -3938,6 +3942,7 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
       ierr = MatAXPY(*pJxp,-1.0,*pJx,SAME_NONZERO_PATTERN); PCHKERRQ(ts,ierr);
    }
 
+   // Matrix-free cases
    if (Ax && Ax != Jx)
    {
       ierr = MatAssemblyBegin(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
@@ -4024,12 +4029,31 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
       pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
    }
 
+   // Get nonzerostate
+   PetscObjectState nonzerostate;
+   ierr = MatGetNonzeroState(P,&nonzerostate); CHKERRQ(ierr);
+
    // Avoid unneeded copy of the matrix by hacking
    Mat B;
    B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
 
+   // When using MATNEST and PCFIELDSPLIT, the second setup of the
+   // preconditioner fails because MatCreateSubMatrix_Nest does not
+   // actually return a matrix. Instead, for efficiency reasons,
+   // it returns a reference to the submatrix. The second time it
+   // is called, MAT_REUSE_MATRIX is used and MatCreateSubMatrix_Nest
+   // aborts since the two submatrices are actually different.
+   // We circumvent this issue by incrementing the nonzero state
+   // (i.e. PETSc thinks the operator sparsity pattern has changed)
+   // This does not impact performances in the case of MATNEST
+   PetscBool isnest;
+   ierr = PetscObjectTypeCompare((PetscObject)P,MATNEST,&isnest);
+   CHKERRQ(ierr);
+   if (isnest) { P->nonzerostate = nonzerostate + 1; }
+
+   // Matrix-free case
    if (A && A != P)
    {
       ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
@@ -4133,10 +4157,30 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
       pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
    }
 
+   // Get nonzerostate
+   PetscObjectState nonzerostate;
+   ierr = MatGetNonzeroState(P,&nonzerostate); CHKERRQ(ierr);
+
    // Avoid unneeded copy of the matrix by hacking
    Mat B = pA->ReleaseMat(false);
    ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   // When using MATNEST and PCFIELDSPLIT, the second setup of the
+   // preconditioner fails because MatCreateSubMatrix_Nest does not
+   // actually return a matrix. Instead, for efficiency reasons,
+   // it returns a reference to the submatrix. The second time it
+   // is called, MAT_REUSE_MATRIX is used and MatCreateSubMatrix_Nest
+   // aborts since the two submatrices are actually different.
+   // We circumvent this issue by incrementing the nonzero state
+   // (i.e. PETSc thinks the operator sparsity pattern has changed)
+   // This does not impact performances in the case of MATNEST
+   PetscBool isnest;
+   ierr = PetscObjectTypeCompare((PetscObject)P,MATNEST,&isnest);
+   CHKERRQ(ierr);
+   if (isnest) { P->nonzerostate = nonzerostate + 1; }
+
+   // Matrix-free case
    if (A && A != P)
    {
       ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);

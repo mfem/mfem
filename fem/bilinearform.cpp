@@ -608,6 +608,18 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
+void BilinearForm::AssembleDiagonal(Vector& diag) const
+{
+   if (ext)
+   {
+      ext->AssembleDiagonal(diag);
+   }
+   else
+   {
+      mfem_error("Not implemented, maybe assemble your bilinear form into a matrix and use SparseMatrix::GetDiag?");
+   }
+}
+
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                     Vector &b, OperatorHandle &A, Vector &X,
                                     Vector &B, int copy_interior)
@@ -960,6 +972,18 @@ void BilinearForm::EliminateVDofsInRHS(
    mat->PartMult(vdofs, x, b);
 }
 
+void BilinearForm::Mult(const Vector &x, Vector &y) const
+{
+   if (ext)
+   {
+      ext->Mult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
+}
+
 void BilinearForm::Update(FiniteElementSpace *nfes)
 {
    bool full_update;
@@ -1036,6 +1060,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    test_fes = te_fes;
    mat = NULL;
    extern_bfs = 0;
+   ext = NULL;
 }
 
 MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
@@ -1047,6 +1072,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    test_fes = te_fes;
    mat = NULL;
    extern_bfs = 1;
+   ext = NULL;
 
    // Copy the pointers to the integrators
    dbfi = mbf->dbfi;
@@ -1056,6 +1082,35 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
 
    bbfi_marker = mbf->bbfi_marker;
    btfbfi_marker = mbf->btfbfi_marker;
+}
+
+void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         // ext = new FAMixedBilinearFormExtension(this);
+         // Use the original BilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Element assembly not supported yet... stay tuned!");
+         // ext = new EAMixedBilinearFormExtension(this);
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PAMixedBilinearFormExtension(this);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         // ext = new MFMixedBilinearFormExtension(this);
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
 }
 
 double & MixedBilinearForm::Elem (int i, int j)
@@ -1070,7 +1125,14 @@ const double & MixedBilinearForm::Elem (int i, int j) const
 
 void MixedBilinearForm::Mult (const Vector & x, Vector & y) const
 {
-   mat -> Mult (x, y);
+   if (ext)
+   {
+      ext->Mult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
 }
 
 void MixedBilinearForm::AddMult (const Vector & x, Vector & y,
@@ -1145,6 +1207,12 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
 
 void MixedBilinearForm::Assemble (int skip_zeros)
 {
+   if (ext)
+   {
+      ext->Assemble();
+      return;
+   }
+
    Array<int> tr_vdofs, te_vdofs;
    ElementTransformation *eltrans;
    DenseMatrix elemmat;

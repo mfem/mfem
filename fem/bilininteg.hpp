@@ -44,6 +44,18 @@ public:
        used later in the methods AddMultPA() and AddMultTransposePA(). */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   /// Method defining partial assembly.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA() and AddMultTransposePA(). */
+   virtual void AssembleMixedPA(const FiniteElementSpace &trial_fes,
+                                const FiniteElementSpace &test_fes)
+   {
+      mfem_error("Not implemented for this integrator!");
+   }
+
+   /// assemble diagonal into vector diag
+   virtual void AssembleDiagonalPA(Vector& diag) const;
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -1537,8 +1549,21 @@ protected:
       trial_fe.CalcPhysDShape(Trans, shape);
    }
 
+   virtual void AssembleMixedPA(const FiniteElementSpace &trial_fes,
+                                const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
 private:
    DenseMatrix Jinv;
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned
+   const DofToQuad *mapsC;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+   Array<int> dof_map;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q curl u, v) in 3D and
@@ -1989,6 +2014,14 @@ protected:
    Coefficient *Q;
    MatrixCoefficient *MQ;
 
+   // PA extension
+   Vector pa_data, pa_data_2;
+   const DofToQuad *mapsO;         ///< Not owned
+   const DofToQuad *mapsC;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+   Array<int> dof_map;
+
 public:
    CurlCurlIntegrator() { Q = NULL; MQ = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
@@ -2009,6 +2042,10 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AssembleDiagonalPA(Vector& diag) const;
 };
 
 /** Integrator for (curl u, curl v) for FE spaces defined by 'dim' copies of a
@@ -2058,6 +2095,14 @@ protected:
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
 
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned
+   const DofToQuad *mapsC;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+   Array<int> dof_map;
+
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
    VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL); }
@@ -2074,6 +2119,10 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AssembleDiagonalPA(Vector& diag) const;
 };
 
 /** Integrator for (Q div u, p) where u=(v1,...,vn) and all vi are in the same

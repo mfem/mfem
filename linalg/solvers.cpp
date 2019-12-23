@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "linalg.hpp"
+#include "../general/forall.hpp"
 #include "../general/globals.hpp"
 #include <iostream>
 #include <iomanip>
@@ -102,6 +103,47 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
+OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
+                                               const Array<int>& ess_tdofs,
+                                               const double dmpng)
+   :
+   Solver(d.Size()),
+   N(d.Size()),
+   dinv(N),
+   diag(d),
+   damping(dmpng),
+   ess_tdof_list(ess_tdofs),
+   residual(N) { Setup(); }
+
+void OperatorJacobiSmoother::Setup()
+{
+   residual.UseDevice(true);
+   const double delta = damping;
+   auto D = diag.Read();
+   auto X = dinv.Write();
+   MFEM_FORALL(i, N, X[i] = delta / D[i]; );
+   auto I = ess_tdof_list.Read();
+   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = delta; );
+}
+
+void OperatorJacobiSmoother::Mult(const Vector& x, Vector &y) const
+{
+   if (iterative_mode && oper)
+   {
+      oper->Mult(y, residual);  // r = A x
+      subtract(x, residual, residual); // r = b - A x
+   }
+   else
+   {
+      residual = x;
+      y.UseDevice(true);
+      y = 0.0;
+   }
+   auto X = dinv.Read();
+   auto R = residual.Read();
+   auto Y = y.ReadWrite();
+   MFEM_FORALL(i, N, Y[i] += X[i] * R[i]; );
+}
 
 void SLISolver::UpdateVectors()
 {
@@ -1323,6 +1365,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
       add(x, -c_scale, c, x);
+
+      ProcessNewState(x);
 
       oper->Mult(x, r);
       if (have_b)

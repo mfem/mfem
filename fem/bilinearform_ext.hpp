@@ -20,6 +20,7 @@ namespace mfem
 {
 
 class BilinearForm;
+class MixedBilinearForm;
 
 
 /** @brief Class extending the BilinearForm class to support the different
@@ -42,6 +43,10 @@ public:
    virtual const Operator *GetRestriction() const;
 
    virtual void Assemble() = 0;
+   virtual void AssembleDiagonal(Vector& diag) const
+   {
+      mfem_error("Not implemented for this assembly level!");
+   }
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -103,6 +108,7 @@ public:
    PABilinearFormExtension(BilinearForm*);
 
    void Assemble();
+   void AssembleDiagonal(Vector& diag) const;
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
@@ -132,6 +138,67 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const {}
    void Update() {}
    ~MFBilinearFormExtension() {}
+};
+
+/** @brief Class extending the MixedBilinearForm class to support the different
+    AssemblyLevel%s. */
+class MixedBilinearFormExtension : public Operator
+{
+protected:
+   MixedBilinearForm *a; ///< Not owned
+
+public:
+   MixedBilinearFormExtension(MixedBilinearForm *form);
+
+   virtual MemoryClass GetMemoryClass() const
+   { return Device::GetMemoryClass(); }
+
+   /// Get the finite element space prolongation matrix
+   virtual const Operator *GetProlongation() const
+   {
+      mfem_error("Not implemented for this assembly level!");
+      return NULL;
+   }
+
+   /// Get the finite element space restriction matrix
+   virtual const Operator *GetRestriction() const
+   {
+      mfem_error("Not implemented for this assembly level!");
+      return NULL;
+   }
+
+   virtual void Assemble() = 0;
+   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                 OperatorHandle &A) = 0;
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 OperatorHandle &A, Vector &X, Vector &B,
+                                 int copy_interior = 0) = 0;
+   virtual void Update() = 0;
+};
+
+/// Data and methods for partially-assembled mixed bilinear forms
+class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
+{
+protected:
+   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   mutable Vector localX, localY;
+   const Operator *trial_elem_restrict_lex; // Not owned
+   const Operator *test_elem_restrict_lex; // Not owned
+
+public:
+   PAMixedBilinearFormExtension(MixedBilinearForm*);
+
+   void Assemble();
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+   void Update();
 };
 
 }
