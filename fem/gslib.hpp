@@ -47,10 +47,11 @@ public:
    ~FindPointsGSLIB();
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
-       Gauss-Lobatto nodes of @a mesh.
+       Gauss-Lobatto nodes of the input Mesh object @a m.
        Note: not tested with periodic (DG meshes).
-       Note: the given @a mesh must have Nodes set.
+       Note: the input mesh @a m must have Nodes set.
 
+       @param[in] m         Input mesh.
        @param[in] bb_t      Relative size of bounding box around each element.
        @param[in] newt_tol  Newton tolerance for the gslib search methods.
        @param[in] npt_max   Number of points for simultaneous iteration. This
