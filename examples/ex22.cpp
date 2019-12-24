@@ -108,6 +108,9 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   MFEM_VERIFY(prob >= 0 && prob <=2,
+               "Unrecognized problem type: " << prob);
+
    if ( a_coef != 0.0 )
    {
       mu_ = 1.0 / a_coef;
@@ -150,12 +153,13 @@ int main(int argc, char *argv[])
       prob = 0;
    }
 
-   FiniteElementCollection *fec;
+   FiniteElementCollection *fec = NULL;
    switch (prob)
    {
       case 0:  fec = new H1_FECollection(order, dim);      break;
       case 1:  fec = new ND_FECollection(order, dim);      break;
       case 2:  fec = new RT_FECollection(order - 1, dim);  break;
+      default: break; // This should be unreachable
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
@@ -222,6 +226,7 @@ int main(int argc, char *argv[])
          u.ProjectBdrCoefficientNormal(oneVecCoef, zeroVecCoef, ess_bdr);
          if (exact_sol) { u_exact->ProjectCoefficient(u2_r, u2_i); }
          break;
+      default: break; // This should be unreachable
    }
 
    if (visualization && exact_sol)
@@ -277,6 +282,7 @@ int main(int argc, char *argv[])
          a->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef),
                                 new VectorFEMassIntegrator(lossCoef));
          break;
+      default: break; // This should be unreachable
    }
 
    // 8a. Set up the bilinear form for the preconditioner
@@ -309,6 +315,7 @@ int main(int argc, char *argv[])
          pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef));
          pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
          break;
+      default: break; // This should be unreachable
    }
 
    // 9. Assemble the bilinear form and the corresponding linear
@@ -353,13 +360,14 @@ int main(int argc, char *argv[])
 
       switch (prob)
       {
-         case 0:
+         case 0: // fallthrough to case 2
          case 2:
             pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
             break;
          case 1:
             pc_r = new GSSmoother(*PCOp.As<SparseMatrix>());
             break;
+         default: break; // This should be unreachable
       }
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
@@ -401,6 +409,7 @@ int main(int argc, char *argv[])
             err_r = u.real().ComputeL2Error(u2_r);
             err_i = u.imag().ComputeL2Error(u2_i);
             break;
+         default: break; // This should be unreachable
       }
 
       cout << endl;
