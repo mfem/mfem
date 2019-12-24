@@ -205,7 +205,7 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
     if(Q!=NULL) Q->Eval(Q_ir, Tr, ir);
 
     //compare maximum tau
-    double tauMax=0.0,dtTau=0.01;
+    double tauMax=0.0,dtTau=0.1;
     if (maxtau)
     {
         for (int i = 0; i < ir.GetNPoints(); i++)
@@ -229,6 +229,8 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
         CalcInverse (Tr.Jacobian(), Jinv);
         Mult(dshape, Jinv, gshape); 
         
+        V_ir.GetColumnReference(i, vec1);
+
         if (maxtau)
         {
             norm *= tauMax;
@@ -237,7 +239,6 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
         {
             //compute tau
             double nu = nuCoef->Eval (Tr, ip);
-            V_ir.GetColumnReference(i, vec1);
             Unorm = vec1.Norml2();
             if (itau==1)
                 invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);

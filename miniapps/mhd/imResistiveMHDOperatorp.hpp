@@ -6,6 +6,7 @@
 using namespace std;
 using namespace mfem;
 int isupg=1;
+bool lumpedMass = true;
 
 // reduced system 
 class ReducedSystemOperator : public Operator
@@ -330,10 +331,21 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
    //full mass matrix 
    Mfull = new ParBilinearForm(&fespace);
-   Mfull->AddDomainIntegrator(new MassIntegrator);
-   Mfull->Assemble();
-   Mfull->Finalize();
-   MfullMat=Mfull->ParallelAssemble();
+   MassIntegrator *mass = new MassIntegrator;
+   if (lumpedMass) //use a lumped mass integrator to compute J
+   {
+     Mfull->AddDomainIntegrator(new LumpedIntegrator(mass));
+     Mfull->Assemble();
+     Mfull->Finalize();
+     MfullMat=Mfull->ParallelAssemble();
+   }
+   else 
+   {
+     Mfull->AddDomainIntegrator(mass);
+     Mfull->Assemble();
+     Mfull->Finalize();
+     MfullMat=Mfull->ParallelAssemble();
+   }
 
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(1e-7);
@@ -700,7 +712,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    }
    if (E0Vec!=NULL)
      z += *E0Vec;
-   //add one stabilization term
+   //add stabilization terms
    if (isupg>1)
    {
        //FIXME this supg form contains some bugs
@@ -726,7 +738,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    {
       DRe.TrueAddMult(w, z);
    }
-   //add one stabilization term
+   //add stabilization term
    if (isupg>1)
    {
        //FIXME this supg form contains some bugs (z not dw_dt)
@@ -905,17 +917,6 @@ void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
    zLF.ParallelAssemble(z);
    M_solver2.Mult(z, J);
    jout->SetFromTrueDofs(J);
-
-   // old way
-   /*
-   Vector J, Z;
-   HypreParMatrix A;
-   KB->Mult(gftmp, zFull);
-   zFull.Neg(); // z = -z
-   M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
-   M_solver.Mult(Z, J);
-   M->RecoverFEMSolution(J, zFull, *jout);
-   */
 }
 
 void ResistiveMHDOperator::DestroyHypre()
