@@ -396,8 +396,7 @@ int main(int argc, char *argv[])
          //assemble the nonlinear terms
          phi.SetFromTrueVector(); 
          psi.SetFromTrueVector(); 
-         if (useStab)
-         {
+         if (useStab){
             oper.assembleVoper(dt_real, &phi, &psi);
             oper.assembleBoper(dt_real, &phi, &psi);
          }

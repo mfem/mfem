@@ -5,6 +5,7 @@
 
 using namespace std;
 using namespace mfem;
+int isupg=1;
 
 // reduced system 
 class ReducedSystemOperator : public Operator
@@ -221,7 +222,8 @@ protected:
    Array<int> ess_tdof_list;
 
    ParBilinearForm *M, *Mfull, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
-   ParBilinearForm *Nv, *Nb, *StabMass, *StabNv, *StabNb;
+   ParBilinearForm *Nv, *Nb, *StabMass, *StabNb;
+   mutable ParBilinearForm *StabNv; 
    ParLinearForm *E0, *StabE0; //source terms
    mutable ParLinearForm zLF; //LinearForm holder for updating J
    HypreParMatrix Kmat, Mmat, *MfullMat, DSlmat, DRemat;
@@ -394,7 +396,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
-  
+    
    if (use_petsc)
    {
       ParBilinearForm *DRepr=NULL, *DSlpr=NULL;
@@ -638,7 +640,7 @@ void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ)
     j.SetTrueVector();
     j.SetFromTrueVector();
 
-    //add current to reduced_oper
+    //add current to reduced_oper (this is not needed any more)
     if (reduced_oper!=NULL)
         reduced_oper->setCurrent(&j);
 }
@@ -684,32 +686,36 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector &k_ = const_cast<Vector &>(vx);
    gftmp.MakeTRef(&fespace, k_, sc);
    gftmp.SetFromTrueVector();  //recover psi
-
    KB->Mult(gftmp, zLF);
    zLF.Neg();
    zLF.ParallelAssemble(z);
    M_solver2.Mult(z, J);
-
-   
-   //this is the old and wrong way to update j
-   /*
-   Vector J, Z;
-   HypreParMatrix A;
-   KB->Mult(gftmp, zFull);
-   zFull.Neg(); // z = -z
-   M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
-   M_solver.Mult(Z, J);
-   */
 
    //evolve the dofs
    z=0.;
    Nv->TrueAddMult(psi, z);
    if (resistivity != 0.0)
    {
-      DSl.TrueAddMult(psi, z);
+     DSl.TrueAddMult(psi, z);
    }
    if (E0Vec!=NULL)
      z += *E0Vec;
+   //add one stabilization term
+   if (isupg>1)
+   {
+       //FIXME this supg form contains some bugs
+       //stabilized term for psi
+       add(dpsi_dt, resistivity, J, z);
+       StabMass->TrueAddMult(z, dpsi_dt);
+       StabNv->TrueAddMult(psi, dpsi_dt);
+       StabE0->ParallelAssemble(z);
+       dpsi_dt+=z;
+   }
+   else if (isupg==1)
+   {
+       //only add the velocity diffusion term
+       StabNv->TrueAddMult(psi, z);
+   }
    z.Neg(); // z = -z
    z.SetSubVector(ess_tdof_list,0.0);
    M_solver.Mult(z, dpsi_dt);
@@ -720,20 +726,10 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    {
       DRe.TrueAddMult(w, z);
    }
-   z.Neg(); // z = -z
-   Nb->TrueAddMult(J, z); 
-   z.SetSubVector(ess_tdof_list,0.0);
-   M_solver.Mult(z, dw_dt);
-
-   if (StabNv!=NULL)
+   //add one stabilization term
+   if (isupg>1)
    {
-       //stabilized term for psi
-       add(dpsi_dt, resistivity, J, z);
-       StabMass->TrueAddMult(z, dpsi_dt);
-       StabNv->TrueAddMult(psi, dpsi_dt);
-       StabE0->ParallelAssemble(z);
-       dpsi_dt+=z;
-
+       //FIXME this supg form contains some bugs (z not dw_dt)
        //stabilized term for omega
        //first compute an auxilary variable as ∆ omega
        gftmp.MakeTRef(&fespace, k_, 2*sc);
@@ -749,6 +745,15 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        J.Neg();
        StabNb->TrueAddMult(J, dw_dt);
    }
+   else if (isupg==1)
+   {
+       //only add the velocity diffusion term
+       StabNv->TrueAddMult(w, z);
+   }
+   z.Neg(); // z = -z
+   Nb->TrueAddMult(J, z); 
+   z.SetSubVector(ess_tdof_list,0.0);
+   M_solver.Mult(z, dw_dt);
 }
 
 void ResistiveMHDOperator::ImplicitSolve(const double dt,
@@ -813,20 +818,25 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
    Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
    Nv->Assemble(); 
 
-   delete StabNv;
-   StabNv = new ParBilinearForm(&fespace);
-   StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
-   StabNv->Assemble(); 
+   if (isupg > 0)
+   {
+      delete StabNv;
+      StabNv = new ParBilinearForm(&fespace);
+      StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+      StabNv->Assemble(); 
+   }
 
-   delete StabMass;
-   StabMass = new ParBilinearForm(&fespace);
-   StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
-   StabMass->Assemble(); 
+   if (isupg > 1){
+      delete StabMass;
+      StabMass = new ParBilinearForm(&fespace);
+      StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
+      StabMass->Assemble(); 
 
-   delete StabE0;
-   StabE0 = new ParLinearForm(&fespace);
-   StabE0->AddDomainIntegrator(new StabDomainLFIntegrator(dt, viscosity, velocity, *E0rhs));
-   StabE0->Assemble(); 
+      delete StabE0;
+      StabE0 = new ParLinearForm(&fespace);
+      StabE0->AddDomainIntegrator(new StabDomainLFIntegrator(dt, viscosity, velocity, *E0rhs));
+      StabE0->Assemble(); 
+   }
 }
 
 void ResistiveMHDOperator::assembleBoper(double dt, ParGridFunction *phi, ParGridFunction *psi) 
@@ -1227,7 +1237,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    }
    else
    {
-      //FIXME ParallelAssemble is needed
+      //FIXME ParallelAssemble is needed (a possible bug)
       delete PB_VPsi;
       PB_VPsi = new ParLinearForm(&fespace);
       PBCoefficient pbCoeff(&phiGf, &psiGf);
