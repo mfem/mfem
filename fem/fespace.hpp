@@ -982,6 +982,8 @@ public:
    L2FaceRestriction(const FiniteElementSpace&, ElementDofOrdering, L2FaceValues m = L2FaceValues::Double);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   static int PermuteFaceL2(const int dim, const int face_id1, const int face_id2, const int orientation,
+                            const int size1d, const int index);
 };
 
 /** @brief A class that performs interpolation from an E-vector to quadrature

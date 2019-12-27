@@ -3489,8 +3489,8 @@ static int GetFaceQuadIndex3D(const int face_id, const int orientation, const in
 }
 #endif
 
-static int PermuteFaceL2(const int dim, const int face_id1, const int face_id2, const int orientation,
-                       const int size1d, const int index)
+int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1, const int face_id2, const int orientation,
+                               const int size1d, const int index)
 {
    int i=0, j=0, new_i=0, new_j=0;
    switch(dim)
@@ -3512,14 +3512,14 @@ static int PermuteFaceL2(const int dim, const int face_id1, const int face_id2, 
       // }
 
       // Unstructured version
-      // if(face_id2==1 || face_id2==4)
-      // {
-      //    i = size1d-1-i;
-      // }
-      // else if(face_id2==0)
-      // {
-      //    j = size1d-1-j;
-      // }
+      if(face_id2==1 || face_id2==4)
+      {
+         i = size1d-1-i;
+      }
+      else if(face_id2==0)
+      {
+         j = size1d-1-j;
+      }
       switch(orientation)
       {
       case 0:
@@ -3555,19 +3555,18 @@ static int PermuteFaceL2(const int dim, const int face_id1, const int face_id2, 
          new_j = (size1d-1-j);
          break;
       }
-      return new_i + new_j*size1d;
-      // if (face_id2==2 || face_id2==3 || face_id2==5)
-      // {
-      //    return new_i + new_j*size1d;
-      // }
-      // else if(face_id2==1 || face_id2==4)
-      // {
-      //    return (size1d-1-new_i) + new_j*size1d;
-      // }
-      // else//face_id2==0
-      // {
-      //    return new_i + (size1d-1-new_j)*size1d;
-      // }
+      if (face_id2==2 || face_id2==3 || face_id2==5)
+      {
+         return new_i + new_j*size1d;
+      }
+      else if(face_id2==1 || face_id2==4)
+      {
+         return (size1d-1-new_i) + new_j*size1d;
+      }
+      else//face_id2==0
+      {
+         return new_i + (size1d-1-new_j)*size1d;
+      }
    default:
       mfem_error("Incorrect dimension.");
       return 0;
