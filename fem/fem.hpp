@@ -31,6 +31,7 @@
 #include "estimators.hpp"
 #include "staticcond.hpp"
 #include "tmop.hpp"
+#include "tmop_tools.hpp"
 #include "transfer.hpp"
 #include "spacehierarchy.hpp"
 #include "mgbilinearform.hpp"
