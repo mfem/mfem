@@ -401,18 +401,18 @@ int main(int argc, char *argv[])
    }
 
    // 13. Free the used memory.
-   delete U;
-   delete u;
-   delete B;
-   delete b;
-   delete K;
-   delete k;
-   delete M;
-   delete m;
-   delete fes;
-   delete pmesh;
-   delete ode_solver;
-   delete dc;
+   // delete U;
+   // delete u;
+   // delete B;
+   // delete b;
+   // delete K;
+   // delete k;
+   // delete M;
+   // delete m;
+   // delete fes;
+   // delete pmesh;
+   // delete ode_solver;
+   // delete dc;
 
    MPI_Finalize();
    return 0;
