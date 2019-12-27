@@ -21,7 +21,7 @@
 //
 //               The example demonstrates the use of the BlockMatrix class, as
 //               well as the collective saving of several grid functions in a
-//               VisIt (visit.llnl.gov) visualization format.
+//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
    ParaViewDataCollection paraview_dc("PVExample5S", mesh);
    paraview_dc.SetLevelsOfDetail(2);
    paraview_dc.SetCycle(1);
-   paraview_dc.SetTime(0.0); //set the time
+   paraview_dc.SetTime(0.0); // set the time
    paraview_dc.RegisterField("velocity",&u);
    paraview_dc.RegisterField("pressure",&p);
    paraview_dc.Save();

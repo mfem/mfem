@@ -1157,7 +1157,6 @@ public:
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
-
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
@@ -1165,9 +1164,9 @@ public:
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
-       subdivision number (useful for high order fields and curved meshes).*/
+       subdivision number (useful for high order fields and curved meshes). */
    void PrintVTU(std::ostream &out, int ref=1);
-   /** Print the mesh in VTK format with file name fname.*/
+   /** Print the mesh in VTU format with file name fname. */
    void PrintVTU(std::string fname);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
