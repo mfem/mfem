@@ -12,7 +12,6 @@
 set(HIOP_EXAMPLES_SRCS)
 list(APPEND HIOP_EXAMPLES_SRCS ex9.cpp)
 
-
 if (MFEM_USE_MPI)
   list(APPEND HIOP_EXAMPLES_SRCS ex9p.cpp)
 endif()
@@ -35,7 +34,7 @@ add_mfem_examples(HIOP_EXAMPLES_SRCS ${PFX} "" test_hiop)
 #   ctest -R hiop
 
 # Command line options for the tests.
-# Example 9: 
+# Example 9:
 set(EX9_COMMON_OPTS -m ../../data/periodic-segment.mesh -p 0 -dt 0.005)
 set(EX9_TEST_OPTS ${EX9_COMMON_OPTS}  -r  2 )
 set(EX9P_TEST_OPTS ${EX9_COMMON_OPTS})

@@ -417,8 +417,7 @@ MFEM_USE_PUMI = YES/NO
 
 MFEM_USE_HIOP = YES/NO
   Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
-  optimization solver for solving certain mathematical optimization problems
-  expressed as nonlinear programming problems.
+  HPC solver for nonlinear optimization problems.
 
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
