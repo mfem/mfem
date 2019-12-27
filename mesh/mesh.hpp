@@ -285,14 +285,17 @@ protected:
    /// Update the nodes of a curved mesh after refinement
    void UpdateNodes();
 
+   void UniformRefinement2D_base(bool update_nodes = true);
+
    /// Refine a mixed 2D mesh uniformly.
-   virtual void UniformRefinement2D();
+   virtual void UniformRefinement2D() { UniformRefinement2D_base(); }
 
    /* If @a f2qf is not NULL, adds all quadrilateral faces to @a f2qf which
       represents a "face-to-quad-face" index map. When all faces are quads, the
       array @a f2qf is kept empty since it is not needed. */
    void UniformRefinement3D_base(Array<int> *f2qf = NULL,
-                                 DSTable *v_to_v_p = NULL);
+                                 DSTable *v_to_v_p = NULL,
+                                 bool update_nodes = true);
 
    /// Refine a mixed 3D mesh uniformly.
    virtual void UniformRefinement3D() { UniformRefinement3D_base(); }

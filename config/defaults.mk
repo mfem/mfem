@@ -129,6 +129,7 @@ MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
+MFEM_USE_HIOP          = NO
 MFEM_USE_CUDA          = NO
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
@@ -307,6 +308,11 @@ PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
 PUMI_OPT = -I$(PUMI_DIR)/include
 PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
    -llion -lmth -lapf_zoltan -lspr
+
+# HIOP
+HIOP_DIR = @MFEM_DIR@/../hiop/install
+HIOP_OPT = -I$(HIOP_DIR)/include
+HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
 
 # CUDA library configuration (currently not needed)
 CUDA_OPT =

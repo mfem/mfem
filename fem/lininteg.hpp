@@ -279,11 +279,12 @@ public:
 class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
-   Coefficient &F;
+   Coefficient *F;
    Vector shape;
 
 public:
-   VectorFEBoundaryFluxLFIntegrator(Coefficient &f) : F(f) { }
+   VectorFEBoundaryFluxLFIntegrator() : F(NULL) { }
+   VectorFEBoundaryFluxLFIntegrator(Coefficient &f) : F(&f) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
