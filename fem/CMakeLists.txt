@@ -34,6 +34,7 @@ set(SRCS
   spacehierarchy.cpp
   staticcond.cpp
   tmop.cpp
+  tmop_tools.cpp
   transfer.cpp
   )
 
@@ -69,6 +70,7 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
+  tmop_tools.hpp
   transfer.hpp
   )
 

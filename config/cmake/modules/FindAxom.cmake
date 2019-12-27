@@ -18,6 +18,4 @@ include(MfemCmakeUtilities)
 # Note: components are enabled based on the find_package() parameters.
 mfem_find_package(Axom AXOM AXOM_DIR "include" "" "lib" ""
   "Paths to headers required by Axom." "Libraries required by Axom."
-  ADD_COMPONENT Sidre "include" sidre/sidre.hpp "lib" sidre
-  ADD_COMPONENT SLIC "include" slic/slic.hpp "lib" slic
-  ADD_COMPONENT axom_utils "include" axom_utils/Utilities.hpp "lib" axom_utils)
+  ADD_COMPONENT Axom "include" axom/config.hpp "lib" axom)

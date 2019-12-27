@@ -42,6 +42,7 @@ option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
+option(MFEM_USE_HIOP "Enable HiOp" OFF)
 option(MFEM_USE_CUDA "Enable CUDA" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
@@ -154,11 +155,16 @@ set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
 
 set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
-set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
+set(Axom_REQUIRED_PACKAGES "Conduit/relay/blueprint" CACHE STRING
     "Additional packages required by Axom.")
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
     "Directory where PUMI is installed")
+
+set(HIOP_DIR "${MFEM_DIR}/../hiop/install" CACHE STRING
+    "Directory where HiOp is installed")
+set(HIOP_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
+    "Packages that HiOp depends on.")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
