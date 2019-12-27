@@ -949,6 +949,12 @@ public:
    /// Compute the boundary element matrix of the given boundary element
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
 
+   /// Compute the trace face element matrix of the given face element
+   void ComputeTraceFaceElementMatrix(int i, DenseMatrix &elmat);
+
+   /// Compute the boundary trace face element matrix of the given boundary element
+   void ComputeBdrTraceFaceElementMatrix(int i, DenseMatrix &elmat);
+
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
        added to the system matrix. The flag @a skip_zeros skips the zero
