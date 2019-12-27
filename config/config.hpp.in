@@ -121,6 +121,9 @@
 // Enable MFEM functionality based on the PUMI library
 // #define MFEM_USE_PUMI
 
+// Enable MFEM functionality based on the HIOP library.
+// #define MFEM_USE_HIOP
+
 // Enable MFEM functionality based on the GSLIB library
 // #define MFEM_USE_GSLIB
 
