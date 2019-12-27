@@ -3032,7 +3032,7 @@ static void GetFaceDofs(const int dim, const int face_id, const int dof1d, int* 
             for (int j = 0; j < dof1d; ++j)
             {
                // faceMap[i+j*dof1d] = i + j*dof1d;//Lex
-               faceMap[i+j*dof1d] = (dof1d-1-i) + j*dof1d;
+               faceMap[i+j*dof1d] = i + (dof1d-1-j)*dof1d;
             }
          }
          break;
@@ -3489,10 +3489,10 @@ static int GetFaceQuadIndex3D(const int face_id, const int orientation, const in
 }
 #endif
 
-static int PermuteFaceL2(const int dim, const int face_id, const int orientation,
+static int PermuteFaceL2(const int dim, const int face_id1, const int face_id2, const int orientation,
                        const int size1d, const int index)
 {
-   int i=0, j=0;
+   int i=0, j=0, new_i=0, new_j=0;
    switch(dim)
    {
    case 1:
@@ -3502,7 +3502,72 @@ static int PermuteFaceL2(const int dim, const int face_id, const int orientation
    case 3:
       i = index%size1d;
       j = index/size1d;
-      return (size1d-1-i)+j*size1d;
+      // std::cout << "id1=" << face_id1 << ", id2=" << face_id2 << ", or=" << orientation << std::endl;
+      // Works on structured mesh
+      // if (face_id2==1 || face_id2==2 || face_id2==3 || face_id2==4)
+      // {
+      //    return (size1d-1-i) + j*size1d;
+      // }else{
+      //    return i + (size1d-1-j)*size1d;
+      // }
+
+      // Unstructured version
+      // if(face_id2==1 || face_id2==4)
+      // {
+      //    i = size1d-1-i;
+      // }
+      // else if(face_id2==0)
+      // {
+      //    j = size1d-1-j;
+      // }
+      switch(orientation)
+      {
+      case 0:
+         new_i = i;
+         new_j = j;
+         break;
+      case 1:
+         new_i = j;
+         new_j = i;
+         break;
+      case 2:
+         new_i = j;
+         new_j = (size1d-1-i);
+         break;
+      case 3:
+         new_i = (size1d-1-i);
+         new_j = j; 
+         break;
+      case 4:
+         new_i = (size1d-1-i);
+         new_j =  (size1d-1-j);
+         break;
+      case 5:
+         new_i = (size1d-1-j);
+         new_j = (size1d-1-i);
+         break;
+      case 6:
+         new_i = (size1d-1-j);
+         new_j = i; 
+         break;
+      case 7:
+         new_i = i;
+         new_j = (size1d-1-j);
+         break;
+      }
+      return new_i + new_j*size1d;
+      // if (face_id2==2 || face_id2==3 || face_id2==5)
+      // {
+      //    return new_i + new_j*size1d;
+      // }
+      // else if(face_id2==1 || face_id2==4)
+      // {
+      //    return (size1d-1-new_i) + new_j*size1d;
+      // }
+      // else//face_id2==0
+      // {
+      //    return new_i + (size1d-1-new_j)*size1d;
+      // }
    default:
       mfem_error("Incorrect dimension.");
       return 0;
@@ -3544,7 +3609,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    int faceMap1[dof], faceMap2[dof];
    int e1, e2;
    int inf1, inf2;
-   int face_id;
+   int face_id1, face_id2;
    int orientation;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
@@ -3556,11 +3621,11 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       if(dof_reorder){
          orientation = inf1 % 64;
          // if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
-         face_id = inf1 / 64;
-         GetFaceDofs(dim, face_id, dof1d, faceMap1);//Only for hex
+         face_id1 = inf1 / 64;
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
          orientation = inf2 % 64;
-         face_id = inf2 / 64;
-         GetFaceDofs(dim, face_id, dof1d, faceMap2);//Only for hex
+         face_id2 = inf2 / 64;
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
       } else {
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?
@@ -3579,7 +3644,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          {
             if (e2!=-1)//FIXME
             {
-               const int pd = PermuteFaceL2(dim, face_id, orientation, dof1d, d);
+               const int pd = PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
                const int face_dof = faceMap2[pd];
                const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
                const int gid = elementMap[e2*elem_dofs + did];
