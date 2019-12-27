@@ -3031,7 +3031,8 @@ static void GetFaceDofs(const int dim, const int face_id, const int dof1d, int* 
          {
             for (int j = 0; j < dof1d; ++j)
             {
-               faceMap[i+j*dof1d] = i + j*dof1d;
+               // faceMap[i+j*dof1d] = i + j*dof1d;//Lex
+               faceMap[i+j*dof1d] = (dof1d-1-i) + j*dof1d;
             }
          }
          break;
@@ -3040,7 +3041,8 @@ static void GetFaceDofs(const int dim, const int face_id, const int dof1d, int* 
          {
             for (int j = 0; j < dof1d; ++j)
             {
-               faceMap[i+j*dof1d] = i + j*dof1d*dof1d;
+               // faceMap[i+j*dof1d] = i + j*dof1d*dof1d;//Lex
+               faceMap[i+j*dof1d] = (dof1d-1-i) + j*dof1d*dof1d;
             }
          }
          break;
@@ -3067,7 +3069,8 @@ static void GetFaceDofs(const int dim, const int face_id, const int dof1d, int* 
          {
             for (int j = 0; j < dof1d; ++j)
             {
-               faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;
+               // faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;//Lex
+               faceMap[i+j*dof1d] = (dof1d-1-i)*dof1d + j*dof1d*dof1d;
             }
          }
          break;
@@ -4190,7 +4193,7 @@ void FaceQuadratureInterpolator::Eval3D(
    // MFEM_FORALL(f, NF,
    // {
    for (int f = 0; f < NF; ++f)
-   {   
+   {
       const int ND1D = T_ND1D ? T_ND1D : nd;
       const int NQ1D = T_NQ1D ? T_NQ1D : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
