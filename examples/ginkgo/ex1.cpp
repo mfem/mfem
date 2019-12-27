@@ -1,4 +1,5 @@
 //                                MFEM Example 1
+//                             GINKGO Modification
 //
 // Compile with: make ex1
 //
@@ -193,7 +194,7 @@ int main(int argc, char *argv[])
       if (use_ginkgo_solver)
       {
 #ifdef MFEM_USE_GINKGO
-         // 11a. Solve the linear system A X = B with Ginkgo.
+         // Solve the linear system with CG + ILU from Ginkgo.
          std::string executor = "reference";
          auto exec = gko::ReferenceExecutor::create();
          auto ilu_precond =
@@ -203,7 +204,6 @@ int main(int argc, char *argv[])
          GinkgoWrappers::CGSolver ginkgo_solver(executor, 1, 2000, 1e-12, 0.0,
                                                 ilu_precond.release() );
          ginkgo_solver.solve(&((SparseMatrix&)(*A)), X, B);
-
 #endif
       }
       else
@@ -224,7 +224,6 @@ int main(int argc, char *argv[])
    else // No preconditioning for now in partial assembly mode.
    {
       CG(*A, B, X, 1, 2000, 1e-12, 0.0);
-
    }
 
    // 12. Recover the solution as a finite element grid function.

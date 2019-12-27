@@ -13,7 +13,6 @@
 
 #ifdef MFEM_USE_GINKGO
 
-
 #include "ginkgo.hpp"
 #include "sparsemat.hpp"
 #include "../general/globals.hpp"
@@ -23,11 +22,12 @@
 #include <algorithm>
 #include <cmath>
 
-
 namespace mfem
 {
+
 namespace GinkgoWrappers
 {
+
 GinkgoIterativeSolverBase::GinkgoIterativeSolverBase(
    const std::string &exec_type, int print_iter, int max_num_iter,
    double RTOLERANCE, double ATOLERANCE)
@@ -69,8 +69,6 @@ GinkgoIterativeSolverBase::GinkgoIterativeSolverBase(
       .on(executor);
 }
 
-
-
 void
 GinkgoIterativeSolverBase::initialize_ginkgo_log(gko::matrix::Dense<double>* b)
 {
@@ -83,10 +81,8 @@ GinkgoIterativeSolverBase::initialize_ginkgo_log(gko::matrix::Dense<double>* b)
 
 }
 
-
-
 void
-GinkgoIterativeSolverBase::apply(Vector &      solution,
+GinkgoIterativeSolverBase::apply(Vector &solution,
                                  const Vector &rhs)
 {
    // some shortcuts.
@@ -139,11 +135,10 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
 
    // The convergence_logger object contains the residual vector after the
    // solver has returned. use this vector to compute the residual norm of the
-   // solution. Get the residual norm from the logger. As the convergence
-   // logger returns a `linop`, it is necessary to convert it to a Dense
-   // matrix. Additionally, if the logger is logging on the gpu, it is
-   // necessary to copy the data to the host and hence the
-   // `residual_norm_d_master`
+   // solution. Get the residual norm from the logger. As the convergence logger
+   // returns a `linop`, it is necessary to convert it to a Dense matrix.
+   // Additionally, if the logger is logging on the gpu, it is necessary to copy
+   // the data to the host and hence the `residual_norm_d_master`
    auto residual_norm = convergence_logger->get_residual_norm();
    auto residual_norm_d =
       gko::as<gko::matrix::Dense<double>>(residual_norm);
@@ -176,9 +171,10 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
    }
 
    MFEM_VERIFY(b_norm.get()->at(0, 0) != 0.0, " rhs norm is zero");
-   // Some residual norm and convergence print outs. As both `residual_norm_d_master` and `b_norm` are seen as Dense
-   // matrices, we use the `at` function to get the first value here. In case
-   // of multiple right hand sides, this will need to be modified.
+   // Some residual norm and convergence print outs. As both
+   // `residual_norm_d_master` and `b_norm` are seen as Dense matrices, we use
+   // the `at` function to get the first value here. In case of multiple right
+   // hand sides, this will need to be modified.
    auto fin_res_norm = std::pow(residual_norm_d_master->at(0,0) / b_norm->at(0,0),
                                 2);
    if (num_iteration==max_iter &&
@@ -225,7 +221,6 @@ GinkgoIterativeSolverBase::apply(Vector &      solution,
              solution.GetData());
 }
 
-
 void
 GinkgoIterativeSolverBase::initialize(
    const SparseMatrix *matrix)
@@ -259,11 +254,9 @@ GinkgoIterativeSolverBase::initialize(
    system_matrix->copy_from(system_matrix_compute.get());
 }
 
-
-
 void
 GinkgoIterativeSolverBase::solve(const SparseMatrix *matrix,
-                                 Vector &      solution,
+                                 Vector &solution,
                                  const Vector &rhs)
 {
    initialize(matrix);
@@ -271,10 +264,9 @@ GinkgoIterativeSolverBase::solve(const SparseMatrix *matrix,
 }
 
 
-
 /* ---------------------- CGSolver ------------------------ */
 CGSolver::CGSolver(
-   const std::string &   exec_type,
+   const std::string &exec_type,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
@@ -288,10 +280,8 @@ CGSolver::CGSolver(
       cg::build().with_criteria(this->combined_factory).on(this->executor);
 }
 
-
-
 CGSolver::CGSolver(
-   const std::string &                       exec_type,
+   const std::string &exec_type,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
@@ -309,10 +299,9 @@ CGSolver::CGSolver(
 }
 
 
-
 /* ---------------------- BICGSTABSolver ------------------------ */
 BICGSTABSolver::BICGSTABSolver(
-   const std::string &   exec_type,
+   const std::string &exec_type,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
@@ -327,10 +316,8 @@ BICGSTABSolver::BICGSTABSolver(
                       .on(this->executor);
 }
 
-
-
 BICGSTABSolver::BICGSTABSolver(
-   const std::string &                       exec_type,
+   const std::string &exec_type,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
@@ -346,7 +333,6 @@ BICGSTABSolver::BICGSTABSolver(
                       .with_preconditioner(preconditioner)
                       .on(this->executor);
 }
-
 
 
 /* ---------------------- CGSSolver ------------------------ */
@@ -365,10 +351,8 @@ CGSSolver::CGSSolver(
       cgs::build().with_criteria(this->combined_factory).on(this->executor);
 }
 
-
-
 CGSSolver::CGSSolver(
-   const std::string &                       exec_type,
+   const std::string &exec_type,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
@@ -384,7 +368,6 @@ CGSSolver::CGSSolver(
                       .with_preconditioner(preconditioner)
                       .on(this->executor);
 }
-
 
 
 /* ---------------------- FCGSolver ------------------------ */
@@ -403,10 +386,8 @@ FCGSolver::FCGSolver(
       fcg::build().with_criteria(this->combined_factory).on(this->executor);
 }
 
-
-
 FCGSolver::FCGSolver(
-   const std::string &                       exec_type,
+   const std::string &exec_type,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
@@ -424,9 +405,7 @@ FCGSolver::FCGSolver(
 }
 
 
-
 /* ---------------------- GMRESSolver ------------------------ */
-
 GMRESSolver::GMRESSolver(
    const std::string &exec_type,
    int print_iter,
@@ -444,10 +423,8 @@ GMRESSolver::GMRESSolver(
                       .on(this->executor);
 }
 
-
-
 GMRESSolver::GMRESSolver(
-   const std::string &                       exec_type,
+   const std::string &exec_type,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
@@ -464,7 +441,6 @@ GMRESSolver::GMRESSolver(
                       .with_preconditioner(preconditioner)
                       .on(this->executor);
 }
-
 
 
 /* ---------------------- IRSolver ------------------------ */
@@ -483,10 +459,8 @@ IRSolver::IRSolver(
       ir::build().with_criteria(this->combined_factory).on(this->executor);
 }
 
-
-
 IRSolver::IRSolver(
-   const std::string &                       exec_type,
+   const std::string &exec_type,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
@@ -505,6 +479,7 @@ IRSolver::IRSolver(
 
 
 } // namespace GinkgoWrappers
-}
+
+} // namespace mfem
 
 #endif // MFEM_USE_GINKGO
