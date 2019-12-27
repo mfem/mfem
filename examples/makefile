@@ -41,6 +41,9 @@ endif
 ifeq ($(MFEM_USE_PUMI),YES)
    SUBDIRS += pumi
 endif
+ifeq ($(MFEM_USE_HIOP),YES)
+   SUBDIRS += hiop
+endif
 ifeq ($(MFEM_USE_GINKGO),YES)
    SUBDIRS += ginkgo
 endif

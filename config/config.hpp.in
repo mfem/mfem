@@ -100,7 +100,7 @@
 // Enable functionality based on the Gecko library
 // #define MFEM_USE_GECKO
 
-// Enable MFEM features that use the Ginkgo library .
+// Enable MFEM features based on the Ginkgo library
 // #define MFEM_USE_GINKGO
 
 // Enable secure socket streams based on the GNUTLS library

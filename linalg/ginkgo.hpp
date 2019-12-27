@@ -64,9 +64,9 @@ double compute_norm(const gko::matrix::Dense<ValueType> *b)
  * vector in order to print a table of real vs recurrent (internal to the
  * solvers) residual norms.
  *
- * This has been taken from the custom-logger example of
- * Ginkgo. See the custom-logger example to understand how to write and modify
- * your own loggers with Ginkgo.
+ * This has been taken from the custom-logger example of Ginkgo. See the
+ * custom-logger example to understand how to write and modify your own loggers
+ * with Ginkgo.
  *
  * @ingroup GinkgoWrappers
  */
@@ -91,8 +91,8 @@ struct ResidualLogger : gko::log::Logger
          mfem::out << '|' << std::setw(10) << iterations[i] << '|'
                    << std::setw(25) << real_norms[i] << '|' << std::endl;
       }
-      // std::defaultfloat could be used here but some compilers
-      // do not support it properly, e.g. the Intel compiler
+      // std::defaultfloat could be used here but some compilers do not support
+      // it properly, e.g. the Intel compiler
       mfem::out.unsetf(std::ios_base::floatfield);
       // Print a separation line
       mfem::out << '|' << std::setfill('-') << std::setw(11) << '|' <<
@@ -101,7 +101,7 @@ struct ResidualLogger : gko::log::Logger
 
    using gko_dense = gko::matrix::Dense<ValueType>;
 
-   // Customize the logging hook which is called everytime an iteration is
+   // Customize the logging hook which is called every time an iteration is
    // completed
    void on_iteration_complete(const gko::LinOp *,
                               const gko::size_type &iteration,
@@ -181,13 +181,11 @@ private:
 
 
 /**
-* This class forms the base class for all of Ginkgo's iterative solvers.
-* The various derived classes only take
-* the additional data that is specific to them and solve the given linear
-* system. The entire collection of solvers that Ginkgo implements is
-* available at <a Ginkgo
-* href="https://ginkgo-project.github.io/ginkgo/doc/develop/"> documentation
-* and manual pages</a>.
+* This class forms the base class for all of Ginkgo's iterative solvers.  The
+* various derived classes only take the additional data that is specific to them
+* and solve the given linear system. The entire collection of solvers that
+* Ginkgo implements is available at the Ginkgo documentation and manual pages,
+* https://ginkgo-project.github.io/ginkgo/doc/develop.
 *
 * @ingroup GinkgoWrappers
 */
@@ -204,8 +202,8 @@ public:
     * Ginkgo currently supports three different executor types:
     *
     * +    OmpExecutor specifies that the data should be stored and the
-    * associated operations executed on an OpenMP-supporting device (e.g. host
-    * CPU);
+    *      associated operations executed on an OpenMP-supporting device (e.g.
+    *      host CPU);
     * ```
     * auto omp = gko::create<gko::OmpExecutor>();
     * ```
@@ -258,16 +256,14 @@ public:
 
    /**
     * Solve the linear system <tt>Ax=b</tt>. Dependent on the information
-    * provided by derived classes one of Ginkgo's linear solvers is
-    * chosen.
+    * provided by derived classes one of Ginkgo's linear solvers is chosen.
     */
    void
    apply(Vector &solution, const Vector &rhs);
 
    /**
     * Solve the linear system <tt>Ax=b</tt>. Dependent on the information
-    * provided by derived classes one of Ginkgo's linear solvers is
-    * chosen.
+    * provided by derived classes one of Ginkgo's linear solvers is chosen.
     */
    void
    solve(const SparseMatrix *matrix,
@@ -303,8 +299,8 @@ protected:
    std::shared_ptr<gko::log::Convergence<>> convergence_logger;
 
    /**
-    * The residual logger object used to check for convergence and other
-    * solver data if needed.
+    * The residual logger object used to check for convergence and other solver
+    * data if needed.
     */
    std::shared_ptr<ResidualLogger<>> residual_logger;
 
@@ -323,10 +319,8 @@ protected:
 
 private:
    /**
-    * Initialize the Ginkgo logger object with event masks. Refer to
-    * <a
-    * href="https://github.com/ginkgo-project/ginkgo/blob/develop/include/ginkgo/core/log/logger.hpp">Ginkgo's
-    * logging event masks.</a>
+    * Initialize the Ginkgo logger object with event masks. Refer to the logging
+    * event masks in Ginkgo's .../include/ginkgo/core/log/logger.hpp.
     */
    void
    initialize_ginkgo_log(gko::matrix::Dense<double>* b);
@@ -341,9 +335,9 @@ private:
    std::shared_ptr<gko::matrix::Csr<>> system_matrix;
 
    /**
-    * The execution paradigm as a string to be set by the user. The choices
-    * are between `omp`, `cuda` and `reference` and more details can be found
-    * in Ginkgo's documentation.
+    * The execution paradigm as a string to be set by the user. The choices are
+    * between `omp`, `cuda` and `reference` and more details can be found in
+    * Ginkgo's documentation.
     */
    const std::string exec_type;
 };
@@ -396,7 +390,7 @@ public:
 
 
 /**
- * An implementation of the solver interface using the Ginkgo Bicgstab solver.
+ * An implementation of the solver interface using the Ginkgo BiCGStab solver.
  *
  * @ingroup GinkgoWrappers
  */
@@ -501,8 +495,7 @@ public:
  * In contrast to the standard CG based on the Polack-Ribiere formula, the
  * flexible CG uses the Fletcher-Reeves formula for creating the orthonormal
  * vectors spanning the Krylov subspace. This increases the computational cost
- * of every Krylov solver iteration but allows for non-constant
- * preconditioners.
+ * of every Krylov solver iteration but allows for non-constant preconditioners.
  *
  * @ingroup GinkgoWrappers
  */

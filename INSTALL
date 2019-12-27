@@ -349,11 +349,11 @@ MFEM_USE_STRUMPACK = YES/NO
    classes. When enabled, this option uses the STRUMPACK_* library options, see
    below.
 
-MFEM_USE_GINKGO= YES/NO
-   Enable MFEM functionality based on the Ginkgo library
-   (https://github.com/ginkgo-project/ginkgo) which provides iterative
-   linear solvers and preconditioners with OpenMP, CUDA backends. When enabled,
-   the user can use Ginkgo's solvers and preconditioners as shown in ex1.cpp.
+MFEM_USE_GINKGO = YES/NO
+   Enable MFEM functionality based on the Ginkgo library, which provides
+   iterative linear solvers and preconditioners with OpenMP, CUDA backends, see
+   https://github.com/ginkgo-project/ginkgo. When enabled, the user can use
+   Ginkgo's solvers and preconditioners as shown in examples/ginkgo/.
 
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
@@ -528,11 +528,10 @@ The specific libraries and their options are:
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
 
-- Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that
-  Ginkgo needs a C++ compiler that supports the C++-11 standard.
-  More specific requirements and dependencies for specific modules can
-  be obtained from the Ginkgo webpage below.
-  URL: https://ginkgo-project.github.io/
+- Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
+  C++ compiler that supports the C++-11 standard. For additional requirements
+  and dependencies of specific modules see the Ginkgo webpage below.
+  URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT (Not used), GINKGO_LIB.
 
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
