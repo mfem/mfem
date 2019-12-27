@@ -185,7 +185,7 @@ Vector * HypreParVector::GlobalVector() const
 
 HypreParVector& HypreParVector::operator=(double d)
 {
-   hypre_ParVectorSetConstantValues(x,d);
+   Vector::operator=(d);
    return *this;
 }
 
@@ -198,10 +198,7 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
    }
 #endif
 
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = y.data[i];
-   }
+   Vector::operator=(y);
    return *this;
 }
 
@@ -1024,6 +1021,8 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b)
 {
+   x.HostRead();
+   (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
    return hypre_ParCSRMatrixMatvec(a, A, x, b, y);
 }
 
@@ -1035,7 +1034,7 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
                << ", expected size = " << Height());
 
    auto x_data = x.HostRead();
-   auto y_data = y.HostWrite();
+   auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
@@ -1067,7 +1066,7 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
    // Note: x has the dimensions of Y (height), and
    //       y has the dimensions of X (width)
    auto x_data = x.HostRead();
-   auto y_data = y.HostWrite();
+   auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
@@ -2009,10 +2008,12 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
       return;
    }
 
+   b.HostRead();
    if (!iterative_mode)
    {
       if (type == 0 && relax_times == 1)
       {
+         x.HostWrite();
          HYPRE_ParCSRDiagScale(NULL, *A, b, x);
          if (relax_weight != 1.0)
          {
@@ -2022,6 +2023,7 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
       }
       x = 0.0;
    }
+   x.HostReadWrite();
 
    if (V == NULL)
    {
@@ -2071,21 +2073,25 @@ void HypreSmoother::Mult(const Vector &b, Vector &x) const
       mfem_error("HypreSmoother::Mult (...) : HypreParMatrix A is missing");
       return;
    }
+
+   auto b_data = b.HostRead();
+   auto x_data = iterative_mode ? x.HostReadWrite() : x.HostWrite();
+
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             b.GetData(),
+                             const_cast<double*>(b_data),
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
-                             x.GetData(),
+                             x_data,
                              A -> GetColStarts());
    }
    else
    {
-      B -> SetData(b.GetData());
-      X -> SetData(x.GetData());
+      B -> SetData(const_cast<double*>(b_data));
+      X -> SetData(x_data);
    }
 
    Mult(*B, *X);
@@ -2202,7 +2208,14 @@ HypreSolver::~HypreSolver()
 }
 
 
-HyprePCG::HyprePCG(HypreParMatrix &_A) : HypreSolver(&_A)
+HyprePCG::HyprePCG(MPI_Comm comm) : precond(NULL)
+{
+   iterative_mode = true;
+
+   HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+}
+
+HyprePCG::HyprePCG(HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -2211,6 +2224,26 @@ HyprePCG::HyprePCG(HypreParMatrix &_A) : HypreSolver(&_A)
    HYPRE_ParCSRMatrixGetComm(*A, &comm);
 
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+}
+
+void HyprePCG::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   if (precond)
+   {
+      precond->SetOperator(*A);
+      this->SetPreconditioner(*precond);
+   }
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 void HyprePCG::SetTol(double tol)
@@ -2233,12 +2266,14 @@ void HyprePCG::SetPrintLevel(int print_lvl)
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_lvl);
 }
 
-void HyprePCG::SetPreconditioner(HypreSolver &precond)
+void HyprePCG::SetPreconditioner(HypreSolver &_precond)
 {
+   precond = &_precond;
+
    HYPRE_ParCSRPCGSetPrecond(pcg_solver,
-                             precond.SolveFcn(),
-                             precond.SetupFcn(),
-                             precond);
+                             _precond.SolveFcn(),
+                             _precond.SetupFcn(),
+                             _precond);
 }
 
 void HyprePCG::SetResidualConvergenceOptions(int res_frequency, double rtol)
@@ -2336,22 +2371,55 @@ HyprePCG::~HyprePCG()
 }
 
 
+HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
+{
+   iterative_mode = true;
+
+   HYPRE_ParCSRGMRESCreate(comm, &gmres_solver);
+   SetDefaultOptions();
+}
+
 HypreGMRES::HypreGMRES(HypreParMatrix &_A) : HypreSolver(&_A)
 {
    MPI_Comm comm;
-
-   int k_dim    = 50;
-   int max_iter = 100;
-   double tol   = 1e-6;
 
    iterative_mode = true;
 
    HYPRE_ParCSRMatrixGetComm(*A, &comm);
 
    HYPRE_ParCSRGMRESCreate(comm, &gmres_solver);
+   SetDefaultOptions();
+}
+
+void HypreGMRES::SetDefaultOptions()
+{
+   int k_dim    = 50;
+   int max_iter = 100;
+   double tol   = 1e-6;
+
    HYPRE_ParCSRGMRESSetKDim(gmres_solver, k_dim);
    HYPRE_ParCSRGMRESSetMaxIter(gmres_solver, max_iter);
    HYPRE_ParCSRGMRESSetTol(gmres_solver, tol);
+}
+
+void HypreGMRES::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   if (precond)
+   {
+      precond->SetOperator(*A);
+      this->SetPreconditioner(*precond);
+   }
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 void HypreGMRES::SetTol(double tol)
@@ -2379,12 +2447,14 @@ void HypreGMRES::SetPrintLevel(int print_lvl)
    HYPRE_GMRESSetPrintLevel(gmres_solver, print_lvl);
 }
 
-void HypreGMRES::SetPreconditioner(HypreSolver &precond)
+void HypreGMRES::SetPreconditioner(HypreSolver &_precond)
 {
+   precond = &_precond;
+
    HYPRE_ParCSRGMRESSetPrecond(gmres_solver,
-                               precond.SolveFcn(),
-                               precond.SetupFcn(),
-                               precond);
+                               _precond.SolveFcn(),
+                               _precond.SetupFcn(),
+                               _precond);
 }
 
 void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
@@ -2461,10 +2531,40 @@ HypreGMRES::~HypreGMRES()
 }
 
 
+void HypreDiagScale::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
+}
+
+
+HypreParaSails::HypreParaSails(MPI_Comm comm)
+{
+   HYPRE_ParaSailsCreate(comm, &sai_precond);
+   SetDefaultOptions();
+}
+
 HypreParaSails::HypreParaSails(HypreParMatrix &A) : HypreSolver(&A)
 {
    MPI_Comm comm;
 
+   HYPRE_ParCSRMatrixGetComm(A, &comm);
+
+   HYPRE_ParaSailsCreate(comm, &sai_precond);
+   SetDefaultOptions();
+}
+
+void HypreParaSails::SetDefaultOptions()
+{
    int    sai_max_levels = 1;
    double sai_threshold  = 0.1;
    double sai_filter     = 0.1;
@@ -2473,15 +2573,64 @@ HypreParaSails::HypreParaSails(HypreParMatrix &A) : HypreSolver(&A)
    int    sai_reuse      = 0;
    int    sai_logging    = 1;
 
-   HYPRE_ParCSRMatrixGetComm(A, &comm);
-
-   HYPRE_ParaSailsCreate(comm, &sai_precond);
    HYPRE_ParaSailsSetParams(sai_precond, sai_threshold, sai_max_levels);
    HYPRE_ParaSailsSetFilter(sai_precond, sai_filter);
    HYPRE_ParaSailsSetSym(sai_precond, sai_sym);
    HYPRE_ParaSailsSetLoadbal(sai_precond, sai_loadbal);
    HYPRE_ParaSailsSetReuse(sai_precond, sai_reuse);
    HYPRE_ParaSailsSetLogging(sai_precond, sai_logging);
+}
+
+void HypreParaSails::ResetSAIPrecond(MPI_Comm comm)
+{
+   HYPRE_Int  sai_max_levels;
+   HYPRE_Real sai_threshold;
+   HYPRE_Real sai_filter;
+   HYPRE_Int  sai_sym;
+   HYPRE_Real sai_loadbal;
+   HYPRE_Int  sai_reuse;
+   HYPRE_Int  sai_logging;
+
+   // hypre_ParAMGData *amg_data = (hypre_ParAMGData *)sai_precond;
+   HYPRE_ParaSailsGetNlevels(sai_precond, &sai_max_levels);
+   HYPRE_ParaSailsGetThresh(sai_precond, &sai_threshold);
+   HYPRE_ParaSailsGetFilter(sai_precond, &sai_filter);
+   HYPRE_ParaSailsGetSym(sai_precond, &sai_sym);
+   HYPRE_ParaSailsGetLoadbal(sai_precond, &sai_loadbal);
+   HYPRE_ParaSailsGetReuse(sai_precond, &sai_reuse);
+   HYPRE_ParaSailsGetLogging(sai_precond, &sai_logging);
+
+   HYPRE_ParaSailsDestroy(sai_precond);
+   HYPRE_ParaSailsCreate(comm, &sai_precond);
+
+   HYPRE_ParaSailsSetParams(sai_precond, sai_threshold, sai_max_levels);
+   HYPRE_ParaSailsSetFilter(sai_precond, sai_filter);
+   HYPRE_ParaSailsSetSym(sai_precond, sai_sym);
+   HYPRE_ParaSailsSetLoadbal(sai_precond, sai_loadbal);
+   HYPRE_ParaSailsSetReuse(sai_precond, sai_reuse);
+   HYPRE_ParaSailsSetLogging(sai_precond, sai_logging);
+}
+
+void HypreParaSails::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   if (A)
+   {
+      MPI_Comm comm;
+      HYPRE_ParCSRMatrixGetComm(*A, &comm);
+      ResetSAIPrecond(comm);
+   }
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 void HypreParaSails::SetSymmetry(int sym)
@@ -2495,24 +2644,67 @@ HypreParaSails::~HypreParaSails()
 }
 
 
+HypreEuclid::HypreEuclid(MPI_Comm comm)
+{
+   HYPRE_EuclidCreate(comm, &euc_precond);
+   SetDefaultOptions();
+}
+
 HypreEuclid::HypreEuclid(HypreParMatrix &A) : HypreSolver(&A)
 {
    MPI_Comm comm;
 
+   HYPRE_ParCSRMatrixGetComm(A, &comm);
+
+   HYPRE_EuclidCreate(comm, &euc_precond);
+   SetDefaultOptions();
+}
+
+void HypreEuclid::SetDefaultOptions()
+{
    int    euc_level = 1; // We use ILU(1)
    int    euc_stats = 0; // No logging
    int    euc_mem   = 0; // No memory logging
    int    euc_bj    = 0; // 1: Use Block Jacobi
    int    euc_ro_sc = 0; // 1: Use Row scaling
 
-   HYPRE_ParCSRMatrixGetComm(A, &comm);
-
-   HYPRE_EuclidCreate(comm, &euc_precond);
    HYPRE_EuclidSetLevel(euc_precond, euc_level);
    HYPRE_EuclidSetStats(euc_precond, euc_stats);
    HYPRE_EuclidSetMem(euc_precond, euc_mem);
    HYPRE_EuclidSetBJ(euc_precond, euc_bj);
    HYPRE_EuclidSetRowScale(euc_precond, euc_ro_sc);
+}
+
+void HypreEuclid::ResetEuclidPrecond(MPI_Comm comm)
+{
+   // Euclid does not seem to offer access to its current configuration, so we
+   // simply reset it to its default options.
+   HYPRE_EuclidDestroy(euc_precond);
+   HYPRE_EuclidCreate(comm, &euc_precond);
+
+   SetDefaultOptions();
+}
+
+void HypreEuclid::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   if (A)
+   {
+      MPI_Comm comm;
+      HYPRE_ParCSRMatrixGetComm(*A, &comm);
+      ResetEuclidPrecond(comm);
+   }
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 HypreEuclid::~HypreEuclid()
@@ -2790,9 +2982,18 @@ HypreBoomerAMG::~HypreBoomerAMG()
    HYPRE_BoomerAMGDestroy(amg_precond);
 }
 
+HypreAMS::HypreAMS(ParFiniteElementSpace *edge_fespace)
+{
+   Init(edge_fespace);
+}
 
 HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
    : HypreSolver(&A)
+{
+   Init(edge_fespace);
+}
+
+void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 {
    int cycle_type       = 13;
    int rlx_type         = 2;
@@ -2976,6 +3177,22 @@ HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
    error_mode = IGNORE_HYPRE_ERRORS;
 }
 
+void HypreAMS::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
+}
+
 HypreAMS::~HypreAMS()
 {
    HYPRE_AMSDestroy(ams);
@@ -2996,8 +3213,18 @@ void HypreAMS::SetPrintLevel(int print_lvl)
    HYPRE_AMSSetPrintLevel(ams, print_lvl);
 }
 
+HypreADS::HypreADS(ParFiniteElementSpace *face_fespace)
+{
+   Init(face_fespace);
+}
+
 HypreADS::HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
    : HypreSolver(&A)
+{
+   Init(face_fespace);
+}
+
+void HypreADS::Init(ParFiniteElementSpace *face_fespace)
 {
    int cycle_type       = 11;
    int rlx_type         = 2;
@@ -3218,6 +3445,22 @@ HypreADS::HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
    // errors in the Setup (specifically in the l1 row norm computation). See the
    // documentation of SetErrorMode() for more details.
    error_mode = IGNORE_HYPRE_ERRORS;
+}
+
+void HypreADS::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 HypreADS::~HypreADS()
