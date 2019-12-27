@@ -86,6 +86,11 @@ if (MFEM_USE_STRUMPACK)
   list(APPEND HDRS strumpack.hpp)
 endif()
 
+if (MFEM_USE_HIOP)
+  list(APPEND SRCS hiop.cpp)
+  list(APPEND HDRS hiop.hpp)
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 

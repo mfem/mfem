@@ -152,6 +152,54 @@ public:
    /// Return the element data, i.e. the array #A, const version.
    inline const double *GetData() const { return A; }
 
+   // Memory access methods for the #I array.
+   Memory<int> &GetMemoryI() { return I; }
+   const Memory<int> &GetMemoryI() const { return I; }
+   const int *ReadI(bool on_dev = true) const
+   { return mfem::Read(I, Height()+1, on_dev); }
+   int *WriteI(bool on_dev = true)
+   { return mfem::Write(I, Height()+1, on_dev); }
+   int *ReadWriteI(bool on_dev = true)
+   { return mfem::ReadWrite(I, Height()+1, on_dev); }
+   const int *HostReadI() const
+   { return mfem::Read(I, Height()+1, false); }
+   int *HostWriteI()
+   { return mfem::Write(I, Height()+1, false); }
+   int *HostReadWriteI()
+   { return mfem::ReadWrite(I, Height()+1, false); }
+
+   // Memory access methods for the #J array.
+   Memory<int> &GetMemoryJ() { return J; }
+   const Memory<int> &GetMemoryJ() const { return J; }
+   const int *ReadJ(bool on_dev = true) const
+   { return mfem::Read(J, J.Capacity(), on_dev); }
+   int *WriteJ(bool on_dev = true)
+   { return mfem::Write(J, J.Capacity(), on_dev); }
+   int *ReadWriteJ(bool on_dev = true)
+   { return mfem::ReadWrite(J, J.Capacity(), on_dev); }
+   const int *HostReadJ() const
+   { return mfem::Read(J, J.Capacity(), false); }
+   int *HostWriteJ()
+   { return mfem::Write(J, J.Capacity(), false); }
+   int *HostReadWriteJ()
+   { return mfem::ReadWrite(J, J.Capacity(), false); }
+
+   // Memory access methods for the #A array.
+   Memory<double> &GetMemoryData() { return A; }
+   const Memory<double> &GetMemoryData() const { return A; }
+   const double *ReadData(bool on_dev = true) const
+   { return mfem::Read(A, A.Capacity(), on_dev); }
+   double *WriteData(bool on_dev = true)
+   { return mfem::Write(A, A.Capacity(), on_dev); }
+   double *ReadWriteData(bool on_dev = true)
+   { return mfem::ReadWrite(A, A.Capacity(), on_dev); }
+   const double *HostReadData() const
+   { return mfem::Read(A, A.Capacity(), false); }
+   double *HostWriteData()
+   { return mfem::Write(A, A.Capacity(), false); }
+   double *HostReadWriteData()
+   { return mfem::ReadWrite(A, A.Capacity(), false); }
+
    /// Returns the number of elements in row @a i.
    int RowSize(const int i) const;
 

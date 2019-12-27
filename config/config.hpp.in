@@ -124,6 +124,9 @@
 // Enable MFEM functionality based on the PUMI library
 // #define MFEM_USE_PUMI
 
+// Enable MFEM functionality based on the HIOP library.
+// #define MFEM_USE_HIOP
+
 // Build the NVIDIA GPU/CUDA-enabled version of the MFEM library.
 // Requires a CUDA compiler (nvcc).
 // #define MFEM_USE_CUDA

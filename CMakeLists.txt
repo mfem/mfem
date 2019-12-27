@@ -263,7 +263,7 @@ endif()
 
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
-  find_package(Axom REQUIRED Sidre SLIC axom_utils)
+  find_package(Axom REQUIRED Axom)
 endif()
 
 # PUMI
@@ -280,6 +280,12 @@ if (MFEM_USE_PUMI)
       SCOREC::apf INTERFACE_INCLUDE_DIRECTORIES)
     set(PUMI_LIBRARIES SCOREC::core)
   endif()
+endif()
+
+# HiOp optimizer
+if (MFEM_USE_HIOP)
+  find_package(HIOP REQUIRED)
+  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
 endif()
 
 # CUDA
@@ -331,8 +337,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO Ginkgo GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO Ginkgo GNUTLS NETCDF MPFR
+    PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
