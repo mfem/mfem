@@ -117,7 +117,10 @@ public:
                             required));
    }
 
-
+   /** Parse the command-line options. Note that this function expects all the
+       options provided through the command line to have a corresponding
+       AddOption. In particular, this function cannot be used for partial
+       parsing. */
    void Parse();
    bool Good() const { return (error_type == 0); }
    bool Help() const { return (error_type == 1); }
