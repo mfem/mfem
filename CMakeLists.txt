@@ -273,6 +273,12 @@ if (MFEM_USE_PUMI)
   endif()
 endif()
 
+# HiOp optimizer
+if (MFEM_USE_HIOP)
+  find_package(HIOP REQUIRED)
+  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
+endif()
+
 # CUDA
 if (MFEM_USE_CUDA)
    set(CMAKE_CUDA_STANDARD 11)
@@ -323,7 +329,7 @@ endif()
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
     MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
+    HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
