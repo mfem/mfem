@@ -4190,9 +4190,7 @@ void FaceQuadratureInterpolator::Eval3D(
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
    auto nor = Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF);
-   // MFEM_FORALL(f, NF,
-   // {
-   for (int f = 0; f < NF; ++f)
+   MFEM_FORALL(f, NF,
    {
       const int ND1D = T_ND1D ? T_ND1D : nd;
       const int NQ1D = T_NQ1D ? T_NQ1D : nq;
@@ -4343,7 +4341,7 @@ void FaceQuadratureInterpolator::Eval3D(
             }
          }
       }
-   }//);
+   });
 }
 
 void FaceQuadratureInterpolator::Mult(
