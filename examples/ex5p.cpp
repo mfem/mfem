@@ -21,7 +21,7 @@
 //
 //               The example demonstrates the use of the BlockMatrix class, as
 //               well as the collective saving of several grid functions in a
-//               VisIt (visit.llnl.gov) visualization format.
+//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -239,7 +239,6 @@ int main(int argc, char *argv[])
 
    // 12. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
-
    int maxIter(500);
    double rtol(1.e-6);
    double atol(1.e-10);

@@ -14,7 +14,6 @@
 #include "../general/text.hpp"
 #include "picojson.h"
 
-
 #include <cerrno>      // errno
 #include <sstream>
 
@@ -731,7 +730,7 @@ ParaViewDataCollection::~ParaViewDataCollection()
 {
    if (myrank==0)
    {
-      //Close the data colection
+      // Close the data collection
       pvd_stream << "</Collection>" << std::endl;
       pvd_stream << "</VTKFile>" << std::endl;
       pvd_stream.close();
@@ -739,7 +738,8 @@ ParaViewDataCollection::~ParaViewDataCollection()
 }
 
 ParaViewDataCollection::ParaViewDataCollection(const std::string&
-                                               collection_name,  mfem::Mesh *mesh_ )
+                                               collection_name,
+                                               mfem::Mesh *mesh_)
    :DataCollection(collection_name, mesh_)
 {
    myrank = 0;
@@ -752,9 +752,9 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
 
    std::string dpath=GenerateCollectionPath();
    std::string pvdname=dpath+"/"+GeneratePVDFileName();
-   create_directory(dpath); //this one is a serial
+   create_directory(dpath); // this one is a serial
    pvd_stream.open(pvdname.c_str(),std::ios::out);
-   //initialize the file
+   // initialize the file
    pvd_stream << "<?xml version=\"1.0\"?>" << std::endl;
    pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"" << std::endl;
    pvd_stream << "     byte_order=\"LittleEndian\"" << std::endl;
@@ -780,7 +780,7 @@ void ParaViewDataCollection::SetLevelsOfDetail(int levels_of_detail_)
 
 void ParaViewDataCollection::Load(int )
 {
-   MFEM_WARNING("ParaViewDataCollection::Load() is not implemented!!!" );
+   MFEM_WARNING("ParaViewDataCollection::Load() is not implemented!");
 }
 
 std::string  ParaViewDataCollection::GenerateCollectionPath()
@@ -1037,7 +1037,6 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
                                                mfem::ParMesh *mesh_)
    :DataCollection(collection_name,mesh_)
 {
-
    lcomm = mesh_->GetComm();
    MPI_Comm_rank(lcomm, &myrank);
    MPI_Comm_size(lcomm, &nprocs);

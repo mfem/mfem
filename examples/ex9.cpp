@@ -26,8 +26,8 @@
 //               conditions through periodic meshes, as well as the use of GLVis
 //               for persistent visualization of a time-evolving solution. The
 //               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) and ParaView (www.paraview.org) is
-//               also illustrated.
+//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
+//               illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
                   "--no-paraview-datafiles",
-                  "Save data files for ParaView (www.paraview.org) visualization.");
+                  "Save data files for ParaView (paraview.org) visualization.");
    args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
                   "--ascii-datafiles",
                   "Use binary (Sidre) or ascii format for VisIt data files.");
