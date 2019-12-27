@@ -69,6 +69,9 @@ Miscellaneous
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
 
+- Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
+  and the new ParaViewDataCollection class.
+
 
 Version 4.0, released on May 24, 2019
 =====================================
