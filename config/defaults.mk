@@ -173,7 +173,7 @@ endif
 
 # LAPACK library configuration
 LAPACK_OPT =
-LAPACK_LIB = $(if $(NOTMAC), -llapack -lblas,-framework Accelerate)
+LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
 
 # OpenMP configuration
 OPENMP_OPT = $(XCOMPILER)-fopenmp
