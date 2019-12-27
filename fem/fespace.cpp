@@ -3492,6 +3492,7 @@ static int GetFaceQuadIndex3D(const int face_id, const int orientation, const in
 static int PermuteFaceL2(const int dim, const int face_id, const int orientation,
                        const int size1d, const int index)
 {
+   int i=0, j=0;
    switch(dim)
    {
    case 1:
@@ -3499,7 +3500,9 @@ static int PermuteFaceL2(const int dim, const int face_id, const int orientation
    case 2:
       return size1d - 1 - index;
    case 3:
-      return index;
+      i = index%size1d;
+      j = index/size1d;
+      return (size1d-1-i)+j*size1d;
    default:
       mfem_error("Incorrect dimension.");
       return 0;
