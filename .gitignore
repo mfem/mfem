@@ -53,6 +53,7 @@ examples/displaced.mesh
 examples/mesh.*
 examples/ex5.mesh
 examples/Example5*
+examples/PVExample*
 examples/Example9*
 examples/Example15*
 examples/Example16*
@@ -113,6 +114,7 @@ examples/petsc/sol.*
 examples/petsc/sol_p.*
 examples/petsc/sol_u.*
 examples/petsc/Example5*
+examples/petsc/ex9.mesh
 examples/petsc/ex9-mesh.*
 examples/petsc/ex9-init.*
 examples/petsc/ex9-final.*
@@ -123,6 +125,11 @@ examples/petsc/elastic_energy.*
 
 examples/pumi/ex1
 examples/pumi/ex[126]p
+
+examples/hiop/ex9.mesh
+examples/hiop/ex9-mesh.*
+examples/hiop/ex9-init.*
+examples/hiop/ex9-final.*
 
 examples/pumi/refined.mesh
 examples/pumi/sol.gf
