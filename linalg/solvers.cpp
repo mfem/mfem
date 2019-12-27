@@ -1477,6 +1477,62 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    return 1;
 }
 
+OptimizationProblem::OptimizationProblem(const int insize,
+                                         const Operator *C_,
+                                         const Operator *D_)
+   : C(C_), D(D_), c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL),
+     input_size(insize)
+{
+   if (C) { MFEM_ASSERT(C->Width() == input_size, "Wrong width of C."); }
+   if (D) { MFEM_ASSERT(D->Width() == input_size, "Wrong width of D."); }
+}
+
+void OptimizationProblem::SetEqualityConstraint(const Vector &c)
+{
+   MFEM_ASSERT(C, "The C operator is unspecified -- can't set constraints.");
+   MFEM_ASSERT(c.Size() == C->Height(), "Wrong size of the constraint.");
+
+   c_e = &c;
+}
+
+void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
+                                                  const Vector &dh)
+{
+   MFEM_ASSERT(D, "The D operator is unspecified -- can't set constraints.");
+   MFEM_ASSERT(dl.Size() == D->Height() && dh.Size() == D->Height(),
+               "Wrong size of the constraint.");
+
+   d_lo = &dl; d_hi = &dh;
+}
+
+void OptimizationProblem::SetSolutionBounds(const Vector &xl, const Vector &xh)
+{
+   MFEM_ASSERT(xl.Size() == input_size && xh.Size() == input_size,
+               "Wrong size of the constraint.");
+
+   x_lo = &xl; x_hi = &xh;
+}
+
+int OptimizationProblem::GetNumConstraints() const
+{
+   int m = 0;
+   if (C) { m += C->Height(); }
+   if (D) { m += D->Height(); }
+   return m;
+}
+
+void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
+{
+   if (print_level > 1)
+   {
+      MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
+                   "the l2 norm of (x - x_target).");
+   }
+   MFEM_ASSERT(prob.GetC(), "Linear constraint is not set.");
+   MFEM_ASSERT(prob.GetC()->Height() == 1, "Solver expects scalar constraint.");
+
+   problem = &prob;
+}
 
 void SLBQPOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
 {
@@ -1488,18 +1544,6 @@ void SLBQPOptimizer::SetLinearConstraint(const Vector &_w, double _a)
 {
    w.SetDataAndSize(_w.GetData(), _w.Size());
    a = _a;
-}
-
-void SLBQPOptimizer::SetPreconditioner(Solver &pr)
-{
-   mfem_error("SLBQPOptimizer::SetPreconditioner() : "
-              "not meaningful for this solver");
-}
-
-void SLBQPOptimizer::SetOperator(const Operator &op)
-{
-   mfem_error("SLBQPOptimizer::SetOperator() : "
-              "not meaningful for this solver");
 }
 
 inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
