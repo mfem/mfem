@@ -1,22 +1,42 @@
-//                       MFEM Example 9 - Parallel Version
+//  MFEM Example 9 with Nonlinear Constrained Optimization - Parallel Version
 //
 // Compile with: make ex9p
 //
 // Sample runs:
-//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -dt 0.01
-//    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
-//    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
-//    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
-//    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
-//    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
 //
-// Description:  This example code solves the time-dependent advection equation
+//    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 2
+//
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 0 -rs 2 -dt 0.01 -tf 10 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 0 -rs 2 -dt 0.01 -tf 10 -opt 2
+//
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 2
+//
+//    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh -p 1 -rs 1 -dt 0.002 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh -p 1 -rs 1 -dt 0.002 -tf 9 -opt 2
+//
+//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 2
+//
+//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 2 -rs 2 -dt 0.01 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 2 -rs 2 -dt 0.01 -tf 9 -opt 2
+//
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 3 -rs 3 -dt 0.0025 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 3 -rs 3 -dt 0.0025 -tf 9 -opt 2
+//
+//    mpirun -np 4 ex9p -m ../../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.02 -tf 8 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.02 -tf 8 -opt 2
+
+// Description:  This example modifies the standard MFEM ex9 by adding nonlinear
+//               constrained optimization capabilities through the SLBQP and
+//               HIOP solvers. It demonstrates how a user can define a custom
+//               class OptimizationProblem that includes linear/nonlinear
+//               equality/inequality constraints. This optimization is applied
+//               as post-processing to the solution of the transport equation.
+//
+//               Description of ex9:
+//               This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
@@ -26,8 +46,7 @@
 //               conditions through periodic meshes, as well as the use of GLVis
 //               for persistent visualization of a time-evolving solution. The
 //               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
-//               illustrated.
+//               with VisIt (visit.llnl.gov) is also illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -40,7 +59,11 @@ using namespace mfem;
 // inflow boundary condition are chosen based on this parameter.
 int problem;
 
+// Nonlinear optimizer.
+int optimizer_type;
+
 // Velocity coefficient
+bool invert_velocity = false;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
@@ -51,6 +74,132 @@ double inflow_function(const Vector &x);
 
 // Mesh bounding box
 Vector bb_min, bb_max;
+
+/// Computes C(x) = sum w_i x_i, where w is a given Vector.
+class LinearScaleOperator : public Operator
+{
+private:
+   ParFiniteElementSpace &pfes;
+   // Local weights.
+   const Vector &w;
+   // Gradient for the tdofs.
+   mutable DenseMatrix grad;
+
+public:
+   LinearScaleOperator(ParFiniteElementSpace &space, const Vector &weight)
+      : Operator(1, space.TrueVSize()),
+        pfes(space), w(weight), grad(1, width)
+   {
+      Vector w_glob(width);
+      pfes.Dof_TrueDof_Matrix()->MultTranspose(w, w_glob);
+      for (int i = 0; i < width; i++) { grad(0, i) = w_glob(i); }
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      Vector x_loc(w.Size());
+      pfes.GetProlongationMatrix()->Mult(x, x_loc);
+      const double loc_res = w * x_loc;
+      MPI_Allreduce(&loc_res, &y(0), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   }
+
+   virtual Operator &GetGradient(const Vector &x) const
+   {
+      return grad;
+   }
+};
+
+/// Nonlinear monotone bounded operator to test nonlinear ineq constraints.
+/// Computes D(x) = tanh(sum(x_i)).
+class TanhSumOperator : public Operator
+{
+private:
+   // Gradient for the tdofs.
+   mutable DenseMatrix grad;
+
+public:
+   TanhSumOperator(ParFiniteElementSpace &space)
+      : Operator(1, space.TrueVSize()), grad(1, width) { }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      double sum_loc = x.Sum();
+      MPI_Allreduce(&sum_loc, &y(0), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      y(0) = std::tanh(y(0));
+   }
+
+   virtual Operator &GetGradient(const Vector &x) const
+   {
+      double sum_loc = x.Sum();
+      double dtanh;
+      MPI_Allreduce(&sum_loc, &dtanh, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      dtanh = 1.0 - pow(std::tanh(dtanh), 2);
+
+      for (int i = 0; i < width; i++) { grad(0, i) = dtanh; }
+      return grad;
+   }
+};
+
+
+/** Monotone and conservative a-posteriori correction for transport solutions:
+ *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
+ *  sum w_i x_i = mass,
+ *  tanh(sum(x_i_min)) <= tanh(sum(x_i)) <= tanh(sum(x_i_max)),
+ *  x_i_min <= x_i <= x_i_max,
+ */
+class OptimizedTransportProblem : public OptimizationProblem
+{
+private:
+   const Vector &x_HO;
+   Vector massvec, d_lo, d_hi;
+   const LinearScaleOperator LSoper;
+   const TanhSumOperator TSoper;
+
+public:
+   OptimizedTransportProblem(ParFiniteElementSpace &space,
+                             const Vector &xho, const Vector &w, double mass,
+                             const Vector &xmin, const Vector &xmax)
+      : OptimizationProblem(xho.Size(), NULL, NULL),
+        x_HO(xho), massvec(1), d_lo(1), d_hi(1),
+        LSoper(space, w), TSoper(space)
+   {
+      C = &LSoper;
+      massvec(0) = mass;
+      SetEqualityConstraint(massvec);
+
+      D = &TSoper;
+      double lsums[2], gsums[2];
+      lsums[0] = xmin.Sum();
+      lsums[1] = xmax.Sum();
+      MPI_Allreduce(lsums, gsums, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      d_lo(0) = std::tanh(gsums[0]);
+      d_hi(0) = std::tanh(gsums[1]);
+      MFEM_ASSERT(d_lo(0) < d_hi(0),
+                  "The bounds produce an infeasible optimization problem");
+      SetInequalityConstraint(d_lo, d_hi);
+
+      SetSolutionBounds(xmin, xmax);
+   }
+
+   virtual double CalcObjective(const Vector &x) const
+   {
+      double loc_res = 0.0;
+      for (int i = 0; i < input_size; i++)
+      {
+         const double d = x(i) - x_HO(i);
+         loc_res += d * d;
+      }
+      loc_res *= 0.5;
+      double res;
+      MPI_Allreduce(&loc_res, &res, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      return res;
+   }
+
+   virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
+   {
+      for (int i = 0; i < input_size; i++) { grad(i) = x(i) - x_HO(i); }
+   }
+};
 
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
@@ -68,9 +217,16 @@ private:
 
    mutable Vector z;
 
-public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b);
+   double dt;
+   ParBilinearForm &pbf;
+   Vector &M_rowsums;
 
+public:
+   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
+                const Vector &_b, ParBilinearForm &_pbf, Vector &M_rs);
+
+   void SetTimeStep(double _dt) { dt = _dt; }
+   void SetK(HypreParMatrix &_K) { K = _K; }
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~FE_Evolution() { }
@@ -87,16 +243,16 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
+   optimizer_type = 1;
+   const char *mesh_file = "../../data/periodic-hexagon.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
-   int ode_solver_type = 4;
-   double t_final = 10.0;
+   int ode_solver_type = 3;
+   double t_final = 1.0;
    double dt = 0.01;
    bool visualization = true;
    bool visit = false;
-   bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
 
@@ -114,9 +270,12 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&optimizer_type, "-opt", "--optimizer",
+                  "Nonlinear optimizer: 1 - SLBQP,\n\t"
+                  "                     2 - HIOP.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
+                  "            2 - RK2 SSP, 3 - RK3 SSP.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -127,9 +286,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
-   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
-                  "--no-paraview-datafiles",
-                  "Save data files for ParaView (paraview.org) visualization.");
    args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
                   "--ascii-datafiles",
                   "Use binary (Sidre) or ascii format for VisIt data files.");
@@ -138,17 +294,11 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
+      if (myid == 0) { args.PrintUsage(cout); }
       MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   if (myid == 0) { args.PrintOptions(cout); }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -201,7 +351,7 @@ int main(int argc, char *argv[])
 
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::Positive);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
@@ -286,17 +436,6 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
-   ParaViewDataCollection *pd = NULL;
-   if (paraview)
-   {
-      pd = new ParaViewDataCollection("PVExample9P", pmesh);
-      pd->RegisterField("solution", u);
-      pd->SetLevelsOfDetail(2);
-      pd->SetCycle(0);
-      pd->SetTime(0.0);
-      pd->Save();
-   }
-
    socketstream sout;
    if (visualization)
    {
@@ -327,19 +466,30 @@ int main(int argc, char *argv[])
       }
    }
 
+   Vector M_rowsums(m->Size());
+   m->SpMat().GetRowSums(M_rowsums);
+
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*M, *K, *B);
+   FE_Evolution adv(*M, *K, *B, *k, M_rowsums);
 
    double t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   *u = *U;
+
+   // Compute initial volume.
+   const double vol0_loc = M_rowsums * (*u);
+   double vol0;
+   MPI_Allreduce(&vol0_loc, &vol0, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
    bool done = false;
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
+      adv.SetTimeStep(dt_real);
       ode_solver->Step(*U, t, dt_real);
       ti++;
 
@@ -368,14 +518,27 @@ int main(int argc, char *argv[])
             dc->SetTime(t);
             dc->Save();
          }
-
-         if (paraview)
-         {
-            pd->SetCycle(ti);
-            pd->SetTime(t);
-            pd->Save();
-         }
       }
+   }
+
+   // Print the error vs exact solution.
+   const double max_error = u->ComputeMaxError(u0),
+                l1_error  = u->ComputeL1Error(u0),
+                l2_error  = u->ComputeL2Error(u0);
+   if (myid == 0)
+   {
+      std::cout << "Linf error = " << max_error << endl
+                << "L1   error = " << l1_error << endl
+                << "L2   error = " << l2_error << endl;
+   }
+
+   // Print error in volume.
+   const double vol_loc = M_rowsums * (*u);
+   double vol;
+   MPI_Allreduce(&vol_loc, &vol, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   if (myid == 0)
+   {
+      std::cout << "Vol  error = " << vol - vol0 << endl;
    }
 
    // 12. Save the final solution in parallel. This output can be viewed later
@@ -401,7 +564,6 @@ int main(int argc, char *argv[])
    delete fes;
    delete pmesh;
    delete ode_solver;
-   delete pd;
    delete dc;
 
    MPI_Finalize();
@@ -411,9 +573,11 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b)
+                           const Vector &_b, ParBilinearForm &_pbf,
+                           Vector &M_rs)
    : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height())
+     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height()),
+     pbf(_pbf), M_rowsums(M_rs)
 {
    M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);
@@ -428,10 +592,88 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // y = M^{-1} (K x + b)
+   // Get values on the ldofs.
+   ParFiniteElementSpace *pfes = pbf.ParFESpace();
+   ParGridFunction x_gf(pfes);
+   pfes->GetProlongationMatrix()->Mult(x, x_gf);
+
+   // Compute bounds y_min, y_max for y from from x on the ldofs.
+   const int ldofs = x_gf.Size();
+   Vector y_min(ldofs), y_max(ldofs);
+   x_gf.ExchangeFaceNbrData();
+   Vector &x_nd = x_gf.FaceNbrData();
+   const int *In = pbf.SpMat().GetI(), *Jn = pbf.SpMat().GetJ();
+   for (int i = 0, k = 0; i < ldofs; i++)
+   {
+      double x_i_min = +std::numeric_limits<double>::infinity();
+      double x_i_max = -std::numeric_limits<double>::infinity();
+      for (int end = In[i+1]; k < end; k++)
+      {
+         const int j = Jn[k];
+         const double x_j = (j < ldofs) ? x(j): x_nd(j-ldofs);
+
+         if (x_j > x_i_max) { x_i_max = x_j; }
+         if (x_j < x_i_min) { x_i_min = x_j; }
+      }
+      y_min(i) = x_i_min;
+      y_max(i) = x_i_max;
+   }
+   for (int i = 0; i < ldofs; i++)
+   {
+      y_min(i) = (y_min(i) - x_gf(i) ) / dt;
+      y_max(i) = (y_max(i) - x_gf(i) ) / dt;
+   }
+   Vector y_min_tdofs(y.Size()), y_max_tdofs(y.Size());
+   // Move the bounds to the tdofs.
+   pfes->GetRestrictionMatrix()->Mult(y_min, y_min_tdofs);
+   pfes->GetRestrictionMatrix()->Mult(y_max, y_max_tdofs);
+
+   // Compute the high-order solution y = M^{-1} (K x + b) on the tdofs.
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
+
+   // The solution y is an increment; it should not introduce new mass.
+   const double mass_y = 0.0;
+
+   // Perform optimization on the tdofs.
+   Vector y_out(y.Size());
+   const int max_iter = 500;
+   const double rtol = 1.e-7;
+   double atol = 1.e-7;
+
+   OptimizationSolver* optsolver = NULL;
+   if (optimizer_type == 2)
+   {
+#ifdef MFEM_USE_HIOP
+      HiopNlpOptimizer *tmp_opt_ptr = new HiopNlpOptimizer(MPI_COMM_WORLD);
+      optsolver = tmp_opt_ptr;
+#else
+      MFEM_ABORT("MFEM is not built with HiOp support!");
+#endif
+   }
+   else
+   {
+      SLBQPOptimizer *slbqp = new SLBQPOptimizer(MPI_COMM_WORLD);
+      slbqp->SetBounds(y_min_tdofs, y_max_tdofs);
+      slbqp->SetLinearConstraint(M_rowsums, mass_y);
+      atol = 1.e-15;
+      optsolver = slbqp;
+   }
+
+   OptimizedTransportProblem ot_prob(*pfes, y, M_rowsums, mass_y,
+                                     y_min_tdofs, y_max_tdofs);
+   optsolver->SetOptimizationProblem(ot_prob);
+
+   optsolver->SetMaxIter(max_iter);
+   optsolver->SetAbsTol(atol);
+   optsolver->SetRelTol(rtol);
+   optsolver->SetPrintLevel(0);
+   optsolver->Mult(y, y_out);
+
+   y = y_out;
+
+   delete optsolver;
 }
 
 
@@ -455,7 +697,7 @@ void velocity_function(const Vector &x, Vector &v)
          // Translations in 1D, 2D, and 3D
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
+            case 1: v(0) = (invert_velocity) ? -1.0 : 1.0; break;
             case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
             case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
@@ -513,7 +755,8 @@ double u0_function(const Vector &x)
          switch (dim)
          {
             case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
+               return (X(0) > -0.15 && X(0) < 0.15) ? 1.0 : 0.0;
+            //return exp(-40.*pow(X(0)-0.0,2));
             case 2:
             case 3:
             {
