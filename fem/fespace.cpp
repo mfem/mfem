@@ -3088,35 +3088,6 @@ void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id, const int 
    }
 }
 
-// static int PermuteFaceH1(const int dim, const int face_id, const int orientation,
-//                        const int size1d, const int index)
-// {
-//    switch(dim)
-//    {
-//    case 1:
-//       return 0;
-//    case 2:
-//       return index;
-//       // switch(face_id)
-//       // {
-//       //    case 0://BOTTOM
-//       //    return index;
-//       //    case 1://EAST
-//       //    return index;
-//       //    case 2://TOP
-//       //    return size1d - 1 - index;
-//       //    case 3://WEST
-//       //    return size1d - 1 - index;
-//       // }
-//    case 3:
-//       mfem_error("Not yet implemented.");
-//       return 0;
-//    default:
-//       mfem_error("Incorrect dimension.");
-//       return 0;
-//    }
-// }
-
 H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
                                      ElementDofOrdering e_ordering)
    : fes(fes),
@@ -3129,7 +3100,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
      indices(nf*dof)
 {
    //if fespace == H1
-   // Assuming all finite elements are the same.
+   // Assuming all finite elements are using Gauss-Lobatto.
    height = vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -3179,7 +3150,6 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
       }
       for (int d = 0; d < dof; ++d)
       {
-         // const int pd = PermuteFaceH1(dim, face_id, orientation, dof1d, d);
          const int face_dof = faceMap[d];
          const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
          const int gid = elementMap[e1*elem_dofs + did];
@@ -3230,343 +3200,85 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    // });
 }
 
-#if 0
-static int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind,
-                              const int quads, Tensor<1,int>& ind_f)
+static int PermuteFace2D(const int size1d, const int index)
 {
-   int& k1 = ind_f(0);
-   int& k2 = ind_f(1);
-   int kf1,kf2;
-   kf1 = qind%quads;
-   kf2 = qind/quads;
-   switch (face_id)
-   {
-      case 0://BOTTOM
-         switch (orientation)
-         {
-            case 0://{0, 1, 2, 3}
-               k1 = kf1;
-               k2 = quads-1-kf2;
-               break;
-            case 1://{0, 3, 2, 1}
-               k1 = quads-1-kf2;
-               k2 = kf1;
-               break;
-            case 2://{1, 2, 3, 0}
-               k1 = quads-1-kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 3://{1, 0, 3, 2}
-               k1 = quads-1-kf1;
-               k2 = quads-1-kf2;
-               break;
-            case 4://{2, 3, 0, 1}
-               k1 = quads-1-kf1;
-               k2 = kf2;
-               break;
-            case 5://{2, 1, 0, 3}
-               k1 = kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 6://{3, 0, 1, 2}
-               k1 = kf2;
-               k2 = kf1;
-               break;
-            case 7://{3, 2, 1, 0}
-               k1 = kf1;
-               k2 = kf2;
-               break;
-            default:
-               mfem_error("This orientation does not exist in 3D");
-               break;
-         }
-         break;
-      case 1://SOUTH
-         switch (orientation)
-         {
-            case 0://{0, 1, 2, 3}
-               k1 = kf1;
-               k2 = kf2;
-               break;
-            case 1://{0, 3, 2, 1}
-               k1 = kf2;
-               k2 = kf1;
-               break;
-            case 2://{1, 2, 3, 0}
-               k1 = kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 3://{1, 0, 3, 2}
-               k1 = quads-1-kf1;
-               k2 = kf2;
-               break;
-            case 4://{2, 3, 0, 1}
-               k1 = quads-1-kf1;
-               k2 = quads-1-kf2;
-               break;
-            case 5://{2, 1, 0, 3}
-               k1 = quads-1-kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 6://{3, 0, 1, 2}
-               k1 = quads-1-kf2;
-               k2 = kf1;
-               break;
-            case 7://{3, 2, 1, 0}
-               k1 = kf1;
-               k2 = quads-1-kf2;
-               break;
-            default:
-               mfem_error("This orientation does not exist in 3D");
-               break;
-         }
-         break;
-      case 2://EAST
-         switch (orientation)
-         {
-            case 0://{0, 1, 2, 3}
-               k1 = kf1;
-               k2 = kf2;
-               break;
-            case 1://{0, 3, 2, 1}
-               k1 = kf2;
-               k2 = kf1;
-               break;
-            case 2://{1, 2, 3, 0}
-               k1 = kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 3://{1, 0, 3, 2}
-               k1 = quads-1-kf1;
-               k2 = kf2;
-               break;
-            case 4://{2, 3, 0, 1}
-               k1 = quads-1-kf1;
-               k2 = quads-1-kf2;
-               break;
-            case 5://{2, 1, 0, 3}
-               k1 = quads-1-kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 6://{3, 0, 1, 2}
-               k1 = quads-1-kf2;
-               k2 = kf1;
-               break;
-            case 7://{3, 2, 1, 0}
-               k1 = kf1;
-               k2 = quads-1-kf2;
-               break;
-            default:
-               mfem_error("This orientation does not exist in 3D");
-               break;
-         }
-         break;
-      case 3://NORTH
-         switch (orientation)
-         {
-            case 0://{0, 1, 2, 3}
-               k1 = quads-1-kf1;
-               k2 = kf2;
-               break;
-            case 1://{0, 3, 2, 1}
-               k1 = kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 2://{1, 2, 3, 0}
-               k1 = kf2;
-               k2 = kf1;
-               break;
-            case 3://{1, 0, 3, 2}
-               k1 = kf1;
-               k2 = kf2;
-               break;
-            case 4://{2, 3, 0, 1}
-               k1 = kf1;
-               k2 = quads-1-kf2;
-               break;
-            case 5://{2, 1, 0, 3}
-               k1 = quads-1-kf2;
-               k2 = kf1;
-               break;
-            case 6://{3, 0, 1, 2}
-               k1 = quads-1-kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 7://{3, 2, 1, 0}
-               k1 = quads-1-kf1;
-               k2 = quads-1-kf2;
-               break;
-            default:
-               mfem_error("This orientation does not exist in 3D");
-               break;
-         }
-         break;
-      case 4://WEST
-         switch (orientation)
-         {
-            case 0://{0, 1, 2, 3}
-               k1 = quads-1-kf1;
-               k2 = kf2;
-               break;
-            case 1://{0, 3, 2, 1}
-               k1 = kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 2://{1, 2, 3, 0}
-               k1 = kf2;
-               k2 = kf1;
-               break;
-            case 3://{1, 0, 3, 2}
-               k1 = kf1;
-               k2 = kf2;
-               break;
-            case 4://{2, 3, 0, 1}
-               k1 = kf1;
-               k2 = quads-1-kf2;
-               break;
-            case 5://{2, 1, 0, 3}
-               k1 = quads-1-kf2;
-               k2 = kf1;
-               break;
-            case 6://{3, 0, 1, 2}
-               k1 = quads-1-kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 7://{3, 2, 1, 0}
-               k1 = quads-1-kf1;
-               k2 = quads-1-kf2;
-               break;
-            default:
-               mfem_error("This orientation does not exist in 3D");
-               break;
-         }
-         break;
-      case 5://TOP
-         switch (orientation)
-         {
-            case 0://{0, 1, 2, 3}
-               k1 = kf1;
-               k2 = kf2;
-               break;
-            case 1://{0, 3, 2, 1}
-               k1 = kf2;
-               k2 = kf1;
-               break;
-            case 2://{1, 2, 3, 0}
-               k1 = kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 3://{1, 0, 3, 2}
-               k1 = quads-1-kf1;
-               k2 = kf2;
-               break;
-            case 4://{2, 3, 0, 1}
-               k1 = quads-1-kf1;
-               k2 = quads-1-kf2;
-               break;
-            case 5://{2, 1, 0, 3}
-               k1 = quads-1-kf2;
-               k2 = quads-1-kf1;
-               break;
-            case 6://{3, 0, 1, 2}
-               k1 = quads-1-kf2;
-               k2 = kf1;
-               break;
-            case 7://{3, 2, 1, 0}
-               k1 = kf1;
-               k2 = quads-1-kf2;
-               break;
-            default:
-               mfem_error("This orientation does not exist in 3D");
-               break;
-         }
-         break;
-      default:
-         mfem_error("This face_id does not exist in 3D");
-         break;
-   }
-   return k1 + quads*k2;
+   return size1d - 1 - index;
 }
-#endif
+
+static int PermuteFace3D(const int face_id1, const int face_id2, const int orientation,
+                         const int size1d, const int index)
+{
+   int i=0, j=0, new_i=0, new_j=0;
+   i = index%size1d;
+   j = index/size1d;
+   if(face_id2==1 || face_id2==4)
+   {
+      i = size1d-1-i;
+   }
+   else if(face_id2==0)
+   {
+      j = size1d-1-j;
+   }
+   switch(orientation)
+   {
+   case 0:
+      new_i = i;
+      new_j = j;
+      break;
+   case 1:
+      new_i = j;
+      new_j = i;
+      break;
+   case 2:
+      new_i = j;
+      new_j = (size1d-1-i);
+      break;
+   case 3:
+      new_i = (size1d-1-i);
+      new_j = j;
+      break;
+   case 4:
+      new_i = (size1d-1-i);
+      new_j = (size1d-1-j);
+      break;
+   case 5:
+      new_i = (size1d-1-j);
+      new_j = (size1d-1-i);
+      break;
+   case 6:
+      new_i = (size1d-1-j);
+      new_j = i;
+      break;
+   case 7:
+      new_i = i;
+      new_j = (size1d-1-j);
+      break;
+   }
+   if (face_id2==2 || face_id2==3 || face_id2==5)
+   {
+      return new_i + new_j*size1d;
+   }
+   else if(face_id2==1 || face_id2==4)
+   {
+      return (size1d-1-new_i) + new_j*size1d;
+   }
+   else//face_id2==0
+   {
+      return new_i + (size1d-1-new_j)*size1d;
+   }
+}
 
 int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1, const int face_id2, const int orientation,
                                const int size1d, const int index)
 {
-   int i=0, j=0, new_i=0, new_j=0;
    switch(dim)
    {
    case 1:
       return 0;
    case 2:
-      return size1d - 1 - index;
+      return PermuteFace2D(size1d, index);
    case 3:
-      i = index%size1d;
-      j = index/size1d;
-      // std::cout << "id1=" << face_id1 << ", id2=" << face_id2 << ", or=" << orientation << std::endl;
-      // Works on structured mesh
-      // if (face_id2==1 || face_id2==2 || face_id2==3 || face_id2==4)
-      // {
-      //    return (size1d-1-i) + j*size1d;
-      // }else{
-      //    return i + (size1d-1-j)*size1d;
-      // }
-
-      // Unstructured version
-      if(face_id2==1 || face_id2==4)
-      {
-         i = size1d-1-i;
-      }
-      else if(face_id2==0)
-      {
-         j = size1d-1-j;
-      }
-      switch(orientation)
-      {
-      case 0:
-         new_i = i;
-         new_j = j;
-         break;
-      case 1:
-         new_i = j;
-         new_j = i;
-         break;
-      case 2:
-         new_i = j;
-         new_j = (size1d-1-i);
-         break;
-      case 3:
-         new_i = (size1d-1-i);
-         new_j = j; 
-         break;
-      case 4:
-         new_i = (size1d-1-i);
-         new_j =  (size1d-1-j);
-         break;
-      case 5:
-         new_i = (size1d-1-j);
-         new_j = (size1d-1-i);
-         break;
-      case 6:
-         new_i = (size1d-1-j);
-         new_j = i; 
-         break;
-      case 7:
-         new_i = i;
-         new_j = (size1d-1-j);
-         break;
-      }
-      if (face_id2==2 || face_id2==3 || face_id2==5)
-      {
-         return new_i + new_j*size1d;
-      }
-      else if(face_id2==1 || face_id2==4)
-      {
-         return (size1d-1-new_i) + new_j*size1d;
-      }
-      else//face_id2==0
-      {
-         return new_i + (size1d-1-new_j)*size1d;
-      }
+      return PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
    default:
       mfem_error("Incorrect dimension.");
       return 0;
@@ -3587,7 +3299,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      indices2(m==L2FaceValues::Double?nf*dof:0)
 {
    //if fespace == L2
-   // Assuming all finite elements are the same.
+   // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -3619,7 +3331,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if(dof_reorder){
          orientation = inf1 % 64;
-         // if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
          face_id1 = inf1 / 64;
          H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
          orientation = inf2 % 64;
@@ -3632,7 +3343,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       for (int d = 0; d < dof; ++d)
       {
          const int face_dof = faceMap1[d];
-         const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof]; Always dof_map==NULL
+         const int did = face_dof;
          const int gid = elementMap[e1*elem_dofs + did];
          const int lid = dof*f + d;
          indices1[lid] = gid;
@@ -3645,7 +3356,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             {
                const int pd = PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
                const int face_dof = faceMap2[pd];
-               const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof];
+               const int did = face_dof;
                const int gid = elementMap[e2*elem_dofs + did];
                const int lid = dof*f + d;
                indices2[lid] = gid;
@@ -3682,7 +3393,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
          {
             d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
          }
-         const int idx2 = d_indices2[i];//TODO Permutation of d_indices2
+         const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
             d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);//TODO Add permutation
@@ -3719,7 +3430,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
       MFEM_FORALL(i, nfdofs,
       {
          const int idx1 = d_indices1[i];
-         const int idx2 = d_indices2[i];//TODO Add permutation
+         const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
             d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, 0, i / nd);
