@@ -41,6 +41,10 @@ Meshing improvements
 
 Discretization improvements
 ---------------------------
+- Added support for complex-valued finite element operators and fields using a
+  2x2 block structured linear system to mimic complex arithmetic. New classes
+  include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
+  parallel counterparts.
 
 Linear and nonlinear solvers
 ----------------------------
@@ -53,6 +57,10 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new example, Example 22/22p, to demonstrate the use of the new
+  complex-valued finite element operators. The example defines and solves
+  a family of time-harmonic PDEs related to damped harmonic oscillators.
+
 - The mesh-optimizer and pmesh-optimizer miniapps have been updated to
   demonstrate the new r-adaptivity capabilities of TMOP.
 
@@ -61,10 +69,6 @@ New and updated examples and miniapps
 
 - Added a modification of ex9 in examples/hiop that demonstrates the nonlinear
   constrained optimization interface and the use of the SLBQP and HiOp solvers.
-
-- Added examples ex22 and ex22p to demonstrate the use of the new
-  complex-valued finite element operators.  These examples setup and solve
-  time-harmonic PDEs related to damped harmonic oscillators.
 
 Miscellaneous
 -------------
@@ -75,11 +79,6 @@ Miscellaneous
 
 - Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
   and the new ParaViewDataCollection class.
-
-- Adding support for complex-valued finite element operators and fields
-  using a 2x2 block structured linear system to mimic complex arithmetic.
-  New classes include ComplexGridFunction, ComplexLinearForm,
-  SesquilinearForm, and their parallel counterparts.
 
 
 Version 4.0, released on May 24, 2019

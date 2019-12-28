@@ -14,7 +14,7 @@
 //               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
 //
 // Description:  This example code demonstrates the use of MFEM to define and
-//               solve simple complex-valued linear systems.  We implement three
+//               solve simple complex-valued linear systems. It implements three
 //               variants of a damped harmonic oscillator:
 //
 //               1) A scalar H1 field
@@ -32,9 +32,16 @@
 //
 //               In electromagnetics the coefficients are typically named the
 //               permeability, mu = 1/a, permittivity, epsilon = b, and
-//               conductivity, sigma = c.  The user can specify these constants
+//               conductivity, sigma = c. The user can specify these constants
 //               using either set of names.
 //
+//               The example also demonstrates how to display a time-varying
+//               solution as a sequence of fields sent to a single GLVis socket.
+//
+//               We recommend viewing examples 1, 3 and 4 before viewing this
+//               example.
+
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -88,7 +95,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&prob, "-p", "--problem-type",
-                  "Choose from 0: H_1, 1: H(Curl), or 2: H(Div) "
+                  "Choose between 0: H_1, 1: H(Curl), or 2: H(Div) "
                   "damped harmonic oscillator.");
    args.AddOption(&a_coef, "-a", "--stiffness-coef",
                   "Stiffness coefficient (spring constant or 1/mu).");
@@ -139,13 +146,13 @@ int main(int argc, char *argv[])
    exact_sol = check_for_inline_mesh(mesh_file);
    if (myid == 0 && exact_sol)
    {
-      cout << "Identified an 'inline' mesh" << endl;
+      cout << "Identified a mesh with known exact solution" << endl;
    }
 
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 3. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -167,9 +174,9 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 6. Define a parallel finite element space on the parallel
-   //    mesh. Here we use continuous Lagrange, Nedelec, or
-   //    Raviart-Thomas finite elements of the specified order.
+   // 6. Define a parallel finite element space on the parallel mesh. Here we
+   //    use continuous Lagrange, Nedelec, or Raviart-Thomas finite elements of
+   //    the specified order.
    if (dim == 1 && prob != 0 )
    {
       if (myid == 0)
@@ -220,9 +227,9 @@ int main(int argc, char *argv[])
    ParComplexLinearForm b(fespace, conv);
    b.Vector::operator=(0.0);
 
-   // 9. Define the solution vector u as a parallel finite element
-   //    grid function corresponding to fespace. Initialize u with
-   //    initial guess of 1+0i or the exact solution if it is known.
+   // 9. Define the solution vector u as a parallel complex finite element grid
+   //    function corresponding to fespace. Initialize u with initial guess of
+   //    1+0i or the exact solution if it is known.
    ParComplexGridFunction u(fespace);
    ParComplexGridFunction * u_exact = NULL;
    if (exact_sol) { u_exact = new ParComplexGridFunction(fespace); }
@@ -276,8 +283,8 @@ int main(int argc, char *argv[])
    }
 
    // 10. Set up the parallel sesquilinear form a(.,.) on the finite element
-   //     space corresponding to the damped harmonic oscillator operator
-   //     of the appropriate type:
+   //     space corresponding to the damped harmonic oscillator operator of the
+   //     appropriate type:
    //
    //     0) A scalar H1 field
    //        -Div(a Grad) - omega^2 b + i omega c
@@ -376,8 +383,8 @@ int main(int argc, char *argv[])
            << 2 * Ahyp->real().GetGlobalNumRows() << endl << endl;
    }
 
-   // 12. Define and apply a parallel FGMRES solver for AU=B with a
-   //     block diagonal preconditioner based on the appropriate multigrid
+   // 12. Define and apply a parallel FGMRES solver for AU=B with a block
+   //     diagonal preconditioner based on the appropriate multigrid
    //     preconditioner from hypre.
    {
       Array<HYPRE_Int> blockTrueOffsets;
@@ -415,6 +422,7 @@ int main(int argc, char *argv[])
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
                                 1.0:-1.0);
+
       BDP.SetDiagonalBlock(0, pc_r);
       BDP.SetDiagonalBlock(1, pc_i);
       BDP.owns_blocks = 0;

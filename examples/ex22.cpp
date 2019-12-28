@@ -14,7 +14,7 @@
 //               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
 //
 // Description:  This example code demonstrates the use of MFEM to define and
-//               solve simple complex-valued linear systems.  We implement three
+//               solve simple complex-valued linear systems. It implements three
 //               variants of a damped harmonic oscillator:
 //
 //               1) A scalar H1 field
@@ -30,11 +30,17 @@
 //               angular frequency omega, imposed at the boundary or a portion
 //               of the boundary.
 //
-//               In electromagnetics the coefficients are typically named the
+//               In electromagnetics, the coefficients are typically named the
 //               permeability, mu = 1/a, permittivity, epsilon = b, and
-//               conductivity, sigma = c.  The user can specify these constants
+//               conductivity, sigma = c. The user can specify these constants
 //               using either set of names.
 //
+//               The example also demonstrates how to display a time-varying
+//               solution as a sequence of fields sent to a single GLVis socket.
+//
+//               We recommend viewing examples 1, 3 and 4 before viewing this
+//               example.
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -79,7 +85,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&prob, "-p", "--problem-type",
-                  "Choose from 0: H_1, 1: H(Curl), or 2: H(Div) "
+                  "Choose between 0: H_1, 1: H(Curl), or 2: H(Div) "
                   "damped harmonic oscillator.");
    args.AddOption(&a_coef, "-a", "--stiffness-coef",
                   "Stiffness coefficient (spring constant or 1/mu).");
@@ -123,7 +129,7 @@ int main(int argc, char *argv[])
    exact_sol = check_for_inline_mesh(mesh_file);
    if (exact_sol)
    {
-      cout << "Identified an 'inline' mesh" << endl;
+      cout << "Identified a mesh with known exact solution" << endl;
    }
 
    ComplexOperator::Convention conv =
@@ -185,14 +191,14 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 6. Set up the linear form b(.) which corresponds to the
-   //    right-hand side of the FEM linear system.
+   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
+   //    the FEM linear system.
    ComplexLinearForm b(fespace, conv);
    b.Vector::operator=(0.0);
 
-   // 7. Define the solution vector u as a finite element grid function
-   //    corresponding to fespace. Initialize u with initial guess of 1+0i
-   //    or the exact solution if it is known.
+   // 7. Define the solution vector u as a complex finite element grid function
+   //    corresponding to fespace. Initialize u with initial guess of 1+0i or
+   //    the exact solution if it is known.
    ComplexGridFunction u(fespace);
    ComplexGridFunction * u_exact = NULL;
    if (exact_sol) { u_exact = new ComplexGridFunction(fespace); }
@@ -243,9 +249,9 @@ int main(int argc, char *argv[])
                  << "window_title 'Exact: Imaginary Part'" << flush;
    }
 
-   // 8. Set up the sesquilinear form a(.,.) on the finite element
-   //    space corresponding to the damped harmonic oscillator operator
-   //    of the appropriate type:
+   // 8. Set up the sesquilinear form a(.,.) on the finite element space
+   //    corresponding to the damped harmonic oscillator operator of the
+   //    appropriate type:
    //
    //    0) A scalar H1 field
    //       -Div(a Grad) - omega^2 b + i omega c
@@ -285,8 +291,8 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
 
-   // 8a. Set up the bilinear form for the preconditioner
-   //     corresponding to the appropriate operator
+   // 8a. Set up the bilinear form for the preconditioner corresponding to the
+   //     appropriate operator
    //
    //      0) A scalar H1 field
    //         -Div(a Grad) - omega^2 b + omega c
@@ -318,10 +324,9 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
 
-   // 9. Assemble the bilinear form and the corresponding linear
-   //    system, applying any necessary transformations such as:
-   //    assembly, eliminating boundary conditions, applying conforming
-   //    constraints for non-conforming AMR, etc.
+   // 9. Assemble the form and the corresponding linear system, applying any
+   //    necessary transformations such as: assembly, eliminating boundary
+   //    conditions, conforming constraints for non-conforming AMR, etc.
    a->Assemble();
    pcOp->Assemble();
 
@@ -386,8 +391,8 @@ int main(int argc, char *argv[])
       gmres.Mult(B, U);
    }
 
-   // 11. Recover the solution as a finite element grid function and
-   //     compute the errors if the exact solution is known.
+   // 11. Recover the solution as a finite element grid function and compute the
+   //     errors if the exact solution is known.
    a->RecoverFEMSolution(U, b, u);
 
    if (exact_sol)
@@ -418,8 +423,8 @@ int main(int argc, char *argv[])
       cout << endl;
    }
 
-   // 12. Save the refined mesh and the solution. This output can be
-   //     viewed later using GLVis: "glvis -m mesh -g sol".
+   // 12. Save the refined mesh and the solution. This output can be viewed
+   //     later using GLVis: "glvis -m mesh -g sol".
    {
       ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);

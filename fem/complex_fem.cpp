@@ -33,13 +33,13 @@ ComplexGridFunction::Update()
    const Operator *T = fes->GetUpdateOperator();
    if (T)
    {
-      // Update the individual GridFunction objects.  This will allocate
-      // new data arrays for each GridFunction.
+      // Update the individual GridFunction objects. This will allocate new data
+      // arrays for each GridFunction.
       gfr->Update();
       gfi->Update();
 
-      // Our data array now contains old data as well as being the wrong size
-      // so reallocate it.
+      // Our data array now contains old data as well as being the wrong size so
+      // reallocate it.
       this->SetSize(2 * vsize);
 
       // Create temporary vectors which point to the new data array
@@ -50,14 +50,15 @@ ComplexGridFunction::Update()
       gf_r = *gfr;
       gf_i = *gfi;
 
-      // Replace the individual data arrays with pointers into the new data array
+      // Replace the individual data arrays with pointers into the new data
+      // array
       gfr->NewDataAndSize(&data[0], vsize);
       gfi->NewDataAndSize(&data[vsize], vsize);
    }
    else
    {
-      // The existing data will not be transferred to the new GridFunctions
-      // so delete it a allocate a new array
+      // The existing data will not be transferred to the new GridFunctions so
+      // delete it a allocate a new array
       this->SetSize(2 * vsize);
 
       // Point the individual GridFunctions to the new data array
@@ -419,8 +420,8 @@ ParComplexGridFunction::Update()
    const Operator *T = pfes->GetUpdateOperator();
    if (T)
    {
-      // Update the individual GridFunction objects.  This will allocate
-      // new data arrays for each GridFunction.
+      // Update the individual GridFunction objects. This will allocate new data
+      // arrays for each GridFunction.
       pgfr->Update();
       pgfi->Update();
 
@@ -436,23 +437,23 @@ ParComplexGridFunction::Update()
       gf_r = *pgfr;
       gf_i = *pgfi;
 
-      // Replace the individual data arrays with pointers into the new data array
+      // Replace the individual data arrays with pointers into the new data
+      // array
       pgfr->NewDataAndSize(&data[0], vsize);
       pgfi->NewDataAndSize(&data[vsize], vsize);
    }
    else
    {
-      // The existing data will not be transferred to the new GridFunctions
-      // so delete it a allocate a new array
+      // The existing data will not be transferred to the new GridFunctions so
+      // delete it a allocate a new array
       this->SetSize(2 * vsize);
 
       // Point the individual GridFunctions to the new data array
       pgfr->NewDataAndSize(&data[0], vsize);
       pgfi->NewDataAndSize(&data[vsize], vsize);
 
-      // These updates will only set the proper 'sequence' value within
-      // the individual GridFunction objects because their sizes are
-      // already correct
+      // These updates will only set the proper 'sequence' value within the
+      // individual GridFunction objects because their sizes are already correct
       pgfr->Update();
       pgfi->Update();
    }
@@ -810,9 +811,9 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    B_i *= s;
    b_i *= s;
 
-   // Modify RHS and offdiagonal blocks (Imaginary parts of the matrix)
-   // to conform with standard essential BC treatment i.e. zero out rows
-   // and columns and place ones on the diagonal.
+   // Modify RHS and offdiagonal blocks (Imaginary parts of the matrix) to
+   // conform with standard essential BC treatment i.e. zero out rows and
+   // columns and place ones on the diagonal.
    if ( A_i.Type() == Operator::Hypre_ParCSR )
    {
       int n = ess_tdof_list.Size();
