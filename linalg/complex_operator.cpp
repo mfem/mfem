@@ -360,7 +360,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    }
    int num_cols_offd = (int)cset.size();
 
-   // Exatract pointers to the various CSR arrays of the diagonal blocks
+   // Extract pointers to the various CSR arrays of the diagonal blocks
    const int * diag_r_I = (A_r) ? diag_r.GetI() : NULL;
    const int * diag_i_I = (A_i) ? diag_i.GetI() : NULL;
 
@@ -374,7 +374,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int diag_i_nnz = (diag_i_I) ? diag_i_I[nrows] : 0;
    int diag_nnz = 2 * (diag_r_nnz + diag_i_nnz);
 
-   // Exatract pointers to the various CSR arrays of the off-diagonal blocks
+   // Extract pointers to the various CSR arrays of the off-diagonal blocks
    const int * offd_r_I = (A_r) ? offd_r.GetI() : NULL;
    const int * offd_i_I = (A_i) ? offd_i.GetI() : NULL;
 
@@ -523,7 +523,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            offd_I, offd_J, offd_D,
                                            2 * num_cols_offd, cmap);
 
-   // Give the new matrix ownership of its interanl arrays
+   // Give the new matrix ownership of its internal arrays
    A->SetOwnerFlags(-1,-1,-1);
    hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->diag,1);
    hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->offd,1);
@@ -605,7 +605,6 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    delete [] req;
    delete [] stat;
 }
-
 
 #endif // MFEM_USE_MPI
 

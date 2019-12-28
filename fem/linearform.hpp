@@ -85,8 +85,7 @@ public:
    /** The LinearForm does not assume ownership of @a data which is assumed to
        be of size at least `f->GetVSize()`. Similar to the Vector constructor
        for externally allocated array, the pointer @a data can be NULL. The data
-       array can be replaced later using the method SetData().
-    */
+       array can be replaced later using the method SetData(). */
    LinearForm(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
    { fes = f; }
 
