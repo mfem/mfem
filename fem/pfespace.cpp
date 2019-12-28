@@ -3305,7 +3305,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
      indices2(m==L2FaceValues::Double?nf*dof:0)
 {
    //if fespace == L2
-   // Assuming all finite elements are the same.
+   // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -3349,7 +3349,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       for (int d = 0; d < dof; ++d)
       {
          const int face_dof = faceMap1[d];
-         const int did = face_dof;//(!dof_reorder)?face_dof:dof_map[face_dof]; Always dof_map==NULL
+         const int did = face_dof;
          const int gid = elementMap[e1*elem_dofs + did];
          const int lid = dof*f + d;
          indices1[lid] = gid;
