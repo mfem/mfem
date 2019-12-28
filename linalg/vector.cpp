@@ -1020,6 +1020,7 @@ static double hipVectorDot(const int N, const double *X, const double *Y)
    return dot;
 }
 #endif // MFEM_USE_HIP
+
 double Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
