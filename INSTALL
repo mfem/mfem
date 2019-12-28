@@ -415,6 +415,10 @@ MFEM_USE_PUMI = YES/NO
    models and effectively supports automated adaptive analysis. PUMI enables
    support for parallel unstructured mesh modifications in MFEM.
 
+MFEM_USE_HIOP = YES/NO
+  Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
+  HPC solver for nonlinear optimization problems.
+
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
    platform and programming model for general computing on graphical processing
@@ -558,6 +562,10 @@ The specific libraries and their options are:
 - PUMI, used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
   Options: PUMI_OPT, PUMI_LIB.
+
+- HiOp (optional), used when MFEM_USE_HIOP = YES.
+  URL: https://github.com/LLNL/hiop
+  Options: HIOP_OPT, HIOP_LIB.
 
 - CUDA, used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
@@ -712,6 +720,7 @@ MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_GZSTREAM
 MFEM_USE_PUMI
+MFEM_USE_HIOP
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_RAJA
@@ -762,6 +771,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - LIBUNWIND
  - POSIXCLOCKS
  - PUMI
+ - HIOP
  - OCCA
  - RAJA
  - AXOM - Used when MFEM_USE_SIDRE is enabled
