@@ -26,6 +26,11 @@ Miscellaneous
 -------------
 - Improved element numbering after uniform mesh refinement.
 
+- Adding support for complex-valued finite element operators and fields
+  using a 2x2 block structured linear system to mimic complex arithmetic.
+  New classes include ComplexGridFunction, ComplexLinearForm,
+  SesquilinearForm, and their parallel counterparts.
+
 Discretization improvements
 ---------------------------
 - Added support for non-conforming prism AMR, including coarsening and parallel
