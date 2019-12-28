@@ -1712,9 +1712,6 @@ private:
    static void CalcMono(const int p, const double x, double *u);
    static void CalcMono(const int p, const double x, double *u, double *d);
 
-   static void CalcLegendre(const int p, const double x, double *u);
-   static void CalcLegendre(const int p, const double x, double *u, double *d);
-
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
    static void CalcChebyshev(const int p, const double x, double *u, double *d,
@@ -1755,6 +1752,30 @@ public:
        @return A reference to an object of type Poly_1D::Basis that represents
                the requested basis type. */
    Basis &GetBasis(const int p, const int btype);
+
+   // Evaluate the values of the Jacobi polynomials, P^{(\alpha,\beta)}_n,
+   // on [0,1] with degrees ranging from 0 to p and parameters alpha and beta
+   // at a point x.  Internally the point is transformed to the traditional
+   // domain of [-1,1].
+   static void CalcJacobi(const int p, const double alpha, const double beta,
+			  const double x, double *u);
+
+   // Evaluate the values and derivatives of the Jacobi polynomials,
+   // P^{(\alpha,\beta)}_n, on [0,1] with degrees ranging from 0 to p and
+   // parameters alpha and beta at a point x.  Internally the point is
+   // transformed to the traditional domain of [-1,1].
+   static void CalcJacobi(const int p, const double alpha, const double beta,
+			  const double x, double *u, double *d);
+
+   // Evaluate the values of the Legendre polynomials, P_n, on [0,1] with
+   // degrees ranging from 0 to p at a point x.  Internally the point is
+   // transformed to the traditional domain of [-1,1].
+   static void CalcLegendre(const int p, const double x, double *u);
+
+   // Evaluate the values and derivatives of the Legendre polynomials, P_n,
+   // on [0,1] with degrees ranging from 0 to p at a point x.  Internally the
+   // point is transformed to the traditional domain of [-1,1].
+   static void CalcLegendre(const int p, const double x, double *u, double *d);
 
    // Evaluate the values of a hierarchical 1D basis at point x
    // hierarchical = k-th basis function is degree k polynomial
@@ -2156,6 +2177,15 @@ public:
 
 class H1_PyramidElement : public NodalFiniteElement
 {
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z, u;
+   mutable Vector ddshape_x, ddshape_y, ddshape_z;
+   mutable DenseMatrix du, ddu;
+#endif
+   DenseMatrixInverse Ti;
+
 public:
    H1_PyramidElement(const int p,
                      const int btype = BasisType::GaussLobatto);
