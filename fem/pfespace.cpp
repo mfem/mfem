@@ -3291,132 +3291,6 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
    ReduceEndAssemble(y); // assemble from 'shr_buf'
 }
 
-
-static void GetFaceDofs(const int dim, const int face_id, const int dof1d, int* faceMap)
-{
-   switch(dim)
-   {
-      case 1:
-      switch(face_id){
-         case 0://WEST
-         faceMap[0] = 0;
-         break;
-         case 1://EAST
-         faceMap[0] = dof1d-1;
-         break;
-      }
-      break;
-      case 2:
-      switch(face_id){
-         case 0://SOUTH
-         for (int i = 0; i < dof1d; ++i)
-         {
-            faceMap[i] = i;
-         }
-         break;
-         case 1://EAST
-         for (int i = 0; i < dof1d; ++i)
-         {
-            faceMap[i] = dof1d-1 + i*dof1d;
-         }
-         break;
-         case 2://NORTH
-         for (int i = 0; i < dof1d; ++i)
-         {
-            faceMap[i] = (dof1d-1)*dof1d + dof1d-1 - i;
-         }
-         break;
-         case 3://WEST
-         for (int i = 0; i < dof1d; ++i)
-         {
-            faceMap[i] = (dof1d-1)*dof1d - i*dof1d;
-         }
-         break;
-      }
-      break;
-      case 3:
-      switch(face_id){
-         case 0://BOTTOM
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               // faceMap[i+j*dof1d] = i + j*dof1d;//Lex
-               faceMap[i+j*dof1d] = i + (dof1d-1-j)*dof1d;
-            }
-         }
-         break;
-         case 1://SOUTH
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               // faceMap[i+j*dof1d] = i + j*dof1d*dof1d;//Lex
-               faceMap[i+j*dof1d] = (dof1d-1-i) + j*dof1d*dof1d;
-            }
-         }
-         break;
-         case 2://EAST
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               faceMap[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
-            }
-         }
-         break;
-         case 3://NORTH
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
-            }
-         }
-         break;
-         case 4://WEST
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               // faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;//Lex
-               faceMap[i+j*dof1d] = (dof1d-1-i)*dof1d + j*dof1d*dof1d;
-            }
-         }
-         break;
-         case 5://TOP
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               faceMap[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
-            }
-         }
-         break;
-      }
-      break;
-   }
-}
-
-
-// static int PermuteFaceL2(const int dim, const int face_id, const int orientation,
-//                        const int size1d, const int index)
-// {
-//    switch(dim)
-//    {
-//    case 1:
-//       return 0;
-//    case 2:
-//       return size1d - 1 - index;
-//    case 3:
-//       mfem_error("Not yet implemented.");
-//       return 0;
-//    default:
-//       mfem_error("Incorrect dimension.");
-//       return 0;
-//    }
-// }
-
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                                            ElementDofOrdering e_ordering, L2FaceValues m)
    : fes(fes),
@@ -3463,12 +3337,11 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if(dof_reorder){
          orientation = inf1 % 64;
-         // if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
          face_id1 = inf1 / 64;
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
+         H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
+         H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
       } else {
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?

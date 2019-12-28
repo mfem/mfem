@@ -2982,7 +2982,7 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
-static void GetFaceDofs(const int dim, const int face_id, const int dof1d, int* faceMap)
+void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id, const int dof1d, int* faceMap)
 {
    switch(dim)
    {
@@ -3621,10 +3621,10 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          orientation = inf1 % 64;
          // if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
          face_id1 = inf1 / 64;
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
+         H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
+         H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
       } else {
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?
