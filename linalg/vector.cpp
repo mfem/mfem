@@ -1019,7 +1019,7 @@ static double hipVectorDot(const int N, const double *X, const double *Y)
    for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
 }
-#endif // MFEM_USE_CUDA
+#endif // MFEM_USE_HIP
 double Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
