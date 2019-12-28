@@ -618,6 +618,8 @@ public:
                      const std::string &prefix = std::string());
    virtual ~PetscLinearSolver();
 
+   /// Sets the operator to be used for mat-vec operations and
+   /// for the construction of the preconditioner
    virtual void SetOperator(const Operator &op);
 
    /// Allows to prescribe a different operator (@a pop) to construct
@@ -625,6 +627,7 @@ public:
    void SetOperator(const Operator &op, const Operator &pop);
 
    /// Sets the solver to perform preconditioning
+   /// preserves the linear operator for the mat-vec
    void SetPreconditioner(Solver &precond);
 
    /// Application of the solver.
