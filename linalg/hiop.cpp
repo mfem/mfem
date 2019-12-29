@@ -12,7 +12,6 @@
 #include "../config/config.hpp"
 #include "hiop.hpp"
 
-
 #ifdef MFEM_USE_HIOP
 #include <iostream>
 

@@ -100,6 +100,11 @@ if (MFEM_USE_SUNDIALS)
   add_subdirectory(sundials)
 endif()
 
+# Include the examples/sundials directory if SUNDIALS is enabled.
+if (MFEM_USE_GINKGO)
+  add_subdirectory(ginkgo)
+endif()
+
 # Include the examples/petsc directory if PETSc is enabled.
 if (MFEM_USE_PETSC)
   add_subdirectory(petsc)
