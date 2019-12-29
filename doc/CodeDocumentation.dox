@@ -81,6 +81,8 @@ namespace mfem {
  * - <a class="el" href="ex20p_8cpp_source.html">Example 20p</a>: parallel symplectic ODE integration
  * - <a class="el" href="ex21_8cpp_source.html">Example 21</a>: adaptive mesh refinement for linear elasticity
  * - <a class="el" href="ex21p_8cpp_source.html">Example 21p</a>: parallel adaptive mesh refinement for linear elasticity
+ * - <a class="el" href="ex22_8cpp_source.html">Example 22</a>: complex-valued linear systems for damped harmonic oscillators
+ * - <a class="el" href="ex22p_8cpp_source.html">Example 22p</a>: parallel complex-valued linear systems for damped harmonic oscillators
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples

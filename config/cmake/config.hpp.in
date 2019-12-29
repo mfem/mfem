@@ -92,6 +92,9 @@
 // Enable functionality based on the Gecko library
 #cmakedefine MFEM_USE_GECKO
 
+// Enable functionality based on the Ginkgo library
+#cmakedefine MFEM_USE_GINKGO
+
 // Enable MFEM functionality based on the GnuTLS library
 #cmakedefine MFEM_USE_GNUTLS
 
