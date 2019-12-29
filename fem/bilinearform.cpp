@@ -614,15 +614,29 @@ void BilinearForm::ConformingAssemble()
 }
 
 
-void BilinearForm::AssembleDiagonal(Vector& diag) const
+void BilinearForm::AssembleDiagonal(Vector &diag) const
 {
    if (ext)
    {
-      ext->AssembleDiagonal(diag);
+      MFEM_ASSERT(diag.Size() == fes->GetNConformingDofs(),
+                  "Vector for holding diagonal has wrong size!");
+      const SparseMatrix *P = fes->GetConformingProlongation();
+      if (P)
+      {
+         mfem_warning("Partial assembly diagonal may be incorrect with AMR!");
+         Vector local_diag(P->Height());
+         ext->AssembleDiagonal(local_diag);
+         P->MultTranspose(local_diag, diag);
+      }
+      else
+      {
+         ext->AssembleDiagonal(diag);
+      }
    }
    else
    {
-      mfem_error("Not implemented, maybe assemble your bilinear form into a matrix an use SparseMatrix::GetDiag?");
+      MFEM_ABORT("Not implemented, maybe assemble your bilinear form into a "
+                 "matrix and use SparseMatrix::GetDiag?");
    }
 }
 

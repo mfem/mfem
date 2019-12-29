@@ -13,6 +13,8 @@ Version 4.0.1 (development)
 
 Improved GPU support
 --------------------
+- Added initial support for matrix-free diagonal smoothers on GPUs.
+
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
   language that can run on both AMD and NVIDIA hardware. With this change, the
   list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",

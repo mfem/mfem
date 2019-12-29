@@ -28,7 +28,7 @@ static void OccaPADiffusionSetup2D(const int D1D,
                                    const Array<double> &W,
                                    const Vector &J,
                                    const Vector &C,
-                                   Vector &D)
+                                   Vector &op)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
@@ -47,7 +47,6 @@ static void OccaPADiffusionSetup2D(const int D1D,
                                      "DiffusionSetup2D", props);
       OccaDiffSetup2D_ker.emplace(id, DiffusionSetup2D);
    }
-   OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, COEFF, o_D);
    OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);
 }
 
@@ -57,7 +56,7 @@ static void OccaPADiffusionSetup3D(const int D1D,
                                    const Array<double> &W,
                                    const Vector &J,
                                    const Vector &C,
-                                   Vector &D)
+                                   Vector &op)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
@@ -172,7 +171,7 @@ static void PADiffusionSetup(const int dim,
                              const Array<double> &W,
                              const Vector &J,
                              const Vector &C,
-                             Vector &d)
+                             Vector &D)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADiffusionSetup"); }
    if (dim == 2)
@@ -180,22 +179,22 @@ static void PADiffusionSetup(const int dim,
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
-         OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, C, d);
+         OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, C, D);
          return;
       }
 #endif // MFEM_USE_OCCA
-      PADiffusionSetup2D(Q1D, NE, W, J, C, d);
+      PADiffusionSetup2D(Q1D, NE, W, J, C, D);
    }
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
-         OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, C, d);
+         OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, C, D);
          return;
       }
 #endif // MFEM_USE_OCCA
-      PADiffusionSetup3D(Q1D, NE, W, J, C, d);
+      PADiffusionSetup3D(Q1D, NE, W, J, C, D);
    }
 }
 
@@ -273,7 +272,6 @@ static void PADiffusionDiagonal2D(const int NE,
       double QD0[MQ1][MD1];
       double QD1[MQ1][MD1];
       double QD2[MQ1][MD1];
-      double QD3[MQ1][MD1];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -281,7 +279,6 @@ static void PADiffusionDiagonal2D(const int NE,
             QD0[qx][dy] = 0.0;
             QD1[qx][dy] = 0.0;
             QD2[qx][dy] = 0.0;
-            QD3[qx][dy] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int q = qx + qy * Q1D;
@@ -290,8 +287,7 @@ static void PADiffusionDiagonal2D(const int NE,
                const double D2 = D(q,2,e);
                QD0[qx][dy] += B(qy, dy) * B(qy, dy) * D0;
                QD1[qx][dy] += B(qy, dy) * G(qy, dy) * D1;
-               QD2[qx][dy] += G(qy, dy) * B(qy, dy) * D2;
-               QD3[qx][dy] += G(qy, dy) * G(qy, dy) * D2;
+               QD2[qx][dy] += G(qy, dy) * G(qy, dy) * D2;
             }
          }
       }
@@ -303,8 +299,8 @@ static void PADiffusionDiagonal2D(const int NE,
             {
                Y(dx,dy,e) += G(qx, dx) * G(qx, dx) * QD0[qx][dy];
                Y(dx,dy,e) += G(qx, dx) * B(qx, dx) * QD1[qx][dy];
-               Y(dx,dy,e) += B(qx, dx) * G(qx, dx) * QD2[qx][dy];
-               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * QD3[qx][dy];
+               Y(dx,dy,e) += B(qx, dx) * G(qx, dx) * QD1[qx][dy];
+               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * QD2[qx][dy];
             }
          }
       }
@@ -346,8 +342,7 @@ static void SmemPADiffusionDiagonal2D(const int NE,
       MFEM_SHARED double QD[4][NBZ][MD1][MQ1];
       double (*QD0)[MD1] = (double (*)[MD1])(QD[0] + tidz);
       double (*QD1)[MD1] = (double (*)[MD1])(QD[1] + tidz);
-      double (*QD2)[MD1] = (double (*)[MD1])(QD[2] + tidz);
-      double (*QD3)[MD1] = (double (*)[MD1])(QD[3] + tidz);
+      double (*QD2)[MD1] = (double (*)[MD1])(QD[3] + tidz);
       if (tidz == 0)
       {
          MFEM_FOREACH_THREAD(d,y,D1D)
@@ -367,7 +362,6 @@ static void SmemPADiffusionDiagonal2D(const int NE,
             QD0[qx][dy] = 0.0;
             QD1[qx][dy] = 0.0;
             QD2[qx][dy] = 0.0;
-            QD3[qx][dy] = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int q = qx + qy * Q1D;
@@ -381,8 +375,7 @@ static void SmemPADiffusionDiagonal2D(const int NE,
                const double GG = Gy * Gy;
                QD0[qx][dy] += BB * D0;
                QD1[qx][dy] += BG * D1;
-               QD2[qx][dy] += BG * D1;
-               QD3[qx][dy] += GG * D2;
+               QD2[qx][dy] += GG * D2;
             }
          }
       }
@@ -400,8 +393,8 @@ static void SmemPADiffusionDiagonal2D(const int NE,
                const double GG = Gx * Gx;
                Y(dx,dy,e) += GG * QD0[qx][dy];
                Y(dx,dy,e) += BG * QD1[qx][dy];
-               Y(dx,dy,e) += BG * QD2[qx][dy];
-               Y(dx,dy,e) += BB * QD3[qx][dy];
+               Y(dx,dy,e) += BG * QD1[qx][dy];
+               Y(dx,dy,e) += BB * QD2[qx][dy];
             }
          }
       }
@@ -666,7 +659,7 @@ static void PADiffusionAssembleDiagonal(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-void DiffusionIntegrator::AssembleDiagonalPA(Vector& diag) const
+void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag) const
 {
    PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
                                maps->B, maps->G, pa_data, diag);
@@ -947,12 +940,12 @@ static void SmemPADiffusionApply2D(const int NE,
       }
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(D,y,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[q][D] = b(q,D);
-               G[q][D] = g(q,D);
+               B[q][dy] = b(q,dy);
+               G[q][dy] = g(q,dy);
             }
          }
       }
@@ -1007,12 +1000,12 @@ static void SmemPADiffusionApply2D(const int NE,
       MFEM_SYNC_THREAD;
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(D,y,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bt[D][q] = b(q,D);
-               Gt[D][q] = g(q,D);
+               Bt[dy][q] = b(q,dy);
+               Gt[dy][q] = g(q,dy);
             }
          }
       }

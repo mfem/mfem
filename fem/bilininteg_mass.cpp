@@ -153,7 +153,6 @@ static void PAMassAssembleDiagonal2D(const int NE,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               // might need absolute values on next line
                Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * QD[qx][dy];
             }
          }
@@ -284,10 +283,12 @@ static void PAMassAssembleDiagonal3D(const int NE,
          {
             for (int dx = 0; dx < D1D; ++dx)
             {
+               double t = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  Y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * QDD[qx][dy][dz];
+                  t += B(qx, dx) * B(qx, dx) * QDD[qx][dy][dz];
                }
+               Y(dx, dy, dz, e) += t;
             }
          }
       }
@@ -368,10 +369,12 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
+               double t = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  Y(dx, dy, dz, e) += B[qx][dx] * B[qx][dx] * QDD[qx][dy][dz];
+                  t += B[qx][dx] * B[qx][dx] * QDD[qx][dy][dz];
                }
+               Y(dx, dy, dz, e) += t;
             }
          }
       }
@@ -416,7 +419,7 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
    MFEM_ABORT("Unknown kernel.");
 }
 
-void MassIntegrator::AssembleDiagonalPA(Vector& diag) const
+void MassIntegrator::AssembleDiagonalPA(Vector &diag) const
 {
    PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
 }
@@ -653,11 +656,11 @@ static void SmemPAMassApply2D(const int NE,
       }
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(D,y,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[q][D] = b(q,D);
+               B[q][dy] = b(q,dy);
             }
          }
       }
@@ -690,11 +693,11 @@ static void SmemPAMassApply2D(const int NE,
       MFEM_SYNC_THREAD;
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(D,y,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bt[D][q] = b(q,D);
+               Bt[dy][q] = b(q,dy);
             }
          }
       }
