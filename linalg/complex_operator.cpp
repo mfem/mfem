@@ -10,6 +10,28 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "complex_operator.hpp"
+#include <set>
+#include <map>
+
+// Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
+// mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
+// Note: the same macros are defined in hypre.cpp and hypre_parser.cpp.
+#if MFEM_HYPRE_VERSION < 21400
+
+#define mfem_hypre_TAlloc(type, size) hypre_TAlloc(type, size)
+#define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
+
+#else // MFEM_HYPRE_VERSION >= 21400
+
+// See the notes about hypre 2.14.0 in hypre.cpp
+#define mfem_hypre_TAlloc(type, size) \
+   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_CTAlloc(type, size) \
+   hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
+
+#endif // #if MFEM_HYPRE_VERSION < 21400
 
 namespace mfem
 {
@@ -17,16 +39,17 @@ namespace mfem
 ComplexOperator::ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
                                  bool ownReal, bool ownImag,
                                  Convention convention)
-   : Operator(2*Op_Real->Height(), 2*Op_Real->Width())
+   : Operator(2*((Op_Real)?Op_Real->Height():Op_Imag->Height()),
+              2*((Op_Real)?Op_Real->Width():Op_Imag->Width()))
    , Op_Real_(Op_Real)
    , Op_Imag_(Op_Imag)
    , ownReal_(ownReal)
    , ownImag_(ownImag)
    , convention_(convention)
-   , x_r_(NULL, Op_Real->Width())
-   , x_i_(NULL, Op_Real->Width())
-   , y_r_(NULL, Op_Real->Height())
-   , y_i_(NULL, Op_Real->Height())
+   , x_r_(NULL, width / 2)
+   , x_i_(NULL, width / 2)
+   , y_r_(NULL, height / 2)
+   , y_i_(NULL, height / 2)
    , u_(NULL)
    , v_(NULL)
 {}
@@ -39,14 +62,38 @@ ComplexOperator::~ComplexOperator()
    delete v_;
 }
 
+Operator & ComplexOperator::real()
+{
+   MFEM_ASSERT(Op_Real_, "ComplexOperator has no real part!");
+   return *Op_Real_;
+}
+
+Operator & ComplexOperator::imag()
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexOperator has no imaginary part!");
+   return *Op_Imag_;
+}
+
+const Operator & ComplexOperator::real() const
+{
+   MFEM_ASSERT(Op_Real_, "ComplexOperator has no real part!");
+   return *Op_Real_;
+}
+
+const Operator & ComplexOperator::imag() const
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexOperator has no imaginary part!");
+   return *Op_Imag_;
+}
+
 void ComplexOperator::Mult(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
    x_r_.SetData(x_data);
-   x_i_.SetData(&x_data[Op_Real_->Width()]);
+   x_i_.SetData(&x_data[width / 2]);
 
    y_r_.SetData(&y[0]);
-   y_i_.SetData(&y[Op_Real_->Height()]);
+   y_i_.SetData(&y[height / 2]);
 
    this->Mult(x_r_, x_i_, y_r_, y_i_);
 }
@@ -83,10 +130,10 @@ void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
    y_r_.SetData(x_data);
-   y_i_.SetData(&x_data[Op_Real_->Height()]);
+   y_i_.SetData(&x_data[height / 2]);
 
    x_r_.SetData(&y[0]);
-   x_i_.SetData(&y[Op_Real_->Width()]);
+   x_i_.SetData(&y[width / 2]);
 
    this->MultTranspose(y_r_, y_i_, x_r_, x_i_);
 }
@@ -119,6 +166,30 @@ void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
    }
 }
 
+
+SparseMatrix & ComplexSparseMatrix::real()
+{
+   MFEM_ASSERT(Op_Real_, "ComplexSparseMatrix has no real part!");
+   return dynamic_cast<SparseMatrix &>(*Op_Real_);
+}
+
+SparseMatrix & ComplexSparseMatrix::imag()
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexSparseMatrix has no imaginary part!");
+   return dynamic_cast<SparseMatrix &>(*Op_Imag_);
+}
+
+const SparseMatrix & ComplexSparseMatrix::real() const
+{
+   MFEM_ASSERT(Op_Real_, "ComplexSparseMatrix has no real part!");
+   return dynamic_cast<const SparseMatrix &>(*Op_Real_);
+}
+
+const SparseMatrix & ComplexSparseMatrix::imag() const
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexSparseMatrix has no imaginary part!");
+   return dynamic_cast<const SparseMatrix &>(*Op_Imag_);
+}
 
 SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
 {
@@ -183,5 +254,358 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
 
    return new SparseMatrix(I, J, D, this->Height(), this->Width());
 }
+
+#ifdef MFEM_USE_MPI
+
+ComplexHypreParMatrix::ComplexHypreParMatrix(HypreParMatrix * A_Real,
+                                             HypreParMatrix * A_Imag,
+                                             bool ownReal, bool ownImag,
+                                             Convention convention)
+   : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
+{
+   comm_ = (A_Real) ? A_Real->GetComm() :
+           ((A_Imag) ? A_Imag->GetComm() : MPI_COMM_WORLD);
+
+   MPI_Comm_rank(comm_, &myid_);
+   MPI_Comm_size(comm_, &nranks_);
+}
+
+HypreParMatrix & ComplexHypreParMatrix::real()
+{
+   MFEM_ASSERT(Op_Real_, "ComplexHypreParMatrix has no real part!");
+   return dynamic_cast<HypreParMatrix &>(*Op_Real_);
+}
+
+HypreParMatrix & ComplexHypreParMatrix::imag()
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexHypreParMatrix has no imaginary part!");
+   return dynamic_cast<HypreParMatrix &>(*Op_Imag_);
+}
+
+const HypreParMatrix & ComplexHypreParMatrix::real() const
+{
+   MFEM_ASSERT(Op_Real_, "ComplexHypreParMatrix has no real part!");
+   return dynamic_cast<const HypreParMatrix &>(*Op_Real_);
+}
+
+const HypreParMatrix & ComplexHypreParMatrix::imag() const
+{
+   MFEM_ASSERT(Op_Imag_, "ComplexHypreParMatrix has no imaginary part!");
+   return dynamic_cast<const HypreParMatrix &>(*Op_Imag_);
+}
+
+HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
+{
+   HypreParMatrix * A_r = dynamic_cast<HypreParMatrix*>(Op_Real_);
+   HypreParMatrix * A_i = dynamic_cast<HypreParMatrix*>(Op_Imag_);
+
+   if ( A_r == NULL && A_i == NULL ) { return NULL; }
+
+   HYPRE_Int global_num_rows_r = (A_r) ? A_r->GetGlobalNumRows() : 0;
+   HYPRE_Int global_num_rows_i = (A_i) ? A_i->GetGlobalNumRows() : 0;
+   HYPRE_Int global_num_rows = std::max(global_num_rows_r, global_num_rows_i);
+
+   HYPRE_Int global_num_cols_r = (A_r) ? A_r->GetGlobalNumCols() : 0;
+   HYPRE_Int global_num_cols_i = (A_i) ? A_i->GetGlobalNumCols() : 0;
+   HYPRE_Int global_num_cols = std::max(global_num_cols_r, global_num_cols_i);
+
+   int row_starts_size = (HYPRE_AssumedPartitionCheck()) ? 2 : nranks_ + 1;
+   HYPRE_Int * row_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_Int * col_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
+
+   const HYPRE_Int * row_starts_z = (A_r) ? A_r->RowPart() :
+                                    ((A_i) ? A_i->RowPart() : NULL);
+   const HYPRE_Int * col_starts_z = (A_r) ? A_r->ColPart() :
+                                    ((A_i) ? A_i->ColPart() : NULL);
+
+   for (int i = 0; i < row_starts_size; i++)
+   {
+      row_starts[i] = 2 * row_starts_z[i];
+      col_starts[i] = 2 * col_starts_z[i];
+   }
+
+   SparseMatrix diag_r, diag_i, offd_r, offd_i;
+   HYPRE_Int * cmap_r, * cmap_i;
+
+   int nrows_r = 0, nrows_i = 0, ncols_r = 0, ncols_i = 0;
+   int ncols_offd_r = 0, ncols_offd_i = 0;
+   if (A_r)
+   {
+      A_r->GetDiag(diag_r);
+      A_r->GetOffd(offd_r, cmap_r);
+      nrows_r = diag_r.Height();
+      ncols_r = diag_r.Width();
+      ncols_offd_r = offd_r.Width();
+   }
+   if (A_i)
+   {
+      A_i->GetDiag(diag_i);
+      A_i->GetOffd(offd_i, cmap_i);
+      nrows_i = diag_i.Height();
+      ncols_i = diag_i.Width();
+      ncols_offd_i = offd_i.Width();
+   }
+   int nrows = std::max(nrows_r, nrows_i);
+   int ncols = std::max(ncols_r, ncols_i);
+
+   // Determine the unique set of off-diagonal columns global indices
+   std::set<int> cset;
+   for (int i=0; i<ncols_offd_r; i++)
+   {
+      cset.insert(cmap_r[i]);
+   }
+   for (int i=0; i<ncols_offd_i; i++)
+   {
+      cset.insert(cmap_i[i]);
+   }
+   int num_cols_offd = (int)cset.size();
+
+   // Extract pointers to the various CSR arrays of the diagonal blocks
+   const int * diag_r_I = (A_r) ? diag_r.GetI() : NULL;
+   const int * diag_i_I = (A_i) ? diag_i.GetI() : NULL;
+
+   const int * diag_r_J = (A_r) ? diag_r.GetJ() : NULL;
+   const int * diag_i_J = (A_i) ? diag_i.GetJ() : NULL;
+
+   const double * diag_r_D = (A_r) ? diag_r.GetData() : NULL;
+   const double * diag_i_D = (A_i) ? diag_i.GetData() : NULL;
+
+   int diag_r_nnz = (diag_r_I) ? diag_r_I[nrows] : 0;
+   int diag_i_nnz = (diag_i_I) ? diag_i_I[nrows] : 0;
+   int diag_nnz = 2 * (diag_r_nnz + diag_i_nnz);
+
+   // Extract pointers to the various CSR arrays of the off-diagonal blocks
+   const int * offd_r_I = (A_r) ? offd_r.GetI() : NULL;
+   const int * offd_i_I = (A_i) ? offd_i.GetI() : NULL;
+
+   const int * offd_r_J = (A_r) ? offd_r.GetJ() : NULL;
+   const int * offd_i_J = (A_i) ? offd_i.GetJ() : NULL;
+
+   const double * offd_r_D = (A_r) ? offd_r.GetData() : NULL;
+   const double * offd_i_D = (A_i) ? offd_i.GetData() : NULL;
+
+   int offd_r_nnz = (offd_r_I) ? offd_r_I[nrows] : 0;
+   int offd_i_nnz = (offd_i_I) ? offd_i_I[nrows] : 0;
+   int offd_nnz = 2 * (offd_r_nnz + offd_i_nnz);
+
+   // Allocate CSR arrays for the combined matrix
+   HYPRE_Int * diag_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * diag_J = mfem_hypre_CTAlloc(HYPRE_Int, diag_nnz);
+   double    * diag_D = mfem_hypre_CTAlloc(double, diag_nnz);
+
+   HYPRE_Int * offd_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * offd_J = mfem_hypre_CTAlloc(HYPRE_Int, offd_nnz);
+   double    * offd_D = mfem_hypre_CTAlloc(double, offd_nnz);
+   HYPRE_Int * cmap   = mfem_hypre_CTAlloc(HYPRE_Int, 2 * num_cols_offd);
+
+   // Fill the CSR arrays for the diagonal portion of the matrix
+   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
+
+   diag_I[0] = 0;
+   diag_I[nrows] = diag_r_nnz + diag_i_nnz;
+   for (int i=0; i<nrows; i++)
+   {
+      diag_I[i + 1]         = ((diag_r_I)?diag_r_I[i+1]:0) +
+                              ((diag_i_I)?diag_i_I[i+1]:0);
+      diag_I[i + nrows + 1] = diag_I[i+1] + diag_r_nnz + diag_i_nnz;
+
+      if (diag_r_I)
+      {
+         for (int j=0; j<diag_r_I[i+1] - diag_r_I[i]; j++)
+         {
+            diag_J[diag_I[i] + j] = diag_r_J[diag_r_I[i] + j];
+            diag_D[diag_I[i] + j] = diag_r_D[diag_r_I[i] + j];
+
+            diag_J[diag_I[i+nrows] + j] =
+               diag_r_J[diag_r_I[i] + j] + ncols;
+            diag_D[diag_I[i+nrows] + j] =
+               factor * diag_r_D[diag_r_I[i] + j];
+         }
+      }
+      if (diag_i_I)
+      {
+         const int off_r = (diag_r_I)?(diag_r_I[i+1] - diag_r_I[i]):0;
+         for (int j=0; j<diag_i_I[i+1] - diag_i_I[i]; j++)
+         {
+            diag_J[diag_I[i] + off_r + j] =  diag_i_J[diag_i_I[i] + j] + ncols;
+            diag_D[diag_I[i] + off_r + j] = -diag_i_D[diag_i_I[i] + j];
+
+            diag_J[diag_I[i+nrows] + off_r + j] = diag_i_J[diag_i_I[i] + j];
+            diag_D[diag_I[i+nrows] + off_r + j] =
+               factor * diag_i_D[diag_i_I[i] + j];
+         }
+      }
+   }
+
+   // Determine the mappings describing the layout of off-diagonal columns
+   int num_recv_procs = 0;
+   HYPRE_Int * offd_col_start_stop = NULL;
+   this->getColStartStop(A_r, A_i, num_recv_procs, offd_col_start_stop);
+
+   std::set<int>::iterator sit;
+   std::map<int,int> cmapa, cmapb, cinvmap;
+   for (sit=cset.begin(); sit!=cset.end(); sit++)
+   {
+      int col_orig = *sit;
+      int col_2x2  = -1;
+      int col_size = 0;
+      for (int i=0; i<num_recv_procs; i++)
+      {
+         if (offd_col_start_stop[2*i] <= col_orig &&
+             col_orig < offd_col_start_stop[2*i+1])
+         {
+            col_2x2 = offd_col_start_stop[2*i] + col_orig;
+            col_size = offd_col_start_stop[2*i+1] - offd_col_start_stop[2*i];
+            break;
+         }
+      }
+      cmapa[*sit] = col_2x2;
+      cmapb[*sit] = col_2x2 + col_size;
+      cinvmap[col_2x2] = -1;
+      cinvmap[col_2x2 + col_size] = -1;
+   }
+   delete [] offd_col_start_stop;
+
+   std::map<int, int>::iterator mit;
+   int i = 0;
+   for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
+   {
+      mit->second = i;
+      cmap[i] = mit->first;
+   }
+
+   // Fill the CSR arrays for the off-diagonal portion of the matrix
+   offd_I[0] = 0;
+   offd_I[nrows] = offd_r_nnz + offd_i_nnz;
+   for (int i=0; i<nrows; i++)
+   {
+      offd_I[i + 1]         = ((offd_r_I)?offd_r_I[i+1]:0) +
+                              ((offd_i_I)?offd_i_I[i+1]:0);
+      offd_I[i + nrows + 1] = offd_I[i+1] + offd_r_nnz + offd_i_nnz;
+
+      if (offd_r_I)
+      {
+         const int off_i = (offd_i_I)?(offd_i_I[i+1] - offd_i_I[i]):0;
+         for (int j=0; j<offd_r_I[i+1] - offd_r_I[i]; j++)
+         {
+            offd_J[offd_I[i] + j] =
+               cinvmap[cmapa[cmap_r[offd_r_J[offd_r_I[i] + j]]]];
+            offd_D[offd_I[i] + j] = offd_r_D[offd_r_I[i] + j];
+
+            offd_J[offd_I[i+nrows] + off_i + j] =
+               cinvmap[cmapb[cmap_r[offd_r_J[offd_r_I[i] + j]]]];
+            offd_D[offd_I[i+nrows] + off_i + j] =
+               factor * offd_r_D[offd_r_I[i] + j];
+         }
+      }
+      if (offd_i_I)
+      {
+         const int off_r = (offd_r_I)?(offd_r_I[i+1] - offd_r_I[i]):0;
+         for (int j=0; j<offd_i_I[i+1] - offd_i_I[i]; j++)
+         {
+            offd_J[offd_I[i] + off_r + j] =
+               cinvmap[cmapb[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
+            offd_D[offd_I[i] + off_r + j] = -offd_i_D[offd_i_I[i] + j];
+
+            offd_J[offd_I[i+nrows] + j] =
+               cinvmap[cmapa[cmap_i[offd_i_J[offd_i_I[i] + j]]]];
+            offd_D[offd_I[i+nrows] + j] = factor * offd_i_D[offd_i_I[i] + j];
+         }
+      }
+   }
+
+   // Construct the combined matrix
+   HypreParMatrix * A = new HypreParMatrix(comm_,
+                                           2 * global_num_rows,
+                                           2 * global_num_cols,
+                                           row_starts, col_starts,
+                                           diag_I, diag_J, diag_D,
+                                           offd_I, offd_J, offd_D,
+                                           2 * num_cols_offd, cmap);
+
+   // Give the new matrix ownership of its internal arrays
+   A->SetOwnerFlags(-1,-1,-1);
+   hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->diag,1);
+   hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->offd,1);
+   hypre_ParCSRMatrixSetRowStartsOwner((hypre_ParCSRMatrix*)(*A),1);
+   hypre_ParCSRMatrixSetColStartsOwner((hypre_ParCSRMatrix*)(*A),1);
+
+   return A;
+}
+
+void
+ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
+                                       const HypreParMatrix * A_i,
+                                       int & num_recv_procs,
+                                       HYPRE_Int *& offd_col_start_stop) const
+{
+   hypre_ParCSRCommPkg * comm_pkg_r =
+      (A_r) ? hypre_ParCSRMatrixCommPkg((hypre_ParCSRMatrix*)(*A_r)) : NULL;
+   hypre_ParCSRCommPkg * comm_pkg_i =
+      (A_i) ? hypre_ParCSRMatrixCommPkg((hypre_ParCSRMatrix*)(*A_i)) : NULL;
+
+   std::set<HYPRE_Int> send_procs, recv_procs;
+   if ( comm_pkg_r )
+   {
+      for (HYPRE_Int i=0; i<comm_pkg_r->num_sends; i++)
+      {
+         send_procs.insert(comm_pkg_r->send_procs[i]);
+      }
+      for (HYPRE_Int i=0; i<comm_pkg_r->num_recvs; i++)
+      {
+         recv_procs.insert(comm_pkg_r->recv_procs[i]);
+      }
+   }
+   if ( comm_pkg_i )
+   {
+      for (HYPRE_Int i=0; i<comm_pkg_i->num_sends; i++)
+      {
+         send_procs.insert(comm_pkg_i->send_procs[i]);
+      }
+      for (HYPRE_Int i=0; i<comm_pkg_i->num_recvs; i++)
+      {
+         recv_procs.insert(comm_pkg_i->recv_procs[i]);
+      }
+   }
+
+   num_recv_procs = (int)recv_procs.size();
+
+   HYPRE_Int loc_start_stop[2];
+   offd_col_start_stop = new HYPRE_Int[2 * num_recv_procs];
+
+   const HYPRE_Int * row_part = (A_r) ? A_r->RowPart() :
+                                ((A_i) ? A_i->RowPart() : NULL);
+
+   int row_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
+   loc_start_stop[0] = row_part[row_part_ind];
+   loc_start_stop[1] = row_part[row_part_ind+1];
+
+   MPI_Request * req = new MPI_Request[send_procs.size()+recv_procs.size()];
+   MPI_Status * stat = new MPI_Status[send_procs.size()+recv_procs.size()];
+   int send_count = 0;
+   int recv_count = 0;
+   int tag = 0;
+
+   std::set<HYPRE_Int>::iterator sit;
+   for (sit=send_procs.begin(); sit!=send_procs.end(); sit++)
+   {
+      MPI_Isend(loc_start_stop, 2, HYPRE_MPI_INT,
+                *sit, tag, comm_, &req[send_count]);
+      send_count++;
+   }
+   for (sit=recv_procs.begin(); sit!=recv_procs.end(); sit++)
+   {
+      MPI_Irecv(&offd_col_start_stop[2*recv_count], 2, HYPRE_MPI_INT,
+                *sit, tag, comm_, &req[send_count+recv_count]);
+      recv_count++;
+   }
+
+   MPI_Waitall(send_count+recv_count, req, stat);
+
+   delete [] req;
+   delete [] stat;
+}
+
+#endif // MFEM_USE_MPI
 
 }
