@@ -246,7 +246,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
    }
 }
 
-void ParBilinearForm::AssembleDiagonal(Vector& diag) const
+void ParBilinearForm::AssembleDiagonal(Vector &diag) const
 {
    Vector local(pfes->GetVSize());
    BilinearForm::AssembleDiagonal(local);

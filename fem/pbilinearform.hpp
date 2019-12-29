@@ -90,7 +90,7 @@ public:
    void Assemble(int skip_zeros = 1);
 
    /// Assemble local diagonal (on truedofs)
-   void AssembleDiagonal(Vector& diag) const;
+   void AssembleDiagonal(Vector &diag) const;
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */

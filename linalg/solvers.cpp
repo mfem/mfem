@@ -105,7 +105,7 @@ void IterativeSolver::SetOperator(const Operator &op)
 
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
-                                               const Array<int>& ess_tdofs,
+                                               const Array<int> &ess_tdofs,
                                                const double dmpng)
    :
    Solver(d.Size()),
@@ -121,13 +121,13 @@ void OperatorJacobiSmoother::Setup()
    residual.UseDevice(true);
    const double delta = damping;
    auto D = diag.Read();
-   auto X = dinv.Write();
-   MFEM_FORALL(i, N, X[i] = delta / D[i]; );
+   auto DI = dinv.Write();
+   MFEM_FORALL(i, N, DI[i] = delta / D[i]; );
    auto I = ess_tdof_list.Read();
-   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = delta; );
+   MFEM_FORALL(i, ess_tdof_list.Size(), DI[I[i]] = delta; );
 }
 
-void OperatorJacobiSmoother::Mult(const Vector& x, Vector &y) const
+void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
    if (iterative_mode && oper)
    {
@@ -140,10 +140,10 @@ void OperatorJacobiSmoother::Mult(const Vector& x, Vector &y) const
       y.UseDevice(true);
       y = 0.0;
    }
-   auto X = dinv.Read();
+   auto DI = dinv.Read();
    auto R = residual.Read();
    auto Y = y.ReadWrite();
-   MFEM_FORALL(i, N, Y[i] += X[i] * R[i]; );
+   MFEM_FORALL(i, N, Y[i] += DI[i] * R[i]; );
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
