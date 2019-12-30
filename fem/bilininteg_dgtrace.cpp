@@ -25,7 +25,7 @@ static void PADGTraceSetup2D(const int Q1D,
                              const Array<double> &w,
                              const Vector &det,
                              const Vector &nor,
-                             const double rho,
+                             const Vector &rho,
                              const Vector &vel,
                              const double alpha,
                              const double beta,
@@ -35,8 +35,12 @@ static void PADGTraceSetup2D(const int Q1D,
 
    auto d = Reshape(det.Read(), Q1D, NF);
    auto n = Reshape(nor.Read(), Q1D, VDIM, NF);
-   // auto v = Reshape(vel.Read(), Q1D, VDIM, NF);//Not for constant velocity
-   auto c = vel.Read();
+   const bool const_r = rho.Size() == 1;
+   auto R =
+         const_r ? Reshape(rho.Read(), 1,1) : Reshape(rho.Read(), Q1D,NF);
+   const bool const_v = vel.Size() == 2;
+   auto V =
+         const_v ? Reshape(vel.Read(), 2,1,1) : Reshape(vel.Read(), 2,Q1D,NF);
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, 2, 2, NF);
 
@@ -44,9 +48,10 @@ static void PADGTraceSetup2D(const int Q1D,
    {
       for (int q = 0; q < Q1D; ++q)
       {
-         // const double dot = n(q,0,f) * c(q,0,f) + n(q,1,f) * c(q,1,f);
-         const double dot = n(q,0,f) * c[0] + n(q,1,f) * c[1];
-         // const double dot = c[0] + c[1];//just for debugging
+         const double r = const_r ? R(0,0) : R(q,f);
+         const double v0 = const_v ? V(0,0,0) : V(0,q,f);
+         const double v1 = const_v ? V(1,0,0) : V(1,q,f);
+         const double dot = n(q,0,f) * v0 + n(q,1,f) * v1;
          const double abs = dot > 0.0 ? dot : -dot;
          const double w = W[q]*d(q,f);
          qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
@@ -63,7 +68,7 @@ static void PADGTraceSetup3D(const int Q1D,
                              const Array<double> &w,
                              const Vector &det,
                              const Vector &nor,
-                             const double rho,
+                             const Vector &rho,
                              const Vector &vel,
                              const double alpha,
                              const double beta,
@@ -73,8 +78,12 @@ static void PADGTraceSetup3D(const int Q1D,
 
    auto d = Reshape(det.Read(), Q1D, Q1D, NF);
    auto n = Reshape(nor.Read(), Q1D, Q1D, VDIM, NF);
-   // auto c = Reshape(vel.Read(), Q1D, Q1D, VDIM, NF);
-   auto c = vel.Read();
+   const bool const_r = rho.Size() == 1;
+   auto R =
+         const_r ? Reshape(rho.Read(), 1,1,1) : Reshape(rho.Read(), Q1D,Q1D,NF);
+   const bool const_v = vel.Size() == 3;
+   auto V =
+         const_v ? Reshape(vel.Read(), 3,1,1,1) : Reshape(vel.Read(), 3,Q1D,Q1D,NF);
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, Q1D, 2, 2, NF);
 
@@ -84,8 +93,11 @@ static void PADGTraceSetup3D(const int Q1D,
       {
          for (int q2 = 0; q2 < Q1D; ++q2)
          {
-            // const double dot = n(q,0,f) * c(q,0,f) + n(q,1,f) * c(q,1,f) + n(q,2,f) * c(q,2,f);
-            const double dot = n(q1,q2,0,f) * c[0] + n(q1,q2,1,f) * c[1] + n(q1,q2,2,f) * c[2];
+            const double r = const_r ? R(0,0,0) : R(q1,q2,f);
+            const double v0 = const_v ? V(0,0,0,0) : V(0,q1,q2,f);
+            const double v1 = const_v ? V(1,0,0,0) : V(1,q1,q2,f);
+            const double v2 = const_v ? V(2,0,0,0) : V(2,q1,q2,f);
+            const double dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 + n(q1,q2,2,f) * v2;
             const double abs = dot > 0.0 ? dot : -dot;
             const double w = W[q1+q2*Q1D]*d(q1,q2,f);
             qd(q1,q2,0,0,f) = w*( alpha/2 * dot + beta * abs );
@@ -104,7 +116,7 @@ static void PADGTraceSetup(const int dim,
                            const Array<double> &W,
                            const Vector &det,
                            const Vector &nor,
-                           const double rho,
+                           const Vector &rho,
                            const Vector &u,
                            const double alpha,
                            const double beta,
@@ -139,20 +151,54 @@ void DGTraceIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
-   double r;
-   if(rho==NULL)
+   //TODO make this work
+   Vector r;
+   if(rho==nullptr)
    {
-      r = 1.0;
+      r.SetSize(1);
+      r(0) = 1.0;
+   }
+   else if(ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
+   {
+      r.SetSize(1);
+      r(0) = c_rho->constant;
    }
    else
    {
-      ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho);
-      MFEM_VERIFY(c_rho != NULL, "only ConstantCoefficient is supported!");
-      r = c_rho->constant;
+      r.SetSize(nq * nf);
+      auto C = Reshape(r.HostWrite(), nq, nf);
+      for (int f = 0; f < nf; ++f)
+      {
+         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
+         for (int q = 0; q < nq; ++q)
+         {
+            C(q,f) = rho->Eval(T, ir->IntPoint(q));
+         }
+      }
    }
-   VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>(u);
-   MFEM_VERIFY(c_u != NULL, "only ConstantCoefficient is supported!");
-   const Vector& vel = c_u->GetVec();
+   Vector vel;
+   if(VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>(u))
+   {
+      vel = c_u->GetVec();
+   }
+   else
+   {
+      vel.SetSize(dim * nq * nf);
+      auto C = Reshape(vel.HostWrite(), dim, nq, nf);
+      Vector Vq(dim);
+      for (int f = 0; f < nf; ++f)
+      {
+         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
+         for (int q = 0; q < nq; ++q)
+         {
+            u->Eval(Vq, T, ir->IntPoint(q));
+            for (int i = 0; i < dim; ++i)
+            {
+               C(i,q,f) = Vq(i);
+            }
+         }
+      }
+   }
    PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
                   geom->detJ, geom->normal, r, vel,
                   alpha, beta, pa_data);

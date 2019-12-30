@@ -17,8 +17,8 @@ void AddDGIntegrators(BilinearForm &k, VectorCoefficient &velocity)
 {
    double alpha = 1.0;
    double beta = -0.5;
-   // k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -alpha));
-   // k.AddDomainIntegrator(new MassIntegrator);
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -alpha));
+   k.AddDomainIntegrator(new MassIntegrator);
    k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, alpha, beta)));
    k.AddBdrFaceIntegrator(
@@ -87,7 +87,8 @@ int main(int argc, char *argv[])
    {
       velocity_vector[i] = 1.0;
    }
-   VectorConstantCoefficient velocity(velocity_vector);
+   // VectorConstantCoefficient velocity(velocity_vector);
+   VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
