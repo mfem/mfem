@@ -180,12 +180,13 @@ int main(int argc, char *argv[])
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    // VectorFunctionCoefficient velocity(dim, velocity_function);
-   Vector velocity_vector(dim);
-   for (int i = 0; i < dim; ++i)
-   {
-      velocity_vector[i] = 1.0;
-   }
-   VectorConstantCoefficient velocity(velocity_vector);
+   // Vector velocity_vector(dim);
+   // for (int i = 0; i < dim; ++i)
+   // {
+   //    velocity_vector[i] = 1.0;
+   // }
+   // VectorConstantCoefficient velocity(velocity_vector);
+   VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 

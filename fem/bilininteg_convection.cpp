@@ -25,7 +25,7 @@ static void PAConvectionSetup2D(const int Q1D,
                                const int ne,
                                const Array<double> &w,
                                const Vector &j,
-                               const Vector &coeff,
+                               const Vector &vel,
                                const double alpha,
                                Vector &op)
 {
@@ -34,9 +34,9 @@ static void PAConvectionSetup2D(const int Q1D,
    auto W = w.Read();
 
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   // auto c = Reshape(coeff.Read(), NQ, 2, NE);
-   const double c0 = coeff[0];
-   const double c1 = coeff[1];
+   const bool const_v = vel.Size() == 2;
+   auto V =
+         const_v ? Reshape(vel.Read(), 2,1,1) : Reshape(vel.Read(), 2,NQ,NE);
    auto y = Reshape(op.Write(), NQ, 2, NE);
 
    MFEM_FORALL(e, NE,
@@ -48,10 +48,10 @@ static void PAConvectionSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double w = alpha * W[q];
-         // const double wx = w * c(q,0,e);
-         // const double wy = w * c(q,1,e);
-         const double wx = w * c0;
-         const double wy = w * c1;
+         const double v0 = const_v ? V(0,0,0) : V(0,q,e);
+         const double v1 = const_v ? V(1,0,0) : V(1,q,e);
+         const double wx = w * v0;
+         const double wy = w * v1;
          //w*J^-1
          y(q,0,e) =  wx * J22 - wy * J12; // 1
          y(q,1,e) = -wy * J21 + wy * J11; // 2
@@ -64,17 +64,16 @@ static void PAConvectionSetup3D(const int Q1D,
                                const int NE,
                                const Array<double> &w,
                                const Vector &j,
-                               const Vector &coeff,
+                               const Vector &vel,
                                const double alpha,
                                Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   // auto c = Reshape(coeff.Read(), NQ, 2, NE);
-   const double c0 = coeff[0];
-   const double c1 = coeff[1];
-   const double c2 = coeff[2];
+   const bool const_v = vel.Size() == 3;
+   auto V =
+         const_v ? Reshape(vel.Read(), 3,1,1) : Reshape(vel.Read(), 3,NQ,NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
    {
@@ -93,12 +92,12 @@ static void PAConvectionSetup3D(const int Q1D,
          // /* */               J21 * (J12 * J33 - J32 * J13) +
          // /* */               J31 * (J12 * J23 - J22 * J13);
          const double w = alpha * W[q];
-         // const double wx = w * c(q,0,e);
-         // const double wy = w * c(q,1,e);
-         // const double wz = w * c(q,2,e);
-         const double wx = w * c0;
-         const double wy = w * c1;
-         const double wz = w * c2;
+         const double v0 = const_v ? V(0,0,0) : V(0,q,e);
+         const double v1 = const_v ? V(1,0,0) : V(1,q,e);
+         const double v2 = const_v ? V(2,0,0) : V(2,q,e);
+         const double wx = w * v0;
+         const double wy = w * v1;
+         const double wz = w * v2;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -458,11 +457,31 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-   VectorConstantCoefficient *cQ = dynamic_cast<VectorConstantCoefficient*>(Q);//TODO not constant coeff
-   MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-   const Vector& coeff = cQ->GetVec();   
+   Vector vel;
+   if(VectorConstantCoefficient *cQ = dynamic_cast<VectorConstantCoefficient*>(Q))
+   {
+      vel = cQ->GetVec();
+   }
+   else
+   {
+      vel.SetSize(dim * nq * ne);
+      auto C = Reshape(vel.HostWrite(), dim, nq, ne);
+      Vector Vq(dim);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            Q->Eval(Vq, T, ir->IntPoint(q));
+            for (int i = 0; i < dim; ++i)
+            {
+               C(i,q,e) = Vq(i);
+            }
+         }
+      }
+   }
    PAConvectionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
-                    coeff, alpha, pa_data);
+                    vel, alpha, pa_data);
 }
 
 static void PAConvectionApply(const int dim,
