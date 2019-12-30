@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
-   H1_FECollection(order, dim);
+   H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
@@ -154,7 +154,6 @@ int main(int argc, char *argv[])
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 50000;
-
    for (int it = 0; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();
@@ -245,5 +244,6 @@ int main(int argc, char *argv[])
       a.Update();
       b.Update();
    }
+   
    return 0;
 }
