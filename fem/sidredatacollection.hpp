@@ -29,7 +29,7 @@
 #endif
 #include <axom/sidre.hpp>
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
-# pragma GCC diagnostic pop // remove for older GCC versions, e.g. 5.4.0
+# pragma GCC diagnostic pop
 #endif
 
 namespace mfem
