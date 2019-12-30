@@ -29,7 +29,7 @@ void u_grad_exact_2(const Vector &, Vector &);
 
 void convergenceStudy(const char *mesh_file, int num_ref, int &order,
                       double &l2_err_prev, double &h1_err_prev, bool &visualization, 
-                      int &exact, int &dof2view, int &solvePDE, bool static_cond)
+                      int &exact, int &dof2view, int &solvePDE, bool static_cond, bool &use_serendip)
 {
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
@@ -50,21 +50,18 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    FiniteElementCollection *fec;
    if (order == 1)
    {
-      fec = new H1_FECollection(2, 2);
+      fec = new H1_FECollection(1, 2);
    }
-   else if (order > 1)
+   else 
    {
-      fec = new H1Ser_FECollection(order, 2);
-   }
-   else if (order < 0)
-   {
-      // fec = new H1_FECollection(-order, 2, BasisType::Positive);
-      fec = new H1_FECollection(-order, 2);
-   }
-   else
-   {
-     cout << "Error - something went wrong in processing order input." << endl;
-     fec = NULL;
+      if (use_serendip)
+      {
+         fec = new H1Ser_FECollection(order, 2);
+      }
+      else
+      {
+         fec = new H1_FECollection(order, 2);
+      }
    }
 
    // Set exact solution
@@ -330,6 +327,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    const char *device_config = "cpu";
    bool visualization = false;
+   bool use_serendip = false;
    int exact = 2;
    int dof2view = -1;
    int solvePDE = 1;
@@ -340,8 +338,13 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
+                  "Finite element order (polynomial degree).");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity", 
+                  "-no-ser", "--not-serendipity", 
+                  "Use serendipity element collection.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    //args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -365,24 +368,18 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   if (order == 1)
-   {
-      cout << "Using nodal H1 *** QUADRATIC *** tensor product elements (for testing / comparison)." << endl;
-   }
-   else if (order > 1)
+   if (use_serendip)
    {
       cout << "Using H1 serendipity elements of order " << order << "." << endl;
    }
-   else if (order < 0)
-   {
-      cout << "Using H1 tensor product basis of order " << -order << "." << endl;
-   }
    else
    {
-      cout << "In this example, the order parameter is used as a proxy:\n" << 
-      "order = 1: quadratic tensor product elements\n" <<
-      "order = p>1: order p serendipity elements\n" <<
-      "order = p<0: order -p Bernstein basis tensor product elements"  << endl;
+      cout << "Using H1 tensor product basis of order " << order << "." << endl;
+   }
+   
+   if (order <1)
+   {
+      cout << "Order must be >0." << endl;
       return 1;
    }
 
@@ -466,11 +463,11 @@ int main(int argc, char *argv[])
       for (int i = 0; i < (total_refinements); i++)
       {
          convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, 
-            exact, dof2view, solvePDE, static_cond);
+            exact, dof2view, solvePDE, static_cond, use_serendip);
       }
    }
    convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, 
-            exact, dof2view, solvePDE, static_cond);
+            exact, dof2view, solvePDE, static_cond, use_serendip);
 
    return 0;
 }
