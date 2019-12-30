@@ -1200,7 +1200,7 @@ void MixedBilinearForm::ConformingAssemble()
 }
 
 void MixedBilinearForm::EliminateTrialDofs (
-   Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs )
+   const Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs )
 {
    int i, j, k;
    Array<int> tr_vdofs, cols_marker (trial_fes -> GetVSize());
@@ -1223,12 +1223,12 @@ void MixedBilinearForm::EliminateTrialDofs (
 }
 
 void MixedBilinearForm::EliminateEssentialBCFromTrialDofs (
-   Array<int> &marked_vdofs, const Vector &sol, Vector &rhs)
+   const Array<int> &marked_vdofs, const Vector &sol, Vector &rhs)
 {
    mat -> EliminateCols (marked_vdofs, &sol, &rhs);
 }
 
-void MixedBilinearForm::EliminateTestDofs (Array<int> &bdr_attr_is_ess)
+void MixedBilinearForm::EliminateTestDofs (const Array<int> &bdr_attr_is_ess)
 {
    int i, j, k;
    Array<int> te_vdofs;
