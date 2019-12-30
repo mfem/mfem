@@ -1830,10 +1830,6 @@ public:
        Array will be empty. */
    const Array<int> &GetDofMap() const { return dof_map; }
 
-   /** @brief Get an Array<int> that is the inverse of the GetDofMap.  This
-       is only constructed and used for Serendipity elements. */
-   const Array<int> &GetInverseDofMap() const { return inv_dof_map; }
-
    static Geometry::Type GetTensorProductGeometry(int dim)
    {
       switch (dim)
@@ -1989,21 +1985,6 @@ public:
                                       DenseMatrix &I) const;
    using FiniteElement::Project;
 };
-
-class H1Ser_HexElement : public ScalarFiniteElement
-{
-public:
-   H1Ser_HexElement(const int p, int set_ser_space_dim);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const;
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
-   using FiniteElement::Project;
-};
-
 
 
 class H1Pos_HexahedronElement : public PositiveTensorFiniteElement

@@ -121,8 +121,7 @@ public:
 };
 
 /** Arbitrary order H1-conforming (continuous) serendipity finite elements;
- *  current implemenation works for arbitrary order in 2D but only up through
- *  order 4 in 3D.  Higher order bases in 3D are available but are non-nodal.
+ *  Current implemenation works in 2D only; 3D version is in development.
 */
 class H1Ser_FECollection : public H1_FECollection
 {
