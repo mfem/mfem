@@ -54,7 +54,7 @@ static void PAConvectionSetup2D(const int Q1D,
          const double wy = w * v1;
          //w*J^-1
          y(q,0,e) =  wx * J22 - wy * J12; // 1
-         y(q,1,e) = -wy * J21 + wy * J11; // 2
+         y(q,1,e) = -wx * J21 + wy * J11; // 2
       }
    });
 }
@@ -109,9 +109,9 @@ static void PAConvectionSetup3D(const int Q1D,
          const double A32 = (J31 * J12) - (J11 * J32);
          const double A33 = (J11 * J22) - (J12 * J21);
          // q . J^{-1} = q . adj(J)^T //TODO check correctness
-         y(q,0,e) =  wx * A11 + wy * A21 + wz * A31; // 1,1
-         y(q,1,e) =  wx * A12 + wy * A22 + wz * A32; // 1,1
-         y(q,2,e) =  wx * A13 + wy * A23 + wz * A33; // 1,1
+         y(q,0,e) =  wx * A11 + wy * A21 + wz * A31;
+         y(q,1,e) =  wx * A12 + wy * A22 + wz * A32;
+         y(q,2,e) =  wx * A13 + wy * A23 + wz * A33;
       }
    });
 }
