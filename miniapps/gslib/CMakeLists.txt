@@ -9,14 +9,21 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-# Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
+if (MFEM_USE_GSLIB)
 
-set(MINIAPP_COMMON_HEADERS)
-add_subdirectory(common)
-add_subdirectory(electromagnetics)
-add_subdirectory(meshing)
-add_subdirectory(performance)
-add_subdirectory(tools)
-add_subdirectory(nurbs)
-add_subdirectory(gslib)
+  add_mfem_miniapp(field-diff
+    MAIN field-diff.cpp
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(findpts
+    MAIN findpts.cpp
+    LIBRARIES mfem)
+
+  # Parallel apps.
+  if (MFEM_USE_MPI)
+    add_mfem_miniapp(pfindpts
+      MAIN findpts.cpp
+      LIBRARIES mfem)
+  endif()
+
+endif()

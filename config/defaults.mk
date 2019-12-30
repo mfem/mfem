@@ -131,6 +131,7 @@ MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
+MFEM_USE_GSLIB         = NO
 MFEM_USE_CUDA          = NO
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
@@ -319,6 +320,11 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 HIOP_DIR = @MFEM_DIR@/../hiop/install
 HIOP_OPT = -I$(HIOP_DIR)/include
 HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
+
+# GSLIB library
+GSLIB_DIR = @MFEM_DIR@/../gslib/build
+GSLIB_OPT = -I$(GSLIB_DIR)/include
+GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration (currently not needed)
 CUDA_OPT =
