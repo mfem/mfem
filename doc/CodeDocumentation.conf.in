@@ -774,6 +774,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/meshing \
                          @MFEM_SOURCE_DIR@/miniapps/tools \
                          @MFEM_SOURCE_DIR@/miniapps/nurbs \
+                         @MFEM_SOURCE_DIR@/miniapps/gslib \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
                          @MFEM_SOURCE_DIR@/miniapps/performance
 
