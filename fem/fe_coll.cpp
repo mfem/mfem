@@ -1509,7 +1509,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
 
-   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1, pm4 = pm3 -1, pm5 = pm4 -1;
+   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1, pm4 = pm3 -1;
 
    int pt_type = BasisType::GetQuadrature1D(btype);
    b_type = BasisType::Check(btype);
@@ -1700,32 +1700,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
             H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
             H1_Elements[Geometry::PRISM] = new H1Pos_WedgeElement(p);
-         }
-         else if (b_type == BasisType::Serendipity)
-         {
-            // NOTE: fe_coll.hpp has
-            //       virtual int DofForGeometry(Geometry::Type GeomType) const  { return H1_dof[GeomType]; }
-            //       so we need to fix the value of H1_dof here for the serendipity case
-            int ser_exterior_dim = 8 + 12*pm1 + 3* pm2 * pm3;
-            int ser_interior_dim = 0;
-            if (p>5)
-            {
-               ser_interior_dim += pm3 * pm4 * pm5 / 6;
-            }
-            H1_dof[Geometry::CUBE] =  ser_interior_dim;
-
-            // The second argument to the H1Ser_Hex constructor is the # of DoFs for an order p element
-            H1_Elements[Geometry::CUBE] = new H1Ser_HexElement(p,
-                                                               ser_exterior_dim + ser_interior_dim);
-
-            // **
-            // ** Should throw some error here if p>=5 to indicate that the implemenation isn't finalized yet  **
-            if (p>4)
-            {
-               cout << endl <<
-                    "WARNING: Order p>4 serendipity elements in 3D are not yet working!" << endl;
-            }
-            // **
          }
          else
          {

@@ -10,7 +10,7 @@
 //               ex2 -m ../data/beam-quad.mesh -o 3 -sc
 //               ex2 -m ../data/beam-quad-nurbs.mesh
 //               ex2 -m ../data/beam-hex-nurbs.mesh
-//               ex2 -m ../data/beam-hex.mesh -o 2 -ser
+//               ex2 -m ../data/beam-tri.mesh -o 4 -ser
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
