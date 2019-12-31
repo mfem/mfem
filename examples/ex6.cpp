@@ -244,6 +244,6 @@ int main(int argc, char *argv[])
       a.Update();
       b.Update();
    }
-   
+
    return 0;
 }
