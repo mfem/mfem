@@ -19,6 +19,10 @@
 // Compile with: make mandel
 //
 // Sample runs:  mandel
+//               mandel -m ../../data/inline-tri.mesh
+//               mandel -m ../../data/star-mixed-p2.mesh -a -ncl -1 -sd 4
+//               mandel -m ../../data/klein-bottle.mesh
+//               mandel -m ../../data/inline-hex.mesh
 
 #include "mfem.hpp"
 #include <fstream>
