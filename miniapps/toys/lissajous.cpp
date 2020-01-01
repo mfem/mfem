@@ -14,7 +14,7 @@
 //                ---------------------------------------------
 //
 // This miniapp generates two different Lissajous curves in 3D which appear to
-// vertically and/or horizontally, even though the net motion is the same.
+// spin vertically and/or horizontally, even though the net motion is the same.
 // Based on the 2019 Illusion of the year "Dual Axis Illusion" by Frank Force,
 // see http://illusionoftheyear.com/2019/12/dual-axis-illusion.
 //
@@ -167,20 +167,20 @@ void lissajous_trans(const Vector &x, Vector &p,
       // tubular radius
       double R = 0.02*(A+B);
 
-      // normal to the cylinder
+      // normal to the cylinder at p(t)
       double normal[3] = { cos(b*t), sin(b*t), 0 };
 
-      // tangent to the curve
-      double tangent[3] = { -b*B*sin(b*t), b*B*cos(b*t), A*a*cos(a*t+delta) };
+      // tangent to the curve, dp/dt(t)
+      // double tangent[3] = { -b*B*sin(b*t), b*B*cos(b*t), A*a*cos(a*t+delta) };
 
-      // normalized cross product of tangent and normal
+      // normalized cross product of tangent and normal at p(t)
       double cn = 1e-128;
       double cross[3] = { A*a*sin(b*t)*cos(a*t+delta), -A*a*cos(b*t)*cos(a*t+delta), b*B };
       for (int i = 0; i < 3; i++) { cn += cross[i]*cross[i]; }
       for (int i = 0; i < 3; i++) { cross[i] /= sqrt(cn); }
 
-      // creare a tubular surface of radius R around the curve, in the plane
-      // orthogonal to the tangent
+      // create a tubular surface of radius R around the curve p(t), in the plane
+      // orthogonal to the tangent (with basis given by normal and cross)
       for (int i = 0; i < 3; i++)
       {
          p[i] += R * (cos(theta)*normal[i] + sin(theta)*cross[i]);
