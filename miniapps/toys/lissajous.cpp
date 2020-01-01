@@ -9,9 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//                ---------------------------------------------
-//                Lissajous Miniapp:  Spinning optical illusion
-//                ---------------------------------------------
+//               ---------------------------------------------
+//               Lissajous Miniapp:  Spinning optical illusion
+//               ---------------------------------------------
 //
 // This miniapp generates two different Lissajous curves in 3D which appear to
 // spin vertically and/or horizontally, even though the net motion is the same.

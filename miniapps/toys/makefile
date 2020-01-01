@@ -21,7 +21,6 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-
 SEQ_MINIAPPS = automata life mandel rubik snake lissajous
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
@@ -55,7 +54,6 @@ snake: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 $(COMMON_O): %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
-
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
@@ -66,7 +64,7 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 %-test-seq: %
 	@$(call mfem-test-file,$<,, Toys miniapp,$(<).mesh)
 snake-test-seq: snake
-	@$(call mfem-test-file,$<,, Toys miniapp,$(<)-c0.mesh)
+	@$(call mfem-test-file,$<,, Toys miniapp,$(<)-init.mesh)
 rubik-test-seq: rubik
 	@$(call mfem-test-file,$<,, Toys miniapp,$(<)-init.mesh)
 
