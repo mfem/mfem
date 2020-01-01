@@ -30,8 +30,8 @@ using namespace std;
 // Given a point x, return its material id as an integer. The ids should be
 // positive. If the point is exactly on the interface, return 0.
 //
-// This particular implementation bases the material value on the iterations for
-// the point in the Mandelbrot set definition.
+// In this particular miniapp, the material value is based on the number of
+// iterations for the point from the definition of the Mandelbrot set.
 int material(Vector &x, Vector &xmin, Vector &xmax)
 {
    // Rescaling to [0,1]^sdim

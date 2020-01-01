@@ -14,8 +14,7 @@
 //         ----------------------------------------------------
 //
 // This miniapp implements a one dimensional elementary cellular automata
-// as described in:
-//    http://mathworld.wolfram.com/ElementaryCellularAutomaton.html
+// as described in: mathworld.wolfram.com/ElementaryCellularAutomaton.html
 //
 // This miniapp shows a completely unnecessary use of the finite element
 // method to simply display binary data (but it's fun to play with).

@@ -95,15 +95,15 @@ struct RubikState
    int cent_[6];
 
    // Corners are sorted according to the local vertex index of
-   // Geometry::Type CUBE.  Each corner piece is identified by the
-   // three colors it contains.  The orientation is determined by the
+   // Geometry::Type CUBE. Each corner piece is identified by the
+   // three colors it contains. The orientation is determined by the
    // sequence of colors which corresponds to the x-directed, y-directed,
    // and then z-directed face.
    int corn_[24];
 
    // Edges are sorted according to the local edge indices of
-   // Geometry::Type CUBE.  Each edge piece is identified by the two face
-   // colors it contains.  The edge piece orientations are determined by a
+   // Geometry::Type CUBE. Each edge piece is identified by the two face
+   // colors it contains. The edge piece orientations are determined by a
    // right-hand-rule with the thumb directed along the edge and the fingers
    // curling from the first face color to the second.
    int edge_[24];
@@ -725,7 +725,6 @@ update_corners(char axis, int tier, int incr)
       }
    }
 }
-
 
 void
 update_edges(char axis, int tier, int incr)

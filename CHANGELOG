@@ -88,6 +88,11 @@ New and updated examples and miniapps
 - Added a modification of ex9 in examples/hiop that demonstrates the nonlinear
   constrained optimization interface and the use of the SLBQP and HiOp solvers.
 
+- Added a collection of 6 playful miniapps in miniapps/toys that illustrate the
+  meshing and visualization features of the library in more relaxed settings.
+  The toys include simulations of cellular automata, Rubik's cube, Mandelbrot
+  set and more.
+
 Miscellaneous
 -------------
 - Upgraded the SUNDIALS interface to utilize version 5.0. This necessitated a

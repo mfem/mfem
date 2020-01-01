@@ -16,11 +16,11 @@
 // This miniapp provides a light-hearted example of mesh manipulation and
 // GLVis integration.
 //
-// The Rubik's Snake a.k.a Twist is a simple tool for experimenting with
-// geometric shapes in 3D.  It consists of 24 triangular prisms attached in a
-// row so that neighboring wedges can rotate against each other but cannot be
-// separated.  An astonishing variety of different configurations can be
-// reached.  Enjoy!
+// The Rubik's Snake a.k.a. Twist is a simple tool for experimenting with
+// geometric shapes in 3D. It consists of 24 triangular prisms attached in
+// a row so that neighboring wedges can rotate against each other but cannot
+// be separated. An astonishing variety of different configurations can be
+// reached. Enjoy!
 //
 // Compile with: make snake
 //
@@ -44,12 +44,13 @@ static int nstep_ = 6;
 static double cosa_ = cos(0.5 * M_PI / nstep_);
 static double sina_ = sin(0.5 * M_PI / nstep_);
 
-/** Pre-programmed configurations (feel free to add your own).  Each
-    configuration must be 23 integers long corresponding to the 23 joints making
-    up the Snake_TM puzzle.  The values can be 0-3 indicating how far to rotate
-    the joint in the clockwise direction when looking along the snake from the
-    starting (lower) end.  The values 0, 1, 2, and 3 correspond to angles of
-    0, 90, 180, and 270 degrees respectively.
+/** Pre-programmed configurations (feel free to add your own).
+
+    Each configuration must be 23 integers long corresponding to the 23 joints
+    making up the Snake_TM puzzle. The values can be 0-3 indicating how far to
+    rotate the joint in the clockwise direction when looking along the snake
+    from the starting (lower) end. The values 0, 1, 2, and 3 correspond to
+    angles of 0, 90, 180, and 270 degrees respectively.
 */
 static int conf[][23] =
 {
