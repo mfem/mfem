@@ -28,3 +28,7 @@ add_mfem_miniapp(toy_rubik
 add_mfem_miniapp(toy_snake
     MAIN snake.cpp
     LIBRARIES mfem mfem_miniapps_common)
+
+add_mfem_miniapp(toy_lissajous
+    MAIN lissajous.cpp
+    LIBRARIES mfem mfem_miniapps_common)
