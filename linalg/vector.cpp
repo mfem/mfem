@@ -965,7 +965,7 @@ static double hipVectorMin(const int N, const double *X)
    const int tpb = MFEM_CUDA_BLOCKS;
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
-   const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
+   const int min_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(min_sz);
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
    double *d_min = buf.Write(MemoryClass::CUDA, min_sz);
@@ -1008,7 +1008,7 @@ static double hipVectorDot(const int N, const double *X, const double *Y)
    const int tpb = MFEM_CUDA_BLOCKS;
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
-   const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
+   const int dot_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(dot_sz);
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
    double *d_dot = buf.Write(MemoryClass::CUDA, dot_sz);
