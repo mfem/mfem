@@ -943,7 +943,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       return;
    }
 
-   /*std::cout << "Refining element " << elem << " ("
+   /*mfem::out << "Refining element " << elem << " ("
              << el.node[0] << ", " << el.node[1] << ", "
              << el.node[2] << ", " << el.node[3] << ", "
              << el.node[4] << ", " << el.node[5] << ", "
@@ -4037,7 +4037,6 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
       }
 
       // assign numbers to the different matrices used
-      int used_geoms = 0;
       for (int i = 0; i < transforms.embeddings.Size(); i++)
       {
          int code = transforms.embeddings[i].matrix;
@@ -4049,14 +4048,12 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
             int &matrix = mat_no[geom][ref_type_child];
             if (!matrix) { matrix = mat_no[geom].size(); }
             transforms.embeddings[i].matrix = matrix - 1;
-
-            used_geoms |= (1 << geom);
          }
       }
 
       for (int g = 0; g < Geometry::NumGeom; g++)
       {
-         if (used_geoms & (1 << g))
+         if (Geoms & (1 << g))
          {
             Geometry::Type geom = Geometry::Type(g);
             const PointMatrix &identity = GetGeomIdentity(geom);
@@ -4611,6 +4608,20 @@ int NCMesh::GetElementDepth(int i) const
       depth++;
    }
    return depth;
+}
+
+int NCMesh::GetElementSizeReduction(int i) const
+{
+   int elem = leaf_elements[i];
+   int parent, reduction = 1;
+   while ((parent = elements[elem].parent) != -1)
+   {
+      if (elements[parent].ref_type & 1) { reduction *= 2; }
+      if (elements[parent].ref_type & 2) { reduction *= 2; }
+      if (elements[parent].ref_type & 4) { reduction *= 2; }
+      elem = parent;
+   }
+   return reduction;
 }
 
 void NCMesh::GetElementFacesAttributes(int i,

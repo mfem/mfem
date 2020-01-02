@@ -831,8 +831,14 @@ const Operator *FiniteElementSpace::GetElementRestriction(
 {
    // Check if we have a discontinuous space using the FE collection:
    const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
-   if (dg_space) { return NULL; }
-   // TODO: support other DG collections.
+   if (dg_space)
+   {
+      if (L2E_nat.Ptr() == NULL)
+      {
+         L2E_nat.Reset(new L2ElementRestriction(*this));
+      }
+      return L2E_nat.Ptr();
+   }
    if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
    {
       if (L2E_lex.Ptr() == NULL)
@@ -2572,7 +2578,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
 
          // Create the transformation that embeds the fine low-order element
          // within the coarse high-order element in reference space
-         emb_tr.GetPointMat() = pmats(iref);
+         emb_tr.GetPointMat() = pmats(cf_tr.embeddings[ilor].matrix);
          emb_tr.FinalizeTransformation();
 
          int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
@@ -2673,6 +2679,81 @@ const Operator &L2ProjectionGridTransfer::BackwardOperator()
    return *B;
 }
 
+L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
+   : ne(fes.GetNE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndof(ne > 0 ? fes.GetFE(0)->GetDof() : 0)
+{
+   height = vdim*ne*ndof;
+   width = vdim*ne*ndof;
+}
+
+void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
+{
+   const int NE = ne;
+   const int VDIM = vdim;
+   const int NDOF = ndof;
+   const bool BYVDIM = byvdim;
+   auto d_x = x.Read();
+   auto d_y = y.Write();
+   MFEM_FORALL(iel, NE,
+   {
+      for (int vd=0; vd<VDIM; ++vd)
+      {
+         for (int idof=0; idof<NDOF; ++idof)
+         {
+            // E-vector dimensions (dofs, vdim, elements)
+            // L-vector dimensions: byVDIM:  (vdim, dofs, element)
+            //                      byNODES: (dofs, elements, vdim)
+            int yidx = iel*VDIM*NDOF + vd*NDOF + idof;
+            int xidx;
+            if (BYVDIM)
+            {
+               xidx = iel*NDOF*VDIM + idof*VDIM + vd;
+            }
+            else
+            {
+               xidx = vd*NE*NDOF + iel*NDOF + idof;
+            }
+            d_y[yidx] = d_x[xidx];
+         }
+      }
+   });
+}
+void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
+{
+   const int NE = ne;
+   const int VDIM = vdim;
+   const int NDOF = ndof;
+   const bool BYVDIM = byvdim;
+   auto d_x = x.Read();
+   auto d_y = y.Write();
+   // Since this restriction is a permutation, the transpose is the inverse
+   MFEM_FORALL(iel, NE,
+   {
+      for (int vd=0; vd<VDIM; ++vd)
+      {
+         for (int idof=0; idof<NDOF; ++idof)
+         {
+            // E-vector dimensions (dofs, vdim, elements)
+            // L-vector dimensions: byVDIM:  (vdim, dofs, element)
+            //                      byNODES: (dofs, elements, vdim)
+            int xidx = iel*VDIM*NDOF + vd*NDOF + idof;
+            int yidx;
+            if (BYVDIM)
+            {
+               yidx = iel*NDOF*VDIM + idof*VDIM + vd;
+            }
+            else
+            {
+               yidx = vd*NE*NDOF + iel*NDOF + idof;
+            }
+            d_y[yidx] = d_x[xidx];
+         }
+      }
+   });
+}
 
 ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
                                        ElementDofOrdering e_ordering)
@@ -2948,8 +3029,8 @@ void QuadratureInterpolator::Eval3D(
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int max_ND = T_ND ? T_ND : MAX_ND2D;
-      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
+      constexpr int max_ND = T_ND ? T_ND : MAX_ND3D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
       double s_E[max_VDIM*max_ND];
       for (int d = 0; d < ND; d++)
       {
