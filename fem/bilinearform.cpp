@@ -608,7 +608,6 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
-
 void BilinearForm::AssembleDiagonal(Vector &diag) const
 {
    if (ext)
@@ -630,7 +629,7 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
    }
    else
    {
-      MFEM_ABORT("Not implemented, maybe assemble your bilinear form into a "
+      MFEM_ABORT("Not implemented. Maybe assemble your bilinear form into a "
                  "matrix and use SparseMatrix::GetDiag?");
    }
 }

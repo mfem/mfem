@@ -114,7 +114,10 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
    diag(d),
    damping(dmpng),
    ess_tdof_list(ess_tdofs),
-   residual(N) { Setup(); }
+   residual(N)
+{
+   Setup();
+}
 
 void OperatorJacobiSmoother::Setup()
 {
