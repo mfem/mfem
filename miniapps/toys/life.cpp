@@ -22,7 +22,15 @@
 // Compile with: make life
 //
 // Sample runs: life
+//              life -nx 30
 //              life -nx 100 -ny 100 -r 0.3
+//              life -g '2 3 0'
+//              life -b '10 10 0' -g '2 2 0'
+//              life -b '10 10 1' -g '2 2 0'
+//              life -sp '8 10 0 1 1 1 2 1 1 1'
+//              life -nx 30 -sp '11 11 1 1 1 1 1 1 1 1 2
+//                                     1 0 1 1 1 1 0 1 2
+//                                     1 1 1 1 1 1 1 1'
 
 #include "mfem.hpp"
 #include <algorithm>
@@ -38,9 +46,10 @@ using namespace mfem;
 bool GameStep(vector<bool> * b[], int nx, int ny);
 void ProjectStep(const vector<bool> & b, GridFunction & x, int n);
 
-void InitSketchPad(vector<bool> & b, int nx, int ny, const Array<int> & params);
-void InitBlinker(vector<bool> & b, int nx, int ny, const Array<int> & params);
-void InitGlider(vector<bool> & b, int nx, int ny, const Array<int> & params);
+bool InitSketchPad(vector<bool> & b, int nx, int ny, const Array<int> & params);
+bool InitBlinker(vector<bool> & b, int nx, int ny, const Array<int> & params);
+bool InitGlider(vector<bool> & b, int nx, int ny, const Array<int> & params);
+bool InitMFEM(vector<bool> & b, int nx, int ny);
 
 int main(int argc, char *argv[])
 {
@@ -48,7 +57,7 @@ int main(int argc, char *argv[])
    int nx = 20;
    int ny = 20;
    int rs = -1;
-   double r = 0.1;
+   double r = -1.0;
    Array<int> sketch_pad_params(0);
    Array<int> blinker_params(0);
    Array<int> glider_params(0);
@@ -124,23 +133,38 @@ int main(int argc, char *argv[])
       srand(seed);
    }
 
-   for (int i=0; i<len; i++)
+   bool init = false;
+   if (r > 0)
    {
-      double rv = double(rand()) / RAND_MAX;
-      vb0[i] = (rv <= r);
-      vb1[i] = false;
+      for (int i=0; i<len; i++)
+      {
+         double rv = double(rand()) / RAND_MAX;
+         vb0[i] = (rv <= r);
+         vb1[i] = false;
+      }
+   }
+   else
+   {
+      for (int i=0; i<len; i++)
+      {
+         vb0[i] = false;
+      }
    }
    if ( sketch_pad_params.Size() > 2 )
    {
-      InitSketchPad(vb0, nx, ny, sketch_pad_params);
+      init = InitSketchPad(vb0, nx, ny, sketch_pad_params);
    }
    if ( blinker_params.Size() > 0 && (blinker_params.Size() % 3 == 0 ) )
    {
-      InitBlinker(vb0, nx, ny, blinker_params);
+      init = InitBlinker(vb0, nx, ny, blinker_params);
    }
    if ( glider_params.Size() > 0 && (glider_params.Size() % 3 == 0 ) )
    {
-      InitGlider(vb0, nx, ny, glider_params);
+      init = InitGlider(vb0, nx, ny, glider_params);
+   }
+   if (!init)
+   {
+      init = InitMFEM(vb0, nx, ny);
    }
 
    // 5. Define the vector x as a finite element grid function corresponding
@@ -187,6 +211,10 @@ int main(int argc, char *argv[])
                sol_sock << "zoom 1.9\n";
                sol_sock << "palette 24\n";
                once = 0;
+            }
+            if (is_stable)
+            {
+               sol_sock << "valuerange 0 1\n";
             }
          }
       }
@@ -258,7 +286,7 @@ void ProjectStep(const vector<bool> & b, GridFunction & x, int n)
    }
 }
 
-void InitBlinker(vector<bool> & b, int nx, int ny, const Array<int> & params)
+bool InitBlinker(vector<bool> & b, int nx, int ny, const Array<int> & params)
 {
    for (int i=0; i<params.Size()/3; i++)
    {
@@ -280,9 +308,10 @@ void InitBlinker(vector<bool> & b, int nx, int ny, const Array<int> & params)
             break;
       }
    }
+   return true;
 }
 
-void InitGlider(vector<bool> & b, int nx, int ny, const Array<int> & params)
+bool InitGlider(vector<bool> & b, int nx, int ny, const Array<int> & params)
 {
    for (int i=0; i<params.Size()/3; i++)
    {
@@ -322,9 +351,10 @@ void InitGlider(vector<bool> & b, int nx, int ny, const Array<int> & params)
             break;
       }
    }
+   return true;
 }
 
-void InitSketchPad(vector<bool> & b, int nx, int ny, const Array<int> & params)
+bool InitSketchPad(vector<bool> & b, int nx, int ny, const Array<int> & params)
 {
    int cx   = params[0];
    int cy   = params[1];
@@ -345,4 +375,70 @@ void InitSketchPad(vector<bool> & b, int nx, int ny, const Array<int> & params)
          ox++;
       }
    }
+   return true;
+}
+
+bool InitMFEM(vector<bool> & b, int nx, int ny)
+{
+   int ox = 0;
+   int oy = 0;
+   int wx = (nx >= 23) ? 23 : 5;
+   int hy = (ny >= 7) ? 7 : 5;
+
+   if (wx == 23)
+   {
+      // Write out "MFEM"
+      ox = (nx - 23) / 2;
+      oy = (ny - hy) / 2;
+
+      for (int j=0; j<hy; j++)
+      {
+         b[index(ox +  0, oy+j,nx,ny)] = true;
+         b[index(ox +  4, oy+j,nx,ny)] = true;
+         b[index(ox +  6, oy+j,nx,ny)] = true;
+         b[index(ox + 12, oy+j,nx,ny)] = true;
+         b[index(ox + 18, oy+j,nx,ny)] = true;
+         b[index(ox + 22, oy+j,nx,ny)] = true;
+      }
+      for (int i=1; i<5; i++)
+      {
+         b[index(ox +  6 + i, oy + hy - 1,nx,ny)] = true;
+         b[index(ox + 12 + i, oy +  0,nx,ny)] = true;
+         b[index(ox + 12 + i, oy + hy - 1,nx,ny)] = true;
+      }
+      for (int i=1; i<4; i++)
+      {
+         b[index(ox +  6 + i, oy +  hy/2,nx,ny)] = true;
+         b[index(ox + 12 + i, oy +  hy/2,nx,ny)] = true;
+      }
+      b[index(ox + 1, oy +  hy - 2,nx,ny)] = true;
+      b[index(ox + 2, oy +  hy - 3,nx,ny)] = true;
+      b[index(ox + 3, oy +  hy - 2,nx,ny)] = true;
+
+      b[index(ox + 19, oy +  hy - 2,nx,ny)] = true;
+      b[index(ox + 20, oy +  hy - 3,nx,ny)] = true;
+      b[index(ox + 21, oy +  hy - 2,nx,ny)] = true;
+   }
+   else if (wx == 5)
+   {
+      // Create a single 'M'
+      ox = (nx - 5) / 2;
+      oy = (ny - hy) / 2;
+
+      for (int j=0; j<hy; j++)
+      {
+         b[index(ox +  0, oy+j,nx,ny)] = true;
+         b[index(ox +  4, oy+j,nx,ny)] = true;
+      }
+      b[index(ox + 1, oy +  hy - 2,nx,ny)] = true;
+      b[index(ox + 2, oy +  hy - 3,nx,ny)] = true;
+      b[index(ox + 3, oy +  hy - 2,nx,ny)] = true;
+   }
+   else
+   {
+      // Set a single pixel
+      b[index(nx/2,ny/2,nx,ny)] = true;
+   }
+
+   return true;
 }
