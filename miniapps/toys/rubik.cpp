@@ -244,8 +244,7 @@ int main(int argc, char *argv[])
       socketstream sock(vishost, visport);
       sock.precision(8);
       sock << "solution\n" << mesh << color << "keys Amaa\n"
-           << "palette 25\n"// << "valuerange -1.5 1\n"
-           << "autoscale off\n" << flush;
+           << "palette 25\n" << "autoscale off\n" << flush;
 
       while (true)
       {
