@@ -17,7 +17,20 @@
 #ifdef MFEM_USE_SIDRE
 
 #include "datacollection.hpp"
-#include <sidre/sidre.hpp>
+
+// Ignore warnings from the axom/sidre header (GCC + Clang versions)
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+# pragma GCC diagnostic push
+# if defined(__clang__)
+#  pragma GCC diagnostic ignored "-Wextra-semi"
+# else // real GCC?
+#  pragma GCC diagnostic ignored "-Wpedantic"
+# endif
+#endif
+#include <axom/sidre.hpp>
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+# pragma GCC diagnostic pop
+#endif
 
 namespace mfem
 {
@@ -184,8 +197,8 @@ public:
 
        @param[in] collection_name  Name of the collection used as a file name
                                    when saving
-       @param[in] global_grp       Pointer to the global group in the datastore,
-                                   see the above schematic
+       @param[in] bp_index_grp     Pointer to the blueprint index group in the
+                                   datastore, see the above schematic
        @param[in] domain_grp       Pointer to the domain group in the datastore,
                                    see the above schematic
        @param[in] owns_mesh_data   Does the SidreDC own the mesh vertices?
@@ -196,7 +209,7 @@ public:
        to be set with SetMesh() and fields registered with RegisterField().
     */
    SidreDataCollection(const std::string& collection_name,
-                       axom::sidre::Group * global_grp,
+                       axom::sidre::Group * bp_index_grp,
                        axom::sidre::Group * domain_grp,
                        bool owns_mesh_data = false);
 
@@ -235,7 +248,7 @@ public:
     */
    void RegisterField(const std::string &field_name, GridFunction *gf,
                       const std::string &buffer_name,
-                      axom::sidre::SidreLength offset);
+                      axom::sidre::IndexType offset);
 
    /// Registers an attribute field in the Sidre DataStore
    /** The registration process is similar to that of RegisterField()
@@ -298,8 +311,8 @@ public:
    void SetGroupPointers(axom::sidre::Group * global_grp,
                          axom::sidre::Group * domain_grp);
 
-   axom::sidre::Group * GetBPGroup() { return bp_grp; }
-   axom::sidre::Group * GetBPIndexGroup() { return bp_index_grp; }
+   axom::sidre::Group * GetBPGroup() { return m_bp_grp; }
+   axom::sidre::Group * GetBPIndexGroup() { return m_bp_index_grp; }
 
    /// Prepare the DataStore for writing
    virtual void PrepareToSave();
@@ -374,7 +387,7 @@ public:
     */
    axom::sidre::View *
    AllocNamedBuffer(const std::string& buffer_name,
-                    axom::sidre::SidreLength sz,
+                    axom::sidre::IndexType sz,
                     axom::sidre::TypeID type =
                        axom::sidre::DOUBLE_ID);
 
@@ -427,11 +440,11 @@ protected:
 private:
    // If the data collection does not own the datastore, it will need pointers
    // to the blueprint and blueprint index group to use.
-   axom::sidre::Group * bp_grp;
-   axom::sidre::Group * bp_index_grp;
+   axom::sidre::Group * m_bp_grp;
+   axom::sidre::Group * m_bp_index_grp;
 
    // This is stored for convenience.
-   axom::sidre::Group * named_bufs_grp;
+   axom::sidre::Group * m_named_bufs_grp;
 
    // Private helper functions
 
@@ -458,7 +471,7 @@ private:
    void addScalarBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,
                                    const std::string &buffer_name,
-                                   axom::sidre::SidreLength offset);
+                                   axom::sidre::IndexType offset);
 
    /**
     * \brief A private helper function to set up the views associated with the
@@ -472,7 +485,7 @@ private:
    void addVectorBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,
                                    const std::string &buffer_name,
-                                   axom::sidre::SidreLength offset);
+                                   axom::sidre::IndexType offset);
 
    /** @brief A private helper function to set up the Views associated with
        attribute field named @a field_name */

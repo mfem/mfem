@@ -4,8 +4,11 @@
 //
 // Sample runs:  mpirun -np 4 ex11p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex11p -m ../data/star.mesh
+//               mpirun -np 4 ex11p -m ../data/star-mixed.mesh
 //               mpirun -np 4 ex11p -m ../data/escher.mesh
 //               mpirun -np 4 ex11p -m ../data/fichera.mesh
+//               mpirun -np 4 ex11p -m ../data/fichera-mixed.mesh
+//               mpirun -np 4 ex11p -m ../data/toroid-wedge.mesh -o 2
 //               mpirun -np 4 ex11p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex11p -m ../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex11p -m ../data/square-disc-nurbs.mesh -o -1
@@ -15,6 +18,11 @@
 //               mpirun -np 4 ex11p -m ../data/star-surf.mesh
 //               mpirun -np 4 ex11p -m ../data/square-disc-surf.mesh
 //               mpirun -np 4 ex11p -m ../data/inline-segment.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-quad.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-tri.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-hex.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-tet.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-wedge.mesh -s 83
 //               mpirun -np 4 ex11p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex11p -m ../data/amr-hex.mesh
 //               mpirun -np 4 ex11p -m ../data/mobius-strip.mesh -n 8
@@ -253,8 +261,7 @@ int main(int argc, char *argv[])
          strumpack->SetPrintSolveStatistics(false);
          strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
          strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-         strumpack->SetMC64Job(strumpack::MC64Job::NONE);
-         // strumpack->SetSymmetricPattern(true);
+         strumpack->DisableMatching();
          strumpack->SetOperator(*Arow);
          strumpack->SetFromCommandLine();
          precond = strumpack;

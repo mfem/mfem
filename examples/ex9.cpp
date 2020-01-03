@@ -10,6 +10,7 @@
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//    ex9 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
 //    ex9 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
@@ -25,7 +26,8 @@
 //               conditions through periodic meshes, as well as the use of GLVis
 //               for persistent visualization of a time-evolving solution. The
 //               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) is also illustrated.
+//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
+//               illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -88,6 +90,7 @@ int main(int argc, char *argv[])
    double dt = 0.01;
    bool visualization = true;
    bool visit = false;
+   bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
 
@@ -116,6 +119,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
+                  "--no-paraview-datafiles",
+                  "Save data files for ParaView (paraview.org) visualization.");
    args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
                   "--ascii-datafiles",
                   "Use binary (Sidre) or ascii format for VisIt data files.");
@@ -131,8 +137,8 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -146,7 +152,6 @@ int main(int argc, char *argv[])
       case 6: ode_solver = new RK6Solver; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
          return 3;
    }
 
@@ -156,18 +161,18 @@ int main(int argc, char *argv[])
    //    a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
-   if (mesh->NURBSext)
+   if (mesh.NURBSext)
    {
-      mesh->SetCurvature(max(order, 1));
+      mesh.SetCurvature(max(order, 1));
    }
-   mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
+   mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
-   FiniteElementSpace fes(mesh, &fec);
+   FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -207,7 +212,7 @@ int main(int argc, char *argv[])
    {
       ofstream omesh("ex9.mesh");
       omesh.precision(precision);
-      mesh->Print(omesh);
+      mesh.Print(omesh);
       ofstream osol("ex9-init.gf");
       osol.precision(precision);
       u.Save(osol);
@@ -221,20 +226,30 @@ int main(int argc, char *argv[])
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9", mesh);
+         dc = new SidreDataCollection("Example9", &mesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example9", mesh);
+         dc = new VisItDataCollection("Example9", &mesh);
          dc->SetPrecision(precision);
       }
       dc->RegisterField("solution", &u);
       dc->SetCycle(0);
       dc->SetTime(0.0);
       dc->Save();
+   }
+
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      pd = new ParaViewDataCollection("PVExample9S", &mesh);
+      pd->RegisterField("solution", &u);
+      pd->SetLevelsOfDetail(2);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
    }
 
    socketstream sout;
@@ -253,7 +268,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << *mesh << u;
+         sout << "solution\n" << mesh << u;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -285,7 +300,7 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            sout << "solution\n" << *mesh << u << flush;
+            sout << "solution\n" << mesh << u << flush;
          }
 
          if (visit)
@@ -293,6 +308,13 @@ int main(int argc, char *argv[])
             dc->SetCycle(ti);
             dc->SetTime(t);
             dc->Save();
+         }
+
+         if (paraview)
+         {
+            pd->SetCycle(ti);
+            pd->SetTime(t);
+            pd->Save();
          }
       }
    }
@@ -307,6 +329,7 @@ int main(int argc, char *argv[])
 
    // 10. Free the used memory.
    delete ode_solver;
+   delete pd;
    delete dc;
 
    return 0;

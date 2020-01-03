@@ -77,6 +77,7 @@ protected:
    double total_error;
    bool anisotropic;
    Array<int> aniso_flags;
+   int flux_averaging; // see SetFluxAveraging()
 
    BilinearFormIntegrator *integ; ///< Not owned.
    GridFunction *solution; ///< Not owned.
@@ -109,6 +110,7 @@ public:
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
+        flux_averaging(0),
         integ(&integ),
         solution(&sol),
         flux_space(flux_fes),
@@ -127,6 +129,7 @@ public:
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
+        flux_averaging(0),
         integ(&integ),
         solution(&sol),
         flux_space(&flux_fes),
@@ -137,6 +140,14 @@ public:
        BilinearFormIntegrator must support the 'd_energy' parameter in its
        ComputeFluxEnergy() method. */
    void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
+
+   /** @brief Set the way the flux is averaged (smoothed) across elements.
+
+       When @a fa is zero (default), averaging is performed globally. When @a fa
+       is non-zero, the flux averaging is performed locally for each mesh
+       attribute, i.e. the flux is not averaged across interfaces between
+       different mesh attributes. */
+   void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
    double GetTotalError() const { return total_error; }

@@ -171,10 +171,9 @@ inline void BlockMatrix::findGlobalRow(int iglobal, int & iblock,
    }
 
    for (iblock = 0; iblock < nRowBlocks; ++iblock)
-      if (row_offsets[iblock+1] > iglobal)
-      {
-         break;
-      }
+   {
+      if (row_offsets[iblock+1] > iglobal) { break; }
+   }
 
    iloc = iglobal - row_offsets[iblock];
 }
@@ -188,10 +187,9 @@ inline void BlockMatrix::findGlobalCol(int jglobal, int & jblock,
    }
 
    for (jblock = 0; jblock < nColBlocks; ++jblock)
-      if (col_offsets[jblock+1] > jglobal)
-      {
-         break;
-      }
+   {
+      if (col_offsets[jblock+1] > jglobal) { break; }
+   }
 
    jloc = jglobal - col_offsets[jblock];
 }

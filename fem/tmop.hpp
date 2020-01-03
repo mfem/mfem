@@ -12,7 +12,6 @@
 #ifndef MFEM_TMOP_HPP
 #define MFEM_TMOP_HPP
 
-#include "../config/config.hpp"
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
 
@@ -86,6 +85,66 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+};
+
+/// Skew metric, 2D.
+class TMOP_Metric_skew2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// Skew metric, 3D.
+class TMOP_Metric_skew3D : public TMOP_QualityMetric
+{
+public:
+   // W = 1/6 (3 - sum_i cos(angle_Jpr_i - angle_Jtr_i)), i = 1..3.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// Aspect ratio metric, 2D.
+class TMOP_Metric_aspratio2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (ar_Jpr/ar_Jtr + ar_Jtr/ar_Jpr) - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// Aspect ratio metric, 3D.
+class TMOP_Metric_aspratio3D : public TMOP_QualityMetric
+{
+public:
+   // W = 1/3 sum [0.5 (ar_Jpr_i/ar_Jtr_i + ar_Jtr_i/ar_Jpr_i) - 1], i = 1..3.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
 };
 
 /// Shape, ideal barrier metric, 2D
@@ -399,6 +458,107 @@ public:
 };
 
 
+/// Base class for limiting functions to be used in class TMOP_Integrator.
+/** This class represents a scalar function f(x, x0, d), where x and x0 are
+    positions in physical space, and d is a reference physical distance
+    associated with the point x0. */
+class TMOP_LimiterFunction
+{
+public:
+   /// Returns the limiting function, f(x, x0, d).
+   virtual double Eval(const Vector &x, const Vector &x0, double d) const = 0;
+
+   /** @brief Returns the gradient of the limiting function f(x, x0, d) with
+       respect to x. */
+   virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
+                        Vector &d1) const = 0;
+
+   /** @brief Returns the Hessian of the limiting function f(x, x0, d) with
+       respect to x. */
+   virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
+                        DenseMatrix &d2) const = 0;
+
+   /// Virtual destructor.
+   virtual ~TMOP_LimiterFunction() { }
+};
+
+/// Default limiter function in TMOP_Integrator.
+class TMOP_QuadraticLimiter : public TMOP_LimiterFunction
+{
+public:
+   virtual double Eval(const Vector &x, const Vector &x0, double dist) const
+   {
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
+
+      return 0.5 * x.DistanceSquaredTo(x0) / (dist * dist);
+   }
+
+   virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
+                        Vector &d1) const
+   {
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
+
+      d1.SetSize(x.Size());
+      subtract(1.0 / (dist * dist), x, x0, d1);
+   }
+
+   virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
+                        DenseMatrix &d2) const
+   {
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
+
+      d2.Diag(1.0 / (dist * dist), x.Size());
+   }
+
+   virtual ~TMOP_QuadraticLimiter() { }
+};
+
+class FiniteElementCollection;
+class FiniteElementSpace;
+class ParFiniteElementSpace;
+
+class AdaptivityEvaluator
+{
+protected:
+   // Owned.
+   Mesh *mesh;
+   FiniteElementSpace *fes;
+
+#ifdef MFEM_USE_MPI
+   // Owned.
+   ParMesh *pmesh;
+   ParFiniteElementSpace *pfes;
+#endif
+
+public:
+   AdaptivityEvaluator() : mesh(NULL), fes(NULL)
+   {
+#ifdef MFEM_USE_MPI
+      pmesh = NULL;
+      pfes = NULL;
+#endif
+   }
+   virtual ~AdaptivityEvaluator();
+
+   /** Specifies the Mesh and FiniteElementCollection of the solution that will
+       be evaluated. The given mesh will be copied into the internal object. */
+   void SetSerialMetaInfo(const Mesh &m,
+                          const FiniteElementCollection &fec, int num_comp);
+
+#ifdef MFEM_USE_MPI
+   /// Parallel version of SetSerialMetaInfo.
+   void SetParMetaInfo(const ParMesh &m,
+                       const FiniteElementCollection &fec, int num_comp);
+#endif
+
+   // TODO use GridFunctions to make clear it's on the ldofs?
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field) = 0;
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field) = 0;
+};
+
 /** @brief Base class representing target-matrix construction algorithms for
     mesh optimization via the target-matrix optimization paradigm (TMOP). */
 /** This class is used by class TMOP_Integrator to construct the target Jacobian
@@ -422,9 +582,11 @@ public:
       IDEAL_SHAPE_GIVEN_SIZE, /**<
          Ideal shape, given size/volume; the given nodes define the target
          volume at all quadrature points. */
-      GIVEN_SHAPE_AND_SIZE /**<
+      GIVEN_SHAPE_AND_SIZE, /**<
          Given shape, given size/volume; the given nodes define the exact target
          Jacobian matrix at all quadrature points. */
+      GIVEN_FULL /**<
+         Full target tensor is specified at every quadrature point. */
    };
 
 protected:
@@ -473,12 +635,88 @@ public:
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
-       transformation Jacobians for each quadrature point in the element. */
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun. */
    virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
                                       const IntegrationRule &ir,
+                                      const Vector &elfun,
                                       DenseTensor &Jtr) const;
 };
 
+class AnalyticAdaptTC : public TargetConstructor
+{
+protected:
+   // Analytic target specification.
+   Coefficient *scalar_tspec;
+   VectorCoefficient *vector_tspec;
+   MatrixCoefficient *matrix_tspec;
+
+public:
+   AnalyticAdaptTC(TargetType ttype)
+      : TargetConstructor(ttype),
+        scalar_tspec(NULL), vector_tspec(NULL), matrix_tspec(NULL) { }
+
+   virtual void SetAnalyticTargetSpec(Coefficient *sspec,
+                                      VectorCoefficient *vspec,
+                                      MatrixCoefficient *mspec);
+
+   /** @brief Given an element and quadrature rule, computes ref->target
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun. */
+   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                                      const IntegrationRule &ir,
+                                      const Vector &elfun,
+                                      DenseTensor &Jtr) const;
+};
+
+class ParGridFunction;
+
+class DiscreteAdaptTC : public TargetConstructor
+{
+protected:
+   // Discrete target specification.
+   // Data is owned, updated by UpdateTargetSpecification.
+   Vector target_spec;
+   // Note: do not use the Nodes of this space as they may not be on the
+   // positions corresponding to the values of tspec.
+   const FiniteElementSpace *tspec_fes;
+
+   // Evaluation of the discrete target specification on different meshes.
+   // Owned.
+   AdaptivityEvaluator *adapt_eval;
+
+public:
+   DiscreteAdaptTC(TargetType ttype)
+      : TargetConstructor(ttype),
+        target_spec(), tspec_fes(NULL), adapt_eval(NULL) { }
+
+   virtual ~DiscreteAdaptTC() { delete adapt_eval; }
+
+   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec);
+#ifdef MFEM_USE_MPI
+   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec);
+#endif
+
+   /** Used to update the target specification after the mesh has changed. The
+       new mesh positions are given by new_x. */
+   void UpdateTargetSpecification(const Vector &new_x);
+
+   void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
+   {
+      if (adapt_eval) { delete adapt_eval; }
+      adapt_eval = ae;
+   }
+
+   /** @brief Given an element and quadrature rule, computes ref->target
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun.
+       Note that this function assumes that UpdateTargetSpecification() has
+       been called with the position vector corresponding to @a elfun. */
+   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                                      const IntegrationRule &ir,
+                                      const Vector &elfun,
+                                      DenseTensor &Jtr) const;
+};
 
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
@@ -495,10 +733,20 @@ protected:
 
    // Weight Coefficient multiplying the quality metric term.
    Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
+   // Normalization factor for the metric term.
+   double metric_normal;
 
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
-   const GridFunction *nodes0; // not owned
-   Coefficient *coeff0; // not owned, if NULL -> coeff0 is 0, i.e. no limiting
+   // These are both NULL when there is no limiting.
+   // The class doesn't own nodes0 and coeff0.
+   const GridFunction *nodes0;
+   Coefficient *coeff0;
+   // Limiting reference distance. Not owned.
+   const GridFunction *lim_dist;
+   // Limiting function. Owned.
+   TMOP_LimiterFunction *lim_func;
+   // Normalization factor for the limiting term.
+   double lim_normal;
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -512,12 +760,20 @@ protected:
    //        output - the result of AssembleElementVector() (dof x dim).
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
+   void ComputeNormalizationEnergies(const GridFunction &x,
+                                     double &metric_energy, double &lim_energy);
+
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
       : metric(m), targetC(tc),
-        coeff1(NULL), nodes0(NULL), coeff0(NULL) { }
+        coeff1(NULL), metric_normal(1.0),
+        nodes0(NULL), coeff0(NULL),
+        lim_dist(NULL), lim_func(NULL), lim_normal(1.0)
+   { }
+
+   ~TMOP_Integrator() { delete lim_func; }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
@@ -527,18 +783,24 @@ public:
        not in the target configuration which may be undefined. */
    void SetCoefficient(Coefficient &w1) { coeff1 = &w1; }
 
-   /// Adds a limiting term to the integrator.
+   /// Adds a limiting term to the integrator (general version).
    /** With this addition, the integrator becomes
-          @f$ \int w1 W(Jpt) + w0/2 (x - x_0)^2 dx @f$,
+          @f$ \int w1 W(Jpt) + w0 f(x, x_0, d) dx @f$,
        where the second term measures the change with respect to the original
        physical positions, @a n0.
-       @param[in] n0  Original mesh node coordinates.
-       @param[in] w0  Coefficient scaling the limiting term. */
-   void EnableLimiting(const GridFunction &n0, Coefficient &w0)
-   {
-      nodes0 = &n0;
-      coeff0 =&w0;
-   }
+       @param[in] n0     Original mesh node coordinates.
+       @param[in] dist   Limiting physical distances.
+       @param[in] w0     Coefficient scaling the limiting term.
+       @param[in] lfunc  TMOP_LimiterFunction defining the limiting term f. If
+                         NULL, a TMOP_QuadraticLimiter will be used. The
+                         TMOP_Integrator assumes ownership of this pointer. */
+   void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
+                       Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
+
+   /** @brief Adds a limiting term to the integrator with limiting distance
+       function (@a dist in the general version of the method) equal to 1. */
+   void EnableLimiting(const GridFunction &n0,
+                       Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
@@ -558,6 +820,13 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   /** @brief Computes the normalization factors of the metric and limiting
+       integrals using the mesh position given by @a x. */
+   void EnableNormalization(const GridFunction &x);
+#ifdef MFEM_USE_MPI
+   void ParEnableNormalization(const ParGridFunction &x);
+#endif
 };
 
 

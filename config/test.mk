@@ -38,7 +38,7 @@ export TIME='%es %MkB %x'; \
 set -- $$($(1) $(SHELL) -c "$(2)" 2>&1); while [ "$$#" -gt 3 ]; do shift; done
 endef
 define TIMECMD.NOTGNU
-set -- $$($(1) -l $(SHELL) -c "$(2)" 2>&1; echo $$?); \
+set -- $$($(1) -l $(SHELL) -c "{ $(2); } > /dev/null 2>&1" 2>&1; echo $$?); \
 set -- "$$1"s "$$(($$7/1024))"kB "$${60}"
 endef
 define TIMECMD.BASH
@@ -60,7 +60,8 @@ endif
 # Test runs of the examples/miniapps with parameters - check exit code
 mfem-test = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
-   $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) -no-vis $(4) > $(1).stderr 2>&1); \
+   $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) $(if $(5),,-no-vis )$(4) \
+     > $(1).stderr 2>&1); \
    if [ "$$3" = 0 ]; \
    then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; fi; \
    rm -f $(1).stderr; exit $$3

@@ -51,26 +51,27 @@ public:
    /// Constructs tetrahedron by specifying the indices and the attribute.
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
+   /// Initialize the vertex indices and the attribute of a Tetrahedron.
+   void Init(int ind1, int ind2, int ind3, int ind4, int attr = 1,
+             int ref_flag = 0);
+
    /// Return element's type.
-   virtual int GetType() const { return Element::TETRAHEDRON; }
+   virtual Type GetType() const { return Element::TETRAHEDRON; }
 
    void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
    void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
 
    void GetMarkedFace(const int face, int *fv);
 
-   virtual int GetRefinementFlag() { return refinement_flag; }
+   int GetRefinementFlag() { return refinement_flag; }
 
    void SetRefinementFlag(int rf) { refinement_flag = rf; }
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const;
+   virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const;
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
-
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(DenseMatrix &pmat) { }
 
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
@@ -99,8 +100,13 @@ public:
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
 
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
    virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 3; return 4; }
+
+   virtual int GetNFaces() const { return 4; }
+
+   virtual int GetNFaceVertices(int) const { return 3; }
 
    virtual const int *GetFaceVertices(int fi) const
    { MFEM_ABORT("not implemented"); return NULL; }
@@ -110,7 +116,8 @@ public:
    virtual ~Tetrahedron() { }
 };
 
-extern Linear3DFiniteElement TetrahedronFE;
+// Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
+extern class Linear3DFiniteElement TetrahedronFE;
 
 }
 

@@ -59,12 +59,7 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
    }
    else
    {
-      double local_dot = (x * y);
-      double global_dot;
-
-      MPI_Allreduce(&local_dot, &global_dot, 1, MPI_DOUBLE, MPI_SUM, comm);
-
-      return global_dot;
+      return InnerProduct(comm, x, y);
    }
 #endif
 }
@@ -338,18 +333,20 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    oper->Mult(d, z);  // z = A d
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
-
-   if (print_level >= 0 && den < 0.0)
+   if (den <= 0.0)
    {
-      mfem::out << "Negative denominator in step 0 of PCG: " << den << '\n';
-   }
-
-   if (den == 0.0)
-   {
-      converged = 0;
-      final_iter = 0;
-      final_norm = sqrt(nom);
-      return;
+      if (Dot(d, d) > 0.0 && print_level >= 0)
+      {
+         mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+                   << den << '\n';
+      }
+      if (den == 0.0)
+      {
+         converged = 0;
+         final_iter = 0;
+         final_norm = sqrt(nom);
+         return;
+      }
    }
 
    // start iteration
@@ -413,9 +410,16 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
-         if (print_level >= 0 && Dot(d, d) > 0.0)
+         if (Dot(d, d) > 0.0 && print_level >= 0)
+         {
             mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                       << den << '\n';
+         }
+         if (den == 0.0)
+         {
+            final_iter = i;
+            break;
+         }
       }
       nom = betanom;
    }
@@ -752,13 +756,20 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       v[0] -> Add (1.0/beta, r);   // v[0] = r / ||r||
       s = 0.0; s(0) = beta;
 
-      for (i = 0; i < m && j <= max_iter; i++)
+      for (i = 0; i < m && j <= max_iter; i++, j++)
       {
 
          if (z[i] == NULL) { z[i] = new Vector(b.Size()); }
          (*z[i]) = 0.0;
 
-         prec->Mult(*v[i], *z[i]);
+         if (prec)
+         {
+            prec->Mult(*v[i], *z[i]);
+         }
+         else
+         {
+            (*z[i]) = (*v[i]);
+         }
          oper->Mult(*z[i], r);
 
          for (k = 0; k <= i; k++)
@@ -784,15 +795,15 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_level >= 0)
-            mfem::out << "   Pass : " << setw(2) << j
-                      << "   Iteration : " << setw(3) << i+1
+            mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
+                      << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
 
          if ( resid <= final_norm)
          {
             Update(x, i, H, s, z);
             final_norm = resid;
-            final_iter = (j-1)*m + i;
+            final_iter = j;
             converged = 1;
             for (i= 0; i<=m; i++)
             {
@@ -817,7 +828,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if ( beta <= final_norm)
       {
          final_norm = beta;
-         final_iter = j*m;
+         final_iter = j;
          converged = 1;
          for (i= 0; i<=m; i++)
          {
@@ -826,8 +837,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          }
          return;
       }
-
-      j++;
    }
 
    for (i = 0; i <= m; i++)
@@ -1302,6 +1311,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
       add(x, -c_scale, c, x);
 
+      ProcessNewState(x);
+
       oper->Mult(x, r);
       if (have_b)
       {
@@ -1466,6 +1477,62 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    return 1;
 }
 
+OptimizationProblem::OptimizationProblem(const int insize,
+                                         const Operator *C_,
+                                         const Operator *D_)
+   : C(C_), D(D_), c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL),
+     input_size(insize)
+{
+   if (C) { MFEM_ASSERT(C->Width() == input_size, "Wrong width of C."); }
+   if (D) { MFEM_ASSERT(D->Width() == input_size, "Wrong width of D."); }
+}
+
+void OptimizationProblem::SetEqualityConstraint(const Vector &c)
+{
+   MFEM_ASSERT(C, "The C operator is unspecified -- can't set constraints.");
+   MFEM_ASSERT(c.Size() == C->Height(), "Wrong size of the constraint.");
+
+   c_e = &c;
+}
+
+void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
+                                                  const Vector &dh)
+{
+   MFEM_ASSERT(D, "The D operator is unspecified -- can't set constraints.");
+   MFEM_ASSERT(dl.Size() == D->Height() && dh.Size() == D->Height(),
+               "Wrong size of the constraint.");
+
+   d_lo = &dl; d_hi = &dh;
+}
+
+void OptimizationProblem::SetSolutionBounds(const Vector &xl, const Vector &xh)
+{
+   MFEM_ASSERT(xl.Size() == input_size && xh.Size() == input_size,
+               "Wrong size of the constraint.");
+
+   x_lo = &xl; x_hi = &xh;
+}
+
+int OptimizationProblem::GetNumConstraints() const
+{
+   int m = 0;
+   if (C) { m += C->Height(); }
+   if (D) { m += D->Height(); }
+   return m;
+}
+
+void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
+{
+   if (print_level > 1)
+   {
+      MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
+                   "the l2 norm of (x - x_target).");
+   }
+   MFEM_ASSERT(prob.GetC(), "Linear constraint is not set.");
+   MFEM_ASSERT(prob.GetC()->Height() == 1, "Solver expects scalar constraint.");
+
+   problem = &prob;
+}
 
 void SLBQPOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
 {
@@ -1477,18 +1544,6 @@ void SLBQPOptimizer::SetLinearConstraint(const Vector &_w, double _a)
 {
    w.SetDataAndSize(_w.GetData(), _w.Size());
    a = _a;
-}
-
-void SLBQPOptimizer::SetPreconditioner(Solver &pr)
-{
-   mfem_error("SLBQPOptimizer::SetPreconditioner() : "
-              "not meaningful for this solver");
-}
-
-void SLBQPOptimizer::SetOperator(const Operator &op)
-{
-   mfem_error("SLBQPOptimizer::SetOperator() : "
-              "not meaningful for this solver");
 }
 
 inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const

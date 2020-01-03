@@ -36,7 +36,7 @@ public:
    Quadrilateral(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
    /// Return element's type
-   int GetType() const { return Element::QUADRILATERAL; }
+   Type GetType() const { return Element::QUADRILATERAL; }
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
@@ -53,8 +53,13 @@ public:
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
 
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
    virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 0; return 0; }
+
+   virtual int GetNFaces() const { return 0; }
+
+   virtual int GetNFaceVertices(int) const { return 0; }
 
    virtual const int *GetFaceVertices(int fi) const { return NULL; }
 

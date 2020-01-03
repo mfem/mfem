@@ -8,6 +8,7 @@
 //       ex17 -m ../data/beam-quad.mesh
 //       ex17 -m ../data/beam-tet.mesh
 //       ex17 -m ../data/beam-hex.mesh
+//       ex17 -m ../data/beam-wedge.mesh
 //       ex17 -m ../data/beam-quad.mesh -r 2 -o 3
 //       ex17 -m ../data/beam-quad.mesh -r 2 -o 2 -a 1 -k 1
 //       ex17 -m ../data/beam-hex.mesh -r 2 -o 2
@@ -251,7 +252,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      GMRES(A, M, B, X, 3, 5000, 50, rtol*rtol, 0.0);
+      GMRES(A, M, B, X, 3, 5000, 100, rtol*rtol, 0.0);
    }
 #else
    // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.

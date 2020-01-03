@@ -26,6 +26,8 @@ public:
    A one;
    B two;
 
+   Pair() = default;
+
    Pair(const A &one, const B &two) : one(one), two(two) {}
 };
 
@@ -58,6 +60,11 @@ public:
    A one;
    B two;
    C three;
+
+   Triple() { }
+
+   Triple(const A &one, const B &two, const C &three)
+      : one(one), two(two), three(three) { }
 };
 
 /// @brief Lexicographic comparison operator for class Triple.

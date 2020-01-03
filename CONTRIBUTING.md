@@ -83,6 +83,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   │   └── web
   │       └── examples
   ├── examples
+  │   ├── ginkgo
+  │   ├── hiop
   │   ├── petsc
   │   ├── pumi
   │   └── sundials
@@ -90,13 +92,19 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   ├── general
   ├── linalg
   ├── mesh
-  └── miniapps
-      ├── common
-      ├── electromagnetics
-      ├── meshing
-      ├── nurbs
-      ├── performance
-      └── tools
+  ├── miniapps
+  │   ├── common
+  │   ├── electromagnetics
+  │   ├── gslib
+  │   ├── meshing
+  │   ├── nurbs
+  │   ├── performance
+  │   └── tools
+  └── tests
+      ├── unit
+      │   ├── ...
+      └── ...
+
   ```
 
 - The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
@@ -137,6 +145,16 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   + [`HypreParMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParMatrix.html) and [`HypreParVector`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParVector.html)
   + [`HypreSolver`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreSolver.html) and other [hypre classes](http://mfem.github.io/doxygen/html/hypre_8hpp.html)
 
+- GPU and multi-core CPU support is based on device kernels supporting different
+  backends (CUDA, OCCA, RAJA, OpenMP, etc.) and an internal lightweight
+  device/host memory manager.
+
+- The main device-relevant classes and sources are:
+  + [`Device`](http://mfem.github.io/doxygen/html/device_8hpp.html)
+  + [`MemoryManager`](http://mfem.github.io/doxygen/html/mem_manager_8hpp.html)
+  + the [`MFEM_FORALL`](http://mfem.github.io/doxygen/html/forall_8hpp.html) macro
+  + the [`cuda.hpp`](http://mfem.github.io/doxygen/html/cuda_8hpp.html) and [`occa.hpp`](http://mfem.github.io/doxygen/html/occa_8hpp.html) files
+
 - The `general/` directory contains C++ classes that serve as utilities for
   communication, error handling, arrays, (Boolean) tables, timing, etc.
 
@@ -150,6 +168,9 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 - The `data/` directory contains a collection of small mesh files, that are used
   in the simple example codes and more fully-featured mini applications in the
   `examples/` and `miniapps/` directories.
+
+- The `tests/` directory contains a unit test suite and will later contain more
+  tests that run example codes.
 
 - See also the [code overview](http://mfem.org/code-overview/) section on the
   MFEM website.
@@ -316,9 +337,9 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Is this a new feature users need to be aware of? New or updated example or miniapp?
     - [ ] Does it make sense to create a new section in the `CHANGELOG` to group with other related features?
 - [ ] Update `INSTALL`:
-    - [ ] Has a new optional library been added? (*Make sure the external library is licensed under LGPL, not GPL!*)
+    - [ ] Had a new optional library been added? (*Make sure the external library is licensed under LGPL, not GPL!*)
     - [ ] Does `make` or `cmake` have a new target?
-    - [ ] Did the requirements or the installation process change? *(rare)*.
+    - [ ] Did the requirements or the installation process change? *(rare)*
 - [ ] Update `.gitignore`:
     - [ ] Check if `make distclean; git status` shows any files that are generated from the source but we don't want to track in the repository.
     - [ ] Add new patterns (just for the new files above) and re-run the above test.
@@ -332,6 +353,7 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] Add the example code to the `ALL_EXE_SRCS` variable.
       - [ ] Make sure `THIS_TEST_OPTIONS` is set correctly for the new example.
    - [ ] List the new example in `doc/CodeDocumentation.dox`.
+   - [ ] If new examples directory (e.g.`examples/pumi`), list it in `doc/CodeDocumentation.conf.in`
    - [ ] Companion pull request for documentation in [mfem/web](https://github.com/mfem/web) repo:
       - [ ] Update or add example-specific documentation, see e.g. the `src/examples.md`.
       - [ ] Add the description, labels and screenshots in `src/examples.md` and `src/img`.
@@ -346,6 +368,7 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] Add/update the `CMakeLists.txt` file in the new miniapp directory.
       - [ ] Consider adding a new test for the new miniapp.
    - [ ] List the new miniapp in `doc/CodeDocumentation.dox`
+   - [ ] If new miniapps directory (e.g.`miniapps/nurbs`), list it in `doc/CodeDocumentation.conf.in`
    - [ ] Companion pull request for documentation in [mfem/web](https://github.com/mfem/web) repo:
      - [ ] Update or add miniapp-specific documentation, see e.g. the `src/meshing.md` and `src/electromagnetics.md` files.
      - [ ] Add the description, labels and screenshots in `src/examples.md` and `src/img`.
@@ -358,10 +381,10 @@ Before a PR can be merged, it should satisfy the following:
    - [ ] If this is a major new feature, consider mentioning in the short summary inside `README` *(rare)*.
    - [ ] List major new classes in `doc/CodeDocumentation.dox` *(rare)*.
 - [ ] Update this checklist, if the new pull request affects it.
+- [ ] Run the unit tests and make sure they all pass `make unittest`.
 - [ ] (LLNL only) Clone the `tests` repository and run the following tests, see `mfem/tests/README.md`:
    - [ ] `compilers`
    - [ ] `memcheck`
-   - [ ] `unit-test`
    - [ ] `documentation`
 - [ ] (LLNL only) After merging:
    - [ ] Regenerate `README.html` files from companion documentation pull requests.
@@ -471,7 +494,6 @@ MFEM uses a `master`/`next`-branch workflow as described below:
      it to build your code between releases.
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
-
 
 ## Automated Testing
 

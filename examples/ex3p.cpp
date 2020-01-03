@@ -7,6 +7,7 @@
 //               mpirun -np 4 ex3p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh
 //               mpirun -np 4 ex3p -m ../data/escher.mesh
+//               mpirun -np 4 ex3p -m ../data/escher.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/fichera.mesh
 //               mpirun -np 4 ex3p -m ../data/fichera-q2.vtk
 //               mpirun -np 4 ex3p -m ../data/fichera-q3.mesh
@@ -101,8 +102,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();

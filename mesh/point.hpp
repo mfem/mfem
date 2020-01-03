@@ -33,7 +33,7 @@ public:
    Point( const int *ind, int attr = -1 );
 
    /// Return element's type.
-   virtual int GetType() const { return Element::POINT; }
+   virtual Type GetType() const { return Element::POINT; }
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices( Array<int> &v ) const;
@@ -46,8 +46,13 @@ public:
 
    virtual const int *GetEdgeVertices(int ei) const { return NULL; }
 
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
    virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 0; return 0; }
+
+   virtual int GetNFaces() const { return 0; }
+
+   virtual int GetNFaceVertices(int) const { return 0; }
 
    virtual const int *GetFaceVertices(int fi) const { return NULL; }
 
