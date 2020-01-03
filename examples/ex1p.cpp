@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
    Solver *prec = NULL;
    if (pa)
    {
-      prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+      prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
    }
    else
    {
