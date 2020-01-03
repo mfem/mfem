@@ -196,9 +196,7 @@ int main(int argc, char *argv[])
    }
    else // Jacobi preconditioning in partial assembly mode
    {
-      Vector diag_pa(fespace->GetTrueVSize());
-      a->AssembleDiagonal(diag_pa);
-      OperatorJacobiSmoother M(diag_pa, ess_tdof_list);
+      OperatorJacobiSmoother M(a, ess_tdof_list);
       PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
    }
 

@@ -44,7 +44,7 @@ public:
        used later in the methods AddMultPA() and AddMultTransposePA(). */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   /// Assemble diagonal into Vector @a diag.
+   /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalPA(Vector &diag) const;
 
    /// Method for partially assembled action.
