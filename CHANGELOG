@@ -31,6 +31,10 @@ Meshing improvements
   (e.g. spatial dependence of size, aspect ratio, etc., for each element) or via
   a (Par)GridFunction specified on the original mesh.
 
+- New method Mesh::GetHilbertElementOrdering for sorting mesh elements along the
+  Hilbert curve. The ordering can be used to improve caching and parallel
+  partitioning in non-conforming AMR.
+
 - Added support for creating refined versions of periodic meshes, making use of
   the new L2ElementRestriction class. This class also allows for computing
   geometric factors on periodic meshes using partial assembly.
@@ -78,6 +82,8 @@ New and updated examples and miniapps
 
 - The mesh-optimizer and pmesh-optimizer miniapps have been updated to
   demonstrate the new r-adaptivity capabilities of TMOP.
+
+- New options to reorder and partition the mesh in the mesh-explorer miniapp.
 
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
