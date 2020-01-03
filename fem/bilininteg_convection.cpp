@@ -185,7 +185,6 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
     });
 
    }//dim = 3
-   mesh->DeleteGeometricFactors();
 }
 
 // PA Convection Apply 2D kernel

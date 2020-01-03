@@ -833,7 +833,6 @@ const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement &trial_
    }
    else
    {
-      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
       order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
    }
 
