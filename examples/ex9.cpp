@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    bool pa = false;
+   const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;
@@ -109,6 +110,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -134,6 +137,9 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   Device device(device_config);
+   device.Print();
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
