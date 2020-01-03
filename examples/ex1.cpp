@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
    }
    else // Jacobi preconditioning in partial assembly mode
    {
-      OperatorJacobiSmoother M(a, ess_tdof_list);
+      OperatorJacobiSmoother M(*a, ess_tdof_list);
       PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
    }
 
