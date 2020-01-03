@@ -14,8 +14,8 @@
 //               ----------------------------------------
 //
 // This miniapp implements Conway's Game of Life. A few simple starting
-// positions are available as well as a default random initial state. The
-// game will terminate only if two successive iterations are identical.
+// positions are available as well as a random initial state. The game will
+// terminate only if two successive iterations are identical.
 //
 // See the output of 'life -h' for more options.
 //
