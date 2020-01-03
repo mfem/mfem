@@ -9,6 +9,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   StopWatch chrono;
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -50,6 +51,7 @@ int main(int argc, char *argv[])
 
    // Mesh *mesh = new Mesh(mesh_file, 1, 1);
    Mesh * mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1, 1, false);
+   // Mesh * mesh = new Mesh(1, 1,1, Element::HEXAHEDRON, true, 1, 1, 1, false);
    int dim = mesh->Dimension();
 
    for (int l = 0; l < ref_levels; l++)
@@ -57,10 +59,9 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   mesh->ReorientTetMesh();
-
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+
 
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
    // FiniteElementCollection *fec = new ND_FECollection(order, dim);
@@ -89,21 +90,27 @@ int main(int argc, char *argv[])
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   // a->AddDomainIntegrator(new CurlCurlIntegrator(one));
+
+   chrono.Clear();
+   chrono.Start();
    a->Assemble();
 
    HypreParMatrix A;
-   // OperatorPtr A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   chrono.Stop();
+   if (myid == 0)  cout << "Form Linear System time: " << chrono.RealTime() << endl;
 
-   ParAddSchwarz *prec2 = new ParAddSchwarz(a);
-   prec2->SetOperator(A);
-   prec2->SetNumSmoothSteps(1);
+   // Array<int>elem_vertices;
+   // for (int iel = 0; iel<pmesh->GetNE(); iel++)
+   // {
+   //    pmesh->GetElementVertices(iel,elem_vertices);
+   //    cout << "myid, iel: " << myid <<", " << iel << ", " ; elem_vertices.Print(cout,10);
+   // }
 
+   Array<double> times(4);
 
-
-   int maxit = 2000;
+   int maxit = 200;
    double rtol = 1e-8;
    double atol = 1e-8;
    CGSolver pcg(MPI_COMM_WORLD);
@@ -112,10 +119,53 @@ int main(int argc, char *argv[])
    pcg.SetRelTol(rtol);
    pcg.SetAbsTol(atol);
    pcg.SetOperator(A);
+
+
+   chrono.Clear();
+   chrono.Start();
+   ParSchwarzSmoother * prec1 = new ParSchwarzSmoother(pmesh,0,fespace, &A);
+   prec1->SetNumSmoothSteps(1);
+   prec1->SetDumpingParam(0.5);
+   chrono.Stop();
+   times[0] = chrono.RealTime();
+
+   pcg.SetPreconditioner(*prec1); 
+   X = 0.0;
+   chrono.Clear();
+   chrono.Start();
+   pcg.Mult(B, X);
+   chrono.Stop();
+   times[1] = chrono.RealTime();
+
+   delete prec1;
+
+   chrono.Clear();
+   chrono.Start();
+   ParAddSchwarz *prec2 = new ParAddSchwarz(a);
+   prec2->SetOperator(A);
+   prec2->SetNumSmoothSteps(1);
+   prec2->SetDumpingParam(0.5);
+   chrono.Stop();
+   times[2] = chrono.RealTime();
+
+
    pcg.SetPreconditioner(*prec2); 
    X = 0.0;
+   chrono.Clear();
+   chrono.Start();
    pcg.Mult(B, X);
+   chrono.Stop();
+   times[3] = chrono.RealTime();
+   delete prec2;
 
+   if (myid == 0)
+   {
+      cout << "prec 1 construction time: " << times[0] << endl;
+      // cout << "prec 1 solution time:     " << times[1] << endl;
+      cout << "prec 2 construction time: " << times[2] << endl;
+      // cout << "prec 2 solution time:     " << times[3] << endl;
+   }
+   
    a->RecoverFEMSolution(X, *b, x);
 
    // 16. Send the solution by socket to a GLVis server.
@@ -123,13 +173,17 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
+      // socketstream mesh_sock(vishost, visport);
+      // mesh_sock << "parallel " << num_procs << " " << myid << "\n";
+      // mesh_sock.precision(8);
+      // mesh_sock << "mesh\n" << *pmesh  << "keys n/n" << flush;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "mesh\n" << *pmesh  << "keys n/n" << flush;
+      sol_sock << "solution\n" << *pmesh  << x <<"keys " << flush;
    }
 
-   // 17. Free the used memory.
+   // // 17. Free the used memory.
    delete a;
    delete b;
    delete fespace;

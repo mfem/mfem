@@ -32,20 +32,52 @@ struct UniqueIndexGenerator
    }
 };
 
+
+class CartesianMeshPartition // for now every vertex defines a patch 
+{
+private:
+   ParMesh *pmesh=nullptr;
+public:
+   int nrpatch;
+   Array<int> patch_rank; 
+   std::vector<Array<int>> local_element_map;
+   // constructor
+   CartesianMeshPartition(ParMesh * pmesh_);
+   ~CartesianMeshPartition(){};
+};
+
+
+
+class VertexMeshPartition // for now every vertex defines a patch 
+{
+private:
+   ParMesh *pmesh=nullptr;
+public:
+   int nrpatch;
+   Array<int> patch_rank; 
+   std::vector<Array<int>> local_element_map;
+   // constructor
+   VertexMeshPartition(ParMesh * pmesh_);
+   ~VertexMeshPartition(){};
+};
+
+
+
+
 class ParMeshPartition // for now every vertex defines a patch 
 {
 private:
+   MPI_Comm comm;
    ParMesh *pmesh=nullptr;
    void AddElementToMesh(Mesh * mesh,mfem::Element::Type elem_type,int * ind);
    void GetNumVertices(int type, mfem::Element::Type & elem_type, int & nrvert);
    void save_mesh_partition();
-   void print_element_map(){};
 public:
    int nrpatch;
    int myelem_offset = 0;
    Array<int> patch_rank; 
    std::vector<Array<int>> element_map; 
-   std::vector<Array<int>> local_element_map;
+   std::vector<Array<int>> local_element_map; 
    Array<Mesh *> patch_mesh;
    // constructor
    ParMeshPartition(ParMesh * pmesh_);
@@ -67,7 +99,7 @@ public:
    // constructor
    ParPatchDofInfo(ParFiniteElementSpace *fespace);
    // void Print();
-   ~ParPatchDofInfo(){};
+   ~ParPatchDofInfo();
 };
 
 
@@ -88,9 +120,9 @@ public:
    Array<int> patch_rank;
    std::vector<Array<int>> patch_true_dofs;
    std::vector<Array<int>> patch_local_dofs;
-   std::vector<Array<int>> patch_other_dofs;
 
    Array<SparseMatrix *> patch_mat;
+   Array<BilinearForm * > patch_bilinear_forms;
    Array<KLUSolver * > patch_mat_inv;
    std::vector<Array<int>> ess_tdof_list;
 
@@ -119,7 +151,7 @@ public:
    void Mult(const Vector & r , Array<Vector > & res);
    // void MultTranspose(const Array<BlockVector*> & sol, Vector & z);
    void MultTranspose(const Array<Vector> & sol, Vector & z);
-   virtual ~ParPatchRestriction() {}
+   virtual ~ParPatchRestriction(){}
 };
 
 
@@ -144,7 +176,7 @@ public:
    void SetDumpingParam(const double dump_param) {theta = dump_param;}
    virtual void SetOperator(const Operator &op) {A = &op;}
    virtual void Mult(const Vector &r, Vector &z) const;
-   virtual ~ParAddSchwarz(){};
+   virtual ~ParAddSchwarz();
 };
 
 

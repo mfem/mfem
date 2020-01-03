@@ -1,89 +1,163 @@
 #include "additive_schwarzp.hpp"
 
-// constructor
-ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
-{
-   int num_procs, myid;
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+
+
+
+
+
+
+
+
+
+// constructor
+CartesianMeshPartition::CartesianMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
+{
+   int num_procs,myid;
+   MPI_Comm comm = pmesh->GetComm();
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+   int dim = pmesh->Dimension();
+
+   cout << "Testing Cartesian Mesh Partition" << endl;
+
+   int nx = 4; 
+   int ny = 2; 
+   int nz = 1;
+   int nxyz[3] = {nx,ny,nz};
+   nrpatch = nx*ny*nz;
+   int *partitioning;
+   double pmin[3] = { infinity(), infinity(), infinity() };
+   double pmax[3] = { -infinity(), -infinity(), -infinity() };
+
+   // find a bounding box using the vertices
+   for (int vi = 0; vi < pmesh->GetNV(); vi++)
+   {
+      const double *p = pmesh->GetVertex(vi);
+      for (int i = 0; i < dim; i++)
+      {
+         if (p[i] < pmin[i]) { pmin[i] = p[i]; }
+         if (p[i] > pmax[i]) { pmax[i] = p[i]; }
+      }
+   }
+
+   double global_min[dim];
+   double global_max[dim];
+
+   for (int comp = 0; comp<dim; comp++)
+   {
+      MPI_Allreduce(&pmin[comp], &global_min[comp], 1, MPI_DOUBLE, MPI_MIN, comm);
+      MPI_Allreduce(&pmax[comp], &global_max[comp], 1, MPI_DOUBLE, MPI_MAX, comm);
+   }
+   
+   int mynrelem = pmesh->GetNE();
+   partitioning = new int[mynrelem];
+
+      // determine the partitioning using the centers of the elements
+   double ppt[dim];
+   Vector pt(ppt, dim);
+   for (int el = 0; el < mynrelem; el++)
+   {
+      pmesh->GetElementTransformation(el)->Transform(
+         Geometries.GetCenter(pmesh->GetElementBaseGeometry(el)), pt);
+      int part = 0;
+      for (int i = dim-1; i >= 0; i--)
+      {
+         int idx = (int)floor(nxyz[i]*((pt(i) - global_min[i])/(global_max[i] - global_min[i])));
+         if (idx < 0) { idx = 0; }
+         if (idx >= nxyz[i]) { idx = nxyz[i]-1; }
+         part = part * nxyz[i] + idx;
+      }
+      partitioning[el] = part;
+   }
+
+   int myelem_offset;
+   MPI_Scan(&mynrelem, &myelem_offset, 1, MPI_INT, MPI_SUM, comm);
+   myelem_offset -= mynrelem;
+
+   // loop through elements and construct local_element maps
+   local_element_map.resize(nrpatch);
+   for (int iel = 0; iel < mynrelem; iel++)
+   {
+      int ip = partitioning[iel];
+      local_element_map[ip].Append(iel+myelem_offset);
+   }
+
+   // determine the rank that will construct each patch
+   // ideally the rank that owns the most elements of the patch
+
+
+   Array<int>patch_size(nrpatch);
+   for (int ip = 0; ip < nrpatch; ++ip)
+   {
+      patch_size[ip] = local_element_map[ip].Size();
+   //    if (patch_size[ip]>0)
+   //    {
+   //       cout << "myid, ip: " << myid << ", " << ip << ", elements: "; local_element_map[ip].Print(cout,10);
+   //    }
+   }
+
+   Array<int>patch_ranks(nrpatch*num_procs);
+   MPI_Allgather(patch_size, nrpatch, MPI_INT, patch_ranks, nrpatch, MPI_INT, comm);
+
+   Array<int> max(nrpatch);
+   max = -1;
+   patch_rank.SetSize(nrpatch);
+   patch_rank = -1;
+   // loop through the patches and determine the rank with the max number of elements
+   for (int irank = 0; irank < num_procs; ++irank)
+   {
+      // cout << "irank = " << irank << endl; 
+      int offset = irank*nrpatch;
+      for (int ip = 0; ip<nrpatch; ++ip)
+      {
+         if (patch_ranks[ip+offset]>= max[ip])
+         {  
+            // cout << patch_ranks[ip+offset] << endl;
+            max[ip] = patch_ranks[ip+offset];
+            patch_rank[ip] = irank;
+         }
+      }
+   }
+   // patch_rank.Print(cout, nrpatch);
+}
+
+
+// constructor
+VertexMeshPartition::VertexMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
+{
+   int num_procs;
+   MPI_Comm comm = pmesh->GetComm();
+   MPI_Comm_size(comm, &num_procs);
    int dim = pmesh->Dimension();
    FiniteElementCollection * aux_fec = new H1_FECollection(1, dim);
    ParFiniteElementSpace * aux_fespace = new ParFiniteElementSpace(pmesh, aux_fec);
-   int mydofoffset = aux_fespace->GetMyTDofOffset(); // dof offset 
-
-   // the DofTrueDof matrix for the mesh FE Space will gives the information 
-   // for the vertices owned by the processor
-   HypreParMatrix *DofTrueDof = new HypreParMatrix(*aux_fespace->Dof_TrueDof_Matrix());
-
-   // Compute the TrueVr
-   SparseMatrix diag, offd;
-   DofTrueDof->GetDiag(diag);
-   HYPRE_Int * cmap;
-   DofTrueDof->GetOffd(offd, cmap);
-   Array<int> own_vertices;
-   // Need a map from all vertices to the "true" vertices (remove dublicates)
-   int nrvert = pmesh->GetNV();
-   Array<int> myTrueVert(nrvert);
-   int nv = 0;
-   for(int row = 0; row<nrvert; ++row)
-   {  // the size of the row will always be one or zero
-      int diag_row_size = diag.RowSize(row);
-      int offd_row_size = offd.RowSize(row);
-      int *diagcol = diag.GetRowColumns(row);
-      int *offdcol = offd.GetRowColumns(row);
-      // Check that they add up to one
-      MFEM_VERIFY(diag_row_size + offd_row_size == 1, "diag and offd row size inconcistent")
-      if (diag_row_size > 0)
-      {
-         myTrueVert[row] = diagcol[0] + mydofoffset;
-         nv++;
-         own_vertices.SetSize(nv);
-         own_vertices[nv - 1] = myTrueVert[row];
-      }
-      else
-      {
-         myTrueVert[row] = cmap[offdcol[0]];
-      }
-   }
+   int mytdofoffset = aux_fespace->GetMyTDofOffset(); // dof offset 
 
    // 6. Compute total number of patches
-   MPI_Comm comm = pmesh->GetComm();
-   int mynrpatch = own_vertices.Size();
-   // Compute total number of patches.
-   MPI_Allreduce(&mynrpatch, &nrpatch, 1, MPI_INT, MPI_SUM, comm);
-
-   // need to identify the elements in each patch from each rank
+   nrpatch = aux_fespace->GlobalTrueVSize();
    // Create a list of patches identifiers to all procs
-   Array<int> patch_global_id(nrpatch);
    patch_rank.SetSize(nrpatch);
-   Array<int> patch_rank_id(nrpatch);
 
-   int count[num_procs];
+   Array<int> true_vert_offsets;
+   true_vert_offsets.SetSize(num_procs);
+   int myvert_offset = aux_fespace->GetMyTDofOffset();
+   MPI_Allgather(&myvert_offset,1,MPI_INT,true_vert_offsets,1,MPI_INT,comm);
 
-   MPI_Allgather(&mynrpatch, 1, MPI_INT, &count[0], 1, MPI_INT, comm);
-   int displs[num_procs];
-   displs[0] = 0;
-   for (int i = 1; i < num_procs; i++)
+   int ip = 0;
+   true_vert_offsets.Append(nrpatch);
+   for (int i = 0; i<num_procs; ++i)
    {
-      displs[i] = displs[i - 1] + count[i - 1];
+      while (ip < true_vert_offsets[i+1])
+      {
+         patch_rank[ip] = i; ip++;
+      }
    }
 
-   patch_rank_id.SetSize(own_vertices.Size());
-   patch_rank_id = myid;
-   MPI_Allgatherv(own_vertices, mynrpatch, MPI_INT, patch_global_id, count, displs, MPI_INT, comm);
-   MPI_Allgatherv(patch_rank_id, mynrpatch, MPI_INT, patch_rank, count, displs, MPI_INT, comm);
-
-   Array<int> patch_id_index(patch_global_id[nrpatch-1]+1);
-   patch_id_index = -1;
-    for (int i = 0; i < nrpatch; i++)
-   {
-      int k = patch_global_id[i];
-      patch_id_index[k] = i;
-   }
    // now loop over all the elements and using the global dof of their vertices
    // the ids of the patches that they contribute to can be identified.
    int mynrelem = pmesh->GetNE();
+   int myelem_offset;
    MPI_Scan(&mynrelem, &myelem_offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    myelem_offset -= mynrelem;
    for (int iel=0; iel<mynrelem; ++iel)
@@ -91,11 +165,10 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
       Array<int> vertices;
       pmesh->GetElementVertices(iel,vertices);
       int nrvert = vertices.Size();
-      for (int iv=0; iv<nrvert; ++iv) vertices[iv] += mydofoffset;
+      for (int iv=0; iv<nrvert; ++iv) vertices[iv] += mytdofoffset;
    }
    // now construct the element contribution information
    local_element_map.resize(nrpatch); 
-   // cout << "nrpatch = " << nrpatch << endl;
    for (int iel=0; iel<mynrelem; ++iel)
    {
       // get element vertex index
@@ -107,12 +180,40 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
       {
          // find the "true vertex"
          int vert = vertices[iv];
-         int truevert = myTrueVert[vert];
+         int truevert = aux_fespace->GetGlobalTDofNumber(vert);
          // natural ordering of this patch
-         int ip = patch_id_index[truevert];
-         local_element_map[ip].Append(iel+myelem_offset);
+         local_element_map[truevert].Append(iel+myelem_offset);
       }
    }
+   delete aux_fespace;
+   delete aux_fec;
+}
+
+
+
+
+ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
+{
+   int num_procs, myid;
+   comm  = pmesh->GetComm();
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+   int dim = pmesh->Dimension();
+
+   CartesianMeshPartition * partition = new CartesianMeshPartition(pmesh);
+   local_element_map = partition->local_element_map;
+   patch_rank = partition->patch_rank;
+   delete partition;
+   // VertexMeshPartition * partition = new VertexMeshPartition(pmesh);
+   // local_element_map = partition->local_element_map;
+   // patch_rank = partition->patch_rank;
+   // delete partition;
+   nrpatch = local_element_map.size();
+
+
+   int mynrelem = pmesh->GetNE();
+   MPI_Scan(&mynrelem, &myelem_offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   myelem_offset -= mynrelem;
 
    // communicate the element map to every processor that is involved
    element_map.resize(nrpatch);
@@ -184,7 +285,6 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
    recv_count_d = 0; recv_displ_d = 0;
 
 
-
    for (int ip = 0; ip < nrpatch; ++ip)
    {
       // a) patch no
@@ -212,7 +312,7 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
       }
    }
 
-   // comunicate so that recv_count is constructed
+   // communicate so that recv_count is constructed
    MPI_Alltoall(send_count,1,MPI_INT,recv_count,1,MPI_INT,comm);
    MPI_Alltoall(send_count_d,1,MPI_INT,recv_count_d,1,MPI_INT,comm);
    for (int k=0; k<num_procs-1; k++)
@@ -236,6 +336,8 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
    Array<int> soffs_d(num_procs); soffs_d = 0;
 
    // now the data will be placed according to process offsets
+   FiniteElementCollection * aux_fec = new H1_FECollection(1, dim);
+   ParFiniteElementSpace * aux_fespace = new ParFiniteElementSpace(pmesh, aux_fec);
    for (int ip = 0; ip < nrpatch; ++ip)
    {
       // The send_buffer contains the following:
@@ -249,16 +351,13 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
       // get local element_map size
       int patch_local_nelems = local_element_map[ip].Size();
       if (patch_local_nelems !=0) // the rank is contributing to the patch ip
-      {
-         // loop through the elements 
+      {  // loop through the elements 
          for (int iel=0; iel<patch_local_nelems; ++iel)
-         {
-            // get the vertex list for the element
+         {  // get the vertex list for the element
             Array<int> elem_vertices;
             int iel_idx = local_element_map[ip][iel]-myelem_offset;
             pmesh->GetElementVertices(iel_idx,elem_vertices);
             int nrvert = elem_vertices.Size();
-            // cout << ", nrvert = " << nrvert << endl;
             int j = send_displ[patch_rank[ip]] + soffs[patch_rank[ip]];
             int j_d = send_displ_d[patch_rank[ip]] + soffs_d[patch_rank[ip]];
             sendbuf[j] = ip; 
@@ -267,12 +366,11 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
             sendbuf[j+3] = nrvert;
             for (int iv = 0; iv<nrvert; ++iv)
             {
-               sendbuf[j+4+iv] = myTrueVert[elem_vertices[iv]];
+               sendbuf[j+4+iv] = aux_fespace->GetGlobalTDofNumber(elem_vertices[iv]);
                for (int comp=0; comp<dim; ++comp)
                {
                   sendbuf_d[j_d+iv+comp] = pmesh->GetVertex(elem_vertices[iv])[comp];
                }
-               // j_d++; 
                j_d += dim-1;
             }
             soffs[patch_rank[ip]] += 1 + 1 + 1 + 1 + nrvert; 
@@ -280,6 +378,9 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
          }   
       }
    }
+
+   delete aux_fespace;
+   delete aux_fec;
 
    // Communication
    Array<int> recvbuf(rbuff_size);
@@ -314,7 +415,6 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
          patch_vertex_xcoord[ip].Append(recvbuf_d[kd+iv+id]);
          patch_vertex_ycoord[ip].Append(recvbuf_d[kd+iv+1+id]);
          if (dim == 3) patch_vertex_zcoord[ip].Append(recvbuf_d[kd+iv+2+id]);
-         // id ++; 
          id += dim-1;
       }
       k += nrvert;
@@ -376,8 +476,6 @@ ParMeshPartition::ParMeshPartition(ParMesh *pmesh_) : pmesh(pmesh_)
    }
    save_mesh_partition();
 }
-
-
 
 
 
@@ -470,8 +568,6 @@ ParMeshPartition::~ParMeshPartition()
    }
    patch_mesh.DeleteAll();
 }
-
-
 
 
 ParPatchDofInfo::ParPatchDofInfo(ParFiniteElementSpace *fespace)
@@ -575,13 +671,8 @@ ParPatchDofInfo::ParPatchDofInfo(ParFiniteElementSpace *fespace)
       }
       k += nrdofs;
    }
-   // for (int ip = 0; ip<nrpatch; ip++)
-   // {
-   //    if (patch_true_dofs[ip].Size()>0)
-   //    {
-   //       cout << "myid = " << myid << ", ip = " << ip << ", tdofs = " ; patch_true_dofs[ip].Print(cout, 20);
-   //    }
-   // }
+
+
    // build the maps from patch true dof to global truedof
    patch_fespaces.SetSize(nrpatch);
    patch_dof_map.resize(nrpatch);
@@ -591,6 +682,7 @@ ParPatchDofInfo::ParPatchDofInfo(ParFiniteElementSpace *fespace)
       patch_fespaces[ip] = nullptr;
       if(p->patch_mesh[ip])
       {
+         // patch_true_dofs[ip].Print(cout, 20);
          patch_fespaces[ip] = new FiniteElementSpace(p->patch_mesh[ip],fec);
          // create the dof map
          int nrdof = patch_fespaces[ip]->GetTrueVSize();
@@ -612,14 +704,20 @@ ParPatchDofInfo::ParPatchDofInfo(ParFiniteElementSpace *fespace)
          }
       }
    }
-   // for (int ip=0; ip<nrpatch; ++ip)
-   // {
-   //    if(p->patch_mesh[ip])
-   //    {
-   //       cout << "ip = " << ip << " patch_dof_map = " ; patch_dof_map[ip].Print(cout, 20); 
-   //    }
-   // }
 }
+
+
+ParPatchDofInfo::~ParPatchDofInfo()
+{
+   delete p;
+   for (int ip = 0; ip<nrpatch; ++ip)
+   {
+      delete patch_fespaces[ip]; patch_fespaces[ip] = nullptr;
+   }
+   patch_fespaces.DeleteAll();
+}
+
+
 
 
 // constructor
@@ -684,7 +782,8 @@ ParPatchAssembly::ParPatchAssembly(ParBilinearForm * bf_) : bf(bf_)
    {
       int nrdofs = patch_dofs->patch_dof_map[ip].Size();
       if (nrdofs > 0)
-      {   
+      {
+         // patch_dofs->patch_dof_map[ip].Print(cout,20);  
          Array<int> patch_dofs_ranks(num_procs);
          patch_dofs_ranks = 0;
          // loop through the dofs and find their rank
@@ -718,7 +817,6 @@ ParPatchAssembly::ParPatchAssembly(ParBilinearForm * bf_) : bf(bf_)
 
    patch_true_dofs.resize(nrpatch);
    patch_local_dofs.resize(nrpatch);
-   patch_other_dofs.resize(nrpatch);
 
    // recvbuf.Print(cout,10);
    int k=0;
@@ -734,40 +832,24 @@ ParPatchAssembly::ParPatchAssembly(ParBilinearForm * bf_) : bf(bf_)
          {
             patch_local_dofs[ip].Append(tdof);
          }
-         else
-         {
-            patch_other_dofs[ip].Append(tdof);
-         }
       }
       k += nrdofs;
    }
-
-   // for (int ip=0; ip<nrpatch; ++ip)
-   // {
-   //    int nrdofs = patch_true_dofs[ip].Size();
-   //    if (myid == patch_rank[ip])
-   //    {
-   //       if (patch_true_dofs[ip].Size() > 0)
-   //       {
-   //          cout << "myid: " << myid << ", ip: " << ip 
-   //             << ", tdofs: " ; patch_true_dofs[ip].Print(cout,10); 
-   //          cout << "myid: " << myid << ", ip: " << ip 
-   //             << ", mydofs: " ; patch_local_dofs[ip].Print(cout,10);      
-   //       }
-   //    }
-   // }
-
    AssemblePatchMatrices(patch_dofs);
-
+   delete patch_dofs;
 }
 
 void ParPatchAssembly::AssemblePatchMatrices(ParPatchDofInfo * p)
 {
    patch_mat.SetSize(nrpatch);
+   patch_bilinear_forms.SetSize(nrpatch);
    patch_mat_inv.SetSize(nrpatch);
    ess_tdof_list.resize(nrpatch);
    for (int ip=0; ip<nrpatch; ++ip)
    {
+      patch_bilinear_forms[ip] = nullptr;
+      patch_mat_inv[ip] = nullptr;
+      patch_mat[ip] = nullptr;
       if (p->p->patch_mesh[ip])
       {
          // Define the patch bilinear form and apply boundary conditions (only the LHS)
@@ -779,23 +861,17 @@ void ParPatchAssembly::AssemblePatchMatrices(ParPatchDofInfo * p)
             ess_bdr = 1;
             patch_fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list[ip]);
          }
-         BilinearForm a(patch_fespace, bf);
-         a.Assemble(); 
+         patch_bilinear_forms[ip] = new BilinearForm(patch_fespace, bf);
+         patch_bilinear_forms[ip]->Assemble(); 
          OperatorPtr Alocal;
-         a.FormSystemMatrix(ess_tdof_list[ip],Alocal);
-         patch_mat[ip] = new SparseMatrix((SparseMatrix&)(*Alocal));
+         patch_bilinear_forms[ip]->FormSystemMatrix(ess_tdof_list[ip],Alocal);
+         patch_mat[ip] = &(SparseMatrix&)(*Alocal);
          patch_mat[ip]->Threshold(0.0);
-         // if (ip == 1) patch_mat[ip]->PrintMatlab(cout);
-         // if (ip == 4) patch_mat[ip]->PrintMatlab(cout);
-         // Vector ones(p->patch_fespaces[ip]->GetTrueVSize());
-         // ones = 1.0;
-         // patch_mat[ip] = new SparseMatrix(ones);
          // Save the inverse
          patch_mat_inv[ip] = new KLUSolver;
          patch_mat_inv[ip]->SetOperator(*patch_mat[ip]);
       }   
    }
-
 }
 
 void ParPatchAssembly::compute_trueoffsets()
@@ -817,7 +893,16 @@ int ParPatchAssembly::get_rank(int tdof)
 }
 
 
-
+ParPatchAssembly::~ParPatchAssembly()
+{
+   for (int ip = 0; ip<nrpatch; ++ip)
+   {
+      delete patch_bilinear_forms[ip]; patch_bilinear_forms[ip] = nullptr;
+      delete patch_mat_inv[ip]; patch_mat_inv[ip] = nullptr;
+   }
+   patch_bilinear_forms.DeleteAll();
+   patch_mat_inv.DeleteAll();
+}
 
 ParPatchRestriction::ParPatchRestriction(ParPatchAssembly * P_) : P(P_)
 {
@@ -843,7 +928,7 @@ ParPatchRestriction::ParPatchRestriction(ParPatchAssembly * P_) : P(P_)
       {
          int tdof = P->patch_local_dofs[ip][i];
          int tdof_rank = P->get_rank(tdof);
-         if (myid == tdof_rank)
+         if (myid == tdof_rank && tdof_rank != patch_rank[ip])
          {
             send_count[patch_rank[ip]]++;
          }
@@ -868,7 +953,7 @@ void ParPatchRestriction::Mult(const Vector & r , Array<Vector> & res)
    // now allocate space for the send buffer
    Array<double> sendbuf(sbuff_size);  sendbuf = 0;
    Array<int> soffs(num_procs); soffs = 0;
-   // now the data will be placed according to process offsets
+   // the data are placed according to process offsets
    for (int ip = 0; ip < nrpatch; ip++)
    {
       int ndofs = P->patch_local_dofs[ip].Size();
@@ -877,7 +962,7 @@ void ParPatchRestriction::Mult(const Vector & r , Array<Vector> & res)
          int tdof = P->patch_local_dofs[ip][i];
          // find its rank
          int tdof_rank = P->get_rank(tdof);
-         if (myid == tdof_rank)
+         if (myid == tdof_rank && tdof_rank != patch_rank[ip])
          {
             int j = send_displ[patch_rank[ip]] + soffs[patch_rank[ip]];
             soffs[patch_rank[ip]]++;
@@ -894,7 +979,7 @@ void ParPatchRestriction::Mult(const Vector & r , Array<Vector> & res)
                  recv_count, recv_displ, MPI_DOUBLE, comm);            
    Array<int> roffs(num_procs);
    roffs = 0;
-   // Now each process will construct the res1 vector
+   // Now each process will construct the res vector
    res.SetSize(nrpatch);
    for (int ip = 0; ip < nrpatch; ip++)
    {
@@ -903,17 +988,22 @@ void ParPatchRestriction::Mult(const Vector & r , Array<Vector> & res)
          int ndof = P->patch_true_dofs[ip].Size();
          res[ip].SetSize(ndof);
          // extract the data from receiv buffer
-         // loop through rows
-         int l = 0;
          for (int i=0; i<ndof; i++)
          {
-            // pick up the dof and find its tdof_rank
+            // pick up the tdof and find its rank
             int tdof = P->patch_true_dofs[ip][i];
             int tdof_rank= P->get_rank(tdof);
-            // offset
-            int k = recv_displ[tdof_rank] + roffs[tdof_rank];
-            roffs[tdof_rank]++;
-            res[ip][i] = recvbuf[k];
+            if (tdof_rank != patch_rank[ip])
+            {
+               int k = recv_displ[tdof_rank] + roffs[tdof_rank];
+               roffs[tdof_rank]++;
+               res[ip][i] = recvbuf[k];
+            }
+            else
+            {
+               int kk = tdof - mytdofoffset;
+               res[ip][i] = r[kk];
+            }   
          }   
       }
    }
@@ -940,9 +1030,12 @@ void ParPatchRestriction::MultTranspose(const Array<Vector > & sol, Vector & z)
             int tdof = P->patch_true_dofs[ip][i];
             int tdof_rank= P->get_rank(tdof);
             // offset
-            int k = recv_displ[tdof_rank] + roffs[tdof_rank];
-            roffs[tdof_rank]++;
-            recvbuf[k] = sol[ip][i];
+            if (tdof_rank != patch_rank[ip])
+            {
+               int k = recv_displ[tdof_rank] + roffs[tdof_rank];
+               roffs[tdof_rank]++;
+               recvbuf[k] = sol[ip][i];
+            }
          }
       }
    }
@@ -954,18 +1047,25 @@ void ParPatchRestriction::MultTranspose(const Array<Vector > & sol, Vector & z)
    // 1. Accummulate for the solution 
    for (int ip = 0; ip < nrpatch; ip++)
    {
-      int ndofs = P->patch_local_dofs[ip].Size();
+      int ndofs = P->patch_true_dofs[ip].Size();
       for (int i = 0; i<ndofs; i++)
       {
-         int tdof = P->patch_local_dofs[ip][i];
+         int tdof = P->patch_true_dofs[ip][i];
          // find its rank
+         int k = tdof - mytdofoffset;
          int tdof_rank = P->get_rank(tdof);
          if (myid == tdof_rank) 
          {  
-            int k = tdof - mytdofoffset;
-            int j = send_displ[patch_rank[ip]] + soffs[patch_rank[ip]];
-            soffs[patch_rank[ip]]++;
-            z[k] += sendbuf[j];
+            if (tdof_rank != patch_rank[ip])
+            {
+               int j = send_displ[patch_rank[ip]] + soffs[patch_rank[ip]];
+               soffs[patch_rank[ip]]++;
+               z[k] += sendbuf[j];
+            }
+            else
+            {
+               z[k] += sol[ip][i];
+            }            
          }
       }
    }
@@ -1004,6 +1104,7 @@ void ParAddSchwarz::Mult(const Vector &r, Vector &z) const
          {
             sol[ip].SetSize(res[ip].Size());
             p->patch_mat_inv[ip]->Mult(res[ip], sol[ip]);
+            
             // zero out the essential truedofs 
             Array<int> ess_bdr_indices = p->ess_tdof_list[ip];
             sol[ip].SetSubVector(ess_bdr_indices,0.0);
@@ -1020,286 +1121,10 @@ void ParAddSchwarz::Mult(const Vector &r, Vector &z) const
    } // end of loop through smoother iterations
 }
 
+ParAddSchwarz::~ParAddSchwarz()
+{
+   delete p;
+   delete R;
+}
 
 
-
-
-
-
-
-
-// ParPatchRestriction::ParPatchRestriction(ParPatchAssembly * P_) : P(P_)
-// {
-//    comm = P->comm;
-//    MPI_Comm_size(comm, &num_procs);
-//    MPI_Comm_rank(comm, &myid);
-//    nrpatch = P->nrpatch;
-//    patch_rank = P->patch_rank;
-
-//    send_count.SetSize(num_procs);
-//    send_displ.SetSize(num_procs);
-//    recv_count.SetSize(num_procs);
-//    recv_displ.SetSize(num_procs);
-
-//    send_count = 0; send_displ = 0;
-//    recv_count = 0; recv_displ = 0;
-
-//    // Precompute send_counts
-//    for (int ip = 0; ip < nrpatch; ip++)
-//    {
-//       if (myid != patch_rank[ip])
-//       {
-//          int ndofs = P->patch_local_dofs[ip].Size();
-//          for (int i =0; i<ndofs; i++)
-//          {
-//             int tdof = P->patch_local_dofs[ip][i];
-//             int tdof_rank = P->get_rank(tdof);
-//             if (myid == tdof_rank)
-//             {
-//                send_count[patch_rank[ip]]++;
-//             }
-//          }
-//       }
-       
-//    }
-
-//    // comunicate so that recv_count is constructed
-//    MPI_Alltoall(&send_count[0],1,MPI_INT,&recv_count[0],1,MPI_INT,comm);
-//    //
-//    for (int k=0; k<num_procs-1; k++)
-//    {
-//       send_displ[k+1] = send_displ[k] + send_count[k];
-//       recv_displ[k+1] = recv_displ[k] + recv_count[k];
-//    }
-//    sbuff_size = send_count.Sum();
-//    rbuff_size = recv_count.Sum();
-// }
-
-
-
-// void ParAddSchwarz::Mult(const Vector &r, Vector &z) const
-// {
-//    int myid;
-//    MPI_Comm_rank(comm, &myid);
-
-//    z = 0.0;
-//    Vector rnew(r);
-//    Vector znew(z);
-   
-//    for (int iter = 0; iter < maxit; iter++)
-//    {
-//       znew = 0.0;
-//       Array<BlockVector * > res;
-//       R->Mult(rnew,res);
-
-//       Array<BlockVector*> sol(nrpatch);
-//       for (int ip=0; ip<nrpatch; ip++)
-//       {
-//          sol[ip] = nullptr;
-//          if(myid == p->patch_rank[ip]) 
-//          {
-//             Array<int> block_offs(3);
-//             block_offs[0] = 0;
-//             block_offs[1] = res[ip]->GetBlock(0).Size();
-//             block_offs[2] = res[ip]->GetBlock(1).Size();
-//             block_offs.PartialSum();
-//             sol[ip] = new BlockVector(block_offs);
-//             p->patch_mat_inv[ip]->Mult(*res[ip], *sol[ip]);
-//             // zero out the essential truedofs 
-//             // Array<int> ess_bdr_indices = p->ess_tdof_list[ip];
-//             // sol[ip]->SetSubVector(ess_bdr_indices,0.0);
-//          }
-//       }
-//       for (auto p:res) delete p;
-//       res.DeleteAll();
-//       R->MultTranspose(sol,znew);
-//       for (auto p:sol) delete p;
-//       sol.DeleteAll();
-
-//       znew *= theta; // relaxation parameter
-//       z+= znew;
-//       // Update residual
-//       Vector raux(znew.Size());
-//       A->Mult(znew,raux); 
-//       rnew -= raux;
-//    } // end of loop through smoother iterations
-// }
-
-
-
-
-
-
-
-
-
-
-// void ParPatchRestriction::Mult(const Vector & r , Array<BlockVector *> & res)
-// {
-//    int mytdofoffset = P->fespace->GetMyTDofOffset();
-//    Array<Vector> res0(nrpatch); // residual on the processor
-//    Array<Vector> res1(nrpatch); // residual off the processor
-//    //  Part of the residual on the processor
-//    for (int ip = 0; ip < nrpatch; ip++)
-//    {
-//       if (myid == patch_rank[ip]) 
-//       {
-//          Array<int> local_dof_map(P->patch_local_dofs[ip]);
-//          for (int i=0;i<local_dof_map.Size(); i++)
-//          {
-//             local_dof_map[i] -= mytdofoffset;
-//          }
-//          r.GetSubVector(local_dof_map, res0[ip]);
-//       }
-//    }
-//    // now allocate space for the send buffer
-//    Array<double> sendbuf(sbuff_size);  sendbuf = 0;
-//    Array<int> soffs(num_procs); soffs = 0;
-//    // now the data will be placed according to process offsets
-//    for (int ip = 0; ip < nrpatch; ip++)
-//    {
-//       if (myid != patch_rank[ip])
-//       {
-//          int ndofs = P->patch_local_dofs[ip].Size();
-//          for (int i = 0; i<ndofs; i++)
-//          {
-//             int tdof = P->patch_local_dofs[ip][i];
-//             // find its rank
-//             int tdof_rank = P->get_rank(tdof);
-//             if (myid == tdof_rank)
-//             {
-//                int j = send_displ[patch_rank[ip]] + soffs[patch_rank[ip]];
-//                soffs[patch_rank[ip]]++;
-//                int k = tdof - mytdofoffset;
-//                sendbuf[j] = r[k];
-//             }
-//          }
-//       }
-//    }
-      
-//    // communication
-//    Array<double> recvbuf(rbuff_size);
-//    double * sendbuf_ptr = nullptr;
-//    double * recvbuf_ptr = nullptr;
-//    if (sbuff_size !=0 ) sendbuf_ptr = &sendbuf[0]; 
-//    if (rbuff_size !=0 ) recvbuf_ptr = &recvbuf[0]; 
-      
-//    MPI_Alltoallv(sendbuf_ptr, send_count, send_displ, MPI_DOUBLE, recvbuf_ptr,
-//                  recv_count, recv_displ, MPI_DOUBLE, comm);            
-//    Array<int> roffs(num_procs);
-//    roffs = 0;
-//    // Now each process will construct the res1 vector
-//    for (int ip = 0; ip < nrpatch; ip++)
-//    {
-//       if(myid == patch_rank[ip]) 
-//       {
-//          int ndof = P->patch_other_dofs[ip].Size();
-//          res1[ip].SetSize(ndof);
-//          // extract the data from receiv buffer
-//          // loop through rows
-//          for (int i=0; i<ndof; i++)
-//          {
-//             // pick up the dof and find its tdof_rank
-//             int tdof = P->patch_other_dofs[ip][i];
-//             int tdof_rank= P->get_rank(tdof);
-//             // offset
-//             int k = recv_displ[tdof_rank] + roffs[tdof_rank];
-//             roffs[tdof_rank]++;
-//             res1[ip][i] = recvbuf[k]; 
-//          }   
-//       }
-//    }
-
-//    res.SetSize(nrpatch);
-//    for (int ip=0; ip<nrpatch; ip++)
-//    {
-//       res[ip] = nullptr;
-//       if(myid == patch_rank[ip]) 
-//       {
-//          Array<int> block_offs(3);
-//          block_offs[0] = 0;
-//          block_offs[1] = res0[ip].Size();
-//          block_offs[2] = res1[ip].Size();
-//          block_offs.PartialSum();
-//          res[ip] = new BlockVector(block_offs);
-//          res[ip]->SetVector(res0[ip], 0);
-//          res[ip]->SetVector(res1[ip], res0[ip].Size());
-//       }
-//    }
-// }
-
-// void ParPatchRestriction::MultTranspose(const Array<BlockVector* > & sol, Vector & z)
-// {
-//    int mytdofoffset = P->fespace->GetMyTDofOffset();
-//    Array<Vector> sol0(nrpatch);
-//    Array<Vector> sol1(nrpatch);
-//    // Step 3: Propagate the information to the global solution vector
-//    // (the recv_buff becomes the sendbuff and vice-versa) 
-//    Array<double> sendbuf(sbuff_size);  sendbuf = 0.0;
-//    Array<double> recvbuf(rbuff_size);  recvbuf = 0.0;
-//    Array<int> roffs(num_procs); roffs = 0;
-//    Array<int> soffs(num_procs); soffs = 0;
-//    for (int ip = 0; ip < nrpatch; ip++)
-//    {
-//       if(myid == patch_rank[ip]) 
-//       {
-//          sol1[ip] = sol[ip]->GetBlock(1);
-//          int ndofs = P->patch_other_dofs[ip].Size();
-//          // loop through dofs
-//          for (int i=0; i<ndofs; i++)
-//          {
-//             //  pick up the dof and find its tdof_rank
-//             int tdof = P->patch_other_dofs[ip][i];
-//             int tdof_rank= P->get_rank(tdof);
-//             // offset
-//             int k = recv_displ[tdof_rank] + roffs[tdof_rank];
-//             roffs[tdof_rank]++;
-//             recvbuf[k] = sol1[ip][i]; 
-//          }   
-//       }
-//    }
-// // now communication
-//    double * sendbuf_ptr = nullptr;
-//    double * recvbuf_ptr = nullptr;
-//    if (sbuff_size !=0 ) sendbuf_ptr = &sendbuf[0]; 
-//    if (rbuff_size !=0 ) recvbuf_ptr = &recvbuf[0]; 
-   
-//    MPI_Alltoallv(recvbuf_ptr, recv_count, recv_displ, MPI_DOUBLE, sendbuf_ptr,
-//                  send_count, send_displ, MPI_DOUBLE, comm);            
-
-//    // 1. Accummulate for the solution to other prosessors
-//    for (int ip = 0; ip < nrpatch; ip++)
-//    {
-//       if (myid != patch_rank[ip])
-//       {
-//          int ndofs = P->patch_local_dofs[ip].Size();
-//          for (int i = 0; i<ndofs; i++)
-//          {
-//             int tdof = P->patch_local_dofs[ip][i];
-//             // find its rank
-//             int tdof_rank = P->get_rank(tdof);
-//             if (myid == tdof_rank)
-//             {
-//                int j = send_displ[patch_rank[ip]] + soffs[patch_rank[ip]];
-//                soffs[patch_rank[ip]]++;
-//                int k = tdof - mytdofoffset;
-//                z[k] += sendbuf[j];
-//             }  
-//          }
-//       }
-//    }
-//    // 2. Accummulate for the solution on the processor
-//    for (int ip = 0; ip < nrpatch; ip++)
-//    {
-//       if (myid == patch_rank[ip])
-//       {
-//          sol0[ip] = sol[ip]->GetBlock(0);
-//          Array<int> local_dof_map(P->patch_local_dofs[ip]);
-//          for (int i=0;i<local_dof_map.Size(); i++)
-//          {
-//             local_dof_map[i] -= mytdofoffset;
-//          }
-//          z.AddElementVector(local_dof_map,sol0[ip]);
-//       }
-//    }
-// }
