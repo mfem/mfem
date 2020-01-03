@@ -250,7 +250,15 @@ void ParBilinearForm::AssembleDiagonal(Vector &diag) const
 {
    Vector local(pfes->GetVSize());
    BilinearForm::AssembleDiagonal(local);
-   pfes->GetProlongationMatrix()->MultTranspose(local, diag);
+   const Operator* p_mat = pfes->GetProlongationMatrix();
+   if (p_mat)
+   {
+      p_mat->MultTranspose(local, diag);
+   }
+   else
+   {
+      diag = local;
+   }
 }
 
 void ParBilinearForm

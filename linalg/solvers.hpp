@@ -28,6 +28,8 @@
 namespace mfem
 {
 
+class BilinearForm;
+
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
@@ -81,6 +83,14 @@ public:
 class OperatorJacobiSmoother : public Solver
 {
 public:
+   /** Calls a.AssembleDiagonal() to get diagonal vector.  It is assumed that
+       the underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstratinedOperator in
+       the matrix-free setting. */
+   OperatorJacobiSmoother(const BilinearForm &a,
+                          const Array<int> &ess_tdof_list,
+                          const double damping=1.0);
+
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
        corresponding to (assembled) DIAG_ONE policy or ConstratinedOperator in
@@ -92,12 +102,11 @@ public:
 
    void Mult(const Vector &x, Vector &y) const;
    void SetOperator(const Operator &op) { oper = &op; }
-   void Setup();
+   void Setup(const Vector &diag);
 
 private:
    const int N;
    Vector dinv;
-   const Vector &diag;
    const double damping;
    const Array<int> &ess_tdof_list;
    mutable Vector residual;

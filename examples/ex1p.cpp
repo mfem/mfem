@@ -212,9 +212,7 @@ int main(int argc, char *argv[])
    Solver *prec = NULL;
    if (pa)
    {
-      Vector diag_pa(fespace->GetTrueVSize());
-      a->AssembleDiagonal(diag_pa);
-      prec = new OperatorJacobiSmoother(diag_pa, ess_tdof_list);
+      prec = new OperatorJacobiSmoother(a, ess_tdof_list);
    }
    else
    {
