@@ -9,20 +9,27 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//             ----------------------------------------------
-//             Mandel Miniapp: Fractal visualization with AMR
-//             ----------------------------------------------
+//            -----------------------------------------------
+//            Mesher Miniapp: Convert an image to an AMR mesh
+//            -----------------------------------------------
 //
-// This miniapp is a specialized version of the Shaper miniapp to the Mandelbrot
-// set. It provides a light-hearted example of AMR and GLVis integration.
+// This miniapp is a specialized version of the Shaper miniapp that converts an
+// input image to an AMR mesh. It allows the fast approximate meshing of any
+// domain for which there is an image.
 //
-// Compile with: make mandel
+// The input to image should be in 8-bit grayscale PGM format. You can use a
+// number of image manipulation tools, such as GIMP (gimp.org) and ImageMagick's
+// convert utility (imagemagick.org/script/convert.php) to convert your image to
+// this format as a pre-processing step, e.g.:
 //
-// Sample runs:  mandel
-//               mandel -m ../../data/inline-tri.mesh
-//               mandel -m ../../data/star-mixed-p2.mesh -a -ncl -1 -sd 4
-//               mandel -m ../../data/klein-bottle.mesh
-//               mandel -m ../../data/inline-hex.mesh
+//   /usr/bin/convert australia.svg -compress none -depth 8 australia.pgm
+//
+// Compile with: make mesher
+//
+// Sample runs:  mesher -i australia.pgm
+//               mesher -i australia.pgm -m ../../data/inline-tri.mesh
+//               mesher -i australia.pgm -m ../../data/disc-nurbs.mesh
+//               mesher -i australia.pgm -sd 3 -a -ncl -1
 
 #include "mfem.hpp"
 #include <fstream>
@@ -31,51 +38,46 @@
 using namespace mfem;
 using namespace std;
 
-// Given a point x, return its material id as an integer. The ids should be
-// positive. If the point is exactly on the interface, return 0.
-//
-// In this particular miniapp, the material value is based on the number of
-// iterations for the point from the definition of the Mandelbrot set.
-int material(Vector &x, Vector &xmin, Vector &xmax)
+// Simple class to parse portable graymap format (PGM) image files, see
+// http://netpbm.sourceforge.net/doc/pgm.html
+class ParsePGM
 {
-   // Rescaling to [0,1]^sdim
-   for (int i = 0; i < x.Size(); i++)
-   {
-      x(i) = (x(i)-xmin(i))/(xmax(i)-xmin(i));
-   }
-   x(0) -= 0.1;
-   double col = x(0), row = x(1);
-   {
-      int width = 1080, height = 1080;
-      col *= width;
-      row *= height;
-      double c_re = (col - width/2)*4.0/width;
-      double c_im = (row - height/2)*4.0/width;
-      double x = 0, y = 0;
-      int iteration = 0, maxit = 10000;
-      while (x*x+y*y <= 4 && iteration < maxit)
-      {
-         double x_new = x*x - y*y + c_re;
-         y = 2*x*y + c_im;
-         x = x_new;
-         iteration++;
-      }
-      if (iteration < maxit)
-      {
-         return iteration%10+2;
-      }
-      else
-      {
-         return 1;
-      }
-   }
-}
+public:
+   ParsePGM(const char *filename);
+   ~ParsePGM();
+
+   int Height() const { return N; }
+   int Width() const { return M; }
+
+   int operator()(int i, int j) const
+   { return int((pgm8) ? pgm8[M*i+j] : pgm16[M*i+j]); }
+
+private:
+   int M, N;
+   int depth;
+
+   char *pgm8;
+   unsigned short int *pgm16;
+
+   void ReadMagicNumber(istream &in);
+   void ReadComments(istream &in);
+   void ReadDimensions(istream &in);
+   void ReadDepth(istream &in);
+   void ReadPGM(istream &in);
+};
+
+// Given a point x, return its "material" specification defined by the grayscale
+// pixel values from the pgm image using NC different colors.
+int material(const ParsePGM &pgm, int NC,
+             Vector &x, Vector &xmin, Vector &xmax);
 
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "../../data/inline-quad.mesh";
+   const char *img_file = "australia.pgm";
    int sd = 2;
    int nclimit = 1;
+   int ncolors = 3;
    bool aniso = false;
    bool visualization = 1;
 
@@ -83,10 +85,14 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Input mesh file to shape materials in.");
+   args.AddOption(&img_file, "-i", "--img",
+                  "Input image.");
    args.AddOption(&sd, "-sd", "--sub-divisions",
                   "Number of element subdivisions for interface detection.");
    args.AddOption(&nclimit, "-ncl", "--nc-limit",
                   "Level of hanging nodes allowed (-1 = unlimited).");
+   args.AddOption(&ncolors, "-nc", "--num-colors",
+                  "Number of colors considered (1-256, based on binning).");
    args.AddOption(&aniso, "-a", "--aniso", "-i", "--iso",
                   "Enable anisotropic refinement of quads and hexes.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -96,15 +102,15 @@ int main(int argc, char *argv[])
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
 
+   // Read the image
+   ParsePGM pgm(img_file);
+
    // Read initial mesh, get dimensions and bounding box
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
    Vector xmin, xmax;
    mesh.GetBoundingBox(xmin, xmax);
-
-   // Increase the mesh resolution
-   for (int l = 0; l < 3; l++) { mesh.UniformRefinement(); }
 
    // NURBS meshes don't support non-conforming refinement for now
    if (mesh.NURBSext) { mesh.SetCurvature(2); }
@@ -150,7 +156,7 @@ int main(int argc, char *argv[])
          for (int j = 0; j < ir.GetNPoints(); j++)
          {
             T->Transform(ir.IntPoint(j), pt);
-            int m = material(pt, xmin, xmax);
+            int m = material(pgm, 256/ncolors, pt, xmin, xmax);
             mat[j] = m;
             matsum += m;
             if ((int)matsum != m*(j+1))
@@ -210,7 +216,7 @@ int main(int argc, char *argv[])
          sol_sock << "solution\n" << mesh << attr;
          if (iter == 0 && sdim == 2)
          {
-            sol_sock << "keys 'RjlppppppppppppppA*************'\n";
+            sol_sock << "keys 'RjlmpppppppppppppA*************'\n";
          }
          if (iter == 0 && sdim == 3)
          {
@@ -223,8 +229,8 @@ int main(int argc, char *argv[])
 
       // Ask the user if we should continue refining
       cout << "Iteration " << iter+1 << ": mesh has " << mesh.GetNE() <<
-           " elements. \n";
-      if ((iter+1) % 4 == 0)
+         " elements. \n";
+      if ((iter+1) % 3 == 0)
       {
          if (!visualization) { break; }
          char yn;
@@ -247,7 +253,113 @@ int main(int argc, char *argv[])
    mesh.SetAttributes();
 
    // Save the final mesh
-   ofstream mesh_ofs("mandel.mesh");
+   ofstream mesh_ofs("mesher.mesh");
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
+}
+
+ParsePGM::ParsePGM(const char *filename)
+   : M(-1), N(-1), depth(-1), pgm8(NULL), pgm16(NULL)
+{
+   ifstream in(filename);
+   if (!in)
+   {
+      // Abort with an error message
+      MFEM_ABORT("Image file not found: " << filename << '\n');
+   }
+
+   ReadMagicNumber(in);
+   ReadDimensions(in);
+   ReadDepth(in);
+   ReadPGM(in);
+
+   in.close();
+}
+
+ParsePGM::~ParsePGM()
+{
+   if (pgm8  != NULL) { delete [] pgm8; }
+   if (pgm16 != NULL) { delete [] pgm16; }
+}
+
+void ParsePGM::ReadMagicNumber(istream &in)
+{
+   char c;
+   int p;
+   in >> c >> p; // Read magic number which should be P2 or P5
+   MFEM_VERIFY(c == 'P' && (p == 2 || p == 5),
+               "Invalid PGM file! Unrecognized magic number\""
+               << c << p << "\".");
+   ReadComments(in);
+}
+
+void ParsePGM::ReadComments(istream &in)
+{
+   string buf;
+   in >> std::ws; // absorb any white space
+   while (in.peek() == '#')
+   {
+      std::getline(in,buf);
+   }
+   in >> std::ws; // absorb any white space
+}
+
+void ParsePGM::ReadDimensions(istream &in)
+{
+   in >> M;
+   ReadComments(in);
+   in >> N;
+   ReadComments(in);
+}
+
+void ParsePGM::ReadDepth(istream &in)
+{
+   in >> depth;
+   ReadComments(in);
+}
+
+void ParsePGM::ReadPGM(istream &in)
+{
+   if (depth < 16)
+   {
+      pgm8 = new char[M*N];
+   }
+   else
+   {
+      pgm16 = new unsigned short int[M*N];
+   }
+
+   if (pgm8)
+   {
+      for (int i=0; i<M*N; i++)
+      {
+         in >> pgm8[i];
+      }
+   }
+   else
+   {
+      for (int i=0; i<M*N; i++)
+      {
+         in >> pgm16[i];
+      }
+   }
+}
+
+int material(const ParsePGM &pgm, int NC, Vector &x, Vector &xmin, Vector &xmax)
+{
+   // Rescaling to [0,1]^sdim
+   for (int i = 0; i < x.Size(); i++)
+   {
+      x(i) = (x(i)-xmin(i))/(xmax(i)-xmin(i));
+   }
+
+   int M = pgm.Width();
+   int N = pgm.Height();
+
+   int i = x(1)*N, j = x(0)*M;
+   if (i == N) { i = N-1; }
+   if (j == M) { j = M-1; }
+   i = N-1-i;
+
+   return pgm(i,j)/NC+1;
 }
