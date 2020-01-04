@@ -1,0 +1,24 @@
+#!/bin/bash
+
+####
+# If in travis context we need to checkout a branch, otherwise travis works in detached head.
+if ! git checkout -b preliminary_checks
+then
+    err "failed to create a branch"
+    exit 1
+fi
+
+####
+echo "Check presence of binary files in branch history."
+
+binary_files=$(scripts/checks/branch_adds_binary)
+
+if [[ $? == "1" ]]
+then
+    echo "Binary files found : ${binary_files}"
+    echo "ATTENTION: One or more added/modified binary file(s)"
+    exit 1
+fi
+
+####
+# TODO: Code style checks

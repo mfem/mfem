@@ -2,11 +2,28 @@ sudo: false
 
 language: cpp
 
-matrix:
+stages:
+  - check
+  - test
+
+jobs:
   include:
     #
     # Linux
     #
+    - os: linux
+      complier: gcc
+      stage: check
+      env: DEBUG=NO
+           MPI=NO
+           CODECOV=NO
+      git:
+        depth: false
+      script:
+          - cd ${TRAVIS_BUILD_DIR}
+          - git fetch origin master:master
+          - scripts/travis/preliminary_checks
+
     - os: linux
       compiler: gcc
       env: DEBUG=YES
