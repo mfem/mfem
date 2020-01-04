@@ -187,6 +187,7 @@ miniapps/toys/mandel
 miniapps/toys/rubik
 miniapps/toys/snake
 miniapps/toys/lissajous
+miniapps/toys/mesher
 
 miniapps/toys/snake-init.mesh
 miniapps/toys/snake-user.mesh
@@ -200,6 +201,7 @@ miniapps/toys/life.gf
 miniapps/toys/life.mesh
 miniapps/toys/lissajous.mesh
 miniapps/toys/lissajous.gf
+miniapps/toys/mesher.mesh
 
 miniapps/nurbs/ex1
 miniapps/nurbs/ex1p
