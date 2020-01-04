@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
 
       // Ask the user if we should continue refining
       cout << "Iteration " << iter+1 << ": mesh has " << mesh.GetNE() <<
-         " elements. \n";
+           " elements. \n";
       if ((iter+1) % 3 == 0)
       {
          if (!visualization) { break; }
