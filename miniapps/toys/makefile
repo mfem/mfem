@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = automata life mandel rubik snake lissajous
+SEQ_MINIAPPS = automata life mandel rubik snake lissajous mesher
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -79,10 +79,10 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ automata life mandel rubik snake lissajous
+	rm -f *.o *~ automata life mandel rubik snake lissajous mesher
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f snake-init.mesh snake-user.mesh snake-joined.mesh snake-c*.mesh
 	@rm -f automata.gf automata.mesh rubik-init.mesh mandel.mesh
-	@rm -f life.gf life.mesh lissajous.mesh lissajous.gf
+	@rm -f life.gf life.mesh lissajous.mesh lissajous.gf mesher.mesh
