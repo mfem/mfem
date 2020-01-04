@@ -22,7 +22,19 @@ namespace mfem
 
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::Assemble (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePA (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::AssemblePAInteriorFaces (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::AssemblePABoundaryFaces (...)\n"
                "   is not implemented for this class.");
 }
 

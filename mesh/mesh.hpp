@@ -36,6 +36,7 @@ class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
+enum class FaceType : bool;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -698,7 +699,7 @@ public:
   /** @brief Return the mesh geometric factors for the faces corresponding
        to the given integration rule. */
    const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
-                                                       const int flags);
+                                                       const int flags, FaceType type);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
@@ -1339,6 +1340,7 @@ public:
    const Mesh *mesh;
    const IntegrationRule *IntRule;
    int computed_factors;
+   FaceType type;
 
    enum FactorFlags
    {
@@ -1348,7 +1350,7 @@ public:
       NORMALS      = 1 << 3,
    };
 
-   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
+   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags, FaceType type);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
