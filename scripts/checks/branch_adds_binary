@@ -1,7 +1,10 @@
 #! /bin/bash
 
+set -e
+
 current_branch="$(git symbolic-ref --short HEAD)"
 reference_branch="master"
+
 common_ancestor="$(git merge-base ${current_branch} ${reference_branch})"
 
 files_in_branch="$(git diff --name-only ${current_branch} ${common_ancestor})"
@@ -17,8 +20,12 @@ done
 
 if [[ -n ${binary_files} ]]
 then
-    echo ${binary_files}
+    echo "${binary_files}"
     exit 1
 fi
 
 exit 0
+
+function err() {
+    echo "check_add_bin: $*" 1>&2
+}
