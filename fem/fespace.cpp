@@ -856,7 +856,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
 }
 
 const Operator *FiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering) const
+   ElementDofOrdering e_ordering, FaceType type) const
 {
    // Check if we have a discontinuous space using the FE collection:
    const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
@@ -864,76 +864,163 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if (L2F_lex.Ptr() == NULL)
+         if(type==FaceType::Interior)
          {
-            L2F_lex.Reset(new L2FaceRestriction(*this, e_ordering));
+            if (L2FI_lex.Ptr() == NULL)
+            {
+               L2FI_lex.Reset(new L2FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FI_lex.Ptr();
          }
-         return L2F_lex.Ptr();
+         else //Boundary
+         {
+            if (L2FB_lex.Ptr() == NULL)
+            {
+               L2FB_lex.Reset(new L2FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FB_lex.Ptr();
+         }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if (L2F_nat.Ptr() == NULL)
+      if(type==FaceType::Interior)
       {
-         L2F_nat.Reset(new L2FaceRestriction(*this, e_ordering));
+         if (L2FI_nat.Ptr() == NULL)
+         {
+            L2FI_nat.Reset(new L2FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FI_nat.Ptr();
       }
-      return L2F_nat.Ptr();
+      else //Boundary
+      {
+         if (L2FB_nat.Ptr() == NULL)
+         {
+            L2FB_nat.Reset(new L2FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FB_nat.Ptr();
+      }
    }
    else
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if (L2F_lex.Ptr() == NULL)
+         if(type==FaceType::Interior)
          {
-            L2F_lex.Reset(new H1FaceRestriction(*this, e_ordering));
+            if (L2FI_lex.Ptr() == NULL)
+            {
+               L2FI_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FI_lex.Ptr();
          }
-         return L2F_lex.Ptr();
+         else //Boundary
+         {
+            if (L2FB_lex.Ptr() == NULL)
+            {
+               L2FB_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FB_lex.Ptr();
+         }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if (L2F_nat.Ptr() == NULL)
+      if(type==FaceType::Interior)
       {
-         L2F_nat.Reset(new H1FaceRestriction(*this, e_ordering));
+         if (L2FI_nat.Ptr() == NULL)
+         {
+            L2FI_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FI_nat.Ptr();
       }
-      return L2F_nat.Ptr();
+      else //Boundary
+      {
+         if (L2FB_nat.Ptr() == NULL)
+         {
+            L2FB_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FB_nat.Ptr();
+      }
    }
 }
 
 const Operator *FiniteElementSpace::GetSingleValuedFaceRestriction(
-   ElementDofOrdering e_ordering) const
-{
-   // Check if we have a discontinuous space using the FE collection:
+   ElementDofOrdering e_ordering, FaceType type) const
+{   // Check if we have a discontinuous space using the FE collection:
    const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
    if (dg_space)
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if (L2F_lex.Ptr() == NULL)
+         if(type==FaceType::Interior)
          {
-            L2F_lex.Reset(new L2FaceRestriction(*this, e_ordering, L2FaceValues::Single));
+            if (L2FI_lex.Ptr() == NULL)
+            {
+               L2FI_lex.Reset(new L2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+            }
+            return L2FI_lex.Ptr();
          }
-         return L2F_lex.Ptr();
+         else //Boundary
+         {
+            if (L2FB_lex.Ptr() == NULL)
+            {
+               L2FB_lex.Reset(new L2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+            }
+            return L2FB_lex.Ptr();
+         }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if (L2F_nat.Ptr() == NULL)
+      if(type==FaceType::Interior)
       {
-         L2F_nat.Reset(new L2FaceRestriction(*this, e_ordering, L2FaceValues::Single));
+         if (L2FI_nat.Ptr() == NULL)
+         {
+            L2FI_nat.Reset(new L2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+         }
+         return L2FI_nat.Ptr();
       }
-      return L2F_nat.Ptr();
+      else //Boundary
+      {
+         if (L2FB_nat.Ptr() == NULL)
+         {
+            L2FB_nat.Reset(new L2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+         }
+         return L2FB_nat.Ptr();
+      }
    }
    else
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if (L2F_lex.Ptr() == NULL)
+         if(type==FaceType::Interior)
          {
-            L2F_lex.Reset(new H1FaceRestriction(*this, e_ordering));
+            if (L2FI_lex.Ptr() == NULL)
+            {
+               L2FI_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FI_lex.Ptr();
          }
-         return L2F_lex.Ptr();
+         else //Boundary
+         {
+            if (L2FB_lex.Ptr() == NULL)
+            {
+               L2FB_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FB_lex.Ptr();
+         }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if (L2F_nat.Ptr() == NULL)
+      if(type==FaceType::Interior)
       {
-         L2F_nat.Reset(new H1FaceRestriction(*this, e_ordering));
+         if (L2FI_nat.Ptr() == NULL)
+         {
+            L2FI_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FI_nat.Ptr();
       }
-      return L2F_nat.Ptr();
+      else //Boundary
+      {
+         if (L2FB_nat.Ptr() == NULL)
+         {
+            L2FB_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FB_nat.Ptr();
+      }
    }
 }
 
@@ -967,31 +1054,61 @@ const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
 }
 
 const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpolator(
-   const IntegrationRule &ir) const
+   const IntegrationRule &ir, FaceType type) const
 {
-   for (int i = 0; i < E2FQ_array.Size(); i++)
+   if (type==FaceType::Interior)
    {
-      const FaceQuadratureInterpolator *qi = E2FQ_array[i];
-      if (qi->IntRule == &ir) { return qi; }
-   }
+      for (int i = 0; i < E2IFQ_array.Size(); i++)
+      {
+         const FaceQuadratureInterpolator *qi = E2IFQ_array[i];
+         if (qi->IntRule == &ir) { return qi; }
+      }
 
-   FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir);
-   E2FQ_array.Append(qi);
-   return qi;
+      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir, type);
+      E2IFQ_array.Append(qi);
+      return qi;
+   }
+   else //Boundary
+   {
+      for (int i = 0; i < E2BFQ_array.Size(); i++)
+      {
+         const FaceQuadratureInterpolator *qi = E2BFQ_array[i];
+         if (qi->IntRule == &ir) { return qi; }
+      }
+
+      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir, type);
+      E2BFQ_array.Append(qi);
+      return qi;      
+   }
 }
 
 const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpolator(
-   const QuadratureSpace &qs) const
+   const QuadratureSpace &qs, FaceType type) const
 {
-   for (int i = 0; i < E2FQ_array.Size(); i++)
+   if (type==FaceType::Interior)
    {
-      const FaceQuadratureInterpolator *qi = E2FQ_array[i];
-      if (qi->qspace == &qs) { return qi; }
-   }
+      for (int i = 0; i < E2IFQ_array.Size(); i++)
+      {
+         const FaceQuadratureInterpolator *qi = E2IFQ_array[i];
+         if (qi->qspace == &qs) { return qi; }
+      }
 
-   FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs);
-   E2FQ_array.Append(qi);
-   return qi;
+      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs, type);
+      E2IFQ_array.Append(qi);
+      return qi;
+   }
+   else //Boundary
+   {
+      for (int i = 0; i < E2BFQ_array.Size(); i++)
+      {
+         const FaceQuadratureInterpolator *qi = E2BFQ_array[i];
+         if (qi->qspace == &qs) { return qi; }
+      }
+
+      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs, type);
+      E2BFQ_array.Append(qi);
+      return qi;      
+   }
 }
 
 SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
@@ -2802,57 +2919,69 @@ L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
 
 void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
 {
-   for (int iel=0; iel<ne; ++iel)
+   const int NE = ne;
+   const int VDIM = vdim;
+   const int NDOF = ndof;
+   const bool BYVDIM = byvdim;
+   auto d_x = x.Read();
+   auto d_y = y.Write();
+   MFEM_FORALL(iel, NE,
    {
-      for (int vd=0; vd<vdim; ++vd)
+      for (int vd=0; vd<VDIM; ++vd)
       {
-         for (int idof=0; idof<ndof; ++idof)
+         for (int idof=0; idof<NDOF; ++idof)
          {
             // E-vector dimensions (dofs, vdim, elements)
             // L-vector dimensions: byVDIM:  (vdim, dofs, element)
             //                      byNODES: (dofs, elements, vdim)
-            int yidx = iel*vdim*ndof + vd*ndof + idof;
+            int yidx = iel*VDIM*NDOF + vd*NDOF + idof;
             int xidx;
-            if (byvdim)
+            if (BYVDIM)
             {
-               xidx = iel*ndof*vdim + idof*vdim + vd;
+               xidx = iel*NDOF*VDIM + idof*VDIM + vd;
             }
             else
             {
-               xidx = vd*ne*ndof + iel*ndof + idof;
+               xidx = vd*NE*NDOF + iel*NDOF + idof;
             }
-            y[yidx] = x[xidx];
+            d_y[yidx] = d_x[xidx];
          }
       }
-   }
+   });
 }
 
 void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
 {
+   const int NE = ne;
+   const int VDIM = vdim;
+   const int NDOF = ndof;
+   const bool BYVDIM = byvdim;
+   auto d_x = x.Read();
+   auto d_y = y.Write();
    // Since this restriction is a permutation, the transpose is the inverse
-   for (int iel=0; iel<ne; ++iel)
+   MFEM_FORALL(iel, NE,
    {
-      for (int vd=0; vd<vdim; ++vd)
+      for (int vd=0; vd<VDIM; ++vd)
       {
-         for (int idof=0; idof<ndof; ++idof)
+         for (int idof=0; idof<NDOF; ++idof)
          {
             // E-vector dimensions (dofs, vdim, elements)
             // L-vector dimensions: byVDIM:  (vdim, dofs, element)
             //                      byNODES: (dofs, elements, vdim)
-            int xidx = iel*vdim*ndof + vd*ndof + idof;
+            int xidx = iel*VDIM*NDOF + vd*NDOF + idof;
             int yidx;
-            if (byvdim)
+            if (BYVDIM)
             {
-               yidx = iel*ndof*vdim + idof*vdim + vd;
+               yidx = iel*NDOF*VDIM + idof*VDIM + vd;
             }
             else
             {
-               yidx = vd*ne*ndof + iel*ndof + idof;
+               yidx = vd*NE*NDOF + iel*NDOF + idof;
             }
-            y[yidx] = x[xidx];
+            d_y[yidx] = d_x[xidx];
          }
       }
-   }
+   });
 }
 
 ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
@@ -3089,9 +3218,10 @@ void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id, const int 
 }
 
 H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
-                                     ElementDofOrdering e_ordering)
+                                     const ElementDofOrdering e_ordering,
+                                     const FaceType type)
    : fes(fes),
-     nf(fes.GetNF()),
+     nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
@@ -3106,7 +3236,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (dof_reorder && nf > 0)
    {
-      for (int f = 0; f < nf; ++f)
+      for (int f = 0; f < fes.GetNF(); ++f)
       {
          const FiniteElement *fe = fes.GetFaceElement(f);
          const TensorBasisElement* el =
@@ -3134,29 +3264,35 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
-   for (int f = 0; f < nf; ++f)
+   int f_ind = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       orientation = inf1 % 64;
       face_id = inf1 / 64;
-      // Assumes Gauss-Lobato basis
-      if(dof_reorder){
-         if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
-         GetFaceDofs(dim, face_id, dof1d, faceMap);//Only for hex
-      } else {
-         mfem_error("FaceRestriction not yet implemented for this type of element.");
-         //TODO Something with GetFaceDofs?
-      }
-      for (int d = 0; d < dof; ++d)
+      if ((type==FaceType::Interior && e2>=0) || (type==FaceType::Boundary && e2<0) )
       {
-         const int face_dof = faceMap[d];
-         const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
-         const int gid = elementMap[e1*elem_dofs + did];
-         const int lid = dof*f + d;
-         indices[lid] = gid;
+         // Assumes Gauss-Lobato basis
+         if(dof_reorder){
+            if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
+            GetFaceDofs(dim, face_id, dof1d, faceMap);//Only for hex
+         } else {
+            mfem_error("FaceRestriction not yet implemented for this type of element.");
+            //TODO Something with GetFaceDofs?
+         }
+         for (int d = 0; d < dof; ++d)
+         {
+            const int face_dof = faceMap[d];
+            const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
+            const int gid = elementMap[e1*elem_dofs + did];
+            const int lid = dof*f_ind + d;
+            indices[lid] = gid;
+         }
+         f_ind++;
       }
    }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
 }
 
 void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
@@ -3286,9 +3422,11 @@ int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1, const in
 }
 
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
-                                     ElementDofOrdering e_ordering, L2FaceValues m)
+                                     const ElementDofOrdering e_ordering,
+                                     const FaceType type,
+                                     const L2FaceValues m)
    : fes(fes),
-     nf(fes.GetNF()),
+     nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
@@ -3306,7 +3444,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    if(!dof_reorder) mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
    if (dof_reorder && nf > 0)
    {
-      for (int f = 0; f < nf; ++f)
+      for (int f = 0; f < fes.GetNF(); ++f)
       {
          const FiniteElement *fe = fes.GetTraceElement(f,fes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
@@ -3325,7 +3463,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
-   for (int f = 0; f < nf; ++f)
+   int f_ind=0;
+   for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
@@ -3340,35 +3479,40 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?
       }
-      for (int d = 0; d < dof; ++d)
-      {
-         const int face_dof = faceMap1[d];
-         const int did = face_dof;
-         const int gid = elementMap[e1*elem_dofs + did];
-         const int lid = dof*f + d;
-         indices1[lid] = gid;
-      }
-      if (m==L2FaceValues::Double)
+      if ((type==FaceType::Interior && e2>=0) || (type==FaceType::Boundary && e2<0) )
       {
          for (int d = 0; d < dof; ++d)
          {
-            if (e2!=-1)//FIXME
+            const int face_dof = faceMap1[d];
+            const int did = face_dof;
+            const int gid = elementMap[e1*elem_dofs + did];
+            const int lid = dof*f_ind + d;
+            indices1[lid] = gid;
+         }
+         if (m==L2FaceValues::Double)
+         {
+            for (int d = 0; d < dof; ++d)
             {
-               const int pd = PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
-               const int face_dof = faceMap2[pd];
-               const int did = face_dof;
-               const int gid = elementMap[e2*elem_dofs + did];
-               const int lid = dof*f + d;
-               indices2[lid] = gid;
-            }
-            else
-            {
-               const int lid = dof*f + d;
-               indices2[lid] = -1;
+               if (e2!=-1)
+               {
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
+                  const int face_dof = faceMap2[pd];
+                  const int did = face_dof;
+                  const int gid = elementMap[e2*elem_dofs + did];
+                  const int lid = dof*f_ind + d;
+                  indices2[lid] = gid;
+               }
+               else
+               {
+                  const int lid = dof*f_ind + d;
+                  indices2[lid] = -1;
+               }
             }
          }
+         f_ind++;
       }
    }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
 }
 
 void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
@@ -3810,7 +3954,8 @@ void QuadratureInterpolator::MultTranspose(
 }
 
 FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const IntegrationRule &ir)
+                                               const IntegrationRule &ir, FaceType type)
+   : type(type), nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE())
 {
    fespace = &fes;
    qspace = NULL;
@@ -3824,7 +3969,8 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace 
 }
 
 FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const QuadratureSpace &qs)
+                                               const QuadratureSpace &qs, FaceType type)
+   : type(type), nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE())
 {
    fespace = &fes;
    qspace = &qs;
@@ -4126,7 +4272,6 @@ void FaceQuadratureInterpolator::Mult(
    const Vector &e_vec, unsigned eval_flags, //const Array<double> &W,
    Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const
 {
-   const int nf = fespace->GetNF();
    if (nf == 0) { return; }
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
@@ -4137,7 +4282,7 @@ void FaceQuadratureInterpolator::Mult(
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
    void (*eval_func)(
-      const int NE,
+      const int NF,
       const int vdim,
       const DofToQuad &maps,
       const Vector &e_vec,

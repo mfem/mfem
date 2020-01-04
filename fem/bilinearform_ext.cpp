@@ -49,13 +49,22 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
       localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 
-   face_restrict_lex = trialFes->GetFaceRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
-   if (face_restrict_lex)
+   int_face_restrict_lex = trialFes->GetFaceRestriction(
+                          ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
+   if (int_face_restrict_lex)
    {
-      faceX.SetSize(face_restrict_lex->Height(), Device::GetMemoryType());
-      faceY.SetSize(face_restrict_lex->Height(), Device::GetMemoryType());
-      faceY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceIntY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+   }
+
+   bound_face_restrict_lex = trialFes->GetFaceRestriction(
+                          ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
+   if (bound_face_restrict_lex)
+   {
+      faceBoundX.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceBoundY.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceBoundY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 }
 
@@ -68,11 +77,18 @@ void PABilinearFormExtension::Assemble()
       integrators[i]->AssemblePA(*a->FESpace());
    }
 
-   Array<BilinearFormIntegrator*> &faceIntegrators = *a->GetFBFI();
-   const int faceIntegratorCount = faceIntegrators.Size();
-   for (int i = 0; i < faceIntegratorCount; ++i)
+   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
+   const int intFaceIntegratorCount = intFaceIntegrators.Size();
+   for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
-      faceIntegrators[i]->AssemblePA(*a->FESpace());
+      intFaceIntegrators[i]->AssemblePAInteriorFaces(*a->FESpace());
+   }
+
+   Array<BilinearFormIntegrator*> &boundFaceIntegrators = *a->GetBFBFI();
+   const int boundFaceIntegratorCount = boundFaceIntegrators.Size();
+   for (int i = 0; i < boundFaceIntegratorCount; ++i)
+   {
+      boundFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
    }
 }
 
@@ -89,12 +105,19 @@ void PABilinearFormExtension::Update()
       localX.SetSize(elem_restrict_lex->Height());
       localY.SetSize(elem_restrict_lex->Height());
    }
-   face_restrict_lex = trialFes->GetFaceRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
-   if (face_restrict_lex)
+   int_face_restrict_lex = trialFes->GetFaceRestriction(
+                          ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
+   if (int_face_restrict_lex)
    {
-      faceX.SetSize(face_restrict_lex->Height());
-      faceY.SetSize(face_restrict_lex->Height());
+      faceIntX.SetSize(int_face_restrict_lex->Height());
+      faceIntY.SetSize(int_face_restrict_lex->Height());
+   }
+   bound_face_restrict_lex = trialFes->GetFaceRestriction(
+                          ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
+   if (bound_face_restrict_lex)
+   {
+      faceBoundX.SetSize(bound_face_restrict_lex->Height());
+      faceBoundY.SetSize(bound_face_restrict_lex->Height());
    }
 }
 
@@ -145,17 +168,30 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
    }
 
-   Array<BilinearFormIntegrator*> &faceIntegrators = *a->GetFBFI();
-   const int fISz = faceIntegrators.Size();
-   if (face_restrict_lex && fISz>0)
+   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
+   const int iFISz = intFaceIntegrators.Size();
+   if (int_face_restrict_lex && iFISz>0)
    {
-      face_restrict_lex->Mult(x, faceX);
-      faceY = 0.0;
-      for (int i = 0; i < fISz; ++i)
+      int_face_restrict_lex->Mult(x, faceIntX);
+      faceIntY = 0.0;
+      for (int i = 0; i < iFISz; ++i)
       {
-         faceIntegrators[i]->AddMultPA(faceX, faceY);
+         intFaceIntegrators[i]->AddMultPA(faceIntX, faceIntY);
       }
-      face_restrict_lex->MultTranspose(faceY, y);
+      int_face_restrict_lex->MultTranspose(faceIntY, y);
+   }
+
+   Array<BilinearFormIntegrator*> &boundFaceIntegrators = *a->GetBFBFI();
+   const int bFISz = boundFaceIntegrators.Size();
+   if (bound_face_restrict_lex && bFISz>0)
+   {
+      bound_face_restrict_lex->Mult(x, faceBoundX);
+      faceBoundY = 0.0;
+      for (int i = 0; i < bFISz; ++i)
+      {
+         boundFaceIntegrators[i]->AddMultPA(faceBoundX, faceBoundY);
+      }
+      bound_face_restrict_lex->MultTranspose(faceBoundY, y);
    }
 }
 
@@ -181,6 +217,32 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       {
          integrators[i]->AddMultTransposePA(x, y);
       }
+   }
+
+   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
+   const int iFISz = intFaceIntegrators.Size();
+   if (int_face_restrict_lex && iFISz>0)
+   {
+      int_face_restrict_lex->Mult(x, faceIntX);
+      faceIntY = 0.0;
+      for (int i = 0; i < iFISz; ++i)
+      {
+         intFaceIntegrators[i]->AddMultTransposePA(faceIntX, faceIntY);
+      }
+      int_face_restrict_lex->MultTranspose(faceIntY, y);
+   }
+
+   Array<BilinearFormIntegrator*> &boundFaceIntegrators = *a->GetBFBFI();
+   const int bFISz = boundFaceIntegrators.Size();
+   if (bound_face_restrict_lex && bFISz>0)
+   {
+      bound_face_restrict_lex->Mult(x, faceBoundX);
+      faceBoundY = 0.0;
+      for (int i = 0; i < bFISz; ++i)
+      {
+         boundFaceIntegrators[i]->AddMultTransposePA(faceBoundX, faceBoundY);
+      }
+      bound_face_restrict_lex->MultTranspose(faceBoundY, y);
    }
 }
 

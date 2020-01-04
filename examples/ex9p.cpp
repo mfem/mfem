@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
-   bool pa = false;
+   bool pa = true;
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;

@@ -139,7 +139,7 @@ static void PAConvectionSetup(const int dim,
 
 // PA Convection Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
-void PAConvectionApply2D(const int NE,
+void PAConvectionApply2D(const int ne,
                         const Array<double> &b,
                         const Array<double> &g,
                         const Array<double> &bt,
@@ -150,6 +150,7 @@ void PAConvectionApply2D(const int NE,
                         const int d1d = 0,
                         const int q1d = 0)
 {
+   const int NE = ne;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
@@ -157,7 +158,6 @@ void PAConvectionApply2D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto Gt = Reshape(gt.Read(), D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(_x.Read(), D1D, D1D, NE);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
@@ -278,7 +278,6 @@ void PAConvectionApply3D(const int ne,
   auto B = Reshape(b.Read(), Q1D, D1D);
   auto G = Reshape(g.Read(), Q1D, D1D);
   auto Bt = Reshape(bt.Read(), D1D, Q1D);
-  auto Gt = Reshape(gt.Read(), D1D, Q1D);
   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 3, NE);
   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);

@@ -72,6 +72,12 @@ enum class ElementDofOrdering
    LEXICOGRAPHIC
 };
 
+/** An enum type to specify if only e1 value is requested (Single) or both
+    e1 and e2 (Double). */
+enum class L2FaceValues : bool {Single, Double};
+
+/** An enum type to specify if interior or boundary faces are desired. */
+enum class FaceType : bool {Interior, Boundary};
 
 // Forward declarations
 class NURBSExtension;
@@ -130,10 +136,12 @@ protected:
    /// The element restriction operators, see GetElementRestriction().
    mutable OperatorHandle L2E_nat, L2E_lex;
    /// The face restriction operators, see GetFaceRestriction().
-   mutable OperatorHandle L2F_nat, L2F_lex;
+   mutable OperatorHandle L2FI_nat, L2FI_lex;
+   mutable OperatorHandle L2FB_nat, L2FB_lex;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
-   mutable Array<FaceQuadratureInterpolator*> E2FQ_array;
+   mutable Array<FaceQuadratureInterpolator*> E2IFQ_array;
+   mutable Array<FaceQuadratureInterpolator*> E2BFQ_array;
 
    long sequence; // should match Mesh::GetSequence
 
@@ -319,11 +327,11 @@ public:
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
-   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering) const;
+   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering, FaceType) const;
 
    /** Return an Operator that converts L-vectors to E-vectors on each face, for L2 spaces
        only returns the value of element 1. */
-   const Operator *GetSingleValuedFaceRestriction(ElementDofOrdering e_ordering) const;
+   virtual const Operator *GetSingleValuedFaceRestriction(ElementDofOrdering e_ordering, FaceType) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
@@ -350,10 +358,10 @@ public:
    /** @brief Return a FaceQuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
-      const IntegrationRule &ir) const;
+      const IntegrationRule &ir, FaceType type) const;
 
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
-      const QuadratureSpace &qs) const;
+      const QuadratureSpace &qs, FaceType type) const;
 
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
@@ -936,10 +944,6 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
-/** An enum type to specify if only e1 value is requested (Single) or both
-    e1 and e2 (Double). */
-enum class L2FaceValues : bool {Single, Double};
-
 /// Operator that extracts Face degrees of freedom.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
@@ -956,7 +960,7 @@ protected:
    Array<int> indices;
 
 public:
-   H1FaceRestriction(const FiniteElementSpace&, ElementDofOrdering);
+   H1FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering, const FaceType);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    static void GetFaceDofs(const int dim, const int face_id, const int dof1d, int* faceMap);
@@ -980,7 +984,7 @@ protected:
    Array<int> indices2;
 
 public:
-   L2FaceRestriction(const FiniteElementSpace&, ElementDofOrdering, L2FaceValues m = L2FaceValues::Double);
+   L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering, const FaceType, const L2FaceValues m = L2FaceValues::Double);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    static int PermuteFaceL2(const int dim, const int face_id1, const int face_id2, const int orientation,
@@ -1091,6 +1095,9 @@ public:
     by a QuadratureSpace. */
 class FaceQuadratureInterpolator
 {
+private:
+   FaceType type;
+   int nf;
 protected:
    friend class FiniteElementSpace; // Needs access to qspace and IntRule
 
@@ -1125,10 +1132,10 @@ public:
    };
 
    FaceQuadratureInterpolator(const FiniteElementSpace &fes,
-                          const IntegrationRule &ir);
+                          const IntegrationRule &ir, FaceType type);
 
    FaceQuadratureInterpolator(const FiniteElementSpace &fes,
-                          const QuadratureSpace &qs);
+                          const QuadratureSpace &qs, FaceType type);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */

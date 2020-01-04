@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
-   bool pa = false;
+   bool pa = true;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;

@@ -44,6 +44,10 @@ public:
        used later in the methods AddMultPA() and AddMultTransposePA(). */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -197,6 +201,16 @@ public:
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
       bfi->AssemblePA(fes);
+   }
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes)
+   {
+      bfi->AssemblePAInteriorFaces(fes);
+   }
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes)
+   {
+      bfi->AssemblePABoundaryFaces(fes);
    }
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const
@@ -2273,7 +2287,9 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   virtual void AssemblePA(const FiniteElementSpace&);
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 

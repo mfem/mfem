@@ -513,7 +513,7 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 
 
 const Operator *ParFiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering) const
+   ElementDofOrdering e_ordering, FaceType type) const
 {
    // Check if we have a discontinuous space using the FE collection:
    const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
@@ -521,37 +521,166 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if (L2F_lex.Ptr() == NULL)
+         if(type==FaceType::Interior)
          {
-            L2F_lex.Reset(new ParL2FaceRestriction(*this, e_ordering));
+            if (L2FI_lex.Ptr() == NULL)
+            {
+               L2FI_lex.Reset(new ParL2FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FI_lex.Ptr();
          }
-         return L2F_lex.Ptr();
+         else //Boundary
+         {
+            if (L2FB_lex.Ptr() == NULL)
+            {
+               L2FB_lex.Reset(new ParL2FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FB_lex.Ptr();
+         }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if (L2F_nat.Ptr() == NULL)
+      if(type==FaceType::Interior)
       {
-         L2F_nat.Reset(new ParL2FaceRestriction(*this, e_ordering));
+         if (L2FI_nat.Ptr() == NULL)
+         {
+            L2FI_nat.Reset(new ParL2FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FI_nat.Ptr();
       }
-      return L2F_nat.Ptr();
+      else //Boundary
+      {
+         if (L2FB_nat.Ptr() == NULL)
+         {
+            L2FB_nat.Reset(new ParL2FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FB_nat.Ptr();
+      }
    }
    else
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if (L2F_lex.Ptr() == NULL)
+         if(type==FaceType::Interior)
          {
-            L2F_lex.Reset(new H1FaceRestriction(*this, e_ordering));
+            if (L2FI_lex.Ptr() == NULL)
+            {
+               L2FI_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FI_lex.Ptr();
          }
-         return L2F_lex.Ptr();
+         else //Boundary
+         {
+            if (L2FB_lex.Ptr() == NULL)
+            {
+               L2FB_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FB_lex.Ptr();
+         }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if (L2F_nat.Ptr() == NULL)
+      if(type==FaceType::Interior)
       {
-         L2F_nat.Reset(new H1FaceRestriction(*this, e_ordering));
+         if (L2FI_nat.Ptr() == NULL)
+         {
+            L2FI_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FI_nat.Ptr();
       }
-      return L2F_nat.Ptr();
+      else //Boundary
+      {
+         if (L2FB_nat.Ptr() == NULL)
+         {
+            L2FB_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FB_nat.Ptr();
+      }
    }
 }
+
+const Operator *ParFiniteElementSpace::GetSingleValuedFaceRestriction(
+   ElementDofOrdering e_ordering, FaceType type) const
+{   // Check if we have a discontinuous space using the FE collection:
+   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
+   if (dg_space)
+   {
+      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+      {
+         if(type==FaceType::Interior)
+         {
+            if (L2FI_lex.Ptr() == NULL)
+            {
+               L2FI_lex.Reset(new ParL2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+            }
+            return L2FI_lex.Ptr();
+         }
+         else //Boundary
+         {
+            if (L2FB_lex.Ptr() == NULL)
+            {
+               L2FB_lex.Reset(new ParL2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+            }
+            return L2FB_lex.Ptr();
+         }
+      }
+      // e_ordering == ElementDofOrdering::NATIVE
+      if(type==FaceType::Interior)
+      {
+         if (L2FI_nat.Ptr() == NULL)
+         {
+            L2FI_nat.Reset(new ParL2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+         }
+         return L2FI_nat.Ptr();
+      }
+      else //Boundary
+      {
+         if (L2FB_nat.Ptr() == NULL)
+         {
+            L2FB_nat.Reset(new ParL2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+         }
+         return L2FB_nat.Ptr();
+      }
+   }
+   else
+   {
+      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+      {
+         if(type==FaceType::Interior)
+         {
+            if (L2FI_lex.Ptr() == NULL)
+            {
+               L2FI_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FI_lex.Ptr();
+         }
+         else //Boundary
+         {
+            if (L2FB_lex.Ptr() == NULL)
+            {
+               L2FB_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
+            }
+            return L2FB_lex.Ptr();
+         }
+      }
+      // e_ordering == ElementDofOrdering::NATIVE
+      if(type==FaceType::Interior)
+      {
+         if (L2FI_nat.Ptr() == NULL)
+         {
+            L2FI_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FI_nat.Ptr();
+      }
+      else //Boundary
+      {
+         if (L2FB_nat.Ptr() == NULL)
+         {
+            L2FB_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
+         }
+         return L2FB_nat.Ptr();
+      }
+   }
+}
+
 
 void ParFiniteElementSpace::GetSharedEdgeDofs(
    int group, int ei, Array<int> &dofs) const
@@ -3292,9 +3421,11 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
 }
 
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
-                                           ElementDofOrdering e_ordering, L2FaceValues m)
+                                           ElementDofOrdering e_ordering,
+                                           FaceType type,
+                                           L2FaceValues m)
    : fes(fes),
-     nf(fes.GetNF()),
+     nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
@@ -3312,7 +3443,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    if(!dof_reorder) mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
    if (dof_reorder && nf > 0)
    {
-      for (int f = 0; f < nf; ++f)
+      for (int f = 0; f < fes.GetNF(); ++f)
       {
          const FiniteElement *fe = fes.GetTraceElement(f,fes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
@@ -3331,7 +3462,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
-   for (int f = 0; f < nf; ++f)
+   int f_ind=0;
+   for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
@@ -3346,39 +3478,31 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?
       }
-      for (int d = 0; d < dof; ++d)
+      if (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0) ))
       {
-         const int face_dof = faceMap1[d];
-         const int did = face_dof;
-         const int gid = elementMap[e1*elem_dofs + did];
-         const int lid = dof*f + d;
-         indices1[lid] = gid;
-      }
-      if (m==L2FaceValues::Double)
-      {
-         if (e2>=0)
+         for (int d = 0; d < dof; ++d)
          {
-            for (int d = 0; d < dof; ++d)
-            {
-               const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
-               const int face_dof = faceMap2[pd];
-               const int did = face_dof;
-               const int gid = elementMap[e2*elem_dofs + did];
-               const int lid = dof*f + d;
-               indices2[lid] = gid;
-            }
+            const int face_dof = faceMap1[d];
+            const int did = face_dof;
+            const int gid = elementMap[e1*elem_dofs + did];
+            const int lid = dof*f_ind + d;
+            indices1[lid] = gid;
          }
-         else //Either true boundary or shared face
+         if (m==L2FaceValues::Double)
          {
-            if (inf2<0) //true boundary
+            if (e2>=0)
             {
                for (int d = 0; d < dof; ++d)
                {
-                  const int lid = dof*f + d;
-                  indices2[lid] = -1;
+                  const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
+                  const int face_dof = faceMap2[pd];
+                  const int did = face_dof;
+                  const int gid = elementMap[e2*elem_dofs + did];
+                  const int lid = dof*f_ind + d;
+                  indices2[lid] = gid;
                }
             }
-            else //shared boundary
+            else if(inf2>=0)//shared boundary
             {
                const int se2 = -1 - e2;
                Array<int> sharedDofs;
@@ -3389,13 +3513,35 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                   const int face_dof = faceMap2[pd];
                   const int did = face_dof;
                   const int gid = sharedDofs[did];
-                  const int lid = dof*f + d;
+                  const int lid = dof*f_ind + d;
                   indices2[lid] = ndofs+gid; //trick to differentiate dof location inter/shared
                }
             }
          }
+         f_ind++;
+      }
+      else if ( type==FaceType::Boundary && e2<0 && inf2<0 ) //true boundary
+      {
+         for (int d = 0; d < dof; ++d)
+         {
+            const int face_dof = faceMap1[d];
+            const int did = face_dof;
+            const int gid = elementMap[e1*elem_dofs + did];
+            const int lid = dof*f_ind + d;
+            indices1[lid] = gid;
+         }
+         if (m==L2FaceValues::Double)
+         {
+            for (int d = 0; d < dof; ++d)
+            {
+               const int lid = dof*f_ind + d;
+               indices2[lid] = -1;
+            }
+         }
+         f_ind++;
       }
    }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
 }
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const

@@ -133,25 +133,95 @@ static void PADGTraceSetup(const int dim,
    }
 }
 
-void DGTraceIntegrator::AssemblePA(const FiniteElementSpace &fes)
+//TODO avoid duplicated code
+void DGTraceIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
 {
    // Assumes tensor-product elements
+   FaceType type = FaceType::Interior;
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0));
    FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = &GetRule(el.GetGeomType(), el.GetOrder(), T);
-   const int dims = el.GetDim();
    const int symmDims = 4;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   nf = mesh->GetNumFaces();
+   nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
    geom = mesh->GetFaceGeometricFactors(*ir,
-      FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS);
+      FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
-   //TODO make this work
+   Vector r;
+   if(rho==nullptr)
+   {
+      r.SetSize(1);
+      r(0) = 1.0;
+   }
+   else if(ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
+   {
+      r.SetSize(1);
+      r(0) = c_rho->constant;
+   }
+   else
+   {
+      r.SetSize(nq * nf);
+      auto C = Reshape(r.HostWrite(), nq, nf);
+      for (int f = 0; f < nf; ++f)
+      {
+         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
+         for (int q = 0; q < nq; ++q)
+         {
+            C(q,f) = rho->Eval(T, ir->IntPoint(q));
+         }
+      }
+   }
+   Vector vel;
+   if(VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>(u))
+   {
+      vel = c_u->GetVec();
+   }
+   else
+   {
+      vel.SetSize(dim * nq * nf);
+      auto C = Reshape(vel.HostWrite(), dim, nq, nf);
+      Vector Vq(dim);
+      for (int f = 0; f < nf; ++f)
+      {
+         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
+         for (int q = 0; q < nq; ++q)
+         {
+            u->Eval(Vq, T, ir->IntPoint(q));
+            for (int i = 0; i < dim; ++i)
+            {
+               C(i,q,f) = Vq(i);
+            }
+         }
+      }
+   }
+   PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
+                  geom->detJ, geom->normal, r, vel,
+                  alpha, beta, pa_data);
+}
+
+void DGTraceIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
+{
+   // Assumes tensor-product elements
+   FaceType type = FaceType::Boundary;
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement &el = *fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0));
+   FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(0);
+   const IntegrationRule *ir = &GetRule(el.GetGeomType(), el.GetOrder(), T);
+   const int symmDims = 4;
+   const int nq = ir->GetNPoints();
+   dim = mesh->Dimension();
+   nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
+   geom = mesh->GetFaceGeometricFactors(*ir,
+      FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
    Vector r;
    if(rho==nullptr)
    {
@@ -403,7 +473,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const double b = B(q2,d2);
+               const double b = Bt(d2,q2);
                for (int c = 0; c < VDIM; c++)
                {
                   BDBBu[q1][d2][c] += b*DBBu[q1][q2][c];
@@ -422,7 +492,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const double b = B(q1,d1);
+               const double b = Bt(d1,q1);
                for (int c = 0; c < VDIM; c++)
                {
                   BBDBBu[d1][d2][c] += b*BDBBu[q1][d2][c];
