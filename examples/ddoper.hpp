@@ -51,6 +51,7 @@ using namespace std;
 #define SD_ITERATIVE
 #define SD_ITERATIVE_COMPLEX
 //#define SD_ITERATIVE_GMG
+//#define SD_ITERATIVE_GMG_PA
 //#define SD_ITERATIVE_FULL
 
 //#define IF_ITERATIVE
@@ -562,8 +563,9 @@ public:
 #endif
 #ifdef SD_ITERATIVE_GMG
 		       std::vector<std::vector<HypreParMatrix*> > const& sdP,
+		       std::vector<HypreParMatrix*> *sdcRe, std::vector<HypreParMatrix*> *sdcIm,
 #endif
-		       const double h_);
+		       const double h_, const bool partialConstructor=false);
 
   
   virtual void Mult(const Vector & x, Vector & y) const
@@ -589,6 +591,8 @@ public:
     //globalInterfaceOp->Mult(x, y);
   }  
 
+  void CopySDMatrices(std::vector<HypreParMatrix*>& Re, std::vector<HypreParMatrix*>& Im);
+  
   void TestIFMult(const Vector & x, Vector & y) const
   {
     globalInterfaceOp->Mult(x, y);
@@ -1175,9 +1179,13 @@ private:
   HypreParMatrix **sdNDPlusPen;
   SparseMatrix **sdNDPenSp;
   ParBilinearForm **bf_sdND;
+  ParBilinearForm **bfpa_sdND;
   Operator **sdNDinv;
 #ifdef DDMCOMPLEX
   Operator **AsdRe, **AsdIm, **AsdP, **invAsdComplex;
+#ifdef SD_ITERATIVE_GMG_PA
+  Operator **AsdPARe, **AsdPAIm;
+#endif
 #ifdef SPARSE_ASDCOMPLEX
   SparseMatrix **SpAsdComplex;
   HypreParMatrix **HypreAsdComplex;
@@ -1501,7 +1509,7 @@ private:
   // tdofsBdry[sd].size() and ifespace[interfaceIndex]->GetTrueVSize() and iH1fespace[interfaceIndex]->GetTrueVSize() for all interfaces of subdomain sd.
   Operator* CreateInterfaceOperator(const int sd0, const int sd1, const int localInterfaceIndex, const int interfaceIndex, const int orientation);
 
-  void CreateSubdomainMatrices(const int subdomain);
+  void CreateSubdomainMatrices(const int subdomain, const bool fullAssembly);
 
 #ifdef SD_ITERATIVE
   Operator* CreateSubdomainImaginaryPart(const int subdomain);
@@ -1567,7 +1575,8 @@ private:
   // Create operator A_m for subdomain m, in the block space corresponding to [u_m, f_m^s, \rho_m^s].
   // We use mappings between interface and subdomain boundary DOF's, so there is no need for interior and surface blocks on each subdomain.
   Operator* CreateSubdomainOperator(const int subdomain);
-  
+  Operator* CreateSubdomainOperatorPA(const int subdomain);
+
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
   void CreateSubdomainHypreBlocks(const int subdomain, Array2D<HypreParMatrix*>& block,
 				  //#ifdef SERIAL_INTERFACES

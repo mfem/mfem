@@ -2056,6 +2056,159 @@ ComplexGMGSolver::~ComplexGMGSolver() {
    // delete invAc;
 }
 
+ComplexGMGPASolver::ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator * Af_Im,
+				       Vector& diagRe_, 
+				       Array<int>& ess_tdof_list,
+				       std::vector<HypreParMatrix *> P_,
+				       HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im)
+  : Solver(2*Af_Re->Height(), 2*Af_Re->Width()), P(P_), diagRe(diagRe_), 
+    Jacobi(diagRe, ess_tdof_list, 1.0)
+{
+   NumGrids = P.size();
+   Pt.resize(NumGrids);
+   S.resize(NumGrids);
+   AO.resize(NumGrids + 1);
+   AO_Re.resize(NumGrids + 1);
+   AO_Im.resize(NumGrids + 1);
+   block_OffsetsI.SetSize(3);
+   block_OffsetsJ.SetSize(3);
+   block_OffsetsI[0]=0;
+   block_OffsetsJ[0]=0;
+
+   AO_Re[NumGrids] = Af_Re;
+   AO_Im[NumGrids] = Af_Im;
+
+   AO[NumGrids] = new ComplexOperator(AO_Re[NumGrids], AO_Im[NumGrids],
+				      false, false, ComplexOperator::HERMITIAN);
+   
+   Ac = new ComplexHypreParMatrix(Ac_Re, Ac_Im, false, false, ComplexOperator::HERMITIAN);
+
+#ifdef MFEM_USE_STRUMPACK
+   StpA = new STRUMPACKRowLocMatrix(*Ac->GetSystemMatrix());
+   strumpack = new STRUMPACKSolver(*StpA);
+   strumpack->SetPrintFactorStatistics(false);
+   strumpack->SetPrintSolveStatistics(false);
+   strumpack->SetOperator(*StpA);
+   strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+   strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+   strumpack->DisableMatching();
+   invAc = strumpack;
+#endif
+   
+   for (int i = NumGrids ; i > 0; i--)
+   {
+     Pt[i - 1] = new TransposeOperator(P[i - 1]);
+     AO_Re[i - 1] = new TripleProductOperator(Pt[i - 1], AO_Re[i], P[i - 1], false, false, false);
+     AO_Im[i - 1] = new TripleProductOperator(Pt[i - 1], AO_Im[i], P[i - 1], false, false, false);
+     AO[i - 1] = new ComplexOperator(AO_Re[i - 1], AO_Im[i - 1],
+				     false, false, ComplexOperator::HERMITIAN);
+   }
+
+   // Check if direct solver is found 
+   if (!invAc) MFEM_ABORT("Direct Solver of coarse solve not found");
+
+   if (NumGrids > 0)
+     S[NumGrids - 1] = &Jacobi;
+   
+   // construct smoothers
+   for (int i = NumGrids - 2; i >= 0 ; i--)
+   {
+     S[i] = new TripleProductOperator(Pt[i], S[i+1], P[i], false, false, false);
+   }
+}
+
+void ComplexGMGPASolver::Mult(const Vector &r, Vector &z) const
+{
+   // Residual vectors
+   std::vector<Vector> rv(NumGrids + 1);
+   // correction vectors
+   std::vector<Vector> zv(NumGrids + 1);
+   // allocation
+
+   // TODO: make the block operators members of the class, so they do not reallocate their data (e.g. tmp) on every Mult() call.
+   
+   for (int i = 0; i <= NumGrids ; i++)
+   {
+      int n = AO[i]->Width();
+      rv[i].SetSize(n);
+      zv[i].SetSize(n);
+   }
+   // Initial residual
+   rv[NumGrids] = r;
+   // smooth and update residuals down to the coarsest level
+   for (int i = NumGrids; i > 0 ; i--)
+   {
+      // Pre smooth
+     block_OffsetsI[1] = S[i - 1]->Height();
+     block_OffsetsI[2] = S[i - 1]->Height();
+     block_OffsetsI.PartialSum();
+     BlockOperator BlkS(block_OffsetsI);
+     BlkS.SetBlock(0,0,S[i-1]);
+     BlkS.SetBlock(1,1,S[i-1]);
+     BlkS.Mult(rv[i], zv[i]);
+     zv[i] *= theta;
+     //S[i - 1]->Mult(rv[i], zv[i]); zv[i] *= theta;
+     
+      // compute residual
+      Vector w(AO[i]->Height());
+      AO[i]->Mult(zv[i], w);
+      rv[i] -= w;
+      // Restrict
+      block_OffsetsI[1] = P[i - 1]->GetNumRows();
+      block_OffsetsI[2] = P[i - 1]->GetNumRows();
+      block_OffsetsI.PartialSum();
+      block_OffsetsJ[1] = P[i - 1]->GetNumCols();
+      block_OffsetsJ[2] = P[i - 1]->GetNumCols();
+      block_OffsetsJ.PartialSum();
+      BlockOperator BlkP(block_OffsetsI,block_OffsetsJ);
+      BlkP.SetBlock(0,0,P[i-1]);
+      BlkP.SetBlock(1,1,P[i-1]);
+      BlkP.MultTranspose(rv[i], rv[i - 1]);
+   }
+   // Coarse grid Stiffness matrix
+   invAc->Mult(rv[0], zv[0]);
+   //
+   for (int i = 1; i <= NumGrids ; i++)
+   {
+      // Prolong correction
+      block_OffsetsI[1] = P[i - 1]->GetNumRows();
+      block_OffsetsI[2] = P[i - 1]->GetNumRows();
+      block_OffsetsI.PartialSum();
+      block_OffsetsJ[1] = P[i - 1]->GetNumCols();
+      block_OffsetsJ[2] = P[i - 1]->GetNumCols();
+      block_OffsetsJ.PartialSum();
+      BlockOperator BlkP(block_OffsetsI,block_OffsetsJ);
+      BlkP.SetBlock(0,0,P[i-1]);
+      BlkP.SetBlock(1,1,P[i-1]);
+      Vector u(BlkP.Height());
+      BlkP.Mult(zv[i - 1], u);
+      // Update correction
+      zv[i] += u;
+      // Update residual
+      Vector v(AO[i]->Height());
+      AO[i]->Mult(u, v); rv[i] -= v;
+      // Post smooth
+      block_OffsetsI[1] = S[i - 1]->Height();
+      block_OffsetsI[2] = S[i - 1]->Height();
+      block_OffsetsI.PartialSum();
+      BlockOperator BlkS(block_OffsetsI);
+      BlkS.SetBlock(0,0,S[i-1]);
+      BlkS.SetBlock(1,1,S[i-1]);
+      BlkS.Mult(rv[i], v);
+      v *= theta;
+      //S[i - 1]->Mult(rv[i], v); v *= theta;
+      // Update correction
+      zv[i] += v;
+   }
+   z = zv[NumGrids];
+}
+
+ComplexGMGPASolver::~ComplexGMGPASolver()
+{
+  delete invAc;
+  delete StpA;
+  delete Ac;
+}
 #endif
 
 

@@ -4343,8 +4343,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #endif
 #ifdef SD_ITERATIVE_GMG
 					   std::vector<std::vector<HypreParMatrix*> > const& sdP,
+					   std::vector<HypreParMatrix*> *sdcRe, std::vector<HypreParMatrix*> *sdcIm,
 #endif
-					   const double h_) :
+					   const double h_, const bool partialConstructor) :
   numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), orderND(orderND_), pmeshSD(pmeshSD_),
 #ifdef SERIAL_INTERFACES
   smeshIF(smeshIF_),
@@ -4446,6 +4447,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   sdNDPlusPen = new HypreParMatrix*[numSubdomains];
   sdNDPenSp = new SparseMatrix*[numSubdomains];
   bf_sdND = new ParBilinearForm*[numSubdomains];
+#ifdef SD_ITERATIVE_GMG_PA
+  bfpa_sdND = new ParBilinearForm*[numSubdomains];
+  AsdPARe = new Operator*[numSubdomains];
+  AsdPAIm = new Operator*[numSubdomains];
+#endif
   ySD = new Vector*[numSubdomains];
   rhsSD = new Vector*[numSubdomains];
   srcSD = new Vector*[numSubdomains];
@@ -5084,8 +5090,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
 	  tdofsBdryInjection[m] = new SetInjectionOperator(fespace[m]->GetTrueVSize(), &(tdofsBdry[m]));
 	  tdofsBdryInjectionTranspose[m] = new TransposeOperator(tdofsBdryInjection[m]);
-	    
-	  CreateSubdomainMatrices(m);
+
+	  CreateSubdomainMatrices(m, partialConstructor);
 
 	  /*
 	    { // debugging
@@ -5110,6 +5116,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #ifndef NO_SD_OPERATOR
       AsdRe[m] = CreateSubdomainOperator(m);
 #endif
+
+#ifdef SD_ITERATIVE_GMG_PA
+      AsdPARe[m] = CreateSubdomainOperatorPA(m);
+#endif
       
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
       /*
@@ -5131,13 +5141,18 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  InterfaceToSurfaceInjection[m][i]->SetComm(sd_com[m]);
 	}      
       */
-      
-      CreateSubdomainHypreBlocks(m, AsdRe_HypreBlocks[m],
-				 //#ifdef SERIAL_INTERFACES
-				 AsdRe_SparseBlocks[m],
-				 //#endif				 
-				 AsdRe_HypreBlockCoef[m]);
 
+#ifdef SD_ITERATIVE_GMG_PA
+      if (partialConstructor)
+#endif
+      {
+	CreateSubdomainHypreBlocks(m, AsdRe_HypreBlocks[m],
+				   //#ifdef SERIAL_INTERFACES
+				   AsdRe_SparseBlocks[m],
+				   //#endif				 
+				   AsdRe_HypreBlockCoef[m]);
+      }
+      
 #ifdef SD_ITERATIVE      
 #ifdef SD_ITERATIVE_FULL
       CreateSubdomainDiagHypreBlocks(m, DsdRe_HypreBlocks[m], DsdRe_SparseBlocks[m], DsdRe_HypreBlockCoef[m]);
@@ -5153,14 +5168,22 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #ifndef NO_SD_OPERATOR
       AsdIm[m] = CreateSubdomainOperator(m);
 #endif
+#ifdef SD_ITERATIVE_GMG_PA
+      AsdPAIm[m] = CreateSubdomainOperatorPA(m);
+#endif
       
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
-      CreateSubdomainHypreBlocks(m, AsdIm_HypreBlocks[m],
-				 //#ifdef SERIAL_INTERFACES
-				 AsdIm_SparseBlocks[m],
-				 //#endif				 
-				 AsdIm_HypreBlockCoef[m]);
-
+#ifdef SD_ITERATIVE_GMG_PA
+      if (partialConstructor)
+#endif
+	{
+	  CreateSubdomainHypreBlocks(m, AsdIm_HypreBlocks[m],
+				     //#ifdef SERIAL_INTERFACES
+				     AsdIm_SparseBlocks[m],
+				     //#endif				 
+				     AsdIm_HypreBlockCoef[m]);
+	}
+      
 #ifdef SD_ITERATIVE      
 #ifdef SD_ITERATIVE_FULL
       CreateSubdomainDiagHypreBlocks(m, DsdIm_HypreBlocks[m], DsdIm_SparseBlocks[m], DsdIm_HypreBlockCoef[m]);
@@ -5216,6 +5239,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   chronoSD.Stop();
   if (m_rank == 0)
     cout << m_rank << ": DDM constructor SD loop 2 timing " << chronoSD.RealTime() << endl;
+
+  if (partialConstructor)
+    return;
   
   /*
   MPI_Allreduce(sdnp.data(), gsdnp.data(), numSubdomains, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -5891,7 +5917,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      ifNDcurlcurl[0]->Print(filename.c_str());
 	      */
 	    }
-	    
+
+	    // TODO: in case SD_ITERATIVE_GMG_PA, compute operator versions of HypreAsdComplexRe, HypreAsdComplexIm.
+#ifndef SD_ITERATIVE_GMG_PA
 	    HypreParMatrix *HypreAsdComplexRe = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], AsdRe_HypreBlocks[m],
 									       //#ifdef SERIAL_INTERFACES
 									       AsdRe_SparseBlocks[m],
@@ -5903,6 +5931,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 									       AsdIm_SparseBlocks[m],
 									       //#endif
 									       AsdIm_HypreBlockCoef[m], blockGI, blockProcOffsets, all_block_num_loc_rows);
+#endif
 	    
 #ifdef SD_ITERATIVE
 #ifdef SD_ITERATIVE_FULL
@@ -5945,7 +5974,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      */
 	    }
 	    
-	    
+#ifndef SD_ITERATIVE_GMG_PA
 	    if (m == -1)
 	      {
 
@@ -6019,6 +6048,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      delete HypreAsdComplexRe;
 	      delete HypreAsdComplexIm;
 	    }
+#endif
 
 #ifdef SD_ITERATIVE
 #ifndef IF_ITERATIVE
@@ -6112,10 +6142,45 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #ifdef SD_ITERATIVE_COMPLEX
 #ifdef SD_ITERATIVE_GMG
 	      {
+#ifdef SD_ITERATIVE_GMG_PA
+		ComplexGMGPASolver *cgmg = NULL;
+		{
+		  /*
+		  BlockOperator* AsdRe_m = dynamic_cast<BlockOperator*>(AsdRe[m]);
+		  BlockOperator* AsdIm_m = dynamic_cast<BlockOperator*>(AsdIm[m]);
+
+		  MFEM_VERIFY(AsdRe_m && AsdIm_m, "");
+		  */
+		  /*
+		  Vector diagRe, diagIm;
+		  AsdRe_HypreBlocks[m](0,0)->GetDiag(diagRe);
+		  AsdIm_HypreBlocks[m](0,0)->GetDiag(diagIm);
+		  */
+		  
+		  Vector diagSDND;
+
+		  if (fespace[m] != NULL)
+		    {
+		      ParGridFunction diag_pa(fespace[m]);
+		      bfpa_sdND[m]->AssembleDiagonal(diag_pa);
+		      diagSDND.SetSize(fespace[m]->GetTrueVSize());
+		      diag_pa.GetTrueDofs(diagSDND);
+		    }
+		  
+		  Array<int> ess_tdof_list;  // empty
+
+		  //cgmg = new ComplexGMGPASolver(sd_com[m], &(AsdRe_m->GetBlock(0,0)), &(AsdIm_m->GetBlock(0,0)), diagRe, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
+		  //cgmg = new ComplexGMGPASolver(sd_com[m], AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), diagRe, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
+		  //cgmg = new ComplexGMGPASolver(sd_com[m], AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), diagSDND, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
+		  cgmg = new ComplexGMGPASolver(sd_com[m], AsdPARe[m], AsdPAIm[m], diagSDND, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
+		}
+#else
 		ComplexHypreParMatrix *AZ = new ComplexHypreParMatrix(AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), false, false);
 		ComplexGMGSolver *cgmg = new ComplexGMGSolver(AZ, sdP[m], ComplexGMGSolver::CoarseSolver::STRUMPACK);
-		cgmg->SetTheta(0.5);
 		cgmg->SetSmootherType(HypreSmoother::Jacobi);  // Some options: Jacobi, l1Jacobi, l1GS, GS
+#endif
+
+		cgmg->SetTheta(0.5);
 		sdNDinv[m] = cgmg;
 
 		if (m == 0)
@@ -8703,24 +8768,51 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
 #endif
 }
 
-void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain)
+void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bool fullAssembly)
 {
   ConstantCoefficient one(1.0);
   ConstantCoefficient minusk2(-k2);
 
   //fespace[subdomain]->GetComm()
-  bf_sdND[subdomain] = new ParBilinearForm(fespace[subdomain]);  // TODO: make this a class member and delete at the end.
-  bf_sdND[subdomain]->AddDomainIntegrator(new CurlCurlIntegrator(one));
 
+#ifdef SD_ITERATIVE_GMG_PA
+  bfpa_sdND[subdomain] = new ParBilinearForm(fespace[subdomain]);
+  bfpa_sdND[subdomain]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+  bfpa_sdND[subdomain]->AddDomainIntegrator(new CurlCurlIntegrator(one));
+  if (fullAssembly)
+#endif
+  {
+    bf_sdND[subdomain] = new ParBilinearForm(fespace[subdomain]);  // TODO: make this a class member and delete at the end.
+    bf_sdND[subdomain]->AddDomainIntegrator(new CurlCurlIntegrator(one));
+  }
+  
 #ifdef AIRY_TEST
   VectorFunctionCoefficient epsilon(3, test_Airy_epsilon);
 
-  bf_sdND[subdomain]->AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
-#else
-  bf_sdND[subdomain]->AddDomainIntegrator(new VectorFEMassIntegrator(minusk2));
+#ifdef SD_ITERATIVE_GMG_PA
+  bfpa_sdND[subdomain]->AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
+  if (fullAssembly)
 #endif
-  
-  bf_sdND[subdomain]->Assemble();
+    {
+      bf_sdND[subdomain]->AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
+    }
+#else
+#ifdef SD_ITERATIVE_GMG_PA
+  bfpa_sdND[subdomain]->AddDomainIntegrator(new VectorFEMassIntegrator(minusk2));
+  if (fullAssembly)
+#endif
+    {
+      bf_sdND[subdomain]->AddDomainIntegrator(new VectorFEMassIntegrator(minusk2));
+    }
+#endif
+
+#ifdef SD_ITERATIVE_GMG_PA
+  bfpa_sdND[subdomain]->Assemble();
+  if (fullAssembly)
+#endif
+    {
+      bf_sdND[subdomain]->Assemble();  
+    }
 
   sdND[subdomain] = new HypreParMatrix();
   //sdNDcopy[subdomain] = new HypreParMatrix();
@@ -8857,13 +8949,32 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain)
     
       //a.FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, sdB);
       //bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, sdB);
-      bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, *(srcSD[subdomain]));
-      delete b;
+
+#ifdef SD_ITERATIVE_GMG_PA
+      if (fullAssembly)
+#endif
+	{
+	  bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, *(srcSD[subdomain]));
+	  delete b;
+	}
+      
+#ifdef SD_ITERATIVE_GMG_PA
+      {
+	VectorFunctionCoefficient Eexact(3, test2_E_exact);
+	xsd.ProjectCoefficient(Eexact);
+	b = new ParLinearForm(fespace[subdomain]);
+	b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+	b->Assemble();
+	OperatorPtr Aop;
+	bfpa_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, Aop, sdX, sdB);
+	delete b;	
+      }
+#endif
     }
-    
+  
   // Add sum over all interfaces of 
   // -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m)>_{S_{mn}} - beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{mn}(u_m)>_{S_{mn}}
-    
+
   //MFEM_VERIFY(false, "TODO: add boundary terms");
 }
 
@@ -9208,6 +9319,60 @@ Operator* DDMInterfaceOperator::CreateSubdomainImaginaryPart(const int subdomain
 }
 #endif
 
+Operator* DDMInterfaceOperator::CreateSubdomainOperatorPA(const int subdomain)
+{
+  if (trueOffsetsSD[subdomain][trueOffsetsSD[subdomain].Size()-1] < 1)
+    return NULL;
+  
+  Operator *op = realPart ? bfpa_sdND[subdomain] : NULL;
+
+#ifdef RL_VARFORMOP
+  MFEM_VERIFY(false, "version not implemented");
+#endif
+
+  for (auto interfaceIndex : allGlobalSubdomainInterfaces[subdomain])
+    {
+      int i = -1;
+      for (int j=0; j<subdomainLocalInterfaces[subdomain].size(); ++j)
+	{
+	  if (subdomainLocalInterfaces[subdomain][j] == interfaceIndex)
+	    {
+	      MFEM_VERIFY(i == -1, "");
+	      i = j;
+	    }
+	}
+      
+      // TODO: replace matrices with operators
+
+      Operator *ifsum = NULL;
+      if (ifNDtrue[interfaceIndex] == 0)
+	{
+	  ifsum = new EmptyOperator();
+	}
+      else
+	{
+#ifdef SERIAL_INTERFACES
+	  ifsum = new SumOperator(ifNDmassSp[interfaceIndex], ifNDcurlcurlSp[interfaceIndex], false, false, -alpha, -beta);
+#else
+	  ifsum = new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, -alpha, -beta);
+#endif
+	}
+      
+      Operator *ifop = new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][interfaceIndex], ifsum,
+						 new TransposeOperator(InterfaceToSurfaceInjection[subdomain][interfaceIndex]),
+						 false, false, false);
+
+      if (op == NULL)
+	op = ifop;
+      else
+	{
+	  op = new SumOperator(op, ifop, false, false, 1.0, 1.0);
+	}
+    }
+
+  return op;
+}
+
 Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 {
   BlockOperator *op = new BlockOperator(trueOffsetsSD[subdomain]);
@@ -9400,7 +9565,7 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 	      if (A_SS[subdomain] != NULL)
 		op->SetBlock(0, 0, A_SS[subdomain]);
 	    }
-	  else
+	  else  // not preconditionerMode
 	    {
 	      // Sum operators abstractly, without adding matrices into a new HypreParMatrix.
 	      if (A_SS_op == NULL)
@@ -10978,4 +11143,16 @@ void DDMInterfaceOperator::TestReconstructedFullDDSolution()
   yr = 0.0;
   
   globalInterfaceOp->Mult(xr, yr);
+}
+
+void DDMInterfaceOperator::CopySDMatrices(std::vector<HypreParMatrix*>& Re, std::vector<HypreParMatrix*>& Im)
+{
+  Re.resize(numSubdomains);
+  Im.resize(numSubdomains);
+  
+  for (int m=0; m<numSubdomains; ++m)
+    {
+      Re[m] = AsdRe_HypreBlocks[m](0,0);
+      Im[m] = AsdIm_HypreBlocks[m](0,0);
+    }
 }

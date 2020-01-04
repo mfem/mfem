@@ -460,6 +460,47 @@ public:
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~ComplexGMGSolver();
 };
+
+class ComplexGMGPASolver : public Solver {
+private:
+   ComplexOperator * AOf;
+   std::vector<ComplexOperator *> AO;
+   std::vector<Operator*> AO_Re;
+   std::vector<Operator*> AO_Im;
+   std::vector<HypreParMatrix *> P;
+   std::vector<Operator*> Pt;
+   int NumGrids;
+   Solver * invAc=nullptr;
+   ComplexHypreParMatrix *Ac;
+   Vector diagRe;
+   OperatorJacobiSmoother Jacobi;
+
+   std::vector<Operator*> S;
+  
+#ifdef MFEM_USE_STRUMPACK
+   STRUMPACKRowLocMatrix *StpA = nullptr;
+   STRUMPACKSolver *strumpack = nullptr;
+#endif   
+  
+   double theta = 1.0;
+   mutable Array<int> block_OffsetsI;
+   mutable Array<int> block_OffsetsJ;
+public:
+   ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator * Af_Im,
+		      Vector& diagRe_, 
+		      Array<int>& ess_tdof_list,
+		      std::vector<HypreParMatrix *> P_,
+		      HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im);
+
+   virtual void SetOperator(const Operator &op) {}
+
+  //virtual void SetSmootherType(const HypreSmoother::Type type) const;
+
+   virtual void SetTheta(const double a) {theta = a;}
+
+   virtual void Mult(const Vector &r, Vector &z) const;
+  ~ComplexGMGPASolver();
+};
 #endif
 
 #ifdef MFEM_USE_SUITESPARSE
