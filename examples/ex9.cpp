@@ -20,14 +20,14 @@
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
-//               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of explicit
-//               ODE time integrators, the definition of periodic boundary
-//               conditions through periodic meshes, as well as the use of GLVis
-//               for persistent visualization of a time-evolving solution. The
-//               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
-//               illustrated.
+//               The example demonstrates the use of Continous or Discontinuous
+//               Galerkin (CG/DG) bilinear forms in MFEM (face integrators),
+//               the use of explicit ODE time integrators, the definition of
+//               periodic boundary conditions through periodic meshes, as well
+//               as the use of GLVis for persistent visualization of a time-evolving
+//               solution. The saving of time-dependent data files for external
+//               visualization with VisIt (visit.llnl.gov) and ParaView (paraview.org)
+//               is also illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -53,6 +53,9 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+// Fem discrization
+// (continous or discontinous galerkin)
+enum fem_disc {cg, dg};
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -62,15 +65,17 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   SparseMatrix &M, &K;
+   BilinearForm &M, &K;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
+   fem_disc fem_type;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b);
+   FE_Evolution(fem_disc fem_type, BilinearForm &_M,
+                BilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -93,6 +98,8 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
+   fem_disc fem_type = dg;
+   bool pa = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -127,6 +134,10 @@ int main(int argc, char *argv[])
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption((int*) &fem_type, "-fem", "--fem_type",
+                  "choose fem discretization (CG or DG).");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -169,44 +180,65 @@ int main(int argc, char *argv[])
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 5. Define the discontinuous DG finite element space of the given
+   // 5. Define the continous or discontinuous
+   //    finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
-   FiniteElementSpace fes(&mesh, &fec);
+   FiniteElementCollection *fec;
+   if(fem_type == cg) {
+     fec = new H1_FECollection(order, dim);
+   }else
+   {
+     fec = new DG_FECollection(order, dim);
+   }
 
-   cout << "Number of unknowns: " << fes.GetVSize() << endl;
+   FiniteElementSpace *fes = new FiniteElementSpace(&mesh, fec);
+
+   cout << "Number of unknowns: " << fes->GetVSize() << endl;
 
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
-   //    DG discretization. The DGTraceIntegrator involves integrals over mesh
+   //    discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
-   BilinearForm m(&fes);
+   BilinearForm m(fes);
    m.AddDomainIntegrator(new MassIntegrator);
-   BilinearForm k(&fes);
+   BilinearForm k(fes);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
 
-   LinearForm b(&fes);
+   LinearForm b(fes);
    b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
+     new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
+   if(fem_type == dg)
+   {
+      k.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      k.AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   }
 
-   m.Assemble();
-   m.Finalize();
-   int skip_zeros = 0;
-   k.Assemble(skip_zeros);
-   k.Finalize(skip_zeros);
-   b.Assemble();
+   if(pa == true)
+   {
+      m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      m.Assemble();
+      k.Assemble();
+   }
+   else
+   {
+      m.Assemble();
+      m.Finalize();
+      int skip_zeros = 0;
+      k.Assemble(skip_zeros);
+      k.Finalize(skip_zeros);
+      b.Assemble();
+   }
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
-   GridFunction u(&fes);
+   GridFunction u(fes);
    u.ProjectCoefficient(u0);
 
    {
@@ -279,7 +311,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m.SpMat(), k.SpMat(), b);
+   FE_Evolution adv(fem_type, m, k, b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -337,12 +369,18 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
+FE_Evolution::FE_Evolution(fem_disc _fem_type, BilinearForm &_M, BilinearForm &_K, const Vector &_b)
+   : fem_type(_fem_type), TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
 {
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
-
+   // Preconditioner supported under full assembly
+   if(M.GetAssemblyLevel() == AssemblyLevel::FULL)
+   {
+     M_solver.SetPreconditioner(M_prec);
+     M_solver.SetOperator(M.SpMat());
+   }else
+   {
+     M_solver.SetOperator(M);
+   }
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
