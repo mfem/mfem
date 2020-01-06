@@ -2691,57 +2691,68 @@ L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
 
 void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
 {
-   for (int iel=0; iel<ne; ++iel)
+   const int NE = ne;
+   const int VDIM = vdim;
+   const int NDOF = ndof;
+   const bool BYVDIM = byvdim;
+   auto d_x = x.Read();
+   auto d_y = y.Write();
+   MFEM_FORALL(iel, NE,
    {
-      for (int vd=0; vd<vdim; ++vd)
+      for (int vd=0; vd<VDIM; ++vd)
       {
-         for (int idof=0; idof<ndof; ++idof)
+         for (int idof=0; idof<NDOF; ++idof)
          {
             // E-vector dimensions (dofs, vdim, elements)
             // L-vector dimensions: byVDIM:  (vdim, dofs, element)
             //                      byNODES: (dofs, elements, vdim)
-            int yidx = iel*vdim*ndof + vd*ndof + idof;
+            int yidx = iel*VDIM*NDOF + vd*NDOF + idof;
             int xidx;
-            if (byvdim)
+            if (BYVDIM)
             {
-               xidx = iel*ndof*vdim + idof*vdim + vd;
+               xidx = iel*NDOF*VDIM + idof*VDIM + vd;
             }
             else
             {
-               xidx = vd*ne*ndof + iel*ndof + idof;
+               xidx = vd*NE*NDOF + iel*NDOF + idof;
             }
-            y[yidx] = x[xidx];
+            d_y[yidx] = d_x[xidx];
          }
       }
-   }
+   });
 }
-
 void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
 {
+   const int NE = ne;
+   const int VDIM = vdim;
+   const int NDOF = ndof;
+   const bool BYVDIM = byvdim;
+   auto d_x = x.Read();
+   auto d_y = y.Write();
    // Since this restriction is a permutation, the transpose is the inverse
-   for (int iel=0; iel<ne; ++iel)
+   MFEM_FORALL(iel, NE,
    {
-      for (int vd=0; vd<vdim; ++vd)
+      for (int vd=0; vd<VDIM; ++vd)
       {
-         for (int idof=0; idof<ndof; ++idof)
+         for (int idof=0; idof<NDOF; ++idof)
          {
             // E-vector dimensions (dofs, vdim, elements)
             // L-vector dimensions: byVDIM:  (vdim, dofs, element)
             //                      byNODES: (dofs, elements, vdim)
-            int xidx = iel*vdim*ndof + vd*ndof + idof;
+            int xidx = iel*VDIM*NDOF + vd*NDOF + idof;
             int yidx;
-            if (byvdim)
+            if (BYVDIM)
             {
-               yidx = iel*ndof*vdim + idof*vdim + vd;
+               yidx = iel*NDOF*VDIM + idof*VDIM + vd;
             }
             else
             {
-               yidx = vd*ne*ndof + iel*ndof + idof;
+               yidx = vd*NE*NDOF + iel*NDOF + idof;
             }
-            y[yidx] = x[xidx];
+            d_y[yidx] = d_x[xidx];
          }
       }
-   }
+   });
 }
 
 ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
