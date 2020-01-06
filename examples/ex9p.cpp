@@ -20,14 +20,14 @@
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
-//               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of explicit
-//               ODE time integrators, the definition of periodic boundary
-//               conditions through periodic meshes, as well as the use of GLVis
-//               for persistent visualization of a time-evolving solution. The
-//               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
-//               illustrated.
+//               The example demonstrates the use of Continous or Discontinuous
+//               Galerkin (CG/DG) bilinear forms in MFEM (face integrators),
+//               the use of explicit ODE time integrators, the definition of
+//               periodic boundary conditions through periodic meshes, as well
+//               as the use of GLVis for persistent visualization of a time-evolving
+//               solution. The saving of time-dependent data files for external
+//               visualization with VisIt (visit.llnl.gov) and ParaView (paraview.org)
+//               is also illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -54,9 +54,9 @@ Vector bb_min, bb_max;
 
 // Fem discrization
 // (continous or discontinous galerkin)
-enum fem_disc {CG, DG};
+enum fem_disc {CG_FE, DG_FE};
 
-/** A time-dependent operator for the right-hand side of the ODE. The DG weak
+/** A time-dependent operator for the right-hand side of the ODE. The weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
     and advection matrices, and b describes the flow on the boundary. This can
     be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
@@ -80,7 +80,7 @@ public:
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   virtual ~FE_Evolution() { }
+   virtual ~FE_Evolution();
 };
 
 
@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
-   fem_disc fem_type = dg;
+   fem_disc fem_type = DG_FE;
    bool pa = false;
    const char *device_config = "cpu";
 
@@ -171,12 +171,12 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   // 3. Read the serial mesh from the given mesh file on all processors. We can
+   // 4. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 4. Define the ODE solver used for time integration. Several explicit
+   // 5. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   // 5. Refine the mesh in serial to increase the resolution. In this example
+   // 6. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
    //    a command-line parameter. If the mesh is of NURBS type, we convert it
    //    to a (piecewise-polynomial) high-order mesh.
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
    }
    mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 6. Define the parallel mesh by a partitioning of the serial mesh. Refine
+   // 7. Define the parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -220,15 +220,15 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 7. Define the parallel discontinuous DG finite element space on the
+   // 8. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
    FiniteElementCollection *fec;
-   if(fem_type == cg)
-   {
-     fec = new H1_FECollection(order, dim);
-   }else
+   if(fem_type == DG_FE)
    {
      fec = new DG_FECollection(order, dim);
+   }else
+   {
+     fec = new H1_FECollection(order, dim);
    }
 
    ParFiniteElementSpace fes(pmesh, fec);
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << global_vSize << endl;
    }
 
-   // 8. Set up and assemble the parallel bilinear and linear forms (and the
+   // 9. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
    //    DGTraceIntegrator involves integrals over mesh interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
    k->Finalize(skip_zeros);
    b->Assemble();
 
-   // 9. Define the initial conditions, save the corresponding grid function to
+   // 10. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    ParGridFunction *u = new ParGridFunction(&fes);
@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 10. Define the time-dependent evolution operator describing the ODE
+   // 11. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
    FE_Evolution adv(fem_type, *m, *k, *b);
@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
             cout << "time step: " << ti << ", time: " << t << endl;
          }
 
-         // 11. Extract the parallel grid function corresponding to the finite
+         // 12. Extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
          *u = *U;
 
@@ -403,7 +403,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 12. Save the final solution in parallel. This output can be viewed later
+   // 13. Save the final solution in parallel. This output can be viewed later
    //     using GLVis: "glvis -np <np> -m ex9-mesh -g ex9-final".
    {
       *u = *U;
@@ -414,7 +414,7 @@ int main(int argc, char *argv[])
       u->Save(osol);
    }
 
-   // 13. Free the used memory.
+   // 14. Free the used memory.
    delete U;
    delete u;
    delete b;
@@ -464,6 +464,16 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
+}
+
+FE_Evolution::~FE_Evolution()
+{
+  if (M.GetAssemblyLevel() == AssemblyLevel::FULL)
+  {
+    delete M_mat;
+    delete K_mat;
+  }
+  delete B_vec;
 }
 
 
