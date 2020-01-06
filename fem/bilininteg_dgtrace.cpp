@@ -145,7 +145,15 @@ void DGTraceIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
    const int symmDims = 4;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
+   // nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
+   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
+   int e1, e2;
+   nf = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      if ((type==FaceType::Interior && e2>=0) || (type==FaceType::Boundary && e2<0) ) nf++;
+   }
    geom = mesh->GetFaceGeometricFactors(*ir,
       FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
@@ -215,7 +223,15 @@ void DGTraceIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
    const int symmDims = 4;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
+   // nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
+   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
+   int e1, e2;
+   nf = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      if ((type==FaceType::Interior && e2>=0) || (type==FaceType::Boundary && e2<0) ) nf++;
+   }
    geom = mesh->GetFaceGeometricFactors(*ir,
       FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
