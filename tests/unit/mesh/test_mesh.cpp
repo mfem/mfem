@@ -27,7 +27,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
       SECTION("Hex meshes")
       {
          Mesh mesh(3, 4, 5, Element::HEXAHEDRON);
-         mesh.GetGeckoElementReordering(perm);
+         mesh.GetGeckoElementOrdering(perm);
          REQUIRE(perm.Size() == mesh.GetNE());
          REQUIRE(perm.Min() == 0);
          REQUIRE(perm.Max() == mesh.GetNE() - 1);
@@ -49,7 +49,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
       SECTION("Tet meshes")
       {
          Mesh mesh(5, 4, 3, Element::TETRAHEDRON);
-         mesh.GetGeckoElementReordering(perm);
+         mesh.GetGeckoElementOrdering(perm);
          REQUIRE(perm.Size() == mesh.GetNE());
          REQUIRE(perm.Min() == 0);
          REQUIRE(perm.Max() == mesh.GetNE() - 1);
@@ -73,7 +73,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
    {
       Mesh mesh(3, 4, 5, Element::HEXAHEDRON);
       Mesh mesh_reordered(3, 4, 5, Element::HEXAHEDRON);
-      mesh_reordered.GetGeckoElementReordering(perm);
+      mesh_reordered.GetGeckoElementOrdering(perm);
       mesh_reordered.ReorderElements(perm);
 
       for (int old_elid = 0; old_elid < perm.Size(); ++old_elid)
