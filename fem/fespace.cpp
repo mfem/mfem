@@ -3250,8 +3250,6 @@ static void D2QValues2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
@@ -3259,6 +3257,8 @@ static void D2QValues2D(const int NE,
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       const int zid = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[MQ1][MD1];
 
@@ -3327,9 +3327,6 @@ static void D2QValues3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
-   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
@@ -3337,6 +3334,9 @@ static void D2QValues3D(const int NE,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
