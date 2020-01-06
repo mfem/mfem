@@ -55,9 +55,9 @@ Vector bb_min, bb_max;
 
 // Fem discrization
 // (continous or discontinous galerkin)
-enum fem_disc {CG, DG};
+enum fem_disc {CG_FE, DG_FE};
 
-/** A time-dependent operator for the right-hand side of the ODE. The DG weak
+/** A time-dependent operator for the right-hand side of the ODE. The weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
     and advection matrices, and b describes the flow on the boundary. This can
     be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
-   fem_disc fem_type = DG;
+   fem_disc fem_type = DG_FE;
    bool pa = false;
    const char *device_config = "cpu";
 
@@ -149,17 +149,17 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 3. Enable hardware devices such as GPUs, and programming models such as
+   // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    device.Print();
 
-   // 2. Read the mesh from the given mesh file. We can handle geometrically
+   // 3. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 3. Define the ODE solver used for time integration. Several explicit
+   // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 5. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter. If the mesh is of NURBS type, we convert it to
    //    a (piecewise-polynomial) high-order mesh.
@@ -188,11 +188,12 @@ int main(int argc, char *argv[])
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 5. Define the continous or discontinuous
+   // 6. Define the continous or discontinuous
    //    finite element space of the given
    //    polynomial order on the refined mesh.
    FiniteElementCollection *fec;
-   if(fem_type == DG) {
+   if(fem_type == DG_FE)
+   {
      fec = new DG_FECollection(order, dim);
    }else
    {
@@ -203,7 +204,7 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   // 6. Set up and assemble the bilinear and linear forms corresponding to the
+   // 7. Set up and assemble the bilinear and linear forms corresponding to the
    //    discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
@@ -218,7 +219,7 @@ int main(int argc, char *argv[])
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
-   if(fem_type == DG)
+   if(fem_type == DG_FE)
    {
       k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
@@ -243,7 +244,7 @@ int main(int argc, char *argv[])
       b.Assemble();
    }
 
-   // 7. Define the initial conditions, save the corresponding grid function to
+   // 8. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction u(&fes);
@@ -316,9 +317,9 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 8. Define the time-dependent evolution operator describing the ODE
-   //    right-hand side, and perform time-integration (looping over the time
-   //    iterations, ti, with a time-step dt).
+   // 9. Define the time-dependent evolution operator describing the ODE
+   //     right-hand side, and perform time-integration (looping over the time
+   //     iterations, ti, with a time-step dt).
    FE_Evolution adv(fem_type, m, k, b);
 
    double t = 0.0;
@@ -359,7 +360,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 9. Save the final solution. This output can be viewed later using GLVis:
+   // 10. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
       ofstream osol("ex9-final.gf");
@@ -367,7 +368,7 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
-   // 10. Free the used memory.
+   // 11. Free the used memory.
    delete fec;
    delete ode_solver;
    delete pd;
