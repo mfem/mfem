@@ -3,23 +3,24 @@
 
 #include "../lib/hypsys.hpp"
 
-class Advection
+class Advection : public HyperbolicSystem
 {
 public:
    double t0 = 0.;
+// 	double t;
    double tFinal;
    bool SolutionKnown = true;
    bool WriteErrors = false;
 
+	FiniteElementSpace *fes;
    SparseMatrix K;
    Vector b;
 
-   explicit Advection(const Vector &bbmin, const Vector &bbmax, const int config,
-                      const double tEnd);
-   virtual ~Advection() { };
+   explicit Advection(FiniteElementSpace *fes_, const int config, const double tEnd,
+							 const Vector &bbmin, const Vector &bbmax);
+   ~Advection() { };
 
-   void PreprocessProblem(FiniteElementSpace *fes, GridFunction &u);
-   void PostprocessProblem(const GridFunction &u, Array<double> &errors);
+   virtual void PreprocessProblem(FiniteElementSpace *fes, GridFunction &u);
 };
 
 #endif

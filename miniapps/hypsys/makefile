@@ -24,21 +24,30 @@ LIB_DIR = lib
 
 DIRS = $(LIB_DIR) $(APP_DIR)
 
+OBJ_FILES = $(BLD_DIR)/massmat.o
+APP_FILES = $(BLD_DIR)/advection.app
+
 SERIAL = hypsys
 PARALLEL = hypsys par-hypsys
 
 ifeq ($(MFEM_USE_MPI),NO)
-   BUILD = $(SERIAL)
+   EXEC_FILES = $(SERIAL)
 else
-   BUILD = $(PARALLEL)
+   EXEC_FILES = $(PARALLEL)
 endif
 
-OBJ_FILES = $(BLD_DIR)/massmat.o
+## Makefile rules. #############################################################
 
-# Remove built-in rule
-%: %.cpp
+# Keywords that are not associated with files (by default, all are).
+.PHONY: all library exec clean sytle
 
-# # Replace the default implicit rule for *.cpp files
+# Delete the default suffixes.
+.SUFFIXES:
+
+# Define suffixes.
+.SUFFIXES: .c .cpp
+
+# Replace the default implicit rule for *.cpp files
 %: %.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(BLD_DIR)/* $(MFEM_LIBS)
 
@@ -48,13 +57,11 @@ OBJ_FILES = $(BLD_DIR)/massmat.o
 %.app: ../$(APP_DIR)/%.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $^ -o $@
 
-all: library problems exec
+all: library exec
 
-library: build/massmat.o
+library: $(OBJ_FILES) $(APP_FILES)
 
-problems: build/advection.app
-
-exec: $(BUILD)
+exec: $(EXEC_FILES)
 
 clean:
 	@rm -f hypsys par-hypsys errors.txt *.gf *.mesh

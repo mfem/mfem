@@ -39,11 +39,11 @@ InverseMassMatrixDG::InverseMassMatrixDG(const MassMatrixDG *mass_)
 
    DenseMatrix Me(nd);
    DenseMatrixInverse MeInv(&Me);
-   for (int i = 0; i < fes->GetNE(); i++)
+   for (int e = 0; e < fes->GetNE(); e++)
    {
-      Me = mass->M(i);
+      Me = mass->M(e);
       MeInv.Factor();
-      MeInv.GetInverseMatrix(Minv(i));
+      MeInv.GetInverseMatrix(Minv(e));
    }
 }
 
@@ -52,14 +52,14 @@ void InverseMassMatrixDG::Mult(const Vector &x, Vector &y) const
    Array<int> vdofs;
    const int nd = fes->GetFE(0)->GetDof();
    DenseMatrix xel, yel;
-   for (int i = 0; i < fes->GetNE(); i++)
+   for (int e = 0; e < fes->GetNE(); e++)
    {
-      fes->GetElementVDofs(i, vdofs);
+      fes->GetElementVDofs(e, vdofs);
       int nc = vdofs.Size()/nd;
       xel.SetSize(nd, nc);
       yel.SetSize(nd, nc);
       x.GetSubVector(vdofs, xel.Data());
-      mfem::Mult(Minv(i), xel, yel);
+      mfem::Mult(Minv(e), xel, yel);
       y.SetSubVector(vdofs, yel.Data());
    }
 }

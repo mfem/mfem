@@ -7,9 +7,9 @@ void Velocity(const Vector &x, Vector &v);
 double InitialCondition(const Vector &x);
 double Inflow(const Vector &x);
 
-Advection::Advection(const Vector &bbmin, const Vector &bbmax, const int config,
-                     const double tEnd)
-   : tFinal(tEnd)
+Advection::Advection(FiniteElementSpace *fes_, const int config, const double tEnd,
+							const Vector &bbmin, const Vector &bbmax)
+   : HyperbolicSystem(), tFinal(tEnd), fes(fes_)
 {
    ConfigNum = config;
    bbMin = bbmin;
@@ -47,59 +47,58 @@ void Advection::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
    u.ProjectCoefficient(u0);
 }
 
-void Advection::PostprocessProblem(const GridFunction &u, Array<double> &errors)
-{
-   if (SolutionKnown)
-   {
-      switch (ConfigNum)
-      {
-         case 0:
-         {
-            FunctionCoefficient uAnalytic(Inflow);
-            errors[0] = u.ComputeLpError(1., uAnalytic);
-            errors[1] = u.ComputeLpError(2., uAnalytic);
-            errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
-            break;
-         }
-         case 1:
-         {
-            FunctionCoefficient uAnalytic(InitialCondition);
-            errors[0] = u.ComputeLpError(1., uAnalytic);
-            errors[1] = u.ComputeLpError(2., uAnalytic);
-            errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
-            break;
-         }
-         default: MFEM_ABORT("No such test case implemented.");
-      }
-   }
-}
+// void Advection::PostprocessProblem(const GridFunction &u, Array<double> &errors)
+// {
+//    if (SolutionKnown)
+//    {
+//       switch (ConfigNum)
+//       {
+//          case 0:
+//          {
+//             FunctionCoefficient uAnalytic(Inflow);
+//             errors[0] = u.ComputeLpError(1., uAnalytic);
+//             errors[1] = u.ComputeLpError(2., uAnalytic);
+//             errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
+//             break;
+//          }
+//          case 1:
+//          {
+//             FunctionCoefficient uAnalytic(InitialCondition);
+//             errors[0] = u.ComputeLpError(1., uAnalytic);
+//             errors[1] = u.ComputeLpError(2., uAnalytic);
+//             errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
+//             break;
+//          }
+//          default: MFEM_ABORT("No such test case implemented.");
+//       }
+//    }
+// }
 
 void Velocity(const Vector &x, Vector &v)
 {
-   double c = 1.;
+   double scale = 1.;
 
    // Map to the reference [-1,1] domain.
    int dim = x.Size();
-   Vector X(dim); X = x;
+   Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
       double center = (bbMin(i) + bbMax(i)) * 0.5;
       X(i) = 2. * (x(i) - center) / (bbMax(i) - bbMin(i));
-      c *= bbMax(i) - bbMin(i);
+      scale *= bbMax(i) - bbMin(i);
    }
 
-   c = pow(c, 1./dim) * M_PI; // Scale to be normed to half a revolution.
+   scale = pow(scale, 1./dim) * M_PI; // Scale to be normed to half a revolution.
 
    switch (ConfigNum)
    {
       case 0: // Rotation around corner.
       {
-
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = c*(X(1)+1.); v(1) = -c*(X(0)+1.); break;
-            case 3: v(0) = c*(X(1)+1.); v(1) = -c*(X(0)+1.); v(2) = 0.0; break;
+            case 2: v(0) = scale*(X(1)+1.); v(1) = -scale*(X(0)+1.); break;
+            case 3: v(0) = scale*(X(1)+1.); v(1) = -scale*(X(0)+1.); v(2) = 0.0; break;
          }
          break;
       }
@@ -108,8 +107,8 @@ void Velocity(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = -c*X(1); v(1) = c*X(0); break;
-            case 3: v(0) = -c*X(1); v(1) = c*X(0); v(2) = 0.0; break;
+            case 2: v(0) = -scale*X(1); v(1) = scale*X(0); break;
+            case 3: v(0) = -scale*X(1); v(1) = scale*X(0); v(2) = 0.0; break;
          }
          break;
       }
@@ -121,7 +120,7 @@ double InitialCondition(const Vector &x)
 {
    // Map to the reference [-1,1] domain.
    int dim = x.Size();
-   Vector X(dim); X = x;
+   Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
       double center = (bbMin(i) + bbMax(i)) * 0.5;
@@ -154,19 +153,11 @@ double InitialCondition(const Vector &x)
       }
       default: { MFEM_ABORT("No such test case implemented."); }
    }
+   return 0.;
 }
 
 double Inflow(const Vector &x)
 {
-   // Map to the reference [-1,1] domain.
-   int dim = x.Size();
-   Vector X(dim); X = x;
-   for (int i = 0; i < dim; i++)
-   {
-      double center = (bbMin(i) + bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (bbMax(i) - bbMin(i));
-   }
-
    switch (ConfigNum)
    {
       case 0:

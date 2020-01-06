@@ -4,8 +4,8 @@
 
 int main(int argc, char *argv[])
 {
-   int Problem = 1;
-   int ConfigNum = 1;
+   int Problem = 0;
+   int ConfigNum = 0;
    const char *MeshFile = "data/inline-quad.mesh";
    int RefSer = 2;
    int RefPar = 0;
@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
    double tFinal = 1.;
    double dt = 0.002;
    int odeSolver = 3;
-   int VisSteps = 20;
+   int VisSteps = 100;
 
    int precision = 8;
    cout.precision(precision);
