@@ -213,6 +213,15 @@ ProductOperator::ProductOperator(const Operator *A, const Operator *B,
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()
                << ", B->Height() = " << B->Height());
+
+   {
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a ProductOperator should not be in iterative mode");
+      }
+   }
 }
 
 ProductOperator::~ProductOperator()
@@ -232,6 +241,22 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
    MFEM_VERIFY(A.Width() == P.Height(),
                "incompatible Operators: A.Width() = " << A.Width()
                << ", P.Height() = " << P.Height());
+
+   {
+      const Solver* SolverA = dynamic_cast<const Solver*>(&A);
+      if (SolverA)
+      {
+         MFEM_VERIFY(!(SolverA->iterative_mode),
+                     "Operator A of an RAPOperator should not be in iterative mode");
+      }
+
+      const Solver* SolverP = dynamic_cast<const Solver*>(&P);
+      if (SolverP)
+      {
+         MFEM_VERIFY(!(SolverP->iterative_mode),
+                     "Operator P of an RAPOperator should not be in iterative mode");
+      }
+   }
 
    mem_class = Rt.GetMemoryClass()*P.GetMemoryClass();
    MemoryType mem_type = GetMemoryType(A.GetMemoryClass()*mem_class);
@@ -253,6 +278,22 @@ TripleProductOperator::TripleProductOperator(
    MFEM_VERIFY(B->Width() == C->Height(),
                "incompatible Operators: B->Width() = " << B->Width()
                << ", C->Height() = " << C->Height());
+
+   {
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a TripleProductOperator should not be in iterative mode");
+      }
+
+      const Solver* SolverC = dynamic_cast<const Solver*>(C);
+      if (SolverC)
+      {
+         MFEM_VERIFY(!(SolverC->iterative_mode),
+                     "Operator C of a TripleProductOperator should not be in iterative mode");
+      }
+   }
 
    mem_class = A->GetMemoryClass()*C->GetMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class*B->GetMemoryClass());
