@@ -55,7 +55,7 @@ Vector bb_min, bb_max;
 
 // Fem discrization
 // (continous or discontinous galerkin)
-enum fem_disc {cg, dg};
+enum fem_disc {CG, DG};
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -98,8 +98,9 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
-   fem_disc fem_type = dg;
+   fem_disc fem_type = DG;
    bool pa = false;
+   const char *device_config = "cpu";
 
    int precision = 8;
    cout.precision(precision);
@@ -138,6 +139,8 @@ int main(int argc, char *argv[])
                   "choose fem discretization (CG or DG).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -145,6 +148,11 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
@@ -184,16 +192,16 @@ int main(int argc, char *argv[])
    //    finite element space of the given
    //    polynomial order on the refined mesh.
    FiniteElementCollection *fec;
-   if(fem_type == cg) {
-     fec = new H1_FECollection(order, dim);
+   if(fem_type == DG) {
+     fec = new DG_FECollection(order, dim);
    }else
    {
-     fec = new DG_FECollection(order, dim);
+     fec = new H1_FECollection(order, dim);
    }
 
-   FiniteElementSpace *fes = new FiniteElementSpace(&mesh, fec);
+   FiniteElementSpace fes(&mesh, fec);
 
-   cout << "Number of unknowns: " << fes->GetVSize() << endl;
+   cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    discretization. The DGTraceIntegrator involves integrals over mesh
@@ -202,15 +210,15 @@ int main(int argc, char *argv[])
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
-   BilinearForm m(fes);
+   BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
-   BilinearForm k(fes);
+   BilinearForm k(&fes);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
 
-   LinearForm b(fes);
+   LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
-   if(fem_type == dg)
+   if(fem_type == DG)
    {
       k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
@@ -238,7 +246,7 @@ int main(int argc, char *argv[])
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
-   GridFunction u(fes);
+   GridFunction u(&fes);
    u.ProjectCoefficient(u0);
 
    {
@@ -360,6 +368,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
+   delete fec;
    delete ode_solver;
    delete pd;
    delete dc;
@@ -369,7 +378,8 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(fem_disc _fem_type, BilinearForm &_M, BilinearForm &_K, const Vector &_b)
+FE_Evolution::FE_Evolution(fem_disc _fem_type, BilinearForm &_M,
+                           BilinearForm &_K, const Vector &_b)
    : fem_type(_fem_type), TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
 {
    // Preconditioner supported under full assembly
