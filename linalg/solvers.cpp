@@ -10,7 +10,9 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "linalg.hpp"
+#include "../general/forall.hpp"
 #include "../general/globals.hpp"
+#include "../fem/bilinearform.hpp"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -100,6 +102,68 @@ void IterativeSolver::SetOperator(const Operator &op)
    {
       prec->SetOperator(*oper);
    }
+}
+
+
+OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
+                                               const Array<int> &ess_tdofs,
+                                               const double dmpng)
+   :
+   Solver(a.Size()),
+   N(a.Size()),
+   dinv(N),
+   damping(dmpng),
+   ess_tdof_list(ess_tdofs),
+   residual(N)
+{
+   Vector diag(N);
+   a.AssembleDiagonal(diag);
+   oper = &a;
+   Setup(diag);
+}
+
+OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
+                                               const Array<int> &ess_tdofs,
+                                               const double dmpng)
+   :
+   Solver(d.Size()),
+   N(d.Size()),
+   dinv(N),
+   damping(dmpng),
+   ess_tdof_list(ess_tdofs),
+   residual(N)
+{
+   Setup(d);
+}
+
+void OperatorJacobiSmoother::Setup(const Vector &diag)
+{
+   residual.UseDevice(true);
+   const double delta = damping;
+   auto D = diag.Read();
+   auto DI = dinv.Write();
+   MFEM_FORALL(i, N, DI[i] = delta / D[i]; );
+   auto I = ess_tdof_list.Read();
+   MFEM_FORALL(i, ess_tdof_list.Size(), DI[I[i]] = delta; );
+}
+
+void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
+{
+   if (iterative_mode && oper)
+   {
+      oper->Mult(y, residual);  // r = A x
+      subtract(x, residual, residual); // r = b - A x
+   }
+   else
+   {
+      residual = x;
+      y.UseDevice(true);
+      y = 0.0;
+   }
+   auto DI = dinv.Read();
+   auto R = residual.Read();
+   auto Y = y.ReadWrite();
+   MFEM_FORALL(i, N, Y[i] += DI[i] * R[i]; );
 }
 
 
