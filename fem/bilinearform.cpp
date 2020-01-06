@@ -617,7 +617,7 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
       const SparseMatrix *P = fes->GetConformingProlongation();
       if (P)
       {
-         mfem_warning("Partial assembly diagonal may be incorrect with AMR!");
+         MFEM_WARNING("Partial assembly diagonal may be incorrect with AMR!");
          Vector local_diag(P->Height());
          ext->AssembleDiagonal(local_diag);
          P->MultTranspose(local_diag, diag);

@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use jacobi smoothing, for now.
+   //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
    if (pa)
    {

@@ -118,6 +118,7 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
 {
    Vector diag(N);
    a.AssembleDiagonal(diag);
+   oper = &a;
    Setup(diag);
 }
 

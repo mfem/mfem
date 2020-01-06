@@ -77,16 +77,17 @@ public:
 };
 
 
-/// Jacobi smoothing with a given vector (no matrix necessary).
-/** Useful with tensorized, partially assembled operators. This is basic Jacobi
-    iteration; for tolerances, iteration control, etc. wrap with SLISolver. */
+/// Jacobi smoothing for a given bilinear form (no matrix necessary).
+/** Useful with tensorized, partially assembled operators. Can also be defined
+    by given diagonal vector. This is basic Jacobi iteration; for tolerances,
+    iteration control, etc. wrap with SLISolver. */
 class OperatorJacobiSmoother : public Solver
 {
 public:
-   /** Calls a.AssembleDiagonal() to get diagonal vector.  It is assumed that
-       the underlying operator acts as the identity on entries in ess_tdof_list,
-       corresponding to (assembled) DIAG_ONE policy or ConstratinedOperator in
-       the matrix-free setting. */
+   /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
+       a.AssembleDiagonal(). It is assumed that the underlying operator acts as
+       the identity on entries in ess_tdof_list, corresponding to (assembled)
+       DIAG_ONE policy or ConstratinedOperator in the matrix-free setting. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
