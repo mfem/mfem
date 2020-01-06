@@ -30,9 +30,11 @@
 #endif
 #include <sundials/sundials_matrix.h>
 #include <sundials/sundials_linearsolver.h>
-#include <cvode/cvode.h>
+#include <cvodes/cvodes.h>
 #include <arkode/arkode_arkstep.h>
 #include <kinsol/kinsol.h>
+
+#include <functional>
 
 namespace mfem
 {
@@ -65,9 +67,9 @@ protected:
 #endif
 
    /// Default scalar relative tolerance.
-   static constexpr double default_rel_tol = 1e-4;
+   static constexpr double default_rel_tol = 1.e-4;
    /// Default scalar absolute tolerance.
-   static constexpr double default_abs_tol = 1e-9;
+   static constexpr double default_abs_tol = 1.e-9;
 
    /** @brief Protected constructor: objects of this type should be constructed
        only as part of a derived class. */
@@ -75,6 +77,17 @@ protected:
       saved_global_size(0), y(NULL), A(NULL), M(NULL),
       LSA(NULL), LSM(NULL), NLS(NULL) { }
 
+  // Helper functions 
+  // Serial version
+  void AllocateEmptyN_Vector(N_Vector &y);
+  
+#ifdef MFEM_USE_MPI
+  void AllocateEmptyN_Vector(N_Vector &y, MPI_Comm comm);
+#endif
+
+  void FillN_Vector(N_Vector &y, Vector &x);
+  void SetN_Vector(N_Vector &y, Vector &x);
+  
 public:
    /// Access the SUNDIALS memory structure.
    void *GetMem() const { return sundials_mem; }
@@ -94,6 +107,7 @@ class CVODESolver : public ODESolver, public SundialsSolver
 protected:
    int lmm_type;  ///< Linear multistep method type.
    int step_mode; ///< CVODE step mode (CV_NORMAL or CV_ONE_STEP).
+   int root_components; /// Number of components in gout   
 
    /// Wrapper to compute the ODE rhs function.
    static int RHS(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
@@ -108,6 +122,11 @@ protected:
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
                           N_Vector b, realtype tol);
 
+   static int root(realtype t, N_Vector y, realtype *gout, void *user_data);
+    
+   typedef std::function<int(realtype t, Vector y, Vector gout, CVODESolver *)> RootFunction;
+    RootFunction root_func;
+  
 public:
    /// Construct a serial wrapper to SUNDIALS' CVODE integrator.
    /** @param[in] lmm Specifies the linear multistep method, the options are:
@@ -168,6 +187,12 @@ public:
    /// Set the scalar relative and scalar absolute tolerances.
    void SetSStolerances(double reltol, double abstol);
 
+   /** Set the scalar relative and vector of absolute tolerances. */
+   void SetSVtolerances(double reltol, Vector abstol);
+
+   /** Initialize Root Finder */
+   void SetRootFinder(int components, RootFunction func);
+  
    /// Set the maximum time step.
    void SetMaxStep(double dt_max);
 
@@ -188,6 +213,171 @@ public:
    virtual ~CVODESolver();
 };
 
+  // ---------------------------------------------------------------------------
+  // TimeDependentAdjointOperator is a TimeDependentOperator with Adjoint rate equations to be used with CVODESSolver
+  // ---------------------------------------------------------------------------
+
+  class TimeDependentAdjointOperator : public TimeDependentOperator
+  {
+  public:
+    TimeDependentAdjointOperator(int dim, int adjdim, double t = 0., Type type = EXPLICIT) :
+      TimeDependentOperator(dim, t, type),
+      adjoint_height(adjdim)
+    {}
+
+    virtual ~TimeDependentAdjointOperator(){};
+
+    virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const = 0;
+    virtual void AdjointRateMult(const Vector &y, Vector & yB, Vector &yBdot) const = 0;
+    virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB, Vector &qBdot) const = 0;
+    virtual int ImplicitSetupB(const double t, const Vector &x, const Vector &xB, const Vector &fxB,
+    			       int jokB, int *jcurB, double gammaB)
+    {
+      mfem_error("TimeDependentOperator::ImplicitSetupB() is not overridden!");
+      return(-1);
+    }
+
+    virtual int ImplicitSolveB(Vector &x, const Vector &b, double tol)
+    {
+      mfem_error("TimeDependentOperator::ImplicitSolveB() is not overridden!");
+      return(-1);
+    }
+
+    int GetAdjointHeight() {return adjoint_height;}
+    
+  protected:
+    int adjoint_height;
+    
+  };
+  
+  // ---------------------------------------------------------------------------
+  // Interface to the CVODES library -- linear multi-step methods
+  // ---------------------------------------------------------------------------
+
+  class CVODESSolver : public CVODESolver
+  {
+  protected:
+    int ncheck; // number of checkpoints used so far
+    int indexB; // backward index?
+    
+    /// Wrapper to compute the ODE Rhs function.
+    static int fQ(realtype t, const N_Vector y, N_Vector qdot, void *user_data);
+
+    static int fB(realtype t, N_Vector y, 
+		  N_Vector yB, N_Vector yBdot, void *user_dataB);
+
+    static int fQB(realtype t, N_Vector y, N_Vector yB, 
+		   N_Vector qBdot, void *user_dataB);
+
+    static int ewt(N_Vector y, N_Vector w, void *user_data);
+
+    typedef std::function<int(Vector y, Vector w, CVODESSolver*)> EWTFunction;
+    EWTFunction ewt_func;
+
+    SUNMatrix          AB;   /// Linear system A = I - gamma J, M - gamma J, or J.
+    SUNLinearSolver    LSB;  /// Linear solver for A.
+    N_Vector           q;    /// Quadrature vector.
+    N_Vector           yB;   /// State vector.
+    N_Vector           yy;   /// State vector.
+    N_Vector           qB;   /// State vector.
+    mfem::Vector mfem_qB;
+    mfem::Vector mfem_q;
+
+    /// Default scalar tolerances.
+    static constexpr double default_rel_tolB = 1e-4;
+    static constexpr double default_abs_tolB = 1e-9;
+    static constexpr double default_abs_tolQB = 1e-9;
+    
+    
+  public:
+    /** Construct a serial wrapper to SUNDIALS' CVODE integrator.
+        @param[in] lmm Specifies the linear multistep method, the options are:
+                       CV_ADAMS - implicit methods for non-stiff systems
+                       CV_BDF   - implicit methods for stiff systems */
+    CVODESSolver(int lmm);
+
+#ifdef MFEM_USE_MPI
+    /** Construct a parallel wrapper to SUNDIALS' CVODE integrator.
+        @param[in] comm The MPI communicator used to partition the ODE system
+        @param[in] lmm  Specifies the linear multistep method, the options are:
+                        CV_ADAMS - implicit methods for non-stiff systems
+                        CV_BDF   - implicit methods for stiff systems */
+    CVODESSolver(MPI_Comm comm, int lmm);
+#endif
+
+    /** Initialize CVODE: Calls CVodeInit() and sets some defaults. We define this to force the TDO to be a TimeDependenAdjointOperator
+        @param[in] f_ the TimeDependentAdjointOperator that defines the ODE system
+
+        @note All other methods must be called after Init(). */
+    void Init(TimeDependentAdjointOperator &f_);
+
+    void InitB(TimeDependentAdjointOperator &f_);
+    
+    /** Integrate the ODE with CVODE using the specified step mode.
+
+        @param[out]    x  Solution vector at the requested output timem x=x(t).
+        @param[in/out] t  On output, the output time reached.
+        @param[in/out] dt On output, the last time step taken.
+
+        @note On input, the values of t and dt are used to compute desired
+        output time for the integration, tout = t + dt.
+    */
+    virtual void Step(Vector &x, double &t, double &dt);
+
+    // Adjoint stuff
+    virtual void StepB(Vector &w, double &t, double &dt);
+
+    /// Set multiplicative error weights
+    void SetWFTolerances(EWTFunction func);
+
+    // Initialize Quadrature Integration
+    void InitQuadIntegration(double reltolQ = 1.e-3, double abstolQ = 1e-8);
+
+    // Initialize Quadrature Integration (Adjoint)
+    void InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB = 1.e-3, double abstolQB = 1e-8);
+    
+    // Initialize Adjoint
+    void InitAdjointSolve(int steps);
+
+    // Get Number of Steps for ForwardSolve
+    long GetNumSteps();
+
+    // Evalute Quadrature
+    void EvalQuadIntegration(double t, Vector &q);
+
+    // Evaluate Quadrature solution
+    void EvalObjectiveSensitivity(double t, Vector &dG_dp);
+    
+    // Get Interpolated Forward solution y at backward integration time tB
+    void GetCorrespondingForwardSolution(double tB, mfem::Vector & yy);
+    
+    // Set Linear Solver for the backward problem
+    void UseMFEMLinearSolverB();
+
+    // Use built in SUNDIALS Newton solver
+    void UseSundialsLinearSolverB();
+    
+    void SetSStolerancesB(double reltol, double abstol);
+    
+    /// Setup the linear system A x = b
+    static int LinSysSetupB(realtype t, N_Vector y, N_Vector yB, N_Vector fyB, SUNMatrix A,
+			    booleantype jok, booleantype *jcur,
+			    realtype gamma, void *user_data, N_Vector tmp1,
+			    N_Vector tmp2, N_Vector tmp3);
+
+    /// Solve the linear system A x = b
+    static int LinSysSolveB(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
+                           N_Vector b, realtype tol);
+
+    
+    /// Destroy the associated CVODE memory and SUNDIALS objects.
+    virtual ~CVODESSolver();
+
+  private:
+    void CreateB(double &t, Vector &x);
+    
+  };
+  
 
 // ---------------------------------------------------------------------------
 // Interface to ARKode's ARKStep module -- Additive Runge-Kutta methods

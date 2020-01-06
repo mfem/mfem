@@ -11,6 +11,7 @@
 
 set(SUNDIALS_EXAMPLES_SRCS)
 list(APPEND SUNDIALS_EXAMPLES_SRCS
+  test.cpp
   ex9.cpp
   ex10.cpp
   ex16.cpp
@@ -18,6 +19,7 @@ list(APPEND SUNDIALS_EXAMPLES_SRCS
 
 if (MFEM_USE_MPI)
   list(APPEND SUNDIALS_EXAMPLES_SRCS
+    test_AdvDiff.cpp
     ex9p.cpp
     ex10p.cpp
     ex16p.cpp
