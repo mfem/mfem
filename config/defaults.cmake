@@ -35,6 +35,7 @@ option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GECKO "Enable GECKO usage" OFF)
+option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
@@ -42,6 +43,7 @@ option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
+option(MFEM_USE_HIOP "Enable HiOp" OFF)
 option(MFEM_USE_CUDA "Enable CUDA" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
@@ -136,6 +138,8 @@ set(ScaLAPACK_TARGET_NAMES scalapack)
 
 set(GECKO_DIR "${MFEM_DIR}/../gecko" CACHE PATH "Path to the Gecko library.")
 
+set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
+
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
 set(NETCDF_DIR "" CACHE PATH "Path to the NetCDF library.")
@@ -159,6 +163,11 @@ set(Axom_REQUIRED_PACKAGES "Conduit/relay/blueprint" CACHE STRING
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
     "Directory where PUMI is installed")
+
+set(HIOP_DIR "${MFEM_DIR}/../hiop/install" CACHE STRING
+    "Directory where HiOp is installed")
+set(HIOP_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
+    "Packages that HiOp depends on.")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
