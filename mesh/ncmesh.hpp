@@ -511,7 +511,7 @@ protected: // implementation
    /** Try to find a space-filling curve friendly orientation of the root
        elements: set 'root_state' based on the ordering of coarse elements.
        Note that the coarse mesh itself must be ordered as an SFC by e.g.
-       Mesh::GetGeckoElementReordering. */
+       Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
    virtual bool IsGhost(const Element &el) const { return false; }

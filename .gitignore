@@ -61,6 +61,8 @@ examples/sphere_refined.*
 examples/sol.*
 examples/sol_u.*
 examples/sol_p.*
+examples/sol_r.*
+examples/sol_i.*
 examples/ex9.mesh
 examples/ex9-mesh.*
 examples/ex9-init.*
@@ -186,6 +188,10 @@ miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
 miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
+
+miniapps/gslib/field-diff
+miniapps/gslib/findpts
+miniapps/gslib/pfindpts
 
 # Unit test binary and outputs
 tests/unit/output_meshes

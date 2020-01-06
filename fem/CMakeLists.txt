@@ -16,6 +16,7 @@ set(SRCS
   bilininteg_diffusion.cpp
   bilininteg_mass.cpp
   coefficient.cpp
+  complex_fem.cpp
   datacollection.cpp
   eltrans.cpp
   estimators.cpp
@@ -35,6 +36,7 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop_tools.cpp
+  gslib.cpp
   transfer.cpp
   )
 
@@ -43,6 +45,7 @@ set(HDRS
   bilinearform_ext.hpp
   bilininteg.hpp
   coefficient.hpp
+  complex_fem.hpp
   datacollection.hpp
   eltrans.hpp
   estimators.hpp
@@ -71,6 +74,7 @@ set(HDRS
   tintrules.hpp
   tmop.hpp
   tmop_tools.hpp
+  gslib.hpp
   transfer.hpp
   )
 
