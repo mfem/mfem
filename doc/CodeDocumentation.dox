@@ -81,6 +81,8 @@ namespace mfem {
  * - <a class="el" href="ex20p_8cpp_source.html">Example 20p</a>: parallel symplectic ODE integration
  * - <a class="el" href="ex21_8cpp_source.html">Example 21</a>: adaptive mesh refinement for linear elasticity
  * - <a class="el" href="ex21p_8cpp_source.html">Example 21p</a>: parallel adaptive mesh refinement for linear elasticity
+ * - <a class="el" href="ex22_8cpp_source.html">Example 22</a>: complex-valued linear systems for damped harmonic oscillators
+ * - <a class="el" href="ex22p_8cpp_source.html">Example 22p</a>: parallel complex-valued linear systems for damped harmonic oscillators
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
@@ -115,6 +117,12 @@ namespace mfem {
  *   <a class="el" href="pumi_2ex6p_8cpp_source.html">6p</a>
  *   demonstrating the use of MFEM's \link pumi.hpp PUMI classes\endlink
  *
+ * <H4>HiOp Examples</H4>
+ * - Variants of Examples
+ *   <a class="el" href="hiop_2ex9_8cpp_source.html">9</a> and
+ *   <a class="el" href="hiop_2ex9p_8cpp_source.html">9p</a>,
+ *   demonstrating the use of MFEM's \link hiop.hpp HiOp classes\endlink
+ *
  * <H3>Miniapps</H3>
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
  * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code
@@ -129,8 +137,10 @@ namespace mfem {
  * - <a class="el" href="mesh-optimizer_8cpp_source.html">Mesh Optimizer</a>: optimize high-order meshes, <a class="el" href="mesh-optimizer_8cpp_source.html">serial</a> and <a class="el" href="pmesh-optimizer_8cpp_source.html">parallel</a> versions
  * - <a class="el" href="display-basis_8cpp_source.html">Display Basis</a>: visualize finite element basis functions
  * - <a class="el" href="load-dc_8cpp_source.html">Load DC</a>: visualize fields saved via DataCollection classes
- * - <a class="el" href="convert-dc_8cpp_source.html">Convert DC</a>: convert between diffirent DataCollection formats
+ * - <a class="el" href="convert-dc_8cpp_source.html">Convert DC</a>: convert between different DataCollection formats
  * - <a class="el" href="lor-transfer_8cpp_source.html">LOR Transfer</a>: map functions between high-order and low-order refined spaces
+ * - <a class="el" href="findpts_8cpp_source.html">Find Points</a>: evaluate grid function in physical space, <a class="el" href="findpts_8cpp_source.html">serial</a> and <a class="el" href="pfindpts_8cpp_source.html">parallel</a> versions
+ * - <a class="el" href="field-diff_8cpp_source.html">Field Diff</a>: compare grid functions on different meshes
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  *

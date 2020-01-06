@@ -170,6 +170,7 @@ public:
    PetscParVector& operator+= (const PetscParVector &y);
    PetscParVector& operator-= (const PetscParVector &y);
    PetscParVector& operator*= (PetscScalar d);
+   PetscParVector& operator+= (PetscScalar d);
 
    /** @brief Temporarily replace the data of the PETSc Vec object. To return to
        the original data array, call ResetArray().
@@ -429,6 +430,10 @@ PetscParMatrix * ParMult(const PetscParMatrix *A, const PetscParMatrix *B);
 /// Returns the matrix Rt^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P);
 
+/// Returns the matrix R * A * P
+PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A,
+                                     PetscParMatrix *P);
+
 /// Returns the matrix P^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P);
 
@@ -601,6 +606,7 @@ class PetscLinearSolver : public PetscSolver, public Solver
 private:
    /// Internal flag to handle HypreParMatrix conversion or not.
    bool wrap;
+   void MultKernel(const Vector &b, Vector &x, bool trans) const;
 
 public:
    PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string(),
@@ -616,6 +622,8 @@ public:
                      const std::string &prefix = std::string());
    virtual ~PetscLinearSolver();
 
+   /// Sets the operator to be used for mat-vec operations and
+   /// for the construction of the preconditioner
    virtual void SetOperator(const Operator &op);
 
    /// Allows to prescribe a different operator (@a pop) to construct
@@ -623,10 +631,12 @@ public:
    void SetOperator(const Operator &op, const Operator &pop);
 
    /// Sets the solver to perform preconditioning
+   /// preserves the linear operator for the mat-vec
    void SetPreconditioner(Solver &precond);
 
    /// Application of the solver.
    virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    /// Conversion function to PETSc's KSP type.
    operator KSP() const { return (KSP)obj; }
@@ -646,6 +656,9 @@ public:
 /// Abstract class for PETSc's preconditioners.
 class PetscPreconditioner : public PetscSolver, public Solver
 {
+private:
+   void MultKernel(const Vector &b, Vector &x, bool trans) const;
+
 public:
    PetscPreconditioner(MPI_Comm comm,
                        const std::string &prefix = std::string());
@@ -659,6 +672,7 @@ public:
 
    /// Application of the preconditioner.
    virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    /// Conversion function to PETSc's PC type.
    operator PC() const { return (PC)obj; }
