@@ -48,7 +48,7 @@ public:
 
 
 
-class VertexMeshPartition // for now every vertex defines a patch 
+class VertexMeshPartition 
 {
 private:
    ParMesh *pmesh=nullptr;
@@ -64,7 +64,7 @@ public:
 
 
 
-class ParMeshPartition // for now every vertex defines a patch 
+class ParMeshPartition 
 {
 private:
    MPI_Comm comm;
@@ -148,9 +148,9 @@ private:
 public:
    ParPatchRestriction(ParPatchAssembly * P_);
    // void Mult(const Vector & r , Array<BlockVector *> & res);
-   void Mult(const Vector & r , Array<Vector > & res);
+   void Mult(const Vector & r , std::vector<Vector  > & res);
    // void MultTranspose(const Array<BlockVector*> & sol, Vector & z);
-   void MultTranspose(const Array<Vector> & sol, Vector & z);
+   void MultTranspose(const std::vector<Vector  > & sol, Vector & z);
    virtual ~ParPatchRestriction(){}
 };
 

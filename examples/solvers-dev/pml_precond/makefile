@@ -31,7 +31,7 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O= additive_schwarz.o additive_schwarzp.o ../as/schwarz.o ../as/schwarzp.o
+COMMON_O= complex_additive_schwarzp.o additive_schwarz.o additive_schwarzp.o ../as/schwarz.o ../as/schwarzp.o
 
 # Remove built-in rules
 %: %.cpp

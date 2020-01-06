@@ -189,6 +189,19 @@ SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
      blfi_(new BilinearForm(f))
 {}
 
+SesquilinearForm::SesquilinearForm(FiniteElementSpace *f, SesquilinearForm *bf)
+   : conv_(bf->conv_),
+     blfr_(new BilinearForm(f,&bf->real())),
+     blfi_(new BilinearForm(f,&bf->imag()))
+{}
+
+SesquilinearForm::SesquilinearForm(FiniteElementSpace *f, ParSesquilinearForm *pbf)
+   : conv_(pbf->GetConvention()),
+     blfr_(new BilinearForm(f,&pbf->real())),
+     blfi_(new BilinearForm(f,&pbf->imag()))
+{}
+
+
 SesquilinearForm::~SesquilinearForm()
 {
    delete blfr_;
@@ -315,6 +328,16 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       new ComplexSparseMatrix(A_r, A_i, true, true, conv_);
    A.Reset<ComplexSparseMatrix>(A_sp, true);
 }
+
+void 
+SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                   OperatorHandle &A)
+{
+   // TODO
+   // MODIFY ALSO THE FORM LINEAR SYSTEM FOR THE SESQUILINEAR FORM SO THAT IT'S 
+   // COMPATIBLE WITH THE PARSESQUILINEAR FOR (ESSENTIAL BCs)
+}
+
 
 void
 SesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
@@ -606,6 +629,14 @@ ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf,
      pblfi_(new ParBilinearForm(pf))
 {}
 
+ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf, ParSesquilinearForm *pbf)
+   : conv_(pbf->conv_),
+     pblfr_(new ParBilinearForm(pf,&pbf->real())),
+     pblfi_(new ParBilinearForm(pf,&pbf->imag()))
+{}
+
+
+
 ParSesquilinearForm::~ParSesquilinearForm()
 {
    delete pblfr_;
@@ -767,6 +798,17 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       A.Reset<ComplexOperator>(A_op, true);
    }
 }
+
+void 
+ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                      OperatorHandle &A)
+{
+   // TODO
+}
+
+
+
+
 
 void
 ParSesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
