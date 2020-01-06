@@ -3259,6 +3259,7 @@ static void D2QValues2D(const int NE,
    {
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       const int zid = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[MQ1][MD1];
 
@@ -3480,8 +3481,6 @@ static void D2QGrad2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
@@ -3490,6 +3489,8 @@ static void D2QGrad2D(const int NE,
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double G[MQ1][MD1];
@@ -3573,8 +3574,6 @@ static  void D2QGrad3D(const int NE,
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
 
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto g = Reshape(g_.Read(), Q1D, D1D);
@@ -3583,6 +3582,8 @@ static  void D2QGrad3D(const int NE,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double G[MQ1][MD1];
