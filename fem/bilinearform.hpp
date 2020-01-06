@@ -153,6 +153,9 @@ public:
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
+   /// Get the assembly level
+   AssemblyLevel GetAssemblyLevel() {return assembly;}
+
    /** Enable the use of static condensation. For details see the description
        for class StaticCondensation in fem/staticcond.hpp This method should be
        called before assembly. If the number of unknowns after static
