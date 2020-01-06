@@ -3478,7 +3478,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?
       }
-      if (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0) ))
+      if (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0) )) //Interior/shared face
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -3490,7 +3490,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          }
          if (m==L2FaceValues::Double)
          {
-            if (e2>=0)
+            if (e2>=0)//interior face
             {
                for (int d = 0; d < dof; ++d)
                {

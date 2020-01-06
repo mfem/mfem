@@ -3493,7 +3493,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          {
             for (int d = 0; d < dof; ++d)
             {
-               if (e2!=-1)
+               if (type==FaceType::Interior && e2>=0) //interior face
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
                   const int face_dof = faceMap2[pd];
@@ -3502,7 +3502,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                   const int lid = dof*f_ind + d;
                   indices2[lid] = gid;
                }
-               else
+               else if(type==FaceType::Boundary && e2<0) // true boundary face
                {
                   const int lid = dof*f_ind + d;
                   indices2[lid] = -1;
