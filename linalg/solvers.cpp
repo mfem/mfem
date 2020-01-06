@@ -12,6 +12,7 @@
 #include "linalg.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
+#include "../fem/bilinearform.hpp"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -104,6 +105,23 @@ void IterativeSolver::SetOperator(const Operator &op)
 }
 
 
+OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
+                                               const Array<int> &ess_tdofs,
+                                               const double dmpng)
+   :
+   Solver(a.Size()),
+   N(a.Size()),
+   dinv(N),
+   damping(dmpng),
+   ess_tdof_list(ess_tdofs),
+   residual(N)
+{
+   Vector diag(N);
+   a.AssembleDiagonal(diag);
+   oper = &a;
+   Setup(diag);
+}
+
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const Array<int> &ess_tdofs,
                                                const double dmpng)
@@ -111,12 +129,14 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
    Solver(d.Size()),
    N(d.Size()),
    dinv(N),
-   diag(d),
    damping(dmpng),
    ess_tdof_list(ess_tdofs),
-   residual(N) { Setup(); }
+   residual(N)
+{
+   Setup(d);
+}
 
-void OperatorJacobiSmoother::Setup()
+void OperatorJacobiSmoother::Setup(const Vector &diag)
 {
    residual.UseDevice(true);
    const double delta = damping;

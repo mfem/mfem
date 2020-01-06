@@ -258,8 +258,8 @@ static void PADiffusionDiagonal2D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
-   // note different shape for D, this is a (symmetric) matrix,
-   // we only store necessary entries
+   // note the different shape for D, this is a (symmetric) matrix so we only
+   // store necessary entries
    auto D = Reshape(d.Read(), Q1D*Q1D, 3, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
@@ -400,7 +400,6 @@ static void SmemPADiffusionDiagonal2D(const int NE,
       }
    });
 }
-
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PADiffusionDiagonal3D(const int NE,
@@ -664,6 +663,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag) const
    PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
                                maps->B, maps->G, pa_data, diag);
 }
+
 
 #ifdef MFEM_USE_OCCA
 // OCCA PA Diffusion Apply 2D kernel
