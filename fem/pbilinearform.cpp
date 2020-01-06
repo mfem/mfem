@@ -246,6 +246,21 @@ void ParBilinearForm::Assemble(int skip_zeros)
    }
 }
 
+void ParBilinearForm::AssembleDiagonal(Vector &diag) const
+{
+   Vector local(pfes->GetVSize());
+   BilinearForm::AssembleDiagonal(local);
+   const Operator* p_mat = pfes->GetProlongationMatrix();
+   if (p_mat)
+   {
+      p_mat->MultTranspose(local, diag);
+   }
+   else
+   {
+      diag = local;
+   }
+}
+
 void ParBilinearForm
 ::ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                                HypreParMatrix &A, const HypreParVector &X,
