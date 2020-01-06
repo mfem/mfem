@@ -31,6 +31,10 @@ elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "Intel")
   list(APPEND PERFORMANCE_CXX_OPTIONS
     "-xHost")
+elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "MSVC")
+  list(APPEND PERFORMANCE_CXX_OPTIONS
+      "/O2"
+      "/Ob2")
 endif()
 
 add_mfem_miniapp(performance_ex1
