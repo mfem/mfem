@@ -13,6 +13,8 @@ Version 4.0.1 (development)
 
 Improved GPU support
 --------------------
+- Added support for matrix-free diagonal smoothers on GPUs.
+
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
   language that can run on both AMD and NVIDIA hardware. With this change, the
   list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",
@@ -55,6 +57,10 @@ Discretization improvements
   include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
   parallel counterparts.
 
+- Diagonals of partially assembled operators can now be computed efficiently.
+  See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
+  BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added a general interface for specifying and solving nonlinear constrained
@@ -79,6 +85,8 @@ New and updated examples and miniapps
 - Added a new example, Example 22/22p, to demonstrate the use of the new
   complex-valued finite element operators. The example defines and solves
   a family of time-harmonic PDEs related to damped harmonic oscillators.
+
+- Updated Example 1/1p to use diagonal preconditioning in partial assembly mode.
 
 - The mesh-optimizer and pmesh-optimizer miniapps have been updated to
   demonstrate the new r-adaptivity capabilities of TMOP.
