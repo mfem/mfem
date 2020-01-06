@@ -224,6 +224,21 @@ SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
      blfi(new BilinearForm(f))
 {}
 
+SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
+                                   SesquilinearForm *bf)
+   : conv(bf->GetConvention()),
+     blfr(new BilinearForm(f,&bf->real())),
+     blfi(new BilinearForm(f,&bf->imag()))
+{}
+
+SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
+                                   ParSesquilinearForm *pbf)
+   : conv(pbf->GetConvention()),
+     blfr(new BilinearForm(f,&pbf->real())),
+     blfi(new BilinearForm(f,&pbf->imag()))
+{}
+
+
 SesquilinearForm::~SesquilinearForm()
 {
    delete blfr;
@@ -331,8 +346,12 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    Vector X_0, B_0;
 
    b_0 = b_r;
-   blfr->FormLinearSystem(ess_tdof_list, x_r, b_r, *A_r, X_0, B_0, ci);
+   /* In order to match the parallel code diag_policy=1 for the real part
+   and diag_policy = 0 for the imag part of the operator */
+   blfr->SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy::DIAG_ONE);
+   blfi->SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy::DIAG_ZERO);
 
+   blfr->FormLinearSystem(ess_tdof_list, x_r, b_r, *A_r, X_0, B_0, ci);
    int tvsize = B_0.Size();
    X.SetSize(2 * tvsize);
    B.SetSize(2 * tvsize);
@@ -363,6 +382,34 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       new ComplexSparseMatrix(A_r, A_i, true, true, conv);
    A.Reset<ComplexSparseMatrix>(A_sp, true);
 }
+
+
+void
+SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                   OperatorHandle &A)
+
+{
+   SparseMatrix * A_r = new SparseMatrix;
+   SparseMatrix * A_i = new SparseMatrix;
+
+   /* In order to match the parallel code diag_policy = 1 for the real part
+   and diag_policy = 0 for the imag part of the operator */
+   blfr->SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy::DIAG_ONE);
+   blfi->SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy::DIAG_ZERO);
+
+   blfr->FormSystemMatrix(ess_tdof_list, *A_r);
+   blfi->FormSystemMatrix(ess_tdof_list, *A_i);
+
+   // A = A_r + i A_i
+   A.Clear();
+   ComplexSparseMatrix * A_sp =
+      new ComplexSparseMatrix(A_r, A_i, true, true, conv);
+   A.Reset<ComplexSparseMatrix>(A_sp, true);
+}
+
+
+
+
 
 void
 SesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
@@ -680,6 +727,14 @@ ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf,
      pblfi(new ParBilinearForm(pf))
 {}
 
+ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf,
+                                         ParSesquilinearForm *pbf)
+   : conv(pbf->GetConvention()),
+     pblfr(new ParBilinearForm(pf,&pbf->real())),
+     pblfi(new ParBilinearForm(pf,&pbf->imag()))
+{}
+
+
 ParSesquilinearForm::~ParSesquilinearForm()
 {
    delete pblfr;
@@ -828,6 +883,57 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          Aih->diag->data[Aih->diag->i[j]] = 0.0;
          B_r(j) = X_r(j);
          B_i(j) = X_i(j);
+      }
+   }
+
+   // A = A_r + i A_i
+   A.Clear();
+   if ( A_r.Type() == Operator::Hypre_ParCSR &&
+        A_i.Type() == Operator::Hypre_ParCSR )
+   {
+      ComplexHypreParMatrix * A_hyp =
+         new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
+                                   A_i.As<HypreParMatrix>(),
+                                   A_r.OwnsOperator(),
+                                   A_i.OwnsOperator(),
+                                   conv);
+      A.Reset<ComplexHypreParMatrix>(A_hyp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op =
+         new ComplexOperator(A_r.As<Operator>(),
+                             A_i.As<Operator>(),
+                             A_r.OwnsOperator(),
+                             A_i.OwnsOperator(),
+                             conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+}
+
+void
+ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                      OperatorHandle &A)
+{
+   OperatorHandle A_r, A_i;
+   pblfr->FormSystemMatrix(ess_tdof_list, A_r);
+   pblfi->FormSystemMatrix(ess_tdof_list, A_i);
+
+   // Modify offdiagonal blocks (Imaginary parts of the matrix) to
+   // conform with standard essential BC treatment i.e. zero out rows and
+   // columns and place ones on the diagonal.
+   if ( A_i.Type() == Operator::Hypre_ParCSR )
+   {
+      int n = ess_tdof_list.Size();
+      int j;
+
+      HypreParMatrix * Ah;  A_i.Get(Ah);
+      hypre_ParCSRMatrix * Aih =
+         (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
+      for (int k=0; k<n; k++)
+      {
+         j=ess_tdof_list[k];
+         Aih->diag->data[Aih->diag->i[j]] = 0.0;
       }
    }
 

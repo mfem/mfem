@@ -155,6 +155,8 @@ public:
    std::complex<double> operator()(const ComplexGridFunction &gf) const;
 };
 
+class ParSesquilinearForm; // needed by constructor
+
 /** Class for sesquilinear form
 
     A sesquilinear form is a generalization of a bilinear form to complex-valued
@@ -182,6 +184,15 @@ public:
    SesquilinearForm(FiniteElementSpace *fes,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
+   /** @brief Create a BilinearForm on the FiniteElementSpace @a f, using the
+       same integrators as the BilinearForm @a bf.
+
+       The pointer @a f is not owned by the newly constructed object.
+
+       The integrators in @a bf are copied as pointers and they are not owned by
+       the newly constructed BilinearForm. */
+   SesquilinearForm(FiniteElementSpace *fes, SesquilinearForm *bf);
+   SesquilinearForm(FiniteElementSpace *fes, ParSesquilinearForm *bf);
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
@@ -240,6 +251,9 @@ public:
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
+
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
@@ -449,6 +463,15 @@ public:
                        ComplexOperator::Convention
                        convention = ComplexOperator::HERMITIAN);
 
+   // /** @brief Create a ParSesquilinearForm on the ParFiniteElementSpace @a *pf,
+   //     using the same integrators as the ParSesquilinearForm @a *bf.
+
+   //     The pointer @a pf is not owned by the newly constructed object.
+
+   //     The integrators in @a bf are copied as pointers and they are not owned by
+   //     the newly constructed ParSesquilinearForm. */
+   ParSesquilinearForm(ParFiniteElementSpace *pf, ParSesquilinearForm *pbf);
+
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
@@ -512,6 +535,9 @@ public:
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
+
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
