@@ -999,7 +999,11 @@ static void SmemPAMassApply3D(const int NE,
                {
                   u[qz] += DQQ[dz][qy][qx] * B[qz][dz];
                }
-               QQQ[qz][qy][qx] = u * d(qx,qy,qz,e);
+            }
+            MFEM_UNROLL(Q1D)
+            for (int qz = 0; qz < Q1D; qz++)
+            {
+               QQQ[qz][qy][qx] = u[qz] * d(qx,qy,qz,e);
             }
          }
       }
