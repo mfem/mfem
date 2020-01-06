@@ -1237,8 +1237,6 @@ template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPADiffusionApply3D(const int NE,
                                    const Array<double> &b_,
                                    const Array<double> &g_,
-                                   const Array<double> &bt_,
-                                   const Array<double> &gt_,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -1905,38 +1903,41 @@ static void PADiffusionApply(const int dim,
          CeedBasisGetCollocatedGrad(D1D, Q1D, B, G, coG);
          switch (DQ)
          {
-            case 0x23: return BP3Global_v0<2,3>(NE,B,coG,op,x,y);
-            case 0x34: return BP3Global_v0<3,4>(NE,B,coG,op,x,y);
-            case 0x45: return BP3Global_v0<4,5>(NE,B,coG,op,x,y);
-            case 0x56: return BP3Global_v0<5,6>(NE,B,coG,op,x,y);
-            case 0x67: return BP3Global_v0<6,7>(NE,B,coG,op,x,y);
-            case 0x78: return BP3Global_v0<7,8>(NE,B,coG,op,x,y);
-            case 0x89: return BP3Global_v0<8,9>(NE,B,coG,op,x,y);
-            case 0x9A: return BP3Global_v0<9,10>(NE,B,coG,op,x,y);
-            case 0xAB: return BP3Global_v0<10,11>(NE,B,coG,op,x,y);
-            case 0xBC: return BP3Global_v0<11,12>(NE,B,coG,op,x,y);
-            case 0xCD: return BP3Global_v0<12,13>(NE,B,coG,op,x,y);
-            case 0xDE: return BP3Global_v0<13,14>(NE,B,coG,op,x,y);
-            case 0xEF: return BP3Global_v0<14,15>(NE,B,coG,op,x,y);
-            case 0xF0: return BP3Global_v0<15,16>(NE,B,coG,op,x,y);  // 14
-            case 0x111: return BP3Global_v0<16,17>(NE,B,coG,op,x,y); // 15
+            case 0x23: return BP3Global_v0<2,3>(NE,B,coG,D,X,Y);
+            case 0x34: return BP3Global_v0<3,4>(NE,B,coG,D,X,Y);
+            case 0x45: return BP3Global_v0<4,5>(NE,B,coG,D,X,Y);
+            case 0x56: return BP3Global_v0<5,6>(NE,B,coG,D,X,Y);
+            case 0x67: return BP3Global_v0<6,7>(NE,B,coG,D,X,Y);
+            case 0x78: return BP3Global_v0<7,8>(NE,B,coG,D,X,Y);
+            case 0x89: return BP3Global_v0<8,9>(NE,B,coG,D,X,Y);
+            case 0x9A: return BP3Global_v0<9,10>(NE,B,coG,D,X,Y);
+            case 0xAB: return BP3Global_v0<10,11>(NE,B,coG,D,X,Y);
+            case 0xBC: return BP3Global_v0<11,12>(NE,B,coG,D,X,Y);
+            case 0xCD: return BP3Global_v0<12,13>(NE,B,coG,D,X,Y);
+            case 0xDE: return BP3Global_v0<13,14>(NE,B,coG,D,X,Y);
+            case 0xEF: return BP3Global_v0<14,15>(NE,B,coG,D,X,Y);
+            case 0xF0: return BP3Global_v0<15,16>(NE,B,coG,D,X,Y);  // 14
+            case 0x111: return BP3Global_v0<16,17>(NE,B,coG,D,X,Y); // 15
             // kernels below use too much shared memory
-            //case 0x112: return BP3Global_v0<17,18>(NE,B,coG,op,x,y);
-            default:   return BP3Global_v0(NE,B,coG,op,x,y,D1D,Q1D);
+            //case 0x112: return BP3Global_v0<17,18>(NE,B,coG,D,X,Y);
+            default:   return BP3Global_v0(NE,B,coG,D,X,Y,D1D,Q1D);
          }
       }
       else
       {
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,D,X,Y);
+         switch (DQ)
+         {
+            case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,D,X,Y);
+            case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,D,X,Y);
+            case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,D,X,Y);
+            case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,D,X,Y);
+            case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,D,X,Y);
+            case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,D,X,Y);
+            case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,D,X,Y);
             // kernels below use too much shared memory
-            //case 0x9A: return SmemPADiffusionApply3D<9,10>(NE,B,G,op,x,y);
-         default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+            //case 0x9A: return SmemPADiffusionApply3D<9,10>(NE,B,G,D,X,Y);
+            default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         }
       }
    }
    MFEM_ABORT("Unknown kernel.");
