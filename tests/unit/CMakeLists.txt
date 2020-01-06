@@ -22,6 +22,7 @@ set(UNIT_TESTS_SRCS
   general/test_mem.cpp
   general/test_text.cpp
   linalg/test_blockMatrix.cpp
+  linalg/test_complex_operator.cpp
   linalg/test_densematrix.cpp
   mesh/test_mesh.cpp
   fem/test_1d_bilininteg.cpp
