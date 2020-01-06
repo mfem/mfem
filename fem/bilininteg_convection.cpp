@@ -15,9 +15,6 @@
 
 using namespace std;
 
-const int CONV_MAX_D1D = 7;
-const int CONV_MAX_Q1D = 7;
-
 namespace mfem
 {
 
@@ -44,11 +41,10 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const int NE = ne;
    const int NQ = nq;
-
-   Vector coeff;
-   coeff.SetSize(dim*ne*nq);
    Vector e_coeff(dim);
+   coeff.SetSize(dim*ne*nq);
    auto h_C = Reshape(coeff.HostWrite(),dim,nq, ne);
+
    if ( Q == nullptr)
    {
      if(dim == 2)
@@ -108,82 +104,78 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    }//vector coefficient
 
-
    auto C = Reshape(coeff.Read(),dim,nq, ne);
 
    if(dim==2)
    {
-     auto w = ir->GetWeights().Read();
-     auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
-     auto v = Reshape(pa_data.Write(), 2, NQ, NE);
+      auto w = ir->GetWeights().Read();
+      auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+      auto v = Reshape(pa_data.Write(), 2, NQ, NE);
 
-    MFEM_FORALL(e, NE,
-    {
-      for(int q=0; q<NQ; ++q)
+      MFEM_FORALL(e, NE,
       {
-        const double J11 = J(q,0,0,e);
-        const double J21 = J(q,1,0,e);
-        const double J12 = J(q,0,1,e);
-        const double J22 = J(q,1,1,e);
+         for(int q=0; q<NQ; ++q)
+         {
+            const double J11 = J(q,0,0,e);
+            const double J21 = J(q,1,0,e);
+            const double J12 = J(q,0,1,e);
+            const double J22 = J(q,1,1,e);
 
-        const double w_coeff = w[q];
-
-        double cx = C(0,q,e);
-        double cy = C(1,q,e);
-        v(0,q,e) =    w_coeff*(cx * J22 - cy * J12);
-        v(1,q,e) =  - w_coeff*(cx * J21 - cy * J11);
-      }
-    });
-
+            const double cx = C(0,q,e);
+            const double cy = C(1,q,e);
+            const double w_coeff = w[q];
+            v(0,q,e) =    w_coeff*(cx * J22 - cy * J12);
+            v(1,q,e) =  - w_coeff*(cx * J21 - cy * J11);
+         }
+      });
    }//dim = 2
 
    if(dim==3)
    {
-     auto w = ir->GetWeights().Read();
-     auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
-     auto v = Reshape(pa_data.Write(), 3, NQ, NE);
+      auto w = ir->GetWeights().Read();
+      auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+      auto v = Reshape(pa_data.Write(), 3, NQ, NE);
 
-    MFEM_FORALL(e, NE,
-    {
-      for(int q=0; q<NQ; ++q) {
+      MFEM_FORALL(e, NE,
+      {
+         for(int q=0; q<NQ; ++q) {
 
-        const double J00 = J(q,0,0,e);
-        const double J01 = J(q,0,1,e);
-        const double J02 = J(q,0,2,e);
+            const double J00 = J(q,0,0,e);
+            const double J01 = J(q,0,1,e);
+            const double J02 = J(q,0,2,e);
 
-        const double J10 = J(q,1,0,e);
-        const double J11 = J(q,1,1,e);
-        const double J12 = J(q,1,2,e);
+            const double J10 = J(q,1,0,e);
+            const double J11 = J(q,1,1,e);
+            const double J12 = J(q,1,2,e);
 
-        const double J20 = J(q,2,0,e);
-        const double J21 = J(q,2,1,e);
-        const double J22 = J(q,2,2,e);
+            const double J20 = J(q,2,0,e);
+            const double J21 = J(q,2,1,e);
+            const double J22 = J(q,2,2,e);
 
-        const double A00 = (J11 * J22) - (J12 * J21);
-        const double A01 = (J02 * J21) - (J01 * J22);
-        const double A02 = (J01 * J12) - (J02 * J11);
+            const double A00 = (J11 * J22) - (J12 * J21);
+            const double A01 = (J02 * J21) - (J01 * J22);
+            const double A02 = (J01 * J12) - (J02 * J11);
 
-        const double A10 = (J12 * J20) - (J10 * J22);
-        const double A11 = (J00 * J22) - (J02 * J20);
-        const double A12 = (J02 * J10) - (J00 * J12);
+            const double A10 = (J12 * J20) - (J10 * J22);
+            const double A11 = (J00 * J22) - (J02 * J20);
+            const double A12 = (J02 * J10) - (J00 * J12);
 
-        const double A20 = (J10 * J21) - (J11 * J20);
-        const double A21 = (J01 * J20) - (J00 * J21);
-        const double A22 = (J00 * J11) - (J01 * J10);
+            const double A20 = (J10 * J21) - (J11 * J20);
+            const double A21 = (J01 * J20) - (J00 * J21);
+            const double A22 = (J00 * J11) - (J01 * J10);
 
-        const double w_coeff = w[q];
+            const double w_coeff = w[q];
 
-        double cx = C(0,q,e);
-        double cy = C(1,q,e);
-        double cz = C(2,q,e);
+            double cx = C(0,q,e);
+            double cy = C(1,q,e);
+            double cz = C(2,q,e);
 
-        v(0,q,e) = w_coeff*(cx*A00 + cy*A01 + cz*A02);
-        v(1,q,e) = w_coeff*(cx*A10 + cy*A11 + cz*A12);
-        v(2,q,e) = w_coeff*(cx*A20 + cy*A21 + cz*A22);
-      }
+            v(0,q,e) = w_coeff*(cx*A00 + cy*A01 + cz*A02);
+            v(1,q,e) = w_coeff*(cx*A10 + cy*A11 + cz*A12);
+            v(2,q,e) = w_coeff*(cx*A20 + cy*A21 + cz*A22);
+         }
 
-    });
-
+      });
    }//dim = 3
 }
 
@@ -203,8 +195,8 @@ void PAConvectionApply2D(const int NE,
    const int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= CONV_MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= CONV_MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
@@ -219,8 +211,8 @@ void PAConvectionApply2D(const int NE,
 
      // the following variables are evaluated at compile time
      constexpr int iDIM     = 2;
-     constexpr int max_D1D = T_D1D ? T_D1D : CONV_MAX_D1D;
-     constexpr int max_Q1D = T_Q1D ? T_Q1D : CONV_MAX_Q1D;
+     constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+     constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
      double U[iDIM][max_D1D][max_Q1D];
      for(int j1=0; j1<Q1D; ++j1) {
@@ -262,7 +254,6 @@ void PAConvectionApply2D(const int NE,
        }
      }
 
-     //Transposed contraction onward
      double Q[max_Q1D][max_D1D];
      for(int j1=0; j1<D1D; ++j1) {
        for(int i2=0; i2<Q1D; ++i2) {
@@ -275,8 +266,6 @@ void PAConvectionApply2D(const int NE,
        }
      }
 
-
-     //double R[CONV_MAX_D1D][CONV_MAX_D1D];
      for(int j1=0; j1<D1D; ++j1) {
        for(int i2=0; i2<D1D; ++i2) {
 
@@ -284,13 +273,10 @@ void PAConvectionApply2D(const int NE,
          for(int i1=0; i1<Q1D; ++i1) {
            dot += Bt(j1, i1)*Q[i1][i2];
          }
-         //R[i2][j1] = dot;
          yloc(i2,j1,e) += dot;
        }
      }
-
    });
-
 
 }
 
@@ -311,8 +297,8 @@ void PAConvectionApply3D(const int NE,
    const int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= CONV_MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= CONV_MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
 
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
@@ -323,11 +309,15 @@ void PAConvectionApply3D(const int NE,
 
    MFEM_FORALL(e, NE,
    {
+     const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+     const int Q1D = T_Q1D ? T_Q1D : q1d;
+     // the following variables are evaluated at compile time
+     constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+     constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
      //qpt x dof x dof
-     double BX[CONV_MAX_D1D][CONV_MAX_D1D][CONV_MAX_Q1D];
-     double GX[CONV_MAX_D1D][CONV_MAX_D1D][CONV_MAX_Q1D];
-
+     double BX[max_Q1D][max_Q1D][max_Q1D];
+     double GX[max_Q1D][max_Q1D][max_Q1D];
      for(int j1=0; j1<Q1D; ++j1) {
        for(int i3=0; i3<D1D; ++i3) {
          for(int i2=0; i2<D1D; ++i2) {
@@ -342,9 +332,9 @@ void PAConvectionApply3D(const int NE,
        }
      }
 
-     double BBX[CONV_MAX_D1D][CONV_MAX_Q1D][CONV_MAX_Q1D];
-     double GBX[CONV_MAX_D1D][CONV_MAX_Q1D][CONV_MAX_Q1D];
-     double BGX[CONV_MAX_D1D][CONV_MAX_Q1D][CONV_MAX_Q1D];
+     double BBX[max_D1D][max_Q1D][max_Q1D];
+     double GBX[max_D1D][max_Q1D][max_Q1D];
+     double BGX[max_D1D][max_Q1D][max_Q1D];
 
      for(int j1=0; j1<Q1D; ++j1) {
        for(int i3=0; i3<Q1D; ++i3) {
@@ -363,9 +353,9 @@ void PAConvectionApply3D(const int NE,
        }
      }
 
-     double GBBX[CONV_MAX_Q1D][CONV_MAX_Q1D][CONV_MAX_Q1D];
-     double BGBX[CONV_MAX_Q1D][CONV_MAX_Q1D][CONV_MAX_Q1D];
-     double BBGX[CONV_MAX_Q1D][CONV_MAX_Q1D][CONV_MAX_Q1D];
+     double GBBX[max_Q1D][max_Q1D][max_Q1D];
+     double BGBX[max_Q1D][max_Q1D][max_Q1D];
+     double BBGX[max_Q1D][max_Q1D][max_Q1D];
 
      for(int j1=0; j1<Q1D; ++j1) {
        for(int i3=0; i3<Q1D; ++i3) {
@@ -384,7 +374,7 @@ void PAConvectionApply3D(const int NE,
        }
      }
 
-     double Z[CONV_MAX_Q1D][CONV_MAX_Q1D][CONV_MAX_Q1D];
+     double Z[max_Q1D][max_Q1D][max_Q1D];
      for(int k3=0; k3<Q1D; ++k3) {
        for(int k2=0; k2<Q1D; ++k2) {
          for(int k1=0; k1<Q1D; ++k1) {
@@ -401,7 +391,7 @@ void PAConvectionApply3D(const int NE,
      }
 
      //Apply (B1d)^T 3 more times
-     double BZ[CONV_MAX_Q1D][CONV_MAX_Q1D][CONV_MAX_D1D];
+     double BZ[max_Q1D][max_Q1D][max_Q1D];
      for(int j1=0; j1<D1D; ++j1) {
        for(int i3=0; i3<Q1D; ++i3) {
          for(int i2=0; i2<Q1D; ++i2) {
@@ -415,7 +405,7 @@ void PAConvectionApply3D(const int NE,
        }
      }
 
-     double BBZ[CONV_MAX_Q1D][CONV_MAX_D1D][CONV_MAX_D1D];
+     double BBZ[max_Q1D][max_Q1D][max_Q1D];
      for(int j1=0; j1<D1D; ++j1) {
        for(int i3=0; i3<D1D; ++i3) {
          for(int i2=0; i2<Q1D; ++i2) {
@@ -464,11 +454,11 @@ static void PAConvectionApply(const int dim,
   {
     switch ((D1D << 4 ) | Q1D)
     {
-         case 0x22: PAConvectionApply2D<2,2>(NE, B, G, Bt, Gt, op, x, y); break;
-         case 0x33: PAConvectionApply2D<3,3>(NE, B, G, Bt, Gt, op, x, y); break;
-         case 0x44: PAConvectionApply2D<4,4>(NE, B, G, Bt, Gt, op, x, y); break;
-         case 0x55: PAConvectionApply2D<5,5>(NE, B, G, Bt, Gt, op, x, y); break;
-         default: PAConvectionApply2D(NE, B, G, Bt, Gt, op, x, y); break;
+       case 0x22: PAConvectionApply2D<2,2>(NE, B, G, Bt, Gt, op, x, y); break;
+       case 0x33: PAConvectionApply2D<3,3>(NE, B, G, Bt, Gt, op, x, y); break;
+       case 0x44: PAConvectionApply2D<4,4>(NE, B, G, Bt, Gt, op, x, y); break;
+       case 0x55: PAConvectionApply2D<5,5>(NE, B, G, Bt, Gt, op, x, y); break;
+       default: PAConvectionApply2D(NE, B, G, Bt, Gt, op, x, y); break;
     }
     return;
   }
@@ -476,11 +466,11 @@ static void PAConvectionApply(const int dim,
   {
     switch ((D1D << 4 ) | Q1D)
     {
-        case 0x23: PAConvectionApply3D<2,3>(NE, B, G, Bt, G, op, x, y); break;
-        case 0x34: PAConvectionApply3D<3,4>(NE, B, G, Bt, G, op, x, y); break;
-        case 0x45: PAConvectionApply3D<4,5>(NE, B, G, Bt, G, op, x, y); break;
-        case 0x56: PAConvectionApply3D<5,6>(NE, B, G, Bt, G, op, x, y); break;
-         default: PAConvectionApply3D(NE, B, G, Bt, G, op, x, y); break;
+       case 0x23: PAConvectionApply3D<2,3>(NE, B, G, Bt, G, op, x, y); break;
+       case 0x34: PAConvectionApply3D<3,4>(NE, B, G, Bt, G, op, x, y); break;
+       case 0x45: PAConvectionApply3D<4,5>(NE, B, G, Bt, G, op, x, y); break;
+       case 0x56: PAConvectionApply3D<5,6>(NE, B, G, Bt, G, op, x, y); break;
+       default: PAConvectionApply3D(NE, B, G, Bt, G, op, x, y); break;
     }
     return;
   }

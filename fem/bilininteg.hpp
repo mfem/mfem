@@ -1794,6 +1794,7 @@ private:
 
    // PA extension
    Vector pa_data;
+   Vector coeff;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
