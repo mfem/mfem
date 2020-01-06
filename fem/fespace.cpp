@@ -3136,26 +3136,26 @@ void QuadratureInterpolator::Mult(
       }
       else if (dim == 3)
       {
-         switch (10000*nd + nq)
+         switch (1000*nd + nq)
          {
             // Q0
-            case 10001: eval_func = &Eval3D<1,1,1>; break;
-            case 10008: eval_func = &Eval3D<1,1,8>; break;
+            case 1001: eval_func = &Eval3D<1,1,1>; break;
+            case 1008: eval_func = &Eval3D<1,1,8>; break;
             // Q1
-            case 80008: eval_func = &Eval3D<1,8,8>; break;
-            case 80027: eval_func = &Eval3D<1,8,27>; break;
+            case 8008: eval_func = &Eval3D<1,8,8>; break;
+            case 8027: eval_func = &Eval3D<1,8,27>; break;
             // Q2
-            case 270027: eval_func = &Eval3D<1,27,27>; break;
-            case 270064: eval_func = &Eval3D<1,27,64>; break;
+            case 27027: eval_func = &Eval3D<1,27,27>; break;
+            case 27064: eval_func = &Eval3D<1,27,64>; break;
             // Q3
-            case 640064: eval_func = &Eval3D<1,64,64>; break;
-            case 640125: eval_func = &Eval3D<1,64,125>; break;
-            case 640216: eval_func = &Eval3D<1,64,216>; break;
+            case 64064: eval_func = &Eval3D<1,64,64>; break;
+            case 64125: eval_func = &Eval3D<1,64,125>; break;
+            case 64216: eval_func = &Eval3D<1,64,216>; break;
             // Q4
-            case 1250125: eval_func = &Eval3D<1,125,125>; break;
-            case 1250216: eval_func = &Eval3D<1,125,216>; break;
+            case 125125: eval_func = &Eval3D<1,125,125>; break;
+            case 125216: eval_func = &Eval3D<1,125,216>; break;
          }
-         if (nq >= 10000 || !eval_func)
+         if (nq >= 1000 || !eval_func)
          {
             eval_func = &Eval3D<1>;
          }
@@ -3190,32 +3190,23 @@ void QuadratureInterpolator::Mult(
       }
       else if (dim == 3)
       {
-         //printf("\n\033[33m[Eval] nd= %d, nq= %d\033[m",nd,nq);
-         switch (10000*nd + nq)
+         switch (1000*nd + nq)
          {
             // Q1
-            case 80008: eval_func = &Eval3D<3,8,8>; break;
-            case 80027: eval_func = &Eval3D<3,8,27>; break;
-            case 81728: eval_func = &Eval3D<3,8,1728>; break;
-            case 82197: eval_func = &Eval3D<3,8,2197>; break;
-            case 82744: eval_func = &Eval3D<3,8,2744>; break;
-            case 83375: eval_func = &Eval3D<3,8,3375>; break;
-            case 84096: eval_func = &Eval3D<3,8,4096>; break;
-            case 84913: eval_func = &Eval3D<3,8,4913>; break;
-            case 85832: eval_func = &Eval3D<3,8,5832>; break;
-
+            case 8008: eval_func = &Eval3D<3,8,8>; break;
+            case 8027: eval_func = &Eval3D<3,8,27>; break;
             // Q2
-            case 270027: eval_func = &Eval3D<3,27,27>; break;
-            case 270064: eval_func = &Eval3D<3,27,64>; break;
+            case 27027: eval_func = &Eval3D<3,27,27>; break;
+            case 27064: eval_func = &Eval3D<3,27,64>; break;
             // Q3
-            case 640064: eval_func = &Eval3D<3,64,64>; break;
-            case 640125: eval_func = &Eval3D<3,64,125>; break;
-            case 640216: eval_func = &Eval3D<3,64,216>; break;
+            case 64064: eval_func = &Eval3D<3,64,64>; break;
+            case 64125: eval_func = &Eval3D<3,64,125>; break;
+            case 64216: eval_func = &Eval3D<3,64,216>; break;
             // Q4
-            case 1250125: eval_func = &Eval3D<3,125,125>; break;
-            case 1250216: eval_func = &Eval3D<3,125,216>; break;
+            case 125125: eval_func = &Eval3D<3,125,125>; break;
+            case 125216: eval_func = &Eval3D<3,125,216>; break;
          }
-         if (nq >= 10000 || !eval_func)
+         if (nq >= 1000 || !eval_func)
          {
             eval_func = &Eval3D<3>;
          }

@@ -32,7 +32,7 @@ namespace mfem
 {
 
 // Embedding a #pragma directive within the MFEM_FORALL macro is not supported.
-// The unrolling information given by this macro can still be used for JIT.
+// The unrolling information given by this macro could still be useful.
 #define MFEM_UNROLL(...)
 
 // Maximum size of dofs and quads in 1D.
@@ -51,7 +51,7 @@ const int MAX_Q1D = 16;
 // MFEM_FORALL with a 2D CUDA block
 #define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                   \
    ForallWrap<2>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__}, \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&]             (int i) {__VA_ARGS__},  \
                  X,Y,BZ)
 
@@ -78,7 +78,9 @@ void OmpWrap(const int N, HBODY &&h_body)
 #ifdef MFEM_USE_OPENMP
    #pragma omp parallel for
    for (int k = 0; k < N; k++)
-   { h_body(k); }
+   {
+      h_body(k);
+   }
 #else
    MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
 #endif
