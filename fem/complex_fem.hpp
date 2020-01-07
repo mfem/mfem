@@ -26,6 +26,9 @@
 namespace mfem
 {
 
+class ParComplexLinearForm;
+class ParSesquilinearForm;
+
 /// Class for complex-valued grid function - real + imaginary part Vector with
 /// associated FE space.
 class ComplexGridFunction : public Vector
@@ -99,6 +102,16 @@ public:
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
 
+   /** @brief Create a LinearForm on the FiniteElementSpace @a f, using the
+      same integrators as the LinearForm @a clf or @a pclf .
+
+      The pointer @a f is not owned by the newly constructed object.
+
+      The integrators in @a lf are copied as pointers and they are not owned by
+      the newly constructed LinearForm. */
+   ComplexLinearForm(FiniteElementSpace *fes, ComplexLinearForm *clf);
+   ComplexLinearForm(FiniteElementSpace *fes, ParComplexLinearForm *pclf);
+
    virtual ~ComplexLinearForm();
 
    ComplexOperator::Convention GetConvention() const { return conv; }
@@ -155,7 +168,6 @@ public:
    std::complex<double> operator()(const ComplexGridFunction &gf) const;
 };
 
-class ParSesquilinearForm; // needed by constructor
 
 /** Class for sesquilinear form
 
@@ -372,6 +384,15 @@ public:
    ParComplexLinearForm(ParFiniteElementSpace *pf,
                         ComplexOperator::Convention
                         convention = ComplexOperator::HERMITIAN);
+
+   /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a *pf, using
+      the same integrators as the ParComplexLinearForm @a *pclf.
+
+      The pointer @a pf is not owned by the newly constructed object.
+
+      The integrators in @a pclf are copied as pointers and they are not owned
+      by the newly constructed ParComplexForm. */
+   ParComplexLinearForm(ParFiniteElementSpace *pf, ParComplexLinearForm * pclf);
 
    virtual ~ParComplexLinearForm();
 
