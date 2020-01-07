@@ -128,6 +128,29 @@ ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
    lfi = new LinearForm(f, &data[f->GetVSize()]);
 }
 
+ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
+                                     ComplexLinearForm *clf)
+   : Vector(2*(f->GetVSize())),
+     conv(clf->GetConvention())
+{
+   lfr = new LinearForm(f, clf->real());
+   lfr->SetData(&data[0]);
+   lfi = new LinearForm(f, clf->imag());
+   lfi->SetData(&data[f->GetVSize()]);
+}
+
+ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
+                                     ParComplexLinearForm *cplf)
+   : Vector(2*(f->GetVSize())),
+     conv(cplf->GetConvention())
+{
+   lfr = new LinearForm(f, cplf->real());
+   lfr->SetData(&data[0]);
+   lfi = new LinearForm(f, cplf->imag());
+   lfi->SetData(&data[f->GetVSize()]);
+}
+
+
 ComplexLinearForm::~ComplexLinearForm()
 {
    delete lfr;
@@ -590,6 +613,27 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
 {
    plfr = new ParLinearForm(pfes, &data[0]);
    plfi = new ParLinearForm(pfes, &data[pfes->GetVSize()]);
+
+   HYPRE_Int * tdof_offsets_fes = pfes->GetTrueDofOffsets();
+
+   int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
+   tdof_offsets = new HYPRE_Int[n+1];
+
+   for (int i=0; i<=n; i++)
+   {
+      tdof_offsets[i] = 2 * tdof_offsets_fes[i];
+   }
+}
+
+ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
+                                           ParComplexLinearForm *cplf)
+   : Vector(2*(pfes->GetVSize())),
+     conv(cplf->GetConvention())
+{
+   plfr = new ParLinearForm(pfes, cplf->real());
+   plfr->SetData(&data[0]);
+   plfi = new ParLinearForm(pfes, cplf->imag());
+   plfi->SetData(&data[pfes->GetVSize()]);
 
    HYPRE_Int * tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
