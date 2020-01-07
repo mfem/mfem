@@ -59,13 +59,14 @@
 #ifndef MFEM_USE_SIMD
 #include "simd/auto.hpp"
 #else
-#ifdef __VSX__
+#if defined(__VSX__)
 #include "simd/vsx128.hpp"
-#endif
-#ifdef __bgq__
+#elif defined (__bgq__)
 #include "simd/qpx.hpp"
-#else
+#elif defined(__x86_64__)
 #include "simd/x86.hpp"
+#else
+#error Unknown SIMD architecture
 #endif
 #endif
 
