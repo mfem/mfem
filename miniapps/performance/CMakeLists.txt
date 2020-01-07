@@ -33,7 +33,6 @@ elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "Intel")
     "-xHost")
 elseif (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   list(APPEND PERFORMANCE_CXX_OPTIONS
-      "/O2"
       "/Ob2")
 endif()
 
