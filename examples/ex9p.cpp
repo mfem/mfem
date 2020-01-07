@@ -483,6 +483,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
   {
     K_mat->Mult(x, z);
   }
+
    z += b;
    M_solver.Mult(z, y);
 }
