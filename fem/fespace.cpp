@@ -1261,7 +1261,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
    }
 
-   SparseMatrix *R = (elem_geoms.Size() > 1)
+   SparseMatrix *R = (elem_geoms.Size() != 1)
                      ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
                      : new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
                                         localR[elem_geoms[0]].SizeI());
