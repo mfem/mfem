@@ -448,13 +448,13 @@ class ParL2FaceRestriction : public Operator
 {
 protected:
    const ParFiniteElementSpace &fes;
-   const int nf;
+   int nf;//const int nf;
    const int vdim;
    const bool byvdim;
    const int ndofs;
-   const int dof;
+   int dof;//const int dof;
    const L2FaceValues m;
-   const int nfdofs;
+   int nfdofs;//const int nfdofs;
    Array<int> indices1;
    Array<int> indices2;
 
