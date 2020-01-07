@@ -62,8 +62,13 @@
 
 // --- SIMD Traits
 #ifndef MFEM_USE_SIMD
+#ifdef _WIN32 // 64
+#define MFEM_SIMD_SIZE 8
+#define MFEM_TEMPLATE_BLOCK_SIZE 1
+#else
 #define MFEM_SIMD_SIZE 32
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
+#endif
 #else
 #ifdef __VSX__ // 128
 #define MFEM_SIMD_SIZE 16
@@ -83,9 +88,9 @@ struct AutoImplTraits
 
    static const int batch_size = 1;
 
-   static const int simd_size = 1;//simd?(MFEM_SIMD_SIZE/sizeof(complex_t)):1;
+   static const int simd_size = simd?(MFEM_SIMD_SIZE/sizeof(complex_t)):1;
 
-   static const int valign_size = 1;//simd?simd_size:1;
+   static const int valign_size = simd?simd_size:1;
 
    typedef AutoSIMD<complex_t,simd_size,valign_size> vcomplex_t;
    typedef AutoSIMD<   real_t,simd_size,valign_size> vreal_t;
