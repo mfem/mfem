@@ -111,6 +111,9 @@ Miscellaneous
 - Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
   and the new ParaViewDataCollection class.
 
+- Added test to prevent the accidental introduction of a binary file in the
+  repo.
+
 
 Version 4.0, released on May 24, 2019
 =====================================
