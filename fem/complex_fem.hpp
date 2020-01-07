@@ -26,8 +26,10 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_MPI
 class ParComplexLinearForm;
 class ParSesquilinearForm;
+#endif // MFEM_USE_MPI
 
 /// Class for complex-valued grid function - real + imaginary part Vector with
 /// associated FE space.
@@ -110,7 +112,9 @@ public:
       The integrators in @a lf are copied as pointers and they are not owned by
       the newly constructed LinearForm. */
    ComplexLinearForm(FiniteElementSpace *fes, ComplexLinearForm *clf);
+#ifdef MFEM_USE_MPI
    ComplexLinearForm(FiniteElementSpace *fes, ParComplexLinearForm *pclf);
+#endif // MFEM_USE_MPI
 
    virtual ~ComplexLinearForm();
 
@@ -204,7 +208,9 @@ public:
        The integrators in @a bf are copied as pointers and they are not owned by
        the newly constructed BilinearForm. */
    SesquilinearForm(FiniteElementSpace *fes, SesquilinearForm *bf);
+#ifdef MFEM_USE_MPI
    SesquilinearForm(FiniteElementSpace *fes, ParSesquilinearForm *bf);
+#endif // MFEM_USE_MPI
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
