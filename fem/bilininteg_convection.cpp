@@ -597,8 +597,15 @@ void SmemPAConvectionApply3D(const int ne,
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_DQ = (max_Q1D > max_D1D) ? max_Q1D : max_D1D;
+      MFEM_SHARED double sm0[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED double sm1[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED double sm2[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED double sm3[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED double sm4[max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED double sm5[max_DQ*max_DQ*max_DQ];
 
-      MFEM_SHARED double u[max_D1D][max_D1D][max_D1D];
+      double (*u)[max_D1D][max_D1D] = (double (*)[max_D1D][max_D1D]) sm0;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -610,77 +617,85 @@ void SmemPAConvectionApply3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double Bu[max_D1D][max_D1D][max_Q1D];
-      MFEM_SHARED double Gu[max_D1D][max_D1D][max_Q1D];
+      double (*Bu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm1;
+      double (*Gu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm2;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               Bu[dz][dy][qx] = 0.0;
-               Gu[dz][dy][qx] = 0.0;
+               double Bu_ = 0.0;
+               double Gu_ = 0.0;
                for (int dx = 0; dx < D1D; ++dx)
                {
                   const double bx  = B(qx,dx);
                   const double gx  = G(qx,dx);
                   const double x = u[dz][dy][dx];
-                  Bu[dz][dy][qx] += bx * x;
-                  Gu[dz][dy][qx] += gx * x;
+                  Bu_ += bx * x;
+                  Gu_ += gx * x;
                }
+               Bu[dz][dy][qx] = Bu_;
+               Gu[dz][dy][qx] = Gu_;
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BBu[max_D1D][max_Q1D][max_Q1D];
-      MFEM_SHARED double GBu[max_D1D][max_Q1D][max_Q1D];
-      MFEM_SHARED double BGu[max_D1D][max_Q1D][max_Q1D];
+      double (*BBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm3;
+      double (*GBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm4;
+      double (*BGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm5;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               BBu[dz][qy][qx] = 0.0;
-               GBu[dz][qy][qx] = 0.0;
-               BGu[dz][qy][qx] = 0.0;
+               double BBu_ = 0.0;
+               double GBu_ = 0.0;
+               double BGu_ = 0.0;
                for (int dy = 0; dy < D1D; ++dy)
                {
                   const double bx  = B(qy,dy);
                   const double gx  = G(qy,dy);
-                  BBu[dz][qy][qx] += bx * Bu[dz][dy][qx];
-                  GBu[dz][qy][qx] += gx * Bu[dz][dy][qx];
-                  BGu[dz][qy][qx] += bx * Gu[dz][dy][qx];
+                  BBu_ += bx * Bu[dz][dy][qx];
+                  GBu_ += gx * Bu[dz][dy][qx];
+                  BGu_ += bx * Gu[dz][dy][qx];
                }
+               BBu[dz][qy][qx] = BBu_;
+               GBu[dz][qy][qx] = GBu_;
+               BGu[dz][qy][qx] = BGu_;
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double GBBu[max_Q1D][max_Q1D][max_Q1D];
-      MFEM_SHARED double BGBu[max_Q1D][max_Q1D][max_Q1D];
-      MFEM_SHARED double BBGu[max_Q1D][max_Q1D][max_Q1D];
+      double (*GBBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm0;
+      double (*BGBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm1;
+      double (*BBGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm2;
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
             MFEM_FOREACH_THREAD(qz,z,Q1D)
             {
-               GBBu[qz][qy][qx] = 0.0;
-               BGBu[qz][qy][qx] = 0.0;
-               BBGu[qz][qy][qx] = 0.0;
+               double GBBu_ = 0.0;
+               double BGBu_ = 0.0;
+               double BBGu_ = 0.0;
                for (int dz = 0; dz < D1D; ++dz)
                {
                   const double bx  = B(qz,dz);
                   const double gx  = G(qz,dz);
-                  GBBu[qz][qy][qx] += gx * BBu[dz][qy][qx];
-                  BGBu[qz][qy][qx] += bx * GBu[dz][qy][qx];
-                  BBGu[qz][qy][qx] += bx * BGu[dz][qy][qx];
+                  GBBu_ += gx * BBu[dz][qy][qx];
+                  BGBu_ += bx * GBu[dz][qy][qx];
+                  BBGu_ += bx * BGu[dz][qy][qx];
                }
+               GBBu[qz][qy][qx] = GBBu_;
+               BGBu[qz][qy][qx] = BGBu_;
+               BBGu[qz][qy][qx] = BBGu_;
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double DGu[max_Q1D][max_Q1D][max_Q1D];
+      double (*DGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm3;
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -700,54 +715,55 @@ void SmemPAConvectionApply3D(const int ne,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BDGu[max_D1D][max_Q1D][max_Q1D];
+      double (*BDGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm4;
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
             MFEM_FOREACH_THREAD(dz,z,D1D)
             {
-               BDGu[dz][qy][qx] = 0.0;
+               double BDGu_ = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   const double w  = Bt(dz,qz);
-                  BDGu[dz][qy][qx] += w * DGu[qz][qy][qx];
+                  BDGu_ += w * DGu[qz][qy][qx];
                }
+               BDGu[dz][qy][qx] = BDGu_;
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BBDGu[max_D1D][max_D1D][max_Q1D];
+      double (*BBDGu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm5;
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-               BBDGu[dz][dy][qx] = 0.0;
+               double BBDGu_ = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const double w  = Bt(dy,qy);
-                  BBDGu[dz][dy][qx] += w * BDGu[dz][qy][qx];
+                  BBDGu_ += w * BDGu[dz][qy][qx];
                }
+               BBDGu[dz][dy][qx] = BBDGu_;
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BBBDGu[max_D1D][max_D1D][max_D1D];
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               BBBDGu[dz][dy][dx] = 0.0;
+               double BBBDGu = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double w  = Bt(dx,qx);
-                  BBBDGu[dz][dy][dx] += w * BBDGu[dz][dy][qx];
+                  BBBDGu += w * BBDGu[dz][dy][qx];
                }
-               y(dx,dy,dz,e) += BBBDGu[dz][dy][dx];
+               y(dx,dy,dz,e) = BBBDGu;
             }
          }
       }
