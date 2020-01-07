@@ -40,9 +40,9 @@ before_build:
 - cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_serial -DMFEM_USE_MPI=FALSE
 
 build_script:
-- cmake --build build_parallel --config Release -j 4
-- cmake --build build_serial --config Release -j 4
-- cmake --build build_serial --target exec --config Release -j 4
+- cmake --build build_parallel --config Release
+- cmake --build build_serial --config Release
+- cmake --build build_serial --target exec --config Release
 
 after_build:
 # - cmake --build build_parallel --target check

@@ -22,6 +22,9 @@
 
 #ifdef _WIN32
 #define posix_memalign(p,a,s) (((*(p))=_aligned_malloc((s),(a))),*(p)?0:errno)
+#define posix_memalign_free _aligned_free
+#else
+#define posix_memalign_free free
 #endif
 
 namespace mfem
@@ -126,7 +129,7 @@ public:
 
    virtual ~TBilinearForm()
    {
-      free(assembled_data);
+      posix_memalign_free(assembled_data);
    }
 
    /// Get the input finite element space prolongation matrix

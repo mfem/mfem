@@ -637,6 +637,7 @@ status info:
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
+	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_TPLFLAGS          = $(value MFEM_TPLFLAGS))
 	$(info MFEM_INCFLAGS          = $(value MFEM_INCFLAGS))
 	$(info MFEM_FLAGS             = $(value MFEM_FLAGS))
@@ -654,7 +655,6 @@ status info:
 	$(info MFEM_MPIEXEC           = $(MFEM_MPIEXEC))
 	$(info MFEM_MPIEXEC_NP        = $(MFEM_MPIEXEC_NP))
 	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
-	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
