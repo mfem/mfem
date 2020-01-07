@@ -2554,7 +2554,11 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    ParNCMesh* pncmesh = pmesh->pncmesh;
 
-   int ldof[Geometry::NumGeom] = { 0 };
+   int ldof[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   {
+      ldof[i] = 0;
+   }
    for (int i = 0; i < elem_geoms.Size(); i++)
    {
       Geometry::Type geom = elem_geoms[i];
