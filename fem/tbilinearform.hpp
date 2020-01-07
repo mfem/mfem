@@ -20,13 +20,6 @@
 #include "tcoefficient.hpp"
 #include "fespace.hpp"
 
-#ifdef _WIN32
-#define posix_memalign(p,a,s) (((*(p))=_aligned_malloc((s),(a))),*(p)?0:errno)
-#define posix_memalign_free _aligned_free
-#else
-#define posix_memalign_free free
-#endif
-
 namespace mfem
 {
 
@@ -60,10 +53,9 @@ protected:
    static const int dofs = solFE_type::dofs;
    static const int vdim = solVecLayout_t::vec_dim;
    static const int qpts = IR::qpts;
-
-   static const int SS = impl_traits_t::simd_size;
-   static const int BE = impl_traits_t::batch_size; // batch-size of elements
-   static const int TE = SS*BE;
+   static const int SS   = impl_traits_t::simd_size;
+   static const int BE   = impl_traits_t::batch_size;
+   static const int TE   = SS*BE;
 
    typedef typename impl_traits_t::vcomplex_t vcomplex_t;
    typedef typename impl_traits_t::vreal_t    vreal_t;
@@ -129,7 +121,7 @@ public:
 
    virtual ~TBilinearForm()
    {
-      posix_memalign_free(assembled_data);
+      MFEM_POSIX_MEMALIGN_FREE(assembled_data);
    }
 
    /// Get the input finite element space prolongation matrix
@@ -205,7 +197,7 @@ public:
       {
          void* result;
          const int size = ((NE+TE-1)/TE)*BE*sizeof(p_assembled_t);
-         posix_memalign(&result, 32, size);
+         MFEM_POSIX_MEMALIGN(&result, 32, size);
          if (!result) { throw ::std::bad_alloc(); }
          assembled_data = (p_assembled_t*) result;
       }
@@ -283,7 +275,7 @@ public:
 
       const int NE = mesh.GetNE();
       // TODO: How do we make sure that this array is aligned properly, AND
-      //       the compiler knows that it is aligned?
+      //       the compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
       const int NVE = (NE+TE-1)/TE;
       vreal_t *vsNodes = new vreal_t[lnodes_t::size*NVE];
       sNodes.NewDataAndSize(vsNodes[0].vec, (lnodes_t::size*SS)*NVE);
@@ -308,7 +300,7 @@ public:
       if (!assembled_data)
       {
          // TODO: How do we make sure that this array is aligned properly, AND
-         //       the compiler knows that it is aligned?
+         //       the compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
          assembled_data = new p_assembled_t[((NE+TE-1)/TE)*BE];
       }
       const vreal_t *vsNodes = (const vreal_t*)(sNodes.GetData());
@@ -337,7 +329,7 @@ public:
 
       const int NE = mesh.GetNE();
       // TODO: How do we make sure that this array is aligned properly, AND
-      //       the compiler knows that it is aligned?
+      //       the compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
       const int NVE = (NE+TE-1)/TE;
       vreal_t *vsx = new vreal_t[vdof_data_t::size*NVE];
       sx.NewDataAndSize(vsx[0].vec, (vdof_data_t::size*SS)*NVE);
@@ -357,10 +349,7 @@ public:
       solFieldEval solFEval(solFES, solEval, solVecLayout, NULL, NULL);
 
       const int NE = mesh.GetNE();
-      // TODO: How do we make sure that the compiler knows that this array is
-      //       aligned?
       const vreal_t *vsx = (const vreal_t*)(sx.GetData());
-      // TODO: Check if the pointer is aligned properly.
       vreal_t *vsy = (vreal_t*)(sy.GetData());
 
       for (int el = 0; el < NE; el += TE)
