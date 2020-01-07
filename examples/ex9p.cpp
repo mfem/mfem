@@ -54,7 +54,7 @@ Vector bb_min, bb_max;
 
 // Fem discrization
 // (continous or discontinous galerkin)
-enum fem_disc {CG_FE, DG_FE};
+enum fem_disc {DG_FE, CG_FE};
 
 /** A time-dependent operator for the right-hand side of the ODE. The weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -70,13 +70,12 @@ private:
    HypreParVector *B_vec;
    HypreSmoother M_prec;
    CGSolver M_solver;
-   fem_disc fem_type;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(fem_disc fem_type, ParBilinearForm &_M,
-                ParBilinearForm &_K, ParLinearForm &_b);
+   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
+                ParLinearForm &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -146,7 +145,7 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption((int*) &fem_type, "-fem", "--fem_type",
-                  "choose fem discretization (CG or DG).");
+                  "Choose fem discretization (CG or DG).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -223,12 +222,13 @@ int main(int argc, char *argv[])
    // 8. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
    FiniteElementCollection *fec;
-   if(fem_type == DG_FE)
+   switch (fem_type)
    {
-     fec = new DG_FECollection(order, dim);
-   }else
-   {
-     fec = new H1_FECollection(order, dim);
+      case 0: fec = new DG_FECollection(order, dim); break;
+      case 1: fec = new H1_FECollection(order, dim); break;
+      default:
+        cout << "Uknown finite element space: "<<fem_type <<'\n';
+        return 3;
    }
 
    ParFiniteElementSpace fes(pmesh, fec);
@@ -259,12 +259,27 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   m->Assemble();
-   m->Finalize();
-   int skip_zeros = 0;
-   k->Assemble(skip_zeros);
-   k->Finalize(skip_zeros);
-   b->Assemble();
+   if(pa && fem_type==DG_FE)
+   {
+     mfem_error("Partial assembly not supported for DG");
+   }
+
+   if(pa == true)
+   {
+     m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+     k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+     m->Assemble();
+     k->Assemble();
+   }
+   else
+   {
+      m->Assemble();
+      m->Finalize();
+      int skip_zeros = 0;
+      k->Assemble(skip_zeros);
+      k->Finalize(skip_zeros);
+      b->Assemble();
+   }
 
    // 10. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -355,7 +370,7 @@ int main(int argc, char *argv[])
    // 11. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(fem_type, *m, *k, *b);
+   FE_Evolution adv(*m, *k, *b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -431,9 +446,9 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(fem_disc _fem_type, ParBilinearForm &_M,
-                           ParBilinearForm &_K, ParLinearForm &_b)
-   : fem_type(_fem_type), TimeDependentOperator(_M.Height()),
+FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
+                           ParLinearForm &_b)
+   : TimeDependentOperator(_M.Height()),
      M(_M), K(_K), b(_b), M_solver(MPI_COMM_WORLD), z(_M.Height())
 {
   if(M.GetAssemblyLevel() == AssemblyLevel::FULL)
@@ -461,7 +476,13 @@ FE_Evolution::FE_Evolution(fem_disc _fem_type, ParBilinearForm &_M,
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
-   K.Mult(x, z);
+  if(K.GetAssemblyLevel() == AssemblyLevel::PARTIAL)
+  {
+    K.Mult(x, z);
+  }else
+  {
+    K_mat->Mult(x, z);
+  }
    z += b;
    M_solver.Mult(z, y);
 }
