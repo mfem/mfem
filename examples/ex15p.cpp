@@ -16,9 +16,6 @@
 //               mpirun -np 4 ex15p -m ../data/ball-nurbs.mesh -tf 0.5
 //               mpirun -np 4 ex15p -m ../data/mobius-strip.mesh
 //               mpirun -np 4 ex15p -m ../data/amr-quad.mesh
-//
-//               Conforming meshes (no load balancing and derefinement):
-//
 //               mpirun -np 4 ex15p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex15p -m ../data/escher.mesh -r 2 -tf 0.3
 //
