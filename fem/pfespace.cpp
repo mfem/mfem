@@ -599,7 +599,8 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
 
 const Operator *ParFiniteElementSpace::GetSingleValuedFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type) const
-{   // Check if we have a discontinuous space using the FE collection:
+{
+   // Check if we have a discontinuous space using the FE collection:
    const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
    if (dg_space)
    {
@@ -3425,16 +3426,30 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                                            FaceType type,
                                            L2FaceValues m)
    : fes(fes),
-     nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE()),
+     // nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
-     m(m),
-     nfdofs(nf*dof),
-     indices1(nf*dof),
-     indices2(m==L2FaceValues::Double?nf*dof:0)
+     // dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
+     m(m)//,
+     // nfdofs(nf*dof),
+     // indices1(nf*dof),
+     // indices2(m==L2FaceValues::Double?nf*dof:0)
 {
+   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
+   int e1, e2;
+   int inf1, inf2;
+   nf = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
+   }
+   dof = nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0;
+   nfdofs = nf*dof;
+   indices1.SetSize(nf*dof);
+   indices2.SetSize(m==L2FaceValues::Double?nf*dof:0);
    //if fespace == L2
    // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
@@ -3455,8 +3470,6 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    int faceMap1[dof], faceMap2[dof];
-   int e1, e2;
-   int inf1, inf2;
    int face_id1, face_id2;
    int orientation;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;

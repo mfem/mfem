@@ -951,12 +951,12 @@ class H1FaceRestriction : public Operator
 {
 protected:
    const FiniteElementSpace &fes;
-   const int nf;
+   int nf;//const int nf;
    const int vdim;
    const bool byvdim;
    const int ndofs;
-   const int dof;
-   const int nfdofs;
+   int dof;//const int dof;
+   int nfdofs;//const int nfdofs;
    Array<int> indices;
 
 public:
