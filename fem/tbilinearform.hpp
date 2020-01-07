@@ -593,7 +593,7 @@ public:
       const int NE = mesh.GetNE();
       for (int el = 0; el < NE; el++)
       {
-         TTensor3<dofs,vdim,1,AutoSIMD<complex_t,1> > x_dof, y_dof;
+         TTensor3<dofs,vdim,1,AutoSIMD<complex_t,1,1> > x_dof, y_dof;
 
          solFES.SetElement(el);
          solFES.VectorExtract(solVecLayout, x, x_dof.layout, x_dof);

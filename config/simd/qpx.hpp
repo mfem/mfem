@@ -12,12 +12,6 @@
 #ifndef MFEM_TEMPLATE_CONFIG_QPX_HPP
 #define MFEM_TEMPLATE_CONFIG_QPX_HPP
 
-#include "builtins.h"
-
-#define __ATTRS_ai __attribute__((__always_inline__))
-
-template <typename,int,int=1> struct AutoSIMD;
-
 #include "qpx64.hpp"
 
 #include "qpx256.hpp"

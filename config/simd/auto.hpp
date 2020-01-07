@@ -12,7 +12,15 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_AUTO
 #define MFEM_TEMPLATE_CONFIG_SIMD_AUTO
 
-template <typename scalar_t, int S, int align_S = 1>
+template <typename,int,int> struct AutoSIMD;
+#ifndef MFEM_ALWAYS_INLINE
+#define MFEM_ALWAYS_INLINE
+#endif
+#ifndef MFEM_VECTORIZE_LOOP
+#define MFEM_VECTORIZE_LOOP
+#endif
+
+template <typename scalar_t, int S, int align_S>
 struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
 {
    typedef scalar_t scalar_type;
@@ -22,7 +30,7 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
    scalar_t vec[size];
 
    inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i) { return vec[i]; }
-   
+
    inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const { return vec[i]; }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const AutoSIMD &v)
@@ -31,63 +39,63 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { vec[i] = v[i]; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const scalar_t &e)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] = e; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const AutoSIMD &v)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] += v[i]; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const scalar_t &e)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] += e; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const AutoSIMD &v)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] -= v[i]; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const scalar_t &e)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] -= e; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const AutoSIMD &v)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] *= v[i]; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const scalar_t &e)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] *= e; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const AutoSIMD &v)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] /= v[i]; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const scalar_t &e)
    {
       MFEM_VECTORIZE_LOOP
@@ -110,7 +118,7 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { r[i] = vec[i] + v[i]; }
       return r;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const scalar_t &e) const
    {
       AutoSIMD r;
@@ -118,7 +126,7 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { r[i] = vec[i] + e; }
       return r;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const AutoSIMD &v) const
    {
       AutoSIMD r;
@@ -126,7 +134,7 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { r[i] = vec[i] - v[i]; }
       return r;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const scalar_t &e) const
    {
       AutoSIMD r;
@@ -134,7 +142,7 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { r[i] = vec[i] - e; }
       return r;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const AutoSIMD &v) const
    {
       AutoSIMD r;
@@ -142,7 +150,7 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { r[i] = vec[i] * v[i]; }
       return r;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const scalar_t &e) const
    {
       AutoSIMD r;
@@ -150,7 +158,7 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { r[i] = vec[i] * e; }
       return r;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const AutoSIMD &v) const
    {
       AutoSIMD r;
@@ -158,7 +166,7 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { r[i] = vec[i] / v[i]; }
       return r;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const scalar_t &e) const
    {
       AutoSIMD r;
@@ -173,14 +181,14 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { vec[i] += v[i] * w[i]; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const AutoSIMD &v, const scalar_t &e)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] += v[i] * e; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const scalar_t &e, const AutoSIMD &v)
    {
       MFEM_VECTORIZE_LOOP
@@ -194,14 +202,14 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
       for (int i = 0; i < size; i++) { vec[i] = v[i] * w[i]; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const AutoSIMD &v, const scalar_t &e)
    {
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] = v[i] * e; }
       return *this;
    }
-   
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const scalar_t &e, const AutoSIMD &v)
    {
       MFEM_VECTORIZE_LOOP
