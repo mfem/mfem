@@ -323,6 +323,7 @@ will allow us to reach you directly with project announcements.
   builds at the end of the PR. These should run clean, so address any errors as
   soon as possible.
 
+- If triggered, track the status of LLNL Gitlab tests. If failing, ask an _LLNL contributor_ for details.
 
 ### Pull Request Checklist
 
@@ -473,6 +474,8 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 
 ## LLNL Workflow
 
+### Mirroring on BitBucket
+
 - The GitHub `master` and `next` branches are mirrored to the LLNL institutional
   Bitbucket repository as `gh-master` and `gh-next`.
 
@@ -489,6 +492,14 @@ MFEM uses a `master`/`next`-branch workflow as described below:
      it to build your code between releases.
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
+
+### Mirroring on GitLab
+
+- MFEM repository is also mirrored on the LLNL Gitlab instance, in a semi-automated manner.
+
+- This instance is meant to complete CI testing with tests on Livermore Computing systems. Gitlab pipeline status is reported in the corresponding GitHub pull request.
+
+- No change can be made on this instance.
 
 ## Automated Testing
 
@@ -516,11 +527,13 @@ CMake is used to generate the MSVC Project files and drive the build.  A release
 and debug build is performed with a simple run of `ex1` to verify the executable.
 
 ### Tests at LLNL
-At LLNL, we mirror the `master` and `next` branches internally (to `gh-master`
+
+- We mirror the `master` and `next` branches internally (to `gh-master`
 and `gh-next`) and run longer nightly tests via cron. On the weekends, a more
 extensive test is run which extracts and executes all the different sample runs
 from each example.
 
+- We also mirror PRs on LLNL Gitlab instance. PR mirroring can only be triggered by _LLNL contributors_, but test status is publicly available. Only _LLNL contributors_ can access the detailed test report.
 
 ## Contact Information
 
