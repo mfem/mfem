@@ -139,18 +139,6 @@ ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
    lfi->SetData(&data[f->GetVSize()]);
 }
 
-ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
-                                     ParComplexLinearForm *cplf)
-   : Vector(2*(f->GetVSize())),
-     conv(cplf->GetConvention())
-{
-   lfr = new LinearForm(f, &cplf->real());
-   lfr->SetData(&data[0]);
-   lfi = new LinearForm(f, &cplf->imag());
-   lfi->SetData(&data[f->GetVSize()]);
-}
-
-
 ComplexLinearForm::~ComplexLinearForm()
 {
    delete lfr;
@@ -253,14 +241,6 @@ SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
      blfr(new BilinearForm(f,&bf->real())),
      blfi(new BilinearForm(f,&bf->imag()))
 {}
-
-SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
-                                   ParSesquilinearForm *pbf)
-   : conv(pbf->GetConvention()),
-     blfr(new BilinearForm(f,&pbf->real())),
-     blfi(new BilinearForm(f,&pbf->imag()))
-{}
-
 
 SesquilinearForm::~SesquilinearForm()
 {
@@ -1035,6 +1015,23 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
    if ( pblfi ) { pblfi->Update(nfes); }
 }
 
+ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
+                                     ParComplexLinearForm *cplf)
+   : Vector(2*(f->GetVSize())),
+     conv(cplf->GetConvention())
+{
+   lfr = new LinearForm(f, &cplf->real());
+   lfr->SetData(&data[0]);
+   lfi = new LinearForm(f, &cplf->imag());
+   lfi->SetData(&data[f->GetVSize()]);
+}
+
+SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
+                                   ParSesquilinearForm *pbf)
+   : conv(pbf->GetConvention()),
+     blfr(new BilinearForm(f,&pbf->real())),
+     blfi(new BilinearForm(f,&pbf->imag()))
+{}
 
 #endif // MFEM_USE_MPI
 
