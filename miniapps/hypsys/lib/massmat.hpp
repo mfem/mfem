@@ -26,7 +26,7 @@ class InverseMassMatrixDG : public Operator
 
 public:
    InverseMassMatrixDG(const MassMatrixDG *mass_);
-   ~InverseMassMatrixDG() {};
+   ~InverseMassMatrixDG() { };
    virtual void Mult(const Vector &x, Vector &y) const;
 };
 

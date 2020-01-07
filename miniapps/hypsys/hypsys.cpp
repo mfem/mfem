@@ -1,46 +1,54 @@
 #include <fstream>
 #include <iostream>
 #include "lib/hypsys.hpp"
+#include "lib/dofs.hpp"
 #include "apps/advection.hpp"
 // #include "apps/swe.hpp"
+#include "evolve.cpp"
 
-int dim;
+using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   int ProblemNum = 0;
-   int ConfigNum = 0;
+	Configuration config;
+	
+   config.ProblemNum = 0;
+   config.ConfigNum = 0;
    const char *MeshFile = "data/inline-quad.mesh";
    int refinements = 2;
-   int order = 3;
-   double tEnd = 1.;
-   double dt = 0.002;
-   int odeSolverType = 3;
-   int VisSteps = 100;
+   config.order = 3;
+   config.tEnd = 1.;
+   config.dt = 0.002;
+   config.odeSolverType = 3;
+   config.VisSteps = 100;
+	config.scheme = Standard;
 
    int precision = 8;
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ProblemNum, "-p", "--problem",
+   args.AddOption(&config.ProblemNum, "-p", "--problem",
                   "Hyperbolic system of equations to solve.");
-   args.AddOption(&ConfigNum, "-c", "--configuration",
+   args.AddOption(&config.ConfigNum, "-c", "--configuration",
                   "Problem setup to use.");
    args.AddOption(&MeshFile, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&refinements, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&order, "-o", "--order",
+   args.AddOption(&config.order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&tEnd, "-tf", "--t-final",
+   args.AddOption(&config.tEnd, "-tf", "--t-final",
                   "Final time; start time is 0.");
-   args.AddOption(&dt, "-dt", "--time-step",
+   args.AddOption(&config.dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&odeSolverType, "-s", "--ode-solver",
+   args.AddOption(&config.odeSolverType, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP.");
-   args.AddOption(&VisSteps, "-vs", "--visualization-steps",
+   args.AddOption(&config.VisSteps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+	args.AddOption((int*)(&config.scheme), "-e", "--EvolutionScheme",
+                  "Scheme: 0 - Standard Finite Element Approximation,\n\t"
+                  "        1 - Monolithic Convex Limiting.");
 
    args.Parse();
    if (!args.Good())
@@ -48,20 +56,21 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return -1;
    }
+   args.PrintOptions(cout);
    
    ODESolver *odeSolver = NULL;
-   switch (odeSolverType)
+   switch (config.odeSolverType)
    {
       case 1: odeSolver = new ForwardEulerSolver; break;
       case 2: odeSolver = new RK2Solver(1.0); break;
       case 3: odeSolver = new RK3SSPSolver; break;
       default:
-         cout << "Unknown ODE solver type: " << odeSolverType << '\n';
+         cout << "Unknown ODE solver type: " << config.odeSolverType << '\n';
          return -1;
    }
 
    Mesh mesh(MeshFile, 1, 1);
-   dim = mesh.Dimension();
+   int dim = mesh.Dimension();
 
    for (int lev = 0; lev < refinements; lev++)
    {
@@ -69,27 +78,26 @@ int main(int argc, char *argv[])
    }
    if (mesh.NURBSext)
    {
-      mesh.SetCurvature(max(order, 1));
+      mesh.SetCurvature(max(config.order, 1));
    }
    
-   Vector bbMin, bbMax;
-   mesh.GetBoundingBox(bbMin, bbMax, max(order, 1));
+   mesh.GetBoundingBox(config.bbMin, config.bbMax, max(config.order, 1));
    
    // Create Bernstein Finite Element Space.
    const int btype = BasisType::Positive;
-   DG_FECollection fec(order, dim, btype);
+   DG_FECollection fec(config.order, dim, btype);
    FiniteElementSpace fes(&mesh, &fec);
 	cout << "Number of unknowns: " << fes.GetVSize() << endl;
-	return 0;
-	HyperbolicSystem *hyp = NULL;
-	switch (ProblemNum)
+	
+	HyperbolicSystem *hyp;
+	switch (config.ProblemNum)
 	{
-		case 0: { hyp =  new Advection(&fes, ConfigNum, tEnd, bbMin, bbMax); break; }
+		case 0: { hyp =  new Advection(&fes, config); break; }
 		default:
-			cout << "Unknown Hyperbolic system: " << ProblemNum << '\n';
+			cout << "Unknown Hyperbolic system: " << config.ProblemNum << '\n';
          return -1;
    }
-	
+
 	GridFunction u(&fes);
 	hyp->PreprocessProblem(&fes, u);
 	
@@ -133,13 +141,13 @@ int main(int argc, char *argv[])
 	bool done = false;
    for (int ti = 0; !done; )
    {
-      double dtReal = min(dt, tEnd - hyp->t);
-      odeSolver->Step(u, hyp->t, dtReal);
+      double dt = min(config.dt, config.tEnd - hyp->t);
+      odeSolver->Step(u, hyp->t, dt);
       ti++;
 
-      done = (hyp->t >= tEnd - 1.e-8*dt);
+      done = (hyp->t >= config.tEnd - 1.e-8*config.dt);
 
-      if (done || ti % VisSteps == 0)
+      if (done || ti % config.VisSteps == 0)
       {
          cout << "time step: " << ti << ", time: " << hyp->t << endl;
          if (visualization)
@@ -160,8 +168,47 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-// void HyperbolicSystem::Mult(const Vector &x, Vector &y) const
-// {
-// 	
-// }
+const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes)
+{
+	const FiniteElement *el = fes->GetFE(0);
+	ElementTransformation *eltrans = fes->GetElementTransformation(0);
+	int order = eltrans->OrderGrad(el) + eltrans->Order() + el->GetOrder();
+   return &IntRules.Get(el->GetGeomType(), order);
+}
+
+void HyperbolicSystem::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
+{
+	// Mesh *mesh = fes->GetMesh();
+	// ObtainQuadratureRule
+}
+
+void HyperbolicSystem::EvaluateSolution(const Vector &u, Vector &v,
+													 const int QuadNum) const
+{
+	int nd = ShapeEval.Height();
+	Vector shape(nd);// TODO optimize.
+	ShapeEval.GetColumn(QuadNum, shape);
+	v(0) = u * shape; // TODO Vector valued soultion.
+}
+
+void HyperbolicSystem::Mult(const Vector &x, Vector &y) const
+{
+	switch (scheme)
+	{
+		case 0: // Standard Finite Element Approximation.
+		{
+			EvolveStandard(x, y);
+			break;
+		}
+		case 1: // Monolithic Convex Limiting.
+		{
+			EvolveMCL(x, y);
+			break;
+		}
+		default:
+		{
+			MFEM_ABORT("Unknown Evolution Scheme.");
+		}
+	}
+}
 

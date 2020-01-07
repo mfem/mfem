@@ -1,28 +1,68 @@
 #include "advection.hpp"
 
 int ConfigNum;
+int dim; // TODO put at better spot
 Vector bbMin, bbMax;
 
 void Velocity(const Vector &x, Vector &v);
 double InitialCondition(const Vector &x);
 double Inflow(const Vector &x);
 
-Advection::Advection(FiniteElementSpace *fes_, const int config, const double tEnd,
-							const Vector &bbmin, const Vector &bbmax)
-   : HyperbolicSystem(), tFinal(tEnd), fes(fes_)
+Advection::Advection(FiniteElementSpace *fes_, Configuration &config)
+   : HyperbolicSystem(fes_, config), fes(fes_)
 {
-   ConfigNum = config;
-   bbMin = bbmin;
-   bbMax = bbmax;
+   ConfigNum = config.ConfigNum;
+   dim = fes->GetMesh()->Dimension();
+	bbMin = config.bbMin;
+   bbMax = config.bbMax;
+}
+
+void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f) const
+{
+	MFEM_ABORT("For Advection this routine must not be called.");
 }
 
 void Advection::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
 {
-   Mesh *mesh = fes->GetMesh();
+	Mesh *mesh = fes->GetMesh();
+	const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes);
+	const int ne = fes->GetNE();
+	const int nd = fes->GetFE(0)->GetDof();
+	const int nq = IntRuleElem->GetNPoints();
+	
+	DenseMatrix adjJ(dim);
+	DenseMatrix dshape(nd,dim);
+	Vector vec1, vec2(dim);
+	
+	VectorFunctionCoefficient velocity(fes->GetMesh()->Dimension(), Velocity);
+	ElemInt.SetSize(dim, nq, ne);
+	// BdrInt.SetSize(nd, nq, ne);
+	DenseMatrix VelEval, mat(dim, nq);
+	
+	for (int e = 0; e < ne; e++)
+	{
+		const FiniteElement *el = fes->GetFE(e);
+		ElementTransformation *eltrans = fes->GetElementTransformation(e);
+		velocity.Eval(VelEval, *eltrans, *IntRuleElem);
+		
+		for (int k = 0; k < IntRuleElem->GetNPoints(); k++)
+		{
+			const IntegrationPoint &ip = IntRuleElem->IntPoint(k);
+			el->CalcDShape(ip, dshape);
+			CalcAdjugate(eltrans->Jacobian(), adjJ);
+			VelEval.GetColumnReference(k, vec1);
+			vec1 *= ip.weight;
+			adjJ.Mult(vec1, vec2);
+			mat.SetCol(k, vec2);
+		}
+		
+		ElemInt(e) = mat;
+	}
+
+	//////////////////////////////////////////////////////
 
    // Model parameters.
    FunctionCoefficient u0(InitialCondition);
-   VectorFunctionCoefficient velocity(mesh->Dimension(), Velocity);
    FunctionCoefficient inflow(Inflow);
 
    // Convective matrix.
@@ -79,7 +119,6 @@ void Velocity(const Vector &x, Vector &v)
    double scale = 1.;
 
    // Map to the reference [-1,1] domain.
-   int dim = x.Size();
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
@@ -119,7 +158,6 @@ void Velocity(const Vector &x, Vector &v)
 double InitialCondition(const Vector &x)
 {
    // Map to the reference [-1,1] domain.
-   int dim = x.Size();
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {

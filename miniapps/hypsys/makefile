@@ -24,7 +24,7 @@ LIB_DIR = lib
 
 DIRS = $(LIB_DIR) $(APP_DIR)
 
-OBJ_FILES = $(BLD_DIR)/massmat.o
+OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o
 APP_FILES = $(BLD_DIR)/advection.app
 
 SERIAL = hypsys

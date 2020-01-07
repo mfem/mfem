@@ -6,9 +6,6 @@
 class Advection : public HyperbolicSystem
 {
 public:
-   double t0 = 0.;
-// 	double t;
-   double tFinal;
    bool SolutionKnown = true;
    bool WriteErrors = false;
 
@@ -16,10 +13,10 @@ public:
    SparseMatrix K;
    Vector b;
 
-   explicit Advection(FiniteElementSpace *fes_, const int config, const double tEnd,
-							 const Vector &bbmin, const Vector &bbmax);
+   explicit Advection(FiniteElementSpace *fes_, Configuration &config_);
    ~Advection() { };
 
+	virtual void EvaluateFlux(const Vector &u, DenseMatrix &f) const;
    virtual void PreprocessProblem(FiniteElementSpace *fes, GridFunction &u);
 };
 
