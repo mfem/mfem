@@ -56,6 +56,8 @@ Miscellaneous
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
 
+- Added a Gitlab pipeline in order to automate PR testing on LC systems. This
+  is part of the new review policy.
 
 Version 4.0, released on May 24, 2019
 =====================================
