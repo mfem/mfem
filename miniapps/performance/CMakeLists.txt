@@ -37,6 +37,9 @@ elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "MSVC")
       "/Ob2")
 endif()
 
+message(WARNING CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID})
+message(WARNING PERFORMANCE_CXX_OPTIONS=${PERFORMANCE_CXX_OPTIONS})
+
 add_mfem_miniapp(performance_ex1
   MAIN ex1.cpp
   LIBRARIES mfem
