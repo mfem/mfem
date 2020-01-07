@@ -55,7 +55,7 @@ Vector bb_min, bb_max;
 
 // Fem discrization
 // (continous or discontinous galerkin)
-enum fem_disc {CG_FE, DG_FE};
+enum fem_disc {DG_FE, CG_FE};
 
 /** A time-dependent operator for the right-hand side of the ODE. The weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -69,13 +69,12 @@ private:
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
-   fem_disc fem_type;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(fem_disc fem_type, BilinearForm &_M,
-                BilinearForm &_K, const Vector &_b);
+   FE_Evolution(BilinearForm &_M, BilinearForm &_K,
+                const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -136,7 +135,7 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption((int*) &fem_type, "-fem", "--fem_type",
-                  "choose fem discretization (CG or DG).");
+                  "Choose fem discretization (CG or DG).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -192,12 +191,13 @@ int main(int argc, char *argv[])
    //    finite element space of the given
    //    polynomial order on the refined mesh.
    FiniteElementCollection *fec;
-   if(fem_type == DG_FE)
+   switch (fem_type)
    {
-     fec = new DG_FECollection(order, dim);
-   }else
-   {
-     fec = new H1_FECollection(order, dim);
+      case 0: fec = new DG_FECollection(order, dim); break;
+      case 1: fec = new H1_FECollection(order, dim); break;
+      default:
+        cout << "Uknown finite element space: "<<fem_type <<'\n';
+        return 3;
    }
 
    FiniteElementSpace fes(&mesh, fec);
@@ -225,6 +225,11 @@ int main(int argc, char *argv[])
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
       k.AddBdrFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   }
+
+   if(pa && fem_type == DG_FE)
+   {
+     mfem_error("Partial assembly not supported for DG");
    }
 
    if(pa == true)
@@ -320,7 +325,7 @@ int main(int argc, char *argv[])
    // 9. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(fem_type, m, k, b);
+   FE_Evolution adv(m, k, b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -379,9 +384,9 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(fem_disc _fem_type, BilinearForm &_M,
-                           BilinearForm &_K, const Vector &_b)
-   : fem_type(_fem_type), TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
+FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K,
+                           const Vector &_b)
+   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
 {
    // Preconditioner supported under full assembly
    if(M.GetAssemblyLevel() == AssemblyLevel::FULL)
