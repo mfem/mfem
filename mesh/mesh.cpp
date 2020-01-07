@@ -7292,6 +7292,16 @@ void Mesh::UniformRefinement(int ref_algo)
       }
       GeneralRefinement(elem_to_refine, 1);
    }
+   else if (ref_algo == 1 && meshgen == 1)
+   {
+      // algorithm "B" for an all-tet mesh
+      Array<int> elem_to_refine(GetNE());
+      for (int i = 0; i < elem_to_refine.Size(); i++)
+      {
+         elem_to_refine[i] = i;
+      }
+      LocalRefinement(elem_to_refine);
+   }
    else
    {
       switch (Dim)
