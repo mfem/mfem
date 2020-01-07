@@ -12,14 +12,6 @@
 #ifndef MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
 #define MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
 
-#include "x86intrin.h"
-
-template <typename,int,int=1> struct AutoSIMD;
-
-// We have to keep all of the folowing because AutoSIMD is chosen
-// depending on the definition of MFEM_SIMD_SIZE and MFEM_TEMPLATE_BLOCK_SIZE
-// in config/tconfig.h
-
 #include "m64.hpp"
 
 #include "m128.hpp"

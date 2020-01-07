@@ -12,7 +12,11 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_M64
 #define MFEM_TEMPLATE_CONFIG_SIMD_M64
 
-// ****************************************************************************
+template <typename,int,int> struct AutoSIMD;
+#ifndef MFEM_ALWAYS_INLINE
+#define MFEM_ALWAYS_INLINE
+#endif
+
 template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
 {
    typedef scalar_t scalar_type;
@@ -22,7 +26,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
    scalar_t vec[size];
 
    inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i) { return vec[0]; }
-  
+
    inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const { return vec[0]; }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const AutoSIMD &v)
@@ -30,55 +34,55 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       vec[0] = v[0];
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const scalar_t &e)
    {
       vec[0] = e;
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const AutoSIMD &v)
    {
       vec[0] += v[0];
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const scalar_t &e)
    {
       vec[0] += e;
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const AutoSIMD &v)
    {
       vec[0] -= v[0];
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const scalar_t &e)
    {
       vec[0] -= e;
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const AutoSIMD &v)
    {
       vec[0] *= v[0];
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const scalar_t &e)
    {
       vec[0] *= e;
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const AutoSIMD &v)
    {
       vec[0] /= v[0];
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const scalar_t &e)
    {
       vec[0] /= e;
@@ -98,49 +102,49 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       r[0] = vec[0] + v[0];
       return r;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const scalar_t &e) const
    {
       AutoSIMD r;
       r[0] = vec[0] + e;
       return r;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const AutoSIMD &v) const
    {
       AutoSIMD r;
       r[0] = vec[0] - v[0];
       return r;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const scalar_t &e) const
    {
       AutoSIMD r;
       r[0] = vec[0] - e;
       return r;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const AutoSIMD &v) const
    {
       AutoSIMD r;
       r[0] = vec[0] * v[0];
       return r;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const scalar_t &e) const
    {
       AutoSIMD r;
       r[0] = vec[0] * e;
       return r;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const AutoSIMD &v) const
    {
       AutoSIMD r;
       r[0] = vec[0] / v[0];
       return r;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const scalar_t &e) const
    {
       AutoSIMD r;
@@ -153,13 +157,13 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       vec[0] += v[0] * w[0];
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const AutoSIMD &v, const scalar_t &e)
    {
       vec[0] += v[0] * e;
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const scalar_t &e, const AutoSIMD &v)
    {
       vec[0] += e * v[0];
@@ -171,13 +175,13 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       vec[0] = v[0] * w[0];
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const AutoSIMD &v, const scalar_t &e)
    {
       vec[0] = v[0] * e;
       return *this;
    }
-  
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const scalar_t &e, const AutoSIMD &v)
    {
       vec[0] = e * v[0];
@@ -185,7 +189,6 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
    }
 };
 
-// *****************************************************************************
 template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
 AutoSIMD<scalar_t,1,1> operator+(const scalar_t &e,
@@ -196,7 +199,6 @@ AutoSIMD<scalar_t,1,1> operator+(const scalar_t &e,
    return r;
 }
 
-// *****************************************************************************
 template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
 AutoSIMD<scalar_t,1,1> operator-(const scalar_t &e,
@@ -207,7 +209,6 @@ AutoSIMD<scalar_t,1,1> operator-(const scalar_t &e,
    return r;
 }
 
-// *****************************************************************************
 template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
 AutoSIMD<scalar_t,1,1> operator*(const scalar_t &e,
@@ -218,7 +219,6 @@ AutoSIMD<scalar_t,1,1> operator*(const scalar_t &e,
    return r;
 }
 
-// *****************************************************************************
 template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
 AutoSIMD<scalar_t,1,1> operator/(const scalar_t &e,
