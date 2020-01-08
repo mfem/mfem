@@ -1719,7 +1719,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       D.SetSize(dim);
 #endif
 
-      elmat.SetSize (test_dof, trial_dof);
+      elmat.SetSize (dim*test_dof, trial_dof);
 
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
@@ -1748,7 +1748,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
             {
                for (int k = 0; k < trial_dof; k++)
                {
-                  elmat(j, k) += D[d] * shape(j) * trial_vshape(k, d);
+                  elmat(d * test_dof + j, k) += 
+                     shape(j) * D[d] * trial_vshape(k, d);
                }
             }
          }
