@@ -12,12 +12,6 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_M128
 #define MFEM_TEMPLATE_CONFIG_SIMD_M128
 
-#include "x86intrin.h"
-template <typename,int,int> struct AutoSIMD;
-#ifndef MFEM_ALWAYS_INLINE
-#define MFEM_ALWAYS_INLINE
-#endif
-
 template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
 {
    typedef scalar_t scalar_type;

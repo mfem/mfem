@@ -12,6 +12,10 @@
 #ifndef MFEM_TEMPLATE_CONFIG_QPX_HPP
 #define MFEM_TEMPLATE_CONFIG_QPX_HPP
 
+#include "builtins.h"
+
+template <typename,int,int> struct AutoSIMD;
+
 #include "qpx64.hpp"
 
 #include "qpx256.hpp"

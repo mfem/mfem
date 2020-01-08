@@ -9,19 +9,15 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
-#define MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
+#ifndef MFEM_TEMPLATE_CONFIG_VSX_HPP
+#define MFEM_TEMPLATE_CONFIG_VSX_HPP
 
-#include "x86intrin.h"
+#include "altivec.h"
 
 template <typename,int,int> struct AutoSIMD;
 
-#include "m64.hpp"
+#include "vsx64.hpp"
 
-#include "m128.hpp"
+#include "vsx128.hpp"
 
-#include "m256.hpp"
-
-#include "m512.hpp"
-
-#endif // MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
+#endif // MFEM_TEMPLATE_CONFIG_VSX_HPP
