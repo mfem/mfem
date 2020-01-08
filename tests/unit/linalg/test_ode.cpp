@@ -29,15 +29,23 @@ TEST_CASE("First order ODE methods",
    class ODE : public TimeDependentOperator
    {
    protected:
-      DenseMatrix A;
+      DenseMatrix A,I,T;
+      Vector r;
    public:
       ODE(double a00,double a01,double a10,double a11) : TimeDependentOperator(2, 0.0)
       {
          A.SetSize(2,2);
+         I.SetSize(2,2);
+         T.SetSize(2,2);
+         r.SetSize(2);
+
          A(0,0) = a00;
          A(0,1) = a01;
          A(1,0) = a10;
          A(1,1) = a11;
+
+         I =  0.0;
+         I(0,0) = I(1,1) = 1.0;
       };
 
       virtual void Mult(const Vector &u, Vector &dudt)  const
@@ -48,15 +56,15 @@ TEST_CASE("First order ODE methods",
 
       virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt)
       {
-         DenseMatrix I(2,2),T(2,2);
-         I =  0.0;
-         I(0,0) = I(1,1) = 1.0;
-         Add(I,A,dt,T);
-         T.Invert();
-
-         Vector r(2);
+         // Residual
          A.Mult(u,r);
          r.Neg();
+
+         // Jacobian
+         Add(I,A,dt,T);
+
+         // Solve
+         T.Invert();
          T.Mult(r,dudt);
       }
 
@@ -76,7 +84,7 @@ TEST_CASE("First order ODE methods",
       CheckODE()
       {
          oper = new ODE(0.0, 1.0, -1.0, 0.0);
-         ti_steps = 100;
+         ti_steps = 2;
          levels   = 6;
 
          u0.SetSize(2);
@@ -88,8 +96,6 @@ TEST_CASE("First order ODE methods",
 
       double order(ODESolver* ode_solver)
       {
-         ode_solver->Init(*oper);
-
          double dt,t;
          Vector u(2);
          Vector err(levels);
@@ -98,6 +104,7 @@ TEST_CASE("First order ODE methods",
          t = 0.0;
          dt = t_final/double(steps);
          u = u0;
+         ode_solver->Init(*oper);
          for (int ti = 0; ti< steps; ti++)
          {
             ode_solver->Step(u, t, dt);
@@ -116,6 +123,7 @@ TEST_CASE("First order ODE methods",
             steps *=2;
             dt = t_final/double(steps);
             u = u0;
+            ode_solver->Init(*oper);
             for (int ti = 0; ti< steps; ti++)
             {
                ode_solver->Step(u, t, dt);
@@ -195,25 +203,27 @@ TEST_CASE("First order ODE methods",
       REQUIRE(check.order(new SDIRK34Solver) + tol > 4.0 );
    }
 
-   /*SECTION("GeneralizedAlphaSolver(0.0)")
-   {
-      std::cout <<"\nTesting GeneralizedAlphaSolver(0.0)" << std::endl;
-      REQUIRE(check.order(new GeneralizedAlphaSolver(0.0)) + tol > 2.0 );
-   }*/
-
-  /* SECTION("GeneralizedAlphaSolver(0.5)")
-   {
-      std::cout <<"\nTesting GeneralizedAlphaSolver(0.5)" << std::endl;
-      REQUIRE(check.order(new GeneralizedAlphaSolver(0.5)) + tol > 2.0 );
-   }*/
-
+   // Generalized-alpha
    SECTION("GeneralizedAlphaSolver(1.0)")
    {
       std::cout <<"\nTesting GeneralizedAlphaSolver(1.0)" << std::endl;
       REQUIRE(check.order(new GeneralizedAlphaSolver(1.0)) + tol > 2.0 );
    }
 
-   SECTION("AdamsBashforthSolver(1)")
+   SECTION("GeneralizedAlphaSolver(0.5)")
+   {
+      std::cout <<"\nTesting GeneralizedAlphaSolver(0.5)" << std::endl;
+      REQUIRE(check.order(new GeneralizedAlphaSolver(0.5)) + tol > 2.0 );
+   }
+
+   SECTION("GeneralizedAlphaSolver(0.0)")
+   {
+      std::cout <<"\nTesting GeneralizedAlphaSolver(0.0)" << std::endl;
+      REQUIRE(check.order(new GeneralizedAlphaSolver(0.0)) + tol > 2.0 );
+   }
+
+   // Adams-Bashforth
+ /*  SECTION("AdamsBashforthSolver(1)")
    {
       std::cout <<"\nTesting AdamsBashforthSolver(1)" << std::endl;
       REQUIRE(check.order(new AdamsBashforthSolver(1)) + tol > 1.0 );
@@ -241,30 +251,37 @@ TEST_CASE("First order ODE methods",
    {
       std::cout <<"\nTesting AdamsBashforthSolver(5)" << std::endl;
       REQUIRE(check.order(new AdamsBashforthSolver(5)) + tol > 5.0 );
+   }*/
+
+ /*  //AdamsMoulton
+   SECTION("AdamsMoultonSolver(0)")
+   {
+      std::cout <<"\nTesting AdamsMoultonSolver(0)" << std::endl;
+      REQUIRE(check.order(new AdamsMoultonSolver(0)) + tol > 1.0 );
    }
 
    SECTION("AdamsMoultonSolver(1)")
    {
       std::cout <<"\nTesting AdamsMoultonSolver(1)" << std::endl;
-      REQUIRE(check.order(new AdamsMoultonSolver(1)) + tol > 1.0 );
+      REQUIRE(check.order(new AdamsMoultonSolver(1)) + tol > 2.0 );
    }
 
    SECTION("AdamsMoultonSolver(2)")
    {
       std::cout <<"\nTesting AdamsMoultonSolver(2)" << std::endl;
-      REQUIRE(check.order(new AdamsMoultonSolver(2)) + tol > 2.0 );
+      REQUIRE(check.order(new AdamsMoultonSolver(2)) + tol > 3.0 );
    }
 
    SECTION("AdamsMoultonSolver(3)")
    {
       std::cout <<"\nTesting AdamsMoultonSolver(3)" << std::endl;
-      REQUIRE(check.order(new AdamsMoultonSolver(3)) + tol > 3.0 );
+      REQUIRE(check.order(new AdamsMoultonSolver(3)) + tol > 4.0 );
    }
 
    SECTION("AdamsMoultonSolver(4)")
    {
       std::cout <<"\nTesting AdamsMoultonSolver(4)" << std::endl;
-      REQUIRE(check.order(new AdamsMoultonSolver(4)) + tol > 4.0 );
-   }
+      REQUIRE(check.order(new AdamsMoultonSolver(4)) + tol > 5.0 );
+   }*/
 }
 
