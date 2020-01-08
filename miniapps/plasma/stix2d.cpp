@@ -10,21 +10,46 @@
 // Software Foundation) version 2.1 dated February 1999.
 //
 //   -----------------------------------------------------------------------
-//   Hertz Miniapp:  Simple Frequency-Domain Electromagnetic Simulation Code
+//       Stix2D Miniapp: Cold Plasma Electromagnetic Simulation Code
 //   -----------------------------------------------------------------------
 //
 //   Assumes that all sources and boundary conditions oscillate with the same
 //   frequency although not necessarily in phase with one another.  This
-//   assumptions implies that we can factor out the time dependence which we
+//   assumption implies that we can factor out the time dependence which we
 //   take to be of the form exp(i omega t).  With these assumptions we can
 //   write the Maxwell equations in the form:
 //
-//   i omega epsilon E = Curl mu^{-1} B - J - sigma E
+//   i omega epsilon E = Curl mu^{-1} B - J
 //   i omega B         = - Curl E
 //
 //   Which combine to yield:
 //
-//   Curl mu^{-1} Curl E - omega^2 epsilon E + i omega sigma E = - i omega J
+//   Curl mu^{-1} Curl E - omega^2 epsilon E = - i omega J
+//
+//   In a cold plasma the dielectric tensor, epsilon, is complex-valued and
+//   anisotropic.  The anisotropy aligns with the external magnetic field and
+//   the values depend on the properties of the plasma including the masses and
+//   charges of its constituent ion species.
+//
+//   For a magnetic field aligned with the z-axis the dielectric tensor has
+//   the form:
+//              / S  -iD 0 \
+//    epsilon = |iD   S  0 |
+//              \ 0   0  P /
+//
+//   Where:
+//      S = 1 - Sum_species omega_p^2 / (omega^2 - omega_c^2)
+//      D = Sum_species omega_p^2 omega_c / (omega^2 - omega_c^2)
+//      P = 1 - Sum_species omega_p^2 / omega^2
+//
+//   and:
+//      omega_p is the plasma frequency
+//      omega_c is the cyclotron frequency
+//      omega   is the driving frequency
+//
+//   The plasma and cyclotron frequencies depend primarily on the properties
+//   of the ion species.  We also include a complex-valued mass correction 
+//   which depends on the plasma temperature.
 //
 //   We discretize this equation with H(Curl) a.k.a Nedelec basis
 //   functions.  The curl curl operator must be handled with
@@ -48,12 +73,12 @@
 //               - i omega sqrt{epsilon/mu} (W, E)_{\Gamma}
 //
 //
-// Compile with: make hertz
+// Compile with: make stix2d
 //
 // Sample runs:
 //
 //   By default the sources and fields are all zero
-//     mpirun -np 4 hertz
+//     mpirun -np 4 stix2d
 //
 //
 // ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
