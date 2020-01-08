@@ -18,7 +18,7 @@ using namespace std;
 namespace mfem
 {
 
-using namespace extras;
+using namespace common;
 
 namespace electromagnetics
 {
