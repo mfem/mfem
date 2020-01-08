@@ -27,6 +27,14 @@ Miscellaneous
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
 
+Discretization improvements
+---------------------------
+- Added FormRectangularLinearSystem method to MixedBilinearForm. This enables
+  repeated application of essential boundary conditions to rectangular
+  operators.
+
+- The divergence and gradient operators were added with full and partial
+  assembly capabilities.
 
 Version 4.0, released on May 24, 2019
 =====================================
