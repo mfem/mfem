@@ -12,13 +12,13 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/convergeTest,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/tests/convergence,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES =  3D-H1-conv  convergence  #tensorVsSrdp #serendipityDarcy
+SEQ_EXAMPLES =  convergence
 PAR_EXAMPLES = 
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
