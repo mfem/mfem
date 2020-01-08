@@ -60,7 +60,7 @@
 #include "simd/auto.hpp"
 #else
 #if defined(__VSX__)
-#include "simd/vsx128.hpp"
+#include "simd/vsx.hpp"
 #elif defined (__bgq__)
 #include "simd/qpx.hpp"
 #elif defined(__x86_64__)
