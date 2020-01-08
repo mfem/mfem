@@ -55,7 +55,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    {
       faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceIntY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
    }
 
    bound_face_restrict_lex = trialFes->GetFaceRestriction(
@@ -64,7 +64,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    {
       faceBoundX.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBoundY.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceBoundY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      faceBoundY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
    }
 }
 
