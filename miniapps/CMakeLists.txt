@@ -20,5 +20,3 @@ add_subdirectory(meshing)
 add_subdirectory(performance)
 add_subdirectory(tools)
 add_subdirectory(nurbs)
-
-target_link_libraries(mfem-common mfem)

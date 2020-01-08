@@ -410,7 +410,7 @@ configure_file(
 # Create substitute mfem.hpp and mfem-performance.hpp in the build directory,
 # if it is different from the source directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
-  foreach(Header mfem.hpp mfem-performance.hpp)
+  foreach(Header mfem.hpp mfem-performance.hpp miniapps/common/mfem-common.hpp)
     message(STATUS
       "Writing substitute header --> \"${Header}\"")
     file(WRITE "${PROJECT_BINARY_DIR}/${Header}"

@@ -16,6 +16,7 @@ list(APPEND SRCS
 list(APPEND HDRS
   mesh_extras.hpp
   fem_extras.hpp
+  mfem-common.hpp
   )
 
 if (MFEM_USE_MPI)
@@ -31,5 +32,5 @@ convert_filenames_to_full_paths(HDRS)
 set(MINIAPPS_COMMON_SOURCES ${MINIAPPS_COMMON_SOURCES} ${SRCS} PARENT_SCOPE)
 set(MINIAPPS_COMMON_HEADERS ${MINIAPPS_COMMON_HEADERS} ${HDRS} PARENT_SCOPE)
 
-add_library(mfem-common ${MINIAPPS_COMMON_SOURCES}
-            ${MINIAPPS_COMMON_HEADERS})
+add_library(mfem-common ${SRCS} ${HDRS})
+target_link_libraries(mfem-common mfem)

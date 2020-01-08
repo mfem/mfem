@@ -12,8 +12,8 @@
 #ifndef MFEM_COMMON_HPP
 #define MFEM_COMMON_HPP
 
-#include "miniapps/common/fem_extras.hpp"
-#include "miniapps/common/mesh_extras.hpp"
-#include "miniapps/common/pfem_extras.hpp"
+#include "fem_extras.hpp"
+#include "mesh_extras.hpp"
+#include "pfem_extras.hpp"
 
 #endif
