@@ -354,20 +354,20 @@ const double  AdamsBashforthSolver::a[5][5] =
 
 AdamsBashforthSolver::AdamsBashforthSolver(int _s)
 {
-   s = 0;
    smax = std::min(_s,5);
 }
 
 void AdamsBashforthSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   int n = f->Width();
    idx.SetSize(smax);
    for (int i = 0; i < smax; i++)
    {
-      idx[i] = i;
-      k[i].SetSize(n);
+      idx[i] = smax-i;
+      k[i].SetSize(f->Width());
    }
+   idx[0] = 0;
+   s = 0;
 }
 
 void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
@@ -375,12 +375,10 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    f->SetTime(t);
    f->Mult(x, k[idx[0]]);
    s = std::min(++s, smax);
-
    for (int i = 0; i < s; i++)
    {
       x.Add(a[s-1][i]*dt, k[idx[i]]);
    }
-
    t += dt;
 
    // Shift the index
@@ -390,7 +388,6 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
       idx[i] = idx[i-1];
    }
    idx[0] = tmp;
-
 }
 
 const double  AdamsMoultonSolver::a[5][5] =
@@ -404,8 +401,7 @@ const double  AdamsMoultonSolver::a[5][5] =
 
 AdamsMoultonSolver::AdamsMoultonSolver(int _s)
 {
-   s = 0;
-   smax = std::min(_s,5);
+   smax = std::min(_s+1,5);
 }
 
 void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
@@ -418,6 +414,7 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
       idx[i] = i;
       k[i].SetSize(n);
    }
+   s = 0;
 }
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
@@ -439,7 +436,6 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       idx[i] = idx[i-1];
    }
    idx[0] = tmp;
-
 }
 
 void BackwardEulerSolver::Init(TimeDependentOperator &_f)
@@ -589,22 +585,26 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
-
 void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width(), mem_type);
-   y.SetSize(f->Width(), mem_type);
-   xdot.SetSize(f->Width(), mem_type);
+   k.SetSize(f->Width()), mem_type);
+   y.SetSize(f->Width()), mem_type);
+   xdot.SetSize(f->Width()), mem_type);
    xdot = 0.0;
    first = true;
 }
 
-void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
+void GeneralizedAlphaSolver::SetRhoInf(double rho)
 {
+   rho_inf = rho;
    rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
    rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+}
 
+void GeneralizedAlphaSolver::SetParams(double rho_inf)
+{
+   // According to Jansen
    alpha_m = 0.5*(3.0 - rho_inf)/(1.0 + rho_inf);
    alpha_f = 1.0/(1.0 + rho_inf);
    gamma = 0.5 + alpha_m - alpha_f;
@@ -639,31 +639,33 @@ void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
 // This routine assumes xdot is initialized.
 void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 {
-   double dt_fac1 = alpha_f*(1.0 - gamma/alpha_m);
-   double dt_fac2 = alpha_f*gamma/alpha_m;
-   double dt_fac3 = 1.0/alpha_m;
-
-   // In the first pass xdot is not yet computed. If parameter choices requires
-   // xdot midpoint rule is used instead for the first step only.
-   if (first && (dt_fac1 != 0.0))
+   if (first)
    {
-      dt_fac1 = 0.0;
-      dt_fac2 = 0.5;
-      dt_fac3 = 2.0;
+      SetParams(1.0);
       first = false;
    }
+   else
+   {
+      SetParams(rho_inf);
+   }
 
-   add(x, dt_fac1*dt, xdot, y);
-   f->SetTime(t + dt_fac2*dt);
-   f->ImplicitSolve(dt_fac2*dt, y, k);
+   // Set y = x + alpha_f*(1.0 - (gamma/alpha_m))*dt*xdot
+   add(x, alpha_f*(1.0 - (gamma/alpha_m))*dt, xdot, y);
 
-   add(y, dt_fac2*dt, k, x);
-   k.Add(-1.0, xdot);
-   xdot.Add(dt_fac3, k);
+   // Solve k = f(y + dt_eff*k)
+   double dt_eff = (gamma*alpha_f/alpha_m)*dt;
+   f->SetTime(t + alpha_f*dt);
+   f->ImplicitSolve(dt_eff, y, k);
+
+   // Update x and xdot
+   x.Add((1.0 - (gamma/alpha_m))*dt, xdot);
+   x.Add(       (gamma/alpha_m) *dt, k);
+
+   xdot *= (1.0-(1.0/alpha_m));
+   xdot.Add((1.0/alpha_m),k);
 
    t += dt;
 }
-
 
 void
 SIASolver::Init(Operator &P, TimeDependentOperator & F)
