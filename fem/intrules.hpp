@@ -28,7 +28,8 @@ public:
    double x, y, z, weight;
    int index;
 
-   void Init(int const i) {
+   void Init(int const i)
+   {
       x = y = z = weight = 0.0;
       index = i;
    }

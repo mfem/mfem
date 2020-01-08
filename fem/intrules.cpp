@@ -95,7 +95,8 @@ const Array<double> &IntegrationRule::GetWeights() const
    return weights;
 }
 
-void IntegrationRule::SetPointIndices() {
+void IntegrationRule::SetPointIndices()
+{
    for (int i = 0; i < Size(); i++)
    {
       IntPoint(i).index = i;
