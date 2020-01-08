@@ -864,7 +864,7 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
          i = onlySome-1;
          stopAt = min(ndof,onlySome+9);
       }
-   
+
       ostringstream oss;
       oss << "DoF " << i + 1;
       if (visualization)
