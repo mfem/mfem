@@ -41,6 +41,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/inline-quad.mesh";
    int ref_levels = 0;
    int order = 3;
+   const char *device_config = "cpu";
    bool visualization = true;
 
    int precision = 8;
@@ -55,6 +56,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -65,6 +68,9 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+   
+   Device device(device_config);
+   device.Print();
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
