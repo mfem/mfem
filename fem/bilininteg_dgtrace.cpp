@@ -528,6 +528,127 @@ void PADGTraceApply3D(const int NF,
    });
 }
 
+// PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
+void SmemPADGTraceApply3D(const int NF,
+                          const Array<double> &b,
+                          const Array<double> &bt,
+                          const Vector &_op,
+                          const Vector &_x,
+                          Vector &_y,
+                          const int d1d = 0,
+                          const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, 2, 2, NF);
+   auto x = Reshape(_x.Read(), D1D, D1D, 2, NF);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, 2, NF);
+
+   MFEM_FORALL_2D(f, NF, Q1D, Q1D, NBZ,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      MFEM_SHARED double u0[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED double u1[NBZ][max_D1D][max_D1D];
+      MFEM_FOREACH_THREAD(d1,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(d2,y,D1D)
+         {
+            u0[tidz][d1][d2] = x(d1,d2,0,f+tidz);
+            u1[tidz][d1][d2] = x(d1,d2,1,f+tidz);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double Bu0[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED double Bu1[NBZ][max_Q1D][max_D1D];
+      MFEM_FOREACH_THREAD(q1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(d2,y,D1D)
+         {
+            double Bu0_ = 0.0;
+            double Bu1_ = 0.0;
+            for (int d1 = 0; d1 < D1D; ++d1)
+            {
+               const double b = B(q1,d1);
+               Bu0_ += b*u0[tidz][d1][d2];
+               Bu1_ += b*u1[tidz][d1][d2];
+            }
+            Bu0[tidz][q1][d2] = Bu0_;
+            Bu1[tidz][q1][d2] = Bu1_;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double BBu0[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED double BBu1[NBZ][max_Q1D][max_Q1D];
+      MFEM_FOREACH_THREAD(q1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(q2,y,Q1D)
+         {
+            double BBu0_ = 0.0;
+            double BBu1_ = 0.0;
+            for (int d2 = 0; d2 < D1D; ++d2)
+            {
+               const double b = B(q2,d2);
+               BBu0_ += b*Bu0[tidz][q1][d2];
+               BBu1_ += b*Bu1[tidz][q1][d2];
+            }
+            BBu0[tidz][q1][q2] = BBu0_;
+            BBu1[tidz][q1][q2] = BBu1_;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double DBBu[NBZ][max_Q1D][max_Q1D];
+      MFEM_FOREACH_THREAD(q1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(q2,y,Q1D)
+         {
+            DBBu[tidz][q1][q2] = op(q1,q2,0,0,f+tidz)*BBu0[tidz][q1][q2] + op(q1,q2,1,0,f+tidz)*BBu1[tidz][q1][q2];
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double BDBBu[NBZ][max_Q1D][max_D1D];
+      MFEM_FOREACH_THREAD(q1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(d2,y,D1D)
+         {
+            double BDBBu_ = 0.0;
+            for (int q2 = 0; q2 < Q1D; ++q2)
+            {
+               const double b = Bt(d2,q2);
+               BDBBu_ += b*DBBu[tidz][q1][q2];
+            }
+            BDBBu[tidz][q1][d2] = BDBBu_;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(d1,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(d2,y,D1D)
+         {
+            double BBDBBu_ = 0.0;
+            for (int q1 = 0; q1 < Q1D; ++q1)
+            {
+               const double b = Bt(d1,q1);
+               BBDBBu_ += b*BDBBu[tidz][q1][d2];
+            }
+            y(d1,d2,0,f+tidz) +=  BBDBBu_;
+            y(d1,d2,1,f+tidz) += -BBDBBu_;
+         }
+      }
+   });
+}
+
 static void PADGTraceApply(const int dim,
                              const int D1D,
                              const int Q1D,
@@ -542,14 +663,14 @@ static void PADGTraceApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         /*case 0x22: return PADGTraceApply2D<2,2>(NF,B,Bt,op,x,y);
+         case 0x22: return PADGTraceApply2D<2,2>(NF,B,Bt,op,x,y);
          case 0x33: return PADGTraceApply2D<3,3>(NF,B,Bt,op,x,y);
          case 0x44: return PADGTraceApply2D<4,4>(NF,B,Bt,op,x,y);
          case 0x55: return PADGTraceApply2D<5,5>(NF,B,Bt,op,x,y);
          case 0x66: return PADGTraceApply2D<6,6>(NF,B,Bt,op,x,y);
          case 0x77: return PADGTraceApply2D<7,7>(NF,B,Bt,op,x,y);
          case 0x88: return PADGTraceApply2D<8,8>(NF,B,Bt,op,x,y);
-         case 0x99: return PADGTraceApply2D<9,9>(NF,B,Bt,op,x,y);*/
+         case 0x99: return PADGTraceApply2D<9,9>(NF,B,Bt,op,x,y);
          default:   return PADGTraceApply2D(NF,B,Bt,op,x,y,D1D,Q1D);
       }
    }
@@ -557,13 +678,13 @@ static void PADGTraceApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         /*case 0x23: return PADGTraceApply3D<2,3>(NF,B,Bt,op,x,y);
-         case 0x34: return PADGTraceApply3D<3,4>(NF,B,Bt,op,x,y);
-         case 0x45: return PADGTraceApply3D<4,5>(NF,B,Bt,op,x,y);
-         case 0x56: return PADGTraceApply3D<5,6>(NF,B,Bt,op,x,y);
-         case 0x67: return PADGTraceApply3D<6,7>(NF,B,Bt,op,x,y);
-         case 0x78: return PADGTraceApply3D<7,8>(NF,B,Bt,op,x,y);
-         case 0x89: return PADGTraceApply3D<8,9>(NF,B,Bt,op,x,y);*/
+         case 0x23: return SmemPADGTraceApply3D<2,3,1>(NF,B,Bt,op,x,y);
+         case 0x34: return SmemPADGTraceApply3D<3,4,2>(NF,B,Bt,op,x,y);
+         case 0x45: return SmemPADGTraceApply3D<4,5,2>(NF,B,Bt,op,x,y);
+         case 0x56: return SmemPADGTraceApply3D<5,6,1>(NF,B,Bt,op,x,y);
+         case 0x67: return SmemPADGTraceApply3D<6,7,1>(NF,B,Bt,op,x,y);
+         case 0x78: return SmemPADGTraceApply3D<7,8,1>(NF,B,Bt,op,x,y);
+         case 0x89: return SmemPADGTraceApply3D<8,9,1>(NF,B,Bt,op,x,y);
          default:   return PADGTraceApply3D(NF,B,Bt,op,x,y,D1D,Q1D);
       }
    }
