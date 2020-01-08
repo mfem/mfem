@@ -1752,7 +1752,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   if ( test_fe.GetRangeType() == FiniteElement::SCALAR && VQ )
+   if ( ( test_fe.GetRangeType() == FiniteElement::SCALAR && 
+          trial_fe.GetRangeType() == FiniteElement::VECTOR ) && VQ )
    {
       // assume test_fe is scalar FE and trial_fe is vector FE
       int dim  = test_fe.GetDim();
@@ -1762,7 +1763,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
 
       if (MQ)
          mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
-                    "   is not implemented for tensor materials");
+                    "   with component-wise FiniteElement::SCALAR basis\n" 
+                    "   is not implemented for tensor coefficient.");
 
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof, dim);
@@ -1809,7 +1811,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          }
       }
    }
-   else if ( test_fe.GetRangeType() == FiniteElement::SCALAR )
+   else if ( test_fe.GetRangeType() == FiniteElement::SCALAR 
+             && trial_fe.GetRangeType() == FiniteElement::VECTOR )
    {
       // assume test_fe is scalar FE and trial_fe is vector FE
       int dim  = test_fe.GetDim();
@@ -1817,9 +1820,10 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       int test_dof = test_fe.GetDof();
       double w;
 
-      if (VQ || MQ)
+      if (MQ)
          mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
-                    "   is not implemented for vector/tensor permeability");
+                    "   with component-wise FiniteElement::SCALAR basis\n"
+                    "   is not implemented for tensor coefficient.");
 
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof, dim);
@@ -1866,7 +1870,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          }
       }
    }
-   else
+   else if ( test_fe.GetRangeType() == FiniteElement::VECTOR 
+             && trial_fe.GetRangeType() == FiniteElement::VECTOR )
    {
       // assume both test_fe and trial_fe are vector FE
       int dim  = test_fe.GetDim();
@@ -1929,6 +1934,12 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
             AddMult_a_ABt(w,test_vshape,trial_vshape,elmat);
          }
       }
+   }
+   else
+   {
+      mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
+                 "   is not implemented for this mix of\n"
+                 "   FiniteElement::SCALAR and FiniteElement::VECTOR bases.");
    }
 }
 

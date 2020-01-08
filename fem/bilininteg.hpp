@@ -2038,7 +2038,9 @@ public:
                                    const Vector &elfun);
 };
 
-/// Integrator for (Q u, v) for VectorFiniteElements
+/** Integrator for (Q u, v), where Q is an optional coefficient (of type scalar, 
+    vector (diagonal matrix), or matrix), u and v are each in H(Curl), H(Div), 
+    or u=(u1,...,un) / v=(v1,...,vn), where ui / vi are in H1. */
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
