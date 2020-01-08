@@ -152,7 +152,7 @@ doccheck:
         - rm -f *
         - ../runtest ../../mfem "baseline ${BUILD_ROOT}/tpls"
         - cp baseline.out ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt
-        - diff baseline-${SYS_TYPE}.out ../baseline-${SYS_TYPE}.saved > baseline-diff.txt || true
+        - diff -u baseline-${SYS_TYPE}.out ../baseline-${SYS_TYPE}.saved | tee baseline-diff.txt || true
         - cp baseline-diff.txt ${CI_PROJECT_DIR}
         - if [[ ! $(head -n1 baseline-diff.txt) ]]; then true; else false; fi
     allow_failure: true
