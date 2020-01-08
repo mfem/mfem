@@ -13,6 +13,8 @@ Version 4.0.1 (development)
 
 Improved GPU support
 --------------------
+- Added support for matrix-free diagonal smoothers on GPUs.
+
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
   language that can run on both AMD and NVIDIA hardware. With this change, the
   list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",
@@ -42,6 +44,10 @@ Meshing improvements
   (e.g. spatial dependence of size, aspect ratio, etc., for each element) or via
   a (Par)GridFunction specified on the original mesh.
 
+- New method Mesh::GetHilbertElementOrdering for sorting mesh elements along the
+  Hilbert curve. The ordering can be used to improve caching and parallel
+  partitioning in non-conforming AMR.
+
 - Added support for creating refined versions of periodic meshes, making use of
   the new L2ElementRestriction class. This class also allows for computing
   geometric factors on periodic meshes using partial assembly.
@@ -52,10 +58,19 @@ Meshing improvements
 
 Discretization improvements
 ---------------------------
+- Added support for GSLIB-FindPoints, a general high-order interpolation utility
+  that can robustly evaluate a GridFunction in an arbitrary collection of points
+  in physical space. See INSTALL for details on building MFEM with GSLIB, and
+  miniapps/gslib for examples of how to use this feature.
+
 - Added support for complex-valued finite element operators and fields using a
   2x2 block structured linear system to mimic complex arithmetic. New classes
   include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
   parallel counterparts.
+
+- Diagonals of partially assembled operators can now be computed efficiently.
+  See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
+  BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
 Linear and nonlinear solvers
 ----------------------------
@@ -72,12 +87,22 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
+- Added two new miniapps: Find Points (serial + parallel) and Field Diff in
+  miniapps/gslib that show how GSLIB-FindPoints can be used to interpolate a
+  (Par)GridFunction in an arbitrary number of physical space points in 2D and
+  3D. The GridFunction must be in H1 and in the same space as the mesh that is
+  used to find the points.
+
 - Added a new example, Example 22/22p, to demonstrate the use of the new
   complex-valued finite element operators. The example defines and solves
   a family of time-harmonic PDEs related to damped harmonic oscillators.
 
+- Updated Example 1/1p to use diagonal preconditioning in partial assembly mode.
+
 - The mesh-optimizer and pmesh-optimizer miniapps have been updated to
   demonstrate the new r-adaptivity capabilities of TMOP.
+
+- New options to reorder and partition the mesh in the mesh-explorer miniapp.
 
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
