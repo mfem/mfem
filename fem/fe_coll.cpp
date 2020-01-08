@@ -164,7 +164,6 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "H1Ser_", 6))
    {
-      // Are the numbers 10 and 6 correct here?
       fec = new H1Ser_FECollection(atoi(name + 10), atoi(name + 6));
    }
    else if (!strncmp(name, "H1@", 3))
