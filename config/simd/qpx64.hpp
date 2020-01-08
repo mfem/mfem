@@ -12,12 +12,6 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_QPX_64
 #define MFEM_TEMPLATE_CONFIG_SIMD_QPX_64
 
-#include "builtins.h"
-template <typename,int,int> struct AutoSIMD;
-#ifndef __ATTRS_ai
-#define __ATTRS_ai
-#endif
-
 template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
 {
    typedef scalar_t scalar_type;

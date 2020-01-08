@@ -12,17 +12,6 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_VSX128
 #define MFEM_TEMPLATE_CONFIG_SIMD_VSX128
 
-#include "altivec.h"
-#ifndef MFEM_ALWAYS_INLINE
-#define MFEM_ALWAYS_INLINE
-#endif
-#ifndef vector
-#define vector
-#error Undefined vector
-#endif
-
-template <typename,int,int=1> struct AutoSIMD;
-
 template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
 {
    typedef scalar_t scalar_type;

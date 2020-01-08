@@ -12,16 +12,6 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_QPX_256
 #define MFEM_TEMPLATE_CONFIG_SIMD_QPX_256
 
-#include "builtins.h"
-template <typename,int,int> struct AutoSIMD;
-#ifndef __ATTRS_ai
-#define __ATTRS_ai
-#endif
-#ifndef vector4double
-#define vector4double double
-#error Undefined vector4double
-#endif
-
 template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
 {
    typedef scalar_t scalar_type;
