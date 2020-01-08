@@ -56,7 +56,7 @@ MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
  $(MFEM_PERF_CXXFLAGS_gcc_common)
 
 # - XLC extra options:
-MFEM_PERF_CXXFLAGS_xlc = -mcpu=native -mtune=native
+MFEM_PERF_CXXFLAGS_xlc = -mcpu=native
 
 # - Clang extra options:
 MFEM_PERF_CXXFLAGS_clang += -march=native
