@@ -38,14 +38,14 @@ else ifneq (,$(filter %g++ %mpicxx %mpic++,$(MFEM_CXX)))
    endif
 else ifneq (,$(filter %icpc %mpiicpc,$(MFEM_CXX)))
    MFEM_PERF_SW = icc
+else ifneq (,$(filter %xlc++ %mpixlC,$(MFEM_CXX)))
+   MFEM_PERF_SW = xlc
 endif
 
 # Compiler specific optimizations.
 # For best performance, GCC 5 (or newer) is recommended.
 
 # - GCC extra options:
-# MFEM_PERF_CXXFLAGS_gcc_common += -std=c++03
-MFEM_PERF_CXXFLAGS_gcc_common += -std=c++11
 MFEM_PERF_CXXFLAGS_gcc_common += -pedantic -Wall
 ifeq ($(MFEM_USE_SIMD),NO)
 MFEM_PERF_CXXFLAGS_gcc_common += --param max-completely-peel-times=3
@@ -55,10 +55,12 @@ MFEM_PERF_CXXFLAGS_gcc_x86_64 = -march=native $(MFEM_PERF_CXXFLAGS_gcc_common)
 MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
  $(MFEM_PERF_CXXFLAGS_gcc_common)
 
+# - XLC extra options:
+MFEM_PERF_CXXFLAGS_xlc = -mcpu=native -mtune=native
+
 # - Clang extra options:
 MFEM_PERF_CXXFLAGS_clang += -march=native
 # MFEM_PERF_CXXFLAGS_clang += -std=c++03
-MFEM_PERF_CXXFLAGS_clang += -std=c++11
 MFEM_PERF_CXXFLAGS_clang += -pedantic -Wall
 MFEM_PERF_CXXFLAGS_clang += -fcolor-diagnostics
 MFEM_PERF_CXXFLAGS_clang += -fvectorize
@@ -68,7 +70,6 @@ MFEM_PERF_CXXFLAGS_clang += -ffp-contract=fast
 
 # - Intel C++ compiler extra options:
 MFEM_PERF_CXXFLAGS_icc += -xHost
-MFEM_PERF_CXXFLAGS_icc += -std=c++11
 
 # Choose MFEM_PERF_CXXFLAGS based on MFEM_PERF_SW:
 MFEM_PERF_CXXFLAGS = $(MFEM_PERF_CXXFLAGS_$(MFEM_PERF_SW))
