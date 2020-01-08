@@ -178,14 +178,22 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    {
       r.SetSize(nq * nf);
       auto C = Reshape(r.HostWrite(), nq, nf);
-      for (int f = 0; f < nf; ++f)
+      int f_ind = 0;
+      for (int f = 0; f < fes.GetNF(); ++f)
       {
-         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
-         for (int q = 0; q < nq; ++q)
+         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) )
          {
-            C(q,f) = rho->Eval(T, ir->IntPoint(q));
+            ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
+            for (int q = 0; q < nq; ++q)
+            {
+               C(q,f_ind) = rho->Eval(T, ir->IntPoint(q));
+            }
+            f_ind++;
          }
       }
+      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
    }
    Vector vel;
    if(VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>(u))
@@ -197,18 +205,26 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       vel.SetSize(dim * nq * nf);
       auto C = Reshape(vel.HostWrite(), dim, nq, nf);
       Vector Vq(dim);
-      for (int f = 0; f < nf; ++f)
+      int f_ind = 0;
+      for (int f = 0; f < fes.GetNF(); ++f)
       {
-         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
-         for (int q = 0; q < nq; ++q)
+         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) )
          {
-            u->Eval(Vq, T, ir->IntPoint(q));
-            for (int i = 0; i < dim; ++i)
+            ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
+            for (int q = 0; q < nq; ++q)
             {
-               C(i,q,f) = Vq(i);
+               u->Eval(Vq, T, ir->IntPoint(q));
+               for (int i = 0; i < dim; ++i)
+               {
+                  C(i,q,f_ind) = Vq(i);
+               }
             }
+            f_ind++;
          }
       }
+      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
    }
    PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
                   geom->detJ, geom->normal, r, vel,

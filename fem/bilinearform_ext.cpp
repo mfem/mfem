@@ -173,12 +173,15 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (int_face_restrict_lex && iFISz>0)
    {
       int_face_restrict_lex->Mult(x, faceIntX);
-      faceIntY = 0.0;
-      for (int i = 0; i < iFISz; ++i)
+      if (faceIntX.Size()>0)
       {
-         intFaceIntegrators[i]->AddMultPA(faceIntX, faceIntY);
+         faceIntY = 0.0;
+         for (int i = 0; i < iFISz; ++i)
+         {
+            intFaceIntegrators[i]->AddMultPA(faceIntX, faceIntY);
+         }
+         int_face_restrict_lex->MultTranspose(faceIntY, y);
       }
-      int_face_restrict_lex->MultTranspose(faceIntY, y);
    }
 
    Array<BilinearFormIntegrator*> &boundFaceIntegrators = *a->GetBFBFI();
@@ -186,12 +189,15 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (bound_face_restrict_lex && bFISz>0)
    {
       bound_face_restrict_lex->Mult(x, faceBoundX);
-      faceBoundY = 0.0;
-      for (int i = 0; i < bFISz; ++i)
+      if (faceBoundX.Size()>0)
       {
-         boundFaceIntegrators[i]->AddMultPA(faceBoundX, faceBoundY);
+         faceBoundY = 0.0;
+         for (int i = 0; i < bFISz; ++i)
+         {
+            boundFaceIntegrators[i]->AddMultPA(faceBoundX, faceBoundY);
+         }
+         bound_face_restrict_lex->MultTranspose(faceBoundY, y);
       }
-      bound_face_restrict_lex->MultTranspose(faceBoundY, y);
    }
 }
 
@@ -224,12 +230,15 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    if (int_face_restrict_lex && iFISz>0)
    {
       int_face_restrict_lex->Mult(x, faceIntX);
-      faceIntY = 0.0;
-      for (int i = 0; i < iFISz; ++i)
+      if (faceIntX.Size()>0)
       {
-         intFaceIntegrators[i]->AddMultTransposePA(faceIntX, faceIntY);
+         faceIntY = 0.0;
+         for (int i = 0; i < iFISz; ++i)
+         {
+            intFaceIntegrators[i]->AddMultTransposePA(faceIntX, faceIntY);
+         }
+         int_face_restrict_lex->MultTranspose(faceIntY, y);
       }
-      int_face_restrict_lex->MultTranspose(faceIntY, y);
    }
 
    Array<BilinearFormIntegrator*> &boundFaceIntegrators = *a->GetBFBFI();
@@ -237,12 +246,15 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    if (bound_face_restrict_lex && bFISz>0)
    {
       bound_face_restrict_lex->Mult(x, faceBoundX);
-      faceBoundY = 0.0;
-      for (int i = 0; i < bFISz; ++i)
+      if (faceBoundX.Size()>0)
       {
-         boundFaceIntegrators[i]->AddMultTransposePA(faceBoundX, faceBoundY);
+         faceBoundY = 0.0;
+         for (int i = 0; i < bFISz; ++i)
+         {
+            boundFaceIntegrators[i]->AddMultTransposePA(faceBoundX, faceBoundY);
+         }
+         bound_face_restrict_lex->MultTranspose(faceBoundY, y);
       }
-      bound_face_restrict_lex->MultTranspose(faceBoundY, y);
    }
 }
 
