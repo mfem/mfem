@@ -452,6 +452,8 @@ MFEM_USE_OCCA = YES/NO
    backends. In order to use the OCCA CUDA backend, CUDA support must be enabled
    in MFEM as well, i.e. MFEM_USE_CUDA=YES must be set.
 
+MFEM_USE_GSLIB = YES/NO
+
 MFEM_USE_CEED = YES/NO
    Enables support for the libCEED library in MFEM. libCEED is a portable
    library for performant high-order operator evaluation developed by the Center
@@ -622,6 +624,14 @@ The specific libraries and their options are:
   URL: https://zlib.net
   Options: ZLIB_OPT, ZLIB_LIB.
 
+- GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
+  built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.5 gslib".
+  Build gslib in parallel or in serial based on the desired MFEM build: "make
+  clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
+  MFEM_USE_GSLIB=YES.
+  URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
+  Options: GSLIB_OPT, GSLIB_LIB.
 
 Building with CMake
 ===================
