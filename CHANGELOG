@@ -32,6 +32,9 @@ Discretization improvements
   load balancing. Anisotropic prism refinement is only available in the serial
   version at the moment.
 
+- Added support for partial assembly enabled vector valued mass and diffusion
+  BilinearIntegrators.
+
 Miscellaneous
 -------------
 - Upgraded the SUNDIALS interface to utilize SUNDIALS version 5.0.  This
