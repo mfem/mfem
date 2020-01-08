@@ -27,6 +27,18 @@ public:
    ElementMeshStream(Element::Type e);
 };
 
+void
+MergeMeshNodes(Mesh * mesh, int logging = 0);
+
+void
+IdentifyPeriodicMeshVertices(const Mesh & mesh,
+                             const std::vector<Vector> & trans_vecs,
+                             Array<int> & v2v,
+                             int logging);
+Mesh *
+MakePeriodicMesh(Mesh * mesh, const Array<int> & v2v,
+                 int logging = 0);
+
 } // namespace miniapps
 
 } // namespace mfem
