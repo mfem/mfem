@@ -339,7 +339,7 @@ MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
-MFEM_LIBE_FILE ?= @MFEM_LIB_DIR@/libmfem-extras.$(if $(shared),$(SO_VER),a)
+MFEM_LIBE_FILE ?= @MFEM_LIB_DIR@/miniapps/common/libmfem-common.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
@@ -373,7 +373,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
       @MFEM_EXT_LIBS@
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
-   MFEM_LIBE_FILE = @MFEM_LIB_DIR@/libmfem-extras.$(if $(shared),$(SO_VER),a)
+   MFEM_LIBE_FILE = @MFEM_LIB_DIR@/libmfem-common.$(if $(shared),$(SO_VER),a)
    ifeq ($(MFEM_USE_OCCA),YES)
       ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX)))
          $(error OCCA is enabled: PREFIX must be set during configuration!)
@@ -395,10 +395,11 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
 
-EXTRA_DIRS = miniapps/common
-EXTRA_SOURCE_FILES = $(foreach dir,$(EXTRA_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
-EXTRA_RELSRC_FILES = $(patsubst $(SRC)%,%,$(EXTRA_SOURCE_FILES))
-EXTRA_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(EXTRA_SOURCE_FILES:.cpp=.o))
+COMMON_DIRS = miniapps/common
+COMMON_SOURCE_FILES = $(foreach dir,\
+	$(COMMON_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
+COMMON_RELSRC_FILES = $(patsubst $(SRC)%,%,$(COMMON_SOURCE_FILES))
+COMMON_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(COMMON_SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
 	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
@@ -413,8 +414,8 @@ EXTRA_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(EXTRA_SOURCE_FILES:.cpp=.o))
 
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
-lib-extras: $(if $(static),$(BLD)miniapps/libmfem-extras.a) \
-        $(if $(shared),$(BLD)miniapps/libmfem-extras.$(SO_EXT))
+lib-common: $(if $(static),$(BLD)miniapps/common/libmfem-common.a) \
+        $(if $(shared),$(BLD)miniapps/common/libmfem-common.$(SO_EXT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -424,13 +425,13 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-$(EXTRA_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
+$(COMMON_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
-miniapps: lib-extras $(MINIAPP_DIRS)
+miniapps: lib-common $(MINIAPP_DIRS)
 $(MINIAPP_USE_COMMON): miniapps/common
 $(EM_DIRS) $(TEST_DIRS): lib
 	$(MAKE) -C $(BLD)$(@)
@@ -450,11 +451,12 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 	@$(MAKE) deprecation-warnings
 
-$(BLD)miniapps/libmfem-extras.a: $(EXTRA_OBJECT_FILES)
-	$(AR) $(ARFLAGS) $(@) $(EXTRA_OBJECT_FILES)
+$(BLD)miniapps/common/libmfem-common.a: $(COMMON_OBJECT_FILES)
+	$(AR) $(ARFLAGS) $(@) $(COMMON_OBJECT_FILES)
 	$(RANLIB) $(@)
 
-$(BLD)miniapps/libmfem-extras.$(SO_EXT): $(BLD)miniapps/libmfem-extras.$(SO_VER)
+$(BLD)miniapps/common/libmfem-common.$(SO_EXT): \
+	$(BLD)miniapps/common/libmfem-common.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 
 # If some of the external libraries are build without -fPIC, linking shared MFEM
@@ -464,9 +466,9 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
-$(BLD)miniapps/libmfem-extras.$(SO_VER): $(EXTRA_OBJECT_FILES)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(EXTRA_OBJECT_FILES) \
-	   $(EXT_LIBS) -o $(@)
+$(BLD)miniapps/common/libmfem-common.$(SO_VER): $(COMMON_OBJECT_FILES)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) \
+	$(COMMON_OBJECT_FILES) $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
 serial debug cuda hip cudebug hipdebug:           M_MPI=NO
@@ -539,7 +541,7 @@ $(ALL_CLEAN_SUBDIRS):
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* \
-	miniapps/libmfem-extras.* deps.mk)
+	miniapps/common/libmfem-common.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -547,28 +549,28 @@ distclean: clean config/clean doc/clean
 INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
-INSTALL_EXTRA_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
-   $(EXTRA_OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem-extras.$(SO_VER)\
+INSTALL_COMMON_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
+   $(COMMON_OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem-common.$(SO_VER)\
    && \
-   cd $(PREFIX_LIB) && ln -sf libmfem-extras.$(SO_VER) libmfem-extras.$(SO_EXT)
+   cd $(PREFIX_LIB) && ln -sf libmfem-common.$(SO_VER) libmfem-common.$(SO_EXT)
 
 install: $(if $(static),$(BLD)libmfem.a)\
    $(if $(shared),$(BLD)libmfem.$(SO_EXT))\
-   $(if $(static),$(BLD)miniapps/libmfem-extras.a)\
-   $(if $(shared),$(BLD)miniapps/libmfem-extras.$(SO_EXT))
+   $(if $(static),$(BLD)miniapps/common/libmfem-common.a)\
+   $(if $(shared),$(BLD)miniapps/common/libmfem-common.$(SO_EXT))
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
-	$(if $(static),$(INSTALL) -m 640 $(BLD)miniapps/libmfem-extras.a\
+	$(if $(static),$(INSTALL) -m 640 $(BLD)miniapps/common/libmfem-common.a\
    $(PREFIX_LIB))
-	$(if $(shared),$(INSTALL_EXTRA_SHARED_LIB))
+	$(if $(shared),$(INSTALL_COMMON_SHARED_LIB))
 # install top level includes
 	mkdir -p $(PREFIX_INC)/mfem
 	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
-	$(SRC)mfem-extras.hpp \
+	$(SRC)miniapps/common/mfem-common.hpp \
 	   $(PREFIX_INC)/mfem
-	for hdr in mfem.hpp mfem-extras.hpp mfem-performance.hpp; do \
+	for hdr in mfem.hpp miniapps/common/mfem-common.hpp mfem-performance.hpp; do \
 	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
 	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; done
 # install config include

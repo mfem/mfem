@@ -21,6 +21,4 @@ add_subdirectory(performance)
 add_subdirectory(tools)
 add_subdirectory(nurbs)
 
-add_library(mfem-extras ${MINIAPPS_COMMON_SOURCES}
-            ${MINIAPPS_COMMON_HEADERS})
-target_link_libraries(mfem-extras mfem)
+target_link_libraries(mfem-common mfem)

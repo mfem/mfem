@@ -56,7 +56,7 @@ Miscellaneous
   the application level.  Example usage of this new interface can be found
   in the examples/sundials directory.
 
-- Collected object files from miniapps/common into libmfem-extras for the
+- Collected object files from miniapps/common into libmfem-common for the
   convenience of application developers.
 
 

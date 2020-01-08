@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-namespace extras
+namespace common
 {
 
 class ElementMeshStream : public std::stringstream
@@ -27,7 +27,7 @@ public:
    ElementMeshStream(Element::Type e);
 };
 
-} // namespace extras
+} // namespace common
 
 } // namespace mfem
 
