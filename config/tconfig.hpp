@@ -70,27 +70,18 @@
 #endif
 #endif
 
-// --- Default SIMD and BLOCK sizes
-#ifdef _WIN32
-#define MFEM_SIMD_DEFAULT_SIZE 8
-#define MFEM_TEMPLATE_BLOCK_DEFAULT_SIZE 1
-#else
-#define MFEM_SIMD_DEFAULT_SIZE 32
-#define MFEM_TEMPLATE_BLOCK_DEFAULT_SIZE 4
-#endif
-
 // --- SIMD and BLOCK sizes
-#ifndef MFEM_USE_SIMD
-#define MFEM_SIMD_SIZE MFEM_SIMD_DEFAULT_SIZE
-#define MFEM_TEMPLATE_BLOCK_SIZE MFEM_TEMPLATE_BLOCK_DEFAULT_SIZE
-#else
-#ifdef __VSX__
+#if defined(_WIN32)
+#define MFEM_SIMD_SIZE 8
+#define MFEM_TEMPLATE_BLOCK_SIZE 1
+#elif defined(__VSX__)
 #define MFEM_SIMD_SIZE 16
 #define MFEM_TEMPLATE_BLOCK_SIZE 2
+#elif defined(__x86_64__)
+#define MFEM_SIMD_SIZE 32
+#define MFEM_TEMPLATE_BLOCK_SIZE 4
 #else
-#define MFEM_SIMD_SIZE MFEM_SIMD_DEFAULT_SIZE
-#define MFEM_TEMPLATE_BLOCK_SIZE MFEM_TEMPLATE_BLOCK_DEFAULT_SIZE
-#endif
+#error Unknown SIMD architecture
 #endif
 
 template<typename complex_t, typename real_t, bool simd>
