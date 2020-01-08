@@ -297,7 +297,7 @@ void SmemPAConvectionApply2D(const int ne,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            u[tidz][dy][dx] = x(dx,dy,e+tidz);
+            u[tidz][dy][dx] = x(dx,dy,e);
          }
       }
       MFEM_SYNC_THREAD;
@@ -344,8 +344,8 @@ void SmemPAConvectionApply2D(const int ne,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double O1 = op(qx,qy,0,e+tidz);
-            const double O2 = op(qx,qy,1,e+tidz);
+            const double O1 = op(qx,qy,0,e);
+            const double O2 = op(qx,qy,1,e);
 
             const double gradX = BGu[tidz][qy][qx];
             const double gradY = GBu[tidz][qy][qx];
@@ -378,7 +378,7 @@ void SmemPAConvectionApply2D(const int ne,
                const double w  = Bt(dx,qx);
                BBDGu += w * BDGu[tidz][dy][qx];
             }
-            y(dx,dy,e+tidz) += BBDGu;
+            y(dx,dy,e) += BBDGu;
          }
       }
    });
@@ -847,6 +847,7 @@ static void PAConvectionApply(const int dim,
       {
          case 0x23: return SmemPAConvectionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
          case 0x34: return SmemPAConvectionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return SmemPAConvectionApply3D<4,4>(NE,B,G,Bt,Gt,op,x,y);
          case 0x45: return SmemPAConvectionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
          case 0x56: return SmemPAConvectionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
          case 0x67: return SmemPAConvectionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);

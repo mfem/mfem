@@ -134,18 +134,9 @@ static void PADGTraceSetup(const int dim,
 }
 
 //TODO avoid duplicated code
-void DGTraceIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
+
+void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
-   // Assumes tensor-product elements
-   FaceType type = FaceType::Interior;
-   Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0));
-   FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(0);
-   const IntegrationRule *ir = &GetRule(el.GetGeomType(), el.GetOrder(), T);
-   const int symmDims = 4;
-   const int nq = ir->GetNPoints();
-   dim = mesh->Dimension();
-   // nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
    // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
    int e1, e2;
    int inf1, inf2;
@@ -156,6 +147,16 @@ void DGTraceIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
    }
+   if(nf==0)return;
+   // Assumes tensor-product elements
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement &el = *fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0));
+   FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(0);
+   const IntegrationRule *ir = &GetRule(el.GetGeomType(), el.GetOrder(), T);
+   const int symmDims = 4;
+   const int nq = ir->GetNPoints();
+   dim = mesh->Dimension();
+   // nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
    geom = mesh->GetFaceGeometricFactors(*ir,
       FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
@@ -214,84 +215,14 @@ void DGTraceIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
                   alpha, beta, pa_data);
 }
 
+void DGTraceIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
+{
+   SetupPA(fes, FaceType::Interior);
+}
+
 void DGTraceIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
 {
-   // Assumes tensor-product elements
-   FaceType type = FaceType::Boundary;
-   Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0));
-   FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(0);
-   const IntegrationRule *ir = &GetRule(el.GetGeomType(), el.GetOrder(), T);
-   const int symmDims = 4;
-   const int nq = ir->GetNPoints();
-   dim = mesh->Dimension();
-   // nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
-   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
-   int e1, e2;
-   int inf1, inf2;
-   nf = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
-   }
-   geom = mesh->GetFaceGeometricFactors(*ir,
-      FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   dofs1D = maps->ndof;
-   quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
-   Vector r;
-   if(rho==nullptr)
-   {
-      r.SetSize(1);
-      r(0) = 1.0;
-   }
-   else if(ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
-   {
-      r.SetSize(1);
-      r(0) = c_rho->constant;
-   }
-   else
-   {
-      r.SetSize(nq * nf);
-      auto C = Reshape(r.HostWrite(), nq, nf);
-      for (int f = 0; f < nf; ++f)
-      {
-         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
-         for (int q = 0; q < nq; ++q)
-         {
-            C(q,f) = rho->Eval(T, ir->IntPoint(q));
-         }
-      }
-   }
-   Vector vel;
-   if(VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>(u))
-   {
-      vel = c_u->GetVec();
-   }
-   else
-   {
-      vel.SetSize(dim * nq * nf);
-      auto C = Reshape(vel.HostWrite(), dim, nq, nf);
-      Vector Vq(dim);
-      for (int f = 0; f < nf; ++f)
-      {
-         ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
-         for (int q = 0; q < nq; ++q)
-         {
-            u->Eval(Vq, T, ir->IntPoint(q));
-            for (int i = 0; i < dim; ++i)
-            {
-               C(i,q,f) = Vq(i);
-            }
-         }
-      }
-   }
-   PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
-                  geom->detJ, geom->normal, r, vel,
-                  alpha, beta, pa_data);
+   SetupPA(fes, FaceType::Boundary);
 }
 
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
@@ -808,9 +739,8 @@ void PADGTraceApplyTranspose3D(const int NF,
    auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, 2, NF);
 
-   // MFEM_FORALL(f, NF,
-   // {
-   for (int f = 0; f < NF; ++f) {
+   MFEM_FORALL(f, NF,
+   {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
@@ -939,7 +869,7 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-   }//);
+   });
 }
 
 static void PADGTraceApplyTranspose(const int dim,

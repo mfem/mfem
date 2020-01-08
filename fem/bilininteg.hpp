@@ -2297,6 +2297,8 @@ public:
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          FaceElementTransformations &T);
+
+   void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
 /** Integrator for the DG form:
