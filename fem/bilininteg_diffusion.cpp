@@ -199,7 +199,8 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
-void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
+void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
+                                  const bool force)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -678,7 +679,7 @@ static void PADiffusionAssembleDiagonal(const int dim,
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if(pa_data.Size()==0) SetupPA(*fespace, true);
+   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
    PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
                                maps->B, maps->G, pa_data, diag);
 }

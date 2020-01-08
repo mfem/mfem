@@ -440,7 +440,7 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if(pa_data.Size()==0) SetupPA(*fespace, true);
+   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
    PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
 }
 
