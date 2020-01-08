@@ -73,7 +73,8 @@ TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
    SECTION("setting the integration point index works")
    {
       ir = &my_intrules.Get(Geometry::CUBE, 5);
-      for (int i = 0; i < ir->Size(); i++) {
+      for (int i = 0; i < ir->Size(); i++)
+      {
          REQUIRE(ir->IntPoint(i).index == i);
       }
    }
