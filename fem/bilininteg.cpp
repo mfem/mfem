@@ -1695,8 +1695,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   if ( test_fe.GetRangeType() == FiniteElement::SCALAR 
-             && trial_fe.GetRangeType() == FiniteElement::VECTOR )
+   if (test_fe.GetRangeType() == FiniteElement::SCALAR 
+       && trial_fe.GetRangeType() == FiniteElement::VECTOR)
    {
       // assume test_fe is scalar FE and trial_fe is vector FE
       int dim  = test_fe.GetDim();
@@ -1791,28 +1791,10 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
                }
             }
          }
-/*
-         if (Q)
-         {
-            w *= Q -> Eval (Trans, ip);
-         }
-
-         for (int d = 0; d < dim; d++)
-         {
-            for (int j = 0; j < test_dof; j++)
-            {
-               for (int k = 0; k < trial_dof; k++)
-               {
-                  elmat(d * test_dof + j, k) += 
-                     w * shape(j) * trial_vshape(k, d);
-               }
-            }
-         }
-*/
       }
    }
-   else if ( test_fe.GetRangeType() == FiniteElement::VECTOR 
-             && trial_fe.GetRangeType() == FiniteElement::VECTOR )
+   else if (test_fe.GetRangeType() == FiniteElement::VECTOR 
+            && trial_fe.GetRangeType() == FiniteElement::VECTOR)
    {
       // assume both test_fe and trial_fe are vector FE
       int dim  = test_fe.GetDim();
@@ -1877,7 +1859,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       }
    }
    else if (test_fe.GetRangeType() == FiniteElement::SCALAR 
-             && trial_fe.GetRangeType() == FiniteElement::SCALAR)
+            && trial_fe.GetRangeType() == FiniteElement::SCALAR)
    {
       int tr_nd = trial_fe.GetDof();
       int te_nd = test_fe.GetDof();
