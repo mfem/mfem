@@ -14,9 +14,9 @@ fi
 msg "Check presence of binary files in branch history."
 
 # Read: "if check_bin_in_branch fails"
-if ! check_bin_in_branch
+if ! check_branch
 then
-    err "ATTENTION: One or more added/modified binary file(s)"
+    err "ERROR: something went wrong in branch checks"
     exit 1
 fi
 
