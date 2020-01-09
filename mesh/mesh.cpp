@@ -496,13 +496,14 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
       {
          Array<int> vdofs;
          Nodes->FESpace()->GetFaceVDofs(FaceNo, vdofs);
+         const GridFunction &nodes = *Nodes;
          int n = vdofs.Size()/spaceDim;
          pm.SetSize(spaceDim, n);
          for (int i = 0; i < spaceDim; i++)
          {
             for (int j = 0; j < n; j++)
             {
-               pm(i, j) = (*Nodes)(vdofs[n*i+j]);
+               pm(i, j) = nodes(vdofs[n*i+j]);
             }
          }
          FTr->SetFE(face_el);
