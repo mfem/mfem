@@ -320,7 +320,7 @@ public:
 class GeneralizedAlphaSolver : public ODESolver
 {
 protected:
-   Vector xdot,k,y;
+   mutable Vector xdot,k,y;
    double rho_inf, alpha_f, alpha_m, gamma;
    bool first;
 
