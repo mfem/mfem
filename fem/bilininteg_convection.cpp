@@ -845,14 +845,13 @@ static void PAConvectionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return SmemPAConvectionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x34: return SmemPAConvectionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x22: return SmemPAConvectionApply3D<2,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return SmemPAConvectionApply3D<3,3>(NE,B,G,Bt,Gt,op,x,y);
          case 0x44: return SmemPAConvectionApply3D<4,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x45: return SmemPAConvectionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x56: return SmemPAConvectionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x67: return SmemPAConvectionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x78: return SmemPAConvectionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x89: return SmemPAConvectionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return SmemPAConvectionApply3D<5,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return SmemPAConvectionApply3D<6,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return SmemPAConvectionApply3D<7,7>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x88: return SmemPAConvectionApply3D<8,8>(NE,B,G,Bt,Gt,op,x,y);
          default:   return PAConvectionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
    }
