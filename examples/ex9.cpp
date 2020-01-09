@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
 
    if(pa && fem_type == DG_FE)
    {
-     mfem_error("Partial assembly not supported for DG");
+     MFEM_ABORT("Partial assembly not supported for DG");
    }
 
    if(pa == true)
