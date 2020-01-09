@@ -68,7 +68,6 @@ private:
    mutable Vector z;
 
 public:
-   // FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b);
    FE_Evolution(Operator *_M, Operator *_K, const Vector &_b, MPI_Comm _comm);
 
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -92,6 +91,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 3;
    bool pa = true;
+   const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;
@@ -116,6 +116,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -148,6 +150,9 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+   Device device(device_config);
+   device.Print();
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -215,13 +220,7 @@ int main(int argc, char *argv[])
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
    //    DGTraceIntegrator involves integrals over mesh interior faces.
-   // VectorFunctionCoefficient velocity(dim, velocity_function);
-   Vector velocity_vector(dim);
-   for (int i = 0; i < dim; ++i)
-   {
-      velocity_vector[i] = 1.0;
-   }
-   VectorConstantCoefficient velocity(velocity_vector);
+   VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 

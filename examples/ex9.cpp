@@ -61,7 +61,6 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   // SparseMatrix &M, &K;
    Operator *M, *K;
    const Vector &b;
    DSmoother M_prec;
@@ -70,7 +69,6 @@ private:
    mutable Vector z;
 
 public:
-   // FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b);
    FE_Evolution(Operator &_M, Operator &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -185,13 +183,6 @@ int main(int argc, char *argv[])
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
-   // VectorFunctionCoefficient velocity(dim, velocity_function);
-   // Vector velocity_vector(dim);
-   // for (int i = 0; i < dim; ++i)
-   // {
-   //    velocity_vector[i] = 1.0;
-   // }
-   // VectorConstantCoefficient velocity(velocity_vector);
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
@@ -207,10 +198,8 @@ int main(int argc, char *argv[])
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   // k.AddInteriorFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5));
    k.AddBdrFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   // k.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -347,13 +336,13 @@ FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height()), M(&_M), K(&_K), b(_b), z(_M.Height())
 {
    // M_solver.SetPreconditioner(M_prec);
-   // M_solver.SetOperator(M);
+   M_solver.SetOperator(*M);
 
-   // M_solver.iterative_mode = false;
-   // M_solver.SetRelTol(1e-9);
-   // M_solver.SetAbsTol(0.0);
-   // M_solver.SetMaxIter(100);
-   // M_solver.SetPrintLevel(0);
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-9);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -361,8 +350,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // y = M^{-1} (K x + b)
    K->Mult(x, z);
    z += b;
-   // M_solver.Mult(z, y);
-   CG(*M, z, y, 1, 2000, 1e-12, 0.0);
+   M_solver.Mult(z, y);
 }
 
 
