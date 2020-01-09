@@ -26,12 +26,15 @@ libCEED support
 ---------------
 - Added support for libCEED, the portable library for high-order operator
   evaluation developed by the Center for Efficient Exascale Discretizations in
-  the Exascale Computing Project, https://github.com/CEED/libCEED. This initial
-  integration includes Mass and Diffusion integrators. libCEED GPU backends can
-  be used without specific MFEM configuration, however it is highly recommended
-  to use the "cuda" build option to minimize memory transfers. Both CPU and GPU
-  modes are available as MFEM device backends (ceed-cpu and ceed-cuda), using
-  some of the best performing CPU and GPU backends from libCEED.
+  the Exascale Computing Project, https://github.com/CEED/libCEED.
+
+- This initial integration includes Mass and Diffusion integrators. libCEED GPU
+  backends can be used without specific MFEM configuration, however it is highly
+  recommended to use the "cuda" build option to minimize memory transfers.
+
+- Both CPU and GPU modes are available as MFEM device backends (ceed-cpu and
+  ceed-cuda), using some of the best performing CPU and GPU backends from
+  libCEED, see the sample runs in examples 1 and 6.
 
 Meshing improvements
 --------------------
