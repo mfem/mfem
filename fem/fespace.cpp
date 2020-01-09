@@ -3329,22 +3329,21 @@ void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
 
 void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
-   mfem_error("MultTranspose not yet implemented");
    // Assumes all elements have the same number of dofs
-   // const int nd = dof;
-   // const int vd = vdim;
-   // const bool t = byvdim;
-   // auto d_indices = indices.Read();
-   // auto d_x = Reshape(x.Read(), nd, vd, nf);
-   // auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   // MFEM_FORALL(i, nfdofs,
-   // {
-   //    const int idx = d_indices[i];
-   //    for (int c = 0; c < vd; ++c)
-   //    {
-   //       MFEM_ATOMIC_ADD(d_x(i % nd, c, i / nd),d_y(t?c:idx,t:idx:c));
-   //    }
-   // });
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, nf);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, nfdofs,
+   {
+      const int idx = d_indices[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         MFEM_ATOMIC_ADD(d_y(t?c:idx,t?idx:c), d_x(i % nd, c, i / nd));
+      }
+   });
 }
 
 static int PermuteFace2D(const int size1d, const int index)
@@ -3599,8 +3598,8 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
-            d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, 0, i / nd);
-            if(idx2!=-1) d_y(t?c:idx2,t?idx2:c) += d_x(i % nd, c, 1, i / nd);
+            MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, 0, i / nd));
+            if(idx2!=-1) MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd));
          }
       });
    }else{
@@ -3612,7 +3611,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {
-            d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, i / nd);
+            MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, i / nd));
          }
       });      
    }
