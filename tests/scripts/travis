@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. tests/scripts/history_checks.bash
+
 ####
 # If in travis context we need to checkout a branch, otherwise travis works in detached head.
 if ! git checkout -b travis_tests
@@ -11,11 +13,9 @@ fi
 ####
 msg "Check presence of binary files in branch history."
 
-binary_files=$(tests/scripts/branch_adds_binary)
-
-if [[ $? == "1" ]]
+# Read: "if check_bin_in_branch fails"
+if ! check_bin_in_branch
 then
-    msg "Binary files found : ${binary_files}"
     err "ATTENTION: One or more added/modified binary file(s)"
     exit 1
 fi
