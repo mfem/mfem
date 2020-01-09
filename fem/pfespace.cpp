@@ -3559,7 +3559,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   ParGridFunction x_gf(const_cast<ParFiniteElementSpace*>(&fes), x.GetData());
+   ParGridFunction x_gf;
+   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&fes), const_cast<Vector&>(x), 0);
    x_gf.ExchangeFaceNbrData();
 
    // Assumes all elements have the same number of dofs
