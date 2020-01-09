@@ -47,6 +47,9 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   /// Assemble diagonal and add it to Vector @a diag.
+   virtual void AssembleDiagonalPA(Vector &diag) const;
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -1770,6 +1773,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace&);
 
+   virtual void AssembleDiagonalPA(Vector &diag) const;
+
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
@@ -1809,6 +1814,8 @@ public:
                                        DenseMatrix &elmat);
 
    virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AssembleDiagonalPA(Vector &diag) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
