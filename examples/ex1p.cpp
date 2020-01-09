@@ -208,9 +208,16 @@ int main(int argc, char *argv[])
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use no preconditioner, for now.
+   //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
-   if (!pa) { prec = new HypreBoomerAMG; }
+   if (pa)
+   {
+      prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
+   }
+   else
+   {
+      prec = new HypreBoomerAMG;
+   }
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);

@@ -28,6 +28,8 @@
 namespace mfem
 {
 
+class BilinearForm;
+
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
@@ -72,6 +74,45 @@ public:
 
    /// Also calls SetOperator for the preconditioner if there is one
    virtual void SetOperator(const Operator &op);
+};
+
+
+/// Jacobi smoothing for a given bilinear form (no matrix necessary).
+/** Useful with tensorized, partially assembled operators. Can also be defined
+    by given diagonal vector. This is basic Jacobi iteration; for tolerances,
+    iteration control, etc. wrap with SLISolver. */
+class OperatorJacobiSmoother : public Solver
+{
+public:
+   /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
+       a.AssembleDiagonal(). It is assumed that the underlying operator acts as
+       the identity on entries in ess_tdof_list, corresponding to (assembled)
+       DIAG_ONE policy or ConstratinedOperator in the matrix-free setting. */
+   OperatorJacobiSmoother(const BilinearForm &a,
+                          const Array<int> &ess_tdof_list,
+                          const double damping=1.0);
+
+   /** Application is by the *inverse* of the given vector. It is assumed that
+       the underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstratinedOperator in
+       the matrix-free setting. */
+   OperatorJacobiSmoother(const Vector &d,
+                          const Array<int> &ess_tdof_list,
+                          const double damping=1.0);
+   ~OperatorJacobiSmoother() {}
+
+   void Mult(const Vector &x, Vector &y) const;
+   void SetOperator(const Operator &op) { oper = &op; }
+   void Setup(const Vector &diag);
+
+private:
+   const int N;
+   Vector dinv;
+   const double damping;
+   const Array<int> &ess_tdof_list;
+   mutable Vector residual;
+
+   const Operator *oper;
 };
 
 
