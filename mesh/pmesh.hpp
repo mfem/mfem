@@ -141,6 +141,9 @@ protected:
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
                                           int op = 1);
+
+   void RebalanceImpl(const Array<int> *partition);
+
    void DeleteFaceNbrData();
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
@@ -286,8 +289,14 @@ public:
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
 
-   /// Load balance the mesh. NC meshes only.
+   /** Load balance the mesh by equipartitioning the global space-filling
+       sequence of elements. Works for nonconforming meshes only. */
    void Rebalance();
+
+   /** Load balance a nonconforming mesh using a user-defined partition.
+       Each local element 'i' is migrated to processor rank 'partition[i]',
+       for 0 <= i < GetNE(). */
+   void Rebalance(const Array<int> &partition);
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
