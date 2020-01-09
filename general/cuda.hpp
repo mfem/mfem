@@ -48,17 +48,38 @@
 
 // Define the MFEM inner threading macros
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
+#if __CUDA_ARCH__ < 600
+__device__ double atomicAdd(double* address, double val)
+{
+    unsigned long long int* address_as_ull =
+                              (unsigned long long int*)address;
+    unsigned long long int old = *address_as_ull, assumed;
+
+    do {
+        assumed = old;
+        old = atomicCAS(address_as_ull, assumed,
+                        __double_as_longlong(val +
+                               __longlong_as_double(assumed)));
+
+    // Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
+    } while (assumed != old);
+
+    return __longlong_as_double(old);
+}
+#endif
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
+#define MFEM_ATOMIC_ADD(x,y) atomicAdd(&x, y)
 #else
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
+#define MFEM_ATOMIC_ADD(x,y) x += y
 #endif
 
 namespace mfem

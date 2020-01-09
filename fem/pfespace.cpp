@@ -3634,8 +3634,8 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          const int idx2 = d_indices2[i];//TODO Add permutation
          for (int c = 0; c < vd; ++c)
          {
-            d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, 0, i / nd);
-            if(idx2>-1 && idx2<ndofs) d_y(t?c:idx2,t?idx2:c) += d_x(i % nd, c, 1, i / nd);
+            MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, 0, i / nd));
+            if(idx2>-1 && idx2<ndofs) MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd));
          }
       });
    }else{
@@ -3647,7 +3647,7 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {
-            d_y(t?c:idx1,t?idx1:c) += d_x(i % nd, c, i / nd);
+            MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, i / nd));
          }
       });      
    }
