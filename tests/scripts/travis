@@ -1,6 +1,28 @@
 #!/bin/bash
 
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.googlecode.com.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+#### Utilities
 . tests/scripts/history_checks.bash
+
+function msg()
+{
+    echo "travis_tests: $*"
+}
+
+function err()
+{
+    echo "travis_tests: $*" 1>&2
+}
 
 ####
 # If in travis context we need to checkout a branch, otherwise travis works in detached head.
@@ -12,20 +34,24 @@ fi
 
 ####
 msg "Check presence of binary files in branch history."
+branch_res=0
 
-# Read: "if check_bin_in_branch fails"
-if ! check_branch
+if ! check_branch # Read: "if check fails"
 then
     err "ERROR: something went wrong in branch checks"
-    exit 1
+    branch_res=1
 fi
 
-function msg() {
-    echo "travis_tests: $*"
-}
-
-function err() {
-    echo "travis_tests: $*" 1>&2
-}
 ####
-# TODO: Code style checks
+msg "Check code style."
+style_res=0
+
+if ! make style-check
+then
+    err "ERROR: something went wrong during style check"
+    style_res=1
+fi
+
+####
+exit ${branch_res} || ${style_res}
+
