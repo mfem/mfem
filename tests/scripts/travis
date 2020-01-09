@@ -2,6 +2,15 @@
 
 . tests/scripts/history_checks.bash
 
+#### Utilities
+function msg() {
+    echo "travis_tests: $*"
+}
+
+function err() {
+    echo "travis_tests: $*" 1>&2
+}
+
 ####
 # If in travis context we need to checkout a branch, otherwise travis works in detached head.
 if ! git checkout -b travis_tests
@@ -12,20 +21,24 @@ fi
 
 ####
 msg "Check presence of binary files in branch history."
+branch_res=0
 
-# Read: "if check_bin_in_branch fails"
-if ! check_branch
+if ! check_branch # Read: "if check fails"
 then
     err "ERROR: something went wrong in branch checks"
-    exit 1
+    branch_check=1
 fi
 
-function msg() {
-    echo "travis_tests: $*"
-}
-
-function err() {
-    echo "travis_tests: $*" 1>&2
-}
 ####
-# TODO: Code style checks
+msg "Check code style."
+style_res=0
+
+if ! make style-check
+then
+    err "ERROR: something went wrong during style check"
+    style_check=1
+fi
+
+####
+exit ${branch_check} || ${style_check}
+
