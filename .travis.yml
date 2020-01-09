@@ -12,7 +12,11 @@ jobs:
     # Linux
     #
     - os: linux
-      complier: gcc
+      compiler: gcc
+      addons:
+        apt:
+          packages:
+            - astyle
       stage: check
       env: DEBUG=NO
            MPI=NO
