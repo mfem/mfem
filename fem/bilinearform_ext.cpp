@@ -60,6 +60,31 @@ void PABilinearFormExtension::Assemble()
    }
 }
 
+void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
+   const int iSz = integrators.Size();
+   if (elem_restrict_lex)
+   {
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AssembleDiagonalPA(localY);
+      }
+      elem_restrict_lex->MultTranspose(localY, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AssembleDiagonalPA(y);
+      }
+   }
+}
+
 void PABilinearFormExtension::Update()
 {
    FiniteElementSpace *fes = a->FESpace();

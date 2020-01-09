@@ -25,9 +25,11 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
+   ConstrainedOperator *constrainedA;
+   FormConstrainedSystemOperator(ess_tdof_list, constrainedA);
+
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
-   Operator *rap;
 
    if (P)
    {
@@ -36,24 +38,18 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
       P->MultTranspose(b, B);
       X.SetSize(R->Height(), x);
       R->Mult(x, X);
-      rap = new RAPOperator(*P, *this, *P);
    }
    else
    {
       // rap, X and B point to the same data as this, x and b, respectively
       X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
       B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
-      rap = this;
    }
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
-   // Impose the boundary conditions through a ConstrainedOperator, which owns
-   // the rap operator when P and R are non-trivial
-   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
-                                                    rap != this);
-   A->EliminateRHS(X, B);
-   Aout = A;
+   constrainedA->EliminateRHS(X, B);
+   Aout = constrainedA;
 }
 
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
@@ -73,6 +69,44 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
       // to device memory) then we need to tell x about that.
       x.SyncMemory(X);
    }
+}
+
+void Operator::FormConstrainedSystemOperator(
+   const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
+{
+   const Operator *P = this->GetProlongation();
+   Operator *rap;
+
+   if (P)
+   {
+      // Variational restriction with P
+      rap = new RAPOperator(*P, *this, *P);
+   }
+   else
+   {
+      rap = this;
+   }
+
+   // Impose the boundary conditions through a ConstrainedOperator, which owns
+   // the rap operator when P and R are non-trivial
+   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
+                                                    rap != this);
+   Aout = A;
+}
+
+void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
+                                  Operator* &Aout)
+{
+   ConstrainedOperator *A;
+   FormConstrainedSystemOperator(ess_tdof_list, A);
+   Aout = A;
+}
+
+void Operator::FormDiscreteOperator(Operator* &Aout)
+{
+   const Operator *Pin  = this->GetProlongation();
+   const Operator *Rout = this->GetOutputRestriction();
+   Aout = new TripleProductOperator(Rout, this, Pin,false, false, false);
 }
 
 void Operator::PrintMatlab(std::ostream & out, int n, int m) const
@@ -101,6 +135,76 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
 }
 
 
+void TimeDependentOperator::ExplicitMult(const Vector &, Vector &) const
+{
+   mfem_error("TimeDependentOperator::ExplicitMult() is not overridden!");
+}
+
+void TimeDependentOperator::ImplicitMult(const Vector &, const Vector &,
+                                         Vector &) const
+{
+   mfem_error("TimeDependentOperator::ImplicitMult() is not overridden!");
+}
+
+void TimeDependentOperator::Mult(const Vector &, Vector &) const
+{
+   mfem_error("TimeDependentOperator::Mult() is not overridden!");
+}
+
+void TimeDependentOperator::ImplicitSolve(const double, const Vector &,
+                                          Vector &)
+{
+   mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
+}
+
+Operator &TimeDependentOperator::GetImplicitGradient(
+   const Vector &, const Vector &, double) const
+{
+   mfem_error("TimeDependentOperator::GetImplicitGradient() is "
+              "not overridden!");
+   return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
+}
+
+Operator &TimeDependentOperator::GetExplicitGradient(const Vector &) const
+{
+   mfem_error("TimeDependentOperator::GetExplicitGradient() is "
+              "not overridden!");
+   return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
+}
+
+int TimeDependentOperator::SUNImplicitSetup(const Vector &,
+                                            const Vector &,
+                                            int, int *, double)
+{
+   mfem_error("TimeDependentOperator::SUNImplicitSetup() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNImplicitSolve(const Vector &, Vector &, double)
+{
+   mfem_error("TimeDependentOperator::SUNImplicitSolve() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassSetup()
+{
+   mfem_error("TimeDependentOperator::SUNMassSetup() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassSolve(const Vector &, Vector &, double)
+{
+   mfem_error("TimeDependentOperator::SUNMassSolve() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassMult(const Vector &, Vector &)
+{
+   mfem_error("TimeDependentOperator::SUNMassMult() is not overridden!");
+   return (-1);
+}
+
+
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)
    : Operator(A->Height(), B->Width()),
@@ -109,6 +213,15 @@ ProductOperator::ProductOperator(const Operator *A, const Operator *B,
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()
                << ", B->Height() = " << B->Height());
+
+   {
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a ProductOperator should not be in iterative mode");
+      }
+   }
 }
 
 ProductOperator::~ProductOperator()
@@ -128,6 +241,22 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
    MFEM_VERIFY(A.Width() == P.Height(),
                "incompatible Operators: A.Width() = " << A.Width()
                << ", P.Height() = " << P.Height());
+
+   {
+      const Solver* SolverA = dynamic_cast<const Solver*>(&A);
+      if (SolverA)
+      {
+         MFEM_VERIFY(!(SolverA->iterative_mode),
+                     "Operator A of an RAPOperator should not be in iterative mode");
+      }
+
+      const Solver* SolverP = dynamic_cast<const Solver*>(&P);
+      if (SolverP)
+      {
+         MFEM_VERIFY(!(SolverP->iterative_mode),
+                     "Operator P of an RAPOperator should not be in iterative mode");
+      }
+   }
 
    mem_class = Rt.GetMemoryClass()*P.GetMemoryClass();
    MemoryType mem_type = GetMemoryType(A.GetMemoryClass()*mem_class);
@@ -150,6 +279,22 @@ TripleProductOperator::TripleProductOperator(
                "incompatible Operators: B->Width() = " << B->Width()
                << ", C->Height() = " << C->Height());
 
+   {
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a TripleProductOperator should not be in iterative mode");
+      }
+
+      const Solver* SolverC = dynamic_cast<const Solver*>(C);
+      if (SolverC)
+      {
+         MFEM_VERIFY(!(SolverC->iterative_mode),
+                     "Operator C of a TripleProductOperator should not be in iterative mode");
+      }
+   }
+
    mem_class = A->GetMemoryClass()*C->GetMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class*B->GetMemoryClass());
    t1.SetSize(C->Height(), mem_type);
@@ -171,6 +316,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
+   list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
    // typically z and w are large vectors, so store them on the device
    z.SetSize(height, mem_type); z.UseDevice(true);
