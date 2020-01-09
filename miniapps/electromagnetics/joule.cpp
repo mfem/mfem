@@ -536,25 +536,25 @@ int main(int argc, char *argv[])
       int offx = Ww+10, offy = Wh+45; // window offsets
 
       VisualizeField(vis_P, vishost, visport,
-		     P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
+                     P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
       Wx += offx;
 
       VisualizeField(vis_E, vishost, visport,
-		     E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
+                     E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
       Wx += offx;
 
       VisualizeField(vis_B, vishost, visport,
-		     B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
+                     B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
       Wx = 0;
       Wy += offy;
 
       VisualizeField(vis_w, vishost, visport,
-		     w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
+                     w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
 
       Wx += offx;
 
       VisualizeField(vis_T, vishost, visport,
-		     T_gf, "Temperature", Wx, Wy, Ww, Wh);
+                     T_gf, "Temperature", Wx, Wy, Ww, Wh);
    }
    // VisIt visualization
    VisItDataCollection visit_dc(basename, pmesh);
@@ -676,26 +676,26 @@ int main(int argc, char *argv[])
             int offx = Ww+10, offy = Wh+45; // window offsets
 
             VisualizeField(vis_P, vishost, visport,
-			   P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
+                           P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
             Wx += offx;
 
             VisualizeField(vis_E, vishost, visport,
-			   E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
+                           E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
             Wx += offx;
 
             VisualizeField(vis_B, vishost, visport,
-			   B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
+                           B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
 
             Wx = 0;
             Wy += offy;
 
             VisualizeField(vis_w, vishost, visport,
-			   w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
+                           w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
 
             Wx += offx;
 
             VisualizeField(vis_T, vishost, visport,
-			   T_gf, "Temperature", Wx, Wy, Ww, Wh);
+                           T_gf, "Temperature", Wx, Wy, Ww, Wh);
          }
 
          if (visit)
