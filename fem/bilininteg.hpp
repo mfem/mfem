@@ -2048,9 +2048,10 @@ private:
    { Q = q; VQ = vq; MQ = mq; }
 
 #ifndef MFEM_THREAD_SAFE
-   Vector shape;
+   Vector shape, te_shape;
    Vector D;
    DenseMatrix K;
+   DenseMatrix partelmat;
    DenseMatrix test_vshape;
    DenseMatrix trial_vshape;
 #endif
