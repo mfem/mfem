@@ -976,7 +976,8 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
 SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
                                                    const Table* old_elem_dof)
 {
-   MFEM_VERIFY(ndofs >= old_ndofs, "Previous space is not coarser.");
+   MFEM_VERIFY(GetNE() >= old_elem_dof->Size(),
+               "Previous mesh is not coarser.");
 
    Mesh::GeometryList elem_geoms(*mesh);
 
@@ -994,12 +995,8 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
    : fespace(fespace)
    , old_elem_dof(old_elem_dof)
 {
-#if 0 // with NC tet AMR this check no longer seems to work correctly in parallel
-   const Mesh* mesh = fespace->GetMesh();
-   MFEM_VERIFY(mesh->ReduceInt(fespace->GetNDofs()) >=
-               mesh->ReduceInt(old_ndofs),
-               "Previous space is not coarser.");
-#endif
+   MFEM_VERIFY(fespace->GetNE() >= old_elem_dof->Size(),
+               "Previous mesh is not coarser.");
 
    width = old_ndofs * fespace->GetVDim();
    height = fespace->GetVSize();
