@@ -588,9 +588,9 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
 void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width()), mem_type);
-   y.SetSize(f->Width()), mem_type);
-   xdot.SetSize(f->Width()), mem_type);
+   k.SetSize(f->Width(), mem_type);
+   y.SetSize(f->Width(), mem_type);
+   xdot.SetSize(f->Width(), mem_type);
    xdot = 0.0;
    first = true;
 }
