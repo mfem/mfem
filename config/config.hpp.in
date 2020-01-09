@@ -144,7 +144,7 @@
 // Enable functionality based on the OCCA library.
 // #define MFEM_USE_OCCA
 
-// Enable functionality based on the CEED library.
+// Enable functionality based on the libCEED library.
 // #define MFEM_USE_CEED
 
 // Version of HYPRE used for building MFEM.

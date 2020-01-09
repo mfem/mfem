@@ -340,7 +340,7 @@ OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
-# CEED library configuration
+# libCEED library configuration
 CEED_DIR ?= @MFEM_DIR@/../libCEED
 CEED_OPT = -I$(CEED_DIR)/include
 CEED_LIB = $(XLINKER)-rpath,$(CEED_DIR)/lib -L$(CEED_DIR)/lib -lceed
