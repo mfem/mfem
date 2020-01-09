@@ -95,7 +95,10 @@ TEST_CASE("conv")
 
           y_pa -= y;
           double pa_error =- y_pa.Norml2();
-          std::cout << "  order: " << order
+          std::cout << " ConvectionIntegrator "
+                    << " dim: " << dimension
+                    << " conforming: " << imesh
+                    << " order: " << order
                     << ", pa error norm: " << pa_error << std::endl;
           REQUIRE(pa_error < 1.e-12);
         }//order loop
