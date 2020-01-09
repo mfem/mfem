@@ -403,7 +403,7 @@ COMMON_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(COMMON_SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
 	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
-	deprecation-warnings
+	deprecation-warnings lib-common
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -554,10 +554,7 @@ INSTALL_COMMON_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
    && \
    cd $(PREFIX_LIB) && ln -sf libmfem-common.$(SO_VER) libmfem-common.$(SO_EXT)
 
-install: $(if $(static),$(BLD)libmfem.a)\
-   $(if $(shared),$(BLD)libmfem.$(SO_EXT))\
-   $(if $(static),$(BLD)miniapps/common/libmfem-common.a)\
-   $(if $(shared),$(BLD)miniapps/common/libmfem-common.$(SO_EXT))
+install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) lib-common
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
@@ -568,11 +565,13 @@ install: $(if $(static),$(BLD)libmfem.a)\
 # install top level includes
 	mkdir -p $(PREFIX_INC)/mfem
 	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
-	$(SRC)miniapps/common/mfem-common.hpp \
 	   $(PREFIX_INC)/mfem
+# install miniapps/common includes
+	$(INSTALL) -m 640 $(SRC)miniapps/common/*.hpp $(PREFIX_INC)/mfem
 	for hdr in mfem.hpp miniapps/common/mfem-common.hpp mfem-performance.hpp; do \
 	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
-	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; done
+	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; \
+	done
 # install config include
 	mkdir -p $(PREFIX_INC)/mfem/config
 	$(INSTALL) -m 640 $(BLD)config/_config.hpp $(PREFIX_INC)/mfem/config/config.hpp

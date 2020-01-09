@@ -21,7 +21,6 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-
 SEQ_MINIAPPS = display-basis load-dc convert-dc lor-transfer
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)

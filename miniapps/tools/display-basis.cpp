@@ -26,8 +26,6 @@
 //               display-basis -e 5 -b 1 -o 1
 
 #include "mfem.hpp"
-//#include "../common/fem_extras.hpp"
-//#include "../common/mesh_extras.hpp"
 #include "../common/mfem-common.hpp"
 #include <vector>
 #include <iostream>
