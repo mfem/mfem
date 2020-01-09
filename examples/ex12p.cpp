@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
    int nev = 5;
-   int seed = 75;
+   int seed = 76;
    bool visualization = 1;
    bool amg_elast = 0;
 
