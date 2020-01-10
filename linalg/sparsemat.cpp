@@ -189,15 +189,14 @@ SparseMatrix::SparseMatrix(const Vector &v)
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
-   , At(NULL)
    , isSorted(true)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
-   I.New(height + 1);
-   J.New(height);
-   A.New(height);
+   I = new int[height+1];
+   J = new int[height];
+   A = new double[height];
 
    for (int i = 0; i <= height; i++)
    {
