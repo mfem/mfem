@@ -1648,7 +1648,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             // no face dofs --> don't need to adjust QuadDofOrd
          }
          else  // p >= 4 --> have face dofs
-            // Exactly the same as tesnor product case but with all orders reduced by 2
+            // Exactly the same as tensor product case but with all orders reduced by 2
             // e.g. in case p=5 it builds a 2x2 array, even though there are only 3 serendipity dofs
             // In the tensor product case, i and j index tensor directions, and o indexes from 0 to (pm1)^2
          {
