@@ -189,9 +189,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       }
       int firstIntDof = 4 + 4*(order-1);
       cout << "dof2view = -3 ==> Setting all Dofs to 1 up to Dof " << firstIntDof << endl;
-      // int numIntDofs = (order - 3)*(order - 2)/2; // assumes serendipity case
-
-      // can go up to x.Size()
 
       for (int i = 0; i < firstIntDof; i++)
       {
@@ -200,14 +197,10 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
    else if (dof2view == -2)     // Hack to project something
    {
-      // void H1Ser_QuadrilateralElement::Project(Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
-      // fe->Project(coeff, Trans, X)
-      // fes->GetFE(i)-> Project(*src.fes->GetFE(i), *mesh->GetElementTransformation(i), P);
       const FiniteElement *feholder = fespace->GetFE(0);
       ElementTransformation *trans = mesh->GetElementTransformation(0);
       DenseMatrix temporary;
       feholder->Project(*feholder, *trans, temporary);
-      // temporary.Print();
    }
    else if (dof2view != -1)    // Hack to viusalize a single basis function   
    {
@@ -276,10 +269,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    h1_err_prev = h1_err;
 
    // 15. Free the used memory.
-   // delete pcg;
-   // delete amg;
-   // delete my_diff_integrator;
-   // delete my_mass_integrator;
    delete a; 
    delete b;
    delete fespace;
@@ -345,8 +334,6 @@ int main(int argc, char *argv[])
                   "Use serendipity element collection.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   //args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-   //             "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",

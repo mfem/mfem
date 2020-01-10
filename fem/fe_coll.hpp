@@ -121,7 +121,7 @@ public:
 };
 
 /** Arbitrary order H1-conforming (continuous) serendipity finite elements;
- *  Current implemenation works in 2D only; 3D version is in development.
+ *  Current implementation works in 2D only; 3D version is in development.
 */
 class H1Ser_FECollection : public H1_FECollection
 {
