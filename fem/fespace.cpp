@@ -3591,7 +3591,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
       auto d_indices1 = indices1.Read();
       auto d_indices2 = indices2.Read();
       auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, nfdofs,
       {
          const int idx1 = d_indices1[i];
@@ -3605,7 +3605,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    }else{
       auto d_indices1 = indices1.Read();
       auto d_x = Reshape(x.Read(), nd, vd, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, nfdofs,
       {
          const int idx1 = d_indices1[i];

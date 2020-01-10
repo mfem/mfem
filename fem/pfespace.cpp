@@ -3567,6 +3567,7 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
+   const int treshold = ndofs;
 
    if(m==L2FaceValues::Double){
       auto d_indices1 = indices1.Read();
@@ -3587,17 +3588,17 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
-            if(idx2>-1 && idx2<ndofs) //interior face
+            if(idx2>-1 && idx2<treshold) //interior face
             {
                d_y(dof, c, 1, face) = d_x(t?c:idx2, t?idx2:c);
             }
-            else if(idx2>ndofs) //shared boundary
+            else if(idx2>=treshold) //shared boundary
             {
-               d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-ndofs), t?(idx2-ndofs):c);   
+               d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-treshold), t?(idx2-treshold):c);
             }
             else //true boundary
             {
-               d_y(dof, c, 1, face) = 0.0;   
+               d_y(dof, c, 1, face) = 0.0;
             }
          }
       });
@@ -3624,11 +3625,12 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
+   const int treshold = ndofs;
    if(m==L2FaceValues::Double){
       auto d_indices1 = indices1.Read();
       auto d_indices2 = indices2.Read();
       auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, nfdofs,
       {
          const int idx1 = d_indices1[i];
@@ -3636,13 +3638,13 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          for (int c = 0; c < vd; ++c)
          {
             MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, 0, i / nd));
-            if(idx2>-1 && idx2<ndofs) MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd));
+            if(idx2>-1 && idx2<treshold) MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd));
          }
       });
    }else{
       auto d_indices1 = indices1.Read();
       auto d_x = Reshape(x.Read(), nd, vd, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, nfdofs,
       {
          const int idx1 = d_indices1[i];
