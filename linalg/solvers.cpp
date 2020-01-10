@@ -1828,6 +1828,7 @@ void BlockILU0::CreateBlockPattern()
    int b2 = block_size*block_size;
    AB = new double[b2*nnz](); // initialize with zeros
    int counter = 0;
+
    for (int iblock = 0; iblock < nblockrows; ++iblock)
    {
       for (int jblock : unique_block_cols[iblock])
@@ -1838,8 +1839,12 @@ void BlockILU0::CreateBlockPattern()
             int i = iblock*block_size + bi;
             for (int k = I[i]; k < I[i + 1]; ++k)
             {
-               int bj = J[k] - jblock*block_size;
-               AB[bi + bj*block_size + counter*b2] = V[k];
+               int j = J[k];
+               if (j >= jblock*block_size && j < (jblock+1)*block_size)
+               {
+                  int bj = j - jblock*block_size;
+                  AB[bi + bj*block_size + counter*b2] = V[k];
+               }
             }
          }
 	      ++counter;
