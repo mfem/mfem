@@ -780,7 +780,8 @@ public:
         fdorder(1)
    { }
 
-   ~TMOP_Integrator() { delete lim_func; }
+   ~TMOP_Integrator() { delete lim_func;
+    for (int i=0;i<ElemDer.Size();i++) {delete ElemDer[i];delete ElemPertEnergy[i];}}
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
