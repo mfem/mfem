@@ -1788,21 +1788,26 @@ slbqp_done:
    }
 }
 
-BlockILU0::BlockILU0(Operator *A, int block_size_) : block_size(block_size_)
+BlockILU0::BlockILU0(Operator *A_, int block_size_) : block_size(block_size_)
 {
-   A_ = static_cast<SparseMatrix *>(A);
-   MFEM_ASSERT(A_->Finalized(), "Matrix must be finalized.");
+   A = dynamic_cast<SparseMatrix *>(A_);
+   if (A == NULL)
+   {
+      MFEM_ABORT("BlockILU0 must be created with a SparseMatrix");
+   }
+   MFEM_ASSERT(A->Finalized(), "Matrix must be finalized.");
 
-   A_->SortColumnIndices();
+   A->SortColumnIndices();
    CreateBlockPattern();
+   Factorize();
 }
 
 void BlockILU0::CreateBlockPattern()
 {
-   int nrows = A_->Height();
-   const int *I = A_->GetI();
-   const int *J = A_->GetJ();
-   const double *V = A_->GetData();
+   int nrows = A->Height();
+   const int *I = A->GetI();
+   const int *J = A->GetJ();
+   const double *V = A->GetData();
    int nnz = 0;
    int nblockrows = nrows / block_size;
 
@@ -1826,10 +1831,13 @@ void BlockILU0::CreateBlockPattern()
    JB.SetSize(nnz);
    int b2 = block_size * block_size;
    AB = new double[b2 * nnz](); // initialize with zeros
+   DB = new double[b2 * nblockrows](); // initialize with zeros
    int counter = 0;
 
    for (int iblock = 0; iblock < nblockrows; ++iblock)
    {
+      // Note: std::set is a sorted container, so we iterate over the block
+      // columns in increasing order
       for (int jblock : unique_block_cols[iblock])
       {
          JB[counter] = jblock;
@@ -1843,12 +1851,71 @@ void BlockILU0::CreateBlockPattern()
                {
                   int bj = j - jblock * block_size;
                   AB[bi + bj * block_size + counter * b2] = V[k];
+                  // Extract the diagonal
+                  if (iblock == jblock)
+                  {
+                     DB[bi + bj * block_size + iblock*b2] = V[k];
+                  }
                }
             }
          }
          ++counter;
       }
       IB[iblock + 1] = counter;
+   }
+}
+
+void BlockILU0::Factorize()
+{
+   int nblockrows = A->Height()/block_size;
+   int b2 = block_size*block_size;
+   DenseMatrix M1, M2, M3, D, Dinv;
+   DenseMatrixInverse D_factorized;
+   DenseMatrix tmp(block_size, block_size);
+
+
+   // Loop over block rows (starting with second block row)
+   for (int i=1; i<nblockrows; ++i)
+   {
+      // Find all nonzeros to the left of the diagonal in row i
+      for (int kk=IB[i]; kk<IB[i+1]; ++kk)
+      {
+         int k = JB[kk];
+         // Make sure we're still to the left of the diagonal
+         if (k == i) { break; }
+         if (k > i)
+         {
+            MFEM_ABORT("Matrix must be sorted with nonzero diagonal");
+         }
+         D.UseExternalData(&DB[k*b2], block_size, block_size);
+         D_factorized.SetOperator(D);
+         D_factorized.GetInverseMatrix(Dinv);
+         // M1 = L_ik
+         M1.UseExternalData(&AB[kk*b2], block_size, block_size);
+         tmp = M1;
+         // L_ik = L_ik * U_kk^{-1}
+         mfem::Mult(tmp, Dinv, M1);
+         // Modify everything to the right of k in row i
+         for (int jj=kk+1; jj<IB[i+1]; ++jj)
+         {
+            int j = JB[jj];
+            if (j <= k) { continue; } // Superfluous because JB is sorted?
+            // M2 = A_ij
+            M2.UseExternalData(&AB[jj*b2], block_size, block_size);
+            for (int ll=IB[k]; ll<IB[k+1]; ++ll)
+            {
+               int l = JB[ll];
+               if (l == j)
+               {
+                  // M3 = U_kj
+                  M3.UseExternalData(&AB[ll*b2], block_size, block_size);
+                  // U_ij = U_ij - L_ik*U_kj;
+                  AddMult_a(-1.0, M1, M3, M2);
+                  break;
+               }
+            }
+         }
+      }
    }
 }
 
