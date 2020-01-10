@@ -426,7 +426,7 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 $(COMMON_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -I$(BUILD_DIR) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
 
