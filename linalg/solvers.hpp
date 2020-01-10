@@ -14,13 +14,13 @@
 
 #include "../config/config.hpp"
 #include "operator.hpp"
+#include "sparsemat.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
 
 #ifdef MFEM_USE_SUITESPARSE
-#include "sparsemat.hpp"
 #include <umfpack.h>
 #include <klu.h>
 #endif
@@ -341,6 +341,24 @@ public:
    virtual void SetOperator(const Operator &op);
 };
 
+class ILU : public Solver
+{
+public:
+  ILU(Operator *A, int block_size = 1);
+
+  void SetOperator(const Operator &op) {}
+
+  void Mult(const Vector &x, Vector &y) const {}
+
+  void CreateBlockPattern();
+
+  ~ILU() {};
+
+  SparseMatrix *A_ = nullptr;
+  int block_size_;
+
+  Array<int> IB, JB;
+};
 
 #ifdef MFEM_USE_SUITESPARSE
 
