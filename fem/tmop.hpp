@@ -747,6 +747,8 @@ protected:
    TMOP_LimiterFunction *lim_func;
    // Normalization factor for the limiting term.
    double lim_normal;
+   // Flag for derivative calculation
+   int der_flag;
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -766,11 +768,11 @@ protected:
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
-   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc, int DerFlag)
       : metric(m), targetC(tc),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
-        lim_dist(NULL), lim_func(NULL), lim_normal(1.0)
+        lim_dist(NULL), lim_func(NULL), lim_normal(1.0), der_flag(DerFlag)
    { }
 
    ~TMOP_Integrator() { delete lim_func; }
@@ -820,6 +822,27 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   virtual void AssembleElementVectorExact(const FiniteElement &el,
+                                      ElementTransformation &T,
+                                      const Vector &elfun, Vector &elvect);
+
+   virtual void AssembleElementGradExact(const FiniteElement &el,
+                                    ElementTransformation &T,
+                                    const Vector &elfun, DenseMatrix &elmat);
+
+   virtual void AssembleElementVectorFD(const FiniteElement &el,
+                                      ElementTransformation &T,
+                                      const Vector &elfun, Vector &elvect);
+
+   virtual void AssembleElementGradFD(const FiniteElement &el,
+                                    ElementTransformation &T,
+                                    const Vector &elfun, DenseMatrix &elmat);
+
+   virtual double GetFDDerivative(const FiniteElement &el,
+                                      ElementTransformation &T,
+                                      Vector &elfun,
+                                const int nodenum,const int idir);
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */
