@@ -473,10 +473,10 @@ public:
    virtual void Mult(const Vector &xt, Vector &x) const;
 };
 
-class ILU : public Solver
+class BlockILU0 : public Solver
 {
 public:
-  ILU(Operator *A, int block_size = 1);
+  BlockILU0(Operator *A, int block_size_ = 1);
 
   void SetOperator(const Operator &op) {}
 
@@ -484,12 +484,13 @@ public:
 
   void CreateBlockPattern();
 
-  ~ILU() {};
+  ~BlockILU0();
 
   SparseMatrix *A_ = nullptr;
-  int block_size_;
+  int block_size;
 
   Array<int> IB, JB;
+  double *AB;
 };
 
 #ifdef MFEM_USE_SUITESPARSE

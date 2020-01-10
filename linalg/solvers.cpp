@@ -1788,43 +1788,69 @@ slbqp_done:
    }
 }
 
-ILU::ILU(Operator *A, int block_size)
-   : block_size_(block_size)
+BlockILU0::BlockILU0(Operator *A, int block_size_)
+   : block_size(block_size_)
 {
    A_ = static_cast<SparseMatrix *>(A);
    MFEM_ASSERT(A_->Finalized(), "Matrix must be finalized.");
 
    A_->SortColumnIndices();
+   CreateBlockPattern();
 }
 
-void ILU::CreateBlockPattern()
+void BlockILU0::CreateBlockPattern()
 {
    int nrows = A_->Height();
    const int *I = A_->GetI();
    const int *J = A_->GetJ();
-   int nnz_count = 0;
+   const double *V = A_->GetData();
+   int nnz = 0;
+   int nblockrows = nrows / block_size;
 
-   IB.SetSize(nrows / block_size_ + 1);
-   IB[0] = 0;
+   std::vector<std::set<int>> unique_block_cols(nblockrows);
 
-   for (int iblock = 0; iblock < nrows / block_size_; ++iblock)
+   for (int iblock = 0; iblock < nblockrows; ++iblock)
    {
-      std::set<int> unique_block_cols;
-      for (int bi = 0; bi < block_size_; ++bi)
+      for (int bi = 0; bi < block_size; ++bi)
       {
-	 int i = iblock * block_size_ + bi;
-	 for (int k = I[i]; k < I[i + 1]; ++k)
-	 {
-	    unique_block_cols.insert(J[k] / block_size_);
-	 }
+	      int i = iblock * block_size + bi;
+	      for (int k = I[i]; k < I[i + 1]; ++k)
+	      {
+	         unique_block_cols[iblock].insert(J[k] / block_size);
+	      }
       }
-      for (int jblock : unique_block_cols)
-      {
-	 JB.Append(jblock);
-	 nnz_count++;
-      }
-      IB[iblock + 1] = nnz_count;
+      nnz += unique_block_cols[iblock].size();
    }
+
+   IB.SetSize(nblockrows + 1);
+   IB[0] = 0;
+   JB.SetSize(nnz);
+   int b2 = block_size*block_size;
+   AB = new double[b2*nnz](); // initialize with zeros
+   int counter = 0;
+   for (int iblock = 0; iblock < nblockrows; ++iblock)
+   {
+      for (int jblock : unique_block_cols[iblock])
+      {
+	      JB[counter] = jblock;
+         for (int bi = 0; bi < block_size; ++bi)
+         {
+            int i = iblock*block_size + bi;
+            for (int k = I[i]; k < I[i + 1]; ++k)
+            {
+               int bj = J[k] - jblock*block_size;
+               AB[bi + bj*block_size + counter*b2] = V[k];
+            }
+         }
+	      ++counter;
+      }
+      IB[iblock + 1] = counter;
+   }
+}
+
+BlockILU0::~BlockILU0()
+{
+   delete AB;
 }
 
 #ifdef MFEM_USE_SUITESPARSE
