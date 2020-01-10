@@ -753,7 +753,7 @@ protected:
    int fdorder;
    double elemenergy;
    Array <Vector *> ElemDer;
-
+   Array <Vector *> ElemPertEnergy;
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
    //   Jpt: the target->physical transformation Jacobian, Jpt = Jpr Jrt.
@@ -849,10 +849,7 @@ public:
                                       Vector &elfun,
                                 const int nodenum,const int idir);
 
-   virtual void SetFDPar(int fdorderin, int sz) {fdorder = fdorderin,
-               der_flag=1, ElemDer.SetSize(sz);}
-
-
+   virtual void SetFDPar(int fdorderin, int sz);
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */

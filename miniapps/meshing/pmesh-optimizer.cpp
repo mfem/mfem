@@ -252,7 +252,7 @@ int main (int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int fd_order          = 2;
+   int fd_order          = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);

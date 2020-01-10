@@ -1387,6 +1387,19 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    delete Tpr;
 }
 
+void TMOP_Integrator::SetFDPar(int fdorderin, int sz)
+{
+    if (fdorderin == 0) {
+        der_flag = 0;
+    }
+    else {
+        fdorder = fdorderin;
+        der_flag=1;
+        ElemDer.SetSize(sz);
+        ElemPertEnergy.SetSize(sz);
+    }
+}
+
 double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
                                         ElementTransformation &T,
                                         Vector &elfun,
@@ -1399,7 +1412,12 @@ double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
         double energy1 = (this)->GetElementEnergy(el, T, elfun);
         elfun[idir*dof+nodenum] -= fdeps;
         double energy2 = elemenergy;
-        return (energy1-energy2)/fdeps;
+        double der     = (energy1-energy2)/fdeps;
+
+        (*(ElemPertEnergy[T.ElementNo]))[idir*dof+nodenum] = energy1;
+        (*(ElemDer[T.ElementNo]))[idir*dof+nodenum] = der;
+
+        return der;
     }
     else {
         elfun[idir*dof+nodenum] += fdeps;
@@ -1420,6 +1438,8 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    int elnum = T.ElementNo;
    ElemDer[elnum] = new Vector;
    ElemDer[elnum]->SetSize(dof*dim);
+   ElemPertEnergy[elnum] = new Vector;
+   ElemPertEnergy[elnum]->SetSize(dof*dim);
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
@@ -1431,13 +1451,13 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    Vector elfunmod;
    elfunmod.SetSize(dof*dim);
    elfunmod.SetData(elfun.GetData());
+
    elemenergy = (this)->GetElementEnergy(el, T, elfun);
    for (int j=0;j<dim;j++) {
    for (int i=0;i<dof;i++) {
        elvect[j*dof+i] = (this)->GetFDDerivative(el,T,elfunmod,i,j);
    }
    }
-   *(ElemDer[elnum]) = elvect;
 }
 
 void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
@@ -1460,14 +1480,14 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    elfunmod.SetData(elfun.GetData());
 
    Vector ElemDerLoc = *(ElemDer[T.ElementNo]);
-
+   Vector ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
    if (fdorder==1) {
        for (int i=0;i<dof;i++) {
        for (int j=0;j<i+1;j++) {
             for (int k1=0;k1<dim;k1++) {
             for (int k2=0;k2<dim;k2++) {
                 elfunmod(k2*dof+j) += fdeps;
-                elemenergy = (this)->GetElementEnergy(el, T, elfunmod);
+                elemenergy = ElemPertLoc[k2*dof+j];
                 double energy1 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
                 elfunmod(k2*dof+j) -= fdeps;
                 double energy2 = ElemDerLoc[k1*dof+i];
