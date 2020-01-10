@@ -26,11 +26,6 @@
 namespace mfem
 {
 
-#ifdef MFEM_USE_MPI
-class ParComplexLinearForm;
-class ParSesquilinearForm;
-#endif // MFEM_USE_MPI
-
 /// Class for complex-valued grid function - real + imaginary part Vector with
 /// associated FE space.
 class ComplexGridFunction : public Vector
@@ -104,17 +99,16 @@ public:
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a LinearForm on the FiniteElementSpace @a f, using the
-      same integrators as the LinearForm @a clf or @a pclf .
+   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a f, using the
+      same integrators as the LinearForms @a lfr (real) and @a lfi (imag) .
 
-      The pointer @a f is not owned by the newly constructed object.
+      The pointer @a fes is not owned by the newly constructed object.
 
-      The integrators in @a lf are copied as pointers and they are not owned by
-      the newly constructed LinearForm. */
-   ComplexLinearForm(FiniteElementSpace *fes, ComplexLinearForm *clf);
-#ifdef MFEM_USE_MPI
-   ComplexLinearForm(FiniteElementSpace *fes, ParComplexLinearForm *pclf);
-#endif // MFEM_USE_MPI
+      The integrators are copied as pointers and they are not owned by
+      the newly constructed ComplexLinearForm. */
+   ComplexLinearForm(FiniteElementSpace *fes, LinearForm *lfr, LinearForm *lfi,
+                     ComplexOperator::Convention
+                     convention = ComplexOperator::HERMITIAN);
 
    virtual ~ComplexLinearForm();
 
@@ -201,16 +195,15 @@ public:
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
    /** @brief Create a BilinearForm on the FiniteElementSpace @a f, using the
-       same integrators as the BilinearForm @a bf.
+       same integrators as the BilinearForms @a bfr and @a bfi .
 
-       The pointer @a f is not owned by the newly constructed object.
+       The pointer @a fes is not owned by the newly constructed object.
 
-       The integrators in @a bf are copied as pointers and they are not owned by
+       The integrators are copied as pointers and they are not owned by
        the newly constructed BilinearForm. */
-   SesquilinearForm(FiniteElementSpace *fes, SesquilinearForm *bf);
-#ifdef MFEM_USE_MPI
-   SesquilinearForm(FiniteElementSpace *fes, ParSesquilinearForm *bf);
-#endif // MFEM_USE_MPI
+   SesquilinearForm(FiniteElementSpace *fes, BilinearForm *bfr, BilinearForm *bfi,
+                    ComplexOperator::Convention
+                    convention = ComplexOperator::HERMITIAN);
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
@@ -391,14 +384,16 @@ public:
                         ComplexOperator::Convention
                         convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a *pf, using
-      the same integrators as the ParComplexLinearForm @a *pclf.
+   /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a pf, using the
+      same integrators as the LinearForms @a plfr (real) and @a plfi (imag) .
 
-      The pointer @a pf is not owned by the newly constructed object.
+      The pointer @a fes is not owned by the newly constructed object.
 
-      The integrators in @a pclf are copied as pointers and they are not owned
-      by the newly constructed ParComplexForm. */
-   ParComplexLinearForm(ParFiniteElementSpace *pf, ParComplexLinearForm * pclf);
+      The integrators are copied as pointers and they are not owned by
+      the newly constructed ParComplexLinearForm. */
+   ParComplexLinearForm(ParFiniteElementSpace *pf, ParLinearForm *plfr, ParLinearForm *plfi,
+                        ComplexOperator::Convention
+                        convention = ComplexOperator::HERMITIAN);
 
    virtual ~ParComplexLinearForm();
 
@@ -490,14 +485,16 @@ public:
                        ComplexOperator::Convention
                        convention = ComplexOperator::HERMITIAN);
 
-   // /** @brief Create a ParSesquilinearForm on the ParFiniteElementSpace @a *pf,
-   //     using the same integrators as the ParSesquilinearForm @a *bf.
+   /** @brief Create a ParSesquilinearForm on the ParFiniteElementSpace @a pf, using the
+       same integrators as the ParBilinearForms @a pbfr and @a pbfi .
 
-   //     The pointer @a pf is not owned by the newly constructed object.
+       The pointer @a pf is not owned by the newly constructed object.
 
-   //     The integrators in @a bf are copied as pointers and they are not owned by
-   //     the newly constructed ParSesquilinearForm. */
-   ParSesquilinearForm(ParFiniteElementSpace *pf, ParSesquilinearForm *pbf);
+       The integrators are copied as pointers and they are not owned by
+       the newly constructed ParSesquilinearBilinearForm. */
+   ParSesquilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *pbfr, ParBilinearForm *pbfi,
+                    ComplexOperator::Convention
+                    convention = ComplexOperator::HERMITIAN);
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
