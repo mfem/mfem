@@ -39,6 +39,8 @@
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Blade shape with FD-based solver:
+//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fdo 1
 //   Blade limited shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
@@ -246,7 +248,6 @@ int main (int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int derivative_type   = 0;
    int fd_order          = 2;
 
    // 1. Parse command-line options.
@@ -311,8 +312,6 @@ int main (int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
-   args.AddOption(&derivative_type, "-fd", "--fd_derivative_flag",
-                  "Computation of derivative: 1-FD-based, Newton otherwise.");
    args.AddOption(&fd_order, "-fdo", "--fd_order",
                   "Order of finite difference method: 1 or 2 (default).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -492,8 +491,8 @@ int main (int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
    target_c->SetNodes(x0);
-   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c,
-                                                       derivative_type);
+   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
+   he_nlf_integ->SetFDPar(fd_order, mesh->GetNE());
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -508,7 +507,7 @@ int main (int argc, char *argv[])
    }
    cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
    he_nlf_integ->SetIntegrationRule(*ir);
-   he_nlf_integ->SetFDorder(fd_order);
+
    if (normalization) { he_nlf_integ->EnableNormalization(x0); }
 
    // 13. Limit the node movement.
@@ -548,10 +547,9 @@ int main (int argc, char *argv[])
          TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
       target_c2->SetVolumeScale(0.01);
       target_c2->SetNodes(x0);
-      TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2,
-                                                           derivative_type);
+      TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
-      he_nlf_integ2->SetFDorder(fd_order);
+      he_nlf_integ2->SetFDPar(fd_order, mesh->GetNE());
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);
