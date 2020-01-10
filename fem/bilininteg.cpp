@@ -1688,145 +1688,62 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   if (el.GetRangeType() == FiniteElement::VECTOR)
-   {
-      // assume el is vector FE
-      int dof = el.GetDof();
-      int spaceDim = Trans.GetSpaceDim();
+   int dof = el.GetDof();
+   int spaceDim = Trans.GetSpaceDim();
 
-      double w;
+   double w;
 
 #ifdef MFEM_THREAD_SAFE
-      Vector D(VQ ? VQ->GetVDim() : 0);
-      DenseMatrix trial_vshape(dof, spaceDim);
-      DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
+   Vector D(VQ ? VQ->GetVDim() : 0);
+   DenseMatrix trial_vshape(dof, spaceDim);
+   DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #else
-      trial_vshape.SetSize(dof, spaceDim);
-      D.SetSize(VQ ? VQ->GetVDim() : 0);
-      K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
+   trial_vshape.SetSize(dof, spaceDim);
+   D.SetSize(VQ ? VQ->GetVDim() : 0);
+   K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
-      DenseMatrix tmp(trial_vshape.Height(), K.Width());
+   DenseMatrix tmp(trial_vshape.Height(), K.Width());
 
-      elmat.SetSize(dof);
-      elmat = 0.0;
+   elmat.SetSize(dof);
+   elmat = 0.0;
 
-      const IntegrationRule *ir = IntRule;
-      if (ir == NULL)
-      {
-         // int order = 2 * el.GetOrder();
-         int order = Trans.OrderW() + 2 * el.GetOrder();
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
-
-      for (int i = 0; i < ir->GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-
-         Trans.SetIntPoint (&ip);
-
-         el.CalcVShape(Trans, trial_vshape);
-
-         w = ip.weight * Trans.Weight();
-         if (MQ)
-         {
-            MQ->Eval(K, Trans, ip);
-            K *= w;
-            Mult(trial_vshape,K,tmp);
-            AddMultABt(tmp,trial_vshape,elmat);
-         }
-         else if (VQ)
-         {
-            VQ->Eval(D, Trans, ip);
-            D *= w;
-            AddMultADAt(trial_vshape, D, elmat);
-         }
-         else
-         {
-            if (Q)
-            {
-               w *= Q -> Eval (Trans, ip);
-            }
-            AddMult_a_AAt (w, trial_vshape, elmat);
-         }
-      }
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // int order = 2 * el.GetOrder();
+      int order = Trans.OrderW() + 2 * el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), order);
    }
-   else
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
    {
-      // assume el is scalar FE
-      int nd = el.GetDof();
-      int vdim = Trans.GetSpaceDim();
+      const IntegrationPoint &ip = ir->IntPoint(i);
 
-      double w;
+      Trans.SetIntPoint (&ip);
 
-#ifdef MFEM_THREAD_SAFE
-      Vector shape(nd);
-      DenseMatrix partelmat(nd);
-      Vector D(VQ ? VQ->GetVDim() : 0);
-      DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
-#else
-      shape.SetSize(nd);
-      partelmat.SetSize(nd);
-      D.SetSize(VQ ? VQ->GetVDim() : 0);
-      K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
-#endif
+      el.CalcVShape(Trans, trial_vshape);
 
-      elmat.SetSize(nd*vdim);
-
-      const IntegrationRule *ir = IntRule;
-      if (ir == NULL)
+      w = ip.weight * Trans.Weight();
+      if (MQ)
       {
-         int order = 2 * el.GetOrder() + Trans.OrderW();
-
-         if (el.Space() == FunctionSpace::rQk)
-         {
-            ir = &RefinedIntRules.Get(el.GetGeomType(), order);
-         }
-         else
-         {
-            ir = &IntRules.Get(el.GetGeomType(), order);
-         }
+         MQ->Eval(K, Trans, ip);
+         K *= w;
+         Mult(trial_vshape,K,tmp);
+         AddMultABt(tmp,trial_vshape,elmat);
       }
-
-      elmat = 0.0;
-      for (int s = 0; s < ir->GetNPoints(); s++)
+      else if (VQ)
       {
-         const IntegrationPoint &ip = ir->IntPoint(s);
-         el.CalcShape(ip, shape);
-
-         Trans.SetIntPoint (&ip);
-         w = ip.weight * Trans.Weight();
-
-         MultVVt(shape, partelmat);
-
-         if (VQ)
+         VQ->Eval(D, Trans, ip);
+         D *= w;
+         AddMultADAt(trial_vshape, D, elmat);
+      }
+      else
+      {
+         if (Q)
          {
-            VQ->Eval(D, Trans, ip);
-            for (int k = 0; k < vdim; k++)
-            {
-               elmat.AddMatrix(w*D(k), partelmat, nd*k, nd*k);
-            }
+            w *= Q -> Eval (Trans, ip);
          }
-         else if (MQ)
-         {
-            MQ->Eval(K, Trans, ip);
-            for (int i = 0; i < vdim; i++)
-               for (int j = 0; j < vdim; j++)
-               {
-                  elmat.AddMatrix(w*K(i,j), partelmat, nd*i, nd*j);
-               }
-         }
-         else
-         {
-            if (Q)
-            {
-               w *= Q->Eval(Trans, ip);
-            }
-            partelmat *= w;
-            for (int k = 0; k < vdim; k++)
-            {
-               elmat.AddMatrix(partelmat, nd*k, nd*k);
-            }
-         }
+         AddMult_a_AAt (w, trial_vshape, elmat);
       }
    }
 }
