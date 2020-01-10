@@ -77,7 +77,7 @@ TEST_CASE("ILU", "[ILU]")
 
    SECTION("Create block pattern from SparseMatrix")
    {
-      ILU ilu(&A, Nb);
+      BlockILU0 ilu(&A, Nb);
       ilu.CreateBlockPattern();
 
       int nnz_count = 0;
@@ -88,7 +88,14 @@ TEST_CASE("ILU", "[ILU]")
          {
             // Check if the non zero block is expected
             REQUIRE(pattern[i * N + ilu.JB[k]] == 1);
-
+            // Check that the block data is the same
+            for (int bi=0; bi<Nb; ++bi)
+            {
+               for (int bj=0; bj<Nb; ++bj)
+               {
+                  REQUIRE(ilu.AB[bi + bj*Nb + k*Nb*Nb] == Ab(bi,bj));
+               }
+            }
             nnz_count++;
          }
       }
