@@ -246,6 +246,7 @@ int main (int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
+   int derivative_type   = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -309,6 +310,8 @@ int main (int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
+   args.AddOption(&derivative_type, "-fd", "--fd_derivative_flag",
+                  "Computation of derivative: 1-FD-based, Newton otherwise.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -486,7 +489,8 @@ int main (int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
    target_c->SetNodes(x0);
-   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
+   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c,
+                                                       derivative_type);
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -541,7 +545,8 @@ int main (int argc, char *argv[])
          TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
       target_c2->SetVolumeScale(0.01);
       target_c2->SetNodes(x0);
-      TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
+      TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2,
+                                                           derivative_type);
       he_nlf_integ2->SetIntegrationRule(*ir);
 
       // Weight of metric2.
