@@ -65,17 +65,15 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    ParBilinearForm &M, &K;
-   ParLinearForm &b;
    HypreParMatrix *M_mat, *K_mat;
-   HypreParVector *B_vec;
+   const Vector &b;
    HypreSmoother M_prec;
    CGSolver M_solver;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
-                ParLinearForm &_b);
+   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -278,8 +276,9 @@ int main(int argc, char *argv[])
       int skip_zeros = 0;
       k->Assemble(skip_zeros);
       k->Finalize(skip_zeros);
-      b->Assemble();
    }
+   b->Assemble();
+   HypreParVector *B = b->ParallelAssemble();
 
    // 10. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -370,7 +369,7 @@ int main(int argc, char *argv[])
    // 11. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *b);
+   FE_Evolution adv(*m, *k, *B);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -432,6 +431,7 @@ int main(int argc, char *argv[])
    // 14. Free the used memory.
    delete U;
    delete u;
+   delete B;
    delete b;
    delete k;
    delete m;
@@ -447,7 +447,7 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
-                           ParLinearForm &_b)
+                           const Vector &_b)
    : TimeDependentOperator(_M.ParFESpace()->GetTrueVSize()),
      M(_M), K(_K), b(_b), M_solver(MPI_COMM_WORLD),
      z(M.ParFESpace()->GetTrueVSize())
@@ -469,9 +469,6 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(100);
    M_solver.SetPrintLevel(0);
-
-   //Assemble B vector
-   B_vec = b.ParallelAssemble();
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -485,7 +482,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
     K_mat->Mult(x, z);
   }
 
-   z += *B_vec;
+   z += b;
    M_solver.Mult(z, y);
 }
 
@@ -496,7 +493,6 @@ FE_Evolution::~FE_Evolution()
     delete M_mat;
     delete K_mat;
   }
-  delete B_vec;
 }
 
 
