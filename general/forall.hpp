@@ -31,7 +31,7 @@
 namespace mfem
 {
 
-// Embedding a #pragma directive within the MFEM_FORALL macro is not supported.
+// Embedding a #pragma directive within the MFEM_FORALL macro is not supported by all compilers.
 // The information given by this macro could still be useful.
 #define MFEM_UNROLL(...)
 
@@ -229,34 +229,6 @@ void CuWrap3D(const int N, DBODY &&d_body,
    CuKernel3D<<<GRID,BLCK>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
-
-// Macro for launching a 2D tensor kernel
-#define call_2d_ker(KER,NEL,DOFS,QUAD,BZ,NBLOCK,...)         \
-  dim3 blck(QUAD,QUAD,BZ);                                   \
-  cudaFuncSetCacheConfig(KER##_v2<DOFS,QUAD,BZ,NBLOCK>,      \
-                         cudaFuncCachePreferShared);         \
-  int grid = (NEL + BZ - 1)/BZ;                              \
-  KER##_v2<DOFS,QUAD,BZ,NBLOCK><<<grid,blck>>>(__VA_ARGS__);
-
-// Macro for launching a 3D tensor kernel
-#define call_3d_ker(KER,NEL,DOFS,QUAD,BZ,NBLOCK,...)                       \
-  dim3 blck(QUAD,QUAD,BZ);                                                 \
-  if (KER##_BufSize <= MaxSharedMemoryPerBlockOptin) {                     \
-    cudaFuncSetCacheConfig(KER##_v2<DOFS,QUAD,1,QUAD*QUAD*BZ,NBLOCK>,      \
-                           cudaFuncCachePreferShared);                     \
-    if (KER##_BufSize > MaxSharedMemoryPerBlock) {                         \
-      cudaFuncSetAttribute(KER##_v2<DOFS,QUAD,1,QUAD*QUAD*BZ,NBLOCK>,      \
-                           cudaFuncAttributeMaxDynamicSharedMemorySize,    \
-                           MaxSharedMemoryPerBlockOptin);                  \
-    }                                                                      \
-    int grid = NEL;                                                        \
-    KER##_v2<DOFS,QUAD,1,QUAD*QUAD*BZ,NBLOCK><<<grid,blck,KER##_BufSize,0>>>(__VA_ARGS__); \
-  } else {                                                                 \
-    cudaFuncSetCacheConfig(KER##_v2<DOFS,QUAD,0,QUAD*QUAD*BZ,NBLOCK>,      \
-                           cudaFuncCachePreferL1);                         \
-    int grid = numSM;                                                      \
-    KER##_v2<DOFS,QUAD,0,QUAD*QUAD*BZ,NBLOCK><<<grid,blck>>>(__VA_ARGS__); \
-  }
 
 #endif // MFEM_USE_CUDA
 
