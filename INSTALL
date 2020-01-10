@@ -349,6 +349,12 @@ MFEM_USE_STRUMPACK = YES/NO
    classes. When enabled, this option uses the STRUMPACK_* library options, see
    below.
 
+MFEM_USE_GINKGO = YES/NO
+   Enable MFEM functionality based on the Ginkgo library, which provides
+   iterative linear solvers and preconditioners with OpenMP, CUDA backends, see
+   https://github.com/ginkgo-project/ginkgo. When enabled, the user can use
+   Ginkgo's solvers and preconditioners as shown in examples/ginkgo/.
+
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
    GnuTLS_* classes, based on the GnuTLS library. This option may be useful in
@@ -415,6 +421,10 @@ MFEM_USE_PUMI = YES/NO
    models and effectively supports automated adaptive analysis. PUMI enables
    support for parallel unstructured mesh modifications in MFEM.
 
+MFEM_USE_HIOP = YES/NO
+  Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
+  HPC solver for nonlinear optimization problems.
+
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
    platform and programming model for general computing on graphical processing
@@ -441,6 +451,8 @@ MFEM_USE_OCCA = YES/NO
    GPU, FPGA) by providing an unified API for interacting with JIT-compiled
    backends. In order to use the OCCA CUDA backend, CUDA support must be enabled
    in MFEM as well, i.e. MFEM_USE_CUDA=YES must be set.
+
+MFEM_USE_GSLIB = YES/NO
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -518,6 +530,12 @@ The specific libraries and their options are:
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
 
+- Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
+  C++ compiler that supports the C++-11 standard. For additional requirements
+  and dependencies of specific modules see the Ginkgo webpage below.
+  URL: https://ginkgo-project.github.io
+  Options: GINKGO_OPT (Not used), GINKGO_LIB.
+
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
   one can get the library through the Homebrew package manager (http://brew.sh).
@@ -559,6 +577,10 @@ The specific libraries and their options are:
   URL: https://scorec.rpi.edu/pumi
   Options: PUMI_OPT, PUMI_LIB.
 
+- HiOp (optional), used when MFEM_USE_HIOP = YES.
+  URL: https://github.com/LLNL/hiop
+  Options: HIOP_OPT, HIOP_LIB.
+
 - CUDA, used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
   Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
@@ -591,6 +613,14 @@ The specific libraries and their options are:
   URL: https://zlib.net
   Options: ZLIB_OPT, ZLIB_LIB.
 
+- GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
+  built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.5 gslib".
+  Build gslib in parallel or in serial based on the desired MFEM build: "make
+  clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
+  MFEM_USE_GSLIB=YES.
+  URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
+  Options: GSLIB_OPT, GSLIB_LIB.
 
 Building with CMake
 ===================
@@ -707,11 +737,13 @@ MFEM_USE_MESQUITE
 MFEM_USE_SUITESPARSE
 MFEM_USE_SUPERLU
 MFEM_USE_STRUMPACK
+MFEM_USE_GINKGO
 MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_GZSTREAM
 MFEM_USE_PUMI
+MFEM_USE_HIOP
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_RAJA
@@ -756,12 +788,14 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - SuiteSparse
  - SuperLUDist, STRUMPACK
  - ParMETIS
+ - Ginkgo 
  - GNUTLS - Extends the built-in CMake support, to search GNUTLS_DIR as well.
  - NETCDF
  - MPFR
  - LIBUNWIND
  - POSIXCLOCKS
  - PUMI
+ - HIOP
  - OCCA
  - RAJA
  - AXOM - Used when MFEM_USE_SIDRE is enabled

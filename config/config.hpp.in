@@ -100,6 +100,9 @@
 // Enable functionality based on the Gecko library
 // #define MFEM_USE_GECKO
 
+// Enable MFEM features based on the Ginkgo library
+// #define MFEM_USE_GINKGO
+
 // Enable secure socket streams based on the GNUTLS library
 // #define MFEM_USE_GNUTLS
 
@@ -120,6 +123,12 @@
 
 // Enable MFEM functionality based on the PUMI library
 // #define MFEM_USE_PUMI
+
+// Enable MFEM functionality based on the HIOP library.
+// #define MFEM_USE_HIOP
+
+// Enable MFEM functionality based on the GSLIB library
+// #define MFEM_USE_GSLIB
 
 // Build the NVIDIA GPU/CUDA-enabled version of the MFEM library.
 // Requires a CUDA compiler (nvcc).
