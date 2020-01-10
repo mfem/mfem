@@ -16,6 +16,7 @@
 #include "fem.hpp"
 #include <iostream>
 #include <limits>
+#include "../general/forall.hpp"
 using namespace std;
 
 namespace mfem
@@ -222,7 +223,7 @@ void ParGridFunction::ExchangeFaceNbrData()
    Vector send_data(pfes->send_face_nbr_ldof.Size_of_connections());
 
    int *send_offset = pfes->send_face_nbr_ldof.GetI();
-   int *send_ldof = pfes->send_face_nbr_ldof.GetJ();
+   const int *d_send_ldof = mfem::Read(pfes->send_face_nbr_ldof.GetJMemory(), send_data.Size());
    int *recv_offset = pfes->face_nbr_ldof.GetI();
    MPI_Comm MyComm = pfes->GetComm();
 
@@ -232,21 +233,25 @@ void ParGridFunction::ExchangeFaceNbrData()
    MPI_Request *recv_requests = requests + num_face_nbrs;
    MPI_Status  *statuses = new MPI_Status[num_face_nbrs];
 
-   for (int i = 0; i < send_data.Size(); i++)
+   auto d_data = this->Read();
+   auto d_send_data = send_data.Write();
+   MFEM_FORALL(i, send_data.Size(),
    {
-      send_data[i] = data[send_ldof[i]];
-   }
+      d_send_data[i] = d_data[d_send_ldof[i]];  
+   });
 
+   auto h_send_data = send_data.HostRead();
+   auto h_face_nbr_data = face_nbr_data.HostWrite();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
       int tag = 0;
 
-      MPI_Isend(&send_data(send_offset[fn]),
+      MPI_Isend(&h_send_data[send_offset[fn]],
                 send_offset[fn+1] - send_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
 
-      MPI_Irecv(&face_nbr_data(recv_offset[fn]),
+      MPI_Irecv(&h_face_nbr_data[recv_offset[fn]],
                 recv_offset[fn+1] - recv_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
    }
