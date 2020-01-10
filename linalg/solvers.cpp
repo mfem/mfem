@@ -15,6 +15,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <cmath>
+#include <set>
 
 namespace mfem
 {
@@ -1677,6 +1678,43 @@ slbqp_done:
       mfem::out << "SLBQP lambda     = " << l << '\n';
       mfem::out << "SLBQP residual   = " << r << '\n';
    }
+}
+
+ILU::ILU(Operator *A, int block_size)
+  : block_size_(block_size)
+{
+  A_ = static_cast<SparseMatrix *>(A);
+  A_->SortColumnIndices();
+}
+
+void ILU::CreateBlockPattern()
+{
+  int nrows = A_->Height();
+  const int *I = A_->GetI();
+  const int *J = A_->GetJ();
+  int nnz_count = 0;
+
+  IB.SetSize(nrows / block_size_ + 1);
+  IB[0] = 0;
+
+  for (int iblock = 0; iblock < nrows / block_size_; ++iblock)
+  {
+     std::set<int> unique_block_cols;
+     for (int bi = 0; bi < block_size_; ++bi)
+     {
+        int i = iblock * block_size_ + bi;
+        for (int k = I[i]; k < I[i + 1]; ++k)
+        {
+           unique_block_cols.insert(J[k] / block_size_);
+        }
+     }
+     for (int jblock : unique_block_cols)
+     {
+        JB.Append(jblock);
+        nnz_count++;
+     }
+     IB[iblock + 1] = nnz_count;
+  }
 }
 
 #ifdef MFEM_USE_SUITESPARSE
