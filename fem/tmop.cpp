@@ -1393,15 +1393,23 @@ double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
                                         const int nodenum,const int idir)
 {
     int dof = el.GetDof(), dim = el.GetDim();
-    double eps = pow(10.,-5.);
+    if (fdorder==1) {
+        elfun[idir*dof+nodenum] += fdeps;
+        double energy1 = (this)->GetElementEnergy(el, T, elfun);
+        elfun[idir*dof+nodenum] -= fdeps;
+        double energy2 = elemenergy;
 
-    elfun[idir*dof+nodenum] += eps;
-    double energy1 = (this)->GetElementEnergy(el, T, elfun);
-    elfun[idir*dof+nodenum] -= 2.*eps;
-    double energy2 = (this)->GetElementEnergy(el, T, elfun);
-    elfun[idir*dof+nodenum] += eps;
+        return (energy1-energy2)/fdeps;
+    }
+    else {
+        elfun[idir*dof+nodenum] += fdeps;
+        double energy1 = (this)->GetElementEnergy(el, T, elfun);
+        elfun[idir*dof+nodenum] -= 2.*fdeps;
+        double energy2 = (this)->GetElementEnergy(el, T, elfun);
+        elfun[idir*dof+nodenum] += fdeps;
 
-    return (energy1-energy2)/(2*eps);
+        return (energy1-energy2)/(2*fdeps);
+    }
 }
 
 void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
@@ -1420,12 +1428,11 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    Vector elfunmod;
    elfunmod.SetSize(dof*dim);
    elfunmod.SetData(elfun.GetData());
-   for (int j=0;j<dim;j++)
-   for (int i=0;i<dof;i++)
-   {
-      {
-           elvect[j*dof+i] = (this)->GetFDDerivative(el,T,elfunmod,i,j);
-      }
+   elemenergy = (this)->GetElementEnergy(el, T, elfun);
+   for (int j=0;j<dim;j++) {
+   for (int i=0;i<dof;i++) {
+       elvect[j*dof+i] = (this)->GetFDDerivative(el,T,elfunmod,i,j);
+   }
    }
 }
 
@@ -1435,7 +1442,6 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                                           DenseMatrix &elmat)
 {
    int dof = el.GetDof(), dim = el.GetDim();
-
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
    Jrt.SetSize(dim);
@@ -1448,22 +1454,50 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    Vector elfunmod;
    elfunmod.SetSize(dof*dim);
    elfunmod.SetData(elfun.GetData());
-   double eps = pow(10.,-5.);
-   for (int i=0;i<dof;i++) {
-   for (int j=0;j<i+1;j++) {
-        for (int k1=0;k1<dim;k1++) {
-        for (int k2=0;k2<dim;k2++) {
-            elfunmod(k2*dof+j) += eps;
-            double val1 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
-            elfunmod(k2*dof+j) -= 2.*eps;
-            double val2 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
-            elmat(k1*dof+i,k2*dof+j) = (val1-val2)/(2*eps);
-            elmat(k2*dof+j,k1*dof+i) = (val1-val2)/(2*eps);
-            elfunmod(k2*dof+j) += eps;
-        }
-        }
+
+
+   DenseMatrix check1;
+   check1.SetSize(dof*dim);
+   DenseMatrix check2;
+   check2.SetSize(dof*dim);
+
+
+   if (fdorder==1) {
+       for (int i=0;i<dof;i++) {
+       for (int j=0;j<i+1;j++) {
+            for (int k1=0;k1<dim;k1++) {
+            for (int k2=0;k2<dim;k2++) {
+                elfunmod(k2*dof+j) += fdeps;
+                elemenergy = (this)->GetElementEnergy(el, T, elfunmod);
+                double energy1 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
+                elfunmod(k2*dof+j) -= fdeps;
+                elemenergy = (this)->GetElementEnergy(el, T, elfunmod);
+                double energy2 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
+                elmat(k1*dof+i,k2*dof+j) = (energy1-energy2)/(fdeps);
+                elmat(k2*dof+j,k1*dof+i) = (energy1-energy2)/(fdeps);
+            }
+            }
+       }
+       }
    }
+   else {
+       for (int i=0;i<dof;i++) {
+       for (int j=0;j<i+1;j++) {
+            for (int k1=0;k1<dim;k1++) {
+            for (int k2=0;k2<dim;k2++) {
+                elfunmod(k2*dof+j) += fdeps;
+                double val1 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
+                elfunmod(k2*dof+j) -= 2.*fdeps;
+                double val2 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
+                elmat(k1*dof+i,k2*dof+j) = (val1-val2)/(2*fdeps);
+                elmat(k2*dof+j,k1*dof+i) = (val1-val2)/(2*fdeps);
+                elfunmod(k2*dof+j) += fdeps;
+            }
+            }
+       }
+       }
    }
+
 }
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)
