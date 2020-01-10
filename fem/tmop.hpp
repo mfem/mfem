@@ -752,6 +752,7 @@ protected:
    double fdeps = pow(10.,-7.);
    int fdorder;
    double elemenergy;
+   Array <Vector *> ElemDer;
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -771,11 +772,11 @@ protected:
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
-   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc, int DerFlag)
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
       : metric(m), targetC(tc),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
-        lim_dist(NULL), lim_func(NULL), lim_normal(1.0), der_flag(DerFlag),
+        lim_dist(NULL), lim_func(NULL), lim_normal(1.0), der_flag(0),
         fdorder(1)
    { }
 
@@ -848,7 +849,10 @@ public:
                                       Vector &elfun,
                                 const int nodenum,const int idir);
 
-   virtual void SetFDorder(int fdorderin) {fdorder = fdorderin;}
+   virtual void SetFDPar(int fdorderin, int sz) {fdorder = fdorderin,
+               der_flag=1, ElemDer.SetSize(sz);}
+
+
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */
