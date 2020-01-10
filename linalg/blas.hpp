@@ -13,6 +13,7 @@
 #define MFEM_BLAS_HPP
 
 #ifdef _WIN32
+#define _USE_MATH_DEFINES
 #include <cmath>
 #endif
 
