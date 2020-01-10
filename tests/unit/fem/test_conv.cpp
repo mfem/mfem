@@ -100,7 +100,7 @@ TEST_CASE("conv")
                     << " conforming: " << imesh
                     << " order: " << order
                     << ", pa error norm: " << pa_error << std::endl;
-          REQUIRE(pa_error < 1.e-12);
+          REQUIRE(fabs(pa_error) < 1.e-12);
         }//order loop
      }//mesh loop
  }//dimension loop
