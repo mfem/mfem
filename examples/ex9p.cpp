@@ -448,8 +448,9 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
                            ParLinearForm &_b)
-   : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(MPI_COMM_WORLD), z(_M.Height())
+   : TimeDependentOperator(_M.ParFESpace()->GetTrueVSize()),
+     M(_M), K(_K), b(_b), M_solver(MPI_COMM_WORLD),
+     z(M.ParFESpace()->GetTrueVSize())
 {
   if(M.GetAssemblyLevel() == AssemblyLevel::FULL)
   {
@@ -484,7 +485,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
     K_mat->Mult(x, z);
   }
 
-   z += b;
+   z += *B_vec;
    M_solver.Mult(z, y);
 }
 
