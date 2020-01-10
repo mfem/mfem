@@ -1788,8 +1788,7 @@ slbqp_done:
    }
 }
 
-BlockILU0::BlockILU0(Operator *A, int block_size_)
-   : block_size(block_size_)
+BlockILU0::BlockILU0(Operator *A, int block_size_) : block_size(block_size_)
 {
    A_ = static_cast<SparseMatrix *>(A);
    MFEM_ASSERT(A_->Finalized(), "Matrix must be finalized.");
@@ -1813,11 +1812,11 @@ void BlockILU0::CreateBlockPattern()
    {
       for (int bi = 0; bi < block_size; ++bi)
       {
-	      int i = iblock * block_size + bi;
-	      for (int k = I[i]; k < I[i + 1]; ++k)
-	      {
-	         unique_block_cols[iblock].insert(J[k] / block_size);
-	      }
+         int i = iblock * block_size + bi;
+         for (int k = I[i]; k < I[i + 1]; ++k)
+         {
+            unique_block_cols[iblock].insert(J[k] / block_size);
+         }
       }
       nnz += unique_block_cols[iblock].size();
    }
@@ -1825,29 +1824,29 @@ void BlockILU0::CreateBlockPattern()
    IB.SetSize(nblockrows + 1);
    IB[0] = 0;
    JB.SetSize(nnz);
-   int b2 = block_size*block_size;
-   AB = new double[b2*nnz](); // initialize with zeros
+   int b2 = block_size * block_size;
+   AB = new double[b2 * nnz](); // initialize with zeros
    int counter = 0;
 
    for (int iblock = 0; iblock < nblockrows; ++iblock)
    {
       for (int jblock : unique_block_cols[iblock])
       {
-	      JB[counter] = jblock;
+         JB[counter] = jblock;
          for (int bi = 0; bi < block_size; ++bi)
          {
-            int i = iblock*block_size + bi;
+            int i = iblock * block_size + bi;
             for (int k = I[i]; k < I[i + 1]; ++k)
             {
                int j = J[k];
-               if (j >= jblock*block_size && j < (jblock+1)*block_size)
+               if (j >= jblock * block_size && j < (jblock + 1) * block_size)
                {
-                  int bj = j - jblock*block_size;
-                  AB[bi + bj*block_size + counter*b2] = V[k];
+                  int bj = j - jblock * block_size;
+                  AB[bi + bj * block_size + counter * b2] = V[k];
                }
             }
          }
-	      ++counter;
+         ++counter;
       }
       IB[iblock + 1] = counter;
    }

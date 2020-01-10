@@ -476,21 +476,21 @@ public:
 class BlockILU0 : public Solver
 {
 public:
-  BlockILU0(Operator *A, int block_size_ = 1);
+   BlockILU0(Operator *A, int block_size_ = 1);
 
-  void SetOperator(const Operator &op) {}
+   void SetOperator(const Operator &op) {}
 
-  void Mult(const Vector &x, Vector &y) const {}
+   void Mult(const Vector &x, Vector &y) const {}
 
-  void CreateBlockPattern();
+   void CreateBlockPattern();
 
-  ~BlockILU0();
+   ~BlockILU0();
 
-  SparseMatrix *A_ = nullptr;
-  int block_size;
+   SparseMatrix *A_ = nullptr;
+   int block_size;
 
-  Array<int> IB, JB;
-  double *AB;
+   Array<int> IB, JB;
+   double *AB;
 };
 
 #ifdef MFEM_USE_SUITESPARSE

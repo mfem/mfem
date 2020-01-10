@@ -56,7 +56,7 @@ TEST_CASE("ILU", "[ILU]")
                cols.Append(j * Nb + ii);
             }
 
-            Vector Ab_data(Ab.GetData(), Nb*Nb);
+            Vector Ab_data(Ab.GetData(), Nb * Nb);
             Ab_data.Randomize(counter);
             A.SetSubMatrix(rows, cols, Ab);
          }
@@ -80,11 +80,12 @@ TEST_CASE("ILU", "[ILU]")
             // Check if the non zero block is expected
             REQUIRE(pattern[i * N + j] == 1);
             // Check that the block data is the same
-            for (int bi=0; bi<Nb; ++bi)
+            for (int bi = 0; bi < Nb; ++bi)
             {
-               for (int bj=0; bj<Nb; ++bj)
+               for (int bj = 0; bj < Nb; ++bj)
                {
-                  REQUIRE(ilu.AB[bi + bj*Nb + k*Nb*Nb] == A(i*Nb + bi, j*Nb + bj));
+                  REQUIRE(ilu.AB[bi + bj * Nb + k * Nb * Nb]
+                          == A(i * Nb + bi, j * Nb + bj));
                }
             }
             nnz_count++;
