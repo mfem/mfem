@@ -1792,7 +1792,6 @@ public:
    static void CalcBernstein(const int p, const double x, double *u, double *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
 
-   // Made these methods public for serendipity basis construction:
    static void CalcLegendre(const int p, const double x, double *u);
    static void CalcLegendre(const int p, const double x, double *u, double *d);
 
