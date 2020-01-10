@@ -16,6 +16,7 @@ set(SRCS
   bilininteg_diffusion.cpp
   bilininteg_mass.cpp
   coefficient.cpp
+  complex_fem.cpp
   datacollection.cpp
   eltrans.cpp
   estimators.cpp
@@ -33,6 +34,7 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop_tools.cpp
+  gslib.cpp
   )
 
 set(HDRS
@@ -40,6 +42,7 @@ set(HDRS
   bilinearform_ext.hpp
   bilininteg.hpp
   coefficient.hpp
+  complex_fem.hpp
   datacollection.hpp
   eltrans.hpp
   estimators.hpp
@@ -66,6 +69,7 @@ set(HDRS
   tintrules.hpp
   tmop.hpp
   tmop_tools.hpp
+  gslib.hpp
   )
 
 if (MFEM_USE_SIDRE)
