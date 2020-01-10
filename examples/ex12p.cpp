@@ -4,7 +4,7 @@
 //
 // Sample runs:
 //    mpirun -np 4 ex12p -m ../data/beam-tri.mesh
-//    mpirun -np 4 ex12p -m ../data/beam-quad.mesh
+//    mpirun -np 4 ex12p -m ../data/beam-quad.mesh -s 75
 //    mpirun -np 4 ex12p -m ../data/beam-tet.mesh -s 462 -n 10 -o 2 -elast
 //    mpirun -np 4 ex12p -m ../data/beam-hex.mesh -s 3878
 //    mpirun -np 4 ex12p -m ../data/beam-wedge.mesh -s 81
