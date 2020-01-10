@@ -12,12 +12,13 @@
 #ifndef MFEM_BLAS_HPP
 #define MFEM_BLAS_HPP
 
-#include "../config/config.hpp"
 #ifdef _WIN32
-//#define _USE_MATH_DEFINES
-//#include <cmath>
-#define M_PI 3.14159265358979323846
+#define _USE_MATH_DEFINES
+#include <cmath>
+//#define M_PI 3.14159265358979323846
 #endif
+
+#include "../config/config.hpp"
 
 #include "../general/globals.hpp"
 #include "../general/forall.hpp"
@@ -30,6 +31,76 @@ namespace blas
 {
 
 // *****************************************************************************
+/// Returns the l2 norm of the data.
+MFEM_HOST_DEVICE inline
+double Norml2(const int size, const double *data)
+{
+   if (0 == size) { return 0.0; }
+   if (1 == size) { return std::abs(data[0]); }
+   double scale = 0.0;
+   double sum = 0.0;
+   for (int i = 0; i < size; i++)
+   {
+      if (data[i] != 0.0)
+      {
+         const double absdata = fabs(data[i]);
+         if (scale <= absdata)
+         {
+            const double sqr_arg = scale / absdata;
+            sum = 1.0 + sum * (sqr_arg * sqr_arg);
+            scale = absdata;
+            continue;
+         } // end if scale <= absdata
+         const double sqr_arg = absdata / scale;
+         sum += (sqr_arg * sqr_arg); // else scale > absdata
+      } // end if data[i] != 0
+   }
+   return scale * sqrt(sum);
+}
+
+// *****************************************************************************
+/// Multiply a matrix A with the transpose of a matrix B: A*Bt
+MFEM_HOST_DEVICE inline
+void MultABt(const int ah, const int aw, const int bh,
+             const double *A, const double *B, double *C)
+{
+   const int ah_x_bh = ah*bh;
+   for (int i=0; i<ah_x_bh; i+=1)
+   {
+      C[i] = 0.0;
+   }
+   for (int k=0; k<aw; k+=1)
+   {
+      double *c = C;
+      for (int j=0; j<bh; j+=1)
+      {
+         const double bjk = B[j];
+         for (int i=0; i<ah; i+=1)
+         {
+            c[i] += A[i] * bjk;
+         }
+         c += ah;
+      }
+      A += ah;
+      B += bh;
+   }
+}
+
+// *****************************************************************************
+MFEM_HOST_DEVICE inline
+void Symmetrize(const int n, double *d)
+{
+   for (int i = 0; i<n; i++)
+   {
+      for (int j = 0; j<i; j++)
+      {
+         const double a = 0.5 * (d[i*n+j] + d[j*n+i]);
+         d[j*n+i] = d[i*n+j] = a;
+      }
+   }
+}
+
+// *****************************************************************************
 MFEM_HOST_DEVICE static inline
 void Swap(double &a, double &b)
 {
@@ -37,7 +108,6 @@ void Swap(double &a, double &b)
    a = b;
    b = tmp;
 }
-
 
 // *****************************************************************************
 const double Epsilon = std::numeric_limits<double>::epsilon();

@@ -14,7 +14,6 @@
 
 #include "../config/config.hpp"
 #include "../general/globals.hpp"
-#include "blas.hpp"
 #include "matrix.hpp"
 
 namespace mfem
@@ -288,18 +287,6 @@ public:
    /// (*this) = A^t
    void Transpose(const DenseMatrix &A);
    /// (*this) = 1/2 ((*this) + (*this)^t)
-   MFEM_HOST_DEVICE static inline
-   void symmetrize(const int n, double *d)
-   {
-      for (int i = 0; i<n; i++)
-      {
-         for (int j = 0; j<i; j++)
-         {
-            const double a = 0.5 * (d[i*n+j] + d[j*n+i]);
-            d[j*n+i] = d[i*n+j] = a;
-         }
-      }
-   }
    void Symmetrize();
 
    void Lump();
@@ -419,35 +406,6 @@ void MultADAt(const DenseMatrix &A, const Vector &D, DenseMatrix &ADAt);
 void AddMultADAt(const DenseMatrix &A, const Vector &D, DenseMatrix &ADAt);
 
 /// Multiply a matrix A with the transpose of a matrix B:   A*Bt
-MFEM_HOST_DEVICE static inline
-void multABt(const int ah,
-             const int aw,
-             const int bh,
-             const double *A,
-             const double *B,
-             double *C)
-{
-   const int ah_x_bh = ah*bh;
-   for (int i=0; i<ah_x_bh; i+=1)
-   {
-      C[i] = 0.0;
-   }
-   for (int k=0; k<aw; k+=1)
-   {
-      double *c = C;
-      for (int j=0; j<bh; j+=1)
-      {
-         const double bjk = B[j];
-         for (int i=0; i<ah; i+=1)
-         {
-            c[i] += A[i] * bjk;
-         }
-         c += ah;
-      }
-      A += ah;
-      B += bh;
-   }
-}
 void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt);
 
 /// ADBt = A D B^t, where D is diagonal

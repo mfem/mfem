@@ -2688,6 +2688,7 @@ L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
    height = vdim*ne*ndof;
    width = vdim*ne*ndof;
 }
+
 void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
 {
    const int NE = ne;
