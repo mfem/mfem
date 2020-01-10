@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
 	
    config.ProblemNum = 0;
    config.ConfigNum = 0;
-   const char *MeshFile = "data/inline-quad.mesh";
+   const char *MeshFile = "data/periodic-square.mesh";
    int refinements = 2;
    config.order = 3;
    config.tEnd = 1.;
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
    
    // Create Bernstein Finite Element Space.
    const int btype = BasisType::Positive;
-   DG_FECollection fec(config.order, dim, btype);
+   L2_FECollection fec(config.order, dim, btype);
    FiniteElementSpace fes(&mesh, &fec);
 	cout << "Number of unknowns: " << fes.GetVSize() << endl;
 	
@@ -97,9 +97,18 @@ int main(int argc, char *argv[])
 			cout << "Unknown Hyperbolic system: " << config.ProblemNum << '\n';
          return -1;
    }
-
+   
 	GridFunction u(&fes);
 	hyp->PreprocessProblem(&fes, u);
+	
+   // Compute the lumped mass matrix.
+   Vector LumpedMassMat;
+   BilinearForm ml(&fes);
+   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+   ml.Assemble();
+   ml.Finalize();
+   ml.SpMat().GetDiag(LumpedMassMat);
+	const double InitialMass = LumpedMassMat * u;
 	
 	// Visualization with GLVis, VisIt is currently not supported.
 	{
@@ -137,7 +146,7 @@ int main(int argc, char *argv[])
    
    hyp->t = 0.;
    odeSolver->Init(*hyp);
-	
+
 	bool done = false;
    for (int ti = 0; !done; )
    {
@@ -157,6 +166,9 @@ int main(int argc, char *argv[])
       }
    }
    
+   cout << "Difference in solution mass: " <<
+		abs(InitialMass - LumpedMassMat * u) << endl;
+   
    {
       ofstream osol("sol-final.gf");
       osol.precision(precision);
@@ -168,6 +180,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+// TODO restructure code
 const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes)
 {
 	const FiniteElement *el = fes->GetFE(0);
@@ -176,11 +189,32 @@ const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes)
    return &IntRules.Get(el->GetGeomType(), order);
 }
 
-void HyperbolicSystem::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
+// Appropriate quadrature rule for faces according to DGTraceIntegrator.
+const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes)
 {
-	// Mesh *mesh = fes->GetMesh();
-	// ObtainQuadratureRule
+   int i, order;
+   // Use the first mesh face and element as indicator.
+   const FaceElementTransformations *Trans =
+      fes->GetMesh()->GetFaceElementTransformations(0);
+   const FiniteElement *el = fes->GetFE(0);
+
+   if (Trans->Elem2No >= 0)
+   {
+      order = min(Trans->Elem1->OrderW(), Trans->Elem2->OrderW()) + 2*el->GetOrder();
+   }
+   else
+   {
+      order = Trans->Elem1->OrderW() + 2*el->GetOrder();
+   }
+   if (el->Space() == FunctionSpace::Pk)
+   {
+      order++;
+   }
+   return &IntRules.Get(Trans->FaceGeom, order);
 }
+
+void HyperbolicSystem::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
+{ }
 
 void HyperbolicSystem::EvaluateSolution(const Vector &u, Vector &v,
 													 const int QuadNum) const
@@ -189,6 +223,17 @@ void HyperbolicSystem::EvaluateSolution(const Vector &u, Vector &v,
 	Vector shape(nd);// TODO optimize.
 	ShapeEval.GetColumn(QuadNum, shape);
 	v(0) = u * shape; // TODO Vector valued soultion.
+}
+
+void HyperbolicSystem::EvaluateSolution(const Vector &u, Vector &v,
+													 const int QuadNum,
+													 const int BdrNum) const
+{
+	v(0) = 0.; // TODO Vector valued soultion.
+	for (int j = 0; j < dofs->NumFaceDofs; j++)
+	{
+		v(0) += u(dofs->BdrDofs(j,BdrNum)) * ShapeEvalFace(BdrNum,j,QuadNum);
+	}
 }
 
 void HyperbolicSystem::Mult(const Vector &x, Vector &y) const
@@ -211,4 +256,3 @@ void HyperbolicSystem::Mult(const Vector &x, Vector &y) const
 		}
 	}
 }
-

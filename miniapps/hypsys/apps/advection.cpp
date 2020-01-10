@@ -28,27 +28,52 @@ void Advection::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
 	const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes);
 	const int ne = fes->GetNE();
 	const int nd = fes->GetFE(0)->GetDof();
-	const int nq = IntRuleElem->GetNPoints();
+	const int nqe = IntRuleElem->GetNPoints();
+	const int nqf = IntRuleFace->GetNPoints();
 	
 	DenseMatrix adjJ(dim);
-	DenseMatrix dshape(nd,dim);
 	Vector vec1, vec2(dim);
 	
 	VectorFunctionCoefficient velocity(fes->GetMesh()->Dimension(), Velocity);
-	ElemInt.SetSize(dim, nq, ne);
-	// BdrInt.SetSize(nd, nq, ne);
-	DenseMatrix VelEval, mat(dim, nq);
+	DenseMatrix VelEval, mat(dim, nqe);
+	Array <int> bdrs, orientation;
+	ElemInt.SetSize(dim, nqe, ne);
+	BdrInt.SetSize(dofs->NumBdrs, nqf, ne);
 	
+	Array<IntegrationPoint> eip(nqf*dofs->NumBdrs);
+	
+	if (dim==1)      { mesh->GetElementVertices(0, bdrs); }
+   else if (dim==2) { mesh->GetElementEdges(0, bdrs, orientation); }
+   else if (dim==3) { mesh->GetElementFaces(0, bdrs, orientation); }
+	
+	for (int i = 0; i < dofs->NumBdrs; i++)
+	{
+		FaceElementTransformations *help
+			= mesh->GetFaceElementTransformations(bdrs[i]);
+			
+		if (help->Elem1No != 0)
+		{
+			// NOTE: If this error ever occurs, use neighbor element to
+			// obtain the correct quadrature points and weight.
+			MFEM_ABORT("First element has inward pointing normal.");
+		}
+		for (int k = 0; k < nqf; k++)
+		{
+			const IntegrationPoint &ip = IntRuleFace->IntPoint(k);
+			help->Loc1.Transform(ip, eip[i*nqf + k]);
+		}
+	}
+
 	for (int e = 0; e < ne; e++)
 	{
 		const FiniteElement *el = fes->GetFE(e);
 		ElementTransformation *eltrans = fes->GetElementTransformation(e);
 		velocity.Eval(VelEval, *eltrans, *IntRuleElem);
 		
-		for (int k = 0; k < IntRuleElem->GetNPoints(); k++)
+		for (int k = 0; k < nqe; k++)
 		{
 			const IntegrationPoint &ip = IntRuleElem->IntPoint(k);
-			el->CalcDShape(ip, dshape);
+			eltrans->SetIntPoint(&ip);
 			CalcAdjugate(eltrans->Jacobian(), adjJ);
 			VelEval.GetColumnReference(k, vec1);
 			vec1 *= ip.weight;
@@ -57,31 +82,55 @@ void Advection::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
 		}
 		
 		ElemInt(e) = mat;
+		
+		if (dim==1)      { mesh->GetElementVertices(e, bdrs); }
+      else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
+      else if (dim==3) { mesh->GetElementFaces(e, bdrs, orientation); }
+		
+		for (int i = 0; i < dofs->NumBdrs; i++)
+		{
+			Vector vval, nor(dim);
+			FaceElementTransformations *facetrans
+				= mesh->GetFaceElementTransformations(bdrs[i]);
+			
+			for (int k = 0; k < nqf; k++)
+			{
+				const IntegrationPoint &ip = IntRuleFace->IntPoint(k);
+				facetrans->Face->SetIntPoint(&ip);
+				
+				if (dim == 1)
+				{
+					IntegrationPoint aux;
+					facetrans->Loc1.Transform(ip, aux);
+					nor(0) = 2.*aux.x - 1.0;
+				}
+				else
+				{
+					CalcOrtho(facetrans->Face->Jacobian(), nor);
+				}
+				
+				if (facetrans->Elem1No != e)
+				{
+					facetrans->Elem2->SetIntPoint(&eip[i*nqf+k]);
+					velocity.Eval(vval, *facetrans->Elem2, eip[i*nqf+k]);
+					nor *= -1.;
+				}
+				else
+				{
+					facetrans->Loc1.Transform(ip, eip[i*nqf+k]);
+					velocity.Eval(vval, *facetrans->Elem1, eip[i*nqf+k]);
+				}
+				
+				nor /= nor.Norml2();
+				BdrInt(i,k,e) = facetrans->Face->Weight() * (vval * nor);
+			}
+		}
 	}
-
-	//////////////////////////////////////////////////////
 
    // Model parameters.
    FunctionCoefficient u0(InitialCondition);
-   FunctionCoefficient inflow(Inflow);
-
-   // Convective matrix.
-   BilinearForm conv(fes);
-   conv.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   conv.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   conv.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   conv.Assemble();
-   conv.Finalize();
-   K = conv.SpMat();
-
-   // Inflow boundary.
-   LinearForm infl(fes);
-   infl.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
-   infl.Assemble();
-   b = infl;
+   FunctionCoefficient aux(Inflow);
+	inflow.ProjectCoefficient(aux);
 
    // Initialize solution vector.
    u.ProjectCoefficient(u0);
@@ -127,7 +176,8 @@ void Velocity(const Vector &x, Vector &v)
       scale *= bbMax(i) - bbMin(i);
    }
 
-   scale = pow(scale, 1./dim) * M_PI; // Scale to be normed to half a revolution.
+   // Scale to be normed to a full revolution.
+   scale = pow(scale, 1./dim) * M_PI;
 
    switch (ConfigNum)
    {

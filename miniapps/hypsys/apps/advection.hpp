@@ -10,8 +10,6 @@ public:
    bool WriteErrors = false;
 
 	FiniteElementSpace *fes;
-   SparseMatrix K;
-   Vector b;
 
    explicit Advection(FiniteElementSpace *fes_, Configuration &config_);
    ~Advection() { };
