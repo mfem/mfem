@@ -749,6 +749,9 @@ protected:
    double lim_normal;
    // Flag for derivative calculation
    int der_flag;
+   double fdeps = pow(10.,-7.);
+   int fdorder;
+   double elemenergy;
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -772,7 +775,8 @@ public:
       : metric(m), targetC(tc),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
-        lim_dist(NULL), lim_func(NULL), lim_normal(1.0), der_flag(DerFlag)
+        lim_dist(NULL), lim_func(NULL), lim_normal(1.0), der_flag(DerFlag),
+        fdorder(1)
    { }
 
    ~TMOP_Integrator() { delete lim_func; }
@@ -843,6 +847,8 @@ public:
                                       ElementTransformation &T,
                                       Vector &elfun,
                                 const int nodenum,const int idir);
+
+   virtual void SetFDorder(int fdorderin) {fdorder = fdorderin;}
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */

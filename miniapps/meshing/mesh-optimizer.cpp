@@ -247,6 +247,7 @@ int main (int argc, char *argv[])
    bool visualization    = true;
    int verbosity_level   = 0;
    int derivative_type   = 0;
+   int fd_order          = 2;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -312,6 +313,8 @@ int main (int argc, char *argv[])
                   "Make all terms in the optimization functional unitless.");
    args.AddOption(&derivative_type, "-fd", "--fd_derivative_flag",
                   "Computation of derivative: 1-FD-based, Newton otherwise.");
+   args.AddOption(&fd_order, "-fdo", "--fd_order",
+                  "Order of finite difference method: 1 or 2 (default).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -505,7 +508,7 @@ int main (int argc, char *argv[])
    }
    cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
    he_nlf_integ->SetIntegrationRule(*ir);
-
+   he_nlf_integ->SetFDorder(fd_order);
    if (normalization) { he_nlf_integ->EnableNormalization(x0); }
 
    // 13. Limit the node movement.
@@ -548,6 +551,7 @@ int main (int argc, char *argv[])
       TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2,
                                                            derivative_type);
       he_nlf_integ2->SetIntegrationRule(*ir);
+      he_nlf_integ2->SetFDorder(fd_order);
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);
