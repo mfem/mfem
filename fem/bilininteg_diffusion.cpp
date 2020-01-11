@@ -113,11 +113,11 @@ void PADiffusionSetup2D<2>(const int Q1D,
    auto J = Reshape(j.Read(), NQ, VDIM, DIM, NE);
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto y = Reshape(d.Write(), NQ, 3, NE);
-//=======
-//   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-//   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-//   auto D = Reshape(d.Write(), NQ, 3, NE);
-//>>>>>>> master
+   //=======
+   //   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
+   //   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
+   //   auto D = Reshape(d.Write(), NQ, 3, NE);
+   //>>>>>>> master
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -249,24 +249,24 @@ static void PADiffusionSetup(const int dim,
          return;
       }
 #endif // MFEM_USE_OCCA
-//<<<<<<< HEAD
+      //<<<<<<< HEAD
       if (sdim == 2) { PADiffusionSetup2D<2>(Q1D, NE, W, J, C, D); }
       if (sdim == 3) { PADiffusionSetup2D<3>(Q1D, NE, W, J, C, D); }
-//=======
-//      PADiffusionSetup2D(Q1D, NE, W, J, C, D);
-//>>>>>>> master
+      //=======
+      //      PADiffusionSetup2D(Q1D, NE, W, J, C, D);
+      //>>>>>>> master
    }
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
-//<<<<<<< HEAD
+         //<<<<<<< HEAD
          MFEM_VERIFY(sdim == 2,"");
          OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, C, D);
-//=======
-//         OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, C, D);
-//>>>>>>> master
+         //=======
+         //         OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, C, D);
+         //>>>>>>> master
          return;
       }
 #endif // MFEM_USE_OCCA
@@ -291,12 +291,12 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-//<<<<<<< HEAD
-//   ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-//   MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-//   const double coeff = cQ->constant;
-//   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
-//=======
+   //<<<<<<< HEAD
+   //   ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
+   //   MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+   //   const double coeff = cQ->constant;
+   //   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
+   //=======
    Vector coeff;
    if (Q == nullptr)
    {
@@ -323,7 +323,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff,
                     pa_data);
-//>>>>>>> master
+   //>>>>>>> master
 }
 
 
