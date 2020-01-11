@@ -115,7 +115,7 @@ MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
-TEST_SUBDIRS = unit
+TEST_SUBDIRS = unit convergence
 TEST_DIRS := $(addprefix tests/,$(TEST_SUBDIRS))
 
 ALL_TEST_DIRS = $(filter-out\

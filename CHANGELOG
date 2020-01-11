@@ -12,8 +12,8 @@ Version 4.0.1 (development)
 ===========================
 
 - Added support for serendipity elements of arbitrary order on affinely-mapped
-  square elements.  Basis functions for these elements can be visualized using
-  an option in the revised miniapps/tools/display-basis.
+  square elements. Basis functions for these elements can be visualized using
+  an option in the display-basis miniapp.
 
 Version 4.0, released on May 24, 2019
 =====================================

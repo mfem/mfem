@@ -18,8 +18,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES =  convergence
-PAR_EXAMPLES = 
+SEQ_EXAMPLES = convergence
+PAR_EXAMPLES =
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -43,6 +43,20 @@ all: $(EXAMPLES)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
+MFEM_TESTS = EXAMPLES
+include $(MFEM_TEST_MK)
+
+# Testing: Specific execution options
+convergence-test-seq: convergence
+	@$(call mfem-test,$<,, Convergence test, -o 2 -r 3)
+
+# Testing: Parallel vs. serial runs
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), Tools miniapp)
+%-test-seq: %
+	@$(call mfem-test,$<,, Tools miniapp)
+
 clean: clean-build clean-exec
 
 clean-build:
@@ -50,4 +64,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	rm -rf dump_* mesh.* sol.*
+	@rm -f dump_* mesh.* sol.*
