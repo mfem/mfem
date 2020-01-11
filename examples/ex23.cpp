@@ -1,6 +1,23 @@
-//                                MFEM Example 24
+//                                MFEM Example 23
 //
-// Compile with: make ex24
+// Compile with: make ex23
+//
+// Sample runs:  ex23 -m ../data/square-disc.mesh
+//
+// Device sample runs:
+//               ex23 -pa -d cuda
+//
+// Description:  This example code
+//               s=0: Catenoid
+//               s=1: Helicoid
+//               s=2: Enneper
+//               s=3: Scherk
+//               s=4: Shell
+//               s=5: Hold
+//               s=6: QPeach
+//               s=7: FPeach
+//               s=8: SlottedSphere
+
 
 #include "mfem.hpp"
 #include "../general/forall.hpp"
