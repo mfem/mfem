@@ -3172,34 +3172,31 @@ void QuadratureInterpolator::Mult(
          }
       }
    }
-   else if (vdim == 3)
+   else if (vdim == 3 and dim == 2)
    {
-      if (dim == 2)
+      switch (100*nd + nq)
       {
-         switch (100*nd + nq)
-         {
-            // Q0
-            case 101: eval_func = &Eval2D<3,1,1>; break;
-            case 104: eval_func = &Eval2D<3,1,4>; break;
-            // Q1
-            case 404: eval_func = &Eval2D<3,4,4>; break;
-            case 409: eval_func = &Eval2D<3,4,9>; break;
-            // Q2
-            case 904: eval_func = &Eval2D<3,9,4>; break;
-            case 909: eval_func = &Eval2D<3,9,9>; break;
-            case 916: eval_func = &Eval2D<3,9,16>; break;
-            case 925: eval_func = &Eval2D<3,9,25>; break;
-            // Q3
-            case 1616: eval_func = &Eval2D<3,16,16>; break;
-            case 1625: eval_func = &Eval2D<3,16,25>; break;
-            case 1636: eval_func = &Eval2D<3,16,36>; break;
-            // Q4
-            case 2525: eval_func = &Eval2D<3,25,25>; break;
-            case 2536: eval_func = &Eval2D<3,25,36>; break;
-            case 2549: eval_func = &Eval2D<3,25,49>; break;
-            case 2564: eval_func = &Eval2D<3,25,64>; break;
-            default:   eval_func = &Eval2D<3>;
-         }
+         // Q0
+         case 101: eval_func = &Eval2D<3,1,1>; break;
+         case 104: eval_func = &Eval2D<3,1,4>; break;
+         // Q1
+         case 404: eval_func = &Eval2D<3,4,4>; break;
+         case 409: eval_func = &Eval2D<3,4,9>; break;
+         // Q2
+         case 904: eval_func = &Eval2D<3,9,4>; break;
+         case 909: eval_func = &Eval2D<3,9,9>; break;
+         case 916: eval_func = &Eval2D<3,9,16>; break;
+         case 925: eval_func = &Eval2D<3,9,25>; break;
+         // Q3
+         case 1616: eval_func = &Eval2D<3,16,16>; break;
+         case 1625: eval_func = &Eval2D<3,16,25>; break;
+         case 1636: eval_func = &Eval2D<3,16,36>; break;
+         // Q4
+         case 2525: eval_func = &Eval2D<3,25,25>; break;
+         case 2536: eval_func = &Eval2D<3,25,36>; break;
+         case 2549: eval_func = &Eval2D<3,25,49>; break;
+         case 2564: eval_func = &Eval2D<3,25,64>; break;
+         default:   eval_func = &Eval2D<3>;
       }
    }
    else if (vdim == dim)
@@ -3231,11 +3228,12 @@ void QuadratureInterpolator::Mult(
       }
       else if (dim == 3)
       {
+         printf("\n\033[33m[here]\033[m"); fflush(0);
          switch (1000*nd + nq)
          {
             // Q1
-            case 8008: eval_func = &Eval3D<3,8,8>; break;
-            case 8027: eval_func = &Eval3D<3,8,27>; break;
+            case 8008l: eval_func = &Eval3D<3,8,8>; break;
+            case 8027l: eval_func = &Eval3D<3,8,27>; break;
             // Q2
             case 27027: eval_func = &Eval3D<3,27,27>; break;
             case 27064: eval_func = &Eval3D<3,27,64>; break;
@@ -3259,6 +3257,9 @@ void QuadratureInterpolator::Mult(
    }
    else
    {
+      printf("\n\033[33m 1000*nd + nq:%d\033[m", 1000*nd + nq);
+      printf("\n\033[33m dim:%d, vdim:%d, nd:%d, nq:%d\033[m", dim, vdim, nd, nq);
+      fflush(0);
       MFEM_ABORT("case not supported yet");
    }
 }
