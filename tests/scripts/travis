@@ -2,22 +2,12 @@
 
 . tests/scripts/history_checks.bash
 
-#### Utilities
-function msg() {
-    echo "travis_tests: $*"
-}
-
-function err() {
-    echo "travis_tests: $*" 1>&2
-}
-
-####
-# If in travis context we need to checkout a branch, otherwise travis works in detached head.
-if ! git checkout -b travis_tests
-then
-    err "failed to create a branch"
-    exit 1
-fi
+# # If in travis context we need to checkout a branch, otherwise travis works in detached head.
+# if ! git checkout -b travis_tests
+# then
+#     err "failed to create a branch"
+#     exit 1
+# fi
 
 ####
 msg "Check presence of binary files in branch history."
@@ -41,4 +31,16 @@ fi
 
 ####
 exit ${branch_check} || ${style_check}
+
+# Utilities
+
+function msg()
+{
+    echo "travis_tests: $*"
+}
+
+function err()
+{
+    msg $* 1>&2
+}
 
