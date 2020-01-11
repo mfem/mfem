@@ -14,6 +14,7 @@ set(SRCS
   bilinearform_ext.cpp
   bilininteg.cpp
   bilininteg_diffusion.cpp
+  bilininteg_vdiffusion.cpp
   bilininteg_mass.cpp
   coefficient.cpp
   complex_fem.cpp
