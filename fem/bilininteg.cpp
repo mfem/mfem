@@ -2055,7 +2055,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    if (ir == NULL)
    {
       // integrand is rational function if det(J) is not constant
-      const int order = 2 * Trans.OrderGrad(&el); // order of the numerator
+      int order = 2 * Trans.OrderGrad(&el); // order of the numerator
       if (el.Space() == FunctionSpace::rQk)
       {
          ir = &RefinedIntRules.Get(el.GetGeomType(), order);
@@ -2067,13 +2067,14 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    }
 
    elmat = 0.0;
-   pelmat = 0.0;
-   for (int i = 0; i < ir->GetNPoints(); i++)
+
+   for (int i = 0; i < ir -> GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape(ip, dshape);
 
-      Trans.SetIntPoint(&ip);
+      el.CalcDShape (ip, dshape);
+
+      Trans.SetIntPoint (&ip);
       w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
       // AdjugateJacobian = / adj(J),         if J is square
