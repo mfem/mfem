@@ -80,7 +80,6 @@ static void OccaPADiffusionSetup3D(const int D1D,
 #endif // MFEM_USE_OCCA
 
 // PA Diffusion Assemble 2D kernel
-//<<<<<<< HEAD
 template<const int T_VDIM> static
 void PADiffusionSetup2D(const int Q1D,
                         const int NE,
@@ -88,7 +87,6 @@ void PADiffusionSetup2D(const int Q1D,
                         const Vector &j,
                         const Vector &c,
                         Vector &d);
-
 template<>
 void PADiffusionSetup2D<2>(const int Q1D,
                            const int NE,
@@ -96,28 +94,17 @@ void PADiffusionSetup2D<2>(const int Q1D,
                            const Vector &j,
                            const Vector &c,
                            Vector &d)
-//=======
-//static void PADiffusionSetup2D(const int Q1D,
-//                               const int NE,
-//                               const Array<double> &w,
-//                               const Vector &j,
-//                               const Vector &c,
-//                               Vector &d)
-//>>>>>>> master
 {
    constexpr int DIM = 2;
    constexpr int VDIM = 2;
    const int NQ = Q1D*Q1D;
    const bool const_c = c.Size() == 1;
+
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, VDIM, DIM, NE);
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-   auto y = Reshape(d.Write(), NQ, 3, NE);
-   //=======
-   //   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   //   auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-   //   auto D = Reshape(d.Write(), NQ, 3, NE);
-   //>>>>>>> master
+   auto D = Reshape(d.Write(), NQ, 3, NE);
+
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -142,16 +129,17 @@ void PADiffusionSetup2D<3>(const int Q1D,
                            const Array<double> &w,
                            const Vector &j,
                            const Vector &c,
-                           Vector &op)
+                           Vector &d)
 {
    constexpr int DIM = 2;
    constexpr int VDIM = 3;
    const int NQ = Q1D*Q1D;
+   const bool const_c = c.Size() == 1;
 
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, VDIM, DIM, NE);
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
-   auto y = Reshape(op.Write(), NQ, 3, NE);
+   auto D = Reshape(d.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -169,9 +157,9 @@ void PADiffusionSetup2D<3>(const int Q1D,
          const double iw = 1.0 / sqrt(E*G - F*F);
          const double coeff = const_c ? C(0,0) : C(q,e);
          const double alpha = wq * coeff * iw;
-         y(q,0,e) =  alpha * G; // 1,1
-         y(q,1,e) = -alpha * F; // 1,2
-         y(q,2,e) =  alpha * E; // 2,2
+         D(q,0,e) =  alpha * G; // 1,1
+         D(q,1,e) = -alpha * F; // 1,2
+         D(q,2,e) =  alpha * E; // 2,2
       }
    });
 }
@@ -249,24 +237,16 @@ static void PADiffusionSetup(const int dim,
          return;
       }
 #endif // MFEM_USE_OCCA
-      //<<<<<<< HEAD
       if (sdim == 2) { PADiffusionSetup2D<2>(Q1D, NE, W, J, C, D); }
       if (sdim == 3) { PADiffusionSetup2D<3>(Q1D, NE, W, J, C, D); }
-      //=======
-      //      PADiffusionSetup2D(Q1D, NE, W, J, C, D);
-      //>>>>>>> master
    }
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
-         //<<<<<<< HEAD
          MFEM_VERIFY(sdim == 2,"");
          OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, C, D);
-         //=======
-         //         OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, C, D);
-         //>>>>>>> master
          return;
       }
 #endif // MFEM_USE_OCCA
@@ -291,12 +271,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-   //<<<<<<< HEAD
-   //   ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-   //   MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-   //   const double coeff = cQ->constant;
-   //   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
-   //=======
    Vector coeff;
    if (Q == nullptr)
    {
@@ -321,9 +295,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       }
    }
-   PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff,
-                    pa_data);
-   //>>>>>>> master
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne,
+                    ir->GetWeights(), geom->J, coeff, pa_data);
 }
 
 
