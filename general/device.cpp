@@ -87,7 +87,7 @@ void Device::Configure(const std::string &device, const int dev)
       end = (end != std::string::npos) ? end : device.size();
       const std::string bname = device.substr(beg, end - beg);
       option = bname.find(':');
-      if (option==std::string::npos)//No option
+      if (option==std::string::npos) // No option
       {
          const std::string backend = bname;
          std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
