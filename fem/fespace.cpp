@@ -3172,7 +3172,7 @@ void QuadratureInterpolator::Mult(
          }
       }
    }
-   else if (vdim == 3 and dim == 2)
+   else if (vdim == 3 && dim == 2)
    {
       switch (100*nd + nq)
       {
