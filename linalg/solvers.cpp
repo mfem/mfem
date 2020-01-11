@@ -1788,26 +1788,31 @@ slbqp_done:
    }
 }
 
-BlockILU0::BlockILU0(Operator *A_, int block_size_) : block_size(block_size_)
+BlockILU0::BlockILU0(Operator &op, int block_size_)
+: Solver(op.Height()), block_size(block_size_)
 {
-   A = dynamic_cast<SparseMatrix *>(A_);
+   SetOperator(op);
+
+}
+
+void BlockILU0::SetOperator(const Operator &op)
+{
+   const SparseMatrix *A = dynamic_cast<const SparseMatrix *>(&op);
    if (A == NULL)
    {
       MFEM_ABORT("BlockILU0 must be created with a SparseMatrix");
    }
    MFEM_ASSERT(A->Finalized(), "Matrix must be finalized.");
-
-   A->SortColumnIndices();
-   CreateBlockPattern();
+   CreateBlockPattern(*A);
    Factorize();
 }
 
-void BlockILU0::CreateBlockPattern()
+void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
 {
-   int nrows = A->Height();
-   const int *I = A->GetI();
-   const int *J = A->GetJ();
-   const double *V = A->GetData();
+   int nrows = A.Height();
+   const int *I = A.GetI();
+   const int *J = A.GetJ();
+   const double *V = A.GetData();
    int nnz = 0;
    int nblockrows = nrows / block_size;
 
@@ -1826,12 +1831,15 @@ void BlockILU0::CreateBlockPattern()
       nnz += unique_block_cols[iblock].size();
    }
 
+   ID.SetSize(nblockrows);
    IB.SetSize(nblockrows + 1);
    IB[0] = 0;
    JB.SetSize(nnz);
    int b2 = block_size * block_size;
-   AB = new double[b2 * nnz](); // initialize with zeros
-   DB = new double[b2 * nblockrows](); // initialize with zeros
+   AB.SetSize(b2*nnz);
+   DB.SetSize(b2*nblockrows);
+   AB = 0.0;
+   DB = 0.0;
    int counter = 0;
 
    for (int iblock = 0; iblock < nblockrows; ++iblock)
@@ -1840,6 +1848,10 @@ void BlockILU0::CreateBlockPattern()
       // columns in increasing order
       for (int jblock : unique_block_cols[iblock])
       {
+         if (iblock == jblock)
+         {
+            ID[iblock] = counter;
+         }
          JB[counter] = jblock;
          for (int bi = 0; bi < block_size; ++bi)
          {
@@ -1867,12 +1879,19 @@ void BlockILU0::CreateBlockPattern()
 
 void BlockILU0::Factorize()
 {
-   int nblockrows = A->Height()/block_size;
+   int nblockrows = Height()/block_size;
    int b2 = block_size*block_size;
-   DenseMatrix M1, M2, M3, D, Dinv;
-   DenseMatrixInverse D_factorized;
+   DenseMatrix M1, M2, M3, D;
+   DenseMatrixInverse Dinv;
    DenseMatrix tmp(block_size, block_size);
 
+   // Precompute diagonal inverses
+   for (int i=0; i<nblockrows; ++i)
+   {
+      D.UseExternalData(&DB[i*b2], block_size, block_size);
+      Dinv.SetOperator(D);
+      Dinv.GetInverseMatrix(D);
+   }
 
    // Loop over block rows (starting with second block row)
    for (int i=1; i<nblockrows; ++i)
@@ -1888,13 +1907,11 @@ void BlockILU0::Factorize()
             MFEM_ABORT("Matrix must be sorted with nonzero diagonal");
          }
          D.UseExternalData(&DB[k*b2], block_size, block_size);
-         D_factorized.SetOperator(D);
-         D_factorized.GetInverseMatrix(Dinv);
          // M1 = L_ik
          M1.UseExternalData(&AB[kk*b2], block_size, block_size);
          tmp = M1;
          // L_ik = L_ik * U_kk^{-1}
-         mfem::Mult(tmp, Dinv, M1);
+         mfem::Mult(tmp, D, M1);
          // Modify everything to the right of k in row i
          for (int jj=kk+1; jj<IB[i+1]; ++jj)
          {
@@ -1919,10 +1936,58 @@ void BlockILU0::Factorize()
    }
 }
 
-BlockILU0::~BlockILU0()
+void BlockILU0::Mult(const Vector &b, Vector &x) const
 {
-   delete AB;
+   int nblockrows = Height()/block_size;
+   int b2 = block_size*block_size;
+   y.SetSize(Height());
+
+   DenseMatrix B;
+   Vector yi, yj, xi, xj;
+   Vector tmp(block_size);
+   // Forward substitute to solve Ly = b
+   // Implicitly, L has identity on the diagonal
+   y = 0.0;
+   for (int i=0; i<nblockrows; ++i)
+   {
+      yi.SetDataAndSize(&y[i*block_size], block_size);
+      for (int ib=0; ib<block_size; ++ib)
+      {
+         yi[ib] = b[ib + i*block_size];
+      }
+      for (int k=IB[i]; k<ID[i]; ++k)
+      {
+         int j = JB[k];
+         B.UseExternalData(&AB[k*b2], block_size, block_size);
+         yj.SetDataAndSize(&y[j*block_size], block_size);
+         // y_i = y_i - L_ij*y_j
+         B.AddMult_a(-1.0, yj, yi);
+      }
+   }
+   // Backward substitution to solve Ux = y
+   for (int i=nblockrows-1; i >= 0; --i)
+   {
+      xi.SetDataAndSize(&x[i*block_size], block_size);
+      for (int ib=0; ib<block_size; ++ib)
+      {
+         xi[ib] = y[ib + i*block_size];
+      }
+      for (int k=ID[i]+1; k<IB[i+1]; ++k)
+      {
+         int j = JB[k];
+         B.UseExternalData(&AB[k*b2], block_size, block_size);
+         xj.SetDataAndSize(&x[j*block_size], block_size);
+         // x_i = x_i - U_ij*x_j
+         B.AddMult_a(-1.0, xj, xi);
+      }
+      B.UseExternalData(&DB[i*b2], block_size, block_size);
+      tmp = xi;
+      // x_i = D_ii^{-1} x_i
+      B.Mult(tmp, xi);
+   }
 }
+
+BlockILU0::~BlockILU0() { }
 
 #ifdef MFEM_USE_SUITESPARSE
 
