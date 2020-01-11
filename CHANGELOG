@@ -16,9 +16,10 @@ Improved GPU support
 - Added support for matrix-free diagonal smoothers on GPUs.
 
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
-  language that can run on both AMD and NVIDIA hardware. With this change, the
-  list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",
-  "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+  language that can run on both AMD and NVIDIA hardware. With this change and
+  the libCEED addition below, the current list of available backends is:
+  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
+  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
 
 - Improved RAJA backend and multi-GPU MPI communications.
 
