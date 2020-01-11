@@ -233,7 +233,7 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-   void GetElementCenter(int i, Vector &c);
+   void GetElementCenter(int i, Vector &center);
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
@@ -285,14 +285,17 @@ protected:
    /// Update the nodes of a curved mesh after refinement
    void UpdateNodes();
 
+   void UniformRefinement2D_base(bool update_nodes = true);
+
    /// Refine a mixed 2D mesh uniformly.
-   virtual void UniformRefinement2D();
+   virtual void UniformRefinement2D() { UniformRefinement2D_base(); }
 
    /* If @a f2qf is not NULL, adds all quadrilateral faces to @a f2qf which
       represents a "face-to-quad-face" index map. When all faces are quads, the
       array @a f2qf is kept empty since it is not needed. */
    void UniformRefinement3D_base(Array<int> *f2qf = NULL,
-                                 DSTable *v_to_v_p = NULL);
+                                 DSTable *v_to_v_p = NULL,
+                                 bool update_nodes = true);
 
    /// Refine a mixed 3D mesh uniformly.
    virtual void UniformRefinement3D() { UniformRefinement3D_base(); }
@@ -385,11 +388,6 @@ protected:
    {
       return FaceIsInterior(FaceNo) || (faces_info[FaceNo].Elem2Inf >= 0);
    }
-
-   // shift cyclically 3 integers left-to-right
-   inline static void ShiftL2R(int &, int &, int &);
-   // shift cyclically 3 integers so that the smallest is first
-   inline static void Rotate3(int &, int &, int &);
 
    void FreeElement(Element *E);
 
@@ -570,14 +568,20 @@ public:
        @param[in] window Initial window size (default 2).
        @param[in] period Iterations between window increment (default 1).
        @param[in] seed Random number seed (default 0). */
-   void GetGeckoElementReordering(Array<int> &ordering,
-                                  int iterations = 1, int window = 2,
-                                  int period = 1, int seed = 0);
+   void GetGeckoElementOrdering(Array<int> &ordering,
+                                int iterations = 1, int window = 2,
+                                int period = 1, int seed = 0);
 #endif
 
-   /** Rebuilds the mesh with a different order of elements.  The ordering
-       vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements. */
+   /** Return an ordering of the elements that approximately follows the Hilbert
+       curve. The method performs a spatial (Hilbert) sort on the centers of all
+       elements and returns the resulting sequence, which can then be passed to
+       ReorderElements. This is a cheap alternative to GetGeckoElementOrdering.*/
+   void GetHilbertElementOrdering(Array<int> &ordering);
+
+   /** Rebuilds the mesh with a different order of elements. For each element i,
+       the array ordering[i] contains its desired new index. Note that the method
+       reorders vertices, edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
@@ -1014,7 +1018,7 @@ public:
    // Nodes are only active for higher order meshes, and share locations with
    // the vertices, plus all the higher- order control points within the element
    // and along the edges and on the faces.
-   void GetNode(int i, double *coord);
+   void GetNode(int i, double *coord) const;
    void SetNode(int i, const double *coord);
 
    // Node operations for curved mesh.
@@ -1122,6 +1126,7 @@ public:
 
    ///@{ @name NURBS mesh refinement methods
    void KnotInsert(Array<KnotVector *> &kv);
+   void KnotInsert(Array<Vector *> &kv);
    /* For each knot vector:
          new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
@@ -1158,13 +1163,17 @@ public:
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
-
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
+   /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
+       subdivision number (useful for high order fields and curved meshes). */
+   void PrintVTU(std::ostream &out, int ref=1);
+   /** Print the mesh in VTU format with file name fname. */
+   void PrintVTU(std::string fname);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
@@ -1270,6 +1279,11 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+#ifdef MFEM_DEBUG
+   /// Output an NCMesh-compatible debug dump.
+   void DebugDump(std::ostream &out) const;
+#endif
 };
 
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
@@ -1358,33 +1372,11 @@ public:
 };
 
 
-// inline functions
-inline void Mesh::ShiftL2R(int &a, int &b, int &c)
+// shift cyclically 3 integers left-to-right
+inline void ShiftRight(int &a, int &b, int &c)
 {
    int t = a;
    a = c;  c = b;  b = t;
-}
-
-inline void Mesh::Rotate3(int &a, int &b, int &c)
-{
-   if (a < b)
-   {
-      if (a > c)
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
-   else
-   {
-      if (b < c)
-      {
-         ShiftL2R(c, b, a);
-      }
-      else
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
 }
 
 }

@@ -42,6 +42,10 @@ public:
    virtual const Operator *GetRestriction() const;
 
    virtual void Assemble() = 0;
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
+   }
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -103,6 +107,7 @@ public:
    PABilinearFormExtension(BilinearForm*);
 
    void Assemble();
+   void AssembleDiagonal(Vector &diag) const;
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
