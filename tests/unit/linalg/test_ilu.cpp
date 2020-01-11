@@ -67,7 +67,7 @@ TEST_CASE("ILU Structure", "[ILU]")
 
    SECTION("Create block pattern from SparseMatrix")
    {
-      BlockILU0 ilu(&A, Nb);
+      BlockILU0 ilu(A, Nb);
 
       int nnz_count = 0;
 
@@ -137,7 +137,7 @@ TEST_CASE("ILU Factorization", "[ILU]")
 
    A.Finalize();
 
-   BlockILU0 ilu(&A, 2);
+   BlockILU0 ilu(A, 2);
 
    REQUIRE(ilu.AB[0 + 0*2 + 0*4] == Approx(1.0));
    REQUIRE(ilu.AB[1 + 0*2 + 0*4] == Approx(7.0));
