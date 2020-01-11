@@ -28,7 +28,7 @@ double u_exact_2(const Vector &);
 void u_grad_exact_2(const Vector &, Vector &);
 
 void convergenceStudy(const char *mesh_file, int num_ref, int &order,
-                      double &l2_err_prev, double &h1_err_prev, bool &visualization, 
+                      double &l2_err_prev, double &h1_err_prev, bool &visualization,
                       int &exact, int &dof2view, int &solvePDE, bool static_cond, bool &use_serendip)
 {
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -52,7 +52,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    {
       fec = new H1_FECollection(1, 2);
    }
-   else 
+   else
    {
       if (use_serendip)
       {
@@ -69,7 +69,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // exact == 1 case:
    FunctionCoefficient *u1 = new FunctionCoefficient(u_exact);
    VectorFunctionCoefficient *(u1_grad) = new VectorFunctionCoefficient(dim, u_grad_exact);
-   
+
    // exact == 2 case:
    FunctionCoefficient *u2 = new FunctionCoefficient(u_exact_2);
    VectorFunctionCoefficient *u2_grad = new VectorFunctionCoefficient(dim, u_grad_exact_2);
@@ -123,7 +123,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
 
    b->Assemble();
-   
+
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -139,7 +139,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // MassIntegrator *my_mass_integrator = new MassIntegrator;
 
    if (solvePDE==1)
-   {   
+   {
       if (exact == 1)
       {
          x.ProjectBdrCoefficient(*u1, ess_bdr);
@@ -154,7 +154,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    {
       a->AddDomainIntegrator(new MassIntegrator);
    }
-   
+
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
@@ -166,15 +166,15 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    Vector B, X;
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   
+
    // cout << "Size of linear system: " << A->Height() << endl;
-  
+
    // 11. Solve the linear system A X = B.
 
    GSSmoother M((SparseMatrix&)(*A));
    X = 0.0;
    PCG(*A, M, B, X, 0, 200, 1e-24, 0.0);
-   
+
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
@@ -202,7 +202,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       DenseMatrix temporary;
       feholder->Project(*feholder, *trans, temporary);
    }
-   else if (dof2view != -1)    // Hack to viusalize a single basis function   
+   else if (dof2view != -1)    // Hack to visualize a single basis function
    {
       x=0;
       x(dof2view) = 1;
@@ -230,7 +230,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // Compute and print the L^2 and H^1 norms of the error.
    ConstantCoefficient one(1.0);
-   
+
    double l2_err = 0;
    double h1_err = 0;
 
@@ -269,7 +269,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    h1_err_prev = h1_err;
 
    // 15. Free the used memory.
-   delete a; 
+   delete a;
    delete b;
    delete fespace;
    delete u1;
@@ -321,7 +321,7 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&total_refinements, "-r", "--refine",
-                  "Number of refinements to do.");   
+                  "Number of refinements to do.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -329,8 +329,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_serendip, "-ser", "--use-serendipity", 
-                  "-no-ser", "--not-serendipity", 
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity",
+                  "-no-ser", "--not-serendipity",
                   "Use serendipity element collection.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&exact, "-e", "--exact", 
+   args.AddOption(&exact, "-e", "--exact",
                   "Choice of exact solution. 1=constant 1; 2=sin(x)e^y.");
    args.AddOption(&dof2view, "-dof", "--dof2view",
                   "DEBUG option: viewing a single dof:");
@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
    {
       cout << "Using H1 tensor product basis of order " << order << "." << endl;
    }
-   
+
    if (order <1)
    {
       cout << "Order must be >0." << endl;
@@ -447,11 +447,11 @@ int main(int argc, char *argv[])
       bool noVisYet = false;
       for (int i = 0; i < (total_refinements); i++)
       {
-         convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, 
+         convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet,
             exact, dof2view, solvePDE, static_cond, use_serendip);
       }
    }
-   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, 
+   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization,
             exact, dof2view, solvePDE, static_cond, use_serendip);
 
    return 0;

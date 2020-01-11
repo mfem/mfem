@@ -68,7 +68,7 @@ public:
          case OpenUniform:     return Quadrature1D::OpenUniform;
          case ClosedUniform:   return Quadrature1D::ClosedUniform;
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
-         case Serendipity:     return Quadrature1D::GaussLobatto; // <-----
+         case Serendipity:     return Quadrature1D::GaussLobatto;
       }
       return Quadrature1D::Invalid;
    }
@@ -112,7 +112,7 @@ public:
          case 'u': return OpenUniform;
          case 'U': return ClosedUniform;
          case 'o': return OpenHalfUniform;
-         case 's': return GaussLobatto; //  <-----
+         case 's': return GaussLobatto;
       }
       MFEM_ABORT("unknown BasisType identifier");
       return -1;
@@ -1984,7 +1984,6 @@ public:
                                       DenseMatrix &I) const;
    using FiniteElement::Project;
 };
-
 
 class H1Pos_HexahedronElement : public PositiveTensorFiniteElement
 {

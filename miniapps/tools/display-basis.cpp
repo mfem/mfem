@@ -326,8 +326,7 @@ int main(int argc, char *argv[])
          cin >> bChar;
          if (bChar == 'h' || bChar == 'p' || bChar == 'l' || bChar == 'f' ||
              bChar == 's' ||
-             ((bChar == 'n' || bChar == 'r') &&
-              (elemIs2D(eType) || elemIs3D(eType))) ||
+             ((bChar == 'n' || bChar == 'r') && (elemIs2D(eType) || elemIs3D(eType))) ||
              (bChar == 'c' && (elemIs1D(eType) || elemIs2D(eType))) ||
              (bChar == 'g' && elemIs2D(eType)))
          {
@@ -851,10 +850,9 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
    if (ndof > 25 && onlySome == -1)
    {
       cout << endl;
-      cout << "There are more than 25 windows to open.  Only showing Dofs 1-10 to avoid crashing. "
-           << endl << "Use the option -only N when running to show Dofs N to N+9 instead."
-           <<
-           endl;
+      cout << "There are more than 25 windows to open.\n"
+           << "Only showing Dofs 1-10 to avoid crashing.\n"
+           << "Use the option -only N to show Dofs N to N+9 instead.\n";
       onlySome = 1;
    }
    for (int i = 0; i < stopAt; i++)
