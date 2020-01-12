@@ -26,7 +26,7 @@ jobs:
       script:
           - cd ${TRAVIS_BUILD_DIR}
           - git fetch origin master:master
-          - cd test/scripts
+          - cd tests/scripts
           - runtest . documentation code-style gitignore
     #
     # Linux Tests
@@ -34,7 +34,7 @@ jobs:
     - stage: tests
       os: linux
       compiler: gcc
-      name: "Linux Tests"
+      name: "Serial Linux + Debug"
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
@@ -42,7 +42,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      name: "Linux Tests"
+      name: "Serial Linux"
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
@@ -50,7 +50,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      name: "Linux Tests"
+      name: "Parallel Linux + Debug"
       addons:
         apt:
           # sources:
@@ -80,7 +80,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      name: "Linux Tests"
+      name: "Parallel Linux"
       addons:
         apt:
           # sources:
@@ -114,6 +114,8 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
+      stage: "mac tests"
+      name: "Serial Mac + Debug"
       name: "Mac Tests"
       env: DEBUG=YES
            MPI=NO
