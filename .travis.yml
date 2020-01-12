@@ -8,7 +8,6 @@ stages:
 
 jobs:
   include:
-
     #
     # Checks
     #
@@ -27,9 +26,8 @@ jobs:
       script:
           - cd ${TRAVIS_BUILD_DIR}
           - git fetch origin master:master
-	  - cd test/scripts
-	  - runtest . documentation code-style gitignore
-
+          - cd test/scripts
+          - runtest . documentation code-style gitignore
     #
     # Linux Tests
     #
