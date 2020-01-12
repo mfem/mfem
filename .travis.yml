@@ -1,15 +1,27 @@
-sudo: false
-
 language: cpp
+
+os:
+  - linux
+  - osx
+
+compiler:
+  - gcc
+  - clang
 
 stages:
   - checks
   - tests
 
+sudo: false
+
 jobs:
   include:
 
-    # Checks: code-style, documentation, gitignore, binary
+    # Checks:
+    # - code-style
+    # - documentation
+    # - gitignore
+    # - binary
 
     - stage: checks
       name: "code-style"
@@ -24,15 +36,14 @@ jobs:
 
     - stage: checks
       name: "documentation"
-      os: linux
-      compiler: gcc
       addons:
         apt:
           packages:
             - doxygen
             - graphviz
-            - mpich
-      env: DEBUG=NO MPI=YES
+	    - mpich
+            - libmpich-dev
+      env: MPI=YES
       script:
         - cd ${TRAVIS_BUILD_DIR}
         - cd tests/scripts
@@ -40,16 +51,15 @@ jobs:
 
     - stage: checks
       name: "gitignore"
-      os: linux
-      compiler: gcc
       addons:
         apt:
           packages:
-            - libopenmpi-dev
-      env: DEBUG=NO MPI=YES
+	    - mpich
+            - libmpich-dev
+      env: MPI=YES
       script:
         - cd ${TRAVIS_BUILD_DIR}
-        - make parallel -j3
+        - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2
         - make all -j3
         - make test
         - cd tests/scripts
@@ -61,10 +71,10 @@ jobs:
       git:
         depth: false
       script:
-          - cd ${TRAVIS_BUILD_DIR}
-          - git fetch origin master:master
-          - cd tests/scripts
-          - ./runtest gitignore
+        - cd ${TRAVIS_BUILD_DIR}
+        - git fetch origin master:master
+        - cd tests/scripts
+        - ./runtest gitignore
 
     # Linux Tests
     - stage: tests
