@@ -41,7 +41,7 @@ jobs:
           packages:
             - doxygen
             - graphviz
-	    - mpich
+            - mpich
             - libmpich-dev
       env: MPI=YES
       script:
@@ -54,7 +54,7 @@ jobs:
       addons:
         apt:
           packages:
-	    - mpich
+            - mpich
             - libmpich-dev
       env: MPI=YES
       script:
