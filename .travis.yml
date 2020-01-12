@@ -18,6 +18,7 @@ jobs:
         apt:
           packages:
             - astyle
+	    - doxygen
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
