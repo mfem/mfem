@@ -28,7 +28,7 @@ jobs:
           packages:
             - doxygen
             - graphviz
-	    - mpi
+            - mpi
       env: MPI=YES
       script:
           - cd ${TRAVIS_BUILD_DIR}
@@ -40,7 +40,7 @@ jobs:
        addons:
         apt:
           packages:
-	    - mpi
+            - mpi
       env: MPI=YES
       script:
           - cd ${TRAVIS_BUILD_DIR}
