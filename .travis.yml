@@ -3,15 +3,15 @@ sudo: false
 language: cpp
 
 stages:
-  - test scripts
-  - build tests
+  - checks
+  - tests
 
 jobs:
   include:
 
-    # Test scripts: code-style, documentation, gitignore, binary
+    # Checks: code-style, documentation, gitignore, binary
 
-    - stage: test scripts
+    - stage: checks
       name: "code-style"
       addons:
         apt:
@@ -29,6 +29,8 @@ jobs:
             - doxygen
             - graphviz
             - mpi
+      env: DEBUG=NO
+           MPI=YES
       script:
           - cd ${TRAVIS_BUILD_DIR}
           - make parallel
@@ -56,7 +58,7 @@ jobs:
           - ./runtest ../.. gitignore
 
     # Linux Tests
-    - stage: build tests
+    - stage: tests
       os: linux
       compiler: gcc
       name: "Linux: Serial + Debug"
