@@ -37,7 +37,7 @@ jobs:
           - ./runtest ../.. documentation
 
     - name: "gitignore"
-       addons:
+      addons:
         apt:
           packages:
             - mpi
