@@ -16,10 +16,9 @@ case $1 in
    -h|-help)
       cat <<EOF
 
-   $0 [-h|-help] {mfem_dir} {glvis_dir}
+   $0 [-h|-help] {mfem_dir}
 
    where: {mfem_dir}  is the MFEM source directory [default value: ../mfem]
-          {glvis_dir} is the GLVis source directory [default value: ../glvis]
           -h|-help    prints this usage information and exits
 
    This script checks if the code in mfem_dir conforms to the MFEM C++ style
@@ -43,14 +42,6 @@ cd $mfem_dir
 mfem_dir=`pwd`
 shift
 
-glvis_dir=$1
-if [ "$glvis_dir" = "" ]; then
-    glvis_dir="../glvis"
-fi
-cd $glvis_dir
-glvis_dir=`pwd`
-shift
-
 # Verify C++ code styling in MFEM
 cd $mfem_dir
 make distclean
@@ -61,11 +52,3 @@ make style
 # and mfem::err instead)
 (grep cout */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
 (grep cerr */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
-
-# Verify C++ code styling in GLVis
-cd $glvis_dir
-make clean
-make style MFEM_DIR="$mfem_dir"
-(git diff) 1>&2
-
-# old Emacs-based style: (/usr/casc/mfem/tools/fix-cpp-style) > /dev/null 2>&1

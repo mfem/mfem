@@ -100,6 +100,7 @@ do
       echo "=== BEGIN error log from $this_test.err"
       cat $this_test.err 1>&2
       echo "=== END error log from $this_test.err"
+      rm -f $this_test.err $this_test.out
    fi
 done
 
