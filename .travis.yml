@@ -28,6 +28,7 @@ jobs:
           packages:
             - doxygen
             - graphviz
+	    - mpi
       env: MPI=YES
       script:
           - cd ${TRAVIS_BUILD_DIR}
@@ -36,6 +37,10 @@ jobs:
           - ./runtest ../.. documentation
 
     - name: "gitignore"
+       addons:
+        apt:
+          packages:
+	    - mpi
       env: MPI=YES
       script:
           - cd ${TRAVIS_BUILD_DIR}
