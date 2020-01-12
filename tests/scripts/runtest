@@ -101,6 +101,8 @@ do
       cat $this_test.err 1>&2
       echo "=== END error log from $this_test.err"
       rm -f $this_test.err $this_test.out
+   else
+      echo "No errors"
    fi
 done
 

@@ -32,6 +32,7 @@ EOF
 esac
 
 # Setup
+cur_dir=`pwd`
 mfem_dir=$1
 if [ "$mfem_dir" = "" ]; then
     mfem_dir="../mfem"
@@ -53,3 +54,5 @@ cat > .gitignore <<EOF
 EOF
 (git status -s | grep -v .gitignore) 1>&2
 mv -f .gitignore-bak .gitignore
+
+cd $cur_dir

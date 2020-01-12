@@ -31,6 +31,7 @@ EOF
 esac
 
 # Setup
+cur_dir=`pwd`
 mfem_dir=$1
 if [ "$mfem_dir" = "" ]; then
     mfem_dir="../mfem"
@@ -49,3 +50,5 @@ make status
 
 # Test the build of the Doxygen documentation
 cd doc; make clean; make
+
+cd $cur_dir

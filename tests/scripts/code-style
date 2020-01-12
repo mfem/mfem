@@ -34,6 +34,7 @@ EOF
 esac
 
 # Setup
+cur_dir=`pwd`
 mfem_dir=$1
 if [ "$mfem_dir" = "" ]; then
     mfem_dir="../mfem"
@@ -52,3 +53,5 @@ make style
 # and mfem::err instead)
 (grep cout */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
 (grep cerr */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
+
+cd $cur_dir
