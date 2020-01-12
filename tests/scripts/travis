@@ -13,11 +13,11 @@
 msg "Check presence of binary files in branch history."
 branch_check=0
 
-if ! check_branch # Read: "if check fails"
-then
-    err "ERROR: something went wrong in branch checks"
-    branch_check=1
-fi
+# if ! check_branch # Read: "if check fails"
+# then
+#     err "ERROR: something went wrong in branch checks"
+#     branch_check=1
+# fi
 
 ####
 msg "Run tests scripts"
