@@ -11,7 +11,7 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-# Echo usage information
+# Print usage information
 case $1 in
    -h|-help)
       cat <<EOF

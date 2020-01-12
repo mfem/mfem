@@ -80,8 +80,7 @@ do
       this_dir=`dirname $test`
    fi
    test_cmd[0]="$this_test"
-   echo ""
-   echo "Running test '${test_cmd[*]}'..."
+   printf "\nRunning test '${test_cmd[*]}'...\n"
    { $this_dir/"$this_test" "$mfem_dir" "${test_cmd[@]:1}" 2>&1 1>&3 |
      tee "$this_test.err"; } > "$this_test.out" 3>&1
 
@@ -97,15 +96,19 @@ do
    # Print the *.err file if not empty
    if [ -s "$this_test.err" ]; then
       runtest_check=1
-      echo "=== BEGIN error log from $this_test.err"
+      # printf "=== BEGIN error log from $this_test.err\n"
+      printf '\033[0;31m'
       (cat $this_test.err) 1>&2
-      echo "=== END error log from $this_test.err"
+      printf '\033[0m'
+      # printf "=== END error log from $this_test.err\n"
       rm -f $this_test.err $this_test.out
    else
-      echo "No errors"
+      printf '\033[0;32m'
+      printf "No errors\n"
+      printf '\033[0m'
    fi
 done
 
-echo ""
+printf "\n"
 
 exit ${runtest_check}
