@@ -20,7 +20,7 @@ jobs:
           packages:
             - astyle
             - doxygen
-	    - dot
+            - dot
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
