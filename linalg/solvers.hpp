@@ -492,7 +492,7 @@ public:
 
    mutable Vector y;
    Array<int> IB, ID, JB;
-   mutable Array<double> AB, DB;
+   DenseTensor AB, DB;
 };
 
 #ifdef MFEM_USE_SUITESPARSE
