@@ -22,9 +22,12 @@ case $1 in
           -h|-help    prints this usage information and exits
 
    This script checks if the code in mfem_dir conforms to the MFEM C++ style
-   (currently based on astyle). Note that the comparison is done with "git
-   diff", so all differences between mfem_dir and the repository will be
+   (currently based on astyle-2.05.1). Note that the comparison is done with
+   "git diff", so all differences between mfem_dir and the repository will be
    reported. The local changes can be erased (lost!) with "git checkout .".
+
+   In addition to C++ styling, the script also verifies that std::cout and
+   std::cerr are not used in the library (use mfem::out and mfem::err instead).
 
    Example usage: $0 ../mfem ../glvis
 

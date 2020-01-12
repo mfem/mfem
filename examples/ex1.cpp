@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
    else // Jacobi preconditioning in partial assembly mode
    {
       OperatorJacobiSmoother M(*a, ess_tdof_list);
-      PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+        PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
    }
 
    // 12. Recover the solution as a finite element grid function.
@@ -213,8 +213,7 @@ int main(int argc, char *argv[])
    x.Save(sol_ofs);
 
    // 14. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
+   if (visualization)  {
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);

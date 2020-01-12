@@ -98,7 +98,7 @@ do
    if [ -s "$this_test.err" ]; then
       runtest_check=1
       echo "=== BEGIN error log from $this_test.err"
-      cat $this_test.err 1>&2
+      (cat $this_test.err) 1>&2
       echo "=== END error log from $this_test.err"
       rm -f $this_test.err $this_test.out
    else
