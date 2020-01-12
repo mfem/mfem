@@ -8,32 +8,40 @@ stages:
 
 jobs:
   include:
-    #
+
     # Checks
-    #
+
     - stage: checks
-      os: linux
-      compiler: gcc
-      name: "gitignore, documentation, code-style"
+      name: "code-style"
       addons:
         apt:
           packages:
             - astyle-2.05.1
+      script:
+          - cd ${TRAVIS_BUILD_DIR}/tests/scripts
+          - ./runtest ../.. code-style
+
+    - stage: checks
+      os: linux
+      compiler: gcc
+      name: "gitignore, documentation"
+      addons:
+        apt:
+          packages:
+            - astyle-2.05.1-0ubuntu1
             - doxygen
             - graphviz
+      # need full git history for binary files check
       git:
         depth: false
       script:
           - cd ${TRAVIS_BUILD_DIR}
           - git fetch origin master:master
           - cd tests/scripts
-          - ./runtest ../.. code-style
           - ./runtest ../.. gitignore
           - ./runtest ../.. documentation
 
-    #
     # Linux Tests
-    #
     - stage: tests
       os: linux
       compiler: gcc
