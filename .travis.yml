@@ -16,7 +16,7 @@ jobs:
       addons:
         apt:
           packages:
-            - astyle=2.05.1
+            - astyle=2.05.1-0ubuntu1
       script:
           - cd ${TRAVIS_BUILD_DIR}
           - cd tests/scripts
@@ -229,10 +229,6 @@ before_install:
         pip install --user cpp-coveralls;
         pip install --user pyyaml;
         PATH=$HOME/local/bin:$PATH;
-     fi
-
-   - if [ $TRAVIS_OS_NAME == "linux" ]; then
-        sudo apt-get install astyle=2.05.1
      fi
 
 install:
