@@ -14,18 +14,15 @@
 # Check if the current commit contains a large file
 function check_bin_in_commit()
 {
-    # Sum (approximately) the number of line changes in the commit, e.g.
-    # "3 files changed, 66 insertions(+), 45 deletions(-)" -> 3+66+45 -> 114
-    changes=$(git diff --pretty=format:"" --shortstat HEAD^ \
-		  | sed -e 's/[^0-9,]//g' -e 's/,/+/g' | bc)
+    # Compute the number of total changes (insertions+deletions) in the commit, e.g.
+    # "3 files changed, 66 insertions(+), 45 deletions(-)" -> 111
+    changes=$(git diff --pretty=format:"" --shortstat HEAD^ | awk '{ print $4 + $6 }')
 
     # If the above is more than 50K, return an error
-    #    if (( $changes > 50000 ))
-    if (( $changes > 100 ))
+    if (( $changes > 50000 ))
     then
-	# msg "$(git log -1 --format=%H)"
-	# msg "ATTENTION: This commit is unusually large"
-	msg "ATTENTION: The commit $(git log -1 --format=%H) is unusually large: it has changes in about $changes lines"
+	msg "ATTENTION: The commit $(git log -1 --format=%H) is unusually large!"
+	msg "           It has changes in approximatelly $changes lines of code."
 	return 1
     fi
 

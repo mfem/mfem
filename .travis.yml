@@ -3,8 +3,8 @@ sudo: false
 language: cpp
 
 stages:
-  - check
-  - test
+  - 'check'
+  - 'test'
 
 jobs:
   include:
@@ -17,7 +17,7 @@ jobs:
         apt:
           packages:
             - astyle
-      stage: check
+      stage: 'check'
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO

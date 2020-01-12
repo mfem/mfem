@@ -11,7 +11,7 @@
 
 ####
 msg "Check presence of binary files in branch history."
-branch_res=0
+branch_check=0
 
 if ! check_branch # Read: "if check fails"
 then
@@ -20,17 +20,17 @@ then
 fi
 
 ####
-msg "Check code style."
-style_res=0
+msg "Run tests scripts"
+tests_check=0
 
-if ! make style-check
+if ! runtest . documentation code-style gitignore
 then
-    err "ERROR: something went wrong during style check"
-    style_check=1
+    err "ERROR: something went wrong during the tests scripts runs"
+    test_check=1
 fi
 
 ####
-exit ${branch_check} || ${style_check}
+exit ${branch_check} || ${tests_check}
 
 # Utilities
 
