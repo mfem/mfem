@@ -3,19 +3,18 @@ sudo: false
 language: cpp
 
 stages:
-  - 'simple checks'
-  - 'linux tests'
-  - 'mac tests'
+  - checks
+  - tests
 
 jobs:
   include:
 
     #
-    # Simple Checks
+    # Checks
     #
-    - os: linux
+    - stage: checks
+      os: linux
       compiler: gcc
-      stage: 'simple checks'
       addons:
         apt:
           packages:
@@ -34,9 +33,10 @@ jobs:
     #
     # Linux Tests
     #
-    - os: linux
+    - stage: tests
+      os: linux
       compiler: gcc
-      stage: 'linux tests'
+      name: "Linux Tests"
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
@@ -44,7 +44,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      stage: 'Linux Tests'
+      name: "Linux Tests"
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
@@ -52,7 +52,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      stage: 'linux tests'
+      name: "Linux Tests"
       addons:
         apt:
           # sources:
@@ -82,7 +82,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      stage: 'linux tests'
+      name: "Linux Tests"
       addons:
         apt:
           # sources:
@@ -116,7 +116,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      stage: 'Mac Tests'
+      name: "Mac Tests"
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
@@ -125,7 +125,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      stage: 'Mac Tests'
+      name: "Mac Tests"
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
@@ -134,7 +134,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      stage: 'Mac Tests'
+      name: "Mac Tests"
       env: DEBUG=YES
            MPI=YES
            CODECOV=NO
@@ -154,7 +154,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      stage: 'Mac Tests'
+      name: "Mac Tests"
       env: DEBUG=NO
            MPI=YES
            CODECOV=YES
