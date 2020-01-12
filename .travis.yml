@@ -46,7 +46,7 @@ jobs:
       script:
         - cd ${TRAVIS_BUILD_DIR}
         - make parallel -j3
-	- make all -j3
+        - make all -j3
         - make test
         - cd tests/scripts
         - ./runtest gitignore
