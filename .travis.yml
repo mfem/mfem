@@ -31,7 +31,7 @@ jobs:
           packages:
             - doxygen
             - graphviz
-            - mpi
+            - mpich
       env: DEBUG=NO MPI=YES
       script:
         - cd ${TRAVIS_BUILD_DIR}
@@ -45,7 +45,7 @@ jobs:
       addons:
         apt:
           packages:
-            - openmpi
+            - libopenmpi-dev
       env: DEBUG=NO MPI=YES
       script:
         - cd ${TRAVIS_BUILD_DIR}
