@@ -24,7 +24,7 @@ case $1 in
    This script checks for compliance with MFEM's .gitignore rules in mfem_dir.
    To be useful, the script should be run after the baseline (or similar) script.
 
-   Example usage: $0 ../mfem
+   Example usage: $0 ../..
 
 EOF
       exit

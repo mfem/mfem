@@ -18,39 +18,40 @@ jobs:
           packages:
             - astyle=2.05.1-0ubuntu1
       script:
-          - cd ${TRAVIS_BUILD_DIR}
-          - cd tests/scripts
-          - ./runtest ../.. code-style
+        - cd ${TRAVIS_BUILD_DIR}
+        - cd tests/scripts
+        - ./runtest code-style
 
-    - name: "documentation"
+    - stage: checks
+      name: "documentation"
       addons:
         apt:
           packages:
             - doxygen
             - graphviz
             - mpi
-      env: MPI=YES
+      env: DEBUG=NO MPI=YES
       script:
-          - cd ${TRAVIS_BUILD_DIR}
-          - make parallel
-          - cd tests/scripts
-          - ./runtest ../.. documentation
+        - cd ${TRAVIS_BUILD_DIR}
+        - cd tests/scripts
+        - ./runtest documentation
 
-    - name: "gitignore"
+    - stage: checks
+      name: "gitignore"
       addons:
         apt:
           packages:
             - mpi
-      env: MPI=YES
+      env: DEBUG=NO MPI=YES
       script:
-          - cd ${TRAVIS_BUILD_DIR}
-          - make parallel
-          - make test
-          - cd tests/scripts
-          - ./runtest ../.. gitignore
+        - cd ${TRAVIS_BUILD_DIR}
+        - make parallel -j3
+	- make all -j3
+        - make test
+        - cd tests/scripts
+        - ./runtest gitignore
 
-    - os: linux
-      compiler: gcc
+    - stage: checks
       name: "binary"
       # need full git history for binary files check
       git:
@@ -59,7 +60,7 @@ jobs:
           - cd ${TRAVIS_BUILD_DIR}
           - git fetch origin master:master
           - cd tests/scripts
-          - ./runtest ../.. gitignore
+          - ./runtest gitignore
 
     # Linux Tests
     - stage: tests

@@ -15,14 +15,14 @@
 run_dir=`pwd`
 test_dir=$( cd "$( dirname "$0" )" && pwd )
 
-# Echo usage information
+# Print usage information
 case $1 in
    -h|-help)
       cat <<EOF
 
    $0 [-h|-help] {mfem_dir} {test1} {test2} ...
 
-   where: {mfem_dir}  is the MFEM source directory [default value: ../mfem]
+   where: {mfem_dir}  is the MFEM source directory [default value: ../..]
           {test1}...  are the sequence of tests to run
           -h|-help    prints this usage information and exits
 
@@ -37,7 +37,7 @@ case $1 in
    [1] run directory  = $run_dir
    [2] test directory = $test_dir
 
-   Example usage: $0 ../mfem
+   Example usage: $0 ../..
 
 EOF
       exit
@@ -50,7 +50,7 @@ if [ -d "$1" ]; then
    shift
 fi
 if [ "$mfem_dir" = "" ]; then
-    mfem_dir="../mfem"
+    mfem_dir="../.."
 fi
 if ! [ -d "$mfem_dir" ]; then
    printf "\nDirectory not found: $mfem_dir\n\n" 1>&2

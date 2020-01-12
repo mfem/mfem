@@ -23,7 +23,7 @@ case $1 in
 
    This script runs several documentation-related tests in mfem_dir.
 
-   Example usage: $0 ../mfem
+   Example usage: $0 ../..
 
 EOF
       exit

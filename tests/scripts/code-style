@@ -29,7 +29,7 @@ case $1 in
    In addition to C++ styling, the script also verifies that std::cout and
    std::cerr are not used in the library (use mfem::out and mfem::err instead).
 
-   Example usage: $0 ../mfem ../glvis
+   Example usage: $0 ../..
 
 EOF
       exit
