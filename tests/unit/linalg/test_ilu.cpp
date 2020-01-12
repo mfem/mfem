@@ -83,10 +83,9 @@ TEST_CASE("ILU Structure", "[ILU]")
             // {
             //    for (int bj = 0; bj < Nb; ++bj)
             //    {
-            //       REQUIRE(ilu.AB[bi + bj * Nb + k * Nb * Nb]
-            //               == A(i * Nb + bi, j * Nb + bj));
             //    }
             // }
+                  // REQUIRE(ilu.AB(bi,bj,k) == A(i * Nb + bi, j * Nb + bj));
             nnz_count++;
          }
       }
@@ -139,38 +138,38 @@ TEST_CASE("ILU Factorization", "[ILU]")
 
    BlockILU0 ilu(A, 2);
 
-   REQUIRE(ilu.AB[0 + 0*2 + 0*4] == Approx(1.0));
-   REQUIRE(ilu.AB[1 + 0*2 + 0*4] == Approx(7.0));
-   REQUIRE(ilu.AB[0 + 1*2 + 0*4] == Approx(2.0));
-   REQUIRE(ilu.AB[1 + 1*2 + 0*4] == Approx(8.0));
+   REQUIRE(ilu.AB(0,0,0) == Approx(1.0));
+   REQUIRE(ilu.AB(1,0,0) == Approx(7.0));
+   REQUIRE(ilu.AB(0,1,0) == Approx(2.0));
+   REQUIRE(ilu.AB(1,1,0) == Approx(8.0));
 
-   REQUIRE(ilu.AB[0 + 0*2 + 1*4] == Approx(3.0));
-   REQUIRE(ilu.AB[1 + 0*2 + 1*4] == Approx(9.0));
-   REQUIRE(ilu.AB[0 + 1*2 + 1*4] == Approx(4.0));
-   REQUIRE(ilu.AB[1 + 1*2 + 1*4] == Approx(1.0));
+   REQUIRE(ilu.AB(0,0,1) == Approx(3.0));
+   REQUIRE(ilu.AB(1,0,1) == Approx(9.0));
+   REQUIRE(ilu.AB(0,1,1) == Approx(4.0));
+   REQUIRE(ilu.AB(1,1,1) == Approx(1.0));
 
-   REQUIRE(ilu.AB[0 + 0*2 + 2*4] == Approx(5.0));
-   REQUIRE(ilu.AB[1 + 0*2 + 2*4] == Approx(2.0));
-   REQUIRE(ilu.AB[0 + 1*2 + 2*4] == Approx(6.0));
-   REQUIRE(ilu.AB[1 + 1*2 + 2*4] == Approx(3.0));
+   REQUIRE(ilu.AB(0,0,2) == Approx(5.0));
+   REQUIRE(ilu.AB(1,0,2) == Approx(2.0));
+   REQUIRE(ilu.AB(0,1,2) == Approx(6.0));
+   REQUIRE(ilu.AB(1,1,2) == Approx(3.0));
 
-   REQUIRE(ilu.AB[0 + 0*2 + 3*4] == Approx(1.0/2.0));
-   REQUIRE(ilu.AB[1 + 0*2 + 3*4] == Approx(-1.0/6.0));
-   REQUIRE(ilu.AB[0 + 1*2 + 3*4] == Approx(1.0/2.0));
-   REQUIRE(ilu.AB[1 + 1*2 + 3*4] == Approx(7.0/6.0));
+   REQUIRE(ilu.AB(0,0,3) == Approx(1.0/2.0));
+   REQUIRE(ilu.AB(1,0,3) == Approx(-1.0/6.0));
+   REQUIRE(ilu.AB(0,1,3) == Approx(1.0/2.0));
+   REQUIRE(ilu.AB(1,1,3) == Approx(7.0/6.0));
 
-   REQUIRE(ilu.AB[0 + 0*2 + 4*4] == Approx(0.0));
-   REQUIRE(ilu.AB[1 + 0*2 + 4*4] == Approx(-9.0));
-   REQUIRE(ilu.AB[0 + 1*2 + 4*4] == Approx(4.5));
-   REQUIRE(ilu.AB[1 + 1*2 + 4*4] == Approx(1.5));
+   REQUIRE(ilu.AB(0,0,4) == Approx(0.0));
+   REQUIRE(ilu.AB(1,0,4) == Approx(-9.0));
+   REQUIRE(ilu.AB(0,1,4) == Approx(4.5));
+   REQUIRE(ilu.AB(1,1,4) == Approx(1.5));
 
-   REQUIRE(ilu.AB[0 + 0*2 + 5*4] == Approx(2.0/3.0));
-   REQUIRE(ilu.AB[1 + 0*2 + 5*4] == Approx(0.0));
-   REQUIRE(ilu.AB[0 + 1*2 + 5*4] == Approx(1.0/3.0));
-   REQUIRE(ilu.AB[1 + 1*2 + 5*4] == Approx(1.0));
+   REQUIRE(ilu.AB(0,0,5) == Approx(2.0/3.0));
+   REQUIRE(ilu.AB(1,0,5) == Approx(0.0));
+   REQUIRE(ilu.AB(0,1,5) == Approx(1.0/3.0));
+   REQUIRE(ilu.AB(1,1,5) == Approx(1.0));
 
-   REQUIRE(ilu.AB[0 + 0*2 + 6*4] == Approx(1.0));
-   REQUIRE(ilu.AB[1 + 0*2 + 6*4] == Approx(7.0));
-   REQUIRE(ilu.AB[0 + 1*2 + 6*4] == Approx(1.0));
-   REQUIRE(ilu.AB[1 + 1*2 + 6*4] == Approx(-2.0));
+   REQUIRE(ilu.AB(0,0,6) == Approx(1.0));
+   REQUIRE(ilu.AB(1,0,6) == Approx(7.0));
+   REQUIRE(ilu.AB(0,1,6) == Approx(1.0));
+   REQUIRE(ilu.AB(1,1,6) == Approx(-2.0));
 }
