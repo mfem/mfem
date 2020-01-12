@@ -14,11 +14,13 @@ jobs:
     - stage: checks
       os: linux
       compiler: gcc
+      name: "gitignore, documentation, code-style"
       addons:
         apt:
           packages:
             - astyle
             - doxygen
+	    - dot
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
