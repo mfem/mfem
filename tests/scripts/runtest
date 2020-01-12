@@ -106,4 +106,6 @@ do
    fi
 done
 
+echo ""
+
 exit ${runtest_check}

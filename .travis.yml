@@ -27,7 +27,10 @@ jobs:
           - cd ${TRAVIS_BUILD_DIR}
           - git fetch origin master:master
           - cd tests/scripts
-          - ./runtest ../.. gitignore documentation code-style
+          - ./runtest ../.. gitignore
+          - ./runtest ../.. code-style
+          - ./runtest ../.. documentation
+
     #
     # Linux Tests
     #
