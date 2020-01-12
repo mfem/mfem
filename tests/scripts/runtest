@@ -64,6 +64,8 @@ else
    host=`hostname -s`
 fi
 
+runtest_check=0
+
 # Execute the given sequence of tests
 for testcmd in "$@"
 do
@@ -94,9 +96,11 @@ do
    fi
    # Print the *.err file if not empty
    if [ -s "$this_test.err" ]; then
+      runtest_check=1
       echo "=== BEGIN error log from $this_test.err"
       cat $this_test.err 1>&2
       echo "=== END error log from $this_test.err"
    fi
 done
 
+exit ${runtest_check}

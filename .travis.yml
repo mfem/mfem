@@ -31,10 +31,10 @@ jobs:
     #
     # Linux Tests
     #
-    - stage: "Linux tests"
+    - stage: tests
       os: linux
       compiler: gcc
-      name: "Serial + Debug"
+      name: "Linux: Serial + Debug"
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
@@ -42,7 +42,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      name: "Serial"
+      name: "Linux: Serial"
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
@@ -50,7 +50,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      name: "Parallel + Debug"
+      name: "Linux: Parallel + Debug"
       addons:
         apt:
           # sources:
@@ -80,7 +80,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      name: "Parallel"
+      name: "Linux: Parallel"
       addons:
         apt:
           # sources:
@@ -111,11 +111,10 @@ jobs:
     #
     # Mac OS X Tests
     #
-    - stage: "mac tests"
-      os: osx
+    - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      name: "Serial + Debug"
+      name: "Mac: Serial + Debug"
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
@@ -124,7 +123,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      name: "Serial"
+      name: "Mac: Serial"
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
@@ -133,7 +132,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      name: "Parallel + Debug"
+      name: "Mac: Parallel + Debug"
       env: DEBUG=YES
            MPI=YES
            CODECOV=NO
@@ -153,7 +152,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      name: "Parallel"
+      name: "Mac: Parallel"
       env: DEBUG=NO
            MPI=YES
            CODECOV=YES
