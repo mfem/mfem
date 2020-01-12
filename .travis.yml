@@ -9,12 +9,13 @@ stages:
 
 jobs:
   include:
+
     #
-    # Linux
+    # Simple Checks
     #
-    - stage: 'simple checks'
-      os: linux
+    - os: linux
       compiler: gcc
+      stage: 'simple checks'
       addons:
         apt:
           packages:
@@ -30,25 +31,28 @@ jobs:
 	  - cd test/scripts
 	  - runtest . documentation code-style gitignore
 
-    - stage: 'Linux Tests'
-      os: linux
+    #
+    # Linux Tests
+    #
+    - os: linux
       compiler: gcc
+      stage: 'linux tests'
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
     #
-    - stage: 'Linux Tests'
-      os: linux
+    - os: linux
       compiler: gcc
+      stage: 'Linux Tests'
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
     #
-    - stage: 'Linux Tests'
-      os: linux
+    - os: linux
       compiler: gcc
+      stage: 'linux tests'
       addons:
         apt:
           # sources:
@@ -76,9 +80,9 @@ jobs:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
     #
-    - stage: 'Linux Tests'
-      os: linux
+    - os: linux
       compiler: gcc
+      stage: 'linux tests'
       addons:
         apt:
           # sources:
@@ -105,31 +109,32 @@ jobs:
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+
     #
-    # Mac OS X
+    # Mac OS X Tests
     #
-    - stage: 'Mac Tests'
-      os: osx
+    - os: osx
       # osx_image: xcode7.3
       compiler: clang
+      stage: 'Mac Tests'
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
     #
-    - stage: 'Mac Tests'
-      os: osx
+    - os: osx
       # osx_image: xcode7.3
       compiler: clang
+      stage: 'Mac Tests'
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
     #
-    - stage: 'Mac Tests'
-      os: osx
+    - os: osx
       # osx_image: xcode7.3
       compiler: clang
+      stage: 'Mac Tests'
       env: DEBUG=YES
            MPI=YES
            CODECOV=NO
@@ -146,10 +151,10 @@ jobs:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
     #
-    - stage: 'Mac Tests'
-      os: osx
+    - os: osx
       # osx_image: xcode7.3
       compiler: clang
+      stage: 'Mac Tests'
       env: DEBUG=NO
            MPI=YES
            CODECOV=YES
