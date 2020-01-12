@@ -29,6 +29,7 @@ jobs:
             - doxygen
             - graphviz
             - mpi
+	    - hypre
       env: DEBUG=NO
            MPI=YES
       script:
@@ -38,6 +39,13 @@ jobs:
           - ./runtest ../.. documentation
 
     - name: "gitignore"
+      addons:
+        apt:
+          packages:
+            - mpi
+	    - hypre
+      env: DEBUG=NO
+           MPI=YES
       script:
           - cd ${TRAVIS_BUILD_DIR}
           - make parallel
