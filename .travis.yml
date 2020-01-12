@@ -116,7 +116,6 @@ jobs:
       # osx_image: xcode7.3
       compiler: clang
       name: "Serial + Debug"
-      name: "Mac Tests"
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
