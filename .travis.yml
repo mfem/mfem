@@ -24,6 +24,8 @@ jobs:
 
     - stage: checks
       name: "documentation"
+      os: linux
+      compiler: gcc
       addons:
         apt:
           packages:
@@ -38,10 +40,12 @@ jobs:
 
     - stage: checks
       name: "gitignore"
+      os: linux
+      compiler: gcc
       addons:
         apt:
           packages:
-            - mpi
+            - openmpi
       env: DEBUG=NO MPI=YES
       script:
         - cd ${TRAVIS_BUILD_DIR}
