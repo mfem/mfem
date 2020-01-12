@@ -27,14 +27,14 @@ jobs:
           - cd ${TRAVIS_BUILD_DIR}
           - git fetch origin master:master
           - cd tests/scripts
-          - runtest . documentation code-style gitignore
+          - ./runtest . documentation code-style gitignore
     #
     # Linux Tests
     #
-    - stage: tests
+    - stage: "Linux tests"
       os: linux
       compiler: gcc
-      name: "Serial Linux + Debug"
+      name: "Serial + Debug"
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
@@ -42,7 +42,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      name: "Serial Linux"
+      name: "Serial"
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
@@ -50,7 +50,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      name: "Parallel Linux + Debug"
+      name: "Parallel + Debug"
       addons:
         apt:
           # sources:
@@ -80,7 +80,7 @@ jobs:
     #
     - os: linux
       compiler: gcc
-      name: "Parallel Linux"
+      name: "Parallel"
       addons:
         apt:
           # sources:
@@ -111,11 +111,11 @@ jobs:
     #
     # Mac OS X Tests
     #
-    - os: osx
+    - stage: "mac tests"
+      os: osx
       # osx_image: xcode7.3
       compiler: clang
-      stage: "mac tests"
-      name: "Serial Mac + Debug"
+      name: "Serial + Debug"
       name: "Mac Tests"
       env: DEBUG=YES
            MPI=NO
@@ -125,7 +125,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      name: "Mac Tests"
+      name: "Serial"
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
@@ -134,7 +134,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      name: "Mac Tests"
+      name: "Parallel + Debug"
       env: DEBUG=YES
            MPI=YES
            CODECOV=NO
@@ -154,7 +154,7 @@ jobs:
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
-      name: "Mac Tests"
+      name: "Parallel"
       env: DEBUG=NO
            MPI=YES
            CODECOV=YES
