@@ -31,15 +31,15 @@ jobs:
             - mpi
       script:
           - cd ${TRAVIS_BUILD_DIR}
-	  - make parallel
+          - make parallel
           - cd tests/scripts
           - ./runtest ../.. documentation
 
     - name: "gitignore"
       script:
           - cd ${TRAVIS_BUILD_DIR}
-	  - make parallel
-	  - make test
+          - make parallel
+          - make test
           - cd tests/scripts
           - ./runtest ../.. gitignore
 
