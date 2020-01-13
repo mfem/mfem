@@ -476,7 +476,7 @@ public:
 class BlockILU0 : public Solver
 {
 public:
-   BlockILU0(Operator &op, int block_size_ = 1);
+   BlockILU0(Operator &op, int block_size_ = 1, bool reorder_ = true);
 
    void SetOperator(const Operator &op);
 
@@ -489,8 +489,10 @@ public:
    ~BlockILU0();
 
    int block_size;
+   bool reorder;
 
    mutable Vector y;
+   Array<int> P, Pinv;
    Array<int> IB, ID, JB;
    DenseTensor AB, DB;
 };

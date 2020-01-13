@@ -1788,8 +1788,181 @@ slbqp_done:
    }
 }
 
-BlockILU0::BlockILU0(Operator &op, int block_size_)
-: Solver(op.Height()), block_size(block_size_)
+struct WeightMinHeap
+{
+   const std::vector<double> &w;
+   std::vector<int> c, loc;
+
+   WeightMinHeap(const std::vector<double> &w_) : w(w_)
+   {
+      c.reserve(w.size());
+      loc.resize(w.size());
+      for (int i=0; i<w.size(); ++i) { push(i); }
+   }
+
+   int percolate_up(int pos, double val)
+   {
+      for (; pos > 0 && w[c[(pos-1)/2]] > val; pos = (pos-1)/2)
+      {
+         c[pos] = c[(pos-1)/2];
+         loc[c[(pos-1)/2]] = pos;
+      }
+      return pos;
+   }
+
+   int percolate_down(int pos, double val)
+   {
+      while (2*pos+1 < c.size())
+      {
+         int left = 2*pos+1;
+         int right = left+1;
+         int tgt;
+         if (right < c.size() && w[c[right]] < w[c[left]]) { tgt = right; }
+         else { tgt = left; }
+         if (w[c[tgt]] < val)
+         {
+            c[pos] = c[tgt];
+            loc[c[tgt]] = pos;
+            pos = tgt;
+         }
+         else
+         {
+            break;
+         }
+      }
+      return pos;
+   }
+
+   void push(int i)
+   {
+      double val = w[i];
+      c.push_back(-1);
+      int pos = c.size()-1;
+      pos = percolate_up(pos, val);
+      c[pos] = i;
+      loc[i] = pos;
+   }
+
+   int pop()
+   {
+      int i = c[0];
+      int j = c.back();
+      c.pop_back();
+      double val = w[j];
+      int pos = 0;
+      pos = percolate_down(pos, val);
+      c[pos] = j;
+      loc[j] = pos;
+      // Mark as removed
+      loc[i] = -1;
+      return i;
+   }
+
+   void update(int i)
+   {
+      int pos = loc[i];
+      double val = w[i];
+      pos = percolate_up(pos, val);
+      pos = percolate_down(pos, val);
+      c[pos] = i;
+      loc[i] = pos;
+   }
+
+   bool picked(int i)
+   {
+      return loc[i] < 0;
+   }
+};
+
+void MDFOrdering(SparseMatrix &C, Array<int> &p)
+{
+   int n = C.Width();
+   // Scale rows by reciprocal of diagonal and take absolute value
+   Vector D;
+   C.GetDiag(D);
+   int *I = C.GetI();
+   int *J = C.GetJ();
+   double *V = C.GetData();
+   for (int i=0; i<n; ++i)
+   {
+      for (int j=I[i]; j<I[i+1]; ++j)
+      {
+         V[j] = abs(V[j]/D[i]);
+      }
+   }
+
+   std::vector<double> w(n, 0.0);
+   // Compute the discarded-fill weights
+   for (int ik=0; ik<n; ++ik)
+   {
+      for (int i=I[ik]; i<I[ik+1]; ++i)
+      {
+         int ji = J[i];
+         double val;
+         for (int j=I[ji]; j<I[ji+1]; ++j)
+         {
+            if (J[j] == ik)
+            {
+               val = V[j];
+               break;
+            }
+         }
+         for (int j=I[ik]; j<I[ik+1]; ++j)
+         {
+            int jj = J[j];
+            if (ji == jj) { continue; }
+            w[ik] += pow(val*V[j], 2);
+         }
+      }
+      w[ik] = sqrt(w[ik]);
+   }
+
+   WeightMinHeap w_heap(w);
+
+   // Compute ordering
+   p.SetSize(n);
+   for (int ii=0; ii<n; ++ii)
+   {
+      int pi = w_heap.pop();
+      p[ii] = pi;
+      w[pi] = -1;
+      for (int k=I[pi]; k<I[pi+1]; ++k)
+      {
+         int ik = J[k];
+         if (w_heap.picked(ik)) { continue; }
+         // Recompute weight
+         w[ik] = 0.0;
+         for (int i=I[ik]; i<I[ik+1]; ++i)
+         {
+            int ji = J[i];
+            if (w_heap.picked(ji)) { continue; }
+            double val;
+            for (int j=I[ji]; j<I[ji+1]; ++j)
+            {
+               if (J[j] == ik)
+               {
+                  val = V[j];
+                  break;
+               }
+            }
+            for (int j=I[ik]; j<I[ik+1]; ++j)
+            {
+               int jj = J[j];
+               // Ignore entries we have already chosen
+               if (ji == jj || w_heap.picked(jj)) { continue; }
+               w[ik] += pow(val*V[j], 2);
+            }
+         }
+         w[ik] = sqrt(w[ik]);
+         w_heap.update(ik);
+      }
+   }
+}
+
+BlockILU0::BlockILU0(Operator &op, int block_size_, bool reorder_)
+   : Solver(op.Height()),
+     block_size(block_size_),
+     reorder(reorder_)
 {
    SetOperator(op);
 }
@@ -1841,6 +2014,64 @@ void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
       nnz += unique_block_cols[iblock].size();
    }
 
+   if (reorder)
+   {
+      SparseMatrix C(nblockrows, nblockrows);
+      for (int iblock = 0; iblock < nblockrows; ++iblock)
+      {
+         for (int jblock : unique_block_cols[iblock])
+         {
+            for (int bi = 0; bi < block_size; ++bi)
+            {
+               int i = iblock * block_size + bi;
+               for (int k = I[i]; k < I[i + 1]; ++k)
+               {
+                  int j = J[k];
+                  if (j >= jblock * block_size && j < (jblock + 1) * block_size)
+                  {
+                     C.Add(iblock, jblock, V[k]*V[k]);
+                  }
+               }
+            }
+         }
+      }
+      C.Finalize(false);
+      double *CV = C.GetData();
+      for (int i=0; i<C.NumNonZeroElems(); ++i)
+      {
+         CV[i] = sqrt(CV[i]);
+      }
+      MDFOrdering(C, P);
+   }
+   else
+   {
+      // No reordering: permutation is identity
+      P.SetSize(nblockrows);
+      for (int i=0; i<nblockrows; ++i)
+      {
+         P[i] = i;
+      }
+   }
+
+   // Compute inverse permutation
+   Pinv.SetSize(nblockrows);
+   for (int i=0; i<nblockrows; ++i)
+   {
+      Pinv[P[i]] = i;
+   }
+
+   // Permute columns
+   std::vector<std::vector<int>> unique_block_cols_perminv(nblockrows);
+   for (int i=0; i<nblockrows; ++i)
+   {
+      std::vector<int> &cols = unique_block_cols_perminv[i];
+      for (int j : unique_block_cols[P[i]])
+      {
+         cols.push_back(Pinv[j]);
+      }
+      std::sort(cols.begin(), cols.end());
+   }
+
    ID.SetSize(nblockrows);
    IB.SetSize(nblockrows + 1);
    IB[0] = 0;
@@ -1853,10 +2084,10 @@ void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
 
    for (int iblock = 0; iblock < nblockrows; ++iblock)
    {
-      // Note: std::set is a sorted container, so we iterate over the block
-      // columns in increasing order
-      for (int jblock : unique_block_cols[iblock])
+      int iblock_perm = P[iblock];
+      for (int jblock : unique_block_cols_perminv[iblock])
       {
+         int jblock_perm = P[jblock];
          if (iblock == jblock)
          {
             ID[iblock] = counter;
@@ -1864,13 +2095,13 @@ void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
          JB[counter] = jblock;
          for (int bi = 0; bi < block_size; ++bi)
          {
-            int i = iblock * block_size + bi;
+            int i = iblock_perm*block_size + bi;
             for (int k = I[i]; k < I[i + 1]; ++k)
             {
                int j = J[k];
-               if (j >= jblock * block_size && j < (jblock + 1) * block_size)
+               if (j >= jblock_perm*block_size && j < (jblock_perm + 1)*block_size)
                {
-                  int bj = j - jblock * block_size;
+                  int bj = j - jblock_perm*block_size;
                   double val = V[k];
                   AB(bi, bj, counter) = val;
                   // Extract the diagonal
@@ -1960,7 +2191,7 @@ void BlockILU0::Mult(const Vector &b, Vector &x) const
       yi.SetDataAndSize(&y[i*block_size], block_size);
       for (int ib=0; ib<block_size; ++ib)
       {
-         yi[ib] = b[ib + i*block_size];
+         yi[ib] = b[ib + P[i]*block_size];
       }
       for (int k=IB[i]; k<ID[i]; ++k)
       {
@@ -1974,7 +2205,7 @@ void BlockILU0::Mult(const Vector &b, Vector &x) const
    // Backward substitution to solve Ux = y
    for (int i=nblockrows-1; i >= 0; --i)
    {
-      xi.SetDataAndSize(&x[i*block_size], block_size);
+      xi.SetDataAndSize(&x[P[i]*block_size], block_size);
       for (int ib=0; ib<block_size; ++ib)
       {
          xi[ib] = y[ib + i*block_size];
@@ -1983,7 +2214,7 @@ void BlockILU0::Mult(const Vector &b, Vector &x) const
       {
          int j = JB[k];
          const DenseMatrix &U_ij = AB(k);
-         xj.SetDataAndSize(&x[j*block_size], block_size);
+         xj.SetDataAndSize(&x[P[j]*block_size], block_size);
          // x_i = x_i - U_ij*x_j
          U_ij.AddMult_a(-1.0, xj, xi);
       }

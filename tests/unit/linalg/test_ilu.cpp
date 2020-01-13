@@ -67,7 +67,8 @@ TEST_CASE("ILU Structure", "[ILU]")
 
    SECTION("Create block pattern from SparseMatrix")
    {
-      BlockILU0 ilu(A, Nb);
+      bool reorder = false;
+      BlockILU0 ilu(A, Nb, reorder);
 
       int nnz_count = 0;
 
@@ -136,40 +137,41 @@ TEST_CASE("ILU Factorization", "[ILU]")
 
    A.Finalize();
 
-   BlockILU0 ilu(A, 2);
+   bool reorder = true;
+   BlockILU0 ilu(A, 2, reorder);
 
-   REQUIRE(ilu.AB(0,0,0) == Approx(1.0));
-   REQUIRE(ilu.AB(1,0,0) == Approx(7.0));
-   REQUIRE(ilu.AB(0,1,0) == Approx(2.0));
-   REQUIRE(ilu.AB(1,1,0) == Approx(8.0));
+   REQUIRE(ilu.AB(0,0,0) == Approx(5.0));
+   REQUIRE(ilu.AB(1,0,0) == Approx(9.0));
+   REQUIRE(ilu.AB(0,1,0) == Approx(6.0));
+   REQUIRE(ilu.AB(1,1,0) == Approx(1.0));
 
    REQUIRE(ilu.AB(0,0,1) == Approx(3.0));
-   REQUIRE(ilu.AB(1,0,1) == Approx(9.0));
+   REQUIRE(ilu.AB(1,0,1) == Approx(7.0));
    REQUIRE(ilu.AB(0,1,1) == Approx(4.0));
-   REQUIRE(ilu.AB(1,1,1) == Approx(1.0));
+   REQUIRE(ilu.AB(1,1,1) == Approx(8.0));
 
-   REQUIRE(ilu.AB(0,0,2) == Approx(5.0));
-   REQUIRE(ilu.AB(1,0,2) == Approx(2.0));
-   REQUIRE(ilu.AB(0,1,2) == Approx(6.0));
-   REQUIRE(ilu.AB(1,1,2) == Approx(3.0));
+   REQUIRE(ilu.AB(0,0,2) == Approx(6.0));
+   REQUIRE(ilu.AB(1,0,2) == Approx(1.0));
+   REQUIRE(ilu.AB(0,1,2) == Approx(7.0));
+   REQUIRE(ilu.AB(1,1,2) == Approx(2.0));
 
-   REQUIRE(ilu.AB(0,0,3) == Approx(1.0/2.0));
-   REQUIRE(ilu.AB(1,0,3) == Approx(-1.0/6.0));
-   REQUIRE(ilu.AB(0,1,3) == Approx(1.0/2.0));
-   REQUIRE(ilu.AB(1,1,3) == Approx(7.0/6.0));
+   REQUIRE(ilu.AB(0,0,3) == Approx(4.0));
+   REQUIRE(ilu.AB(1,0,3) == Approx(8.0));
+   REQUIRE(ilu.AB(0,1,3) == Approx(5.0));
+   REQUIRE(ilu.AB(1,1,3) == Approx(9.0));
 
-   REQUIRE(ilu.AB(0,0,4) == Approx(0.0));
-   REQUIRE(ilu.AB(1,0,4) == Approx(-9.0));
-   REQUIRE(ilu.AB(0,1,4) == Approx(4.5));
-   REQUIRE(ilu.AB(1,1,4) == Approx(1.5));
+   REQUIRE(ilu.AB(0,0,4) == Approx(1.0));
+   REQUIRE(ilu.AB(1,0,4) == Approx(0.510204081632653));
+   REQUIRE(ilu.AB(0,1,4) == Approx(0.0));
+   REQUIRE(ilu.AB(1,1,4) == Approx(-0.06122448979591837));
 
-   REQUIRE(ilu.AB(0,0,5) == Approx(2.0/3.0));
-   REQUIRE(ilu.AB(1,0,5) == Approx(0.0));
-   REQUIRE(ilu.AB(0,1,5) == Approx(1.0/3.0));
-   REQUIRE(ilu.AB(1,1,5) == Approx(1.0));
+   REQUIRE(ilu.AB(0,0,5) == Approx(0.4));
+   REQUIRE(ilu.AB(1,0,5) == Approx(3.4));
+   REQUIRE(ilu.AB(0,1,5) == Approx(0.6));
+   REQUIRE(ilu.AB(1,1,5) == Approx(-11.4));
 
-   REQUIRE(ilu.AB(0,0,6) == Approx(1.0));
-   REQUIRE(ilu.AB(1,0,6) == Approx(7.0));
-   REQUIRE(ilu.AB(0,1,6) == Approx(1.0));
-   REQUIRE(ilu.AB(1,1,6) == Approx(-2.0));
+   REQUIRE(ilu.AB(0,0,6) == Approx(-8.4));
+   REQUIRE(ilu.AB(1,0,6) == Approx(83.49795918367347));
+   REQUIRE(ilu.AB(0,1,6) == Approx(-9.4));
+   REQUIRE(ilu.AB(1,1,6) == Approx(92.04897959183674));
 }
