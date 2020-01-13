@@ -15,6 +15,7 @@
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "tmop.hpp"
+#include "gslib.hpp"
 
 namespace mfem
 {
@@ -35,6 +36,30 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
+};
+
+class InterpolatorFP : public AdaptivityEvaluator
+{
+private:
+    Vector nodes0;
+    Vector field0;
+    FindPointsGSLIB *finder;
+
+public:
+    InterpolatorFP() : AdaptivityEvaluator(),
+                       nodes0(), field0(),finder(NULL) { }
+
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field);
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field);
+
+   ~InterpolatorFP()
+   {
+       finder->FreeData();
+       delete finder;
+   }
 };
 
 /// Performs a single remap advection step in serial.
@@ -86,16 +111,20 @@ private:
    const IntegrationRule &ir;
 
    mutable DiscreteAdaptTC *discr_tc;
+   mutable DiscreteAdaptTC *discr_tcc;
 
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
+      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL),
+        discr_tcc(NULL)  { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
+      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL),
+        discr_tcc(NULL)  { }
 
    void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) { discr_tc = tc; }
+   void SetDiscreteAdaptTCC(DiscreteAdaptTC *tcc) { discr_tcc = tcc; }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
@@ -112,14 +141,17 @@ private:
    const IntegrationRule &ir;
 
    mutable DiscreteAdaptTC *discr_tc;
+   mutable DiscreteAdaptTC *discr_tcc;
 
 public:
 #ifdef MFEM_USE_MPI
    TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
+      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL),
+        discr_tcc(NULL) { }
 #endif
    TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
+      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL),
+        discr_tcc(NULL){ }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 

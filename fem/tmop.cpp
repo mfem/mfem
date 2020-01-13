@@ -160,6 +160,27 @@ double TMOP_Metric_aspratio3D::EvalW(const DenseMatrix &Jpt) const
           ) / 3.0;
 }
 
+double TMOP_Metric_orientation2D::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Jpr(2, 2);
+   Mult(Jpt, *Jtr, Jpr);
+
+   Vector col1, col2;
+   Jpr.GetColumn(0, col1);
+   Jpr.GetColumn(1, col2);
+   const double cos_Jpr = col2(0)/col2.Norml1(),
+                sin_Jpr = col2(1)/col2.Norml1();
+
+   Jtr->GetColumn(0, col1);
+   Jtr->GetColumn(1, col2);
+   const double cos_Jtr = col2(0)/col2.Norml1(),
+                sin_Jtr = col2(1)/col2.Norml1();
+   return 0.5 * (1.0 - cos_Jpr * cos_Jtr - sin_Jpr * sin_Jtr);
+}
+
 double TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -998,6 +1019,37 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          }
          break;
       }
+       case GIVEN_ORIENTATION:
+       {
+          const DenseMatrix &Wideal =
+             Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
+          const int dim = Wideal.Height(),
+                    ntspec_dofs = tspec_fes->GetFE(0)->GetDof();
+
+          Vector shape(ntspec_dofs), tspec_vals(ntspec_dofs);
+          Array<int> dofs;
+          tspec_fes->GetElementDofs(e_id, dofs);
+          target_spec.GetSubVector(dofs, tspec_vals);
+
+          const double min_size = tspec_vals.Min();
+          MFEM_ASSERT(min_size > 0.0,
+                      "Non-positive size propagated in the target definition.");
+
+          for (int i = 0; i < ir.GetNPoints(); i++)
+          {
+             const IntegrationPoint &ip = ir.IntPoint(i);
+             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+             const double size = shape*tspec_vals;
+
+             DenseMatrix t(2,2);
+             t(0,0) = cos(size);
+             t(0,1) = -sin(size);
+             t(1,0) = sin(size);
+             t(1,1) = cos(size);
+             Jtr(i).Set(1., t);
+          }
+          break;
+       }
       default:
          MFEM_ABORT("Incompatible target type for analytic adaptation!");
    }
@@ -1408,9 +1460,9 @@ double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
     int dof = el.GetDof(), dim = el.GetDim();
     int idx = idir*dof+nodenum;
     if (fdorder==1) {
-        elfun[idx] += fdeps;
+        elfun[idx]    += fdeps;
         double energy1 = (this)->GetElementEnergy(el, T, elfun);
-        elfun[idx] -= fdeps;
+        elfun[idx]    -= fdeps;
         double energy2 = elemenergy;
         double der     = (energy1-energy2)/fdeps;
 
@@ -1436,9 +1488,15 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
 {
    int dof = el.GetDof(), dim = el.GetDim();
    int elnum = T.ElementNo;
-   ElemDer[elnum] = new Vector;
+   if (elnum>=ElemDer.Size()) {
+       ElemDer.Append(new Vector);
+       ElemPertEnergy.Append(new Vector);
+   }
+   else {
+       ElemDer[elnum] = new Vector;
+       ElemPertEnergy[elnum] = new Vector;
+   }
    ElemDer[elnum]->SetSize(dof*dim);
-   ElemPertEnergy[elnum] = new Vector;
    ElemPertEnergy[elnum]->SetSize(dof*dim);
 
    DSh.SetSize(dof, dim);
