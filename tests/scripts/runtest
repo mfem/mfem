@@ -98,7 +98,7 @@ do
       runtest_check=1
       # printf "=== BEGIN error log from $this_test.err\n"
       printf '\033[0;31m'
-      (cat $this_test.err) 1>&2
+      cat $this_test.err 1>&2
       printf '\033[0m'
       # printf "=== END error log from $this_test.err\n"
       rm -f $this_test.err $this_test.out
