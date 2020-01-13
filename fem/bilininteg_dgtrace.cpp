@@ -137,16 +137,7 @@ static void PADGTraceSetup(const int dim,
 
 void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
-   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
-   int e1, e2;
-   int inf1, inf2;
-   nf = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
-   }
+   nf = fes.GetNFbyType(type);
    if(nf==0)return;
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
@@ -181,6 +172,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       int f_ind = 0;
       for (int f = 0; f < fes.GetNF(); ++f)
       {
+         int e1, e2;
+         int inf1, inf2;
          fes.GetMesh()->GetFaceElements(f, &e1, &e2);
          fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
          if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) )
@@ -208,6 +201,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       int f_ind = 0;
       for (int f = 0; f < fes.GetNF(); ++f)
       {
+         int e1, e2;
+         int inf1, inf2;
          fes.GetMesh()->GetFaceElements(f, &e1, &e2);
          fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
          if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) )
@@ -901,14 +896,14 @@ static void PADGTraceApplyTranspose(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         /*case 0x22: return PADGTraceApply2D<2,2>(NF,B,Bt,op,x,y);
-         case 0x33: return PADGTraceApply2D<3,3>(NF,B,Bt,op,x,y);
-         case 0x44: return PADGTraceApply2D<4,4>(NF,B,Bt,op,x,y);
-         case 0x55: return PADGTraceApply2D<5,5>(NF,B,Bt,op,x,y);
-         case 0x66: return PADGTraceApply2D<6,6>(NF,B,Bt,op,x,y);
-         case 0x77: return PADGTraceApply2D<7,7>(NF,B,Bt,op,x,y);
-         case 0x88: return PADGTraceApply2D<8,8>(NF,B,Bt,op,x,y);
-         case 0x99: return PADGTraceApply2D<9,9>(NF,B,Bt,op,x,y);*/
+         case 0x22: return PADGTraceApplyTranspose2D<2,2>(NF,B,Bt,op,x,y);
+         case 0x33: return PADGTraceApplyTranspose2D<3,3>(NF,B,Bt,op,x,y);
+         case 0x44: return PADGTraceApplyTranspose2D<4,4>(NF,B,Bt,op,x,y);
+         case 0x55: return PADGTraceApplyTranspose2D<5,5>(NF,B,Bt,op,x,y);
+         case 0x66: return PADGTraceApplyTranspose2D<6,6>(NF,B,Bt,op,x,y);
+         case 0x77: return PADGTraceApplyTranspose2D<7,7>(NF,B,Bt,op,x,y);
+         case 0x88: return PADGTraceApplyTranspose2D<8,8>(NF,B,Bt,op,x,y);
+         case 0x99: return PADGTraceApplyTranspose2D<9,9>(NF,B,Bt,op,x,y);
          default: return PADGTraceApplyTranspose2D(NF,B,Bt,op,x,y,D1D,Q1D);
       }
    }
@@ -916,14 +911,13 @@ static void PADGTraceApplyTranspose(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         /*case 0x23: return PADGTraceApply3D<2,3>(NF,B,Bt,op,x,y);
-         case 0x34: return PADGTraceApply3D<3,4>(NF,B,Bt,op,x,y);
-         case 0x45: return PADGTraceApply3D<4,5>(NF,B,Bt,op,x,y);
-         case 0x56: return PADGTraceApply3D<5,6>(NF,B,Bt,op,x,y);
-         case 0x67: return PADGTraceApply3D<6,7>(NF,B,Bt,op,x,y);
-         case 0x78: return PADGTraceApply3D<7,8>(NF,B,Bt,op,x,y);
-         case 0x89: return PADGTraceApply3D<8,9>(NF,B,Bt,op,x,y);*/
-         // default:   return PADGTraceApply3D(NF,B,Bt,op,x,y,D1D,Q1D);
+         case 0x23: return PADGTraceApplyTranspose3D<2,3>(NF,B,Bt,op,x,y);
+         case 0x34: return PADGTraceApplyTranspose3D<3,4>(NF,B,Bt,op,x,y);
+         case 0x45: return PADGTraceApplyTranspose3D<4,5>(NF,B,Bt,op,x,y);
+         case 0x56: return PADGTraceApplyTranspose3D<5,6>(NF,B,Bt,op,x,y);
+         case 0x67: return PADGTraceApplyTranspose3D<6,7>(NF,B,Bt,op,x,y);
+         case 0x78: return PADGTraceApplyTranspose3D<7,8>(NF,B,Bt,op,x,y);
+         case 0x89: return PADGTraceApplyTranspose3D<8,9>(NF,B,Bt,op,x,y);
          default: return PADGTraceApplyTranspose3D(NF,B,Bt,op,x,y,D1D,Q1D);
       }
    }
@@ -944,402 +938,5 @@ void DGTraceIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
                            maps->B, maps->Bt,
                            pa_data, x, y);
 }
-
-#if 0
-   MFEM_FORALL_3D(e, NE, Q1D, 1, 1, //Iterate over faces?
-   {
-      MFEM_SHARED double s_E[VDIM][D1D][D1D];
-      MFEM_SHARED double s_Bu[FACES][VDIM][D1D];
-      MFEM_FOREACH_THREAD(x,x,D1D) {
-         for (int y = 0; y < D1D; y++) {
-            for (int c = 0; c < VDIM; c++) {
-               s_E[c][y][x] = E(x,y,c,e);//Use restriction instead?
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      double B0[D1D],B1[D1D];
-      for (int i = 0; i < D1D; ++i) {
-         B0[i] = B(0,i);
-         B1[i] = B(Q1D-1,i);
-      }
-      double Bu[FACES][VDIM];
-      for (int i = 0; i < D1D; i++) {
-         for(int face = LEFT; face <= TOP; face++) {
-            Bu[face][d] = 0.0;
-         }
-      }
-      MFEM_FOREACH_THREAD(x,x,D1D) {
-         for (int y = 0; y < D1D; ++y) {
-            for (int c = 0; c < VDIM; c++) {
-               const double e = s_e[c][y][x];
-               Bu[BOTTOM][c] += B0[y] * e;
-               Bu[TOP]   [c] += B1[y] * e;
-            }
-         }
-         s_Bu[BOTTOM][c][x] = Bu[BOTTOM][c]
-         s_Bu[TOP]   [c][x] = Bu[TOP]   [c]
-      }
-      MFEM_FOREACH_THREAD(y,x,D1D) {
-         for (int x = 0; x < D1D; ++x) {
-            for (int c = 0; c < VDIM; c++) {
-               const double e = s_e[c][y][x];
-               s_Bu[LEFT] [c][y] += B0[x] * e;
-               s_Bu[RIGHT][c][y] += B1[x] * e;
-            }
-         }
-         s_Bu[LEFT] [c][y] = Bu[LEFT] [c];
-         s_Bu[RIGHT][c][y] = Bu[RIGHT][c];
-      }
-      MFEM_SYNC_THREAD;
-      double GBu[FACES][VDIM];
-      for (int d = 0; d < VDIM; d++) {
-         for(int face = LEFT; face <= TOP; face++) {
-            GBu[face][d] = 0.0;
-         }
-      }
-      MFEM_FOREACH_THREAD(q,x,Q1D) {
-         for (int i = 0; i < D1D; ++i) {
-            const double w = G(q,i);
-            for (int c = 0; c < VDIM; c++) {
-               for(int face = LEFT; face <= TOP; face++) {
-                  GBu[face][c] += w * s_Bu[face][c][i];
-               }
-            }
-         }
-      }
-      MFEM_FOREACH_THREAD(q,x,Q1D) {
-         for(int face = LEFT; face <= TOP; face++) {
-            //Normal contains |J|
-            normal[0] = -GBu[face][1];
-            normal[1] =  GBu[face][0];
-            dot = normal[0] * vx + normal[1] * vy;
-            abs = dot > 0.0 ? dot : -dot;
-            qd(q,0,0,face,e) = W[q]*( alpha/2 * dot + beta * abs );
-            qd(q,1,0,face,e) = W[q]*( alpha/2 * dot - beta * abs );
-            qd(q,0,1,face,e) = W[q]*(-alpha/2 * dot - beta * abs );
-            qd(q,1,1,face,e) = W[q]*(-alpha/2 * dot + beta * abs );
-         }
-      }
-   });
-}
-
-//Version over faces
-static void PADGTraceSetup2D(const int Q1D,
-                             const int D1D,
-                             const int NE,
-                             const Array<double> &w,
-                             const Vector &j,
-                             const double COEFF,
-                             Vector &op)
-{
-   const Operator *elem_restr =
-      fespace->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-   elem_restr->Mult(*nodes, Enodes);
-
-   const int VDIM = 2;
-   const int FACES = 4;
-   enum face {LEFT, RIGHT, BOTTOM, TOP};
-
-   const int nbFaces = mesh->GetNFaces();
-
-   auto E = Reshape(Enodes.Read(), D1D, D1D, VDIM, NE);
-   auto W = w.Read();
-   auto qd = Reshape(op.Write(), Q1D, 2, 2, FACES, nbFaces);
-
-   //TODO initialize Face to (Elem1, Elem2) array? and Face info
-
-   MFEM_FORALL(f, nbFaces,
-   {
-      const int ref_elem = ref_face(f);//Elem1
-      double u[VDIM][D1D];
-      LoadFace(u, ref_elem);//u==Bu
-      double GBu[VDIM][Q1D];
-      for (int d = 0; d < VDIM; d++) {
-         for (int q = 0; q < Q1D; ++q) {
-            GBu[d][q] = 0.0;
-         }
-      }
-      for (int q = 0; q < Q1D; ++q) {
-         for (int i = 0; i < D1D; ++i) {
-            const double w = G(q,i);
-            for (int d = 0; d < VDIM; d++) {
-               GBu[d][q] += w * u[d][i];
-            }
-         }
-      }
-      for (int q = 0; q < Q1D; ++q) {
-         //Normal contains |J|
-         normal[0] = -GBu[1][q];
-         normal[1] =  GBu[0][q];
-         dot = normal[0] * vx + normal[1] * vy;
-         abs = dot > 0.0 ? dot : -dot;
-         const int q2 = perm(q,info_face(f));
-         qd(q,0,0,f) = W[q]*( alpha/2 * dot + beta * abs );
-         qd(q,1,0,f) = W[q]*( alpha/2 * dot - beta * abs );
-         qd(q2,0,1,f) = W[q]*(-alpha/2 * dot - beta * abs );//necessary? for coalescing?
-         qd(q2,1,1,f) = W[q]*(-alpha/2 * dot + beta * abs );//necessary?
-      }
-   });
-}
-
-// PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PADGTraceApply2D(const int NE,
-                      const Array<double> &b,
-                      const Array<double> &g,
-                      const Array<double> &bt,
-                      const Array<double> &gt,
-                      const Vector &_op,
-                      const Vector &_x,
-                      Vector &_y,
-                      const int d1d = 0,
-                      const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
-   // Compute fluxes
-   MFEM_FORALL(f, nbFaces,
-   {
-      // Compute interpolation on the face
-      // Get Elem1 assume face dofs are enough
-      // Get Elem2 reordered
-      // Get qData
-      for (int q = 0; q < Q1D; ++q)
-      {
-         for (int d = 0; d < VDIM; ++d)
-         {
-            flux(q,f) = qd[0][q]*u1[q]+qd[1][q]*u2[q];
-         }
-      }
-   });
-   // Apply fluxes
-   MFEM_FORALL(e, NE,
-   {
-      //load dofs
-      for (int i = 0; i < D1D; ++i)
-      {
-         for (int j = 0; j < D1D; ++j)
-         {
-            s_x(i,j) = x(i,j,e);
-         }
-      }
-      //SOUTH flux
-      for (int q = 0; q < Q1D; ++q)
-      {
-         Bu[q] = 0.0;
-         for (int i = 0; i < D1D; ++i)
-         {
-            Bu[q] += B(q,i) * s_x(i,0);
-         }
-      }
-      bool isRefElem = true;
-      for (int q = 0; q < Q1D; ++q)
-      {
-         f[q] = isRefElem? flux(q,f):flux(perm(q,info_face(f)),f2);
-      }
-      for (int i = 0; i < D1D; ++i)
-      {
-         BDBu[i] = 0.0;
-         for (int q = 0; q < Q1D; ++q)
-         {
-            BDBu[i] += B(q,i) * f(q);
-         }
-      }
-      for (int i = 0; i < D1D; ++i)
-      {
-         y(i,0) += BDBu[i];
-      }
-      //NORTH flux
-      for (int q = 0; q < Q1D; ++q)
-      {
-         Bu[q] = 0.0;
-         for (int i = 0; i < D1D; ++i)
-         {
-            Bu[q] += B(q,i) * s_x(i,D1D-1);
-         }
-      }
-      bool isRefElem = true;
-      for (int q = 0; q < Q1D; ++q)
-      {
-         f[q] = isRefElem? flux(q,f):flux(perm(q,info_face(f)),f2);
-      }
-      for (int i = 0; i < D1D; ++i)
-      {
-         BDBu[i] = 0.0;
-         for (int q = 0; q < Q1D; ++q)
-         {
-            BDBu[i] += B(q,i) * f(q);
-         }
-      }
-      for (int i = 0; i < D1D; ++i)
-      {
-         y(i,D1D-1) += BDBu[i];
-      }
-      //EAST flux
-      for (int q = 0; q < Q1D; ++q)
-      {
-         Bu[q] = 0.0;
-         for (int i = 0; i < D1D; ++i)
-         {
-            Bu[q] += B(q,i) * s_x(D1D-1,i);
-         }
-      }
-      bool isRefElem = true;
-      for (int q = 0; q < Q1D; ++q)
-      {
-         f[q] = isRefElem? flux(q,f):flux(perm(q,info_face(f)),f2);
-      }
-      for (int i = 0; i < D1D; ++i)
-      {
-         BDBu[i] = 0.0;
-         for (int q = 0; q < Q1D; ++q)
-         {
-            BDBu[i] += B(q,i) * f(q);
-         }
-      }
-      for (int i = 0; i < D1D; ++i)
-      {
-         y(D1D-1,i) += BDBu[i];
-      }
-      //WEST flux
-      for (int q = 0; q < Q1D; ++q)
-      {
-         Bu[q] = 0.0;
-         for (int i = 0; i < D1D; ++i)
-         {
-            Bu[q] += B(q,i) * s_x(0,i);
-         }
-      }
-      bool isRefElem = true;
-      for (int q = 0; q < Q1D; ++q)
-      {
-         f[q] = isRefElem? flux(q,f):flux(perm(q,info_face(f)),f2);
-      }
-      for (int i = 0; i < D1D; ++i)
-      {
-         BDBu[i] = 0.0;
-         for (int q = 0; q < Q1D; ++q)
-         {
-            BDBu[i] += B(q,i) * f(q);
-         }
-      }
-      for (int i = 0; i < D1D; ++i)
-      {
-         y(0,i) += BDBu[i];
-      }
-   });
-}
-
-// PA Diffusion Assemble 3D kernel
-static void PADGTraceSetup3D(const int Q1D,
-                             const int NE,
-                             const Array<double> &w,
-                             const Vector &j,
-                             const double COEFF,
-                             Vector &op)
-{
-   const Operator *elem_restr =
-      fespace->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-   elem_restr->Mult(*nodes, Enodes);
-
-   const int VDIM = 3;
-   const int FACES = 6;
-   enum face {LEFT, RIGHT, BOTTOM, TOP, FRONT, BACK};
-
-   auto E = Reshape(Enodes.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto W = w.Read();
-   auto qd = Reshape(op.Write(), Q1D, Q1D, 2, 2, FACES, NE);
-
-   //TODO use MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-   MFEM_FORALL(e, NE,
-   {
-      MFEM_SHARED double s_E[VDIM][D1D][D1D][D1D];
-      MFEM_SHARED double s_Bu[FACES][VDIM][D1D];
-      MFEM_SHARED double s_GBu[FACES][VDIM][Q1D];
-      for (int x = 0; x < D1D; x++) {
-         for (int y = 0; y < D1D; y++) {
-            for (int z = 0; z < D1D; z++) {
-               for (int c = 0; c < VDIM; c++) {
-                  s_E[c][z][y][x] = E(x,y,z,c,e);
-               }
-            }
-         }
-      }
-      //Normal contains |J|
-      double B0[D1D],B1[D1D];
-      for (int i = 0; i < D1D; ++i) {
-         B0[i] = B(0,i);
-         B1[i] = B(Q1D-1,i);
-      }
-      for (int i = 0; i < D1D; i++) {
-         for (int j = 0; j < D1D; j++) {
-            for (int d = 0; d < VDIM; d++) {
-               for(int face = LEFT; face <= BACK; face++) {
-                  s_Bu[face][d][j][i] = 0.0;
-               }
-            }
-         }
-      }
-      for (int x = 0; x < D1D; ++x) {
-         for (int y = 0; y < D1D; ++y) {
-            for (int z = 0; z < D1D; ++z) {
-               for (int c = 0; c < VDIM; c++) {
-                  const double e = s_e[c][y][x];
-                  s_Bu[LEFT]  [c][z][y] += B0[x] * e;
-                  s_Bu[RIGHT] [c][z][y] += B1[x] * e;
-                  s_Bu[BOTTOM][c][y][x] += B0[z] * e;
-                  s_Bu[TOP]   [c][y][x] += B1[z] * e;
-                  s_Bu[FRONT] [c][z][x] += B0[y] * e;
-                  s_Bu[BACK]  [c][z][x] += B1[y] * e;
-               }
-            }
-         }
-      }
-      //TODO
-      for (int i = 0; i < Q1D; i++) {
-         for (int j = 0; j < Q1D; j++) {
-            for (int d = 0; d < VDIM; d++) {
-               for(int face = LEFT; face <= BACK; face++) {
-                  s_BBu[face][d][j][i] = 0.0;
-                  s_GBu[face][d][j][i] = 0.0;
-               }
-            }
-         }
-      }
-      for (int q = 0; q < Q1D; ++q) {
-         for (int i = 0; i < D1D; ++i) {
-            const double w = G(q,i);
-            for (int c = 0; c < VDIM; c++) {
-               for(int face = LEFT; face <= BACK; face++) {
-                  s_GBu[face][c][q] += w * s_Bu[face][c][i];
-               }
-            }
-         }
-      }
-      for (int q = 0; q < Q1D; ++q) {
-         for(int face = LEFT; face <= TOP; face++) {
-            normal[0] = -s_GBu[face][1][q];
-            normal[1] =  s_GBu[face][0][q];
-            dot = normal[0] * vx + normal[1] * vy;
-            abs = dot > 0.0 ? dot : -dot;
-            //Should only store half of it
-            qd(q,0,0,face,e) = weight[q]*( alpha/2 * dot + beta * abs );
-            qd(q,1,0,face,e) = weight[q]*( alpha/2 * dot - beta * abs );
-            qd(q,0,1,face,e) = weight[q]*(-alpha/2 * dot - beta * abs );
-            qd(q,1,1,face,e) = weight[q]*(-alpha/2 * dot + beta * abs );
-         }
-      }
-   });
-}
-
-#endif
 
 } // namespace mfem
