@@ -65,8 +65,8 @@ jobs:
       script:
         - cd ${TRAVIS_BUILD_DIR}
         - git fetch origin master:master
-	# need to checkout a branch, otherwise Travis works in detached head
-	- git checkout -b travis_tests
+        # need to checkout a branch, otherwise Travis works in detached head
+        - git checkout -b travis_tests
         - ./runtest git-history
 
     # Linux Tests
