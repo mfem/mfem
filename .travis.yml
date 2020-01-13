@@ -1,18 +1,10 @@
 language: cpp
 
-os:
-  - linux
-  - osx
-
-compiler:
-  - gcc
-  - clang
+sudo: false
 
 stages:
   - checks
   - tests
-
-sudo: false
 
 jobs:
   include:
@@ -21,7 +13,7 @@ jobs:
     # - code-style
     # - documentation
     # - gitignore
-    # - binary
+    # - git-history
 
     - stage: checks
       name: "code-style"
@@ -66,15 +58,16 @@ jobs:
         - ./runtest gitignore
 
     - stage: checks
-      name: "binary"
-      # need full git history for binary files check
+      name: "git-history"
+      # need full git history for the binary/big files check
       git:
         depth: false
       script:
         - cd ${TRAVIS_BUILD_DIR}
         - git fetch origin master:master
-        - cd tests/scripts
-        - ./runtest gitignore
+	# need to checkout a branch, otherwise Travis works in detached head
+	- git checkout -b travis_tests
+        - ./runtest git-history
 
     # Linux Tests
     - stage: tests
