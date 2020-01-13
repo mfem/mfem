@@ -61,7 +61,7 @@ endif
 
 # Replace the default implicit rule for *.cpp files
 %.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+	$(MFEM_CXX) $(MFEM_PICFLAG) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 lib-common: $(if $(static),libmfem-common.a)\
 	  $(if $(shared),libmfem-common.$(SO_EXT))
@@ -85,5 +85,5 @@ $(CONFIG_MK):
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 clean:
-	rm -f *.o *~ libmfem-common.*
+	rm -rf *.o *~ libmfem-common.*
 	rm -rf *.dSYM *.TVD.*breakpoints
