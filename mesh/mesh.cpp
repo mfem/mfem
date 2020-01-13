@@ -3522,10 +3522,10 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
          AddElement(elem);
       }
    }
-   
+
    GetElementToFaceTable(false);
    GenerateFaces();
-   
+
    SetCurvature(1, true, spaceDim);
    Vector node_coordinates_vec(
       node_coordinates.Data(),
