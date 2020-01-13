@@ -36,6 +36,14 @@ function check_bin_in_commit()
 {
     binary_files=""
 
+     for file in $(git diff --name-only HEAD^)
+     do
+         if [[ -e $file ]] && (! file --mime $file | grep -q text)
+         then
+             binary_files="${binary_files}   ${file}\n"
+         fi
+     done
+
     if [[ -n ${binary_files} ]]
     then
         msg "$(git log -1 --format=%H)"
