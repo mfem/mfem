@@ -319,6 +319,14 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
+   /** @brief Assemble the diagonal of the bilinear form into diag
+
+       For adaptively refined meshes, this returns P^T d_e, where d_e is the
+       locally assembled diagonal on each element and P^T is the transpose of
+       the conforming prolongation. In general this is not the correct diagonal
+       for an AMR mesh, and the code will give a warning. */
+   void AssembleDiagonal(Vector &diag) const;
+
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return fes->GetConformingProlongation(); }
