@@ -3426,30 +3426,16 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                                            FaceType type,
                                            L2FaceValues m)
    : fes(fes),
-     // nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE()),
+     nf(fes.GetNFbyType(type)),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     // dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
-     m(m)//,
-     // nfdofs(nf*dof),
-     // indices1(nf*dof),
-     // indices2(m==L2FaceValues::Double?nf*dof:0)
+     dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
+     m(m),
+     nfdofs(nf*dof),
+     indices1(nf*dof),
+     indices2(m==L2FaceValues::Double?nf*dof:0)
 {
-   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
-   int e1, e2;
-   int inf1, inf2;
-   nf = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
-   }
-   dof = nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0;
-   nfdofs = nf*dof;
-   indices1.SetSize(nf*dof);
-   indices2.SetSize(m==L2FaceValues::Double?nf*dof:0);
    //if fespace == L2
    // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
@@ -3470,6 +3456,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    int faceMap1[dof], faceMap2[dof];
+   int e1, e2;
+   int inf1, inf2;
    int face_id1, face_id2;
    int orientation;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
@@ -3580,7 +3568,6 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int dof = i % nd;
          const int face = i / nd;
          const int idx1 = d_indices1[i];
-         //FIXME we might want to also set this to 0 when idx2==-1, to separate interior/boundary faces.
          for (int c = 0; c < vd; ++c)
          {
             d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
@@ -3634,7 +3621,7 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
       MFEM_FORALL(i, nfdofs,
       {
          const int idx1 = d_indices1[i];
-         const int idx2 = d_indices2[i];//TODO Add permutation
+         const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
             MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, 0, i / nd));

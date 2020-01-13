@@ -826,6 +826,20 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
+int FiniteElementSpace::GetNFbyType(FaceType type) const
+{
+   int e1, e2;
+   int inf1, inf2;
+   int nf = 0;
+   for (int f = 0; f < this->GetNF(); ++f)
+   {
+      this->GetMesh()->GetFaceElements(f, &e1, &e2);
+      this->GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
+   }
+   return nf;
+}
+
 const Operator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
@@ -3221,27 +3235,14 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
                                      const ElementDofOrdering e_ordering,
                                      const FaceType type)
    : fes(fes),
-     // nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE()),
+     nf(fes.GetNFbyType(type)),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndofs(fes.GetNDofs())//,
-     // dof(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
-     // nfdofs(nf*dof),
-     // indices(nf*dof)
+     ndofs(fes.GetNDofs()),
+     dof(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
+     nfdofs(nf*dof),
+     indices(nf*dof)
 {
-   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
-   int e1, e2;
-   int inf1, inf2;
-   nf = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
-   }
-   dof = nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0;
-   nfdofs = nf*dof;
-   indices.SetSize(nf*dof);
    //if fespace == H1
    // Assuming all finite elements are using Gauss-Lobatto.
    height = vdim*nf*dof;
@@ -3270,6 +3271,8 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    int faceMap[dof];
+   int e1, e2;
+   int inf1, inf2;
    int face_id;
    int orientation;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
@@ -3436,28 +3439,16 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                                      const FaceType type,
                                      const L2FaceValues m)
    : fes(fes),
-     // nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE()),
+     nf(fes.GetNFbyType(type)),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     // dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
-     m(m)//,
-     // nfdofs(nf*dof),
-     // indices1(nf*dof),
-     // indices2(m==L2FaceValues::Double?nf*dof:0)
+     dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
+     m(m),
+     nfdofs(nf*dof),
+     indices1(nf*dof),
+     indices2(m==L2FaceValues::Double?nf*dof:0)
 {
-   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
-   int e1, e2;
-   nf = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      if ((type==FaceType::Interior && e2>=0) || (type==FaceType::Boundary && e2<0) ) nf++;
-   }
-   dof = nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0;
-   nfdofs = nf*dof;
-   indices1.SetSize(nf*dof);
-   indices2.SetSize(m==L2FaceValues::Double?nf*dof:0);
    //if fespace == L2
    // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
@@ -3478,6 +3469,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    int faceMap1[dof], faceMap2[dof];
+   int e1, e2;
    int inf1, inf2;
    int face_id1, face_id2;
    int orientation;
@@ -3553,7 +3545,6 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int dof = i % nd;
          const int face = i / nd;
          const int idx1 = d_indices1[i];
-         //FIXME we might want to also set this to 0 when idx2==-1, to separate interior/boundary faces.
          for (int c = 0; c < vd; ++c)
          {
             d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
@@ -3561,7 +3552,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
-            d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);//TODO Add permutation
+            d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);
          }
       });
    } else {
@@ -3976,18 +3967,8 @@ void QuadratureInterpolator::MultTranspose(
 
 FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir, FaceType type)
-   : type(type)//, nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE())
+   : type(type), nf(fes.GetNFbyType(type))
 {
-   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
-   int e1, e2;
-   int inf1, inf2;
-   nf = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
-   }
    fespace = &fes;
    qspace = NULL;
    IntRule = &ir;
@@ -4001,18 +3982,8 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace 
 
 FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace &fes,
                                                const QuadratureSpace &qs, FaceType type)
-   : type(type)//, nf(type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE())
+   : type(type), nf(fes.GetNFbyType(type))
 {
-   // FIXME: Count the faces since mesh->GetNBE() is bugged in 3D.
-   int e1, e2;
-   int inf1, inf2;
-   nf = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
-   }
    fespace = &fes;
    qspace = &qs;
    IntRule = NULL;

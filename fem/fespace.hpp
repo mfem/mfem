@@ -413,6 +413,15 @@ public:
    /// Returns number of boundary elements in the mesh.
    inline int GetNBE() const { return mesh->GetNBE(); }
 
+   /// Returns the number of faces according to the requested type.
+   /** If type==Boundary returns only the "true" number of boundary faces
+       contrary to GetNBE() that returns "fake" boundary faces associated to
+       visualization for GLvis.
+       Similarly, if type==Interior, the "fake" boundary faces associated to
+       visualization are counted as interior faces.
+   */
+   int GetNFbyType(FaceType type) const;
+
    /// Returns the type of element i.
    inline int GetElementType(int i) const
    { return mesh->GetElementType(i); }
