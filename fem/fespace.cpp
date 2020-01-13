@@ -3258,6 +3258,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
      nfdofs(nf*dof),
      indices(nf*dof)
 {
+   if (nf==0) { return; }
    //if fespace == H1
    // Assuming all finite elements are using Gauss-Lobatto.
    height = vdim*nf*dof;
@@ -3471,6 +3472,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      indices1(nf*dof),
      indices2(m==L2FaceValues::Double?nf*dof:0)
 {
+   if (nf==0) { return; }
    //if fespace == L2
    // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;

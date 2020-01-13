@@ -3434,13 +3434,13 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(nf > 0 ? fes.GetTraceElement(0,
-                                      fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
+     dof(nf>0 ? fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof():0),
      m(m),
      nfdofs(nf*dof),
      indices1(nf*dof),
      indices2(m==L2FaceValues::Double?nf*dof:0)
 {
+   if (nf==0) { return; }
    //if fespace == L2
    // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
