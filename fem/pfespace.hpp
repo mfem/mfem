@@ -266,11 +266,13 @@ public:
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
-   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering, FaceType type) const;
-   
+   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering,
+                                              FaceType type) const;
+
    /** Return an Operator that converts L-vectors to E-vectors on each face, for L2 spaces
        only returns the value of element 1. */
-   virtual const Operator *GetSingleValuedFaceRestriction(ElementDofOrdering e_ordering, FaceType) const;
+   virtual const Operator *GetSingleValuedFaceRestriction(ElementDofOrdering
+                                                          e_ordering, FaceType) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
    void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;
@@ -459,7 +461,8 @@ protected:
    Array<int> indices2;
 
 public:
-   ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering, FaceType type, L2FaceValues m = L2FaceValues::Double);
+   ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
+                        FaceType type, L2FaceValues m = L2FaceValues::Double);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 };

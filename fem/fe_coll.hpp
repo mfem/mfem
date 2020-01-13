@@ -149,7 +149,7 @@ public:
 
    virtual const FiniteElement *FiniteElementForGeometry(
       Geometry::Type GeomType) const
-   { 
+   {
       FiniteElement * fe = L2_Elements[GeomType];
       return fe;
    }

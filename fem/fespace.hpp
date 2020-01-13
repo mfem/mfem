@@ -327,11 +327,13 @@ public:
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
-   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering, FaceType) const;
+   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering,
+                                              FaceType) const;
 
    /** Return an Operator that converts L-vectors to E-vectors on each face, for L2 spaces
        only returns the value of element 1. */
-   virtual const Operator *GetSingleValuedFaceRestriction(ElementDofOrdering e_ordering, FaceType) const;
+   virtual const Operator *GetSingleValuedFaceRestriction(ElementDofOrdering
+                                                          e_ordering, FaceType) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
@@ -969,10 +971,12 @@ protected:
    Array<int> indices;
 
 public:
-   H1FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering, const FaceType);
+   H1FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
+                     const FaceType);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   static void GetFaceDofs(const int dim, const int face_id, const int dof1d, Array<int> &faceMap);
+   static void GetFaceDofs(const int dim, const int face_id, const int dof1d,
+                           Array<int> &faceMap);
 };
 
 /// Operator that extracts Face degrees of freedom.
@@ -993,10 +997,12 @@ protected:
    Array<int> indices2;
 
 public:
-   L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering, const FaceType, const L2FaceValues m = L2FaceValues::Double);
+   L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
+                     const FaceType, const L2FaceValues m = L2FaceValues::Double);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   static int PermuteFaceL2(const int dim, const int face_id1, const int face_id2, const int orientation,
+   static int PermuteFaceL2(const int dim, const int face_id1, const int face_id2,
+                            const int orientation,
                             const int size1d, const int index);
 };
 
@@ -1141,10 +1147,10 @@ public:
    };
 
    FaceQuadratureInterpolator(const FiniteElementSpace &fes,
-                          const IntegrationRule &ir, FaceType type);
+                              const IntegrationRule &ir, FaceType type);
 
    FaceQuadratureInterpolator(const FiniteElementSpace &fes,
-                          const QuadratureSpace &qs, FaceType type);
+                              const QuadratureSpace &qs, FaceType type);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
@@ -1166,7 +1172,8 @@ public:
              Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
-   void MultTranspose(unsigned eval_flags, const Array<double> &W, const Vector &q_val,
+   void MultTranspose(unsigned eval_flags, const Array<double> &W,
+                      const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
 
    // Compute kernels follow (cannot be private or protected with nvcc)

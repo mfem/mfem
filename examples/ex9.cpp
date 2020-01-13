@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
    b.Assemble();
-   if(!pa)
+   if (!pa)
    {
       m.Finalize();
       k.Finalize(skip_zeros);

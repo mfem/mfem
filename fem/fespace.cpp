@@ -835,7 +835,8 @@ int FiniteElementSpace::GetNFbyType(FaceType type) const
    {
       this->GetMesh()->GetFaceElements(f, &e1, &e2);
       this->GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) ) nf++;
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
    }
    return nf;
 }
@@ -878,7 +879,7 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if(type==FaceType::Interior)
+         if (type==FaceType::Interior)
          {
             if (L2FI_lex.Ptr() == NULL)
             {
@@ -896,7 +897,7 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
          }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if(type==FaceType::Interior)
+      if (type==FaceType::Interior)
       {
          if (L2FI_nat.Ptr() == NULL)
          {
@@ -917,7 +918,7 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if(type==FaceType::Interior)
+         if (type==FaceType::Interior)
          {
             if (L2FI_lex.Ptr() == NULL)
             {
@@ -935,7 +936,7 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
          }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if(type==FaceType::Interior)
+      if (type==FaceType::Interior)
       {
          if (L2FI_nat.Ptr() == NULL)
          {
@@ -956,17 +957,19 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
 
 const Operator *FiniteElementSpace::GetSingleValuedFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type) const
-{   // Check if we have a discontinuous space using the FE collection:
+{
+   // Check if we have a discontinuous space using the FE collection:
    const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
    if (dg_space)
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if(type==FaceType::Interior)
+         if (type==FaceType::Interior)
          {
             if (L2FI_lex.Ptr() == NULL)
             {
-               L2FI_lex.Reset(new L2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+               L2FI_lex.Reset(new L2FaceRestriction(*this, e_ordering, type,
+                                                    L2FaceValues::Single));
             }
             return L2FI_lex.Ptr();
          }
@@ -974,17 +977,19 @@ const Operator *FiniteElementSpace::GetSingleValuedFaceRestriction(
          {
             if (L2FB_lex.Ptr() == NULL)
             {
-               L2FB_lex.Reset(new L2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+               L2FB_lex.Reset(new L2FaceRestriction(*this, e_ordering, type,
+                                                    L2FaceValues::Single));
             }
             return L2FB_lex.Ptr();
          }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if(type==FaceType::Interior)
+      if (type==FaceType::Interior)
       {
          if (L2FI_nat.Ptr() == NULL)
          {
-            L2FI_nat.Reset(new L2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+            L2FI_nat.Reset(new L2FaceRestriction(*this, e_ordering, type,
+                                                 L2FaceValues::Single));
          }
          return L2FI_nat.Ptr();
       }
@@ -992,7 +997,8 @@ const Operator *FiniteElementSpace::GetSingleValuedFaceRestriction(
       {
          if (L2FB_nat.Ptr() == NULL)
          {
-            L2FB_nat.Reset(new L2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+            L2FB_nat.Reset(new L2FaceRestriction(*this, e_ordering, type,
+                                                 L2FaceValues::Single));
          }
          return L2FB_nat.Ptr();
       }
@@ -1001,7 +1007,7 @@ const Operator *FiniteElementSpace::GetSingleValuedFaceRestriction(
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if(type==FaceType::Interior)
+         if (type==FaceType::Interior)
          {
             if (L2FI_lex.Ptr() == NULL)
             {
@@ -1019,7 +1025,7 @@ const Operator *FiniteElementSpace::GetSingleValuedFaceRestriction(
          }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if(type==FaceType::Interior)
+      if (type==FaceType::Interior)
       {
          if (L2FI_nat.Ptr() == NULL)
          {
@@ -1067,7 +1073,8 @@ const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    return qi;
 }
 
-const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpolator(
+const FaceQuadratureInterpolator
+*FiniteElementSpace::GetFaceQuadratureInterpolator(
    const IntegrationRule &ir, FaceType type) const
 {
    if (type==FaceType::Interior)
@@ -1078,7 +1085,8 @@ const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpola
          if (qi->IntRule == &ir) { return qi; }
       }
 
-      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir, type);
+      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir,
+                                                                      type);
       E2IFQ_array.Append(qi);
       return qi;
    }
@@ -1090,13 +1098,15 @@ const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpola
          if (qi->IntRule == &ir) { return qi; }
       }
 
-      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir, type);
+      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir,
+                                                                      type);
       E2BFQ_array.Append(qi);
-      return qi;      
+      return qi;
    }
 }
 
-const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpolator(
+const FaceQuadratureInterpolator
+*FiniteElementSpace::GetFaceQuadratureInterpolator(
    const QuadratureSpace &qs, FaceType type) const
 {
    if (type==FaceType::Interior)
@@ -1107,7 +1117,8 @@ const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpola
          if (qi->qspace == &qs) { return qi; }
       }
 
-      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs, type);
+      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs,
+                                                                      type);
       E2IFQ_array.Append(qi);
       return qi;
    }
@@ -1119,9 +1130,10 @@ const FaceQuadratureInterpolator *FiniteElementSpace::GetFaceQuadratureInterpola
          if (qi->qspace == &qs) { return qi; }
       }
 
-      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs, type);
+      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs,
+                                                                      type);
       E2BFQ_array.Append(qi);
-      return qi;      
+      return qi;
    }
 }
 
@@ -3125,109 +3137,113 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
-void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id, const int dof1d, Array<int> &faceMap)
+void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id,
+                                    const int dof1d, Array<int> &faceMap)
 {
-   switch(dim)
+   switch (dim)
    {
       case 1:
-      switch(face_id){
-         case 0://WEST
-         faceMap[0] = 0;
+         switch (face_id)
+         {
+            case 0://WEST
+               faceMap[0] = 0;
+               break;
+            case 1://EAST
+               faceMap[0] = dof1d-1;
+               break;
+         }
          break;
-         case 1://EAST
-         faceMap[0] = dof1d-1;
-         break;
-      }
-      break;
       case 2:
-      switch(face_id){
-         case 0://SOUTH
-         for (int i = 0; i < dof1d; ++i)
+         switch (face_id)
          {
-            faceMap[i] = i;
+            case 0://SOUTH
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  faceMap[i] = i;
+               }
+               break;
+            case 1://EAST
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  faceMap[i] = dof1d-1 + i*dof1d;
+               }
+               break;
+            case 2://NORTH
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  faceMap[i] = (dof1d-1)*dof1d + dof1d-1 - i;
+               }
+               break;
+            case 3://WEST
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  faceMap[i] = (dof1d-1)*dof1d - i*dof1d;
+               }
+               break;
          }
          break;
-         case 1://EAST
-         for (int i = 0; i < dof1d; ++i)
-         {
-            faceMap[i] = dof1d-1 + i*dof1d;
-         }
-         break;
-         case 2://NORTH
-         for (int i = 0; i < dof1d; ++i)
-         {
-            faceMap[i] = (dof1d-1)*dof1d + dof1d-1 - i;
-         }
-         break;
-         case 3://WEST
-         for (int i = 0; i < dof1d; ++i)
-         {
-            faceMap[i] = (dof1d-1)*dof1d - i*dof1d;
-         }
-         break;
-      }
-      break;
       case 3:
-      switch(face_id){
-         case 0://BOTTOM
-         for (int i = 0; i < dof1d; ++i)
+         switch (face_id)
          {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               // faceMap[i+j*dof1d] = i + j*dof1d;//Lex
-               faceMap[i+j*dof1d] = i + (dof1d-1-j)*dof1d;
-            }
+            case 0://BOTTOM
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     // faceMap[i+j*dof1d] = i + j*dof1d;//Lex
+                     faceMap[i+j*dof1d] = i + (dof1d-1-j)*dof1d;
+                  }
+               }
+               break;
+            case 1://SOUTH
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     // faceMap[i+j*dof1d] = i + j*dof1d*dof1d;//Lex
+                     faceMap[i+j*dof1d] = (dof1d-1-i) + j*dof1d*dof1d;
+                  }
+               }
+               break;
+            case 2://EAST
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     faceMap[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
+                  }
+               }
+               break;
+            case 3://NORTH
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
+                  }
+               }
+               break;
+            case 4://WEST
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     // faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;//Lex
+                     faceMap[i+j*dof1d] = (dof1d-1-i)*dof1d + j*dof1d*dof1d;
+                  }
+               }
+               break;
+            case 5://TOP
+               for (int i = 0; i < dof1d; ++i)
+               {
+                  for (int j = 0; j < dof1d; ++j)
+                  {
+                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
+                  }
+               }
+               break;
          }
          break;
-         case 1://SOUTH
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               // faceMap[i+j*dof1d] = i + j*dof1d*dof1d;//Lex
-               faceMap[i+j*dof1d] = (dof1d-1-i) + j*dof1d*dof1d;
-            }
-         }
-         break;
-         case 2://EAST
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               faceMap[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
-            }
-         }
-         break;
-         case 3://NORTH
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
-            }
-         }
-         break;
-         case 4://WEST
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               // faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;//Lex
-               faceMap[i+j*dof1d] = (dof1d-1-i)*dof1d + j*dof1d*dof1d;
-            }
-         }
-         break;
-         case 5://TOP
-         for (int i = 0; i < dof1d; ++i)
-         {
-            for (int j = 0; j < dof1d; ++j)
-            {
-               faceMap[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
-            }
-         }
-         break;
-      }
-      break;
    }
 }
 
@@ -3285,13 +3301,17 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       orientation = inf1 % 64;
       face_id = inf1 / 64;
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) )
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
          // Assumes Gauss-Lobato basis
-         if(dof_reorder){
-            if(orientation!=0) mfem_error("FaceRestriction used on degenerated mesh.");
+         if (dof_reorder)
+         {
+            if (orientation!=0) { mfem_error("FaceRestriction used on degenerated mesh."); }
             GetFaceDofs(dim, face_id, dof1d, faceMap);//Only for hex
-         } else {
+         }
+         else
+         {
             mfem_error("FaceRestriction not yet implemented for this type of element.");
             //TODO Something with GetFaceDofs?
          }
@@ -3354,60 +3374,61 @@ static int PermuteFace2D(const int size1d, const int index)
    return size1d - 1 - index;
 }
 
-static int PermuteFace3D(const int face_id1, const int face_id2, const int orientation,
+static int PermuteFace3D(const int face_id1, const int face_id2,
+                         const int orientation,
                          const int size1d, const int index)
 {
    int i=0, j=0, new_i=0, new_j=0;
    i = index%size1d;
    j = index/size1d;
-   if(face_id2==1 || face_id2==4)
+   if (face_id2==1 || face_id2==4)
    {
       i = size1d-1-i;
    }
-   else if(face_id2==0)
+   else if (face_id2==0)
    {
       j = size1d-1-j;
    }
-   switch(orientation)
+   switch (orientation)
    {
-   case 0:
-      new_i = i;
-      new_j = j;
-      break;
-   case 1:
-      new_i = j;
-      new_j = i;
-      break;
-   case 2:
-      new_i = j;
-      new_j = (size1d-1-i);
-      break;
-   case 3:
-      new_i = (size1d-1-i);
-      new_j = j;
-      break;
-   case 4:
-      new_i = (size1d-1-i);
-      new_j = (size1d-1-j);
-      break;
-   case 5:
-      new_i = (size1d-1-j);
-      new_j = (size1d-1-i);
-      break;
-   case 6:
-      new_i = (size1d-1-j);
-      new_j = i;
-      break;
-   case 7:
-      new_i = i;
-      new_j = (size1d-1-j);
-      break;
+      case 0:
+         new_i = i;
+         new_j = j;
+         break;
+      case 1:
+         new_i = j;
+         new_j = i;
+         break;
+      case 2:
+         new_i = j;
+         new_j = (size1d-1-i);
+         break;
+      case 3:
+         new_i = (size1d-1-i);
+         new_j = j;
+         break;
+      case 4:
+         new_i = (size1d-1-i);
+         new_j = (size1d-1-j);
+         break;
+      case 5:
+         new_i = (size1d-1-j);
+         new_j = (size1d-1-i);
+         break;
+      case 6:
+         new_i = (size1d-1-j);
+         new_j = i;
+         break;
+      case 7:
+         new_i = i;
+         new_j = (size1d-1-j);
+         break;
    }
    if (face_id2==2 || face_id2==3 || face_id2==5)
    {
       return new_i + new_j*size1d;
    }
-   else if(face_id2==1 || face_id2==4)
+   else if (face_id2==1 || face_id2==4)
    {
       return (size1d-1-new_i) + new_j*size1d;
    }
@@ -3417,20 +3438,21 @@ static int PermuteFace3D(const int face_id1, const int face_id2, const int orien
    }
 }
 
-int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1, const int face_id2, const int orientation,
-                               const int size1d, const int index)
+int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1,
+                                     const int face_id2, const int orientation,
+                                     const int size1d, const int index)
 {
-   switch(dim)
+   switch (dim)
    {
-   case 1:
-      return 0;
-   case 2:
-      return PermuteFace2D(size1d, index);
-   case 3:
-      return PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
-   default:
-      mfem_error("Incorrect dimension.");
-      return 0;
+      case 1:
+         return 0;
+      case 2:
+         return PermuteFace2D(size1d, index);
+      case 3:
+         return PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
+      default:
+         mfem_error("Incorrect dimension.");
+         return 0;
    }
 }
 
@@ -3443,7 +3465,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
+     dof(nf > 0 ? fes.GetTraceElement(0,
+                                      fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
      m(m),
      nfdofs(nf*dof),
      indices1(nf*dof),
@@ -3454,12 +3477,13 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   if(!dof_reorder) mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
+   if (!dof_reorder) { mfem_error("Non-Tensor L2FaceRestriction not yet implemented."); }
    if (dof_reorder && nf > 0)
    {
       for (int f = 0; f < fes.GetNF(); ++f)
       {
-         const FiniteElement *fe = fes.GetTraceElement(f,fes.GetMesh()->GetFaceBaseGeometry(f));
+         const FiniteElement *fe = fes.GetTraceElement(f,
+                                                       fes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
@@ -3481,14 +3505,17 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if(dof_reorder){
+      if (dof_reorder)
+      {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
          H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
          H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
-      } else {
+      }
+      else
+      {
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?
       }
@@ -3515,7 +3542,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                   const int lid = dof*f_ind + d;
                   indices2[lid] = gid;
                }
-               else if(type==FaceType::Boundary && e2<0) // true boundary face
+               else if (type==FaceType::Boundary && e2<0) // true boundary face
                {
                   const int lid = dof*f_ind + d;
                   indices2[lid] = -1;
@@ -3535,7 +3562,8 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const int vd = vdim;
    const bool t = byvdim;
 
-   if(m==L2FaceValues::Double){
+   if (m==L2FaceValues::Double)
+   {
       auto d_indices1 = indices1.Read();
       auto d_indices2 = indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
@@ -3555,7 +3583,9 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
             d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);
          }
       });
-   } else {
+   }
+   else
+   {
       auto d_indices1 = indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, nf);
@@ -3568,7 +3598,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
          {
             d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
          }
-      });      
+      });
    }
 }
 
@@ -3578,7 +3608,8 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   if(m==L2FaceValues::Double){
+   if (m==L2FaceValues::Double)
+   {
       auto d_indices1 = indices1.Read();
       auto d_indices2 = indices2.Read();
       auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
@@ -3590,10 +3621,12 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          for (int c = 0; c < vd; ++c)
          {
             MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, 0, i / nd));
-            if(idx2!=-1) MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd));
+            if (idx2!=-1) { MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd)); }
          }
       });
-   }else{
+   }
+   else
+   {
       auto d_indices1 = indices1.Read();
       auto d_x = Reshape(x.Read(), nd, vd, nf);
       auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
@@ -3604,7 +3637,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          {
             MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, i / nd));
          }
-      });      
+      });
    }
 }
 
@@ -3965,8 +3998,9 @@ void QuadratureInterpolator::MultTranspose(
    MFEM_ABORT("this method is not implemented yet");
 }
 
-FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const IntegrationRule &ir, FaceType type)
+FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
+                                                       &fes,
+                                                       const IntegrationRule &ir, FaceType type)
    : type(type), nf(fes.GetNFbyType(type))
 {
    fespace = &fes;
@@ -3980,8 +4014,9 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace 
                "Only scalar finite elements are supported");
 }
 
-FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const QuadratureSpace &qs, FaceType type)
+FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
+                                                       &fes,
+                                                       const QuadratureSpace &qs, FaceType type)
    : type(type), nf(fes.GetNFbyType(type))
 {
    fespace = &fes;
@@ -4055,8 +4090,8 @@ void FaceQuadratureInterpolator::Eval2D(
             for (int c = 0; c < VDIM; c++) { val(q,c,f) = ed[c]; }
          }
          if ((eval_flags & DERIVATIVES)
-            || (eval_flags & DETERMINANTS)
-            || (eval_flags & NORMALS))
+             || (eval_flags & DETERMINANTS)
+             || (eval_flags & NORMALS))
          {
             double D[max_VDIM];
             for (int i = 0; i < VDIM; i++) { D[i] = 0.0; }
@@ -4078,8 +4113,8 @@ void FaceQuadratureInterpolator::Eval2D(
             //    }
             // }
             if (VDIM == 2 &&
-               ((eval_flags & NORMALS)
-                  || (eval_flags & DETERMINANTS)))
+                ((eval_flags & NORMALS)
+                 || (eval_flags & DETERMINANTS)))
             {
                const double norm = sqrt(D[0]*D[0]+D[1]*D[1]);
                if (eval_flags & DETERMINANTS)
@@ -4152,12 +4187,14 @@ void FaceQuadratureInterpolator::Eval3D(
          {
             for (int q = 0; q < NQ1D; ++q)
             {
-               for (int c = 0; c < VDIM; c++) Bu[q][d2][c] = 0.0;
+               for (int c = 0; c < VDIM; c++) { Bu[q][d2][c] = 0.0; }
                for (int d1 = 0; d1 < ND1D; ++d1)
                {
                   const int b = B(q,d1);
                   for (int c = 0; c < VDIM; c++)
+                  {
                      Bu[q][d2][c] += b*r_F[d1][d2][c];
+                  }
                }
             }
          }
@@ -4166,21 +4203,25 @@ void FaceQuadratureInterpolator::Eval3D(
          {
             for (int q1 = 0; q1 < NQ1D; ++q1)
             {
-               for (int c = 0; c < VDIM; c++) BBu[q2][q1][c] = 0.0;
+               for (int c = 0; c < VDIM; c++) { BBu[q2][q1][c] = 0.0; }
                for (int d2 = 0; d2 < ND1D; ++d2)
                {
                   const double b = B(q2,d2);
                   for (int c = 0; c < VDIM; c++)
+                  {
                      BBu[q2][q1][c] += b*Bu[q1][d2][c];
+                  }
                }
                for (int c = 0; c < VDIM; c++)
+               {
                   val(q1,q2,c,f) = BBu[q2][q1][c];
+               }
             }
          }
       }
       if ((eval_flags & DERIVATIVES)
-         || (eval_flags & DETERMINANTS)
-         || (eval_flags & NORMALS))
+          || (eval_flags & DETERMINANTS)
+          || (eval_flags & NORMALS))
       {
          //We only compute the tangential derivatives
          double Gu[max_NQ1D][max_ND1D][VDIM];
@@ -4222,7 +4263,8 @@ void FaceQuadratureInterpolator::Eval3D(
                {
                   const double b = B(q2,d2);
                   const double g = G(q2,d2);
-                  for (int c = 0; c < VDIM; c++){
+                  for (int c = 0; c < VDIM; c++)
+                  {
                      BGu[q2][q1][c] += b*Gu[q1][d2][c];
                      GBu[q2][q1][c] += g*Bu[q1][d2][c];
                   }
@@ -4266,7 +4308,7 @@ void FaceQuadratureInterpolator::Eval3D(
                   n[1] = BGu[q2][q1][0]*GBu[q2][q1][2]-GBu[q2][q1][0]*BGu[q2][q1][2];
                   n[2] = BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*BGu[q2][q1][1];
                   const double norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
-                  if (eval_flags & DETERMINANTS) det(q1,q2,f) = norm;
+                  if (eval_flags & DETERMINANTS) { det(q1,q2,f) = norm; }
                   if (eval_flags & NORMALS)
                   {
                      nor(q1,q2,0,f) = n[0]/norm;
@@ -4287,7 +4329,8 @@ void FaceQuadratureInterpolator::Mult(
    if (nf == 0) { return; }
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe = fespace->GetTraceElement(0,fespace->GetMesh()->GetFaceBaseGeometry(0));
+   const FiniteElement *fe = fespace->GetTraceElement(0,
+                                                      fespace->GetMesh()->GetFaceBaseGeometry(0));
    const IntegrationRule *ir =
       IntRule ? IntRule : &qspace->GetElementIntRule(0);
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);

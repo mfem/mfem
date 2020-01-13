@@ -48,7 +48,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          constant = const_coeff->constant;
       }
-      else if(!Q)
+      else if (!Q)
       {
          constant = 1.0;
       }
@@ -81,7 +81,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          constant = const_coeff->constant;
       }
-      else if(!Q)
+      else if (!Q)
       {
          constant = 1.0;
       }

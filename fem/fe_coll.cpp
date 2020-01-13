@@ -1832,7 +1832,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       }
       else
       {
-         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);   
+         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);
       }
 
       const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
@@ -1890,7 +1890,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       else
       {
          Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, btype);
-         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);         
+         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);
       }
 
       const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();

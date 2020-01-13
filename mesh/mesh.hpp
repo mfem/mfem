@@ -183,7 +183,8 @@ public:
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
-   Array<FaceGeometricFactors*> face_geom_factors; ///< Optional face geometric factors.
+   Array<FaceGeometricFactors*>
+   face_geom_factors; ///< Optional face geometric factors.
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -696,8 +697,8 @@ public:
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
                                                const int flags);
 
-  /** @brief Return the mesh geometric factors for the faces corresponding
-       to the given integration rule. */
+   /** @brief Return the mesh geometric factors for the faces corresponding
+        to the given integration rule. */
    const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
                                                        const int flags, FaceType type);
 
@@ -1350,7 +1351,8 @@ public:
       NORMALS      = 1 << 3,
    };
 
-   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags, FaceType type);
+   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                        FaceType type);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
