@@ -11,6 +11,33 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+# Print usage information
+case $1 in
+   -h|-help)
+      cat <<EOF
+
+   $0 [-h|-help] {mfem_dir}
+
+   where: {mfem_dir}  is the MFEM source directory [default value: ../..]
+          -h|-help    prints this usage information and exits
+
+   This script checks if there are any disallowed files (binary files, or large
+   non-binary files) in the current branch history from the point of divergence
+   with master, i.e. in the commits that will be merged if the current branch is
+   merged with master.
+
+   To be useful, the script should be run in a clean repository that doesn't
+   have any uncommited changes.
+
+   Example usage: $0 ../..
+
+EOF
+      exit
+      ;;
+esac
+
+
+
 # Check if the current commit contains a large file
 function check_bin_in_commit()
 {
@@ -21,8 +48,8 @@ function check_bin_in_commit()
     # If the above is more than 50K, return an error
     if (( $changes > 50000 ))
     then
-	msg "ATTENTION: The commit $(git log -1 --format=%H) is unusually large!"
-	msg "           It has changes in approximatelly $changes lines of code."
+	err "ATTENTION: The commit $(git log -1 --format=%H) is unusually large!"
+	err "           It has changes in $changes lines of code."
 	return 1
     fi
 
@@ -34,13 +61,13 @@ function check_commit_size()
 {
     binary_files=""
 
-    if [[ -n ${binary_files} ]]
-    then
-	msg "$(git log -1 --format=%H)"
-	msg "ATTENTION: binary file(s) added or modified"
-	echo "${binary_files}"
-	return 1
-    fi
+    # if [[ -n ${binary_files} ]]
+    # then
+    # 	err "$(git log -1 --format=%H)"
+    # 	err "ATTENTION: binary file(s) added or modified"
+    # 	echo "${binary_files}"
+    # 	return 1
+    # fi
 
     return 0
 }
@@ -75,8 +102,6 @@ function check_branch()
     return $binary_found || $large_commit
 }
 
-# Utilities
-
 function msg()
 {
     echo "history_checks: $*"
@@ -86,3 +111,17 @@ function err()
 {
     msg $* 1>&2
 }
+
+# Setup
+cur_dir=`pwd`
+mfem_dir=$1
+if [ "$mfem_dir" = "" ]; then
+    mfem_dir="../.."
+fi
+cd $mfem_dir
+mfem_dir=`pwd`
+shift
+
+check_branch
+
+cd $cur_dir
