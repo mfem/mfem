@@ -3125,7 +3125,7 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
-void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id, const int dof1d, int* faceMap)
+void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id, const int dof1d, Array<int> &faceMap)
 {
    switch(dim)
    {
@@ -3270,7 +3270,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    const int *dof_map = el->GetDofMap().GetData();
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
-   int faceMap[dof];
+   Array<int> faceMap(dof);
    int e1, e2;
    int inf1, inf2;
    int face_id;
@@ -3468,7 +3468,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    }
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
-   int faceMap1[dof], faceMap2[dof];
+   Array<int> faceMap1(dof), faceMap2(dof);
    int e1, e2;
    int inf1, inf2;
    int face_id1, face_id2;
