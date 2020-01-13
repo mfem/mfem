@@ -70,10 +70,10 @@ while read -r rev; do
     # the "file" command, excluding text files and PNG images)
     for fname in $(find . -type f ! -size 0 | grep -v .git)
     do
-	binary="$(file $fname | grep -v 'PNG image' | grep -v 'text')"
+	binary="$(file -b $fname | grep -v 'PNG image' | grep -v 'text')"
 	if [ ! -z "$binary" ]
 	then
-            echo "Commit $(git log -1 --format=%h) contains a binary file: $binary" 1>&2
+            echo "Commit $(git log -1 --format=%h) contains a binary file: $fname (type $binary)" 1>&2
 	fi
     done
 
