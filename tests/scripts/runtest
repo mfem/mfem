@@ -103,7 +103,7 @@ do
       echo "=== END error log from $this_test.err"
       # rm -f $this_test.err $this_test.out
    else
-      printf '\033[32m' "OK\n" '\033[0m'
+      printf '\033[32m'"OK\n"'\033[0m'
    fi
 done
 
