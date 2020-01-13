@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.googlecode.com.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+# Print usage information
+case $1 in
+   -h|-help)
+      cat <<EOF
+
+   $0 [-h|-help] {mfem_dir}
+
+   where: {mfem_dir}  is the MFEM source directory [default value: ../..]
+          -h|-help    prints this usage information and exits
+
+   This script checks if there are any disallowed files (binary files, or large
+   non-binary files) in the current branch history from the point of divergence
+   with master, i.e. in the commits that will be merged if the current branch is
+   merged with master.
+
+   To be useful, the script should be run in a clean repository that doesn't
+   have any uncommited changes.
+
+   Example usage: $0 ../..
+
+EOF
+      exit
+      ;;
+esac
+
+# Setup
+cur_dir=`pwd`
+mfem_dir=$1
+if [ "$mfem_dir" = "" ]; then
+    mfem_dir="../.."
+fi
+cd $mfem_dir
+mfem_dir=`pwd`
+shift
+
+current_branch="$(git symbolic-ref --short HEAD)"
+reference_branch="master"
+common_ancestor="$(git merge-base ${current_branch} ${reference_branch})"
+
+# Check all the commits in the current branch, starting with the common ancestor
+# with master, for large and binary files
+while read -r rev; do
+    echo "Processing commit $rev"
+    git checkout -q "$rev"
+
+    # Compute the number of total changes (insertions+deletions) in the commit,
+    # e.g. "3 files changed, 66 insertions(+), 45 deletions(-)" -> 111
+    changes=$(git diff --pretty=format:"" --shortstat HEAD^ | awk '{ print $4 + $6 }')
+
+    # If the above is more than 50K, print an error
+    if [ $changes -gt 50000 ]
+    then
+        echo "Commit $(git log -1 --format=%h) is unusually large: it changes $changes lines" 1>&2
+    fi
+
+    # Find all non-empty binary files in the current commit (use the output of
+    # the "file" command, excluding text files and PNG images)
+    for fname in $(find . -type f ! -size 0 | grep -v .git)
+    do
+	binary="$(file -b $fname | grep -v 'PNG image' | grep -v 'text')"
+	if [ ! -z "$binary" ]
+	then
+            echo "Commit $(git log -1 --format=%h) contains a binary file: $fname ($binary)" 1>&2
+	fi
+    done
+
+done < <(git rev-list --reverse ${common_ancestor}..${current_branch})
+
+# Return to the original branch and directory
+git checkout -q ${current_branch}
+cd $cur_dir
