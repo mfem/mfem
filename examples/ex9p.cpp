@@ -26,7 +26,8 @@
 //               conditions through periodic meshes, as well as the use of GLVis
 //               for persistent visualization of a time-evolving solution. The
 //               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) is also illustrated.
+//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
+//               illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -97,6 +98,7 @@ int main(int argc, char *argv[])
    double dt = 0.01;
    bool visualization = true;
    bool visit = false;
+   bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
 
@@ -131,6 +133,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
+                  "--no-paraview-datafiles",
+                  "Save data files for ParaView (paraview.org) visualization.");
    args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
                   "--ascii-datafiles",
                   "Use binary (Sidre) or ascii format for VisIt data files.");
@@ -303,6 +308,17 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      pd = new ParaViewDataCollection("PVExample9P", pmesh);
+      pd->RegisterField("solution", u);
+      pd->SetLevelsOfDetail(2);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
+   }
+
    socketstream sout;
    if (visualization)
    {
@@ -385,6 +401,13 @@ int main(int argc, char *argv[])
             dc->SetTime(t);
             dc->Save();
          }
+
+         if (paraview)
+         {
+            pd->SetCycle(ti);
+            pd->SetTime(t);
+            pd->Save();
+         }
       }
    }
 
@@ -400,18 +423,19 @@ int main(int argc, char *argv[])
    }
 
    // 13. Free the used memory.
-   // delete U;
-   // delete u;
-   // delete B;
-   // delete b;
-   // delete K;
-   // delete k;
-   // delete M;
-   // delete m;
-   // delete fes;
-   // delete pmesh;
-   // delete ode_solver;
-   // delete dc;
+   delete U;
+   delete u;
+   delete B;
+   delete b;
+   delete K;
+   delete k;
+   delete M;
+   delete m;
+   delete fes;
+   delete pmesh;
+   delete ode_solver;
+   delete pd;
+   delete dc;
 
    MPI_Finalize();
    return 0;

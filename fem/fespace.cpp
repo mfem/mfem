@@ -2975,7 +2975,6 @@ void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
       }
    });
 }
-
 void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
 {
    const int NE = ne;
