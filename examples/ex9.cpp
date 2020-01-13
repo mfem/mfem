@@ -53,6 +53,53 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+class DG_Solver : public Solver
+{
+private:
+   SparseMatrix &M, &K, A;
+   GMRESSolver solver;
+   BlockILU0 prec;
+   double dt;
+public:
+   DG_Solver(SparseMatrix &M_, SparseMatrix &K_, const FiniteElementSpace &fes)
+   : M(M_),
+     K(K_),
+     prec(fes.GetFE(0)->GetDof(), true),
+     dt(-1.0)
+   {
+      solver.iterative_mode = false;
+      solver.SetRelTol(1e-9);
+      solver.SetAbsTol(0.0);
+      solver.SetMaxIter(100);
+      solver.SetPrintLevel(0);
+      solver.SetPreconditioner(prec);
+   }
+
+   void SetTimeStep(double dt_)
+   {
+      if (dt_ != dt)
+      {
+         dt = dt_;
+         // Form operator A = M - dt*K
+         A = K;
+         A *= -dt;
+         A += M;
+
+         // this will also call SetOperator on the preconditioner
+         solver.SetOperator(A);
+      }
+   }
+
+   void SetOperator(const Operator &op)
+   {
+      solver.SetOperator(op);
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      solver.Mult(x, y);
+   }
+};
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -66,13 +113,15 @@ private:
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
+   DG_Solver dg_solver;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b);
+   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b, const FiniteElementSpace &fes);
 
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
    virtual ~FE_Evolution() { }
 };
@@ -108,7 +157,11 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
+                  "            11 - Backward Euler,\n\t"
+                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
+                  "            22 - Implicit Midpoint Method,\n\t"
+                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -145,11 +198,21 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
+      // Explicit methods
       case 1: ode_solver = new ForwardEulerSolver; break;
       case 2: ode_solver = new RK2Solver(1.0); break;
       case 3: ode_solver = new RK3SSPSolver; break;
       case 4: ode_solver = new RK4Solver; break;
       case 6: ode_solver = new RK6Solver; break;
+      // Implicit (L-stable) methods
+      case 11: ode_solver = new BackwardEulerSolver; break;
+      case 12: ode_solver = new SDIRK23Solver(2); break;
+      case 13: ode_solver = new SDIRK33Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_solver = new SDIRK23Solver; break;
+      case 24: ode_solver = new SDIRK34Solver; break;
+
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
@@ -279,7 +342,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m.SpMat(), k.SpMat(), b);
+   FE_Evolution adv(m.SpMat(), k.SpMat(), b, fes);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -337,8 +400,9 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
+FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
+                           const FiniteElementSpace &fes)
+   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), dg_solver(M, K, fes), z(_M.Size())
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -358,6 +422,12 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    M_solver.Mult(z, y);
 }
 
+void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
+{
+   K.Mult(x, z);
+   dg_solver.SetTimeStep(dt);
+   dg_solver.Mult(z, k);
+}
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)
