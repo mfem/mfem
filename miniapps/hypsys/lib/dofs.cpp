@@ -304,7 +304,7 @@ void DofInfo::FillNeighborDofs()
 {
 	// Use the first mesh element as indicator.
 	const FiniteElement &dummy = *fes->GetFE(0);
-	int i, j, k, nbr, ne = mesh->GetNE();
+	int i, j, e, nbr, ne = mesh->GetNE();
 	int nd = dummy.GetDof(), p = dummy.GetOrder();
 	Array <int> bdrs, orientation;
 	FaceElementTransformations *Trans;
@@ -340,22 +340,22 @@ void DofInfo::FillNeighborDofs()
 		}
 	}
 	
-	for (k = 0; k < ne; k++)
+	for (e = 0; e < ne; e++)
 	{
 		if (dim==1)
 		{
-			mesh->GetElementVertices(k, bdrs);
+			mesh->GetElementVertices(e, bdrs);
 			
 			for (i = 0; i < NumBdrs; i++)
 			{
 				Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-				nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
-				NbrDofs(i,0,k) = nbr*nd + BdrDofs(0,(i+1)%2);
+				nbr = Trans->Elem1No == e ? Trans->Elem2No : Trans->Elem1No;
+				NbrDofs(i,0,e) = nbr*nd + BdrDofs(0,(i+1)%2);
 			}
 		}
 		else if (dim==2)
 		{
-			mesh->GetElementEdges(k, bdrs, orientation);
+			mesh->GetElementEdges(e, bdrs, orientation);
 			
 			for (i = 0; i < NumBdrs; i++)
 			{
@@ -363,7 +363,7 @@ void DofInfo::FillNeighborDofs()
 				if (nbr_cnt == 1)
 				{
 					// No neighbor element.
-					for (j = 0; j < NumFaceDofs; j++) { NbrDofs(i,j,k) = -1; }
+					for (j = 0; j < NumFaceDofs; j++) { NbrDofs(i,j,e) = -1; }
 					continue;
 				}
 				
@@ -374,7 +374,7 @@ void DofInfo::FillNeighborDofs()
 					// This element is in a different mpi task.
 					el2_id = -1 - el2_id + ne;
 				}
-				nbr_id = (el1_id == k) ? el2_id : el1_id;
+				nbr_id = (el1_id == e) ? el2_id : el1_id;
 				
 				int el1_info, el2_info;
 				mesh->GetFaceInfos(bdrs[i], &el1_info, &el2_info);
@@ -384,14 +384,14 @@ void DofInfo::FillNeighborDofs()
 				{
 					// Here it is utilized that the orientations of the face for
 					// the two elements are opposite of each other.
-					NbrDofs(i,j,k) = nbr_id*nd + BdrDofs(NumFaceDofs - 1 - j,
+					NbrDofs(i,j,e) = nbr_id*nd + BdrDofs(NumFaceDofs - 1 - j,
 																	face_id_nbr);
 				}
 			}
 		}
 		else if (dim==3)
 		{
-			mesh->GetElementFaces(k, bdrs, orientation);
+			mesh->GetElementFaces(e, bdrs, orientation);
 			
 			for (int f = 0; f < NumBdrs; f++)
 			{
@@ -399,7 +399,7 @@ void DofInfo::FillNeighborDofs()
 				if (nbr_cnt == 1)
 				{
 					// No neighbor element.
-					for (j = 0; j < NumFaceDofs; j++) { NbrDofs(f,j,k) = -1; }
+					for (j = 0; j < NumFaceDofs; j++) { NbrDofs(f,j,e) = -1; }
 					continue;
 				}
 				
@@ -410,7 +410,7 @@ void DofInfo::FillNeighborDofs()
 					// This element is in a different mpi task.
 					el2_id = -1 - el2_id + ne;
 				}
-				nbr_id = (el1_id == k) ? el2_id : el1_id;
+				nbr_id = (el1_id == e) ? el2_id : el1_id;
 				
 				// Local index and orientation of the face, when considered in
 				// the neighbor element.
@@ -432,7 +432,7 @@ void DofInfo::FillNeighborDofs()
 					const int nbr_dof_id =
 					fdof_ids(face_or_nbr)(loc_face_dof_id, face_id_nbr);
 					
-					NbrDofs(f,j,k) = nbr_id*nd + nbr_dof_id;
+					NbrDofs(f,j,e) = nbr_id*nd + nbr_dof_id;
 				}
 			}
 		}

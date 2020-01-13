@@ -10,15 +10,15 @@ class DofInfo
 public:
    Mesh *mesh;
    FiniteElementSpace *fes;
-// 	
+
    GridFunction x_min, x_max;
-// 
+
    Vector xi_min, xi_max; // min/max values for each dof
    Vector xe_min, xe_max; // min/max values for each element
-// 
+
    DenseMatrix BdrDofs, Sub2Ind;
    DenseTensor NbrDofs;
-// 
+
    int dim, NumBdrs, NumFaceDofs, numSubcells, numDofsSubcell;
 
    DofInfo(FiniteElementSpace *fes_sltn, FiniteElementSpace *fes_bounds);

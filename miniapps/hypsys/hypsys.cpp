@@ -1,17 +1,14 @@
 #include <fstream>
 #include <iostream>
-#include "lib/hypsys.hpp"
+#include "hypsys.hpp"
 #include "lib/dofs.hpp"
 #include "apps/advection.hpp"
 // #include "apps/swe.hpp"
-#include "evolve.cpp"
-
-using namespace mfem;
+#include "lib/evolve.cpp"
 
 int main(int argc, char *argv[])
 {
 	Configuration config;
-	
    config.ProblemNum = 0;
    config.ConfigNum = 0;
    const char *MeshFile = "data/periodic-square.mesh";
@@ -70,7 +67,7 @@ int main(int argc, char *argv[])
    }
 
    Mesh mesh(MeshFile, 1, 1);
-   int dim = mesh.Dimension();
+   const int dim = mesh.Dimension();
 
    for (int lev = 0; lev < refinements; lev++)
    {
@@ -169,6 +166,10 @@ int main(int argc, char *argv[])
    cout << "Difference in solution mass: " <<
 		abs(InitialMass - LumpedMassMat * u) << endl;
    
+	Array<double> errors;
+	hyp->PostprocessProblem(u, errors);
+	cout << errors[0] << endl;
+	
    {
       ofstream osol("sol-final.gf");
       osol.precision(precision);
@@ -180,7 +181,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-// TODO restructure code
+
 const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes)
 {
 	const FiniteElement *el = fes->GetFE(0);
@@ -211,29 +212,6 @@ const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes)
       order++;
    }
    return &IntRules.Get(Trans->FaceGeom, order);
-}
-
-void HyperbolicSystem::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
-{ }
-
-void HyperbolicSystem::EvaluateSolution(const Vector &u, Vector &v,
-													 const int QuadNum) const
-{
-	int nd = ShapeEval.Height();
-	Vector shape(nd);// TODO optimize.
-	ShapeEval.GetColumn(QuadNum, shape);
-	v(0) = u * shape; // TODO Vector valued soultion.
-}
-
-void HyperbolicSystem::EvaluateSolution(const Vector &u, Vector &v,
-													 const int QuadNum,
-													 const int BdrNum) const
-{
-	v(0) = 0.; // TODO Vector valued soultion.
-	for (int j = 0; j < dofs->NumFaceDofs; j++)
-	{
-		v(0) += u(dofs->BdrDofs(j,BdrNum)) * ShapeEvalFace(BdrNum,j,QuadNum);
-	}
 }
 
 void HyperbolicSystem::Mult(const Vector &x, Vector &y) const

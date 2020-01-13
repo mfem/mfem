@@ -1,12 +1,12 @@
 #ifndef MFEM_ADVECTION
 #define MFEM_ADVECTION
 
-#include "../lib/hypsys.hpp"
+#include "../hypsys.hpp"
 
 class Advection : public HyperbolicSystem
 {
 public:
-   bool SolutionKnown = true;
+   bool SolutionKnown = true; // TODO
    bool WriteErrors = false;
 
 	FiniteElementSpace *fes;
@@ -16,6 +16,7 @@ public:
 
 	virtual void EvaluateFlux(const Vector &u, DenseMatrix &f) const;
    virtual void PreprocessProblem(FiniteElementSpace *fes, GridFunction &u);
+	virtual void PostprocessProblem(const GridFunction &u, Array<double> &errors);
 };
 
 #endif

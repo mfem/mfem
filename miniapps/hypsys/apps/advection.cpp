@@ -1,18 +1,16 @@
 #include "advection.hpp"
 
 int ConfigNum;
-int dim; // TODO put at better spot
 Vector bbMin, bbMax;
 
 void Velocity(const Vector &x, Vector &v);
 double InitialCondition(const Vector &x);
-double Inflow(const Vector &x);
+double InflowFunction(const Vector &x);
 
 Advection::Advection(FiniteElementSpace *fes_, Configuration &config)
 							: HyperbolicSystem(fes_, config), fes(fes_)
 {
    ConfigNum = config.ConfigNum;
-   dim = fes->GetMesh()->Dimension();
 	bbMin = config.bbMin;
    bbMax = config.bbMax;
 }
@@ -25,11 +23,12 @@ void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f) const
 void Advection::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
 {
 	Mesh *mesh = fes->GetMesh();
-	const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes);
-	const int ne = fes->GetNE();
-	const int nd = fes->GetFE(0)->GetDof();
-	const int nqe = IntRuleElem->GetNPoints();
-	const int nqf = IntRuleFace->GetNPoints();
+// 	const int dim = fes->GetMesh()->Dimension();
+// 	const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes);
+// 	const int ne = fes->GetNE();
+// 	const int nd = fes->GetFE(0)->GetDof();
+// 	const int nqe = IntRuleElem->GetNPoints();
+// 	const int nqf = IntRuleFace->GetNPoints();
 	
 	DenseMatrix adjJ(dim);
 	Vector vec1, vec2(dim);
@@ -129,44 +128,56 @@ void Advection::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
 
    // Model parameters.
    FunctionCoefficient u0(InitialCondition);
-   FunctionCoefficient aux(Inflow);
-	inflow.ProjectCoefficient(aux);
+   FunctionCoefficient Inflow(InflowFunction);
+	
+	if (ConfigNum == 0) // Convergence test: use high order projection.
+   {
+      L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
+      FiniteElementSpace l2_fes(mesh, &l2_fec);
+      GridFunction l2_inflow(&l2_fes);
+      l2_inflow.ProjectCoefficient(Inflow);
+      inflow.ProjectGridFunction(l2_inflow);
+   }
+   else { inflow.ProjectCoefficient(Inflow); }
 
    // Initialize solution vector.
    u.ProjectCoefficient(u0);
 }
 
-// void Advection::PostprocessProblem(const GridFunction &u, Array<double> &errors)
-// {
-//    if (SolutionKnown)
-//    {
-//       switch (ConfigNum)
-//       {
-//          case 0:
-//          {
-//             FunctionCoefficient uAnalytic(Inflow);
-//             errors[0] = u.ComputeLpError(1., uAnalytic);
-//             errors[1] = u.ComputeLpError(2., uAnalytic);
-//             errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
-//             break;
-//          }
-//          case 1:
-//          {
-//             FunctionCoefficient uAnalytic(InitialCondition);
-//             errors[0] = u.ComputeLpError(1., uAnalytic);
-//             errors[1] = u.ComputeLpError(2., uAnalytic);
-//             errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
-//             break;
-//          }
-//          default: MFEM_ABORT("No such test case implemented.");
-//       }
-//    }
-// }
+void Advection::PostprocessProblem(const GridFunction &u, Array<double> &errors)
+{
+	errors.SetSize(3);
+	
+   if (SolutionKnown)
+   {
+      switch (ConfigNum)
+      {
+         case 0:
+         {
+            FunctionCoefficient uAnalytic(InflowFunction);
+            errors[0] = u.ComputeLpError(1., uAnalytic);
+            errors[1] = u.ComputeLpError(2., uAnalytic);
+            errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
+            break;
+         }
+         case 1:
+         {
+            FunctionCoefficient uAnalytic(InitialCondition);
+            errors[0] = u.ComputeLpError(1., uAnalytic);
+            errors[1] = u.ComputeLpError(2., uAnalytic);
+            errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
+            break;
+         }
+         default: MFEM_ABORT("No such test case implemented.");
+      }
+   }
+}
 
 void Velocity(const Vector &x, Vector &v)
 {
    double scale = 1.;
-
+	const int dim = x.Size();
+	
    // Map to the reference [-1,1] domain.
    Vector X(dim);
    for (int i = 0; i < dim; i++)
@@ -207,6 +218,8 @@ void Velocity(const Vector &x, Vector &v)
 
 double InitialCondition(const Vector &x)
 {
+	const int dim = x.Size();
+	
    // Map to the reference [-1,1] domain.
    Vector X(dim);
    for (int i = 0; i < dim; i++)
@@ -244,7 +257,7 @@ double InitialCondition(const Vector &x)
    return 0.;
 }
 
-double Inflow(const Vector &x)
+double InflowFunction(const Vector &x)
 {
    switch (ConfigNum)
    {
