@@ -61,20 +61,19 @@ while read -r rev; do
     changes=$(git diff --pretty=format:"" --shortstat HEAD^ | awk '{ print $4 + $6 }')
 
     # If the above is more than 50K, print an error
-    if (( $changes > 50000 ))
+    if [ $changes -gt 50000 ]
     then
-        echo "ATTENTION: The commit $(git log -1 --format=%H) is unusually large!" 1>&2
-        echo "           It has changes in $changes lines of code." 1>&2
+        echo "Commit $(git log -1 --format=%h) is unusually large: it changes in $changes lines of code" 1>&2
     fi
 
     # Find all non-empty binary files in the current commit (use the output of
     # the "file" command, excluding text files and PNG images)
     for fname in $(find . -type f ! -size 0 | grep -v .git)
     do
-	if (( file $fname | | grep -v 'PNG image' | grep -v 'text' ))
+	binary="$(file $fname | grep -v 'PNG image' | grep -v 'text')"
+	if [ ! -z "$binary" ]
 	then
-            echo "ATTENTION: The commit $(git log -1 --format=%H) contains a binary file!" 1>&2
-            echo "           The filename is: $(file $fname)." 1>&2
+            echo "Commit $(git log -1 --format=%h) contains a binary file: $binary" 1>&2
 	fi
     done
 
