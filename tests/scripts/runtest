@@ -97,11 +97,11 @@ do
    # Print the *.err file if not empty
    if [ -s "$this_test.err" ]; then
       runtest_check=1
-      printf "=== BEGIN error log from $this_test.err\n"
       printf '\033[0;31m'
+      echo "=== BEGIN error log from $this_test.err"
       (cat $this_test.err) 1>&2
+      echo "=== END error log from $this_test.err"
       printf '\033[0m'
-      printf "=== END error log from $this_test.err\n"
       # rm -f $this_test.err $this_test.out
    else
       printf '\033[0;32m'

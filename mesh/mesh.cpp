@@ -89,12 +89,14 @@ double Mesh::GetElementSize(int i, int type)
    }
 }
 
-double Mesh::GetElementSize(int i, const Vector &dir) {
+double Mesh::GetElementSize(int i, const Vector &dir)
+{
    DenseMatrix J(Dim);
    Vector d_hat(Dim);
    GetElementJacobian(i, J);
    J.MultTranspose(dir, d_hat);
-   return sqrt((d_hat * d_hat) / (dir * dir)); }
+   return sqrt((d_hat * d_hat) / (dir * dir));
+}
 
 double Mesh::GetElementVolume(int i)
 {

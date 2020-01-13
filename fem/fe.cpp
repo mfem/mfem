@@ -26,7 +26,7 @@ FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
    : Nodes(Do)
 {
    Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
-     RangeType = SCALAR;
+   RangeType = SCALAR;
    MapType = VALUE;
    DerivType = NONE;
    DerivRangeType = SCALAR;
