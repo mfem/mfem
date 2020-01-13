@@ -39,7 +39,7 @@ public:
       NumBasisTypes   = 6   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
-   /** @brief If the input does not represents a valid BasisType, abort with an
+   /** @briefa If the input does not represents a valid BasisType, abort with an
        error; otherwise return the input. */
    static int Check(int b_type)
    {
