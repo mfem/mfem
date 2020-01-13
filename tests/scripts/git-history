@@ -146,9 +146,9 @@ while read -r rev; do
 
     # Find all non-empty binary files in the current commit (use the output of
     # the "file" command, excluding text files and PNG images)
-    binaries="$(find . -type f \! -size 0 -exec file \{\} \; | grep -v .git | grep -v 'PNG image' | grep -v 'text')"
-    echo $binaries 1>&2
-    # ("find . -type f ! -size 0 -exec file {} \; | grep -v .git | grep -v 'PNG image' | grep -v 'text'") > 1>&2
+    # binaries="$(find . -type f \! -size 0 -exec file \{\} \; | grep -v .git | grep -v 'PNG image' | grep -v 'text')"
+    # echo $binaries 1>&2
+    find . -type f ! -size 0 -exec file {} \; | grep -v .git | grep -v 'PNG image' | grep -v 'text' 1>&2
 
 done < <(git rev-list --reverse ${common_ancestor}..${current_branch})
 
