@@ -3097,7 +3097,8 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 #endif
 }
 
-void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
+void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c,
+               DenseMatrix &a)
 {
    MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
                b.Width() == c.Height(), "incompatible dimensions");
