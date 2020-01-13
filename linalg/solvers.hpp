@@ -475,18 +475,19 @@ public:
 
 class BlockILU0 : public Solver
 {
+private:
+   void CreateBlockPattern(const SparseMatrix &A);
+
+   void Factorize();
 public:
+   BlockILU0(int block_size_ = 1, bool reorder_ = true);
+
    BlockILU0(Operator &op, int block_size_ = 1, bool reorder_ = true);
 
    void SetOperator(const Operator &op);
 
    void Mult(const Vector &b, Vector &x) const;
 
-   void CreateBlockPattern(const SparseMatrix &A);
-
-   void Factorize();
-
-   ~BlockILU0();
 
    int block_size;
    bool reorder;
