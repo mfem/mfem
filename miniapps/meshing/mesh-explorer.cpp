@@ -888,12 +888,14 @@ int main (int argc, char *argv[])
                {
                   mesh->Print(sol_sock);
                }
-	       else if (mk == 'b')
-	       {
-		 bdr_mesh->Print(sol_sock);
-		 bdr_attr.Save(sol_sock);
-		 sol_sock << "maaA\n";		 
-	       }
+               else if (mk == 'b')
+               {
+                 bdr_mesh->Print(sol_sock);
+                 bdr_attr.Save(sol_sock);
+                 sol_sock << "mcaaA";
+                 // Switch to a discrete color scale
+                 sol_sock << "pppppp" << "pppppp" << "pppppp";
+               }
                else
                {
                   // NURBS meshes do not support PrintWithPartitioning
