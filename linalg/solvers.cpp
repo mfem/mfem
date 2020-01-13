@@ -1959,6 +1959,12 @@ void MDFOrdering(SparseMatrix &C, Array<int> &p)
    }
 }
 
+BlockILU0::BlockILU0(int block_size_, bool reorder_)
+   : Solver(0),
+     block_size(block_size_),
+     reorder(reorder_)
+{ }
+
 BlockILU0::BlockILU0(Operator &op, int block_size_, bool reorder_)
    : Solver(op.Height()),
      block_size(block_size_),
@@ -1985,6 +1991,8 @@ void BlockILU0::SetOperator(const Operator &op)
          MFEM_ABORT("BlockILU0 must be created with a SparseMatrix or HypreParMatrix");
       }
    }
+   height = op.Height();
+   width = op.Width();
    MFEM_ASSERT(A->Finalized(), "Matrix must be finalized.");
    CreateBlockPattern(*A);
    Factorize();
@@ -2177,6 +2185,7 @@ void BlockILU0::Factorize()
 
 void BlockILU0::Mult(const Vector &b, Vector &x) const
 {
+   MFEM_ASSERT(height > 0, "BlockILU(0) preconditioner is not constructed");
    int nblockrows = Height()/block_size;
    y.SetSize(Height());
 
@@ -2224,8 +2233,6 @@ void BlockILU0::Mult(const Vector &b, Vector &x) const
       D_ii_inv.Mult(tmp, xi);
    }
 }
-
-BlockILU0::~BlockILU0() { }
 
 #ifdef MFEM_USE_SUITESPARSE
 
