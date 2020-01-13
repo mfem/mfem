@@ -87,7 +87,8 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
 
    for (int i = 0; i < y.Size(); ++i)
    {
-      y[i] = fabs(y[i]); // necessary due to asymmetric signs applied by elem_restrict_lex->MultTranspose.
+      y[i] = fabs(
+                y[i]); // necessary due to asymmetric signs applied by elem_restrict_lex->MultTranspose.
    }
 }
 
