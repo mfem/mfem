@@ -427,10 +427,13 @@ int main(int argc, char *argv[])
    delete u;
    delete B;
    delete b;
-   delete K;
    delete k;
-   delete M;
    delete m;
+   if (!pa)
+   {
+      delete K;
+      delete M;
+   }
    delete fes;
    delete pmesh;
    delete ode_solver;

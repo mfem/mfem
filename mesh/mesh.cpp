@@ -500,7 +500,6 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
       {
          Array<int> vdofs;
          Nodes->FESpace()->GetFaceVDofs(FaceNo, vdofs);
-         const GridFunction &nodes = *Nodes;
          int n = vdofs.Size()/spaceDim;
          pm.SetSize(spaceDim, n);
          for (int i = 0; i < spaceDim; i++)
