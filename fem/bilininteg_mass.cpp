@@ -1128,11 +1128,11 @@ static void PAMassApply(const int dim,
                       (D1D==4||D1D==5) ? 8 :
                       (D1D==6||D1D==7) ? 4 :
                       (D1D==8||D1D==9) ? 2 : 1;
-      return SmemPAMassApply2D(NE, B, op, x, y, D1D, Q1D, NBZ);
+      return SmemPAMassApply2D(NE, B, D, X, Y, D1D, Q1D, NBZ);
    }
    if (dim == 3)
    {
-      return SmemPAMassApply3D(NE, B,op, x, y, D1D, Q1D);
+      return SmemPAMassApply3D(NE, B,D, X, Y, D1D, Q1D);
    }
 #endif
    MFEM_ABORT("Unknown kernel.");

@@ -1568,11 +1568,11 @@ static void PADiffusionApply(const int dim,
                       (D1D==4||D1D==5) ? 8 :
                       (D1D==6||D1D==7) ? 4 :
                       (D1D==8||D1D==9) ? 2 : 1;
-      return SmemPADiffusionApply2D(NE, B, G, op, x, y, D1D, Q1D, NBZ);
+      return SmemPADiffusionApply2D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D,NBZ);
    }
    if (dim == 3)
    {
-      return SmemPADiffusionApply3D(NE, B, G, op, x, y, D1D, Q1D);
+      return SmemPADiffusionApply3D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
    }
 #endif
    MFEM_ABORT("Unknown kernel.");

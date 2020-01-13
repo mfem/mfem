@@ -248,9 +248,9 @@ endif
 # JIT configuration
 ifeq ($(MFEM_USE_JIT),YES)
    MFEM_EXT_LIBS += -ldl
-   ifneq ($(MFEM_SHARED),YES)
-      $(error Incompatible config: MFEM_USE_JIT requires MFEM_SHARED)
-   endif
+#   ifneq ($(MFEM_SHARED),YES)
+#      $(error Incompatible config: MFEM_USE_JIT requires MFEM_SHARED)
+#   endif
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
