@@ -3455,7 +3455,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    }
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
-   int faceMap1[dof], faceMap2[dof];
+   Array<int> faceMap1(dof), faceMap2(dof);
    int e1, e2;
    int inf1, inf2;
    int face_id1, face_id2;

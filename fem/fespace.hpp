@@ -972,7 +972,7 @@ public:
    H1FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering, const FaceType);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   static void GetFaceDofs(const int dim, const int face_id, const int dof1d, int* faceMap);
+   static void GetFaceDofs(const int dim, const int face_id, const int dof1d, Array<int> &faceMap);
 };
 
 /// Operator that extracts Face degrees of freedom.
