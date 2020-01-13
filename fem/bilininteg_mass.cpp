@@ -1576,7 +1576,7 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag) const
+void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
       PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne, dof_map,
@@ -2810,7 +2810,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag) const
+void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
       PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, ne, dof_map,
