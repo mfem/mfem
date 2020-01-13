@@ -17,6 +17,8 @@
 #ifdef MFEM_USE_SIDRE
 
 #include "datacollection.hpp"
+
+// Ignore warnings from the axom/sidre header (GCC + Clang versions)
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 # pragma GCC diagnostic push
 # if defined(__clang__)
@@ -25,7 +27,7 @@
 #  pragma GCC diagnostic ignored "-Wpedantic"
 # endif
 #endif
-#include <sidre/sidre.hpp>
+#include <axom/sidre.hpp>
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 # pragma GCC diagnostic pop
 #endif
@@ -246,7 +248,7 @@ public:
     */
    void RegisterField(const std::string &field_name, GridFunction *gf,
                       const std::string &buffer_name,
-                      axom::sidre::SidreLength offset);
+                      axom::sidre::IndexType offset);
 
    /// Registers an attribute field in the Sidre DataStore
    /** The registration process is similar to that of RegisterField()
@@ -385,7 +387,7 @@ public:
     */
    axom::sidre::View *
    AllocNamedBuffer(const std::string& buffer_name,
-                    axom::sidre::SidreLength sz,
+                    axom::sidre::IndexType sz,
                     axom::sidre::TypeID type =
                        axom::sidre::DOUBLE_ID);
 
@@ -469,7 +471,7 @@ private:
    void addScalarBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,
                                    const std::string &buffer_name,
-                                   axom::sidre::SidreLength offset);
+                                   axom::sidre::IndexType offset);
 
    /**
     * \brief A private helper function to set up the views associated with the
@@ -483,7 +485,7 @@ private:
    void addVectorBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,
                                    const std::string &buffer_name,
-                                   axom::sidre::SidreLength offset);
+                                   axom::sidre::IndexType offset);
 
    /** @brief A private helper function to set up the Views associated with
        attribute field named @a field_name */
