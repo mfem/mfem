@@ -14,6 +14,7 @@
 
 #include "../general/forall.hpp"
 #include "bilinearform.hpp"
+#include "libceed/ceed.hpp"
 
 namespace mfem
 {
@@ -86,8 +87,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
 
    for (int i = 0; i < y.Size(); ++i)
    {
-      y[i] = fabs(
-                y[i]);   // necessary due to asymmetric signs applied by elem_restrict_lex->MultTranspose.
+      y[i] = fabs(y[i]); // necessary due to asymmetric signs applied by elem_restrict_lex->MultTranspose.
    }
 }
 
@@ -133,7 +133,16 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (elem_restrict_lex)
+   if (DeviceCanUseCeed() || !elem_restrict_lex)
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultPA(x, y);
+      }
+   }
+   else
    {
       elem_restrict_lex->Mult(x, localX);
       localY = 0.0;
@@ -142,15 +151,6 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          integrators[i]->AddMultPA(localX, localY);
       }
       elem_restrict_lex->MultTranspose(localY, y);
-   }
-   else
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(x, y);
-      }
    }
 }
 
