@@ -23,7 +23,8 @@ namespace mfem
 using namespace std;
 
 FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
-   : Nodes(Do) {
+   : Nodes(Do)
+{
    Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
    RangeType = SCALAR;
    MapType = VALUE;
@@ -123,7 +124,7 @@ void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix &I) const
 {
-     MFEM_ABORT("method is not overloaded !");
+   MFEM_ABORT("method is not overloaded !");
 }
 
 void FiniteElement::Project (

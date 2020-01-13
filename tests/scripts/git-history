@@ -69,7 +69,14 @@ while read -r rev; do
 
     # Find all non-empty binary files in the current commit (use the output of
     # the "file" command, excluding text files and PNG images)
-    find . -type f ! -size 0 -exec file {} \; | grep -v .git | grep -v 'PNG image' | grep -v 'text' 1>&2
+    for fname in $(find . -type f ! -size 0 | grep -v .git)
+    do
+	if (( file $fname | | grep -v 'PNG image' | grep -v 'text' ))
+	then
+            echo "ATTENTION: The commit $(git log -1 --format=%H) contains a binary file!" 1>&2
+            echo "           The filename is: $(file $fname)." 1>&2
+	fi
+    done
 
 done < <(git rev-list --reverse ${common_ancestor}..${current_branch})
 
