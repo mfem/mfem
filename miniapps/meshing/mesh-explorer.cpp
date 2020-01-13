@@ -120,6 +120,7 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
 
 Mesh *skin_mesh(Mesh *mesh)
 {
+   // Determine mapping from vertex to boundary vertex
    Array<int> v2v(mesh->GetNV());
    v2v = -1;
    for (int i = 0; i < mesh->GetNBE(); i++)
@@ -140,78 +141,88 @@ Mesh *skin_mesh(Mesh *mesh)
          v2v[i] = nbvt++;
       }
    }
-  
+
+   // Create a new mesh for the boundary
    Mesh * bmesh = new Mesh(mesh->Dimension() - 1, nbvt, mesh->GetNBE(),
                            0, mesh->SpaceDimension());
 
+   // Copy vertices to the boundary mesh
    nbvt = 0;
    for (int i = 0; i < v2v.Size(); i++)
    {
       if (v2v[i] >= 0)
       {
-	double *c = mesh->GetVertex(i);
-	bmesh->AddVertex(c);
-	nbvt++;
+         double *c = mesh->GetVertex(i);
+         bmesh->AddVertex(c);
+         nbvt++;
       }
    }
-   
-   int bv[4];   
+
+   // Copy elements to the boundary mesh
+   int bv[4];
    for (int i = 0; i < mesh->GetNBE(); i++)
    {
       Element *el = mesh->GetBdrElement(i);
       int *v = el->GetVertices();
       int nv = el->GetNVertices();
-      
+
       for (int j = 0; j < nv; j++)
       {
-	bv[j] = v2v[v[j]];
+         bv[j] = v2v[v[j]];
       }
 
-      switch(el->GetGeometryType())
-	{
-	case Geometry::SEGMENT:
-	  bmesh->AddSegment(bv, el->GetAttribute());
-	  break;
-	case Geometry::TRIANGLE:
-	  bmesh->AddTriangle(bv, el->GetAttribute());
-	  break;
-	case Geometry::SQUARE:
-	  bmesh->AddQuad(bv, el->GetAttribute());
-	  break;
-	default:
-	  break; /// This should not happen
-	}
+      switch (el->GetGeometryType())
+      {
+         case Geometry::SEGMENT:
+            bmesh->AddSegment(bv, el->GetAttribute());
+            break;
+         case Geometry::TRIANGLE:
+            bmesh->AddTriangle(bv, el->GetAttribute());
+            break;
+         case Geometry::SQUARE:
+            bmesh->AddQuad(bv, el->GetAttribute());
+            break;
+         default:
+            break; /// This should not happen
+      }
 
    }
    bmesh->FinalizeTopology();
 
+   // Copy GridFunction describing nodes if present
    if (mesh->GetNodes())
    {
       FiniteElementSpace *fes = mesh->GetNodes()->FESpace();
       const FiniteElementCollection *fec = fes->FEColl();
-      FiniteElementCollection *fec_copy =
-         FiniteElementCollection::New(fec->Name());
-      FiniteElementSpace *fes_copy =
-         new FiniteElementSpace(*fes, bmesh, fec_copy);
-      GridFunction *bdr_nodes = new GridFunction(fes_copy);
-      bdr_nodes->MakeOwner(fec_copy);
+      if (dynamic_cast<const H1_FECollection*>(fec))
+      {
+         FiniteElementCollection *fec_copy =
+            FiniteElementCollection::New(fec->Name());
+         FiniteElementSpace *fes_copy =
+            new FiniteElementSpace(*fes, bmesh, fec_copy);
+         GridFunction *bdr_nodes = new GridFunction(fes_copy);
+         bdr_nodes->MakeOwner(fec_copy);
 
-      bmesh->NewNodes(*bdr_nodes, true);
+         bmesh->NewNodes(*bdr_nodes, true);
 
-      Array<int> vdofs;
-      Array<int> bvdofs;
-      Vector v;
-      for (int i=0; i<mesh->GetNBE(); i++)
-	{
-	  fes->GetBdrElementVDofs(i, vdofs);
-	  mesh->GetNodes()->GetSubVector(vdofs, v);
+         Array<int> vdofs;
+         Array<int> bvdofs;
+         Vector v;
+         for (int i=0; i<mesh->GetNBE(); i++)
+         {
+            fes->GetBdrElementVDofs(i, vdofs);
+            mesh->GetNodes()->GetSubVector(vdofs, v);
 
-	  fes_copy->GetElementVDofs(i, bvdofs);
-	  bdr_nodes->SetSubVector(bvdofs, v);
-	}
-
+            fes_copy->GetElementVDofs(i, bvdofs);
+            bdr_nodes->SetSubVector(bvdofs, v);
+         }
+      }
+      else
+      {
+         cout << "\nDiscontinuous nodes not yet supported" << endl;
+      }
    }
-   
+
    return bmesh;
 }
 
@@ -646,23 +657,23 @@ int main (int argc, char *argv[])
 
          if (mk == 'b')
          {
-	   if (dim == 3)
-	   {
-	     delete bdr_mesh;
-	     bdr_mesh = skin_mesh(mesh);
-	     bdr_attr_fespace =
-	       new FiniteElementSpace(bdr_mesh, bdr_attr_fec);
-	     bdr_part.SetSize(bdr_mesh->GetNE());
-	     bdr_attr.SetSpace(bdr_attr_fespace);
-             for (int i = 0; i < bdr_mesh->GetNE(); i++)
-             {
-               bdr_part[i] = (bdr_attr(i) = bdr_mesh->GetAttribute(i)) - 1;
-	     }
-	   }
-	   else
-	   {
-	     attr = 1.0;
-	   }
+            if (dim == 3)
+            {
+               delete bdr_mesh;
+               bdr_mesh = skin_mesh(mesh);
+               bdr_attr_fespace =
+                  new FiniteElementSpace(bdr_mesh, bdr_attr_fec);
+               bdr_part.SetSize(bdr_mesh->GetNE());
+               bdr_attr.SetSpace(bdr_attr_fespace);
+               for (int i = 0; i < bdr_mesh->GetNE(); i++)
+               {
+                  bdr_part[i] = (bdr_attr(i) = bdr_mesh->GetAttribute(i)) - 1;
+               }
+            }
+            else
+            {
+               attr = 1.0;
+            }
          }
 
          if (mk == 'v')
@@ -689,7 +700,7 @@ int main (int argc, char *argv[])
                // part[i] = i; // checkerboard element coloring
                attr(i) = part[i] = i; // coloring by element number
             }
-	 }
+         }
 
          if (mk == 'h')
          {
@@ -890,11 +901,11 @@ int main (int argc, char *argv[])
                }
                else if (mk == 'b')
                {
-                 bdr_mesh->Print(sol_sock);
-                 bdr_attr.Save(sol_sock);
-                 sol_sock << "mcaaA";
-                 // Switch to a discrete color scale
-                 sol_sock << "pppppp" << "pppppp" << "pppppp";
+                  bdr_mesh->Print(sol_sock);
+                  bdr_attr.Save(sol_sock);
+                  sol_sock << "mcaaA";
+                  // Switch to a discrete color scale
+                  sol_sock << "pppppp" << "pppppp" << "pppppp";
                }
                else
                {
@@ -912,19 +923,19 @@ int main (int argc, char *argv[])
                      mesh->PrintWithPartitioning(part, sol_sock);
                   }
                }
-	       if (mk != 'b')
-	       {
-		 attr.Save(sol_sock);
-		 sol_sock << "maaA";
-		 if (mk == 'v')
-		   {
-		     sol_sock << "aa";
-		   }
-		 else
-		   {
-		     sol_sock << "\n";
-		   }
-	       }
+               if (mk != 'b')
+               {
+                  attr.Save(sol_sock);
+                  sol_sock << "maaA";
+                  if (mk == 'v')
+                  {
+                     sol_sock << "aa";
+                  }
+                  else
+                  {
+                     sol_sock << "\n";
+                  }
+               }
             }
             sol_sock << flush;
          }
