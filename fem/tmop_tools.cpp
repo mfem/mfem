@@ -29,10 +29,10 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
-   int myid = 0;
    Mesh *m = mesh;
 
 #ifdef MFEM_USE_MPI
+   int myid = 0;
    if (pfes) { MPI_Comm_rank(pfes->GetComm(), &myid); }
    if (pmesh) { m = pmesh; }
 #endif
