@@ -21,7 +21,7 @@ case $1 in
    where: {mfem_dir}  is the MFEM source directory [default value: ../..]
           -h|-help    prints this usage information and exits
 
-   This script runs several documentation-related tests in mfem_dir.
+   This script runs documentation-related tests in mfem_dir.
 
    Example usage: $0 ../..
 
@@ -48,4 +48,5 @@ make status
 # Test the build of the Doxygen documentation
 cd doc; make clean; make
 
+# Return to the original directory
 cd $cur_dir

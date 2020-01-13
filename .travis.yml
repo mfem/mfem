@@ -9,7 +9,9 @@ stages:
 jobs:
   include:
 
-    # Checks:
+    # ========================
+    #         Checks
+    # ========================
     # - code-style
     # - git-history
     # - documentation
@@ -33,8 +35,9 @@ jobs:
         depth: false
       script:
         - cd ${TRAVIS_BUILD_DIR}
-        # update master and checkout a branch (otherwise Travis works in detached head)
+        # update master
         - git fetch origin master:master
+        # checkout a branch (otherwise Travis works in detached head)
         - git checkout -b travis_tests
         - cd tests/scripts
         - ./runtest git-history
@@ -70,7 +73,14 @@ jobs:
         - cd tests/scripts
         - ./runtest gitignore
 
-    # Linux Tests
+    # ========================
+    #       Linux tests
+    # ========================
+    # - serial + debug
+    # - serial
+    # - parallel + debug
+    # - parallel
+
     - stage: tests
       os: linux
       compiler: gcc
@@ -79,7 +89,7 @@ jobs:
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
-    #
+
     - os: linux
       compiler: gcc
       name: "Linux: Serial"
@@ -87,7 +97,7 @@ jobs:
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
-    #
+
     - os: linux
       compiler: gcc
       name: "Linux: Parallel + Debug"
@@ -117,7 +127,7 @@ jobs:
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
+
     - os: linux
       compiler: gcc
       name: "Linux: Parallel"
@@ -148,9 +158,14 @@ jobs:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
 
-    #
-    # Mac OS X Tests
-    #
+    # ========================
+    #      Mac OS X tests
+    # ========================
+    # - serial + debug
+    # - serial
+    # - parallel + debug
+    # - parallel
+
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
@@ -159,7 +174,7 @@ jobs:
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
-    #
+
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
@@ -168,7 +183,7 @@ jobs:
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
-    #
+
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
@@ -188,7 +203,7 @@ jobs:
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
+
     - os: osx
       # osx_image: xcode7.3
       compiler: clang

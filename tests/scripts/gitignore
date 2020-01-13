@@ -21,7 +21,7 @@ case $1 in
    where: {mfem_dir}  is the MFEM source directory [default value: ../..]
           -h|-help    prints this usage information and exits
 
-   This script checks for compliance with MFEM's .gitignore rules in mfem_dir.
+   This script checks for compliance with mfem's .gitignore rules in mfem_dir.
    To be useful, the script should be run after the baseline (or similar) script.
 
    Example usage: $0 ../..
@@ -55,4 +55,5 @@ EOF
 (git status -s | grep -v .gitignore) 1>&2
 mv -f .gitignore-bak .gitignore
 
+# Return to the original directory
 cd $cur_dir

@@ -93,15 +93,16 @@ do
       sed -e 's/^[[:space:]]*$//' "$this_test.err" > "$this_test.tmp"
       mv -f "$this_test.tmp" "$this_test.err"
    fi
+
    # Print the *.err file if not empty
    if [ -s "$this_test.err" ]; then
       runtest_check=1
       printf "=== BEGIN error log from $this_test.err\n"
       printf '\033[0;31m'
-      cat $this_test.err 1>&2
+      (cat $this_test.err) > 1>&2
       printf '\033[0m'
       printf "=== END error log from $this_test.err\n"
-      rm -f $this_test.err $this_test.out
+      # rm -f $this_test.err $this_test.out
    else
       printf '\033[0;32m'
       printf "No errors\n"
@@ -109,6 +110,6 @@ do
    fi
 done
 
-echo ""
+printf "\n"
 
 exit ${runtest_check}

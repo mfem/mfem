@@ -57,4 +57,5 @@ make style
 (grep cout */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
 (grep cerr */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
 
+# Return to the original directory
 cd $cur_dir

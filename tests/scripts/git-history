@@ -63,7 +63,7 @@ while read -r rev; do
     # If the above is more than 50K, print an error
     if [ $changes -gt 50000 ]
     then
-        echo "Commit $(git log -1 --format=%h) is unusually large: it changes in $changes lines of code" 1>&2
+        echo "Commit $(git log -1 --format=%h) is unusually large: it changes $changes lines" 1>&2
     fi
 
     # Find all non-empty binary files in the current commit (use the output of
@@ -73,12 +73,12 @@ while read -r rev; do
 	binary="$(file -b $fname | grep -v 'PNG image' | grep -v 'text')"
 	if [ ! -z "$binary" ]
 	then
-            echo "Commit $(git log -1 --format=%h) contains a binary file: $fname (type $binary)" 1>&2
+            echo "Commit $(git log -1 --format=%h) contains a binary file: $fname ($binary)" 1>&2
 	fi
     done
 
 done < <(git rev-list --reverse ${common_ancestor}..${current_branch})
 
+# Return to the original branch and directory
 git checkout -q ${current_branch}
-
 cd $cur_dir
