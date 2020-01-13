@@ -147,6 +147,21 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
+/// Orientation metric, 2D.
+class TMOP_Metric_orientation2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
 /// Shape, ideal barrier metric, 2D
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
@@ -585,8 +600,10 @@ public:
       GIVEN_SHAPE_AND_SIZE, /**<
          Given shape, given size/volume; the given nodes define the exact target
          Jacobian matrix at all quadrature points. */
-      GIVEN_FULL /**<
+      GIVEN_FULL, /**<
          Full target tensor is specified at every quadrature point. */
+       GIVEN_ORIENTATION /**<
+         Orientation specified by an analytic function */
    };
 
 protected:
@@ -747,13 +764,15 @@ protected:
    TMOP_LimiterFunction *lim_func;
    // Normalization factor for the limiting term.
    double lim_normal;
-   // Flag for derivative calculation
+   // Parameters for Gradient & Hessian calculation
    int der_flag;
    double fdeps = pow(10.,-7.);
    int fdorder;
    double elemenergy;
+
    Array <Vector *> ElemDer;
    Array <Vector *> ElemPertEnergy;
+
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
    //   Jpt: the target->physical transformation Jacobian, Jpt = Jpr Jrt.
