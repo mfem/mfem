@@ -282,7 +282,7 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
 						 x_min(fes_bounds), x_max(fes_bounds)
 {
 	dim = mesh->Dimension();
-	
+// 	
 	int n = fes->GetVSize();
 	int ne = mesh->GetNE();
 	
@@ -295,9 +295,9 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
 						fes->GetFE(0)->GetGeomType(), BdrDofs);
 	NumFaceDofs = BdrDofs.Height();
 	NumBdrs = BdrDofs.Width();
-	
-	FillNeighborDofs();    // Fill NbrDofs.
-	FillSubcell2CellDof(); // Fill Sub2Ind.
+// 	
+	FillNeighborDofs();
+	FillSubcell2CellDof();
 }
 
 void DofInfo::FillNeighborDofs()
@@ -437,6 +437,11 @@ void DofInfo::FillNeighborDofs()
 			}
 		}
 	}
+#ifdef MFEM_USE_MPI
+	// TODO
+#else
+	delete face_to_el;
+#endif
 }
 
 void DofInfo::FillSubcell2CellDof()
@@ -644,9 +649,9 @@ void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
 void DofInfo::ComputeBounds()
 {
 	FiniteElementSpace *fesCG = x_min.FESpace();
-	#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
 	GroupCommunicator &gcomm = fesCG->GroupComm();
-	#endif
+#endif
 	Array<int> dofsCG;
 	
 	// Form min/max at each CG dof, considering element overlaps.
@@ -664,12 +669,12 @@ void DofInfo::ComputeBounds()
 	Array<double> minvals(x_min.GetData(), x_min.Size()),
 	maxvals(x_max.GetData(), x_max.Size());
 	
-	#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
 	gcomm.Reduce<double>(minvals, GroupCommunicator::Min);
 	gcomm.Bcast(minvals);
 	gcomm.Reduce<double>(maxvals, GroupCommunicator::Max);
 	gcomm.Bcast(maxvals);
-	#endif
+#endif
 	
 	// Use (x_min, x_max) to fill (xi_min, xi_max) for each DG dof.
 	const TensorBasisElement *fe_cg =

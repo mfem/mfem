@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
    L2_FECollection fec(config.order, dim, btype);
    FiniteElementSpace fes(&mesh, &fec);
 	cout << "Number of unknowns: " << fes.GetVSize() << endl;
-	
+
 	HyperbolicSystem *hyp;
 	switch (config.ProblemNum)
 	{

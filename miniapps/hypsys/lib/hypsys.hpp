@@ -50,9 +50,10 @@ public:
 	
 	mutable Vector z;
 
-	HyperbolicSystem(FiniteElementSpace *fes_, Configuration &config)
+	HyperbolicSystem(FiniteElementSpace *fes_, Configuration &config/*,
+						  DofInfo &dofs_*/)
 						: TimeDependentOperator(fes_->GetVSize()), fes(fes_),
-						  scheme(config.scheme), inflow(fes_), z(fes_->GetVSize())
+						  scheme(config.scheme), inflow(fes_), /*dofs(dofs_), */z(fes_->GetVSize())
 	{
 		Mesh *mesh = fes->GetMesh();
 		IntRuleElem = GetElementIntegrationRule(fes);
@@ -66,9 +67,10 @@ public:
 		
 		// The min and max bounds are represented as CG functions of the same order
 		// as the solution, thus having 1:1 dof correspondence inside each element.
-		H1_FECollection fecBounds(max(fes->GetOrder(0), 1), dim, BasisType::GaussLobatto);
+		H1_FECollection fecBounds(max(fes->GetFE(0)->GetOrder(), 1), dim,
+										  BasisType::GaussLobatto);
 		FiniteElementSpace fesBounds(mesh, &fecBounds);
-		dofs = new DofInfo(fes, &fesBounds);
+		dofs =  new DofInfo(fes, &fesBounds);
 		
 		ShapeEval.SetSize(nd,nqe);
 		DShapeEval.SetSize(nd,dim,nqe);
@@ -115,9 +117,9 @@ public:
 	
    virtual ~HyperbolicSystem()
 	{
+		delete dofs;
 		delete MassMat;
 		delete InvMassMat;
-		delete dofs;
 	};
 
    virtual void PreprocessProblem(FiniteElementSpace *fes, GridFunction &u);

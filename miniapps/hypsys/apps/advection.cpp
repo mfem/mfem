@@ -9,7 +9,7 @@ double InitialCondition(const Vector &x);
 double Inflow(const Vector &x);
 
 Advection::Advection(FiniteElementSpace *fes_, Configuration &config)
-   : HyperbolicSystem(fes_, config), fes(fes_)
+							: HyperbolicSystem(fes_, config), fes(fes_)
 {
    ConfigNum = config.ConfigNum;
    dim = fes->GetMesh()->Dimension();
