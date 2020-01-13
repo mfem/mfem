@@ -521,7 +521,7 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if(type==FaceType::Interior)
+         if (type==FaceType::Interior)
          {
             if (L2FI_lex.Ptr() == NULL)
             {
@@ -539,7 +539,7 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
          }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if(type==FaceType::Interior)
+      if (type==FaceType::Interior)
       {
          if (L2FI_nat.Ptr() == NULL)
          {
@@ -560,7 +560,7 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if(type==FaceType::Interior)
+         if (type==FaceType::Interior)
          {
             if (L2FI_lex.Ptr() == NULL)
             {
@@ -578,7 +578,7 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
          }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if(type==FaceType::Interior)
+      if (type==FaceType::Interior)
       {
          if (L2FI_nat.Ptr() == NULL)
          {
@@ -606,11 +606,12 @@ const Operator *ParFiniteElementSpace::GetSingleValuedFaceRestriction(
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if(type==FaceType::Interior)
+         if (type==FaceType::Interior)
          {
             if (L2FI_lex.Ptr() == NULL)
             {
-               L2FI_lex.Reset(new ParL2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+               L2FI_lex.Reset(new ParL2FaceRestriction(*this, e_ordering, type,
+                                                       L2FaceValues::Single));
             }
             return L2FI_lex.Ptr();
          }
@@ -618,17 +619,19 @@ const Operator *ParFiniteElementSpace::GetSingleValuedFaceRestriction(
          {
             if (L2FB_lex.Ptr() == NULL)
             {
-               L2FB_lex.Reset(new ParL2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+               L2FB_lex.Reset(new ParL2FaceRestriction(*this, e_ordering, type,
+                                                       L2FaceValues::Single));
             }
             return L2FB_lex.Ptr();
          }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if(type==FaceType::Interior)
+      if (type==FaceType::Interior)
       {
          if (L2FI_nat.Ptr() == NULL)
          {
-            L2FI_nat.Reset(new ParL2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+            L2FI_nat.Reset(new ParL2FaceRestriction(*this, e_ordering, type,
+                                                    L2FaceValues::Single));
          }
          return L2FI_nat.Ptr();
       }
@@ -636,7 +639,8 @@ const Operator *ParFiniteElementSpace::GetSingleValuedFaceRestriction(
       {
          if (L2FB_nat.Ptr() == NULL)
          {
-            L2FB_nat.Reset(new ParL2FaceRestriction(*this, e_ordering, type, L2FaceValues::Single));
+            L2FB_nat.Reset(new ParL2FaceRestriction(*this, e_ordering, type,
+                                                    L2FaceValues::Single));
          }
          return L2FB_nat.Ptr();
       }
@@ -645,7 +649,7 @@ const Operator *ParFiniteElementSpace::GetSingleValuedFaceRestriction(
    {
       if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
       {
-         if(type==FaceType::Interior)
+         if (type==FaceType::Interior)
          {
             if (L2FI_lex.Ptr() == NULL)
             {
@@ -663,7 +667,7 @@ const Operator *ParFiniteElementSpace::GetSingleValuedFaceRestriction(
          }
       }
       // e_ordering == ElementDofOrdering::NATIVE
-      if(type==FaceType::Interior)
+      if (type==FaceType::Interior)
       {
          if (L2FI_nat.Ptr() == NULL)
          {
@@ -3430,7 +3434,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(nf > 0 ? fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
+     dof(nf > 0 ? fes.GetTraceElement(0,
+                                      fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
      m(m),
      nfdofs(nf*dof),
      indices1(nf*dof),
@@ -3441,12 +3446,13 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   if(!dof_reorder) mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
+   if (!dof_reorder) { mfem_error("Non-Tensor L2FaceRestriction not yet implemented."); }
    if (dof_reorder && nf > 0)
    {
       for (int f = 0; f < fes.GetNF(); ++f)
       {
-         const FiniteElement *fe = fes.GetTraceElement(f,fes.GetMesh()->GetFaceBaseGeometry(f));
+         const FiniteElement *fe = fes.GetTraceElement(f,
+                                                       fes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
@@ -3468,18 +3474,22 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if(dof_reorder){
+      if (dof_reorder)
+      {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
          H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
          H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
-      } else {
+      }
+      else
+      {
          mfem_error("FaceRestriction not yet implemented for this type of element.");
          //TODO Something with GetFaceDofs?
       }
-      if (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0) )) //Interior/shared face
+      if (type==FaceType::Interior && (e2>=0 || (e2<0 &&
+                                                 inf2>=0) )) //Interior/shared face
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -3495,7 +3505,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             {
                for (int d = 0; d < dof; ++d)
                {
-                  const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
+                  const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2,
+                                                                  orientation, dof1d, d);
                   const int face_dof = faceMap2[pd];
                   const int did = face_dof;
                   const int gid = elementMap[e2*elem_dofs + did];
@@ -3503,14 +3514,15 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                   indices2[lid] = gid;
                }
             }
-            else if(inf2>=0)//shared boundary
+            else if (inf2>=0) //shared boundary
             {
                const int se2 = -1 - e2;
                Array<int> sharedDofs;
                fes.GetFaceNbrElementVDofs(se2, sharedDofs);
                for (int d = 0; d < dof; ++d)
                {
-                  const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
+                  const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2,
+                                                                  orientation, dof1d, d);
                   const int face_dof = faceMap2[pd];
                   const int did = face_dof;
                   const int gid = sharedDofs[did];
@@ -3548,7 +3560,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
    ParGridFunction x_gf;
-   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&fes), const_cast<Vector&>(x), 0);
+   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&fes), const_cast<Vector&>(x),
+                0);
    x_gf.ExchangeFaceNbrData();
 
    // Assumes all elements have the same number of dofs
@@ -3557,7 +3570,8 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const bool t = byvdim;
    const int treshold = ndofs;
 
-   if(m==L2FaceValues::Double){
+   if (m==L2FaceValues::Double)
+   {
       auto d_indices1 = indices1.Read();
       auto d_indices2 = indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
@@ -3575,11 +3589,11 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
-            if(idx2>-1 && idx2<treshold) //interior face
+            if (idx2>-1 && idx2<treshold) //interior face
             {
                d_y(dof, c, 1, face) = d_x(t?c:idx2, t?idx2:c);
             }
-            else if(idx2>=treshold) //shared boundary
+            else if (idx2>=treshold) //shared boundary
             {
                d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-treshold), t?(idx2-treshold):c);
             }
@@ -3589,7 +3603,9 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
             }
          }
       });
-   } else {
+   }
+   else
+   {
       auto d_indices1 = indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, nf);
@@ -3602,7 +3618,7 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          {
             d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
          }
-      });      
+      });
    }
 }
 
@@ -3613,7 +3629,8 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    const int vd = vdim;
    const bool t = byvdim;
    const int treshold = ndofs;
-   if(m==L2FaceValues::Double){
+   if (m==L2FaceValues::Double)
+   {
       auto d_indices1 = indices1.Read();
       auto d_indices2 = indices2.Read();
       auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
@@ -3625,10 +3642,12 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          for (int c = 0; c < vd; ++c)
          {
             MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, 0, i / nd));
-            if(idx2>-1 && idx2<treshold) MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd));
+            if (idx2>-1 && idx2<treshold) { MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd)); }
          }
       });
-   }else{
+   }
+   else
+   {
       auto d_indices1 = indices1.Read();
       auto d_x = Reshape(x.Read(), nd, vd, nf);
       auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
@@ -3639,7 +3658,7 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          {
             MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, i / nd));
          }
-      });      
+      });
    }
 }
 

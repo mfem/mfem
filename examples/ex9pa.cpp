@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   
+
    Device device(device_config);
    device.Print();
 

@@ -37,10 +37,10 @@ static void PADGTraceSetup2D(const int Q1D,
    auto n = Reshape(nor.Read(), Q1D, VDIM, NF);
    const bool const_r = rho.Size() == 1;
    auto R =
-         const_r ? Reshape(rho.Read(), 1,1) : Reshape(rho.Read(), Q1D,NF);
+      const_r ? Reshape(rho.Read(), 1,1) : Reshape(rho.Read(), Q1D,NF);
    const bool const_v = vel.Size() == 2;
    auto V =
-         const_v ? Reshape(vel.Read(), 2,1,1) : Reshape(vel.Read(), 2,Q1D,NF);
+      const_v ? Reshape(vel.Read(), 2,1,1) : Reshape(vel.Read(), 2,Q1D,NF);
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, 2, 2, NF);
 
@@ -80,10 +80,10 @@ static void PADGTraceSetup3D(const int Q1D,
    auto n = Reshape(nor.Read(), Q1D, Q1D, VDIM, NF);
    const bool const_r = rho.Size() == 1;
    auto R =
-         const_r ? Reshape(rho.Read(), 1,1,1) : Reshape(rho.Read(), Q1D,Q1D,NF);
+      const_r ? Reshape(rho.Read(), 1,1,1) : Reshape(rho.Read(), Q1D,Q1D,NF);
    const bool const_v = vel.Size() == 3;
    auto V =
-         const_v ? Reshape(vel.Read(), 3,1,1,1) : Reshape(vel.Read(), 3,Q1D,Q1D,NF);
+      const_v ? Reshape(vel.Read(), 3,1,1,1) : Reshape(vel.Read(), 3,Q1D,Q1D,NF);
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, Q1D, 2, 2, NF);
 
@@ -138,29 +138,31 @@ static void PADGTraceSetup(const int dim,
 void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
    nf = fes.GetNFbyType(type);
-   if(nf==0)return;
+   if (nf==0) { return; }
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetTraceElement(0,fes.GetMesh()->GetFaceBaseGeometry(0));
-   FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(0);
+   const FiniteElement &el = *fes.GetTraceElement(0,
+                                                  fes.GetMesh()->GetFaceBaseGeometry(0));
+   FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(
+                                      0);
    const IntegrationRule *ir = &GetRule(el.GetGeomType(), el.GetOrder(), T);
    const int symmDims = 4;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    // nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
    geom = mesh->GetFaceGeometricFactors(*ir,
-      FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
+                                        FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
    Vector r;
-   if(rho==nullptr)
+   if (rho==nullptr)
    {
       r.SetSize(1);
       r(0) = 1.0;
    }
-   else if(ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
+   else if (ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
    {
       r.SetSize(1);
       r(0) = c_rho->constant;
@@ -176,7 +178,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
          int inf1, inf2;
          fes.GetMesh()->GetFaceElements(f, &e1, &e2);
          fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) )
+         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+             (type==FaceType::Boundary && e2<0 && inf2<0) )
          {
             ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
             for (int q = 0; q < nq; ++q)
@@ -189,7 +192,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
    }
    Vector vel;
-   if(VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>(u))
+   if (VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>
+                                        (u))
    {
       vel = c_u->GetVec();
    }
@@ -205,7 +209,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
          int inf1, inf2;
          fes.GetMesh()->GetFaceElements(f, &e1, &e2);
          fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) || (type==FaceType::Boundary && e2<0 && inf2<0) )
+         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+             (type==FaceType::Boundary && e2<0 && inf2<0) )
          {
             ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
             for (int q = 0; q < nq; ++q)
@@ -259,7 +264,7 @@ void PADGTraceApply2D(const int NF,
    auto y = Reshape(_y.ReadWrite(), D1D, VDIM, 2, NF);
 
    MFEM_FORALL(f, NF,
-   { 
+   {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
@@ -419,7 +424,8 @@ void PADGTraceApply3D(const int NF,
          {
             for (int c = 0; c < VDIM; c++)
             {
-               DBBu[q1][q2][c] = op(q1,q2,0,0,f)*BBu0[q1][q2][c] + op(q1,q2,1,0,f)*BBu1[q1][q2][c];
+               DBBu[q1][q2][c] = op(q1,q2,0,0,f)*BBu0[q1][q2][c] + op(q1,q2,1,0,
+                                                                      f)*BBu1[q1][q2][c];
             }
          }
       }
@@ -554,7 +560,8 @@ void SmemPADGTraceApply3D(const int NF,
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            DBBu[tidz][q1][q2] = op(q1,q2,0,0,f+tidz)*BBu0[tidz][q1][q2] + op(q1,q2,1,0,f+tidz)*BBu1[tidz][q1][q2];
+            DBBu[tidz][q1][q2] = op(q1,q2,0,0,f+tidz)*BBu0[tidz][q1][q2] + op(q1,q2,1,0,
+                                                                              f+tidz)*BBu1[tidz][q1][q2];
          }
       }
       MFEM_SYNC_THREAD;
@@ -591,14 +598,14 @@ void SmemPADGTraceApply3D(const int NF,
 }
 
 static void PADGTraceApply(const int dim,
-                             const int D1D,
-                             const int Q1D,
-                             const int NF,
-                             const Array<double> &B,
-                             const Array<double> &Bt,
-                             const Vector &op,
-                             const Vector &x,
-                             Vector &y)
+                           const int D1D,
+                           const int Q1D,
+                           const int NF,
+                           const Array<double> &B,
+                           const Array<double> &Bt,
+                           const Vector &op,
+                           const Vector &x,
+                           Vector &y)
 {
    if (dim == 2)
    {

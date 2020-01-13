@@ -132,11 +132,12 @@ void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
 void ParGridFunction::Distribute(const Vector *tv)
 {
    const Operator *prolong = pfes->GetProlongationMatrix();
-   if(prolong)
+   if (prolong)
    {
       prolong->Mult(*tv, *this);
    }
-   else{
+   else
+   {
       *this = *tv;
    }
 }
@@ -223,7 +224,8 @@ void ParGridFunction::ExchangeFaceNbrData()
    Vector send_data(pfes->send_face_nbr_ldof.Size_of_connections());
 
    int *send_offset = pfes->send_face_nbr_ldof.GetI();
-   const int *d_send_ldof = mfem::Read(pfes->send_face_nbr_ldof.GetJMemory(), send_data.Size());
+   const int *d_send_ldof = mfem::Read(pfes->send_face_nbr_ldof.GetJMemory(),
+                                       send_data.Size());
    int *recv_offset = pfes->face_nbr_ldof.GetI();
    MPI_Comm MyComm = pfes->GetComm();
 
@@ -237,7 +239,7 @@ void ParGridFunction::ExchangeFaceNbrData()
    auto d_send_data = send_data.Write();
    MFEM_FORALL(i, send_data.Size(),
    {
-      d_send_data[i] = d_data[d_send_ldof[i]];  
+      d_send_data[i] = d_data[d_send_ldof[i]];
    });
 
    auto h_send_data = send_data.HostRead();
