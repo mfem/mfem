@@ -11,6 +11,14 @@
 Version 4.0.1 (development)
 ===========================
 
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added AdamsBashforth and AdamsMoulton time integrators
+
+Miscellaneous
+-------------
+- Added unit tests for time integrators
+
 
 Version 4.0, released on May 24, 2019
 =====================================
@@ -151,8 +159,6 @@ New and improved solvers and preconditioners
 
 - Added support for STRUMPACK v3 with a small API change in the class
   STRUMPACKSolver, see "API changes" below.
-
-- Added AdamsBashforth and AdamsMoulton time integrators
 
 Miscellaneous
 -------------
