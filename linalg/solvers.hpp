@@ -475,10 +475,6 @@ public:
 
 class BlockILU0 : public Solver
 {
-private:
-   void CreateBlockPattern(const SparseMatrix &A);
-
-   void Factorize();
 public:
    BlockILU0(int block_size_ = 1, bool reorder_ = true);
 
@@ -488,6 +484,16 @@ public:
 
    void Mult(const Vector &b, Vector &x) const;
 
+   int *GetI() { return IB.GetData(); }
+
+   int *GetJ() { return JB.GetData(); }
+
+   double *GetData() { return AB.Data(); }
+
+private:
+   void CreateBlockPattern(const SparseMatrix &A);
+
+   void Factorize();
 
    int block_size;
    bool reorder;
