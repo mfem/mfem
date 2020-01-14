@@ -401,8 +401,10 @@ endif
 DIRS = general linalg mesh fem fem/libceed
 SOURCE_FILES = $(foreach dir,$(DIRS),\
   $(filter-out $(SRC)$(dir)/mpp.cpp, $(wildcard $(SRC)$(dir)/*.cpp)))
+C_SOURCE_FILES = $(foreach dir,$(DIRS), $(wildcard $(SRC)$(dir)/*.c))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
+C_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(C_SOURCE_FILES:.c=.c.o))
 OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
@@ -410,11 +412,13 @@ OKL_DIRS = fem
 	deprecation-warnings
 
 .SUFFIXES:
-.SUFFIXES: .cpp .o
+.SUFFIXES: .cpp .c .o
 # Remove some default implicit rules
 %:	%.o
+%.o:	%.c
 %.o:	%.cpp
 %:	%.cpp
+%:	%.c
 
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
@@ -432,6 +436,8 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) mpp
 else
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+$(C_OBJECT_FILES): $(BLD)%.c.o: $(SRC)%.c $(CONFIG_MK)
+	gcc -g -Wall -std=c11 -c $(<) -o $(@)
 endif
 
 # Rule for compiling kernel source file generator.
@@ -455,9 +461,9 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: $(OBJECT_FILES)
+$(BLD)libmfem.a: $(OBJECT_FILES) $(C_OBJECT_FILES)
 	[ ! -e $(@) ] || rm -f $(@)
-	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
+	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES) $(C_OBJECT_FILES)
 	$(RANLIB) $(@)
 	@$(MAKE) deprecation-warnings
 

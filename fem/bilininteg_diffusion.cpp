@@ -908,6 +908,16 @@ static void PADiffusionApply2D(const int NE,
 }
 #endif
 
+extern "C" void KernelPADiffusionApply2D(const int NE,
+                                         const int D1D,
+                                         const int Q1D,
+                                         const int NBZ,
+                                         const double *b,
+                                         const double *g,
+                                         const double *D,
+                                         const double *x,
+                                         double *Y);
+
 // Shared memory PA Diffusion Apply 2D kernel
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
@@ -935,6 +945,19 @@ static void SmemPADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   /////////////////////////////////////////////////////////////////////////////
+   printf("\n\033[33m[KernelPADiffusionApply2D] %d %d %d, %p, %p\033[m",
+          NE, D1D, Q1D,
+          (double*)Y, y_.ReadWrite());
+   fflush(0);
+   if (getenv("KER"))
+   {
+      KernelPADiffusionApply2D(NE, D1D, Q1D, NBZ,
+                               b_.Read(), g_.Read(), d_.Read(), x_.Read(),
+                               y_.ReadWrite());
+      return;
+   }
+   /////////////////////////////////////////////////////////////////////////////
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -961,6 +984,7 @@ static void SmemPADiffusionApply2D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             X[dy][dx] = x(dx,dy,e);
+            printf("\n\033[33m %f\033[m", X[dy][dx]);
          }
       }
       if (tidz == 0)
