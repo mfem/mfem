@@ -1,10 +1,8 @@
-#include <fstream>
-#include <iostream>
 #include "hypsys.hpp"
 #include "lib/dofs.hpp"
+#include "lib/evolve.cpp"
 #include "apps/advection.hpp"
 // #include "apps/swe.hpp"
-#include "lib/evolve.cpp"
 
 int main(int argc, char *argv[])
 {
@@ -166,10 +164,8 @@ int main(int argc, char *argv[])
    cout << "Difference in solution mass: " <<
 		abs(InitialMass - LumpedMassMat * u) << endl;
    
-	Array<double> errors;
-	hyp->PostprocessProblem(u, errors);
-	cout << errors[0] << endl;
-	
+	hyp->PostprocessProblem(u);
+
    {
       ofstream osol("sol-final.gf");
       osol.precision(precision);

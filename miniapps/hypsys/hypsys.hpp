@@ -1,6 +1,8 @@
 #ifndef MFEM_HYPSYS
 #define MFEM_HYPSYS
 
+#include <fstream>
+#include <iostream>
 #include "mfem.hpp"
 #include "lib/massmat.hpp"
 #include "lib/dofs.hpp"
@@ -134,7 +136,7 @@ public:
 	};
 
    virtual void PreprocessProblem(FiniteElementSpace *fes, GridFunction &u) = 0;
-	virtual void PostprocessProblem(const GridFunction &u, Array<double> &errors) = 0;
+	virtual void PostprocessProblem(const GridFunction &u) = 0;
 	
 	void Mult(const Vector &x, Vector &y) const override;
 	void EvolveStandard(const Vector &x, Vector &y) const;

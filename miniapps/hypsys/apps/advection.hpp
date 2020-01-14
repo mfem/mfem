@@ -16,7 +16,7 @@ public:
 
 	virtual void EvaluateFlux(const Vector &u, DenseMatrix &f) const;
    virtual void PreprocessProblem(FiniteElementSpace *fes, GridFunction &u);
-	virtual void PostprocessProblem(const GridFunction &u, Array<double> &errors);
+	virtual void PostprocessProblem(const GridFunction &u);
 };
 
 #endif

@@ -144,12 +144,11 @@ void Advection::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
    u.ProjectCoefficient(u0);
 }
 
-void Advection::PostprocessProblem(const GridFunction &u, Array<double> &errors)
+void Advection::PostprocessProblem(const GridFunction &u)
 {
-	errors.SetSize(3);
-	
    if (SolutionKnown)
    {
+		Array<double> errors(3);
       switch (ConfigNum)
       {
          case 0:
@@ -170,6 +169,22 @@ void Advection::PostprocessProblem(const GridFunction &u, Array<double> &errors)
          }
          default: MFEM_ABORT("No such test case implemented.");
       }
+      
+      // write output
+      ofstream file("errors.txt", ios_base::app);
+		
+		if (!file)
+		{
+			MFEM_ABORT("Error opening file.");
+		}
+		else
+		{
+			ostringstream strs;
+			strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
+			string str = strs.str();
+			file << str;
+			file.close();
+		}
    }
 }
 

@@ -21,6 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 APP_DIR = apps
 BLD_DIR = build
 LIB_DIR = lib
+OUT_DIR = output
 
 DIRS = $(LIB_DIR) $(APP_DIR)
 
@@ -35,6 +36,13 @@ ifeq ($(MFEM_USE_MPI),NO)
 else
    EXEC_FILES = $(PARALLEL)
 endif
+
+# convergence-test setup
+GEOM = quad
+MESH0 = data/inline-3$(GEOM).mesh
+MESH1 = data/inline-4$(GEOM).mesh
+CONFIG = -p 0 -e 0 -o 2 -c 0 -tf 1 -dt 0.00002 -s 1 -vs 1000
+CONFIG-NAME = p0e0o2
 
 ## Makefile rules. #############################################################
 
@@ -66,6 +74,17 @@ exec: $(EXEC_FILES)
 clean:
 	@rm -f hypsys par-hypsys errors.txt *.gf *.mesh
 	@rm -f $(BLD_DIR)/*
+
+run-convergence-test:
+	rm errors.txt; \
+	./hypsys $(CONFIG) -m $(MESH0) -r 4; \
+	./hypsys $(CONFIG) -m $(MESH1) -r 4; \
+	./hypsys $(CONFIG) -m $(MESH0) -r 5; \
+	./hypsys $(CONFIG) -m $(MESH1) -r 5; \
+	./hypsys $(CONFIG) -m $(MESH0) -r 6; \
+	./hypsys $(CONFIG) -m $(MESH1) -r 6; \
+# 	./hypsys $(CONFIG) -m $(MESH0) -r 7; \
+	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
 
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
