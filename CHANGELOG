@@ -61,6 +61,8 @@ Discretization improvements
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
+- Adding second order derivatives to NURBS shapefunctions
+
 Linear and nonlinear solvers
 ----------------------------
 - Added a general interface for specifying and solving nonlinear constrained
