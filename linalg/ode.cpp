@@ -595,15 +595,11 @@ void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
    first = true;
 }
 
-void GeneralizedAlphaSolver::SetRhoInf(double rho)
+void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
 {
-   rho_inf = rho;
    rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
    rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
-}
 
-void GeneralizedAlphaSolver::SetParams(double rho_inf)
-{
    // According to Jansen
    alpha_m = 0.5*(3.0 - rho_inf)/(1.0 + rho_inf);
    alpha_f = 1.0/(1.0 + rho_inf);
@@ -641,12 +637,8 @@ void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 {
    if (first)
    {
-      SetParams(1.0);
+      f->Mult(x,xdot);
       first = false;
-   }
-   else
-   {
-      SetParams(rho_inf);
    }
 
    // Set y = x + alpha_f*(1.0 - (gamma/alpha_m))*dt*xdot
