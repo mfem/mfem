@@ -1975,7 +1975,8 @@ BlockILU0::BlockILU0(Operator &op, int block_size_, bool reorder_)
 
 void BlockILU0::SetOperator(const Operator &op)
 {
-   const SparseMatrix *A;
+   const SparseMatrix *A = NULL;
+#ifdef MFEM_USE_MPI
    const HypreParMatrix *A_par = dynamic_cast<const HypreParMatrix *>(&op);
    SparseMatrix A_par_diag;
    if (A_par != NULL)
@@ -1983,7 +1984,8 @@ void BlockILU0::SetOperator(const Operator &op)
       A_par->GetDiag(A_par_diag);
       A = &A_par_diag;
    }
-   else
+#endif
+   if (A == NULL)
    {
       A = dynamic_cast<const SparseMatrix *>(&op);
       if (A == NULL)
