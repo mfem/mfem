@@ -62,10 +62,10 @@ private:
    double dt;
 public:
    DG_Solver(SparseMatrix &M_, SparseMatrix &K_, const FiniteElementSpace &fes)
-   : M(M_),
-     K(K_),
-     prec(fes.GetFE(0)->GetDof(), true),
-     dt(-1.0)
+      : M(M_),
+        K(K_),
+        prec(fes.GetFE(0)->GetDof(), true),
+        dt(-1.0)
    {
       solver.iterative_mode = false;
       solver.SetRelTol(1e-9);
@@ -118,7 +118,8 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b, const FiniteElementSpace &fes);
+   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
+                const FiniteElementSpace &fes);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
@@ -402,7 +403,8 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
                            const FiniteElementSpace &fes)
-   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), dg_solver(M, K, fes), z(_M.Size())
+   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), dg_solver(M, K, fes),
+     z(_M.Size())
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
