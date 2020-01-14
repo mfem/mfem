@@ -74,6 +74,8 @@ Linear and nonlinear solvers
   and manycore nodes, with a focus on sparse solution of linear systems. For
   more details see linalg/ginkgo.hpp and the example code in examples/ginko.
 
+- Added several time integrators for 2nd order ODEs
+
 New and updated examples and miniapps
 -------------------------------------
 - Added two new miniapps: Find Points (serial + parallel) and Field Diff in
