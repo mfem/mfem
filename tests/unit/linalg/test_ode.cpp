@@ -65,6 +65,7 @@ TEST_CASE("First order ODE methods",
 
          // Solve
          T.Invert();
+        
          T.Mult(r,dudt);
       }
 
@@ -223,65 +224,65 @@ TEST_CASE("First order ODE methods",
    }
 
    // Adams-Bashforth
- /*  SECTION("AdamsBashforthSolver(1)")
+   SECTION("AB1Solver()")
    {
-      std::cout <<"\nTesting AdamsBashforthSolver(1)" << std::endl;
-      REQUIRE(check.order(new AdamsBashforthSolver(1)) + tol > 1.0 );
+      std::cout <<"\nTesting AB1Solver()" << std::endl;
+      REQUIRE(check.order(new AB1Solver()) + tol > 1.0 );
    }
 
-   SECTION("AdamsBashforthSolver(2)")
+   SECTION("AB2Solver()")
    {
-      std::cout <<"\nTesting AdamsBashforthSolver(2)" << std::endl;
-      REQUIRE(check.order(new AdamsBashforthSolver(2)) + tol > 2.0 );
+      std::cout <<"\nTesting AB2Solver()" << std::endl;
+      REQUIRE(check.order(new AB2Solver()) + tol > 2.0 );
    }
 
-   SECTION("AdamsBashforthSolver(3)")
+   SECTION("AB3Solver()")
    {
-      std::cout <<"\nTesting AdamsBashforthSolver(3)" << std::endl;
-      REQUIRE(check.order(new AdamsBashforthSolver(3)) + tol > 3.0 );
+      std::cout <<"\nTesting AB3Solver()" << std::endl;
+      REQUIRE(check.order(new AB3Solver()) + tol > 3.0 );
    }
 
-   SECTION("AdamsBashforthSolver(4)")
+   SECTION("AB4Solver()")
    {
-      std::cout <<"\nTesting AdamsBashforthSolver(4)" << std::endl;
-      REQUIRE(check.order(new AdamsBashforthSolver(4)) + tol > 4.0 );
+      std::cout <<"\nTesting AB4Solver()" << std::endl;
+      REQUIRE(check.order(new AB4Solver()) + tol > 4.0 );
    }
 
-   SECTION("AdamsBashforthSolver(5)")
+   SECTION("AB5Solver(5)")
    {
-      std::cout <<"\nTesting AdamsBashforthSolver(5)" << std::endl;
-      REQUIRE(check.order(new AdamsBashforthSolver(5)) + tol > 5.0 );
-   }*/
-
- /*  //AdamsMoulton
-   SECTION("AdamsMoultonSolver(0)")
-   {
-      std::cout <<"\nTesting AdamsMoultonSolver(0)" << std::endl;
-      REQUIRE(check.order(new AdamsMoultonSolver(0)) + tol > 1.0 );
+      std::cout <<"\nTesting AB5Solver()" << std::endl;
+      REQUIRE(check.order(new AB5Solver()) + tol > 5.0 );
    }
 
-   SECTION("AdamsMoultonSolver(1)")
+   //Adams-Moulton
+   SECTION("AM0Solver()")
    {
-      std::cout <<"\nTesting AdamsMoultonSolver(1)" << std::endl;
-      REQUIRE(check.order(new AdamsMoultonSolver(1)) + tol > 2.0 );
+      std::cout <<"\nTesting AM0Solver()" << std::endl;
+      REQUIRE(check.order(new AM0Solver()) + tol > 1.0 );
    }
 
-   SECTION("AdamsMoultonSolver(2)")
+   SECTION("AM1Solver()")
    {
-      std::cout <<"\nTesting AdamsMoultonSolver(2)" << std::endl;
-      REQUIRE(check.order(new AdamsMoultonSolver(2)) + tol > 3.0 );
+      std::cout <<"\nTesting AM1Solver()" << std::endl;
+      REQUIRE(check.order(new AM1Solver()) + tol > 2.0 );
    }
 
-   SECTION("AdamsMoultonSolver(3)")
+   SECTION("AM2Solver()")
    {
-      std::cout <<"\nTesting AdamsMoultonSolver(3)" << std::endl;
-      REQUIRE(check.order(new AdamsMoultonSolver(3)) + tol > 4.0 );
+      std::cout <<"\nTesting AM2Solver()" << std::endl;
+      REQUIRE(check.order(new AM2Solver()) + tol > 3.0 );
    }
 
-   SECTION("AdamsMoultonSolver(4)")
+   SECTION("AM3Solver()")
    {
-      std::cout <<"\nTesting AdamsMoultonSolver(4)" << std::endl;
-      REQUIRE(check.order(new AdamsMoultonSolver(4)) + tol > 5.0 );
-   }*/
+      std::cout <<"\nTesting AM3Solver()" << std::endl;
+      REQUIRE(check.order(new AM3Solver()) + tol > 4.0 );
+   }
+
+   SECTION("AM4Solver()")
+   {
+      std::cout <<"\nTesting AM4Solver()" << std::endl;
+      REQUIRE(check.order(new AM4Solver()) + tol > 5.0 );
+   }
 }
 
