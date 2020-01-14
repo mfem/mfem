@@ -224,7 +224,7 @@ public:
 
    ~AdamsBashforthSolver()
    {
-      if (RKsolver) delete RKsolver;
+      if (RKsolver) { delete RKsolver; }
    }
 };
 
@@ -299,7 +299,7 @@ public:
 
    ~AdamsMoultonSolver()
    {
-      if (RKsolver) delete RKsolver;
+      if (RKsolver) { delete RKsolver; }
    };
 };
 

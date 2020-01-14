@@ -19,7 +19,7 @@ using namespace mfem;
 TEST_CASE("First order ODE methods",
           "[ODE1]")
 {
-    double tol = 0.1;
+   double tol = 0.1;
 
    /** Class for simple linear first order ODE.
     *
@@ -65,7 +65,7 @@ TEST_CASE("First order ODE methods",
 
          // Solve
          T.Invert();
-        
+
          T.Mult(r,dudt);
       }
 
