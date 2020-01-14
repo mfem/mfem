@@ -41,7 +41,7 @@ endif
 VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p 0 -e 0
 
 # grid-convergence-test setup
-GEOM = quad
+GEOM = tri
 MESH0 = data/inline-3$(GEOM).mesh
 MESH1 = data/inline-4$(GEOM).mesh
 CONFIG = -p 0 -e 0 -o 1 -c 0 -tf 1 -dt 0.00002 -s 1 -vs 1000

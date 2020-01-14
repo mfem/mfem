@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
    const char *MeshFile = "data/unstr.mesh";
    int refinements = 1;
    config.order = 3;
-   config.tEnd = 1.;
+   config.tFinal = 1.;
    config.dt = 0.001;
    config.odeSolverType = 3;
    config.VisSteps = 100;
@@ -31,8 +31,8 @@ int main(int argc, char *argv[])
    args.AddOption(&refinements, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&config.order, "-o", "--order",
-                  "Order (degree) of the finite elements.");
-   args.AddOption(&config.tEnd, "-tf", "--t-final",
+                  "Order (polynomial degree) of the finite element space.");
+   args.AddOption(&config.tFinal, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&config.dt, "-dt", "--time-step",
                   "Time step.");
@@ -126,11 +126,11 @@ int main(int argc, char *argv[])
 	double dt, res, tol = 1.e-12;
    for (int ti = 0; !done; )
    {
-      dt = min(config.dt, config.tEnd - hyp->t);
+      dt = min(config.dt, config.tFinal - hyp->t);
       odeSolver->Step(hyp->u, hyp->t, dt);
       ti++;
 
-      done = (hyp->t >= config.tEnd - 1.e-8*config.dt);
+      done = (hyp->t >= config.tFinal - 1.e-8*config.dt);
 		
 		if (hyp->SteadyState)
 		{

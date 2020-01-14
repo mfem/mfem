@@ -1,6 +1,6 @@
 function printEOC(filename)
 
-file = fopen([filename '.txt'], 'r');
+file = fopen(filename, 'r');
 data = zeros(0,3);
 while true
   aux = fgets(file);
@@ -22,7 +22,7 @@ end
 
 tab = [data(2:end,1), eoc(:,1), data(2:end,2), eoc(:,2), data(2:end,3), eoc(:,3)];
 
-fprintf('1/%d  & %1.2E &      & %1.2E &      & %1.2E & \\\\\n', numElPerDim(1), data(1,:));
+fprintf('\n1/%d  & %1.2E &      & %1.2E &      & %1.2E & \\\\\n', numElPerDim(1), data(1,:));
 for i = 2:length(numElPerDim)
   if numElPerDim(i) < 100
     fprintf('1/%d  & %1.2E & %1.2f & %1.2E & %1.2f & %1.2E & %1.2f \\\\\n', numElPerDim(i), tab(i-1,:));
@@ -30,4 +30,5 @@ for i = 2:length(numElPerDim)
     fprintf('1/%d & %1.2E & %1.2f & %1.2E & %1.2f & %1.2E & %1.2f \\\\\n', numElPerDim(i), tab(i-1,:));
   end
 end
+fprintf('\n');
 end

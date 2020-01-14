@@ -22,7 +22,6 @@ Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
 		SteadyState = false;
 	}
 	
-	Mesh *mesh = fes->GetMesh();
 	DenseMatrix adjJ(dim);
 	Vector vec;
 	VectorFunctionCoefficient velocity(dim, VelocityFunction);

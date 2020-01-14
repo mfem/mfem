@@ -18,7 +18,7 @@ struct Configuration
 	int ProblemNum;
 	int ConfigNum;
 	int order;
-	double tEnd;
+	double tFinal;
 	double dt;
 	int odeSolverType;
 	int VisSteps;
