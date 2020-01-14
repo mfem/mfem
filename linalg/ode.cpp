@@ -370,10 +370,9 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &_f)
    idx.SetSize(smax);
    for (int i = 0; i < smax; i++)
    {
-      idx[i] = smax-i;
+      idx[i] = (smax-i)%smax;
       k[i].SetSize(f->Width());
    }
-   idx[0] = 0;
    s = 0;
 }
 
@@ -397,7 +396,7 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    t += dt;
 
    // Shift the index
-   for (int i = 0; i < smax; i++) idx[i] = (smax + idx[i] - 1)%smax;
+   for (int i = 0; i < smax; i++) idx[i] = ++idx[i]%smax;
 }
 
 const double AB1Solver::a[] =
@@ -440,7 +439,7 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
    idx.SetSize(smax);
    for (int i = 0; i < smax; i++)
    {
-      idx[i] = i;
+      idx[i] = (smax-i)%smax;
       k[i].SetSize(n);
    }
    s = 0;
@@ -467,8 +466,7 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
    t += dt;
 
    // Shift the index
-   for (int i = 0; i < smax; i++) idx[i] = (smax + idx[i] - 1)%smax;
-
+   for (int i = 0; i < smax; i++) idx[i] = ++idx[i]%smax;
 }
 
 const double AM0Solver::a[] =
