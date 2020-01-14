@@ -397,12 +397,7 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    t += dt;
 
    // Shift the index
-   int tmp = idx[smax-1];
-   for (int i = smax-1; i > 0; i--)
-   {
-      idx[i] = idx[i-1];
-   }
-   idx[0] = tmp;
+   for (int i = 0; i < smax; i++) idx[i] = (smax + idx[i] - 1)%smax;
 }
 
 const double AB1Solver::a[] =
@@ -472,12 +467,8 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
    t += dt;
 
    // Shift the index
-   int tmp = idx[smax-1];
-   for (int i = smax-1; i > 0; i--)
-   {
-      idx[i] = idx[i-1];
-   }
-   idx[0] = tmp;
+   for (int i = 0; i < smax; i++) idx[i] = (smax + idx[i] - 1)%smax;
+
 }
 
 const double AM0Solver::a[] =
