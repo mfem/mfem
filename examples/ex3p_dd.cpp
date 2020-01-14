@@ -1898,12 +1898,12 @@ int main(int argc, char *argv[])
 #endif
 			    hmin);
 
-   cout << "DDI size " << ddi.Height() << " by " << ddi.Width() << endl;
+   cout << myid << ": DDI size " << ddi.Height() << " by " << ddi.Width() << endl;
 
    chronoDDC.Stop();
    if (myid == 0)
      cout << myid << ": DDMInterfaceOperator constructor timing " << chronoDDC.RealTime() << endl;
-   
+
    /*
    {
      Vector t(ddi.Width());

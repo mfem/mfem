@@ -823,9 +823,63 @@ static void PAHcurlSetup2D(const int Q1D,
          const double J22 = J(q,1,1,e);
          const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
          const double c_detJ = W[q] * c / ((J11*J22)-(J21*J12));
+	 // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
          y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
          y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
          y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+      }
+   });
+}
+
+static void PAHcurlSetup2Din3D(const int Q1D,
+			       const int NE,
+			       const Array<double> &w,
+			       const Vector &j,
+			       Vector *coeff,
+			       Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+
+   auto J = Reshape(j.Read(), NQ, 3, 2, NE);
+   auto y = Reshape(op.Write(), NQ, 3, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J31 = J(q,2,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double J32 = J(q,2,1,e);
+	 // Following DenseMatrix::Weight() in the 3x2 case.
+	 double E = J11 * J11 + J21 * J21 + J31 * J31;
+	 double G = J12 * J12 + J22 * J22 + J32 * J32;
+	 double F = J11 * J12 + J21 * J22 + J31 * J32;
+	 const double t = (E*G - F*F);
+	 const double det = sqrt(t);
+	 
+         const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
+         const double c_detJ = W[q] * c * det;
+ 
+	 // Following CalcInverse in densemat.cpp in the 3x2 case.
+	 E /= t;
+	 G /= t;
+	 F /= t;
+	 
+	 const double invJ11 = J11*G - J12*F;
+	 const double invJ21 = J12*E - J11*F;
+	 const double invJ12 = J21*G - J22*F;
+	 const double invJ22 = J22*E - J21*F;
+	 const double invJ13 = J31*G - J32*F;
+	 const double invJ23 = J32*E - J31*F;
+	 
+	 // Compute detJ J^{-1} J^{-T} as a symmetric 2x2 matrix.
+         y(q,0,e) = c_detJ * (invJ11*invJ11 + invJ12*invJ12 + invJ13*invJ13); // 1,1
+         y(q,1,e) = c_detJ * (invJ11*invJ21 + invJ12*invJ22 + invJ13*invJ23); // 1,2
+         y(q,2,e) = c_detJ * (invJ21*invJ21 + invJ22*invJ22 + invJ23*invJ23); // 2,2
       }
    });
 }
@@ -837,6 +891,7 @@ static void PAHcurlSetup3D(const int Q1D,
                            const Array<double> &w,
                            const Vector &j,
                            Vector *coeff,
+			   const bool vectorCoeff,
                            Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
@@ -860,8 +915,11 @@ static void PAHcurlSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
-         const double c_detJ = W[q] * c / detJ;
+         const double c1 = (coeff == NULL) ? 1.0 : (vectorCoeff ? (*coeff)[3 * (q + (e * NQ))] : (*coeff)[q + (e * NQ)]);
+         const double c2 = (coeff == NULL) ? 1.0 : (vectorCoeff ? (*coeff)[(3 * (q + (e * NQ))) + 1] : (*coeff)[q + (e * NQ)]);
+         const double c3 = (coeff == NULL) ? 1.0 : (vectorCoeff ? (*coeff)[(3 * (q + (e * NQ))) + 2] : (*coeff)[q + (e * NQ)]);
+	 
+         const double c_detJ = W[q] / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -872,13 +930,13 @@ static void PAHcurlSetup3D(const int Q1D,
          const double A31 = (J21 * J32) - (J31 * J22);
          const double A32 = (J31 * J12) - (J11 * J32);
          const double A33 = (J11 * J22) - (J12 * J21);
-         // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
-         y(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-         y(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-         y(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-         y(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-         y(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-         y(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+         // detJ J^{-1} coeff J^{-T} = (1/detJ) adj(J) coeff adj(J)^T
+         y(q,0,e) = c_detJ * (A11*c1*A11 + A12*c2*A12 + A13*c3*A13); // 1,1
+         y(q,1,e) = c_detJ * (A11*c1*A21 + A12*c2*A22 + A13*c3*A23); // 2,1
+         y(q,2,e) = c_detJ * (A11*c1*A31 + A12*c2*A32 + A13*c3*A33); // 3,1
+         y(q,3,e) = c_detJ * (A21*c1*A21 + A22*c2*A22 + A23*c3*A23); // 2,2
+         y(q,4,e) = c_detJ * (A21*c1*A31 + A22*c2*A32 + A23*c3*A33); // 3,2
+         y(q,5,e) = c_detJ * (A31*c1*A31 + A32*c2*A32 + A33*c3*A33); // 3,3
       }
    });
 }
@@ -912,10 +970,12 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    quad1D = mapsC->nqpt;
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
-
+   MFEM_VERIFY(!(Q && VQ) && !(Q && MQ) && !(VQ && MQ), "");
+   
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
    Vector *coeff = NULL;
+   bool vectorCoeff = false;
    if (Q)
    {
       coeff = new Vector(ne * nq);
@@ -930,15 +990,43 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
    }
 
+   if (VQ)
+   {
+      MFEM_VERIFY(dim == 3, "Vector coefficient not implemented for dim != 3");
+      vectorCoeff = true;
+      coeff = new Vector(dim * ne * nq);
+      Vector v(dim);
+      
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+	   VQ->Eval(v, *tr, ir->IntPoint(p));
+	   for (int d=0; d<dim; ++d)
+	     (*coeff)[(dim * (p + (e * nq))) + d] = v[d];
+         }
+      }
+   }
+   
    if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
       PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+                     coeff, vectorCoeff, pa_data);
    }
    else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-      PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+     if (mesh->SpaceDimension() == 3)
+       {
+	 MFEM_VERIFY(geom->J.Size() == 9 * ne * nq, "");  // J is 3x3, but entries (i,j) are set only for 0 <= i < 3, 0 <= j < 2.
+	 PAHcurlSetup2Din3D(quad1D, ne, ir->GetWeights(), geom->J,
+			    coeff, pa_data);
+       }
+     else
+       {
+	 PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
+			coeff, pa_data);
+       }
    }
    else
    {
@@ -1434,8 +1522,8 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      PAHcurlMassApply2D(dofs1D, quad1D, ne, dof_map, mapsO->B, mapsC->B, mapsO->Bt,
-                         mapsC->Bt, pa_data, x, y);
+     PAHcurlMassApply2D(dofs1D, quad1D, ne, dof_map, mapsO->B, mapsC->B, mapsO->Bt,
+			mapsC->Bt, pa_data, x, y);
    }
 }
 
@@ -1460,6 +1548,39 @@ static void PACurlCurlSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double detJ = (J11*J22)-(J21*J12);
+         const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
+         y(q,e) = W[q] * c / detJ;
+      }
+   });
+}
+
+// PA H(curl) curl-curl assemble 2D kernel
+static void PACurlCurlSetup2Din3D(const int Q1D,
+				  const int NE,
+				  const Array<double> &w,
+				  const Vector &j,
+				  Vector *coeff,
+				  Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+   auto J = Reshape(j.Read(), NQ, 3, 2, NE);
+   auto y = Reshape(op.Write(), NQ, NE);
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J31 = J(q,2,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double J32 = J(q,2,1,e);
+	 // Following DenseMatrix::Weight() in the 3x2 case.
+	 const double E = J11 * J11 + J21 * J21 + J31 * J31;
+	 const double G = J12 * J12 + J22 * J22 + J32 * J32;
+	 const double F = J11 * J12 + J21 * J22 + J31 * J32;
+	 const double detJ = sqrt(E*G - F*F);
          const double c = (coeff == NULL) ? 1.0 : (*coeff)[q + (e * NQ)];
          y(q,e) = W[q] * c / detJ;
       }
@@ -1588,8 +1709,18 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-      PACurlCurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
-                        coeff, pa_data);
+     if (mesh->SpaceDimension() == 3)
+       {
+	 MFEM_VERIFY(geom->J.Size() == 9 * ne * nq, "");  // J is 3x3, but entries (i,j) are set only for 0 <= i < 3, 0 <= j < 2.
+
+	 PACurlCurlSetup2Din3D(quad1D, ne, ir->GetWeights(), geom->J,
+			       coeff, pa_data);
+       }
+     else
+       {
+	 PACurlCurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
+			   coeff, pa_data);
+       }
    }
    else
    {
@@ -2503,10 +2634,12 @@ void MixedVectorGradientIntegrator::AssembleMixedPA(const FiniteElementSpace
    quad1D = mapsC->nqpt;
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   MFEM_VERIFY(!(Q && VQ) && !(Q && MQ) && !(VQ && MQ), "");
 
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
    Vector *coeff = NULL;
+   bool vectorCoeff = false;
    if (Q)
    {
       coeff = new Vector(ne * nq);
@@ -2520,12 +2653,30 @@ void MixedVectorGradientIntegrator::AssembleMixedPA(const FiniteElementSpace
          }
       }
    }
+   if (VQ)
+   {
+      MFEM_VERIFY(dim == 3, "Vector coefficient not implemented for dim != 3");
+      vectorCoeff = true;
+      coeff = new Vector(dim * ne * nq);
+      Vector v(dim);
+      
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+	   VQ->Eval(v, *tr, ir->IntPoint(p));
+	   for (int d=0; d<dim; ++d)
+	     (*coeff)[(dim * (p + (e * nq))) + d] = v[d];
+         }
+      }
+   }
 
    // Use the same setup functions as VectorFEMassIntegrator.
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
       PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+                     coeff, vectorCoeff, pa_data);
    }
    else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {

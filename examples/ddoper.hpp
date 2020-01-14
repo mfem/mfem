@@ -56,6 +56,8 @@ using namespace std;
 
 //#define IF_ITERATIVE
 
+//#define USE_2DINTERFACE
+
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
 void test1_f_exact_0(const Vector &x, Vector &f);
@@ -451,7 +453,13 @@ private:
 class DDAuxSolver : public Operator
 {
 public:
-  DDAuxSolver(std::set<int> *allGlobalSubdomainInterfaces_, SparseMatrix **M_, const double alphaIm_, std::vector<int> *ifH1true_)
+  DDAuxSolver(std::set<int> *allGlobalSubdomainInterfaces_,
+#ifdef SD_ITERATIVE_GMG_PA
+	      OperatorPtr *M_,
+#else
+	      SparseMatrix **M_,
+#endif
+	      const double alphaIm_, std::vector<int> *ifH1true_)
     : allGlobalSubdomainInterfaces(allGlobalSubdomainInterfaces_), M(M_), aIm(1.0 / alphaIm_), ifH1true(ifH1true_)
   {
     int os = 0;
@@ -459,9 +467,15 @@ public:
       {
 	//HyprePCG *pcg = new HyprePCG(*(M[interfaceIndex]));
 	CGSolver *pcg = new CGSolver();
+#ifdef SD_ITERATIVE_GMG_PA
+	if (M[interfaceIndex].Ptr() != NULL)
+	  {
+	    pcg->SetOperator(*(M[interfaceIndex].Ptr()));
+#else
 	if (M[interfaceIndex] != NULL)
 	  {
 	    pcg->SetOperator(*(M[interfaceIndex]));
+#endif
 	    pcg->SetRelTol(1e-12);
 	    pcg->SetAbsTol(1e-12);
 	    pcg->SetMaxIter(100);
@@ -471,8 +485,13 @@ public:
 	Minv.push_back(pcg);
 	fOS.push_back(os);
 
+#ifdef SD_ITERATIVE_GMG_PA
+	if (M[interfaceIndex].Ptr() != NULL)
+	  os += 2 * ((*ifH1true)[interfaceIndex] + M[interfaceIndex].Ptr()->Height());
+#else
 	if (M[interfaceIndex] != NULL)
 	  os += 2 * ((*ifH1true)[interfaceIndex] + M[interfaceIndex]->Height());
+#endif
       }
 
     height = os;
@@ -494,39 +513,48 @@ public:
 	// [1/a*M   0 ] [ y_Im ]   [ x_Im ]
 	// for y_f, where a = alphaIm. Set y_rho = 0.
 
-	const int size = M[interfaceIndex]->Height();
-	
-	xt.SetSize(size);
-	yt.SetSize(size);
-
-	// Set xt = x_Re, f component.
-	for (int i=0; i<size; ++i)
+#ifdef SD_ITERATIVE_GMG_PA
+	if (M[interfaceIndex].Ptr() != NULL)
 	  {
-	    xt[i] = x[fOS[id] + i];
-	  }
-
-	// Set yt = M^{-1} x_Re, f component.
-	Minv[id]->Mult(xt, yt);
-
-	// Set y_Im = -a M^{-1} x_Re, f component.
-	for (int i=0; i<size; ++i)
+	    const int size = M[interfaceIndex].Ptr()->Height();
+#else
+	if (M[interfaceIndex] != NULL)
 	  {
-	    y[fOS[id] + size + (*ifH1true)[interfaceIndex] + i] = -aIm * yt[i];
-	  }
+	    const int size = M[interfaceIndex]->Height();
+#endif
+	    
+	    xt.SetSize(size);
+	    yt.SetSize(size);
 
-	// Set xt = x_Im, f component.
-	for (int i=0; i<size; ++i)
-	  {
-	    xt[i] = x[fOS[id] + size + (*ifH1true)[interfaceIndex] + i];
-	  }
+	    // Set xt = x_Re, f component.
+	    for (int i=0; i<size; ++i)
+	      {
+		xt[i] = x[fOS[id] + i];
+	      }
 
-	// Set yt = M^{-1} x_Im, f component.
-	Minv[id]->Mult(xt, yt);
+	    // Set yt = M^{-1} x_Re, f component.
+	    Minv[id]->Mult(xt, yt);
 
-	// Set y_Re = a M^{-1} x_Im, f component.
-	for (int i=0; i<size; ++i)
-	  {
-	    y[fOS[id] + i] = aIm * yt[i];
+	    // Set y_Im = -a M^{-1} x_Re, f component.
+	    for (int i=0; i<size; ++i)
+	      {
+		y[fOS[id] + size + (*ifH1true)[interfaceIndex] + i] = -aIm * yt[i];
+	      }
+
+	    // Set xt = x_Im, f component.
+	    for (int i=0; i<size; ++i)
+	      {
+		xt[i] = x[fOS[id] + size + (*ifH1true)[interfaceIndex] + i];
+	      }
+
+	    // Set yt = M^{-1} x_Im, f component.
+	    Minv[id]->Mult(xt, yt);
+
+	    // Set y_Re = a M^{-1} x_Im, f component.
+	    for (int i=0; i<size; ++i)
+	      {
+		y[fOS[id] + i] = aIm * yt[i];
+	      }
 	  }
 	
 	id++;
@@ -535,7 +563,12 @@ public:
 
 private:
   std::set<int> *allGlobalSubdomainInterfaces;
+#ifdef SD_ITERATIVE_GMG_PA
+  OperatorPtr *M;
+#else
   SparseMatrix **M;
+#endif
+  
   std::vector<Operator*> Minv;
   const double aIm;
 
@@ -1151,7 +1184,11 @@ private:
   H1_FECollection fecbdryH1;
   
 #ifdef SERIAL_INTERFACES
-  Mesh **smeshIF;  // Interface meshes
+  Mesh **smeshIF;  // Interface meshes in 3D
+#ifdef USE_2DINTERFACE
+  std::vector<Mesh*> smeshIF2D;  // Interface meshes in 2D
+#endif
+  
   FiniteElementSpace **ifespace, **iH1fespace;
   SparseMatrix **ifNDmassSp, **ifNDcurlcurlSp, **ifNDH1gradSp, **ifNDH1gradTSp, **ifH1massSp;
 
@@ -1166,6 +1203,8 @@ private:
 
   HypreParMatrix **ifNDmass, **ifNDcurlcurl, **ifNDH1grad, **ifNDH1gradT, **ifH1mass, **ifND_FS;
 #endif
+
+  EmptyOperator emptyOp;
   
   std::vector<Array2D<SparseMatrix*> > AsdRe_SparseBlocks;
   std::vector<Array2D<SparseMatrix*> > AsdIm_SparseBlocks;
@@ -1179,13 +1218,18 @@ private:
   HypreParMatrix **sdNDPlusPen;
   SparseMatrix **sdNDPenSp;
   ParBilinearForm **bf_sdND;
-  ParBilinearForm **bfpa_sdND;
   Operator **sdNDinv;
 #ifdef DDMCOMPLEX
   Operator **AsdRe, **AsdIm, **AsdP, **invAsdComplex;
 #ifdef SD_ITERATIVE_GMG_PA
-  Operator **AsdPARe, **AsdPAIm;
+  BlockOperator **AsdPARe, **AsdPAIm;
+  ParBilinearForm **bfpa_sdND;
+  OperatorPtr *oppa_sdND, *oppa_ifNDmass, *oppa_ifNDcurlcurl, *oppa_ifH1mass;
+  std::vector<Array<int> > sd_ess_tdof_list;
 #endif
+  BilinearForm **bf_ifNDmass, **bf_ifNDcurlcurl, **bf_ifH1mass;
+  MixedBilinearForm **bf_ifNDH1grad;
+  std::vector<Array<int> > if_ND_ess_tdof_list, if_H1_ess_tdof_list;
 #ifdef SPARSE_ASDCOMPLEX
   SparseMatrix **SpAsdComplex;
   HypreParMatrix **HypreAsdComplex;
@@ -1500,7 +1544,7 @@ private:
     gammaOverAlpha = gamma / alpha;
   }
 
-  void CreateInterfaceMatrices(const int interfaceIndex);
+  void CreateInterfaceMatrices(const int interfaceIndex, const bool fullAssembly);
   
   // Create operator C_{sd0,sd1} in the block space corresponding to [u_m^s, f_i, \rho_i]. Note that the u_m^I blocks are omitted (just zeros).
   Operator* CreateCij(const int localInterfaceIndex, const int orientation);
@@ -1575,8 +1619,10 @@ private:
   // Create operator A_m for subdomain m, in the block space corresponding to [u_m, f_m^s, \rho_m^s].
   // We use mappings between interface and subdomain boundary DOF's, so there is no need for interior and surface blocks on each subdomain.
   Operator* CreateSubdomainOperator(const int subdomain);
-  Operator* CreateSubdomainOperatorPA(const int subdomain);
-
+#ifdef SD_ITERATIVE_GMG_PA
+  BlockOperator* CreateSubdomainOperatorPA(const int subdomain);
+#endif
+  
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
   void CreateSubdomainHypreBlocks(const int subdomain, Array2D<HypreParMatrix*>& block,
 				  //#ifdef SERIAL_INTERFACES

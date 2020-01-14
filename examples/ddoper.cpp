@@ -8,7 +8,6 @@ void NormalizeVector(MPI_Comm comm, Vector v)
   v /= nrm;
 }
 
-
 InjectionOperator::InjectionOperator(MPI_Comm comm, ParFiniteElementSpace *subdomainSpace, FiniteElementSpace *interfaceSpace, int *a,
 				     std::vector<int> const& gdofmap, std::vector<int> const& gflip) : id(a)
 {
@@ -1958,15 +1957,18 @@ void CrossProduct3D(Vector const& a, Vector const& b, Vector& cp)
   cp[0] = (a[1]*b[2]) - (a[2]*b[1]);
   cp[1] = (a[2]*b[0]) - (a[0]*b[2]);
   cp[2] = (a[0]*b[1]) - (a[1]*b[0]);
-
 }
 
-void GetFaceNormal(Mesh *mesh, const int face, Vector& normal)
+void GetFaceNormal(Mesh *mesh, const int face, Vector& normal, const bool elem=false)
 {
   MFEM_VERIFY(mesh->SpaceDimension() == 3, "");
 
   Array<int> faceVert;
-  mesh->GetFaceVertices(face, faceVert);
+  if (elem)
+    mesh->GetElementVertices(face, faceVert);
+  else
+    mesh->GetFaceVertices(face, faceVert);
+  
   MFEM_VERIFY(faceVert.Size() > 2, "");
 
   Vector t1(3);
@@ -1984,6 +1986,94 @@ void GetFaceNormal(Mesh *mesh, const int face, Vector& normal)
   MFEM_VERIFY(s > 1.0e-8, "");
   
   normal /= s;
+}
+
+Mesh* Create2DMeshFrom3DSurfaceMesh(Mesh *mesh3D)
+{
+  MFEM_VERIFY(mesh3D->Dimension() == 2 && mesh3D->SpaceDimension() == 3, "");
+
+  Mesh *mesh = new Mesh(2, mesh3D->GetNV(), mesh3D->GetNE());
+
+  // Set the origin as the first vertex
+  double *orig = mesh3D->GetVertex(0);
+
+  // Plane basis vectors
+  Vector b1(3);
+  Vector b2(3);
+
+  // Choose the first basis vector of the plane.
+  {
+    double *v1 = mesh3D->GetVertex(1);
+    for (int i=0; i<3; ++i)
+      b1[i] = v1[i] - orig[i];
+
+    const double s = b1.Norml2();
+    MFEM_VERIFY(s > 1.0e-8, "");
+
+    b1 /= s;
+  }
+
+  // Choose the second basis vector of the plane.
+  bool basisSet = false;
+  for (int j=2; j<mesh3D->GetNV(); ++j)
+    {
+      double *v2 = mesh3D->GetVertex(j);
+      for (int i=0; i<3; ++i)
+	b2[i] = v2[i] - orig[i];
+
+      const double dp = (b2 * b1);
+      b2.Add(-dp, b1);
+      
+      const double s = b2.Norml2();
+
+      if (s < 0.1)
+	continue;
+      
+      b2 /= s;
+
+      if ((b2 * b1) < 1.0e-8)
+	{
+	  basisSet = true;
+	  break;
+	}
+    }
+  
+  MFEM_VERIFY(basisSet, "");
+
+  double x[2];
+  
+  for (int i=0; i<mesh3D->GetNV(); ++i)
+    {
+      double *xi = mesh3D->GetVertex(i);
+
+      x[0] = 0.0;
+      x[1] = 0.0;
+      for (int j=0; j<3; ++j)
+	{
+	  x[0] += b1[j] * (xi[j] - orig[j]);
+	  x[1] += b2[j] * (xi[j] - orig[j]);
+	}
+
+      mesh->AddVertex(x);
+    }
+
+  const int elGeom = mesh3D->GetElementBaseGeometry(0);
+
+  for (int i=0; i<mesh3D->GetNE(); ++i)
+    {
+      Element* el = mesh->NewElement(elGeom);
+      el->SetAttribute(mesh3D->GetAttribute(i));
+
+      Array<int> v;
+      mesh3D->GetElementVertices(i, v);
+
+      el->SetVertices(v);
+      mesh->AddElement(el);
+    }
+
+  mesh->FinalizeTopology();
+
+  return mesh;
 }
 
 int FindDofByPointValue(std::vector<double> const& facebv, const int dim, const int facendofs, const int facenip, const int face, const int dof,
@@ -2176,11 +2266,15 @@ int FindDofByPointValue(std::vector<double> const& facebv, const int dim, const 
 
 // For full generality of parallel partitioning, we must allow for ifespace or fespace to be NULL (but not both), as this function
 // needs to be called by all processes in ifsdcomm. There may be processes that touch an interface but not a subdomain, and vice versa.
+//#define USE_IFMESH3D_VERT
 void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 #ifdef SERIAL_INTERFACES
 				 FiniteElementSpace *ifespace,
 				 const int interfaceFaceOffset,
 				 std::vector<int> const& pmeshFacesInInterfaceOrdered,
+#ifdef USE_IFMESH3D_VERT
+				 Mesh *ifMesh3D,
+#endif
 #else
 				 ParFiniteElementSpace *ifespace,
 #endif
@@ -2875,7 +2969,11 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 			  bool pointsEqual = true;
 			  for (int l=0; l<3; ++l)
 			    {
+#ifdef USE_IFMESH3D_VERT
+			      const double ifMeshEdgeMidpoint_l = 0.5 * (ifMesh3D->GetVertex(ifmeshEdgeVert[0])[l] + ifMesh3D->GetVertex(ifmeshEdgeVert[1])[l]);
+#else
 			      const double ifMeshEdgeMidpoint_l = 0.5 * (ifMesh->GetVertex(ifmeshEdgeVert[0])[l] + ifMesh->GetVertex(ifmeshEdgeVert[1])[l]);
+#endif
 
 			      if (fabs(ifMeshEdgeMidpoint_l - allifemp[(3*numEdgesPerFace * (dspl[p] + i)) + (3*j) + l]) > vertexTol)
 				pointsEqual = false;
@@ -2933,8 +3031,13 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	ifespace->GetElementDofs(0, dofs);
 	const int ndofs = dofs.Size();
 	Vector data(ndofs);
+#ifdef USE_IFMESH3D_VERT
+	DenseMatrix vshape(ndofs, 2);
+ 	Vector v(2);
+#else
 	DenseMatrix vshape(ndofs, dim);
-	Vector v(dim);
+ 	Vector v(dim);
+#endif
 	
 	vals.resize(dim * (ndofs + 1) * nip * ifMesh->GetNE());
 	
@@ -3151,8 +3254,12 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	  
 	  for (int j=0; j<ifVert.Size(); ++j)
 	    {
+#ifdef USE_IFMESH3D_VERT
+	      double *ifv = ifMesh3D->GetVertex(ifVert[j]);
+#else
 	      double *ifv = ifMesh->GetVertex(ifVert[j]);
-
+#endif
+	      
 	      bool vertexFound = false;
 	      
 	      for (int k=0; k<sdVert.Size(); ++k)
@@ -3239,7 +3346,11 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 		  bool edgesMatch = true;
 		  for (int v=0; v<2; ++v)
 		    {
+#ifdef USE_IFMESH3D_VERT
+		      double *ifv = ifMesh3D->GetVertex(ifVert[v]);
+#else
 		      double *ifv = ifMesh->GetVertex(ifVert[v]);
+#endif
 		      double *sdv = sdMesh->GetVertex(sdVert[v]);
 
 		      bool verticesEqual = true;
@@ -3513,7 +3624,11 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	    bool pointsEqual = true;
 	    for (int k=0; k<3; ++k)
 	      {
+#ifdef USE_IFMESH3D_VERT
+		const double ifMeshEdgeMidpoint_k = 0.5 * (ifMesh3D->GetVertex(ifmeshEdgeVert[0])[k] + ifMesh3D->GetVertex(ifmeshEdgeVert[1])[k]);
+#else
 		const double ifMeshEdgeMidpoint_k = 0.5 * (ifMesh->GetVertex(ifmeshEdgeVert[0])[k] + ifMesh->GetVertex(ifmeshEdgeVert[1])[k]);
+#endif
 		if (fabs(ifMeshEdgeMidpoint_k - pmeshEdgeMidpoint[k]) > vertexTol)
 		  pointsEqual = false;
 	      }
@@ -3532,7 +3647,11 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 			bool vertexMatch = true;
 			for (int l=0; l<3; ++l)
 			  {
+#ifdef USE_IFMESH3D_VERT
+			    if (fabs(pmesh->GetVertex(pmeshEdgeVert[k])[l] - ifMesh3D->GetVertex(ifmeshEdgeVert[m])[l]) > vertexTol)
+#else
 			    if (fabs(pmesh->GetVertex(pmeshEdgeVert[k])[l] - ifMesh->GetVertex(ifmeshEdgeVert[m])[l]) > vertexTol)
+#endif
 			      vertexMatch = false;
 			  }
 
@@ -3712,7 +3831,11 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	  
 	  for (int j=0; j<ifVert.Size(); ++j)
 	    {
+#ifdef USE_IFMESH3D_VERT
+	      double *ifv = ifMesh3D->GetVertex(ifVert[j]);
+#else
 	      double *ifv = ifMesh->GetVertex(ifVert[j]);
+#endif
 
 	      bool vertexFound = false;
 	      
@@ -4449,13 +4572,22 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   bf_sdND = new ParBilinearForm*[numSubdomains];
 #ifdef SD_ITERATIVE_GMG_PA
   bfpa_sdND = new ParBilinearForm*[numSubdomains];
-  AsdPARe = new Operator*[numSubdomains];
-  AsdPAIm = new Operator*[numSubdomains];
+  oppa_sdND = new OperatorPtr[numSubdomains];
+  AsdPARe = new BlockOperator*[numSubdomains];
+  AsdPAIm = new BlockOperator*[numSubdomains];
+  sd_ess_tdof_list.resize(numSubdomains);
+
+  oppa_ifNDmass = new OperatorPtr[numInterfaces];
+  oppa_ifNDcurlcurl = new OperatorPtr[numInterfaces];
+  oppa_ifH1mass = new OperatorPtr[numInterfaces];
 #endif
   ySD = new Vector*[numSubdomains];
   rhsSD = new Vector*[numSubdomains];
   srcSD = new Vector*[numSubdomains];
 
+  if_ND_ess_tdof_list.resize(numInterfaces);
+  if_H1_ess_tdof_list.resize(numInterfaces);
+  
 #ifdef SERIAL_INTERFACES
   ifespace = numInterfaces > 0 ? new FiniteElementSpace*[numInterfaces] : NULL;
   iH1fespace = numInterfaces > 0 ? new FiniteElementSpace*[numInterfaces] : NULL;
@@ -4470,6 +4602,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   SIreceiver.resize(numInterfaces);
 
   sd_root.assign(numSubdomains, -1);
+
+  bf_ifNDmass = numInterfaces > 0 ? new BilinearForm*[numInterfaces] : NULL;
+  bf_ifNDcurlcurl = numInterfaces > 0 ? new BilinearForm*[numInterfaces] : NULL;
+  bf_ifH1mass = numInterfaces > 0 ? new BilinearForm*[numInterfaces] : NULL;
+  bf_ifNDH1grad = numInterfaces > 0 ? new MixedBilinearForm*[numInterfaces] : NULL;
 #else
   ifespace = numInterfaces > 0 ? new ParFiniteElementSpace*[numInterfaces] : NULL;
   iH1fespace = numInterfaces > 0 ? new ParFiniteElementSpace*[numInterfaces] : NULL;
@@ -4504,6 +4641,12 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   block_MRoffsets.SetSize((2*numInterfaces) + 1);  // number of blocks + 1
   block_MRoffsets = 0;
 #endif
+
+#ifdef SERIAL_INTERFACES
+#ifdef USE_2DINTERFACE
+  smeshIF2D.resize(numInterfaces);
+#endif
+#endif
   
   for (int i=0; i<numInterfaces; ++i)
     {
@@ -4517,6 +4660,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  iH1fespace[i] = NULL;
 
 #ifdef SERIAL_INTERFACES
+#ifdef USE_2DINTERFACE
+	  smeshIF2D[i] = NULL;
+#endif
+	  
 	  ifNDmassSp[i] = NULL;
 	  ifNDH1gradSp[i] = NULL;
 	  ifNDH1gradTSp[i] = NULL;
@@ -4534,8 +4681,15 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       else
 	{
 #ifdef SERIAL_INTERFACES
+#ifdef USE_2DINTERFACE
+	  smeshIF2D[i] = Create2DMeshFrom3DSurfaceMesh(smeshIF[i]);
+	  
+	  ifespace[i] = new FiniteElementSpace(smeshIF2D[i], &fecbdry);  // Nedelec space for f_{m,j} when interface i is the j-th interface of subdomain m. 
+	  iH1fespace[i] = new FiniteElementSpace(smeshIF2D[i], &fecbdryH1);  // H^1 space \rho_{m,j} when interface i is the j-th interface of subdomain m.
+#else
 	  ifespace[i] = new FiniteElementSpace(smeshIF[i], &fecbdry);  // Nedelec space for f_{m,j} when interface i is the j-th interface of subdomain m. 
 	  iH1fespace[i] = new FiniteElementSpace(smeshIF[i], &fecbdryH1);  // H^1 space \rho_{m,j} when interface i is the j-th interface of subdomain m.
+#endif
 	  
 	  ifNDtrue[i] = ifespace[i]->GetVSize();
 	  ifH1true[i] = iH1fespace[i]->GetVSize();
@@ -4555,8 +4709,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    for (int j=0; j<pmeshIF[i]->GetNBE(); ++j)
 	    cout << rank << " Interface " << i << ", be " << j << ", bdrAttribute " << pmeshIF[i]->GetBdrAttribute(j) << endl;
 	  */
-	    
-	  CreateInterfaceMatrices(i);
+
+	  CreateInterfaceMatrices(i, partialConstructor);
 	}
 
 #ifdef GPWD
@@ -4903,6 +5057,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      SetInterfaceToSurfaceDOFMap(sd_com[m], ifespace[interfaceIndex], 
 #ifdef SERIAL_INTERFACES
 					  ifos, ifFacesOrdered,
+#ifdef USE_IFMESH3D_VERT
+					  smeshIF[interfaceIndex],
+#endif
 #endif
 					  fespace[m], fespaceGlobal, pmeshGlobal, m+1,
 					  ifFaces, ifEdges, ifVertices, &fecbdry, dofmap,
@@ -5058,8 +5215,6 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   if (m_rank == 0)
     cout << m_rank << ": DDM constructor SD loop 1 timing " << chronoSD.RealTime() << endl;
   
-  //return;
-
   chronoSD.Clear();
   chronoSD.Start();
 
@@ -5118,7 +5273,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #endif
 
 #ifdef SD_ITERATIVE_GMG_PA
-      AsdPARe[m] = CreateSubdomainOperatorPA(m);
+      if (!partialConstructor)
+	{
+	  AsdPARe[m] = CreateSubdomainOperatorPA(m);
+	}
 #endif
       
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
@@ -5169,7 +5327,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       AsdIm[m] = CreateSubdomainOperator(m);
 #endif
 #ifdef SD_ITERATIVE_GMG_PA
-      AsdPAIm[m] = CreateSubdomainOperatorPA(m);
+      if (!partialConstructor)
+	{
+	  AsdPAIm[m] = CreateSubdomainOperatorPA(m);
+	}
 #endif
       
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
@@ -6126,8 +6287,13 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    {
 	      GMRESSolver *gmres = new GMRESSolver(sd_com[m]);
 
+#ifdef SD_ITERATIVE_GMG_PA
+	      ComplexOperator *AsdPA = new ComplexOperator(AsdPARe[m], AsdPAIm[m], false, false);
+	      gmres->SetOperator(*AsdPA);
+#else
 	      gmres->SetOperator(*(HypreAsdComplex[m]));
-
+#endif
+	      
 	      gmres->SetRelTol(1e-12);
 	      gmres->SetMaxIter(50);
 	      gmres->SetKDim(50);
@@ -6172,7 +6338,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		  //cgmg = new ComplexGMGPASolver(sd_com[m], &(AsdRe_m->GetBlock(0,0)), &(AsdIm_m->GetBlock(0,0)), diagRe, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
 		  //cgmg = new ComplexGMGPASolver(sd_com[m], AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), diagRe, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
 		  //cgmg = new ComplexGMGPASolver(sd_com[m], AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), diagSDND, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
-		  cgmg = new ComplexGMGPASolver(sd_com[m], AsdPARe[m], AsdPAIm[m], diagSDND, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
+		  cgmg = new ComplexGMGPASolver(sd_com[m], &(AsdPARe[m]->GetBlock(0,0)), &(AsdPAIm[m]->GetBlock(0,0)), diagSDND, sd_ess_tdof_list[m], sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
 		}
 #else
 		ComplexHypreParMatrix *AZ = new ComplexHypreParMatrix(AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), false, false);
@@ -6212,14 +6378,21 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      auxInv->SetPrintLevel(-1);
 	      //auxInv->SetPreconditioner(*ams);
 	      */
-	      
+#ifdef SD_ITERATIVE_GMG_PA
+	      DDAuxSolver *auxInv = new DDAuxSolver(&(allGlobalSubdomainInterfaces[m]), oppa_ifNDmass, alphaIm, &ifH1true);
+#else
 	      DDAuxSolver *auxInv = new DDAuxSolver(&(allGlobalSubdomainInterfaces[m]), ifNDmassSp, alphaIm, &ifH1true);
+#endif
 #else
 	      STRUMPACKSolver *auxInv = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreDsdComplex[m])), sd_com[m]);
 #endif
-	      Solver *sdprec = new BlockSubdomainPreconditioner(HypreAsdComplex[m]->Height(), sdNDinv[m], sdImag[m], auxInv);
+#ifdef SD_ITERATIVE_GMG_PA
+	      Solver *sdprec = new BlockSubdomainPreconditioner(AsdPA->Height(), sdNDinv[m], sdImag[m], auxInv);
+#else
+	      Solver *sdprec = new BlockSubdomainPreconditioner(HypreAsdComplex[m]->Height(), sdNDinv[m], sdImag[m], auxInv);		
 #endif
-
+#endif
+		
 	      gmres->SetPreconditioner(*sdprec);
 	      gmres->SetName("invAsdComplexIter" + std::to_string(m));
 	      gmres->iterative_mode = false;
@@ -6745,7 +6918,7 @@ void DDMInterfaceOperator::PolyPreconditionerMult(const Vector & x, Vector & y)
 
 void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm,
 					    Vector & sourceReduced, std::vector<int> const& sdOrder) const
-{
+{  
   //Vector sourceSD;
   Vector wSD, vSD;
 
@@ -6889,7 +7062,7 @@ if (sdsize > 0)
       if (sd_nonempty[m])
       {
 	cout << rank << ": ySD norm: " << ySD[m]->Norml2() << ", wSD norm " << wSD.Norml2() << " (sd " << m << ")" << endl;
-	    
+
 	cout << rank << ": Applying invAsdComplex[" << m << "]" << endl;
 
 	//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplexCheck");
@@ -7475,7 +7648,7 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 #endif
 }
 
-void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
+void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex, const bool fullAssembly)
 {
   int num_procs, myid;
   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
@@ -7487,16 +7660,33 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
     
   Array<int> H1_ess_bdr;
   Array<int> ND_ess_bdr;
-    
+
   // Nedelec interface operators
   
 #ifdef SERIAL_INTERFACES
+  bf_ifNDmass[interfaceIndex] = new BilinearForm(ifespace[interfaceIndex]);
+  bf_ifNDcurlcurl[interfaceIndex] = new BilinearForm(ifespace[interfaceIndex]);
+  bf_ifH1mass[interfaceIndex] = new BilinearForm(iH1fespace[interfaceIndex]);
+  bf_ifNDH1grad[interfaceIndex] = new MixedBilinearForm(iH1fespace[interfaceIndex], ifespace[interfaceIndex]);
+
+#ifdef SD_ITERATIVE_GMG_PA
+  if (!fullAssembly)
+    {
+      bf_ifNDmass[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      bf_ifNDcurlcurl[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      bf_ifH1mass[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      bf_ifNDH1grad[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+    }
+#else
+  /*
   BilinearForm *NDmass = new BilinearForm(ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
   BilinearForm *NDcurlcurl = new BilinearForm(ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
-  BilinearForm *ND_FS = new BilinearForm(ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
   BilinearForm *H1mass = new BilinearForm(iH1fespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
+  MixedBilinearForm *NDH1grad = new MixedBilinearForm(iH1fespace[interfaceIndex], ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
+  */
+  BilinearForm *ND_FS = new BilinearForm(ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.  
   BilinearForm *H1stiff = new BilinearForm(iH1fespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
-  MixedBilinearForm *NDH1grad = new MixedBilinearForm(iH1fespace[interfaceIndex], ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.  
+#endif
 #else
   ParBilinearForm *NDmass = new ParBilinearForm(ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
   ParBilinearForm *NDcurlcurl = new ParBilinearForm(ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
@@ -7507,13 +7697,18 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
 #endif
 
   // TODO: use variable wavenumber as coefficient?
-  NDmass->AddDomainIntegrator(new VectorFEMassIntegrator(one));
-  NDmass->Assemble();
 
+  bf_ifNDmass[interfaceIndex]->AddDomainIntegrator(new VectorFEMassIntegrator(one));
+  bf_ifNDmass[interfaceIndex]->Assemble();
+  
 #ifdef ZERO_IFND_BC
   {
 #ifdef SERIAL_INTERFACES
+#ifdef USE_2DINTERFACE
+    ND_ess_bdr.SetSize(smeshIF2D[interfaceIndex]->bdr_attributes.Max());
+#else
     ND_ess_bdr.SetSize(smeshIF[interfaceIndex]->bdr_attributes.Max());
+#endif
 #else
     ND_ess_bdr.SetSize(pmeshIF[interfaceIndex]->bdr_attributes.Max());
 #endif
@@ -7523,44 +7718,86 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
     ifespace[interfaceIndex]->GetEssentialTrueDofs(ND_ess_bdr, ND_ess_tdof_list);
   }
 #endif
-    
-  NDcurlcurl->AddDomainIntegrator(new CurlCurlIntegrator(one));
-  NDcurlcurl->Assemble();
-    
+
+  bf_ifNDcurlcurl[interfaceIndex]->AddDomainIntegrator(new CurlCurlIntegrator(one));
+  bf_ifNDcurlcurl[interfaceIndex]->Assemble();
+
+#ifndef SD_ITERATIVE_GMG_PA
   ND_FS->AddDomainIntegrator(new VectorFEMassIntegrator(one));
   ND_FS->AddDomainIntegrator(new CurlCurlIntegrator(one));
   ND_FS->Assemble();
+#endif
 
   //ifND_FS[interfaceIndex] = new HypreParMatrix();
 
 #ifdef SERIAL_INTERFACES
   {
-    ifNDmassSp[interfaceIndex] = new SparseMatrix();
-    ifNDcurlcurlSp[interfaceIndex] = new SparseMatrix();
-
-    NDmass->FormSystemMatrix(ND_ess_tdof_list, *(ifNDmassSp[interfaceIndex]));
-    NDcurlcurl->FormSystemMatrix(ND_ess_tdof_list, *(ifNDcurlcurlSp[interfaceIndex]));
-    //ND_FS->FormSystemMatrix(ND_ess_tdof_list, *(ifND_FS[interfaceIndex]));
-
-    // Since BilinearForm uses DIAG_KEEP as the DiagonalPolicy, let's change it to DIAG_ONE manually here.
-    for (int i = 0; i < ND_ess_tdof_list.Size(); i++)
+#ifdef SD_ITERATIVE_GMG_PA
+    if (!fullAssembly)
       {
-	const int sdof = ND_ess_tdof_list[i];
-	const int dof = (sdof >= 0) ? sdof : -1-sdof;
-	(*(ifNDmassSp[interfaceIndex]))(dof,dof) = 1.0;
-	(*(ifNDcurlcurlSp[interfaceIndex]))(dof,dof) = 1.0;
-      }
+	GridFunction xif(ifespace[interfaceIndex]);
 
+	{
+	  Vector zeroVec(3);
+	  zeroVec = 0.0;
+	  VectorConstantCoefficient vzero(zeroVec);
+	  xif.ProjectCoefficient(vzero);
+	}
+      
+	LinearForm b(ifespace[interfaceIndex]);
+	b.Assemble();
+	Vector ifB, ifX;
+
+	if_ND_ess_tdof_list[interfaceIndex] = ND_ess_tdof_list;  // deep copy
+
+	/*
+	if (m_rank == 0 && interfaceIndex == 0)
+	  {
+	    for (int j=0; j<if_ND_ess_tdof_list[interfaceIndex].Size(); ++j)
+	      cout << m_rank << ": ifNDesstdof " << j << " = " << if_ND_ess_tdof_list[interfaceIndex][j] << endl;
+	  }
+	*/
+	
+	bf_ifNDmass[interfaceIndex]->FormLinearSystem(if_ND_ess_tdof_list[interfaceIndex], xif, b, oppa_ifNDmass[interfaceIndex], ifX, ifB);
+	bf_ifNDcurlcurl[interfaceIndex]->FormLinearSystem(if_ND_ess_tdof_list[interfaceIndex], xif, b, oppa_ifNDcurlcurl[interfaceIndex], ifX, ifB);
+      }
+    else
+#endif
+      {
+	ifNDmassSp[interfaceIndex] = new SparseMatrix();
+	ifNDcurlcurlSp[interfaceIndex] = new SparseMatrix();
+
+	bf_ifNDmass[interfaceIndex]->FormSystemMatrix(ND_ess_tdof_list, *(ifNDmassSp[interfaceIndex]));
+	bf_ifNDcurlcurl[interfaceIndex]->FormSystemMatrix(ND_ess_tdof_list, *(ifNDcurlcurlSp[interfaceIndex]));
+	//ND_FS->FormSystemMatrix(ND_ess_tdof_list, *(ifND_FS[interfaceIndex]));
+
+	// Since BilinearForm uses DIAG_KEEP as the DiagonalPolicy, let's change it to DIAG_ONE manually here.
+	for (int i = 0; i < ND_ess_tdof_list.Size(); i++)
+	  {
+	    const int sdof = ND_ess_tdof_list[i];
+	    const int dof = (sdof >= 0) ? sdof : -1-sdof;
+	    (*(ifNDmassSp[interfaceIndex]))(dof,dof) = 1.0;
+	    (*(ifNDcurlcurlSp[interfaceIndex]))(dof,dof) = 1.0;
+	  }
+      }
+    
 #ifdef IF_ITERATIVE
-    CGSolver *cg = new CGSolver();
+    if (!fullAssembly)
+      {
+	CGSolver *cg = new CGSolver();
     
-    cg->SetOperator(*(ifNDmassSp[interfaceIndex]));
-    cg->SetRelTol(1e-12);
-    cg->SetMaxIter(100);
-    cg->SetPrintLevel(-1);
-    cg->iterative_mode = false;
+#ifdef SD_ITERATIVE_GMG_PA
+	cg->SetOperator(*(oppa_ifNDmass[interfaceIndex].Ptr()));
+#else
+	cg->SetOperator(*(ifNDmassSp[interfaceIndex]));
+#endif
+	cg->SetRelTol(1e-12);
+	cg->SetMaxIter(100);
+	cg->SetPrintLevel(-1);
+	cg->iterative_mode = false;
     
-    ifNDmassInv[interfaceIndex] = cg;
+	ifNDmassInv[interfaceIndex] = cg;
+      }
 #else
     UMFPackSolver *massInv = new UMFPackSolver();
     massInv->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
@@ -7570,7 +7807,7 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
 
     ifH1massSp[interfaceIndex] = new SparseMatrix();
   }
-#else
+#else  // not SERIAL_INTERFACES
   ifNDmass[interfaceIndex] = new HypreParMatrix();
   ifNDcurlcurl[interfaceIndex] = new HypreParMatrix();
 
@@ -7586,7 +7823,11 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
   
   cout << myid << ": interface " << interfaceIndex << ", ND true size " << ifespace[interfaceIndex]->GetTrueVSize() << ", mass height "
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+       << bf_ifNDmass[interfaceIndex]->Height() << ", width " << bf_ifNDmass[interfaceIndex]->Width() << ", ND V size "
+#else
        << ifNDmassSp[interfaceIndex]->Height() << ", width " << ifNDmassSp[interfaceIndex]->Width() << ", ND V size "
+#endif
 #else
        << ifNDmass[interfaceIndex]->Height() << ", width " << ifNDmass[interfaceIndex]->Width() << ", ND V size "
 #endif
@@ -7594,13 +7835,17 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
   
   // H^1 interface operators
 
-  H1mass->AddDomainIntegrator(new MassIntegrator(one));
-  H1mass->Assemble();
-
+  bf_ifH1mass[interfaceIndex]->AddDomainIntegrator(new MassIntegrator(one));
+  bf_ifH1mass[interfaceIndex]->Assemble();
+  
 #ifdef ZERO_RHO_BC
   {
 #ifdef SERIAL_INTERFACES
+#ifdef USE_2DINTERFACE
+    H1_ess_bdr.SetSize(smeshIF2D[interfaceIndex]->bdr_attributes.Max());
+#else
     H1_ess_bdr.SetSize(smeshIF[interfaceIndex]->bdr_attributes.Max());
+#endif
 #else
     H1_ess_bdr.SetSize(pmeshIF[interfaceIndex]->bdr_attributes.Max());
 #endif
@@ -7616,13 +7861,32 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
       Operator *ifH1massStrumpack = new STRUMPACKRowLocMatrix(*(ifH1mass[interfaceIndex]));
       ifH1massInv[interfaceIndex] = CreateStrumpackSolver(ifH1massStrumpack, iH1fespace[interfaceIndex]->GetComm());
     */
-      
+#ifndef SD_ITERATIVE_GMG_PA
     H1stiff->AddDomainIntegrator(new MassIntegrator(one));
     H1stiff->AddDomainIntegrator(new DiffusionIntegrator(one));
     H1stiff->Assemble();
-
+#endif
+    
 #ifdef SERIAL_INTERFACES
-    H1mass->FormSystemMatrix(H1_ess_tdof_list, *(ifH1massSp[interfaceIndex]));
+#ifdef SD_ITERATIVE_GMG_PA
+    {
+      GridFunction xif(iH1fespace[interfaceIndex]);
+
+      {
+	ConstantCoefficient zero(0.0);
+	xif.ProjectCoefficient(zero);
+      }
+      
+      LinearForm b(iH1fespace[interfaceIndex]);
+      b.Assemble();
+
+      if_H1_ess_tdof_list[interfaceIndex] = H1_ess_tdof_list;  // deep copy
+      
+      Vector ifB, ifX;
+      bf_ifH1mass[interfaceIndex]->FormLinearSystem(if_H1_ess_tdof_list[interfaceIndex], xif, b, oppa_ifH1mass[interfaceIndex], ifX, ifB);
+    }
+#else
+    bf_ifH1mass[interfaceIndex]->FormSystemMatrix(H1_ess_tdof_list, *(ifH1massSp[interfaceIndex]));
 
     // Since BilinearForm uses DIAG_KEEP as the DiagonalPolicy, let's change it to DIAG_ONE manually here.
     for (int i = 0; i < H1_ess_tdof_list.Size(); i++)
@@ -7631,7 +7895,7 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
 	const int dof = (sdof >= 0) ? sdof : -1-sdof;
 	(*(ifH1massSp[interfaceIndex]))(dof,dof) = 1.0;
       }
-    
+#endif
     // Note that ifH1massInv is not used and does not need to be defined.
 #else
     H1mass->FormSystemMatrix(H1_ess_tdof_list, *(ifH1mass[interfaceIndex]));
@@ -7644,9 +7908,15 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
   }
     
   // Mixed interface operator
-  NDH1grad->AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
-  NDH1grad->Assemble();
-
+  bf_ifNDH1grad[interfaceIndex]->AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
+  bf_ifNDH1grad[interfaceIndex]->Assemble();
+#ifdef SD_ITERATIVE_GMG_PA
+  if (fullAssembly)
+#endif
+  {
+    bf_ifNDH1grad[interfaceIndex]->Finalize();
+  }
+  
   /*
 #ifdef ZERO_RHO_BC
   {
@@ -7666,13 +7936,16 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
 #endif
   */
   
-  NDH1grad->Finalize();
-    
   //ifNDH1grad[interfaceIndex] = new HypreParMatrix();
   //NDH1grad->FormSystemMatrix(ess_tdof_list, *(ifNDH1grad[interfaceIndex]));
 #ifdef SERIAL_INTERFACES
-  ifNDH1gradSp[interfaceIndex] = &(NDH1grad->SpMat());
-  ifNDH1gradTSp[interfaceIndex] = Transpose(*(ifNDH1gradSp[interfaceIndex]));
+#ifdef SD_ITERATIVE_GMG_PA
+  if (fullAssembly)
+#endif
+  {
+    ifNDH1gradSp[interfaceIndex] = &(bf_ifNDH1grad[interfaceIndex]->SpMat());
+    ifNDH1gradTSp[interfaceIndex] = Transpose(*(ifNDH1gradSp[interfaceIndex]));
+  }
 #else
   ifNDH1grad[interfaceIndex] = NDH1grad->ParallelAssemble();
   ifNDH1gradT[interfaceIndex] = ifNDH1grad[interfaceIndex]->Transpose();
@@ -7681,7 +7954,11 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex)
   cout << myid << ": interface " << interfaceIndex << ", ND true size " << ifespace[interfaceIndex]->GetTrueVSize()
        << ", H1 true size " << iH1fespace[interfaceIndex]->GetTrueVSize()
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+       << ", NDH1 height " << bf_ifNDH1grad[interfaceIndex]->Height() << ", width " << bf_ifNDH1grad[interfaceIndex]->Width() << endl;
+#else
        << ", NDH1 height " << ifNDH1gradSp[interfaceIndex]->Height() << ", width " << ifNDH1gradSp[interfaceIndex]->Width() << endl;
+#endif
 #else
        << ", NDH1 height " << ifNDH1grad[interfaceIndex]->Height() << ", width " << ifNDH1grad[interfaceIndex]->Width() << endl;
 #endif
@@ -7773,7 +8050,11 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
 #else
     {
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+      op->SetBlock(0, 0, new SumOperator(oppa_ifNDmass[interfaceIndex].Ptr(), oppa_ifNDcurlcurl[interfaceIndex].Ptr(), false, false, alpha, beta));
+#else
       op->SetBlock(0, 0, new SumOperator(ifNDmassSp[interfaceIndex], ifNDcurlcurlSp[interfaceIndex], false, false, alpha, beta));
+#endif
 #else
       op->SetBlock(0, 0, new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, alpha, beta));
 #endif
@@ -7795,7 +8076,11 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
 #endif
     {
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+      op->SetBlock(0, 1, oppa_ifNDmass[interfaceIndex].Ptr(), -1.0);
+#else
       op->SetBlock(0, 1, ifNDmassSp[interfaceIndex], -1.0);
+#endif
 #else
       op->SetBlock(0, 1, ifNDmass[interfaceIndex], -1.0);
 #endif
@@ -7812,7 +8097,11 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
   // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
     
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+  op->SetBlock(0, 2, bf_ifNDH1grad[interfaceIndex], -gamma);
+#else
   op->SetBlock(0, 2, ifNDH1gradSp[interfaceIndex], -gamma);
+#endif
 #else
   op->SetBlock(0, 2, ifNDH1grad[interfaceIndex], -gamma);
 #endif
@@ -7832,7 +8121,11 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
       if (realPart)
 	{
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+	  op->SetBlock(1, 0, new SumOperator(oppa_ifNDmass[interfaceIndex].Ptr(), oppa_ifNDcurlcurl[interfaceIndex].Ptr(), false, false, -1.0, -betaOverAlpha));
+#else
 	  op->SetBlock(1, 0, new SumOperator(ifNDmassSp[interfaceIndex], ifNDcurlcurlSp[interfaceIndex], false, false, -1.0, -betaOverAlpha));
+#endif
 #else
 	  op->SetBlock(1, 0, new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, -1.0, -betaOverAlpha));
 #endif
@@ -7840,7 +8133,11 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
       else
 	{
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+	  op->SetBlock(1, 0, oppa_ifNDcurlcurl[interfaceIndex].Ptr(), -betaOverAlpha);
+#else
 	  op->SetBlock(1, 0, ifNDcurlcurlSp[interfaceIndex], -betaOverAlpha);
+#endif
 #else
 	  op->SetBlock(1, 0, ifNDcurlcurl[interfaceIndex], -betaOverAlpha);
 #endif
@@ -7848,7 +8145,11 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
     }
 #else
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+  op->SetBlock(1, 0, new SumOperator(oppa_ifNDmass[interfaceIndex].Ptr(), oppa_ifNDcurlcurl[interfaceIndex].Ptr(), false, false, -1.0, -beta / alpha));
+#else
   op->SetBlock(1, 0, new SumOperator(ifNDmassSp[interfaceIndex], ifNDcurlcurlSp[interfaceIndex], false, false, -1.0, -beta / alpha));
+#endif
 #else
   op->SetBlock(1, 0, new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, -1.0, -beta / alpha));
 #endif
@@ -7869,7 +8170,11 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
 #endif
     {
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+      op->SetBlock(1, 1, oppa_ifNDmass[interfaceIndex].Ptr(), alphaInverse);
+#else
       op->SetBlock(1, 1, ifNDmassSp[interfaceIndex], alphaInverse);
+#endif
 #else
       op->SetBlock(1, 1, ifNDmass[interfaceIndex], alphaInverse);
 #endif
@@ -7886,7 +8191,11 @@ Operator* DDMInterfaceOperator::CreateCij(const int localInterfaceIndex, const i
 #endif
     {
 #ifdef SERIAL_INTERFACES
+#ifdef SD_ITERATIVE_GMG_PA
+      op->SetBlock(1, 2, bf_ifNDH1grad[interfaceIndex], gammaOverAlpha);
+#else
       op->SetBlock(1, 2, ifNDH1gradSp[interfaceIndex], gammaOverAlpha);
+#endif
 #else
       op->SetBlock(1, 2, ifNDH1grad[interfaceIndex], gammaOverAlpha);
 #endif
@@ -8916,14 +9225,6 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bo
   //bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdND[subdomain]));
   //bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdNDcopy[subdomain]));  // TODO: is there a way to avoid making a copy of this matrix?
 
-  /*
-    { // debugging
-
-    hypre_CSRMatrix* csrsdND = GetHypreParMatrixData(*(sdND[subdomain]));
-    cout << csrsdND->num_rows << endl;
-    }
-  */
-
   if (fespace[subdomain] != NULL)
     {
       Vector zero(3);
@@ -8950,26 +9251,28 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bo
       //a.FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, sdB);
       //bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, sdB);
 
+      {
 #ifdef SD_ITERATIVE_GMG_PA
-      if (fullAssembly)
+	if (fullAssembly)
 #endif
-	{
-	  bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, *(srcSD[subdomain]));
+	  {
+	    OperatorPtr Aptr;
+	    bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, Aptr, sdX, *(srcSD[subdomain]));
+	    sdND[subdomain] = Aptr.As<HypreParMatrix>();
+	  }
+#ifdef SD_ITERATIVE_GMG_PA
+	else
+	  {
+	    cout << m_rank << ": sdND RHS size init " << srcSD[subdomain]->Size() << ", tvsize " << fespace[subdomain]->GetTrueVSize() << endl;
+	    sd_ess_tdof_list[subdomain] = ess_tdof_list;  // deep copy
+	    bfpa_sdND[subdomain]->FormLinearSystem(sd_ess_tdof_list[subdomain], xsd, *b, oppa_sdND[subdomain], sdX, *(srcSD[subdomain]));
+	    
+	    cout << m_rank << ": sdND RHS size computed " << srcSD[subdomain]->Size() << ", norm " << srcSD[subdomain]->Norml2() << ", sd " << subdomain << endl;
+	  }
+#endif
+	
 	  delete b;
 	}
-      
-#ifdef SD_ITERATIVE_GMG_PA
-      {
-	VectorFunctionCoefficient Eexact(3, test2_E_exact);
-	xsd.ProjectCoefficient(Eexact);
-	b = new ParLinearForm(fespace[subdomain]);
-	b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-	b->Assemble();
-	OperatorPtr Aop;
-	bfpa_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, Aop, sdX, sdB);
-	delete b;	
-      }
-#endif
     }
   
   // Add sum over all interfaces of 
@@ -9319,12 +9622,15 @@ Operator* DDMInterfaceOperator::CreateSubdomainImaginaryPart(const int subdomain
 }
 #endif
 
-Operator* DDMInterfaceOperator::CreateSubdomainOperatorPA(const int subdomain)
+#ifdef SD_ITERATIVE_GMG_PA
+BlockOperator* DDMInterfaceOperator::CreateSubdomainOperatorPA(const int subdomain)
 {
   if (trueOffsetsSD[subdomain][trueOffsetsSD[subdomain].Size()-1] < 1)
     return NULL;
+
+  BlockOperator *op = new BlockOperator(trueOffsetsSD[subdomain]);
   
-  Operator *op = realPart ? bfpa_sdND[subdomain] : NULL;
+  Operator *opSS = realPart ? oppa_sdND[subdomain].Ptr() : NULL;
 
 #ifdef RL_VARFORMOP
   MFEM_VERIFY(false, "version not implemented");
@@ -9342,17 +9648,15 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperatorPA(const int subdomain)
 	    }
 	}
       
-      // TODO: replace matrices with operators
-
       Operator *ifsum = NULL;
       if (ifNDtrue[interfaceIndex] == 0)
 	{
-	  ifsum = new EmptyOperator();
+	  ifsum = &emptyOp;
 	}
       else
 	{
 #ifdef SERIAL_INTERFACES
-	  ifsum = new SumOperator(ifNDmassSp[interfaceIndex], ifNDcurlcurlSp[interfaceIndex], false, false, -alpha, -beta);
+	  ifsum = new SumOperator(oppa_ifNDmass[interfaceIndex].Ptr(), oppa_ifNDcurlcurl[interfaceIndex].Ptr(), false, false, -alpha, -beta);
 #else
 	  ifsum = new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, -alpha, -beta);
 #endif
@@ -9362,16 +9666,43 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperatorPA(const int subdomain)
 						 new TransposeOperator(InterfaceToSurfaceInjection[subdomain][interfaceIndex]),
 						 false, false, false);
 
-      if (op == NULL)
-	op = ifop;
+      if (opSS == NULL)
+	opSS = ifop;
       else
 	{
-	  op = new SumOperator(op, ifop, false, false, 1.0, 1.0);
+	  opSS = new SumOperator(opSS, ifop, false, false, 1.0, 1.0);
 	}
+
+#ifdef SERIAL_INTERFACES
+      op->SetBlock(0, (2*i) + 2, new ProductOperator(InterfaceToSurfaceInjection[subdomain][interfaceIndex], bf_ifNDH1grad[interfaceIndex], false, false), -gamma);
+      op->SetBlock((2*i) + 1, (2*i) + 2, bf_ifNDH1grad[interfaceIndex], gammaOverAlpha);
+      
+      if (realPart)
+	{
+	  op->SetBlock((2*i) + 1, 0, new ProductOperator(new SumOperator(oppa_ifNDmass[interfaceIndex].Ptr(), oppa_ifNDcurlcurl[interfaceIndex].Ptr(), false, false, 1.0, betaOverAlpha), new TransposeOperator(InterfaceToSurfaceInjection[subdomain][interfaceIndex]), false, false));
+
+#ifndef ROBIN_TC
+	  op->SetBlock((2*i) + 2, (2*i) + 1, new TransposeOperator(bf_ifNDH1grad[interfaceIndex]));
+#endif
+
+	  op->SetBlock((2*i) + 2, (2*i) + 2, oppa_ifH1mass[interfaceIndex].Ptr());
+	}
+      else
+	{
+	  op->SetBlock((2*i) + 1, 0, new ProductOperator(oppa_ifNDcurlcurl[interfaceIndex].Ptr(), new TransposeOperator(InterfaceToSurfaceInjection[subdomain][interfaceIndex]), false, false),  betaOverAlpha);
+	}
+
+      op->SetBlock((2*i) + 1, (2*i) + 1, oppa_ifNDmass[interfaceIndex].Ptr(), alphaInverse);
+#else
+      MFEM_VERIFY(false, "not implemented");
+#endif
     }
 
+  op->SetBlock(0, 0, opSS);
+  
   return op;
 }
+#endif
 
 Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
 {
