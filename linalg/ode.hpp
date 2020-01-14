@@ -310,7 +310,7 @@ private:
    static const double a[1];
 
 public:
-   AM0Solver() : AdamsMoultonSolver(1, a) { }
+   AM0Solver() : AdamsMoultonSolver(0, a) { }
 };
 
 
