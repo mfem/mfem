@@ -32,22 +32,26 @@ SERIAL = hypsys
 PARALLEL = hypsys par-hypsys
 
 ifeq ($(MFEM_USE_MPI),NO)
-   EXEC_FILES = $(SERIAL)
+   MAIN_FILES = $(SERIAL)
 else
-   EXEC_FILES = $(PARALLEL)
+   MAIN_FILES = $(PARALLEL)
 endif
 
-# convergence-test setup
+# valgrind-test setup
+VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p 0 -e 0
+
+# grid-convergence-test setup
 GEOM = quad
 MESH0 = data/inline-3$(GEOM).mesh
 MESH1 = data/inline-4$(GEOM).mesh
-CONFIG = -p 0 -e 0 -o 2 -c 0 -tf 1 -dt 0.00002 -s 1 -vs 1000
-CONFIG-NAME = p0e0o2
+CONFIG = -p 0 -e 0 -o 1 -c 0 -tf 1 -dt 0.00002 -s 1 -vs 1000
+CONFIG-NAME = p0e0o1-$(GEOM)
+
 
 ## Makefile rules. #############################################################
 
 # Keywords that are not associated with files (by default, all are).
-.PHONY: all library exec clean sytle
+.PHONY: all library exec clean valgrind-test grid-convergence-test sytle
 
 # Delete the default suffixes.
 .SUFFIXES:
@@ -69,13 +73,19 @@ all: library exec
 
 library: $(OBJ_FILES) $(APP_FILES)
 
-exec: $(EXEC_FILES)
+exec: $(MAIN_FILES)
 
 clean:
 	@rm -f hypsys par-hypsys errors.txt *.gf *.mesh
 	@rm -f $(BLD_DIR)/*
 
-run-convergence-test:
+valgrind-test:
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/periodic-segment.mesh -r 4 -o 4
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/inline-4tri.mesh -r 2 -o 2
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/unstr.mesh -r 0 -o 3
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/periodic-cube.mesh -r 1 -o 2
+
+grid-convergence-test:
 	rm errors.txt; \
 	./hypsys $(CONFIG) -m $(MESH0) -r 4; \
 	./hypsys $(CONFIG) -m $(MESH1) -r 4; \
@@ -83,7 +93,7 @@ run-convergence-test:
 	./hypsys $(CONFIG) -m $(MESH1) -r 5; \
 	./hypsys $(CONFIG) -m $(MESH0) -r 6; \
 	./hypsys $(CONFIG) -m $(MESH1) -r 6; \
-# 	./hypsys $(CONFIG) -m $(MESH0) -r 7; \
+	./hypsys $(CONFIG) -m $(MESH0) -r 7; \
 	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
 
 $(MFEM_LIB_FILE):
@@ -92,6 +102,7 @@ $(MFEM_LIB_FILE):
 ASTYLE = astyle --options=$(MFEM_DIR)/config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS),"$(dir)/*.?pp")
 FORMAT_FILES += hypsys.cpp
+FORMAT_FILES += hypsys.hpp
 FORMAT_FILES += par-hypsys.cpp
 
 style:

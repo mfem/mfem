@@ -1,6 +1,6 @@
 #include "hypsys.hpp"
-#include "lib/dofs.hpp"
 #include "lib/evolve.cpp"
+#include "lib/tools.cpp"
 #include "apps/advection.hpp"
 // #include "apps/swe.hpp"
 
@@ -8,18 +8,18 @@ int main(int argc, char *argv[])
 {
 	Configuration config;
    config.ProblemNum = 0;
-   config.ConfigNum = 0;
-   const char *MeshFile = "data/periodic-square.mesh";
-   int refinements = 2;
+   config.ConfigNum = 1;
+   const char *MeshFile = "data/unstr.mesh";
+   int refinements = 1;
    config.order = 3;
    config.tEnd = 1.;
-   config.dt = 0.002;
+   config.dt = 0.001;
    config.odeSolverType = 3;
    config.VisSteps = 100;
 	config.scheme = Standard;
-
-   int precision = 8;
-   cout.precision(precision);
+	
+   config.precision = 8;
+   cout.precision(config.precision);
 
    OptionsParser args(argc, argv);
    args.AddOption(&config.ProblemNum, "-p", "--problem",
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
       case 2: odeSolver = new RK2Solver(1.0); break;
       case 3: odeSolver = new RK3SSPSolver; break;
       default:
-         cout << "Unknown ODE solver type: " << config.odeSolverType << '\n';
+         cout << "Unknown ODE solver type: " << config.odeSolverType << endl;
          return -1;
    }
 
@@ -89,32 +89,13 @@ int main(int argc, char *argv[])
 	{
 		case 0: { hyp =  new Advection(&fes, config); break; }
 		default:
-			cout << "Unknown Hyperbolic system: " << config.ProblemNum << '\n';
+			cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
          return -1;
    }
    
-	GridFunction u(&fes);
-	hyp->PreprocessProblem(&fes, u);
-	
-   // Compute the lumped mass matrix.
-   Vector LumpedMassMat;
-   BilinearForm ml(&fes);
-   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-   ml.Assemble();
-   ml.Finalize();
-   ml.SpMat().GetDiag(LumpedMassMat);
-	const double InitialMass = LumpedMassMat * u;
-	
-	// Visualization with GLVis, VisIt is currently not supported.
-	{
-      ofstream omesh("hypsys.mesh");
-      omesh.precision(precision);
-      mesh.Print(omesh);
-      ofstream osol("sol-init.gf");
-      osol.precision(precision);
-      u.Save(osol);
-   }
-	
+   if (config.odeSolverType != 1 && hyp->SteadyState)
+		MFEM_WARNING("You should use forward Euler for pseudo time stepping.");
+
 	socketstream sout;
 	bool visualization = true;
 	{
@@ -130,8 +111,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-         sout.precision(precision);
-         sout << "solution\n" << mesh << u;
+         sout.precision(config.precision);
+         sout << "solution\n" << mesh << hyp->u;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -139,94 +120,44 @@ int main(int argc, char *argv[])
       }
    }
    
-   hyp->t = 0.;
    odeSolver->Init(*hyp);
 
 	bool done = false;
+	double dt, res, tol = 1.e-12;
    for (int ti = 0; !done; )
    {
-      double dt = min(config.dt, config.tEnd - hyp->t);
-      odeSolver->Step(u, hyp->t, dt);
+      dt = min(config.dt, config.tEnd - hyp->t);
+      odeSolver->Step(hyp->u, hyp->t, dt);
       ti++;
 
       done = (hyp->t >= config.tEnd - 1.e-8*config.dt);
+		
+		if (hyp->SteadyState)
+		{
+			res = hyp->ConvergenceCheck(dt, tol);
+			if (res < tol)
+				done = true;
+		}
 
       if (done || ti % config.VisSteps == 0)
       {
-         cout << "time step: " << ti << ", time: " << hyp->t << endl;
+			if (hyp->SteadyState)
+			{
+				cout << "time step: " << ti << ", time: " << hyp->t << 
+					", residual: " << res << endl;
+			}
+			else
+			{
+				cout << "time step: " << ti << ", time: " << hyp->t << endl;
+			}
          if (visualization)
          {
-            sout << "solution\n" << mesh << u << flush;
+            sout << "solution\n" << mesh << hyp->u << flush;
          }
       }
    }
-   
-   cout << "Difference in solution mass: " <<
-		abs(InitialMass - LumpedMassMat * u) << endl;
-   
-	hyp->PostprocessProblem(u);
 
-   {
-      ofstream osol("sol-final.gf");
-      osol.precision(precision);
-      u.Save(osol);
-   }
-	
 	delete odeSolver;
 	delete hyp;
    return 0;
-}
-
-
-const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes)
-{
-	const FiniteElement *el = fes->GetFE(0);
-	ElementTransformation *eltrans = fes->GetElementTransformation(0);
-	int order = eltrans->OrderGrad(el) + eltrans->Order() + el->GetOrder();
-   return &IntRules.Get(el->GetGeomType(), order);
-}
-
-// Appropriate quadrature rule for faces according to DGTraceIntegrator.
-const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes)
-{
-   int i, order;
-   // Use the first mesh face and element as indicator.
-   const FaceElementTransformations *Trans =
-      fes->GetMesh()->GetFaceElementTransformations(0);
-   const FiniteElement *el = fes->GetFE(0);
-
-   if (Trans->Elem2No >= 0)
-   {
-      order = min(Trans->Elem1->OrderW(), Trans->Elem2->OrderW()) + 2*el->GetOrder();
-   }
-   else
-   {
-      order = Trans->Elem1->OrderW() + 2*el->GetOrder();
-   }
-   if (el->Space() == FunctionSpace::Pk)
-   {
-      order++;
-   }
-   return &IntRules.Get(Trans->FaceGeom, order);
-}
-
-void HyperbolicSystem::Mult(const Vector &x, Vector &y) const
-{
-	switch (scheme)
-	{
-		case 0: // Standard Finite Element Approximation.
-		{
-			EvolveStandard(x, y);
-			break;
-		}
-		case 1: // Monolithic Convex Limiting.
-		{
-			EvolveMCL(x, y);
-			break;
-		}
-		default:
-		{
-			MFEM_ABORT("Unknown Evolution Scheme.");
-		}
-	}
 }
