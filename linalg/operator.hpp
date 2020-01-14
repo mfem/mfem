@@ -378,6 +378,44 @@ public:
    virtual ~TimeDependentOperator() { }
 };
 
+  // ---------------------------------------------------------------------------
+  // TimeDependentAdjointOperator is a TimeDependentOperator with Adjoint rate equations to be used with CVODESSolver
+  // ---------------------------------------------------------------------------
+
+  class TimeDependentAdjointOperator : public TimeDependentOperator
+  {
+  public:
+    TimeDependentAdjointOperator(int dim, int adjdim, double t = 0., Type type = EXPLICIT) :
+      TimeDependentOperator(dim, t, type),
+      adjoint_height(adjdim)
+    {}
+
+    virtual ~TimeDependentAdjointOperator(){};
+
+    virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const = 0;
+    virtual void AdjointRateMult(const Vector &y, Vector & yB, Vector &yBdot) const = 0;
+    virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB, Vector &qBdot) const = 0;
+    virtual int SUNImplicitSetupB(const double t, const Vector &x, const Vector &xB, const Vector &fxB,
+    			       int jokB, int *jcurB, double gammaB)
+    {
+      mfem_error("TimeDependentOperator::SUNImplicitSetupB() is not overridden!");
+      return(-1);
+    }
+
+    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
+    {
+      mfem_error("TimeDependentOperator::SUNImplicitSolveB() is not overridden!");
+      return(-1);
+    }
+
+    int GetAdjointHeight() {return adjoint_height;}
+    
+  protected:
+    int adjoint_height;
+    
+  };
+
+
 /// Base class for solvers
 class Solver : public Operator
 {

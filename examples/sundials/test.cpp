@@ -59,9 +59,9 @@ public:
   virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
   virtual void AdjointRateMult(const Vector &y, Vector &yB, Vector &yBdot) const;
   virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB, Vector &qbdot) const;
-  virtual int ImplicitSetupB(const double t, const Vector &y, const Vector &yB,
+  virtual int SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
 			     const Vector &fyB, int jokB, int *jcurB, double gammaB);
-  virtual int ImplicitSolveB(Vector &x, const Vector &b, double tol);
+  virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
 
 
   
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
        cvodes = new CVODESSolver(CV_BDF);
        cvodes->Init(adv);
        cvodes->SetWFTolerances([reltol, abstol_v]
-			       (Vector y, Vector w, CVODESSolver * self)
+			       (Vector y, Vector w, CVODESolver * self)
 			       {
 				 for (int i = 0; i < y.Size(); i++) {
 				   double ww = reltol * abs(y[i]) + abstol_v[i];
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
        cvodes->SetSVtolerances(reltol, abstol_v);
        cvodes->UseSundialsLinearSolver();       
        cvodes->InitQuadIntegration(1.e-6,1.e-6);
-       cvodes->InitAdjointSolve(150);
+       cvodes->InitAdjointSolve(150, CV_HERMITE);
        ode_solver = cvodes; break;
      }
 
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
      cout << "w:" << endl;
      w.Print();
    
-     cvodes->GetCorrespondingForwardSolution(t, u);
+     cvodes->GetForwardSolution(t, u);
      cout << "u:" << endl;
      u.Print();
 
@@ -314,13 +314,13 @@ int main(int argc, char *argv[])
      cout << "t: " << t << endl;
      cout << "w:" << endl;
 
-     cvodes->GetCorrespondingForwardSolution(t, u);
+     cvodes->GetForwardSolution(t, u);
      w.Print();
      cout << "u:" << endl;
      u.Print();
 
      // Evaluate Sensitivity
-     cvodes->EvalObjectiveSensitivity(t, dG_dp);
+     cvodes->EvalQuadIntegrationB(t, dG_dp);
      cout << "dG/dp:" << endl;
      dG_dp.Print();
      
@@ -370,7 +370,7 @@ void RobertsSUNDIALS::ObjectiveSensitivityMult(const Vector &y, const Vector &yB
   qBdot[2] = y[1]*y[1]*l32;
 }
 
-int RobertsSUNDIALS::ImplicitSetupB(const double t, const Vector &y, const Vector &yB,
+int RobertsSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
 				    const Vector &fyB, int jokB, int *jcurB, double gammaB)
 {
 
@@ -405,7 +405,7 @@ int RobertsSUNDIALS::ImplicitSetupB(const double t, const Vector &y, const Vecto
 
 // Is b = -fB ?
 // is tol reltol or abstol?
-int RobertsSUNDIALS::ImplicitSolveB(Vector &x, const Vector &b, double tol)
+int RobertsSUNDIALS::SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
 {
   adjointSolver.SetRelTol(1e-14);
   adjointSolver.Mult(b, x);

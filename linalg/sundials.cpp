@@ -74,7 +74,7 @@ static int LSFree(SUNLinearSolver LS)
 // ---------------------------------------------------------------------------
 // SundialsSolver Helper functions
 // ---------------------------------------------------------------------------
-  void SundialsSolver::AllocateEmptyN_Vector(N_Vector &y)
+  void SundialsSolver::AllocateEmptyNVector(N_Vector &y)
   {
     // Allocate an empty serial N_Vector
     y = N_VNewEmpty_Serial(0);
@@ -83,10 +83,10 @@ static int LSFree(SUNLinearSolver LS)
 
   
   #ifdef MFEM_USE_MPI
-  void SundialsSolver::AllocateEmptyN_Vector(N_Vector &y, MPI_Comm comm)
+  void SundialsSolver::AllocateEmptyNVector(N_Vector &y, MPI_Comm comm)
     {
       if (comm == MPI_COMM_NULL) {
-	AllocateEmptyN_Vector(y);
+	AllocateEmptyNVector(y);
       } else {
 	// Allocate an empty parallel N_Vector
 	y = N_VNewEmpty_Parallel(comm, 0, 0);  // calls MPI_Allreduce()
@@ -186,7 +186,7 @@ CVODESolver::CVODESolver(int lmm)
   : lmm_type(lmm), step_mode(CV_NORMAL)
 {
    // Allocate an empty serial N_Vector
-   AllocateEmptyN_Vector(y);
+   AllocateEmptyNVector(y);
 }
 
 #ifdef MFEM_USE_MPI
@@ -194,7 +194,7 @@ CVODESolver::CVODESolver(MPI_Comm comm, int lmm)
   : lmm_type(lmm), step_mode(CV_NORMAL)
 {
    // Allocate an empty vector
-   AllocateEmptyN_Vector(y, comm);  
+   AllocateEmptyNVector(y, comm);  
 }
 #endif
 
@@ -365,7 +365,8 @@ void CVODESolver::SetSVtolerances(double reltol, Vector abstol)
 {
   MFEM_VERIFY(abstol.Size() == f->Height(), "abs tolerance is not the same size.");
    
-  N_Vector nv_abstol = N_VNewEmpty_Serial(0);    
+  N_Vector nv_abstol;
+  AllocateEmptyNVector(nv_abstol);
   abstol.ToNVector(nv_abstol);
     
   flag = CVodeSVtolerances(sundials_mem, reltol, nv_abstol);
@@ -447,13 +448,14 @@ CVODESolver::~CVODESolver()
     ncheck(0),
     indexB(0),
     LSB(nullptr),
+    AB(nullptr),
     mfem_qB(0),
     mfem_q(0)
   {
-    AllocateEmptyN_Vector(q);
-    AllocateEmptyN_Vector(qB);
-    AllocateEmptyN_Vector(yB);
-    AllocateEmptyN_Vector(yy);
+    AllocateEmptyNVector(q);
+    AllocateEmptyNVector(qB);
+    AllocateEmptyNVector(yB);
+    AllocateEmptyNVector(yy);
   }
 
 #ifdef MFEM_USE_MPI
@@ -465,10 +467,10 @@ CVODESSolver::CVODESSolver(MPI_Comm comm, int lmm) :
     mfem_qB(0),
     mfem_q(0)
   {
-    AllocateEmptyN_Vector(q, comm);
-    AllocateEmptyN_Vector(qB, comm);
-    AllocateEmptyN_Vector(yB, comm);
-    AllocateEmptyN_Vector(yy, comm);
+    AllocateEmptyNVector(q, comm);
+    AllocateEmptyNVector(qB, comm);
+    AllocateEmptyNVector(yB, comm);
+    AllocateEmptyNVector(yy, comm);
   }
 #endif
 
@@ -494,7 +496,7 @@ CVODESSolver::CVODESSolver(MPI_Comm comm, int lmm) :
     Q = mfem_q;
   }
 
-  void CVODESSolver::EvalObjectiveSensitivity(double t, Vector &dG_dp)
+  void CVODESSolver::EvalQuadIntegrationB(double t, Vector &dG_dp)
   {
     MFEM_VERIFY(t <= f->GetTime(), "t > current forward solver time");    
     
@@ -504,7 +506,7 @@ CVODESSolver::CVODESSolver(MPI_Comm comm, int lmm) :
     dG_dp.Set(-1., mfem_qB);
   }
 
-  void CVODESSolver::GetCorrespondingForwardSolution(double tB, mfem::Vector & yyy)
+  void CVODESSolver::GetForwardSolution(double tB, mfem::Vector & yyy)
   {
     SetN_Vector(yy, yyy);
  
@@ -534,7 +536,7 @@ void CVODESSolver::Init(TimeDependentAdjointOperator &f_) {
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeCreateB()");
     
     // Initialize CVODEB
-    flag = CVodeInitB(sundials_mem, indexB, fB, tB, yB);
+    flag = CVodeInitB(sundials_mem, indexB, RHSB, tB, yB);
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeInit()");
 
     // Attach the CVODESSolver as user-defined data
@@ -554,9 +556,9 @@ void CVODESSolver::Init(TimeDependentAdjointOperator &f_) {
   }
 
 
-  void CVODESSolver::InitAdjointSolve(int steps)
+  void CVODESSolver::InitAdjointSolve(int steps, int interpolation)
   {
-    flag = CVodeAdjInit(sundials_mem, steps, CV_HERMITE);
+    flag = CVodeAdjInit(sundials_mem, steps, interpolation);
     MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeAdjInit");
   }
 
@@ -567,7 +569,7 @@ void CVODESSolver::Init(TimeDependentAdjointOperator &f_) {
     mfem_q.SetSize(1);
     SetN_Vector(q, mfem_q);
 
-    flag = CVodeQuadInit(sundials_mem, fQ, q);
+    flag = CVodeQuadInit(sundials_mem, RHSQ, q);
     MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeQuadInit()");
 
     flag = CVodeSetQuadErrCon(sundials_mem, SUNTRUE);
@@ -584,7 +586,7 @@ void CVODESSolver::InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB, doub
     mfem_qB.SetSize(qB0.Size());
     SetN_Vector(qB, mfem_qB);
 
-    flag = CVodeQuadInitB(sundials_mem, indexB, fQB, qB);
+    flag = CVodeQuadInitB(sundials_mem, indexB, RHSQB, qB);
     MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeQuadInitB()");
 
     flag = CVodeSetQuadErrConB(sundials_mem, indexB, SUNTRUE);
@@ -599,11 +601,12 @@ void CVODESSolver::InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB, doub
   void CVODESSolver::UseMFEMLinearSolverB()
   {
     // Free any existing linear solver
+    if (AB != NULL)   { SUNMatDestroy(AB); AB = NULL; }
     if (LSB != NULL) { SUNLinSolFree(LSB); LSB = NULL; }
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
     LSB = SUNLinSolNewEmpty();
-    MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+    MFEM_VERIFY(LSB, "error in SUNLinSolNewEmpty()");
 
     LSB->content         = this;
     LSB->ops->gettype    = LSGetType;
@@ -611,7 +614,7 @@ void CVODESSolver::InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB, doub
     LSB->ops->free       = LSFree;
 
     AB = SUNMatNewEmpty();
-    MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+    MFEM_VERIFY(AB, "error in SUNMatNewEmpty()");
 
     AB->content      = this;
     AB->ops->getid   = MatGetID;
@@ -653,9 +656,9 @@ void CVODESSolver::UseSundialsLinearSolverB()
     Vector mfem_fyB(fyB);
     CVODESSolver *self = static_cast<CVODESSolver*>(GET_CONTENT(AB));
     TimeDependentAdjointOperator * f = static_cast<TimeDependentAdjointOperator *>(self->f);
-    
+    f->SetTime(t);
     // Compute the linear system
-    return(f->ImplicitSetupB(t, mfem_y, mfem_yB, mfem_fyB, jokB, jcurB, gammaB));
+    return(f->SUNImplicitSetupB(t, mfem_y, mfem_yB, mfem_fyB, jokB, jcurB, gammaB));
   }
 
 
@@ -667,15 +670,28 @@ void CVODESSolver::UseSundialsLinearSolverB()
     CVODESSolver *self = static_cast<CVODESSolver*>(GET_CONTENT(LS));
     TimeDependentAdjointOperator * f = static_cast<TimeDependentAdjointOperator *>(self->f);
     // Solve the linear system
-    int ret = f->ImplicitSolveB(mfem_yB, mfem_Rb, tol);
+    int ret = f->SUNImplicitSolveB(mfem_yB, mfem_Rb, tol);
     return(ret);
   }
 
   void CVODESSolver::SetSStolerancesB(double reltol, double abstol)
   {
     flag = CVodeSStolerancesB(sundials_mem, indexB, reltol, abstol);
-    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetSStolerancesB()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSStolerancesB()");
   }
+
+  void CVODESSolver::SetSVtolerancesB(double reltol, Vector abstol)
+  {
+    MFEM_VERIFY(abstol.Size() == f->Height(), "abs tolerance is not the same size.");
+   
+    N_Vector nv_abstol;
+    AllocateEmptyNVector(nv_abstol);
+    abstol.ToNVector(nv_abstol);  
+
+    flag = CVodeSVtolerancesB(sundials_mem, indexB, reltol, nv_abstol);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSVtolerancesB()");
+  }
+
 
   void CVODESSolver::SetWFTolerances(EWTFunction func)
   {
@@ -688,7 +704,7 @@ void CVODESSolver::UseSundialsLinearSolverB()
  CVODESSolver static functions
  */
 
-  int CVODESSolver::fQ(realtype t, const N_Vector y, N_Vector qdot, void *user_data)
+  int CVODESSolver::RHSQ(realtype t, const N_Vector y, N_Vector qdot, void *user_data)
   {
     CVODESSolver *self = static_cast<CVODESSolver*>(user_data);
     Vector mfem_y(y);
@@ -699,7 +715,7 @@ void CVODESSolver::UseSundialsLinearSolverB()
     return 0;
   }
 
-  int CVODESSolver::fQB(realtype t, N_Vector y, N_Vector yB, N_Vector qBdot, void *user_dataB)
+  int CVODESSolver::RHSQB(realtype t, N_Vector y, N_Vector yB, N_Vector qBdot, void *user_dataB)
   {
     CVODESSolver *self = static_cast<CVODESSolver*>(user_dataB);
     Vector mfem_y(y);
@@ -711,7 +727,7 @@ void CVODESSolver::UseSundialsLinearSolverB()
     return 0;   
   }
 
-  int CVODESSolver::fB(realtype t, N_Vector y, N_Vector yB, N_Vector yBdot, void *user_dataB)
+  int CVODESSolver::RHSB(realtype t, N_Vector y, N_Vector yB, N_Vector yBdot, void *user_dataB)
   {
     CVODESSolver *self = static_cast<CVODESSolver*>(user_dataB);
     Vector mfem_y(y);
@@ -918,8 +934,7 @@ ARKStepSolver::ARKStepSolver(Type type)
      use_implicit(type == IMPLICIT || type == IMEX)
 {
    // Allocate an empty serial N_Vector
-   y = N_VNewEmpty_Serial(0);
-   MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
+  AllocateEmptyNVector(y);
 }
 
 #ifdef MFEM_USE_MPI
@@ -927,22 +942,7 @@ ARKStepSolver::ARKStepSolver(MPI_Comm comm, Type type)
    : rk_type(type), step_mode(ARK_NORMAL),
      use_implicit(type == IMPLICIT || type == IMEX)
 {
-   if (comm == MPI_COMM_NULL)
-   {
-
-      // Allocate an empty serial N_Vector
-      y = N_VNewEmpty_Serial(0);
-      MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
-
-   }
-   else
-   {
-
-      // Allocate an empty parallel N_Vector
-      y = N_VNewEmpty_Parallel(comm, 0, 0);  // calls MPI_Allreduce()
-      MFEM_VERIFY(y, "error in N_VNewEmpty_Parallel()");
-
-   }
+  AllocateEmptyNVector(y, comm);
 }
 #endif
 
@@ -1390,10 +1390,9 @@ KINSolver::KINSolver(int strategy, bool oper_grad)
      f_scale(NULL), jacobian(NULL), maa(0)
 {
    // Allocate empty serial N_Vectors
-   y = N_VNewEmpty_Serial(0);
-   y_scale = N_VNewEmpty_Serial(0);
-   f_scale = N_VNewEmpty_Serial(0);
-   MFEM_VERIFY(y && y_scale && f_scale, "Error in N_VNewEmpty_Serial().");
+  AllocateEmptyNVector(y);
+  AllocateEmptyNVector(y_scale);
+  AllocateEmptyNVector(f_scale);
 
    // Default abs_tol and print_level
    abs_tol     = pow(UNIT_ROUNDOFF, 1.0/3.0);
@@ -1405,26 +1404,10 @@ KINSolver::KINSolver(MPI_Comm comm, int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
      f_scale(NULL), jacobian(NULL), maa(0)
 {
-   if (comm == MPI_COMM_NULL)
-   {
-
-      // Allocate empty serial N_Vectors
-      y = N_VNewEmpty_Serial(0);
-      y_scale = N_VNewEmpty_Serial(0);
-      f_scale = N_VNewEmpty_Serial(0);
-      MFEM_VERIFY(y && y_scale && f_scale, "error in N_VNewEmpty_Serial()");
-
-   }
-   else
-   {
-
-      // Allocate empty parallel N_Vectors
-      y = N_VNewEmpty_Parallel(comm, 0, 0);
-      y_scale = N_VNewEmpty_Parallel(comm, 0, 0);
-      f_scale = N_VNewEmpty_Parallel(comm, 0, 0);
-      MFEM_VERIFY(y && y_scale && f_scale, "error in N_VNewEmpty_Parallel()");
-
-   }
+      // Allocate empty N_Vectors
+     AllocateEmptyNVector(y, comm);
+     AllocateEmptyNVector(y_scale, comm);
+     AllocateEmptyNVector(f_scale, comm);
 
    // Default abs_tol and print_level
    abs_tol     = pow(UNIT_ROUNDOFF, 1.0/3.0);

@@ -92,9 +92,9 @@ public:
   virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
   virtual void AdjointRateMult(const Vector &y, Vector &yB, Vector &yBdot) const;
   virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB, Vector &qbdot) const;
-  virtual int ImplicitSetupB(const double t, const Vector &y, const Vector &yB,
+  virtual int SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
 			     const Vector &fyB, int jokB, int *jcurB, double gammaB);
-  virtual int ImplicitSolveB(Vector &x, const Vector &b, double tol);
+  virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
 
   virtual int SUNImplicitSetup(const Vector &y,
 			       const Vector &fy, int jok, int *jcur, double gamma);
@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
        cvodes->Init(adv);
        cvodes->UseSundialsLinearSolver();
        cvodes->SetSStolerances(reltol, abstol);
-       cvodes->InitAdjointSolve(steps);
+       cvodes->InitAdjointSolve(steps, CV_HERMITE);
        ode_solver = cvodes; break;
      }
 
@@ -510,7 +510,7 @@ void AdvDiffSUNDIALS::ObjectiveSensitivityMult(const Vector &y, const Vector &yB
   mfem_error("Not implemented.");
 }
 
-int AdvDiffSUNDIALS::ImplicitSetupB(const double t, const Vector &y, const Vector &yB,
+int AdvDiffSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
 				    const Vector &fyB, int jokB, int *jcurB, double gammaB)
 {
   mfem_error("Not implemented.");
@@ -518,7 +518,7 @@ int AdvDiffSUNDIALS::ImplicitSetupB(const double t, const Vector &y, const Vecto
 
 // Is b = -fB ?
 // is tol reltol or abstol?
-int AdvDiffSUNDIALS::ImplicitSolveB(Vector &x, const Vector &b, double tol)
+int AdvDiffSUNDIALS::SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
 {
   mfem_error("Not implemented.");
 }
