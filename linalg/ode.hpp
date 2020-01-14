@@ -321,11 +321,10 @@ class GeneralizedAlphaSolver : public ODESolver
 {
 protected:
    mutable Vector xdot,k,y;
-   double rho_inf, alpha_f, alpha_m, gamma;
+   double alpha_f, alpha_m, gamma;
    bool first;
 
    void SetRhoInf(double rho_inf);
-   void SetParams(double rho_inf);
    void PrintProperties(std::ostream &out = mfem::out);
 public:
 
