@@ -501,7 +501,7 @@ public:
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- X A^{-1},
        for a matrix X of size (n x m). */
-   void RightSolve(int πm, int n, double *X) const;
+   void RightSolve(int m, int n, double *X) const;
 
    /// Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1}.
    void GetInverseMatrix(int m, double *X) const;
