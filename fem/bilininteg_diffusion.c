@@ -25,11 +25,12 @@ void KernelPADiffusionApply2D(const int NE,
                               const int D1D,
                               const int Q1D,
                               const int NBZ,
-                              const double b_[Q1D][D1D],
-                              const double g_[Q1D][D1D],
-                              const double D_[Q1D*Q1D][3][NE],
-                              const double x_[D1D][D1D][NE],
-                              double Y_[D1D][D1D][NE])
+                              const double b_[/*Q1D*/][D1D],
+                              const double g_[/*Q1D*/][D1D],
+                              const double D_[/*Q1D*Q1D*/][3][NE],
+                              const double x_[/*D1D*/][D1D][NE],
+                              double Y_[/*D1D*/][D1D][NE])
+//double *Y_)
 {
    //MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    for (int e = 0; e < NE; e++)
@@ -47,6 +48,7 @@ void KernelPADiffusionApply2D(const int NE,
       double (*Gt)[Q1D] = (double (*)[Q1D]) sBG[1];*/
 
       MFEM_SHARED double X[D1D][D1D];
+      //double (*Y_)[D1D][NE] = (double (*)[D1D][NE])y_;
       //MFEM_SHARED double Xz[NBZ][D1D*D1D];
       //double (*X)[D1D] = (double (*)[D1D])(Xz + tidz);
 
@@ -66,7 +68,7 @@ void KernelPADiffusionApply2D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             X[dy][dx] = x_[dx][dy][e];
-            printf("\n\033[33m %f\033[m", X[dy][dx]);
+            //printf("\n\033[33m %f\033[m", X[dy][dx]);
          }
       }
       if (tidz == 0)

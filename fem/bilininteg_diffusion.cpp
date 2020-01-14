@@ -908,7 +908,7 @@ static void PADiffusionApply2D(const int NE,
 }
 #endif
 
-extern "C" void KernelPADiffusionApply2D(const int NE,
+/*extern "C" void KernelPADiffusionApply2D(const int NE,
                                          const int D1D,
                                          const int Q1D,
                                          const int NBZ,
@@ -916,7 +916,167 @@ extern "C" void KernelPADiffusionApply2D(const int NE,
                                          const double *g,
                                          const double *D,
                                          const double *x,
-                                         double *Y);
+                                         double *Y);*/
+template<int NE, int T_D1D, int T_Q1D, int T_NBZ>
+void KernelPADiffusionApply2D(//const int NE,
+   //const int D1D,
+   //const int Q1D,
+   //const int NBZ,
+   const double *b__,//(*b_)/*[Q1D]*/[D1D],
+   const double *g__,//[Q1D][D1D],
+   const double *D__,//[Q1D*Q1D][3][NE],
+   const double *x__,//[D1D][D1D][NE],
+   double *Y__)//[D1D][D1D][NE])
+//double *Y_)
+{
+   constexpr int D1D = T_D1D ;//? T_D1D : d1d;
+   constexpr int Q1D = T_Q1D ;//? T_Q1D : q1d;
+   //constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   //constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   //constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   //const double (*b)[D1D] = (const double (*)[D1D]) b__;
+   auto b = Reshape(b__, Q1D, D1D);
+   auto g = Reshape(g__, Q1D, D1D);
+   auto D = Reshape(D__, Q1D*Q1D, 3, NE);
+   auto x = Reshape(x__, D1D, D1D, NE);
+   auto Y = Reshape(Y__, D1D, D1D, NE);
+
+   //MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   for (int e = 0; e < NE; e++)
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      constexpr int D1D = T_D1D ;//? T_D1D : d1d;
+      constexpr int Q1D = T_Q1D ;//? T_Q1D : q1d;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      MFEM_SHARED double sBG[2][MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
+      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
+      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
+      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
+      MFEM_SHARED double Xz[NBZ][MD1][MD1];
+      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
+      MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
+      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
+      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
+      double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
+      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
+      double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            X[dy][dx] = x(dx,dy,e);
+            //printf("\n\033[33m %f\033[m", X[dy][dx]);
+         }
+      }
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][dy] = b(q,dy);
+               G[q][dy] = g(q,dy);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double coords = X[dy][dx];
+               u += B[qx][dx] * coords;
+               v += G[qx][dx] * coords;
+            }
+            DQ0[dy][qx] = u;
+            DQ1[dy][qx] = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               u += DQ1[dy][qx] * B[qy][dy];
+               v += DQ0[dy][qx] * G[qy][dy];
+            }
+            QQ0[qy][qx] = u;
+            QQ1[qy][qx] = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_UNROLL(Q1D);
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            const int q = (qx + ((qy) * Q1D));
+            const double O11 = D(q,0,e);
+            const double O12 = D(q,1,e);
+            const double O22 = D(q,2,e);
+            const double gX = QQ0[qy][qx];
+            const double gY = QQ1[qy][qx];
+            QQ0[qy][qx] = (O11 * gX) + (O12 * gY);
+            QQ1[qy][qx] = (O12 * gX) + (O22 * gY);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bt[dy][q] = b(q,dy);
+               Gt[dy][q] = g(q,dy);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               u += Gt[dx][qx] * QQ0[qy][qx];
+               v += Bt[dx][qx] * QQ1[qy][qx];
+            }
+            DQ0[qy][dx] = u;
+            DQ1[qy][dx] = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               u += DQ0[qy][dx] * Bt[dy][qy];
+               v += DQ1[qy][dx] * Gt[dy][qy];
+            }
+            Y(dx,dy,e) += (u + v);
+         }
+      }
+   }//);
+}
+
 
 // Shared memory PA Diffusion Apply 2D kernel
 MFEM_JIT
@@ -952,9 +1112,10 @@ static void SmemPADiffusionApply2D(const int NE,
    fflush(0);
    if (getenv("KER"))
    {
-      KernelPADiffusionApply2D(NE, D1D, Q1D, NBZ,
-                               b_.Read(), g_.Read(), d_.Read(), x_.Read(),
-                               y_.ReadWrite());
+      KernelPADiffusionApply2D<20,3,3,1>(//NE, D1D, Q1D, NBZ,
+         (const double*)b, (const double*)g, (const double*)D,
+         (const double*)x, (double*)Y);
+      //b_.Read(), g_.Read(), d_.Read(), x_.Read(), y_.ReadWrite());
       return;
    }
    /////////////////////////////////////////////////////////////////////////////
@@ -984,7 +1145,7 @@ static void SmemPADiffusionApply2D(const int NE,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             X[dy][dx] = x(dx,dy,e);
-            printf("\n\033[33m %f\033[m", X[dy][dx]);
+            //printf("\n\033[33m %f\033[m", X[dy][dx]);
          }
       }
       if (tidz == 0)
