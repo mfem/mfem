@@ -5,8 +5,8 @@
 
 using namespace std;
 using namespace mfem;
-int isupg=1;
-bool lumpedMass = true;
+int isupg=2;
+bool lumpedMass = false;
 
 // reduced system 
 class ReducedSystemOperator : public Operator
@@ -64,8 +64,7 @@ public:
        dtOld=dt; dt=dt_; phi=phi_; psi=psi_; w=w_;
        if (dtOld!=dt && initialMdt)
        {
-           if (myid==0) 
-              cout <<"------update Mdt------"<<endl;
+           if (myid==0) cout <<"------update Mdt------"<<endl;
            double rate=dtOld/dt;
            *Mdtpr*=rate;
 
@@ -86,8 +85,7 @@ public:
        }
        if(initialMdt==false)
        {
-           if (myid==0) 
-              cout <<"------initial Mdt-------"<<endl;
+           if (myid==0) cout <<"------initial Mdt-------"<<endl;
            *Mdtpr*=(1./dt); 
            initialMdt=true;
 
@@ -240,6 +238,7 @@ protected:
    myBCHandler *bchandler;
    PetscPreconditionerFactory *J_factory;
 
+   int myid;
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother *M_prec;  // Preconditioner for the mass matrix M
 
@@ -321,6 +320,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      zFull(f.GetVSize()), j(&fespace),
      DRetmp(NULL), DSltmp(NULL)
 {
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    //mass matrix
@@ -334,6 +334,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    MassIntegrator *mass = new MassIntegrator;
    if (lumpedMass) //use a lumped mass integrator to compute J
    {
+     if (myid==0) cout <<"------lumped mass matrix in M_solver2!------"<<endl;
      Mfull->AddDomainIntegrator(new LumpedIntegrator(mass));
      Mfull->Assemble();
      Mfull->Finalize();
@@ -713,7 +714,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    if (E0Vec!=NULL)
      z += *E0Vec;
    //add stabilization terms
-   if (isupg>1)
+   if (isupg>2 && StabNv!=NULL)
    {
        //FIXME this supg form contains some bugs
        //stabilized term for psi
@@ -723,12 +724,16 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        StabE0->ParallelAssemble(z);
        dpsi_dt+=z;
    }
-   else if (isupg==1)
+   else if (isupg==1 && StabNv!=NULL)
    {
        //only add the velocity diffusion term
        StabNv->TrueAddMult(psi, z);
    }
    z.Neg(); // z = -z
+   if (isupg==2 && StabNb!=NULL)
+   {
+       StabNb->TrueAddMult(J, z);
+   }
    z.SetSubVector(ess_tdof_list,0.0);
    M_solver.Mult(z, dpsi_dt);
 
@@ -739,7 +744,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       DRe.TrueAddMult(w, z);
    }
    //add stabilization term
-   if (isupg>1)
+   if (isupg>2 && StabNv!=NULL)
    {
        //FIXME this supg form contains some bugs (z not dw_dt)
        //stabilized term for omega
@@ -757,7 +762,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        J.Neg();
        StabNb->TrueAddMult(J, dw_dt);
    }
-   else if (isupg==1)
+   else if (isupg==1 && StabNv!=NULL)
    {
        //only add the velocity diffusion term
        StabNv->TrueAddMult(w, z);
@@ -799,10 +804,8 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
       phi1.SetFromTrueVector(); psi1.SetFromTrueVector(); w1.SetFromTrueVector();
 
       ostringstream phi_name, psi_name, w_name;
-      int myid;
       if (myid==0)
           cout <<"======OUTPUT: matrices in ResistiveMHDOperator:ImplicitSolve======"<<endl;
-      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
       phi_name << "dbg_phi." << setfill('0') << setw(6) << myid;
       psi_name << "dbg_psi." << setfill('0') << setw(6) << myid;
       w_name << "dbg_omega." << setfill('0') << setw(6) << myid;
@@ -838,7 +841,7 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
       StabNv->Assemble(); 
    }
 
-   if (isupg > 1){
+   if (isupg > 2){
       delete StabMass;
       StabMass = new ParBilinearForm(&fespace);
       StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
@@ -860,10 +863,19 @@ void ResistiveMHDOperator::assembleBoper(double dt, ParGridFunction *phi, ParGri
    Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
    Nb->Assemble();
 
-   delete StabNb;
-   StabNb = new ParBilinearForm(&fespace);
-   StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
-   StabNb->Assemble(); 
+   if (isupg > 2){
+     delete StabNb;
+     StabNb = new ParBilinearForm(&fespace);
+     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
+     StabNb->Assemble(); 
+   }
+   else if (isupg == 2)
+   {
+     delete StabNb;
+     StabNb = new ParBilinearForm(&fespace);
+     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield));
+     StabNb->Assemble(); 
+   }
 }
 
 void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 

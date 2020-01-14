@@ -4,7 +4,8 @@ using namespace std;
 using namespace mfem;
 
 int itau=2; 
-bool maxtau=true;  //take a maximum on each element
+bool maxtau=true;   //take a maximum on each element
+double vA = 1.0;    
 
 // Integrator for the boundary gradient integral from the Laplacian operator
 // this is used in the auxiliary variable where the boundary condition is not needed
@@ -205,16 +206,18 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
     if(Q!=NULL) Q->Eval(Q_ir, Tr, ir);
 
     //compare maximum tau
-    double tauMax=0.0,dtTau=0.1;
+    double tauMax=0.0,dtTau=0.001;
     if (maxtau)
     {
         for (int i = 0; i < ir.GetNPoints(); i++)
         {
-            V_ir.GetColumnReference(i, vec1);
-            Unorm = vec1.Norml2();
+            //V_ir.GetColumnReference(i, vec1);
+            //Unorm = vec1.Norml2();
             //fix dtTau here
-            invtau = sqrt( pow(2./dtTau,2) +  pow(2.0 * Unorm / eleLength, 2) );
-            tau = 1.0/invtau;
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            double nu = nuCoef->Eval (Tr, ip);
+            invtau = sqrt( pow(2./dt,2) +  pow(2.0 * vA / eleLength, 2) + 4.0 * nu / (eleLength * eleLength) );
+            tau = eleLength*eleLength/invtau;
             tauMax = max(tauMax, tau);
         }
     }

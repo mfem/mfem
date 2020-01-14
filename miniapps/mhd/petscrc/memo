@@ -33,6 +33,14 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+1/10
+use
+tau = h^2/invtau;
+
+use tau = .0001/invtau and a smaller time step for the hyprediffusion term (works noticably better):
+mpirun -n 12 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 100 -tf 2 -dt .0005 -resi 1e-6 -visc 1e-6
+
+
 12/23
 this is not quite good even with supg (both element max or a local value)
 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 100 -tf 1 -dt .002 -resi 1e-6 -visc 1e-6
