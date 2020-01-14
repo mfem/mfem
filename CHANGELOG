@@ -13,12 +13,29 @@ Version 4.0.1 (development)
 
 Improved GPU support
 --------------------
+- Added support for matrix-free diagonal smoothers on GPUs.
+
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
-  language that can run on both AMD and NVIDIA hardware. With this change, the
-  list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",
-  "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+  language that can run on both AMD and NVIDIA hardware. With this change and
+  the libCEED addition below, the current list of available backends is:
+  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
+  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
 
 - Improved RAJA backend and multi-GPU MPI communications.
+
+libCEED support
+---------------
+- Added support for libCEED, the portable library for high-order operator
+  evaluation developed by the Center for Efficient Exascale Discretizations in
+  the Exascale Computing Project, https://github.com/CEED/libCEED.
+
+- This initial integration includes Mass and Diffusion integrators. libCEED GPU
+  backends can be used without specific MFEM configuration, however it is highly
+  recommended to use the "cuda" build option to minimize memory transfers.
+
+- Both CPU and GPU modes are available as MFEM device backends (ceed-cpu and
+  ceed-cuda), using some of the best performing CPU and GPU backends from
+  libCEED, see the sample runs in examples 1 and 6.
 
 Meshing improvements
 --------------------
@@ -30,6 +47,10 @@ Meshing improvements
   Target matrices can now be constructed either via a given analytical function
   (e.g. spatial dependence of size, aspect ratio, etc., for each element) or via
   a (Par)GridFunction specified on the original mesh.
+
+- New method Mesh::GetHilbertElementOrdering for sorting mesh elements along the
+  Hilbert curve. The ordering can be used to improve caching and parallel
+  partitioning in non-conforming AMR.
 
 - Added support for creating refined versions of periodic meshes, making use of
   the new L2ElementRestriction class. This class also allows for computing
@@ -50,6 +71,10 @@ Discretization improvements
   2x2 block structured linear system to mimic complex arithmetic. New classes
   include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
   parallel counterparts.
+
+- Diagonals of partially assembled operators can now be computed efficiently.
+  See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
+  BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
 Linear and nonlinear solvers
 ----------------------------
@@ -76,8 +101,12 @@ New and updated examples and miniapps
   complex-valued finite element operators. The example defines and solves
   a family of time-harmonic PDEs related to damped harmonic oscillators.
 
+- Updated Example 1/1p to use diagonal preconditioning in partial assembly mode.
+
 - The mesh-optimizer and pmesh-optimizer miniapps have been updated to
   demonstrate the new r-adaptivity capabilities of TMOP.
+
+- New options to reorder and partition the mesh in the mesh-explorer miniapp.
 
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
