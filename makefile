@@ -437,7 +437,7 @@ else
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 $(C_OBJECT_FILES): $(BLD)%.c.o: $(SRC)%.c $(CONFIG_MK)
-	gcc -g -Wall -std=c11 -c $(<) -o $(@)
+	gcc -O3 -g -Wall -c $(<) -o $(@)
 endif
 
 # Rule for compiling kernel source file generator.
