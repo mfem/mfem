@@ -152,6 +152,8 @@ New and improved solvers and preconditioners
 - Added support for STRUMPACK v3 with a small API change in the class
   STRUMPACKSolver, see "API changes" below.
 
+- Added AdamsBashforth and AdamsMoulton time integrators
+
 Miscellaneous
 -------------
 - Added unit tests based on the Catch++ library in the test/ directory.
