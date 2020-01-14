@@ -2088,6 +2088,7 @@ void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
    DB.SetSize(block_size, block_size, nblockrows);
    AB = 0.0;
    DB = 0.0;
+   ipiv.SetSize(block_size*nblockrows);
    int counter = 0;
 
    for (int iblock = 0; iblock < nblockrows; ++iblock)
@@ -2130,19 +2131,17 @@ void BlockILU0::Factorize()
 {
    int nblockrows = Height()/block_size;
 
-   // Precompute diagonal inverses
+   // Precompute LU factorization of diagonal blocks
    for (int i=0; i<nblockrows; ++i)
    {
-      DenseMatrix &D = DB(i);
-      DenseMatrixInverse Dinv(D);
-      Dinv.GetInverseMatrix(D);
+      LUFactors factorization(DB.GetData(i), &ipiv[i*block_size]);
+      factorization.Factor(block_size);
    }
 
    // Note: we use UseExternalData to extract submatrices from the tensor AB
    // instead of the DenseTensor call operator, because the call operator does
    // not allow for two simultaneous submatrix views into the same tensor
    DenseMatrix A_ik, A_ij, A_kj;
-   DenseMatrix tmp(block_size, block_size);
    // Loop over block rows (starting with second block row)
    for (int i=1; i<nblockrows; ++i)
    {
@@ -2156,11 +2155,10 @@ void BlockILU0::Factorize()
          {
             MFEM_ABORT("Matrix must be sorted with nonzero diagonal");
          }
-         DenseMatrix &A_kk_inv = DB(k);
+         LUFactors A_kk_inv(DB.GetData(k), &ipiv[k*block_size]);
          A_ik.UseExternalData(&AB(0,0,kk), block_size, block_size);
-         tmp = A_ik;
          // A_ik = A_ik * A_kk^{-1}
-         mfem::Mult(tmp, A_kk_inv, A_ik);
+         A_kk_inv.RightSolve(block_size, block_size, A_ik.GetData());
          // Modify everything to the right of k in row i
          for (int jj=kk+1; jj<IB[i+1]; ++jj)
          {
@@ -2227,10 +2225,9 @@ void BlockILU0::Mult(const Vector &b, Vector &x) const
          // x_i = x_i - U_ij*x_j
          U_ij.AddMult_a(-1.0, xj, xi);
       }
-      const DenseMatrix &D_ii_inv = DB(i);
-      tmp = xi;
+      LUFactors A_ii_inv(&DB(0,0,i), &ipiv[i*block_size]);
       // x_i = D_ii^{-1} x_i
-      D_ii_inv.Mult(tmp, xi);
+      A_ii_inv.Solve(block_size, 1, xi);
    }
 }
 
