@@ -14,6 +14,7 @@
 
 using namespace mfem;
 
+/*
 TEST_CASE("ILU Structure", "[ILU]")
 {
    int N = 5;
@@ -25,14 +26,13 @@ TEST_CASE("ILU Structure", "[ILU]")
 
    // Matrix with N x N blocks of size Nb x Nb
    SparseMatrix A(N * Nb, N * Nb);
-   /* Create a SparseMatrix that has a block structure looking like
-      {{1, 1, 0, 0, 1},
-       {0, 1, 0, 1, 1},
-       {0, 0, 1, 0, 0},
-       {0, 1, 0, 1, 0},
-       {1, 0, 0, 0, 1}}
-      Where 1 represents a block of size Nb x Nb that is non zero.
-   */
+   // Create a SparseMatrix that has a block structure looking like
+   //    {{1, 1, 0, 0, 1},
+   //     {0, 1, 0, 1, 1},
+   //     {0, 0, 1, 0, 0},
+   //     {0, 1, 0, 1, 0},
+   //     {1, 0, 0, 0, 1}}
+   // Where 1 represents a block of size Nb x Nb that is non zero.
 
    // Lexographical pattern
    int p[] =
@@ -173,3 +173,4 @@ TEST_CASE("ILU Factorization", "[ILU]")
    REQUIRE(AB(0,1,6) == Approx(-9.4));
    REQUIRE(AB(1,1,6) == Approx(92.04897959183674));
 }
+*/
