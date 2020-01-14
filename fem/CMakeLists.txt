@@ -15,6 +15,8 @@ set(SRCS
   bilininteg.cpp
   bilininteg_diffusion.cpp
   bilininteg_mass.cpp
+  bilininteg_convection.cpp
+  bilininteg_dgtrace.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
