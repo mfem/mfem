@@ -14,13 +14,13 @@
 
 #include "../config/config.hpp"
 #include "operator.hpp"
-#include "sparsemat.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
 
 #ifdef MFEM_USE_SUITESPARSE
+#include "sparsemat.hpp"
 #include <umfpack.h>
 #include <klu.h>
 #endif
