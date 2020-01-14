@@ -213,6 +213,7 @@ private:
    static const double a[5][5];
    Vector k[5];
    Array<int> idx;
+   ODESolver *RKsolver;
 
 public:
    AdamsBashforthSolver(int _s);
@@ -220,6 +221,11 @@ public:
    virtual void Init(TimeDependentOperator &_f);
 
    virtual void Step(Vector &x, double &t, double &dt);
+
+   ~AdamsBashforthSolver()
+   {
+      if (RKsolver) delete RKsolver;
+   };
 };
 
 /** An implicit Adams-Moulton method */
@@ -230,6 +236,7 @@ private:
    static const double a[5][5];
    Vector k[5];
    Array<int> idx;
+   ODESolver *RKsolver;
 
 public:
    AdamsMoultonSolver(int _s);
@@ -237,6 +244,11 @@ public:
    virtual void Init(TimeDependentOperator &_f);
 
    virtual void Step(Vector &x, double &t, double &dt);
+
+   ~AdamsMoultonSolver()
+   {
+      if (RKsolver) delete RKsolver;
+   };
 };
 
 /// Backward Euler ODE solver. L-stable.
