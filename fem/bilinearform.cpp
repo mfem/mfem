@@ -608,6 +608,31 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
+void BilinearForm::AssembleDiagonal(Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P = fes->GetProlongationMatrix();
+      if (P)
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleDiagonal(local_diag);
+         P->MultTranspose(local_diag, diag);
+      }
+      else
+      {
+         ext->AssembleDiagonal(diag);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented. Maybe assemble your bilinear form into a "
+                 "matrix and use SparseMatrix::GetDiag?");
+   }
+}
+
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                     Vector &b, OperatorHandle &A, Vector &X,
                                     Vector &B, int copy_interior)

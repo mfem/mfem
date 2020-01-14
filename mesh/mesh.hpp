@@ -233,7 +233,7 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-   void GetElementCenter(int i, Vector &c);
+   void GetElementCenter(int i, Vector &center);
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
@@ -568,14 +568,20 @@ public:
        @param[in] window Initial window size (default 2).
        @param[in] period Iterations between window increment (default 1).
        @param[in] seed Random number seed (default 0). */
-   void GetGeckoElementReordering(Array<int> &ordering,
-                                  int iterations = 1, int window = 2,
-                                  int period = 1, int seed = 0);
+   void GetGeckoElementOrdering(Array<int> &ordering,
+                                int iterations = 1, int window = 2,
+                                int period = 1, int seed = 0);
 #endif
 
-   /** Rebuilds the mesh with a different order of elements.  The ordering
-       vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements. */
+   /** Return an ordering of the elements that approximately follows the Hilbert
+       curve. The method performs a spatial (Hilbert) sort on the centers of all
+       elements and returns the resulting sequence, which can then be passed to
+       ReorderElements. This is a cheap alternative to GetGeckoElementOrdering.*/
+   void GetHilbertElementOrdering(Array<int> &ordering);
+
+   /** Rebuilds the mesh with a different order of elements. For each element i,
+       the array ordering[i] contains its desired new index. Note that the method
+       reorders vertices, edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
