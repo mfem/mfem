@@ -4191,7 +4191,7 @@ void FaceQuadratureInterpolator::Eval3D(
                for (int c = 0; c < VDIM; c++) { Bu[q][d2][c] = 0.0; }
                for (int d1 = 0; d1 < ND1D; ++d1)
                {
-                  const int b = B(q,d1);
+                  const double b = B(q,d1);
                   for (int c = 0; c < VDIM; c++)
                   {
                      Bu[q][d2][c] += b*r_F[d1][d2][c];
