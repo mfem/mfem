@@ -356,6 +356,7 @@ void PADGTraceApply3D(const int NF,
 
    MFEM_FORALL(f, NF,
    {
+      const int VDIM = 1;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
@@ -664,6 +665,7 @@ void PADGTraceApplyTranspose2D(const int NF,
 
    MFEM_FORALL(f, NF,
    {
+      const int VDIM = 1;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
@@ -759,6 +761,7 @@ void PADGTraceApplyTranspose3D(const int NF,
 
    MFEM_FORALL(f, NF,
    {
+      const int VDIM = 1;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
