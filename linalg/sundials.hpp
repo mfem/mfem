@@ -79,13 +79,12 @@ protected:
 
   // Helper functions 
   // Serial version
-  void AllocateEmptyN_Vector(N_Vector &y);
+  void AllocateEmptyNVector(N_Vector &y);
   
 #ifdef MFEM_USE_MPI
-  void AllocateEmptyN_Vector(N_Vector &y, MPI_Comm comm);
+  void AllocateEmptyNVector(N_Vector &y, MPI_Comm comm);
 #endif
 
-  void FillN_Vector(N_Vector &y, Vector &x);
   void SetN_Vector(N_Vector &y, Vector &x);
   
 public:
@@ -126,6 +125,9 @@ protected:
     
    typedef std::function<int(realtype t, Vector y, Vector gout, CVODESolver *)> RootFunction;
     RootFunction root_func;
+
+    typedef std::function<int(Vector y, Vector w, CVODESolver*)> EWTFunction;
+    EWTFunction ewt_func;
   
 public:
    /// Construct a serial wrapper to SUNDIALS' CVODE integrator.
@@ -212,43 +214,6 @@ public:
    /// Destroy the associated CVODE memory and SUNDIALS objects.
    virtual ~CVODESolver();
 };
-
-  // ---------------------------------------------------------------------------
-  // TimeDependentAdjointOperator is a TimeDependentOperator with Adjoint rate equations to be used with CVODESSolver
-  // ---------------------------------------------------------------------------
-
-  class TimeDependentAdjointOperator : public TimeDependentOperator
-  {
-  public:
-    TimeDependentAdjointOperator(int dim, int adjdim, double t = 0., Type type = EXPLICIT) :
-      TimeDependentOperator(dim, t, type),
-      adjoint_height(adjdim)
-    {}
-
-    virtual ~TimeDependentAdjointOperator(){};
-
-    virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const = 0;
-    virtual void AdjointRateMult(const Vector &y, Vector & yB, Vector &yBdot) const = 0;
-    virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB, Vector &qBdot) const = 0;
-    virtual int ImplicitSetupB(const double t, const Vector &x, const Vector &xB, const Vector &fxB,
-    			       int jokB, int *jcurB, double gammaB)
-    {
-      mfem_error("TimeDependentOperator::ImplicitSetupB() is not overridden!");
-      return(-1);
-    }
-
-    virtual int ImplicitSolveB(Vector &x, const Vector &b, double tol)
-    {
-      mfem_error("TimeDependentOperator::ImplicitSolveB() is not overridden!");
-      return(-1);
-    }
-
-    int GetAdjointHeight() {return adjoint_height;}
-    
-  protected:
-    int adjoint_height;
-    
-  };
   
   // ---------------------------------------------------------------------------
   // Interface to the CVODES library -- linear multi-step methods
@@ -261,18 +226,15 @@ public:
     int indexB; // backward index?
     
     /// Wrapper to compute the ODE Rhs function.
-    static int fQ(realtype t, const N_Vector y, N_Vector qdot, void *user_data);
+    static int RHSQ(realtype t, const N_Vector y, N_Vector qdot, void *user_data);
 
-    static int fB(realtype t, N_Vector y, 
+    static int RHSB(realtype t, N_Vector y, 
 		  N_Vector yB, N_Vector yBdot, void *user_dataB);
 
-    static int fQB(realtype t, N_Vector y, N_Vector yB, 
+    static int RHSQB(realtype t, N_Vector y, N_Vector yB, 
 		   N_Vector qBdot, void *user_dataB);
 
     static int ewt(N_Vector y, N_Vector w, void *user_data);
-
-    typedef std::function<int(Vector y, Vector w, CVODESSolver*)> EWTFunction;
-    EWTFunction ewt_func;
 
     SUNMatrix          AB;   /// Linear system A = I - gamma J, M - gamma J, or J.
     SUNLinearSolver    LSB;  /// Linear solver for A.
@@ -337,7 +299,7 @@ public:
     void InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB = 1.e-3, double abstolQB = 1e-8);
     
     // Initialize Adjoint
-    void InitAdjointSolve(int steps);
+    void InitAdjointSolve(int steps, int interpolation);
 
     // Get Number of Steps for ForwardSolve
     long GetNumSteps();
@@ -346,10 +308,10 @@ public:
     void EvalQuadIntegration(double t, Vector &q);
 
     // Evaluate Quadrature solution
-    void EvalObjectiveSensitivity(double t, Vector &dG_dp);
+    void EvalQuadIntegrationB(double t, Vector &dG_dp);
     
     // Get Interpolated Forward solution y at backward integration time tB
-    void GetCorrespondingForwardSolution(double tB, mfem::Vector & yy);
+    void GetForwardSolution(double tB, mfem::Vector & yy);
     
     // Set Linear Solver for the backward problem
     void UseMFEMLinearSolverB();
@@ -358,6 +320,7 @@ public:
     void UseSundialsLinearSolverB();
     
     void SetSStolerancesB(double reltol, double abstol);
+    void SetSVtolerancesB(double reltol, Vector abstol);
     
     /// Setup the linear system A x = b
     static int LinSysSetupB(realtype t, N_Vector y, N_Vector yB, N_Vector fyB, SUNMatrix A,
@@ -372,9 +335,6 @@ public:
     
     /// Destroy the associated CVODE memory and SUNDIALS objects.
     virtual ~CVODESSolver();
-
-  private:
-    void CreateB(double &t, Vector &x);
     
   };
   
