@@ -495,7 +495,9 @@ public:
    mutable Vector y;
    Array<int> P, Pinv;
    Array<int> IB, ID, JB;
-   DenseTensor AB, DB;
+   DenseTensor AB;
+   mutable DenseTensor DB;
+   mutable Array<int> ipiv;
 };
 
 #ifdef MFEM_USE_SUITESPARSE
