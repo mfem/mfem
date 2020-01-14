@@ -385,7 +385,7 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
       f->Mult(x, k[idx[0]]);
       for (int i = 0; i < s; i++)
       {
-        x.Add(a[i]*dt, k[idx[i]]);
+         x.Add(a[i]*dt, k[idx[i]]);
       }
    }
    else
@@ -396,19 +396,19 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    t += dt;
 
    // Shift the index
-   for (int i = 0; i < smax; i++) idx[i] = ++idx[i]%smax;
+   for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
 }
 
 const double AB1Solver::a[] =
-   {1.0};
+{1.0};
 const double AB2Solver::a[] =
-   {1.5,-0.5};
+{1.5,-0.5};
 const double AB3Solver::a[] =
-   {23.0/12.0,-4.0/3.0, 5.0/12.0};
+{23.0/12.0,-4.0/3.0, 5.0/12.0};
 const double AB4Solver::a[] =
-   {55.0/24.0,-59.0/24.0, 37.0/24.0,-9.0/24.0};
+{55.0/24.0,-59.0/24.0, 37.0/24.0,-9.0/24.0};
 const double AB5Solver::a[] =
-   {1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
+{1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
 
 AdamsMoultonSolver::AdamsMoultonSolver(int _s, const double *_a)
 {
@@ -446,17 +446,17 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
 }
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
-{  
+{
    s = std::min(++s, smax);
    if (s == smax)
    {
-     f->SetTime(t);
-     for (int i = 1; i < s; i++)
-     {
-        x.Add(a[i]*dt, k[idx[i]]);
-     }
-     f->ImplicitSolve(a[0]*dt, x, k[idx[0]]);
-     x.Add(a[0]*dt, k[idx[0]]);
+      f->SetTime(t);
+      for (int i = 1; i < s; i++)
+      {
+         x.Add(a[i]*dt, k[idx[i]]);
+      }
+      f->ImplicitSolve(a[0]*dt, x, k[idx[0]]);
+      x.Add(a[0]*dt, k[idx[0]]);
    }
    else
    {
@@ -466,19 +466,19 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
    t += dt;
 
    // Shift the index
-   for (int i = 0; i < smax; i++) idx[i] = ++idx[i]%smax;
+   for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
 }
 
 const double AM0Solver::a[] =
-   {1.0};
+{1.0};
 const double AM1Solver::a[] =
-   {0.5, 0.5};
+{0.5, 0.5};
 const double AM2Solver::a[] =
-   {5.0/12.0, 2.0/3.0, -1.0/12.0};
+{5.0/12.0, 2.0/3.0, -1.0/12.0};
 const double AM3Solver::a[] =
-   {3.0/8.0, 19.0/24.0,-5.0/24.0, 1.0/24.0};
+{3.0/8.0, 19.0/24.0,-5.0/24.0, 1.0/24.0};
 const double AM4Solver::a[] =
-   {251.0/720.0,646.0/720.0,-264.0/720.0, 106.0/720.0, -19.0/720.0};
+{251.0/720.0,646.0/720.0,-264.0/720.0, 106.0/720.0, -19.0/720.0};
 
 void BackwardEulerSolver::Init(TimeDependentOperator &_f)
 {
