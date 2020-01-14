@@ -165,7 +165,7 @@ TEST_CASE("Second order ODE methods",
       REQUIRE(check.order(new FoxGoodwinSolver) + tol > 4.0 );
    }
 
-  //Generalized-alpha based solvers
+   //Generalized-alpha based solvers
    SECTION("GeneralizedAlpha")
    {
       std::cout <<"\nTesting GeneralizedAlpha" << std::endl;
