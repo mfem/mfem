@@ -1797,7 +1797,7 @@ struct WeightMinHeap
    {
       c.reserve(w.size());
       loc.resize(w.size());
-      for (int i=0; i<w.size(); ++i) { push(i); }
+      for (size_t i=0; i<w.size(); ++i) { push(i); }
    }
 
    int percolate_up(int pos, double val)
@@ -1812,11 +1812,11 @@ struct WeightMinHeap
 
    int percolate_down(int pos, double val)
    {
-      while (2*pos+1 < c.size())
+      while (size_t(2*pos+1) < c.size())
       {
-         int left = 2*pos+1;
-         int right = left+1;
-         int tgt;
+         size_t left = 2*pos+1;
+         size_t right = left+1;
+         size_t tgt;
          if (right < c.size() && w[c[right]] < w[c[left]]) { tgt = right; }
          else { tgt = left; }
          if (w[c[tgt]] < val)
