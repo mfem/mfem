@@ -63,12 +63,12 @@ private:
    double dt;
 public:
    DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes)
-   : M(M_),
-     K(K_),
-     A(NULL),
-     solver(M.GetComm()),
-     prec(fes.GetFE(0)->GetDof(), true),
-     dt(-1.0)
+      : M(M_),
+        K(K_),
+        A(NULL),
+        solver(M.GetComm()),
+        prec(fes.GetFE(0)->GetDof(), true),
+        dt(-1.0)
    {
       solver.iterative_mode = false;
       solver.SetRelTol(1e-9);
@@ -129,7 +129,8 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b, const FiniteElementSpace &fes);
+   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
+                const FiniteElementSpace &fes);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
