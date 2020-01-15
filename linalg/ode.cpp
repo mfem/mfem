@@ -416,19 +416,14 @@ AdamsMoultonSolver::AdamsMoultonSolver(int _s, const double *_a)
    a = _a;
    k = new Vector[5];
 
-   if (smax <= 2)
+   if (smax <= 3)
    {
-      RKsolver = new RK2Solver();
-   }
-   else if (smax == 3)
-   {
-      RKsolver = new RK3SSPSolver();
+      RKsolver = new SDIRK23Solver();
    }
    else
    {
-      RKsolver = new RK4Solver();
+      RKsolver = new SDIRK34Solver();
    }
-
 }
 
 void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
@@ -447,11 +442,16 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
 {
+   if ((s == 0)&&(smax>1))
+   {
+      f->Mult(x,k[idx[1]]);
+   }
    s = std::min(++s, smax);
-   if (s == smax)
+
+   if (s >= smax-1)
    {
       f->SetTime(t);
-      for (int i = 1; i < s; i++)
+      for (int i = 1; i < smax; i++)
       {
          x.Add(a[i]*dt, k[idx[i]]);
       }
