@@ -78,7 +78,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 
 static int step_  = 0;
 static int nstep_ = 6;

@@ -34,7 +34,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 
 static int joint_ = 0;
 static int notch_ = 0;
