@@ -777,13 +777,15 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    return gf;
 }
 
-const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(const IntegrationRule& ir,
-                                                          const int flags, FaceType type)
+const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
+   const IntegrationRule& ir,
+   const int flags, FaceType type)
 {
    for (int i = 0; i < face_geom_factors.Size(); i++)
    {
       FaceGeometricFactors *gf = face_geom_factors[i];
-      if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags && gf->type==type)
+      if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags &&
+          gf->type==type)
       {
          return gf;
       }
@@ -793,7 +795,7 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(const IntegrationRule&
 
    FaceGeometricFactors *gf = new FaceGeometricFactors(this, ir, flags, type);
    face_geom_factors.Append(gf);
-   return gf;   
+   return gf;
 }
 
 void Mesh::DeleteGeometricFactors()
@@ -10092,13 +10094,14 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
       elem_restr->Mult(*nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
-else
+   else
    {
-      qi->Mult(*nodes, eval_flags, X, J, detJ);      
+      qi->Mult(*nodes, eval_flags, X, J, detJ);
    }
 }
 
-FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
+FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
+                                           const IntegrationRule &ir,
                                            int flags, FaceType type)
    : type(type)
 {
@@ -10112,7 +10115,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRu
    const int NF   = mesh->GetNumFaces();
    const int NQ   = ir.GetNPoints();
 
-   
+
    const Operator *face_restr = fespace->GetSingleValuedFaceRestriction(
                                    ElementDofOrdering::LEXICOGRAPHIC, type);
    Vector Fnodes(face_restr->Height());
@@ -10140,7 +10143,8 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh, const IntegrationRu
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 
-   const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(ir, type);
+   const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(
+                                             ir, type);
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 
