@@ -745,6 +745,11 @@ public:
                                         int nodenum, int idir,
                                         Vector &IntData);
 
+   void UpdateTargetSpecificationAtNode(const FiniteElement &el,
+                                        ElementTransformation &T,
+                                        int nodenum, int idir, int iterm,
+                                        Vector &IntData);
+
    void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
 
    void BackupTargetSpecification();
@@ -805,11 +810,10 @@ protected:
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
-   Array <Vector *> TSpecPerth;     //eta(x+h)   Discrete field perturbed
-   Array <Vector *> TSpecPert2h; //eta(x+2*h) Discrete field perturbed
-   Vector ElemPertAnalytic;
-   Vector ElemPertAnalytic2h;
-   Vector ElemPertAnalyticxy;
+   Array <Vector *> TSpecPerth;     //eta(x+h)     Discrete field perturbed
+   Array <Vector *> TSpecPert2h;    //eta(x+2*h)
+   Array <Vector *> TSpecPertMix;   //eta(x+h,y+h)
+   DenseMatrix      TSpecMixIdx;    //Index for mix derivative terms
 
    mutable DiscreteAdaptTC *discr_tc;
 
