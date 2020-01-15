@@ -260,7 +260,7 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GECKO GINKGO GNUTLS NETCDF PETSC MPFR PUMI HIOP GSLIB\
- OCCA RAJA
+ OCCA CEED RAJA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -322,7 +322,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
  MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
- MFEM_USE_OCCA MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -341,7 +341,6 @@ MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
-MFEM_LIBE_FILE ?= @MFEM_LIB_DIR@/libmfem-extras.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
@@ -375,7 +374,6 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
       @MFEM_EXT_LIBS@
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
-   MFEM_LIBE_FILE = @MFEM_LIB_DIR@/libmfem-extras.$(if $(shared),$(SO_VER),a)
    ifeq ($(MFEM_USE_OCCA),YES)
       ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX)))
          $(error OCCA is enabled: PREFIX must be set during configuration!)
@@ -391,16 +389,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg mesh fem
+DIRS = general linalg mesh fem fem/libceed
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
-
-EXTRA_DIRS = miniapps/common
-EXTRA_SOURCE_FILES = $(foreach dir,$(EXTRA_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
-EXTRA_RELSRC_FILES = $(patsubst $(SRC)%,%,$(EXTRA_SOURCE_FILES))
-EXTRA_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(EXTRA_SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
 	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
@@ -415,8 +408,6 @@ EXTRA_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(EXTRA_SOURCE_FILES:.cpp=.o))
 
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
-lib-extras: $(if $(static),$(BLD)libmfem-extras.a) \
-        $(if $(shared),$(BLD)libmfem-extras.$(SO_EXT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -426,13 +417,10 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-$(EXTRA_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
-
 all: examples miniapps $(TEST_DIRS)
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
-miniapps: lib-extras $(MINIAPP_DIRS)
+miniapps: $(MINIAPP_DIRS)
 $(MINIAPP_USE_COMMON): miniapps/common
 $(EM_DIRS) $(TEST_DIRS): lib
 	$(MAKE) -C $(BLD)$(@)
@@ -452,22 +440,11 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 	@$(MAKE) deprecation-warnings
 
-$(BLD)libmfem-extras.a: $(EXTRA_OBJECT_FILES)
-	$(AR) $(ARFLAGS) $(@) $(EXTRA_OBJECT_FILES)
-	$(RANLIB) $(@)
-
-$(BLD)libmfem-extras.$(SO_EXT): $(BLD)libmfem-extras.$(SO_VER)
-	cd $(@D) && ln -sf $(<F) $(@F)
-
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
-	   $(EXT_LIBS) -o $(@)
-
-$(BLD)libmfem-extras.$(SO_VER): $(EXTRA_OBJECT_FILES)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(EXTRA_OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
@@ -540,7 +517,8 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
+	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*{.o,~}) \
+	   *~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -575,6 +553,9 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
 	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
+# install libCEED q-function headers
+	mkdir -p $(PREFIX_INC)/mfem/fem/libceed
+	$(INSTALL) -m 640 $(SRC)fem/libceed/*.h $(PREFIX_INC)/mfem/fem/libceed
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
@@ -657,6 +638,7 @@ status info:
 	$(info MFEM_USE_HIP           = $(MFEM_USE_HIP))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
@@ -682,7 +664,7 @@ status info:
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
-FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
+FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

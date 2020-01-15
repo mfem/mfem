@@ -29,6 +29,8 @@
 //               mpirun -np 4 ex1p -pa -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
+//               mpirun -np 4 ex1p -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d ceed-cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -208,9 +210,16 @@ int main(int argc, char *argv[])
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use no preconditioner, for now.
+   //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
-   if (!pa) { prec = new HypreBoomerAMG; }
+   if (pa)
+   {
+      prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
+   }
+   else
+   {
+      prec = new HypreBoomerAMG;
+   }
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);

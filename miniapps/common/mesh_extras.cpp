@@ -16,7 +16,7 @@ using namespace std;
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 ElementMeshStream::ElementMeshStream(Element::Type e)
@@ -193,6 +193,6 @@ MergeMeshNodes(Mesh * mesh, int logging)
    }
 }
 
-} // namespace miniapps
+} // namespace common
 
 } // namespace mfem
