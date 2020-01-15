@@ -129,6 +129,10 @@ Miscellaneous
 - Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
   and the new ParaViewDataCollection class.
 
+- Collected object files from the miniapps/common directory into a new library,
+  libmfem-common for the convenience of application developers. The new library
+  is now used in several miniapps in the electromagnetic and tools directories.
+
 
 Version 4.0, released on May 24, 2019
 =====================================
