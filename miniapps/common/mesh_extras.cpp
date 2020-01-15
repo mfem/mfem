@@ -16,7 +16,7 @@ using namespace std;
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 ElementMeshStream::ElementMeshStream(Element::Type e)
@@ -116,6 +116,6 @@ ElementMeshStream::ElementMeshStream(Element::Type e)
 
 }
 
-} // namespace miniapps
+} // namespace common
 
 } // namespace mfem
