@@ -218,6 +218,7 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient zeroVecCoef(zeroVec);
    VectorConstantCoefficient oneVecCoef(oneVec);
 
+   u = 0.0;
    switch (prob)
    {
       case 0:
