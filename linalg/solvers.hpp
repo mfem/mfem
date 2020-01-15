@@ -476,7 +476,7 @@ public:
 class BlockILU0 : public Solver
 {
 public:
-   BlockILU0(int block_size_ = 1, bool reorder_ = true);
+   BlockILU0(int block_size_, bool reorder_ = true);
 
    BlockILU0(Operator &op, int block_size_ = 1, bool reorder_ = true);
 
