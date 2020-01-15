@@ -1875,7 +1875,7 @@ struct WeightMinHeap
    }
 };
 
-void MDFOrdering(SparseMatrix &C, Array<int> &p)
+void MinimumDiscardFillOrdering(SparseMatrix &C, Array<int> &p)
 {
    int n = C.Width();
    // Scale rows by reciprocal of diagonal and take absolute value
@@ -2052,7 +2052,7 @@ void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
       {
          CV[i] = sqrt(CV[i]);
       }
-      MDFOrdering(C, P);
+      MinimumDiscardFillOrdering(C, P);
    }
    else
    {
