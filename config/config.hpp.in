@@ -147,7 +147,7 @@
 // Enable functionality based on the libCEED library.
 // #define MFEM_USE_CEED
         
-// Enable functionality based on the UMPIRE library.
+// Enable functionality based on the Umpire library.
 // #define MFEM_USE_UMPIRE
 // #define MFEM_UMPIRE_HOST "@MFEM_UMPIRE_HOST@"
 // #define MFEM_UMPIRE_DEVICE "@MFEM_UMPIRE_DEVICE@"
