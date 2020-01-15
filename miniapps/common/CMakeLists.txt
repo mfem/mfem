@@ -27,7 +27,7 @@ if (MFEM_USE_MPI)
 endif()
 
 if (MFEM_USE_CUDA)
-   foreach(file IN LISTS MFEM_MINIAPPS_COMMON_SOURCES)
+   foreach(file IN LISTS SRCS)
       set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
    endforeach()
 endif()
