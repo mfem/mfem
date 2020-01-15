@@ -1053,7 +1053,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
    {
-      if (!Pconf)
+      if (!Pconf && NRanks > 1)
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
          {
@@ -1061,10 +1061,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
          }
          else
          {
-            if (NRanks > 1)
-            {
-               Pconf = new DeviceConformingProlongationOperator(*this);
-            }
+            Pconf = new DeviceConformingProlongationOperator(*this);
          }
       }
       return Pconf;

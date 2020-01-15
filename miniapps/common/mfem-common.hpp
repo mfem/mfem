@@ -9,26 +9,11 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MESH_EXTRAS
-#define MFEM_MESH_EXTRAS
+#ifndef MFEM_COMMON_HPP
+#define MFEM_COMMON_HPP
 
-#include "mfem.hpp"
-#include <sstream>
-
-namespace mfem
-{
-
-namespace common
-{
-
-class ElementMeshStream : public std::stringstream
-{
-public:
-   ElementMeshStream(Element::Type e);
-};
-
-} // namespace common
-
-} // namespace mfem
+#include "fem_extras.hpp"
+#include "mesh_extras.hpp"
+#include "pfem_extras.hpp"
 
 #endif
