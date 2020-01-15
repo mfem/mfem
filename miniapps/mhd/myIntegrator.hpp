@@ -262,9 +262,7 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
         V_ir.GetColumnReference(i, vec1);
 
         if (maxtau)
-        {
             norm *= tauMax;
-        }
         else
         {
             //compute tau
@@ -305,12 +303,18 @@ private:
    DenseMatrix dshape, gshape, Jinv, V_ir;
    Coefficient *nuCoef;
    MyCoefficient *V; 
+   bool FieldDiff; //field line diffusion along magnetic field
    double dt;
 
 public:
    StabMassIntegrator (double dt_, double visc, MyCoefficient &q) : 
-       V(&q), dt(dt_) 
+       V(&q), dt(dt_), FieldDiff(false)
    { nuCoef = new ConstantCoefficient(visc); }
+
+   StabMassIntegrator (double dt_, double visc, MyCoefficient &q, bool FieldDiff_) : 
+       V(&q), dt(dt_), FieldDiff(FieldDiff_)
+   { nuCoef = new ConstantCoefficient(visc); }
+
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       DenseMatrix &elmat);
@@ -345,6 +349,34 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
     const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
 
     V->Eval(V_ir, Tr, ir);
+    //compare maximum tau
+    double tauMax=0.0;
+    if (maxtau)
+    {
+        for (int i = 0; i < ir.GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            double nu = nuCoef->Eval (Tr, ip);
+
+            if (FieldDiff){
+               invtau = sqrt( pow(2./dt,2) + pow(2.0 * vA / eleLength, 2) + 4.0 * nu / (eleLength * eleLength) );
+               //tau = eleLength*eleLength/invtau;
+               tau = 1e-4/invtau;
+            }
+            else{
+               V_ir.GetColumnReference(i, vec1);
+               Unorm = vec1.Norml2();
+               if (itau==1)
+                   invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+               else if (itau==2)
+                   invtau = sqrt( pow(2./dt,2) + pow(2.0 * Unorm / eleLength, 2) ) + 4.0*nu/(eleLength*eleLength);
+               else
+                   invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+               tau = 1.0/invtau;
+            }
+            tauMax = max(tauMax, tau);
+        }
+    }
   
     for (int i = 0; i < ir.GetNPoints(); i++)
     {
@@ -358,18 +390,23 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
         CalcInverse (Tr.Jacobian(), Jinv);
         Mult(dshape, Jinv, gshape); 
         
-        //compute tau
-        double nu = nuCoef->Eval (Tr, ip);
-        V_ir.GetColumnReference(i, vec1);
-        Unorm = vec1.Norml2();
-        if (itau==1)
-            invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
-        else if (itau==2)
-            invtau = sqrt( pow(2./dt,2) +  pow(2.0 * Unorm / eleLength, 2) + 4.0*nu/(eleLength*eleLength));
+        if (maxtau)
+            norm*=tauMax;
         else
-            invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
-        tau = 1.0/invtau;
-        norm *= tau;
+        {
+            //compute tau
+            double nu = nuCoef->Eval (Tr, ip);
+            V_ir.GetColumnReference(i, vec1);
+            Unorm = vec1.Norml2();
+            if (itau==1)
+                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            else if (itau==2)
+                invtau = sqrt( pow(2./dt,2) +  pow(2.0 * Unorm / eleLength, 2) + 4.0*nu/(eleLength*eleLength));
+            else
+                invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            tau = 1.0/invtau;
+            norm *= tau;
+        }
  
         gshape.Mult(vec1, advGrad);
         
@@ -423,6 +460,28 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
     const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), intorder);
 
     V->Eval(V_ir, Tr, ir);
+
+    //compare maximum tau
+    double tauMax=0.0;
+    if (maxtau)
+    {
+        for (int i = 0; i < ir.GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            double nu = nuCoef->Eval (Tr, ip);
+
+            V_ir.GetColumnReference(i, vec1);
+            Unorm = vec1.Norml2();
+            if (itau==1)
+                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            else if (itau==2)
+                invtau = sqrt( pow(2./dt,2) + pow(2.0 * Unorm / eleLength, 2) ) + 4.0*nu/(eleLength*eleLength);
+            else
+                invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            tau = 1.0/invtau;
+            tauMax = max(tauMax, tau);
+        }
+    }
   
     for (int i = 0; i < ir.GetNPoints(); i++)
     {
@@ -435,19 +494,24 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
         CalcInverse (Tr.Jacobian(), Jinv);
         Mult(dshape, Jinv, gshape); 
         
-        //compute tau
-        double nu = nuCoef->Eval (Tr, ip);
-        V_ir.GetColumnReference(i, vec1);
-        Unorm = vec1.Norml2();
-        if (itau==1)
-            invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
-        else if (itau==2)
-            invtau = sqrt( pow(2./dt,2) +  pow(2.0 * Unorm / eleLength, 2) + 4.0*nu/(eleLength*eleLength) );
+        if(maxtau)
+            norm*=tauMax*Q.Eval(Tr,ip);
         else
-            invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
-        tau = 1.0/invtau;
+        {
+            //compute tau
+            double nu = nuCoef->Eval (Tr, ip);
+            V_ir.GetColumnReference(i, vec1);
+            Unorm = vec1.Norml2();
+            if (itau==1)
+                invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            else if (itau==2)
+                invtau = sqrt( pow(2./dt,2) +  pow(2.0 * Unorm / eleLength, 2) + 4.0*nu/(eleLength*eleLength) );
+            else
+                invtau = 2.0/dt + 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
+            tau = 1.0/invtau;
 
-        norm *= (tau * Q.Eval (Tr, ip));
+            norm *= (tau * Q.Eval (Tr, ip));
+        }
  
         gshape.Mult(vec1, advGrad);
 

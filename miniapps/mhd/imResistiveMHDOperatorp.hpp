@@ -252,7 +252,7 @@ protected:
    HypreSolver *K_amg; //BoomerAMG for stiffness matrix
    HyprePCG *K_pcg;
 
-   mutable Vector z, J, z2, zFull; // auxiliary vector 
+   mutable Vector z, J, z2, z3, zFull; // auxiliary vector 
    mutable ParGridFunction j, gftmp;  //auxiliary variable (to store the boundary condition)
    ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
 
@@ -317,7 +317,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
      M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL),
      K_solver(f.GetComm()),  K_prec(NULL),
-     K_amg(NULL), K_pcg(NULL), z(height/3), J(height/3), z2(height/3), 
+     K_amg(NULL), K_pcg(NULL), z(height/3), J(height/3), z2(height/3), z3(height/3),
      zFull(f.GetVSize()), j(&fespace),
      DRetmp(NULL), DSltmp(NULL)
 {
@@ -715,7 +715,11 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    //add stabilization term
    if (isupg>2 && StabNv!=NULL)
    {
-       //FIXME this supg form contains some bugs (z not dw_dt)
+       //FIXME this supg form has a bug:
+       //the explicit supg needs to modify the mass matrix when computing dw_dt
+       //so it should modify z here instead of dw_dt (and define another new 
+       //solve with modified mass matrix). But I will not fix it for now
+
        //stabilized term for omega
        //first compute an auxilary variable as ∆ omega
        gftmp.MakeTRef(&fespace, k_, 2*sc);
@@ -753,8 +757,9 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    //add stabilization terms
    if (isupg>2 && StabNv!=NULL)
    {
-       //FIXME this supg form contains some bugs
+       //FIXME this supg form has the same issue
        //stabilized term for psi
+       //the sign before ∆psi is also wrong!
        add(dpsi_dt, resistivity, J, z);
        StabMass->TrueAddMult(z, dpsi_dt);
        StabNv->TrueAddMult(psi, dpsi_dt);
@@ -765,6 +770,20 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    {
        //only add the velocity diffusion term
        StabNv->TrueAddMult(psi, z);
+   }
+   else if (isupg==2)
+   {
+       //first compute an auxilary variable as z3=-∆w
+       gftmp.MakeTRef(&fespace, k_, 2*sc);
+       gftmp.SetFromTrueVector();  //recover omega
+       KB->Mult(gftmp, zLF);
+       zLF.ParallelAssemble(z2);
+       M_solver2.Mult(z2, z3);
+       z3*=viscosity;
+       //add(dw_dt, viscosity, z3, z2);
+
+       StabMass->TrueAddMult(z3, z);
+       StabNv->TrueAddMult(w, z);
    }
    z.Neg(); // z = -z
    if (isupg==2)
@@ -837,7 +856,8 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
    Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
    Nv->Assemble(); 
 
-   if (isupg > 0)
+   //assemble supg type operators
+   if (isupg > 2 || isupg ==1)
    {
       delete StabNv;
       StabNv = new ParBilinearForm(&fespace);
@@ -867,6 +887,7 @@ void ResistiveMHDOperator::assembleBoper(double dt, ParGridFunction *phi, ParGri
    Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
    Nb->Assemble();
 
+   //assemble supg type operators
    if (isupg > 2){
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
@@ -875,6 +896,16 @@ void ResistiveMHDOperator::assembleBoper(double dt, ParGridFunction *phi, ParGri
    }
    else if (isupg == 2)
    {
+     delete StabNv;
+     StabNv = new ParBilinearForm(&fespace);
+     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity, Bfield, true));
+     StabNv->Assemble(); 
+
+     delete StabMass;
+     StabMass = new ParBilinearForm(&fespace);
+     StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, Bfield, true));
+     StabMass->Assemble(); 
+ 
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
      StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
