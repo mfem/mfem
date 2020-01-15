@@ -164,6 +164,15 @@ if (MFEM_USE_METIS)
   find_package(METIS REQUIRED)
 endif()
 
+if (MFEM_USE_GINKGO)
+  find_package(Ginkgo REQUIRED)
+  if (Ginkgo_FOUND)
+    get_target_property(Ginkgo_INCLUDE_DIRS
+      Ginkgo::ginkgo INTERFACE_INCLUDE_DIRECTORIES)
+    set(Ginkgo_LIBRARIES Ginkgo::ginkgo)
+  endif()
+endif()
+
 # GZSTREAM -> zlib
 if (MFEM_USE_GZSTREAM)
   find_package(ZLIB REQUIRED)
@@ -248,6 +257,10 @@ if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
 endif()
 
+if (MFEM_USE_CEED)
+  find_package(libCEED REQUIRED)
+endif()
+
 if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint )
 endif()
@@ -271,6 +284,12 @@ if (MFEM_USE_PUMI)
       SCOREC::apf INTERFACE_INCLUDE_DIRECTORIES)
     set(PUMI_LIBRARIES SCOREC::core)
   endif()
+endif()
+
+# HiOp optimizer
+if (MFEM_USE_HIOP)
+  find_package(HIOP REQUIRED)
+  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
 endif()
 
 # CUDA
@@ -322,8 +341,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO Ginkgo GNUTLS NETCDF MPFR
+    PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -533,6 +552,13 @@ if (MFEM_USE_OCCA)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
     FILES_MATCHING PATTERN "*.okl")
+endif()
+
+# Install the libCEED files
+if (MFEM_USE_CEED)
+  install(DIRECTORY ${MFEM_SOURCE_DIRS}
+    DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
+    FILES_MATCHING PATTERN "fem/libceed/*.h")
 endif()
 
 # Install ${HEADERS}
