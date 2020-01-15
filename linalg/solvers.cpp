@@ -2003,6 +2003,11 @@ void BlockILU0::SetOperator(const Operator &op)
 
 void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
 {
+   if (A.Height() % block_size != 0)
+   {
+      MFEM_ABORT("BlockILU0: block size must evenly divide the matrix size");
+   }
+
    int nrows = A.Height();
    const int *I = A.GetI();
    const int *J = A.GetJ();
