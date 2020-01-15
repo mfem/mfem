@@ -76,6 +76,9 @@ Discretization improvements
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
+- Extended the support for partial assembly to vector mass and vector diffusion
+  bilinear integrators.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added a general interface for specifying and solving nonlinear constrained
