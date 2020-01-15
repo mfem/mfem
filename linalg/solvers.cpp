@@ -1848,13 +1848,14 @@ struct WeightMinHeap
       int i = c[0];
       int j = c.back();
       c.pop_back();
+      // Mark as removed
+      loc[i] = -1;
+      if (c.empty()) { return i; }
       double val = w[j];
       int pos = 0;
       pos = percolate_down(pos, val);
       c[pos] = j;
       loc[j] = pos;
-      // Mark as removed
-      loc[i] = -1;
       return i;
    }
 
