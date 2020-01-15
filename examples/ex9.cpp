@@ -9,6 +9,7 @@
 //    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
+//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 13 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
