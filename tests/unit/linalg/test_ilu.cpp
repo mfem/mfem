@@ -90,7 +90,6 @@ TEST_CASE("ILU Structure", "[ILU]")
    }
 }
 
-/*
 TEST_CASE("ILU Factorization", "[ILU]")
 {
    SparseMatrix A(6, 6);
@@ -172,4 +171,3 @@ TEST_CASE("ILU Factorization", "[ILU]")
    REQUIRE(AB(0,1,6) == Approx(-9.4));
    REQUIRE(AB(1,1,6) == Approx(92.04897959183674));
 }
-*/
