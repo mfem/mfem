@@ -165,14 +165,17 @@ public:
    enum Type
    {
       ANY_TYPE,         ///< ID for the base class Operator, i.e. any type.
-      MFEM_SPARSEMAT,   ///< ID for class SparseMatrix
+      MFEM_SPARSEMAT,   ///< ID for class SparseMatrix.
       Hypre_ParCSR,     ///< ID for class HypreParMatrix.
       PETSC_MATAIJ,     ///< ID for class PetscParMatrix, MATAIJ format.
       PETSC_MATIS,      ///< ID for class PetscParMatrix, MATIS format.
       PETSC_MATSHELL,   ///< ID for class PetscParMatrix, MATSHELL format.
       PETSC_MATNEST,    ///< ID for class PetscParMatrix, MATNEST format.
       PETSC_MATHYPRE,   ///< ID for class PetscParMatrix, MATHYPRE format.
-      PETSC_MATGENERIC  ///< ID for class PetscParMatrix, unspecified format.
+      PETSC_MATGENERIC, ///< ID for class PetscParMatrix, unspecified format.
+      Complex_Operator, ///< ID for class ComplexOperator.
+      MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
+      Complex_Hypre_ParCSR   ///< ID for class ComplexHypreParMatrix.
    };
 
    /// Return the type ID of the Operator class.
@@ -410,6 +413,24 @@ public:
 
    /// Application of the transpose
    virtual void MultTranspose(const Vector &x, Vector &y) const { y = x; }
+};
+
+
+/// Scaled Operator B: x -> a A(x).
+class ScaledOperator : public Operator
+{
+private:
+   const Operator &A_;
+   double a_;
+
+public:
+   /// Create an operator which is a scalar multiple of A.
+   explicit ScaledOperator(const Operator *A, double a)
+      : Operator(A->Width(), A->Height()), A_(*A), a_(a) { }
+
+   /// Operator application
+   virtual void Mult(const Vector &x, Vector &y) const
+   { A_.Mult(x, y); y *= a_; }
 };
 
 

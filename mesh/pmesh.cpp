@@ -3223,11 +3223,7 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    last_operation = Mesh::DEREFINE;
    sequence++;
 
-   if (Nodes) // update/interpolate mesh curvature
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 
    return true;
 }
@@ -3756,16 +3752,20 @@ void ParMesh::UniformRefinement2D()
 
    // call Mesh::UniformRefinement2D so that it won't update the nodes
    {
-      GridFunction *nodes = Nodes;
-      Nodes = NULL;
-      Mesh::UniformRefinement2D();
-      Nodes = nodes;
+      const bool update_nodes = false;
+      Mesh::UniformRefinement2D_base(update_nodes);
    }
 
    // update the groups
    UniformRefineGroups2D(old_nv);
 
    UpdateNodes();
+
+#ifdef MFEM_DEBUG
+   // If there are no Nodes, the orientation is checked in the call to
+   // UniformRefinement2D_base() above.
+   if (Nodes) { CheckElementOrientation(false); }
+#endif
 }
 
 void ParMesh::UniformRefinement3D()
@@ -3782,13 +3782,11 @@ void ParMesh::UniformRefinement3D()
    // call Mesh::UniformRefinement3D_base so that it won't update the nodes
    Array<int> f2qf;
    {
-      GridFunction *nodes = Nodes;
-      Nodes = NULL;
-      UniformRefinement3D_base(&f2qf, &v_to_v);
+      const bool update_nodes = false;
+      UniformRefinement3D_base(&f2qf, &v_to_v, update_nodes);
       // Note: for meshes that have triangular faces, v_to_v is modified by the
       //       above call to return different edge indices - this is used when
       //       updating the groups. This is needed by ReorientTetMesh().
-      Nodes = nodes;
    }
 
    // update the groups
