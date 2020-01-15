@@ -458,7 +458,7 @@ static void PAConvectionApply(const int dim,
       //case 0x33: PAConvectionApply2D<3,3>(NE, B, G, Bt, Gt, op, x, y); break;
       //case 0x44: PAConvectionApply2D<4,4>(NE, B, G, Bt, Gt, op, x, y); break;
       //case 0x55: PAConvectionApply2D<5,5>(NE, B, G, Bt, Gt, op, x, y); break;
-       default: PAConvectionApply2D(NE, B, G, Bt, Gt, op, x, y); break;
+       default: PAConvectionApply2D(NE, B, G, Bt, Gt, op, x, y,D1D,Q1D); break;
     }
     return;
   }
@@ -470,7 +470,7 @@ static void PAConvectionApply(const int dim,
       //case 0x34: PAConvectionApply3D<3,4>(NE, B, G, Bt, G, op, x, y); break;
       //case 0x45: PAConvectionApply3D<4,5>(NE, B, G, Bt, G, op, x, y); break;
       //case 0x56: PAConvectionApply3D<5,6>(NE, B, G, Bt, G, op, x, y); break;
-       default: PAConvectionApply3D(NE, B, G, Bt, G, op, x, y); break;
+       default: PAConvectionApply3D(NE, B, G, Bt, G, op, x, y,D1D,Q1D); break;
     }
     return;
   }
