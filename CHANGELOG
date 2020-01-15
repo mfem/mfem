@@ -22,6 +22,12 @@ Improved GPU support
 
 - Improved RAJA backend and multi-GPU MPI communications.
 
+- Added a "debug" device that is to be used specifically for debugging purposes.
+  It allows to test the "device" code-path without any hardware.
+
+- The memory manager can utilize the Umpire resource management library or
+  handle directly raw CUDA or managed (UVM) pointers.
+
 Meshing improvements
 --------------------
 - Added support for non-conforming prism AMR, including coarsening and parallel
@@ -126,9 +132,7 @@ GPU support
   seamlessly with a new lightweight device/host memory manager. The kernels can
   be implemented either in OCCA, or as a simple wrapper around for-loops, which
   can then be dispatched to RAJA and native backends. See the files forall.hpp
-  and mem_manager.hpp in the general/ directory for more details. The memory
-  manager can utilize the Umpire resource management library or handle directly
-  raw CUDA or managed (UVM) pointers.
+  and mem_manager.hpp in the general/ directory for more details.
 
 - Several of the MFEM example codes (ex1, ex1p, ex6, and ex6p) can now take
   advantage of GPU acceleration with the backend selectable at runtime. Many of
@@ -141,10 +145,7 @@ GPU support
   same application. We plan on adding support for more programming models and
   devices in the future, without the need for significant modifications in user
   code. The list of current backends is: "occa-cuda", "raja-cuda", "cuda",
-  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", "debug" and "cpu".
-
-- The "debug" device is to be used specifically for debugging purposes.
-  It allows to test the "device" code-path without any hardware.
+  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
 
 - GPU-related limitations:
   * Hypre preconditioners are not yet available in GPU mode, and in particular
