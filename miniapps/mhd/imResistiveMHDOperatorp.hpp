@@ -5,7 +5,8 @@
 
 using namespace std;
 using namespace mfem;
-int isupg=2;
+int isupg=2;    //1: test supg with v term only
+                //2: test diffusion along B only
 bool lumpedMass = false;
 
 // reduced system 
@@ -704,39 +705,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    zLF.ParallelAssemble(z);
    M_solver2.Mult(z, J);
 
-   //evolve the dofs
-   z=0.;
-   Nv->TrueAddMult(psi, z);
-   if (resistivity != 0.0)
-   {
-     DSl.TrueAddMult(psi, z);
-   }
-   if (E0Vec!=NULL)
-     z += *E0Vec;
-   //add stabilization terms
-   if (isupg>2 && StabNv!=NULL)
-   {
-       //FIXME this supg form contains some bugs
-       //stabilized term for psi
-       add(dpsi_dt, resistivity, J, z);
-       StabMass->TrueAddMult(z, dpsi_dt);
-       StabNv->TrueAddMult(psi, dpsi_dt);
-       StabE0->ParallelAssemble(z);
-       dpsi_dt+=z;
-   }
-   else if (isupg==1 && StabNv!=NULL)
-   {
-       //only add the velocity diffusion term
-       StabNv->TrueAddMult(psi, z);
-   }
-   z.Neg(); // z = -z
-   if (isupg==2 && StabNb!=NULL)
-   {
-       StabNb->TrueAddMult(J, z);
-   }
-   z.SetSubVector(ess_tdof_list,0.0);
-   M_solver.Mult(z, dpsi_dt);
-
+   //compute dw_dt
    z=0.;
    Nv->TrueAddMult(w, z);
    if (viscosity != 0.0)
@@ -762,7 +731,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        J.Neg();
        StabNb->TrueAddMult(J, dw_dt);
    }
-   else if (isupg==1 && StabNv!=NULL)
+   else if (isupg==1)
    {
        //only add the velocity diffusion term
        StabNv->TrueAddMult(w, z);
@@ -771,6 +740,41 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Nb->TrueAddMult(J, z); 
    z.SetSubVector(ess_tdof_list,0.0);
    M_solver.Mult(z, dw_dt);
+
+   //compute dpsi_dt
+   z=0.;
+   Nv->TrueAddMult(psi, z);
+   if (resistivity != 0.0)
+   {
+     DSl.TrueAddMult(psi, z);
+   }
+   if (E0Vec!=NULL)
+     z += *E0Vec;
+   //add stabilization terms
+   if (isupg>2 && StabNv!=NULL)
+   {
+       //FIXME this supg form contains some bugs
+       //stabilized term for psi
+       add(dpsi_dt, resistivity, J, z);
+       StabMass->TrueAddMult(z, dpsi_dt);
+       StabNv->TrueAddMult(psi, dpsi_dt);
+       StabE0->ParallelAssemble(z);
+       dpsi_dt+=z;
+   }
+   else if (isupg==1)
+   {
+       //only add the velocity diffusion term
+       StabNv->TrueAddMult(psi, z);
+   }
+   z.Neg(); // z = -z
+   if (isupg==2)
+   {
+       StabNb->TrueAddMult(J, z);
+   }
+   z.SetSubVector(ess_tdof_list,0.0);
+   M_solver.Mult(z, dpsi_dt);
+
+
 }
 
 void ResistiveMHDOperator::ImplicitSolve(const double dt,
@@ -873,7 +877,7 @@ void ResistiveMHDOperator::assembleBoper(double dt, ParGridFunction *phi, ParGri
    {
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
-     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield));
+     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
      StabNb->Assemble(); 
    }
 }
