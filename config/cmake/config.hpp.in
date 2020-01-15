@@ -126,7 +126,10 @@
 // Enable MFEM functionality based on the OCCA library
 #cmakedefine MFEM_USE_OCCA
 
-// Enable Umpire's library
+// Enable MFEM functionality based on the libCEED library
+#cmakedefine MFEM_USE_CEED
+        
+// Enable MFEM functionality based on the Umpire library
 #cmakedefine MFEM_USE_UMPIRE
 #cmakedefine MFEM_UMPIRE_HOST "@MFEM_UMPIRE_HOST@"
 #cmakedefine MFEM_UMPIRE_DEVICE "@MFEM_UMPIRE_DEVICE@"
