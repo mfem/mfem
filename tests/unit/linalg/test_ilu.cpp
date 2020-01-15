@@ -14,7 +14,6 @@
 
 using namespace mfem;
 
-/*
 TEST_CASE("ILU Structure", "[ILU]")
 {
    int N = 5;
@@ -91,7 +90,7 @@ TEST_CASE("ILU Structure", "[ILU]")
    }
 }
 
-
+/*
 TEST_CASE("ILU Factorization", "[ILU]")
 {
    SparseMatrix A(6, 6);
