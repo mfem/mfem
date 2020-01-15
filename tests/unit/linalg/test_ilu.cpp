@@ -70,8 +70,8 @@ TEST_CASE("ILU Structure", "[ILU]")
       bool reorder = false;
       BlockILU0 ilu(A, Nb, reorder);
 
-      int *IB = ilu.GetI();
-      int *JB = ilu.GetJ();
+      int *IB = ilu.GetBlockI();
+      int *JB = ilu.GetBlockJ();
 
       int nnz_count = 0;
 
@@ -134,7 +134,7 @@ TEST_CASE("ILU Factorization", "[ILU]")
    BlockILU0 ilu(A, 2, reorder);
 
    DenseTensor AB;
-   AB.UseExternalData(ilu.GetData(), 2, 2, 7);
+   AB.UseExternalData(ilu.GetBlockData(), 2, 2, 7);
 
    REQUIRE(AB(0,0,0) == Approx(5.0));
    REQUIRE(AB(1,0,0) == Approx(9.0));

@@ -484,11 +484,11 @@ public:
 
    void Mult(const Vector &b, Vector &x) const;
 
-   int *GetI() { return IB.GetData(); }
+   int *GetBlockI() { return IB.GetData(); }
 
-   int *GetJ() { return JB.GetData(); }
+   int *GetBlockJ() { return JB.GetData(); }
 
-   double *GetData() { return AB.Data(); }
+   double *GetBlockData() { return AB.Data(); }
 
 private:
    void CreateBlockPattern(const SparseMatrix &A);
