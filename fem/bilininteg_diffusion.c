@@ -20,15 +20,15 @@
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 
-void KernelPADiffusionApply2D(const int NE,
-                              const int D1D,
-                              const int Q1D,
-                              const int NBZ,
-                              const double b[static restrict Q1D][D1D],
-                              const double g[static restrict Q1D][ D1D],
-                              const double D[static restrict NE][3][Q1D*Q1D],
-                              const double x[static restrict NE][D1D][D1D],
-                              double Y[static restrict NE][D1D][D1D])
+void SmemPADiffusionApply2D_VLA(const int NE,
+                                const int D1D,
+                                const int Q1D,
+                                const int NBZ,
+                                const double b[Q1D][D1D],
+                                const double g[Q1D][D1D],
+                                const double D[NE][3][Q1D*Q1D],
+                                const double x[NE][D1D][D1D],
+                                double Y[NE][D1D][D1D])
 {
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {

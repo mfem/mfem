@@ -2911,7 +2911,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                "Only scalar finite elements are supported");
 }
 
-MFEM_JIT
+/*MFEM_JIT*/
 template<const int T_VDIM, const int T_ND, const int T_NQ>
 void QuadratureInterpolator::Eval2D(
    const int NE,
@@ -3002,7 +3002,7 @@ void QuadratureInterpolator::Eval2D(
    });
 }
 
-MFEM_JIT
+/*MFEM_JIT*/
 template<const int T_VDIM, const int T_ND, const int T_NQ>
 void QuadratureInterpolator::Eval3D(
    const int NE,
@@ -3112,7 +3112,7 @@ void QuadratureInterpolator::Mult(
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::FULL);
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
-#ifndef MFEM_USE_JIT
+   //#ifndef MFEM_USE_JIT
    void (*eval_func)(
       const int NE,
       const DofToQuad &maps,
@@ -3240,20 +3240,20 @@ void QuadratureInterpolator::Mult(
    {
       MFEM_ABORT("case not supported yet");
    }
-#else // MFEM_USE_JIT
+   /*#else // MFEM_USE_JIT
 
-   if (dim == 2)
-   {
-      Eval2D(ne, maps, e_vec, q_val, q_der, q_det, eval_flags, vdim, nd, nq);
-      return;
-   }
-   if (dim == 3)
-   {
-      Eval3D(ne, maps, e_vec, q_val, q_der, q_det, eval_flags, vdim, nd, nq);
-      return;
-   }
-   MFEM_ABORT("case not supported yet");
-#endif
+      if (dim == 2)
+      {
+         Eval2D(ne, maps, e_vec, q_val, q_der, q_det, eval_flags, vdim, nd, nq);
+         return;
+      }
+      if (dim == 3)
+      {
+         Eval3D(ne, maps, e_vec, q_val, q_der, q_det, eval_flags, vdim, nd, nq);
+         return;
+      }
+      MFEM_ABORT("case not supported yet");
+   #endif*/
 }
 
 void QuadratureInterpolator::MultTranspose(

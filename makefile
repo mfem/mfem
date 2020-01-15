@@ -415,8 +415,8 @@ OKL_DIRS = fem
 .SUFFIXES: .cpp .c .o
 # Remove some default implicit rules
 %:	%.o
-%.o:	%.c
-%.o:	%.cpp
+%.o: %.c
+%.o: %.cpp
 %:	%.cpp
 %:	%.c
 
@@ -433,11 +433,13 @@ ifeq ($(MFEM_USE_JIT),YES)
 MPP_LANG = $(if $(MFEM_USE_CUDA:YES=),-x c++)
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) mpp
 	./mpp $(<) | $(MFEM_CXX) $(MPP_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
+$(C_OBJECT_FILES): $(BLD)%.c.o: $(SRC)%.c $(CONFIG_MK) mpp
+	$(MFEM_CXX) -x c $(strip $(filter-out $(BASE_FLAGS),$(MFEM_BUILD_FLAGS))) -c $(<) -o $(@)
 else
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 $(C_OBJECT_FILES): $(BLD)%.c.o: $(SRC)%.c $(CONFIG_MK)
-	gcc -O3 -g -Wall -c $(<) -o $(@)
+	$(MFEM_CXX) -x c $(filter-out $(BASE_FLAGS),$(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 endif
 
 # Rule for compiling kernel source file generator.
@@ -445,7 +447,7 @@ MPP_MFEM_CONFIG  = -DMFEM_CXX="$(MFEM_CXX)"
 MPP_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
 MPP_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
 mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
-	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEM_CONFIG)
+	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(MPP_MFEM_CONFIG)
 
 all: examples miniapps $(TEST_DIRS)
 
