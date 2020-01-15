@@ -9,11 +9,11 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_EXTRAS_HPP
-#define MFEM_EXTRAS_HPP
+#ifndef MFEM_COMMON_HPP
+#define MFEM_COMMON_HPP
 
-#include "miniapps/common/fem_extras.hpp"
-#include "miniapps/common/mesh_extras.hpp"
-#include "miniapps/common/pfem_extras.hpp"
+#include "fem_extras.hpp"
+#include "mesh_extras.hpp"
+#include "pfem_extras.hpp"
 
 #endif
