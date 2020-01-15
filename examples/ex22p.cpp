@@ -249,6 +249,7 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient zeroVecCoef(zeroVec);
    VectorConstantCoefficient oneVecCoef(oneVec);
 
+   u = 0.0;
    switch (prob)
    {
       case 0:
@@ -425,7 +426,7 @@ int main(int argc, char *argv[])
 
       BDP.SetDiagonalBlock(0, pc_r);
       BDP.SetDiagonalBlock(1, pc_i);
-      BDP.owns_blocks = 0;
+      BDP.owns_blocks = 1;
 
       FGMRESSolver fgmres(MPI_COMM_WORLD);
       fgmres.SetPreconditioner(BDP);
@@ -565,8 +566,6 @@ int main(int argc, char *argv[])
    delete pmesh;
 
    MPI_Finalize();
-
-   return 0;
 }
 
 bool check_for_inline_mesh(const char * mesh_file)
