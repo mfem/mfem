@@ -147,8 +147,23 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Orientation metric, 2D.
-class TMOP_Metric_orientation2D : public TMOP_QualityMetric
+/// Shape+Size+Orientation metric, 2D.
+class TMOP_Metric_SSA2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// Shape+Size metric, 2D.
+class TMOP_Metric_SS2D : public TMOP_QualityMetric
 {
 public:
    // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
@@ -572,6 +587,9 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
+
+   virtual void ComputeAtNewPositionInElement(const Vector &new_nodes,
+                                     Vector &new_field) = 0;
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -694,6 +712,7 @@ protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
    Vector target_spec;
+   Vector target_spec_sav;
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
    const FiniteElementSpace *tspec_fes;
@@ -717,6 +736,20 @@ public:
    /** Used to update the target specification after the mesh has changed. The
        new mesh positions are given by new_x. */
    void UpdateTargetSpecification(const Vector &new_x);
+
+   void UpdateTargetSpecificationInElement(Vector &new_x,
+                                           Vector &IntData);
+
+   void UpdateTargetSpecificationAtNode(const FiniteElement &el,
+                                        ElementTransformation &T,
+                                        int nodenum, int idir,
+                                        Vector &IntData);
+
+   void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
+
+   void BackupTargetSpecification();
+
+   void RestoreTargetSpecification();
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -770,8 +803,15 @@ protected:
    int fdorder;
    double elemenergy;
 
-   Array <Vector *> ElemDer;
-   Array <Vector *> ElemPertEnergy;
+   Array <Vector *> ElemDer;        //f'(x)
+   Array <Vector *> ElemPertEnergy; //f(x+h)
+   Array <Vector *> TSpecPerth;     //eta(x+h)   Discrete field perturbed
+   Array <Vector *> TSpecPert2h; //eta(x+2*h) Discrete field perturbed
+   Vector ElemPertAnalytic;
+   Vector ElemPertAnalytic2h;
+   Vector ElemPertAnalyticxy;
+
+   mutable DiscreteAdaptTC *discr_tc;
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -796,7 +836,7 @@ public:
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0), der_flag(0),
-        fdorder(1)
+        discr_tc(NULL), fdorder(1)
    { }
 
    ~TMOP_Integrator() { delete lim_func;
@@ -868,6 +908,8 @@ public:
                                       ElementTransformation &T,
                                       Vector &elfun,
                                 const int nodenum,const int idir);
+
+   void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) {discr_tc = tc;}
 
    virtual void SetFDPar(int fdorderin, int sz);
 

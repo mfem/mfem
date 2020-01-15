@@ -228,8 +228,8 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 #endif
    m->SetNodes(nodes0);
 
-   const double rel_bbox_el = 0.05;
-   const double newton_tol  = 1.0e-12;
+   const double rel_bbox_el = 0.1;
+   const double newton_tol  = 1.0e-10;
    const int npts_at_once   = 256;
 #ifdef MFEM_USE_MPI
    finder = new FindPointsGSLIB(pfes->GetComm());
@@ -237,106 +237,56 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    finder = new FindPointsGSLIB();
 #endif
    finder->Setup(*m, rel_bbox_el, newton_tol, npts_at_once);
-   std::cout << "setup initial field k10\n";
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
                                           Vector &new_field)
 {
-   Mesh *m = mesh;
-   FiniteElementSpace *f = fes;
-#ifdef MFEM_USE_MPI
-   if (pmesh) { m = pmesh; }
-   if (pfes)  { f = pfes; }
-#endif
-   m->SetNodes(new_nodes);
-   // The size is dim * the number of elements * the number of integration points
-   const int dim = m->Dimension();
-   const int size = dim*(f->GetVSize() / f->GetVDim());
-   //(m->GetNE()) * (f->GetFE(0)->GetNodes().GetNPoints());
 
-   // Positions to be found.  Ordered in (XXX...,YYY...)
-   Vector positionsToFind(size);
+    FiniteElementSpace *f = fes;
+ #ifdef MFEM_USE_MPI
+    if (pfes)  { f = pfes; }
+ #endif
 
-   // Number of points to search for
-   const int pts_cnt = positionsToFind.Size() / dim;
+    const int dim = f->GetFE(0)->GetDim();
+    Vector positionsToFind = new_nodes;
+    const int pts_cnt = positionsToFind.Size() / dim;
 
-   Vector pos(dim);
-   Array<int> dofs;
-   if (dim == 2)
+
+    // Interpolate FE function values on the found points.
+    Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
+    Vector pos_r_out(pts_cnt*dim), dist_p_out(pts_cnt);
+
+    finder->FindPoints(positionsToFind, code_out, task_id_out,
+                       el_id_out, pos_r_out, dist_p_out);
+
+    GridFunction field0_gf(f);
+    for (int i = 0; i < field0.Size(); i++)
+    {
+          field0_gf(i) = field0(i);
+    }
+
+    finder->Interpolate(code_out, task_id_out, el_id_out,
+                        pos_r_out, field0_gf, new_field);
+   int face_pts = 0, not_found = 0, found = 0;
+
+   for (int i = 0; i < pts_cnt; i++)
    {
-      for (int i = 0; i < m->GetNE(); i++)
-      {
-         const IntegrationRule &ir = f->GetFE(i)->GetNodes();
-         f->GetElementDofs(i, dofs);
-
-         for (int j = 0; j < ir.GetNPoints(); j++)
+         if (code_out[i] < 2)
          {
-            const IntegrationPoint &ip = ir.IntPoint(j);
-            ElementTransformation *et = m->GetElementTransformation(i);
-            et->Transform(ip, pos);
+         found++;
 
-            positionsToFind(dofs[j]) = pos(0);
-            positionsToFind(dofs[j]+pts_cnt) = pos(1);
+         if (code_out[i] == 1) { face_pts++; }
          }
-      }
+         else { not_found++;}
    }
-   else
-   {
-       for (int i = 0; i < m->GetNE(); i++)
-       {
-             const IntegrationRule &ir = f->GetFE(i)->GetNodes();
-             f->GetElementDofs(i, dofs);
+}
 
-             for (int j = 0; j < ir.GetNPoints(); j++)
-             {
-                 const IntegrationPoint &ip = ir.IntPoint(j);
-                 ElementTransformation *et = m->GetElementTransformation(i);
-                 et->Transform(ip, pos);
+void InterpolatorFP::ComputeAtNewPositionInElement(const Vector &new_nodes,
+                                          Vector &new_field)
+{
+    ComputeAtNewPosition(new_nodes,new_field);
 
-                 positionsToFind(dofs[j]) = pos(0);
-                 positionsToFind(dofs[j]+pts_cnt) = pos(1);
-                 positionsToFind(dofs[j]+2*pts_cnt) = pos(2);
-             }
-       }
-   }
-
-   // Interpolate FE function values on the found points.
-   Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
-   Vector pos_r_out(pts_cnt*dim), dist_p_out(pts_cnt);
-
-   finder->FindPoints(positionsToFind, code_out, task_id_out,
-                      el_id_out, pos_r_out, dist_p_out);
-
-   for (int j = 0; j < fes->GetVDim(); j++)
-   {
-      Vector interp_vals(pts_cnt);
-      FiniteElementSpace f1(m, f->FEColl(),1);
-      GridFunction field0_gf(&f1);
-      for (int i = 0; i < field0.Size()/(fes->GetVDim()); i++)
-      {
-            field0_gf(i) = field0(i+j*(field0.Size()/2));
-      }
-      finder->Interpolate(code_out, task_id_out, el_id_out,
-                        pos_r_out, field0_gf, interp_vals);
-
-      int face_pts = 0, not_found = 0, found = 0;
-
-      for (int i = 0; i < pts_cnt; i++)
-      {
-            if (code_out[i] < 2)
-            {
-            found++;
-
-            if (code_out[i] == 1) { face_pts++; }
-            }
-            else { not_found++; }
-      }
-      for (int i = 0; i < interp_vals.Size(); i++)
-      {
-            new_field(i+j*interp_vals.Size()) = interp_vals(i);
-      }
-   }
 }
 
 double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
@@ -379,6 +329,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    for (int i = 0; i < 12; i++)
    {
       add(x, -scale, c, x_out);
+      ProcessNewState(x_out);
 
       if (serial)
       {
@@ -467,9 +418,12 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          Vector x_loc(nlf->ParFESpace()->GetVSize());
          nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
          discr_tc->UpdateTargetSpecification(x_loc);
+         discr_tc->BackupTargetSpecification();
 #endif
       }
-      else { discr_tc->UpdateTargetSpecification(x); }
+      else { discr_tc->UpdateTargetSpecification(x);
+             discr_tc->BackupTargetSpecification();
+      }
    }
    if (discr_tcc)
    {
@@ -481,9 +435,12 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          Vector x_loc(nlf->ParFESpace()->GetVSize());
          nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
          discr_tcc->UpdateTargetSpecification(x_loc);
+         discr_tcc->BackupTargetSpecification();
 #endif
       }
-      else { discr_tcc->UpdateTargetSpecification(x); }
+      else { discr_tcc->UpdateTargetSpecification(x);
+             discr_tcc->BackupTargetSpecification();
+      }
    }
 }
 
