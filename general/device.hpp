@@ -61,7 +61,7 @@ struct Backend
       /** @brief [device] CEED CUDA backend working in colaboration with the
           CUDA backend. Enabled when MFEM_USE_CEED = YES and
           MFEM_USE_CUDA = YES. */
-      CEED_CUDA = 1 << 11
+      CEED_CUDA = 1 << 11,
       /** @brief [host] Debug backend: host memory is READ/WRITE protected
           while a device is in use. */
       DEBUG = 1 << 12
@@ -72,7 +72,7 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 12,
+      NUM_BACKENDS = 13,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU | DEBUG,
