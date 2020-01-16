@@ -246,8 +246,8 @@ int main(int argc, char *argv[])
       int skip_zeros = 0;
       k.Assemble(skip_zeros);
       k.Finalize(skip_zeros);
-      b.Assemble();
    }
+   b.Assemble();
 
    // 8. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
