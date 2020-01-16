@@ -16,11 +16,26 @@ Improved GPU support
 - Added support for matrix-free diagonal smoothers on GPUs.
 
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
-  language that can run on both AMD and NVIDIA hardware. With this change, the
-  list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",
-  "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+  language that can run on both AMD and NVIDIA hardware. With this change and
+  the libCEED addition below, the current list of available backends is:
+  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
+  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
 
 - Improved RAJA backend and multi-GPU MPI communications.
+
+libCEED support
+---------------
+- Added support for libCEED, the portable library for high-order operator
+  evaluation developed by the Center for Efficient Exascale Discretizations in
+  the Exascale Computing Project, https://github.com/CEED/libCEED.
+
+- This initial integration includes Mass and Diffusion integrators. libCEED GPU
+  backends can be used without specific MFEM configuration, however it is highly
+  recommended to use the "cuda" build option to minimize memory transfers.
+
+- Both CPU and GPU modes are available as MFEM device backends (ceed-cpu and
+  ceed-cuda), using some of the best performing CPU and GPU backends from
+  libCEED, see the sample runs in examples 1 and 6.
 
 Meshing improvements
 --------------------
@@ -62,8 +77,12 @@ Discretization improvements
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
 - Added initial support for partially assembled NonlinearForms.
+
 - Added a nonlinear full and partial assembly enabled vector valued convection
   integrator.
+
+- Extended the support for partial assembly to vector mass and vector diffusion
+  bilinear integrators.
 
 Linear and nonlinear solvers
 ----------------------------
@@ -114,6 +133,10 @@ Miscellaneous
 
 - Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
   and the new ParaViewDataCollection class.
+
+- Collected object files from the miniapps/common directory into a new library,
+  libmfem-common for the convenience of application developers. The new library
+  is now used in several miniapps in the electromagnetic and tools directories.
 
 
 Version 4.0, released on May 24, 2019
