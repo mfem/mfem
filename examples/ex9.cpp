@@ -429,6 +429,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 {
    K.Mult(x, z);
+   z += b;
    dg_solver.SetTimeStep(dt);
    dg_solver.Mult(z, k);
 }
