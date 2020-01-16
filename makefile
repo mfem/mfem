@@ -693,7 +693,7 @@ style-check:
 	   echo "astyle not found.  Please install version 2.05.1.";\
 	   false;\
 	fi
-	@if $(ASTYLE) --dry-run $(FORMAT_FILES) | grep -B3 Formatted; then\
+	@if $(ASTYLE) --dry-run $(FORMAT_FILES) | grep Formatted; then\
 	   echo "Style check failed, please run make style.";\
 	   false;\
 	else echo "Style check passed."; fi
