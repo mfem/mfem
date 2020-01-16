@@ -37,7 +37,7 @@ void velocity_function(const Vector &x, Vector &v)
 
 
 //Basic unit test for convection
-TEST_CASE("conv")
+TEST_CASE("PA Convection")
 {
 
  for (dimension = 2; dimension < 4; ++dimension)
@@ -95,11 +95,11 @@ TEST_CASE("conv")
 
           y_pa -= y;
           double pa_error =- y_pa.Norml2();
-          std::cout << " ConvectionIntegrator "
-                    << " dim: " << dimension
-                    << " conforming: " << imesh
-                    << " order: " << order
-                    << ", pa error norm: " << pa_error << std::endl;
+          std::cout << "ConvectionIntegrator:"
+                    << " dim = " << dimension
+                    << ", conforming = " << imesh
+                    << ", order = " << order
+                    << ", PA error = " << pa_error << std::endl;
           REQUIRE(fabs(pa_error) < 1.e-12);
         }//order loop
      }//mesh loop
