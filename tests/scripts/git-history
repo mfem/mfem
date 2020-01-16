@@ -78,8 +78,8 @@ while read -r rev; do
                 echo "Commit ${rev} contains a binary file: ${fname} (${binary})" 1>&2
             fi
 
-            size="$(stat -f%z ${fname})"
-            if [ ${size} -gt 300000 ]
+            size="$(du -k ${fname} | cut -f1)"
+            if [ ${size} -gt 400 ] # currently no file larger than 400K in mfem
             then
                 echo "Commit ${rev} adds/modifies a very large file: ${fname}" 1>&2
             fi
