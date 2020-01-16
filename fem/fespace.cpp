@@ -2800,8 +2800,8 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int gid = (elementMap[dof*e + d] >= 0) ? elementMap[dof*e + d] : -1 -
-                         elementMap[dof*e + d];
+	 const int sgid = elementMap[dof*e + d];  // signed
+	 const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          ++offsets[gid + 1];
       }
    }
@@ -2815,10 +2815,10 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int did = (!dof_reorder)?d:(dof_map[d] >= 0 ? dof_map[d] : -1 -
-                                           dof_map[d]);
-         const int gid = (elementMap[dof*e + did] >= 0) ? elementMap[dof*e + did] : -1 -
-                         elementMap[dof*e + did];
+	 const int sdid = dof_reorder ? dof_map[d] : 0;  // signed
+         const int did = (!dof_reorder)?d:(sdid >= 0 ? sdid : -1 - sdid);
+	 const int sgid = elementMap[dof*e + did];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          const int lid = dof*e + d;
 
          indices[offsets[gid]++] = (elementMap[dof*e + did] >= 0) ? lid : -1 - lid;
@@ -2853,8 +2853,9 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
          const double dofValue = d_x(t?c:i,t?i:c);
          for (int j = offset; j < nextOffset; ++j)
          {
-            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            d_y(idx_j % nd, c, idx_j / nd) = (d_indices[j] >= 0) ? dofValue : -dofValue;
+	    const bool positive = (d_indices[j] >= 0);  // otherwise, sign must be flipped
+            const int idx_j = positive ? d_indices[j] : -1 - d_indices[j];
+            d_y(idx_j % nd, c, idx_j / nd) = positive ? dofValue : -dofValue;
          }
       }
    });

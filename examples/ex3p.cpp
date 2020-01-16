@@ -196,11 +196,8 @@ int main(int argc, char *argv[])
 
    if (pa)
    {
-      ParGridFunction diag_pa(fespace);
-      a->AssembleDiagonal(diag_pa);
-
       Vector tdiag_pa(fespace->GetTrueVSize());
-      diag_pa.GetTrueDofs(tdiag_pa);
+      a->AssembleDiagonal(tdiag_pa);
 
       OperatorJacobiSmoother Jacobi(tdiag_pa, ess_tdof_list, 1.0);
 
