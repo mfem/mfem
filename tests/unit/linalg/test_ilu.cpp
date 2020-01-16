@@ -57,7 +57,7 @@ TEST_CASE("ILU Structure", "[ILU]")
             }
 
             Vector Ab_data(Ab.GetData(), Nb * Nb);
-            Ab_data.Randomize(counter);
+            Ab_data.Randomize(++counter);
             A.SetSubMatrix(rows, cols, Ab);
          }
       }
@@ -67,8 +67,7 @@ TEST_CASE("ILU Structure", "[ILU]")
 
    SECTION("Create block pattern from SparseMatrix")
    {
-      bool reorder = false;
-      BlockILU0 ilu(A, Nb, reorder);
+      BlockILU ilu(A, Nb, BlockILU::Reordering::NONE);
 
       int *IB = ilu.GetBlockI();
       int *JB = ilu.GetBlockJ();
@@ -130,44 +129,43 @@ TEST_CASE("ILU Factorization", "[ILU]")
 
    A.Finalize();
 
-   bool reorder = true;
-   BlockILU0 ilu(A, 2, reorder);
+   BlockILU ilu(A, 2, BlockILU::Reordering::MINIMUM_DISCARDED_FILL);
 
    DenseTensor AB;
    AB.UseExternalData(ilu.GetBlockData(), 2, 2, 7);
 
-   REQUIRE(AB(0,0,0) == Approx(5.0));
-   REQUIRE(AB(1,0,0) == Approx(9.0));
-   REQUIRE(AB(0,1,0) == Approx(6.0));
-   REQUIRE(AB(1,1,0) == Approx(1.0));
+   REQUIRE(AB(0,0,0) == Approx(6.0));
+   REQUIRE(AB(1,0,0) == Approx(1.0));
+   REQUIRE(AB(0,1,0) == Approx(7.0));
+   REQUIRE(AB(1,1,0) == Approx(2.0));
 
-   REQUIRE(AB(0,0,1) == Approx(3.0));
-   REQUIRE(AB(1,0,1) == Approx(7.0));
-   REQUIRE(AB(0,1,1) == Approx(4.0));
-   REQUIRE(AB(1,1,1) == Approx(8.0));
+   REQUIRE(AB(0,0,1) == Approx(4.0));
+   REQUIRE(AB(1,0,1) == Approx(8.0));
+   REQUIRE(AB(0,1,1) == Approx(5.0));
+   REQUIRE(AB(1,1,1) == Approx(9.0));
 
-   REQUIRE(AB(0,0,2) == Approx(6.0));
-   REQUIRE(AB(1,0,2) == Approx(1.0));
-   REQUIRE(AB(0,1,2) == Approx(7.0));
-   REQUIRE(AB(1,1,2) == Approx(2.0));
+   REQUIRE(AB(0,0,2) == Approx(0.4));
+   REQUIRE(AB(1,0,2) == Approx(3.4));
+   REQUIRE(AB(0,1,2) == Approx(0.6));
+   REQUIRE(AB(1,1,2) == Approx(-11.4));
 
-   REQUIRE(AB(0,0,3) == Approx(4.0));
-   REQUIRE(AB(1,0,3) == Approx(8.0));
-   REQUIRE(AB(0,1,3) == Approx(5.0));
-   REQUIRE(AB(1,1,3) == Approx(9.0));
+   REQUIRE(AB(0,0,3) == Approx(-5.4));
+   REQUIRE(AB(1,0,3) == Approx(84.6));
+   REQUIRE(AB(0,1,3) == Approx(-5.4));
+   REQUIRE(AB(1,1,3) == Approx(93.6));
 
-   REQUIRE(AB(0,0,4) == Approx(1.0));
-   REQUIRE(AB(1,0,4) == Approx(0.510204081632653));
-   REQUIRE(AB(0,1,4) == Approx(0.0));
-   REQUIRE(AB(1,1,4) == Approx(-0.06122448979591837));
+   REQUIRE(AB(0,0,4) == Approx(5.0));
+   REQUIRE(AB(1,0,4) == Approx(2.0));
+   REQUIRE(AB(0,1,4) == Approx(6.0));
+   REQUIRE(AB(1,1,4) == Approx(3.0));
 
-   REQUIRE(AB(0,0,5) == Approx(0.4));
-   REQUIRE(AB(1,0,5) == Approx(3.4));
-   REQUIRE(AB(0,1,5) == Approx(0.6));
-   REQUIRE(AB(1,1,5) == Approx(-11.4));
+   REQUIRE(AB(0,0,5) == Approx(32.0/27.0));
+   REQUIRE(AB(1,0,5) == Approx(4.0/9.0));
+   REQUIRE(AB(0,1,5) == Approx(1.0/9.0));
+   REQUIRE(AB(1,1,5) == Approx(1.0/9.0));
 
-   REQUIRE(AB(0,0,6) == Approx(-8.4));
-   REQUIRE(AB(1,0,6) == Approx(83.49795918367347));
-   REQUIRE(AB(0,1,6) == Approx(-9.4));
-   REQUIRE(AB(1,1,6) == Approx(92.04897959183674));
+   REQUIRE(AB(0,0,6) == Approx(-31.0/27.0));
+   REQUIRE(AB(1,0,6) == Approx(59.0/9.0));
+   REQUIRE(AB(0,1,6) == Approx(-13.0/9.0));
+   REQUIRE(AB(1,1,6) == Approx(-2.0));
 }
