@@ -1511,7 +1511,6 @@ void TMOP_Integrator::SetFDPar(int fdorderin, int sz)
         der_flag = 0;
     }
     else {
-        fdorder = fdorderin;
         der_flag=1;
         ElemDer.SetSize(sz);
         ElemPertEnergy.SetSize(sz);
@@ -1656,8 +1655,10 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
           discr_tc->UpdateTargetSpecificationInElement(elfunmod,ElemPertTemp);
        }
        for (int i=0;i<dof;i++) {
-           (*(TSpecPertMix[T.ElementNo]))(idx*dof*dim+k1*dof+i) = ElemPertTemp(i);
-           (*(TSpecPertMix[T.ElementNo]))(idx*dof*dim+k2*dof+i) = ElemPertTemp(i);
+           (*(TSpecPertMix[T.ElementNo]))(idx*dof*dim+k1*dof+i) =
+                   ElemPertTemp(i);
+           (*(TSpecPertMix[T.ElementNo]))(idx*dof*dim+k2*dof+i) =
+                   ElemPertTemp(i);
            elfunmod(k1*dof+i) -= fdeps;
            elfunmod(k2*dof+i) -= fdeps;
        }
@@ -1669,66 +1670,46 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
 
    Vector ElemDerLoc = *(ElemDer[T.ElementNo]);
    Vector ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
-   if (fdorder==1) {
-       for (int i=0;i<dof;i++) {
-       for (int j=0;j<i+1;j++) {
-            for (int k1=0;k1<dim;k1++) {
-            for (int k2=0;k2<dim;k2++) {
-                elfunmod(k2*dof+j) += fdeps;
+   for (int i=0;i<dof;i++) {
+   for (int j=0;j<i+1;j++) {
+        for (int k1=0;k1<dim;k1++) {
+        for (int k2=0;k2<dim;k2++) {
+            elfunmod(k2*dof+j) += fdeps;
 
-
-       if (discr_tc) {
+   if (discr_tc) {
+       discr_tc->UpdateTargetSpecificationAtNode
+               (el,T,j,k2,(*(TSpecPerth[T.ElementNo])));
+       if (j!=i) {
            discr_tc->UpdateTargetSpecificationAtNode
-                   (el,T,j,k2,(*(TSpecPerth[T.ElementNo])));
-           if (j!=i) {
+                   (el,T,i,k1,(*(TSpecPerth[T.ElementNo])));
+       }
+       else { // j==i
+           if (k1!=k2) {
+               int idx = TSpecMixIdx(k1,k2);
                discr_tc->UpdateTargetSpecificationAtNode
-                       (el,T,i,k1,(*(TSpecPerth[T.ElementNo])));
+                       (el,T,i,k1,idx,(*(TSpecPertMix[T.ElementNo])));
            }
-           else { // j==i
-               if (k1!=k2) { // k1!=k2
-                   int idx = TSpecMixIdx(k1,k2);
-                   discr_tc->UpdateTargetSpecificationAtNode
-                           (el,T,i,k1,idx,(*(TSpecPertMix[T.ElementNo])));
-               }
-               else {
-                   discr_tc->UpdateTargetSpecificationAtNode
-                           (el,T,i,k1,(*(TSpecPert2h[T.ElementNo])));
-               }
+           else { //j==i && k1==k2
+               discr_tc->UpdateTargetSpecificationAtNode
+                       (el,T,i,k1,(*(TSpecPert2h[T.ElementNo])));
            }
-       }
-
-                elemenergy = ElemPertLoc[k2*dof+j];
-                double energy1 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
-                elfunmod(k2*dof+j) -= fdeps;
-                double energy2 = ElemDerLoc[k1*dof+i];
-                elmat(k1*dof+i,k2*dof+j) = (energy1-energy2)/(fdeps);
-                elmat(k2*dof+j,k1*dof+i) = (energy1-energy2)/(fdeps);
-
-         if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,i);}
-         if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,j);}
-
-
-            }
-            }
-       }
        }
    }
-   else {
-       for (int i=0;i<dof;i++) {
-       for (int j=0;j<i+1;j++) {
-            for (int k1=0;k1<dim;k1++) {
-            for (int k2=0;k2<dim;k2++) {
-                elfunmod(k2*dof+j) += fdeps;
-                double energy1 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
-                elfunmod(k2*dof+j) -= 2.*fdeps;
-                double energy2 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
-                elmat(k1*dof+i,k2*dof+j) = (energy1-energy2)/(2*fdeps);
-                elmat(k2*dof+j,k1*dof+i) = (energy1-energy2)/(2*fdeps);
-                elfunmod(k2*dof+j) += fdeps;
-            }
-            }
-       }
-       }
+
+     elemenergy = ElemPertLoc[k2*dof+j];
+     double energy1 = (this)->GetFDDerivative(el,T,elfunmod,i,k1);
+     elfunmod(k2*dof+j) -= fdeps;
+     double energy2 = ElemDerLoc[k1*dof+i];
+     elmat(k1*dof+i,k2*dof+j) = (energy1-energy2)/(fdeps);
+     elmat(k2*dof+j,k1*dof+i) = (energy1-energy2)/(fdeps);
+
+     if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,i);}
+     if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,j);}
+
+
+     }
+     }
+   }
    }
 }
 
