@@ -72,6 +72,9 @@ private:
 
    mutable Vector z;
 
+   Array<int> ess_tdofs;
+   OperatorHandle A;
+
 public:
    FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b);
 
@@ -248,10 +251,13 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new MassIntegrator);
    ParBilinearForm *k = new ParBilinearForm(&fes);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   k->AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   k->AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   if (fem_type == DG_FE)
+   {
+      k->AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      k->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   }
 
    ParLinearForm *b = new ParLinearForm(&fes);
    b->AddBdrFaceIntegrator(
@@ -450,7 +456,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
                            const Vector &_b)
    : TimeDependentOperator(_M.ParFESpace()->GetTrueVSize()),
      M(_M), K(_K), b(_b), M_solver(MPI_COMM_WORLD),
-     z(M.ParFESpace()->GetTrueVSize())
+     z(M.ParFESpace()->GetTrueVSize()), ess_tdofs(0), A()
 {
   if(M.GetAssemblyLevel() == AssemblyLevel::FULL)
   {
@@ -462,7 +468,8 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
   }
   else
   {
-     M_solver.SetOperator(M);
+     M.FormSystemMatrix(ess_tdofs, A);
+     M_solver.SetOperator(*A);
   }
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
@@ -471,16 +478,20 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    M_solver.SetPrintLevel(0);
 }
 
+// y = M^{-1} (K x + b).
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // y = M^{-1} (K x + b)
-  if(K.GetAssemblyLevel() == AssemblyLevel::PARTIAL)
-  {
-    K.Mult(x, z);
-  }else
-  {
-    K_mat->Mult(x, z);
-  }
+   if (K.GetAssemblyLevel() == AssemblyLevel::PARTIAL)
+   {
+      Vector x_ldofs(K.Size()), z_ldofs(K.Size());
+      K.ParFESpace()->GetProlongationMatrix()->Mult(x, x_ldofs);
+      K.Mult(x_ldofs, z_ldofs);
+      K.ParFESpace()->GetProlongationMatrix()->MultTranspose(z_ldofs, z);
+   }
+   else
+   {
+      K_mat->Mult(x, z);
+   }
 
    z += b;
    M_solver.Mult(z, y);
