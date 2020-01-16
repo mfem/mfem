@@ -60,7 +60,7 @@ private:
    SparseMatrix M_diag;
    HypreParMatrix *A;
    GMRESSolver solver;
-   BlockILU0 prec;
+   BlockILU prec;
    double dt;
 public:
    DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes)
@@ -68,7 +68,8 @@ public:
         K(K_),
         A(NULL),
         solver(M.GetComm()),
-        prec(fes.GetFE(0)->GetDof(), true),
+        prec(fes.GetFE(0)->GetDof(),
+             BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
         dt(-1.0)
    {
       solver.iterative_mode = false;

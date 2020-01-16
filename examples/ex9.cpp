@@ -59,13 +59,14 @@ class DG_Solver : public Solver
 private:
    SparseMatrix &M, &K, A;
    GMRESSolver solver;
-   BlockILU0 prec;
+   BlockILU prec;
    double dt;
 public:
    DG_Solver(SparseMatrix &M_, SparseMatrix &K_, const FiniteElementSpace &fes)
       : M(M_),
         K(K_),
-        prec(fes.GetFE(0)->GetDof(), true),
+        prec(fes.GetFE(0)->GetDof(),
+             BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
         dt(-1.0)
    {
       solver.iterative_mode = false;
