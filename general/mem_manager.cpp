@@ -11,7 +11,7 @@
 
 #include "../general/forall.hpp"
 
-#include <cstring> // std::memcpy
+#include <cstring> // std::memcpy, std::memcmp
 
 #include <list>
 #include <unordered_map>
@@ -55,6 +55,15 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
 
    return std::max(mc1, mc2);
 }
+
+
+// Instantiate Memory<T>::PrintFlags for T = int and T = double.
+template void Memory<int>::PrintFlags() const;
+template void Memory<double>::PrintFlags() const;
+
+// Instantiate Memory<T>::CompareHostAndDevice for T = int and T = double.
+template int Memory<int>::CompareHostAndDevice(int size) const;
+template int Memory<double>::CompareHostAndDevice(int size) const;
 
 
 namespace internal
@@ -693,6 +702,19 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
    }
    dest_flags = dest_flags &
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);
+}
+
+int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
+                                         unsigned flags)
+{
+   void *d_ptr = (flags & Mem::ALIAS) ?
+                 mm.GetAliasDevicePtr(h_ptr, size, false) :
+                 mm.GetDevicePtr(h_ptr, size, false);
+   char *h_buf = new char[size];
+   CuMemcpyDtoH(h_buf, d_ptr, size);
+   int res = std::memcmp(h_ptr, h_buf, size);
+   delete [] h_buf;
+   return res;
 }
 
 

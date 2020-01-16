@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      GMRES(A, M, B, X, 3, 5000, 50, rtol*rtol, 0.0);
+      GMRES(A, M, B, X, 3, 5000, 100, rtol*rtol, 0.0);
    }
 #else
    // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.

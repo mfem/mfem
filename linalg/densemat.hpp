@@ -721,11 +721,26 @@ public:
    { return const_cast<DenseTensor&>(*this)(k); }
 
    double &operator()(int i, int j, int k)
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
-   const double &operator()(int i, int j, int k) const
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
 
-   double *GetData(int k) { return tdata+k*Mk.Height()*Mk.Width(); }
+   const double &operator()(int i, int j, int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
+
+   double *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata+k*Mk.Height()*Mk.Width();
+   }
 
    double *Data() { return tdata; }
 
@@ -742,6 +757,30 @@ public:
    { UseExternalData(NULL, 0, 0, 0); }
 
    long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
+
+   /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
+   const double *Read(bool on_dev = true) const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
+   const double *HostRead() const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
+   double *Write(bool on_dev = true)
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
+   double *HostWrite()
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
+   double *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
+   double *HostReadWrite()
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
 
    ~DenseTensor() { tdata.Delete(); }
 };
