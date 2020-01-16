@@ -15,7 +15,10 @@ set(SRCS
   bilininteg.cpp
   bilininteg_diffusion.cpp
   bilininteg_mass.cpp
+  bilininteg_vecdiffusion.cpp
+  bilininteg_vecmass.cpp
   coefficient.cpp
+  complex_fem.cpp
   datacollection.cpp
   eltrans.cpp
   estimators.cpp
@@ -32,6 +35,8 @@ set(SRCS
   nonlininteg.cpp
   staticcond.cpp
   tmop.cpp
+  tmop_tools.cpp
+  gslib.cpp
   )
 
 set(HDRS
@@ -39,6 +44,7 @@ set(HDRS
   bilinearform_ext.hpp
   bilininteg.hpp
   coefficient.hpp
+  complex_fem.hpp
   datacollection.hpp
   eltrans.hpp
   estimators.hpp
@@ -64,6 +70,8 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
+  tmop_tools.hpp
+  gslib.hpp
   )
 
 if (MFEM_USE_SIDRE)
@@ -91,6 +99,17 @@ if (MFEM_USE_MPI)
     pgridfunc.hpp
     plinearform.hpp
     pnonlinearform.hpp)
+endif()
+
+if (MFEM_USE_CEED)
+   list(APPEND SRCS
+     libceed/ceed.cpp
+     libceed/diffusion.cpp
+     libceed/mass.cpp)
+   list(APPEND HDRS
+     libceed/ceed.hpp
+     libceed/diffusion.hpp
+     libceed/mass.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
