@@ -193,7 +193,7 @@ double ori_values(const Vector &x)
       double val = 0.;
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
-      double r1 = -0.2; double r2 = 0.3; double sf=10.0;
+      double r1 = -0.2; double r2 = 0.3; double sf=2.0;
       val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
       val = 0;
       if (r<r2) {val=1;}
@@ -324,7 +324,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-07;
+   double newton_rtol    = 1e-08;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -566,7 +566,11 @@ int main (int argc, char *argv[])
          size.SetSpace(&ind_fes);
          FunctionCoefficient ind_coeff(ind_values);
          size.ProjectCoefficient(ind_coeff);
+#ifdef MFEM_USE_GSLIB
          tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
+#endif
          tc->SetSerialDiscreteTargetSpec(size);
          target_c = tc;
          break;
@@ -578,14 +582,17 @@ int main (int argc, char *argv[])
           size.SetSpace(&ind_fes);
           FunctionCoefficient ind_coeff(ori_values);
           size.ProjectCoefficient(ind_coeff);
-          tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#ifdef MFEM_USE_GSLIB
+         tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
+#endif
           tc->SetSerialDiscreteTargetSpec(size);
           target_c = tc;
           break;
        }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
    }
-
    if (target_c == NULL)
    {
       target_c = new TargetConstructor(target_t);
@@ -774,7 +781,7 @@ int main (int argc, char *argv[])
       TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir);
       if (target_id >= 5)
       {
-         tns->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
+         tns->AddDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
       }
       newton = tns;
       cout << "TMOPNewtonSolver is used (as all det(J) > 0).\n";
@@ -791,6 +798,7 @@ int main (int argc, char *argv[])
       newton = new TMOPDescentNewtonSolver(*ir);
       cout << "The TMOPDescentNewtonSolver is used (as some det(J) < 0).\n";
    }
+
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
    newton->SetRelTol(newton_rtol);

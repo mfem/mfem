@@ -973,7 +973,8 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec)
    adapt_eval->SetInitialField
    (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
 
-   target_spec_sav = target_spec;
+   target_spec_sav.SetSize(target_spec.Size());
+   BackupTargetSpecification();
 }
 #endif
 
@@ -982,13 +983,16 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec)
    target_spec.SetSize(tspec.Size());
    target_spec = tspec;
    tspec_fes   = tspec.FESpace();
+
    // Default evaluator is based on CG advection.
    if (adapt_eval == NULL) {adapt_eval = new AdvectorCG; }
+
    adapt_eval->SetSerialMetaInfo(*tspec.FESpace()->GetMesh(),
                                  *tspec.FESpace()->FEColl(),
                                  tspec.FESpace()->GetVDim());
    adapt_eval->SetInitialField
    (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
+
    target_spec_sav.SetSize(target_spec.Size());
    BackupTargetSpecification();
 }
