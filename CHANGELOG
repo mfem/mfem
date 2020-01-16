@@ -92,7 +92,7 @@ Linear and nonlinear solvers
   and manycore nodes, with a focus on sparse solution of linear systems. For
   more details see linalg/ginkgo.hpp and the example code in examples/ginko.
 
-- Added AdamsBashforth and AdamsMoulton time integrators
+- Added Adams-Bashforth and Adams-Moulton time integrators.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -135,7 +135,8 @@ Miscellaneous
   libmfem-common for the convenience of application developers. The new library
   is now used in several miniapps in the electromagnetic and tools directories.
 
-- Added unit tests for time integrators
+- Added unit tests for time integrators.
+
 
 Version 4.0, released on May 24, 2019
 =====================================
