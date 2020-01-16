@@ -47,40 +47,46 @@ mfem_dir=`pwd`
 shift
 
 current_branch="$(git symbolic-ref --short HEAD)"
-reference_branch="master"
-common_ancestor="$(git merge-base ${current_branch} ${reference_branch})"
 
 # Check all the commits in the current branch, starting with the common ancestor
 # with master, for large and binary files
 while read -r rev; do
-    echo "Processing commit $rev"
-    git checkout -q "$rev"
+    echo "Processing commit ${rev}"
+    git checkout -q "${rev}"
 
     # Compute the approximate number of total changes (# files + insertions +
     # deletions) in the commit, e.g
-    #     "3 files changed, 66 insertions(+), 45 deletions(-)" -> 114
+    #     "3 files changed, 66 insertions(+), 45 deletions(-)"
+    #         --(sed)--> 3,66,45 --(sed)--> 3+66+45 --(bc)--> 114
     changes=$(git diff --shortstat HEAD^ | sed -e 's/[^0-9,]//g' -e 's/,/+/g' | bc)
 
     # If the above is more than 50K, print an error
-    if [ $changes -gt 50000 ]
+    if [ ${changes} -gt 50000 ]
     then
-        echo "Commit $(git log -1 --format=%h) is unusually large: it changes $changes lines" 1>&2
+        echo "Commit ${rev} is unusually large: it changes ${changes} lines" 1>&2
     fi
 
     # Find all non-empty binary files in the current commit (use the output of
     # the "file" command, excluding text files and PNG images)
-    for fname in $(find . -type f ! -size 0 | grep -v .git)
+    for fname in $(git show --pretty="" --name-only ${rev})
     do
-	binary="$(file -b $fname | grep -v 'PNG image' | grep -v 'text')"
-	if [ ! -z "$binary" ]
-	then
-            echo "Commit $(git log -1 --format=%h) contains a binary file: $fname ($binary)" 1>&2
-	fi
+        if [ -e $fname ] # exclude deleted files
+        then
+            binary="$(file -b ${fname} | grep -v 'PNG image' | grep -v 'text')"
+            if [ -n "${binary}" ]
+            then
+                echo "Commit ${rev} contains a binary file: ${fname} (${binary})" 1>&2
+            fi
 
-	# Check also if $fname is a large file ...
+            size="$(stat -f%z ${fname})"
+            if [ ${size} -gt 300000 ]
+            then
+                echo "Commit ${rev} adds/modifies a very large file: ${fname}" 1>&2
+            fi
+        fi
     done
 
-done < <(git rev-list --reverse ${common_ancestor}..${current_branch})
+done < <(git rev-list --reverse master..${current_branch})
 
 # Return to the original branch and directory
 git checkout -q ${current_branch}
