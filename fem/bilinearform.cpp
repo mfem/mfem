@@ -612,12 +612,11 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
 {
    if (ext)
    {
-      MFEM_ASSERT(diag.Size() == fes->GetNConformingDofs(),
+      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
                   "Vector for holding diagonal has wrong size!");
-      const SparseMatrix *P = fes->GetConformingProlongation();
+      const Operator *P = fes->GetProlongationMatrix();
       if (P)
       {
-         MFEM_WARNING("Partial assembly diagonal may be incorrect with AMR!");
          Vector local_diag(P->Height());
          ext->AssembleDiagonal(local_diag);
          P->MultTranspose(local_diag, diag);
@@ -984,6 +983,18 @@ void BilinearForm::EliminateVDofsInRHS(
 {
    mat_e->AddMult(x, b, -1.);
    mat->PartMult(vdofs, x, b);
+}
+
+void BilinearForm::Mult(const Vector &x, Vector &y) const
+{
+   if (ext)
+   {
+      ext->Mult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
 }
 
 void BilinearForm::Update(FiniteElementSpace *nfes)
