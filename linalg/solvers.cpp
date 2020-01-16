@@ -1791,16 +1791,17 @@ slbqp_done:
 struct WeightMinHeap
 {
    const std::vector<double> &w;
-   std::vector<int> c, loc;
+   std::vector<size_t> c;
+   std::vector<int> loc;
 
    WeightMinHeap(const std::vector<double> &w_) : w(w_)
    {
       c.reserve(w.size());
       loc.resize(w.size());
-      for (int i=0; i<w.size(); ++i) { push(i); }
+      for (size_t i=0; i<w.size(); ++i) { push(i); }
    }
 
-   int percolate_up(int pos, double val)
+   size_t percolate_up(size_t pos, double val)
    {
       for (; pos > 0 && w[c[(pos-1)/2]] > val; pos = (pos-1)/2)
       {
@@ -1810,13 +1811,13 @@ struct WeightMinHeap
       return pos;
    }
 
-   int percolate_down(int pos, double val)
+   size_t percolate_down(size_t pos, double val)
    {
       while (2*pos+1 < c.size())
       {
-         int left = 2*pos+1;
-         int right = left+1;
-         int tgt;
+         size_t left = 2*pos+1;
+         size_t right = left+1;
+         size_t tgt;
          if (right < c.size() && w[c[right]] < w[c[left]]) { tgt = right; }
          else { tgt = left; }
          if (w[c[tgt]] < val)
@@ -1833,11 +1834,11 @@ struct WeightMinHeap
       return pos;
    }
 
-   void push(int i)
+   void push(size_t i)
    {
       double val = w[i];
       c.push_back(-1);
-      int pos = c.size()-1;
+      size_t pos = c.size()-1;
       pos = percolate_up(pos, val);
       c[pos] = i;
       loc[i] = pos;
@@ -1845,23 +1846,23 @@ struct WeightMinHeap
 
    int pop()
    {
-      int i = c[0];
-      int j = c.back();
+      size_t i = c[0];
+      size_t j = c.back();
       c.pop_back();
       // Mark as removed
       loc[i] = -1;
       if (c.empty()) { return i; }
       double val = w[j];
-      int pos = 0;
+      size_t pos = 0;
       pos = percolate_down(pos, val);
       c[pos] = j;
       loc[j] = pos;
       return i;
    }
 
-   void update(int i)
+   void update(size_t i)
    {
-      int pos = loc[i];
+      size_t pos = loc[i];
       double val = w[i];
       pos = percolate_up(pos, val);
       pos = percolate_down(pos, val);
@@ -1869,13 +1870,13 @@ struct WeightMinHeap
       loc[i] = pos;
    }
 
-   bool picked(int i)
+   bool picked(size_t i)
    {
       return loc[i] < 0;
    }
 };
 
-void MinimumDiscardFillOrdering(SparseMatrix &C, Array<int> &p)
+void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
 {
    int n = C.Width();
    // Scale rows by reciprocal of diagonal and take absolute value
@@ -2057,7 +2058,7 @@ void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
       {
          CV[i] = sqrt(CV[i]);
       }
-      MinimumDiscardFillOrdering(C, P);
+      MinimumDiscardedFillOrdering(C, P);
    }
    else
    {
