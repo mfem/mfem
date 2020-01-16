@@ -21,7 +21,8 @@ case $1 in
    where: {mfem_dir}  is the MFEM source directory [default value: ../..]
           -h|-help    prints this usage information and exits
 
-   This script runs documentation-related tests in mfem_dir.
+   This script runs documentation-related tests in mfem_dir. It checks in
+   particular the Doxygen formatting used in the source comments.
 
    Example usage: $0 ../..
 

@@ -120,6 +120,18 @@ New and updated examples and miniapps
 - Added a modification of ex9 in examples/hiop that demonstrates the nonlinear
   constrained optimization interface and the use of the SLBQP and HiOp solvers.
 
+Improved testing
+----------------
+- Added a new directory, tests/scripts, with several shell scripts that perform
+  simple checks on the code including: code styling, documentation formatting,
+  proper use of .gitignore, and preventing the accidental commit of large files.
+
+- It is recommended that the tests scripts above are run by the developers via
+  the runtest script before pushing to GitHub. See README in tests/scripts.
+
+- The Travis CI settings have been updated to include a new Checks stage which
+  runs the code-style, git-history, documentation and gitignore test scripts.
+
 Miscellaneous
 -------------
 - Upgraded the SUNDIALS interface to utilize version 5.0. This necessitated a
@@ -128,9 +140,6 @@ Miscellaneous
 
 - Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
   and the new ParaViewDataCollection class.
-
-- Added test to prevent the unintentional introduction of a binary file in the
-  repo.
 
 - Collected object files from the miniapps/common directory into a new library,
   libmfem-common for the convenience of application developers. The new library
