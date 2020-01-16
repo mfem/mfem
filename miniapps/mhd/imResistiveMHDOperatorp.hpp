@@ -29,16 +29,17 @@ private:
    CGSolver *M_solver, *M_solver2;
 
    int myid;
-   double dt, dtOld;
+   double dt, dtOld, viscosity, resistivity;
    const Vector *phi, *psi, *w;
    const Array<int> &ess_tdof_list;
    const Array<int> &ess_bdr;
 
    mutable ParGridFunction phiGf, psiGf, wGf;
    mutable ParBilinearForm *Nv, *Nb, *Pw;
+   mutable ParBilinearForm *StabMass, *StabNb, *StabNv; //for stablize B term
    mutable ParLinearForm *PB_VPsi, *PB_VOmega, *PB_BJ;
    mutable BlockOperator *Jacobian;
-   mutable Vector z, J, zFull;
+   mutable Vector z, zdiff, J, zFull;
    mutable ParLinearForm zLF;
 
 public:
@@ -46,8 +47,9 @@ public:
                          ParBilinearForm *M_, HypreParMatrix &Mmat_,
                          ParBilinearForm *K_, HypreParMatrix &Kmat_,
                          ParBilinearForm *KB_, ParBilinearForm *DRe_, ParBilinearForm *DSl_,
-                         CGSolver *M_solver_, CGSolver *M_solver2_, const Array<int> &ess_tdof_list_,
-                         const Array<int> &ess_bdr_);
+                         CGSolver *M_solver_, CGSolver *M_solver2_, 
+                         const double visc, const double resi,
+                         const Array<int> &ess_tdof_list_,const Array<int> &ess_bdr_);
 
    //this add the useFull option
    ReducedSystemOperator(ParFiniteElementSpace &f,
@@ -56,8 +58,9 @@ public:
                          ParBilinearForm *KB_, 
                          ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
                          ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
-                         CGSolver *M_solver_, CGSolver *M_solver2_, const Array<int> &ess_tdof_list_,
-                         const Array<int> &ess_bdr_, int useFull_);
+                         CGSolver *M_solver_, CGSolver *M_solver2_, 
+                         const double visc, const double resi,
+                         const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_, int useFull_);
 
    // Set current values - needed to compute action and Jacobian.
    void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
@@ -441,7 +444,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       int useFull = 1;
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
                          KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
-                         ess_tdof_list, ess_bdr, useFull);
+                         viscosity, resistivity, ess_tdof_list, ess_bdr, useFull);
 
 
       const double rel_tol=1e-4;
@@ -589,7 +592,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
       //if needed, we can replace new with another update function
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
                          KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
-                         ess_tdof_list, ess_bdr, useFull);
+                         viscosity, resistivity, ess_tdof_list, ess_bdr, useFull);
 
       const double rel_tol=1e-4;
       delete pnewton_solver;
@@ -1014,14 +1017,18 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *K_, HypreParMatrix &Kmat_,
    ParBilinearForm *KB_, ParBilinearForm *DRe_, ParBilinearForm *DSl_,
    CGSolver *M_solver_, CGSolver *M_solver2_,
+   const double visc, const double resi,
    const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
      initialMdt(false), E0Vec(NULL), M_solver(M_solver_), M_solver2(M_solver2_),
-     dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
+     dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi), 
+     phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_),
-     Nv(NULL), Nb(NULL), Pw(NULL), PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
-     Jacobian(NULL), z(height/3), J(height/3), zFull(f.GetVSize()), zLF(&fespace)
+     Nv(NULL), Nb(NULL), Pw(NULL), 
+     StabMass(NULL), StabNb(NULL), StabNv(NULL),
+     PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
+     Jacobian(NULL), z(height/3), zdiff(height/3), J(height/3), zFull(f.GetVSize()), zLF(&fespace)
 { 
     useFull=0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1048,15 +1055,19 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
    ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
    CGSolver *M_solver_, CGSolver *M_solver2_,
+   const double visc, const double resi,
    const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_, int useFull_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
      initialMdt(false),
      E0Vec(NULL), M_solver(M_solver_), M_solver2(M_solver2_), 
-     dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
+     dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi),
+     phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_),
-     Nv(NULL), Nb(NULL), Pw(NULL),  PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
-     Jacobian(NULL), z(height/3), J(height/3), zFull(f.GetVSize()), zLF(&fespace)
+     Nv(NULL), Nb(NULL), Pw(NULL),  
+     StabMass(NULL), StabNb(NULL), StabNv(NULL),
+     PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
+     Jacobian(NULL), z(height/3), zdiff(height/3), J(height/3), zFull(f.GetVSize()), zLF(&fespace)
 { 
     useFull = useFull_;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1254,6 +1265,9 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete Nv;
    delete Nb;
    delete Pw;
+   delete StabNv;
+   delete StabNb;
+   delete StabMass;
    delete PB_VPsi; 
    delete PB_VOmega;
    delete PB_BJ;
@@ -1277,6 +1291,10 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    phiGf.SetFromTrueVector();
    psiGf.MakeTRef(&fespace, k_, sc);
    psiGf.SetFromTrueVector();
+     wGf.MakeTRef(&fespace, k_, 2*sc);
+     wGf.SetFromTrueVector();
+
+   MyCoefficient Bfield(&psiGf, 2);   //we update B
 
    //two different ways to implement Poission Bracket
    //BilinearForm seems a better idea unless we are willing to 
@@ -1301,9 +1319,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       PB_VPsi->AddDomainIntegrator(new DomainLFIntegrator(pbCoeff, 3, 0));
       PB_VPsi->Assemble();
 
-      wGf.MakeTRef(&fespace, k_, 2*sc);
-      wGf.SetFromTrueVector();
-
       delete PB_VOmega;
       PB_VOmega = new ParLinearForm(&fespace);
       PBCoefficient pbCoeff2(&phiGf, &wGf);
@@ -1316,7 +1331,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    zLF.ParallelAssemble(z);
    M_solver2->Mult(z, J);
 
-   //------compute the current as an auxilary variable (this is the old and wrong way------
+   //------compute the current as an auxilary variable (this is the old and wrong way)------
    /*
    Vector J, Z;
    HypreParMatrix A;
@@ -1345,12 +1360,26 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
        DSl->TrueAddMult(psiNew,y2);
    if (E0Vec!=NULL)
        y2 += *E0Vec;
+
+   //compute resiual from y3 to stabilize B.grad J
+   if(isupg==2 && true)
+   {
+     delete StabNb;
+     StabNb = new ParBilinearForm(&fespace);
+     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
+     StabNb->Assemble(); 
+
+     y2.Neg();
+     StabNb->TrueAddMult(J, y2);
+     y2.Neg();
+   }
+
    y2.SetSubVector(ess_tdof_list, 0.0);
 
    //+++++compute y3
-   add(wNew, -1., *w, z);
-   z/=dt;
-   Mmat.Mult(z,y3);
+   add(wNew, -1., *w, zdiff);
+   zdiff/=dt;
+   Mmat.Mult(zdiff,y3);
    if (bilinearPB)
       Nv->TrueAddMult(wNew,y3);
    else
@@ -1363,7 +1392,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    {      
       delete Nb;
       Nb = new ParBilinearForm(&fespace);
-      MyCoefficient Bfield(&psiGf, 2);   //we update B
       Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
       Nb->Assemble();
       if (true)
