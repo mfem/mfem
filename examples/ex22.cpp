@@ -505,6 +505,8 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete mesh;
+
+   return 0;
 }
 
 bool check_for_inline_mesh(const char * mesh_file)
