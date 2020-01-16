@@ -9,6 +9,7 @@
 # Object and library files
 *.o
 /libmfem.*
+/miniapps/common/libmfem-common.*
 
 # CMake generated files
 CMakeCache.txt
