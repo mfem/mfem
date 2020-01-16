@@ -2176,6 +2176,13 @@ void BlockILU::Factorize()
                   A_kj.UseExternalData(&AB(0,0,ll), block_size, block_size);
                   // A_ij = A_ij - A_ik*A_kj;
                   AddMult_a(-1.0, A_ik, A_kj, A_ij);
+                  // If we need to, update diagonal factorization
+                  if (j == i)
+                  {
+                     DB(i) = A_ij;
+                     LUFactors factorization(DB.GetData(i), &ipiv[i*block_size]);
+                     factorization.Factor(block_size);
+                  }
                   break;
                }
             }
