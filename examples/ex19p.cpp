@@ -348,6 +348,8 @@ int main(int argc, char *argv[])
    delete pmesh;
 
    MPI_Finalize();
+
+   return 0;
 }
 
 
