@@ -119,7 +119,7 @@ double pa_divergence_testnd(int dim,
    return field2.Norml2();
 }
 
-   double testfunc(const Vector &x)
+double testfunc(const Vector &x)
 {
    double r = cos(x(0)) + sin(x(1));
    if (x.Size() == 3)
