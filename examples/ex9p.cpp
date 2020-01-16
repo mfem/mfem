@@ -507,6 +507,7 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 {
    K.Mult(x, z);
+   z += b;
    dg_solver.SetTimeStep(dt);
    dg_solver.Mult(z, k);
 }
