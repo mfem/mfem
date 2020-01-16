@@ -109,8 +109,8 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
                                                const double dmpng)
    :
-   Solver(a.Size()),
-   N(a.Size()),
+   Solver(a.FESpace()->GetTrueVSize()),
+   N(height),
    dinv(N),
    damping(dmpng),
    ess_tdof_list(ess_tdofs),
@@ -149,6 +149,9 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
 
 void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_ASSERT(x.Size() == N, "invalid input vector");
+   MFEM_ASSERT(y.Size() == N, "invalid output vector");
+
    if (iterative_mode && oper)
    {
       oper->Mult(y, residual);  // r = A x
