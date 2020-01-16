@@ -1895,68 +1895,49 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
 
    std::vector<double> w(n, 0.0);
    // Compute the discarded-fill weights
-   for (int ik=0; ik<n; ++ik)
+   for (int k=0; k<n; ++k)
    {
-      for (int i=I[ik]; i<I[ik+1]; ++i)
+      for (int ii=I[k]; ii<I[k+1]; ++ii)
       {
-         int ji = J[i];
-         double val;
-         for (int j=I[ji]; j<I[ji+1]; ++j)
+         double C_ki = V[ii];
+         for (int jj=I[k]; jj<I[k+1]; ++jj)
          {
-            if (J[j] == ik)
-            {
-               val = V[j];
-               break;
-            }
-         }
-         for (int j=I[ik]; j<I[ik+1]; ++j)
-         {
-            int jj = J[j];
-            if (ji == jj) { continue; }
-            w[ik] += pow(val*V[j], 2);
+            if (jj == ii) { continue; }
+            double C_jk = V[jj];
+            w[k] += pow(C_jk*C_ki, 2);
          }
       }
-      w[ik] = sqrt(w[ik]);
+      w[k] = sqrt(w[k]);
    }
 
    WeightMinHeap w_heap(w);
 
    // Compute ordering
    p.SetSize(n);
-   for (int ii=0; ii<n; ++ii)
+   for (int i=0; i<n; ++i)
    {
       int pi = w_heap.pop();
-      p[ii] = pi;
+      p[n-1-i] = pi;
       w[pi] = -1;
-      for (int k=I[pi]; k<I[pi+1]; ++k)
+      for (int kk=I[pi]; kk<I[pi+1]; ++kk)
       {
-         int ik = J[k];
-         if (w_heap.picked(ik)) { continue; }
+         int k = J[kk];
+         if (w_heap.picked(k)) { continue; }
          // Recompute weight
-         w[ik] = 0.0;
-         for (int i=I[ik]; i<I[ik+1]; ++i)
+         w[k] = 0.0;
+         for (int ii=I[k]; ii<I[k+1]; ++ii)
          {
-            int ji = J[i];
-            if (w_heap.picked(ji)) { continue; }
-            double val;
-            for (int j=I[ji]; j<I[ji+1]; ++j)
+            if (w_heap.picked(J[ii])) { continue; }
+            double C_ki = V[ii];
+            for (int jj=I[k]; jj<I[k+1]; ++jj)
             {
-               if (J[j] == ik)
-               {
-                  val = V[j];
-                  break;
-               }
-            }
-            for (int j=I[ik]; j<I[ik+1]; ++j)
-            {
-               int jj = J[j];
-               // Ignore entries we have already chosen
-               if (ji == jj || w_heap.picked(jj)) { continue; }
-               w[ik] += pow(val*V[j], 2);
+               if (jj == ii || w_heap.picked(J[jj])) { continue; }
+               double C_jk = V[jj];
+               w[k] += pow(C_jk*C_ki, 2);
             }
          }
-         w[ik] = sqrt(w[ik]);
-         w_heap.update(ik);
+         w[k] = sqrt(w[k]);
+         w_heap.update(k);
       }
    }
 }
