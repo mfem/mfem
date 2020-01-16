@@ -220,9 +220,9 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 void InterpolatorFP::SetInitialField(const Vector &init_nodes,
                                      const Vector &init_field)
 {
+   const bool serial = !parallel;
    nodes0 = init_nodes;
    field0 = init_field;
-
    Mesh *m = mesh;
 #ifdef MFEM_USE_MPI
    if (pmesh) { m = pmesh; }
@@ -230,11 +230,14 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    m->SetNodes(nodes0);
 
    const double rel_bbox_el = 0.1;
-   const double newton_tol  = 1.0e-10;
+   const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
+
 #ifdef MFEM_USE_MPI
-   finder = new FindPointsGSLIB(pfes->GetComm());
+   if (!serial) {finder = new FindPointsGSLIB(pfes->GetComm());}
+   else         {finder = new FindPointsGSLIB();}
 #else
+   std::cout << " k10 is here\n";
    finder = new FindPointsGSLIB();
 #endif
    finder->Setup(*m, rel_bbox_el, newton_tol, npts_at_once);
@@ -410,38 +413,25 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
 void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 {
-   if (discr_tc)
+   if (discrtc.Size())
    {
-      if (parallel)
+      for (int k = 0; k < discrtc.Size(); k++)
       {
+          if (parallel)
+          {
 #ifdef MFEM_USE_MPI
-         const ParNonlinearForm *nlf =
-            dynamic_cast<const ParNonlinearForm *>(oper);
-         Vector x_loc(nlf->ParFESpace()->GetVSize());
-         nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
-         discr_tc->UpdateTargetSpecification(x_loc);
-         discr_tc->BackupTargetSpecification();
+           const ParNonlinearForm *nlf =
+           dynamic_cast<const ParNonlinearForm *>(oper);
+           Vector x_loc(nlf->ParFESpace()->GetVSize());
+           nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
+           discrtc[k]->UpdateTargetSpecification(x_loc);
+           discrtc[k]->BackupTargetSpecification();
 #endif
-      }
-      else { discr_tc->UpdateTargetSpecification(x);
-             discr_tc->BackupTargetSpecification();
-      }
-   }
-   if (discr_tcc)
-   {
-      if (parallel)
-      {
-#ifdef MFEM_USE_MPI
-         const ParNonlinearForm *nlf =
-            dynamic_cast<const ParNonlinearForm *>(oper);
-         Vector x_loc(nlf->ParFESpace()->GetVSize());
-         nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
-         discr_tcc->UpdateTargetSpecification(x_loc);
-         discr_tcc->BackupTargetSpecification();
-#endif
-      }
-      else { discr_tcc->UpdateTargetSpecification(x);
-             discr_tcc->BackupTargetSpecification();
+          }
+          else {
+              discrtc[k]->UpdateTargetSpecification(x);
+              discrtc[k]->BackupTargetSpecification();
+          }
       }
    }
 }

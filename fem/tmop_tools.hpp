@@ -50,12 +50,16 @@ private:
     Vector nodes0;
     Vector field0;
     FindPointsGSLIB *finder;
-
+    bool parallel;  //for GSLIB
 public:
+#ifdef MFEM_USE_MPI
+    InterpolatorFP(bool flag) : AdaptivityEvaluator(),
+                       nodes0(), field0(), parallel(flag), finder(NULL) { }
+#endif
     InterpolatorFP() : AdaptivityEvaluator(),
-                       nodes0(), field0(),finder(NULL) { }
+                      nodes0(), field0(), parallel(false), finder(NULL) { }
 
-   virtual void SetInitialField(const Vector &init_nodes,
+    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
@@ -120,25 +124,22 @@ private:
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
 
-   mutable DiscreteAdaptTC *discr_tc;
-   mutable DiscreteAdaptTC *discr_tcc;
+   Array<DiscreteAdaptTC*> discrtc;
 
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL),
-        discr_tcc(NULL)  { }
+      : NewtonSolver(comm), parallel(true), ir(irule)  { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL),
-        discr_tcc(NULL)  { }
-
-   void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) { discr_tc = tc; }
-   void SetDiscreteAdaptTCC(DiscreteAdaptTC *tcc) { discr_tcc = tcc; }
+      : NewtonSolver(), parallel(false), ir(irule) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    virtual void ProcessNewState(const Vector &x) const;
+
+   void AddDiscreteAdaptTC(DiscreteAdaptTC *adat)
+   { discrtc.Append(adat);}
 };
 
 /// Allows negative Jacobians. Used for untangling.
