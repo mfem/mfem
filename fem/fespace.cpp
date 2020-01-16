@@ -3260,6 +3260,11 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
 {
    if (nf==0) { return; }
    //if fespace == H1
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(tfe != NULL &&
+      (tfe->GetBasisType()==BasisType::GaussLobatto || tfe->GetBasisType()==BasisType::Positive),
+      "Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.");
    // Assuming all finite elements are using Gauss-Lobatto.
    height = vdim*nf*dof;
    width = fes.GetVSize();
@@ -3472,9 +3477,13 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      indices1(nf*dof),
      indices2(m==L2FaceValues::Double?nf*dof:0)
 {
-   if (nf==0) { return; }
    //if fespace == L2
-   // Assuming all finite elements are using Gauss-Lobatto.
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(tfe != NULL &&
+      (tfe->GetBasisType()==BasisType::GaussLobatto || tfe->GetBasisType()==BasisType::Positive),
+      "Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.");
+   if (nf==0) { return; }
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -4011,8 +4020,12 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
 
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
-   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
-               "Only scalar finite elements are supported");
+   const ScalarFiniteElement *sfe = dynamic_cast<const ScalarFiniteElement*>(fe);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(sfe != NULL, "Only scalar finite elements are supported");
+   MFEM_VERIFY(tfe != NULL &&
+      (tfe->GetBasisType()==BasisType::GaussLobatto || tfe->GetBasisType()==BasisType::Positive),
+      "Only Gauss-Lobatto and Bernstein basis are supported in FaceQuadratureInterpolator.");
 }
 
 FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
@@ -4027,8 +4040,12 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
 
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
-   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
-               "Only scalar finite elements are supported");
+   const ScalarFiniteElement *sfe = dynamic_cast<const ScalarFiniteElement*>(fe);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(sfe != NULL, "Only scalar finite elements are supported");
+   MFEM_VERIFY(tfe != NULL &&
+      (tfe->GetBasisType()==BasisType::GaussLobatto || tfe->GetBasisType()==BasisType::Positive),
+      "Only Gauss-Lobatto and Bernstein basis are supported in FaceQuadratureInterpolator.");
 }
 
 template<const int T_VDIM, const int T_ND1D, const int T_NQ1D>

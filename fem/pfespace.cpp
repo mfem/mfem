@@ -3442,6 +3442,11 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
 {
    if (nf==0) { return; }
    //if fespace == L2
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(tfe != NULL &&
+      (tfe->GetBasisType()==BasisType::GaussLobatto || tfe->GetBasisType()==BasisType::Positive),
+      "Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.");
    // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
