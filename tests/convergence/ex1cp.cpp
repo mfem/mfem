@@ -162,26 +162,9 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(u_ex_re,u_ex_im,ess_bdr);
       x_ex.ProjectCoefficient(u_ex_re,u_ex_im);
 
-      ParComplexLinearForm * bcopy = new ParComplexLinearForm(fespace,&b->real(), &b->imag());
-      bcopy->real().Vector::operator=(0.0);
-      bcopy->imag().Vector::operator=(0.0);
-      bcopy->Assemble();
+      a->FormLinearSystem(ess_tdof_list, x, *b, Ah, X, B);
 
-
-      ParSesquilinearForm * acopy = new ParSesquilinearForm(fespace, &a->real(), &a->imag());
-      acopy->Assemble();
-
-      // a->FormLinearSystem(ess_tdof_list, x, *b, Ah, X, B);
-      acopy->FormLinearSystem(ess_tdof_list, x, *bcopy, Ah, X, B);
-
-      OperatorHandle Ahcopy;
-      acopy->FormSystemMatrix(ess_tdof_list, Ahcopy);
-
-
-
-      // a->FormLinearSystem(ess_tdof_list, x, *b, Ah, X, B);
-
-      ComplexHypreParMatrix * AZ = Ahcopy.As<ComplexHypreParMatrix>();
+      ComplexHypreParMatrix * AZ = Ah.As<ComplexHypreParMatrix>();
       HypreParMatrix * A = AZ->GetSystemMatrix();
 
       if (myid == 0)
@@ -213,11 +196,7 @@ int main(int argc, char *argv[])
 
       // 14. Recover the parallel grid function corresponding to X. This is the
       //     local finite element solution on each processor.
-      // a->RecoverFEMSolution(X, *b, x);
-      acopy->RecoverFEMSolution(X, *bcopy, x);
-
-      delete acopy;
-      delete bcopy;
+      a->RecoverFEMSolution(X, *b, x);
 
       int order_quad = max(2, 2*order+1);
       const IntegrationRule *irs[Geometry::NumGeom];

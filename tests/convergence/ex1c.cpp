@@ -139,21 +139,9 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(u_ex_re,u_ex_im,ess_bdr);
       x_ex.ProjectCoefficient(u_ex_re,u_ex_im);
 
-      ComplexLinearForm * bcopy = new ComplexLinearForm(fespace,&b->real(), &b->imag());
-      bcopy->real().Vector::operator=(0.0);
-      bcopy->imag().Vector::operator=(0.0);
-      bcopy->Assemble();
+      a->FormLinearSystem(ess_tdof_list, x, *b, Ah, X, B);
 
-
-      SesquilinearForm * acopy = new SesquilinearForm(fespace, &a->real(), &a->imag());
-      acopy->Assemble();
-
-      // a->FormLinearSystem(ess_tdof_list, x, *b, Ah, X, B);
-      acopy->FormLinearSystem(ess_tdof_list, x, *bcopy, Ah, X, B);
-
-      OperatorHandle Ahcopy;
-      acopy->FormSystemMatrix(ess_tdof_list, Ahcopy);
-      ComplexSparseMatrix * AZ = Ahcopy.As<ComplexSparseMatrix>();
+      ComplexSparseMatrix * AZ = Ah.As<ComplexSparseMatrix>();
       SparseMatrix * A = AZ->GetSystemMatrix();
 
       cout << "Size of linear system: " << A->Height() << endl;
@@ -178,11 +166,8 @@ int main(int argc, char *argv[])
       }
 #endif
       // Recover the solution as a finite element grid function.
-      // a->RecoverFEMSolution(X, *b, x);
-      acopy->RecoverFEMSolution(X, *bcopy, x);
+      a->RecoverFEMSolution(X, *b, x);
 
-      delete acopy;
-      delete bcopy;
       // Compute relative error
       int order_quad = max(2, 2*order+1);
       const IntegrationRule *irs[Geometry::NumGeom];
