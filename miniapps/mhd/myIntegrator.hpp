@@ -161,8 +161,8 @@ private:
    DenseMatrix dshape, gshape, Jinv, V_ir, Q_ir;
    Coefficient *nuCoef;
    MyCoefficient *V, *Q; 
-   bool FieldDiff; //field line diffusion along magnetic field
    double dt;
+   bool FieldDiff; //field line diffusion along magnetic field
 
 public:
    StabConvectionIntegrator (double dt_, double visc, MyCoefficient &q) : 
@@ -303,8 +303,8 @@ private:
    DenseMatrix dshape, gshape, Jinv, V_ir;
    Coefficient *nuCoef;
    MyCoefficient *V; 
-   bool FieldDiff; //field line diffusion along magnetic field
    double dt;
+   bool FieldDiff; //field line diffusion along magnetic field
 
 public:
    StabMassIntegrator (double dt_, double visc, MyCoefficient &q) : 
@@ -377,6 +377,7 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
             tauMax = max(tauMax, tau);
         }
     }
+    //cout <<"tauMax ="<<tauMax<<" length="<<eleLength<<" ";
   
     for (int i = 0; i < ir.GetNPoints(); i++)
     {
@@ -390,13 +391,14 @@ void StabMassIntegrator::AssembleElementMatrix(const FiniteElement &el,
         CalcInverse (Tr.Jacobian(), Jinv);
         Mult(dshape, Jinv, gshape); 
         
+        V_ir.GetColumnReference(i, vec1);
+
         if (maxtau)
             norm*=tauMax;
         else
         {
             //compute tau
             double nu = nuCoef->Eval (Tr, ip);
-            V_ir.GetColumnReference(i, vec1);
             Unorm = vec1.Norml2();
             if (itau==1)
                 invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);
@@ -494,13 +496,14 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
         CalcInverse (Tr.Jacobian(), Jinv);
         Mult(dshape, Jinv, gshape); 
         
+        V_ir.GetColumnReference(i, vec1);
+
         if(maxtau)
             norm*=tauMax*Q.Eval(Tr,ip);
         else
         {
             //compute tau
             double nu = nuCoef->Eval (Tr, ip);
-            V_ir.GetColumnReference(i, vec1);
             Unorm = vec1.Norml2();
             if (itau==1)
                 invtau = 2.0 * Unorm / eleLength + 4.0 * nu / (eleLength * eleLength);

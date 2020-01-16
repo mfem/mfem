@@ -222,8 +222,8 @@ protected:
    Array<int> ess_tdof_list;
 
    ParBilinearForm *M, *Mfull, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
-   ParBilinearForm *Nv, *Nb, *StabMass, *StabNb;
-   mutable ParBilinearForm *StabNv; 
+   ParBilinearForm *Nv, *Nb;
+   mutable ParBilinearForm *StabMass, *StabNb, *StabNv; 
    ParLinearForm *E0, *StabE0; //source terms
    mutable ParLinearForm zLF; //LinearForm holder for updating J
    HypreParMatrix Kmat, Mmat, *MfullMat, DSlmat, DRemat;
@@ -310,7 +310,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
                                          bool use_petsc_ = false, bool use_factory_=false)
    : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
      M(NULL), Mfull(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
-     Nv(NULL), Nb(NULL), StabMass(NULL), StabNv(NULL), StabNb(NULL),  
+     Nv(NULL), Nb(NULL), StabMass(NULL), StabNb(NULL), StabNv(NULL),  
      E0(NULL), StabE0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
      visc_coeff(visc),  resi_coeff(resi),  
@@ -487,6 +487,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    //update vector holder
    z.SetSize(sc);
    z2.SetSize(sc);
+   z3.SetSize(sc);
    J.SetSize(sc);
    zFull.SetSize(scFull);
    zLF.Update();
@@ -773,16 +774,15 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    }
    else if (isupg==2)
    {
-       //first compute an auxilary variable as z3=-∆w
+       //first compute an auxilary variable of z3=-∆w (z3=M^-1 KB * w)
        gftmp.MakeTRef(&fespace, k_, 2*sc);
        gftmp.SetFromTrueVector();  //recover omega
        KB->Mult(gftmp, zLF);
        zLF.ParallelAssemble(z2);
        M_solver2.Mult(z2, z3);
-       z3*=viscosity;
-       //add(dw_dt, viscosity, z3, z2);
+       add(dw_dt, viscosity, z3, z2);
 
-       StabMass->TrueAddMult(z3, z);
+       StabMass->TrueAddMult(z2, z);
        StabNv->TrueAddMult(w, z);
    }
    z.Neg(); // z = -z
@@ -905,6 +905,14 @@ void ResistiveMHDOperator::assembleBoper(double dt, ParGridFunction *phi, ParGri
      StabMass = new ParBilinearForm(&fespace);
      StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, Bfield, true));
      StabMass->Assemble(); 
+
+     /*
+     StabMass->Finalize(); 
+     HypreParMatrix *stabMat = StabMass->ParallelAssemble();
+     ofstream myf ("stabMass.m");
+     stabMat->PrintMatlab(myf);
+     delete stabMat;
+     */
  
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
