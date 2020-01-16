@@ -1,12 +1,13 @@
 function createTable()
 
 filename = 'p0e0o';
+geom = 'tri';
 
 q = 1; % q=1: L1, q=2: L2, q=3 LInf errors
 data = zeros(7,4);
 
 for j = 1:4
-  file = fopen([filename num2str(j) '.txt'], 'r');
+  file = fopen([filename num2str(j) '-' geom '.txt'], 'r');
   for i = 1:8-j
     aux = str2num(fgets(file));
     data(i,j) = aux(q);

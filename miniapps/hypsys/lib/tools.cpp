@@ -8,7 +8,7 @@ HyperbolicSystem::HyperbolicSystem(FiniteElementSpace *fes_, Configuration &conf
 		MFEM_ABORT("FiniteElementSpace must be L2 conforming (DG).");
 	if (strncmp(fecol, "L2_T2", 5))
 		MFEM_ABORT("Shape functions must be represented in Bernstein basis.");
-	
+
 	t = 0.;
 	mesh = fes->GetMesh();
 	IntRuleElem = GetElementIntegrationRule(fes);
@@ -29,11 +29,11 @@ HyperbolicSystem::HyperbolicSystem(FiniteElementSpace *fes_, Configuration &conf
 	
 	// The min/max bounds are represented as H1 functions of the same order
 	// as the solution, thus having 1:1 dof correspondence inside each element.
-	H1_FECollection fecBounds(max(fes->GetFE(0)->GetOrder(), 1), dim,
+	H1_FECollection fecBounds(max(el->GetOrder(), 1), dim,
 									  BasisType::GaussLobatto);
 	FiniteElementSpace fesBounds(mesh, &fecBounds);
-	dofs =  new DofInfo(fes, &fesBounds);
-	
+	dofs = new DofInfo(fes, &fesBounds);
+
 	ShapeEval.SetSize(nd,nqe);
 	DShapeEval.SetSize(nd,dim,nqe);
 	ShapeEvalFace.SetSize(dofs->NumBdrs, dofs->NumFaceDofs, nqf);
@@ -135,8 +135,7 @@ double HyperbolicSystem::ConvergenceCheck(double dt, double tol)
 		res = sqrt(res) / dt;
 	}
 	
-	if (res > tol)
-		w = u;
+	if (res > tol) { w = u; } // In case of convergence, do not overwrite w.
 	
 	return res;
 }
@@ -172,4 +171,34 @@ const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes)
       order++;
    }
    return &IntRules.Get(Trans->FaceGeom, order);
+}
+
+void VisualizeField(socketstream &sock, const char *vishost, int visport,
+                    GridFunction &gf, bool vec)
+{
+   Mesh &mesh = *gf.FESpace()->GetMesh();
+
+   bool newly_opened = false;
+
+	if (!sock.is_open() && sock)
+	{
+		sock.open(vishost, visport);
+		sock.precision(8);
+		newly_opened = true;
+	}
+	sock << "solution\n";
+	
+	mesh.Print(sock);
+	gf.Save(sock);
+	
+	if (newly_opened)
+	{
+		sock << "window_title '" << "Solution" << "'\n"
+			  << "window_geometry "
+		     << 0 << " " << 0 << " " << 1080 << " " << 1080 << "\n"
+           << "keys mcjlppppppppppppppppppppppppppp66666666666666666666666"
+           << "66666666666666666666666666666666666666666666666662222222222";
+		if ( vec ) { sock << "vvv"; }
+		sock << endl;
+	}
 }

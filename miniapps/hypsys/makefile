@@ -44,8 +44,8 @@ VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p 0 -e 0
 GEOM = tri
 MESH0 = data/inline-3$(GEOM).mesh
 MESH1 = data/inline-4$(GEOM).mesh
-CONFIG = -p 0 -e 0 -o 1 -c 0 -tf 1 -dt 0.00002 -s 1 -vs 1000
-CONFIG-NAME = p0e0o1-$(GEOM)
+CONFIG = -p 0 -e 0 -o 2 -c 0 -tf 1 -dt 0.00001 -s 1 -vs 1000
+CONFIG-NAME = p0e0o2-$(GEOM)
 
 
 ## Makefile rules. #############################################################
@@ -93,7 +93,7 @@ grid-convergence-test:
 	./hypsys $(CONFIG) -m $(MESH1) -r 5; \
 	./hypsys $(CONFIG) -m $(MESH0) -r 6; \
 	./hypsys $(CONFIG) -m $(MESH1) -r 6; \
-	./hypsys $(CONFIG) -m $(MESH0) -r 7; \
+# 	./hypsys $(CONFIG) -m $(MESH0) -r 7; \
 	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
 
 $(MFEM_LIB_FILE):

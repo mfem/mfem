@@ -295,7 +295,7 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
 						fes->GetFE(0)->GetGeomType(), BdrDofs);
 	NumFaceDofs = BdrDofs.Height();
 	NumBdrs = BdrDofs.Width();
-// 	
+
 	FillNeighborDofs();
 	FillSubcell2CellDof();
 }

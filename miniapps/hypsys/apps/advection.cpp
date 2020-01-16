@@ -143,7 +143,7 @@ Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
 	{
       ofstream omesh("grid.mesh");
       omesh.precision(config.precision);
-      fes->GetMesh()->Print(omesh);
+      mesh->Print(omesh);
       ofstream osol("initial.gf");
       osol.precision(config.precision);
       u.Save(osol);
@@ -181,7 +181,7 @@ Advection::~Advection()
          default: MFEM_ABORT("No such test case implemented.");
       }
       
-      // write output
+      // Write output.
       ofstream file("errors.txt", ios_base::app);
 		
 		if (!file)

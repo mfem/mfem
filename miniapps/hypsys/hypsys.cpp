@@ -97,27 +97,11 @@ int main(int argc, char *argv[])
 		MFEM_WARNING("You should use forward Euler for pseudo time stepping.");
 
 	socketstream sout;
-	bool visualization = true;
-	{
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      sout.open(vishost, visport);
-      if (!sout)
-      {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
-         visualization = false;
-         cout << "GLVis visualization disabled.\n";
-      }
-      else
-      {
-         sout.precision(config.precision);
-         sout << "solution\n" << mesh << hyp->u;
-         sout << "pause\n";
-         sout << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
-      }
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+	bool VectorOutput = false; // TODO
+   {
+		VisualizeField(sout, vishost, visport, hyp->u, VectorOutput);
    }
    
    odeSolver->Init(*hyp);
@@ -150,10 +134,7 @@ int main(int argc, char *argv[])
 			{
 				cout << "time step: " << ti << ", time: " << hyp->t << endl;
 			}
-         if (visualization)
-         {
-            sout << "solution\n" << mesh << hyp->u << flush;
-         }
+         VisualizeField(sout, vishost, visport, hyp->u, VectorOutput);
       }
    }
 
