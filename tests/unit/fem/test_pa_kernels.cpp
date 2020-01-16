@@ -11,15 +11,10 @@ namespace pa_kernels
 template <typename INTEGRATOR>
 double test_vector_pa_integrator(int dim)
 {
-   Mesh *mesh;
-   if (dim == 2)
-   {
-      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
-   }
+   Mesh *mesh =
+      (dim == 2) ?
+      new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0):
+      new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
 
    int order = 2;
    H1_FECollection fec(order, dim);
