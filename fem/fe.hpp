@@ -2671,7 +2671,6 @@ class ND_QuadrilateralElement : public VectorTensorFiniteElement
 {
    static const double tk[8];
 
-   //Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;

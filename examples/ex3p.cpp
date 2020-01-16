@@ -213,16 +213,13 @@ int main(int argc, char *argv[])
    {
       ParFiniteElementSpace *prec_fespace =
          (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-      HypreSolver *ams = new HypreAMS(*A.As<HypreParMatrix>(), prec_fespace);
-      HyprePCG *pcg = new HyprePCG(*A.As<HypreParMatrix>());
-      pcg->SetTol(1e-12);
-      pcg->SetMaxIter(500);
-      pcg->SetPrintLevel(2);
-      pcg->SetPreconditioner(*ams);
-      pcg->Mult(B, X);
-
-      delete pcg;
-      delete ams;
+      HypreAMS ams(*A.As<HypreParMatrix>(), prec_fespace);
+      HyprePCG pcg(*A.As<HypreParMatrix>());
+      pcg.SetTol(1e-12);
+      pcg.SetMaxIter(500);
+      pcg.SetPrintLevel(2);
+      pcg.SetPreconditioner(ams);
+      pcg.Mult(B, X);
    }
 
    // 13. Recover the parallel grid function corresponding to X. This is the

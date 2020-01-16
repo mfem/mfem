@@ -1657,9 +1657,8 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
                                    mapsO->B, mapsC->G, pa_data, diag);
 }
 
-void MixedVectorGradientIntegrator::AssembleMixedPA(const FiniteElementSpace
-                                                    &trial_fes,
-                                                    const FiniteElementSpace &test_fes)
+void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+					       const FiniteElementSpace &test_fes)
 {
    // Assumes tensor-product elements, with a vector test space and H^1 trial space.
    Mesh *mesh = trial_fes.GetMesh();

@@ -48,8 +48,8 @@ public:
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA() and AddMultTransposePA(). */
-   virtual void AssembleMixedPA(const FiniteElementSpace &trial_fes,
-                                const FiniteElementSpace &test_fes)
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+			   const FiniteElementSpace &test_fes)
    {
       mfem_error("Not implemented for this integrator!");
    }
@@ -1550,7 +1550,7 @@ protected:
       trial_fe.CalcPhysDShape(Trans, shape);
    }
 
-   virtual void AssembleMixedPA(const FiniteElementSpace &trial_fes,
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                                 const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
