@@ -15,19 +15,32 @@ Improved GPU support
 --------------------
 - Added support for matrix-free diagonal smoothers on GPUs.
 
+- Added a "debug" device that is to be used specifically for debugging purposes.
+  It allows to test the "device" code-path without any hardware.
+
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
   language that can run on both AMD and NVIDIA hardware. With this change and
   the libCEED addition below, the current list of available backends is:
   "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
-  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
+  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", "debug" and "cpu".
 
 - Improved RAJA backend and multi-GPU MPI communications.
 
-- Added a "debug" device that is to be used specifically for debugging purposes.
-  It allows to test the "device" code-path without any hardware.
+Memory Manager Backends
+-----------------------
+- Added support for Umpire, a resource management library that allows the
+  discovery, provision, and management of memory on machines with multiple
+  memory devices like NUMA and GPUs, https://github.com/LLNL/Umpire.
 
-- The memory manager can utilize the Umpire resource management library or
-  handle directly raw CUDA or managed (UVM) pointers.
+- The memory manager now supports different new memory types, associated
+  with the following backends:
+    - Standard C++, using 'std::new' and 'std::delete',
+    - Aligned 32 or 64 bits, using '_aligned_malloc' on WIN32 architectures,
+      'posix_memalign' otherwise,
+    - CUDA pointers, using 'cudaMalloc',
+    - HIP pointers, using 'hipMalloc',
+    - Protected mode used by the "debug" device, using 'mmap' and 'mprotect',
+    - Umpire, using its API.
 
 libCEED support
 ---------------
