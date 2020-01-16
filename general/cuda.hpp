@@ -39,9 +39,11 @@
       } \
    } \
    while (0)
+#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #else
 #define MFEM_DEVICE
 #define MFEM_HOST_DEVICE
+#define MFEM_DEVICE_SYNC
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros
@@ -91,6 +93,9 @@ void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
 void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
+
+/// Get the number of CUDA devices
+int CuGetDeviceCount();
 
 } // namespace mfem
 
