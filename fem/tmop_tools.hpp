@@ -43,6 +43,7 @@ public:
 
 };
 
+#ifdef MFEM_USE_GSLIB
 class InterpolatorFP : public AdaptivityEvaluator
 {
 private:
@@ -69,6 +70,7 @@ public:
        delete finder;
    }
 };
+#endif
 
 /// Performs a single remap advection step in serial.
 class SerialAdvectorCGOper : public TimeDependentOperator

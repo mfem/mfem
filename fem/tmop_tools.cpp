@@ -216,6 +216,7 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 }
 #endif
 
+#ifdef MFEM_USE_GSLIB
 void InterpolatorFP::SetInitialField(const Vector &init_nodes,
                                      const Vector &init_field)
 {
@@ -288,6 +289,7 @@ void InterpolatorFP::ComputeAtNewPositionInElement(const Vector &new_nodes,
     ComputeAtNewPosition(new_nodes,new_field);
 
 }
+#endif
 
 double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                                               const Vector &b) const
