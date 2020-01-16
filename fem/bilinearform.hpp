@@ -227,7 +227,7 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const { mat->Mult(x, y); }
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
@@ -324,7 +324,7 @@ public:
        For adaptively refined meshes, this returns P^T d_e, where d_e is the
        locally assembled diagonal on each element and P^T is the transpose of
        the conforming prolongation. In general this is not the correct diagonal
-       for an AMR mesh, and the code will give a warning. */
+       for an AMR mesh. */
    void AssembleDiagonal(Vector &diag) const;
 
    /// Get the finite element space prolongation matrix
