@@ -2122,9 +2122,9 @@ public:
                                    const Vector &elfun);
 };
 
-/** Integrator for (Q u, v), where Q is an optional coefficient (of type scalar, 
-    vector (diagonal matrix), or matrix), trial function u is in H(Curl) or 
-    H(Div), and test function v is in H(Curl), H(Div), or v=(v1,...,vn), where 
+/** Integrator for (Q u, v), where Q is an optional coefficient (of type scalar,
+    vector (diagonal matrix), or matrix), trial function u is in H(Curl) or
+    H(Div), and test function v is in H(Curl), H(Div), or v=(v1,...,vn), where
     vi are in H1. */
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
