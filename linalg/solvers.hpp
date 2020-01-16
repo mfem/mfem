@@ -473,12 +473,23 @@ public:
    virtual void Mult(const Vector &xt, Vector &x) const;
 };
 
-class BlockILU0 : public Solver
+class BlockILU : public Solver
 {
 public:
-   BlockILU0(int block_size_, bool reorder_ = true);
 
-   BlockILU0(Operator &op, int block_size_ = 1, bool reorder_ = true);
+   enum class Reordering
+   {
+      MINIMUM_DISCARDED_FILL,
+      NONE
+   };
+
+   BlockILU(int block_size_,
+            Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
+            int k_fill_ = 0);
+
+   BlockILU(Operator &op, int block_size_ = 1,
+            Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
+            int k_fill_ = 0);
 
    void SetOperator(const Operator &op);
 
@@ -496,7 +507,8 @@ private:
    void Factorize();
 
    int block_size;
-   bool reorder;
+   int k_fill;
+   Reordering reordering;
 
    mutable Vector y;
    Array<int> P, Pinv;

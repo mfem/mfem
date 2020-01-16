@@ -1942,21 +1942,25 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    }
 }
 
-BlockILU0::BlockILU0(int block_size_, bool reorder_)
+BlockILU::BlockILU(int block_size_,
+                   Reordering reordering_,
+                   int k_fill_)
    : Solver(0),
      block_size(block_size_),
-     reorder(reorder_)
+     k_fill(k_fill_),
+     reordering(reordering_)
 { }
 
-BlockILU0::BlockILU0(Operator &op, int block_size_, bool reorder_)
-   : Solver(op.Height()),
-     block_size(block_size_),
-     reorder(reorder_)
+BlockILU::BlockILU(Operator &op,
+                   int block_size_,
+                   Reordering reordering_,
+                   int k_fill_)
+   : BlockILU(block_size_, reordering_, k_fill_)
 {
    SetOperator(op);
 }
 
-void BlockILU0::SetOperator(const Operator &op)
+void BlockILU::SetOperator(const Operator &op)
 {
    const SparseMatrix *A = NULL;
 #ifdef MFEM_USE_MPI
@@ -1973,7 +1977,7 @@ void BlockILU0::SetOperator(const Operator &op)
       A = dynamic_cast<const SparseMatrix *>(&op);
       if (A == NULL)
       {
-         MFEM_ABORT("BlockILU0 must be created with a SparseMatrix or HypreParMatrix");
+         MFEM_ABORT("BlockILU must be created with a SparseMatrix or HypreParMatrix");
       }
    }
    height = op.Height();
@@ -1983,11 +1987,12 @@ void BlockILU0::SetOperator(const Operator &op)
    Factorize();
 }
 
-void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
+void BlockILU::CreateBlockPattern(const SparseMatrix &A)
 {
+   MFEM_VERIFY(k_fill == 0, "Only block ILU(0) is currently supported.");
    if (A.Height() % block_size != 0)
    {
-      MFEM_ABORT("BlockILU0: block size must evenly divide the matrix size");
+      MFEM_ABORT("BlockILU: block size must evenly divide the matrix size");
    }
 
    int nrows = A.Height();
@@ -2012,7 +2017,7 @@ void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
       nnz += unique_block_cols[iblock].size();
    }
 
-   if (reorder)
+   if (reordering != Reordering::NONE)
    {
       SparseMatrix C(nblockrows, nblockrows);
       for (int iblock = 0; iblock < nblockrows; ++iblock)
@@ -2039,7 +2044,15 @@ void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
       {
          CV[i] = sqrt(CV[i]);
       }
-      MinimumDiscardedFillOrdering(C, P);
+
+      switch (reordering)
+      {
+         case Reordering::MINIMUM_DISCARDED_FILL:
+            MinimumDiscardedFillOrdering(C, P);
+            break;
+         default:
+            MFEM_ABORT("BlockILU: unknown reording")
+      }
    }
    else
    {
@@ -2117,7 +2130,7 @@ void BlockILU0::CreateBlockPattern(const SparseMatrix &A)
    }
 }
 
-void BlockILU0::Factorize()
+void BlockILU::Factorize()
 {
    int nblockrows = Height()/block_size;
 
@@ -2171,7 +2184,7 @@ void BlockILU0::Factorize()
    }
 }
 
-void BlockILU0::Mult(const Vector &b, Vector &x) const
+void BlockILU::Mult(const Vector &b, Vector &x) const
 {
    MFEM_ASSERT(height > 0, "BlockILU(0) preconditioner is not constructed");
    int nblockrows = Height()/block_size;
