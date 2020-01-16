@@ -437,11 +437,7 @@ void DofInfo::FillNeighborDofs()
 			}
 		}
 	}
-#ifdef MFEM_USE_MPI
-	// TODO
-#else
 	delete face_to_el;
-#endif
 }
 
 void DofInfo::FillSubcell2CellDof()

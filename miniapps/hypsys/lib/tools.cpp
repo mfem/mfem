@@ -25,6 +25,7 @@ HyperbolicSystem::HyperbolicSystem(FiniteElementSpace *fes_, Configuration &conf
 	vec3.SetSize(nd);
 	uElem.SetSize(nd);
 	uEval.SetSize(1); // TODO Vector valued soultion.
+	uNbr.SetSize(1); // TODO vector valued
 	QuadWeightFace.SetSize(nqf);
 	
 	// The min/max bounds are represented as H1 functions of the same order

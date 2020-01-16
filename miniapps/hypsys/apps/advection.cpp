@@ -281,6 +281,8 @@ double InitialCondition(const Vector &x)
       }
       case 1: // Solid body rotation.
       {
+			if (dim==1) return abs(X(0) + 0.7) <= 0.15;
+			
          double s = 0.0225;
          double coef = (0.5/sqrt(s));
          double slit = (X(0) <= -0.05) || (X(0) >= 0.05) || (X(1) >= 0.7);

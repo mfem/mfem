@@ -38,11 +38,10 @@ void HyperbolicSystem::EvolveStandard(const Vector &x, Vector &y) const
 				{
 					for (int j = 0; j < dofs->NumFaceDofs; j++)
 					{
-						// TODO vector valued
-						double uFace = dofs->NbrDofs(i,j,e) < 0 ?
-							inflow(e*nd+dofs->BdrDofs(j,i)) :
-							x(dofs->NbrDofs(i,j,e));
-						uEval(0) += uFace * ShapeEvalFace(i,j,k);
+						DofInd = e*nd+dofs->BdrDofs(j,i);
+						nbr = dofs->NbrDofs(i,j,e);
+						uNbr(0) = nbr < 0 ? inflow(DofInd) : x(nbr);
+						uEval(0) += uNbr(0) * ShapeEvalFace(i,j,k);
 					}
 				}
 				

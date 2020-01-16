@@ -54,6 +54,8 @@ public:
 	int dim, nd, ne, nqe, nqf;
 	mutable Array<int> vdofs;
 	mutable Vector z, w, vec1, vec2, vec3, uElem, uEval, QuadWeightFace;
+	mutable int DofInd, nbr;
+   mutable Vector uNbr;
 
 	HyperbolicSystem(FiniteElementSpace *fes_, Configuration &config);
 	
