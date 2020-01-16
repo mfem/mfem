@@ -128,14 +128,14 @@ ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
    lfi = new LinearForm(f, &data[f->GetVSize()]);
 }
 
-ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes, 
-                                     LinearForm *lfr, LinearForm *lfi,
+ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes,
+                                     LinearForm *lf_r, LinearForm *lf_i,
                                      ComplexOperator::Convention convention)
    : Vector(2*(fes->GetVSize())),
      conv(convention)
 {
-   lfr = new LinearForm(fes, lfr);  lfr->SetData(&data[0]);
-   lfi = new LinearForm(fes, lfi);  lfi->SetData(&data[fes->GetVSize()]);
+   lfr = new LinearForm(fes, lf_r);  lfr->SetData(&data[0]);
+   lfi = new LinearForm(fes, lf_i);  lfi->SetData(&data[fes->GetVSize()]);
 }
 
 ComplexLinearForm::~ComplexLinearForm()
@@ -373,7 +373,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    Vector X_i(&(X.GetData())[tvsize], tvsize);
    Vector B_r(B.GetData(), tvsize);
    Vector B_i(&(B.GetData())[tvsize], tvsize);
-   if(RealInteg() && ImagInteg())
+   if (RealInteg() && ImagInteg())
    {
       A_r = new SparseMatrix;
       A_i = new SparseMatrix;
@@ -396,7 +396,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       blfi->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_i, X_0, B_0, false);
       B_i += B_0;
    }
-   else if(RealInteg())
+   else if (RealInteg())
    {
       A_r = new SparseMatrix;
 
@@ -421,7 +421,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       blfi->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_i, X_0, B_0, ci);
       X_i = X_0; B_r = B_0; B_r *= -1.0;
    }
-   else 
+   else
    {
       MFEM_ABORT("Real and Imaginary part of the Sesquilinear form are empty");
    }
@@ -443,23 +443,23 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    SparseMatrix * A_r = nullptr;
    SparseMatrix * A_i = nullptr;
 
-   if(RealInteg())
+   if (RealInteg())
    {
       A_r = new SparseMatrix;
       blfr->SetDiagonalPolicy(diag_policy);
       blfr->FormSystemMatrix(ess_tdof_list, *A_r);
    }
-   else if (ImagInteg())
+   if (ImagInteg())
    {
       A_i = new SparseMatrix;
       blfr->SetDiagonalPolicy(diag_policy);
       blfi->FormSystemMatrix(ess_tdof_list, *A_i);
    }
-   else
+   if (!RealInteg() && !ImagInteg())
    {
       MFEM_ABORT("Both Real and Imaginary part of the Sesquilinear form are empty");
    }
-   
+
    // A = A_r + i A_i
    A.Clear();
    ComplexSparseMatrix * A_sp =
@@ -659,15 +659,16 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
 }
 
 
-ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes, ParLinearForm *plfr, ParLinearForm *plfi,
-                        ComplexOperator::Convention
-                        convention)
+ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
+                                           ParLinearForm *plf_r, ParLinearForm *plf_i,
+                                           ComplexOperator::Convention
+                                           convention)
    : Vector(2*(pfes->GetVSize())),
      conv(convention)
 {
-   plfr = new ParLinearForm(pfes, plfr);
+   plfr = new ParLinearForm(pfes, plf_r);
    plfr->SetData(&data[0]);
-   plfi = new ParLinearForm(pfes, plfi);
+   plfi = new ParLinearForm(pfes, plf_i);
    plfi->SetData(&data[pfes->GetVSize()]);
 
    HYPRE_Int * tdof_offsets_fes = pfes->GetTrueDofOffsets();
@@ -944,7 +945,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    Vector B_r(B.GetData(), tvsize);
    Vector B_i(&(B.GetData())[tvsize], tvsize);
 
-   if(RealInteg() && ImagInteg())
+   if (RealInteg() && ImagInteg())
    {
       b_0 = b_r;
       pblfr->FormLinearSystem(ess_tdof_list, x_r, b_0, A_r, X_0, B_0, ci);
@@ -971,7 +972,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       b_0 = b_i;
       pblfr->FormLinearSystem(ess_tdof_list, x_i, b_0, A_r, X_0, B_0, ci);
       X_i = X_0; B_i = B_0;
-   }  
+   }
    else if (ImagInteg())
    {
       b_0 = b_i;
@@ -981,12 +982,12 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       b_0 = b_r; b_0 *= -1.0;
       pblfi->FormLinearSystem(ess_tdof_list, x_i, b_0, A_i, X_0, B_0, ci);
       X_i = X_0; B_r = B_0; B_r *= -1.0;
-   } 
+   }
    else
    {
       MFEM_ABORT("Real and Imaginary part of the Sesquilinear form are empty");
    }
-   
+
    // Modify RHS and offdiagonal blocks (Imaginary parts of the matrix) to
    // conform with standard essential BC treatment i.e. zero out rows and
    // columns and place ones on the diagonal.
@@ -1041,15 +1042,15 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                       OperatorHandle &A)
 {
    OperatorHandle A_r, A_i;
-   if(RealInteg())
+   if (RealInteg())
    {
       pblfr->FormSystemMatrix(ess_tdof_list, A_r);
    }
-   else if (ImagInteg())
+   if (ImagInteg())
    {
       pblfi->FormSystemMatrix(ess_tdof_list, A_i);
    }
-   else
+   if (!RealInteg() && !ImagInteg())
    {
       MFEM_ABORT("Both Real and Imaginary part of the Sesquilinear form are empty");
    }

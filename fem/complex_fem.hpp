@@ -106,7 +106,7 @@ public:
 
       The integrators are copied as pointers and they are not owned by
       the newly constructed ComplexLinearForm. */
-   ComplexLinearForm(FiniteElementSpace *fes, LinearForm *lfr, LinearForm *lfi,
+   ComplexLinearForm(FiniteElementSpace *fes, LinearForm *lf_r, LinearForm *lf_i,
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
 
@@ -197,7 +197,7 @@ private:
    BilinearForm *blfr;
    BilinearForm *blfi;
 
-   /* These methods check if the real/imag parts of the 
+   /* These methods check if the real/imag parts of the
    sesqulinear form are not empty */
    bool RealInteg();
    bool ImagInteg();
@@ -285,7 +285,7 @@ public:
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
-    /// Sets diagonal policy used upon construction of the linear system
+   /// Sets diagonal policy used upon construction of the linear system
    void SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy dpolicy);
 
    virtual ~SesquilinearForm();
@@ -406,7 +406,8 @@ public:
 
       The integrators are copied as pointers and they are not owned by
       the newly constructed ParComplexLinearForm. */
-   ParComplexLinearForm(ParFiniteElementSpace *pf, ParLinearForm *plfr, ParLinearForm *plfi,
+   ParComplexLinearForm(ParFiniteElementSpace *pf, ParLinearForm *plf_r,
+                        ParLinearForm *plf_i,
                         ComplexOperator::Convention
                         convention = ComplexOperator::HERMITIAN);
 
@@ -495,7 +496,7 @@ private:
    ParBilinearForm *pblfr;
    ParBilinearForm *pblfi;
 
-   /* These methods check if the real/imag parts of the 
+   /* These methods check if the real/imag parts of the
    sesqulinear form are not empty */
    bool RealInteg();
    bool ImagInteg();
@@ -512,9 +513,10 @@ public:
 
        The integrators are copied as pointers and they are not owned by
        the newly constructed ParSesquilinearBilinearForm. */
-   ParSesquilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *pbfr, ParBilinearForm *pbfi,
-                    ComplexOperator::Convention
-                    convention = ComplexOperator::HERMITIAN);
+   ParSesquilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *pbfr,
+                       ParBilinearForm *pbfi,
+                       ComplexOperator::Convention
+                       convention = ComplexOperator::HERMITIAN);
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
