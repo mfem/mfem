@@ -21,10 +21,10 @@ case $1 in
    where: {mfem_dir}  is the MFEM source directory [default value: ../..]
           -h|-help    prints this usage information and exits
 
-   This script checks if there are any disallowed files (binary files, or large
-   non-binary files) in the current branch history from the point of divergence
-   with master, i.e. in the commits that will be merged if the current branch is
-   merged with master.
+   This script checks if there are any disallowed files (binary or large files)
+   and/or a large number of changes in the current branch history from the point
+   of divergence with master, i.e. in the commits that will be merged if the
+   current branch is merged with master.
 
    To be useful, the script should be run in a clean repository that doesn't
    have any uncommited changes.
@@ -56,9 +56,10 @@ while read -r rev; do
     echo "Processing commit $rev"
     git checkout -q "$rev"
 
-    # Compute the number of total changes (insertions+deletions) in the commit,
-    # e.g. "3 files changed, 66 insertions(+), 45 deletions(-)" -> 111
-    changes=$(git diff --pretty=format:"" --shortstat HEAD^ | awk '{ print $4 + $6 }')
+    # Compute the approximate number of total changes (# files + insertions +
+    # deletions) in the commit, e.g
+    #     "3 files changed, 66 insertions(+), 45 deletions(-)" -> 114
+    changes=$(git diff --shortstat HEAD^ | sed -e 's/[^0-9,]//g' -e 's/,/+/g' | bc)
 
     # If the above is more than 50K, print an error
     if [ $changes -gt 50000 ]
@@ -75,6 +76,8 @@ while read -r rev; do
 	then
             echo "Commit $(git log -1 --format=%h) contains a binary file: $fname ($binary)" 1>&2
 	fi
+
+	# Check also if $fname is a large file ...
     done
 
 done < <(git rev-list --reverse ${common_ancestor}..${current_branch})
