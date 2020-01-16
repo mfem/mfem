@@ -90,5 +90,5 @@ The currently available test scripts are:
 
 - gitignore: Checks for compliance with MFEM's .gitignore rules
 
-Adding new test scripts tesis easy and we welcome testing contributions by users
-and developers.
+Adding new test scripts is easy and we welcome contributions from users and
+developers.
