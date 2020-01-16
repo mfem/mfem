@@ -187,8 +187,20 @@ class SesquilinearForm
 private:
    ComplexOperator::Convention conv;
 
+   /**
+    * This member allows one to specify what should be done
+    * to the diagonal matrix entries and corresponding RHS
+    * values upon elimination of the constrained DoFs.
+    */
+   mfem::Matrix::DiagonalPolicy diag_policy = mfem::Matrix::DIAG_ONE;
+
    BilinearForm *blfr;
    BilinearForm *blfi;
+
+   /* These methods check if the real/imag parts of the 
+   sesqulinear form are not empty */
+   bool RealInteg();
+   bool ImagInteg();
 
 public:
    SesquilinearForm(FiniteElementSpace *fes,
@@ -272,6 +284,9 @@ public:
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
+
+    /// Sets diagonal policy used upon construction of the linear system
+   void SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy dpolicy);
 
    virtual ~SesquilinearForm();
 };
@@ -479,6 +494,11 @@ private:
 
    ParBilinearForm *pblfr;
    ParBilinearForm *pblfi;
+
+   /* These methods check if the real/imag parts of the 
+   sesqulinear form are not empty */
+   bool RealInteg();
+   bool ImagInteg();
 
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf,
