@@ -68,11 +68,13 @@ inline MemoryType& operator--(MemoryType &mt,int)
  *  use MemoryClass::DEVICE for their inputs. */
 enum class MemoryClass
 {
-   HOST,    ///< Memory types: { HOST, HOST_32, HOST_64, MANAGED }
-   HOST_32, ///< Memory types: { HOST_32, HOST_64 }
-   HOST_64, ///< Memory types: { HOST_64 }
-   DEVICE,  ///< Memory types: { DEVICE, MANAGED }
-   MANAGED  ///< Memory types: { MANAGED }
+   HOST,    /**< Memory types: { HOST, HOST_32, HOST_64, HOST_DEBUG,
+                                 HOST_UMPIRE, HOST_MANAGED } */
+   HOST_32, ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
+   HOST_64, ///< Memory types: { HOST_64, HOST_DEBUG }
+   DEVICE,  /**< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE,
+                                 DEVICE_MANAGED } */
+   MANAGED  ///< Memory types: { HOST_MANAGED, DEVICE_MANAGED }
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
