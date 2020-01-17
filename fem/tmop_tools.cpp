@@ -247,50 +247,49 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
                                           Vector &new_field)
 {
 
-    FiniteElementSpace *f = fes;
- #ifdef MFEM_USE_MPI
-    if (pfes)  { f = pfes; }
- #endif
+   FiniteElementSpace *f = fes;
+#ifdef MFEM_USE_MPI
+   if (pfes)  { f = pfes; }
+#endif
 
-    const int dim = f->GetFE(0)->GetDim();
-    Vector positionsToFind = new_nodes;
-    const int pts_cnt = positionsToFind.Size() / dim;
+   const int dim = f->GetFE(0)->GetDim();
+   Vector positionsToFind = new_nodes;
+   const int pts_cnt = positionsToFind.Size() / dim;
 
 
-    // Interpolate FE function values on the found points.
-    Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
-    Vector pos_r_out(pts_cnt*dim), dist_p_out(pts_cnt);
+   // Interpolate FE function values on the found points.
+   Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
+   Vector pos_r_out(pts_cnt*dim), dist_p_out(pts_cnt);
 
-    finder->FindPoints(positionsToFind, code_out, task_id_out,
-                       el_id_out, pos_r_out, dist_p_out);
+   finder->FindPoints(positionsToFind, code_out, task_id_out,
+                      el_id_out, pos_r_out, dist_p_out);
 
-    GridFunction field0_gf(f);
-    for (int i = 0; i < field0.Size(); i++)
-    {
-          field0_gf(i) = field0(i);
-    }
+   GridFunction field0_gf(f);
+   for (int i = 0; i < field0.Size(); i++)
+   {
+      field0_gf(i) = field0(i);
+   }
 
-    finder->Interpolate(code_out, task_id_out, el_id_out,
-                        pos_r_out, field0_gf, new_field);
+   finder->Interpolate(code_out, task_id_out, el_id_out,
+                       pos_r_out, field0_gf, new_field);
    int face_pts = 0, not_found = 0, found = 0;
 
    for (int i = 0; i < pts_cnt; i++)
    {
-         if (code_out[i] < 2)
-         {
+      if (code_out[i] < 2)
+      {
          found++;
 
          if (code_out[i] == 1) { face_pts++; }
-         }
-         else { not_found++;}
+      }
+      else { not_found++;}
    }
 }
 
 void InterpolatorFP::ComputeAtNewPositionInElement(const Vector &new_nodes,
-                                          Vector &new_field)
+                                                   Vector &new_field)
 {
-    ComputeAtNewPosition(new_nodes,new_field);
-
+   ComputeAtNewPosition(new_nodes,new_field);
 }
 #endif
 
@@ -417,21 +416,22 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    {
       for (int k = 0; k < discrtc.Size(); k++)
       {
-          if (parallel)
-          {
+         if (parallel)
+         {
 #ifdef MFEM_USE_MPI
-           const ParNonlinearForm *nlf =
-           dynamic_cast<const ParNonlinearForm *>(oper);
-           Vector x_loc(nlf->ParFESpace()->GetVSize());
-           nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
-           discrtc[k]->UpdateTargetSpecification(x_loc);
-           discrtc[k]->BackupTargetSpecification();
+            const ParNonlinearForm *nlf =
+               dynamic_cast<const ParNonlinearForm *>(oper);
+            Vector x_loc(nlf->ParFESpace()->GetVSize());
+            nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
+            discrtc[k]->UpdateTargetSpecification(x_loc);
+            discrtc[k]->BackupTargetSpecification();
 #endif
-          }
-          else {
-              discrtc[k]->UpdateTargetSpecification(x);
-              discrtc[k]->BackupTargetSpecification();
-          }
+         }
+         else
+         {
+            discrtc[k]->UpdateTargetSpecification(x);
+            discrtc[k]->BackupTargetSpecification();
+         }
       }
    }
 }

@@ -589,7 +589,7 @@ public:
                                      Vector &new_field) = 0;
 
    virtual void ComputeAtNewPositionInElement(const Vector &new_nodes,
-                                     Vector &new_field) = 0;
+                                              Vector &new_field) = 0;
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -620,7 +620,7 @@ public:
          Jacobian matrix at all quadrature points. */
       GIVEN_FULL, /**<
          Full target tensor is specified at every quadrature point. */
-       GIVEN_ORIENTATION /**<
+      GIVEN_ORIENTATION /**<
          Orientation specified by an analytic function */
    };
 
@@ -843,8 +843,18 @@ public:
         discr_tc(NULL), fdorder(1)
    { }
 
-   ~TMOP_Integrator() { delete lim_func;
-    for (int i=0;i<ElemDer.Size();i++) {delete ElemDer[i];delete ElemPertEnergy[i];}}
+   ~TMOP_Integrator()
+   {
+      delete lim_func;
+      for (int i=0; i<ElemDer.Size(); i++)
+      {
+         delete ElemDer[i];
+         delete ElemPertEnergy[i];
+         delete TSpecPerth[i];
+         delete TSpecPert2h[i];
+         delete TSpecPertMix[i];
+      }
+   }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
@@ -893,25 +903,25 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 
    virtual void AssembleElementVectorExact(const FiniteElement &el,
-                                      ElementTransformation &T,
-                                      const Vector &elfun, Vector &elvect);
+                                           ElementTransformation &T,
+                                           const Vector &elfun, Vector &elvect);
 
    virtual void AssembleElementGradExact(const FiniteElement &el,
-                                    ElementTransformation &T,
-                                    const Vector &elfun, DenseMatrix &elmat);
+                                         ElementTransformation &T,
+                                         const Vector &elfun, DenseMatrix &elmat);
 
    virtual void AssembleElementVectorFD(const FiniteElement &el,
-                                      ElementTransformation &T,
-                                      const Vector &elfun, Vector &elvect);
+                                        ElementTransformation &T,
+                                        const Vector &elfun, Vector &elvect);
 
    virtual void AssembleElementGradFD(const FiniteElement &el,
-                                    ElementTransformation &T,
-                                    const Vector &elfun, DenseMatrix &elmat);
+                                      ElementTransformation &T,
+                                      const Vector &elfun, DenseMatrix &elmat);
 
    virtual double GetFDDerivative(const FiniteElement &el,
-                                      ElementTransformation &T,
-                                      Vector &elfun,
-                                const int nodenum,const int idir);
+                                  ElementTransformation &T,
+                                  Vector &elfun,
+                                  const int nodenum,const int idir);
 
    void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) {discr_tc = tc;}
 

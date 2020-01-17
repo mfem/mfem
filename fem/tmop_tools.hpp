@@ -47,19 +47,19 @@ public:
 class InterpolatorFP : public AdaptivityEvaluator
 {
 private:
-    Vector nodes0;
-    Vector field0;
-    FindPointsGSLIB *finder;
-    bool parallel;  //for GSLIB
+   Vector nodes0;
+   Vector field0;
+   FindPointsGSLIB *finder;
+   bool parallel;  //for GSLIB
 public:
 #ifdef MFEM_USE_MPI
-    InterpolatorFP(bool flag) : AdaptivityEvaluator(),
-                       nodes0(), field0(), parallel(flag), finder(NULL) { }
+   InterpolatorFP(bool flag) : AdaptivityEvaluator(),
+      nodes0(), field0(), parallel(flag), finder(NULL) { }
 #endif
-    InterpolatorFP() : AdaptivityEvaluator(),
-                      nodes0(), field0(), parallel(false), finder(NULL) { }
+   InterpolatorFP() : AdaptivityEvaluator(),
+      nodes0(), field0(), parallel(false), finder(NULL) { }
 
-    virtual void SetInitialField(const Vector &init_nodes,
+   virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
@@ -70,8 +70,8 @@ public:
 
    ~InterpolatorFP()
    {
-       finder->FreeData();
-       delete finder;
+      finder->FreeData();
+      delete finder;
    }
 };
 #endif
@@ -162,7 +162,7 @@ public:
 #endif
    TMOPDescentNewtonSolver(const IntegrationRule &irule)
       : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL),
-        discr_tcc(NULL){ }
+        discr_tcc(NULL) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
