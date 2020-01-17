@@ -2,12 +2,25 @@ sudo: false
 
 language: cpp
 
-matrix:
+stages:
+  - checks
+  - tests
+
+jobs:
   include:
+    - stage: checks
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2
+        - make all -j3
+	- git status -s
+	- make distclean
+	- git status -s
     #
     # Linux
     #
-    - os: linux
+    - stage: tests
+      os: linux
       compiler: gcc
       env: DEBUG=YES
            MPI=NO
