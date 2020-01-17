@@ -253,9 +253,15 @@ public:
    */
    static inline MemoryType GetDeviceMemoryType() { return Get().device_mem_type; }
 
+   /// @deprecated, Use GetDeviceMemoryType() instead.
+   static inline MemoryType GetMemoryType() { return Get().device_mem_type; }
+
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
    static inline MemoryClass GetDeviceMemoryClass() { return Get().device_mem_class; }
+
+   /// @deprecated, Use GetDeviceMemoryClass() instead.
+   static inline MemoryClass GetMemoryClass() { return Get().device_mem_class; }
 
    static void SetGPUAwareMPI(const bool force = true)
    { Get().mpi_gpu_aware = force; }
