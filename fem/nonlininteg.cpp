@@ -30,6 +30,20 @@ void NonlinearFormIntegrator::AssembleFaceVector(
               " is not overloaded!");
 }
 
+void NonlinearFormIntegrator::SetupElementVectorTargetSpecification(
+        const Vector &x, const FiniteElementSpace &fes)
+{
+   mfem_error("NonlinearFormIntegrator::SetupElementVectorTargetSpecification"
+              " is not overloaded!");
+}
+
+void NonlinearFormIntegrator::SetupElementGradTargetSpecification(
+        const Vector &x, const FiniteElementSpace &fes)
+{
+   mfem_error("NonlinearFormIntegrator::SetupElementGradTargetSpecification"
+              " is not overloaded!");
+}
+
 void NonlinearFormIntegrator::AssembleElementGrad(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    DenseMatrix &elmat)
@@ -108,6 +122,19 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
    return 0.0;
 }
 
+void BlockNonlinearFormIntegrator::SetupElementVectorTargetSpecification(
+        const Vector &x, const FiniteElementSpace &fes)
+{
+    mfem_error("BlockNonlinearFormIntegrator::SetupElementVectorTargetSpecification"
+           " is not overloaded!");
+}
+
+void BlockNonlinearFormIntegrator::SetupElementGradTargetSpecification(
+        const Vector &x, const FiniteElementSpace &fes)
+{
+    mfem_error("BlockNonlinearFormIntegrator::SetupElementVectorTargetSpecification"
+           " is not overloaded!");
+}
 
 double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 {
@@ -437,6 +464,20 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
 
       model->AssembleH(Jpt, DS, ip.weight * Ttr.Weight(), elmat);
    }
+}
+
+void HyperelasticNLFIntegrator::SetupElementVectorTargetSpecification(
+        const Vector &x, const FiniteElementSpace &fes)
+{
+   mfem_error("HyperelasticNLFIntegrator::SetupElementGradTargetSpecification"
+               " is not overloaded!");
+}
+
+void HyperelasticNLFIntegrator::SetupElementGradTargetSpecification(
+        const Vector &x, const FiniteElementSpace &fes)
+{
+   mfem_error("HyperelasticNLFIntegrator::SetupElementGradTargetSpecification"
+               " is not overloaded!");
 }
 
 double IncompressibleNeoHookeanIntegrator::GetElementEnergy(

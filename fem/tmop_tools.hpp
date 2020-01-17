@@ -36,11 +36,6 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
-
-   virtual void ComputeAtNewPositionInElement(const Vector &new_nodes,
-                                              Vector &new_field)
-   {MFEM_ABORT("Cannot use advection based interpolation with FD-based Newton")};
-
 };
 
 #ifdef MFEM_USE_GSLIB
@@ -64,9 +59,6 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
-
-   virtual void ComputeAtNewPositionInElement(const Vector &new_nodes,
-                                              Vector &new_field);
 
    ~InterpolatorFP()
    {

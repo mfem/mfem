@@ -237,7 +237,6 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    if (!serial) {finder = new FindPointsGSLIB(pfes->GetComm());}
    else         {finder = new FindPointsGSLIB();}
 #else
-   std::cout << " k10 is here\n";
    finder = new FindPointsGSLIB();
 #endif
    finder->Setup(*m, rel_bbox_el, newton_tol, npts_at_once);

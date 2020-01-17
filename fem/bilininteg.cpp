@@ -85,6 +85,19 @@ void BilinearFormIntegrator::AssembleElementVector(
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::SetupElementVectorTargetSpecification(const Vector &x,
+                                                                   const FiniteElementSpace &fes)
+{
+    mfem_error("BilinearFormIntegrator::SetupElementVectorTargetSpecification"
+           " is not overloaded!");
+}
+
+void BilinearFormIntegrator::SetupElementGradTargetSpecification(const Vector &x,
+                                                                 const FiniteElementSpace &fes)
+{
+    mfem_error("BilinearFormIntegrator::SetupElementGradTargetSpecification"
+           " is not overloaded!");
+}
 
 void TransposeIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
@@ -674,6 +687,20 @@ double DiffusionIntegrator::ComputeFluxEnergy
    }
 
    return energy;
+}
+
+void DiffusionIntegrator::SetupElementVectorTargetSpecification(const Vector &x,
+        const FiniteElementSpace &fes)
+{
+    mfem_error("DiffusionIntegrator::SetupElementVectorTargetSpecification"
+           " is not overloaded!");
+}
+
+void DiffusionIntegrator::SetupElementGradTargetSpecification(const Vector &x,
+        const FiniteElementSpace &fes)
+{
+    mfem_error("DiffusionIntegrator::SetupElementGradTargetSpecification"
+           " is not overloaded!");
 }
 
 const IntegrationRule &DiffusionIntegrator::GetRule(
@@ -2146,6 +2173,19 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    }
 }
 
+void VectorDiffusionIntegrator::SetupElementVectorTargetSpecification(const Vector &x,
+                                                                      const FiniteElementSpace &fes)
+{
+    mfem_error("VectorDiffusionIntegrator::SetupElementVectorTargetSpecification"
+           " is not overloaded!");
+}
+
+void VectorDiffusionIntegrator::SetupElementGradTargetSpecification(const Vector &x,
+                                                                    const FiniteElementSpace &fes)
+{
+    mfem_error("VectorDiffusionIntegrator::SetupElementGradTargetSpecification"
+           " is not overloaded!");
+}
 
 void ElasticityIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)

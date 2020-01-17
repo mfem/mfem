@@ -587,9 +587,6 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
-
-   virtual void ComputeAtNewPositionInElement(const Vector &new_nodes,
-                                              Vector &new_field) = 0;
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -737,8 +734,8 @@ public:
        new mesh positions are given by new_x. */
    void UpdateTargetSpecification(const Vector &new_x);
 
-   void UpdateTargetSpecificationInElement(Vector &new_x,
-                                           Vector &IntData);
+   void UpdateTargetSpecification(Vector &new_x,
+                                  Vector &IntData);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
@@ -810,9 +807,9 @@ protected:
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
-   Array <Vector *> TSpecPerth;     //eta(x+h)     Discrete field perturbed
-   Array <Vector *> TSpecPert2h;    //eta(x+2*h)
-   Array <Vector *> TSpecPertMix;   //eta(x+h,y+h)
+   Vector           TSpecPerth;     //eta(x+h)     Discrete field perturbed
+   Vector           TSpecPert2h;    //eta(x+2*h)
+   Vector           TSpecPertMix;   //eta(x+h,y+h)
    DenseMatrix      TSpecMixIdx;    //Index for mix derivative terms
 
    mutable DiscreteAdaptTC *discr_tc;
@@ -845,14 +842,12 @@ public:
 
    ~TMOP_Integrator()
    {
+
       delete lim_func;
       for (int i=0; i<ElemDer.Size(); i++)
       {
-         delete ElemDer[i];
-         delete ElemPertEnergy[i];
-         delete TSpecPerth[i];
-         delete TSpecPert2h[i];
-         delete TSpecPertMix[i];
+          delete ElemDer[i];
+          delete ElemPertEnergy[i];
       }
    }
 
@@ -926,6 +921,12 @@ public:
    void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) {discr_tc = tc;}
 
    virtual void SetFDPar(int fdorderin, int sz);
+
+   virtual void SetupElementVectorTargetSpecification(const Vector &x,
+           const FiniteElementSpace &fes);
+
+   virtual void SetupElementGradTargetSpecification(const Vector &x,
+           const FiniteElementSpace &fes);
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */
