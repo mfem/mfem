@@ -13,7 +13,10 @@ jobs:
         - cd ${TRAVIS_BUILD_DIR}
         - make serial
         - git status -s
+	- mv .gitignore .gitignore-bak
         - make distclean
+        - git status -s
+        - make distclean2
         - git status -s
     #
     # Linux
