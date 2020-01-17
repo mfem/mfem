@@ -144,9 +144,8 @@ protected:
    friend class MemoryManager;
    friend void MemoryPrintFlags(unsigned flags);
 
-   enum FlagMask: unsigned long
+   enum FlagMask: unsigned
    {
-      ZERO          = 0,      ///< Clear the flags
       REGISTERED    = 1 << 0, ///< The host pointer is registered with the MemoryManager
       OWNS_HOST     = 1 << 1, ///< The host pointer will be deleted by Delete()
       OWNS_DEVICE   = 1 << 2, ///< The device pointer will be deleted by Delete()
@@ -655,7 +654,7 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
    capacity = size;
    h_ptr = host_ptr;
    h_mt = MemoryType::HOST;
-   flags = (own ? OWNS_HOST : ZERO) | VALID_HOST;
+   flags = (own ? OWNS_HOST : 0) | VALID_HOST;
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
    {
