@@ -14,6 +14,7 @@
 
 #include "../general/forall.hpp"
 #include "bilinearform.hpp"
+#include "libceed/ceed.hpp"
 
 namespace mfem
 {
@@ -62,6 +63,31 @@ void PABilinearFormExtension::Assemble()
    }
 }
 
+void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
+   const int iSz = integrators.Size();
+   if (elem_restrict_lex)
+   {
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AssembleDiagonalPA(localY);
+      }
+      elem_restrict_lex->MultTranspose(localY, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AssembleDiagonalPA(y);
+      }
+   }
+}
+
 void PABilinearFormExtension::Update()
 {
    FiniteElementSpace *fes = a->FESpace();
@@ -106,8 +132,10 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (Device::Allows(Backend::CEED_MASK))
+   if (DeviceCanUseCeed() || !elem_restrict_lex)
    {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(x, y);
@@ -115,25 +143,13 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      if (elem_restrict_lex)
+      elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
       {
-         elem_restrict_lex->Mult(x, localX);
-         localY = 0.0;
-         for (int i = 0; i < iSz; ++i)
-         {
-            integrators[i]->AddMultPA(localX, localY);
-         }
-         elem_restrict_lex->MultTranspose(localY, y);
+         integrators[i]->AddMultPA(localX, localY);
       }
-      else
-      {
-         y.UseDevice(true); // typically this is a large vector, so store on device
-         y = 0.0;
-         for (int i = 0; i < iSz; ++i)
-         {
-            integrators[i]->AddMultPA(x, y);
-         }
-      }
+      elem_restrict_lex->MultTranspose(localY, y);
    }
 }
 

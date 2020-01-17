@@ -9,22 +9,23 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "ceed.hpp"
-#include "../../general/device.hpp"
+#include "diffusion.hpp"
 
+#ifdef MFEM_USE_CEED
+#include "../../general/device.hpp"
+#include "../../mesh/mesh.hpp"
+#include "../../fem/gridfunc.hpp"
+#include "ceed.hpp"
 #include "diffusion.h"
 
 namespace mfem
 {
-
-#ifdef MFEM_USE_CEED
 
 void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
-   const int order = fes.GetOrder(0);
    const int ir_order = irm.GetOrder();
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
 
@@ -36,12 +37,12 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                                      irm;
    if (tensor)
    {
-      initCeedBasisAndRestrictionTensor(fes, ir, ceed, &ceedData.basis,
+      InitCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis,
                                         &ceedData.restr);
    }
    else
    {
-      initCeedBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+      InitCeedBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
    }
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
@@ -53,12 +54,12 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                                           irm;
    if (mesh_tensor)
    {
-      initCeedBasisAndRestrictionTensor(*mesh_fes, mesh_ir, ceed,
+      InitCeedTensorBasisAndRestriction(*mesh_fes, mesh_ir, ceed,
                                         &ceedData.mesh_basis, &ceedData.mesh_restr);
    }
    else
    {
-      initCeedBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis,
+      InitCeedBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis,
                                   &ceedData.mesh_restr);
    }
 
@@ -79,19 +80,24 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    ceedData.build_ctx.dim = mesh->Dimension();
    ceedData.build_ctx.space_dim = mesh->SpaceDimension();
 
+   std::string diff_qf_file = GetCeedPath() + "/diffusion.h";
+   std::string diff_qf;
+
    // Create the Q-function that builds the diff operator (i.e. computes its
    // quadrature data) and set its context data.
    switch (ceedData.coeff_type)
    {
-      case Const:
+      case CeedCoeff::Const:
+         diff_qf = diff_qf_file + ":f_build_diff_const";
          CeedQFunctionCreateInterior(ceed, 1, f_build_diff_const,
-                                     MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_build_diff_const",
+                                     diff_qf.c_str(),
                                      &ceedData.build_qfunc);
          ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          break;
-      case Grid:
+      case CeedCoeff::Grid:
+         diff_qf = diff_qf_file + ":f_build_diff_grid";
          CeedQFunctionCreateInterior(ceed, 1, f_build_diff_grid,
-                                     MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_build_diff_grid",
+                                     diff_qf.c_str(),
                                      &ceedData.build_qfunc);
          CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
          break;
@@ -113,18 +119,18 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    {
       lmode = CEED_TRANSPOSE;
    }
-   if (ceedData.coeff_type==Grid)
+   if (ceedData.coeff_type==CeedCoeff::Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      initCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed,
-                                  &ceedCoeff->basis,
-                                  &ceedCoeff->restr);
+      InitCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed,
+                                        &ceedCoeff->basis,
+                                        &ceedCoeff->restr);
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
                          ceedCoeff->coeff->GetData());
-      CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr, lmode,
-                           ceedCoeff->basis, ceedCoeff->coeffVector);
+      CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr,
+                           CEED_NOTRANSPOSE, ceedCoeff->basis, ceedCoeff->coeffVector);
    }
    CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, lmode,
                         ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
@@ -140,8 +146,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                      CEED_REQUEST_IMMEDIATE);
 
    // Create the Q-function that defines the action of the diff operator.
+   diff_qf = diff_qf_file + ":f_apply_diff";
    CeedQFunctionCreateInterior(ceed, 1, f_apply_diff,
-                               MFEM_SOURCE_DIR"/fem/libceed/diffusion.h:f_apply_diff",
+                               diff_qf.c_str(),
                                &ceedData.apply_qfunc);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dim, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "rho", dim * (dim + 1) / 2,
@@ -163,6 +170,6 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
 
-#endif
+} // namespace mfem
 
-}
+#endif // MFEM_USE_CEED
