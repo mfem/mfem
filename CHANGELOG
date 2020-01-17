@@ -152,6 +152,11 @@ Miscellaneous
   libmfem-common for the convenience of application developers. The new library
   is now used in several miniapps in the electromagnetic and tools directories.
 
+- Renamed the method GetMemoryType() to GetDeviceMemoryType(). The legacy
+  method is now deprecated and planned for removal in a future release.
+
+- Renamed the method GetMemoryClass() to GetDeviceMemoryClass(). The legacy
+  method is now deprecated and planned for removal in a future release.
 
 Version 4.0, released on May 24, 2019
 =====================================
