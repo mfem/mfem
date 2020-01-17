@@ -54,11 +54,9 @@ while read -r rev; do
     echo "Processing commit ${rev}"
     git checkout -q "${rev}"
 
-    # Compute the approximate number of total changes (# files + insertions +
-    # deletions) in the commit, e.g
-    #     "3 files changed, 66 insertions(+), 45 deletions(-)"
-    #         --(sed)--> 3,66,45 --(sed)--> 3+66+45 --(bc)--> 114
-    changes=$(git diff --shortstat HEAD^ | sed -e 's/[^0-9,]//g' -e 's/,/+/g' | bc)
+    # Compute the total number of changes (line insertions + line deletions) in
+    # the commit.
+    changes=$(git show --pretty="" --numstat | awk '{change+=$1+$2} END {print change}')
 
     # If the above is more than 50K, print an error
     if [ ${changes} -gt 50000 ]
