@@ -16,7 +16,7 @@ jobs:
         - mv .gitignore .gitignore-bak
         - make distclean
         - git status -s
-        - make serial
+        - make config
         - make distclean2
         - git status -s
     #
