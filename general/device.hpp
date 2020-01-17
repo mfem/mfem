@@ -268,7 +268,7 @@ public:
 
 
 // Inline Memory access functions using the mfem::Device DeviceMemoryClass or
-// the mfem::Device HostMemoryClass::HOST.
+// the mfem::Device HostMemoryClass.
 
 /** @brief Get a pointer for read access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
