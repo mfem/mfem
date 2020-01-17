@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "fe.hpp"
 #include "coefficient.hpp"
+#include "fespace.hpp"
 
 namespace mfem
 {
@@ -68,6 +69,13 @@ public:
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 
+   /// Interpolate Discrete Targets for Analytic adaptivity
+   virtual void SetupElementVectorTargetSpecification(const Vector &x,
+           const FiniteElementSpace &fes);
+
+   virtual void SetupElementGradTargetSpecification(const Vector &x,
+           const FiniteElementSpace &fes);
+
    virtual ~NonlinearFormIntegrator() { }
 };
 
@@ -105,6 +113,12 @@ public:
                                  FaceElementTransformations &Tr,
                                  const Array<const Vector *> &elfun,
                                  const Array2D<DenseMatrix *> &elmats);
+
+    virtual void SetupElementVectorTargetSpecification(
+            const Vector &x, const FiniteElementSpace &fes);
+
+    virtual void SetupElementGradTargetSpecification(const Vector &x,
+            const FiniteElementSpace &fes);
 
    virtual ~BlockNonlinearFormIntegrator() { }
 };
@@ -252,6 +266,13 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Ttr,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   virtual void SetupElementVectorTargetSpecification(
+           const Vector &x, const FiniteElementSpace &fes);
+
+   virtual void SetupElementGradTargetSpecification(const Vector &x,
+           const FiniteElementSpace &fes);
+
 };
 
 /** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress

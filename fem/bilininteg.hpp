@@ -108,6 +108,12 @@ public:
                                  const Vector &elfun, DenseMatrix &elmat)
    { AssembleFaceMatrix(el1, el2, Tr, elmat); }
 
+   virtual void SetupElementVectorTargetSpecification(const Vector &x,
+           const FiniteElementSpace &fes);
+
+   virtual void SetupElementGradTargetSpecification(const Vector &x,
+           const FiniteElementSpace &fes);
+
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
        The purpose of the method is to compute a local "flux" finite element
@@ -1711,6 +1717,12 @@ public:
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
 
+   virtual void SetupElementVectorTargetSpecification(const Vector &x,
+           const FiniteElementSpace &fes);
+
+   virtual void SetupElementGradTargetSpecification(const Vector &x,
+           const FiniteElementSpace &fes);
+
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
@@ -2155,6 +2167,12 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
+
+   virtual void SetupElementVectorTargetSpecification(const Vector &x,
+                                                      const FiniteElementSpace &fes);
+
+   virtual void SetupElementGradTargetSpecification(const Vector &x,
+                                                    const FiniteElementSpace &fes);
 };
 
 /** Integrator for the linear elasticity form:

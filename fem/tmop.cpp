@@ -1004,11 +1004,11 @@ void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
    adapt_eval->ComputeAtNewPosition(new_x, target_spec);
 }
 
-void DiscreteAdaptTC::UpdateTargetSpecificationInElement(Vector &new_x,
-                                                         Vector &IntData)
+void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
+                                                Vector &IntData)
 {
    MFEM_VERIFY(target_spec.Size() > 0, "Target specification is not set!");
-   adapt_eval->ComputeAtNewPositionInElement(new_x, IntData);
+   adapt_eval->ComputeAtNewPosition(new_x, IntData);
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
@@ -1020,7 +1020,8 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   target_spec(dofs[nodenum]) = IntData(nodenum+idir*el.GetDof());
+   int cnt = target_spec.Size();
+   target_spec(dofs[nodenum]) = IntData(dofs[nodenum]+idir*cnt);
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
@@ -1033,8 +1034,8 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   target_spec(dofs[nodenum]) = IntData(nodenum+idir*el.GetDof()+
-                                        iterm*el.GetDof()*el.GetDim());
+   int cnt = target_spec.Size();
+   target_spec(dofs[nodenum]) = IntData(dofs[nodenum] + iterm*cnt);
 }
 
 void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
@@ -1515,27 +1516,114 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
 void TMOP_Integrator::SetFDPar(int fdorderin, int sz)
 {
-   if (fdorderin == 0)
-   {
-      der_flag = 0;
-   }
-   else
-   {
-      der_flag=1;
-      ElemDer.SetSize(sz);
-      ElemPertEnergy.SetSize(sz);
-      TSpecPerth.SetSize(sz);
-      TSpecPert2h.SetSize(sz);
-      TSpecPertMix.SetSize(sz);
-      for (int i=0; i<sz; i++)
-      {
-         ElemDer[i] = new Vector;
-         ElemPertEnergy[i] = new Vector;
-         TSpecPerth[i] = new Vector;
-         TSpecPert2h[i] = new Vector;
-         TSpecPertMix[i] = new Vector;
-      }
-   }
+    der_flag = fdorderin;
+    if (der_flag != 0)
+    {
+        ElemDer.SetSize(sz);
+        ElemPertEnergy.SetSize(sz);
+        for (int i=0; i<sz; i++)
+        {
+            ElemDer[i] = new Vector;
+            ElemPertEnergy[i] = new Vector;
+        }
+    }
+}
+
+void TMOP_Integrator::SetupElementVectorTargetSpecification(
+        const Vector &x, const FiniteElementSpace &fes)
+{
+    if (discr_tc)
+    {
+        const int dim = fes.GetFE(0)->GetDim();
+        const int cnt = x.Size()/dim;
+
+        if (TSpecPerth.Size() != x.Size())
+        {
+           TSpecPerth.SetSize(x.Size());
+        }
+
+        Vector TSpecTemp;
+        TSpecTemp.SetSize(x.Size()/dim);
+        Vector xtemp = x;
+        for (int j=0;j<dim;j++)
+        {
+            for (int i=0;i<cnt;i++)
+            {
+                xtemp(j*cnt+i) += fdeps;
+            } //loop-i
+
+            discr_tc->UpdateTargetSpecification(xtemp,TSpecTemp);
+
+            for (int i=0;i<cnt;i++)
+            {
+                TSpecPerth(j*cnt+i) = TSpecTemp(i);
+                xtemp(j*cnt+i) -= fdeps;
+            } //loop-i
+        } // loop-j
+    } // if (discr_tc)
+}
+
+void TMOP_Integrator::SetupElementGradTargetSpecification(
+        const Vector &x, const FiniteElementSpace &fes)
+{
+    if (discr_tc)
+    {
+        const int dim = fes.GetFE(0)->GetDim();
+        const int cnt = x.Size()/dim;
+
+        if (TSpecPert2h.Size() != x.Size())
+        {
+           TSpecPert2h.SetSize(x.Size());
+           TSpecPertMix.SetSize(cnt*(1+2*(dim-2)));
+        }
+
+        Vector TSpecTemp;
+        TSpecTemp.SetSize(cnt);
+        Vector xtemp = x;
+        if (TSpecMixIdx.Size()==0) {TSpecMixIdx.SetSize(dim);}
+
+        // T(x+2h)
+        for (int j=0;j<dim;j++)
+        {
+            for (int i=0;i<cnt;i++)
+            {
+                xtemp(j*cnt+i) += 2*fdeps;
+            } //loop-i
+
+            discr_tc->UpdateTargetSpecification(xtemp,TSpecTemp);
+
+            for (int i=0;i<cnt;i++)
+            {
+                TSpecPert2h(j*cnt+i) = TSpecTemp(i);
+                xtemp(j*cnt+i) -= 2*fdeps;
+            } //loop-i
+        } // loop-j
+
+        // T(x+h,y+h)
+        int idx = 0;
+        for (int k1=0; k1<dim; k1++)
+        {
+           for (int k2=0; k1!=k2 && k2<dim; k2++)
+           {
+              for (int i=0; i<cnt; i++)
+              {
+                 xtemp(k1*cnt+i) += fdeps;
+                 xtemp(k2*cnt+i) += fdeps;
+              }
+              discr_tc->UpdateTargetSpecification(xtemp,TSpecTemp);
+
+              for (int i=0; i<cnt; i++)
+              {
+                  TSpecPertMix(idx*cnt+i) = TSpecTemp(i);
+                  xtemp(k1*cnt+i) -= fdeps;
+                  xtemp(k2*cnt+i) -= fdeps;
+              }
+              TSpecMixIdx(k1,k2) = idx;
+              TSpecMixIdx(k2,k1) = idx;
+              idx += 1;
+           }
+        }
+    } // if (discr_tc)
 }
 
 double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
@@ -1543,7 +1631,7 @@ double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
                                         Vector &elfun,
                                         const int nodenum,const int idir)
 {
-   int dof = el.GetDof(), dim = el.GetDim();
+   int dof = el.GetDof();
    int idx = idir*dof+nodenum;
    elfun[idx]    += fdeps;
    double energy1 = (this)->GetElementEnergy(el, T, elfun);
@@ -1567,17 +1655,12 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    {
       ElemDer.Append(new Vector);
       ElemPertEnergy.Append(new Vector);
-      TSpecPerth.Append(new Vector);
-      TSpecPert2h.Append(new Vector);
-      TSpecPertMix.Append(new Vector);
+
    }
    if (ElemDer[elnum]->Size() != dof*dim)
    {
       ElemDer[elnum]->SetSize(dof*dim);
       ElemPertEnergy[elnum]->SetSize(dof*dim);
-      TSpecPerth[elnum]->SetSize(dof*dim);
-      TSpecPert2h[elnum]->SetSize(dof*dim);
-      TSpecPertMix[elnum]->SetSize(dof*dim*(1+2*(dim-2)));
    }
 
    DSh.SetSize(dof, dim);
@@ -1594,35 +1677,12 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    // Energy for unperturbed configuration
    elemenergy = (this)->GetElementEnergy(el, T, elfun);
 
-   // Perturb the nodes and interpolate the analytic function
-   Vector ElemPertTemp(dof);
 
    for (int j=0; j<dim; j++)
    {
       for (int i=0; i<dof; i++)
       {
-         elfunmod(j*dof+i) += fdeps;
-      }
-      if (discr_tc)
-      {
-         discr_tc->UpdateTargetSpecificationInElement(elfunmod,ElemPertTemp);
-      }
-      for (int i=0; i<dof; i++)
-      {
-         (*(TSpecPerth[T.ElementNo]))(j*dof+i) = ElemPertTemp(i);
-         elfunmod(j*dof+i) -= fdeps;
-      }
-   }
-
-   for (int j=0; j<dim; j++)
-   {
-      for (int i=0; i<dof; i++)
-      {
-         if (discr_tc)
-         {
-            discr_tc->UpdateTargetSpecificationAtNode
-            (el,T,i,j,(*(TSpecPerth[T.ElementNo])));
-         }
+         if (discr_tc) {discr_tc->UpdateTargetSpecificationAtNode(el,T,i,j,TSpecPerth);}
          elvect(j*dof+i) = (this)->GetFDDerivative(el,T,elfunmod,i,j);
          if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,i);}
       }
@@ -1651,52 +1711,6 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    Vector ElemPertTemp(dof);
    if (TSpecMixIdx.Size()==0) {TSpecMixIdx.SetSize(dim);}
 
-   for (int j=0; j<dim; j++)
-   {
-      for (int i=0; i<dof; i++)
-      {
-         elfunmod(j*dof+i) += 2*fdeps;
-      }
-      if (discr_tc)
-      {
-         discr_tc->UpdateTargetSpecificationInElement(elfunmod,ElemPertTemp);
-      }
-      for (int i=0; i<dof; i++)
-      {
-         (*(TSpecPert2h[T.ElementNo]))(j*dof+i) = ElemPertTemp(i);
-         elfunmod(j*dof+i) -= 2*fdeps;
-      }
-   }
-
-   int idx = 0;
-   for (int k1=0; k1<dim; k1++)
-   {
-      for (int k2=0; k1!=k2 && k2<dim; k2++)
-      {
-         for (int i=0; i<dof; i++)
-         {
-            elfunmod(k1*dof+i) += fdeps;
-            elfunmod(k2*dof+i) += fdeps;
-         }
-         if (discr_tc)
-         {
-            discr_tc->UpdateTargetSpecificationInElement(elfunmod,ElemPertTemp);
-         }
-         for (int i=0; i<dof; i++)
-         {
-            (*(TSpecPertMix[T.ElementNo]))(idx*dof*dim+k1*dof+i) =
-               ElemPertTemp(i);
-            (*(TSpecPertMix[T.ElementNo]))(idx*dof*dim+k2*dof+i) =
-               ElemPertTemp(i);
-            elfunmod(k1*dof+i) -= fdeps;
-            elfunmod(k2*dof+i) -= fdeps;
-         }
-         TSpecMixIdx(k1,k2) = idx;
-         TSpecMixIdx(k2,k1) = idx;
-         idx += 1;
-      }
-   }
-
    Vector ElemDerLoc = *(ElemDer[T.ElementNo]);
    Vector ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
    for (int i=0; i<dof; i++)
@@ -1711,25 +1725,21 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
 
                if (discr_tc)
                {
-                  discr_tc->UpdateTargetSpecificationAtNode
-                  (el,T,j,k2,(*(TSpecPerth[T.ElementNo])));
+                  discr_tc->UpdateTargetSpecificationAtNode(el,T,j,k2,TSpecPerth);
                   if (j!=i)
                   {
-                     discr_tc->UpdateTargetSpecificationAtNode
-                     (el,T,i,k1,(*(TSpecPerth[T.ElementNo])));
+                     discr_tc->UpdateTargetSpecificationAtNode(el,T,i,k1,TSpecPerth);
                   }
                   else   // j==i
                   {
                      if (k1!=k2)
                      {
                         int idx = TSpecMixIdx(k1,k2);
-                        discr_tc->UpdateTargetSpecificationAtNode
-                        (el,T,i,k1,idx,(*(TSpecPertMix[T.ElementNo])));
+                        discr_tc->UpdateTargetSpecificationAtNode(el,T,i,k1,idx,TSpecPertMix);
                      }
                      else   //j==i && k1==k2
                      {
-                        discr_tc->UpdateTargetSpecificationAtNode
-                        (el,T,i,k1,(*(TSpecPert2h[T.ElementNo])));
+                        discr_tc->UpdateTargetSpecificationAtNode(el,T,i,k1,TSpecPert2h);
                      }
                   }
                }
