@@ -81,10 +81,10 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
    }
 }
 
-void InitCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
-                                 const mfem::IntegrationRule &ir,
-                                 Ceed ceed, CeedBasis *basis,
-                                 CeedElemRestriction *restr)
+static void InitCeedNonTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
+                                                 const mfem::IntegrationRule &ir,
+                                                 Ceed ceed, CeedBasis *basis,
+                                                 CeedElemRestriction *restr)
 {
    mfem::Mesh *mesh = fes.GetMesh();
    const mfem::FiniteElement *fe = fes.GetFE(0);
@@ -171,10 +171,10 @@ void InitCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
-                                       const mfem::IntegrationRule &ir,
-                                       Ceed ceed, CeedBasis *basis,
-                                       CeedElemRestriction *restr)
+static void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
+                                              const mfem::IntegrationRule &ir,
+                                              Ceed ceed, CeedBasis *basis,
+                                              CeedElemRestriction *restr)
 {
    mfem::Mesh *mesh = fes.GetMesh();
    const mfem::FiniteElement *fe = fes.GetFE(0);
@@ -225,6 +225,26 @@ void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
    CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(),
                              fes.GetNDofs(), fes.GetVDim(), CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
+}
+
+void InitCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
+                                 const mfem::IntegrationRule &irm,
+                                 Ceed ceed, CeedBasis *basis,
+                                 CeedElemRestriction *restr)
+{
+   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(
+                                                                         0)) ? true : false;
+   const mfem::IntegrationRule &ir = tensor ?
+                                     mfem::IntRules.Get(mfem::Geometry::SEGMENT, irm.GetOrder()):
+                                     irm;
+   if (tensor)
+   {
+      InitCeedTensorBasisAndRestriction(fes, ir, ceed, basis, restr);
+   }
+   else
+   {
+      InitCeedNonTensorBasisAndRestriction(fes, ir, ceed, basis, restr);
+   }
 }
 
 const std::string &GetCeedPath()
