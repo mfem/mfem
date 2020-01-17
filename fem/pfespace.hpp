@@ -46,7 +46,6 @@ private:
 
    /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
    int ngvdofs, ngedofs, ngfdofs, ngdofs;
-   int* gfdofs;
 
    /// The group of each local dof.
    Array<int> ldof_group;
