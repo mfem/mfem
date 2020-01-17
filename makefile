@@ -520,9 +520,13 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*{.o,~}) \
 	   *~ libmfem.* deps.mk)
 
-distclean2: distclean
+clean2: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o)
-	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.~)
+	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~)
+	rm -f $(addprefix *~ libmfem.* deps.mk)
+
+distclean2: clean2 config/clean doc/clean
+	rm -rf mfem/
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
