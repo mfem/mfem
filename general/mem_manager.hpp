@@ -115,7 +115,7 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
-    MemoryType: DEVICE, DEVICE_UMPIRE, DEVICE_UVM or DEVICE_DEBUG).
+    MemoryType: DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE or DEVICE_MANAGED).
 
     A Memory object can hold (wrap) an externally allocated pointer with any
     given MemoryType.
