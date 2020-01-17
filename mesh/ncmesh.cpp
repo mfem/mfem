@@ -1617,7 +1617,33 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       DebugDump(f);
    }
 
+   CheckEdges();
+
    epoch++;
+}
+
+
+void NCMesh::CheckEdges()
+{
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      Element &el = elements[leaf_elements[i]];
+      GeomInfo &gi = GI[el.Geom()];
+
+      // check if edge nodes exist
+      for (int i = 0; i < gi.ne; i++)
+      {
+         const int* ev = gi.edges[i];
+         MFEM_VERIFY(nodes.FindId(el.node[ev[0]], el.node[ev[1]]) >= 0,
+                     "Leaf element " << i << " ("
+                     << el.node[0] << " " << el.node[1] << " "
+                     << el.node[2] << " " << el.node[3] << " "
+                     << el.node[4] << " " << el.node[5] << " "
+                     << el.node[6] << " " << el.node[7] << "): "
+                     << "edge node (" << el.node[ev[0]] << ", "
+                     << el.node[ev[1]] << ") not found!");
+      }
+   }
 }
 
 

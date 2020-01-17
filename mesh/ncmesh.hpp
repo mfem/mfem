@@ -599,6 +599,7 @@ protected: // implementation
    void MergeNodes();
    void MergeFaces(int dst, int src);
 
+   void CheckEdges();
    //void ReparentNode(int node, int new_p1, int new_p2);
 
    int FindMidEdgeNode(int node1, int node2) const;
