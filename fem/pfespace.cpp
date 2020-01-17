@@ -1053,7 +1053,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
    {
-      if (!Pconf)
+      if (!Pconf && NRanks > 1)
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
          {
@@ -1061,10 +1061,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
          }
          else
          {
-            if (NRanks > 1)
-            {
-               Pconf = new DeviceConformingProlongationOperator(*this);
-            }
+            Pconf = new DeviceConformingProlongationOperator(*this);
          }
       }
       return Pconf;
@@ -3434,7 +3431,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(nf>0 ? fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof():0),
+     dof(nf>0 ? fes.GetTraceElement(0,
+                                    fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof():0),
      m(m),
      nfdofs(nf*dof),
      indices1(nf*dof),

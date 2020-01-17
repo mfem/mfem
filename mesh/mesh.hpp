@@ -39,12 +39,12 @@ struct Refinement;
 enum class FaceType : bool;
 
 #ifdef MFEM_USE_MPI
-class ParMesh;
-class ParNCMesh;
+   class ParMesh;
+   class ParNCMesh;
 #endif
 
 
-class Mesh
+   class Mesh
 {
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
