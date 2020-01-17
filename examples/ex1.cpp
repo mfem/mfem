@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
    }
    else // Jacobi preconditioning in partial assembly mode
    {
-      if (dynamic_cast<const mfem::TensorBasisElement *>(fes->GetFE(0)))
+      if (dynamic_cast<const mfem::TensorBasisElement *>(fespace->GetFE(0)))
       {
          OperatorJacobiSmoother M(*a, ess_tdof_list);
          PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
