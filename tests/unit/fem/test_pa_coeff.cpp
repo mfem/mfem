@@ -325,7 +325,9 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
 	 {
 	    coeff = new FunctionCoefficient(&coeffFunction);
 	 }
-	 
+
+	 // Currently, we test only one integrator. More could be tested here
+	 // when they are implemented, using different test spaces (e.g. vector L2, H(div)).
          for (int integrator = 0; integrator < 1; ++integrator)
          {
             std::cout << "Testing " << dimension << "D ND H1 mixed partial assembly with "
