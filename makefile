@@ -519,7 +519,7 @@ $(ALL_CLEAN_SUBDIRS):
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
-	rm -f $(addprefix $(BLD),*~ libmfem.* deps.mk)
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
