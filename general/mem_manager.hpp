@@ -29,11 +29,12 @@ enum class MemoryType
    HOST,           ///< Host memory; using new[] and delete[]
    HOST_32,        ///< Host memory; aligned at 32 bytes
    HOST_64,        ///< Host memory; aligned at 64 bytes
-   HOST_DEBUG,     ///< Host memory; protected while in device mode
+   HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
    HOST_UMPIRE,    ///< Host memory; using Umpire
    HOST_MANAGED,   ///< Host memory; using *MallocManaged, *Free
    DEVICE,         ///< Device memory; using *Malloc, *Free
-   DEVICE_DEBUG,   ///< Device memory; protected while in host mode
+   DEVICE_DEBUG,   /**< Pseudo device memory; allocated on host from a
+                        "device-debug" pool */
    DEVICE_UMPIRE,  ///< Device memory; using Umpire
    DEVICE_MANAGED, ///< Device memory; using D2D copies only
    SIZE            ///< Number of host and device memory types
