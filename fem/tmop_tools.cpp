@@ -285,8 +285,8 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
    }
 }
 
-void InterpolatorFP::ComputeAtNewPositionInElement(const Vector &new_nodes,
-                                                   Vector &new_field)
+void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
+                                          Vector &new_field)
 {
    ComputeAtNewPosition(new_nodes,new_field);
 }
