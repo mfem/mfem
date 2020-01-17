@@ -12,7 +12,7 @@
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
 
-/// libCEED Q-function for building quadrature data for a diffusion operator
+/// libCEED Q-function for building quadrature data for a diffusion operator with a constant coefficient
 CEED_QFUNCTION(f_build_diff_const)(void *ctx, CeedInt Q,
                                    const CeedScalar *const *in, CeedScalar *const *out)
 {
@@ -85,6 +85,7 @@ CEED_QFUNCTION(f_build_diff_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
+/// libCEED Q-function for building quadrature data for a diffusion operator with a grid function coefficient
 CEED_QFUNCTION(f_build_diff_grid)(void *ctx, CeedInt Q,
                                   const CeedScalar *const *in, CeedScalar *const *out)
 {

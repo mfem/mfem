@@ -148,20 +148,22 @@ void ParFiniteElementSpace::Construct()
       // cut space.
       ConstructTrueDofs();
 
+      ngedofs = ngfdofs = 0;
+
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
                 * fec->DofForGeometry(Geometry::POINT);
 
-      ngedofs = ngfdofs = 0;
       if (pmesh->Dimension() > 1)
       {
          ngedofs = pncmesh->GetNGhostEdges()
                    * fec->DofForGeometry(Geometry::SEGMENT);
       }
+
       if (pmesh->Dimension() > 2)
       {
-         ngfdofs = pncmesh->GetNGhostFaces()
-                   * fec->DofForGeometry(pncmesh->GetGhostFaceGeometry(0));
+         int stride = fec->DofForGeometry(Geometry::SQUARE);
+         ngfdofs = pncmesh->GetNGhostFaces() * stride;
       }
 
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
@@ -744,6 +746,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+
 #ifdef MFEM_DEBUG
    // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());
@@ -759,6 +762,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    }
    MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
 #endif
+
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
@@ -766,7 +770,7 @@ int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const
 {
    if (Nonconforming())
    {
-      Dof_TrueDof_Matrix(); // inline method
+      Dof_TrueDof_Matrix(); // make sure P has been built
 
       return ldof_ltdof[ldof]; // NOTE: contains -1 for slaves/DOFs we don't own
    }
@@ -857,7 +861,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
    {
-      if (!Pconf)
+      if (!Pconf && NRanks > 1)
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
          {
@@ -865,10 +869,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
          }
          else
          {
-            if (NRanks > 1)
-            {
-               Pconf = new DeviceConformingProlongationOperator(*this);
-            }
+            Pconf = new DeviceConformingProlongationOperator(*this);
          }
       }
       return Pconf;
@@ -1324,20 +1325,19 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
 void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
                                              Array<int> &dofs) const
 {
-   const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
-   MFEM_ASSERT(pncmesh->GetGhostFaceGeometry(ghost_face_index)
-               == Geometry::SQUARE, "");
+   int nfv, V[4], E[4], Eo[4];
+   nfv = pmesh->pncmesh->GetFaceVerticesEdges(face_id, V, E, Eo);
 
    int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
-   int nf = fec->DofForGeometry(Geometry::SQUARE);
-   dofs.SetSize(4*nv + 4*ne + nf);
+   int nf_tri = fec->DofForGeometry(Geometry::TRIANGLE);
+   int nf_quad = fec->DofForGeometry(Geometry::SQUARE);
+   int nf = (nfv == 3) ? nf_tri : nf_quad;
 
-   int V[4], E[4], Eo[4];
-   pmesh->pncmesh->GetFaceVerticesEdges(face_id, V, E, Eo);
+   dofs.SetSize(nfv*(nv + ne) + nf);
 
    int offset = 0;
-   for (int i = 0; i < 4; i++)
+   for (int i = 0; i < nfv; i++)
    {
       int ghost = pncmesh->GetNVertices();
       int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
@@ -1347,7 +1347,7 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
       }
    }
 
-   for (int i = 0; i < 4; i++)
+   for (int i = 0; i < nfv; i++)
    {
       int ghost = pncmesh->GetNEdges();
       int first = (E[i] < ghost) ? nvdofs + E[i]*ne
@@ -1360,8 +1360,9 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
       }
    }
 
-   // Assuming all ghost faces have the same number of dofs:
-   int first = ndofs + ngvdofs + ngedofs + ghost_face_index*nf;
+   const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
+   int first = ndofs + ngvdofs + ngedofs + nf_quad*ghost_face_index;
+
    for (int j = 0; j < nf; j++)
    {
       dofs[offset++] = first + j;
@@ -1403,12 +1404,23 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
          break;
 
       default:
-         MFEM_ASSERT(!pmesh->HasGeometry(Geometry::TRIANGLE), "");
-         ned = fec->DofForGeometry(Geometry::SQUARE);
+         Geometry::Type geom = pncmesh->GetFaceGeometry(index);
+         MFEM_ASSERT(geom == Geometry::SQUARE ||
+                     geom == Geometry::TRIANGLE, "");
+
+         ned = fec->DofForGeometry(geom);
          ghost = pncmesh->GetNFaces();
-         first = (index < ghost)
-                 ? nvdofs + nedofs + index*ned // regular face
-                 : ndofs + ngvdofs + ngedofs + (index - ghost)*ned; // ghost
+
+         if (index < ghost) // regular face
+         {
+            first = nvdofs + nedofs + (fdofs ? fdofs[index] : index*ned);
+         }
+         else // ghost face
+         {
+            index -= ghost;
+            int stride = fec->DofForGeometry(Geometry::SQUARE);
+            first = ndofs + ngvdofs + ngedofs + index*stride;
+         }
          break;
    }
 
@@ -1444,14 +1456,28 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
                 : ndofs + ngvdofs + (index - ghost)*ned + edof; // ghost edge
 
       default:
-         MFEM_ASSERT(!pmesh->HasGeometry(Geometry::TRIANGLE), "");
          ghost = pncmesh->GetNFaces();
-         ned = fec->DofForGeometry(Geometry::SQUARE);
+         ned = fec->DofForGeometry(pncmesh->GetFaceGeometry(index));
 
-         return (index < ghost)
-                ? nvdofs + nedofs + index*ned + edof // regular face
-                : ndofs + ngvdofs + ngedofs + (index - ghost)*ned + edof; //ghost
+         if (index < ghost) // regular face
+         {
+            return nvdofs + nedofs + (fdofs ? fdofs[index] : index*ned) + edof;
+         }
+         else // ghost face
+         {
+            index -= ghost;
+            int stride = fec->DofForGeometry(Geometry::SQUARE);
+            return ndofs + ngvdofs + ngedofs + index*stride + edof;
+         }
    }
+}
+
+static int bisect(int* array, int size, int value)
+{
+   int* end = array + size;
+   int* pos = std::upper_bound(array, end, value);
+   MFEM_VERIFY(pos != end, "value not found");
+   return pos - array;
 }
 
 /** Dissect a DOF number to obtain the entity type (0=vertex, 1=edge, 2=face),
@@ -1479,9 +1505,17 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= nedofs;
       if (dof < nfdofs) // regular face
       {
-         MFEM_ASSERT(!pmesh->HasGeometry(Geometry::TRIANGLE), "");
-         int nf = fec->DofForGeometry(Geometry::SQUARE);
-         entity = 2, index = dof / nf, edof = dof % nf;
+         if (fdofs) // have mixed faces
+         {
+            index = bisect(fdofs+1, mesh->GetNFaces(), dof);
+            edof = dof - fdofs[index];
+         }
+         else // uniform faces
+         {
+            int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
+            index = dof / nf, edof = dof % nf;
+         }
+         entity = 2;
          return;
       }
       MFEM_ABORT("Cannot unpack internal DOF");
@@ -1505,8 +1539,9 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= ngedofs;
       if (dof < ngfdofs) // ghost face
       {
-         int nf = fec->DofForGeometry(pncmesh->GetGhostFaceGeometry(0));
-         entity = 2, index = pncmesh->GetNFaces() + dof / nf, edof = dof % nf;
+         int stride = fec->DofForGeometry(Geometry::SQUARE);
+         index = pncmesh->GetNFaces() + dof / stride, edof = dof % stride;
+         entity = 2;
          return;
       }
       MFEM_ABORT("Out of range DOF.");
@@ -1689,7 +1724,7 @@ void NeighborRowMessage::Encode(int rank)
          mfem::out << "Rank " << pncmesh->MyRank << " sending to " << rank
                    << ": ent " << ri.entity << ", index " << ri.index
                    << ", edof " << ri.edof << " (id " << id.element << "/"
-                   << id.local << ")" << std::endl;
+                   << int(id.local) << ")" << std::endl;
 #endif
 
          // handle orientation and sign change
@@ -1732,8 +1767,6 @@ void NeighborRowMessage::Decode(int rank)
    rows.clear();
    rows.reserve(nrows);
 
-   Geometry::Type fgeom = pncmesh->GetFaceGeometry();
-
    // read rows
    for (int ent = 0, gi = 0; ent < 3; ent++)
    {
@@ -1752,8 +1785,9 @@ void NeighborRowMessage::Decode(int rank)
          }
          else if (ent == 2)
          {
+            Geometry::Type geom = pncmesh->GetFaceGeometry(id.index);
             int fo = pncmesh->GetFaceOrientation(id.index);
-            ind = fec->DofOrderForOrientation(fgeom, fo);
+            ind = fec->DofOrderForOrientation(geom, fo);
          }
 
          double s = 1.0;
@@ -1842,7 +1876,7 @@ void ParFiniteElementSpace
    for (int i = 0; i < dof_group.Size(); i++)
    {
       os << i << ": ";
-      if (i < (nvdofs + nedofs + nfdofs) || i > ndofs)
+      if (i < (nvdofs + nedofs + nfdofs) || i >= ndofs)
       {
          int ent, idx, edof;
          UnpackDof(i, ent, idx, edof);
@@ -1924,15 +1958,7 @@ int ParFiniteElementSpace
          if (!list.masters.size()) { continue; }
 
          IsoparametricTransformation T;
-         if (entity > 1) { T.SetFE(&QuadrilateralFE); }
-         else { T.SetFE(&SegmentFE); }
-
-         Geometry::Type geom = (entity > 1) ?
-                               Geometry::SQUARE : Geometry::SEGMENT;
-         const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
-         if (!fe) { continue; }
-
-         DenseMatrix I(fe->GetDof());
+         DenseMatrix I;
 
          // process masters that we own or that affect our edges/faces
          for (unsigned mi = 0; mi < list.masters.size(); mi++)
@@ -1946,13 +1972,24 @@ int ParFiniteElementSpace
 
             if (!master_dofs.Size()) { continue; }
 
+            const FiniteElement* fe = fec->FiniteElementForGeometry(mf.Geom());
+            if (!fe) { continue; }
+
+            switch (mf.Geom())
+            {
+               case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
+               case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
+               case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
+               default: MFEM_ABORT("unsupported geometry");
+            }
+
             // constrain slaves that exist in our mesh
             for (int si = mf.slaves_begin; si < mf.slaves_end; si++)
             {
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               GetEntityDofs(entity, sf.index, slave_dofs);
+               GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom());
                if (!slave_dofs.Size()) { continue; }
 
                sf.OrientedPointMatrix(T.GetPointMat());
@@ -1995,6 +2032,8 @@ int ParFiniteElementSpace
                   (l == 0) ? list.conforming[i] :
                   (l == 1) ? (const MeshId&) list.masters[i]
                   /*    */ : (const MeshId&) list.slaves[i];
+
+               if (id.index < 0) { continue; }
 
                GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
                GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
@@ -2434,10 +2473,11 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
 
    // create the offdiagonal part of the matrix
    HYPRE_Int* i_offd = make_i_array(vsize);
-   for (int i = 0; i < new_elements.Size(); i++)
+   for (int i = 0, pos = 0; i < new_elements.Size(); i++)
    {
       GetElementDofs(new_elements[i], dofs);
-      const long* old_dofs = &old_remote_dofs[i * dofs.Size() * vdim];
+      const long* old_dofs = &old_remote_dofs[pos];
+      pos += dofs.Size() * vdim;
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -2493,20 +2533,34 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    MFEM_VERIFY(Nonconforming(), "Not implemented for conforming meshes.");
    MFEM_VERIFY(old_dof_offsets[nrk], "Missing previous (finer) space.");
+
+#if 0 // check no longer seems to work with NC tet refinement
    MFEM_VERIFY(dof_offsets[nrk] <= old_dof_offsets[nrk],
                "Previous space is not finer.");
+#endif
 
    // Note to the reader: please make sure you first read
    // FiniteElementSpace::RefinementMatrix, then
    // FiniteElementSpace::DerefinementMatrix, and only then this function.
    // You have been warned! :-)
 
+   Mesh::GeometryList elem_geoms(*mesh);
+
    Array<int> dofs, old_dofs, old_vdofs;
    Vector row;
 
    ParNCMesh* pncmesh = pmesh->pncmesh;
-   Geometry::Type geom = pncmesh->GetElementGeometry();
-   int ldof = fec->FiniteElementForGeometry(geom)->GetDof();
+
+   int ldof[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   {
+      ldof[i] = 0;
+   }
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      Geometry::Type geom = elem_geoms[i];
+      ldof[geom] = fec->FiniteElementForGeometry(geom)->GetDof();
+   }
 
    const CoarseFineTransformations &dtrans = pncmesh->GetDerefinementTransforms();
    const Array<int> &old_ranks = pncmesh->GetDerefineOldRanks();
@@ -2543,10 +2597,13 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       }
       else if (coarse_rank == MyRank && fine_rank != MyRank)
       {
-         DerefDofMessage &msg = messages[k];
-         msg.dofs.resize(ldof*vdim);
+         MFEM_ASSERT(emb.parent >= 0, "");
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
 
-         MPI_Irecv(&msg.dofs[0], ldof*vdim, HYPRE_MPI_INT,
+         DerefDofMessage &msg = messages[k];
+         msg.dofs.resize(ldof[geom]*vdim);
+
+         MPI_Irecv(&msg.dofs[0], ldof[geom]*vdim, HYPRE_MPI_INT,
                    fine_rank, 291, MyComm, &msg.request);
       }
       // TODO: coalesce Isends/Irecvs to the same rank. Typically, on uniform
@@ -2554,14 +2611,18 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       // from MyRank+1
    }
 
-   DenseTensor localR;
-   GetLocalDerefinementMatrices(geom, localR);
+   DenseTensor localR[Geometry::NumGeom];
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
+   }
 
    // create the diagonal part of the derefinement matrix
    SparseMatrix *diag = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
 
    Array<char> mark(diag->Height());
    mark = 0;
+
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -2572,7 +2633,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
       if (coarse_rank == MyRank && fine_rank == MyRank)
       {
-         DenseMatrix &lR = localR(emb.matrix);
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+         DenseMatrix &lR = localR[geom](emb.matrix);
 
          elem_dof->GetRow(emb.parent, dofs);
          old_elem_dof->GetRow(k, old_dofs);
@@ -2584,7 +2646,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
             for (int i = 0; i < lR.Height(); i++)
             {
-               if (lR(i, 0) == infinity()) { continue; }
+               if (!std::isfinite(lR(i, 0))) { continue; }
 
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
@@ -2602,8 +2664,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    diag->Finalize();
 
    // wait for all sends/receives to complete
-   for (std::map<int, DerefDofMessage>::iterator
-        it = messages.begin(); it != messages.end(); ++it)
+   for (auto it = messages.begin(); it != messages.end(); ++it)
    {
       MPI_Wait(&it->second.request, MPI_STATUS_IGNORE);
    }
@@ -2622,7 +2683,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
       if (coarse_rank == MyRank && fine_rank != MyRank)
       {
-         DenseMatrix &lR = localR(emb.matrix);
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+         DenseMatrix &lR = localR[geom](emb.matrix);
 
          elem_dof->GetRow(emb.parent, dofs);
 
@@ -2631,11 +2693,12 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
          for (int vd = 0; vd < vdim; vd++)
          {
-            HYPRE_Int* remote_dofs = &msg.dofs[vd*ldof];
+            MFEM_ASSERT(ldof[geom], "");
+            HYPRE_Int* remote_dofs = &msg.dofs[vd*ldof[geom]];
 
             for (int i = 0; i < lR.Height(); i++)
             {
-               if (lR(i, 0) == infinity()) { continue; }
+               if (!std::isfinite(lR(i, 0))) { continue; }
 
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
@@ -2643,7 +2706,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                if (!mark[m])
                {
                   lR.GetRow(i, row);
-                  for (int j = 0; j < ldof; j++)
+                  MFEM_ASSERT(ldof[geom] == row.Size(), "");
+                  for (int j = 0; j < ldof[geom]; j++)
                   {
                      if (row[j] == 0.0) { continue; } // NOTE: lR thresholded
                      int &lcol = col_map[remote_dofs[j]];
@@ -2673,7 +2737,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    // sure cmap is determined and sorted before the offd matrix is created
    {
       int width = offd->Width();
-      Array<Pair<int, int> > reorder(width);
+      Array<Pair<HYPRE_Int, int> > reorder(width);
       for (int i = 0; i < width; i++)
       {
          reorder[i].one = cmap[i];

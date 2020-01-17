@@ -113,7 +113,7 @@ private:
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
-   // Return the dofs associated with the interior of the given mesh entity.
+   /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;

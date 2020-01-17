@@ -10,20 +10,39 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "ceed.hpp"
+
+#ifdef MFEM_USE_CEED
 #include "../../general/device.hpp"
+#include "../../fem/gridfunc.hpp"
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#ifndef _WIN32
+typedef struct stat struct_stat;
+#else
+#define stat(dir, buf) _stat(dir, buf)
+#define S_ISDIR(mode) _S_IFDIR(mode)
+typedef struct _stat struct_stat;
+#endif
 
 namespace mfem
 {
 
-namespace internal { extern Ceed ceed; }
+namespace internal
+{
 
-#ifdef MFEM_USE_CEED
-void initCeedCoeff(Coefficient* Q, CeedData* ptr)
+extern Ceed ceed;
+
+std::string ceed_path;
+
+}
+
+void InitCeedCoeff(Coefficient* Q, CeedData* ptr)
 {
    if (ConstantCoefficient* coeff = dynamic_cast<ConstantCoefficient*>(Q))
    {
       CeedConstCoeff* ceedCoeff = new CeedConstCoeff{coeff->constant};
-      ptr->coeff_type = Const;
+      ptr->coeff_type = CeedCoeff::Const;
       ptr->coeff = (void*)ceedCoeff;
    }
    else if (GridFunctionCoefficient* coeff =
@@ -31,7 +50,7 @@ void initCeedCoeff(Coefficient* Q, CeedData* ptr)
    {
       CeedGridCoeff* ceedCoeff = new CeedGridCoeff;
       ceedCoeff->coeff = coeff->GetGridFunction();
-      ptr->coeff_type = Grid;
+      ptr->coeff_type = CeedCoeff::Grid;
       ptr->coeff = (void*)ceedCoeff;
    }
    else
@@ -62,7 +81,7 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
    }
 }
 
-void initCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
+void InitCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                                  const mfem::IntegrationRule &ir,
                                  Ceed ceed, CeedBasis *basis,
                                  CeedElemRestriction *restr)
@@ -152,7 +171,7 @@ void initCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-void initCeedBasisAndRestrictionTensor(const mfem::FiniteElementSpace &fes,
+void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                                        const mfem::IntegrationRule &ir,
                                        Ceed ceed, CeedBasis *basis,
                                        CeedElemRestriction *restr)
@@ -208,6 +227,32 @@ void initCeedBasisAndRestrictionTensor(const mfem::FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-#endif
+const std::string &GetCeedPath()
+{
+   if (internal::ceed_path.empty())
+   {
+      const char *install_dir = MFEM_INSTALL_DIR "/include/mfem/fem/libceed";
+      const char *source_dir = MFEM_SOURCE_DIR "/fem/libceed";
+      struct_stat m_stat;
+      if (stat(install_dir, &m_stat) == 0 && S_ISDIR(m_stat.st_mode))
+      {
+         internal::ceed_path = install_dir;
+      }
+      else if (stat(source_dir, &m_stat) == 0 && S_ISDIR(m_stat.st_mode))
+      {
+         internal::ceed_path = source_dir;
+      }
+      else
+      {
+         MFEM_ABORT("Cannot find libCEED kernels in MFEM_INSTALL_DIR or "
+                    "MFEM_SOURCE_DIR");
+      }
+      // Could be useful for debugging:
+      // mfem::out << "Using libCEED dir: " << internal::ceed_path << std::endl;
+   }
+   return internal::ceed_path;
+}
 
 } // namespace mfem
+
+#endif // MFEM_USE_CEED

@@ -12,27 +12,27 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(tesla
     MAIN tesla.cpp
-    EXTRA_SOURCES tesla_solver.cpp
-    EXTRA_HEADERS tesla_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
+    tesla_solver.cpp
+    tesla_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(volta
     MAIN volta.cpp
-    EXTRA_SOURCES volta_solver.cpp
-    EXTRA_HEADERS volta_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
+    volta_solver.cpp
+    volta_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
 
  add_mfem_miniapp(joule
    MAIN joule.cpp
-   EXTRA_SOURCES joule_solver.cpp
-   EXTRA_HEADERS joule_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-   LIBRARIES mfem mfem_miniapps_common)
+   joule_solver.cpp
+   joule_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+   LIBRARIES mfem mfem-common)
 
  add_mfem_miniapp(maxwell
    MAIN maxwell.cpp
-   EXTRA_SOURCES maxwell_solver.cpp
-   EXTRA_HEADERS maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-   LIBRARIES mfem mfem_miniapps_common)
+   maxwell_solver.cpp
+   maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+   LIBRARIES mfem mfem-common)
 
   # Add the corresponding tests to the "test" target
   add_test(NAME tesla_np=4

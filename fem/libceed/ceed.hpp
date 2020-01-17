@@ -12,31 +12,26 @@
 #ifndef MFEM_LIBCEED_HPP
 #define MFEM_LIBCEED_HPP
 
-#include "../gridfunc.hpp"
-#include "../fespace.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_CEED
+#include "../../general/device.hpp"
 #include <ceed.h>
-#else
-typedef void* Ceed;
-typedef int CeedInt;
-typedef double CeedScalar;
-#define CEED_QFUNCTION(name) int name
-#endif
 
 namespace mfem
 {
 
-#ifdef MFEM_USE_CEED
+class FiniteElementSpace;
+class GridFunction;
+class IntegrationRule;
+class Coefficient;
 
-namespace internal { extern Ceed ceed; }
+namespace internal { extern Ceed ceed; } // defined in device.cpp
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
 
-// struct BuildContextConstCoeff { CeedInt dim, space_dim; CeedScalar coeff; };
-
-enum CeedCoeff { Const, Grid };
+enum class CeedCoeff { Const, Grid };
 
 struct CeedConstCoeff
 {
@@ -63,24 +58,81 @@ struct CeedData
    BuildContext build_ctx;
 
    CeedVector u, v;
+
+   ~CeedData()
+   {
+      CeedOperatorDestroy(&build_oper);
+      CeedOperatorDestroy(&oper);
+      CeedBasisDestroy(&basis);
+      CeedBasisDestroy(&mesh_basis);
+      CeedElemRestrictionDestroy(&restr);
+      CeedElemRestrictionDestroy(&mesh_restr);
+      CeedElemRestrictionDestroy(&restr_i);
+      CeedElemRestrictionDestroy(&mesh_restr_i);
+      CeedQFunctionDestroy(&apply_qfunc);
+      CeedQFunctionDestroy(&build_qfunc);
+      CeedVectorDestroy(&node_coords);
+      CeedVectorDestroy(&rho);
+      if (coeff_type==CeedCoeff::Grid)
+      {
+         CeedGridCoeff* c = (CeedGridCoeff*)coeff;
+         CeedBasisDestroy(&c->basis);
+         CeedElemRestrictionDestroy(&c->restr);
+         CeedVectorDestroy(&c->coeffVector);
+         delete c;
+      }
+      else
+      {
+         delete (CeedConstCoeff*)coeff;
+      }
+      CeedVectorDestroy(&u);
+      CeedVectorDestroy(&v);
+   }
+
 };
 
-void initCeedCoeff(Coefficient* Q, CeedData* ptr);
 
-void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
-                  const mfem::IntegrationRule &ir,
-                  Ceed ceed, CeedBasis *basis,
-                  CeedElemRestriction *restr);
+/** @brief Identifies the type of coefficient of the Integrator to initialize
+    accordingly the CeedData. */
+void InitCeedCoeff(Coefficient* Q, CeedData* ptr);
 
-void FESpace2CeedTensor(const mfem::FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &ir,
-                        Ceed ceed, CeedBasis *basis,
-                        CeedElemRestriction *restr);
+/// Initialize a tensor CeedBasis and a CeedElemRestriction
+void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
+                                       const IntegrationRule &ir,
+                                       Ceed ceed, CeedBasis *basis,
+                                       CeedElemRestriction *restr);
 
-#else
-typedef void* CeedData;
-#endif
+/// Initialize a non-tensor CeedBasis and a CeedElemRestriction
+void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
+                                 const IntegrationRule &ir,
+                                 Ceed ceed, CeedBasis *basis,
+                                 CeedElemRestriction *restr);
 
+/// Return the path to the libCEED q-function headers.
+const std::string &GetCeedPath();
+
+/** @brief Function that determines if a CEED kernel should be used, based on
+    the current mfem::Device configuration. */
+inline bool DeviceCanUseCeed()
+{
+   return Device::Allows(Backend::CEED_CUDA) ||
+          (Device::Allows(Backend::CEED_CPU) &&
+           !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
 }
+
+} // namespace mfem
+
+#else // MFEM_USE_CEED
+
+namespace mfem
+{
+inline bool DeviceCanUseCeed()
+{
+   return false;
+}
+
+} // namespace mfem
+
+#endif // MFEM_USE_CEED
 
 #endif // MFEM_LIBCEED_HPP

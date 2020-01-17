@@ -9,22 +9,23 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "ceed.hpp"
-#include "../../general/device.hpp"
+#include "mass.hpp"
 
+#ifdef MFEM_USE_CEED
+#include "../../general/device.hpp"
+#include "../../mesh/mesh.hpp"
+#include "../../fem/gridfunc.hpp"
+#include "ceed.hpp"
 #include "mass.h"
 
 namespace mfem
 {
-
-#ifdef MFEM_USE_CEED
 
 void CeedPAMassAssemble(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
-   const int order = fes.GetOrder(0);
    const int ir_order = irm.GetOrder();
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
 
@@ -36,12 +37,12 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                                      irm;
    if (tensor)
    {
-      initCeedBasisAndRestrictionTensor(fes, ir, ceed, &ceedData.basis,
+      InitCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis,
                                         &ceedData.restr);
    }
    else
    {
-      initCeedBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+      InitCeedBasisAndRestriction(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
    }
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
@@ -53,12 +54,12 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                                           irm;
    if (mesh_tensor)
    {
-      initCeedBasisAndRestrictionTensor(*mesh_fes, mesh_ir, ceed,
+      InitCeedTensorBasisAndRestriction(*mesh_fes, mesh_ir, ceed,
                                         &ceedData.mesh_basis, &ceedData.mesh_restr);
    }
    else
    {
-      initCeedBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis,
+      InitCeedBasisAndRestriction(*mesh_fes, mesh_ir, ceed, &ceedData.mesh_basis,
                                   &ceedData.mesh_restr);
    }
 
@@ -79,26 +80,33 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    ceedData.build_ctx.dim = mesh->Dimension();
    ceedData.build_ctx.space_dim = mesh->SpaceDimension();
 
+   std::string mass_qf_file = GetCeedPath() + "/mass.h";
+   std::string mass_qf;
+
    // Create the Q-function that builds the mass operator (i.e. computes its
    // quadrature data) and set its context data.
    switch (ceedData.coeff_type)
    {
-      case Const:
+      case CeedCoeff::Const:
+         mass_qf = mass_qf_file + ":f_build_mass_const";
          CeedQFunctionCreateInterior(ceed, 1, f_build_mass_const,
-                                     MFEM_SOURCE_DIR"/fem/libceed/mass.h:f_build_mass_const",
+                                     mass_qf.c_str(),
                                      &ceedData.build_qfunc);
          ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
          break;
-      case Grid:
+      case CeedCoeff::Grid:
+         mass_qf = mass_qf_file + ":f_build_mass_grid";
          CeedQFunctionCreateInterior(ceed, 1, f_build_mass_grid,
-                                     MFEM_SOURCE_DIR"/fem/libceed/mass.h:f_build_mass_grid",
+                                     mass_qf.c_str(),
                                      &ceedData.build_qfunc);
          CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
          break;
       default:
          MFEM_ABORT("This coeff_type is not handled");
    }
-   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", dim*dim, CEED_EVAL_GRAD);
+   CeedQFunctionAddInput(ceedData.build_qfunc, "dx",
+                         mesh->SpaceDimension()*mesh->SpaceDimension(),
+                         CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
    CeedQFunctionAddOutput(ceedData.build_qfunc, "rho", 1, CEED_EVAL_NONE);
    CeedQFunctionSetContext(ceedData.build_qfunc, &ceedData.build_ctx,
@@ -112,17 +120,18 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    {
       lmode = CEED_TRANSPOSE;
    }
-   if (ceedData.coeff_type==Grid)
+   if (ceedData.coeff_type==CeedCoeff::Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      initCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed,
-                                  &ceedCoeff->basis,
-                                  &ceedCoeff->restr);
+      InitCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed,
+                                        &ceedCoeff->basis,
+                                        &ceedCoeff->restr);
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
                          ceedCoeff->coeff->GetData());
-      CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr, lmode,
+      CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr,
+                           CEED_NOTRANSPOSE,
                            ceedCoeff->basis, ceedCoeff->coeffVector);
    }
    CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, lmode,
@@ -139,8 +148,9 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                      CEED_REQUEST_IMMEDIATE);
 
    // Create the Q-function that defines the action of the mass operator.
+   mass_qf = mass_qf_file + ":f_apply_mass";
    CeedQFunctionCreateInterior(ceed, 1, f_apply_mass,
-                               MFEM_SOURCE_DIR"/fem/libceed/mass.h:f_apply_mass", &ceedData.apply_qfunc);
+                               mass_qf.c_str(), &ceedData.apply_qfunc);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "u", 1, CEED_EVAL_INTERP);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "rho", 1, CEED_EVAL_NONE);
    CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", 1, CEED_EVAL_INTERP);
@@ -158,6 +168,6 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
 
-#endif
+} // namespace mfem
 
-}
+#endif // MFEM_USE_CEED

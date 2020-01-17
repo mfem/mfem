@@ -35,6 +35,7 @@ option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GECKO "Enable GECKO usage" OFF)
+option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
@@ -42,9 +43,11 @@ option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
+option(MFEM_USE_HIOP "Enable HiOp" OFF)
 option(MFEM_USE_CUDA "Enable CUDA" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
+option(MFEM_USE_CEED "Enable CEED" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
@@ -81,7 +84,7 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
-set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-3.0.0" CACHE PATH
+set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
     "Path to the SUNDIALS library.")
 # The following may be necessary, if SUNDIALS was built with KLU:
 # set(SUNDIALS_REQUIRED_PACKAGES "SuiteSparse/KLU/AMD/BTF/COLAMD/config"
@@ -136,6 +139,8 @@ set(ScaLAPACK_TARGET_NAMES scalapack)
 
 set(GECKO_DIR "${MFEM_DIR}/../gecko" CACHE PATH "Path to the Gecko library.")
 
+set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
+
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
 set(NETCDF_DIR "" CACHE PATH "Path to the NetCDF library.")
@@ -154,14 +159,20 @@ set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
 
 set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
-set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
+set(Axom_REQUIRED_PACKAGES "Conduit/relay/blueprint" CACHE STRING
     "Additional packages required by Axom.")
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
     "Directory where PUMI is installed")
 
+set(HIOP_DIR "${MFEM_DIR}/../hiop/install" CACHE STRING
+    "Directory where HiOp is installed")
+set(HIOP_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
+    "Packages that HiOp depends on.")
+
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
+set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
