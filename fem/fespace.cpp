@@ -3264,7 +3264,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
       (tfe->GetBasisType()==BasisType::GaussLobatto || tfe->GetBasisType()==BasisType::Positive),
-      "Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.");
+      "Only Gauss-Lobatto and Bernstein basis are supported in H1FaceRestriction.");
    // Assuming all finite elements are using Gauss-Lobatto.
    height = vdim*nf*dof;
    width = fes.GetVSize();
@@ -3285,7 +3285,6 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
       const Array<int> &fe_dof_map = el->GetDofMap();
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
    }
-   const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(fe);
    const int *dof_map = el->GetDofMap().GetData();
