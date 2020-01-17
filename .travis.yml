@@ -11,8 +11,7 @@ jobs:
     - stage: checks
       script:
         - cd ${TRAVIS_BUILD_DIR}
-        - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2
-        - make all -j3
+        - make serial
         - git status -s
         - make distclean
         - git status -s
