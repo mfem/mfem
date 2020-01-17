@@ -487,7 +487,7 @@ public:
  *  Renumbering the blocks is also supported by specifying a reordering method.
  *  Currently greedy minimum discarded fill ordering and no reordering are
  *  supported. Renumbering the blocks can lead to a much better approximate
- *  factoriation.
+ *  factorization.
  */
 class BlockILU : public Solver
 {
