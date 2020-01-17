@@ -1757,10 +1757,10 @@ public:
                                       const Vector &elfun, Vector &elvect);
 
    virtual void SetupElementVectorTargetSpecification(const Vector &x,
-           const FiniteElementSpace &fes);
+                                                      const FiniteElementSpace &fes) {};
 
    virtual void SetupElementGradTargetSpecification(const Vector &x,
-           const FiniteElementSpace &fes);
+                                                    const FiniteElementSpace &fes) {};
 
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
@@ -2252,10 +2252,10 @@ public:
                                       const Vector &elfun, Vector &elvect);
 
    virtual void SetupElementVectorTargetSpecification(const Vector &x,
-                                                      const FiniteElementSpace &fes);
+                                                      const FiniteElementSpace &fes) {};
 
    virtual void SetupElementGradTargetSpecification(const Vector &x,
-                                                    const FiniteElementSpace &fes);
+                                                    const FiniteElementSpace &fes) {};
                                                     
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;

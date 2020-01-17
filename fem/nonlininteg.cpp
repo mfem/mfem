@@ -466,20 +466,6 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    }
 }
 
-void HyperelasticNLFIntegrator::SetupElementVectorTargetSpecification(
-        const Vector &x, const FiniteElementSpace &fes)
-{
-   mfem_error("HyperelasticNLFIntegrator::SetupElementGradTargetSpecification"
-               " is not overloaded!");
-}
-
-void HyperelasticNLFIntegrator::SetupElementGradTargetSpecification(
-        const Vector &x, const FiniteElementSpace &fes)
-{
-   mfem_error("HyperelasticNLFIntegrator::SetupElementGradTargetSpecification"
-               " is not overloaded!");
-}
-
 double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,

@@ -689,20 +689,6 @@ double DiffusionIntegrator::ComputeFluxEnergy
    return energy;
 }
 
-void DiffusionIntegrator::SetupElementVectorTargetSpecification(const Vector &x,
-        const FiniteElementSpace &fes)
-{
-    mfem_error("DiffusionIntegrator::SetupElementVectorTargetSpecification"
-           " is not overloaded!");
-}
-
-void DiffusionIntegrator::SetupElementGradTargetSpecification(const Vector &x,
-        const FiniteElementSpace &fes)
-{
-    mfem_error("DiffusionIntegrator::SetupElementGradTargetSpecification"
-           " is not overloaded!");
-}
-
 const IntegrationRule &DiffusionIntegrator::GetRule(
    const FiniteElement &trial_fe, const FiniteElement &test_fe)
 {
@@ -2171,20 +2157,6 @@ void VectorDiffusionIntegrator::AssembleElementVector(
       MultABt(pelmat, gshape, Jinv);
       AddMultABt(dshape, Jinv, mat_out);
    }
-}
-
-void VectorDiffusionIntegrator::SetupElementVectorTargetSpecification(const Vector &x,
-                                                                      const FiniteElementSpace &fes)
-{
-    mfem_error("VectorDiffusionIntegrator::SetupElementVectorTargetSpecification"
-           " is not overloaded!");
-}
-
-void VectorDiffusionIntegrator::SetupElementGradTargetSpecification(const Vector &x,
-                                                                    const FiniteElementSpace &fes)
-{
-    mfem_error("VectorDiffusionIntegrator::SetupElementGradTargetSpecification"
-           " is not overloaded!");
 }
 
 void ElasticityIntegrator::AssembleElementMatrix(
