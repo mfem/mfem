@@ -259,8 +259,8 @@ public:
          K(1, 1) =  cos(theta);
 
          K *= alpha_bar;
-//clear;make mesh-optimizer;./mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 20 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 2 -fdo 1
-         }
+         //clear;make mesh-optimizer;./mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 20 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 2 -fdo 1
+      }
       else if (typemod == 3)
       {
          Vector x = pos;
@@ -270,16 +270,16 @@ public:
          double yn = -sin(th)*xc + cos(th)*yc;
          double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
          double stretch = 1/cos(th2);
-         xc = xn/stretch;yc = yn/stretch;
-         xc = xn;yc=yn;
+         xc = xn/stretch; yc = yn/stretch;
+         xc = xn; yc=yn;
 
          double tfac = 20;
          double s1 = 3;
          double s2 = 2;
          double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
-                    - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
-         if (wgt > 1) wgt = 1;
-         if (wgt < 0) wgt = 0;
+                      - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
          double  val = wgt;
 
          xc = pos(0), yc = pos(1);
@@ -298,8 +298,8 @@ public:
          K(0, 1) *=  pow(asp_ratio_tar,0.5);
          K(1, 1) *=  pow(asp_ratio_tar,0.5);
 
-// This example works with a shape+alignment metric only because we don't know what the size is
-//clear;make pmesh-optimizer;mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 20 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 2 -fdo 1
+         // This example works with a shape+alignment metric only because we don't know what the size is
+         //clear;make pmesh-optimizer;mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 20 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 2 -fdo 1
       }
    }
 };
@@ -564,7 +564,7 @@ int main (int argc, char *argv[])
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
-   H1_FECollection ind_fec(3, dim);
+   H1_FECollection ind_fec(mesh_poly_deg, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParGridFunction size;
    switch (target_id)
@@ -599,20 +599,20 @@ int main (int argc, char *argv[])
       }
       case 6:
       {
-        target_t = TargetConstructor::GIVEN_ORIENTATION;
-        DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-        size.SetSpace(&ind_fes);
-        FunctionCoefficient ind_coeff(ori_values);
-        size.ProjectCoefficient(ind_coeff);
+         target_t = TargetConstructor::GIVEN_ORIENTATION;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         size.SetSpace(&ind_fes);
+         FunctionCoefficient ind_coeff(ori_values);
+         size.ProjectCoefficient(ind_coeff);
 #ifdef MFEM_USE_GSLIB
-        tc->SetAdaptivityEvaluator(new InterpolatorFP(true));
+         tc->SetAdaptivityEvaluator(new InterpolatorFP(true));
 #else
-        tc->SetAdaptivityEvaluator(new AdvectorCG);
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
 #endif
-        tc->SetParDiscreteTargetSpec(size);
-        target_c = tc;
-        break;
-   }
+         tc->SetParDiscreteTargetSpec(size);
+         target_c = tc;
+         break;
+      }
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
@@ -625,6 +625,10 @@ int main (int argc, char *argv[])
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
    he_nlf_integ->SetFDPar(fd_order, pmesh->GetNE());
+   if (target_id >= 5)
+   {
+      he_nlf_integ->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
+   }
 
    // 13. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -808,7 +812,7 @@ int main (int argc, char *argv[])
    {
       tauval = 0.0;
       TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir);
-      if (target_id == 5)
+      if (target_id >= 5)
       {
          tns->AddDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
       }
