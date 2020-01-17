@@ -9,26 +9,23 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MESH_EXTRAS
-#define MFEM_MESH_EXTRAS
+#ifndef MFEM_LIBCEED_MASS_HPP
+#define MFEM_LIBCEED_MASS_HPP
 
-#include "mfem.hpp"
-#include <sstream>
+#include "ceed.hpp"
+
+#ifdef MFEM_USE_CEED
+#include "../fespace.hpp"
 
 namespace mfem
 {
 
-namespace common
-{
+/// Initialize a Mass Integrator using libCEED
+void CeedPAMassAssemble(const FiniteElementSpace &fes,
+                        const mfem::IntegrationRule &ir,  CeedData& ceedData);
 
-class ElementMeshStream : public std::stringstream
-{
-public:
-   ElementMeshStream(Element::Type e);
-};
+}
 
-} // namespace common
+#endif // MFEM_USE_CEED
 
-} // namespace mfem
-
-#endif
+#endif // MFEM_LIBCEED_MASS_HPP
