@@ -878,7 +878,10 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    {
       if (Pconf) { return Pconf; }
 
-      if (NRanks == 1) { Pconf = new IdentityOperator(GetTrueVSize()); }
+      if (NRanks == 1)
+      {
+         Pconf = new IdentityOperator(GetTrueVSize());
+      }
       else
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
