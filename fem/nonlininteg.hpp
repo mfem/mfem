@@ -268,10 +268,10 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 
    virtual void SetupElementVectorTargetSpecification(
-           const Vector &x, const FiniteElementSpace &fes);
+           const Vector &x, const FiniteElementSpace &fes) {};
 
    virtual void SetupElementGradTargetSpecification(const Vector &x,
-           const FiniteElementSpace &fes);
+                                                    const FiniteElementSpace &fes) {};
 
 };
 
@@ -304,6 +304,12 @@ public:
                                     ElementTransformation &Tr,
                                     const Array<const Vector *> &elfun,
                                     const Array2D<DenseMatrix *> &elmats);
+
+   virtual void SetupElementVectorTargetSpecification(
+           const Vector &x, const FiniteElementSpace &fes) {};
+
+   virtual void SetupElementGradTargetSpecification(const Vector &x,
+                                                    const FiniteElementSpace &fes) {};
 };
 
 }
