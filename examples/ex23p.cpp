@@ -41,16 +41,16 @@ class Surface: public Mesh
 protected:
    T *S;
    Array<int> &bc;
-   int Order, Nx, Ny, Nr, Sdim;
-   H1_FECollection *fec = nullptr;
+   int order, nx, ny, nr, sdim;
    ParMesh *pmesh = nullptr;
+   H1_FECollection *fec = nullptr;
    ParFiniteElementSpace *pfes = nullptr;
 public:
 
    // Reading from mesh file
    Surface(Array<int> &b, int order, const char *file, int nr, int sdim):
       Mesh(file, true), S(static_cast<T*>(this)),
-      bc(b), Order(order), Nr(nr), Sdim(sdim)
+      bc(b), order(order), nr(nr), sdim(sdim)
    {
       EnsureNodes();
       S->Postfix();
@@ -63,7 +63,7 @@ public:
    Surface(Array<int> &b, int order, int nx, int ny, int nr, int sdim):
       Mesh(nx, ny, Element::QUADRILATERAL, true, 1.0, 1.0, false),
       S(static_cast<T*>(this)),
-      bc(b), Order(order), Nx(nx), Ny(ny), Nr(nr), Sdim(sdim)
+      bc(b), order(order), nx(nx), ny(ny), nr(nr), sdim(sdim)
    {
       EnsureNodes();
       S->Prefix();
@@ -72,11 +72,11 @@ public:
       S->Refine();
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
-      SetCurvature(Order, false, 3, Ordering::byVDIM);
+      SetCurvature(order, false, 3, Ordering::byVDIM);
       GridFunction &nodes = *GetNodes();
       for (int i = 0; i < nodes.Size(); i++)
       { if (std::abs(nodes(i)) < eps) { nodes(i) = 0.0; } }
-      SetCurvature(Order, false, 3, Ordering::byNODES);
+      SetCurvature(order, false, 3, Ordering::byNODES);
       GenFESpace();
       S->BoundaryConditions();
    }
@@ -85,7 +85,7 @@ public:
    Surface(Array<int> &b, int order, int nr,
            int NVert, int NElem, int NBdrElem, int sdim):
       Mesh(2, NVert, NElem, NBdrElem, 3), S(static_cast<T*>(this)),
-      bc(b), Order(order), Nx(NVert), Ny(NElem), Nr(nr), Sdim(sdim)
+      bc(b), order(order), nx(NVert), ny(NElem), nr(nr), sdim(sdim)
    {
       S->Generate();
       S->Postfix();
@@ -96,19 +96,13 @@ public:
 
    ~Surface() { delete fec; delete pfes; }
 
-   void Prefix() { SetCurvature(Order, false, 3, Ordering::byNODES); }
+   void Prefix() { SetCurvature(order, false, 3, Ordering::byNODES); }
 
    void Generate() { Transform(T::Parametrization); }
 
-   void Postfix() { SetCurvature(Order, false, 3, Ordering::byNODES); }
+   void Postfix() { SetCurvature(order, false, 3, Ordering::byNODES); }
 
-   void Refine()
-   {
-      for (int l = 0; l < Nr; l++) { UniformRefinement(); }
-      // Adaptive mesh refinement
-      //if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
-      //PrintCharacteristics();
-   }
+   void Refine() { for (int l = 0; l < nr; l++) { UniformRefinement(); } }
 
    void  BoundaryConditions()
    {
@@ -122,14 +116,14 @@ public:
 
    void GenFESpace()
    {
-      fec = new H1_FECollection(Order, 2);
+      fec = new H1_FECollection(order, 2);
       pmesh = new ParMesh(MPI_COMM_WORLD, *this);
-      pfes = new ParFiniteElementSpace(pmesh, fec, Sdim);
+      pfes = new ParFiniteElementSpace(pmesh, fec, sdim);
    }
 
-   ParMesh *Pmesh() { return pmesh; }
+   ParMesh *Pmesh() const { return pmesh; }
 
-   ParFiniteElementSpace *Pfes() { return pfes; }
+   ParFiniteElementSpace *Pfes() const { return pfes; }
 };
 
 // Mesh file surface
@@ -157,14 +151,14 @@ struct Catenoid: public Surface<Catenoid>
    // Postfix of the Catenoid surface
    void Postfix()
    {
-      SetCurvature(Order, false, 3, Ordering::byNODES);
+      SetCurvature(order, false, 3, Ordering::byNODES);
       Array<int> v2v(GetNV());
       for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
       // identify vertices on vertical lines
-      for (int j = 0; j <= Ny; j++)
+      for (int j = 0; j <= ny; j++)
       {
-         const int v_old = Nx + j * (Nx + 1);
-         const int v_new =      j * (Nx + 1);
+         const int v_old = nx + j * (nx + 1);
+         const int v_new =      j * (nx + 1);
          v2v[v_old] = v_new;
       }
       // renumber elements
@@ -334,7 +328,7 @@ struct QPeach: public Surface<QPeach>
 struct FPeach: public Surface<FPeach>
 {
    FPeach(Array<int> &bc, int order, int nr, int sdim):
-      Surface<FPeach>(bc, order, nr, 8, 6, 6, sdim) {}
+      Surface<FPeach>(bc, order, nr, 8, 6, 6, sdim) { }
    void Generate()
    {
       const double quad_v[8][3] =
@@ -348,12 +342,12 @@ struct FPeach: public Surface<FPeach>
          {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}
 
       };
-      for (int j = 0; j < Nx; j++) { AddVertex(quad_v[j]); }
-      for (int j = 0; j < Ny; j++) { AddQuad(quad_e[j], j+1); }
-      for (int j = 0; j < Ny; j++) { AddBdrQuad(quad_e[j], j+1); }
+      for (int j = 0; j < nx; j++) { AddVertex(quad_v[j]); }
+      for (int j = 0; j < ny; j++) { AddQuad(quad_e[j], j+1); }
+      for (int j = 0; j < ny; j++) { AddBdrQuad(quad_e[j], j+1); }
       FinalizeQuadMesh(1, 1, true);
       UniformRefinement();
-      SetCurvature(Order, false, 3, Ordering::byNODES);
+      SetCurvature(order, false, 3, Ordering::byNODES);
       // Snap the nodes to the unit sphere
       const int mesh_sdim = SpaceDimension();
       GridFunction &nodes = *GetNodes();
@@ -368,7 +362,7 @@ struct FPeach: public Surface<FPeach>
       }
    }
 
-   void BC()
+   void BoundaryConditions()
    {
       double X[3];
       Array<int> dofs;
@@ -386,7 +380,7 @@ struct FPeach: public Surface<FPeach>
             const bool halfX = fabs(X[0]) < eps && X[1] <= 0;
             const bool halfY = fabs(X[2]) < eps && X[1] >= 0;
             const bool is_on_bc = halfX || halfY;
-            for (int d = 0; d < Sdim; d++)
+            for (int d = 0; d < sdim; d++)
             { ess_cdofs[pfes->DofToVDof(k, d)] = is_on_bc; }
          }
       }
@@ -398,9 +392,11 @@ struct FPeach: public Surface<FPeach>
 };
 
 // Full Peach street model
-struct SlottedSphere: public Mesh
+struct SlottedSphere: public Surface<SlottedSphere> //Mesh
 {
-   SlottedSphere(Array<int> &bc, int order, int nr)
+   SlottedSphere(Array<int> &bc, int order, int nr, int sdim):
+      Surface<SlottedSphere>(bc, order, nr, 0, 0, 0, sdim) { }
+   void Generate()
    {
       const double delta = 0.15;
       static const int nv1d = 4;
@@ -518,7 +514,10 @@ struct SlottedSphere: public Mesh
          for (int d = 0; d < mesh_sdim; d++)
          { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
       }
+   }
 
+   void BoundaryConditions()
+   {
       if (bdr_attributes.Size())
       {
          Array<int> ess_bdr(bdr_attributes.Max());
@@ -603,15 +602,17 @@ public:
    void Solve()
    {
       if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));/*
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
       for (int iiter=0; iiter<niter; ++iiter)
       {
          a.Assemble();
-         GridFunction solution = *nodes;
+         ParGridFunction nodes;
+         pmesh->GetNodes(nodes);
+         GridFunction solution = nodes;
          for (int i=0; i < 3; ++i)
          {
             x = b = 0.0;
-            GetComponent(*nodes, x, i);
+            GetComponent(nodes, x, i);
             a.FormLinearSystem(dbc, x, b, A, X, B);
             if (!pa)
             {
@@ -628,12 +629,13 @@ public:
             a.RecoverFEMSolution(X, b, x);
             SetComponent(solution, x, i);
          }
-         *nodes = solution;
+         nodes = solution;
+         pmesh->SetNodes(nodes);
          // Send the solution by socket to a GLVis server.
-         if (vis) { Visualize(pmesh, x, pause); }
+         if (vis) { Visualize(pmesh, pause); }
          pmesh->DeleteGeometricFactors();
          a.Update();
-      }*/
+      }
    }
 public:
    void SetComponent(GridFunction &X, const GridFunction &Xi, const int d)
@@ -689,8 +691,8 @@ public:
          pmesh->SetNodes(x);
          // Send the solution by socket to a GLVis server.
          if (vis) { Visualize(pmesh, pause); }
-         a.Update();
          pmesh->DeleteGeometricFactors();
+         a.Update();
       }
    }
 };
@@ -784,7 +786,7 @@ int main(int argc, char *argv[])
    if (s == 5) { mesh = new Hold(bc, order, nx, ny, nr, sdim); }
    if (s == 6) { mesh = new QPeach(bc, order, nx, ny, nr, sdim); }
    if (s == 7) { mesh = new FPeach(bc, order, nr, sdim); }
-   if (s == 8) { mesh = new SlottedSphere(bc, order, nr); }
+   if (s == 8) { mesh = new SlottedSphere(bc, order, nr, sdim); }
    MFEM_VERIFY(mesh, "Not a valid surface number!");
 
    Surface<> &surface = *static_cast<Surface<>*>(mesh);
