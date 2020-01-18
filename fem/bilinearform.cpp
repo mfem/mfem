@@ -615,7 +615,7 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
       MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
                   "Vector for holding diagonal has wrong size!");
       const Operator *P = fes->GetProlongationMatrix();
-      if (P)
+      if (!IsIdentityProlongation(P))
       {
          Vector local_diag(P->Height());
          ext->AssembleDiagonal(local_diag);
