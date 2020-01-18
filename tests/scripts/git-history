@@ -71,7 +71,7 @@ while read -r rev; do
         if [ -e $fname ] # exclude deleted files
         then
             # Report binary files (non-text files as reported by "file")
-            binary="$(file -b ${fname} | grep -v 'PNG image' | grep -v 'text')"
+            binary="$(file -b ${fname} | grep -v 'text')"
             if [ -n "${binary}" ] # non-empty files
             then
                 echo "Commit ${rev} contains a binary file: ${fname} (${binary})" 1>&2
