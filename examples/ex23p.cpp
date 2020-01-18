@@ -67,7 +67,7 @@ public:
    {
       EnsureNodes();
       S->Prefix();
-      S->Generate();
+      S->Create();
       S->Postfix();
       S->Refine();
       RemoveUnusedVertices();
@@ -87,7 +87,7 @@ public:
       Mesh(2, NVert, NElem, NBdrElem, 3), S(static_cast<T*>(this)),
       bc(b), order(order), nx(NVert), ny(NElem), nr(nr), sdim(sdim)
    {
-      S->Generate();
+      S->Create();
       S->Postfix();
       S->Refine();
       S->GenFESpace();
@@ -98,7 +98,7 @@ public:
 
    void Prefix() { SetCurvature(order, false, 3, Ordering::byNODES); }
 
-   void Generate() { Transform(T::Parametrization); }
+   void Create() { Transform(T::Parametrization); }
 
    void Postfix() { SetCurvature(order, false, 3, Ordering::byNODES); }
 
@@ -329,7 +329,7 @@ struct FPeach: public Surface<FPeach>
 {
    FPeach(Array<int> &bc, int order, int nr, int sdim):
       Surface<FPeach>(bc, order, nr, 8, 6, 6, sdim) { }
-   void Generate()
+   void Create()
    {
       const double quad_v[8][3] =
       {
@@ -392,11 +392,11 @@ struct FPeach: public Surface<FPeach>
 };
 
 // Full Peach street model
-struct SlottedSphere: public Surface<SlottedSphere> //Mesh
+struct SlottedSphere: public Surface<SlottedSphere>
 {
    SlottedSphere(Array<int> &bc, int order, int nr, int sdim):
       Surface<SlottedSphere>(bc, order, nr, 0, 0, 0, sdim) { }
-   void Generate()
+   void Create()
    {
       const double delta = 0.15;
       static const int nv1d = 4;
@@ -603,16 +603,15 @@ public:
    {
       if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      GridFunction solution(pfes);
       for (int iiter=0; iiter<niter; ++iiter)
       {
          a.Assemble();
-         ParGridFunction nodes;
-         pmesh->GetNodes(nodes);
-         GridFunction solution = nodes;
+         pmesh->GetNodes(solution);
          for (int i=0; i < 3; ++i)
          {
             x = b = 0.0;
-            GetComponent(nodes, x, i);
+            GetComponent(solution, x, i);
             a.FormLinearSystem(dbc, x, b, A, X, B);
             if (!pa)
             {
@@ -622,15 +621,13 @@ public:
             }
             else
             {
-               mfem_error("Should use parallel CG!");
-               CG(*A, B, X, 3, 2000, eps, 0.0);
+               ParCG(*A, B, X, 3, 2000, eps, 0.0);
             }
             // Recover the solution as a finite element grid function.
             a.RecoverFEMSolution(X, b, x);
             SetComponent(solution, x, i);
          }
-         nodes = solution;
-         pmesh->SetNodes(nodes);
+         pmesh->SetNodes(solution);
          // Send the solution by socket to a GLVis server.
          if (vis) { Visualize(pmesh, pause); }
          pmesh->DeleteGeometricFactors();
@@ -675,7 +672,6 @@ public:
          b = 0.0;
          pmesh->GetNodes(x);
          a.FormLinearSystem(dbc, x, b, A, X, B);
-
          if (!pa)
          {
             // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
@@ -684,7 +680,7 @@ public:
          }
          else
          {
-            ParCG(*A, B, X, 3, 8000, 1.e-14, 0.0);
+            ParCG(*A, B, X, 3, 2000, eps, 0.0);
          }
          // Recover the solution as a finite element grid function.
          a.RecoverFEMSolution(X, b, x);
