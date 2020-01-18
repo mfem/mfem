@@ -489,14 +489,14 @@ check: lib
 	@$(MAKE) -C $(BLD)examples \
 	$(if $(findstring YES,$(MFEM_USE_MPI)),ex1p-test-par,ex1-test-seq)
 
-test:
+test test-noclean:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples, miniapps, and tests..."
 	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
 	@echo "Running tests in: [ $(ALL_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(ALL_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
-	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
+	   if ! $(MAKE) -j1 -C $(BLD)$${dir} $@; then \
 	   ERR=1; fi; done; \
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi

@@ -69,7 +69,7 @@ jobs:
         - cd ${TRAVIS_BUILD_DIR}
         - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2
         - make all -j3
-        - make test
+        - make test-noclean
         - cd tests/scripts
         - ./runtest gitignore
 
