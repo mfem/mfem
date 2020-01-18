@@ -56,31 +56,32 @@ while read -r rev; do
     git checkout -q "${rev}"
 
     # Compute the total number of changes (line insertions + line deletions) in
-    # the commit.
+    # all the files in the commit.
     changes=$(git show --pretty="" --numstat | awk '{change+=$1+$2} END {print change}')
 
-    # If the above is more than 50K, print an error
+    # If the total number of changes is more than 50K, print an error
     if [ ${changes} -gt 50000 ]
     then
         echo "Commit ${rev} is unusually large: it changes ${changes} lines" 1>&2
     fi
 
-    # Find all non-empty binary files in the current commit (use the output of
-    # the "file" command, excluding text files and PNG images)
+    # Loop over the files modified in the current commit.
     for fname in $(git show --pretty="" --name-only ${rev})
     do
         if [ -e $fname ] # exclude deleted files
         then
+            # Report binary files (non-text files as reported by "file")
             binary="$(file -b ${fname} | grep -v 'PNG image' | grep -v 'text')"
-            if [ -n "${binary}" ]
+            if [ -n "${binary}" ] # non-empty files
             then
                 echo "Commit ${rev} contains a binary file: ${fname} (${binary})" 1>&2
             fi
 
+            # Report files greater than 50K
             size="$(du -k ${fname} | cut -f1)"
-            if [ ${size} -gt 400 ] # currently no file larger than 400K in mfem
+            if [ ${size} -gt 50 ]
             then
-                echo "Commit ${rev} adds/modifies a very large file: ${fname}" 1>&2
+                echo "Commit ${rev} adds/modifies a very large file: ${fname} (size ${size}K)" 1>&2
             fi
         fi
     done
