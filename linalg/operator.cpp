@@ -85,7 +85,7 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
 {
    // Same for Rectangular and Square operators
    const Operator *P = this->GetProlongation();
-   if (P)
+   if (!IsIdentityProlongation(P))
    {
       // Apply conforming prolongation
       x.SetSize(P->Height());
@@ -104,9 +104,9 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
 Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
 {
    Operator *rap;
-   if (Pi)
+   if (!IsIdentityProlongation(Pi))
    {
-      if (Po)
+      if (!IsIdentityProlongation(Po))
       {
          rap = new RAPOperator(*Po, *this, *Pi);
       }
@@ -117,7 +117,7 @@ Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
    }
    else
    {
-      if (Po)
+      if (!IsIdentityProlongation(Po))
       {
          TransposeOperator * PoT = new TransposeOperator(Po);
          rap = new ProductOperator(PoT, this, true,false);
