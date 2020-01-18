@@ -27,7 +27,8 @@ case $1 in
    current branch is merged with master.
 
    To be useful, the script should be run in a clean repository that doesn't
-   have any uncommitted changes.
+   have any uncommitted changes and the repository should not be in a "detached
+   HEAD" state.
 
    Example usage: $0 ../..
 

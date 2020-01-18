@@ -126,8 +126,8 @@ Improved testing
   simple checks on the code including: code styling, documentation formatting,
   proper use of .gitignore, and preventing the accidental commit of large files.
 
-- It is recommended that the tests scripts above are run by the developers via
-  the runtest script before pushing to GitHub. See README in tests/scripts.
+- It is recommended that developers run the above tests scripts (via the runtest
+  script) before pushing to GitHub. See the README file in tests/scripts.
 
 - The Travis CI settings have been updated to include a new Checks stage which
   runs the code-style, git-history, documentation and gitignore test scripts.

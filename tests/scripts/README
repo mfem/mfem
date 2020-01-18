@@ -19,7 +19,7 @@ complete successfully before pushing to GitHub. For example:
    cd tests/scripts
    ./runtest ../.. code-style git-history documentation gitignore
 
-See the sections below for more details on runtest and available test scripts.
+See the sections below for details on runtest and the available test scripts.
 
 The runtest script
 ==================

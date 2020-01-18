@@ -53,6 +53,7 @@ if [ "$mfem_dir" = "" ]; then
     mfem_dir="../.."
 fi
 if ! [ -d "$mfem_dir" ]; then
+   # Very unlikely
    printf "\nDirectory not found: $mfem_dir\n\n" 1>&2
    exit 1
 fi
