@@ -24,7 +24,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
                             Vector &x, Vector &b,
                             Vector &X, Vector &B) const
 {
-   if (Po)
+   if (!IsIdentityProlongation(Po))
    {
       // Variational restriction with Po
       B.SetSize(Po->Width(), b);
@@ -35,7 +35,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
       // B points to same data as b
       B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
    }
-   if (Ri)
+   if (!IsIdentityProlongation(Ri))
    {
       // Variational restriction with Ri
       X.SetSize(Ri->Height(), x);

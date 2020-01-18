@@ -479,6 +479,12 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const { y = x; }
 };
 
+/// Returns true if P is the identity prolongation, i.e. if it is either NULL or
+/// an IdentityOperator.
+inline bool IsIdentityProlongation(const Operator *P)
+{
+   return !P || dynamic_cast<const IdentityOperator*>(P);
+}
 
 /// Scaled Operator B: x -> a A(x).
 class ScaledOperator : public Operator
