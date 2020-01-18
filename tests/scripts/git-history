@@ -81,7 +81,7 @@ while read -r rev; do
             size="$(du -k ${fname} | cut -f1)"
             if [ ${size} -gt 50 ]
             then
-                echo "Commit ${rev} adds/modifies a very large file: ${fname} (size ${size}K)" 1>&2
+                echo "Commit ${rev} adds/modifies a large file: ${fname} (size ${size}K)" 1>&2
             fi
         fi
     done
