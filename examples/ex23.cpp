@@ -96,7 +96,7 @@ public:
       for (int l = 0; l < Nr; l++) { UniformRefinement(); }
       // Adaptive mesh refinement
       //if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
-      PrintCharacteristics();
+      //PrintCharacteristics();
    }
 
    void BC()
