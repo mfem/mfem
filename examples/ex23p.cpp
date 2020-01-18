@@ -35,34 +35,34 @@ const int  visport   = 19916;
 const char vishost[] = "localhost";
 
 // Surface mesh class
-template<class Type>
+template<typename T = nullptr_t>
 class Surface: public Mesh
 {
 protected:
-   Type *S;
+   T *S;
    Array<int> &bc;
    int Order, Nx, Ny, Nr, Sdim;
    H1_FECollection *fec = nullptr;
-public:
+   ParMesh *pmesh = nullptr;
    ParFiniteElementSpace *pfes = nullptr;
 public:
 
    // Reading from mesh file
    Surface(Array<int> &b, int order, const char *file, int nr, int sdim):
-      Mesh(file, true), S(static_cast<Type*>(this)),
+      Mesh(file, true), S(static_cast<T*>(this)),
       bc(b), Order(order), Nr(nr), Sdim(sdim)
    {
       EnsureNodes();
       S->Postfix();
       S->Refine();
       GenFESpace();
-      S->BC();
+      S->BoundaryConditions();
    }
 
    // Generate Quad surface mesh
    Surface(Array<int> &b, int order, int nx, int ny, int nr, int sdim):
       Mesh(nx, ny, Element::QUADRILATERAL, true, 1.0, 1.0, false),
-      S(static_cast<Type*>(this)),
+      S(static_cast<T*>(this)),
       bc(b), Order(order), Nx(nx), Ny(ny), Nr(nr), Sdim(sdim)
    {
       EnsureNodes();
@@ -70,7 +70,6 @@ public:
       S->Generate();
       S->Postfix();
       S->Refine();
-      //EnsureNCMesh();
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
       SetCurvature(Order, false, 3, Ordering::byVDIM);
@@ -79,27 +78,27 @@ public:
       { if (std::abs(nodes(i)) < eps) { nodes(i) = 0.0; } }
       SetCurvature(Order, false, 3, Ordering::byNODES);
       GenFESpace();
-      S->BC();
+      S->BoundaryConditions();
    }
 
    // Generated Cube surface mesh
    Surface(Array<int> &b, int order, int nr,
            int NVert, int NElem, int NBdrElem, int sdim):
-      Mesh(2, NVert, NElem, NBdrElem, 3), S(static_cast<Type*>(this)),
+      Mesh(2, NVert, NElem, NBdrElem, 3), S(static_cast<T*>(this)),
       bc(b), Order(order), Nx(NVert), Ny(NElem), Nr(nr), Sdim(sdim)
    {
       S->Generate();
       S->Postfix();
       S->Refine();
       S->GenFESpace();
-      S->BC();
+      S->BoundaryConditions();
    }
 
    ~Surface() { delete fec; delete pfes; }
 
    void Prefix() { SetCurvature(Order, false, 3, Ordering::byNODES); }
 
-   void Generate() { Transform(Type::Parametrization); }
+   void Generate() { Transform(T::Parametrization); }
 
    void Postfix() { SetCurvature(Order, false, 3, Ordering::byNODES); }
 
@@ -111,7 +110,7 @@ public:
       //PrintCharacteristics();
    }
 
-   void BC()
+   void  BoundaryConditions()
    {
       if (bdr_attributes.Size())
       {
@@ -124,14 +123,19 @@ public:
    void GenFESpace()
    {
       fec = new H1_FECollection(Order, 2);
-      pfes = new ParFiniteElementSpace(new ParMesh(MPI_COMM_WORLD, *this), fec, Sdim);
+      pmesh = new ParMesh(MPI_COMM_WORLD, *this);
+      pfes = new ParFiniteElementSpace(pmesh, fec, Sdim);
    }
+
+   ParMesh *Pmesh() { return pmesh; }
+
+   ParFiniteElementSpace *Pfes() { return pfes; }
 };
 
 // Mesh file surface
-struct File: public Surface<File>
+struct MeshFromFile: public Surface<MeshFromFile>
 {
-   File(Array<int> &bc, int order, const char *file, int nr, int sdim):
+   MeshFromFile(Array<int> &bc, int order, const char *file, int nr, int sdim):
       Surface(bc, order, file, nr, sdim) {}
 };
 
@@ -771,7 +775,7 @@ int main(int argc, char *argv[])
    Array<int> bc;
    Mesh *mesh = nullptr;
    const int sdim = c ? 1 : 3;
-   if (s < 0)  { mesh = new File(bc, order, mesh_file, nr, sdim); }
+   if (s < 0)  { mesh = new MeshFromFile(bc, order, mesh_file, nr, sdim); }
    if (s == 0) { mesh = new Catenoid(bc, order, nx, ny, nr, sdim); }
    if (s == 1) { mesh = new Helicoid(bc, order, nx, ny, nr, sdim); }
    if (s == 2) { mesh = new Enneper(bc, order, nx, ny, nr, sdim); }
@@ -781,19 +785,12 @@ int main(int argc, char *argv[])
    if (s == 6) { mesh = new QPeach(bc, order, nx, ny, nr, sdim); }
    if (s == 7) { mesh = new FPeach(bc, order, nr, sdim); }
    if (s == 8) { mesh = new SlottedSphere(bc, order, nr); }
-   MFEM_VERIFY(mesh!=nullptr, "Not a valid surface number!");
+   MFEM_VERIFY(mesh, "Not a valid surface number!");
 
-   // Define a parallel mesh by a partitioning of the serial mesh.
-   // Once the parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   Surface<> &surface = *static_cast<Surface<>*>(mesh);
 
-   // Define a finite element space on the mesh.
-   const H1_FECollection fec(order, 2);
-   ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, &fec, sdim);
-
-   const HYPRE_Int size = pfes->GlobalTrueVSize();
-   if (myid == 0) {  cout << "Number of true DOFs: " << size << endl; }
+   ParMesh *pmesh = surface.Pmesh();
+   ParFiniteElementSpace *pfes = surface.Pfes();
 
    // Send to GLVis the first mesh and set the 'keys' options.
    if (vis) { Visualize(pmesh, 800, 800, keys); }
@@ -803,7 +800,7 @@ int main(int argc, char *argv[])
    else {   ByVector    Solve(pa, vis, niter, wait, order, pmesh, pfes, bc); }
 
    // Free the used memory.
-   delete pmesh;
+   delete mesh;
    MPI_Finalize();
    return 0;
 }
