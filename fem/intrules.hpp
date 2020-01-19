@@ -96,9 +96,7 @@ private:
        by request with the method GetWeights(). */
    mutable Array<double> weights;
 
-   /**
-    * @brief      Sets the indices of each quadrature point on initialization.
-    */
+   /// Sets the indices of each quadrature point on initialization.
    void SetPointIndices();
 
    /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
