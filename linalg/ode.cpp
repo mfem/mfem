@@ -346,6 +346,7 @@ const double RK8Solver::c[] =
 
 AdamsBashforthSolver::AdamsBashforthSolver(int _s, const double *_a)
 {
+   s = 0;
    smax = std::min(_s,5);
    a = _a;
    k = new Vector[5];
@@ -413,6 +414,7 @@ const double AB5Solver::a[] =
 
 AdamsMoultonSolver::AdamsMoultonSolver(int _s, const double *_a)
 {
+   s = 0;
    smax = std::min(_s+1,5);
    a = _a;
    k = new Vector[5];
