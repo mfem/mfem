@@ -94,6 +94,7 @@ public:
    virtual ~ODESolver() { }
 };
 
+
 /// The classical forward Euler method
 class ForwardEulerSolver : public ODESolver
 {
@@ -205,7 +206,7 @@ public:
 };
 
 
-/** An explicit Adams-Bashforth method */
+/** An explicit Adams-Bashforth method. */
 class AdamsBashforthSolver : public ODESolver
 {
 private:
@@ -280,7 +281,7 @@ public:
 };
 
 
-/** An implicit Adams-Moulton method */
+/** An implicit Adams-Moulton method. */
 class AdamsMoultonSolver : public ODESolver
 {
 private:
@@ -303,7 +304,7 @@ public:
    };
 };
 
-/** A 0-stage, 1st order AM method.  */
+/** A 0-stage, 1st order AM method. */
 class AM0Solver : public AdamsMoultonSolver
 {
 private:
@@ -314,7 +315,7 @@ public:
 };
 
 
-/** A 1-stage, 2st order AM method.  */
+/** A 1-stage, 2st order AM method. */
 class AM1Solver : public AdamsMoultonSolver
 {
 private:
@@ -324,7 +325,7 @@ public:
    AM1Solver() : AdamsMoultonSolver(1, a) { }
 };
 
-/** A 2-stage, 3st order AM method.  */
+/** A 2-stage, 3st order AM method. */
 class AM2Solver : public AdamsMoultonSolver
 {
 private:
@@ -334,7 +335,7 @@ public:
    AM2Solver() : AdamsMoultonSolver(2, a) { }
 };
 
-/** A 3-stage, 4st order AM method.  */
+/** A 3-stage, 4st order AM method. */
 class AM3Solver : public AdamsMoultonSolver
 {
 private:
@@ -344,7 +345,7 @@ public:
    AM3Solver() : AdamsMoultonSolver(3, a) { }
 };
 
-/** A 4-stage, 5st order AM method.  */
+/** A 4-stage, 5st order AM method. */
 class AM4Solver : public AdamsMoultonSolver
 {
 private:
@@ -353,8 +354,6 @@ private:
 public:
    AM4Solver() : AdamsMoultonSolver(4, a) { }
 };
-
-
 
 
 /// Backward Euler ODE solver. L-stable.

@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-//
 
 #include "mfem.hpp"
 #include "catch.hpp"
@@ -21,11 +20,8 @@ TEST_CASE("First order ODE methods",
 {
    double tol = 0.1;
 
-   /** Class for simple linear first order ODE.
-    *
-    *     du/dt  + a u = 0
-    *
-    */
+   // Class for simple linear first order ODE.
+   //    du/dt  + a u = 0
    class ODE : public TimeDependentOperator
    {
    protected:
@@ -72,8 +68,7 @@ TEST_CASE("First order ODE methods",
       virtual ~ODE() {};
    };
 
-   /** Class for checking order of convergence of first order ODE.
-    */
+   // Class for checking order of convergence of first order ODE.
    class CheckODE
    {
    protected:

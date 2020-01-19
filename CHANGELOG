@@ -90,7 +90,7 @@ Linear and nonlinear solvers
 
 - Added support for Ginkgo, a high-performance linear algebra library for GPU
   and manycore nodes, with a focus on sparse solution of linear systems. For
-  more details see linalg/ginkgo.hpp and the example code in examples/ginko.
+  more details see linalg/ginkgo.hpp and the example code in examples/gingko.
 
 - Added Adams-Bashforth and Adams-Moulton time integrators.
 
