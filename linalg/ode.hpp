@@ -368,6 +368,7 @@ public:
    virtual void Step(Vector &x, double &t, double &dt);
 };
 
+
 /// Implicit midpoint method. A-stable, not L-stable.
 class ImplicitMidpointSolver : public ODESolver
 {
