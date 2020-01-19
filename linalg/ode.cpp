@@ -343,6 +343,7 @@ const double RK8Solver::c[] =
    1.,
 };
 
+
 AdamsBashforthSolver::AdamsBashforthSolver(int _s, const double *_a)
 {
    smax = std::min(_s,5);
@@ -480,6 +481,7 @@ const double AM3Solver::a[] =
 const double AM4Solver::a[] =
 {251.0/720.0,646.0/720.0,-264.0/720.0, 106.0/720.0, -19.0/720.0};
 
+
 void BackwardEulerSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
@@ -494,6 +496,7 @@ void BackwardEulerSolver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
+
 void ImplicitMidpointSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
@@ -507,6 +510,7 @@ void ImplicitMidpointSolver::Step(Vector &x, double &t, double &dt)
    x.Add(dt, k);
    t += dt;
 }
+
 
 SDIRK23Solver::SDIRK23Solver(int gamma_opt)
 {
@@ -625,6 +629,7 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
+
 void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
@@ -698,6 +703,7 @@ void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 
    t += dt;
 }
+
 
 void
 SIASolver::Init(Operator &P, TimeDependentOperator & F)
