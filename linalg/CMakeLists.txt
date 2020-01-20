@@ -64,6 +64,11 @@ if (MFEM_USE_MPI)
   endif()
 endif()
 
+if (MFEM_USE_GINKGO)
+  list(APPEND SRCS ginkgo.cpp)
+  list(APPEND HDRS ginkgo.hpp)
+endif()
+
 if (MFEM_USE_SUNDIALS)
   list(APPEND SRCS sundials.cpp)
   list(APPEND HDRS sundials.hpp)

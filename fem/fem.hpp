@@ -19,6 +19,7 @@
 #include "doftrans.hpp"
 #include "eltrans.hpp"
 #include "coefficient.hpp"
+#include "complex_fem.hpp"
 #include "lininteg.hpp"
 #include "nonlininteg.hpp"
 #include "bilininteg.hpp"
@@ -33,6 +34,7 @@
 #include "staticcond.hpp"
 #include "tmop.hpp"
 #include "tmop_tools.hpp"
+#include "gslib.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
