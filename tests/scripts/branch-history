@@ -30,6 +30,7 @@ case $1 in
 
    Branch-level checks:
    - Check if the branch contains unusually large number of commits
+   - Check if the branch adds/modifies unusually large files
 
    Commit-level checks:
    - Check if the commit changes an unusually large number of files
@@ -41,8 +42,8 @@ case $1 in
    - Check if an unusually large number of lines have been added to the file
    - Check if an unusually large number of lines have been deleted from the file
 
-   To be useful, the script should be run in a repository that is not in a
-   "detached HEAD" state.
+   To be useful, the script should be run in a clean repository that doesn't
+   have any uncommitted changes and is not in a "detached HEAD" state.
 
    Example usage: $0 ../..
 
@@ -84,10 +85,24 @@ then
     printf "${num_commits} commits not in master"'\033[0m\n' 1>&2
 fi
 
+# Check if the branch adds/modifies unusually large files (this can catch large
+# binary files not addressed by the checks below)
+while read -r obj; do
+    obj_fname="$(echo ${obj} | awk '{print $2}')"
+    obj_size="$(echo ${obj} | awk '{print int($1/1024)}')"
+    if [ ${obj_size} -gt ${file_max_size} ]
+    then
+        printf '\033[35m'"This branch adds/modifies a large file: " 1>&2
+        printf "${obj_fname} (size ${obj_size}K)"'\033[0m\n' 1>&2
+    fi
+done < <(git rev-list master..${current_branch} --objects | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' | sed -n 's/^blob //p' | awk '{if (max[$2]<$1) max[$2]=$1} END {for (f in max) print max[f], f}' | sort --numeric-sort --key=1)
+
 # Check all the commits in the current branch (i.e. the commits that will be
 # merged in master, as shown in a GitHub PR):
-while read -r rev; do
+while read -r rev
+do
     echo "Processing commit ${rev}..."
+    git checkout -q "${rev}"
     shortrev="$(git log -1 --format=%h ${rev})" # short commit hash
 
     # Check if the commit changes an unusually large number of files
@@ -107,7 +122,7 @@ while read -r rev; do
     fi
 
     # Check all the files modified in the current commit:
-    for filelog in "$(git show --pretty="" --numstat ${rev})"
+    while read -r filelog
     do
         fname="$(echo ${filelog} | awk '{print $3}')"
         if [ -e $fname ] # exclude deleted files
@@ -144,8 +159,9 @@ while read -r rev; do
                 printf "${fname} (${file_lines_deleted} lines deleted)"'\033[0m\n' 1>&2
             fi
         fi
-    done
+    done < <(git show --pretty="" --numstat --no-renames ${rev})
 done < <(git rev-list --reverse --no-merges master..${current_branch})
 
 # Return to the original branch and directory
+git checkout -q ${current_branch}
 cd $cur_dir
