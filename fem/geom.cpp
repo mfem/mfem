@@ -142,7 +142,7 @@ Geometry::Geometry()
    GeomVert[6]->IntPoint(5).y = 1.0;
    GeomVert[6]->IntPoint(5).z = 1.0;
 
-   // Vertices for Geometry::PRISM
+   // Vertices for Geometry::PYRAMID
    GeomVert[7] = new IntegrationRule(5);
    GeomVert[7]->IntPoint(0).x = 0.0;
    GeomVert[7]->IntPoint(0).y = 0.0;
