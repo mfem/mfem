@@ -1233,6 +1233,11 @@ void Mesh::AddWedge(const int *vi, int attr)
    elements[NumOfElements++] = new Wedge(vi, attr);
 }
 
+void Mesh::AddPyramid(const int *vi, int attr)
+{
+   elements[NumOfElements++] = new Pyramid(vi, attr);
+}
+
 void Mesh::AddHex(const int *vi, int attr)
 {
    elements[NumOfElements++] = new Hexahedron(vi, attr);
