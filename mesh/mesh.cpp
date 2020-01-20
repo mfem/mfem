@@ -63,12 +63,12 @@ void Mesh::GetElementJacobian(int i, DenseMatrix &J)
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 
-void Mesh::GetElementCenter(int i, Vector &cent)
+void Mesh::GetElementCenter(int i, Vector &center)
 {
-   cent.SetSize(spaceDim);
+   center.SetSize(spaceDim);
    int geom = GetElementBaseGeometry(i);
    ElementTransformation *eltransf = GetElementTransformation(i);
-   eltransf->Transform(Geometries.GetCenter(geom), cent);
+   eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
 double Mesh::GetElementSize(int i, int type)
@@ -370,6 +370,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
    DenseMatrix &pm = ElTr->GetPointMat();
+   nodes.HostRead();
    if (Nodes == NULL)
    {
       MFEM_ASSERT(nodes.Size() == spaceDim*GetNV(), "");
@@ -1415,9 +1416,9 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 
 
 #ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementReordering(Array<int> &ordering,
-                                     int iterations, int window,
-                                     int period, int seed)
+void Mesh::GetGeckoElementOrdering(Array<int> &ordering,
+                                   int iterations, int window,
+                                   int period, int seed)
 {
    Gecko::Graph graph;
 
@@ -1455,6 +1456,181 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering,
    delete functional;
 }
 #endif
+
+
+struct HilbertCmp
+{
+   int coord;
+   bool dir;
+   const Array<double> &points;
+   double mid;
+
+   HilbertCmp(int coord, bool dir, const Array<double> &points, double mid)
+      : coord(coord), dir(dir), points(points), mid(mid) {}
+
+   bool operator()(int i) const
+   {
+      return (points[3*i + coord] < mid) != dir;
+   }
+};
+
+static void HilbertSort2D(int coord1, // major coordinate to sort points by
+                          bool dir1,  // sort coord1 ascending/descending?
+                          bool dir2,  // sort coord2 ascending/descending?
+                          const Array<double> &points, int *beg, int *end,
+                          double xmin, double ymin, double xmax, double ymax)
+{
+   if (end - beg <= 1) { return; }
+
+   double xmid = (xmin + xmax)*0.5;
+   double ymid = (ymin + ymax)*0.5;
+
+   int coord2 = (coord1 + 1) % 2; // the 'other' coordinate
+
+   // sort (partition) points into four quadrants
+   int *p0 = beg, *p4 = end;
+   int *p2 = std::partition(p0, p4, HilbertCmp(coord1,  dir1, points, xmid));
+   int *p1 = std::partition(p0, p2, HilbertCmp(coord2,  dir2, points, ymid));
+   int *p3 = std::partition(p2, p4, HilbertCmp(coord2, !dir2, points, ymid));
+
+   if (p1 != p4)
+   {
+      HilbertSort2D(coord2, dir2, dir1, points, p0, p1,
+                    ymin, xmin, ymid, xmid);
+   }
+   if (p1 != p0 || p2 != p4)
+   {
+      HilbertSort2D(coord1, dir1, dir2, points, p1, p2,
+                    xmin, ymid, xmid, ymax);
+   }
+   if (p2 != p0 || p3 != p4)
+   {
+      HilbertSort2D(coord1, dir1, dir2, points, p2, p3,
+                    xmid, ymid, xmax, ymax);
+   }
+   if (p3 != p0)
+   {
+      HilbertSort2D(coord2, !dir2, !dir1, points, p3, p4,
+                    ymid, xmax, ymin, xmid);
+   }
+}
+
+static void HilbertSort3D(int coord1, bool dir1, bool dir2, bool dir3,
+                          const Array<double> &points, int *beg, int *end,
+                          double xmin, double ymin, double zmin,
+                          double xmax, double ymax, double zmax)
+{
+   if (end - beg <= 1) { return; }
+
+   double xmid = (xmin + xmax)*0.5;
+   double ymid = (ymin + ymax)*0.5;
+   double zmid = (zmin + zmax)*0.5;
+
+   int coord2 = (coord1 + 1) % 3;
+   int coord3 = (coord1 + 2) % 3;
+
+   // sort (partition) points into eight octants
+   int *p0 = beg, *p8 = end;
+   int *p4 = std::partition(p0, p8, HilbertCmp(coord1,  dir1, points, xmid));
+   int *p2 = std::partition(p0, p4, HilbertCmp(coord2,  dir2, points, ymid));
+   int *p6 = std::partition(p4, p8, HilbertCmp(coord2, !dir2, points, ymid));
+   int *p1 = std::partition(p0, p2, HilbertCmp(coord3,  dir3, points, zmid));
+   int *p3 = std::partition(p2, p4, HilbertCmp(coord3, !dir3, points, zmid));
+   int *p5 = std::partition(p4, p6, HilbertCmp(coord3,  dir3, points, zmid));
+   int *p7 = std::partition(p6, p8, HilbertCmp(coord3, !dir3, points, zmid));
+
+   if (p1 != p8)
+   {
+      HilbertSort3D(coord3, dir3, dir1, dir2, points, p0, p1,
+                    zmin, xmin, ymin, zmid, xmid, ymid);
+   }
+   if (p1 != p0 || p2 != p8)
+   {
+      HilbertSort3D(coord2, dir2, dir3, dir1, points, p1, p2,
+                    ymin, zmid, xmin, ymid, zmax, xmid);
+   }
+   if (p2 != p0 || p3 != p8)
+   {
+      HilbertSort3D(coord2, dir2, dir3, dir1, points, p2, p3,
+                    ymid, zmid, xmin, ymax, zmax, xmid);
+   }
+   if (p3 != p0 || p4 != p8)
+   {
+      HilbertSort3D(coord1, dir1, !dir2, !dir3, points, p3, p4,
+                    xmin, ymax, zmid, xmid, ymid, zmin);
+   }
+   if (p4 != p0 || p5 != p8)
+   {
+      HilbertSort3D(coord1, dir1, !dir2, !dir3, points, p4, p5,
+                    xmid, ymax, zmid, xmax, ymid, zmin);
+   }
+   if (p5 != p0 || p6 != p8)
+   {
+      HilbertSort3D(coord2, !dir2, dir3, !dir1, points, p5, p6,
+                    ymax, zmid, xmax, ymid, zmax, xmid);
+   }
+   if (p6 != p0 || p7 != p8)
+   {
+      HilbertSort3D(coord2, !dir2, dir3, !dir1, points, p6, p7,
+                    ymid, zmid, xmax, ymin, zmax, xmid);
+   }
+   if (p7 != p0)
+   {
+      HilbertSort3D(coord3, !dir3, !dir1, dir2, points, p7, p8,
+                    zmid, xmax, ymin, zmin, xmid, ymid);
+   }
+}
+
+void Mesh::GetHilbertElementOrdering(Array<int> &ordering)
+{
+   MFEM_VERIFY(spaceDim <= 3, "");
+
+   Vector min, max, center;
+   GetBoundingBox(min, max);
+
+   Array<int> indices(GetNE());
+   Array<double> points(3*GetNE());
+
+   if (spaceDim < 3) { points = 0.0; }
+
+   // calculate element centers
+   for (int i = 0; i < GetNE(); i++)
+   {
+      GetElementCenter(i, center);
+      for (int j = 0; j < spaceDim; j++)
+      {
+         points[3*i + j] = center(j);
+      }
+      indices[i] = i;
+   }
+
+   if (spaceDim == 1)
+   {
+      indices.Sort([&](int a, int b)
+      { return points[3*a] < points[3*b]; });
+   }
+   else if (spaceDim == 2)
+   {
+      // recursively partition the points in 2D
+      HilbertSort2D(0, false, false,
+                    points, indices.begin(), indices.end(),
+                    min(0), min(1), max(0), max(1));
+   }
+   else
+   {
+      // recursively partition the points in 3D
+      HilbertSort3D(0, false, false, false,
+                    points, indices.begin(), indices.end(),
+                    min(0), min(1), min(2), max(0), max(1), max(2));
+   }
+
+   // return ordering in the format required by ReorderElements
+   ordering.SetSize(GetNE());
+   for (int i = 0; i < GetNE(); i++)
+   {
+      ordering[indices[i]] = i;
+   }
+}
 
 
 void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
@@ -3426,10 +3602,10 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
          AddElement(elem);
       }
    }
-   
+
    GetElementToFaceTable(false);
    GenerateFaces();
-   
+
    SetCurvature(1, true, spaceDim);
    Vector node_coordinates_vec(
       node_coordinates.Data(),
@@ -7480,39 +7656,35 @@ void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
    }
 }
 
+static Array<int>& AllElements(Array<int> &list, int nelem)
+{
+   list.SetSize(nelem);
+   for (int i = 0; i < nelem; i++) { list[i] = i; }
+   return list;
+}
+
 void Mesh::UniformRefinement(int ref_algo)
 {
+   Array<int> list;
+
    if (NURBSext)
    {
       NURBSUniformRefinement();
    }
-   else if (ref_algo == 0 && Dim == 3 && meshgen == 1)
+   else if (ncmesh)
    {
-      UniformRefinement3D();
+      GeneralRefinement(AllElements(list, GetNE()));
    }
-   else if (meshgen == 1 || ncmesh)
+   else if (ref_algo == 1 && meshgen == 1 && Dim == 3)
    {
-      Array<int> elem_to_refine(GetNE());
-      for (int i = 0; i < elem_to_refine.Size(); i++)
-      {
-         elem_to_refine[i] = i;
-      }
-
-      if (Conforming())
-      {
-         // In parallel we should set the default 2nd argument to -3 to indicate
-         // uniform refinement.
-         LocalRefinement(elem_to_refine);
-      }
-      else
-      {
-         GeneralRefinement(elem_to_refine, 1);
-      }
+      // algorithm "B" for an all-tet mesh
+      LocalRefinement(AllElements(list, GetNE()));
    }
    else
    {
       switch (Dim)
       {
+         case 1: LocalRefinement(AllElements(list, GetNE())); break;
          case 2: UniformRefinement2D(); break;
          case 3: UniformRefinement3D(); break;
          default: MFEM_ABORT("internal error");
@@ -7588,7 +7760,7 @@ void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
    GeneralRefinement(refinements, nonconforming, nc_limit);
 }
 
-void Mesh::EnsureNCMesh(bool triangles_nonconforming)
+void Mesh::EnsureNCMesh(bool simplices_nonconforming)
 {
    MFEM_VERIFY(!NURBSext, "Cannot convert a NURBS mesh to an NC mesh. "
                "Project the NURBS to Nodes first.");
@@ -7597,10 +7769,8 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
    {
       if ((meshgen & 0x2) /* quads/hexes */ ||
           (meshgen & 0x4) /* wedges */ ||
-          (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
+          (simplices_nonconforming && (meshgen & 0x1)) /* simplices */)
       {
-         MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
-                     "mixed meshes are not supported");
          ncmesh = new NCMesh(this);
          ncmesh->OnMeshUpdated(this);
          GenerateNCFaceInfo();

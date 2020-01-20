@@ -617,6 +617,31 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
+void BilinearForm::AssembleDiagonal(Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P = fes->GetProlongationMatrix();
+      if (!IsIdentityProlongation(P))
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleDiagonal(local_diag);
+         P->MultTranspose(local_diag, diag);
+      }
+      else
+      {
+         ext->AssembleDiagonal(diag);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented. Maybe assemble your bilinear form into a "
+                 "matrix and use SparseMatrix::GetDiag?");
+   }
+}
+
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                     Vector &b, OperatorHandle &A, Vector &X,
                                     Vector &B, int copy_interior)
@@ -969,6 +994,18 @@ void BilinearForm::EliminateVDofsInRHS(
    mat->PartMult(vdofs, x, b);
 }
 
+void BilinearForm::Mult(const Vector &x, Vector &y) const
+{
+   if (ext)
+   {
+      ext->Mult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
+}
+
 void BilinearForm::Update(FiniteElementSpace *nfes)
 {
    bool full_update;
@@ -1180,8 +1217,8 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          for (int k = 1; k < dbfi.Size(); k++)
          {
             dbfi[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
-					       *test_fes  -> GetFE(i),
-                		               *eltrans, elemmat);
+                                               *test_fes  -> GetFE(i),
+                                               *eltrans, elemmat);
             totelemmat += elemmat;
          }
          if (ran_dof_trans || dom_dof_trans)
