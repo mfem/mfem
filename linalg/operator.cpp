@@ -31,7 +31,7 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
 
-   if (P)
+   if (!IsIdentityProlongation(P))
    {
       // Variational restriction with P
       B.SetSize(P->Width(), b);
