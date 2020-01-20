@@ -9078,12 +9078,16 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
 
    for (int m = 0; m < Dof; m++)
    {
-      IntegrationPoint &ip = Nodes.IntPoint(m);
-
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+      /*
       double x = (ip.z < 1.0) ? (2.0 * ip.x / (1.0 - ip.z) - 1.0) : 0.0;
       double y = (ip.z < 1.0) ? (2.0 * ip.y / (1.0 - ip.z) - 1.0) : 0.0;
       double z = 2.0 * ip.z - 1.0;
-      
+      */
+      double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+      double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+      double z = ip.z;
+
       o = 0;
       for (int i = 0; i <= p; i++)
       {
