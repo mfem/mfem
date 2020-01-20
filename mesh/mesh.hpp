@@ -1133,9 +1133,9 @@ public:
    ///@}
 
    /** Make sure that a quad/hex mesh is considered to be non-conforming (i.e.,
-       has an associated NCMesh object). Triangles meshes can be both conforming
+       has an associated NCMesh object). Simplex meshes can be both conforming
        (default) or non-conforming. */
-   void EnsureNCMesh(bool triangles_nonconforming = false);
+   void EnsureNCMesh(bool simplices_nonconforming = false);
 
    bool Conforming() const { return ncmesh == NULL; }
    bool Nonconforming() const { return ncmesh != NULL; }

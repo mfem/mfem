@@ -39,9 +39,9 @@ libCEED support
 
 Meshing improvements
 --------------------
-- Added support for non-conforming prism AMR, including coarsening and parallel
-  load balancing. Anisotropic prism refinement is only available in the serial
-  version at the moment.
+- Added support for non-conforming AMR on prisms and tetrahedra, including
+  coarsening and parallel load balancing. Anisotropic prism refinement is only
+  available in the serial version at the moment.
 
 - The TMOP mesh optimization algorithms were extended to support r-adaptivity.
   Target matrices can now be constructed either via a given analytical function
@@ -75,6 +75,9 @@ Discretization improvements
 - Diagonals of partially assembled operators can now be computed efficiently.
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
+
+- Extended the support for partial assembly to vector mass and vector diffusion
+  bilinear integrators.
 
 Linear and nonlinear solvers
 ----------------------------
@@ -125,6 +128,10 @@ Miscellaneous
 
 - Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
   and the new ParaViewDataCollection class.
+
+- Collected object files from the miniapps/common directory into a new library,
+  libmfem-common for the convenience of application developers. The new library
+  is now used in several miniapps in the electromagnetic and tools directories.
 
 
 Version 4.0, released on May 24, 2019
