@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&eInt, "-e", "--elem-type",
                   "Element Type: (1-Segment, 2-Triangle, 3-Quadrilateral, "
-                  "4-Tetrahedron, 5-Hexahedron)");
+                  "4-Tetrahedron, 5-Hexahedron, 6-Wedge, 7-Pyramid)");
    args.AddOption(&bInt, "-b", "--basis-type",
                   "Basis Function Type (0-H1, 1-Nedelec, 2-Raviart-Thomas, "
                   "3-L2, 4-Fixed Order Cont.,\n\t5-Gaussian Discontinuous (2D),"
@@ -263,11 +263,13 @@ int main(int argc, char *argv[])
          {
             cout <<
                  "4) Tetrahedron\n"
-                 "5) Hexahedron\n";
+                 "5) Hexahedron\n"
+                 "6) Wedge\n"
+                 "7) Pyramid\n";
          }
          cout << "enter new element type --> " << flush;
          cin >> eInt;
-         if ( eInt <= 0 || eInt > 5 )
+         if ( eInt <= 0 || eInt > 7 )
          {
             cout << "invalid element type \"" << eInt << "\"" << endl << flush;
          }
@@ -513,6 +515,10 @@ string elemTypeStr(const Element::Type & eType)
          return "TETRAHEDRON";
       case Element::HEXAHEDRON:
          return "HEXAHEDRON";
+      case Element::WEDGE:
+         return "WEDGE";
+      case Element::PYRAMID:
+         return "PYRAMID";
       default:
          return "INVALID";
    };
@@ -533,7 +539,8 @@ elemIs2D(const Element::Type & eType)
 bool
 elemIs3D(const Element::Type & eType)
 {
-   return eType == Element::TETRAHEDRON || eType == Element::HEXAHEDRON;
+   return eType == Element::TETRAHEDRON || eType == Element::HEXAHEDRON ||
+     eType == Element::WEDGE || eType == Element::PYRAMID;
 }
 
 string
