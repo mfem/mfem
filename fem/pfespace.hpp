@@ -46,7 +46,6 @@ private:
 
    /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
    int ngvdofs, ngedofs, ngfdofs, ngdofs;
-   int* gfdofs;
 
    /// The group of each local dof.
    Array<int> ldof_group;
@@ -72,7 +71,7 @@ private:
    /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
-   mutable class ConformingProlongationOperator *Pconf;
+   mutable Operator *Pconf;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
