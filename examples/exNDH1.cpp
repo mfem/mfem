@@ -1,11 +1,11 @@
-//                       MFEM Example 3 - Parallel Version
+//                       MFEM Example NDH1 - Parallel Version
 //
 // Compile with: make exNDH1
 //
 // Sample runs:  mpirun -np 4 exNDH1 -m ../data/star.mesh
 //               mpirun -np 4 exNDH1 -m ../data/square-disc.mesh -o 2
 //               mpirun -np 4 exNDH1 -m ../data/beam-tet.mesh
-//               mpirun -np 4 exNDH1 -m ../data/beam-hex.mesh
+//               mpirun -np 4 exNDH1 -m ../data/beam-hex.mesh -o 2 -pa
 //               mpirun -np 4 exNDH1 -m ../data/escher.mesh
 //               mpirun -np 4 exNDH1 -m ../data/escher.mesh -o 2
 //               mpirun -np 4 exNDH1 -m ../data/fichera.mesh
@@ -15,14 +15,13 @@
 //               mpirun -np 4 exNDH1 -m ../data/beam-hex-nurbs.mesh
 //               mpirun -np 4 exNDH1 -m ../data/amr-quad.mesh -o 2
 //               mpirun -np 4 exNDH1 -m ../data/amr-hex.mesh
-//               mpirun -np 4 exNDH1 -m ../data/star-surf.mesh -o 2
-//               mpirun -np 4 exNDH1 -m ../data/mobius-strip.mesh -o 2 -f 0.1
-//               mpirun -np 4 exNDH1 -m ../data/klein-bottle.mesh -o 2 -f 0.1
 //
-// Description:  This example code solves a projection of a gradient of a
-//               function in H^1 to H(curl).
-//
-//               We recommend viewing examples 1-3 before viewing this example.
+// Description:  This example code illustrates usage of mixed finite element spaces.
+//               Using two different approaches, we project a gradient of a function
+//               in H^1 to H(curl). Other spaces and example computations are to be
+//               added in the future.
+
+//               We recommend viewing examples 1 and 3 before viewing this example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -121,9 +120,11 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    ParFiniteElementSpace *H1fespace = new ParFiniteElementSpace(pmesh, H1fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_Int H1size = H1fespace->GlobalTrueVSize();
    if (myid == 0)
    {
-      cout << "Number of finite element unknowns: " << size << endl;
+      cout << "Number of Nedelec finite element unknowns: " << size << endl;
+      cout << "Number of H1 finite element unknowns: " << H1size << endl;
    }
 
    // 7. Define the solution vector x as a parallel finite element grid function
@@ -187,9 +188,9 @@ int main(int argc, char *argv[])
       delete NDH1;
    }
 
-   // 10. Define and apply a parallel PCG solver for AX=B with the AMS
-   //     preconditioner from hypre, in the full assembly case.
-   //     With partial assembly, use Jacobi preconditioner, for now.
+   // 10. Define and apply a parallel PCG solver for AX=B with no
+   //     preconditioner, in the full assembly case.
+   //     With partial assembly, use Jacobi preconditioner.
 
    if (pa)
    {
@@ -216,28 +217,46 @@ int main(int argc, char *argv[])
    else
    {
       HypreParMatrix *Amat = a->ParallelAssemble();
-      HyprePCG *pcg = new HyprePCG(*Amat);
-      pcg->SetTol(1e-12);
-      pcg->SetMaxIter(500);
-      pcg->SetPrintLevel(2);
-      pcg->Mult(B, X);
+      HyprePCG pcg(*Amat);
+      pcg.SetTol(1e-12);
+      pcg.SetMaxIter(1000);
+      pcg.SetPrintLevel(2);
+      pcg.Mult(B, X);
 
-      delete pcg;
       delete Amat;
 
       x.SetFromTrueDofs(X);
    }
 
-   // 11. Compute and print the L^2 norm of the error.
+   // 11. Compute the same solution by applying the GradientInterpolator in H(curl).
+   
+   ParDiscreteLinearOperator grad(H1fespace, fespace);
+   grad.AddDomainInterpolator(new GradientInterpolator());
+   grad.Assemble();
+
+   ParGridFunction gradp(fespace);
+   grad.Mult(p, gradp);
+
+   // 12. Compute the projection of the exact grad p.
+   
+   ParGridFunction exact_gradp(fespace);
+   exact_gradp.ProjectCoefficient(gradp_coef);
+   
+   // 13. Compute and print the L^2 norm of the error.
    {
-      double err = x.ComputeL2Error(gradp_coef);
+      double errSol = x.ComputeL2Error(gradp_coef);
+      double errInterp = gradp.ComputeL2Error(gradp_coef);
+      double errProj = exact_gradp.ComputeL2Error(gradp_coef);
+
       if (myid == 0)
       {
-         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+         cout << "\n Solution of (E_h,v) = (grad p,v) for E_h and v in H(curl): || E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
+         cout << " Gradient interpolant E_h = grad p in H(curl): || E_h - grad p ||_{L^2} = " << errInterp << '\n' << endl;
+         cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p ||_{L^2} = " << errProj << '\n' << endl;
       }
    }
-
-   // 12. Save the refined mesh and the solution in parallel. This output can
+   
+   // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -253,7 +272,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 13. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -264,7 +283,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 14. Free the used memory.
+   // 16. Free the used memory.
    delete a;
    delete a_NDH1;
    delete sigma;
