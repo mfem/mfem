@@ -10100,7 +10100,8 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 }
 
-static void GetSigns(const FiniteElementSpace &fes, const FaceType type, Array<bool> &signs)
+static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
+                     Array<bool> &signs)
 {
    int e1, e2;
    int inf1, inf2;
