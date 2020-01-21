@@ -136,6 +136,7 @@ MFEM_USE_CUDA          = NO
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
+MFEM_USE_CEED          = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -338,6 +339,11 @@ HIP_LIB =
 OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+
+# libCEED library configuration
+CEED_DIR ?= @MFEM_DIR@/../libCEED
+CEED_OPT = -I$(CEED_DIR)/include
+CEED_LIB = $(XLINKER)-rpath,$(CEED_DIR)/lib -L$(CEED_DIR)/lib -lceed
 
 # RAJA library configuration
 RAJA_DIR = @MFEM_DIR@/../raja
