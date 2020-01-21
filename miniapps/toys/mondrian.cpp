@@ -9,9 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//            -----------------------------------------------
-//            Mesher Miniapp: Convert an image to an AMR mesh
-//            -----------------------------------------------
+//           -------------------------------------------------
+//           Mondrian Miniapp: Convert an image to an AMR mesh
+//           -------------------------------------------------
 //
 // This miniapp is a specialized version of the Shaper miniapp that converts an
 // input image to an AMR mesh. It allows the fast approximate meshing of any
@@ -24,12 +24,12 @@
 //
 //   /usr/bin/convert australia.svg -compress none -depth 8 australia.pgm
 //
-// Compile with: make mesher
+// Compile with: make mondrian
 //
-// Sample runs:  mesher -i australia.pgm
-//               mesher -i australia.pgm -m ../../data/inline-tri.mesh
-//               mesher -i australia.pgm -m ../../data/disc-nurbs.mesh
-//               mesher -i australia.pgm -sd 3 -a -ncl -1
+// Sample runs:  mondrian -i australia.pgm
+//               mondrian -i australia.pgm -m ../../data/inline-tri.mesh
+//               mondrian -i australia.pgm -m ../../data/disc-nurbs.mesh
+//               mondrian -i australia.pgm -sd 3 -a -ncl -1
 
 #include "mfem.hpp"
 #include <fstream>
@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
    mesh.SetAttributes();
 
    // Save the final mesh
-   ofstream mesh_ofs("mesher.mesh");
+   ofstream mesh_ofs("mondrian.mesh");
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
 }
