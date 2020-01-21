@@ -800,9 +800,9 @@ protected:
    // Normalization factor for the limiting term.
    double lim_normal;
    // Parameters for Gradient & Hessian calculation
-   int der_flag;
-   double fdeps = pow(10.,-7.);
-   int fdorder;
+   int    der_flag;
+   double fdeps;
+   int    fdorder;
    double elemenergy;
 
    Array <Vector *> ElemDer;        //f'(x)
@@ -837,7 +837,7 @@ public:
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0), der_flag(0),
-        discr_tc(NULL), fdorder(1)
+        discr_tc(NULL), fdorder(1), fdeps(0.0)
    { }
 
    ~TMOP_Integrator()
@@ -921,6 +921,8 @@ public:
    void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) {discr_tc = tc;}
 
    virtual void SetFDPar(int fdorderin, int sz);
+
+   virtual void SetFDh(const Vector &x, const FiniteElementSpace &fes);
 
    virtual void SetupElementVectorTargetSpecification(const Vector &x,
            const FiniteElementSpace &fes);
