@@ -60,6 +60,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
       aux1.HostReadWrite();
       X.MakeRef(aux1, 0); // aux1 contains P.x
+      X.ExchangeFaceNbrData();
       const int n_shared_faces = pmesh->GetNSharedFaces();
       for (int i = 0; i < n_shared_faces; i++)
       {
