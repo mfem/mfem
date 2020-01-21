@@ -1320,7 +1320,8 @@ void KINSolver::Mult(Vector &x,
 
       int rank;
       MPI_Comm_rank(NV_COMM_P(y), &rank);
-      if (rank == 0) {
+      if (rank == 0)
+      {
          flag = KINSetPrintLevel(sundials_mem, print_level);
          MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
       }
