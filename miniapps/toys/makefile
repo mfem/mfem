@@ -18,6 +18,10 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
+# Include defaults.mk to get XLINKER
+DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
+include $(DEFAULTS_MK)
+
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
@@ -31,14 +35,19 @@ endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
+.PHONY: all lib-common clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_O=../common/fem_extras.o ../common/mesh_extras.o
+COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
+
+# If MFEM_SHARED is set, add the ../common rpath
+COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
+   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
+   $(MFEM_BUILD_DIR)/miniapps/common))
 
 all: $(MINIAPPS)
 
-# Remove built-in rule
+# Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
@@ -46,13 +55,14 @@ all: $(MINIAPPS)
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-# Tools that depend on $(COMMON_O)
-snake: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+# Toys that depend on lib-common
+snake rubik: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
-# Rules for compiling dependencies
-$(COMMON_O): %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+# Rule for building lib-common
+lib-common:
+	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
@@ -79,7 +89,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ automata life mandel rubik snake lissajous mondrian
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

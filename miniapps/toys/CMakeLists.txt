@@ -10,29 +10,27 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 add_mfem_miniapp(toy_automata
-    MAIN automata.cpp
-    LIBRARIES mfem mfem_miniapps_common)
+    MAIN automata.cpp LIBRARIES mfem)
 
 add_mfem_miniapp(toy_life
-    MAIN life.cpp
-    LIBRARIES mfem mfem_miniapps_common)
+    MAIN life.cpp LIBRARIES mfem)
 
 add_mfem_miniapp(toy_mandel
-    MAIN mandel.cpp
-    LIBRARIES mfem mfem_miniapps_common)
+    MAIN mandel.cpp LIBRARIES mfem)
 
 add_mfem_miniapp(toy_rubik
     MAIN rubik.cpp
-    LIBRARIES mfem mfem_miniapps_common)
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
 
 add_mfem_miniapp(toy_snake
     MAIN snake.cpp
-    LIBRARIES mfem mfem_miniapps_common)
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
 
 add_mfem_miniapp(toy_lissajous
-    MAIN lissajous.cpp
-    LIBRARIES mfem mfem_miniapps_common)
+    MAIN lissajous.cpp LIBRARIES mfem)
 
 add_mfem_miniapp(toy_mondrian
-    MAIN mondrian.cpp
-    LIBRARIES mfem mfem_miniapps_common)
+    MAIN mondrian.cpp LIBRARIES mfem)
+
