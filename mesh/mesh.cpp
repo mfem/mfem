@@ -369,6 +369,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
    DenseMatrix &pm = ElTr->GetPointMat();
+   nodes.HostRead();
    if (Nodes == NULL)
    {
       MFEM_ASSERT(nodes.Size() == spaceDim*GetNV(), "");
@@ -7452,39 +7453,35 @@ void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
    }
 }
 
+static Array<int>& AllElements(Array<int> &list, int nelem)
+{
+   list.SetSize(nelem);
+   for (int i = 0; i < nelem; i++) { list[i] = i; }
+   return list;
+}
+
 void Mesh::UniformRefinement(int ref_algo)
 {
+   Array<int> list;
+
    if (NURBSext)
    {
       NURBSUniformRefinement();
    }
-   else if (ref_algo == 0 && Dim == 3 && meshgen == 1)
+   else if (ncmesh)
    {
-      UniformRefinement3D();
+      GeneralRefinement(AllElements(list, GetNE()));
    }
-   else if (meshgen == 1 || ncmesh)
+   else if (ref_algo == 1 && meshgen == 1 && Dim == 3)
    {
-      Array<int> elem_to_refine(GetNE());
-      for (int i = 0; i < elem_to_refine.Size(); i++)
-      {
-         elem_to_refine[i] = i;
-      }
-
-      if (Conforming())
-      {
-         // In parallel we should set the default 2nd argument to -3 to indicate
-         // uniform refinement.
-         LocalRefinement(elem_to_refine);
-      }
-      else
-      {
-         GeneralRefinement(elem_to_refine, 1);
-      }
+      // algorithm "B" for an all-tet mesh
+      LocalRefinement(AllElements(list, GetNE()));
    }
    else
    {
       switch (Dim)
       {
+         case 1: LocalRefinement(AllElements(list, GetNE())); break;
          case 2: UniformRefinement2D(); break;
          case 3: UniformRefinement3D(); break;
          default: MFEM_ABORT("internal error");
@@ -7560,7 +7557,7 @@ void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
    GeneralRefinement(refinements, nonconforming, nc_limit);
 }
 
-void Mesh::EnsureNCMesh(bool triangles_nonconforming)
+void Mesh::EnsureNCMesh(bool simplices_nonconforming)
 {
    MFEM_VERIFY(!NURBSext, "Cannot convert a NURBS mesh to an NC mesh. "
                "Project the NURBS to Nodes first.");
@@ -7569,10 +7566,8 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
    {
       if ((meshgen & 0x2) /* quads/hexes */ ||
           (meshgen & 0x4) /* wedges */ ||
-          (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
+          (simplices_nonconforming && (meshgen & 0x1)) /* simplices */)
       {
-         MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
-                     "mixed meshes are not supported");
          ncmesh = new NCMesh(this);
          ncmesh->OnMeshUpdated(this);
          GenerateNCFaceInfo();
