@@ -49,6 +49,7 @@ public:
 	const InverseMassMatrixDG *InvMassMat;
 	const DofInfo *dofs;
 	
+	bool SolutionKnown = true;
 	bool SteadyState;
 	
 	int dim, nd, ne, nqe, nqf;
@@ -62,6 +63,8 @@ public:
    virtual ~HyperbolicSystem();
 	
 	virtual void EvaluateFlux(const Vector &u, DenseMatrix &f) const = 0;
+	virtual void ComputeErrors(Array<double> &errors, double DomainSize) const = 0;
+	virtual void WriteErrors(const Array<double> &errors) const = 0;
 	
 	void Mult(const Vector &x, Vector &y) const override;
 	void EvolveStandard(const Vector &x, Vector &y) const;
@@ -73,7 +76,7 @@ public:
 
 const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes);
 
-// Appropriate quadrature rule for faces according to DGTraceIntegrator.
+// Appropriate quadrature rule for faces, conforming with DGTraceIntegrator.
 const IntegrationRule* GetFaceIntegrationRule(FiniteElementSpace *fes);
 
 #endif

@@ -96,6 +96,18 @@ int main(int argc, char *argv[])
    if (config.odeSolverType != 1 && hyp->SteadyState)
 		MFEM_WARNING("You should use forward Euler for pseudo time stepping.");
 
+	double InitialMass = hyp->LumpedMassMat * hyp->u;
+	
+	// Visualization with GLVis, VisIt is currently not supported.
+	{
+      ofstream omesh("grid.mesh");
+      omesh.precision(config.precision);
+      mesh.Print(omesh);
+      ofstream osol("initial.gf");
+      osol.precision(config.precision);
+      hyp->u.Save(osol);
+   }
+	
 	socketstream sout;
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -136,6 +148,23 @@ int main(int argc, char *argv[])
 			}
          VisualizeField(sout, vishost, visport, hyp->u, VectorOutput);
       }
+   }
+   
+   double DomainSize = hyp->LumpedMassMat.Sum();
+	cout << "Difference in solution mass: "
+		  << abs(InitialMass - hyp->LumpedMassMat * hyp->u) / DomainSize << endl;
+	
+	if (hyp->SolutionKnown)
+   {
+		Array<double> errors;
+		hyp->ComputeErrors(errors, DomainSize);
+		hyp->WriteErrors(errors);
+	}
+
+   {
+      ofstream osol("final.gf");
+      osol.precision(config.precision);
+      hyp->u.Save(osol);
    }
 
 	delete odeSolver;

@@ -6,13 +6,12 @@
 class Advection : public HyperbolicSystem
 {
 public:
-   bool SolutionKnown = true;
-	double InitialMass;
-
    explicit Advection(FiniteElementSpace *fes_, Configuration &config_);
-   ~Advection();
+   ~Advection() { };
 
 	virtual void EvaluateFlux(const Vector &u, DenseMatrix &f) const;
+	virtual void ComputeErrors(Array<double> &errors, double DomainSize) const;
+	virtual void WriteErrors(const Array<double> &errors) const;
 };
 
 #endif
