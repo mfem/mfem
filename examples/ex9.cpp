@@ -163,11 +163,21 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
+      case 1:
+         ode_solver = new ForwardEulerSolver;
+         break;
+      case 2:
+         ode_solver = new RK2Solver(1.0);
+         break;
+      case 3:
+         ode_solver = new RK3SSPSolver;
+         break;
+      case 4:
+         ode_solver = new RK4Solver;
+         break;
+      case 6:
+         ode_solver = new RK6Solver;
+         break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
@@ -193,11 +203,15 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    switch (fem_type)
    {
-      case 0: fec = new DG_FECollection(order, dim); break;
-      case 1: fec = new H1_FECollection(order, dim); break;
+      case 0:
+         fec = new DG_FECollection(order, dim);
+         break;
+      case 1:
+         fec = new H1_FECollection(order, dim);
+         break;
       default:
-        cout << "Uknown finite element space: "<<fem_type <<'\n';
-        return 3;
+         cout << "Uknown finite element space: "<<fem_type <<'\n';
+         return 3;
    }
 
    FiniteElementSpace fes(&mesh, fec);
@@ -218,26 +232,26 @@ int main(int argc, char *argv[])
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
-     new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
-   if(fem_type == DG_FE)
+      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
+   if (fem_type == DG_FE)
    {
       k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
       k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
    }
 
-   if(pa && fem_type == DG_FE)
+   if (pa && fem_type == DG_FE)
    {
-     MFEM_ABORT("Partial assembly not supported for DG");
+      MFEM_ABORT("Partial assembly not supported for DG");
    }
 
-   if(fem_type == DG_FE && mfem::Device::Allows(mfem::Backend::CUDA_MASK))
+   if (fem_type == DG_FE && mfem::Device::Allows(mfem::Backend::CUDA_MASK))
    {
-     MFEM_ABORT("CUDA not supported for DG");
+      MFEM_ABORT("CUDA not supported for DG");
    }
 
-   if(pa == true)
+   if (pa == true)
    {
       m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -394,13 +408,14 @@ FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K,
    : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
 {
    // Preconditioner supported under full assembly
-   if(M.GetAssemblyLevel() == AssemblyLevel::FULL)
+   if (M.GetAssemblyLevel() == AssemblyLevel::FULL)
    {
-     M_solver.SetPreconditioner(M_prec);
-     M_solver.SetOperator(M.SpMat());
-   }else
+      M_solver.SetPreconditioner(M_prec);
+      M_solver.SetOperator(M.SpMat());
+   }
+   else
    {
-     M_solver.SetOperator(M);
+      M_solver.SetOperator(M);
    }
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
@@ -438,9 +453,17 @@ void velocity_function(const Vector &x, Vector &v)
          // Translations in 1D, 2D, and 3D
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = sqrt(2./3.);
+               v(1) = sqrt(1./3.);
+               break;
+            case 3:
+               v(0) = sqrt(3./6.);
+               v(1) = sqrt(2./6.);
+               v(2) = sqrt(1./6.);
                break;
          }
          break;
@@ -452,9 +475,18 @@ void velocity_function(const Vector &x, Vector &v)
          const double w = M_PI/2;
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
-            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = w*X(1);
+               v(1) = -w*X(0);
+               break;
+            case 3:
+               v(0) = w*X(1);
+               v(1) = -w*X(0);
+               v(2) = 0.0;
+               break;
          }
          break;
       }
@@ -466,9 +498,18 @@ void velocity_function(const Vector &x, Vector &v)
          d = d*d;
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = d*w*X(1); v(1) = -d*w*X(0); break;
-            case 3: v(0) = d*w*X(1); v(1) = -d*w*X(0); v(2) = 0.0; break;
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = d*w*X(1);
+               v(1) = -d*w*X(0);
+               break;
+            case 3:
+               v(0) = d*w*X(1);
+               v(1) = -d*w*X(0);
+               v(2) = 0.0;
+               break;
          }
          break;
       }
@@ -536,7 +577,8 @@ double inflow_function(const Vector &x)
       case 0:
       case 1:
       case 2:
-      case 3: return 0.0;
+      case 3:
+         return 0.0;
    }
    return 0.0;
 }

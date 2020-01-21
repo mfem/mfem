@@ -828,7 +828,8 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
 }
 
 
-const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement &trial_fe,
+const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement
+                                                     &trial_fe,
                                                      const FiniteElement &test_fe,
                                                      ElementTransformation &Trans)
 {

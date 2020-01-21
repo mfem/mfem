@@ -23,15 +23,15 @@ int dimension;
 void velocity_function(const Vector &x, Vector &v)
 {
 
-  if (dimension == 2)
-  {
-    v(0) = sqrt(2./3.); v(1) = sqrt(1./3.);
-  }
+   if (dimension == 2)
+   {
+      v(0) = sqrt(2./3.); v(1) = sqrt(1./3.);
+   }
 
-  if (dimension == 3)
-  {
-    v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
-  }
+   if (dimension == 3)
+   {
+      v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+   }
 
 }
 
@@ -40,70 +40,73 @@ void velocity_function(const Vector &x, Vector &v)
 TEST_CASE("PA Convection")
 {
 
- for (dimension = 2; dimension < 4; ++dimension)
- {
+   for (dimension = 2; dimension < 4; ++dimension)
+   {
 
-     for (int imesh = 0; imesh<2; ++imesh)
-     {
+      for (int imesh = 0; imesh<2; ++imesh)
+      {
 
-        const char *mesh_file;
-        if(dimension == 2) {
+         const char *mesh_file;
+         if (dimension == 2)
+         {
 
-          switch (imesh)
-          {
-          case 0: mesh_file = "../../data/periodic-square.mesh"; break;
-          case 1: mesh_file = "../../data/amr-quad.mesh"; break;
-          }
-        }
+            switch (imesh)
+            {
+               case 0: mesh_file = "../../data/periodic-square.mesh"; break;
+               case 1: mesh_file = "../../data/amr-quad.mesh"; break;
+            }
+         }
 
-        if(dimension == 3) {
-          switch (imesh)
-          {
-          case 0: mesh_file = "../../data/periodic-cube.mesh"; break;
-          case 1: mesh_file = "../../data/amr-hex.mesh"; break;
-          }
-        }
+         if (dimension == 3)
+         {
+            switch (imesh)
+            {
+               case 0: mesh_file = "../../data/periodic-cube.mesh"; break;
+               case 1: mesh_file = "../../data/amr-hex.mesh"; break;
+            }
+         }
 
-        Mesh *mesh = new Mesh(mesh_file, 1, 1);
-        for(int order = 1; order < 5; ++order) {
+         Mesh *mesh = new Mesh(mesh_file, 1, 1);
+         for (int order = 1; order < 5; ++order)
+         {
 
-          H1_FECollection *fec = new H1_FECollection(order, dimension);
-          FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+            H1_FECollection *fec = new H1_FECollection(order, dimension);
+            FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
-          BilinearForm k(fespace);
-          BilinearForm pak(fespace); //Partial assembly version of k
+            BilinearForm k(fespace);
+            BilinearForm pak(fespace); //Partial assembly version of k
 
-          VectorFunctionCoefficient velocity(dimension, velocity_function);
+            VectorFunctionCoefficient velocity(dimension, velocity_function);
 
-          k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-          pak.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+            k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+            pak.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
 
-          int skip_zeros = 0;
-          k.Assemble(skip_zeros);
-          k.Finalize(skip_zeros);
+            int skip_zeros = 0;
+            k.Assemble(skip_zeros);
+            k.Finalize(skip_zeros);
 
-          pak.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-          pak.Assemble();
+            pak.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            pak.Assemble();
 
-          Vector x(k.Size());
-          Vector y(k.Size()), y_pa(k.Size());
+            Vector x(k.Size());
+            Vector y(k.Size()), y_pa(k.Size());
 
-          for(int i=0; i<x.Size(); ++i) {x(i) = i/10.0;};
+            for (int i=0; i<x.Size(); ++i) {x(i) = i/10.0;};
 
-          pak.Mult(x,y_pa);
-          k.Mult(x,y);
+            pak.Mult(x,y_pa);
+            k.Mult(x,y);
 
-          y_pa -= y;
-          double pa_error =- y_pa.Norml2();
-          std::cout << "ConvectionIntegrator:"
-                    << " dim = " << dimension
-                    << ", conforming = " << imesh
-                    << ", order = " << order
-                    << ", PA error = " << pa_error << std::endl;
-          REQUIRE(fabs(pa_error) < 1.e-12);
-        }//order loop
-     }//mesh loop
- }//dimension loop
+            y_pa -= y;
+            double pa_error =- y_pa.Norml2();
+            std::cout << "ConvectionIntegrator:"
+                      << " dim = " << dimension
+                      << ", conforming = " << imesh
+                      << ", order = " << order
+                      << ", PA error = " << pa_error << std::endl;
+            REQUIRE(fabs(pa_error) < 1.e-12);
+         }//order loop
+      }//mesh loop
+   }//dimension loop
 
 }//case
 
