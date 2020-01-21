@@ -34,6 +34,408 @@ void SaveSolution(const std::string &fname, GridFunction &gf)
    gf.Save(osol);
 }
 
+Mesh *oriented_mesh()
+{
+   static const int dim = 3;
+   static const int nv = 12;
+   static const int nel = 2;
+   Mesh *mesh = new Mesh(dim, nv, nel);
+   double x[dim];
+   x[0] = 0.0;   x[1] = 0.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 0.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 1.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 0.0;   x[1] = 1.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 0.0;   x[1] = 0.0;   x[2] = 1.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 0.0;   x[2] = 1.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 1.0;   x[2] = 2.0;
+   mesh->AddVertex(x);
+   x[0] = 0.0;   x[1] = 1.0;   x[2] = 1.0;
+   mesh->AddVertex(x);
+
+   //EAST
+   x[0] = 2.0;   x[1] = 0.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 2.0;   x[1] = 1.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 2.0;   x[1] = 0.0;   x[2] = 1.0;
+   mesh->AddVertex(x);
+   x[0] = 2.0;   x[1] = 1.0;   x[2] = 1.0;
+   mesh->AddVertex(x);
+   //WEST
+   // x[0] = -1.0;   x[1] = 0.0;   x[2] = 0.0;
+   // mesh->AddVertex(x);
+   // x[0] = -1.0;   x[1] = 1.0;   x[2] = 0.0;
+   // mesh->AddVertex(x);
+   // x[0] = -1.0;   x[1] = 0.0;   x[2] = 1.0;
+   // mesh->AddVertex(x);
+   // x[0] = -1.0;   x[1] = 1.0;   x[2] = 1.0;
+   // mesh->AddVertex(x);
+
+   int el[8];
+   el[0] = 0;
+   el[1] = 1;
+   el[2] = 2;
+   el[3] = 3;
+   el[4] = 4;
+   el[5] = 5;
+   el[6] = 6;
+   el[7] = 7;
+   mesh->AddHex(el);
+   // ELEM1 WEST
+   // orientation 3 WEST/EAST OK
+   // el[0] = 8;
+   // el[1] = 0;
+   // el[2] = 3;
+   // el[3] = 9;
+   // el[4] = 10;
+   // el[5] = 4;
+   // el[6] = 7;
+   // el[7] = 11;
+   // orientation 3 WEST/SOUTH OK
+   // el[0] = 0;
+   // el[1] = 3;
+   // el[2] = 9;
+   // el[3] = 8;
+   // el[4] = 4;
+   // el[5] = 7;
+   // el[6] = 11;
+   // el[7] = 10;
+   // orientation 3 WEST/NORTH OK
+   // el[0] = 8;
+   // el[1] = 9;
+   // el[2] = 0;
+   // el[3] = 3;
+   // el[4] = 10;
+   // el[5] = 11;
+   // el[6] = 4;
+   // el[7] = 7;
+   // orientation 5 WEST/TOP OK
+   // el[0] = 10;
+   // el[1] = 8;
+   // el[2] = 9;
+   // el[3] = 11;
+   // el[4] = 4;
+   // el[5] = 0;
+   // el[6] = 3;
+   // el[7] = 7;
+   // orientation 3 WEST/TOP OK
+   // el[0] = 8;
+   // el[1] = 9;
+   // el[2] = 11;
+   // el[3] = 10;
+   // el[4] = 0;
+   // el[5] = 3;
+   // el[6] = 7;
+   // el[7] = 4;
+   // orientation 3 WEST/BOTTOM OK
+   // el[0] = 4;
+   // el[1] = 7;
+   // el[2] = 3;
+   // el[3] = 0;
+   // el[4] = 10;
+   // el[5] = 11;
+   // el[6] = 9;
+   // el[7] = 8;
+
+   // ELEM1 EAST
+   // orientation 3 EAST/WEST OK
+   el[0] = 1;
+   el[1] = 8;
+   el[2] = 9;
+   el[3] = 2;
+   el[4] = 5;
+   el[5] = 10;
+   el[6] = 11;
+   el[7] = 6;
+   // orientation 1 EAST/WEST OK
+   // el[0] = 5;
+   // el[1] = 10;
+   // el[2] = 8;
+   // el[3] = 1;
+   // el[4] = 6;
+   // el[5] = 11;
+   // el[6] = 9;
+   // el[7] = 2;
+   // orientation 7 EAST/WEST OK
+   // el[0] = 6;
+   // el[1] = 11;
+   // el[2] = 10;
+   // el[3] = 5;
+   // el[4] = 2;
+   // el[5] = 9;
+   // el[6] = 8;
+   // el[7] = 1;
+   // orientation 5 EAST/WEST OK
+   // el[0] = 2;
+   // el[1] = 9;
+   // el[2] = 11;
+   // el[3] = 6;
+   // el[4] = 1;
+   // el[5] = 8;
+   // el[6] = 10;
+   // el[7] = 5;
+   // orientation 3 EAST/EAST OK
+   // el[0] = 9;
+   // el[1] = 2;
+   // el[2] = 1;
+   // el[3] = 8;
+   // el[4] = 11;
+   // el[5] = 6;
+   // el[6] = 5;
+   // el[7] = 10;
+   // orientation 1 EAST/EAST OK
+   // el[0] = 8;
+   // el[1] = 1;
+   // el[2] = 5;
+   // el[3] = 10;
+   // el[4] = 9;
+   // el[5] = 2;
+   // el[6] = 6;
+   // el[7] = 11;
+   // orientation 7 EAST/EAST OK
+   // el[0] = 10;
+   // el[1] = 5;
+   // el[2] = 6;
+   // el[3] = 11;
+   // el[4] = 8;
+   // el[5] = 1;
+   // el[6] = 2;
+   // el[7] = 9;
+   // orientation 5 EAST/EAST OK
+   // el[0] = 11;
+   // el[1] = 6;
+   // el[2] = 2;
+   // el[3] = 9;
+   // el[4] = 10;
+   // el[5] = 5;
+   // el[6] = 1;
+   // el[7] = 8;
+   // orientation 3 EAST/TOP OK
+   // el[0] = 9;
+   // el[1] = 8;
+   // el[2] = 10;
+   // el[3] = 11;
+   // el[4] = 2;
+   // el[5] = 1;
+   // el[6] = 5;
+   // el[7] = 6;
+   // orientation 1 EAST/TOP OK
+   // el[0] = 8;
+   // el[1] = 10;
+   // el[2] = 11;
+   // el[3] = 9;
+   // el[4] = 1;
+   // el[5] = 5;
+   // el[6] = 6;
+   // el[7] = 2;
+   // orientation 7 EAST/TOP OK
+   // el[0] = 10;
+   // el[1] = 11;
+   // el[2] = 9;
+   // el[3] = 8;
+   // el[4] = 5;
+   // el[5] = 6;
+   // el[6] = 2;
+   // el[7] = 1;
+   // orientation 5 EAST/TOP OK
+   // el[0] = 11;
+   // el[1] = 9;
+   // el[2] = 8;
+   // el[3] = 10;
+   // el[4] = 6;
+   // el[5] = 2;
+   // el[6] = 1;
+   // el[7] = 5;
+   // orientation 5 EAST/BOTTOM OK
+   // el[0] = 5;
+   // el[1] = 1;
+   // el[2] = 2;
+   // el[3] = 6;
+   // el[4] = 10;
+   // el[5] = 8;
+   // el[6] = 9;
+   // el[7] = 11;
+   // orientation 7 EAST/BOTTOM OK
+   // el[0] = 1;
+   // el[1] = 2;
+   // el[2] = 6;
+   // el[3] = 5;
+   // el[4] = 8;
+   // el[5] = 9;
+   // el[6] = 11;
+   // el[7] = 10;
+   // orientation 1 EAST/BOTTOM OK
+   // el[0] = 2;
+   // el[1] = 6;
+   // el[2] = 5;
+   // el[3] = 1;
+   // el[4] = 9;
+   // el[5] = 11;
+   // el[6] = 10;
+   // el[7] = 8;
+   // orientation 3 EAST/BOTTOM OK
+   // el[0] = 6;
+   // el[1] = 5;
+   // el[2] = 1;
+   // el[3] = 2;
+   // el[4] = 11;
+   // el[5] = 10;
+   // el[6] = 8;
+   // el[7] = 9;
+   // orientation 3 EAST/SOUTH OK
+   // el[0] = 2;
+   // el[1] = 1;
+   // el[2] = 8;
+   // el[3] = 9;
+   // el[4] = 6;
+   // el[5] = 5;
+   // el[6] = 10;
+   // el[7] = 11;
+   // orientation 5 EAST/SOUTH OK
+   // el[0] = 6;
+   // el[1] = 2;
+   // el[2] = 9;
+   // el[3] = 11;
+   // el[4] = 5;
+   // el[5] = 1;
+   // el[6] = 8;
+   // el[7] = 10;
+   // orientation 7 EAST/SOUTH OK
+   // el[0] = 5;
+   // el[1] = 6;
+   // el[2] = 11;
+   // el[3] = 10;
+   // el[4] = 1;
+   // el[5] = 2;
+   // el[6] = 9;
+   // el[7] = 8;
+   // orientation 1 EAST/SOUTH OK
+   // el[0] = 1;
+   // el[1] = 5;
+   // el[2] = 10;
+   // el[3] = 8;
+   // el[4] = 2;
+   // el[5] = 6;
+   // el[6] = 11;
+   // el[7] = 9;
+   // orientation 3 EAST/NORTH OK
+   // el[0] = 8;
+   // el[1] = 9;
+   // el[2] = 2;
+   // el[3] = 1;
+   // el[4] = 10;
+   // el[5] = 11;
+   // el[6] = 6;
+   // el[7] = 5;
+   // orientation 5 EAST/NORTH OK
+   // el[0] = 9;
+   // el[1] = 11;
+   // el[2] = 6;
+   // el[3] = 2;
+   // el[4] = 8;
+   // el[5] = 10;
+   // el[6] = 5;
+   // el[7] = 1;
+   // orientation 7 EAST/NORTH OK
+   // el[0] = 11;
+   // el[1] = 10;
+   // el[2] = 5;
+   // el[3] = 6;
+   // el[4] = 9;
+   // el[5] = 8;
+   // el[6] = 1;
+   // el[7] = 2;
+   // orientation 1 EAST/NORTH OK
+   // el[0] = 10;
+   // el[1] = 8;
+   // el[2] = 1;
+   // el[3] = 5;
+   // el[4] = 11;
+   // el[5] = 9;
+   // el[6] = 2;
+   // el[7] = 6;
+   mesh->AddHex(el);
+
+   mesh->FinalizeHexMesh(true);
+   mesh->GenerateBoundaryElements();
+   mesh->Finalize();
+   return mesh;
+}
+
+Mesh *skewed_mesh_2d()
+{
+   static const int dim = 2;
+   static const int nv = 4;
+   static const int nel = 1;
+   Mesh *mesh = new Mesh(dim, nv, nel);
+   double x[2];
+   x[0] = 0.0;   x[1] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 2.0;   x[1] = 1.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 2.0;
+   mesh->AddVertex(x);
+   int el[4];
+   el[0] = 0;
+   el[1] = 1;
+   el[2] = 2;
+   el[3] = 3;
+   mesh->AddQuad(el);
+   mesh->FinalizeQuadMesh(true);
+   mesh->GenerateBoundaryElements();
+   mesh->Finalize();
+   return mesh;
+}
+
+Mesh *skewed_mesh_3d()
+{
+   static const int dim = 3;
+   static const int nv = 8;
+   static const int nel = 1;
+   Mesh *mesh = new Mesh(dim, nv, nel);
+   double x[dim];
+   x[0] = 0.0;   x[1] = 0.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 0.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 1.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 0.0;   x[1] = 1.0;   x[2] = 0.0;
+   mesh->AddVertex(x);
+   x[0] = 0.0;   x[1] = 0.0;   x[2] = 1.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 0.0;   x[2] = 1.0;
+   mesh->AddVertex(x);
+   x[0] = 1.0;   x[1] = 2.0;   x[2] = 1.0;
+   mesh->AddVertex(x);
+   x[0] = 0.0;   x[1] = 1.0;   x[2] = 1.0;
+   mesh->AddVertex(x);
+
+   int el[8];
+   el[0] = 0;
+   el[1] = 1;
+   el[2] = 2;
+   el[3] = 3;
+   el[4] = 4;
+   el[5] = 5;
+   el[6] = 6;
+   el[7] = 7;
+   mesh->AddHex(el);
+
+   mesh->FinalizeHexMesh(true);
+   mesh->GenerateBoundaryElements();
+   mesh->Finalize();
+   return mesh;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -72,7 +474,12 @@ int main(int argc, char *argv[])
    Device device(device_config);
    device.Print();
 
-   Mesh mesh(mesh_file, 1, 1);
+   //Creating custom mesh
+   Mesh *mesh_ptr = oriented_mesh();
+   // Mesh *mesh_ptr = skewed_mesh_3d();
+   Mesh& mesh = *mesh_ptr;
+
+   // Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
    mesh.EnsureNodes();
@@ -91,10 +498,11 @@ int main(int argc, char *argv[])
    Vector velocity_vector(dim);
    for (int i = 0; i < dim; ++i)
    {
-      velocity_vector[i] = 1.0;
+      velocity_vector[i] = 0.0;
    }
-   // VectorConstantCoefficient velocity(velocity_vector);
-   VectorFunctionCoefficient velocity(dim, velocity_function);
+   velocity_vector[2] = 1.0;
+   VectorConstantCoefficient velocity(velocity_vector);
+   // VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 

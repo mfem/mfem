@@ -108,10 +108,10 @@ static void PAConvectionSetup3D(const int Q1D,
          const double A31 = (J21 * J32) - (J31 * J22);
          const double A32 = (J31 * J12) - (J11 * J32);
          const double A33 = (J11 * J22) - (J12 * J21);
-         // q . J^{-1} = q . adj(J)^T //TODO check correctness
-         y(q,0,e) =  wx * A11 + wy * A21 + wz * A31;
-         y(q,1,e) =  wx * A12 + wy * A22 + wz * A32;
-         y(q,2,e) =  wx * A13 + wy * A23 + wz * A33;
+         // q . J^{-1} = q . adj(J)
+         y(q,0,e) =  wx * A11 + wy * A12 + wz * A13;
+         y(q,1,e) =  wx * A21 + wy * A22 + wz * A23;
+         y(q,2,e) =  wx * A31 + wy * A32 + wz * A33;
       }
    });
 }

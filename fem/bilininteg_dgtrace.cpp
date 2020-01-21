@@ -133,8 +133,6 @@ static void PADGTraceSetup(const int dim,
    }
 }
 
-//TODO avoid duplicated code
-
 void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
    nf = fes.GetNFbyType(type);
@@ -149,7 +147,6 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    const int symmDims = 4;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   // nf = type==FaceType::Interior?fes.GetNF()-fes.GetMesh()->GetNBE():fes.GetMesh()->GetNBE();
    geom = mesh->GetFaceGeometricFactors(*ir,
                                         FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);

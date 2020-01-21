@@ -969,6 +969,7 @@ protected:
    int dof;//const int dof;
    int nfdofs;//const int nfdofs;
    Array<int> indices;
+   Array<bool> signs;
 
 public:
    H1FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
@@ -995,6 +996,7 @@ protected:
    int nfdofs;//const int nfdofs;
    Array<int> indices1;
    Array<int> indices2;
+   Array<bool> signs;
 
 public:
    L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
@@ -1168,7 +1170,7 @@ public:
        form a matrix at each quadrature point (i.e. the associated
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det. */
-   void Mult(const Vector &e_vec, unsigned eval_flags, //const Array<double> &W,
+   void Mult(const Vector &e_vec, unsigned eval_flags, const Array<bool> &signs,//const Array<double> &W,
              Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
@@ -1183,6 +1185,7 @@ public:
    static void Eval2D(const int NF,
                       const int vdim,
                       const DofToQuad &maps,
+                      const Array<bool> &signs,
                       const Vector &e_vec,
                       // const Array<double> &W,
                       Vector &q_val,
@@ -1196,6 +1199,7 @@ public:
    static void Eval3D(const int NF,
                       const int vdim,
                       const DofToQuad &maps,
+                      const Array<bool> &signs,
                       const Vector &e_vec,
                       // const Array<double> &W,
                       Vector &q_val,
