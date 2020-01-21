@@ -1306,6 +1306,8 @@ void KINSolver::Mult(Vector &x,
       NV_DATA_S(y_scale) = x_scale.GetData();
       NV_DATA_S(f_scale) = fx_scale.GetData();
 
+      flag = KINSetPrintLevel(sundials_mem, print_level);
+      MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
    }
    else
    {
