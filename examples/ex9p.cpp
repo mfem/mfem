@@ -268,6 +268,11 @@ int main(int argc, char *argv[])
      MFEM_ABORT("Partial assembly not supported for DG");
    }
 
+   if(fem_type == DG_FE && mfem::Device::Allows(mfem::Backend::CUDA_MASK))
+   {
+     MFEM_ABORT("CUDA not supported for DG");
+   }
+
    if(pa == true)
    {
      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
