@@ -228,8 +228,8 @@ int main(int argc, char *argv[])
       case 0: fec = new DG_FECollection(order, dim); break;
       case 1: fec = new H1_FECollection(order, dim); break;
       default:
-        cout << "Uknown finite element space: "<<fem_type <<'\n';
-        return 3;
+         cout << "Uknown finite element space: "<<fem_type <<'\n';
+         return 3;
    }
 
    ParFiniteElementSpace fes(pmesh, fec);
@@ -263,22 +263,22 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   if(pa && fem_type==DG_FE)
+   if (pa && fem_type==DG_FE)
    {
-     MFEM_ABORT("Partial assembly not supported for DG");
+      MFEM_ABORT("Partial assembly not supported for DG");
    }
 
-   if(fem_type == DG_FE && mfem::Device::Allows(mfem::Backend::CUDA_MASK))
+   if (fem_type == DG_FE && mfem::Device::Allows(mfem::Backend::CUDA_MASK))
    {
-     MFEM_ABORT("CUDA not supported for DG");
+      MFEM_ABORT("CUDA not supported for DG");
    }
 
-   if(pa == true)
+   if (pa == true)
    {
-     m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-     k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-     m->Assemble();
-     k->Assemble();
+      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      m->Assemble();
+      k->Assemble();
    }
    else
    {
@@ -463,19 +463,19 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
      M(_M), K(_K), b(_b), M_solver(MPI_COMM_WORLD),
      z(M.ParFESpace()->GetTrueVSize()), ess_tdofs(0), A()
 {
-  if(M.GetAssemblyLevel() == AssemblyLevel::FULL)
-  {
-     M_mat = M.ParallelAssemble();
-     K_mat = K.ParallelAssemble();
-     M_prec.SetType(HypreSmoother::Jacobi);
-     M_solver.SetPreconditioner(M_prec);
-     M_solver.SetOperator(*M_mat);
-  }
-  else
-  {
-     M.FormSystemMatrix(ess_tdofs, A);
-     M_solver.SetOperator(*A);
-  }
+   if (M.GetAssemblyLevel() == AssemblyLevel::FULL)
+   {
+      M_mat = M.ParallelAssemble();
+      K_mat = K.ParallelAssemble();
+      M_prec.SetType(HypreSmoother::Jacobi);
+      M_solver.SetPreconditioner(M_prec);
+      M_solver.SetOperator(*M_mat);
+   }
+   else
+   {
+      M.FormSystemMatrix(ess_tdofs, A);
+      M_solver.SetOperator(*A);
+   }
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
@@ -504,11 +504,11 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 
 FE_Evolution::~FE_Evolution()
 {
-  if (M.GetAssemblyLevel() == AssemblyLevel::FULL)
-  {
-    delete M_mat;
-    delete K_mat;
-  }
+   if (M.GetAssemblyLevel() == AssemblyLevel::FULL)
+   {
+      delete M_mat;
+      delete K_mat;
+   }
 }
 
 
