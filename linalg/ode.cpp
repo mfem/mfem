@@ -380,7 +380,8 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &_f)
 
 void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
 {
-   s = std::min(++s, smax);
+   s++;
+   s = std::min(s, smax);
    if (s == smax)
    {
       f->SetTime(t);
@@ -449,7 +450,8 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
    {
       f->Mult(x,k[idx[1]]);
    }
-   s = std::min(++s, smax);
+   s++;
+   s = std::min(s, smax);
 
    if (s >= smax-1)
    {
