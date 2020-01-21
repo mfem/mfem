@@ -935,8 +935,7 @@ static void SmemPADiffusionApply2D_KER(const int NE,
                                        const double *x_,
                                        double *y_,
                                        const int d1d = 0,
-                                       const int q1d = 0,
-                                       const int nbz = 0)
+                                       const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1092,14 +1091,11 @@ template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D_CXX(const int NE,
                                        const Array<double> &b_,
                                        const Array<double> &g_,
-                                       const Array<double> &bt_,
-                                       const Array<double> &gt_,
                                        const Vector &d_,
                                        const Vector &x_,
                                        Vector &y_,
                                        const int d1d = 0,
-                                       const int q1d = 0,
-                                       const int nbz = 0)
+                                       const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1254,14 +1250,9 @@ template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
                                    const Array<double> &b,
                                    const Array<double> &g,
-                                   const Array<double> &bt,
-                                   const Array<double> &gt,
                                    const Vector &d,
                                    const Vector &x,
-                                   Vector &y,
-                                   const int d1d = 0,
-                                   const int q1d = 0,
-                                   const int nbz = 0)
+                                   Vector &y)
 {
 #ifndef MFEM_USE_JIT
    if (getenv("VLA"))
@@ -1274,13 +1265,11 @@ static void SmemPADiffusionApply2D(const int NE,
    else if (getenv("KER"))
    {
       SmemPADiffusionApply2D_KER<T_D1D, T_Q1D, T_NBZ>
-      (NE,
-       b.Read(), g.Read(), bt.Read(), gt.Read(), d.Read(),
-       x.Read(), y.ReadWrite());
+      (NE, b.Read(), g.Read(), d.Read(), x.Read(), y.ReadWrite());
    }
    else if (getenv("CXX"))
    {
-      //SmemPADiffusionApply2D_CXX<T_D1D, T_Q1D, T_NBZ>(NE,b,g,bt,gt,d,x,y);
+      SmemPADiffusionApply2D_CXX<T_D1D, T_Q1D, T_NBZ>(NE,b,g,d,x,y);
    }
    else
    {
@@ -1509,8 +1498,6 @@ template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPADiffusionApply3D(const int NE,
                                    const Array<double> &b_,
                                    const Array<double> &g_,
-                                   const Array<double> &bt_,
-                                   const Array<double> &gt_,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -1779,14 +1766,14 @@ static void PADiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,Bt,Gt,D,X,Y);
+         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,B,G,D,X,Y);
+         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,B,G,D,X,Y);
+         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,B,G,D,X,Y);
+         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,B,G,D,X,Y);
+         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,B,G,D,X,Y);
+         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,D,X,Y);
+         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,D,X,Y);
+         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,D,X,Y);
          default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
@@ -1794,13 +1781,13 @@ static void PADiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,D,X,Y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,D,X,Y);
+         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,D,X,Y);
+         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,D,X,Y);
+         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,D,X,Y);
+         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,D,X,Y);
+         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,D,X,Y);
+         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,D,X,Y);
+         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,D,X,Y);
          default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
