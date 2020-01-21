@@ -16,7 +16,7 @@ case $1 in
    -h|-help)
       cat <<EOF
 
-   $0 [-h|-help] {mfem_dir}
+   $0 [-h|-help] {mfem_dir} [-commit <hash>] [-range <hash>..<hash>]
 
    where: {mfem_dir}  is the MFEM source directory [default value: ../..]
           -h|-help    prints this usage information and exits
@@ -24,7 +24,8 @@ case $1 in
    This script checks if the current branch history, defined as the commits that
    will be merged in master (those shown in a GitHub PR), contains unusually
    large files, unusually large number of changes in a commit, unusually large
-   number of commits, etc.
+   number of commits, etc. (Optionally one can specify a different range of
+   commits to be checked via the -commit and -range options.)
 
    The specific checks are provided at 3 levels: branch, commit and file.
 
@@ -46,6 +47,8 @@ case $1 in
    have any uncommitted changes and is not in a "detached HEAD" state.
 
    Example usage: $0 ../..
+                  $0 ../../ -commit 8d50f48
+                  $0 ../../ -range eecd0da..d5f6f7e
 
 EOF
       exit
@@ -76,9 +79,20 @@ file_max_lines_added=1000
 file_max_lines_deleted=1000
 
 current_branch="$(git symbolic-ref --short HEAD)"
+commit_range="master..${current_branch}"
+
+if [ "$1" = "-commit" ]; then
+    # check just the specified commit
+    commit="$2"
+    commit_range="`git rev-parse ${commit}^`..${commit}"
+fi
+
+if [ "$1" = "-range" ]; then
+    commit_range="$2"
+fi
 
 # Check if the branch contains unusually large number of commits
-num_commits="$(git rev-list --count master..${current_branch})"
+num_commits="$(git rev-list --count ${commit_range})"
 if [ ${num_commits} -gt ${branch_max_commits} ]
 then
     printf '\033[35m'"This branch contains unusually many commits: " 1>&2
@@ -95,7 +109,7 @@ while read -r obj; do
         printf '\033[35m'"This branch adds/modifies a large file: " 1>&2
         printf "${obj_fname} (size ${obj_size}K)"'\033[0m\n' 1>&2
     fi
-done < <(git rev-list master..${current_branch} --objects | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' | sed -n 's/^blob //p' | awk '{if (max[$2]<$1) max[$2]=$1} END {for (f in max) print max[f], f}' | sort --numeric-sort --key=1)
+done < <(git rev-list ${commit_range} --objects | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' | sed -n 's/^blob //p' | awk '{if (max[$2]<$1) max[$2]=$1} END {for (f in max) print max[f], f}' | sort --numeric-sort --key=1)
 
 # Check all the commits in the current branch (i.e. the commits that will be
 # merged in master, as shown in a GitHub PR):
@@ -145,22 +159,28 @@ do
 
             # Check if an unusually large number of lines have been added to the file
             file_lines_added="$(echo ${filelog} | awk '{print $1}')"
-            if [ ${file_lines_added} -gt ${file_max_lines_added} ]
-            then
-                printf '\033[31m'"Commit ${shortrev} adds unusually many lines to " 1>&2
-                printf "${fname} (${file_lines_added} lines added)"'\033[0m\n' 1>&2
-            fi
+	    if [ "${file_lines_added}" != "-" ]
+	    then
+		if [ ${file_lines_added} -gt ${file_max_lines_added} ]
+		then
+                    printf '\033[31m'"Commit ${shortrev} adds unusually many lines to " 1>&2
+                    printf "${fname} (${file_lines_added} lines added)"'\033[0m\n' 1>&2
+		fi
+	    fi
 
             # Check if an unusually large number of lines have been deleted from the file
             file_lines_deleted="$(echo ${filelog} | awk '{print $2}')"
-            if [ ${file_lines_deleted} -gt ${file_max_lines_deleted} ]
-            then
-                printf '\033[31m'"Commit ${shortrev} deletes unusually many lines from " 1>&2
-                printf "${fname} (${file_lines_deleted} lines deleted)"'\033[0m\n' 1>&2
-            fi
+	    if [ "${file_lines_deleted}" != "-" ]
+	    then
+		if [ ${file_lines_deleted} -gt ${file_max_lines_deleted} ]
+		then
+                    printf '\033[31m'"Commit ${shortrev} deletes unusually many lines from " 1>&2
+                    printf "${fname} (${file_lines_deleted} lines deleted)"'\033[0m\n' 1>&2
+		fi
+	    fi
         fi
     done < <(git show --pretty="" --numstat --no-renames ${rev})
-done < <(git rev-list --reverse --no-merges master..${current_branch})
+done < <(git rev-list --reverse --no-merges ${commit_range})
 
 # Return to the original branch and directory
 git checkout -q ${current_branch}
