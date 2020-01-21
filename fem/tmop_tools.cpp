@@ -284,6 +284,7 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
       else { not_found++;}
    }
 }
+
 #endif
 
 double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
