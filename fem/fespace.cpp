@@ -3267,6 +3267,8 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in H1FaceRestriction.");
+   MFEM_VERIFY(fes.GetMesh()->Conforming(),
+      "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto.
    height = vdim*nf*dof;
    width = fes.GetVSize();
@@ -3497,6 +3499,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.");
+   MFEM_VERIFY(fes.GetMesh()->Conforming(),
+      "Non-conforming meshes not yet supported with partial assembly.");
    if (nf==0) { return; }
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
