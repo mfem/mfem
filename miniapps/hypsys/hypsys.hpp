@@ -44,10 +44,10 @@ public:
 	DenseTensor BdrInt;
 	GridFunction inflow;
 	GridFunction u;
-	Vector LumpedMassMat;
+	const Vector LumpedMassMat;
 	const MassMatrixDG *MassMat;
 	const InverseMassMatrixDG *InvMassMat;
-	const DofInfo *dofs;
+	const DofInfo dofs;
 	
 	bool SolutionKnown = true;
 	bool SteadyState;
@@ -58,7 +58,7 @@ public:
 	mutable int DofInd, nbr;
    mutable Vector uNbr;
 
-	HyperbolicSystem(FiniteElementSpace *fes_, Configuration &config);
+	HyperbolicSystem(FiniteElementSpace *fes_, DofInfo &dofs_, const Vector &LumpedMassMat_, Configuration &config);
 	
    virtual ~HyperbolicSystem();
 	

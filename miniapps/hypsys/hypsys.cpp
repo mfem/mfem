@@ -83,11 +83,26 @@ int main(int argc, char *argv[])
    L2_FECollection fec(config.order, dim, btype);
    FiniteElementSpace fes(&mesh, &fec);
 	cout << "Number of unknowns: " << fes.GetVSize() << endl;
+	
+	// The min/max bounds are represented as H1 functions of the same order
+	// as the solution, thus having 1:1 dof correspondence inside each element.
+	H1_FECollection fecBounds(max(config.order, 1), dim,
+									  BasisType::GaussLobatto);
+	FiniteElementSpace fesBounds(&mesh, &fecBounds);
+	DofInfo dofs(&fes, &fesBounds);
+	
+	// Compute the lumped mass matrix.
+	Vector LumpedMassMat;
+	BilinearForm ml(&fes);
+	ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+	ml.Assemble();
+	ml.Finalize();
+	ml.SpMat().GetDiag(LumpedMassMat);
 
 	HyperbolicSystem *hyp;
 	switch (config.ProblemNum)
 	{
-		case 0: { hyp =  new Advection(&fes, config); break; }
+		case 0: { hyp =  new Advection(&fes, dofs, LumpedMassMat, config); break; }
 		default:
 			cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
          return -1;

@@ -1,5 +1,5 @@
-HyperbolicSystem::HyperbolicSystem(FiniteElementSpace *fes_, Configuration &config)
-											: TimeDependentOperator(fes_->GetVSize()), fes(fes_),
+HyperbolicSystem::HyperbolicSystem(FiniteElementSpace *fes_, DofInfo &dofs_, const Vector &LumpedMassMat_, Configuration &config)
+											: TimeDependentOperator(fes_->GetVSize()), fes(fes_), dofs(dofs_), LumpedMassMat(LumpedMassMat_),
 											  scheme(config.scheme), inflow(fes_), u(fes_),
 											  z(fes_->GetVSize())
 {
@@ -27,17 +27,10 @@ HyperbolicSystem::HyperbolicSystem(FiniteElementSpace *fes_, Configuration &conf
 	uEval.SetSize(1); // TODO Vector valued soultion.
 	uNbr.SetSize(1); // TODO vector valued
 	QuadWeightFace.SetSize(nqf);
-	
-	// The min/max bounds are represented as H1 functions of the same order
-	// as the solution, thus having 1:1 dof correspondence inside each element.
-	H1_FECollection fecBounds(max(el->GetOrder(), 1), dim,
-									  BasisType::GaussLobatto);
-	FiniteElementSpace fesBounds(mesh, &fecBounds);
-	dofs = new DofInfo(fes, &fesBounds);
 
 	ShapeEval.SetSize(nd,nqe);
 	DShapeEval.SetSize(nd,dim,nqe);
-	ShapeEvalFace.SetSize(dofs->NumBdrs, dofs->NumFaceDofs, nqf);
+	ShapeEvalFace.SetSize(dofs.NumBdrs, dofs.NumFaceDofs, nqf);
 	Vector shape(nd);
 	DenseMatrix dshape(nd,dim);
 	
@@ -59,7 +52,7 @@ HyperbolicSystem::HyperbolicSystem(FiniteElementSpace *fes_, Configuration &conf
 		else if (dim==2) { mesh->GetElementEdges(0, bdrs, orientation); }
 		else if (dim==3) { mesh->GetElementFaces(0, bdrs, orientation); }
 		
-		for (int i = 0; i < dofs->NumBdrs; i++)
+		for (int i = 0; i < dofs.NumBdrs; i++)
 		{
 			FaceElementTransformations *facetrans = 
 			mesh->GetFaceElementTransformations(bdrs[i]);
@@ -69,19 +62,12 @@ HyperbolicSystem::HyperbolicSystem(FiniteElementSpace *fes_, Configuration &conf
 			facetrans->Loc1.Transform(ip, eip);
 			el->CalcShape(eip, shape);
 			
-			for (int j = 0; j < dofs->NumFaceDofs; j++)
+			for (int j = 0; j < dofs.NumFaceDofs; j++)
 			{
-				ShapeEvalFace(i,j,k) = shape(dofs->BdrDofs(j,i));
+				ShapeEvalFace(i,j,k) = shape(dofs.BdrDofs(j,i));
 			}
 		}
 	}
-	
-	// Compute the lumped mass matrix.
-	BilinearForm ml(fes);
-	ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-	ml.Assemble();
-	ml.Finalize();
-	ml.SpMat().GetDiag(LumpedMassMat);
 	
 	MassMat = new MassMatrixDG(fes);
 	InvMassMat = new InverseMassMatrixDG(MassMat);
@@ -89,7 +75,6 @@ HyperbolicSystem::HyperbolicSystem(FiniteElementSpace *fes_, Configuration &conf
 
 HyperbolicSystem::~HyperbolicSystem()
 {
-	delete dofs;
 	delete MassMat;
 	delete InvMassMat;
 }

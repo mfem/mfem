@@ -6,7 +6,7 @@
 class Advection : public HyperbolicSystem
 {
 public:
-   explicit Advection(FiniteElementSpace *fes_, Configuration &config_);
+   explicit Advection(FiniteElementSpace *fes_, DofInfo &dofs_, const Vector &LumpedMassMat_, Configuration &config_);
    ~Advection() { };
 
 	virtual void EvaluateFlux(const Vector &u, DenseMatrix &f) const;

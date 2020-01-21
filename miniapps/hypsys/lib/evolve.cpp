@@ -22,24 +22,24 @@ void HyperbolicSystem::EvolveStandard(const Vector &x, Vector &y) const
 		z.AddElementVector(vdofs, vec3); // TODO Vector valued soultion.
 
 		// Here, the use of Bernstein elements is essential.
-		for (int i = 0; i < dofs->NumBdrs; i++)
+		for (int i = 0; i < dofs.NumBdrs; i++)
 		{
 			for (int k = 0; k < nqf; k++)
 			{
 				uEval = 0.;
 				if (BdrInt(i,k,e) >= 0)
 				{
-					for (int j = 0; j < dofs->NumFaceDofs; j++)
+					for (int j = 0; j < dofs.NumFaceDofs; j++)
 					{
-						uEval(0) += uElem(dofs->BdrDofs(j,i)) * ShapeEvalFace(i,j,k);
+						uEval(0) += uElem(dofs.BdrDofs(j,i)) * ShapeEvalFace(i,j,k);
 					}
 				}
 				else
 				{
-					for (int j = 0; j < dofs->NumFaceDofs; j++)
+					for (int j = 0; j < dofs.NumFaceDofs; j++)
 					{
-						DofInd = e*nd+dofs->BdrDofs(j,i);
-						nbr = dofs->NbrDofs(i,j,e);
+						DofInd = e*nd+dofs.BdrDofs(j,i);
+						nbr = dofs.NbrDofs(i,j,e);
                   if (nbr < 0)
 						{
 							uNbr(0) = inflow(DofInd);
@@ -52,9 +52,9 @@ void HyperbolicSystem::EvolveStandard(const Vector &x, Vector &y) const
 					}
 				}
 				
-				for (int j = 0; j < dofs->NumFaceDofs; j++)
+				for (int j = 0; j < dofs.NumFaceDofs; j++)
 				{
-					z(vdofs[dofs->BdrDofs(j,i)]) -= QuadWeightFace(k)
+					z(vdofs[dofs.BdrDofs(j,i)]) -= QuadWeightFace(k)
 						* ShapeEvalFace(i,j,k) * BdrInt(i,k,e) * uEval(0);
 				}
 			}

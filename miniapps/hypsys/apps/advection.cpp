@@ -6,8 +6,8 @@ void VelocityFunction(const Vector &x, Vector &v);
 double InitialCondition(const Vector &x);
 double InflowFunction(const Vector &x);
 
-Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
-							: HyperbolicSystem(fes_, config_)
+Advection::Advection(FiniteElementSpace *fes_, DofInfo &dofs_, const Vector &LumpedMassMat_, Configuration &config_)
+							: HyperbolicSystem(fes_, dofs_, LumpedMassMat_, config_)
 {	
 	config = config_;
 	
@@ -28,15 +28,15 @@ Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
 	DenseMatrix VelEval, mat(dim, nqe);
 	Array <int> bdrs, orientation;
 	ElemInt.SetSize(dim, nqe, ne);
-	BdrInt.SetSize(dofs->NumBdrs, nqf, ne);
+	BdrInt.SetSize(dofs.NumBdrs, nqf, ne);
 	
-	Array<IntegrationPoint> eip(nqf*dofs->NumBdrs);
+	Array<IntegrationPoint> eip(nqf*dofs.NumBdrs);
 	
 	if (dim==1)      { mesh->GetElementVertices(0, bdrs); }
    else if (dim==2) { mesh->GetElementEdges(0, bdrs, orientation); }
    else if (dim==3) { mesh->GetElementFaces(0, bdrs, orientation); }
 	
-	for (int i = 0; i < dofs->NumBdrs; i++)
+	for (int i = 0; i < dofs.NumBdrs; i++)
 	{
 		FaceElementTransformations *help
 			= mesh->GetFaceElementTransformations(bdrs[i]);
@@ -77,7 +77,7 @@ Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
       else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
       else if (dim==3) { mesh->GetElementFaces(e, bdrs, orientation); }
 		
-		for (int i = 0; i < dofs->NumBdrs; i++)
+		for (int i = 0; i < dofs.NumBdrs; i++)
 		{
 			Vector vval, nor(dim);
 			FaceElementTransformations *facetrans
