@@ -155,47 +155,45 @@ do
     while read -r filelog
     do
         fname="$(echo ${filelog} | awk '{print $3}')"
-        if [ -e $fname ] # exclude deleted files
+
+        if [ -e $fname ] && [ "${checkout_commits}" = true ] # exclude deleted files
         then
-            if [ "${checkout_commits}" = true ]
+            # Check if the file is binary (non-text file as reported by "file")
+            binary="$(file -b ${fname} | grep -v 'text')"
+            if [ -n "${binary}" ]
             then
-                # Check if the file is binary (non-text file as reported by "file")
-                binary="$(file -b ${fname} | grep -v 'text')"
-                if [ -n "${binary}" ]
-                then
-                    printf '\033[31m'"Commit ${shortrev} contains a binary file: " 1>&2
-                    printf "${fname} (${binary})"'\033[0m\n' 1>&2
-                fi
-
-                # Check if the file is unusually large
-                file_size="$(du -k ${fname} | cut -f1)"
-                if [ ${file_size} -gt ${file_max_size} ]
-                then
-                    printf '\033[31m'"Commit ${shortrev} adds/modifies a large file: " 1>&2
-                    printf "${fname} (size ${file_size}K)"'\033[0m\n' 1>&2
-                fi
+                printf '\033[31m'"Commit ${shortrev} contains a binary file: " 1>&2
+                printf "${fname} (${binary})"'\033[0m\n' 1>&2
             fi
 
-            # Check if an unusually large number of lines have been added to the file
-            file_lines_added="$(echo ${filelog} | awk '{print $1}')"
-            if [ "${file_lines_added}" != "-" ]
+            # Check if the file is unusually large
+            file_size="$(du -k ${fname} | cut -f1)"
+            if [ ${file_size} -gt ${file_max_size} ]
             then
-                if [ ${file_lines_added} -gt ${file_max_lines_added} ]
-                then
-                    printf '\033[31m'"Commit ${shortrev} adds unusually many lines to " 1>&2
-                    printf "${fname} (${file_lines_added} lines added)"'\033[0m\n' 1>&2
-                fi
+                printf '\033[31m'"Commit ${shortrev} adds/modifies a large file: " 1>&2
+                printf "${fname} (size ${file_size}K)"'\033[0m\n' 1>&2
             fi
+        fi
 
-            # Check if an unusually large number of lines have been deleted from the file
-            file_lines_deleted="$(echo ${filelog} | awk '{print $2}')"
-            if [ "${file_lines_deleted}" != "-" ]
+        # Check if an unusually large number of lines have been added to the file
+        file_lines_added="$(echo ${filelog} | awk '{print $1}')"
+        if [ "${file_lines_added}" != "-" ]
+        then
+            if [ ${file_lines_added} -gt ${file_max_lines_added} ]
             then
-                if [ ${file_lines_deleted} -gt ${file_max_lines_deleted} ]
-                then
-                    printf '\033[31m'"Commit ${shortrev} deletes unusually many lines from " 1>&2
-                    printf "${fname} (${file_lines_deleted} lines deleted)"'\033[0m\n' 1>&2
-                fi
+                printf '\033[31m'"Commit ${shortrev} adds unusually many lines to " 1>&2
+                printf "${fname} (${file_lines_added} lines added)"'\033[0m\n' 1>&2
+            fi
+        fi
+
+        # Check if an unusually large number of lines have been deleted from the file
+        file_lines_deleted="$(echo ${filelog} | awk '{print $2}')"
+        if [ "${file_lines_deleted}" != "-" ]
+        then
+            if [ ${file_lines_deleted} -gt ${file_max_lines_deleted} ]
+            then
+                printf '\033[31m'"Commit ${shortrev} deletes unusually many lines from " 1>&2
+                printf "${fname} (${file_lines_deleted} lines deleted)"'\033[0m\n' 1>&2
             fi
         fi
     done < <(git show --pretty="" --numstat --no-renames ${rev})
