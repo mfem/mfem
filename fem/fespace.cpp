@@ -3189,8 +3189,8 @@ void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     // faceMap[i+j*dof1d] = i + j*dof1d;//Lex
-                     faceMap[i+j*dof1d] = i + (dof1d-1-j)*dof1d;
+                     faceMap[i+j*dof1d] = i + j*dof1d;//Lex
+                     // faceMap[i+j*dof1d] = i + (dof1d-1-j)*dof1d;
                   }
                }
                break;
@@ -3199,8 +3199,8 @@ void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     // faceMap[i+j*dof1d] = i + j*dof1d*dof1d;//Lex
-                     faceMap[i+j*dof1d] = (dof1d-1-i) + j*dof1d*dof1d;
+                     faceMap[i+j*dof1d] = i + j*dof1d*dof1d;//Lex
+                     // faceMap[i+j*dof1d] = (dof1d-1-i) + j*dof1d*dof1d;
                   }
                }
                break;
@@ -3218,7 +3218,8 @@ void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
+                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;//Lex
+                     // faceMap[i+j*dof1d] = (dof1d-1)*dof1d + (dof1d-1-i) + j*dof1d*dof1d;
                   }
                }
                break;
@@ -3227,8 +3228,8 @@ void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     // faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;//Lex
-                     faceMap[i+j*dof1d] = (dof1d-1-i)*dof1d + j*dof1d*dof1d;
+                     faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;//Lex
+                     // faceMap[i+j*dof1d] = (dof1d-1-i)*dof1d + j*dof1d*dof1d;
                   }
                }
                break;
@@ -3385,14 +3386,24 @@ static int PermuteFace3D(const int face_id1, const int face_id2,
    int i=0, j=0, new_i=0, new_j=0;
    i = index%size1d;
    j = index/size1d;
-   if (face_id2==1 || face_id2==4)
-   {
-      i = size1d-1-i;
-   }
-   else if (face_id2==0)
-   {
-      j = size1d-1-j;
-   }
+   // Go to lex ordering
+   // if (face_id2==3 || face_id2==4)
+   // {
+   //    i = size1d-1-i;
+   // }
+   // else if (face_id2==0)
+   // {
+   //    j = size1d-1-j;
+   // }
+   // if (face_id1==3 || face_id1==4)
+   // {
+   //    i = size1d-1-i;
+   // }
+   // else if (face_id1==0)
+   // {
+   //    j = size1d-1-j;
+   // }
+   // rotate on lex ordering
    switch (orientation)
    {
       case 0:
@@ -3428,18 +3439,20 @@ static int PermuteFace3D(const int face_id1, const int face_id2,
          new_j = (size1d-1-j);
          break;
    }
-   if (face_id2==2 || face_id2==3 || face_id2==5)
-   {
-      return new_i + new_j*size1d;
-   }
-   else if (face_id2==1 || face_id2==4)
-   {
-      return (size1d-1-new_i) + new_j*size1d;
-   }
-   else//face_id2==0
-   {
-      return new_i + (size1d-1-new_j)*size1d;
-   }
+   // face ordering for elem1
+   // if (face_id1==2 || face_id1==1 || face_id1==5)
+   // {
+   //    return new_i + new_j*size1d;
+   // }
+   // else if (face_id1==3 || face_id1==4)
+   // {
+   //    return (size1d-1-new_i) + new_j*size1d;
+   // }
+   // else//face_id1==0
+   // {
+   //    return new_i + (size1d-1-new_j)*size1d;
+   // }
+   return new_i + new_j*size1d;
 }
 
 int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1,
@@ -4052,6 +4065,7 @@ void FaceQuadratureInterpolator::Eval2D(
    const int NF,
    const int vdim,
    const DofToQuad &maps,
+   const Array<bool> &signs,
    const Vector &f_vec,
    // const Array<double> &W,
    Vector &q_val,
@@ -4154,6 +4168,7 @@ void FaceQuadratureInterpolator::Eval3D(
    const int NF,
    const int vdim,
    const DofToQuad &maps,
+   const Array<bool> &signs,
    const Vector &e_vec,
    // const Array<double> &W,
    Vector &q_val,
@@ -4174,6 +4189,7 @@ void FaceQuadratureInterpolator::Eval3D(
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
    auto F = Reshape(e_vec.Read(), ND1D, ND1D, VDIM, NF);
    // auto w = W.Read();
+   auto sign = signs.Read();
    auto val = Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF);
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
@@ -4321,9 +4337,10 @@ void FaceQuadratureInterpolator::Eval3D(
             {
                for (int q1 = 0; q1 < NQ1D; ++q1)
                {
-                  n[0] = BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*BGu[q2][q1][2];
-                  n[1] = BGu[q2][q1][0]*GBu[q2][q1][2]-GBu[q2][q1][0]*BGu[q2][q1][2];
-                  n[2] = BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*BGu[q2][q1][1];
+                  const double s = sign[f] ? -1.0 : 1.0;
+                  n[0] = s*( BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*BGu[q2][q1][2] );
+                  n[1] = s*( BGu[q2][q1][0]*GBu[q2][q1][2]-GBu[q2][q1][0]*BGu[q2][q1][2] );
+                  n[2] = s*( BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*BGu[q2][q1][1] );
                   const double norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
                   if (eval_flags & DETERMINANTS) { det(q1,q2,f) = norm; }
                   if (eval_flags & NORMALS)
@@ -4340,7 +4357,7 @@ void FaceQuadratureInterpolator::Eval3D(
 }
 
 void FaceQuadratureInterpolator::Mult(
-   const Vector &e_vec, unsigned eval_flags, //const Array<double> &W,
+   const Vector &e_vec, unsigned eval_flags, const Array<bool> &signs,//const Array<double> &W,
    Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const
 {
    if (nf == 0) { return; }
@@ -4357,6 +4374,7 @@ void FaceQuadratureInterpolator::Mult(
       const int NF,
       const int vdim,
       const DofToQuad &maps,
+      const Array<bool> &signs,
       const Vector &e_vec,
       // const Array<double> &W,
       Vector &q_val,
@@ -4474,7 +4492,7 @@ void FaceQuadratureInterpolator::Mult(
    }
    if (eval_func)
    {
-      eval_func(nf, vdim, maps, e_vec, q_val, q_der, q_det, q_nor, eval_flags);
+      eval_func(nf, vdim, maps, signs, e_vec, q_val, q_der, q_det, q_nor, eval_flags);
    }
    else
    {
