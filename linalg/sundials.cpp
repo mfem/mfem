@@ -1295,9 +1295,6 @@ void KINSolver::Mult(const Vector &b, Vector &x) const
 void KINSolver::Mult(Vector &x,
                      const Vector &x_scale, const Vector &fx_scale) const
 {
-   flag = KINSetPrintLevel(sundials_mem, print_level);
-   MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
-
    flag = KINSetNumMaxIters(sundials_mem, max_iter);
    MFEM_ASSERT(flag == KIN_SUCCESS, "KINSetNumMaxIters() failed!");
 
@@ -1318,6 +1315,13 @@ void KINSolver::Mult(Vector &x,
       MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(), "");
       NV_DATA_P(y_scale) = x_scale.GetData();
       NV_DATA_P(f_scale) = fx_scale.GetData();
+
+      int rank;
+      MPI_Comm_rank(NV_COMM_P(y), &rank);
+      if (rank == 0) {
+         flag = KINSetPrintLevel(sundials_mem, print_level);
+         MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
+      }
 #endif
 
    }
