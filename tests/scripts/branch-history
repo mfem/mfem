@@ -48,6 +48,7 @@ case $1 in
 
    Example usage: $0 ../..
                   $0 ../../ -commit 8d50f48
+                  $0 ../../ -range eb2017b..5dd5511
                   $0 ../../ -range eecd0da..d5f6f7e
 
 EOF
@@ -92,7 +93,7 @@ if [ "$1" = "-range" ]; then
 fi
 
 # Check if the branch contains unusually large number of commits
-num_commits="$(git rev-list --count ${commit_range})"
+num_commits="$(git rev-list --count --no-merges ${commit_range})"
 if [ ${num_commits} -gt ${branch_max_commits} ]
 then
     printf '\033[35m'"This branch contains unusually many commits: " 1>&2
@@ -109,7 +110,7 @@ while read -r obj; do
         printf '\033[35m'"This branch adds/modifies a large file: " 1>&2
         printf "${obj_fname} (size ${obj_size}K)"'\033[0m\n' 1>&2
     fi
-done < <(git rev-list ${commit_range} --objects | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' | sed -n 's/^blob //p' | awk '{if (max[$2]<$1) max[$2]=$1} END {for (f in max) print max[f], f}' | sort --numeric-sort --key=1)
+done < <(git rev-list --objects --no-merges ${commit_range} | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' | sed -n 's/^blob //p' | awk '{if (max[$2]<$1) max[$2]=$1} END {for (f in max) print max[f], f}' | sort --numeric-sort --key=1)
 
 # Check all the commits in the current branch (i.e. the commits that will be
 # merged in master, as shown in a GitHub PR):
