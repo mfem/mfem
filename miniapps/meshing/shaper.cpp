@@ -21,7 +21,7 @@
 //
 // Two additional versions of this miniapp can be found in the miniapps/toys
 // directory: Mandel uses the Shaper algorithm for fractal visualization, while
-// Mesher convert an image to an AMR mesh suitable for MFEM computations.
+// Mondrian convert an image to an AMR mesh suitable for MFEM computations.
 //
 // Compile with: make shaper
 //
