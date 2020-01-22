@@ -18,6 +18,7 @@ jobs:
     # - gitignore
 
     - stage: checks
+      os: linux
       name: "code-style"
       addons:
         apt:
@@ -29,6 +30,7 @@ jobs:
         - ./runtest code-style
 
     - stage: checks
+      os: linux
       name: "documentation"
       addons:
         apt:
@@ -44,6 +46,7 @@ jobs:
         - ./runtest documentation
 
     - stage: checks
+      os: linux
       name: "gitignore"
       addons:
         apt:
