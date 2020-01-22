@@ -39,9 +39,9 @@ libCEED support
 
 Meshing improvements
 --------------------
-- Added support for non-conforming prism AMR, including coarsening and parallel
-  load balancing. Anisotropic prism refinement is only available in the serial
-  version at the moment.
+- Added support for non-conforming AMR on prisms and tetrahedra, including
+  coarsening and parallel load balancing. Anisotropic prism refinement is only
+  available in the serial version at the moment.
 
 - The TMOP mesh optimization algorithms were extended to support r-adaptivity.
   Target matrices can now be constructed either via a given analytical function
@@ -72,6 +72,12 @@ Discretization improvements
   include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
   parallel counterparts.
 
+- Two integrators related to Stokes problems, (Q grad u, v) and (Q div v, u),
+  where u and the components of v are in H1, were added/modified to support full
+  and partial assembly modes. See the new GradientIntegrator and the updated
+  VectorDivergenceIntegrator classes in fem/bilininteg.hpp, as well as the PA
+  kernels in fem/bilininteg_gradient.cpp and fem/bilininteg_divergence.cpp.
+
 - Diagonals of partially assembled operators can now be computed efficiently.
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
@@ -80,6 +86,10 @@ Discretization improvements
 
 - Added a nonlinear full and partial assembly enabled vector valued convection
   integrator.
+
+- Added a new method, MixedBilinearForm::FormRectangularLinearSystem, that can
+  be used to impose boundary conditions on the non-square off-diagonal blocks of
+  a block operator (similar to FormLinearSystem in the square case).
 
 - Extended the support for partial assembly to vector mass and vector diffusion
   bilinear integrators.
@@ -95,7 +105,9 @@ Linear and nonlinear solvers
 
 - Added support for Ginkgo, a high-performance linear algebra library for GPU
   and manycore nodes, with a focus on sparse solution of linear systems. For
-  more details see linalg/ginkgo.hpp and the example code in examples/ginko.
+  more details see linalg/ginkgo.hpp and the example code in examples/gingko.
+
+- Added Adams-Bashforth and Adams-Moulton time integrators.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -137,6 +149,8 @@ Miscellaneous
 - Collected object files from the miniapps/common directory into a new library,
   libmfem-common for the convenience of application developers. The new library
   is now used in several miniapps in the electromagnetic and tools directories.
+
+- Added unit tests for time integrators.
 
 
 Version 4.0, released on May 24, 2019
