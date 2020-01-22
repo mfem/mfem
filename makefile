@@ -247,12 +247,12 @@ endif
 
 # JIT configuration
 ifeq ($(MFEM_USE_JIT),YES)
-#	ifneq ($(MFEM_USE_SHARED),YES)
+	ifneq ($(MFEM_USE_SHARED),YES)
 		MFEM_EXT_LIBS += -ldl
 #   ifneq ($(MFEM_SHARED),YES)
 #      $(error Incompatible config: MFEM_USE_JIT requires MFEM_SHARED)
 #   endif
-#	endif
+	endif
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -451,7 +451,7 @@ MPP_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
 $(BLD)mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(MPP_MFEM_CONFIG)
 $(BLD)jit: $(BLD)general/jit.cpp $(BLD)general/jit.hpp $(THIS_MK) 
-	$(MFEM_CXX) -O3 -std=c++11 -pedantic -DMFEM_INCLUDE_MAIN -o $(BLD)$(@) $(<)
+	$(MFEM_CXX) -g -O2 -std=c++11 -pedantic -DMFEM_INCLUDE_MAIN -o $(BLD)$(@) $(<)
 
 all: examples miniapps $(TEST_DIRS)
 

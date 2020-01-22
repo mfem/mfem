@@ -79,7 +79,7 @@ inline void uint64str(uint64_t num, char *s, const size_t offset =1)
 // *****************************************************************************
 // * compile
 // *****************************************************************************
-int System(char *argv[]);
+int System(int argc, char *argv[]);
 template<typename... Args>
 const char *compile(const bool dbg, const size_t hash, const char *cxx,
                     const char *src, const char *mfem_build_flags,
@@ -107,12 +107,14 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
    const bool nvcc = strstr(cxx, "nvcc");
    const char *xflags = nvcc ? NVFLAGS : clang ? CLANG_FLAGS : CCFLAGS;
    //const char *xlinker = nvcc ? "-Xlinker=" : "-Wl,";
-   if (snprintf(includes, SZ, "-I%s/include ", INSTALL)<0) { return NULL; }
-   const char *argv[] = {dbg? "1" : "0",
-                         cxx, "-fPIC", xflags, "-shared",
-                         includes, "-o", so, cc, nullptr
-                        };
-   if (mfem::jit::System(const_cast<char**>(argv))<0) { return NULL; }
+   if (snprintf(includes, SZ,
+                "-I/home/camier1/home/mfem/hypre/src/hypre/include -I%s/include ", INSTALL)<0) { return NULL; }
+   constexpr int argc = 12;
+   const char *argv[argc] = {dbg ? "1" : "0",
+                             cxx, "-fPIC", xflags, "-shared",
+                             includes, "-o", so, cc, nullptr
+                            };
+   if (mfem::jit::System(argc, const_cast<char**>(argv))<0) { return NULL; }
    if (!dbg) { unlink(cc); }
    return src;
 }
@@ -130,7 +132,7 @@ void *lookup(const bool dbg, const size_t hash, const char *cxx,
    void *handle = dlopen(so, dlflags);
    if (!handle && !compile(dbg, hash, cxx, src, flags, dir, args...))
    { return NULL; }
-   if (!(handle=dlopen(so, dlflags))) { return NULL; }
+   if (!(handle = dlopen(so, dlflags))) { return NULL; }
    return handle;
 }
 

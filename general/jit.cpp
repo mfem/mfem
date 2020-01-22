@@ -15,10 +15,10 @@
 #ifdef MFEM_USE_MPI
 
 #include <mpi.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <cassert>
+#include <unistd.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
 
 #include "communication.hpp"
 
@@ -36,9 +36,12 @@ namespace jit
                    printf(" \n\033[m");fflush(0); }
 
 // *****************************************************************************
-int System(char *argv[] = MPI_ARGV_NULL)
+#define MFEM_JIT_RUN_COMPILATION 0x12345678
+
+// *****************************************************************************
+int System(int argc =1, char *argv[] = MPI_ARGV_NULL)
 {
-   const bool debug = getenv("JIT_DBG");
+   const bool debug = argc ==1;
    assert(!debug);
    constexpr size_t size = 4096;
    char command[size];
@@ -47,38 +50,19 @@ int System(char *argv[] = MPI_ARGV_NULL)
    dbg("command: %s", command);
    MPI_Info info = MPI_INFO_NULL;
    const int root = 0;
-   MPI_Comm comm = MPI_COMM_WORLD, intercomm;
-   int errcode;
-   assert(unsetenv("JIT_DBG")==0);
-   MPI_Comm_spawn(command, argv, 1, info, root, comm, &intercomm, &errcode);
-
-   {
-      int status = EXIT_FAILURE;
-      dbg("MPI_Bcast");
-      //dbg("\033[32m[System] status:%d,\n", status);
-
-      constexpr size_t SZ = 4096;
-      char command[SZ];
-      command[0] = 0;
-      for (int k=1; argv[k]; k++)
-      {
-         strcat(command, argv[k]);
-         strcat(command, " ");
-      }
-
-      int length = strlen(command)-1;
-      //dbg("\033[32m[System] length:%d,\n", length);
-      MPI_Bcast(&length, 1, MPI_INT, MPI_ROOT, intercomm);
-
-      //dbg("\033[32m[System] command:%s,\n", command);
-      MPI_Bcast(&command, length, MPI_CHAR, MPI_ROOT, intercomm);
-
-      MPI_Bcast(&status, 1, MPI_INT, 0, intercomm);
-      assert(status == EXIT_SUCCESS);
-      //dbg("\033[32m[System] status:%d,\n", status);
-      MPI_Barrier(MPI_COMM_WORLD);
-      MPI_Comm_free(&intercomm);
-   }
+   MPI_Comm comm = MPI_COMM_WORLD, intercomm = MPI_COMM_NULL;
+   int errcode = 0;
+   int spawned =
+      MPI_Comm_spawn(command, argv, 1, info, root, comm, &intercomm, &errcode);
+   if (spawned != 0 || errcode !=0) { return EXIT_FAILURE; }
+   dbg("MPI_Bcast");
+   int status = EXIT_FAILURE;
+   MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, intercomm);
+   // Wait for return
+   MPI_Bcast(&status, 1, MPI_INT, 0, intercomm);
+   assert(status == EXIT_SUCCESS);
+   MPI_Barrier(MPI_COMM_WORLD);
+   MPI_Comm_free(&intercomm);
    dbg("done");
    return EXIT_SUCCESS;
 }
@@ -88,54 +72,41 @@ int System(char *argv[] = MPI_ARGV_NULL)
 } // namespace mfem
 
 // *****************************************************************************
-int MPISpawn(int argc, char *argv[])
+int MPISpawn(int argc, char *argv[], int *cookie)
 {
-   const bool debug = getenv("JIT_DBG");
+   const bool debug = argc == 1;
    dbg("[MPISpawn] %s", debug?"debug":"");
    MPI_Init(&argc, &argv);
-   MPI_Comm parent;
+   MPI_Comm parent = MPI_COMM_NULL;
    MPI_Comm_get_parent(&parent);
-   // debug mode where 'jit' has been launched directly
+
+   // debug mode where 'jit' has been launched directly, without any arguments
    if (debug && parent == MPI_COMM_NULL)
    {
-      const char *argv[3] = {"uname", "-a", nullptr};
-      assert(unsetenv("JIT_DBG")==0);
-      mfem::jit::System(const_cast<char**>(argv));
+      constexpr int argc = 4;
+      const char *argv[argc] = {"1", "uname", "-a", nullptr};
+      mfem::jit::System(argc, const_cast<char**>(argv));
       MPI_Finalize();
       return EXIT_SUCCESS;
    }
-   if (parent == MPI_COMM_NULL)
-   {
-      std::cerr << "Error: Should have been spawned by another MPI process!"
-                << std::endl;
-      return EXIT_FAILURE;
-   }
+
+   // This case should not happen
+   if (parent == MPI_COMM_NULL) { return EXIT_FAILURE; }
+
    // MPI child
-   dbg("\033[32m[MPI child] I have been spawned by MPI processes. argc:%d\n",
-       argc-2);
-   const bool dbg = (argc > 1) && (argv[1][0] == 0x31);
-   if (dbg)
-   {
-      for (int k=2; argv[k]; k++) { dbg("\033[32m%s ", argv[k]); }
-   }
-   {
-      int length;
-      MPI_Bcast(&length, 1, MPI_INT, 0, parent);
-      //dbg("\033[32m[MPI child] length:%d,\n", length);
+   dbg("\033[32m[MPI child] Waiting initial Bcast...");
 
-      constexpr size_t SZ = 4096;
-      char command[SZ];
-      MPI_Bcast(&command, length, MPI_CHAR, 0, parent);
+   int status = EXIT_SUCCESS;
+   MPI_Bcast(&status, 1, MPI_INT, 0, parent);
+   assert(status == EXIT_FAILURE);
 
-      dbg("\033[32m[MPI child] command: '%s'\n", command);
-
-      // Launch here the command, even if it should be done in the other process
-      system(command);
-
-      int status = EXIT_SUCCESS;
-      MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, parent);
-   }
-   //while (true);
+   dbg("\033[32m[MPI child] Now telling compile process to work!");
+   for (*cookie  = MFEM_JIT_RUN_COMPILATION;
+        *cookie == MFEM_JIT_RUN_COMPILATION;
+        usleep(100)) {}
+   dbg("\033[32m[MPI child] done");
+   status = *cookie;
+   MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, parent);
    MPI_Finalize();
    return EXIT_SUCCESS;
 }
@@ -143,28 +114,40 @@ int MPISpawn(int argc, char *argv[])
 // *****************************************************************************
 int ProcessFork(int argc, char *argv[])
 {
-   const bool debug = getenv("JIT_DBG");
+   int *shared_return_value = nullptr;
+   const bool debug = argc == 1;
    dbg("[ProcessFork] %s", debug?"debug":"");
-   const pid_t child_pid = fork();
-   //dbg("child_pid: %d", child_pid);
 
-   if (child_pid != 0) // MPI parent stuff
+   if (!debug)
    {
-      int status;
-      MPISpawn(argc, argv);
-      dbg("Waiting child %d",child_pid);
-      waitpid(child_pid, &status, 0);
-      return EXIT_SUCCESS;
+      constexpr int size = sizeof(int);
+      constexpr int prot = PROT_READ | PROT_WRITE;
+      constexpr int flag = MAP_SHARED | MAP_ANONYMOUS;
+      shared_return_value = static_cast<int*>(mmap(0, size, prot, flag, -1, 0));
+      *shared_return_value = 0;
    }
-   if (child_pid != 0 && !debug) { return MPISpawn(argc, argv); }
+
+   const pid_t child_pid = fork();
+
+   // MPI parent stuff
+   if (child_pid != 0 ) { return MPISpawn(argc, argv, shared_return_value); }
+
+   // Thread child stuff
    if (debug) { return EXIT_SUCCESS; }
 
-   // Forked child, child_pid == 0
-   const pid_t forked = getpid();
-   dbg("Forked pid: %d", forked);
-   dbg("Waiting for some compilation to do\n");
-   while (true);
-   return EXIT_SUCCESS;
+   std::string command(argv[2]);
+   for (int k=3; argv[k]; k++)
+   {
+      command.append(" ");
+      command.append(argv[k]);
+   }
+   const char * command_c_str = command.c_str();
+   const bool argdbg = (argc > 1) && (argv[1][0] == 0x31);
+   if (argdbg) { dbg("\033[31m%s", command_c_str); }
+   while (*shared_return_value != MFEM_JIT_RUN_COMPILATION) { usleep(1000); }
+   const int return_value = system(command_c_str);
+   *shared_return_value = return_value == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+   return return_value;
 }
 
 #ifdef MFEM_INCLUDE_MAIN
