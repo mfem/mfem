@@ -72,9 +72,19 @@ Discretization improvements
   include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
   parallel counterparts.
 
+- Two integrators related to Stokes problems, (Q grad u, v) and (Q div v, u),
+  where u and the components of v are in H1, were added/modified to support full
+  and partial assembly modes. See the new GradientIntegrator and the updated
+  VectorDivergenceIntegrator classes in fem/bilininteg.hpp, as well as the PA
+  kernels in fem/bilininteg_gradient.cpp and fem/bilininteg_divergence.cpp.
+
 - Diagonals of partially assembled operators can now be computed efficiently.
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
+
+- Added a new method, MixedBilinearForm::FormRectangularLinearSystem, that can
+  be used to impose boundary conditions on the non-square off-diagonal blocks of
+  a block operator (similar to FormLinearSystem in the square case).
 
 - Extended the support for partial assembly to vector mass and vector diffusion
   bilinear integrators.
