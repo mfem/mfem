@@ -247,11 +247,9 @@ endif
 
 # JIT configuration
 ifeq ($(MFEM_USE_JIT),YES)
+   JIT_EXE = $(BLD)jit
 	ifneq ($(MFEM_USE_SHARED),YES)
-		MFEM_EXT_LIBS += -ldl
-#   ifneq ($(MFEM_SHARED),YES)
-#      $(error Incompatible config: MFEM_USE_JIT requires MFEM_SHARED)
-#   endif
+		LDFLAGS += -ldl
 	endif
 endif
 
@@ -332,11 +330,11 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
  MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
- MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_JIT \
- MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR\
+ MFEM_USE_JIT
 
 # List of makefile variables that will be written to config.mk:
-MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
+MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_BIN_DIR MFEM_INC_DIR\
  MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR MFEM_EXT_LIBS\
  MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG MFEM_PREFIX\
  MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP MFEM_TEST_MK
@@ -354,6 +352,7 @@ MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
+MFEM_BIN_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
@@ -376,6 +375,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    endif
    # Allow changing the PREFIX during install with: make install PREFIX=<dir>
    PREFIX := $(MFEM_PREFIX)
+   PREFIX_BIN   := $(PREFIX)/bin
    PREFIX_INC   := $(PREFIX)/include
    PREFIX_LIB   := $(PREFIX)/lib
    PREFIX_SHARE := $(PREFIX)/share/mfem
@@ -391,6 +391,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
       endif
    endif
    MFEM_PREFIX := $(abspath $(PREFIX))
+   MFEM_BIN_DIR = $(abspath $(PREFIX_BIN))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
    MFEM_TEST_MK = $(abspath $(PREFIX_SHARE)/test.mk)
@@ -401,12 +402,9 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem fem/libceed
-SOURCE_FILES = $(foreach dir,$(DIRS),\
-  $(filter-out $(SRC)$(dir)/mpp.cpp, $(wildcard $(SRC)$(dir)/*.cpp)))
-C_SOURCE_FILES = $(foreach dir,$(DIRS), $(wildcard $(SRC)$(dir)/*.c))
+SOURCE_FILES = $(foreach dir,$(DIRS),$(filter-out $(SRC)$(dir)/mpp.cpp, $(wildcard $(SRC)$(dir)/*.cpp)))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
-C_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(C_SOURCE_FILES:.c=.c.o))
 OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
@@ -414,16 +412,14 @@ OKL_DIRS = fem
 	deprecation-warnings
 
 .SUFFIXES:
-.SUFFIXES: .cpp .c .o
+.SUFFIXES: .cpp .o
 # Remove some default implicit rules
 %:	%.o
-%.o: %.c
-%.o: %.cpp
+%.o:	%.cpp
 %:	%.cpp
-%:	%.c
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(BLD)jit
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(JIT_EXE)
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -448,7 +444,7 @@ endif
 MPP_MFEM_CONFIG  = -DMFEM_CXX="$(MFEM_CXX)"
 MPP_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
 MPP_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
-$(BLD)mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
+$(BLD)mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp #$(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(MPP_MFEM_CONFIG)
 $(BLD)jit: $(BLD)general/jit.cpp $(BLD)general/jit.hpp $(THIS_MK) 
 	$(MFEM_CXX) -g -O2 -std=c++11 -pedantic -DMFEM_INCLUDE_MAIN -o $(BLD)$(@) $(<)
@@ -467,9 +463,8 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: $(OBJECT_FILES) $(C_OBJECT_FILES)
-	[ ! -e $(@) ] || rm -f $(@)
-	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES) $(C_OBJECT_FILES)
+$(BLD)libmfem.a: $(OBJECT_FILES)
+	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 	@$(MAKE) deprecation-warnings
 
@@ -565,6 +560,10 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
 install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+ifeq ($(MFEM_USE_JIT),YES)
+	mkdir -p $(PREFIX_BIN)
+	$(INSTALL) -m 750 $(BLD)jit $(PREFIX_BIN)
+endif
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
@@ -689,6 +688,7 @@ status info:
 	$(info MFEM_LIB_FILE          = $(value MFEM_LIB_FILE))
 	$(info MFEM_BUILD_TAG         = $(value MFEM_BUILD_TAG))
 	$(info MFEM_PREFIX            = $(value MFEM_PREFIX))
+	$(info MFEM_BIN_DIR           = $(value MFEM_BIN_DIR))
 	$(info MFEM_INC_DIR           = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR           = $(value MFEM_LIB_DIR))
 	$(info MFEM_STATIC            = $(MFEM_STATIC))

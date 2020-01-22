@@ -785,7 +785,6 @@ static void OccaPADiffusionApply3D(const int D1D,
 }
 #endif // MFEM_USE_OCCA
 
-
 // PA Diffusion Apply 2D kernel
 #ifndef MFEM_USE_JIT
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -909,21 +908,6 @@ static void PADiffusionApply2D(const int NE,
 #endif
 
 // Shared memory PA Diffusion Apply 2D kernel
-
-// *****************************************************************************
-// * VLA
-// *****************************************************************************
-#ifndef _WIN32
-extern "C" void SmemPADiffusionApply2D_VLA(const int NE,
-                                           const int D1D,
-                                           const int Q1D,
-                                           const int NBZ,
-                                           const double *b,
-                                           const double *g,
-                                           const double *D,
-                                           const double *x,
-                                           double *Y);
-#endif
 
 // *****************************************************************************
 // * KER
@@ -1248,7 +1232,7 @@ static void SmemPADiffusionApply2D_CXX(const int NE,
 }
 
 // *****************************************************************************
-// * VLA, KER or CXX
+// * KER or CXX
 // *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
@@ -1262,16 +1246,6 @@ static void SmemPADiffusionApply2D(const int NE,
                                    const int nbz = 0)
 {
 #ifndef MFEM_USE_JIT
-#ifndef _WIN32
-   if (getenv("VLA"))
-   {
-      SmemPADiffusionApply2D_VLA(NE, T_D1D, T_Q1D, T_NBZ,
-                                 b.Read(), g.Read(), d.Read(), x.Read(),
-                                 y.ReadWrite());
-      return;
-
-   }
-#endif
    if (getenv("KER"))
    {
       SmemPADiffusionApply2D_KER<T_D1D, T_Q1D, T_NBZ>
@@ -1283,17 +1257,10 @@ static void SmemPADiffusionApply2D(const int NE,
       SmemPADiffusionApply2D_CXX<T_D1D, T_Q1D, T_NBZ>(NE,b,g,d,x,y);
       return;
    }
-   mfem_error("VLA|KER|CXX");
+   mfem_error("KER|CXX");
 
 #else // MFEM_USE_JIT
-   if (getenv("VLA"))
-   {
-      SmemPADiffusionApply2D_VLA(NE, d1d, q1d, nbz,
-                                 b.Read(), g.Read(), d.Read(), x.Read(),
-                                 y.ReadWrite());
-
-   }
-   else if (getenv("KER"))
+   if (getenv("KER"))
    {
       SmemPADiffusionApply2D_KER(NE,
                                  b.Read(), g.Read(), d.Read(), x.Read(),
@@ -1306,7 +1273,7 @@ static void SmemPADiffusionApply2D(const int NE,
    }
    else
    {
-      mfem_error("VLA|KER|CXX");
+      mfem_error("KER|CXX");
    }
 #endif
 }

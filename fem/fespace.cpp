@@ -2910,27 +2910,25 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                "Only scalar finite elements are supported");
 }
 
-/*MFEM_JIT*/
 template<const int T_VDIM, const int T_ND, const int T_NQ>
 void QuadratureInterpolator::Eval2D(
    const int NE,
+   const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
-   const int eval_flags,
-   const int vdim,
-   const int nd,
-   const int nq)
+   const int eval_flags)
 {
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
    const int ND = T_ND ? T_ND : nd;
    const int NQ = T_NQ ? T_NQ : nq;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
-   MFEM_VERIFY(ND <= QuadratureInterpolator::MAX_ND2D, "");
-   MFEM_VERIFY(NQ <= QuadratureInterpolator::MAX_NQ2D, "");
-   MFEM_VERIFY(VDIM == 2 ||
-               !(eval_flags & QuadratureInterpolator::DETERMINANTS), "");
+   MFEM_VERIFY(ND <= MAX_ND2D, "");
+   MFEM_VERIFY(NQ <= MAX_NQ2D, "");
+   MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
    auto B = Reshape(maps.B.Read(), NQ, ND);
    auto G = Reshape(maps.G.Read(), NQ, 2, ND);
    auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
@@ -2942,8 +2940,8 @@ void QuadratureInterpolator::Eval2D(
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int max_ND = T_ND ? T_ND : QuadratureInterpolator::MAX_ND2D;
-      constexpr int max_VDIM = T_VDIM ? T_VDIM : QuadratureInterpolator::MAX_VDIM2D;
+      constexpr int max_ND = T_ND ? T_ND : MAX_ND2D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM2D;
       double s_E[max_VDIM*max_ND];
       for (int d = 0; d < ND; d++)
       {
@@ -2954,7 +2952,7 @@ void QuadratureInterpolator::Eval2D(
       }
       for (int q = 0; q < NQ; ++q)
       {
-         if (eval_flags & QuadratureInterpolator::VALUES)
+         if (eval_flags & VALUES)
          {
             double ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
@@ -2965,11 +2963,10 @@ void QuadratureInterpolator::Eval2D(
             }
             for (int c = 0; c < VDIM; c++) { val(q,c,e) = ed[c]; }
          }
-         if ((eval_flags & QuadratureInterpolator::DERIVATIVES) ||
-             (eval_flags & QuadratureInterpolator::DETERMINANTS))
+         if ((eval_flags & DERIVATIVES) || (eval_flags & DETERMINANTS))
          {
             // use MAX_VDIM2D to avoid "subscript out of range" warnings
-            double D[QuadratureInterpolator::MAX_VDIM2D*2];
+            double D[MAX_VDIM2D*2];
             for (int i = 0; i < 2*VDIM; i++) { D[i] = 0.0; }
             for (int d = 0; d < ND; ++d)
             {
@@ -2982,7 +2979,7 @@ void QuadratureInterpolator::Eval2D(
                   D[c+VDIM*1] += s_e * wy;
                }
             }
-            if (eval_flags & QuadratureInterpolator::DERIVATIVES)
+            if (eval_flags & DERIVATIVES)
             {
                for (int c = 0; c < VDIM; c++)
                {
@@ -2990,7 +2987,7 @@ void QuadratureInterpolator::Eval2D(
                   der(q,c,1,e) = D[c+VDIM*1];
                }
             }
-            if (VDIM == 2 && (eval_flags & QuadratureInterpolator::DETERMINANTS))
+            if (VDIM == 2 && (eval_flags & DETERMINANTS))
             {
                // The check (VDIM == 2) should eliminate this block when VDIM is
                // known at compile time and (VDIM != 2).
@@ -3001,27 +2998,25 @@ void QuadratureInterpolator::Eval2D(
    });
 }
 
-/*MFEM_JIT*/
 template<const int T_VDIM, const int T_ND, const int T_NQ>
 void QuadratureInterpolator::Eval3D(
    const int NE,
+   const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
-   const int eval_flags,
-   const int vdim,
-   const int nd,
-   const int nq)
+   const int eval_flags)
 {
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
    const int ND = T_ND ? T_ND : nd;
    const int NQ = T_NQ ? T_NQ : nq;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
-   MFEM_VERIFY(ND <= QuadratureInterpolator::MAX_ND3D, "");
-   MFEM_VERIFY(NQ <= QuadratureInterpolator::MAX_NQ3D, "");
-   MFEM_VERIFY(VDIM == 3 ||
-               !(eval_flags & QuadratureInterpolator::DETERMINANTS), "");
+   MFEM_VERIFY(ND <= MAX_ND3D, "");
+   MFEM_VERIFY(NQ <= MAX_NQ3D, "");
+   MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
    auto B = Reshape(maps.B.Read(), NQ, ND);
    auto G = Reshape(maps.G.Read(), NQ, 3, ND);
    auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
@@ -3033,8 +3028,8 @@ void QuadratureInterpolator::Eval3D(
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int max_ND = T_ND ? T_ND : QuadratureInterpolator::MAX_ND3D;
-      constexpr int max_VDIM = T_VDIM ? T_VDIM : QuadratureInterpolator::MAX_VDIM3D;
+      constexpr int max_ND = T_ND ? T_ND : MAX_ND3D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
       double s_E[max_VDIM*max_ND];
       for (int d = 0; d < ND; d++)
       {
@@ -3045,7 +3040,7 @@ void QuadratureInterpolator::Eval3D(
       }
       for (int q = 0; q < NQ; ++q)
       {
-         if (eval_flags & QuadratureInterpolator::VALUES)
+         if (eval_flags & VALUES)
          {
             double ed[max_VDIM];
             for (int c = 0; c < VDIM; c++) { ed[c] = 0.0; }
@@ -3056,11 +3051,10 @@ void QuadratureInterpolator::Eval3D(
             }
             for (int c = 0; c < VDIM; c++) { val(q,c,e) = ed[c]; }
          }
-         if ((eval_flags & QuadratureInterpolator::DERIVATIVES) ||
-             (eval_flags & QuadratureInterpolator::DETERMINANTS))
+         if ((eval_flags & DERIVATIVES) || (eval_flags & DETERMINANTS))
          {
             // use MAX_VDIM3D to avoid "subscript out of range" warnings
-            double D[QuadratureInterpolator::MAX_VDIM3D*3];
+            double D[MAX_VDIM3D*3];
             for (int i = 0; i < 3*VDIM; i++) { D[i] = 0.0; }
             for (int d = 0; d < ND; ++d)
             {
@@ -3075,7 +3069,7 @@ void QuadratureInterpolator::Eval3D(
                   D[c+VDIM*2] += s_e * wz;
                }
             }
-            if (eval_flags & QuadratureInterpolator::DERIVATIVES)
+            if (eval_flags & DERIVATIVES)
             {
                for (int c = 0; c < VDIM; c++)
                {
@@ -3084,7 +3078,7 @@ void QuadratureInterpolator::Eval3D(
                   der(q,c,2,e) = D[c+VDIM*2];
                }
             }
-            if (VDIM == 3 && (eval_flags & QuadratureInterpolator::DETERMINANTS))
+            if (VDIM == 3 && (eval_flags & DETERMINANTS))
             {
                // The check (VDIM == 3) should eliminate this block when VDIM is
                // known at compile time and (VDIM != 3).
@@ -3111,18 +3105,15 @@ void QuadratureInterpolator::Mult(
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::FULL);
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
-   //#ifndef MFEM_USE_JIT
    void (*eval_func)(
       const int NE,
+      const int vdim,
       const DofToQuad &maps,
       const Vector &e_vec,
       Vector &q_val,
       Vector &q_der,
       Vector &q_det,
-      const int eval_flags,
-      const int vdim,
-      const int nd,
-      const int nq) = NULL;
+      const int eval_flags) = NULL;
    if (vdim == 1)
    {
       if (dim == 2)
@@ -3233,26 +3224,12 @@ void QuadratureInterpolator::Mult(
    }
    if (eval_func)
    {
-      eval_func(ne, maps, e_vec, q_val, q_der, q_det, eval_flags, vdim, nd, nq);
+      eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, eval_flags);
    }
    else
    {
       MFEM_ABORT("case not supported yet");
    }
-   /*#else // MFEM_USE_JIT
-
-      if (dim == 2)
-      {
-         Eval2D(ne, maps, e_vec, q_val, q_der, q_det, eval_flags, vdim, nd, nq);
-         return;
-      }
-      if (dim == 3)
-      {
-         Eval3D(ne, maps, e_vec, q_val, q_der, q_det, eval_flags, vdim, nd, nq);
-         return;
-      }
-      MFEM_ABORT("case not supported yet");
-   #endif*/
 }
 
 void QuadratureInterpolator::MultTranspose(

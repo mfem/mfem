@@ -939,7 +939,6 @@ protected:
 
    mutable bool use_tensor_products;
 
-public:
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
    static const int MAX_VDIM2D = 2;
@@ -993,28 +992,24 @@ public:
    /// Template compute kernel for 2D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Eval2D(const int NE,
+                      const int vdim,
                       const DofToQuad &maps,
                       const Vector &e_vec,
                       Vector &q_val,
                       Vector &q_der,
                       Vector &q_det,
-                      const int eval_flags,
-                      const int vdim =0,
-                      const int nd =0,
-                      const int nq =0);
+                      const int eval_flags);
 
    /// Template compute kernel for 3D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Eval3D(const int NE,
+                      const int vdim,
                       const DofToQuad &maps,
                       const Vector &e_vec,
                       Vector &q_val,
                       Vector &q_der,
                       Vector &q_det,
-                      const int eval_flags,
-                      const int vdim =0,
-                      const int nd =0,
-                      const int nq =0);
+                      const int eval_flags);
 };
 
 }
