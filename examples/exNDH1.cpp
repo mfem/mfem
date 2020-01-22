@@ -16,12 +16,13 @@
 //               mpirun -np 4 exNDH1 -m ../data/amr-quad.mesh -o 2
 //               mpirun -np 4 exNDH1 -m ../data/amr-hex.mesh
 //
-// Description:  This example code illustrates usage of mixed finite element spaces.
-//               Using two different approaches, we project a gradient of a function
-//               in H^1 to H(curl). Other spaces and example computations are to be
-//               added in the future.
+// Description:  This example code illustrates usage of mixed finite element
+//               spaces. Using two different approaches, we project a gradient 
+//               of a function in H^1 to H(curl). Other spaces and example 
+//               computations are to be added in the future.
 
-//               We recommend viewing examples 1 and 3 before viewing this example.
+//               We recommend viewing examples 1 and 3 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -228,7 +229,7 @@ int main(int argc, char *argv[])
       x.SetFromTrueDofs(X);
    }
 
-   // 11. Compute the same solution by applying the GradientInterpolator in H(curl).
+   // 11. Compute the same solution by applying GradientInterpolator in H(curl).
    
    ParDiscreteLinearOperator grad(H1fespace, fespace);
    grad.AddDomainInterpolator(new GradientInterpolator());
@@ -250,9 +251,12 @@ int main(int argc, char *argv[])
 
       if (myid == 0)
       {
-         cout << "\n Solution of (E_h,v) = (grad p,v) for E_h and v in H(curl): || E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
-         cout << " Gradient interpolant E_h = grad p in H(curl): || E_h - grad p ||_{L^2} = " << errInterp << '\n' << endl;
-         cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p ||_{L^2} = " << errProj << '\n' << endl;
+         cout << "\n Solution of (E_h,v) = (grad p,v) for E_h and v in H(curl)"
+	   ": || E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
+         cout << " Gradient interpolant E_h = grad p in H(curl): || E_h - grad"
+	   "p ||_{L^2} = " << errInterp << '\n' << endl;
+         cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
+	   "||_{L^2} = " << errProj << '\n' << endl;
       }
    }
    

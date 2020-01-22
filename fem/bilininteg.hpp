@@ -1560,8 +1560,8 @@ private:
 
    // PA extension
    Vector pa_data;
-   const DofToQuad *mapsO;         ///< Not owned
-   const DofToQuad *mapsC;         ///< Not owned
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
    Array<int> dof_map;
@@ -2097,8 +2097,8 @@ protected:
 
    // PA extension
    Vector pa_data, pa_data_2;
-   const DofToQuad *mapsO;         ///< Not owned
-   const DofToQuad *mapsC;         ///< Not owned
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
    Array<int> dof_map;
@@ -2178,8 +2178,8 @@ protected:
 
    // PA extension
    Vector pa_data;
-   const DofToQuad *mapsO;         ///< Not owned
-   const DofToQuad *mapsC;         ///< Not owned
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
    Array<int> dof_map;
