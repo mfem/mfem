@@ -82,10 +82,13 @@ Discretization improvements
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
-- Added initial support for partially assembled NonlinearForms.
+- Added initial support for NonlinearForms to support the partial assembly mode.
 
-- Added a nonlinear full and partial assembly enabled vector valued convection
-  integrator.
+- Added a nonlinear vector valued convection integrator (Q u \cdot grad u, v)
+  where u_i and v_i are in H1. This form occurs e.g. in the Navier-Stokes
+  equations. The integrator supports the partial assembly mode for its
+  action. In full assembly mode we also provide the GetGradient method that
+  computes the linearized version of the integrator.
 
 - Added a new method, MixedBilinearForm::FormRectangularLinearSystem, that can
   be used to impose boundary conditions on the non-square off-diagonal blocks of
