@@ -17,7 +17,7 @@ It is recommended that developers run these tests scripts and verify that they
 complete successfully before pushing to GitHub. For example:
 
    cd tests/scripts
-   ./runtest ../.. code-style git-history documentation gitignore
+   ./runtest ../.. code-style documentation gitignore branch-history
 
 See the sections below for details on runtest and the available test scripts.
 
@@ -83,12 +83,13 @@ The currently available test scripts are:
 - code-style: Checks if the code conforms to the MFEM C++ style. The script also
   verifies that std::cout and std::cerr are not used in the library.
 
-- git-history: Checks if there are any disallowed files (binary or large files)
-  and/or a large number of changes in the current branch history.
-
 - documentation: Checks the Doxygen documentation formatting.
 
 - gitignore: Checks for compliance with MFEM's .gitignore rules
+
+- branch-history: Checks if the current branch history (the commits that will be
+  merged in master) contains unusually large files, unusually large number of
+  changes in a commit, unusually large number of commits, etc.
 
 Adding new test scripts is easy and we welcome contributions from users and
 developers.

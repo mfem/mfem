@@ -129,8 +129,10 @@ Improved testing
 - It is recommended that developers run the above tests scripts (via the runtest
   script) before pushing to GitHub. See the README file in tests/scripts.
 
-- The Travis CI settings have been updated to include a new Checks stage which
-  runs the code-style, git-history, documentation and gitignore test scripts.
+- The Travis CI settings have been updated to include an initial Checks stage
+  which currently runs the code-style, documentation and gitignore test scripts,
+  as well as a final stage for optional checks/tests which currently runs the
+  branch-history script.
 
 Miscellaneous
 -------------
