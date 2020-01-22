@@ -185,7 +185,7 @@ static void PAHcurlMassApply2D(const int D1D,
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
    auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
    auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
@@ -247,10 +247,9 @@ static void PAHcurlMassApply2D(const int D1D,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const int q = qx + qy * Q1D;
-            const double O11 = op(q,0,e);
-            const double O12 = op(q,1,e);
-            const double O22 = op(q,2,e);
+            const double O11 = op(qx,qy,0,e);
+            const double O12 = op(qx,qy,1,e);
+            const double O22 = op(qx,qy,2,e);
             const double massX = mass[qy][qx][0];
             const double massY = mass[qy][qx][1];
             mass[qy][qx][0] = (O11*massX)+(O12*massY);
@@ -311,7 +310,7 @@ static void PAHcurlMassAssembleDiagonal2D(const int D1D,
    auto dof_map = Reshape(_dof_map.Read(), 2*(D1D-1)*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
    auto diag = Reshape(_diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -334,9 +333,7 @@ static void PAHcurlMassAssembleDiagonal2D(const int D1D,
                {
                   const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
 
-                  const int q = qx + qy * Q1D;
-
-                  mass[qx] += wy * wy * ((c == 0) ? op(q,0,e) : op(q,2,e));
+                  mass[qx] += wy * wy * ((c == 0) ? op(qx,qy,0,e) : op(qx,qy,2,e));
                }
             }
 
@@ -373,7 +370,7 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
    auto dof_map = Reshape(_dof_map.Read(), 3*(D1D-1)*D1D*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
    auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -403,11 +400,9 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
 
                      for (int qz = 0; qz < Q1D; ++qz)
                      {
-                        const int q = qx + (qy + qz * Q1D) * Q1D;
-
                         const double wz = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
 
-                        mass[qx] += wy * wy * wz * wz * op(q,opc,e);
+                        mass[qx] += wy * wy * wz * wz * op(qx,qy,qz,opc,e);
                      }
                   }
                }
@@ -462,7 +457,7 @@ static void PAHcurlMassApply3D(const int D1D,
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
    auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
    auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
@@ -556,13 +551,12 @@ static void PAHcurlMassApply3D(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const int q = qx + (qy + qz * Q1D) * Q1D;
-               const double O11 = op(q,0,e);
-               const double O12 = op(q,1,e);
-               const double O13 = op(q,2,e);
-               const double O22 = op(q,3,e);
-               const double O23 = op(q,4,e);
-               const double O33 = op(q,5,e);
+               const double O11 = op(qx,qy,qz,0,e);
+               const double O12 = op(qx,qy,qz,1,e);
+               const double O13 = op(qx,qy,qz,2,e);
+               const double O22 = op(qx,qy,qz,3,e);
+               const double O23 = op(qx,qy,qz,4,e);
+               const double O33 = op(qx,qy,qz,5,e);
                const double massX = mass[qz][qy][qx][0];
                const double massY = mass[qz][qy][qx][1];
                const double massZ = mass[qz][qy][qx][2];
@@ -828,7 +822,7 @@ static void PACurlCurlApply2D(const int D1D,
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
    auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
    auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
@@ -889,8 +883,7 @@ static void PACurlCurlApply2D(const int D1D,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const int q = qx + qy * Q1D;
-            curl[qy][qx] *= op(q,e);
+            curl[qy][qx] *= op(qx,qy,e);
          }
       }
 
@@ -963,7 +956,7 @@ static void PACurlCurlApply3D(const int D1D,
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
    auto Got = Reshape(_Got.Read(), D1D-1, Q1D);
    auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 10, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 10, NE);
    auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
@@ -1088,24 +1081,22 @@ static void PACurlCurlApply3D(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const int q = qx + (qy + qz * Q1D) * Q1D;
-
                double curlRef[3][3];
                double invJ[3][3];
 
                // op stores the entries of J^{-1} and det.
 
-               invJ[0][0] = op(q,0,e);
-               invJ[0][1] = op(q,1,e);
-               invJ[0][2] = op(q,2,e);
-               invJ[1][0] = op(q,3,e);
-               invJ[1][1] = op(q,4,e);
-               invJ[1][2] = op(q,5,e);
-               invJ[2][0] = op(q,6,e);
-               invJ[2][1] = op(q,7,e);
-               invJ[2][2] = op(q,8,e);
+               invJ[0][0] = op(qx,qy,qz,0,e);
+               invJ[0][1] = op(qx,qy,qz,1,e);
+               invJ[0][2] = op(qx,qy,qz,2,e);
+               invJ[1][0] = op(qx,qy,qz,3,e);
+               invJ[1][1] = op(qx,qy,qz,4,e);
+               invJ[1][2] = op(qx,qy,qz,5,e);
+               invJ[2][0] = op(qx,qy,qz,6,e);
+               invJ[2][1] = op(qx,qy,qz,7,e);
+               invJ[2][2] = op(qx,qy,qz,8,e);
 
-               const double det = op(q,9,
+               const double det = op(qx,qy,qz,9,
                                      e);  // determinant times quadrature weight times coefficient
                MFEM_VERIFY(det > 0, "");
 
@@ -1203,8 +1194,6 @@ static void PACurlCurlApply3D(const int D1D,
                }
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const int q = qx + (qy + qz * Q1D) * Q1D;
-
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      const double wx = ((c == 0) ? Bot(dx,qx) : Bct(dx,qx));
@@ -1219,8 +1208,8 @@ static void PACurlCurlApply3D(const int D1D,
                            for (int n = 0; n < 3; ++n)
                            {
                               const int m = (n + 2) % 3;
-                              const double invJcm = op(q,idJ[c][m],e);
-                              const double invJim = op(q,idJ[i][m],e);
+                              const double invJcm = op(qx,qy,qz,idJ[c][m],e);
+                              const double invJim = op(qx,qy,qz,idJ[i][m],e);
 
                               gradX[dx][0][d][2*n] += invJcm * grad[qz][qy][qx][n][i] *
                                                       wx; // J^{-1}_{(c,m)} g[n][i]
@@ -1409,7 +1398,7 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
    auto dof_map = Reshape(_dof_map.Read(), 2*(D1D-1)*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
    auto diag = Reshape(_diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -1431,10 +1420,7 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const double wy = (c == 1) ? Bo(qy,dy) : -Gc(qy,dy);
-
-                  const int q = qx + qy * Q1D;
-
-                  t[qx] += wy * wy * op(q,e);
+                  t[qx] += wy * wy * op(qx,qy,e);
                }
             }
 
@@ -1475,7 +1461,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Go = Reshape(_Go.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
    auto diag = Reshape(_diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -1515,16 +1501,14 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
 
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     const int q = qx + (qy + qz * Q1D) * Q1D;
-
                      const double wz = ((c == 2) ? Bo(qz,dz) : Bc(qz,dz));
                      const double wDz = ((c == 2) ? Go(qz,dz) : Gc(qz,dz));
 
                      for (int i=0; i<6; ++i)
                      {
-                        zt[qx][qy][dz][i][0] += wz * wz * op(q,i,e);
-                        zt[qx][qy][dz][i][1] += wDz * wz * op(q,i,e);
-                        zt[qx][qy][dz][i][2] += wDz * wDz * op(q,i,e);
+                        zt[qx][qy][dz][i][0] += wz * wz * op(qx,qy,qz,i,e);
+                        zt[qx][qy][dz][i][1] += wDz * wz * op(qx,qy,qz,i,e);
+                        zt[qx][qy][dz][i][2] += wDz * wDz * op(qx,qy,qz,i,e);
                      }
                   }
                }
@@ -1751,7 +1735,7 @@ static void PAHcurlH1Apply3D(const int D1D,
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
    auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
    auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
@@ -1839,13 +1823,12 @@ static void PAHcurlH1Apply3D(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const int q = qx + (qy + qz * Q1D) * Q1D;
-               const double O11 = op(q,0,e);
-               const double O12 = op(q,1,e);
-               const double O13 = op(q,2,e);
-               const double O22 = op(q,3,e);
-               const double O23 = op(q,4,e);
-               const double O33 = op(q,5,e);
+               const double O11 = op(qx,qy,qz,0,e);
+               const double O12 = op(qx,qy,qz,1,e);
+               const double O13 = op(qx,qy,qz,2,e);
+               const double O22 = op(qx,qy,qz,3,e);
+               const double O23 = op(qx,qy,qz,4,e);
+               const double O33 = op(qx,qy,qz,5,e);
                const double massX = mass[qz][qy][qx][0];
                const double massY = mass[qz][qy][qx][1];
                const double massZ = mass[qz][qy][qx][2];
@@ -1940,7 +1923,7 @@ static void PAHcurlH1Apply2D(const int D1D,
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
    auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
    auto x = Reshape(_x.Read(), D1D, D1D, NE);
    auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
@@ -1995,11 +1978,9 @@ static void PAHcurlH1Apply2D(const int D1D,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const int q = qx + qy * Q1D;
-
-            const double O11 = op(q,0,e);
-            const double O12 = op(q,1,e);
-            const double O22 = op(q,2,e);
+            const double O11 = op(qx,qy,0,e);
+            const double O12 = op(qx,qy,1,e);
+            const double O22 = op(qx,qy,2,e);
             const double massX = mass[qy][qx][0];
             const double massY = mass[qy][qx][1];
             mass[qy][qx][0] = (O11*massX)+(O12*massY);
