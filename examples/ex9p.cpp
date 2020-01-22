@@ -22,13 +22,13 @@
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of explicit
-//               ODE time integrators, the definition of periodic boundary
-//               conditions through periodic meshes, as well as the use of GLVis
-//               for persistent visualization of a time-evolving solution. The
-//               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
-//               illustrated.
+//               bilinear forms in MFEM (face integrators), the use of implicit
+//               and explicit ODE time integrators, the definition of periodic
+//               boundary conditions through periodic meshes, as well as the use
+//               of GLVis for persistent visualization of a time-evolving
+//               solution. The saving of time-dependent data files for external
+//               visualization with VisIt (visit.llnl.gov) and ParaView
+//               (paraview.org) is also illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -59,7 +59,7 @@ private:
    HypreParMatrix &M, &K;
    SparseMatrix M_diag;
    HypreParMatrix *A;
-   GMRESSolver solver;
+   GMRESSolver linear_solver;
    BlockILU prec;
    double dt;
 public:
@@ -67,17 +67,17 @@ public:
       : M(M_),
         K(K_),
         A(NULL),
-        solver(M.GetComm()),
+        linear_solver(M.GetComm()),
         prec(fes.GetFE(0)->GetDof(),
              BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
         dt(-1.0)
    {
-      solver.iterative_mode = false;
-      solver.SetRelTol(1e-9);
-      solver.SetAbsTol(0.0);
-      solver.SetMaxIter(100);
-      solver.SetPrintLevel(0);
-      solver.SetPreconditioner(prec);
+      linear_solver.iterative_mode = false;
+      linear_solver.SetRelTol(1e-9);
+      linear_solver.SetAbsTol(0.0);
+      linear_solver.SetMaxIter(100);
+      linear_solver.SetPrintLevel(0);
+      linear_solver.SetPreconditioner(prec);
 
       M.GetDiag(M_diag);
    }
@@ -94,18 +94,18 @@ public:
          A->GetDiag(A_diag);
          A_diag.Add(1.0, M_diag);
          // this will also call SetOperator on the preconditioner
-         solver.SetOperator(*A);
+         linear_solver.SetOperator(*A);
       }
    }
 
    void SetOperator(const Operator &op)
    {
-      solver.SetOperator(op);
+      linear_solver.SetOperator(op);
    }
 
    virtual void Mult(const Vector &x, Vector &y) const
    {
-      solver.Mult(x, y);
+      linear_solver.Mult(x, y);
    }
 
    ~DG_Solver()
