@@ -204,7 +204,7 @@ void BilinearForm::UseSparsity(SparseMatrix &A)
                << A.Height() << " x " << A.Width());
    MFEM_ASSERT(A.Finalized(), "matrix A must be Finalized");
 
-   UseSparsity(A.GetI(), A.GetJ(), A.areColumnsSorted());
+   UseSparsity(A.GetI(), A.GetJ(), A.ColumnsAreSorted());
 }
 
 double& BilinearForm::Elem (int i, int j)

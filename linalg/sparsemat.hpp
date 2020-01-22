@@ -424,7 +424,7 @@ public:
    /// Returns whether or not CSR format has been finalized.
    bool Finalized() const { return !A.Empty(); }
    /// Returns whether or not the columns are sorted.
-   bool areColumnsSorted() const { return isSorted; }
+   bool ColumnsAreSorted() const { return isSorted; }
 
    /** @brief Remove entries smaller in absolute value than a given tolerance
        @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
