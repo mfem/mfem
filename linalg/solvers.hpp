@@ -474,7 +474,7 @@ public:
 };
 
 /** Block ILU solver:
- *  Performs a block ILU(k) approximate factorization with specificed block
+ *  Performs a block ILU(k) approximate factorization with specified block
  *  size. Currently only k=0 is supported. This is useful as a preconditioner
  *  for DG-type discretizations, where the system matrix has a natural
  *  (elemental) block structure.
@@ -558,7 +558,7 @@ private:
    /// Temporary vector used in the Mult() function.
    mutable Vector y;
 
-   /// Permutation and invere permutation vectors for the block reordering.
+   /// Permutation and inverse permutation vectors for the block reordering.
    Array<int> P, Pinv;
 
    /** Block CSR storage of the factorization. The block upper triangular part
