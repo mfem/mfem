@@ -24,7 +24,6 @@
 //               ex1 -m ../data/fichera-amr.mesh
 //               ex1 -m ../data/mobius-strip.mesh
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
-//               ex1 -m ../data/inline-quad.mesh -o 3 -ser
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
@@ -32,6 +31,8 @@
 //               ex1 -pa -d occa-cuda
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
+//               ex1 -pa -d ceed-cpu
+//               ex1 -pa -d ceed-cuda
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -65,7 +66,6 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool use_serendip = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -82,9 +82,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_serendip, "-ser", "--use-serendipity",
-                  "-no-ser", "--not-serendipity",
-                  "Use serendipity element collection.");
    args.Parse();
    if (!args.Good())
    {
@@ -123,14 +120,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      if (use_serendip)
-      {
-         fec = new H1Ser_FECollection(order, dim);
-      }
-      else
-      {
-         fec = new H1_FECollection(order, dim);
-      }
+      fec = new H1_FECollection(order, dim);
    }
    else if (mesh->GetNodes())
    {

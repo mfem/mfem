@@ -24,12 +24,13 @@
 //               mpirun -np 4 ex1p -m ../data/amr-hex.mesh
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
-//               mpirun -np 4 ex1p -m ../data/star.mesh -o 2 -ser
 //
 // Device sample runs:
 //               mpirun -np 4 ex1p -pa -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
+//               mpirun -np 4 ex1p -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d ceed-cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -68,7 +69,6 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool use_serendip = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -85,9 +85,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_serendip, "-ser", "--use-serendipity",
-                  "-no-ser", "--not-serendipity",
-                  "Use serendipity element collection.");
    args.Parse();
    if (!args.Good())
    {
@@ -146,14 +143,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      if (use_serendip)
-      {
-         fec = new H1Ser_FECollection(order,dim);
-      }
-      else
-      {
-         fec = new H1_FECollection(order, dim);
-      }
+      fec = new H1_FECollection(order, dim);
    }
    else if (pmesh->GetNodes())
    {
@@ -258,6 +248,7 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
+
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
