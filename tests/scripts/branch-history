@@ -122,7 +122,7 @@ git_objects=$(git rev-list --objects --no-merges ${commit_range} \
               | awk '{if (max[$2]<$1) max[$2]=$1} END {for (f in max) print max[f], f}' \
               | sort --numeric-sort --key=1)
 
-while IFS= read -r obj; do
+while read -r obj; do
     obj_fname="$(echo ${obj} | awk '{print $2}')"
     obj_size="$(echo ${obj} | awk '{print int($1/1024)}')"
     if [ ${obj_size} -gt ${file_max_size} ]
