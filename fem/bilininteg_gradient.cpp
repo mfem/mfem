@@ -24,7 +24,7 @@ namespace mfem
    Inputs are as follows
    \b Q1D number of quadrature points in one dimension.
    \b w quadrature weights.
-   \b j element jacobians.
+   \b j element Jacobians.
    \b COEFF coefficient at quadrature points.
 
    The function is used precompute data needed at quadrature points during
@@ -34,7 +34,7 @@ namespace mfem
    The template parameters are
    \b T_D1D number of degrees of freedom in one dimension,
    \b T_Q1D number of quadrature points in one dimension,
-   and are necessary to allow for compiler optimiations inside the kernel.
+   and are necessary to allow for compiler optimizations inside the kernel.
 
    Inputs are as follows
    \b NE number of elements.
@@ -48,7 +48,7 @@ namespace mfem
    \b x input vector of degrees of freedom on the element.
    \b y output vector of degrees of freedom on the element.
 
-   The function computes the kernel for one dimension that is suiteable for
+   The function computes the kernel for one dimension that is suitable for
    tensor product action to form ND operators.
    Most of the ND inputs are reshaped as NQ*(ND*ND)*NE data structure, i.e
    to allow indexing such as op(qpt,i,j,el).
@@ -62,7 +62,7 @@ namespace mfem
    versions in the following properties.
 
    \b MFEM_FORALL is using only one level of parallelism.
-   \b MFEM_FORALL_ND uses an additional level of parlellism
+   \b MFEM_FORALL_ND uses an additional level of parallelism
    \b MFEM_FOREACH_THREAD
 
    These macros allow automatic mapping of manually defined blocks to

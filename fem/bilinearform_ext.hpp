@@ -23,7 +23,6 @@ class BilinearForm;
 class MixedBilinearForm;
 
 
-
 /** @brief Class extending the BilinearForm class to support the different
     AssemblyLevel%s. */
 class BilinearFormExtension : public Operator
@@ -121,6 +120,7 @@ public:
    void Update();
 };
 
+
 /// Data and methods for matrix-free bilinear forms
 class MFBilinearFormExtension : public BilinearFormExtension
 {
@@ -205,8 +205,9 @@ public:
    /**
       @brief Setup OperatorHandle A to contain constrained linear operator
 
-      OperatorHandle A contains matrix-free constrained operator formed for RAP system
-      where ess_tdof_list are in trial space and eliminated from "columns" of A.
+      OperatorHandle A contains matrix-free constrained operator formed for RAP
+      system where ess_tdof_list are in trial space and eliminated from
+      "columns" of A.
    */
    void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
                                       const Array<int> &test_tdof_list,

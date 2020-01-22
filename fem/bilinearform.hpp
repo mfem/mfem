@@ -58,7 +58,7 @@ protected:
    /// FE space on which the form lives. Not owned.
    FiniteElementSpace *fes;
 
-   /// The form assembly level (full, partial, etc.)
+   /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly;
    /// Element batch size used in the form action (1, 8, num_elems, etc.)
    int batch;

@@ -1665,9 +1665,9 @@ protected:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q grad u, v) where
-    Q is a scalar coefficient, v is a vector where each v_i is in the same space as u.
-*/
+/** Class for integrating the bilinear form a(u,v) := (Q grad u, v) where Q is a
+    scalar coefficient, and v is a vector with components v_i in the same space
+    as u. */
 class GradientIntegrator : public BilinearFormIntegrator
 {
 protected:

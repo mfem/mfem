@@ -148,12 +148,12 @@ public:
 
    /** @brief Form a column-constrained linear system using a matrix-free approach.
 
-       Form the operator linear system `A(X)=B`
-       corresponding to it and the right-hand side @a b, by applying any
-       necessary transformations such as: parallel assembly, conforming
-       constraints for non-conforming AMR and eliminating boundary conditions.
-       @note Static condensation and hybridization are not supported for general
-       operators (cf. the method MixedBilinearForm::FormRectangularLinearSystem())
+       Form the operator linear system `A(X)=B` corresponding to the operator
+       and the right-hand side @a b, by applying any necessary transformations
+       such as: parallel assembly, conforming constraints for non-conforming AMR
+       and eliminating boundary conditions.  @note Static condensation and
+       hybridization are not supported for general operators (cf. the method
+       MixedBilinearForm::FormRectangularLinearSystem())
 
        The constraints are specified through the input prolongation Pi from
        GetProlongation(), and output restriction Ro from GetOutputRestriction()
@@ -199,8 +199,8 @@ public:
    /** @brief Return in @a A a parallel (on truedofs) version of this
        rectangular operator (including constraints).
 
-       This returns the same operator as FormRectangularLinearSystem(), but does without
-       the transformations of the right-hand side. */
+       This returns the same operator as FormRectangularLinearSystem(), but does
+       without the transformations of the right-hand side. */
    void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
                                       const Array<int> &test_tdof_list,
                                       Operator* &A);
@@ -428,7 +428,7 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassSolve(const Vector &b, Vector &x, double tol);
 
-   /** @brief Compute the mass matrix-vector productv \f$ v = M x \f$ .
+   /** @brief Compute the mass matrix-vector product \f$ v = M x \f$ .
 
        @param[in]   x The vector to multiply.
        @param[out]  v The result of the matrix-vector product.
@@ -656,12 +656,13 @@ public:
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
 
-/** @brief Rectangular Operator for imposing essential boundary conditions on the
-    input space using only the action, Mult(), of a given unconstrained Operator.
+/** @brief Rectangular Operator for imposing essential boundary conditions on
+    the input space using only the action, Mult(), of a given unconstrained
+    Operator.
 
-    Rectangular operator constrained by fixing certain entries in the solution to
-    given "essential boundary condition" values. This class is used by the
-    general, matrix-free system formulation of Operator::FormRectangularLinearSystem. */
+    Rectangular operator constrained by fixing certain entries in the solution
+    to given "essential boundary condition" values. This class is used by the
+    general matrix-free formulation of Operator::FormRectangularLinearSystem. */
 class RectangularConstrainedOperator : public Operator
 {
 protected:
@@ -676,9 +677,9 @@ public:
        indices/dofs.
 
        Specify the unconstrained operator @a *A and two lists of indices to
-       constrain, i.e. each entry @a trial_list[i] represents an essential
-       trial dof. If the ownership flag @a own_A is true, the operator @a *A
-       will be destroyed when this object is destroyed. */
+       constrain, i.e. each entry @a trial_list[i] represents an essential trial
+       dof. If the ownership flag @a own_A is true, the operator @a *A will be
+       destroyed when this object is destroyed. */
    RectangularConstrainedOperator(Operator *A, const Array<int> &trial_list,
                                   const Array<int> &test_list, bool own_A = false);
    /// Returns the type of memory in which the solution and temporaries are stored.
@@ -691,8 +692,8 @@ public:
            b -= A((0,x_b));
            b_j = 0
 
-       where the "_b" subscripts denote the essential (boundary) indices
-       and the "_j" subscript denotes the essential test indices */
+       where the "_b" subscripts denote the essential (boundary) indices and the
+       "_j" subscript denotes the essential test indices */
    void EliminateRHS(const Vector &x, Vector &b) const;
    /** @brief Rectangular-constrained operator action.
 
@@ -701,8 +702,8 @@ public:
            y = A((x_i,0));
            y_j = 0
 
-       where the "_i" subscripts denote all the nonessential (boundary) trial indices
-       and the "_j" subscript denotes the essential test indices */
+       where the "_i" subscripts denote all the nonessential (boundary) trial
+       indices and the "_j" subscript denotes the essential test indices */
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
 };
