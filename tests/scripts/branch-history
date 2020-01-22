@@ -114,7 +114,13 @@ fi
 
 # Check if the branch adds/modifies unusually large files (this can catch large
 # binary files not addressed by the checks below)
-while read -r obj; do
+git_objects=$(git rev-list --objects --no-merges ${commit_range} \
+              | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' \
+              | sed -n 's/^blob //p' \
+              | awk '{if (max[$2]<$1) max[$2]=$1} END {for (f in max) print max[f], f}' \
+              | sort --numeric-sort --key=1)
+
+while IFS= read -r obj; do
     obj_fname="$(echo ${obj} | awk '{print $2}')"
     obj_size="$(echo ${obj} | awk '{print int($1/1024)}')"
     if [ ${obj_size} -gt ${file_max_size} ]
@@ -122,7 +128,7 @@ while read -r obj; do
         printf '\033[35m'"This branch adds/modifies a large file: " 1>&2
         printf "${obj_fname} (size ${obj_size}K)"'\033[0m\n' 1>&2
     fi
-done < <(git rev-list --objects --no-merges ${commit_range} | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' | sed -n 's/^blob //p' | awk '{if (max[$2]<$1) max[$2]=$1} END {for (f in max) print max[f], f}' | sort --numeric-sort --key=1)
+done <<< "${git_objects}"
 
 # Check all the commits in the current branch (i.e. the commits that will be
 # merged in master, as shown in a GitHub PR):
@@ -177,7 +183,7 @@ do
 
         # Check if an unusually large number of lines have been added to the file
         file_lines_added="$(echo ${filelog} | awk '{print $1}')"
-        if [ "${file_lines_added}" != "-" ]
+        if [ "${file_lines_added}" != "-" ] # exclude binary files
         then
             if [ ${file_lines_added} -gt ${file_max_lines_added} ]
             then
@@ -188,7 +194,7 @@ do
 
         # Check if an unusually large number of lines have been deleted from the file
         file_lines_deleted="$(echo ${filelog} | awk '{print $2}')"
-        if [ "${file_lines_deleted}" != "-" ]
+        if [ "${file_lines_deleted}" != "-" ] # exclude binary files
         then
             if [ ${file_lines_deleted} -gt ${file_max_lines_deleted} ]
             then
