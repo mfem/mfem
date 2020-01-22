@@ -247,10 +247,12 @@ endif
 
 # JIT configuration
 ifeq ($(MFEM_USE_JIT),YES)
-   MFEM_EXT_LIBS += -ldl
+#	ifneq ($(MFEM_USE_SHARED),YES)
+		MFEM_EXT_LIBS += -ldl
 #   ifneq ($(MFEM_SHARED),YES)
 #      $(error Incompatible config: MFEM_USE_JIT requires MFEM_SHARED)
 #   endif
+#	endif
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -421,7 +423,7 @@ OKL_DIRS = fem
 %:	%.c
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(BLD)jit
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -431,9 +433,9 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 # nvcc needs the MFEM_SOURCE_DIR ('-I.') to compile from stdin
 ifeq ($(MFEM_USE_JIT),YES)
 MPP_LANG = $(if $(MFEM_USE_CUDA:YES=),-x c++)
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) mpp
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mpp
 	./mpp $(<) | $(MFEM_CXX) $(MPP_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
-$(C_OBJECT_FILES): $(BLD)%.c.o: $(SRC)%.c $(CONFIG_MK) mpp
+$(C_OBJECT_FILES): $(BLD)%.c.o: $(SRC)%.c $(CONFIG_MK)
 	$(MFEM_CXX) -x c $(strip $(filter-out $(BASE_FLAGS),$(MFEM_BUILD_FLAGS))) -c $(<) -o $(@)
 else
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
@@ -446,8 +448,10 @@ endif
 MPP_MFEM_CONFIG  = -DMFEM_CXX="$(MFEM_CXX)"
 MPP_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
 MPP_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
-mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
+$(BLD)mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(MPP_MFEM_CONFIG)
+$(BLD)jit: $(BLD)general/jit.cpp $(BLD)general/jit.hpp $(THIS_MK) 
+	$(MFEM_CXX) -O3 -std=c++11 -pedantic -DMFEM_INCLUDE_MAIN -o $(BLD)$(@) $(<)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -551,7 +555,7 @@ $(ALL_CLEAN_SUBDIRS):
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -rf $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*{.o,~}) \
-	   *~ libmfem.* deps.mk mpp)
+	   *~ libmfem.* deps.mk $(BLD)mpp $(BLD)jit)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/

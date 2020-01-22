@@ -79,6 +79,7 @@ inline void uint64str(uint64_t num, char *s, const size_t offset =1)
 // *****************************************************************************
 // * compile
 // *****************************************************************************
+int System(char *argv[]);
 template<typename... Args>
 const char *compile(const bool dbg, const size_t hash, const char *cxx,
                     const char *src, const char *mfem_build_flags,
@@ -93,9 +94,10 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
    dprintf(fd, src, hash, args...);
    close(fd);
    constexpr size_t SZ = 4096;
-   char command[SZ];
+   char includes[SZ];
    const char *CCFLAGS = mfem_build_flags;
    const char *NVFLAGS = mfem_build_flags;
+   const char *INSTALL = mfem_install_dir;
 #if defined(__clang__) && (__clang_major__ > 6)
    const char *CLANG_FLAGS = "-Wno-gnu-designator -fPIC -L.. -lmfem";
 #else
@@ -105,15 +107,12 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
    const bool nvcc = strstr(cxx, "nvcc");
    const char *xflags = nvcc ? NVFLAGS : clang ? CLANG_FLAGS : CCFLAGS;
    //const char *xlinker = nvcc ? "-Xlinker=" : "-Wl,";
-   if (snprintf(command, SZ,
-                //"%s %s -shared -I%s/include -o %s %s -L%s/lib %s-rpath,%s/lib -lmfem",
-                "%s -fPIC %s -shared -I%s/include -o %s %s",
-                cxx, xflags, mfem_install_dir, so, cc//,
-                //mfem_install_dir, xlinker, mfem_install_dir
-               )<0)
-   { return NULL; }
-   if (dbg) { printf("\033[32;1m%s\033[m\n", command); }
-   if (system(command)<0) { return NULL; }
+   if (snprintf(includes, SZ, "-I%s/include ", INSTALL)<0) { return NULL; }
+   const char *argv[] = {dbg? "1" : "0",
+                         cxx, "-fPIC", xflags, "-shared",
+                         includes, "-o", so, cc, nullptr
+                        };
+   if (mfem::jit::System(const_cast<char**>(argv))<0) { return NULL; }
    if (!dbg) { unlink(cc); }
    return src;
 }

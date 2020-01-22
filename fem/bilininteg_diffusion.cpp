@@ -913,6 +913,7 @@ static void PADiffusionApply2D(const int NE,
 // *****************************************************************************
 // * VLA
 // *****************************************************************************
+#ifndef _WIN32
 extern "C" void SmemPADiffusionApply2D_VLA(const int NE,
                                            const int D1D,
                                            const int Q1D,
@@ -922,6 +923,7 @@ extern "C" void SmemPADiffusionApply2D_VLA(const int NE,
                                            const double *D,
                                            const double *x,
                                            double *Y);
+#endif
 
 // *****************************************************************************
 // * KER
@@ -935,7 +937,8 @@ static void SmemPADiffusionApply2D_KER(const int NE,
                                        const double *x_,
                                        double *y_,
                                        const int d1d = 0,
-                                       const int q1d = 0)
+                                       const int q1d = 0,
+                                       const int nbz = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1095,7 +1098,8 @@ static void SmemPADiffusionApply2D_CXX(const int NE,
                                        const Vector &x_,
                                        Vector &y_,
                                        const int d1d = 0,
-                                       const int q1d = 0)
+                                       const int q1d = 0,
+                                       const int nbz = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1252,29 +1256,35 @@ static void SmemPADiffusionApply2D(const int NE,
                                    const Array<double> &g,
                                    const Vector &d,
                                    const Vector &x,
-                                   Vector &y)
+                                   Vector &y,
+                                   const int d1d = 0,
+                                   const int q1d = 0,
+                                   const int nbz = 0)
 {
 #ifndef MFEM_USE_JIT
+#ifndef _WIN32
    if (getenv("VLA"))
    {
       SmemPADiffusionApply2D_VLA(NE, T_D1D, T_Q1D, T_NBZ,
                                  b.Read(), g.Read(), d.Read(), x.Read(),
                                  y.ReadWrite());
+      return;
 
    }
-   else if (getenv("KER"))
+#endif
+   if (getenv("KER"))
    {
       SmemPADiffusionApply2D_KER<T_D1D, T_Q1D, T_NBZ>
       (NE, b.Read(), g.Read(), d.Read(), x.Read(), y.ReadWrite());
+      return;
    }
-   else if (getenv("CXX"))
+   if (getenv("CXX"))
    {
       SmemPADiffusionApply2D_CXX<T_D1D, T_Q1D, T_NBZ>(NE,b,g,d,x,y);
+      return;
    }
-   else
-   {
-      mfem_error("VLA|KER|CXX");
-   }
+   mfem_error("VLA|KER|CXX");
+
 #else // MFEM_USE_JIT
    if (getenv("VLA"))
    {
@@ -1292,7 +1302,7 @@ static void SmemPADiffusionApply2D(const int NE,
    }
    else if (getenv("CXX"))
    {
-      SmemPADiffusionApply2D_CXX(NE,b,g,bt,gt,d,x,y, d1d, q1d, nbz);
+      SmemPADiffusionApply2D_CXX(NE,b,g,d,x,y,d1d, q1d, nbz);
    }
    else
    {
@@ -1798,11 +1808,11 @@ static void PADiffusionApply(const int dim,
                       (D1D==4||D1D==5) ? 8 :
                       (D1D==6||D1D==7) ? 4 :
                       (D1D==8||D1D==9) ? 2 : 1;
-      return SmemPADiffusionApply2D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D,NBZ);
+      return SmemPADiffusionApply2D(NE,B,G,D,X,Y,D1D,Q1D,NBZ);
    }
    if (dim == 3)
    {
-      return SmemPADiffusionApply3D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+      return SmemPADiffusionApply3D(NE,B,G,D,X,Y,D1D,Q1D);
    }
 #endif
    MFEM_ABORT("Unknown kernel.");
