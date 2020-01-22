@@ -206,6 +206,156 @@ public:
 };
 
 
+/** An explicit Adams-Bashforth method. */
+class AdamsBashforthSolver : public ODESolver
+{
+private:
+   int s, smax;
+   const double *a;
+   Vector *k;
+   Array<int> idx;
+   ODESolver *RKsolver;
+
+public:
+   AdamsBashforthSolver(int _s, const double *_a);
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+
+   ~AdamsBashforthSolver()
+   {
+      if (RKsolver) { delete RKsolver; }
+   }
+};
+
+
+/** A 1-stage, 1st order AB method.  */
+class AB1Solver : public AdamsBashforthSolver
+{
+private:
+   static const double a[1];
+
+public:
+   AB1Solver() : AdamsBashforthSolver(1, a) { }
+};
+
+/** A 2-stage, 2st order AB method.  */
+class AB2Solver : public AdamsBashforthSolver
+{
+private:
+   static const double a[2];
+
+public:
+   AB2Solver() : AdamsBashforthSolver(2, a) { }
+};
+
+/** A 3-stage, 3st order AB method.  */
+class AB3Solver : public AdamsBashforthSolver
+{
+private:
+   static const double a[3];
+
+public:
+   AB3Solver() : AdamsBashforthSolver(3, a) { }
+};
+
+/** A 4-stage, 4st order AB method.  */
+class AB4Solver : public AdamsBashforthSolver
+{
+private:
+   static const double a[4];
+
+public:
+   AB4Solver() : AdamsBashforthSolver(4, a) { }
+};
+
+/** A 5-stage, 5st order AB method.  */
+class AB5Solver : public AdamsBashforthSolver
+{
+private:
+   static const double a[5];
+
+public:
+   AB5Solver() : AdamsBashforthSolver(5, a) { }
+};
+
+
+/** An implicit Adams-Moulton method. */
+class AdamsMoultonSolver : public ODESolver
+{
+private:
+   int s, smax;
+   const double *a;
+   Vector *k;
+   Array<int> idx;
+   ODESolver *RKsolver;
+
+public:
+   AdamsMoultonSolver(int _s, const double *_a);
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+
+   ~AdamsMoultonSolver()
+   {
+      if (RKsolver) { delete RKsolver; }
+   };
+};
+
+/** A 0-stage, 1st order AM method. */
+class AM0Solver : public AdamsMoultonSolver
+{
+private:
+   static const double a[1];
+
+public:
+   AM0Solver() : AdamsMoultonSolver(0, a) { }
+};
+
+
+/** A 1-stage, 2st order AM method. */
+class AM1Solver : public AdamsMoultonSolver
+{
+private:
+   static const double a[2];
+
+public:
+   AM1Solver() : AdamsMoultonSolver(1, a) { }
+};
+
+/** A 2-stage, 3st order AM method. */
+class AM2Solver : public AdamsMoultonSolver
+{
+private:
+   static const double a[3];
+
+public:
+   AM2Solver() : AdamsMoultonSolver(2, a) { }
+};
+
+/** A 3-stage, 4st order AM method. */
+class AM3Solver : public AdamsMoultonSolver
+{
+private:
+   static const double a[4];
+
+public:
+   AM3Solver() : AdamsMoultonSolver(3, a) { }
+};
+
+/** A 4-stage, 5st order AM method. */
+class AM4Solver : public AdamsMoultonSolver
+{
+private:
+   static const double a[5];
+
+public:
+   AM4Solver() : AdamsMoultonSolver(4, a) { }
+};
+
+
 /// Backward Euler ODE solver. L-stable.
 class BackwardEulerSolver : public ODESolver
 {
@@ -287,7 +437,7 @@ public:
 class GeneralizedAlphaSolver : public ODESolver
 {
 protected:
-   Vector xdot,k,y;
+   mutable Vector xdot,k,y;
    double alpha_f, alpha_m, gamma;
    bool first;
 

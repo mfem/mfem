@@ -28,14 +28,13 @@
 //               display-basis -e 3 -b 7 -o 5 -only 16
 
 #include "mfem.hpp"
-#include "../common/fem_extras.hpp"
-#include "../common/mesh_extras.hpp"
+#include "../common/mfem-common.hpp"
 #include <vector>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 
 // Data structure used to collect visualization window layout parameters
 struct VisWinLayout
