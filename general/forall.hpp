@@ -18,7 +18,6 @@
 #include "hip.hpp"
 #include "occa.hpp"
 #include "device.hpp"
-#include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
 
 #ifdef MFEM_USE_RAJA

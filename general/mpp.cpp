@@ -658,7 +658,7 @@ void jitPrefix(context_t &pp)
    pp.out << "\n#include <limits>";
    pp.out << "\n#include <cstring>";
    pp.out << "\n#include <stdbool.h>";
-   pp.out << "\n#include \"mfem.hpp\"";
+   pp.out << "\n//#include \"mfem.hpp\"";
    pp.out << "\n#include \"mfem/general/forall.hpp\"";
    if (not pp.ker.embed.empty())
    {

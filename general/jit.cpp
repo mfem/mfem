@@ -12,7 +12,39 @@
 #include "../config/config.hpp"
 #include "error.hpp"
 
-#ifdef MFEM_USE_MPI
+#define dbg(...) { printf("\033[33m"); \
+                   printf(__VA_ARGS__);  \
+                   printf(" \n\033[m");fflush(0); }
+
+
+#ifndef MFEM_USE_MPI
+
+namespace mfem
+{
+
+namespace jit
+{
+
+int System(int argc =1, char *argv[] =nullptr)
+{
+   std::string command(argv[1]);
+   for (int k=2; argv[k]; k++)
+   {
+      command.append(" ");
+      command.append(argv[k]);
+   }
+   const char * command_c_str = command.c_str();
+   const bool argdbg = (argc > 1) && (argv[0][0] == 0x31);
+   if (argdbg) { dbg("%s", command_c_str); }
+   const int return_value = system(command_c_str);
+   return return_value;
+}
+
+} // namespace jit
+
+} // namespace mfem
+
+#else
 
 #include <mpi.h>
 #include <cassert>
@@ -29,11 +61,6 @@ namespace mfem
 
 namespace jit
 {
-
-// *****************************************************************************
-#define dbg(...) { printf("\033[33m"); \
-                   printf(__VA_ARGS__);  \
-                   printf(" \n\033[m");fflush(0); }
 
 // *****************************************************************************
 #define MFEM_JIT_RUN_COMPILATION 0x12345678
@@ -150,9 +177,16 @@ int ProcessFork(int argc, char *argv[])
    return return_value;
 }
 
+#endif // MFEM_USE_MPI
+
 #ifdef MFEM_INCLUDE_MAIN
 // *****************************************************************************
-int main(int argc, char *argv[]) { return ProcessFork(argc, argv); }
+int main(int argc, char *argv[])
+{
+#ifdef MFEM_USE_MPI
+   return ProcessFork(argc, argv);
+#else
+   return 0;
+#endif
+}
 #endif // MFEM_INCLUDE_MAIN
-
-#endif // MFEM_USE_MPI

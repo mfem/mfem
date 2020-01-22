@@ -247,6 +247,7 @@ endif
 
 # JIT configuration
 ifeq ($(MFEM_USE_JIT),YES)
+   MPP_EXE = $(BLD)mpp
    JIT_EXE = $(BLD)jit
 	ifneq ($(MFEM_USE_SHARED),YES)
 		LDFLAGS += -ldl
@@ -429,15 +430,12 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 # nvcc needs the MFEM_SOURCE_DIR ('-I.') to compile from stdin
 ifeq ($(MFEM_USE_JIT),YES)
 MPP_LANG = $(if $(MFEM_USE_CUDA:YES=),-x c++)
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mpp
-	./mpp $(<) | $(MFEM_CXX) $(MPP_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
-$(C_OBJECT_FILES): $(BLD)%.c.o: $(SRC)%.c $(CONFIG_MK)
-	$(MFEM_CXX) -x c $(strip $(filter-out $(BASE_FLAGS),$(MFEM_BUILD_FLAGS))) -c $(<) -o $(@)
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(MPP_EXE)
+	@echo $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+	@./mpp $(<) | $(MFEM_CXX) $(MPP_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
 else
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
-$(C_OBJECT_FILES): $(BLD)%.c.o: $(SRC)%.c $(CONFIG_MK)
-	$(MFEM_CXX) -x c $(filter-out $(BASE_FLAGS),$(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 endif
 
 # Rule for compiling kernel source file generator.
@@ -446,8 +444,8 @@ MPP_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
 MPP_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
 $(BLD)mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp #$(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(MPP_MFEM_CONFIG)
-$(BLD)jit: $(BLD)general/jit.cpp $(BLD)general/jit.hpp $(THIS_MK) 
-	$(MFEM_CXX) -g -O2 -std=c++11 -pedantic -DMFEM_INCLUDE_MAIN -o $(BLD)$(@) $(<)
+$(BLD)jit: $(BLD)general/jit.cpp $(BLD)general/jit.hpp #$(THIS_MK) 
+	$(MFEM_CXX) -O3 -std=c++11 -pedantic -DMFEM_INCLUDE_MAIN -o $(BLD)$(@) $(<)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -559,10 +557,10 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
-install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(JIT_EXE)
 ifeq ($(MFEM_USE_JIT),YES)
 	mkdir -p $(PREFIX_BIN)
-	$(INSTALL) -m 750 $(BLD)jit $(PREFIX_BIN)
+	$(INSTALL) -m 750 $(JIT_EXE) $(PREFIX_BIN)
 endif
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library

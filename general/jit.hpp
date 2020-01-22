@@ -106,9 +106,7 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
    const bool clang = strstr(cxx, "clang");
    const bool nvcc = strstr(cxx, "nvcc");
    const char *xflags = nvcc ? NVFLAGS : clang ? CLANG_FLAGS : CCFLAGS;
-   //const char *xlinker = nvcc ? "-Xlinker=" : "-Wl,";
-   if (snprintf(includes, SZ,
-                "-I/home/camier1/home/mfem/hypre/src/hypre/include -I%s/include ", INSTALL)<0) { return NULL; }
+   if (snprintf(includes, SZ, "-I%s/include ", INSTALL)<0) { return NULL; }
    constexpr int argc = 12;
    const char *argv[argc] = {dbg ? "1" : "0",
                              cxx, "-fPIC", xflags, "-shared",
