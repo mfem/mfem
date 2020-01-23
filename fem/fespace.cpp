@@ -3268,7 +3268,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in H1FaceRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
-      "Non-conforming meshes not yet supported with partial assembly.");
+               "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto.
    height = vdim*nf*dof;
    width = fes.GetVSize();
@@ -3389,24 +3389,16 @@ static int PermuteFace3D(const int face_id1, const int face_id2,
    int i=0, j=0, new_i=0, new_j=0;
    i = index%size1d;
    j = index/size1d;
-   // Go to lex ordering
-   // if (face_id2==3 || face_id2==4)
-   // {
-   //    i = size1d-1-i;
-   // }
-   // else if (face_id2==0)
-   // {
-   //    j = size1d-1-j;
-   // }
-   // if (face_id1==3 || face_id1==4)
-   // {
-   //    i = size1d-1-i;
-   // }
-   // else if (face_id1==0)
-   // {
-   //    j = size1d-1-j;
-   // }
-   // rotate on lex ordering
+   // Convert from lex ordering
+   if (face_id1==3 || face_id1==4)
+   {
+      i = size1d-1-i;
+   }
+   else if (face_id1==0)
+   {
+      j = size1d-1-j;
+   }
+   // Permute based on face orientations
    switch (orientation)
    {
       case 0:
@@ -3442,19 +3434,19 @@ static int PermuteFace3D(const int face_id1, const int face_id2,
          new_j = (size1d-1-j);
          break;
    }
-   // face ordering for elem1
-   // if (face_id1==2 || face_id1==1 || face_id1==5)
-   // {
-   //    return new_i + new_j*size1d;
-   // }
-   // else if (face_id1==3 || face_id1==4)
-   // {
-   //    return (size1d-1-new_i) + new_j*size1d;
-   // }
-   // else//face_id1==0
-   // {
-   //    return new_i + (size1d-1-new_j)*size1d;
-   // }
+   // Convert back to lexicographic ordering
+   if (face_id2==2 || face_id2==1 || face_id2==5)
+   {
+      return new_i + new_j*size1d;
+   }
+   else if (face_id2==3 || face_id2==4)
+   {
+      return (size1d-1-new_i) + new_j*size1d;
+   }
+   else//face_id2==0
+   {
+      return new_i + (size1d-1-new_j)*size1d;
+   }
    return new_i + new_j*size1d;
 }
 
@@ -3500,7 +3492,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
-      "Non-conforming meshes not yet supported with partial assembly.");
+               "Non-conforming meshes not yet supported with partial assembly.");
    if (nf==0) { return; }
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
