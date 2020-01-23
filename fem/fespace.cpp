@@ -3447,7 +3447,6 @@ static int PermuteFace3D(const int face_id1, const int face_id2,
    {
       return new_i + (size1d-1-new_j)*size1d;
    }
-   return new_i + new_j*size1d;
 }
 
 int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1,
@@ -3463,7 +3462,7 @@ int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1,
       case 3:
          return PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
       default:
-         mfem_error("Incorrect dimension.");
+         mfem_error("Unsupported dimension.");
          return 0;
    }
 }
@@ -4067,14 +4066,12 @@ void FaceQuadratureInterpolator::Eval2D(
    const DofToQuad &maps,
    const Array<bool> &signs,
    const Vector &f_vec,
-   // const Array<double> &W,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
    Vector &q_nor,
    const int eval_flags)
 {
-   //TODO check tensor, and Gauss-Lobato
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
    const int ND1D = T_ND1D ? T_ND1D : nd;
@@ -4086,11 +4083,11 @@ void FaceQuadratureInterpolator::Eval2D(
    auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
    auto F = Reshape(f_vec.Read(), ND1D, VDIM, NF);
-   // auto w = W.Read();
    auto val = Reshape(q_val.Write(), NQ1D, VDIM, NF);
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF);//Only tangential der
    auto det = Reshape(q_det.Write(), NQ1D, NF);
    auto n   = Reshape(q_nor.Write(), NQ1D, VDIM, NF);
+   MFEM_VERIFY(eval_flags | DERIVATIVES, "Derivatives on the faces are not yet supported.");
    //if Gauss-Lobatto
    MFEM_FORALL(f, NF,
    {
@@ -4135,14 +4132,6 @@ void FaceQuadratureInterpolator::Eval2D(
                   D[c] += s_e * w;
                }
             }
-            // if (eval_flags & DERIVATIVES)
-            // {
-            //    //FIXME doesn't work with Gauss-Lobato
-            //    for (int c = 0; c < VDIM; c++)
-            //    {
-            //       der(q,c,f) = D[c];
-            //    }
-            // }
             if (VDIM == 2 &&
                 ((eval_flags & NORMALS)
                  || (eval_flags & DETERMINANTS)))
@@ -4170,7 +4159,6 @@ void FaceQuadratureInterpolator::Eval3D(
    const DofToQuad &maps,
    const Array<bool> &signs,
    const Vector &e_vec,
-   // const Array<double> &W,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
@@ -4188,12 +4176,12 @@ void FaceQuadratureInterpolator::Eval3D(
    auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
    auto F = Reshape(e_vec.Read(), ND1D, ND1D, VDIM, NF);
-   // auto w = W.Read();
    auto sign = signs.Read();
    auto val = Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF);
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
    auto nor = Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF);
+   MFEM_VERIFY(eval_flags | DERIVATIVES, "Derivatives on the faces are not yet supported.");
    MFEM_FORALL(f, NF,
    {
       const int ND1D = T_ND1D ? T_ND1D : nd;
@@ -4302,34 +4290,8 @@ void FaceQuadratureInterpolator::Eval3D(
                      GBu[q2][q1][c] += g*Bu[q1][d2][c];
                   }
                }
-               // for (int c = 0; c < VDIM; c++)
-               //    val(q1+q2*NQ1D,c,f) = BBu[q2][q1][c];
             }
          }
-         // use MAX_VDIM3D to avoid "subscript out of range" warnings
-         // double D[MAX_VDIM3D*2];
-         // for (int i = 0; i < 2*VDIM; i++) { D[i] = 0.0; }
-         //    //TODO tensor contraction
-         // for (int d = 0; d < ND; ++d)
-         // {
-         //    const double wB = B(q,d);
-         //    const double wG = G(q,d);
-         //    for (int c = 0; c < VDIM; c++)
-         //    {
-         //       double s_e = s_F[c+d*VDIM];
-         //       D[c+VDIM*0] += s_e * wx;
-         //       D[c+VDIM*1] += s_e * wy;
-         //    }
-         // }
-         // if (eval_flags & DERIVATIVES)
-         // {
-         //    for (int c = 0; c < VDIM; c++)
-         //    {
-         //       der(q,c,0,e) = D[c+VDIM*0];
-         //       der(q,c,1,e) = D[c+VDIM*1];
-         //       der(q,c,2,e) = D[c+VDIM*2];
-         //    }
-         // }
          if (VDIM == 3 && ((eval_flags & NORMALS) || (eval_flags & DETERMINANTS)))
          {
             double n[3];
@@ -4358,7 +4320,7 @@ void FaceQuadratureInterpolator::Eval3D(
 
 void FaceQuadratureInterpolator::Mult(
    const Vector &e_vec, unsigned eval_flags,
-   const Array<bool> &signs,//const Array<double> &W,
+   const Array<bool> &signs,
    Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const
 {
    if (nf == 0) { return; }
@@ -4377,7 +4339,6 @@ void FaceQuadratureInterpolator::Mult(
       const DofToQuad &maps,
       const Array<bool> &signs,
       const Vector &e_vec,
-      // const Array<double> &W,
       Vector &q_val,
       Vector &q_der,
       Vector &q_det,

@@ -18,7 +18,6 @@
 #include "../general/sort_pairs.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "../general/binaryio.hpp"
-#include "fespace.hpp"
 
 #include <climits> // INT_MAX
 #include <limits>
@@ -3574,7 +3573,7 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   const int treshold = ndofs;
+   const int threshold = ndofs;
 
    if (m==L2FaceValues::Double)
    {
@@ -3595,13 +3594,13 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
-            if (idx2>-1 && idx2<treshold) //interior face
+            if (idx2>-1 && idx2<threshold) //interior face
             {
                d_y(dof, c, 1, face) = d_x(t?c:idx2, t?idx2:c);
             }
-            else if (idx2>=treshold) //shared boundary
+            else if (idx2>=threshold) //shared boundary
             {
-               d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-treshold), t?(idx2-treshold):c);
+               d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-threshold), t?(idx2-threshold):c);
             }
             else //true boundary
             {
@@ -3634,7 +3633,7 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   const int treshold = ndofs;
+   const int threshold = ndofs;
    if (m==L2FaceValues::Double)
    {
       auto d_indices1 = indices1.Read();
@@ -3648,7 +3647,7 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          for (int c = 0; c < vd; ++c)
          {
             MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, 0, i / nd));
-            if (idx2>-1 && idx2<treshold) { MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd)); }
+            if (idx2>-1 && idx2<threshold) { MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd)); }
          }
       });
    }

@@ -67,7 +67,7 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   Operator *M, *K;
+   Operator &M, &K;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
@@ -361,10 +361,10 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Height()), M(&_M), K(&_K), b(_b), z(_M.Height())
+   : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
 {
    // M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(*M);
+   M_solver.SetOperator(M);
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
@@ -376,7 +376,7 @@ FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b)
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
-   K->Mult(x, z);
+   K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
 }

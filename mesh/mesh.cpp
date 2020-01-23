@@ -3871,7 +3871,7 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 void Mesh::EnsureNodes()
 {
    if (Nodes) { return; }
-   SetCurvature(1, false, -1, Ordering::byNODES);
+   SetCurvature(1, false, -1, Ordering::byVDIM);
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
@@ -10100,6 +10100,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 }
 
+/// Returns the sign to apply to the normals on each face to point from e1 to e2.
 static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
                      Array<bool> &signs)
 {

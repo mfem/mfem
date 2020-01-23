@@ -66,7 +66,7 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   Operator *M, *K;
+   Operator &M, &K;
    const Vector &b;
    HypreSmoother M_prec;
    CGSolver M_solver;
@@ -74,7 +74,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(Operator *_M, Operator *_K, const Vector &_b, MPI_Comm _comm);
+   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b, MPI_Comm _comm);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -167,7 +167,6 @@ int main(int argc, char *argv[])
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   mesh->EnsureNodes();
    int dim = mesh->Dimension();
 
    // 4. Define the ODE solver used for time integration. Several explicit
@@ -368,7 +367,7 @@ int main(int argc, char *argv[])
       m_op = M;
       k_op = K;
    }
-   FE_Evolution adv(m_op, k_op, *B, fes->GetComm());
+   FE_Evolution adv(*m_op, *k_op, *B, fes->GetComm());
 
    double t = 0.0;
    adv.SetTime(t);
@@ -451,14 +450,14 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(Operator *_M, Operator *_K,
+FE_Evolution::FE_Evolution(Operator &_M, Operator &_K,
                            const Vector &_b, MPI_Comm _comm)
-   : TimeDependentOperator(_M->Height()),
-     M(_M), K(_K), b(_b), M_solver(_comm), z(_M->Height())
+   : TimeDependentOperator(_M.Height()),
+     M(_M), K(_K), b(_b), M_solver(_comm), z(_M.Height())
 {
    // M_prec.SetType(HypreSmoother::Jacobi);
    // M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(*M);
+   M_solver.SetOperator(M);
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
@@ -470,7 +469,7 @@ FE_Evolution::FE_Evolution(Operator *_M, Operator *_K,
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
-   K->Mult(x, z);
+   K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
 }
