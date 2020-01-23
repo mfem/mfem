@@ -33,10 +33,10 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    dim = mesh->Dimension();
    sdim = mesh->SpaceDimension();
-   NE = fes.GetNE();
-   D1D = maps->ndof;
-   Q1D = maps->nqpt;
-   pa_data.SetSize(symmDims * NQ * NE, Device::GetMemoryType());
+   ne = fes.GetNE();
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   pa_data.SetSize(symmDims * NQ * ne, Device::GetMemoryType());
 
    ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
    MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
@@ -53,11 +53,11 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       constexpr int DIM = 2;
       constexpr int VDIM = 3;
-      const int NQ = Q1D*Q1D;
+      const int NQ = quad1D*quad1D;
       auto W = w.Read();
-      auto J = Reshape(j.Read(), NQ, VDIM, DIM, NE);
-      auto D = Reshape(d.Write(), NQ, 3, NE);
-      MFEM_FORALL(e, NE,
+      auto J = Reshape(j.Read(), NQ, VDIM, DIM, ne);
+      auto D = Reshape(d.Write(), NQ, 3, ne);
+      MFEM_FORALL(e, ne,
       {
          for (int q = 0; q < NQ; ++q)
          {
@@ -210,12 +210,15 @@ void PAVectorDiffusionApply2D(const int NE,
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    MFEM_VERIFY(dim==2 && sdim==3, "!23");
+   const int NE = ne;
+   const int D1D = dofs1D;
+   const int Q1D = quad1D;
    const Array<double> &B = maps->B;
    const Array<double> &G = maps->G;
    const Array<double> &Bt = maps->Bt;
    const Array<double> &Gt = maps->Gt;
    const Vector &op = pa_data;
-   switch ((D1D << 4 ) | Q1D)
+   switch ((dofs1D << 4 ) | quad1D)
    {
       case 0x22: return PAVectorDiffusionApply2D<2,2,3>(NE,B,G,Bt,Gt,op,x,y);
       case 0x33: return PAVectorDiffusionApply2D<3,3,3>(NE,B,G,Bt,Gt,op,x,y);
