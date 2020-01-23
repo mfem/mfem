@@ -373,7 +373,7 @@ int main(int argc, char *argv[])
 FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b, Solver& prec)
    : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height()), prec(prec)
 {
-   M_solver.SetPreconditioner(prec);
+   // M_solver.SetPreconditioner(prec);
    M_solver.SetOperator(M);
 
    M_solver.iterative_mode = false;
