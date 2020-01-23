@@ -2054,7 +2054,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
             MinimumDiscardedFillOrdering(C, P);
             break;
          default:
-            MFEM_ABORT("BlockILU: unknown reording")
+            MFEM_ABORT("BlockILU: unknown reordering")
       }
    }
    else
