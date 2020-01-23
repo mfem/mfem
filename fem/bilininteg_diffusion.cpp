@@ -908,10 +908,6 @@ static void PADiffusionApply2D(const int NE,
 #endif
 
 // Shared memory PA Diffusion Apply 2D kernel
-
-// *****************************************************************************
-// * KER
-// *****************************************************************************
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
@@ -1068,40 +1064,6 @@ static void SmemPADiffusionApply2D(const int NE,
          }
       }
    });
-}
-
-// *****************************************************************************
-// * KER or CXX
-// *****************************************************************************
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-static void SmemPADiffusionApply2D(const int NE,
-                                   const Array<double> &b,
-                                   const Array<double> &g,
-                                   const Vector &d,
-                                   const Vector &x,
-                                   Vector &y,
-                                   const int d1d = 0,
-                                   const int q1d = 0,
-                                   const int nbz = 0)
-{
-#ifndef MFEM_USE_JIT
-   if (getenv("KER"))
-   {
-      SmemPADiffusionApply2D_KER<T_D1D, T_Q1D, T_NBZ>
-      (NE, b.Read(), g.Read(), d.Read(), x.Read(), y.ReadWrite());
-      return;
-   }
-   if (getenv("CXX"))
-   {
-      SmemPADiffusionApply2D_CXX<T_D1D, T_Q1D, T_NBZ>(NE,b,g,d,x,y);
-      return;
-   }
-   mfem_error("KER|CXX");
-
-#else // MFEM_USE_JIT
-   SmemPADiffusionApply2D(NE, b.Read(), g.Read(), d.Read(), x.Read(),
-                          y.ReadWrite(), d1d, q1d, nbz);
-#endif
 }
 
 #ifndef MFEM_USE_JIT
@@ -1539,19 +1501,19 @@ static void PADiffusionApply(const int dim,
                              const int D1D,
                              const int Q1D,
                              const int NE,
-                             const Array<double> &B_,
-                             const Array<double> &G_,
-                             const Array<double> &Bt_,
-                             const Array<double> &Gt_,
-                             const Vector &D_,
-                             const Vector &X_,
-                             Vector &Y_)
+                             const Array<double> &aB,
+                             const Array<double> &aG,
+                             const Array<double> &aBt,
+                             const Array<double> &aGt,
+                             const Vector &vD,
+                             const Vector &vX,
+                             Vector &vY)
 {
-   const double *B = B_.Read();
-   const double *G = G_.Read();
-   const double *D = D_.Read();
-   const double *X = X_.Read();
-   double *Y = Y_.ReadWrite();
+   const double *B = aB.Read();
+   const double *G = aG.Read();
+   const double *D = vD.Read();
+   const double *X = vX.Read();
+   double *Y = vY.ReadWrite();
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
@@ -1582,7 +1544,7 @@ static void PADiffusionApply(const int dim,
          case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,D,X,Y);
          case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,D,X,Y);
          case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,D,X,Y);
-         default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         default:   return PADiffusionApply2D(NE,aB,aG,aBt,aGt,vD,vX,vY,D1D,Q1D);
       }
    }
    else if (dim == 3)
@@ -1596,7 +1558,7 @@ static void PADiffusionApply(const int dim,
          case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,D,X,Y);
          case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,D,X,Y);
          case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,D,X,Y);
-         default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         default:   return PADiffusionApply3D(NE,aB,aG,aBt,aGt,vD,vX,vY,D1D,Q1D);
       }
    }
 #else // MFEM_USE_JIT
