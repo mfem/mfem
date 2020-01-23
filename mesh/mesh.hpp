@@ -36,15 +36,17 @@ class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
-enum class FaceType : bool;
+
+/** An enum type to specify if interior or boundary faces are desired. */
+enum class FaceType : bool {Interior, Boundary};
 
 #ifdef MFEM_USE_MPI
-   class ParMesh;
-   class ParNCMesh;
+class ParMesh;
+class ParNCMesh;
 #endif
 
 
-   class Mesh
+class Mesh
 {
 #ifdef MFEM_USE_MPI
    friend class ParMesh;

@@ -76,9 +76,6 @@ enum class ElementDofOrdering
     e1 and e2 (Double). */
 enum class L2FaceValues : bool {Single, Double};
 
-/** An enum type to specify if interior or boundary faces are desired. */
-enum class FaceType : bool {Interior, Boundary};
-
 // Forward declarations
 class NURBSExtension;
 class BilinearFormIntegrator;
