@@ -475,11 +475,11 @@ int main(int argc, char *argv[])
    device.Print();
 
    //Creating custom mesh
-   Mesh *mesh_ptr = oriented_mesh();
+   // Mesh *mesh_ptr = oriented_mesh();
    // Mesh *mesh_ptr = skewed_mesh_3d();
-   Mesh& mesh = *mesh_ptr;
+   // Mesh& mesh = *mesh_ptr;
 
-   // Mesh mesh(mesh_file, 1, 1);
+   Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
    mesh.EnsureNodes();
