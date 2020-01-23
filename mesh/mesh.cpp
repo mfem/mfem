@@ -467,6 +467,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
 
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = elem_id;
+         FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
@@ -533,6 +534,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
 
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
+         FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
