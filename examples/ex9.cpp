@@ -69,13 +69,13 @@ class FE_Evolution : public TimeDependentOperator
 private:
    Operator &M, &K;
    const Vector &b;
-   DSmoother M_prec;
+   Solver &prec;
    CGSolver M_solver;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b);
+   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b, Solver &prec);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -302,7 +302,17 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    // FE_Evolution adv(m.SpMat(), k.SpMat(), b);
-   FE_Evolution adv(m, k, b);
+   Solver *prec = nullptr;
+   Array<int> ess_tdof_list;
+   if (pa)
+   {
+      prec = new OperatorJacobiSmoother(m, ess_tdof_list);  
+   }
+   else
+   {
+      prec = new DSmoother();
+   }
+   FE_Evolution adv(m, k, b, *prec);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -360,10 +370,10 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
+FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b, Solver& prec)
+   : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height()), prec(prec)
 {
-   // M_solver.SetPreconditioner(M_prec);
+   M_solver.SetPreconditioner(prec);
    M_solver.SetOperator(M);
 
    M_solver.iterative_mode = false;
