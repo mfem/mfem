@@ -10118,10 +10118,10 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       face_id = inf1 / 64;
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      if ( (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+           (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
-         if (face_id==0 || face_id==3 || face_id==4)
+         if (face_id==0 || face_id==1 || face_id==4)
          {
             signs[f_ind] = true;
          }
