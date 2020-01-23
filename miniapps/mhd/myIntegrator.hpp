@@ -6,7 +6,7 @@ using namespace mfem;
 int itau=2; 
 bool maxtau=true;   //take a maximum on each element
 double vA = 1.0;    
-double ALPHA = 5e-3; //the parameter in stabilization B terms
+double ALPHA = .2; //the parameter in stabilization B terms
 
 // Integrator for the boundary gradient integral from the Laplacian operator
 // this is used in the auxiliary variable where the boundary condition is not needed

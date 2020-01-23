@@ -5,7 +5,7 @@
 
 using namespace std;
 using namespace mfem;
-int isupg=2;    //1: test supg with v term only
+int isupg=0;    //1: test supg with v term only
                 //2: test diffusion along B only
 bool lumpedMass = false;
 
@@ -775,7 +775,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        //only add the velocity diffusion term
        StabNv->TrueAddMult(psi, z);
    }
-   else if (isupg==2)
+   else if (isupg==2 && false)
    {
        //first compute an auxilary variable of z3=-∆w (z3=M^-1 KB * w)
        gftmp.MakeTRef(&fespace, k_, 2*sc);

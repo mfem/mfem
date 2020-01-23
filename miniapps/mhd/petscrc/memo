@@ -33,12 +33,48 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
-1/10
-use
-tau = h^2/invtau;
+1/22
+try to investigate why the hyprediffusion is so stiff in an explicit scheme (1e-6 for resistivity)
+mpirun -n 12 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 100 -tf 4 -dt .0005 -resi 1e-6 -visc 1e-6
 
-use tau = .0001/invtau and a smaller time step for the hyprediffusion term (works noticably better):
-mpirun -n 12 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 100 -tf 2 -dt .0005 -resi 1e-6 -visc 1e-6
+explicit scheme without FD is stable for dt=.0005 with rs=4
+
+
+1/10
+study FDFEM
+
+tau = h^2/invtau;
+this needs a much smaller time step for explicit scheme
+dt=1e-6
+
+use tau = .0001/invtau and a smaller time step for the hyprediffusion term (works much better):
+mpirun -n 12 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 100 -tf 4 -dt .0005 -resi 1e-6 -visc 1e-6
+
+can it run longer? Yes for the explicit scheme
+will other terms matter? No.
+
+Now consider the implicit case:
+mpirun -n 12 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 2 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell
+
+if ALPHA=1e-2; the preconditioner not good for resi=1e-6
+if ALPHA=1e-3; the preconditioner seems ok
+
+ALPHA=1e-3 corresponding to hyprediffusion parameter of 1.5e-8
+In explicit schemes, diffusion paramter was 2.5e-8
+
+ALPHA=5e-3 with dt=.05; preconditioner seems work
+ALPHA=1e-2 with dt=.05; preconditioner seems work hyperdiffusion of 1.2e-7
+ALPHA=5e-2 with dt=.05; preconditioner seems work hyperdiffusion of 6e-7 (80-100 iterations)
+
+with o=2 things become strange with the stabilzed term turned on
+mpirun -n 12 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 2 -i 3 -vs 2 -tf 1 -dt .05 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6
+
+it is probably a bad idea to use hyperdiffusion p2
+
+
+it is okay to use resi=1e-3 (30-40 iterations in total), but not resi=1e-6
+
+
 
 
 12/23
