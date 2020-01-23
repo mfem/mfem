@@ -453,6 +453,15 @@ MFEM_USE_OCCA = YES/NO
    in MFEM as well, i.e. MFEM_USE_CUDA=YES must be set.
 
 MFEM_USE_GSLIB = YES/NO
+   Enables MFEM functionality based on the GSLIB library, and specifically its
+   FindPoints component, which provides a robust algorithms to evaluate finite
+   element functions in a collection of points in physical space. When enabled,
+   the user can use the GSLIB-FindPoints methods as shown in miniapps/gslib.
+
+MFEM_USE_CEED = YES/NO
+   Enables support for the libCEED library in MFEM. libCEED is a portable
+   library for performant high-order operator evaluation developed by the Center
+   for Efficient Exascale Discretizations in the Exascale Computing Project.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -567,13 +576,13 @@ The specific libraries and their options are:
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: SIDRE_OPT, SIDRE_LIB.
 
-- Conduit, used when MFEM_USE_CONDUIT = YES. Direct Conduit Mesh Blueprint
+- Conduit (optional), used when MFEM_USE_CONDUIT = YES. Conduit Mesh Blueprint
   support requires Conduit >= v0.3.1 and VisIt >= v2.13.1 to read the output.
   URL: https://github.com/LLNL/conduit (Conduit)
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: CONDUIT_OPT, CONDUIT_LIB.
 
-- PUMI, used when MFEM_USE_PUMI = YES.
+- PUMI (optional), used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
   Options: PUMI_OPT, PUMI_LIB.
 
@@ -581,19 +590,34 @@ The specific libraries and their options are:
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
 
-- CUDA, used when MFEM_USE_CUDA = YES.
+- GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
+  built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.5 gslib".
+  Build gslib in parallel or in serial based on the desired MFEM build: "make
+  clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
+  MFEM_USE_GSLIB=YES.
+  URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
+  Options: GSLIB_OPT, GSLIB_LIB.
+
+- CUDA (optional), used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
   Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
 
-- HIP, used when MFEM_USE_HIP = YES.
+- HIP (optional), used when MFEM_USE_HIP = YES.
   URL: https://rocm.github.io/ROCmInstall.html
   Options: HIP_CXX, HIP_ARCH, HIP_OPT, HIP_LIB.
 
-- OCCA, used when MFEM_USE_OCCA = YES.
+- OCCA (optional), used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
 
-- RAJA, used when MFEM_USE_RAJA = YES.
+- libCEED (optional), used when MFEM_USE_CEED = YES. Requires libCEED's master
+  branch, specifically, git-hash c00ee0d or later.
+  URL: https://github.com/CEED/libCEED
+       https://ceed.exascaleproject.org/libceed
+  Options: CEED_DIR, CEED_OPT, CEED_LIB.
+
+- RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
@@ -612,15 +636,6 @@ The specific libraries and their options are:
   YES (in the default settings for NETCDF_OPT and NETCDF_LIB).
   URL: https://zlib.net
   Options: ZLIB_OPT, ZLIB_LIB.
-
-- GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
-  built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
-  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.5 gslib".
-  Build gslib in parallel or in serial based on the desired MFEM build: "make
-  clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
-  MFEM_USE_GSLIB=YES.
-  URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
-  Options: GSLIB_OPT, GSLIB_LIB.
 
 Building with CMake
 ===================
@@ -746,6 +761,7 @@ MFEM_USE_PUMI
 MFEM_USE_HIOP
 MFEM_USE_CUDA
 MFEM_USE_OCCA
+MFEM_USE_CEED
 MFEM_USE_RAJA
 MFEM_USE_SIDRE
 
@@ -788,7 +804,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - SuiteSparse
  - SuperLUDist, STRUMPACK
  - ParMETIS
- - Ginkgo 
+ - Ginkgo
  - GNUTLS - Extends the built-in CMake support, to search GNUTLS_DIR as well.
  - NETCDF
  - MPFR
