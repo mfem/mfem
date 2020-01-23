@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    if (pa)
    {
-      prec = new OperatorJacobiSmoother(m, ess_tdof_list);  
+      prec = new OperatorJacobiSmoother(m, ess_tdof_list);
    }
    else
    {
@@ -364,6 +364,7 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pd;
    delete dc;
+   delete prec;
 
    return 0;
 }

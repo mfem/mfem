@@ -805,6 +805,11 @@ void Mesh::DeleteGeometricFactors()
       delete geom_factors[i];
    }
    geom_factors.SetSize(0);
+   for (int i = 0; i < face_geom_factors.Size(); i++)
+   {
+      delete face_geom_factors[i];
+   }
+   face_geom_factors.SetSize(0);
 }
 
 void Mesh::GetLocalFaceTransformation(

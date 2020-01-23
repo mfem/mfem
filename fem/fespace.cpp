@@ -2151,6 +2151,16 @@ void FiniteElementSpace::Destroy()
       delete E2Q_array[i];
    }
    E2Q_array.SetSize(0);
+   for (int i = 0; i < E2IFQ_array.Size(); i++)
+   {
+      delete E2IFQ_array[i];
+   }
+   E2IFQ_array.SetSize(0);
+   for (int i = 0; i < E2BFQ_array.Size(); i++)
+   {
+      delete E2BFQ_array[i];
+   }
+   E2BFQ_array.SetSize(0);
 
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
