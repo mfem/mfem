@@ -493,7 +493,7 @@ class BlockILU : public Solver
 {
 public:
 
-   /** The reoderding method used by the BlockILU factorization. */
+   /** The reordering method used by the BlockILU factorization. */
    enum class Reordering
    {
       MINIMUM_DISCARDED_FILL,
@@ -569,7 +569,7 @@ private:
    Array<int> IB, ID, JB;
    DenseTensor AB;
 
-   /// DB(i) stores the LU factorization of the ith diagonal block
+   /// DB(i) stores the LU factorization of the i'th diagonal block
    mutable DenseTensor DB;
    /// Pivot arrays for the LU factorizations given by #DB
    mutable Array<int> ipiv;

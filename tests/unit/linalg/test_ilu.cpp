@@ -33,7 +33,7 @@ TEST_CASE("ILU Structure", "[ILU]")
    //     {1, 0, 0, 0, 1}}
    // Where 1 represents a block of size Nb x Nb that is non zero.
 
-   // Lexographical pattern
+   // Lexicographical pattern
    int p[] =
    {
       1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1,
