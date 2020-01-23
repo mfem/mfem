@@ -966,7 +966,9 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
 {
    RefinedGeometry *RefG;
    Vector val;
-   DenseMatrix vval, pmat;
+   DenseMatrix vval;
+
+   const FiniteElementSpace *fes = it->second->FESpace();
    int vec_dim = it->second->VectorDim();
    if (vec_dim == 1)
    {
@@ -975,9 +977,10 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
       out << "\" NumberOfComponents=\"1\" format=\"ascii\" >" << std::endl;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
+         ElementTransformation *Tr = fes->GetElementTransformation(i);
          RefG = GlobGeometryRefiner.Refine(
                    mesh->GetElementBaseGeometry(i), ref_, 1);
-         it->second->GetValues(i, RefG->RefPts, val, pmat);
+         it->second->GetValues(*Tr, RefG->RefPts, val);
          for (int j = 0; j < val.Size(); j++)
          {
             out << val(j) << '\n';
@@ -993,10 +996,11 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
           std::endl;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
+         ElementTransformation *Tr = fes->GetElementTransformation(i);
          RefG = GlobGeometryRefiner.Refine(
                    mesh->GetElementBaseGeometry(i), ref_, 1);
 
-         it->second->GetVectorValues(i, RefG->RefPts, vval, pmat);
+         it->second->GetVectorValues(*Tr, RefG->RefPts, vval);
 
          for (int jj = 0; jj < vval.Width(); jj++)
          {
