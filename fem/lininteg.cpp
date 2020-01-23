@@ -502,7 +502,7 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
 
       Tr.SetIntPoint(&ip);
       Tr.SetActiveSide(0);
-      
+
       // Use Tr transformation in case u or f depends on boundary attribute
       u->Eval(vu, Tr, ip);
 
