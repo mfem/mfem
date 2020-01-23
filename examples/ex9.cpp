@@ -20,14 +20,14 @@
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
-//               The example demonstrates the use of Continous or Discontinuous
-//               Galerkin (CG/DG) bilinear forms in MFEM (face integrators),
-//               the use of explicit ODE time integrators, the definition of
-//               periodic boundary conditions through periodic meshes, as well
-//               as the use of GLVis for persistent visualization of a time-evolving
-//               solution. The saving of time-dependent data files for external
-//               visualization with VisIt (visit.llnl.gov) and ParaView (paraview.org)
-//               is also illustrated.
+//               The example demonstrates the use of Discontinuous Galerkin (DG)
+//               bilinear forms in MFEM (face integrators), the use of explicit
+//               ODE time integrators, the definition of periodic boundary
+//               conditions through periodic meshes, as well as the use of GLVis
+//               for persistent visualization of a time-evolving solution. The
+//               saving of time-dependent data files for external visualization
+//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
+//               illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -53,11 +53,8 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-// Fem discrization
-// (continous or discontinous galerkin)
-enum fem_disc {DG_FE, CG_FE};
 
-/** A time-dependent operator for the right-hand side of the ODE. The weak
+/** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
     and advection matrices, and b describes the flow on the boundary. This can
     be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
@@ -65,7 +62,7 @@ enum fem_disc {DG_FE, CG_FE};
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   BilinearForm &M, &K;
+   SparseMatrix &M, &K;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
@@ -73,8 +70,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &_M, BilinearForm &_K,
-                const Vector &_b);
+   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -97,9 +93,6 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
-   fem_disc fem_type = DG_FE;
-   bool pa = false;
-   const char *device_config = "cpu";
 
    int precision = 8;
    cout.precision(precision);
@@ -134,12 +127,6 @@ int main(int argc, char *argv[])
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-   args.AddOption((int*) &fem_type, "-fem", "--fem_type",
-                  "Choose fem discretization (CG or DG).");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -148,42 +135,27 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   device.Print();
-
-   // 3. Read the mesh from the given mesh file. We can handle geometrically
+   // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 4. Define the ODE solver used for time integration. Several explicit
+   // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-      case 1:
-         ode_solver = new ForwardEulerSolver;
-         break;
-      case 2:
-         ode_solver = new RK2Solver(1.0);
-         break;
-      case 3:
-         ode_solver = new RK3SSPSolver;
-         break;
-      case 4:
-         ode_solver = new RK4Solver;
-         break;
-      case 6:
-         ode_solver = new RK6Solver;
-         break;
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
 
-   // 5. Refine the mesh to increase the resolution. In this example we do
+   // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter. If the mesh is of NURBS type, we convert it to
    //    a (piecewise-polynomial) high-order mesh.
@@ -197,29 +169,15 @@ int main(int argc, char *argv[])
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 6. Define the continous or discontinuous
-   //    finite element space of the given
+   // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   FiniteElementCollection *fec;
-   switch (fem_type)
-   {
-      case 0:
-         fec = new DG_FECollection(order, dim);
-         break;
-      case 1:
-         fec = new H1_FECollection(order, dim);
-         break;
-      default:
-         cout << "Uknown finite element space: "<<fem_type <<'\n';
-         return 3;
-   }
-
-   FiniteElementSpace fes(&mesh, fec);
+   DG_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   // 7. Set up and assemble the bilinear and linear forms corresponding to the
-   //    discretization. The DGTraceIntegrator involves integrals over mesh
+   // 6. Set up and assemble the bilinear and linear forms corresponding to the
+   //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
@@ -229,46 +187,23 @@ int main(int argc, char *argv[])
    m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   k.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   k.AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
-   if (fem_type == DG_FE)
-   {
-      k.AddInteriorFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-      k.AddBdrFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   }
 
-   if (pa && fem_type == DG_FE)
-   {
-      MFEM_ABORT("Partial assembly not supported for DG");
-   }
-
-   if (fem_type == DG_FE && mfem::Device::Allows(mfem::Backend::CUDA_MASK))
-   {
-      MFEM_ABORT("CUDA not supported for DG");
-   }
-
-   if (pa == true)
-   {
-      m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      m.Assemble();
-      k.Assemble();
-   }
-   else
-   {
-      m.Assemble();
-      m.Finalize();
-      int skip_zeros = 0;
-      k.Assemble(skip_zeros);
-      k.Finalize(skip_zeros);
-   }
+   m.Assemble();
+   m.Finalize();
+   int skip_zeros = 0;
+   k.Assemble(skip_zeros);
+   k.Finalize(skip_zeros);
    b.Assemble();
 
-   // 8. Define the initial conditions, save the corresponding grid function to
+   // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction u(&fes);
@@ -341,10 +276,10 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 9. Define the time-dependent evolution operator describing the ODE
-   //     right-hand side, and perform time-integration (looping over the time
-   //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(m, k, b);
+   // 8. Define the time-dependent evolution operator describing the ODE
+   //    right-hand side, and perform time-integration (looping over the time
+   //    iterations, ti, with a time-step dt).
+   FE_Evolution adv(m.SpMat(), k.SpMat(), b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -384,7 +319,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 10. Save the final solution. This output can be viewed later using GLVis:
+   // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
       ofstream osol("ex9-final.gf");
@@ -392,8 +327,7 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
-   // 11. Free the used memory.
-   delete fec;
+   // 10. Free the used memory.
    delete ode_solver;
    delete pd;
    delete dc;
@@ -403,20 +337,12 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K,
-                           const Vector &_b)
+FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
    : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
 {
-   // Preconditioner supported under full assembly
-   if (M.GetAssemblyLevel() == AssemblyLevel::FULL)
-   {
-      M_solver.SetPreconditioner(M_prec);
-      M_solver.SetOperator(M.SpMat());
-   }
-   else
-   {
-      M_solver.SetOperator(M);
-   }
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(M);
+
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
@@ -453,17 +379,9 @@ void velocity_function(const Vector &x, Vector &v)
          // Translations in 1D, 2D, and 3D
          switch (dim)
          {
-            case 1:
-               v(0) = 1.0;
-               break;
-            case 2:
-               v(0) = sqrt(2./3.);
-               v(1) = sqrt(1./3.);
-               break;
-            case 3:
-               v(0) = sqrt(3./6.);
-               v(1) = sqrt(2./6.);
-               v(2) = sqrt(1./6.);
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
          }
          break;
@@ -475,18 +393,9 @@ void velocity_function(const Vector &x, Vector &v)
          const double w = M_PI/2;
          switch (dim)
          {
-            case 1:
-               v(0) = 1.0;
-               break;
-            case 2:
-               v(0) = w*X(1);
-               v(1) = -w*X(0);
-               break;
-            case 3:
-               v(0) = w*X(1);
-               v(1) = -w*X(0);
-               v(2) = 0.0;
-               break;
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
+            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
          }
          break;
       }
@@ -498,18 +407,9 @@ void velocity_function(const Vector &x, Vector &v)
          d = d*d;
          switch (dim)
          {
-            case 1:
-               v(0) = 1.0;
-               break;
-            case 2:
-               v(0) = d*w*X(1);
-               v(1) = -d*w*X(0);
-               break;
-            case 3:
-               v(0) = d*w*X(1);
-               v(1) = -d*w*X(0);
-               v(2) = 0.0;
-               break;
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = d*w*X(1); v(1) = -d*w*X(0); break;
+            case 3: v(0) = d*w*X(1); v(1) = -d*w*X(0); v(2) = 0.0; break;
          }
          break;
       }
@@ -577,8 +477,7 @@ double inflow_function(const Vector &x)
       case 0:
       case 1:
       case 2:
-      case 3:
-         return 0.0;
+      case 3: return 0.0;
    }
    return 0.0;
 }
