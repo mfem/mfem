@@ -74,7 +74,8 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b, Solver &prec, MPI_Comm _comm);
+   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b, Solver &prec,
+                MPI_Comm _comm);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 

@@ -3446,7 +3446,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in ParL2FaceRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
-      "Non-conforming meshes not yet supported with partial assembly.");
+               "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();

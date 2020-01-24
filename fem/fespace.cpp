@@ -4097,7 +4097,8 @@ void FaceQuadratureInterpolator::Eval2D(
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF);//Only tangential der
    auto det = Reshape(q_det.Write(), NQ1D, NF);
    auto n   = Reshape(q_nor.Write(), NQ1D, VDIM, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES, "Derivatives on the faces are not yet supported.");
+   MFEM_VERIFY(eval_flags | DERIVATIVES,
+               "Derivatives on the faces are not yet supported.");
    //if Gauss-Lobatto
    MFEM_FORALL(f, NF,
    {
@@ -4191,7 +4192,8 @@ void FaceQuadratureInterpolator::Eval3D(
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
    auto nor = Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES, "Derivatives on the faces are not yet supported.");
+   MFEM_VERIFY(eval_flags | DERIVATIVES,
+               "Derivatives on the faces are not yet supported.");
    MFEM_FORALL(f, NF,
    {
       const int ND1D = T_ND1D ? T_ND1D : nd;
