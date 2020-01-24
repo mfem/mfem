@@ -371,8 +371,10 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b, Solver& prec_)
-   : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), prec(prec_), z(_M.Height())
+FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b,
+                           Solver& prec_)
+   : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), prec(prec_),
+     z(_M.Height())
 {
    M_solver.SetPreconditioner(prec);
    M_solver.SetOperator(M);
