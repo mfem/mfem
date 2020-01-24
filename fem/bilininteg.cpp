@@ -906,20 +906,8 @@ const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement
                                                      const FiniteElement &test_fe,
                                                      ElementTransformation &Trans)
 {
-   int order;
-   if (trial_fe.Space() == FunctionSpace::Pk)
-   {
-      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-   }
-   else
-   {
-      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
-   }
+   int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
 
-   if (trial_fe.Space() == FunctionSpace::rQk)
-   {
-      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-   }
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 

@@ -9,12 +9,10 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "catch.hpp"
 #include "mfem.hpp"
+#include "catch.hpp"
 
 using namespace mfem;
-
-const double PI = 3.14159265358979323846;
 
 namespace pa_coeff
 {
@@ -25,12 +23,12 @@ double coeffFunction(const Vector& x)
 {
    if (dimension == 2)
    {
-      return sin(8.0 * PI * x[0]) * cos(6.0 * PI * x[1]) + 2.0;
+      return sin(8.0 * M_PI * x[0]) * cos(6.0 * M_PI * x[1]) + 2.0;
    }
    else
    {
-      return sin(8.0 * PI * x[0]) * cos(6.0 * PI * x[1]) *
-             sin(4.0 * PI * x[2]) +
+      return sin(8.0 * M_PI * x[0]) * cos(6.0 * M_PI * x[1]) *
+             sin(4.0 * M_PI * x[2]) +
              2.0;
    }
 }
