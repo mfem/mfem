@@ -821,6 +821,8 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
+   void UpdateTargetConstructor(TargetConstructor *tc) {targetC=tc;};
+
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */
    void EnableNormalization(const GridFunction &x);

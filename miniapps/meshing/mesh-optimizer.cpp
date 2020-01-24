@@ -86,6 +86,8 @@ protected:
 
    FiniteElementSpace *fespace;
    GridFunction *solution; ///< Not owned.
+   MatrixCoefficient *solution_spec;
+   bool discrete_flag;
    GridFunction tarsize;
 
    /// Check if the mesh of the solution was modified.
@@ -100,20 +102,25 @@ protected:
    void ComputeEstimates();
 
 public:
-   TMOPEstimator(FiniteElementSpace &fes, GridFunction &sol)
+   TMOPEstimator(FiniteElementSpace &fes,
+                 GridFunction &sol)
       : current_sequence(-1),
         total_error(0.),
         anisotropic(false),
+        fespace(&fes),
         solution(&sol),
-        tarsize(),
-        fespace(&fes)
-   { }
+        discrete_flag(true),
+        tarsize()
+   {if (solution==NULL) {discrete_flag=false;}}
 
    void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
 
    void SetSolution(GridFunction *size) {solution = size;}
    /// Return the total error from the last error estimate.
    double GetTotalError() const { return total_error; }
+
+   void SetAnalyticTargetSpec(MatrixCoefficient *mspec)
+             {solution_spec = mspec;discrete_flag=false;}
 
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors()
@@ -144,6 +151,33 @@ public:
 void TMOPEstimator::ComputeEstimates()
 {
    // Compute error for each element
+    if (!discrete_flag) {
+        const int NE = fespace->GetNE();
+        const int dim = fespace->GetMesh()->Dimension();
+        GridFunction *nodes = fespace->GetMesh()->GetNodes();
+        Vector nodesv(nodes->Size());
+        nodesv.SetData(nodes->GetData());
+        //nodes->GetNodalValues(nodesv);
+        const int pnt_cnt = nodesv.Size()/dim;
+        DenseMatrix K;K.SetSize(dim);
+        Vector nodes_sol(pnt_cnt);
+        Vector posv(dim);
+        const IntegrationPoint *ip = NULL;
+        IsoparametricTransformation *Tpr = NULL;
+
+        for (int i=0;i<pnt_cnt;i++)
+        {
+            for (int j=0;j<dim;j++) {K(j,j) = nodesv(i+j*pnt_cnt);}
+            solution_spec->Eval(K,*Tpr,*ip);
+            Vector col1, col2;
+            K.GetColumn(0, col1);
+            K.GetColumn(1, col2);
+
+            nodes_sol(i) = col1.Norml2()*col2.Norml2();
+        }
+        solution->SetData(nodes_sol.GetData());
+    }
+
     L2_FECollection avg_fec(0, fespace->GetMesh()->Dimension());
     FiniteElementSpace avg_fes(fespace->GetMesh(), &avg_fec);
     tarsize.SetSpace(&avg_fes);
@@ -161,7 +195,7 @@ void TMOPEstimator::ComputeEstimates()
 
         error_estimates(i) = std::max(0.,loc_err);
     }
-   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
 
 class TMOPRefiner : public MeshOperator
@@ -296,8 +330,8 @@ double weight_fun(const Vector &x);
 
 double ind_values(const Vector &x)
 {
-   const int opt = 2;
-   const double small = 0.001, big = 0.01;
+   const int opt = 1;
+   const double small = 0.0001, big = 0.01;
 
    // Sine wave.
    if (opt==1)
@@ -423,9 +457,16 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      Vector pos(3);
-      T.Transform(ip, pos);
-      (this)->Eval(K,pos);
+      if (&T==NULL) {
+          Vector pos(3);
+          for (int i=0;i<K.Size();i++) {pos(i)=K(i,i);}
+          (this)->Eval(K,pos);
+      }
+      else {
+          Vector pos(3);
+          T.Transform(ip, pos);
+          (this)->Eval(K,pos);
+      }
    }
    virtual void Eval(DenseMatrix &K, Vector pos)
    {
@@ -453,7 +494,7 @@ public:
       }
       else if (typemod==2)
       {
-          const double small = 0.001, big = 0.01;
+          const double small = 0.0001, big = 0.01;
           const double X = pos(0), Y = pos(1);
           double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
                        std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
@@ -700,7 +741,9 @@ int main (int argc, char *argv[])
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
-   GridFunction size;
+   GridFunction size;size.SetSpace(&ind_fes);
+   DiscreteAdaptTC *tcd = NULL;
+   AnalyticAdaptTC *tca = NULL;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -709,21 +752,21 @@ int main (int argc, char *argv[])
       case 4:
       {
          target_t = TargetConstructor::GIVEN_FULL;
-         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
+         tca = new AnalyticAdaptTC(target_t);
          adapt_coeff = new HessianCoefficient(dim, 1);
-         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
-         target_c = tc;
+         tca->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
+         target_c = tca;
          break;
       }
       case 5:
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         tcd = new DiscreteAdaptTC(target_t);
          size.SetSpace(&ind_fes);
          FunctionCoefficient ind_coeff(ind_values);
          size.ProjectCoefficient(ind_coeff);
-         tc->SetSerialDiscreteTargetSpec(size);
-         target_c = tc;
+         tcd->SetSerialDiscreteTargetSpec(size);
+         target_c = tcd;
          break;
       }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
@@ -946,47 +989,35 @@ int main (int argc, char *argv[])
 
 
    // 20. AMR based size refinemenet if a size metric is used
-   double totsize = 0.,totvol = 0.;
+   int nc_limit = 5;
    TMOPEstimator *tmope;
-   if (target_id == 4)
-   {
-       size.SetSpace(&ind_fes);
-       int pnt_cnt = x.Size()/dim;
-       Vector xv(dim);
-       Vector col0(dim),col1(dim);
-       for (int i=0;i<pnt_cnt;i++)
-       {
-           for (int j=0;j<dim;j++) {xv(j) = x(j*pnt_cnt+i);}
-           DenseMatrix K;K.SetSize(dim);
-           adapt_coeff->Eval(K,xv);
-           K.GetColumn(0,col0);
-           K.GetColumn(1,col1);
-           size(i) = col0.Norml2()*col1.Norml2();
-       }
-   }
+   TMOPRefiner *tmopr;
 
    tmope = new TMOPEstimator(ind_fes,size);
+   if (target_id==4) {tmope->SetAnalyticTargetSpec(adapt_coeff);}
+   tmopr = new TMOPRefiner(*tmope);
 
-
-
-   TMOPRefiner *tmopr = new TMOPRefiner(*tmope);
    tmopr->PreferNonconformingRefinement();
-   tmopr->SetNCLimit(5);
-
-   for (int it = 0;it<2 ; it++)
+   tmopr->SetNCLimit(nc_limit);
+   std::cout << fespace->GetNE() << " Start AMR ref\n";
+   for (int it = 0;it<nc_limit; it++)
    {
-       std::cout << it << " " << a.GetGridFunctionEnergy(x) <<
-       " k10starting AMR iteration\n";
        tmopr->Reset();
 
        tmopr->Apply(*mesh);
 
        ind_fes.Update();
-       size.Update();
+       if (target_id == 5) {size.Update();}
 
        fespace->Update();
        x.Update();
        x0.Update();
+
+       if (target_id == 5) {
+           tcd->SetSerialDiscreteTargetSpec(size);
+           target_c = tcd;
+           he_nlf_integ->UpdateTargetConstructor(target_c);
+       }
 
        a.Update();
        if (tmopr->Stop())
@@ -994,6 +1025,7 @@ int main (int argc, char *argv[])
            cout << it << " AMR stopping criterion satisfied. Stop." << endl;
            break;
        }
+       std::cout << fespace->GetNE() << " number of elements after AMR ref\n";
    }
 
    // 21. Save the optimized mesh to a file. This output can be viewed later
