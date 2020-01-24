@@ -63,6 +63,26 @@ jobs:
         - ./runtest gitignore
 
     # ========================
+    #  Optional Checks/Tests
+    # ========================
+    # - branch-history
+  allow_failures:
+
+    - stage: optional
+      name: "branch-history"
+      # need full git history for the binary/big files check
+      git:
+        depth: false
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        # update master
+        - git fetch origin master:master
+        # checkout a branch (otherwise Travis works in detached head)
+        - git checkout -b travis_tests
+        - cd tests/scripts
+        - ./runtest branch-history
+
+    # ========================
     #       Linux tests
     # ========================
     # - serial + debug
@@ -216,7 +236,8 @@ jobs:
     # ========================
     #  Optional Checks/Tests
     # ========================
-    # - branch-history
+    # Repeat exactly the jobs to allow failures
+    # Note: I made my mind, I don’t like Travis.
   allow_failures:
 
     - stage: optional
