@@ -60,7 +60,6 @@
 //               ex24 -d cuda -p 7 -pa -c
 
 #include "mfem.hpp"
-#include "../general/dbg.hpp"
 #include <cassert>
 #include <fstream>
 #include <iostream>
@@ -416,32 +415,16 @@ struct FPeach: public Surface<FPeach>
 };
 
 // Visualize some solution on the given mesh
-static void Visualize(Mesh *mesh, const int order, const bool pause,
+static void Visualize(Mesh *mesh, const bool pause,
                       const char *keys = NULL,
-                      const int width = 0, const int height = 0)
+                      const int w = 0, const int h = 0)
 {
-   const H1_FECollection fec(order, 2);
-   FiniteElementSpace *sfes = new FiniteElementSpace(mesh, &fec);
-   GridFunction K(sfes);
-   const int NE = mesh->GetNE();
-   const Element::Type type = Element::QUADRILATERAL;
-   const IntegrationRule *ir = &IntRules.Get(type, order);
-   for (int i = 0; i < NE; i++)
-   {
-      ElementTransformation *tr = mesh->GetElementTransformation(i);
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
-         tr->SetIntPoint(&ir->IntPoint(j));
-         K(i) = tr->Jacobian().Weight();
-      }
-   }
-   //glvis << "mesh\n" << *mesh << flush;
    glvis.precision(8);
-   glvis << "solution\n" << *mesh << K << flush;
+   glvis << "mesh\n" << *mesh;
    if (keys) { glvis << "keys " << keys << "\n"; }
-   if (width * height > 0)
-   { glvis << "window_size " << width << " " << height <<"\n"; }
+   if (w*h>0) { glvis << "window_size " << w << " " << h <<"\n"; }
    if (pause) { glvis << "pause\n"; }
+   glvis << flush;
 }
 
 // Surface solver class
@@ -510,7 +493,7 @@ public:
          }
          *nodes = solution;
          // Send the solution by socket to a GLVis server.
-         if (vis) { Visualize(mesh, order, pause); }
+         if (vis) { Visualize(mesh, pause); }
          a.Update();
       }
    }
@@ -544,37 +527,24 @@ public:
    {
       if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       a.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
-      dbg("dbc:\n"); dbc.Print();
       for (int iiter=0; iiter<niter; ++iiter)
       {
          a.Assemble();
          b = 0.0;
          x = *nodes; // should only copy the BC
-         //dbg("x:\n"); x.Print();
-         dbg("x.Size():%d", x.Size());
-         dbg("x:%f", x*x);
-         dbg("a: %dx%d", a.Height(),a.Width());
-         B = 0.0;
          a.FormLinearSystem(dbc, x, b, A, X, B);
-         dbg("b:%f", b*b);
-         //dbg("B:\n"); B.Print();
-         dbg("X:%f", X*X);
-         dbg("B:%f", B*B);
          if (!pa)
          {
             // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-            //GSSmoother M(static_cast<SparseMatrix&>(*A));
-            //PCG(*A, M, B, X, 3, 2000, eps, 0.0);
-            CG(*A, B, X, 3, 2000, eps, 0.0);
+            GSSmoother M(static_cast<SparseMatrix&>(*A));
+            PCG(*A, M, B, X, 3, 2000, eps, 0.0);
          }
          else { CG(*A, B, X, 3, 2000, eps, 0.0); }
          // Recover the solution as a finite element grid function.
          a.RecoverFEMSolution(X, b, x);
-         //dbg("X:\n"); X.Print();
-         dbg("X:%f", X*X);
          *nodes = x;
          // Send the solution by socket to a GLVis server.
-         if (vis) { Visualize(mesh, order, pause); }
+         if (vis) { Visualize(mesh, pause); }
          a.Update();
       }
    }
@@ -585,7 +555,7 @@ int main(int argc, char *argv[])
    int nx = 4;
    int ny = 4;
    int nr = 2;
-   int order = 3;
+   int order = 4;
    int niter = 4;
    int surface = 0;
    bool c = false;
@@ -658,7 +628,7 @@ int main(int argc, char *argv[])
    cout << "Number of true DOFs: " << fes->GetTrueVSize() << endl;
 
    // Send to GLVis the first mesh and set the 'keys' options.
-   if (vis) { Visualize(mesh, order, wait, keys, 800, 800); }
+   if (vis) { Visualize(mesh, wait, keys, 800, 800); }
 
    // Create and launch the surface solver.
    if (c) { ByComponent Solve(pa, vis, niter, wait, order, mesh, fes, bc); }
