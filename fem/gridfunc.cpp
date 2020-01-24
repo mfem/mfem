@@ -659,6 +659,7 @@ void GridFunction::GetValues(ElementTransformation &T,
    for (int j = 0; j < nip; j++)
    {
       const IntegrationPoint &ip = ir.IntPoint(j);
+      T.SetIntPoint(&ip);
       vals[j] = GetValue(T, ip, comp);
    }
 }
@@ -790,8 +791,9 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
    for (int j = 0; j < nip; j++)
    {
       const IntegrationPoint &ip = ir.IntPoint(j);
-      vals.GetColumnReference(j, val);
+      T.SetIntPoint(&ip);
       GetVectorValue(T, ip, val);
+      vals.SetCol(j, val);
    }
 }
 
