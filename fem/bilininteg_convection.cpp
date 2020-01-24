@@ -47,62 +47,32 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if ( Q == nullptr)
    {
-      if (dim == 2)
+      for (int e=0; e<NE; ++e)
       {
-         for (int e=0; e<NE; ++e)
+         for (int q=0; q<nq; ++q)
          {
-            for (int q=0; q<nq; ++q)
+            for (int idim=0; idim < dim; ++idim)
             {
-               h_C(0,q,e) = alpha;
-               h_C(1,q,e) = alpha;
-            }
-         }
-      }
-      if (dim == 3)
-      {
-         for (int e=0; e<NE; ++e)
-         {
-            for (int q=0; q<nq; ++q)
-            {
-               h_C(0,q,e) = alpha;
-               h_C(1,q,e) = alpha;
-               h_C(2,q,e) = alpha;
+               h_C(idim,q,e) = alpha;
             }
          }
       }
    }
    else
    {
-      if (dim == 2)
+      for (int e=0; e<NE; ++e)
       {
-         for (int e=0; e<NE; ++e)
+         ElementTransformation& Te = *fes.GetElementTransformation(e);
+         for (int q=0; q<nq; ++q)
          {
-            ElementTransformation& Te = *fes.GetElementTransformation(e);
-            for (int q=0; q<nq; ++q)
+            for (int idim=0; idim < dim; ++idim)
             {
                Q->Eval(e_coeff, Te, ir->IntPoint(q));
-               h_C(0,q,e) = alpha*e_coeff(0);
-               h_C(1,q,e) = alpha*e_coeff(1);
+               h_C(idim,q,e) = alpha*e_coeff(idim);
             }
          }
       }
-
-      if (dim == 3)
-      {
-         for (int e=0; e<NE; ++e)
-         {
-            ElementTransformation& Te = *fes.GetElementTransformation(e);
-            for (int q=0; q<nq; ++q)
-            {
-               Q->Eval(e_coeff, Te, ir->IntPoint(q));
-               h_C(0,q,e) = alpha*e_coeff(0);
-               h_C(1,q,e) = alpha*e_coeff(1);
-               h_C(2,q,e) = alpha*e_coeff(2);
-            }
-         }
-      }
-
-   }//vector coefficient
+   }
 
    auto C = Reshape(coeff.Read(),dim,nq, ne);
 
