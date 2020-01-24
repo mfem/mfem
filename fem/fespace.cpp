@@ -4029,8 +4029,8 @@ void QuadratureInterpolator::MultTranspose(
 
 FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
                                                        &fes,
-                                                       const IntegrationRule &ir, FaceType type)
-   : type(type), nf(fes.GetNFbyType(type))
+                                                       const IntegrationRule &ir, FaceType type_)
+   : type(type_), nf(fes.GetNFbyType(type))
 {
    fespace = &fes;
    qspace = NULL;
@@ -4050,8 +4050,8 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
 
 FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
                                                        &fes,
-                                                       const QuadratureSpace &qs, FaceType type)
-   : type(type), nf(fes.GetNFbyType(type))
+                                                       const QuadratureSpace &qs, FaceType type_)
+   : type(type_), nf(fes.GetNFbyType(type))
 {
    fespace = &fes;
    qspace = &qs;
