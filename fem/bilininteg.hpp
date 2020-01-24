@@ -1941,6 +1941,8 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
 
+   using BilinearFormIntegrator::AssemblePA;
+
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
