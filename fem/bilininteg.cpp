@@ -2097,7 +2097,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    int dof = el.GetDof();
    double w;
 
-   //Jinv.SetSize(dim);
+   Jinv.SetSize(dim);
    dshape.SetSize(dof, dim);
    pelmat.SetSize(dim);
    gshape.SetSize(dim);

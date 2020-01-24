@@ -13,7 +13,6 @@
 #include "dtensor.hpp"
 #include "operator.hpp"
 #include "../general/forall.hpp"
-#include "../general/dbg.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -32,7 +31,6 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (P)
    {
-      dbg("P");
       // Variational restriction with P
       B.SetSize(P->Width(), b);
       P->MultTranspose(b, B);
@@ -42,7 +40,6 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    }
    else
    {
-      dbg("else");
       // rap, X and B point to the same data as this, x and b, respectively
       X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
       B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
@@ -55,9 +52,7 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    // the rap operator when P and R are non-trivial
    ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
                                                     rap != this);
-   dbg("A->EliminateRHS:");
    A->EliminateRHS(X, B);
-   dbg("B:%f", B*B);
    Aout = A;
 }
 
