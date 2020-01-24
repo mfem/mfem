@@ -716,7 +716,12 @@ public:
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
 
-   DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
+   DenseMatrix &operator()(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      Mk.data = GetData(k);
+      return Mk;
+   }
    const DenseMatrix &operator()(int k) const
    { return const_cast<DenseTensor&>(*this)(k); }
 
