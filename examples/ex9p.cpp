@@ -68,13 +68,13 @@ class FE_Evolution : public TimeDependentOperator
 private:
    Operator &M, &K;
    const Vector &b;
-   HypreSmoother M_prec;
+   Solver &M_prec;
    CGSolver M_solver;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b, MPI_Comm _comm);
+   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b, Solver &prec, MPI_Comm _comm);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -357,17 +357,23 @@ int main(int argc, char *argv[])
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
    Operator *m_op, *k_op;
+   Solver *prec = nullptr;
+   Array<int> ess_tdof_list;
    if (pa)
    {
       m_op = m;
       k_op = k;
+      prec = new OperatorJacobiSmoother(*m, ess_tdof_list);
    }
    else
    {
       m_op = M;
       k_op = K;
+      HypreSmoother *hypre_prec = new HypreSmoother();
+      hypre_prec->SetType(HypreSmoother::Jacobi);
+      prec = hypre_prec;
    }
-   FE_Evolution adv(*m_op, *k_op, *B, fes->GetComm());
+   FE_Evolution adv(*m_op, *k_op, *B, *prec, fes->GetComm());
 
    double t = 0.0;
    adv.SetTime(t);
@@ -441,6 +447,7 @@ int main(int argc, char *argv[])
    delete fes;
    delete pmesh;
    delete ode_solver;
+   delete prec;
    delete pd;
    delete dc;
 
@@ -451,12 +458,11 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(Operator &_M, Operator &_K,
-                           const Vector &_b, MPI_Comm _comm)
+                           const Vector &_b, Solver & prec, MPI_Comm _comm)
    : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(_comm), z(_M.Height())
+     M(_M), K(_K), b(_b), M_solver(_comm), M_prec(prec), z(_M.Height())
 {
-   // M_prec.SetType(HypreSmoother::Jacobi);
-   // M_solver.SetPreconditioner(M_prec);
+   M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
 
    M_solver.iterative_mode = false;
