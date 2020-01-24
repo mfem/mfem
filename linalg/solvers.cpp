@@ -1886,7 +1886,7 @@ GMGSolver::~GMGSolver() {
 }
 
 ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
-                     std::vector<HypreParMatrix *> P_, CoarseSolver cs)
+                     std::vector<HypreParMatrix *> P_, CoarseSolver cs, bool printCoarse)
    : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
 
    NumGrids = P.size();
@@ -1902,7 +1902,7 @@ ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
    for (int i = NumGrids ; i > 0; i--)
    {
       A[i - 1] = new ComplexHypreParMatrix(RAP(&A[i]->real(), P[i - 1]),
-                                           RAP(&A[i]->imag(), P[i - 1]),
+                                           A[i]->hasImagPart() ? RAP(&A[i]->imag(), P[i - 1]) : NULL,
                                            false, false, ComplexOperator::HERMITIAN);
    }
    // Set up coarse solve operator
@@ -1936,7 +1936,12 @@ ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
 #ifndef MFEM_USE_STRUMPACK
          MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with STRUMPACK");
 #else
-         StpA = new STRUMPACKRowLocMatrix(*A[0]->GetSystemMatrix());
+	 HypreParMatrix *Ahyp0 = A[0]->GetSystemMatrix();
+	 if (printCoarse)
+	   Ahyp0->Print("A0FA.txt");
+	 
+         StpA = new STRUMPACKRowLocMatrix(*Ahyp0);
+	 // StpA = new STRUMPACKRowLocMatrix(*A[0]->GetSystemMatrix());
          strumpack = new STRUMPACKSolver(*StpA);
          strumpack->SetPrintFactorStatistics(false);
          strumpack->SetPrintSolveStatistics(false);
@@ -2060,7 +2065,7 @@ ComplexGMGPASolver::ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator
 				       Vector& diagRe_, 
 				       Array<int>& ess_tdof_list,
 				       std::vector<HypreParMatrix *> P_,
-				       HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im)
+				       HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im, bool printCoarse)
   : Solver(2*Af_Re->Height(), 2*Af_Re->Width()), P(P_), diagRe(diagRe_), 
     Jacobi(diagRe, ess_tdof_list, 1.0)
 {
@@ -2084,7 +2089,12 @@ ComplexGMGPASolver::ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator
    Ac = new ComplexHypreParMatrix(Ac_Re, Ac_Im, false, false, ComplexOperator::HERMITIAN);
 
 #ifdef MFEM_USE_STRUMPACK
-   StpA = new STRUMPACKRowLocMatrix(*Ac->GetSystemMatrix());
+   HypreParMatrix *Ahyp0 = Ac->GetSystemMatrix();
+   if (printCoarse)
+     Ahyp0->Print("A0PA.txt");
+   
+   //StpA = new STRUMPACKRowLocMatrix(*Ac->GetSystemMatrix());
+   StpA = new STRUMPACKRowLocMatrix(*Ahyp0);
    strumpack = new STRUMPACKSolver(*StpA);
    strumpack->SetPrintFactorStatistics(false);
    strumpack->SetPrintSolveStatistics(false);
@@ -2099,7 +2109,7 @@ ComplexGMGPASolver::ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator
    {
      Pt[i - 1] = new TransposeOperator(P[i - 1]);
      AO_Re[i - 1] = new TripleProductOperator(Pt[i - 1], AO_Re[i], P[i - 1], false, false, false);
-     AO_Im[i - 1] = new TripleProductOperator(Pt[i - 1], AO_Im[i], P[i - 1], false, false, false);
+     AO_Im[i - 1] = (AO_Im[i] == NULL) ? NULL : new TripleProductOperator(Pt[i - 1], AO_Im[i], P[i - 1], false, false, false);
      AO[i - 1] = new ComplexOperator(AO_Re[i - 1], AO_Im[i - 1],
 				     false, false, ComplexOperator::HERMITIAN);
    }
@@ -2113,7 +2123,7 @@ ComplexGMGPASolver::ComplexGMGPASolver(MPI_Comm comm, Operator * Af_Re, Operator
    // construct smoothers
    for (int i = NumGrids - 2; i >= 0 ; i--)
    {
-     S[i] = new TripleProductOperator(Pt[i], S[i+1], P[i], false, false, false);
+     S[i] = new TripleProductOperator(Pt[i+1], S[i+1], P[i+1], false, false, false);
    }
 }
 

@@ -450,7 +450,7 @@ private:
 public:
    enum CoarseSolver { PETSC, SUPERLU, STRUMPACK};
 
-   ComplexGMGSolver(ComplexHypreParMatrix * Af_, std::vector<HypreParMatrix *> P_, CoarseSolver);
+  ComplexGMGSolver(ComplexHypreParMatrix * Af_, std::vector<HypreParMatrix *> P_, CoarseSolver cs, bool printCoarse=false);
    virtual void SetOperator(const Operator &op) {}
 
    virtual void SetSmootherType(const HypreSmoother::Type type) const;
@@ -490,7 +490,7 @@ public:
 		      Vector& diagRe_, 
 		      Array<int>& ess_tdof_list,
 		      std::vector<HypreParMatrix *> P_,
-		      HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im);
+		      HypreParMatrix * Ac_Re, HypreParMatrix * Ac_Im, bool printCoarse=false);
 
    virtual void SetOperator(const Operator &op) {}
 

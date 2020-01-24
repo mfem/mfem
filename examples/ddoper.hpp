@@ -58,6 +58,8 @@ using namespace std;
 
 //#define USE_2DINTERFACE
 
+//#define TEST_SD_CMG
+
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
 void test1_f_exact_0(const Vector &x, Vector &f);

@@ -217,6 +217,7 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 #ifdef AIRY_TEST
 #include "gsl_sf_airy.h"
 
+//#define K2_AIRY 1.0  // TODO: input k
 //#define K2_AIRY 2.0  // TODO: input k
 //#define K2_AIRY 686.3384931312 // 1.25 GHz
 #define K2_AIRY 10981.4158900991  // 5 GHz
@@ -4372,7 +4373,21 @@ void BlockSubdomainPreconditioner::Mult(const Vector & x, Vector & y) const
 #endif
 }
 
-void TestGMG(HypreParMatrix * A, std::vector<HypreParMatrix*> P)
+void E_exact_Re(const Vector &x, Vector &E)
+{
+  const double s = 1.0 / 8.0;
+  /*
+  E[0] = x[1] * x[2] * (s - x[1]) * (s - x[2]);
+  E[1] = x[0] * x[1] * x[2] * (s - x[0]) * (s - x[2]);
+  E[2] = x[0] * x[1] * (s - x[0]) * (s - x[1]);
+  */
+  
+  E[0] = cos((x[0] + x[1] + x[2]) / (s * 1.73205));
+  E[1] = 0.0;
+  E[2] = 0.0;
+}
+
+void TestGMG(HypreParMatrix * A, std::vector<HypreParMatrix*> P, ParFiniteElementSpace *fespace)
 {
   GMGSolver *gmg = new GMGSolver(A, P, GMGSolver::CoarseSolver::STRUMPACK);
   gmg->SetTheta(0.5);
@@ -4382,18 +4397,26 @@ void TestGMG(HypreParMatrix * A, std::vector<HypreParMatrix*> P)
   
   Vector x(n);
   Vector y(n);
-
+  y = 0.0;
+  
   for (int i=0; i<n; ++i)
     {
       x[i] = i;
     }
+
+  {
+    ParGridFunction sol(fespace);
+    VectorFunctionCoefficient E_Re(3, E_exact_Re);
+    sol.ProjectCoefficient(E_Re);
+    A->Mult(sol, x);
+  }
 
   GMRESSolver *gmres = new GMRESSolver(A->GetComm());
 
   gmres->SetOperator(*(A));
 
   gmres->SetRelTol(1e-12);
-  gmres->SetMaxIter(50);
+  gmres->SetMaxIter(100);
   gmres->SetPrintLevel(1);
 
   gmres->SetPreconditioner(*gmg);
@@ -6338,19 +6361,119 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		  //cgmg = new ComplexGMGPASolver(sd_com[m], &(AsdRe_m->GetBlock(0,0)), &(AsdIm_m->GetBlock(0,0)), diagRe, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
 		  //cgmg = new ComplexGMGPASolver(sd_com[m], AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), diagRe, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
 		  //cgmg = new ComplexGMGPASolver(sd_com[m], AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), diagSDND, ess_tdof_list, sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
-		  cgmg = new ComplexGMGPASolver(sd_com[m], &(AsdPARe[m]->GetBlock(0,0)), &(AsdPAIm[m]->GetBlock(0,0)), diagSDND, sd_ess_tdof_list[m], sdP[m], (*sdcRe)[m], (*sdcIm)[m]);
+#ifdef TEST_SD_CMG
+		  cgmg = new ComplexGMGPASolver(sd_com[m], oppa_sdND[m].Ptr(), NULL, diagSDND, sd_ess_tdof_list[m], sdP[m], (*sdcRe)[m], (*sdcIm)[m]); //, (m == 0));
+		  if (m == -10)
+		    sdP[0][0]->Print("P0.txt");
+#else
+		  cgmg = new ComplexGMGPASolver(sd_com[m], &(AsdPARe[m]->GetBlock(0,0)), &(AsdPAIm[m]->GetBlock(0,0)), diagSDND, sd_ess_tdof_list[m], sdP[m], (*sdcRe)[m], (*sdcIm)[m]); //, (m == 0));
+#endif
 		}
 #else
+#ifdef TEST_SD_CMG
+		if (m == -10)
+		  {
+		    //HypreParMatrix *AC0 = RAP(sdND[m], sdP[0][0]);
+		    //AC0->Print("AC0_.txt");
+
+		    SparseMatrix spND, spP;
+
+		    sdND[m]->GetDiag(spND);
+		    sdP[0][0]->GetDiag(spP);
+
+		    SparseMatrix *spR = Transpose(spP);
+		    
+		    /*
+		    SparseMatrix *spRAP = RAP(spND, *spR);
+		    ofstream rapout("spRAP0.txt");
+		    
+		    spRAP->Print(rapout);
+		    rapout.close();
+		    delete spRAP;
+		    */
+		    /*
+		    ofstream srout("spR0.txt");
+		    spR->Print(srout);
+		    srout.close();
+
+		    delete spR;
+		    */
+		    /*
+		    ofstream ndout("spND0.txt");
+		    ofstream spout("spP0.txt");
+
+		    spND.Print(ndout);
+		    spP.Print(spout);
+		    
+		    ndout.close();
+		    spout.close();
+		    */
+		    
+		    //delete AC0;
+		  }
+		
+		ComplexHypreParMatrix *AZ = new ComplexHypreParMatrix(sdND[m], NULL, false, false);
+#else
 		ComplexHypreParMatrix *AZ = new ComplexHypreParMatrix(AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), false, false);
-		ComplexGMGSolver *cgmg = new ComplexGMGSolver(AZ, sdP[m], ComplexGMGSolver::CoarseSolver::STRUMPACK);
+#endif
+		ComplexGMGSolver *cgmg = new ComplexGMGSolver(AZ, sdP[m], ComplexGMGSolver::CoarseSolver::STRUMPACK); //, (m == 0));
 		cgmg->SetSmootherType(HypreSmoother::Jacobi);  // Some options: Jacobi, l1Jacobi, l1GS, GS
 #endif
 
 		cgmg->SetTheta(0.5);
 		sdNDinv[m] = cgmg;
 
+		/*
+		{ // Use cgmg as a preconditioner for GMRES, rather than a solver.
+		  GMRESSolver *gmresSD = new GMRESSolver(sd_com[m]);
+
+#ifdef SD_ITERATIVE_GMG_PA
+#ifdef TEST_SD_CMG
+		  ComplexOperator *copSD = new ComplexOperator(oppa_sdND[m].Ptr(), NULL, false, false, ComplexOperator::HERMITIAN);
+#else
+		  ComplexOperator *copSD = new ComplexOperator(&(AsdPARe[m]->GetBlock(0,0)), &(AsdPAIm[m]->GetBlock(0,0)), false, false, ComplexOperator::HERMITIAN);
+#endif
+		  gmresSD->SetOperator(*copSD);
+#else
+		  gmresSD->SetOperator(*AZ);
+#endif
+		  
+		  gmresSD->SetRelTol(1e-12);
+		  gmresSD->SetMaxIter(100);
+		  gmresSD->SetKDim(100);
+		  gmresSD->SetPrintLevel(-1);
+		  if (m == 0)
+		    gmresSD->SetPrintLevel(1);
+		  
+		  gmresSD->SetPreconditioner(*cgmg);
+		  gmresSD->SetName("sdNDcgmg" + std::to_string(m));
+		  gmresSD->iterative_mode = false;
+
+		  sdNDinv[m] = gmresSD;
+
+		  if (m == -10)
+		  { // Test gmresSD
+#ifdef SD_ITERATIVE_GMG_PA
+		    const int n_m = 2*oppa_sdND[m].Ptr()->Height();
+#else
+		    const int n_m = 2*sdND[m]->Height();
+#endif
+		    Vector tx(n_m);
+		    Vector ty(n_m);
+		    tx = 1.0;
+		    ty = 0.0;
+		    gmresSD->Mult(tx, ty);
+		    //cgmg->Mult(tx, ty);
+		    cout << "gmresSD test ty norm " << ty.Norml2() << endl;
+		  }
+		}
+		*/
+		
 		if (m == 0)
 		  {
+#ifdef TEST_SD_CMG
+		    TestGMG(sdND[m], sdP[m], fespace[m]);
+#endif
 		    //TestGMG(AsdRe_HypreBlocks[m](0,0), sdP[m]);
 		    //TestCGMG(AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), sdP[m]);
 		  }
@@ -6422,9 +6545,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    }
 	    */
 
+#ifndef TEST_SD_CMG	    
 	    // Delete subdomain blocks. Note that interface blocks must be deleted after the loop over subdomains, since they can be shared.
 	    delete sdND[m];
-	    
+#endif
+
 #ifndef SD_ITERATIVE
 	    delete HypreAsdComplex[m];
 #endif
@@ -9251,13 +9376,44 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bo
       //a.FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, sdB);
       //bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, *(sdND[subdomain]), sdX, sdB);
 
+      /*
+      Array<int> dbg_tdof_list;  // empty
+      
+      { // debugging!
+	const int sdtsize = fespace[subdomain]->GetTrueVSize();
+      
+	Array<int> true_ess_dofs(sdtsize);
+	for (int i=0; i<fespace[subdomain]->GetTrueVSize(); ++i)
+	  true_ess_dofs[i] = 0;
+
+	for (set<int>::const_iterator it = tdofsBdry[subdomain].begin(); it != tdofsBdry[subdomain].end(); ++it)
+	  true_ess_dofs[*it] = 1;
+
+	fespace[subdomain]->MarkerToList(true_ess_dofs, dbg_tdof_list);
+      }
+      */
+      
       {
 #ifdef SD_ITERATIVE_GMG_PA
 	if (fullAssembly)
 #endif
 	  {
 	    OperatorPtr Aptr;
-	    bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, Aptr, sdX, *(srcSD[subdomain]));
+	    /*
+#ifdef SD_ITERATIVE_GMG_PA
+	    if (fullAssembly)
+	      {
+		Array<int> empty_tdof_list;  // empty
+		bf_sdND[subdomain]->FormLinearSystem(empty_tdof_list, xsd, *b, Aptr, sdX, *(srcSD[subdomain]));
+	      }
+	    else
+#endif
+	    */
+	      {
+		bf_sdND[subdomain]->FormLinearSystem(ess_tdof_list, xsd, *b, Aptr, sdX, *(srcSD[subdomain]));
+	      }
+	    
+	      //bf_sdND[subdomain]->FormLinearSystem(dbg_tdof_list, xsd, *b, Aptr, sdX, *(srcSD[subdomain]));
 	    sdND[subdomain] = Aptr.As<HypreParMatrix>();
 	  }
 #ifdef SD_ITERATIVE_GMG_PA
@@ -9265,6 +9421,7 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bo
 	  {
 	    cout << m_rank << ": sdND RHS size init " << srcSD[subdomain]->Size() << ", tvsize " << fespace[subdomain]->GetTrueVSize() << endl;
 	    sd_ess_tdof_list[subdomain] = ess_tdof_list;  // deep copy
+	    //sd_ess_tdof_list[subdomain] = dbg_tdof_list;  // deep copy
 	    bfpa_sdND[subdomain]->FormLinearSystem(sd_ess_tdof_list[subdomain], xsd, *b, oppa_sdND[subdomain], sdX, *(srcSD[subdomain]));
 	    
 	    cout << m_rank << ": sdND RHS size computed " << srcSD[subdomain]->Size() << ", norm " << srcSD[subdomain]->Norml2() << ", sd " << subdomain << endl;
@@ -11483,7 +11640,12 @@ void DDMInterfaceOperator::CopySDMatrices(std::vector<HypreParMatrix*>& Re, std:
   
   for (int m=0; m<numSubdomains; ++m)
     {
+#ifdef TEST_SD_CMG
+      Re[m] = sdND[m];
+      Im[m] = NULL;
+#else
       Re[m] = AsdRe_HypreBlocks[m](0,0);
       Im[m] = AsdIm_HypreBlocks[m](0,0);
+#endif
     }
 }

@@ -3227,6 +3227,8 @@ void QuadratureInterpolator::Mult(
 	 case 409: eval_func = &Eval2D<3,4,9>; break;
 	   // Q2
 	 case 416: eval_func = &Eval2D<3,4,16>; break;
+	   // Q3
+	 case 425: eval_func = &Eval2D<3,4,25>; break;
 	 }
      }
    if (eval_func)
@@ -3235,6 +3237,7 @@ void QuadratureInterpolator::Mult(
    }
    else
    {
+     std::cout << "failing with nd " << nd << ", nq " << nq << ", vdim " << vdim << ", dim " << dim << std::endl;
       MFEM_ABORT("case not supported yet");
    }
 }

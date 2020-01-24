@@ -82,6 +82,7 @@ void CreateInterfaceMeshes(const int numInterfaces, const int numSubdomains, con
 //#define SIGMAVAL -1009.0
 //#define SIGMAVAL -211.0
 //#define SIGMAVAL -2.0
+//#define SIGMAVAL -1.0
 #else
 //#define SIGMAVAL -2.0
 //#define SIGMAVAL -6007.0
@@ -132,6 +133,74 @@ void test2_RHS_exact(const Vector &x, Vector &f)
   f(1) += ((x(0) * (1.0 - x(0))) + (x(2) * (1.0 - x(2))));
   f(2) += ((x(0) * (1.0 - x(0))) + (x(1) * (1.0 - x(1))));
   */
+}
+
+void vecField1(const Vector &x, Vector &E)
+{
+  E(0) = x(0);
+  E(1) = x(1);
+  E(2) = x(2);
+}
+
+void TestProlongation(const int rank, HypreParMatrix *P, ParFiniteElementSpace & cspace, ParFiniteElementSpace & fspace,
+		      ParGridFunction const& xc)
+{
+  //ParGridFunction xc(&cspace);
+  ParGridFunction xf(&fspace);
+  ParGridFunction Px(&fspace);
+
+  VectorFunctionCoefficient E(3, vecField1);
+  //xc.ProjectCoefficient(E);  // bug??? The cspace pmesh is the same as the fspace pmesh?
+
+  xf.ProjectCoefficient(E);
+
+  Vector txc(cspace.GetTrueVSize());
+  Vector txf(fspace.GetTrueVSize());
+  Vector tPx(fspace.GetTrueVSize());
+
+  xc.GetTrueDofs(txc);
+
+  xf.GetTrueDofs(txf);
+
+  P->Mult(txc, tPx);
+
+  //Px.SetFromTrueDofs(txf);
+
+  const double tPx_norm = tPx.Norml2();
+  tPx -= txf;
+  
+  cout << rank << ": norm of xf " << txf.Norml2() << ", norm of Px " << tPx_norm << ", norm of diff " << tPx.Norml2() << endl;
+}
+
+void CompareHypreParMatrices(HypreParMatrix *A, HypreParMatrix *B)
+{
+  const int m = A->Height();
+  const int n = A->Width();
+  MFEM_VERIFY(m == B->Height(), "");
+  MFEM_VERIFY(n == B->Width(), "");
+
+  Vector ej(n);
+  Vector Aej(m);
+  Vector Bej(m);
+
+  double maxrelerr = 0.0;
+  
+  for (int i=0; i<n; ++i)
+    {
+      ej = 0.0;
+      ej[i] = 1.0;
+
+      A->Mult(ej, Aej);
+      B->Mult(ej, Bej);
+
+      const double Anrm = Aej.Norml2();
+      const double mnrm = std::max(Anrm, Bej.Norml2());
+      Aej -= Bej;
+      const double relerr = Aej.Norml2() / mnrm;
+      maxrelerr = std::max(maxrelerr, relerr);
+    }
+
+  cout << "CompareHypreParMatrices: " << maxrelerr << endl;
 }
 
 void TestHypreRectangularSerial()
@@ -719,9 +788,26 @@ HypreParMatrix * CreateFESpaceMapForReorderedMeshes(ParMesh *pmeshA, ParFiniteEl
   std::vector<HYPRE_Int> rowStarts2(2);
   rowStarts2[0] = first_loc_row;
   rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
+
+  const int num_loc_cols = fespaceA->GetTrueVSize();
+  std::vector<int> all_num_loc_cols(nprocs);
+  
+  MPI_Allgather(&num_loc_cols, 1, MPI_INT, all_num_loc_cols.data(), 1, MPI_INT, comm);
+  int glob_ncols = 0;
+  int first_loc_col = 0;  
+  for (int i=0; i<nprocs; ++i)
+    {
+      glob_ncols += all_num_loc_cols[i];
+      if (i < rank)
+	first_loc_col += all_num_loc_cols[i];
+    }
+
+  std::vector<HYPRE_Int> colStarts2(2);
+  colStarts2[0] = first_loc_col;
+  colStarts2[1] = first_loc_col + all_num_loc_cols[rank];
   
   std::vector<int> opI(num_loc_rows+1);
-  std::vector<int> cnt(num_loc_rows);
+  //std::vector<int> cnt(num_loc_rows);
 
   opI[0] = 0;
   for (int i=1; i<num_loc_rows+1; ++i)
@@ -787,8 +873,8 @@ HypreParMatrix * CreateFESpaceMapForReorderedMeshes(ParMesh *pmeshA, ParFiniteEl
 
   delete fespaceB;
   
-  HypreParMatrix *fesmap = new HypreParMatrix(comm, ntdof, glob_nrows, glob_nrows, (int*) opI.data(), (HYPRE_Int*) opJ.data(), (double*) data.data(),
-					      (HYPRE_Int*) rowStarts2.data(), (HYPRE_Int*) rowStarts2.data());
+  HypreParMatrix *fesmap = new HypreParMatrix(comm, ntdof, glob_nrows, glob_ncols, (int*) opI.data(), (HYPRE_Int*) opJ.data(), (double*) data.data(),
+					      (HYPRE_Int*) rowStarts2.data(), (HYPRE_Int*) colStarts2.data());
 
   return fesmap;
 }
@@ -1176,6 +1262,7 @@ int main(int argc, char *argv[])
 
 	SubdomainParMeshGenerator sdMeshGen_C(numSubdomains, pmesh);
 	ParMesh **pmeshSD_C = sdMeshGen_C.CreateParallelSubdomainMeshes();
+	// TODO: isn't pmeshSD_C identical to pmeshSDcoarse? If so, just use pmeshSDcoarse and do not create pmeshSD_C.
 	
 	ParFiniteElementSpace fespace_C(pmesh, fec);
 
@@ -1298,7 +1385,16 @@ int main(int argc, char *argv[])
 	  {
 	    if (pmeshSDcoarse[sd] != NULL)
 	      {
-		const ParFiniteElementSpace cfespace(*(sdfespace[sd]));
+		ParFiniteElementSpace cfespace(*(sdfespace[sd]));
+		/*
+		// For TestProlongation
+		ParGridFunction xc(&cfespace);
+		{
+		  VectorFunctionCoefficient ETP(3, vecField1);
+		  xc.ProjectCoefficient(ETP);
+		}
+		*/
+		
 		pmeshSDcoarse[sd]->UniformRefinement();
 		//pmeshSDcoarse[sd]->ReorientTetMesh();
 
@@ -1308,6 +1404,13 @@ int main(int argc, char *argv[])
 		Tr.SetOperatorOwner(false);
 		Tr.Get(sdP[sd][l]);
 
+		/*
+		if (sd == 0)
+		  TestProlongation(myid, sdP[sd][l], cfespace, *(sdfespace[sd]), xc);
+		*/
+		if (sd == 0 && myid == -10)
+		  sdP[0][0]->Print("rawP0.txt");
+		
 		// Update the element attribute in pmeshSDcoarse[sd] to be the index of the corresponding pmesh element plus one.
 		Vector pc(3);
 		Vector sc(3);
@@ -1331,6 +1434,25 @@ int main(int argc, char *argv[])
 		    MFEM_VERIFY(pmeshElem >= 0, "");
 		    pmeshSDcoarse[sd]->SetAttribute(i, pmeshElem+1);
 		  }
+
+		/*
+#ifdef SD_ITERATIVE_GMG_PA
+	 {
+	   MFEM_VERIFY(pmeshSD[sd] != NULL, "");
+
+	   // Note that the element attribute in pmeshSD[sd] and pmeshSDcoarse[sd] is the index of the corresponding pmesh element plus one.
+	   
+	   HypreParMatrix *fesMapSD = CreateFESpaceMapForReorderedMeshes(pmeshSDcoarse[sd], sdfespace[sd], pmeshSD[sd], fec);
+
+	   // On the finest level, replace sdP[sd][par_ref_levels-1] with fesMapSD times itself.
+	   HypreParMatrix * MP = ParMult(fesMapSD, sdP[sd][sdP[sd].size() - 1]);
+	   sdP[sd][sdP[sd].size() - 1] = MP;
+
+	   delete fesMapSD;
+	 }
+#endif
+		*/
+		
 	      }
 	  }
 #endif
@@ -1411,28 +1533,36 @@ int main(int argc, char *argv[])
      return 2;
 
 #ifdef SD_ITERATIVE_GMG
-   std::vector<HypreParMatrix*> fesMapSD(numSubdomains);
+   //std::vector<HypreParMatrix*> fesMapSD(numSubdomains);
 
    for (int sd=0; sd<numSubdomains; ++sd)
      {
+       //#ifndef SD_ITERATIVE_GMG_PA
        //VerifyMeshesAreEqual(pmeshSDcoarse[sd], pmeshSD[sd]);
        if (pmeshSDcoarse[sd] != NULL)
 	 {
 	   MFEM_VERIFY(pmeshSD[sd] != NULL, "");
 
 	   // Note that the element attribute in pmeshSD[sd] and pmeshSDcoarse[sd] is the index of the corresponding pmesh element plus one.
-	   
+
 	   HypreParMatrix *fesMapSD = CreateFESpaceMapForReorderedMeshes(pmeshSDcoarse[sd], sdfespace[sd], pmeshSD[sd], fec);
 
+	   if (sd == 0 && myid == -10)
+	     fesMapSD->Print("Fmap.txt");
+	   
 	   // On the finest level, replace sdP[sd][par_ref_levels-1] with fesMapSD times itself.
 	   HypreParMatrix * MP = ParMult(fesMapSD, sdP[sd][sdP[sd].size() - 1]);
+	   if (sd == 0 && myid == -10)
+	     CompareHypreParMatrices(MP, sdP[sd][sdP[sd].size() - 1]);
+	   
 	   sdP[sd][sdP[sd].size() - 1] = MP;
-
+	   
 	   delete fesMapSD;
 	 }
        else
 	 MFEM_VERIFY(pmeshSD[sd] == NULL, "");
-
+       //#endif
+       
        // Now we can delete everything related to pmeshSDcoarse except sdP.
        if (pmeshSDcoarse[sd] != NULL)
 	 {
