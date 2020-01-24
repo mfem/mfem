@@ -4311,7 +4311,7 @@ void FaceQuadratureInterpolator::Eval3D(
                {
                   const double s = sign[f] ? -1.0 : 1.0;
                   n[0] = s*( BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*BGu[q2][q1][2] );
-                  n[1] = s*( BGu[q2][q1][0]*GBu[q2][q1][2]-GBu[q2][q1][0]*BGu[q2][q1][2] );
+                  n[1] = s*(-BGu[q2][q1][0]*GBu[q2][q1][2]+GBu[q2][q1][0]*BGu[q2][q1][2] );
                   n[2] = s*( BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*BGu[q2][q1][1] );
                   const double norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
                   if (eval_flags & DETERMINANTS) { det(q1,q2,f) = norm; }
