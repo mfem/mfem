@@ -63,25 +63,6 @@ jobs:
         - ./runtest gitignore
 
     # ========================
-    #  Optional Checks/Tests
-    # ========================
-    # - branch-history
-
-    - stage: optional
-      name: "branch-history"
-      # need full git history for the binary/big files check
-      git:
-        depth: false
-      script:
-        - cd ${TRAVIS_BUILD_DIR}
-        # update master
-        - git fetch origin master:master
-        # checkout a branch (otherwise Travis works in detached head)
-        - git checkout -b travis_tests
-        - cd tests/scripts
-        - ./runtest branch-history
-
-    # ========================
     #       Linux tests
     # ========================
     # - serial + debug
@@ -231,6 +212,26 @@ jobs:
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+
+    # ========================
+    #  Optional Checks/Tests
+    # ========================
+    # - branch-history
+  allow_failures:
+
+    - stage: optional
+      name: "branch-history"
+      # need full git history for the binary/big files check
+      git:
+        depth: false
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        # update master
+        - git fetch origin master:master
+        # checkout a branch (otherwise Travis works in detached head)
+        - git checkout -b travis_tests
+        - cd tests/scripts
+        - ./runtest branch-history
 
 
 before_install:
