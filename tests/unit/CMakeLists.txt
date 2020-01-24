@@ -37,7 +37,6 @@ set(UNIT_TESTS_SRCS
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_pa_coeff.cpp
-  fem/test_pa_convection.cpp
   fem/test_pa_kernels.cpp
   fem/test_quadraturefunc.cpp
   )
