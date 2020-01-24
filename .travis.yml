@@ -66,7 +66,6 @@ jobs:
     #  Optional Checks/Tests
     # ========================
     # - branch-history
-  allow_failures:
 
     - stage: optional
       name: "branch-history"
