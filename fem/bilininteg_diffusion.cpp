@@ -81,13 +81,13 @@ static void OccaPADiffusionSetup3D(const int D1D,
 #endif // MFEM_USE_OCCA
 
 // PA Diffusion Assemble 2D kernel
-template<const int T_VDIM> static
-void PADiffusionSetup2D(const int Q1D,
-                        const int NE,
-                        const Array<double> &w,
-                        const Vector &j,
-                        const Vector &c,
-                        Vector &d);
+template<const int T_SDIM> 
+static void PADiffusionSetup2D(const int Q1D,
+                               const int NE,
+                               const Array<double> &w,
+                               const Vector &j,
+                               const Vector &c,
+                               Vector &d);
 template<>
 void PADiffusionSetup2D<2>(const int Q1D,
                            const int NE,
@@ -96,13 +96,10 @@ void PADiffusionSetup2D<2>(const int Q1D,
                            const Vector &c,
                            Vector &d)
 {
-   constexpr int DIM = 2;
-   constexpr int VDIM = 2;
    const int NQ = Q1D*Q1D;
    const bool const_c = c.Size() == 1;
-
    auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, VDIM, DIM, NE);
+   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 3, NE);
 
@@ -133,12 +130,12 @@ void PADiffusionSetup2D<3>(const int Q1D,
                            Vector &d)
 {
    constexpr int DIM = 2;
-   constexpr int VDIM = 3;
+   constexpr int SDIM = 3;
    const int NQ = Q1D*Q1D;
    const bool const_c = c.Size() == 1;
 
    auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, VDIM, DIM, NE);
+   auto J = Reshape(j.Read(), NQ, SDIM, DIM, NE);
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
@@ -239,14 +236,13 @@ static void PADiffusionSetup(const int dim,
       }
 #endif // MFEM_USE_OCCA
       if (sdim == 2) { PADiffusionSetup2D<2>(Q1D, NE, W, J, C, D); }
-      if (sdim == 3) { PADiffusionSetup2D<3>(Q1D, NE, W, J, C, D); }
+      if (sdim == 3) { MFEM_VERIFY(false, ""); PADiffusionSetup2D<3>(Q1D, NE, W, J, C, D); }
    }
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
-         MFEM_VERIFY(sdim == 2,"");
          OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, C, D);
          return;
       }
@@ -309,8 +305,7 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
          }
       }
    }
-   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne,
-                    ir->GetWeights(), geom->J, coeff, pa_data);
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
 }
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
