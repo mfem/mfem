@@ -3227,12 +3227,11 @@ void QuadratureInterpolator::Mult(
       }
       else if (dim == 3)
       {
-         printf("\n\033[33m[here]\033[m"); fflush(0);
          switch (1000*nd + nq)
          {
             // Q1
-            case 8008l: eval_func = &Eval3D<3,8,8>; break;
-            case 8027l: eval_func = &Eval3D<3,8,27>; break;
+            case 8008: eval_func = &Eval3D<3,8,8>; break;
+            case 8027: eval_func = &Eval3D<3,8,27>; break;
             // Q2
             case 27027: eval_func = &Eval3D<3,27,27>; break;
             case 27064: eval_func = &Eval3D<3,27,64>; break;
@@ -3256,9 +3255,6 @@ void QuadratureInterpolator::Mult(
    }
    else
    {
-      printf("\n\033[33m 1000*nd + nq:%d\033[m", 1000*nd + nq);
-      printf("\n\033[33m dim:%d, vdim:%d, nd:%d, nq:%d\033[m", dim, vdim, nd, nq);
-      fflush(0);
       MFEM_ABORT("case not supported yet");
    }
 }

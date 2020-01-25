@@ -770,11 +770,6 @@ const IntegrationRule &DiffusionIntegrator::GetRule(
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
-const IntegrationRule &VectorDiffusionIntegrator::GetRule(
-   const FiniteElement &trial_fe, const FiniteElement &test_fe)
-{
-   return DiffusionIntegrator::GetRule(trial_fe, test_fe);
-}
 
 void MassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
@@ -2118,16 +2113,17 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   const int nd = el.GetDof();
-   const int dim = el.GetDim();
-   const int sdim = Trans.GetSpaceDim();
-   const bool square = (dim == sdim);
-   double w;
+   int dim = el.GetDim();
+   int dof = el.GetDof();
 
-   dshape.SetSize(nd, dim);
-   dshapedxt.SetSize(nd, sdim);
-   pelmat.SetSize(nd);
-   elmat.SetSize(sdim * nd);
+   double norm;
+
+   elmat.SetSize (dim * dof);
+
+   Jinv.  SetSize (dim);
+   dshape.SetSize (dof, dim);
+   gshape.SetSize (dof, dim);
+   pelmat.SetSize (dof);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -2153,23 +2149,27 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       el.CalcDShape (ip, dshape);
 
       Trans.SetIntPoint (&ip);
-      w = Trans.Weight();
-      w = ip.weight / (square ? w : w*w*w);
-      // AdjugateJacobian = / adj(J),         if J is square
-      //                    \ adj(J^t.J).J^t, otherwise
-      Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
+      norm = ip.weight * Trans.Weight();
+      CalcInverse (Trans.Jacobian(), Jinv);
 
-      if (Q) { w *= Q->Eval(Trans, ip); }
-      AddMult_a_AAt(w, dshapedxt, pelmat);
-   }
-   for (int d = 0; d < sdim; d++)
-   {
-      for (int k = 0; k < nd; k++)
+      Mult (dshape, Jinv, gshape);
+
+      MultAAt (gshape, pelmat);
+
+      if (Q)
       {
-         for (int l = 0; l < nd; l++)
-         {
-            elmat(nd*d+k, nd*d+l) = pelmat(k, l);
-         }
+         norm *= Q -> Eval (Trans, ip);
+      }
+
+      pelmat *= norm;
+
+      for (int d = 0; d < dim; d++)
+      {
+         for (int k = 0; k < dof; k++)
+            for (int l = 0; l < dof; l++)
+            {
+               elmat (dof*d+k, dof*d+l) += pelmat (k, l);
+            }
       }
    }
 }
