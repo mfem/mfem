@@ -1141,43 +1141,58 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       {
          Mat B;
          PetscScalar *pdata;
-         PetscInt *pii,*pjj;
+         PetscInt *pii,*pjj,*oii;
+         PetscMPIInt size;
 
          int m = pS->Height();
          int n = pS->Width();
          int *ii = pS->GetI();
          int *jj = pS->GetJ();
          double *data = pS->GetData();
-         bool issorted = pS->areColumnsSorted();
 
-         ierr = PetscMalloc1(m+1,&pii); CCHKERRQ(comm,ierr);
-         ierr = PetscMalloc1(ii[m],&pjj); CCHKERRQ(comm,ierr);
-         ierr = PetscMalloc1(ii[m],&pdata); CCHKERRQ(comm,ierr);
+         ierr = PetscMalloc1(m+1,&pii); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         ierr = PetscMalloc1(ii[m],&pjj); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         ierr = PetscMalloc1(ii[m],&pdata); CCHKERRQ(PETSC_COMM_SELF,ierr);
          pii[0] = ii[0];
          for (int i = 0; i < m; i++)
          {
+            bool issorted = true;
             pii[i+1] = ii[i+1];
             for (int j = ii[i]; j < ii[i+1]; j++)
             {
                pjj[j] = jj[j];
+               if (j != ii[i] && issorted) { issorted = (pjj[j] > pjj[j-1]); }
                pdata[j] = data[j];
             }
             if (!issorted)
             {
-               ierr = PetscSortIntWithScalarArray(pii[i+1]-pii[i],pjj,pdata);
-               CCHKERRQ(comm,ierr);
+               ierr = PetscSortIntWithScalarArray(pii[i+1]-pii[i],pjj + pii[i],pdata + pii[i]);
+               CCHKERRQ(PETSC_COMM_SELF,ierr);
             }
          }
 
-         ierr = MatCreateSeqAIJWithArrays(PETSC_COMM_SELF,m,n,pii,pjj,pdata,&B);
-         CCHKERRQ(comm,ierr);
-
-         void *ptrs[3] = {pii,pjj,pdata};
-         const char *names[3] = {"_mfem_csr_pii",
+         ierr = MPI_Comm_size(comm,&size); CCHKERRQ(comm,ierr);
+         if (size == 1)
+         {
+            ierr = MatCreateSeqAIJWithArrays(comm,m,n,pii,pjj,pdata,&B);
+            CCHKERRQ(comm,ierr);
+            oii = NULL;
+         }
+         else // block diagonal constructor
+         {
+            ierr = PetscCalloc1(m+1,&oii); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatCreateMPIAIJWithSplitArrays(comm,m,n,PETSC_DECIDE,
+                                                  PETSC_DECIDE,
+                                                  pii,pjj,pdata,oii,NULL,NULL,&B);
+            CCHKERRQ(comm,ierr);
+         }
+         void *ptrs[4] = {pii,pjj,pdata,oii};
+         const char *names[4] = {"_mfem_csr_pii",
                                  "_mfem_csr_pjj",
                                  "_mfem_csr_pdata",
+                                 "_mfem_csr_oii"
                                 };
-         for (int i=0; i<3; i++)
+         for (int i=0; i<4; i++)
          {
             PetscContainer c;
 
@@ -1475,6 +1490,21 @@ void PetscParMatrix::Shift(const Vector & s)
    XX->PlaceArray(s.GetData());
    ierr = MatDiagonalSet(A,*XX,ADD_VALUES); PCHKERRQ(A,ierr);
    XX->ResetArray();
+}
+
+PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A,
+                                     PetscParMatrix *P)
+{
+   MFEM_VERIFY(A->Width() == P->Height(),
+               "Petsc TripleMatrixProduct: Number of local cols of A " << A->Width() <<
+               " differs from number of local rows of P " << P->Height());
+   MFEM_VERIFY(A->Height() == R->Width(),
+               "Petsc TripleMatrixProduct: Number of local rows of A " << A->Height() <<
+               " differs from number of local cols of R " << R->Width());
+   Mat B;
+   ierr = MatMatMatMult(*R,*A,*P,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&B);
+   PCHKERRQ(*R,ierr);
+   return new PetscParMatrix(B);
 }
 
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P)
