@@ -273,9 +273,6 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
       ndu[j][j] = saved;
    }
 
-   // for (j = 0; j <= p; j++) { gradn[j] = ndu[j][p]; }
-
-
    for (r = 0; r <= p; r++)
    {
       int s1 = 0;
