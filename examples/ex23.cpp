@@ -634,6 +634,7 @@ public:
          b = 0.0;
          x = *nodes; // should only copy the BC
          a.FormLinearSystem(dbc, x, b, A, X, B);
+         printf("\nFormLinearSystem: x: %p, X: %p", x.GetData(), X.GetData()); fflush(0);
          if (!pa)
          {
             // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
