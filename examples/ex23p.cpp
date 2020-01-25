@@ -41,16 +41,16 @@ class Surface: public Mesh
 protected:
    T *S;
    Array<int> &bc;
-   int order, nx, ny, nr, sdim;
+   int order, nx, ny, nr, vdim;
    ParMesh *pmesh = nullptr;
    H1_FECollection *fec = nullptr;
    ParFiniteElementSpace *pfes = nullptr;
 public:
 
    // Reading from mesh file
-   Surface(Array<int> &b, int order, const char *file, int nr, int sdim):
+   Surface(Array<int> &bc, int order, const char *file, int nr, int vdim):
       Mesh(file, true), S(static_cast<T*>(this)),
-      bc(b), order(order), nr(nr), sdim(sdim)
+      bc(bc), order(order), nr(nr), vdim(vdim)
    {
       EnsureNodes();
       S->Postfix();
@@ -60,10 +60,10 @@ public:
    }
 
    // Generate Quad surface mesh
-   Surface(Array<int> &b, int order, int nx, int ny, int nr, int sdim):
+   Surface(Array<int> &b, int order, int nx, int ny, int nr, int vdim):
       Mesh(nx, ny, Element::QUADRILATERAL, true, 1.0, 1.0, false),
       S(static_cast<T*>(this)),
-      bc(b), order(order), nx(nx), ny(ny), nr(nr), sdim(sdim)
+      bc(b), order(order), nx(nx), ny(ny), nr(nr), vdim(vdim)
    {
       EnsureNodes();
       S->Prefix();
@@ -83,9 +83,9 @@ public:
 
    // Generated Cube surface mesh
    Surface(Array<int> &b, int order, int nr,
-           int NVert, int NElem, int NBdrElem, int sdim):
+           int NVert, int NElem, int NBdrElem, int vdim):
       Mesh(2, NVert, NElem, NBdrElem, 3), S(static_cast<T*>(this)),
-      bc(b), order(order), nx(NVert), ny(NElem), nr(nr), sdim(sdim)
+      bc(b), order(order), nx(NVert), ny(NElem), nr(nr), vdim(vdim)
    {
       S->Create();
       S->Postfix();
@@ -102,7 +102,13 @@ public:
 
    void Postfix() { SetCurvature(order, false, 3, Ordering::byNODES); }
 
-   void Refine() { for (int l = 0; l < nr; l++) { UniformRefinement(); } }
+   void Refine()
+   {
+      for (int l = 0; l < nr; l++) { UniformRefinement(); }
+      // Adaptive mesh refinement
+      //if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
+      //PrintCharacteristics();
+   }
 
    void  BoundaryConditions()
    {
@@ -118,7 +124,7 @@ public:
    {
       fec = new H1_FECollection(order, 2);
       pmesh = new ParMesh(MPI_COMM_WORLD, *this);
-      pfes = new ParFiniteElementSpace(pmesh, fec, sdim);
+      pfes = new ParFiniteElementSpace(pmesh, fec, vdim);
    }
 
    ParMesh *Pmesh() const { return pmesh; }
@@ -129,15 +135,15 @@ public:
 // Mesh file surface
 struct MeshFromFile: public Surface<MeshFromFile>
 {
-   MeshFromFile(Array<int> &bc, int order, const char *file, int nr, int sdim):
-      Surface(bc, order, file, nr, sdim) {}
+   MeshFromFile(Array<int> &bc, int order, const char *file, int nr, int vdim):
+      Surface(bc, order, file, nr, vdim) {}
 };
 
 // Catenoid surface
 struct Catenoid: public Surface<Catenoid>
 {
-   Catenoid(Array<int> &bc, int order, int nx, int ny, int nr, int sdim):
-      Surface(bc, order, nx, ny, nr, sdim) {}
+   Catenoid(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
+      Surface(bc, order, nx, ny, nr, vdim) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -185,8 +191,8 @@ struct Catenoid: public Surface<Catenoid>
 // Helicoid surface
 struct Helicoid: public Surface<Helicoid>
 {
-   Helicoid(Array<int> &bc, int order, int nx, int ny, int nr, int sdim):
-      Surface(bc, order, nx, ny, nr, sdim) {}
+   Helicoid(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
+      Surface(bc, order, nx, ny, nr, vdim) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -203,8 +209,8 @@ struct Helicoid: public Surface<Helicoid>
 // Enneper's surface
 struct Enneper: public Surface<Enneper>
 {
-   Enneper(Array<int> &bc, int order, int nx, int ny, int nr, int sdim):
-      Surface(bc, order, nx, ny, nr, sdim) {}
+   Enneper(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
+      Surface(bc, order, nx, ny, nr, vdim) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -220,8 +226,8 @@ struct Enneper: public Surface<Enneper>
 // Parametrization of Scherk's surface
 struct Scherk: public Surface<Scherk>
 {
-   Scherk(Array<int> &bc, int order, int nx, int ny, int nr, int sdim):
-      Surface(bc, order, nx, ny, nr, sdim) {}
+   Scherk(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
+      Surface(bc, order, nx, ny, nr, vdim) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -238,8 +244,8 @@ struct Scherk: public Surface<Scherk>
 // Shell surface model
 struct Shell: public Surface<Shell>
 {
-   Shell(Array<int> &bc, int order, int nx, int ny, int nr, int sdim):
-      Surface(bc, order, nx, ny, nr, sdim) {}
+   Shell(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
+      Surface(bc, order, nx, ny, nr, vdim) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -255,8 +261,8 @@ struct Shell: public Surface<Shell>
 // Hold surface
 struct Hold: public Surface<Hold>
 {
-   Hold(Array<int> &bc, int order, int nx, int ny, int nr, int sdim):
-      Surface(bc, order, nx, ny, nr, sdim) {}
+   Hold(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
+      Surface(bc, order, nx, ny, nr, vdim) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -272,8 +278,8 @@ struct Hold: public Surface<Hold>
 // 1/4th Peach street model
 struct QPeach: public Surface<QPeach>
 {
-   QPeach(Array<int> &bc, int order, int nx, int ny, int nr, int sdim):
-      Surface(bc, order, nx, ny, nr, sdim) {}
+   QPeach(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
+      Surface(bc, order, nx, ny, nr, vdim) {}
    static void Parametrization(const Vector &X, Vector &p)
    {
       p = X;
@@ -327,8 +333,8 @@ struct QPeach: public Surface<QPeach>
 // Full Peach street model
 struct FPeach: public Surface<FPeach>
 {
-   FPeach(Array<int> &bc, int order, int nr, int sdim):
-      Surface<FPeach>(bc, order, nr, 8, 6, 6, sdim) { }
+   FPeach(Array<int> &bc, int order, int nr, int vdim):
+      Surface<FPeach>(bc, order, nr, 8, 6, 6, vdim) { }
    void Create()
    {
       const double quad_v[8][3] =
@@ -349,15 +355,15 @@ struct FPeach: public Surface<FPeach>
       UniformRefinement();
       SetCurvature(order, false, 3, Ordering::byNODES);
       // Snap the nodes to the unit sphere
-      const int mesh_sdim = SpaceDimension();
+      const int sdim = SpaceDimension();
       GridFunction &nodes = *GetNodes();
-      Vector node(mesh_sdim);
+      Vector node(sdim);
       for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
       {
-         for (int d = 0; d < mesh_sdim; d++)
+         for (int d = 0; d < sdim; d++)
          { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
          node /= node.Norml2();
-         for (int d = 0; d < mesh_sdim; d++)
+         for (int d = 0; d < sdim; d++)
          { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
       }
    }
@@ -380,7 +386,7 @@ struct FPeach: public Surface<FPeach>
             const bool halfX = fabs(X[0]) < eps && X[1] <= 0;
             const bool halfY = fabs(X[2]) < eps && X[1] >= 0;
             const bool is_on_bc = halfX || halfY;
-            for (int d = 0; d < sdim; d++)
+            for (int d = 0; d < vdim; d++)
             { ess_cdofs[pfes->DofToVDof(k, d)] = is_on_bc; }
          }
       }
@@ -394,8 +400,8 @@ struct FPeach: public Surface<FPeach>
 // Full Peach street model
 struct SlottedSphere: public Surface<SlottedSphere>
 {
-   SlottedSphere(Array<int> &bc, int order, int nr, int sdim):
-      Surface<SlottedSphere>(bc, order, nr, 0, 0, 0, sdim) { }
+   SlottedSphere(Array<int> &bc, int order, int nr, int vdim):
+      Surface<SlottedSphere>(bc, order, nr, 0, 0, 0, vdim) { }
    void Create()
    {
       const double delta = 0.15;
@@ -503,15 +509,15 @@ struct SlottedSphere: public Surface<SlottedSphere>
       SetCurvature(order, false, 3, Ordering::byNODES);
 
       // Snap the nodes to the unit sphere
-      const int mesh_sdim = SpaceDimension();
+      const int sdim = SpaceDimension();
       GridFunction &nodes = *GetNodes();
-      Vector node(mesh_sdim);
+      Vector node(sdim);
       for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
       {
-         for (int d = 0; d < mesh_sdim; d++)
+         for (int d = 0; d < sdim; d++)
          { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
          node /= node.Norml2();
-         for (int d = 0; d < mesh_sdim; d++)
+         for (int d = 0; d < sdim; d++)
          { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
       }
    }
@@ -536,6 +542,7 @@ static void Visualize(ParMesh *pm, const int w, const int h,
    glvis << "solution\n" << *pm << *x;
    glvis << "window_size " << w << " " << h <<"\n";
    glvis << "keys " << keys << "\n";
+   glvis.precision(8);
    glvis << flush;
 }
 
@@ -554,28 +561,28 @@ class SurfaceSolver
 {
 protected:
    bool pa, vis, pause;
-   int niter, sdim, order;
+   int niter, vdim, order;
    ParMesh *pmesh;
    Vector X, B;
    OperatorPtr A;
    ParFiniteElementSpace *pfes;
    ParBilinearForm a;
-   Array<int> &dbc;
+   Array<int> &bc;
    ParGridFunction x, b;
    ConstantCoefficient one;
    Type *solver;
 public:
-   SurfaceSolver(const bool p, const bool v,
-                 const int n, const bool w,
-                 const int o, ParMesh *pm,
-                 ParFiniteElementSpace *pf,
+   SurfaceSolver(const bool pa, const bool vis,
+                 const int niter, const bool pause,
+                 const int order, ParMesh *pmesh,
+                 ParFiniteElementSpace *pfes,
                  Array<int> &bc):
-      pa(p), vis(v), pause(w), niter(n),
-      sdim(pf->GetVDim()), order(o), pmesh(pm), pfes(pf),
-      a(pfes), dbc(bc), x(pfes), b(pfes), one(1.0),
+      pa(pa), vis(vis), pause(pause), niter(niter),
+      vdim(pfes->GetVDim()), order(order),
+      pmesh(pmesh), pfes(pfes), a(pfes), bc(bc), x(pfes), b(pfes), one(1.0),
       solver(static_cast<Type*>(this)) { Solve(); }
    void Solve() { solver->Solve(); }
-   void ParCG(const Operator &A, const Vector &B, Vector &X,
+   void ParCG(Solver *M, const Operator &A, Vector &X, const Vector &B,
               int print_iter = 0, int max_num_iter = 2000,
               double RTOLERANCE = 1e-12, double ATOLERANCE = 0.0)
    {
@@ -584,6 +591,7 @@ public:
       cg.SetMaxIter(max_num_iter);
       cg.SetRelTol(sqrt(RTOLERANCE));
       cg.SetAbsTol(sqrt(ATOLERANCE));
+      if (M) { cg.SetPreconditioner(*M); }
       cg.SetOperator(A);
       cg.Mult(B, X);
    }
@@ -594,16 +602,17 @@ class ByComponent: public SurfaceSolver<ByComponent>
 {
 public:
    ByComponent(const bool pa,  const bool vis,
-               const int niter, const bool wait,
-               const int order, ParMesh *pm,
-               ParFiniteElementSpace *pf,
+               const int niter, const bool pause,
+               const int order, ParMesh *pmesh,
+               ParFiniteElementSpace *pfes,
                Array<int> &bc):
-      SurfaceSolver(pa, vis, niter, wait, order, pm, pf, bc) { }
+      SurfaceSolver(pa, vis, niter, pause, order, pmesh, pfes, bc) { }
    void Solve()
    {
       if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       a.AddDomainIntegrator(new DiffusionIntegrator(one));
       GridFunction solution(pfes);
+      Solver *M = pa ? nullptr : new HypreBoomerAMG;
       for (int iiter=0; iiter<niter; ++iiter)
       {
          a.Assemble();
@@ -612,17 +621,8 @@ public:
          {
             x = b = 0.0;
             GetComponent(solution, x, i);
-            a.FormLinearSystem(dbc, x, b, A, X, B);
-            if (!pa)
-            {
-               // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-               GSSmoother M(static_cast<SparseMatrix&>(*A));
-               PCG(*A, M, B, X, 3, 2000, eps, 0.0);
-            }
-            else
-            {
-               ParCG(*A, B, X, 3, 2000, eps, 0.0);
-            }
+            a.FormLinearSystem(bc, x, b, A, X, B);
+            ParCG(M, *A, X, B, 3, 2000, eps, 0.0);
             // Recover the solution as a finite element grid function.
             a.RecoverFEMSolution(X, b, x);
             SetComponent(solution, x, i);
@@ -657,31 +657,23 @@ class ByVector: public SurfaceSolver<ByVector>
 {
 public:
    ByVector(const bool pa, const bool vis,
-            const int niter, const bool wait,
-            const int order, ParMesh *pm,
-            ParFiniteElementSpace *pf,
+            const int niter, const bool pause,
+            const int order, ParMesh *pmesh,
+            ParFiniteElementSpace *pfes,
             Array<int> &bc):
-      SurfaceSolver(pa, vis, niter, wait, order, pm, pf, bc) { }
+      SurfaceSolver(pa, vis, niter, pause, order, pmesh, pfes, bc) { }
    void Solve()
    {
       if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       a.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
+      Solver *M = pa ? nullptr : new HypreBoomerAMG;
       for (int iiter=0; iiter<niter; ++iiter)
       {
          a.Assemble();
          b = 0.0;
          pmesh->GetNodes(x);
-         a.FormLinearSystem(dbc, x, b, A, X, B);
-         if (!pa)
-         {
-            // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-            GSSmoother M(static_cast<SparseMatrix&>(*A));
-            PCG(*A, M, B, X, 3, 2000, eps, 0.0);
-         }
-         else
-         {
-            ParCG(*A, B, X, 3, 2000, eps, 0.0);
-         }
+         a.FormLinearSystem(bc, x, b, A, X, B);
+         ParCG(M, *A, X, B, 3, 2000, eps, 0.0);
          // Recover the solution as a finite element grid function.
          a.RecoverFEMSolution(X, b, x);
          pmesh->SetNodes(x);
@@ -690,6 +682,7 @@ public:
          pmesh->DeleteGeometricFactors();
          a.Update();
       }
+      delete M;
    }
 };
 
@@ -698,8 +691,8 @@ int main(int argc, char *argv[])
    // Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
    // Parse command-line options.
    int s = -1;
@@ -708,11 +701,11 @@ int main(int argc, char *argv[])
    int nr = 2;
    int order = 3;
    int niter = 4;
-   bool c = false;
    bool pa = true;
    bool vis = false;
    bool amr = false;
    bool wait = false;
+   bool solve_by_components = false;
    const char *keys = "gAmaaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../data/mobius-strip.mesh";
@@ -738,7 +731,8 @@ int main(int argc, char *argv[])
    args.AddOption(&keys, "-k", "--keys", "GLVis configuration keys.");
    args.AddOption(&vis, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable visualization.");
-   args.AddOption(&c, "-c", "--components", "-no-c", "--no-components",
+   args.AddOption(&solve_by_components, "-c", "--components",
+                  "-no-c", "--no-components",
                   "Enable or disable the 'by component' solver");
 
    args.Parse();
@@ -752,41 +746,27 @@ int main(int argc, char *argv[])
    if (myid == 0) { device.Print(); }
 
    // Initialize GLVis server if 'visualization' is set.
-   if (vis)
-   {
-      glvis.open(vishost, visport);
-      if (!glvis)
-      {
-         if (myid == 0)
-         {
-            cout << "Unable to connect to GLVis server at "
-                 << vishost << ':' << visport << endl;
-            cout << "GLVis visualization disabled.\n";
-         }
-         vis = false;
-      }
-      glvis.precision(8);
-   }
+   if (vis) { vis = glvis.open(vishost, visport) == 0; }
 
    // Initialize our surface mesh from command line option.
    // Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> bc;
    Mesh *mesh = nullptr;
-   const int sdim = c ? 1 : 3;
-   if (s < 0)  { mesh = new MeshFromFile(bc, order, mesh_file, nr, sdim); }
-   if (s == 0) { mesh = new Catenoid(bc, order, nx, ny, nr, sdim); }
-   if (s == 1) { mesh = new Helicoid(bc, order, nx, ny, nr, sdim); }
-   if (s == 2) { mesh = new Enneper(bc, order, nx, ny, nr, sdim); }
-   if (s == 3) { mesh = new Scherk(bc, order, nx, ny, nr, sdim); }
-   if (s == 4) { mesh = new Shell(bc, order, nx, ny, nr, sdim); }
-   if (s == 5) { mesh = new Hold(bc, order, nx, ny, nr, sdim); }
-   if (s == 6) { mesh = new QPeach(bc, order, nx, ny, nr, sdim); }
-   if (s == 7) { mesh = new FPeach(bc, order, nr, sdim); }
-   if (s == 8) { mesh = new SlottedSphere(bc, order, nr, sdim); }
+   const int vdim = solve_by_components ? 1 : 3;
+   if (s < 0)  { mesh = new MeshFromFile(bc, order, mesh_file, nr, vdim); }
+   if (s == 0) { mesh = new Catenoid(bc, order, nx, ny, nr, vdim); }
+   if (s == 1) { mesh = new Helicoid(bc, order, nx, ny, nr, vdim); }
+   if (s == 2) { mesh = new Enneper(bc, order, nx, ny, nr, vdim); }
+   if (s == 3) { mesh = new Scherk(bc, order, nx, ny, nr, vdim); }
+   if (s == 4) { mesh = new Shell(bc, order, nx, ny, nr, vdim); }
+   if (s == 5) { mesh = new Hold(bc, order, nx, ny, nr, vdim); }
+   if (s == 6) { mesh = new QPeach(bc, order, nx, ny, nr, vdim); }
+   if (s == 7) { mesh = new FPeach(bc, order, nr, vdim); }
+   if (s == 8) { mesh = new SlottedSphere(bc, order, nr, vdim); }
    MFEM_VERIFY(mesh, "Not a valid surface number!");
 
+   // Grab back the pmesh & pfes from the Surface object.
    Surface<> &surface = *static_cast<Surface<>*>(mesh);
-
    ParMesh *pmesh = surface.Pmesh();
    ParFiniteElementSpace *pfes = surface.Pfes();
 
@@ -794,8 +774,9 @@ int main(int argc, char *argv[])
    if (vis) { Visualize(pmesh, 800, 800, keys); }
 
    // Create and launch the surface solver.
-   if (c) { ByComponent Solve(pa, vis, niter, wait, order, pmesh, pfes, bc); }
-   else {   ByVector    Solve(pa, vis, niter, wait, order, pmesh, pfes, bc); }
+   if (solve_by_components)
+   { ByComponent(pa, vis, niter, wait, order, pmesh, pfes, bc); }
+   else { ByVector(pa, vis, niter, wait, order, pmesh, pfes, bc); }
 
    // Free the used memory.
    delete mesh;
