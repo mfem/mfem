@@ -48,7 +48,8 @@ stylecheck:
         - make astyle-clean
         - make astyle PREFIX=${TPLS_INSTALL}
         - cd ${CI_PROJECT_DIR}
-        - make style-check ASTYLE_BIN=${ASTYLE}
+        - cd tests/scripts
+        - ./runtest code-style
     allow_failure: false
 
 doccheck:
