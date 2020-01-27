@@ -325,7 +325,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 
    // mark possible hidden boundary edges in a non-conforming mesh, also
    // local DOFs affected by boundary elements on other processors
-   if (mesh->ncmesh)
+   if (Nonconforming())
    {
       Array<int> bdr_verts, bdr_edges;
       mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
@@ -567,16 +567,16 @@ bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
    return true;
 }
 
-void FiniteElementSpace::GetDegenerateFaceDofs(int index,
-                                               Array<int> &dofs) const
+void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
+                                               Geometry::Type master_geom) const
 {
-   // In NC meshes with prisms, a special constraint occurs where a prism edge
-   // is slave to a quadrilateral face. Rather than introduce a new edge-face
-   // constraint type, we handle such cases as degenerate face-face constraints,
-   // where the point-matrix rectangle has zero height. This method returns
-   // DOFs for the first edge of the rectangle, duplicated in the orthogonal
-   // direction, to resemble DOFs for a quadrilateral face. The extra DOFs are
-   // ignored by FiniteElementSpace::AddDependencies.
+   // In NC meshes with prisms/tets, a special constraint occurs where a
+   // prism/tet edge is slave to another element's face. Rather than introduce a
+   // new edge-face constraint type, we handle such cases as degenerate
+   // face-face constraints, where the point-matrix rectangle has zero height.
+   // This method returns DOFs for the first edge of the rectangle, duplicated
+   // in the orthogonal direction, to resemble DOFs for a quadrilateral face.
+   // The extra DOFs are ignored by FiniteElementSpace::AddDependencies.
 
    Array<int> edof;
    GetEdgeDofs(-1 - index, edof);
@@ -586,6 +586,8 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index,
    int nn = 2*nv + ne;
 
    dofs.SetSize(nn*nn);
+   if (!dofs.Size()) { return; }
+
    dofs = edof[0];
 
    // copy first two vertex DOFs
@@ -595,21 +597,23 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index,
       dofs[nv+i] = edof[nv+i];
    }
    // copy first edge DOFs
+   int face_vert = Geometry::NumVerts[master_geom];
    for (int i = 0; i < ne; i++)
    {
-      dofs[4*nv + i] = edof[2*nv + i];
+      dofs[face_vert*nv + i] = edof[2*nv + i];
    }
 }
 
 void
-FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
+FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
+                                  Geometry::Type master_geom) const
 {
    switch (entity)
    {
       case 0: GetVertexDofs(index, dofs); break;
       case 1: GetEdgeDofs(index, dofs); break;
       case 2: (index >= 0) ? GetFaceDofs(index, dofs)
-         /*             */ : GetDegenerateFaceDofs(index, dofs);
+         /*             */ : GetDegenerateFaceDofs(index, dofs, master_geom);
    }
 }
 
@@ -662,7 +666,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
-            GetEntityDofs(entity, slave.index, slave_dofs);
+            GetEntityDofs(entity, slave.index, slave_dofs, master.Geom());
             if (!slave_dofs.Size()) { continue; }
 
             slave.OrientedPointMatrix(T.GetPointMat());
@@ -954,7 +958,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    const DenseTensor &pmats = rtrans.point_matrices[geom];
 
    int nmat = pmats.SizeK();
-   int ldof = fe->GetDof(); // assuming the same FE everywhere
+   int ldof = fe->GetDof();
 
    IsoparametricTransformation isotr;
    isotr.SetIdentityTransformation(geom);
@@ -972,7 +976,8 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
 SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
                                                    const Table* old_elem_dof)
 {
-   MFEM_VERIFY(ndofs >= old_ndofs, "Previous space is not coarser.");
+   MFEM_VERIFY(GetNE() >= old_elem_dof->Size(),
+               "Previous mesh is not coarser.");
 
    Mesh::GeometryList elem_geoms(*mesh);
 
@@ -990,10 +995,8 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
    : fespace(fespace)
    , old_elem_dof(old_elem_dof)
 {
-   const Mesh* mesh = fespace->GetMesh();
-   MFEM_VERIFY(mesh->ReduceInt(fespace->GetNDofs()) >=
-               mesh->ReduceInt(old_ndofs),
-               "Previous space is not coarser.");
+   MFEM_VERIFY(fespace->GetNE() >= old_elem_dof->Size(),
+               "Previous mesh is not coarser.");
 
    width = old_ndofs * fespace->GetVDim();
    height = fespace->GetVSize();
@@ -1255,16 +1258,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
    }
 
-   SparseMatrix *R;
-   if (elem_geoms.Size() == 1)
-   {
-      R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
-                           localR[elem_geoms[0]].SizeI());
-   }
-   else
-   {
-      R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
-   }
+   SparseMatrix *R = (elem_geoms.Size() != 1)
+                     ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
+                     : new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
+                                        localR[elem_geoms[0]].SizeI());
+
    Array<int> mark(R->Height());
    mark = 0;
 
@@ -1277,7 +1275,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+      Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
       DenseMatrix &lR = localR[geom](emb.matrix);
 
       elem_dof->GetRow(emb.parent, dofs);
@@ -1290,7 +1288,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
          for (int i = 0; i < lR.Height(); i++)
          {
-            if (lR(i, 0) == infinity()) { continue; }
+            if (!std::isfinite(lR(i, 0))) { continue; }
 
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
@@ -1308,7 +1306,8 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_VERIFY(num_marked == R->Height(),
                "internal error: not all rows of R were set.");
-   if (elem_geoms.Size() != 1) { R->Finalize(); }
+
+   R->Finalize(); // no-op if fixed width
    return R;
 }
 
