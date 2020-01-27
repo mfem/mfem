@@ -1542,6 +1542,8 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    static int epoch = 0;
    int round = 0, nforced = 0;
 
+   mfem::out << "---- Epoch " << epoch << " -------------------\n";
+
    while (ref_list.size())
    {
       // perform current batch of refinements (original or forced)
@@ -1566,6 +1568,8 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
          for (int i = 0; i < tmp_aniso_checks.Size(); i++)
          {
             const AnisoFace &af = tmp_aniso_checks[i];
+            mfem::out << "checking " << af.v[0] << ", " << af.v[1] << ", "
+                      << af.v[2] << ", " << af.v[3] << std::endl;
             if (!CheckAnisoFace(af.v[0], af.v[1], af.v[2], af.v[3]))
             {
                // need to keep the check for another round
@@ -1662,10 +1666,12 @@ void NCMesh::MergeNodes()
          // does this node have stale parents?
          if (p1 != it->p1 || p2 != it->p2)
          {
-            //
             int other = nodes.FindId(p1, p2);
             if (other >= 0)
             {
+               // new parents brought us to an existing node; this node will
+               // need to merged too at the end, now just mark it and repeat,
+               // because the situation can recur
                it->flag = 1;
                it->vert_index = other;
                done = 0;
@@ -1703,7 +1709,7 @@ void NCMesh::MergeNodes()
       }
    }
 
-   // adjust node references in elements
+   // adjust node references in elements, this is easy
    for (Element &el : elements)
    {
       if (!el.ref_type)
