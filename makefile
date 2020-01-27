@@ -662,7 +662,8 @@ status info:
 	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
 	@true
 
-ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
+ASTYLE_BIN = astyle
+ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
