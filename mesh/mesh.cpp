@@ -10032,13 +10032,13 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
-   const int edim = fe->GetDim();
-   const int vdim = fespace->GetVDim();
+   const int dim  = fe->GetDim();
+   const int sdim = fespace->GetVDim();
    const int NE   = fespace->GetNE();
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
 
-   Vector Enodes(vdim*ND*NE);
+   Vector Enodes(sdim*ND*NE);
    // For now, we are not using tensor product evaluation
    const Operator *elem_restr = fespace->GetElementRestriction(
                                    ElementDofOrdering::NATIVE);
@@ -10047,12 +10047,12 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE);
+      X.SetSize(sdim*NQ*NE);
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(edim*vdim*NQ*NE);
+      J.SetSize(dim*sdim*NQ*NE);
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)

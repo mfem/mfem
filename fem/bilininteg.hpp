@@ -2305,7 +2305,7 @@ protected:
    Vector pa_data;
 
 private:
-   DenseMatrix dshape, dshapedxt, invdfdx, pelmat;
+   DenseMatrix dshape, dshapedxt, pelmat;
    DenseMatrix Jinv, gshape;
 
 public:
