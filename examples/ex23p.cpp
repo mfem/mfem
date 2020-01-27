@@ -24,6 +24,9 @@
 #include <fstream>
 #include <iostream>
 
+#define dbg(...) \
+   { printf("\n\033[33m"); printf(__VA_ARGS__); printf("\033[m"); fflush(0); }
+
 using namespace std;
 using namespace mfem;
 
@@ -94,7 +97,7 @@ public:
       S->BoundaryConditions();
    }
 
-   ~Surface() { delete fec; delete pfes; }
+   ~Surface() { delete fec; delete pmesh; delete pfes; }
 
    void Prefix() { SetCurvature(order, false, 3, Ordering::byNODES); }
 
@@ -571,6 +574,9 @@ protected:
    ParGridFunction x, b;
    ConstantCoefficient one;
    Type *solver;
+   Solver *M;
+   const int print_iter = 3, max_num_iter = 2000;
+   const double RTOLERANCE = eps, ATOLERANCE = 0.0;
 public:
    SurfaceSolver(const bool pa, const bool vis,
                  const int niter, const bool pause,
@@ -580,75 +586,69 @@ public:
       pa(pa), vis(vis), pause(pause), niter(niter),
       vdim(pfes->GetVDim()), order(order),
       pmesh(pmesh), pfes(pfes), a(pfes), bc(bc), x(pfes), b(pfes), one(1.0),
-      solver(static_cast<Type*>(this)) { Solve(); }
-   void Solve() { solver->Solve(); }
-   void ParCG(Solver *M, const Operator &A, Vector &X, const Vector &B,
-              int print_iter = 0, int max_num_iter = 2000,
-              double RTOLERANCE = 1e-12, double ATOLERANCE = 0.0)
+      solver(static_cast<Type*>(this)), M(pa ? nullptr : new HypreBoomerAMG) { }
+   ~SurfaceSolver() { delete M; }
+   void Solve()
    {
+      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL);}
+      for (int iiter=0; iiter<niter; ++iiter)
+      { a.Assemble(); solver->Loop(); Update();}
+   }
+   void ParAXeqB()
+   {
+      b = 0.0;
+      a.FormLinearSystem(bc, x, b, A, X, B);
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetPrintLevel(print_iter);
       cg.SetMaxIter(max_num_iter);
       cg.SetRelTol(sqrt(RTOLERANCE));
       cg.SetAbsTol(sqrt(ATOLERANCE));
       if (M) { cg.SetPreconditioner(*M); }
-      cg.SetOperator(A);
+      cg.SetOperator(*A);
       cg.Mult(B, X);
+      a.RecoverFEMSolution(X, b, x);
+   }
+   void Update()
+   {
+      if (vis) { Visualize(pmesh, pause); }
+      pmesh->DeleteGeometricFactors();
+      a.Update();
    }
 };
 
 // Surface solver 'by compnents'
 class ByComponent: public SurfaceSolver<ByComponent>
 {
-public:
-   ByComponent(const bool pa,  const bool vis,
-               const int niter, const bool pause,
-               const int order, ParMesh *pmesh,
-               ParFiniteElementSpace *pfes,
-               Array<int> &bc):
-      SurfaceSolver(pa, vis, niter, pause, order, pmesh, pfes, bc) { }
-   void Solve()
-   {
-      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));
-      GridFunction solution(pfes);
-      Solver *M = pa ? nullptr : new HypreBoomerAMG;
-      for (int iiter=0; iiter<niter; ++iiter)
-      {
-         a.Assemble();
-         pmesh->GetNodes(solution);
-         for (int i=0; i < 3; ++i)
-         {
-            x = b = 0.0;
-            GetComponent(solution, x, i);
-            a.FormLinearSystem(bc, x, b, A, X, B);
-            ParCG(M, *A, X, B, 3, 2000, eps, 0.0);
-            // Recover the solution as a finite element grid function.
-            a.RecoverFEMSolution(X, b, x);
-            SetComponent(solution, x, i);
-         }
-         pmesh->SetNodes(solution);
-         // Send the solution by socket to a GLVis server.
-         if (vis) { Visualize(pmesh, pause); }
-         pmesh->DeleteGeometricFactors();
-         a.Update();
-      }
-   }
-public:
-   void SetComponent(GridFunction &X, const GridFunction &Xi, const int d)
+private:
+   void SetNodes(const GridFunction &Xi, const int c)
    {
       auto d_Xi = Xi.Read();
-      auto d_X  = X.Write();
+      auto d_nodes  = pfes->GetMesh()->GetNodes()->Write();
       const int ndof = pfes->GetNDofs();
-      MFEM_FORALL(i, ndof, d_X[d*ndof + i] = d_Xi[i]; );
+      MFEM_FORALL(i, ndof, d_nodes[c*ndof + i] = d_Xi[i]; );
    }
 
-   void GetComponent(const GridFunction &X, GridFunction &Xi, const int d)
+   void GetNodes(GridFunction &Xi, const int c)
    {
-      auto d_X  = X.Read();
       auto d_Xi = Xi.Write();
       const int ndof = pfes->GetNDofs();
-      MFEM_FORALL(i, ndof, d_Xi[i] = d_X[d*ndof + i]; );
+      auto d_nodes  = pfes->GetMesh()->GetNodes()->Read();
+      MFEM_FORALL(i, ndof, d_Xi[i] = d_nodes[c*ndof + i]; );
+   }
+
+public:
+   ByComponent(bool pa,  bool vis, int niter, bool pause, int order,
+               ParMesh *pmesh, ParFiniteElementSpace *pfes, Array<int> &bc):
+      SurfaceSolver(pa, vis, niter, pause, order, pmesh, pfes, bc)
+   { a.AddDomainIntegrator(new DiffusionIntegrator(one)); }
+   void Loop()
+   {
+      for (int c=0; c < 3; ++c)
+      {
+         this->GetNodes(x, c);
+         this->ParAXeqB();
+         this->SetNodes(x, c);
+      }
    }
 };
 
@@ -656,33 +656,15 @@ public:
 class ByVector: public SurfaceSolver<ByVector>
 {
 public:
-   ByVector(const bool pa, const bool vis,
-            const int niter, const bool pause,
-            const int order, ParMesh *pmesh,
-            ParFiniteElementSpace *pfes,
-            Array<int> &bc):
-      SurfaceSolver(pa, vis, niter, pause, order, pmesh, pfes, bc) { }
-   void Solve()
+   ByVector(bool pa, bool vis, int niter, bool pause, int order,
+            ParMesh *pmesh, ParFiniteElementSpace *pfes, Array<int> &bc):
+      SurfaceSolver(pa, vis, niter, pause, order, pmesh, pfes, bc)
+   { a.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); }
+   void Loop()
    {
-      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      a.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
-      Solver *M = pa ? nullptr : new HypreBoomerAMG;
-      for (int iiter=0; iiter<niter; ++iiter)
-      {
-         a.Assemble();
-         b = 0.0;
-         pmesh->GetNodes(x);
-         a.FormLinearSystem(bc, x, b, A, X, B);
-         ParCG(M, *A, X, B, 3, 2000, eps, 0.0);
-         // Recover the solution as a finite element grid function.
-         a.RecoverFEMSolution(X, b, x);
-         pmesh->SetNodes(x);
-         // Send the solution by socket to a GLVis server.
-         if (vis) { Visualize(pmesh, pause); }
-         pmesh->DeleteGeometricFactors();
-         a.Update();
-      }
-      delete M;
+      pmesh->GetNodes(x);
+      this->ParAXeqB();
+      pmesh->SetNodes(x);
    }
 };
 
@@ -696,10 +678,10 @@ int main(int argc, char *argv[])
 
    // Parse command-line options.
    int s = -1;
-   int nx = 4;
-   int ny = 4;
-   int nr = 2;
-   int order = 3;
+   int x = 4;
+   int y = 4;
+   int r = 2;
+   int o = 3;
    int niter = 4;
    bool pa = true;
    bool vis = false;
@@ -715,12 +697,12 @@ int main(int argc, char *argv[])
    args.AddOption(&s, "-s", "--surface", "Choice of the surface.");
    args.AddOption(&wait, "-w", "--wait", "-no-w", "--no-wait",
                   "Enable or disable a GLVis pause.");
-   args.AddOption(&nx, "-nx", "--num-elements-x",
+   args.AddOption(&x, "-x", "--num-elements-x",
                   "Number of elements in x-direction.");
-   args.AddOption(&ny, "-ny", "--num-elements-y",
+   args.AddOption(&y, "-y", "--num-elements-y",
                   "Number of elements in y-direction.");
-   args.AddOption(&order, "-o", "--order", "Finite element order.");
-   args.AddOption(&nr, "-r", "--ref-levels", "Refinement");
+   args.AddOption(&o, "-o", "--order", "Finite element order.");
+   args.AddOption(&r, "-r", "--ref-levels", "Refinement");
    args.AddOption(&niter, "-n", "--niter", "Number of iterations");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
@@ -748,21 +730,21 @@ int main(int argc, char *argv[])
    // Initialize GLVis server if 'visualization' is set.
    if (vis) { vis = glvis.open(vishost, visport) == 0; }
 
-   // Initialize our surface mesh from command line option.
-   // Determine the list of true (i.e. conforming) essential boundary dofs.
+   // Initialize our surface mesh from command line option and determine
+   // the list of true (i.e. conforming) essential boundary dofs.
+   Mesh *mesh;
    Array<int> bc;
-   Mesh *mesh = nullptr;
-   const int vdim = solve_by_components ? 1 : 3;
-   if (s < 0)  { mesh = new MeshFromFile(bc, order, mesh_file, nr, vdim); }
-   if (s == 0) { mesh = new Catenoid(bc, order, nx, ny, nr, vdim); }
-   if (s == 1) { mesh = new Helicoid(bc, order, nx, ny, nr, vdim); }
-   if (s == 2) { mesh = new Enneper(bc, order, nx, ny, nr, vdim); }
-   if (s == 3) { mesh = new Scherk(bc, order, nx, ny, nr, vdim); }
-   if (s == 4) { mesh = new Shell(bc, order, nx, ny, nr, vdim); }
-   if (s == 5) { mesh = new Hold(bc, order, nx, ny, nr, vdim); }
-   if (s == 6) { mesh = new QPeach(bc, order, nx, ny, nr, vdim); }
-   if (s == 7) { mesh = new FPeach(bc, order, nr, vdim); }
-   if (s == 8) { mesh = new SlottedSphere(bc, order, nr, vdim); }
+   const int d = solve_by_components ? 1 : 3;
+   if (s < 0)  { mesh = new MeshFromFile(bc, o, mesh_file, r, d); }
+   if (s == 0) { mesh = new Catenoid(bc, o, x, y, r, d); }
+   if (s == 1) { mesh = new Helicoid(bc, o, x, y, r, d); }
+   if (s == 2) { mesh = new Enneper(bc, o, x, y, r, d); }
+   if (s == 3) { mesh = new Scherk(bc, o, x, y, r, d); }
+   if (s == 4) { mesh = new Shell(bc, o, x, y, r, d); }
+   if (s == 5) { mesh = new Hold(bc, o, x, y, r, d); }
+   if (s == 6) { mesh = new QPeach(bc, o, x, y, r, d); }
+   if (s == 7) { mesh = new FPeach(bc, o, r, d); }
+   if (s == 8) { mesh = new SlottedSphere(bc, o, r, d); }
    MFEM_VERIFY(mesh, "Not a valid surface number!");
 
    // Grab back the pmesh & pfes from the Surface object.
@@ -775,8 +757,8 @@ int main(int argc, char *argv[])
 
    // Create and launch the surface solver.
    if (solve_by_components)
-   { ByComponent(pa, vis, niter, wait, order, pmesh, pfes, bc); }
-   else { ByVector(pa, vis, niter, wait, order, pmesh, pfes, bc); }
+   { ByComponent(pa, vis, niter, wait, o, pmesh, pfes, bc).Solve(); }
+   else { ByVector(pa, vis, niter, wait, o, pmesh, pfes, bc).Solve(); }
 
    // Free the used memory.
    delete mesh;

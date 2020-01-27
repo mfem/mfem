@@ -236,7 +236,7 @@ static void PADiffusionSetup(const int dim,
       }
 #endif // MFEM_USE_OCCA
       if (sdim == 2) { PADiffusionSetup2D<2>(Q1D, NE, W, J, C, D); }
-      if (sdim == 3) { MFEM_VERIFY(false, ""); PADiffusionSetup2D<3>(Q1D, NE, W, J, C, D); }
+      if (sdim == 3) { PADiffusionSetup2D<3>(Q1D, NE, W, J, C, D); }
    }
    if (dim == 3)
    {
