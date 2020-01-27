@@ -545,7 +545,7 @@ public:
    virtual void Init(TimeDependentOperator &_f);
 
    virtual void Step(Vector &x, double &t, double &dt)
-       {  MFEM_ABORT("Step for 1st-order odes not implemented")};
+   {  MFEM_ABORT("Step for 1st-order odes not implemented")};
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
 };
@@ -596,7 +596,7 @@ public:
    virtual void Init(TimeDependentOperator &_f);
 
    virtual void Step(Vector &x, double &t, double &dt)
-       {  MFEM_ABORT("Step for 1st-order odes not implemented")};
+   {  MFEM_ABORT("Step for 1st-order odes not implemented")};
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
 };
