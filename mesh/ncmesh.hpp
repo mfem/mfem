@@ -437,6 +437,7 @@ protected: // implementation
    {
       char geom;     ///< Geometry::Type of the element (char for storage only)
       char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
+      char tet_type; ///< tetrahedron split type, currently always 0
       char flag;     ///< generic flag/marker, can be used by algorithms
       int index;     ///< element number in the Mesh, -1 if refined
       int rank;      ///< processor number (ParNCMesh), -1 if undefined/unknown
@@ -519,7 +520,9 @@ protected: // implementation
    virtual int GetNumGhostVertices() const { return 0; }
 
    void InitGeomFlags();
+
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
+   bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
 
 
    // refinement/derefinement
@@ -559,6 +562,9 @@ protected: // implementation
                 int n3, int n4, int n5, int attr,
                 int fattr0, int fattr1,
                 int fattr2, int fattr3, int fattr4);
+
+   int NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
+                      int fattr0, int fattr1, int fattr2, int fattr3);
 
    int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
                         int eattr0, int eattr1, int eattr2, int eattr3);
@@ -619,11 +625,13 @@ protected: // implementation
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, DenseMatrix& mat) const;
+   struct Point;
    struct PointMatrix;
    void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                          const PointMatrix& pm, int level, Face* eface[4]);
-   void TraverseTriFace(int vn0, int vn1, int vn2,
+   bool TraverseTriFace(int vn0, int vn1, int vn2,
                         const PointMatrix& pm, int level);
+   void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
 
@@ -764,6 +772,7 @@ protected: // implementation
 
    static PointMatrix pm_tri_identity;
    static PointMatrix pm_quad_identity;
+   static PointMatrix pm_tet_identity;
    static PointMatrix pm_prism_identity;
    static PointMatrix pm_hex_identity;
 
@@ -836,8 +845,6 @@ protected: // implementation
    };
 
    static GeomInfo GI[Geometry::NumGeom];
-
-   static GeomInfo &gi_hex, &gi_wedge, &gi_quad, &gi_tri;
 
 #ifdef MFEM_DEBUG
 public:

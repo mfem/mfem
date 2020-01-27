@@ -15,6 +15,8 @@ set(SRCS
   bilininteg.cpp
   bilininteg_diffusion.cpp
   bilininteg_mass.cpp
+  bilininteg_vecdiffusion.cpp
+  bilininteg_vecmass.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
@@ -30,7 +32,9 @@ set(SRCS
   linearform.cpp
   lininteg.cpp
   nonlinearform.cpp
+  nonlinearform_ext.cpp
   nonlininteg.cpp
+  nonlininteg_vectorconvection.cpp
   staticcond.cpp
   tmop.cpp
   tmop_tools.cpp
@@ -57,6 +61,7 @@ set(HDRS
   linearform.hpp
   lininteg.hpp
   nonlinearform.hpp
+  nonlinearform_ext.hpp
   nonlininteg.hpp
   staticcond.hpp
   tbilinearform.hpp
@@ -97,6 +102,17 @@ if (MFEM_USE_MPI)
     pgridfunc.hpp
     plinearform.hpp
     pnonlinearform.hpp)
+endif()
+
+if (MFEM_USE_CEED)
+   list(APPEND SRCS
+     libceed/ceed.cpp
+     libceed/diffusion.cpp
+     libceed/mass.cpp)
+   list(APPEND HDRS
+     libceed/ceed.hpp
+     libceed/diffusion.hpp
+     libceed/mass.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
