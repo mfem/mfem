@@ -121,7 +121,7 @@ TEST_CASE("InverseElementTransformation",
    SECTION("{ Spiral Q20 Quad }")
    {
       // Load the spiral mesh from file:
-      std::ifstream mesh_file("data/quad-spiral-q20.mesh");
+      std::ifstream mesh_file("./data/quad-spiral-q20.mesh");
       REQUIRE( mesh_file.good() );
 
       const int npts = 100; // number of random points to test

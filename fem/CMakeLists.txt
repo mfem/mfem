@@ -22,6 +22,8 @@ set(SRCS
   bilininteg_convection.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
+  bilininteg_divergence.cpp
+  bilininteg_gradient.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
