@@ -14,7 +14,6 @@ set(SRCS
   bilinearform_ext.cpp
   bilininteg.cpp
   bilininteg_diffusion.cpp
-  bilininteg_vdiffusion.cpp
   bilininteg_mass.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
