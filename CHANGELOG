@@ -112,6 +112,8 @@ Linear and nonlinear solvers
 
 - Added Adams-Bashforth and Adams-Moulton time integrators.
 
+- Added several time integrators for 2nd order ODEs
+
 New and updated examples and miniapps
 -------------------------------------
 - Added two new miniapps: Find Points (serial + parallel) and Field Diff in
