@@ -54,6 +54,7 @@ if (MFEM_USE_MPI)
     ex19p.cpp
     ex20p.cpp
     ex21p.cpp
+    ex22p.cpp
     )
 endif()
 
@@ -101,6 +102,11 @@ if (MFEM_USE_SUNDIALS)
   add_subdirectory(sundials)
 endif()
 
+# Include the examples/sundials directory if SUNDIALS is enabled.
+if (MFEM_USE_GINKGO)
+  add_subdirectory(ginkgo)
+endif()
+
 # Include the examples/petsc directory if PETSc is enabled.
 if (MFEM_USE_PETSC)
   add_subdirectory(petsc)
@@ -110,3 +116,8 @@ endif()
 if (MFEM_USE_PUMI)
   add_subdirectory(pumi)
 endif()
+
+if (MFEM_USE_HIOP)
+  add_subdirectory(hiop)
+endif()
+
