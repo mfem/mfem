@@ -48,8 +48,10 @@ shift
 
 # Verify C++ code styling in MFEM
 cd $mfem_dir
+
 make distclean
-make style
+make style ASTYLE_BIN=${ASTYLE:-astyle}
+
 (git diff) 1>&2
 
 # Verify that std::cout and std::cerr are not used in the library (use mfem::out
