@@ -81,7 +81,7 @@ static void OccaPADiffusionSetup3D(const int D1D,
 #endif // MFEM_USE_OCCA
 
 // PA Diffusion Assemble 2D kernel
-template<const int T_SDIM> 
+template<const int T_SDIM>
 static void PADiffusionSetup2D(const int Q1D,
                                const int NE,
                                const Array<double> &w,
@@ -305,7 +305,8 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
          }
       }
    }
-   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
+                    coeff, pa_data);
 }
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
