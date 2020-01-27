@@ -101,7 +101,7 @@ void HyperbolicSystem::Mult(const Vector &x, Vector &y) const
 	}
 }
 
-double HyperbolicSystem::ConvergenceCheck(double dt, double tol)
+double HyperbolicSystem::ConvergenceCheck(double dt, double tol) const
 {
 	z = u;
 	z -= w;

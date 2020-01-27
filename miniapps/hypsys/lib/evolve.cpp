@@ -1,6 +1,11 @@
 void HyperbolicSystem::EvolveStandard(const Vector &x, Vector &y) const
 {
 	z = 0.;
+#ifdef MFEM_USE_MPI
+	x_gf_MPI = x;
+   x_gf_MPI.ExchangeFaceNbrData();
+	Vector &xMPI = x_gf_MPI.FaceNbrData();
+#endif
 	
 	for (int e = 0; e < fes->GetNE(); e++)
 	{
@@ -46,7 +51,11 @@ void HyperbolicSystem::EvolveStandard(const Vector &x, Vector &y) const
 						}
                   else
                   {
+#ifdef MFEM_USE_MPI // nbr in different MPI task?
+                     uNbr(0) = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
+#else
                      uNbr(0) = x(nbr);
+#endif
                   }
 						uEval(0) += uNbr(0) * ShapeEvalFace(i,j,k);
 					}

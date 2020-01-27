@@ -50,6 +50,7 @@ public:
 	const DofInfo dofs;
 	
 	bool SolutionKnown = true;
+	bool FileOutput = false;
 	bool SteadyState;
 	
 	int dim, nd, ne, nqe, nqf;
@@ -70,7 +71,7 @@ public:
 	void EvolveStandard(const Vector &x, Vector &y) const;
 	void EvolveMCL     (const Vector &x, Vector &y) const;
 	
-	double ConvergenceCheck(double dt, double tol);
+	double ConvergenceCheck(double dt, double tol) const;
 };
 
 

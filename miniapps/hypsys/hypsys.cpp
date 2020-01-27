@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
 	double InitialMass = hyp->LumpedMassMat * hyp->u;
 	
 	// Visualization with GLVis, VisIt is currently not supported.
+	if (hyp->FileOutput)
 	{
       ofstream omesh("grid.mesh");
       omesh.precision(config.precision);
@@ -169,14 +170,15 @@ int main(int argc, char *argv[])
 	cout << "Difference in solution mass: "
 		  << abs(InitialMass - hyp->LumpedMassMat * hyp->u) / DomainSize << endl;
 	
-	if (hyp->SolutionKnown)
+	if (hyp->SolutionKnown && hyp->FileOutput)
    {
 		Array<double> errors;
 		hyp->ComputeErrors(errors, DomainSize);
 		hyp->WriteErrors(errors);
 	}
 
-   {
+	if (hyp->FileOutput)
+	{
       ofstream osol("final.gf");
       osol.precision(config.precision);
       hyp->u.Save(osol);

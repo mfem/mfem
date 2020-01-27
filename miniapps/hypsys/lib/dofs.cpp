@@ -279,10 +279,10 @@ int GetLocalFaceDofIndex(int dim, int loc_face_id, int face_orient,
 DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
 					  FiniteElementSpace *fes_bounds)
 					  : mesh(fes_sltn->GetMesh()), fes(fes_sltn),
-						 x_min(fes_bounds), x_max(fes_bounds)
+					  x_min(fes_bounds), x_max(fes_bounds)
 {
 	dim = mesh->Dimension();
-// 	
+
 	int n = fes->GetVSize();
 	int ne = mesh->GetNE();
 	
@@ -440,7 +440,7 @@ void DofInfo::FillNeighborDofs()
 	delete face_to_el;
 }
 
-void DofInfo::FillSubcell2CellDof()
+void DofInfo::FillSubcell2CellDof() // TODO triangles
 {
 	const FiniteElement &dummy = *fes->GetFE(0);
 	int j, m, aux, p = dummy.GetOrder();
@@ -645,9 +645,6 @@ void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
 void DofInfo::ComputeBounds()
 {
 	FiniteElementSpace *fesCG = x_min.FESpace();
-#ifdef MFEM_USE_MPI
-	GroupCommunicator &gcomm = fesCG->GroupComm();
-#endif
 	Array<int> dofsCG;
 	
 	// Form min/max at each CG dof, considering element overlaps.
