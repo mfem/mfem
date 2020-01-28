@@ -31,6 +31,7 @@ DATA_DIR = data
 
 DEV_UNIT_TESTS = unit_tests_cpu unit_tests_debug
 DEV_UNIT_TESTS += $(if $(MFEM_CXX:nvcc=),,unit_tests_cuda)
+DEV_UNIT_TESTS += $(if $(MFEM_CXX:nvcc=),,unit_tests_cuda_uvm)
 
 SEQ_UNIT_TESTS = unit_tests $(DEV_UNIT_TESTS)
 PAR_UNIT_TESTS = $(DEV_UNIT_TESTS)
@@ -39,6 +40,7 @@ DEV_SOURCE_FILES = miniapps/test_sedov.cpp
 CPU_OBJECT_FILES = $(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cpu.o)
 DEBUG_OBJECT_FILES = $(DEV_SOURCE_FILES:$(SRC)%.cpp=%.debug.o)
 CUDA_OBJECT_FILES = $(if $(MFEM_CXX:nvcc=),,$(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cuda.o))
+CUDA_UVM_OBJECT_FILES = $(if $(MFEM_CXX:nvcc=),,$(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
 
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
@@ -62,8 +64,8 @@ $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	$(CCC) -c $(abspath $(<)) $(INCLUDES) $(MFEM_FLAGS) -o $(@)
 
 # Template rule for devices
-# 1:target, 2:objects, 3:configuration string for the MFEM device, separated
-# with $(comma)
+# 1: postfix of 'unit_tests_', 2: prefix of '_OBJECT_FILES',
+# 3: configuration string for the MFEM device, separated with '$(comma)'
 comma=,
 define unit_tests_dev
 unit_tests_$(1): DEV_UNIT_FLAGS=-DMFEM_DEV_UNIT_TESTS -DMFEM_DEV_UNIT='"$(3)"'
@@ -80,6 +82,7 @@ endef
 $(eval $(call unit_tests_dev,cpu,CPU,cpu))
 $(eval $(call unit_tests_dev,debug,DEBUG,debug))
 $(eval $(call unit_tests_dev,cuda,CUDA,cuda))
+$(eval $(call unit_tests_dev,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
@@ -94,8 +97,7 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,,SKIP-NO-VIS)
-	@$(call mfem-test,$<, $(RUN_MPI) 2, Parallel unit tests,,SKIP-NO-VIS)
-	@$(call mfem-test,$<, $(RUN_MPI) 3, Parallel unit tests,,SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,,SKIP-NO-VIS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

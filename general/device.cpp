@@ -66,7 +66,7 @@ Device::~Device()
 {
    if (destroy_mm)
    {
-      free(ceed_option);
+      free(device_option);
 #ifdef MFEM_USE_CEED
       CeedDestroy(&internal::ceed);
 #endif
@@ -103,7 +103,8 @@ void Device::Configure(const std::string &device, const int dev)
       {
          const std::string backend = bname.substr(0, option);
          const std::string boption = bname.substr(option+1);
-         Get().ceed_option = strdup(boption.c_str());
+         Get().device_option = strdup(boption.c_str());
+         printf("\033[32mdevice_option:%s\033[m\n", Get().device_option); fflush(0);
          std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
          MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
          Get().MarkBackend(it->second);
@@ -193,7 +194,9 @@ void Device::UpdateMemoryTypeAndClass()
    }
 
    // Enable the UVM shortcut when requested
-   if (getenv("MFEM_USE_UVM") && device)
+   if (device && device_option &&
+       strlen(device_option) == 3 &&
+       strncmp(device_option, "uvm", 3)==0)
    {
       host_mem_type = MemoryType::MANAGED;
       device_mem_type = MemoryType::MANAGED;
@@ -359,24 +362,24 @@ void Device::Setup(const int device)
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
    if (Allows(Backend::CEED_CPU))
    {
-      if (!ceed_option)
+      if (!device_option)
       {
          CeedDeviceSetup("/cpu/self");
       }
       else
       {
-         CeedDeviceSetup(ceed_option);
+         CeedDeviceSetup(device_option);
       }
    }
    if (Allows(Backend::CEED_CUDA))
    {
-      if (!ceed_option)
+      if (!device_option)
       {
          CeedDeviceSetup("/gpu/cuda/gen");
       }
       else
       {
-         CeedDeviceSetup(ceed_option);
+         CeedDeviceSetup(device_option);
       }
    }
 }
