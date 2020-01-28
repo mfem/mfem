@@ -186,6 +186,8 @@ Miscellaneous
   libmfem-common for the convenience of application developers. The new library
   is now used in several miniapps in the electromagnetic and tools directories.
 
+- Renamed and merged the 'CUDA' and 'HIP' memory types into 'DEVICE'.
+
 - Renamed the method GetMemoryType() to GetDeviceMemoryType(). The legacy
   method is now deprecated and planned for removal in a future release.
 
