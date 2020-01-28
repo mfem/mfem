@@ -12,7 +12,7 @@
 add_mfem_miniapp(klein-bottle
   MAIN klein-bottle.cpp
   LIBRARIES mfem)
-   
+
 add_mfem_miniapp(mesh-explorer
   MAIN mesh-explorer.cpp
   LIBRARIES mfem)

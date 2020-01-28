@@ -62,15 +62,19 @@ $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	$(CCC) -c $(abspath $(<)) $(INCLUDES) $(MFEM_FLAGS) -o $(@)
 
 # Template rule for devices
-# 1:target, 2:objects, 3:configuration string for the MFEM device, separated with $(comma)
+# 1:target, 2:objects, 3:configuration string for the MFEM device, separated
+# with $(comma)
 comma=,
 define unit_tests_dev
 unit_tests_$(1): DEV_UNIT_FLAGS=-DMFEM_DEV_UNIT_TESTS -DMFEM_DEV_UNIT='"$(3)"'
-unit_tests_$(1): $$(SRC)unit_test_main.o $$($(2)_OBJECT_FILES) $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(SRC)unit_test_main.o $$($(2)_OBJECT_FILES) $$(INCLUDES) $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+unit_tests_$(1): $$(SRC)unit_test_main.o $$($(2)_OBJECT_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(SRC)unit_test_main.o $$($(2)_OBJECT_FILES) $$(INCLUDES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$($(2)_OBJECT_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(INCLUDES) $$(MFEM_FLAGS) $$(DEV_UNIT_FLAGS) -o $$(@)
+	$$(CCC) -c $$(abspath $$(<)) $$(INCLUDES) $$(MFEM_FLAGS) \
+	   $$(DEV_UNIT_FLAGS) -o $$(@)
 endef
 
 $(eval $(call unit_tests_dev,cpu,CPU,cpu))

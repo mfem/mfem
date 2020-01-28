@@ -13,7 +13,6 @@ set(PERFORMANCE_CXX_OPTIONS)
 if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
   list(APPEND PERFORMANCE_CXX_OPTIONS
     "-march=native"
-    "-std=c++11"
     "-Wpedantic"
     "-Wall"
     "-fcolor-diagnostics"
@@ -21,13 +20,16 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
     "-fslp-vectorize"
     "-fslp-vectorize-aggressive"
     "-ffp-contract=fast")
-elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU" AND NOT MFEM_USE_CUDA )
+elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   list(APPEND PERFORMANCE_CXX_OPTIONS
     "-march=native"
-    "-std=c++11"
     "-pedantic"
     "-Wall"
     "--param" "max-completely-peel-times=3")
+endif()
+
+if (MFEM_USE_CUDA)
+   list(TRANSFORM PERFORMANCE_CXX_OPTIONS PREPEND "-Xcompiler=")
 endif()
 
 add_mfem_miniapp(performance_ex1
@@ -37,7 +39,6 @@ add_mfem_miniapp(performance_ex1
 
 if (MFEM_USE_CUDA)
    set_property(SOURCE ex1.cpp PROPERTY LANGUAGE CUDA)
-   set(PERFORMANCE_CXX_OPTIONS)
 endif()
 
 add_test(NAME performance_ex1_ser
