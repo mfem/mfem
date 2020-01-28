@@ -1713,7 +1713,7 @@ private:
    QuadratureFunctions1D quad_func;
 
 public:
-   Poly_1D(): h_mt(Device::GetHostMemoryType()) { }
+   Poly_1D(): h_mt(MemoryType::HOST) { }
 
    /** @brief Get a pointer to an array containing the binomial coefficients "p
        choose k" for k=0,...,p for the given p. */
