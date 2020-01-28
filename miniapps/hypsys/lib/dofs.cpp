@@ -1,6 +1,6 @@
 #include "dofs.hpp"
 
-int GetLocalFaceDofIndex3D(int loc_face_id, int face_orient,
+int DofInfo::GetLocalFaceDofIndex3D(int loc_face_id, int face_orient,
                            int face_dof_id, int face_dof1D_cnt)
 {
    int k1, k2;
@@ -253,7 +253,7 @@ int GetLocalFaceDofIndex3D(int loc_face_id, int face_orient,
    return k1 + face_dof1D_cnt * k2;
 }
 
-int GetLocalFaceDofIndex(int dim, int loc_face_id, int face_orient,
+int DofInfo::GetLocalFaceDofIndex(int dim, int loc_face_id, int face_orient,
                          int face_dof_id, int face_dof1D_cnt)
 {
    switch (dim)
@@ -309,12 +309,7 @@ void DofInfo::FillNeighborDofs()
 	Array <int> bdrs, orientation;
 	FaceElementTransformations *Trans;
 
-#ifdef MFEM_USE_MPI
-	mesh->ExchangeFaceNbrData();
-	Table *face_to_el = mesh->GetFaceToAllElementTable();
-#else
 	Table *face_to_el = mesh->GetFaceToElementTable();
-#endif
 
 	NbrDofs.SetSize(NumBdrs, NumFaceDofs, ne);
 	
@@ -348,9 +343,23 @@ void DofInfo::FillNeighborDofs()
 			
 			for (i = 0; i < NumBdrs; i++)
 			{
-				Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-				nbr = Trans->Elem1No == e ? Trans->Elem2No : Trans->Elem1No;
-				NbrDofs(i,0,e) = nbr*nd + BdrDofs(0,(i+1)%2);
+				const int nbr_cnt = face_to_el->RowSize(bdrs[0]);
+            if (nbr_cnt == 1)
+            {
+               // No neighbor element.
+               NbrDofs(i,0,e) = -1;
+               continue;
+            }
+
+            int el1_id, el2_id, nbr_id;
+            mesh->GetFaceElements(bdrs[i], &el1_id, &el2_id);
+            if (el2_id < 0)
+            {
+               // This element is in a different mpi task.
+               el2_id = -1 - el2_id + ne;
+            }
+            nbr_id = (el1_id == e) ? el2_id : el1_id;
+				NbrDofs(i,0,e) = nbr_id*nd + BdrDofs(0,(i+1)%2);
 			}
 		}
 		else if (dim==2)
@@ -661,13 +670,6 @@ void DofInfo::ComputeBounds()
 	}
 	Array<double> minvals(x_min.GetData(), x_min.Size()),
 	maxvals(x_max.GetData(), x_max.Size());
-	
-#ifdef MFEM_USE_MPI
-	gcomm.Reduce<double>(minvals, GroupCommunicator::Min);
-	gcomm.Bcast(minvals);
-	gcomm.Reduce<double>(maxvals, GroupCommunicator::Max);
-	gcomm.Bcast(maxvals);
-#endif
 	
 	// Use (x_min, x_max) to fill (xi_min, xi_max) for each DG dof.
 	const TensorBasisElement *fe_cg =
