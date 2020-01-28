@@ -7,7 +7,6 @@ variables:
 stages:
     - precleanup
     - setup
-    - static_tests
     - allocate
     - libs
     - build
@@ -35,38 +34,6 @@ stages:
         - if [ ! -d "tests" ]; then git clone ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git; fi
         - cd tpls && git pull && cd ..
         - cd tests && git pull && cd ..
-
-stylecheck:
-    stage: static_tests
-    tags:
-        - shell
-        - quartz
-    script:
-        - cd ${BUILD_ROOT}/tpls
-        - export TPLS_INSTALL=${BUILD_ROOT}/tpls/install/
-        - export ASTYLE=${TPLS_INSTALL}/astyle/astyle
-        - make astyle-clean
-        - make astyle PREFIX=${TPLS_INSTALL}
-        - cd ${CI_PROJECT_DIR}
-        - cd tests/scripts
-        - ./runtest code-style
-    allow_failure: false
-
-doccheck:
-    stage: static_tests
-    tags:
-        - shell
-        - quartz
-    script:
-        - cd ${BUILD_ROOT}
-        - ln -snf ${CI_PROJECT_DIR} mfem
-        - cd tests
-        - mkdir -p runs_${CI_COMMIT_REF_SLUG}
-        - cd runs_${CI_COMMIT_REF_SLUG}
-        - ../runtest ${BUILD_ROOT}/mfem documentation
-        - cat documentation.err
-        - if [[ ! $(head -n1 documentation.err) ]]; then true; else false; fi
-    allow_failure: true
 
 .with_gcc_6_1_0:
     variables:
