@@ -688,7 +688,7 @@ style:
 	@echo "Checking usage of cout and cerr."
 	@-(grep cout */*.?pp | grep -v examples/ | grep -v general/globals | grep -v cerrno)|| true
 	@-(grep cerr */*.?pp | grep -v examples/ | grep -v general/globals | grep -v cerrno)|| true
-
+	@echo "This list should be empty!!"
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:
