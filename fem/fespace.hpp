@@ -135,22 +135,25 @@ protected:
    mutable OperatorHandle L2E_nat, L2E_lex;
    /// The face restriction operators, see GetFaceRestriction().
    using key_face = std::tuple<bool, ElementDofOrdering, FaceType, L2FaceValues>;
-   struct key_hash// : public std::unary_function<key_face, std::size_t>
+   struct key_hash
    {
       std::size_t operator()(const key_face& k) const
       {
-         return std::get<0>(k) + 2*(int)std::get<1>(k) + 4 * (int)std::get<2>(k) + 8 * (int)std::get<3>(k);
+         return std::get<0>(k)
+                + 2 * (int)std::get<1>(k)
+                + 4 * (int)std::get<2>(k)
+                + 8 * (int)std::get<3>(k);
       }
    };
-   struct key_equal// : public std::binary_function<key_face, key_face, bool>
+   struct key_equal
    {
       bool operator()(const key_face& v0, const key_face& v1) const
       {
          return (
-                  std::get<0>(v0) == std::get<0>(v1) &&
-                  std::get<1>(v0) == std::get<1>(v1) &&
-                  std::get<2>(v0) == std::get<2>(v1) &&
-                  std::get<3>(v0) == std::get<3>(v1)
+                   std::get<0>(v0) == std::get<0>(v1) &&
+                   std::get<1>(v0) == std::get<1>(v1) &&
+                   std::get<2>(v0) == std::get<2>(v1) &&
+                   std::get<3>(v0) == std::get<3>(v1)
                 );
       }
    };
@@ -350,7 +353,7 @@ public:
    virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering,
                                               FaceType,
                                               L2FaceValues mul = L2FaceValues::Double
-                                              ) const;
+                                             ) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
