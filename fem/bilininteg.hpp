@@ -207,6 +207,8 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   using BilinearFormIntegrator::AssemblePA;
+
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
       bfi->AssemblePA(fes);
@@ -1968,6 +1970,8 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
 
+   using BilinearFormIntegrator::AssemblePA;
+
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
@@ -2461,6 +2465,8 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
