@@ -533,6 +533,8 @@ public:
        elements in a new matrix Ae (returned), so that the modified matrix and
        Ae sum to the original matrix. */
    HypreParMatrix* EliminateRowsCols(const Array<int> &rows_cols);
+  
+   HypreParMatrix* EliminateCols(const Array<int> &cols);
 
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0);
