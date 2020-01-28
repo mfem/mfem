@@ -621,7 +621,6 @@ inline void Memory<T>::New(int size)
    h_mt = MemoryManager::host_mem_type;
    h_ptr = (h_mt == MemoryType::HOST) ? new T[size] :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
-   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
 }
 
 template <typename T>
