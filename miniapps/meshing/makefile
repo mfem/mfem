@@ -69,9 +69,9 @@ mesh-optimizer-test-seq: mesh-optimizer
 pmesh-optimizer-test-par: pmesh-optimizer
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 mesh-minimal-surface-test-seq: mesh-minimal-surface
-	@$(call mfem-test,$<,, Minimal surface miniapp)
+	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-minimal-surface-test-par: pmesh-minimal-surface
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel minimal surface miniapp)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 
 # Testing: Specific execution options
 mesh-explorer-test-seq:
