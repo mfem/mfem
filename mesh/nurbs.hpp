@@ -77,7 +77,7 @@ public:
 
    void Print(std::ostream &out) const;
 
-   void PrintFunctions(std::ostream &out = std::cout, int samples=11) const;
+   void PrintFunctions(std::ostream &out, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
