@@ -253,9 +253,35 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
    }
+
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
+
+   if (!ibp)
+   {
+      if (!mesh->NURBSext)
+      {
+         cout << "No integration by parts requires a NURBS mesh."<< endl;
+         return 2;
+      }
+      if (mesh->NURBSext->GetNP()>1)
+      {
+         cout << "No integration by parts requires a NURBS mesh, with only 1 patch."<<
+              endl;
+         cout << "A C_1 discretisation is required."<< endl;
+         cout << "Currently only C_0 multipatch coupling implemented."<< endl;
+         return 3;
+      }
+      if (order[0]<2)
+      {
+         cout << "No integration by parts requires at least quadratic NURBS."<< endl;
+         cout << "A C_1 discretisation is required."<< endl;
+         return 4;
+      }
+   }
+
+
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -315,20 +341,18 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A.Height() << endl;
 
-   //#ifndef MFEM_USE_SUITESPARSE
+#ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple Jacobi preconditioner and use it to
    //     solve the system A X = B with GMRES.
-   //  DSmoother M(A);
-   //  GMRES(A, M, B, X, 1, 200,100, 1e-12, 0.0);-
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
-   /*#else
-      // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(A);
-      umf_solver.Mult(B, X);
-   #endif*/
+#else
+   // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   UMFPackSolver umf_solver;
+   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   umf_solver.SetOperator(A);
+   umf_solver.Mult(B, X);
+#endif
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
