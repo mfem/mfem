@@ -3656,14 +3656,14 @@ static void sedov_tests(MPI_Session &mpi)
                           nullptr
                          };
    REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
-   /*
-      const char *argv3Drs1[]= {"unit_tests",
-                                "-rs", "1", "-ms", "28",
-                                "-m", "data/cube01_hex.mesh",
-                                nullptr
-                               };
-      REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
-   */
+
+   const char *argv3Drs1[]= {"unit_tests",
+                             "-rs", "1", "-ms", "28",
+                             "-m", "data/cube01_hex.mesh",
+                             nullptr
+                            };
+   REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
+
 }
 
 #ifndef MFEM_DEV_UNIT_TESTS

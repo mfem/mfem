@@ -45,7 +45,7 @@ MemoryType GetMemoryType(MemoryClass mc)
       case MemoryClass::HOST_32: return MemoryType::HOST_32;
       case MemoryClass::HOST_64: return MemoryType::HOST_64;
       case MemoryClass::DEVICE:  return mm.GetDeviceMemoryType();
-      case MemoryClass::MANAGED: return MemoryType::HOST_MANAGED;
+      case MemoryClass::MANAGED: return MemoryType::MANAGED;
    }
    MFEM_VERIFY(false,"");
    return MemoryType::HOST;
@@ -60,11 +60,10 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
       case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
       case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
-      case MemoryType::HOST_MANAGED:   return MemoryType::DEVICE_MANAGED;
+      case MemoryType::MANAGED:        return MemoryType::MANAGED;
       case MemoryType::DEVICE:         return MemoryType::HOST;
       case MemoryType::DEVICE_DEBUG:   return MemoryType::HOST_DEBUG;
       case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST_UMPIRE;
-      case MemoryType::DEVICE_MANAGED: return MemoryType::HOST_MANAGED;
       default: mfem_error("Unknown memory type!");
    }
    MFEM_VERIFY(false,"");
@@ -74,9 +73,9 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
    MFEM_ASSERT(IsHostMemory(h_mt),"");
-   MFEM_ASSERT(!IsHostMemory(d_mt),"");
+   MFEM_ASSERT(IsDeviceMemory(d_mt),"");
    const bool sync =
-      (h_mt == MemoryType::HOST_MANAGED && d_mt == MemoryType::DEVICE_MANAGED) ||
+      (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
@@ -159,7 +158,6 @@ namespace internal
 class HostMemorySpace
 {
 public:
-   HostMemorySpace() { }
    virtual ~HostMemorySpace() { }
    virtual void Alloc(void **ptr, size_t bytes) { *ptr = std::malloc(bytes); }
    virtual void Dealloc(void *ptr) { std::free(ptr); }
@@ -192,10 +190,8 @@ public:
 class StdHostMemorySpace : public HostMemorySpace { };
 
 /// The No host memory space
-class NoHostMemorySpace : public HostMemorySpace
+struct NoHostMemorySpace : public HostMemorySpace
 {
-public:
-   NoHostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, const size_t bytes) { mfem_error("No Alloc error"); }
 };
 
@@ -357,8 +353,7 @@ public:
 class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
-   UvmHostMemorySpace() { }
-   ~UvmHostMemorySpace() { }
+   UvmHostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes) { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
    void Dealloc(void *ptr) { CuMemFree(ptr); }
 };
@@ -414,14 +409,20 @@ public:
 class UvmCudaMemorySpace : public DeviceMemorySpace
 {
 public:
-   UvmCudaMemorySpace(): DeviceMemorySpace() { }
    void Alloc(Memory &base) { base.d_ptr = base.h_ptr; }
    void Dealloc(Memory &base) { }
-   void *HtoD(void *dst, const void *src, size_t bytes) { return dst; }
+   void *HtoD(void *dst, const void *src, size_t bytes)
+   {
+      if (dst == src) { MFEM_STREAM_SYNC; return dst; }
+      return CuMemcpyHtoD(dst, src, bytes);
+   }
    void *DtoD(void* dst, const void* src, size_t bytes)
    { return CuMemcpyDtoD(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)
-   { return CuMemcpyDtoH(dst, src, bytes); }
+   {
+      if (dst == src) { MFEM_STREAM_SYNC; return dst; }
+      return CuMemcpyDtoH(dst, src, bytes);
+   }
 };
 
 /// The MMU device memory space
@@ -545,12 +546,15 @@ public:
       host[static_cast<int>(MemoryType::HOST_UMPIRE)] =
          static_cast<HostMemorySpace*>(new UmpireHostMemorySpace());
 
-      host[static_cast<int>(MemoryType::HOST_MANAGED)] =
+      host[static_cast<int>(MemoryType::MANAGED)] =
          static_cast<HostMemorySpace*>(new UvmHostMemorySpace());
 
-      // Filling the device memory backends, shifting with the host size
+      // Filling the device memory backends, shifting with the device size
+      device[static_cast<int>(MemoryType::MANAGED)-DeviceMemoryType] =
+         static_cast<DeviceMemorySpace*>(new UvmCudaMemorySpace());
+
       // Debug is special because of wrap(HOST) => uses DEVICE
-      device[DeviceMemoryType-DeviceMemoryType] =
+      device[static_cast<int>(MemoryType::DEVICE)-DeviceMemoryType] =
 #if defined(MFEM_USE_CUDA)
          (debug) ?
          static_cast<DeviceMemorySpace*>(new MmuDeviceMemorySpace()):
@@ -572,8 +576,6 @@ public:
       device[static_cast<int>(MemoryType::DEVICE_UMPIRE)-DeviceMemoryType] =
          static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());
 
-      device[static_cast<int>(MemoryType::DEVICE_MANAGED)-DeviceMemoryType] =
-         static_cast<DeviceMemorySpace*>(new UvmCudaMemorySpace());
    }
 
    HostMemorySpace* Host(const MemoryType mt)
@@ -585,7 +587,7 @@ public:
 
    DeviceMemorySpace* Device(const MemoryType mt)
    {
-      const int mt_i = static_cast<int>(mt) - HostMemoryTypeSize;
+      const int mt_i = static_cast<int>(mt) - DeviceMemoryType;
       MFEM_ASSERT(device[mt_i], "Memory manager has not been configured!");
       return device[mt_i];
    }
@@ -672,7 +674,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    void *h_ptr = h_tmp;
    if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
 
-   if (host_reg) // HOST_UMPIRE, HOST_DEBUG, HOST_MANAGED
+   if (host_reg) // HOST_UMPIRE, HOST_DEBUG, MANAGED
    {
       mm.Insert(h_ptr, bytes, h_mt, d_mt);
       flags = (own ? flags | Mem::OWNS_HOST : flags & ~Mem::OWNS_HOST) |
@@ -754,13 +756,13 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
          MFEM_VERIFY(d_mt == MemoryType::DEVICE ||
                      d_mt == MemoryType::DEVICE_DEBUG ||
                      d_mt == MemoryType::DEVICE_UMPIRE ||
-                     d_mt == MemoryType::DEVICE_MANAGED,"");
+                     d_mt == MemoryType::MANAGED,"");
          return true;
       }
       case MemoryClass::MANAGED:
       {
-         MFEM_VERIFY((h_mt == MemoryType::HOST_MANAGED &&
-                      d_mt == MemoryType::DEVICE_MANAGED),"");
+         MFEM_VERIFY((h_mt == MemoryType::MANAGED &&
+                      d_mt == MemoryType::MANAGED),"");
          return true;
       }
       default: break;
@@ -774,7 +776,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
-   if (IsHostMemory(GetMemoryType(mc)))
+   if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
       const bool copy = !(flags & Mem::VALID_HOST);
       flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
@@ -798,7 +800,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    CheckHostMemoryType_(h_mt, h_ptr);
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
-   if (IsHostMemory(GetMemoryType(mc)))
+   if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
       const bool copy = !(flags & Mem::VALID_HOST);
       flags |= Mem::VALID_HOST;
@@ -822,7 +824,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    CheckHostMemoryType_(h_mt, h_ptr);
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
-   if (IsHostMemory(GetMemoryType(mc)))
+   if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
       flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
       if (flags & Mem::ALIAS)
@@ -1338,8 +1340,8 @@ MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {
-   "host-std", "host-32", "host-64", "host-debug", "host-umpire", "host-managed",
-   "device", "device-debug", "device-umpire",  "device-managed"
+   "host-std", "host-32", "host-64", "host-debug", "host-umpire", "managed",
+   "device", "device-debug", "device-umpire"
 };
 
 } // namespace mfem
