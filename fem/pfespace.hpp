@@ -268,7 +268,7 @@ public:
    virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering,
                                               FaceType type,
                                               L2FaceValues mul = L2FaceValues::Double
-                                              ) const;
+                                             ) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
    void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;

@@ -132,7 +132,7 @@ void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
 void ParGridFunction::Distribute(const Vector *tv)
 {
    const Operator *prolong = pfes->GetProlongationMatrix();
-   if (prolong)
+   if (!IsIdentityProlongation(prolong))
    {
       prolong->Mult(*tv, *this);
    }
