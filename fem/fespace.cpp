@@ -875,179 +875,32 @@ const Operator *FiniteElementSpace::GetElementRestriction(
 }
 
 const Operator *FiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering, FaceType type) const
+   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
 {
-   // Check if we have a discontinuous space using the FE collection:
-   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
-   if (dg_space)
+   const bool is_dg_space = dynamic_cast<const L2_FECollection*>(fec)!=nullptr;
+   const L2FaceValues m = (is_dg_space && mul==L2FaceValues::Double) ?
+                           L2FaceValues::Double : L2FaceValues::Single;
+   auto key = std::make_tuple(is_dg_space, e_ordering, type, m);
+   auto itr = L2F.find(key);
+   if (itr != L2F.end())
    {
-      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
-      {
-         if (type==FaceType::Interior)
-         {
-            if (L2FI_lex.Ptr() == NULL)
-            {
-               L2FI_lex.Reset(new L2FaceRestriction(*this, e_ordering, type));
-            }
-            return L2FI_lex.Ptr();
-         }
-         else //Boundary
-         {
-            if (L2FB_lex.Ptr() == NULL)
-            {
-               L2FB_lex.Reset(new L2FaceRestriction(*this, e_ordering, type));
-            }
-            return L2FB_lex.Ptr();
-         }
-      }
-      // e_ordering == ElementDofOrdering::NATIVE
-      if (type==FaceType::Interior)
-      {
-         if (L2FI_nat.Ptr() == NULL)
-         {
-            L2FI_nat.Reset(new L2FaceRestriction(*this, e_ordering, type));
-         }
-         return L2FI_nat.Ptr();
-      }
-      else //Boundary
-      {
-         if (L2FB_nat.Ptr() == NULL)
-         {
-            L2FB_nat.Reset(new L2FaceRestriction(*this, e_ordering, type));
-         }
-         return L2FB_nat.Ptr();
-      }
+      return itr->second;
    }
    else
    {
-      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
+      Operator* res;
+      if (is_dg_space)
       {
-         if (type==FaceType::Interior)
-         {
-            if (L2FI_lex.Ptr() == NULL)
-            {
-               L2FI_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
-            }
-            return L2FI_lex.Ptr();
-         }
-         else //Boundary
-         {
-            if (L2FB_lex.Ptr() == NULL)
-            {
-               L2FB_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
-            }
-            return L2FB_lex.Ptr();
-         }
+         res = new L2FaceRestriction(*this, e_ordering, type, m);
       }
-      // e_ordering == ElementDofOrdering::NATIVE
-      if (type==FaceType::Interior)
+      else
       {
-         if (L2FI_nat.Ptr() == NULL)
-         {
-            L2FI_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
-         }
-         return L2FI_nat.Ptr();
+         res = new H1FaceRestriction(*this, e_ordering, type);
       }
-      else //Boundary
-      {
-         if (L2FB_nat.Ptr() == NULL)
-         {
-            L2FB_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
-         }
-         return L2FB_nat.Ptr();
-      }
+      L2F[key] = res;
+      return res;
    }
 }
-
-const Operator *FiniteElementSpace::GetSingleValuedFaceRestriction(
-   ElementDofOrdering e_ordering, FaceType type) const
-{
-   // Check if we have a discontinuous space using the FE collection:
-   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
-   if (dg_space)
-   {
-      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
-      {
-         if (type==FaceType::Interior)
-         {
-            if (L2FI_lex.Ptr() == NULL)
-            {
-               L2FI_lex.Reset(new L2FaceRestriction(*this, e_ordering, type,
-                                                    L2FaceValues::Single));
-            }
-            return L2FI_lex.Ptr();
-         }
-         else //Boundary
-         {
-            if (L2FB_lex.Ptr() == NULL)
-            {
-               L2FB_lex.Reset(new L2FaceRestriction(*this, e_ordering, type,
-                                                    L2FaceValues::Single));
-            }
-            return L2FB_lex.Ptr();
-         }
-      }
-      // e_ordering == ElementDofOrdering::NATIVE
-      if (type==FaceType::Interior)
-      {
-         if (L2FI_nat.Ptr() == NULL)
-         {
-            L2FI_nat.Reset(new L2FaceRestriction(*this, e_ordering, type,
-                                                 L2FaceValues::Single));
-         }
-         return L2FI_nat.Ptr();
-      }
-      else //Boundary
-      {
-         if (L2FB_nat.Ptr() == NULL)
-         {
-            L2FB_nat.Reset(new L2FaceRestriction(*this, e_ordering, type,
-                                                 L2FaceValues::Single));
-         }
-         return L2FB_nat.Ptr();
-      }
-   }
-   else
-   {
-      if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
-      {
-         if (type==FaceType::Interior)
-         {
-            if (L2FI_lex.Ptr() == NULL)
-            {
-               L2FI_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
-            }
-            return L2FI_lex.Ptr();
-         }
-         else //Boundary
-         {
-            if (L2FB_lex.Ptr() == NULL)
-            {
-               L2FB_lex.Reset(new H1FaceRestriction(*this, e_ordering, type));
-            }
-            return L2FB_lex.Ptr();
-         }
-      }
-      // e_ordering == ElementDofOrdering::NATIVE
-      if (type==FaceType::Interior)
-      {
-         if (L2FI_nat.Ptr() == NULL)
-         {
-            L2FI_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
-         }
-         return L2FI_nat.Ptr();
-      }
-      else //Boundary
-      {
-         if (L2FB_nat.Ptr() == NULL)
-         {
-            L2FB_nat.Reset(new H1FaceRestriction(*this, e_ordering, type));
-         }
-         return L2FB_nat.Ptr();
-      }
-   }
-}
-
 
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const IntegrationRule &ir) const

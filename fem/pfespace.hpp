@@ -266,12 +266,9 @@ public:
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering,
-                                              FaceType type) const;
-
-   /** Return an Operator that converts L-vectors to E-vectors on each face, for L2 spaces
-       only returns the value of element 1. */
-   virtual const Operator *GetSingleValuedFaceRestriction(ElementDofOrdering
-                                                          e_ordering, FaceType) const;
+                                              FaceType type,
+                                              L2FaceValues mul = L2FaceValues::Double
+                                              ) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
    void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;

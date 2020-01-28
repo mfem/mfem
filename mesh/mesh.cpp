@@ -10144,8 +10144,11 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    const int NQ   = ir.GetNPoints();
 
 
-   const Operator *face_restr = fespace->GetSingleValuedFaceRestriction(
-                                   ElementDofOrdering::LEXICOGRAPHIC, type);
+   const Operator *face_restr = fespace->GetFaceRestriction(
+                                   ElementDofOrdering::LEXICOGRAPHIC,
+                                   type,
+                                   L2FaceValues::Single
+                                   );
    Vector Fnodes(face_restr->Height());
    face_restr->Mult(*nodes, Fnodes);
    Array<bool> signs(NF);

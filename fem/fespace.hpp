@@ -17,6 +17,7 @@
 #include "../mesh/mesh.hpp"
 #include "fe_coll.hpp"
 #include <iostream>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -133,8 +134,28 @@ protected:
    /// The element restriction operators, see GetElementRestriction().
    mutable OperatorHandle L2E_nat, L2E_lex;
    /// The face restriction operators, see GetFaceRestriction().
-   mutable OperatorHandle L2FI_nat, L2FI_lex;
-   mutable OperatorHandle L2FB_nat, L2FB_lex;
+   using key_face = std::tuple<bool, ElementDofOrdering, FaceType, L2FaceValues>;
+   struct key_hash// : public std::unary_function<key_face, std::size_t>
+   {
+      std::size_t operator()(const key_face& k) const
+      {
+         return std::get<0>(k) + 2*(int)std::get<1>(k) + 4 * (int)std::get<2>(k) + 8 * (int)std::get<3>(k);
+      }
+   };
+   struct key_equal// : public std::binary_function<key_face, key_face, bool>
+   {
+      bool operator()(const key_face& v0, const key_face& v1) const
+      {
+         return (
+                  std::get<0>(v0) == std::get<0>(v1) &&
+                  std::get<1>(v0) == std::get<1>(v1) &&
+                  std::get<2>(v0) == std::get<2>(v1) &&
+                  std::get<3>(v0) == std::get<3>(v1)
+                );
+      }
+   };
+   using map_L2F = std::unordered_map<const key_face,Operator*,key_hash,key_equal>;
+   mutable map_L2F L2F;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
    mutable Array<FaceQuadratureInterpolator*> E2IFQ_array;
@@ -327,12 +348,9 @@ public:
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering,
-                                              FaceType) const;
-
-   /** Return an Operator that converts L-vectors to E-vectors on each face, for L2 spaces
-       only returns the value of element 1. */
-   virtual const Operator *GetSingleValuedFaceRestriction(ElementDofOrdering
-                                                          e_ordering, FaceType) const;
+                                              FaceType,
+                                              L2FaceValues mul = L2FaceValues::Double
+                                              ) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
