@@ -213,7 +213,6 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-   pmesh->ExchangeFaceNbrData();
 
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
