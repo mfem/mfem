@@ -491,6 +491,8 @@ private: // Static methods used by the Memory<T> class
    /// Return the type the of the currently valid memory. If more than one types
    /// are valid, return a device type.
    static MemoryType GetMemoryType_(void *h_ptr, unsigned flags);
+
+   /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
    static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
 
    /// Copy entries from valid memory type to valid memory type. Both dest_h_ptr
@@ -654,11 +656,14 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
-   h_mt = mt;
    capacity = size;
-   T *h_tmp = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
-   h_ptr = (T*)MemoryManager::Register_(ptr, h_tmp, size*sizeof(T),
-                                        mt, own, false, flags);
+   const int bytes = size*sizeof(T);
+   const bool mt_host = mt == MemoryType::HOST;
+   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
+   const bool h_mt_host = h_mt == MemoryType::HOST;
+   T *h_tmp = (h_mt_host) ? new T[size] : nullptr;
+   if (mt_host) { return Wrap(h_tmp, size, own); }
+   h_ptr = (T*)MemoryManager::Register_(ptr, h_tmp, bytes, mt, own, false, flags);
 }
 
 template <typename T>
@@ -745,7 +750,6 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
-   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    return (T*)MemoryManager::ReadWrite_(h_ptr, h_mt, mc, bytes, flags);
 }
 
@@ -759,7 +763,6 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
-   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    return (const T*)MemoryManager::Read_(h_ptr, h_mt, mc, bytes, flags);
 }
 
@@ -773,7 +776,6 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
       MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
-   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    return (T*)MemoryManager::Write_(h_ptr, h_mt, mc, bytes, flags);
 }
 

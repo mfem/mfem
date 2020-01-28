@@ -771,6 +771,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
 void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                 size_t bytes, unsigned &flags)
 {
+   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)))
@@ -794,6 +795,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
+   CheckHostMemoryType_(h_mt, h_ptr);
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)))
@@ -817,6 +819,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
 void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
+   CheckHostMemoryType_(h_mt, h_ptr);
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)))
