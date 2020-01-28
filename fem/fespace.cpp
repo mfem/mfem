@@ -2821,7 +2821,8 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          const int lid = dof*e + d;
 
-         indices[offsets[gid]++] = (sgid >= 0) ? lid : -1 - lid;
+         indices[offsets[gid]++] = ((sgid >= 0 && sdid >= 0) ||
+				    (sgid < 0 && sdid < 0)) ? lid : -1 - lid;
       }
    }
    // We shifted the offsets vector by 1 by using it as a counter.
