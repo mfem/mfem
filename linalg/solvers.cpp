@@ -803,9 +803,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    }
 
    if (print_level == 1)
+   {
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
                 << "  || r || = " << beta << endl;
+   }
 
    Array<Vector*> v(m+1);
    Array<Vector*> z(m+1);
@@ -862,9 +864,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_level == 1)
+         {
             mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                       << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
+         }
 
          if (resid <= final_norm)
          {
