@@ -880,7 +880,7 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
    const bool is_dg_space = dynamic_cast<const L2_FECollection*>(fec)!=nullptr;
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::Double) ?
                           L2FaceValues::Double : L2FaceValues::Single;
-   auto key = std::make_tuple(is_dg_space, e_ordering, type, m);
+   key_face key = std::make_tuple(is_dg_space, e_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
@@ -2003,6 +2003,10 @@ void FiniteElementSpace::Destroy()
       delete E2Q_array[i];
    }
    E2Q_array.SetSize(0);
+   for (auto& x : L2F)
+   {
+      delete x.second;
+   }
    for (int i = 0; i < E2IFQ_array.Size(); i++)
    {
       delete E2IFQ_array[i];
