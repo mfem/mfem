@@ -596,7 +596,7 @@ public:
    {
       constexpr int mt_h = HostMemoryType;
       constexpr int mt_d = DeviceMemoryType;
-      for (int mt = mt_h; mt < mt_d; mt++) { delete host[mt]; }
+      for (int mt = mt_h; mt < HostMemoryTypeSize; mt++) { delete host[mt]; }
       for (int mt = mt_d; mt < MemoryTypeSize; mt++) { delete device[mt-mt_d]; }
    }
 };
