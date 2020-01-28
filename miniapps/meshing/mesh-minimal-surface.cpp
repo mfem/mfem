@@ -1,11 +1,17 @@
-//                                MFEM Example 23
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
-// Compile with: make ex23
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
 //
-// Sample runs:  ex23 -m ../data/square-disc.mesh
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
 //
-// Device sample runs:
-//               ex23 -pa -d cuda
+//               -----------------------
+//               Minimal Surface Miniapp
+//               -----------------------
 //
 // Description:  This example code
 //               s=0: Catenoid
@@ -17,9 +23,16 @@
 //               s=6: QPeach
 //               s=7: FPeach
 //               s=8: SlottedSphere
+//
+// Compile with: make mesh-minimal-surface
+//
+// Sample runs:  mesh-minimal-surface -vis
+//
+// Device sample runs:
+//               mesh-minimal-surface -d cuda
 
 #include "mfem.hpp"
-#include "../general/forall.hpp"
+#include "general/forall.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -29,11 +42,14 @@ using namespace mfem;
 // Constant variables
 const double pi = M_PI;
 const double eps = 1.e-12;
-static socketstream glvis;
-static int NRanks, MyRank;
-const int  visport   = 19916;
+const int  visport = 19916;
 const char vishost[] = "localhost";
 
+// Static variables for GLVis.
+static socketstream glvis;
+static int NRanks, MyRank;
+
+// Use MFEM's sequential classes and constructs for X-MPI ones, if needed.
 #ifndef XMesh
 #define XMesh Mesh
 #define XGridFunction GridFunction
@@ -630,7 +646,7 @@ public:
 // Surface solver 'by compnents'
 class ByComponent: public SurfaceSolver<ByComponent>
 {
-private:
+public:
    void SetNodes(const GridFunction &Xi, const int c)
    {
       auto d_Xi = Xi.Read();
@@ -673,7 +689,7 @@ public:
    { a.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); }
    void Loop()
    {
-      pmesh->GetNodes(x);
+      x = *pfes->GetMesh()->GetNodes();
       this->ParAXeqB();
       pmesh->SetNodes(x);
    }
@@ -700,7 +716,7 @@ int main(int argc, char *argv[])
    bool solve_by_components = false;
    const char *keys = "gAmaaa";
    const char *device_config = "cpu";
-   const char *mesh_file = "../data/mobius-strip.mesh";
+   const char *mesh_file = "../../data/mobius-strip.mesh";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");

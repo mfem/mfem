@@ -1,23 +1,28 @@
-//                                MFEM Example 23
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
-// Compile with: make ex23
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
 //
-// Sample runs:  ex23 -m ../data/square-disc.mesh
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+//
+//              --------------------------------
+//              Parallel Minimal Surface Miniapp
+//              --------------------------------
+//
+// Description:  See mesh-minimal-surface.cpp description.
+//
+// Compile with: make pmesh-minimal-surface
+//
+// Sample runs:  mesh-minimal-surface -vis
 //
 // Device sample runs:
-//               ex23 -pa -d cuda
-//
-// Description:  This example code
-//               s=0: Catenoid
-//               s=1: Helicoid
-//               s=2: Enneper
-//               s=3: Scherk
-//               s=4: Shell
-//               s=5: Hold
-//               s=6: QPeach
-//               s=7: FPeach
-//               s=8: SlottedSphere
+//               mesh-minimal-surface -d cuda
 
+// Tie X-MPI classes and construct to MFEM_USE_MPI's ones.
 #define XMesh ParMesh
 #define XGridFunction ParGridFunction
 #define XBilinearForm ParBilinearForm
@@ -31,4 +36,5 @@
 #define XPreconditioner new HypreBoomerAMG
 #define XFinalize MPI_Finalize
 
-#include "ex23.cpp"
+// Re-use mesh-minimal-surface.cpp code.
+#include "mesh-minimal-surface.cpp"
