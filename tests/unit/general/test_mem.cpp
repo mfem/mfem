@@ -19,10 +19,10 @@ using namespace mfem;
 
 static void ScanMemoryTypes(const int N = 1024)
 {
-   constexpr int mt_max = static_cast<int>(MemoryType::HOST_UMPIRE);
+   constexpr int mt_max = static_cast<int>(MemoryType::HOST_DEBUG);
    Vector v[mt_max];
    int mt = HostMemoryType;
-   for (int i=0; i<mt_max; i++, mt++)
+   for (int i=0; i <= mt_max; i++, mt++)
    {
       Memory<double> mem(N, static_cast<MemoryType>(mt));
       REQUIRE(mem.Capacity() == N);

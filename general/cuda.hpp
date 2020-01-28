@@ -40,10 +40,12 @@
    } \
    while (0)
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
+#define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
 #else
 #define MFEM_DEVICE
 #define MFEM_HOST_DEVICE
 #define MFEM_DEVICE_SYNC
+#define MFEM_STREAM_SYNC
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros

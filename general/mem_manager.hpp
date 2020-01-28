@@ -31,11 +31,10 @@ enum class MemoryType
    HOST_64,        ///< Host memory; aligned at 64 bytes
    HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
    HOST_UMPIRE,    ///< Host memory; using Umpire
-   DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
-   DEVICE_DEBUG,   /**< Pseudo device memory; allocated on host from a
-                        "device-debug" pool */
-   DEVICE_UMPIRE,  ///< Device memory; using Umpire
    MANAGED,        ///< Managed memory; using CUDA or HIP *MallocManaged and *Free
+   DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
+   DEVICE_DEBUG,   ///< Pseudo device memory; allocated on host from a "device-debug" pool
+   DEVICE_UMPIRE,  ///< Device memory; using Umpire
    SIZE            ///< Number of host and device memory types
 };
 
@@ -43,8 +42,8 @@ enum class MemoryType
 constexpr int MemoryTypeSize = static_cast<int>(MemoryType::SIZE);
 constexpr int HostMemoryType = static_cast<int>(MemoryType::HOST);
 constexpr int HostMemoryTypeSize = static_cast<int>(MemoryType::DEVICE);
-constexpr int DeviceMemoryType = HostMemoryTypeSize;
-constexpr int DeviceMemoryTypeSize = MemoryTypeSize - HostMemoryTypeSize;
+constexpr int DeviceMemoryType = static_cast<int>(MemoryType::MANAGED);
+constexpr int DeviceMemoryTypeSize = MemoryTypeSize - DeviceMemoryType;
 
 /// Memory type names, used during Device:: configuration.
 extern const char *MemoryTypeName[MemoryTypeSize];
@@ -56,23 +55,23 @@ extern const char *MemoryTypeName[MemoryTypeSize];
 enum class MemoryClass
 {
    HOST,    /**< Memory types: { HOST, HOST_32, HOST_64, HOST_DEBUG,
-                                 HOST_UMPIRE, HOST_MANAGED } */
+                                 HOST_UMPIRE, MANAGED } */
    HOST_32, ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
    HOST_64, ///< Memory types: { HOST_64, HOST_DEBUG }
-   DEVICE,  /**< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE,
-                                 DEVICE_MANAGED } */
-   MANAGED  ///< Memory types: { HOST_MANAGED, DEVICE_MANAGED }
+   DEVICE,  ///< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE, MANAGED }
+   MANAGED  ///< Memory types: { MANAGED }
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
-inline bool IsHostMemory(MemoryType mt) { return mt < MemoryType::DEVICE; }
+inline bool IsHostMemory(MemoryType mt) { return mt <= MemoryType::MANAGED; }
+inline bool IsDeviceMemory(MemoryType mt) { return mt >= MemoryType::MANAGED; }
 
 /// Return true if the given host memory type needs to be registered.
 inline bool IsHostRegisteredMemory(MemoryType mt)
 {
    return mt == MemoryType::HOST_DEBUG  ||
           mt == MemoryType::HOST_UMPIRE ||
-          mt == MemoryType::HOST_MANAGED;
+          mt == MemoryType::MANAGED;
 }
 
 /// Return a suitable MemoryType for a given MemoryClass.
