@@ -1564,7 +1564,6 @@ private:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   Array<int> dof_map;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q curl u, v) in 3D and
@@ -2101,7 +2100,6 @@ protected:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   Array<int> dof_map;
 
 public:
    CurlCurlIntegrator() { Q = NULL; MQ = NULL; }
@@ -2182,7 +2180,6 @@ protected:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   Array<int> dof_map;
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }

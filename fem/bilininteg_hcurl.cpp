@@ -162,14 +162,11 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       MFEM_ABORT("Unknown kernel.");
    }
-
-   dof_map = el->GetDofMap();
 }
 
 static void PAHcurlMassApply2D(const int D1D,
                                const int Q1D,
                                const int NE,
-                               const Array<int> &_dof_map,
                                const Array<double> &_Bo,
                                const Array<double> &_Bc,
                                const Array<double> &_Bot,
@@ -180,7 +177,6 @@ static void PAHcurlMassApply2D(const int D1D,
 {
    constexpr static int VDIM = 2;
 
-   auto dof_map = Reshape(_dof_map.Read(), 2*(D1D-1)*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
@@ -221,8 +217,7 @@ static void PAHcurlMassApply2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-	       const double s = dof_map(dx + (dy * D1Dx) + osc) >= 0 ? 1.0 : -1.0;
-               const double t = s * x(dx + (dy * D1Dx) + osc, e);
+               const double t = x(dx + (dy * D1Dx) + osc, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
@@ -285,8 +280,7 @@ static void PAHcurlMassApply2D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-		  const double s = dof_map(dx + (dy * D1Dx) + osc) >= 0 ? 1.0 : -1.0;
-                  y(dx + (dy * D1Dx) + osc, e) += s * massX[dx] * wy;
+                  y(dx + (dy * D1Dx) + osc, e) += massX[dx] * wy;
                }
             }
 
@@ -299,7 +293,6 @@ static void PAHcurlMassApply2D(const int D1D,
 static void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                           const int Q1D,
                                           const int NE,
-                                          const Array<int> &_dof_map,
                                           const Array<double> &_Bo,
                                           const Array<double> &_Bc,
                                           const Vector &_op,
@@ -307,7 +300,6 @@ static void PAHcurlMassAssembleDiagonal2D(const int D1D,
 {
    constexpr static int VDIM = 2;
 
-   auto dof_map = Reshape(_dof_map.Read(), 2*(D1D-1)*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, 3, NE);
@@ -342,11 +334,7 @@ static void PAHcurlMassAssembleDiagonal2D(const int D1D,
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
-
-                  const double s = dof_map(dx + (dy * D1Dx) + osc) >= 0 ? 1.0 : -1.0;
-                  // s counteracts the signs applied by elem_restrict_lex->MultTranspose after this function is called.
-
-                  diag(dx + (dy * D1Dx) + osc, e) += mass[qx] * wx * wx * s;
+                  diag(dx + (dy * D1Dx) + osc, e) += mass[qx] * wx * wx;
                }
             }
          }
@@ -359,7 +347,6 @@ static void PAHcurlMassAssembleDiagonal2D(const int D1D,
 static void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                           const int Q1D,
                                           const int NE,
-                                          const Array<int> &_dof_map,
                                           const Array<double> &_Bo,
                                           const Array<double> &_Bc,
                                           const Vector &_op,
@@ -367,7 +354,6 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
 {
    constexpr static int VDIM = 3;
 
-   auto dof_map = Reshape(_dof_map.Read(), 3*(D1D-1)*D1D*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
@@ -412,12 +398,7 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const double wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
-
-                     const double s = dof_map(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc) >= 0 ? 1.0 :
-                                      -1.0;
-                     // s counteracts the signs applied by elem_restrict_lex->MultTranspose after this function is called.
-
-                     diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += mass[qx] * wx * wx * s;
+                     diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += mass[qx] * wx * wx;
                   }
                }
             }
@@ -431,17 +412,16 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
 void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
-      PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne, dof_map,
+      PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne, 
                                     mapsO->B, mapsC->B, pa_data, diag);
    else
-      PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne, dof_map,
+      PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne, 
                                     mapsO->B, mapsC->B, pa_data, diag);
 }
 
 static void PAHcurlMassApply3D(const int D1D,
                                const int Q1D,
                                const int NE,
-                               const Array<int> &_dof_map,
                                const Array<double> &_Bo,
                                const Array<double> &_Bc,
                                const Array<double> &_Bot,
@@ -452,7 +432,6 @@ static void PAHcurlMassApply3D(const int D1D,
 {
    constexpr static int VDIM = 3;
 
-   auto dof_map = Reshape(_dof_map.Read(), 3*(D1D-1)*D1D*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
@@ -508,9 +487,7 @@ static void PAHcurlMassApply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-		  const double s = dof_map(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc) >= 0 ? 1.0 :
-                                   -1.0;
-                  const double t = s * x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
@@ -617,9 +594,7 @@ static void PAHcurlMassApply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-		     const double s = dof_map(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc) >= 0 ? 1.0 :
-                                      -1.0;
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += s * massXY[dy][dx] * wz;
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += massXY[dy][dx] * wz;
                   }
                }
             }
@@ -634,12 +609,12 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
    {
-      PAHcurlMassApply3D(dofs1D, quad1D, ne, dof_map, mapsO->B, mapsC->B, mapsO->Bt,
+      PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                          mapsC->Bt, pa_data, x, y);
    }
    else
    {
-      PAHcurlMassApply2D(dofs1D, quad1D, ne, dof_map, mapsO->B, mapsC->B, mapsO->Bt,
+      PAHcurlMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                          mapsC->Bt, pa_data, x, y);
    }
 }
@@ -799,14 +774,11 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       MFEM_ABORT("Unknown kernel.");
    }
-
-   dof_map = el->GetDofMap();
 }
 
 static void PACurlCurlApply2D(const int D1D,
                               const int Q1D,
                               const int NE,
-                              const Array<int> &_dof_map,
                               const Array<double> &_Bo,
                               const Array<double> &_Bot,
                               const Array<double> &_Gc,
@@ -817,7 +789,6 @@ static void PACurlCurlApply2D(const int D1D,
 {
    constexpr static int VDIM = 2;
 
-   auto dof_map = Reshape(_dof_map.Read(), 2*(D1D-1)*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
@@ -857,8 +828,7 @@ static void PACurlCurlApply2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-	       const double s = dof_map(dx + (dy * D1Dx) + osc) >= 0 ? 1.0 : -1.0;
-               const double t = s * x(dx + (dy * D1Dx) + osc, e);
+               const double t = x(dx + (dy * D1Dx) + osc, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx] += t * ((c == 0) ? Bo(qx,dx) : Gc(qx,dx));
@@ -914,8 +884,7 @@ static void PACurlCurlApply2D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-		  const double s = dof_map(dx + (dy * D1Dx) + osc) >= 0 ? 1.0 : -1.0;
-                  y(dx + (dy * D1Dx) + osc, e) += s * gradX[dx] * wy;
+                  y(dx + (dy * D1Dx) + osc, e) += gradX[dx] * wy;
                }
             }
 
@@ -928,7 +897,6 @@ static void PACurlCurlApply2D(const int D1D,
 static void PACurlCurlApply3D(const int D1D,
                               const int Q1D,
                               const int NE,
-                              const Array<int> &_dof_map,
                               const Array<double> &_Bo,
                               const Array<double> &_Bc,
                               const Array<double> &_Bot,
@@ -947,7 +915,6 @@ static void PACurlCurlApply3D(const int D1D,
 
    constexpr static int VDIM = 3;
 
-   auto dof_map = Reshape(_dof_map.Read(), 3*(D1D-1)*D1D*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
@@ -1030,9 +997,7 @@ static void PACurlCurlApply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-		  const double s = dof_map(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc) >= 0 ? 1.0 :
-                                   -1.0;
-                  const double t = s * x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      gradX[qx][0] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
@@ -1268,10 +1233,7 @@ static void PACurlCurlApply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-		     const double s = dof_map(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc) >= 0 ? 1.0 :
-                                      -1.0;
-
-                     // s * [gradXY[dy][dx][0] * wz, gradXY[dy][dx][1] * wz, gradXY[dy][dx][2] * wDz] is grad(u_c), except for the c entry (not used).
+                     // [gradXY[dy][dx][0] * wz, gradXY[dy][dx][1] * wz, gradXY[dy][dx][2] * wDz] is grad(u_c), except for the c entry (not used).
 
                      // 21 contribution is (J^{-1}_{(:,2)})^T [curl u] g[0][:]
                      // 02 contribution is (J^{-1}_{(:,0)})^T [curl u] g[1][:]
@@ -1316,7 +1278,7 @@ static void PACurlCurlApply3D(const int D1D,
                            // t7 = wx * wy times J^{-1}_{(0,m)} g[n][2]
                            // t8 = wx * wy times J^{-1}_{(2,m)} g[n][0]
 
-			   y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += s * ((t1 * wz) + (t7 * wDz) - (t2 * wz) - (t8 * wDz));
+			   y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += ((t1 * wz) + (t7 * wDz) - (t2 * wz) - (t8 * wDz));
                         }
                         else if (c == 1)
                         {
@@ -1338,7 +1300,7 @@ static void PACurlCurlApply3D(const int D1D,
                            // t7 = wx * wy times J^{-1}_{(1,m)} g[n][2]
                            // t8 = wx * wy times J^{-1}_{(2,m)} g[n][1]
 
-			   y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += s * (-(t2 * wz) + (t1 * wz) + (t7 * wDz) - (t8 * wDz));
+			   y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (-(t2 * wz) + (t1 * wz) + (t7 * wDz) - (t8 * wDz));
                         }
                         else  // c == 2
                         {
@@ -1360,7 +1322,7 @@ static void PACurlCurlApply3D(const int D1D,
                            // t7 = wx * wDy times J^{-1}_{(2,m)} g[n][1]
                            // t8 = wx * wDy times J^{-1}_{(1,m)} g[n][2]
 
-			   y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += s * wz * (-t2 - t8 + t1 + t7);
+			   y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += wz * (-t2 - t8 + t1 + t7);
                         }
                      }
                   }
@@ -1376,18 +1338,17 @@ static void PACurlCurlApply3D(const int D1D,
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
-      PACurlCurlApply3D(dofs1D, quad1D, ne, dof_map, mapsO->B, mapsC->B, mapsO->Bt,
+      PACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                         mapsC->Bt,
                         mapsO->G, mapsC->G, mapsO->Gt, mapsC->Gt, pa_data, x, y);
    else
-      PACurlCurlApply2D(dofs1D, quad1D, ne, dof_map, mapsO->B, mapsO->Bt,
+      PACurlCurlApply2D(dofs1D, quad1D, ne, mapsO->B, mapsO->Bt,
                         mapsC->G, mapsC->Gt, pa_data, x, y);
 }
 
 static void PACurlCurlAssembleDiagonal2D(const int D1D,
                                          const int Q1D,
                                          const int NE,
-                                         const Array<int> &_dof_map,
                                          const Array<double> &_Bo,
                                          const Array<double> &_Gc,
                                          const Vector &_op,
@@ -1395,7 +1356,6 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
 {
    constexpr static int VDIM = 2;
 
-   auto dof_map = Reshape(_dof_map.Read(), 2*(D1D-1)*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
@@ -1429,11 +1389,7 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double wx = ((c == 0) ? Bo(qx,dx) : Gc(qx,dx));
-
-                  const double s = dof_map(dx + (dy * D1Dx) + osc) >= 0 ? 1.0 : -1.0;
-                  // s counteracts the signs applied by elem_restrict_lex->MultTranspose after this function is called.
-
-                  diag(dx + (dy * D1Dx) + osc, e) += t[qx] * wx * wx * s;
+                  diag(dx + (dy * D1Dx) + osc, e) += t[qx] * wx * wx;
                }
             }
          }
@@ -1446,7 +1402,6 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
 static void PACurlCurlAssembleDiagonal3D(const int D1D,
                                          const int Q1D,
                                          const int NE,
-                                         const Array<int> &_dof_map,
                                          const Array<double> &_Bo,
                                          const Array<double> &_Bc,
                                          const Array<double> &_Go,
@@ -1456,7 +1411,6 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
 {
    constexpr static int VDIM = 3;
 
-   auto dof_map = Reshape(_dof_map.Read(), 3*(D1D-1)*D1D*D1D);
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Go = Reshape(_Go.Read(), Q1D, D1D-1);
@@ -1559,9 +1513,6 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-		  const double s = dof_map(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc) >= 0 ? 1.0 :
-                                   -1.0;
-
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const double wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
@@ -1587,39 +1538,39 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
                         // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
 
                         // (u_0)_{x_2} O22 (u_0)_{x_2}
-		        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][3][2][0] * wx * wx * s;
+		        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][3][2][0] * wx * wx;
 
                         // -(u_0)_{x_2} O23 (u_0)_{x_1} - (u_0)_{x_1} O32 (u_0)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += -2.0 * yt[qx][dy][dz][4][1][1] * wx * wx * s;
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += -2.0 * yt[qx][dy][dz][4][1][1] * wx * wx;
 			  
                         // (u_0)_{x_1} O33 (u_0)_{x_1}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][5][0][2] * wx * wx * s;
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][5][0][2] * wx * wx;
                      }
                      else if (c == 1)
                      {
                         // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
 
                         // (u_1)_{x_2} O11 (u_1)_{x_2}
-		        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][0][2][0] * wx * wx * s;
+		        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][0][2][0] * wx * wx;
 
                         // -(u_1)_{x_2} O13 (u_1)_{x_0} - (u_1)_{x_0} O31 (u_1)_{x_2}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += -2.0 * yt[qx][dy][dz][2][1][0] * wDx * wx * s;
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += -2.0 * yt[qx][dy][dz][2][1][0] * wDx * wx;
 
                         // (u_1)_{x_0} O33 (u_1)_{x_0})
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][5][0][0] * wDx * wDx * s;
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][5][0][0] * wDx * wDx;
                      }
                      else
                      {
                         // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
 
                         // (u_2)_{x_1} O11 (u_2)_{x_1}
-		        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][0][0][2] * wx * wx * s;
+		        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][0][0][2] * wx * wx;
 
                         // -(u_2)_{x_1} O12 (u_2)_{x_0} - (u_2)_{x_0} O21 (u_2)_{x_1}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += -2.0 * yt[qx][dy][dz][1][0][1] * wDx * wx * s;
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += -2.0 * yt[qx][dy][dz][1][0][1] * wDx * wx;
 
                         // (u_2)_{x_0} O22 (u_2)_{x_0}
-                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][3][0][0] * wDx * wDx * s;
+                        diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += yt[qx][dy][dz][3][0][0] * wDx * wDx;
                      }
                   }
                }
@@ -1634,10 +1585,10 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
-      PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, ne, dof_map,
+      PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, ne, 
                                    mapsO->B, mapsC->B, mapsO->G, mapsC->G, pa_data_2, diag);
    else
-      PACurlCurlAssembleDiagonal2D(dofs1D, quad1D, ne, dof_map,
+      PACurlCurlAssembleDiagonal2D(dofs1D, quad1D, ne, 
                                    mapsO->B, mapsC->G, pa_data, diag);
 }
 
@@ -1710,8 +1661,6 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace &trial_f
    {
       MFEM_ABORT("Unknown kernel.");
    }
-
-   dof_map = test_el->GetDofMap();
 }
 
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
@@ -1719,7 +1668,6 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace &trial_f
 static void PAHcurlH1Apply3D(const int D1D,
                              const int Q1D,
                              const int NE,
-                             const Array<int> &_dof_map,
                              const Array<double> &_Bc,
                              const Array<double> &_Gc,
                              const Array<double> &_Bot,
@@ -1730,7 +1678,6 @@ static void PAHcurlH1Apply3D(const int D1D,
 {
    constexpr static int VDIM = 3;
 
-   auto dof_map = Reshape(_dof_map.Read(), 3*(D1D-1)*D1D*D1D);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
@@ -1889,9 +1836,7 @@ static void PAHcurlH1Apply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-		     const double s = dof_map(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc) >= 0 ? 1.0 :
-                                      -1.0;
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += s * massXY[dy][dx] * wz;
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += massXY[dy][dx] * wz;
                   }
                }
             }
@@ -1907,7 +1852,6 @@ static void PAHcurlH1Apply3D(const int D1D,
 static void PAHcurlH1Apply2D(const int D1D,
                              const int Q1D,
                              const int NE,
-                             const Array<int> &_dof_map,
                              const Array<double> &_Bc,
                              const Array<double> &_Gc,
                              const Array<double> &_Bot,
@@ -1918,7 +1862,6 @@ static void PAHcurlH1Apply2D(const int D1D,
 {
    constexpr static int VDIM = 2;
 
-   auto dof_map = Reshape(_dof_map.Read(), 2*(D1D-1)*D1D);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
@@ -2016,8 +1959,7 @@ static void PAHcurlH1Apply2D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-		  const double s = dof_map(dx + (dy * D1Dx) + osc) >= 0 ? 1.0 : -1.0;
-                  y(dx + (dy * D1Dx) + osc, e) += s * massX[dx] * wy;
+                  y(dx + (dy * D1Dx) + osc, e) += massX[dx] * wy;
                }
             }
 
@@ -2030,10 +1972,10 @@ static void PAHcurlH1Apply2D(const int D1D,
 void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
-      PAHcurlH1Apply3D(dofs1D, quad1D, ne, dof_map, mapsC->B, mapsC->G,
+      PAHcurlH1Apply3D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
    else if (dim == 2)
-      PAHcurlH1Apply2D(dofs1D, quad1D, ne, dof_map, mapsC->B, mapsC->G,
+      PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
 }
 
