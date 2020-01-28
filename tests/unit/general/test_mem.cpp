@@ -19,12 +19,12 @@ using namespace mfem;
 
 static void ScanMemoryTypes(const int N = 1024)
 {
-   constexpr int SIZE = static_cast<int>(MemoryType::HOST_UMPIRE);
-   Vector v[SIZE];
-   MemoryType mt = MemoryType::HOST;
-   for (int i=0; i<SIZE; i++, mt++)
+   constexpr int mt_max = static_cast<int>(MemoryType::HOST_UMPIRE);
+   Vector v[mt_max];
+   int mt = HostMemoryType;
+   for (int i=0; i<mt_max; i++, mt++)
    {
-      Memory<double> mem(N, mt);
+      Memory<double> mem(N, static_cast<MemoryType>(mt));
       REQUIRE(mem.Capacity() == N);
       Vector &y = v[i];
       y.NewMemoryAndSize(mem, N, true);

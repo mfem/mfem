@@ -516,7 +516,7 @@ public:
 
    void Configure()
    {
-      if (host[static_cast<int>(MemoryType::HOST)])
+      if (host[HostMemoryType])
       {
          mfem_error("Memory backends have already been configured!");
       }
@@ -529,28 +529,28 @@ public:
       host[static_cast<int>(MemoryType::HOST)] =
          static_cast<HostMemorySpace*>(new StdHostMemorySpace());
 
-      host[static_cast<int>(MemoryType::HOST_UMPIRE)] =
-         static_cast<HostMemorySpace*>(new UmpireHostMemorySpace());
-
       host[static_cast<int>(MemoryType::HOST_32)] =
          static_cast<HostMemorySpace*>(new Aligned32HostMemorySpace());
 
       host[static_cast<int>(MemoryType::HOST_64)] =
          static_cast<HostMemorySpace*>(new Aligned64HostMemorySpace());
 
-      // Only create MmuHostMemorySpace if needed, as it reroutes signals.
+      // Only create MmuHostMemorySpace if needed, as it reroutes signals
       if (debug)
       {
          host[static_cast<int>(MemoryType::HOST_DEBUG)] =
             static_cast<HostMemorySpace*>(new MmuHostMemorySpace());
       }
 
+      host[static_cast<int>(MemoryType::HOST_UMPIRE)] =
+         static_cast<HostMemorySpace*>(new UmpireHostMemorySpace());
+
       host[static_cast<int>(MemoryType::HOST_MANAGED)] =
          static_cast<HostMemorySpace*>(new UvmHostMemorySpace());
 
       // Filling the device memory backends, shifting with the host size
       // Debug is special because of wrap(HOST) => uses DEVICE
-      device[static_cast<int>(MemoryType::DEVICE)-HostMemoryTypeSize] =
+      device[DeviceMemoryType-DeviceMemoryType] =
 #if defined(MFEM_USE_CUDA)
          (debug) ?
          static_cast<DeviceMemorySpace*>(new MmuDeviceMemorySpace()):
@@ -563,17 +563,17 @@ public:
          static_cast<DeviceMemorySpace*>(new NoDeviceMemorySpace());
 #endif
 
-      device[static_cast<int>(MemoryType::DEVICE_MANAGED)-HostMemoryTypeSize] =
-         static_cast<DeviceMemorySpace*>(new UvmCudaMemorySpace());
-
-      device[static_cast<int>(MemoryType::DEVICE_UMPIRE)-HostMemoryTypeSize] =
-         static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());
-
       if (debug)
       {
-         device[static_cast<int>(MemoryType::DEVICE_DEBUG)-HostMemoryTypeSize] =
+         device[static_cast<int>(MemoryType::DEVICE_DEBUG)-DeviceMemoryType] =
             static_cast<DeviceMemorySpace*>(new MmuDeviceMemorySpace());
       }
+
+      device[static_cast<int>(MemoryType::DEVICE_UMPIRE)-DeviceMemoryType] =
+         static_cast<DeviceMemorySpace*>(new UmpireDeviceMemorySpace());
+
+      device[static_cast<int>(MemoryType::DEVICE_MANAGED)-DeviceMemoryType] =
+         static_cast<DeviceMemorySpace*>(new UvmCudaMemorySpace());
    }
 
    HostMemorySpace* Host(const MemoryType mt)
@@ -592,11 +592,10 @@ public:
 
    ~Ctrl()
    {
-      for (MemoryType mt = MemoryType::HOST; mt<MemoryType::DEVICE; mt++)
-      { delete host[static_cast<int>(mt)]; }
-
-      for (MemoryType mt = MemoryType::DEVICE; mt<MemoryType::SIZE; mt++)
-      { delete device[static_cast<int>(mt)-HostMemoryTypeSize]; }
+      constexpr int mt_h = HostMemoryType;
+      constexpr int mt_d = DeviceMemoryType;
+      for (int mt = mt_h; mt < mt_d; mt++) { delete host[mt]; }
+      for (int mt = mt_d; mt < MemoryTypeSize; mt++) { delete device[mt-mt_d]; }
    }
 };
 
