@@ -685,6 +685,10 @@ style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
 	   echo "No source files were changed.";\
 	fi
+	@echo "Checking usage of cout and cerr."
+	@-(grep cout */*.?pp | grep -v examples/ | grep -v general/globals | grep -v cerrno)|| true
+	@-(grep cerr */*.?pp | grep -v examples/ | grep -v general/globals | grep -v cerrno)|| true
+
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:
