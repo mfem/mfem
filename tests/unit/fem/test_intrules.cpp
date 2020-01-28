@@ -70,6 +70,15 @@ TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
       REQUIRE(true);
    }
 
+   SECTION("setting the integration point index works")
+   {
+      ir = &my_intrules.Get(Geometry::CUBE, 5);
+      for (int i = 0; i < ir->Size(); i++)
+      {
+         REQUIRE(ir->IntPoint(i).index == i);
+      }
+   }
+
    SECTION("intrules up to order 16 accessible")
    {
       for (int order = 0; order <= 16; order ++)

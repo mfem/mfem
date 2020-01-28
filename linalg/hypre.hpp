@@ -525,6 +525,14 @@ public:
        Ae sum to the original matrix. */
    HypreParMatrix* EliminateRowsCols(const Array<int> &rows_cols);
 
+   /** Eliminate columns from the matrix and store the eliminated elements in a
+       new matrix Ae (returned) so that the modified matrix and Ae sum to the
+       original matrix. */
+   HypreParMatrix* EliminateCols(const Array<int> &cols);
+
+   /// Eliminate rows from the diagonal and off-diagonal blocks of the matrix.
+   void EliminateRows(const Array<int> &rows);
+
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0);
    /// Reads the matrix from a file
