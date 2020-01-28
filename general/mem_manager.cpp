@@ -636,6 +636,7 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
       mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt);
       flags |= Mem::OWNS_DEVICE| Mem::VALID_DEVICE;
    }
+   CheckHostMemoryType_(h_mt, h_ptr);
    return h_ptr;
 }
 
