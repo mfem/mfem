@@ -628,12 +628,12 @@ template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
    capacity = size;
-   if (mt == MemoryType::HOST) { flags = OWNS_HOST | VALID_HOST; }
+   const int bytes = size*sizeof(T);
+   const bool mt_host = mt == MemoryType::HOST;
+   if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
    T *h_tmp = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
-   h_ptr = (mt == MemoryType::HOST) ? h_tmp:
-           (T*)MemoryManager::New_(h_tmp, size*sizeof(T), mt, flags);
-   MemoryManager::CheckHostMemoryType_(h_mt, h_ptr);
+   h_ptr = (mt_host) ? h_tmp: (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
 }
 
 template <typename T>
