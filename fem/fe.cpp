@@ -1758,9 +1758,9 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
    // Store the dof_map of the associated TensorBasisElement, which will be used
    // to create the serendipity dof map.  Its size is larger than the size of
    // the serendipity element.
-   TensorBasisElement tbeTemp = TensorBasisElement(2, p,
-                                                   BasisType::GaussLobatto,
-                                                   TensorBasisElement::DofMapType::Sr_DOF_MAP);
+   TensorBasisElement tbeTemp =
+      TensorBasisElement(2, p, BasisType::GaussLobatto,
+                         TensorBasisElement::DofMapType::Sr_DOF_MAP);
    const Array<int> tp_dof_map = tbeTemp.GetDofMap();
 
    const double *cp = poly1d.ClosedPoints(p, BasisType::GaussLobatto);
@@ -1826,13 +1826,13 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    for (int i = 0; i<p-1; i++)
    {
       vtx0fix += (1-edgePts[i+1])*(shape(4 + i) +
-                                   shape(4 + 4*(p-1) - i - 1)); // bot + left edge
+                                   shape(4 + 4*(p-1) - i - 1)); // bot+left edge
       vtx1fix += (1-edgePts[i+1])*(shape(4 + 1*(p-1) + i) +
-                                   shape(4 + (p-2)-i));         // right + bot edge
+                                   shape(4 + (p-2)-i));        // right+bot edge
       vtx2fix += (1-edgePts[i+1])*(shape(4 + 2*(p-1) + i) +
-                                   shape(1 + 2*p-i));           // top + right edge
+                                   shape(1 + 2*p-i));          // top+right edge
       vtx3fix += (1-edgePts[i+1])*(shape(4 + 3*(p-1) + i) +
-                                   shape(3*p - i));             // left + top edge
+                                   shape(3*p - i));            // left+top edge
    }
    shape(0) = bilinearsAtIP(0) - vtx0fix;
    shape(1) = bilinearsAtIP(1) - vtx1fix;
