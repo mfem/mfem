@@ -3325,7 +3325,7 @@ protected:
 public:
    DistanceMetric(int D) { Dim = D; }
 
-   virtual void setDim(int D) { Dim = D; }
+   virtual void SetDim(int D) { Dim = D; }
    
    virtual void Distance(const Vector &x,
                          double &r) const = 0;
