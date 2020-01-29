@@ -78,6 +78,7 @@ protected:
    bool anisotropic;
    Array<int> aniso_flags;
    int flux_averaging; // see SetFluxAveraging()
+   int _with_coeff;
 
    BilinearFormIntegrator *integ; ///< Not owned.
    GridFunction *solution; ///< Not owned.
@@ -102,11 +103,13 @@ public:
        @param integ    This BilinearFormIntegrator must implement the methods
                        ComputeElementFlux() and ComputeFluxEnergy().
        @param sol      The solution field whose error is to be estimated.
+       @param with_coeff Takes value of 1 if we want to consider the coefficient
+               in the bilinear integrator to weight the fluxed.
        @param flux_fes The ZienkiewiczZhuEstimator assumes ownership of this
                        FiniteElementSpace and will call its Update() method when
                        needed. */
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
-                           FiniteElementSpace *flux_fes)
+                           FiniteElementSpace *flux_fes, int with_coeff = 0)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
@@ -114,6 +117,7 @@ public:
         integ(&integ),
         solution(&sol),
         flux_space(flux_fes),
+        _with_coeff(with_coeff),
         own_flux_fes(true)
    { }
 
@@ -121,11 +125,13 @@ public:
        @param integ    This BilinearFormIntegrator must implement the methods
                        ComputeElementFlux() and ComputeFluxEnergy().
        @param sol      The solution field whose error is to be estimated.
+       @param with_coeff Takes value of 1 if we want to consider the coefficient
+               in the bilinear integrator to weight the fluxed.
        @param flux_fes The ZienkiewiczZhuEstimator does NOT assume ownership of
                        this FiniteElementSpace; will call its Update() method
                        when needed. */
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
-                           FiniteElementSpace &flux_fes)
+                           FiniteElementSpace &flux_fes, int with_coeff = 0)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
@@ -133,6 +139,7 @@ public:
         integ(&integ),
         solution(&sol),
         flux_space(&flux_fes),
+        _with_coeff(with_coeff),
         own_flux_fes(false)
    { }
 

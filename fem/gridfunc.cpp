@@ -2900,9 +2900,9 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux, Vector &error_estimates,
                         Array<int>* aniso_flags,
-                        int with_subdomains)
+                        int with_subdomains,
+                        int with_coeff)
 {
-   const int with_coeff = 0;
    FiniteElementSpace *ufes = u.FESpace();
    FiniteElementSpace *ffes = flux.FESpace();
    ElementTransformation *Transf;
