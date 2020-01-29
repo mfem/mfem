@@ -13,6 +13,7 @@
 
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
+#include "../linalg/blas.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
 
@@ -3733,6 +3734,117 @@ static void D2QGrad(const FiniteElementSpace &fes,
    MFEM_ABORT("Unknown kernel");
 }
 
+template<int T_D1D =0, int T_Q1D =0>
+static void ApplyInvJac2D(const int NE, const GeometricFactors *geom,
+                          Vector &phy_der, const int D1D, const int Q1D)
+{
+
+  constexpr int VDIM = 2;
+  const int NQ = Q1D*Q1D;
+  auto y = Reshape(phy_der.ReadWrite(), VDIM, VDIM, NQ, NE);
+  auto J = Reshape(geom->J.Read(), NQ, 2, 2, NE);
+
+  MFEM_FORALL(e, 1,
+  {
+    double Yloc[VDIM][VDIM];
+    double Jloc[VDIM][VDIM];
+    double Jinv[VDIM][VDIM];
+
+    for(int q=0; q<Q1D*Q1D; ++q)
+    {
+
+      //matrix is column major in mfem
+      for(int r=0; r<VDIM; ++r) 
+      {
+        for(int c=0; c<VDIM; ++c)
+        {
+          Jloc[c][r] = J(q,c,r,e); 
+          Yloc[c][r] = y(c,r,q,e);
+        }
+      }
+
+      blas::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
+
+#if 0      
+      for(int r=0; r<VDIM; ++r){
+        for(int c=0; c<VDIM; ++c){
+          //printf("%g ",Jinv[r][c]);
+          printf("%g ",Jinv[r][c]);
+        }
+        printf("\n");
+      }
+
+      for(int r=0; r<VDIM; ++r){
+        for(int c=0; c<VDIM; ++c){
+          //printf("%g ",Jinv[r][c]);
+          printf("%g ",Yloc[r][c]);
+        }
+        printf("\n");
+      }
+#endif
+
+      //Apply Jinv for change of coordinates
+      for(int r=0; r<VDIM; ++r){
+        for(int c=0; c<VDIM; ++c){
+          
+          double dot(0.0);
+          for(int k=0; k<VDIM; ++k){
+            dot += Yloc[r][k]*Jinv[k][c];
+          }
+          y(r,c,q,e) = dot;
+        }
+      }
+#if 0
+      for(int r=0; r<VDIM; ++r){
+        for(int c=0; c<VDIM; ++c){
+          printf("%g ",y(r,c,q,e));
+        }
+        printf("\n");
+      }
+#endif
+
+    }//qpts
+  });
+
+
+}
+
+
+static void ApplyInvJac(const FiniteElementSpace &fes, const GeometricFactors *geom,
+                        const DofToQuad *maps, Vector &phy_der)
+{
+
+   const int dim = fes.GetMesh()->Dimension();
+   const int NE = fes.GetNE();
+   const int D1D = fes.GetFE(0)->GetOrder() + 1;
+   const int Q1D = maps->nqpt;
+   const int id = (D1D<<4) | Q1D;
+
+   if (dim==2)
+   {
+      switch (id)
+      {
+         default: return ApplyInvJac2D(NE, geom, phy_der, D1D, Q1D);
+      }
+   }
+   if (dim==3)
+   {
+      switch (id)
+      {
+         default:
+         {
+             MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
+           //return ApplyInvJac3D<0,0,8,8>(NE, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
+         }
+      }
+   }
+   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
+   MFEM_ABORT("Unknown kernel");
+
+   printf("Apply jacobian \n");
+   exit(-1);
+}
+
 void QuadratureInterpolator::Derivatives(const Vector &e_vec,
                                          Vector &q_der) const
 {
@@ -3740,6 +3852,27 @@ void QuadratureInterpolator::Derivatives(const Vector &e_vec,
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
    D2QGrad(*fespace, &d2q, ir, e_vec, q_der);
+}
+
+void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
+                                         Vector &q_der) const
+{
+
+   Mesh *mesh = fespace->GetMesh();
+   mesh->DeleteGeometricFactors();
+   const IntegrationRule &ir = *IntRule;
+
+   const GeometricFactors *geom =
+    mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
+   D2QGrad(*fespace, &d2q, ir, e_vec, q_der);
+   ApplyInvJac(*fespace, geom, &d2q, q_der);
+
+   //TODO: remove - for testing only
+   //apps should delete geo facts
+   mesh->DeleteGeometricFactors(); 
 }
 
 } // namespace mfem
