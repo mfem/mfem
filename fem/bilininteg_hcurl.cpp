@@ -652,15 +652,13 @@ static void PACurlCurlSetup3D(const int Q1D,
                               const Array<double> &w,
                               const Vector &j,
                               Vector &_coeff,
-                              Vector &op,
-                              Vector &op2)
+                              Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto coeff = Reshape(_coeff.Read(), NQ, NE);
-   auto y = Reshape(op.Write(), NQ, 10, NE);
-   auto y2 = Reshape(op2.Write(), NQ, 6, NE);
+   auto y = Reshape(op.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -677,37 +675,16 @@ static void PACurlCurlSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         // adj(J)
-         const double A11 = (J22 * J33) - (J23 * J32);
-         const double A12 = (J32 * J13) - (J12 * J33);
-         const double A13 = (J12 * J23) - (J22 * J13);
-         const double A21 = (J31 * J23) - (J21 * J33);
-         const double A22 = (J11 * J33) - (J13 * J31);
-         const double A23 = (J21 * J13) - (J11 * J23);
-         const double A31 = (J21 * J32) - (J31 * J22);
-         const double A32 = (J31 * J12) - (J11 * J32);
-         const double A33 = (J11 * J22) - (J12 * J21);
-         // J^{-1} = (1/detJ) adj(J)
-         y(q,0,e) = A11 / detJ;
-         y(q,1,e) = A12 / detJ;
-         y(q,2,e) = A13 / detJ;
-         y(q,3,e) = A21 / detJ;
-         y(q,4,e) = A22 / detJ;
-         y(q,5,e) = A23 / detJ;
-         y(q,6,e) = A31 / detJ;
-         y(q,7,e) = A32 / detJ;
-         y(q,8,e) = A33 / detJ;
-         y(q,9,e) = W[q] * coeff(q,e) * detJ;
 
-         // set y2 to the 6 entries of J^T J / det^2
+         // set y to the 6 entries of J^T J / det^2
          const double c_detJ = W[q] * coeff(q,e) / detJ;
 
-         y2(q,0,e) = c_detJ * (J11*J11 + J21*J21 + J31*J31); // 1,1
-         y2(q,1,e) = c_detJ * (J11*J12 + J21*J22 + J31*J32); // 1,2
-         y2(q,2,e) = c_detJ * (J11*J13 + J21*J23 + J31*J33); // 1,3
-         y2(q,3,e) = c_detJ * (J12*J12 + J22*J22 + J32*J32); // 2,2
-         y2(q,4,e) = c_detJ * (J12*J13 + J22*J23 + J32*J33); // 2,3
-         y2(q,5,e) = c_detJ * (J13*J13 + J23*J23 + J33*J33); // 3,3
+         y(q,0,e) = c_detJ * (J11*J11 + J21*J21 + J31*J31); // 1,1
+         y(q,1,e) = c_detJ * (J11*J12 + J21*J22 + J31*J32); // 1,2
+         y(q,2,e) = c_detJ * (J11*J13 + J21*J23 + J31*J33); // 1,3
+         y(q,3,e) = c_detJ * (J12*J12 + J22*J22 + J32*J32); // 2,2
+         y(q,4,e) = c_detJ * (J12*J13 + J22*J23 + J32*J33); // 2,3
+         y(q,5,e) = c_detJ * (J13*J13 + J23*J23 + J33*J33); // 3,3
       }
    });
 }
@@ -741,7 +718,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   const int ndata = (dim == 2) ? 1 : 10;
+   const int ndata = (dim == 2) ? 1 : 6;
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
    Vector coeff(ne * nq);
@@ -760,10 +737,10 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
-      pa_data_2.SetSize(6 * nq * ne, Device::GetMemoryType());
+     //pa_data_2.SetSize(6 * nq * ne, Device::GetMemoryType());
 
       PACurlCurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
-                        coeff, pa_data, pa_data_2);
+                        coeff, pa_data);
    }
    else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
@@ -909,9 +886,11 @@ static void PACurlCurlApply3D(const int D1D,
                               const Vector &_x,
                               Vector &_y)
 {
-   // Note that _Go and _Got are never actually used. They are used in the diagonal of the gradient, which is not used in the curl.
-   // This implementation is based on the identity [\nabla\times u] F = dF^{-T} [\hat{\nabla}\times\hat{u}] dF^{-1} (p. 77 of Monk).
-   // It may have been simpler to use the identity (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk).
+   // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
+   // (\nabla\times u) \cdot (\nabla\times v) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{v}
+   // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+   // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+   // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
 
    constexpr static int VDIM = 3;
 
@@ -923,27 +902,14 @@ static void PACurlCurlApply3D(const int D1D,
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
    auto Got = Reshape(_Got.Read(), D1D-1, Q1D);
    auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 10, NE);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
    auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   int idJ[3][3];
-
-   idJ[0][0] = 0;
-   idJ[0][1] = 1;
-   idJ[0][2] = 2;
-   idJ[1][0] = 3;
-   idJ[1][1] = 4;
-   idJ[1][2] = 5;
-   idJ[2][0] = 6;
-   idJ[2][1] = 7;
-   idJ[2][2] = 8;
-
    MFEM_FORALL(e, NE,
    {
-      double grad[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM][VDIM];
-
-      // grad[qz][qy][qx][c][d] will be computed as the partial derivative of component c with respect to spatial variable d.
+      double curl[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
+      // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -953,10 +919,7 @@ static void PACurlCurlApply3D(const int D1D,
             {
                for (int c = 0; c < VDIM; ++c)
                {
-                  for (int d = 0; d < VDIM; ++d)
-                  {
-                     grad[qz][qy][qx][c][d] = 0.0;
-                  }
+		  curl[qz][qy][qx][c] = 0.0;
                }
             }
          }
@@ -1028,9 +991,21 @@ static void PACurlCurlApply3D(const int D1D,
                {
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     grad[qz][qy][qx][c][0] += gradXY[qy][qx][0] * wz;
-                     grad[qz][qy][qx][c][1] += gradXY[qy][qx][1] * wz;
-                     grad[qz][qy][qx][c][2] += gradXY[qy][qx][2] * wDz;
+		     if (c == 0)
+		       { // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+			 curl[qz][qy][qx][1] += gradXY[qy][qx][2] * wDz;  // (u_0)_{x_2}
+			 curl[qz][qy][qx][2] -= gradXY[qy][qx][1] * wz;  // -(u_0)_{x_1}
+		       }
+		     else if (c == 1)
+		       { // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+			 curl[qz][qy][qx][0] -= gradXY[qy][qx][2] * wDz;  // -(u_1)_{x_2}
+			 curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz;  // (u_1)_{x_0}
+		       }
+		     else 
+		       { // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+			 curl[qz][qy][qx][0] += gradXY[qy][qx][1] * wz;  // (u_2)_{x_1}
+			 curl[qz][qy][qx][1] -= gradXY[qy][qx][0] * wz;  // -(u_2)_{x_0}
+		       }
                   }
                }
             }
@@ -1046,80 +1021,27 @@ static void PACurlCurlApply3D(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               double curlRef[3][3];
-               double invJ[3][3];
+	       const double O11 = op(qx,qy,qz,0,e);
+	       const double O12 = op(qx,qy,qz,1,e);
+	       const double O13 = op(qx,qy,qz,2,e);
+	       const double O22 = op(qx,qy,qz,3,e);
+	       const double O23 = op(qx,qy,qz,4,e);
+	       const double O33 = op(qx,qy,qz,5,e);
 
-               // op stores the entries of J^{-1} and det.
+	       const double c1 = (O11 * curl[qz][qy][qx][0]) + (O12 * curl[qz][qy][qx][1]) + (O13 * curl[qz][qy][qx][2]);
+	       const double c2 = (O12 * curl[qz][qy][qx][0]) + (O22 * curl[qz][qy][qx][1]) + (O23 * curl[qz][qy][qx][2]);
+	       const double c3 = (O13 * curl[qz][qy][qx][0]) + (O23 * curl[qz][qy][qx][1]) + (O33 * curl[qz][qy][qx][2]);
 
-               invJ[0][0] = op(qx,qy,qz,0,e);
-               invJ[0][1] = op(qx,qy,qz,1,e);
-               invJ[0][2] = op(qx,qy,qz,2,e);
-               invJ[1][0] = op(qx,qy,qz,3,e);
-               invJ[1][1] = op(qx,qy,qz,4,e);
-               invJ[1][2] = op(qx,qy,qz,5,e);
-               invJ[2][0] = op(qx,qy,qz,6,e);
-               invJ[2][1] = op(qx,qy,qz,7,e);
-               invJ[2][2] = op(qx,qy,qz,8,e);
-
-               const double det = op(qx,qy,qz,9,
-                                     e);  // determinant times quadrature weight times coefficient
-               MFEM_VERIFY(det > 0, "");
-
-               for (int c = 0; c < 3; ++c)
-               {
-                  for (int d = 0; d < 3; ++d)
-                  {
-                     curlRef[c][d] = grad[qz][qy][qx][c][d] - grad[qz][qy][qx][d][c];
-                  }
-               }
-
-               // Set grad[qz][qy][qx] = J^{-T} curlRef J^{-1}
-               for (int i=0; i<3; ++i)
-               {
-                  for (int j=0; j<3; ++j)
-                  {
-                     grad[qz][qy][qx][i][j] = 0;
-                     for (int k=0; k<3; ++k)
-                     {
-                        double curl_invJ_kj = 0;
-
-                        for (int l=0; l<3; ++l)
-                        {
-                           curl_invJ_kj += curlRef[k][l] * invJ[l][j];
-                        }
-
-                        grad[qz][qy][qx][i][j] += invJ[k][i] * curl_invJ_kj;
-                     }
-                  }
-               }
-
-               // Now curl v = [g[2][1], g[0][2], g[1][0], where g = grad[qz][qy][qx].
-
-               const double curlx = grad[qz][qy][qx][2][1];
-               const double curly = grad[qz][qy][qx][0][2];
-               const double curlz = grad[qz][qy][qx][1][0];
-
-               // Set g[0][:] = J^{-1}_{(:,1)} g[2][1]
-               //     g[1][:] = J^{-1}_{(:,2)} g[0][2]
-               //     g[2][:] = J^{-1}_{(:,0)} g[1][0]
-               // Also scale by det.
-               for (int i=0; i<3; ++i)
-               {
-                  grad[qz][qy][qx][0][i] = invJ[i][1] * curlx * det;
-                  grad[qz][qy][qx][1][i] = invJ[i][2] * curly * det;
-                  grad[qz][qy][qx][2][i] = invJ[i][0] * curlz * det;
-               }
+	       curl[qz][qy][qx][0] = c1;
+	       curl[qz][qy][qx][1] = c2;
+	       curl[qz][qy][qx][2] = c3;
             }
          }
       }
 
-      // Note that curl does not simplify as a tensor product of derivatives, like for diffusion.
-      // All 6 of the off-diagonal partial derivatives must be computed and stored, before computing curl,
-      // which involves a transformation with the Jacobian at each quadrature point.
-
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double gradXY[MAX_D1D][MAX_D1D][2][2][6];
+         double gradXY[MAX_D1D][MAX_D1D][3][3];
 
          osc = 0;
 
@@ -1133,27 +1055,26 @@ static void PACurlCurlApply3D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  for (int n = 0; n < 2; ++n)
+                  for (int n = 0; n < 3; ++n)
                   {
-                     for (int d = 0; d < 6; ++d)
+                     for (int d = 0; d < 3; ++d)
                      {
-                        gradXY[dy][dx][0][n][d] = 0;
-                        gradXY[dy][dx][1][n][d] = 0;
+                        gradXY[dy][dx][n][d] = 0.0;
+                        gradXY[dy][dx][n][d] = 0.0;
                      }
                   }
                }
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double gradX[MAX_D1D][2][2][6];
+               double gradX[MAX_D1D][2][3];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   for (int n = 0; n < 2; ++n)
                   {
-                     for (int d = 0; d < 6; ++d)
+                     for (int d = 0; d < 3; ++d)
                      {
-                        gradX[dx][0][n][d] = 0;
-                        gradX[dx][1][n][d] = 0;
+                        gradX[dx][n][d] = 0.0;
                      }
                   }
                }
@@ -1163,33 +1084,11 @@ static void PACurlCurlApply3D(const int D1D,
                   {
                      const double wx = ((c == 0) ? Bot(dx,qx) : Bct(dx,qx));
                      const double wDx = ((c == 0) ? Got(dx,qx) : Gct(dx,qx));
-
-                     // The pattern for all c is for each i != c, we store 6 quantities for J^{-1}_{(c,m)} g[n][i], J^{-1}_{(i,m)} g[n][c].
-                     int d = 0;
-                     for (int i = 0; i < 3; ++i)
-                     {
-                        if (i != c)
-                        {
-                           for (int n = 0; n < 3; ++n)
-                           {
-                              const int m = (n + 2) % 3;
-                              const double invJcm = op(qx,qy,qz,idJ[c][m],e);
-                              const double invJim = op(qx,qy,qz,idJ[i][m],e);
-
-                              gradX[dx][0][d][2*n] += invJcm * grad[qz][qy][qx][n][i] *
-                                                      wx; // J^{-1}_{(c,m)} g[n][i]
-                              gradX[dx][0][d][(2*n)+1] += invJim * grad[qz][qy][qx][n][c] *
-                                                          wx; // J^{-1}_{(i,m)} g[n][c]
-
-                              gradX[dx][1][d][2*n] += invJcm * grad[qz][qy][qx][n][i] *
-                                                      wDx; // J^{-1}_{(c,m)} g[n][i]
-                              gradX[dx][1][d][(2*n)+1] += invJim * grad[qz][qy][qx][n][c] *
-                                                          wDx; // J^{-1}_{(i,m)} g[n][c]
-                           }
-
-                           d++;
-                        }
-                     }
+                     for (int d = 0; d < 3; ++d)
+		       {
+			 gradX[dx][0][d] += wx * curl[qz][qy][qx][d];
+			 gradX[dx][1][d] += wDx * curl[qz][qy][qx][d];
+		       }
                   }
                }
                for (int dy = 0; dy < D1Dy; ++dy)
@@ -1199,28 +1098,14 @@ static void PACurlCurlApply3D(const int D1D,
 
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     // The pattern for all c is for each i != c, we store 6 quantities for J^{-1}_{(c,m)} g[n][i], J^{-1}_{(i,m)} g[n][c].
-                     for (int d = 0; d < 2; ++d)
-                     {
-                        for (int n = 0; n < 6; ++n)
-                        {
-                           if (c == 0)  // skip wDx
-                           {
-                              gradXY[dy][dx][0][d][n] += gradX[dx][0][d][n] * wDy; // wx * wDy
-                              gradXY[dy][dx][1][d][n] += gradX[dx][0][d][n] * wy;  // wx * wy
-                           }
-                           else if (c == 1)  // skip wDy
-                           {
-                              gradXY[dy][dx][0][d][n] += gradX[dx][1][d][n] * wy;  // wDx * wy
-                              gradXY[dy][dx][1][d][n] += gradX[dx][0][d][n] * wy;  // wx * wy
-                           }
-                           else // c == 2, skip wDz
-                           {
-                              gradXY[dy][dx][0][d][n] += gradX[dx][1][d][n] * wy;  // wDx * wy
-                              gradXY[dy][dx][1][d][n] += gradX[dx][0][d][n] * wDy; // wx * wDy
-                           }
-                        }
-                     }
+                     for (int d = 0; d < 3; ++d)
+		       {
+			 const double wx = gradX[dx][0][d];
+			 const double wDx = gradX[dx][1][d];
+			 gradXY[dy][dx][0][d] += wDx * wy;
+			 gradXY[dy][dx][1][d] += wx * wDy;
+			 gradXY[dy][dx][2][d] += wx * wy;
+		       }
                   }
                }
             }
@@ -1233,101 +1118,25 @@ static void PACurlCurlApply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     // [gradXY[dy][dx][0] * wz, gradXY[dy][dx][1] * wz, gradXY[dy][dx][2] * wDz] is grad(u_c), except for the c entry (not used).
 
-                     // 21 contribution is (J^{-1}_{(:,2)})^T [curl u] g[0][:]
-                     // 02 contribution is (J^{-1}_{(:,0)})^T [curl u] g[1][:]
-                     // 10 contribution is (J^{-1}_{(:,1)})^T [curl u] g[2][:]
-
-                     // The pattern for all c is for each i != c, we store 6 quantities for J^{-1}_{(c,m)} g[n][i], J^{-1}_{(i,m)} g[n][c].
-                     // We do not need the derivative of component u_c with respect to x_c.
-
-                     for (int n = 0; n < 3; ++n)
-                     {
-                        // Note that there are entries of gradXY that do not get used. This could be optimized further,
-                        // perhaps by using the idenity (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u}.
-                        const double t1 = gradXY[dy][dx][0][0][2*n];
-                        const double t2 = gradXY[dy][dx][0][0][(2*n)+1];
-
-                        //const double t3 = gradXY[dy][dx][0][1][2*n];  // not used
-                        //const double t4 = gradXY[dy][dx][0][1][(2*n)+1];  // not used
-
-                        //const double t5 = gradXY[dy][dx][1][0][2*n];  // not used
-                        //const double t6 = gradXY[dy][dx][1][0][(2*n)+1];  // not used
-
-                        const double t7 = gradXY[dy][dx][1][1][2*n];
-                        const double t8 = gradXY[dy][dx][1][1][(2*n)+1];
-
-                        if (c == 0)
-                        {
-                           // For 21, 02, 10, the contribution is
-                           //  J^{-1}_{(0,m)} { (u_0)_{x_1} g[n][1] + (u_0)_{x_2} g[n][2] } +
-                           // -J^{-1}_{(1,m)} (u_0)_{x_1} g[n][0]
-                           // -J^{-1}_{(2,m)} (u_0)_{x_2} g[n][0]
-                           // where m = 2, 0, 1, and n = 0, 1, 2, respectively.
-                           // However, J is not available, since we already summed over quadrature points.
-                           // Thus for i = 1, we store the 6 summed quantities gradXY[dy][dx][i] times J^{-1}_{(0,m)} g[n][1], J^{-1}_{(1,m)} g[n][0];
-                           //      for i = 2, we store the 6 summed quantities gradXY[dy][dx][i] times J^{-1}_{(0,m)} g[n][2], J^{-1}_{(2,m)} g[n][0].
-
-                           // t1 = wx * wDy times J^{-1}_{(0,m)} g[n][1]
-                           // t2 = wx * wDy times J^{-1}_{(1,m)} g[n][0]
-                           // t3 = wx * wDy times J^{-1}_{(0,m)} g[n][2]
-                           // t4 = wx * wDy times J^{-1}_{(2,m)} g[n][0]
-                           // t5 = wx * wy times J^{-1}_{(0,m)} g[n][1]
-                           // t6 = wx * wy times J^{-1}_{(1,m)} g[n][0]
-                           // t7 = wx * wy times J^{-1}_{(0,m)} g[n][2]
-                           // t8 = wx * wy times J^{-1}_{(2,m)} g[n][0]
-
-			   y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += ((t1 * wz) + (t7 * wDz) - (t2 * wz) - (t8 * wDz));
-                        }
-                        else if (c == 1)
-                        {
-                           // For 21, 02, 10, the contribution is
-                           // -J^{-1}_{(0,m)} (u_1)_{x_0} g[n][1] +
-                           //  J^{-1}_{(1,m)} { (u_1)_{x_0} g[n][0] + (u_1)_{x_2} g[n][2] } +
-                           // -J^{-1}_{(2,m)} (u_1)_{x_2} g[n][1]
-                           // where m = 2, 0, 1, and n = 0, 1, 2, respectively.
-                           // However, J is not available, since we already summed over quadrature points.
-                           // Thus for i = 0, we store the 6 summed quantities gradXY[dy][dx][i] times J^{-1}_{(1,m)} g[n][0], J^{-1}_{(0,m)} g[n][1];
-                           //      for i = 2, we store the 6 summed quantities gradXY[dy][dx][i] times J^{-1}_{(1,m)} g[n][2], J^{-1}_{(2,m)} g[n][1].
-
-                           // t1 = wDx * wy times J^{-1}_{(1,m)} g[n][0]
-                           // t2 = wDx * wy times J^{-1}_{(0,m)} g[n][1]
-                           // t3 = wDx * wy times J^{-1}_{(1,m)} g[n][2]
-                           // t4 = wDx * wy times J^{-1}_{(2,m)} g[n][1]
-                           // t5 = wx * wy times J^{-1}_{(1,m)} g[n][0]
-                           // t6 = wx * wy times J^{-1}_{(0,m)} g[n][1]
-                           // t7 = wx * wy times J^{-1}_{(1,m)} g[n][2]
-                           // t8 = wx * wy times J^{-1}_{(2,m)} g[n][1]
-
-			   y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (-(t2 * wz) + (t1 * wz) + (t7 * wDz) - (t8 * wDz));
-                        }
-                        else  // c == 2
-                        {
-                           // For 21, 02, 10, the contribution is
-                           // -J^{-1}_{(0,m)} (u_2)_{x_0} g[n][2] +
-                           // -J^{-1}_{(1,m)} (u_2)_{x_1} g[n][2] +
-                           //  J^{-1}_{(2,m)} { (u_2)_{x_0} g[n][0] + (u_2)_{x_1} g[n][1] } +
-                           // where m = 2, 0, 1, and n = 0, 1, 2, respectively.
-                           // However, J is not available, since we already summed over quadrature points.
-                           // Thus for i = 0, we store the 6 summed quantities gradXY[dy][dx][i] times J^{-1}_{(2,m)} g[n][0], J^{-1}_{(0,m)} g[n][2];
-                           //      for i = 1, we store the 6 summed quantities gradXY[dy][dx][i] times J^{-1}_{(2,m)} g[n][1], J^{-1}_{(1,m)} g[n][2].
-
-                           // t1 = wDx * wy times J^{-1}_{(2,m)} g[n][0]
-                           // t2 = wDx * wy times J^{-1}_{(0,m)} g[n][2]
-                           // t3 = wDx * wy times J^{-1}_{(2,m)} g[n][1]
-                           // t4 = wDx * wy times J^{-1}_{(1,m)} g[n][2]
-                           // t5 = wx * wDy times J^{-1}_{(2,m)} g[n][0]
-                           // t6 = wx * wDy times J^{-1}_{(0,m)} g[n][2]
-                           // t7 = wx * wDy times J^{-1}_{(2,m)} g[n][1]
-                           // t8 = wx * wDy times J^{-1}_{(1,m)} g[n][2]
-
-			   y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += wz * (-t2 - t8 + t1 + t7);
-                        }
-                     }
-                  }
-               }
-            }
+		     if (c == 0)
+		       { // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+			 // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
+			 y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (gradXY[dy][dx][2][1] * wDz) - (gradXY[dy][dx][1][2] * wz);
+		       }
+		     else if (c == 1)
+		       { // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+			 // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
+			 y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (-gradXY[dy][dx][2][0] * wDz) + (gradXY[dy][dx][0][2] * wz);
+		       }
+		     else 
+		       { // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+			 // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
+			 y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (gradXY[dy][dx][1][0] * wz) - (gradXY[dy][dx][0][1] * wz);
+		       }
+		  }
+	       }
+	    }
 
             osc += D1Dx * D1Dy * D1Dz;
          }  // loop c
@@ -1586,7 +1395,7 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
       PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, ne, 
-                                   mapsO->B, mapsC->B, mapsO->G, mapsC->G, pa_data_2, diag);
+                                   mapsO->B, mapsC->B, mapsO->G, mapsC->G, pa_data, diag);
    else
       PACurlCurlAssembleDiagonal2D(dofs1D, quad1D, ne, 
                                    mapsO->B, mapsC->G, pa_data, diag);
