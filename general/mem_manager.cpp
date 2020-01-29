@@ -734,6 +734,16 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
       MFEM_VERIFY(bytes == 0, "Trying to access NULL with size " << bytes);
       return true;
    }
+
+   /*
+      // Sanity checks
+      const bool known_ptr = IsKnown_(h_ptr);
+      const bool known_alias = IsAlias_(h_ptr);
+      //if (!known_ptr && !known_alias)
+      //{for (int k=0; k<1024*1024; k++) { ((double*)h_ptr)[k] = 0; }}
+      MFEM_VERIFY(known_ptr || known_alias, "!known_ptr && !known_alias");
+   */
+
    const internal::Memory &mem =
       (flags & Mem::ALIAS) ?
       *maps->aliases.at(h_ptr).mem : maps->memories.at(h_ptr);

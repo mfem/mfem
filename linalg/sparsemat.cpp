@@ -2993,9 +2993,9 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    A_j    = A.GetJ();
    A_data = A.GetData();
 
-   At_i = new int[n+1];
-   At_j = new int[nnz];
-   At_data = new double[nnz];
+   At_i = new int[n+1]; // Memory<int>(n+1);
+   At_j = new int[nnz]; // Memory<int>(nnz);
+   At_data = new double[nnz]; // Memory<double>(nnz);
 
    for (i = 0; i <= n; i++)
    {

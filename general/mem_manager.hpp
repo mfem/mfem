@@ -640,7 +640,7 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
 {
    capacity = size;
    h_ptr = host_ptr;
-   h_mt = MemoryType::HOST;
+   h_mt = MemoryType::HOST; // or MemoryManager::host_mem_type;
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
@@ -651,16 +651,19 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
 #endif
 }
 
+/// Three cases:
+/// 1. MemoryType::HOST
+/// 2. Host memory type that needs to be registered
+/// 3. Device memory type that needs also to be registered
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
+   if (mt == MemoryType::HOST) { return Wrap(ptr, size, own); }
    capacity = size;
    const int bytes = size*sizeof(T);
-   const bool mt_host = mt == MemoryType::HOST;
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
    const bool h_mt_host = h_mt == MemoryType::HOST;
    T *h_tmp = (h_mt_host) ? new T[size] : nullptr;
-   if (mt_host) { return Wrap(h_tmp, size, own); }
    h_ptr = (T*)MemoryManager::Register_(ptr, h_tmp, bytes, mt, own, false, flags);
 }
 
