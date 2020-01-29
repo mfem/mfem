@@ -278,6 +278,60 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
          fec = new NURBSFECollection();
       }
    }
+   else if (!strncmp(name, "RBF", 3) || !strncmp(name, "RK", 2))
+   {
+      int dim = atoi(name + 9);
+      int numPoints = atoi(name + 12);
+      double h = atof(name + 16);
+      
+      RBFFunction *func;
+      if (!strncmp(name + 4, "GA", 2))
+      {
+         func = new GaussianRBF();
+      }
+      else if (!strncmp(name + 4, "MQ", 2))
+      {
+         func = new MultiquadricRBF();
+      }
+      else if (!strncmp(name + 4, "IM", 2))
+      {
+         func = new InvMultiquadricRBF();
+      }
+      else
+      {
+         MFEM_ABORT("unknown RBF: " << name);
+      }
+
+      DistanceMetric *dist;
+      if (!strncmp(name + 7, "E", 1))
+      {
+         dist = new EuclideanDistance(dim);
+      }
+      else if (!strncmp(name + 7, "M", 1))
+      {
+         dist = new ManhattanDistance(dim);
+      }
+      else
+      {
+         MFEM_ABORT("unknown distance: " << name);
+      }
+      
+      if (!strncmp(name, "RK", 2))
+      {
+         int order = atoi(name + 2);
+         fec = new KernelFECollection(dim, numPoints, h,
+                                      func, dist, order);
+      }
+      else
+      {
+         fec = new KernelFECollection(dim, numPoints, h,
+                                      func, dist);
+      }
+   }
+   // else if (!strncmp(name, "RK", 2))
+   // {
+   //    fec = new RK_FECollection();
+   // }
    else
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
@@ -2814,4 +2868,57 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
    return NULL;
 }
 
+KernelFECollection::KernelFECollection(int D,
+                                       int numPointsD,
+                                       int h,
+                                       RBFFunction *func,
+                                       DistanceMetric *dist,
+                                       int order)
+{
+   if (order == -1)
+   {
+      FE = new RBFFiniteElement(D, numPointsD, h,
+                                func, dist);
+   }
+   else
+   {
+      RBFFiniteElement *FEBase = new RBFFiniteElement(D, numPointsD, h,
+                                                      func, dist);
+      FE = new RKFiniteElement(order, FEBase);
+   }
 }
+
+bool KernelFECollection::ValidGeomType(int GeomType) const
+{
+   int dim = FE->GetDim();
+   return ((GeomType == Geometry::SEGMENT && dim == 1)
+           || (GeomType == Geometry::SQUARE && dim == 2)
+           || (GeomType == Geometry::CUBE && dim == 3));
+}
+
+const FiniteElement *
+KernelFECollection::FiniteElementForGeometry(int GeomType) const
+{
+   if (!ValidGeomType(GeomType))
+   {
+      mfem_error ("KernelFECollection: not a valid geometry-dim pair");
+   }
+   return FE;
+}
+
+int KernelFECollection::DofForGeometry(int GeomType) const
+{
+   if (!ValidGeomType(GeomType))
+   {
+      mfem_error ("KernelFECollection: not a valid geometry-dim pair");
+   }
+   return FE->GetDof();
+}
+
+int *KernelFECollection::DofOrderForOrientation(int GeomType, int Or) const
+{
+   mfem_error("KernelFECollection::DofOrderForOrientation");
+   return NULL;
+}
+
+} // namespace mfem

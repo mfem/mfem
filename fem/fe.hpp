@@ -3352,10 +3352,10 @@ public:
                            DenseMatrix &ddr) const;
 };
 
-class ManhattenDistance : public DistanceMetric
+class ManhattanDistance : public DistanceMetric
 {
 public:
-   ManhattenDistance(int D) : DistanceMetric(D) { };
+   ManhattanDistance(int D) : DistanceMetric(D) { };
 
    virtual void Distance(const Vector &x,
                          double &r) const;
@@ -3391,15 +3391,16 @@ private:
    double h; // Shape parameter
    double hInv; // Inverse shape parameter
    DenseMatrix pos; // Positions of points
-   RBFFunction &rbf;
-   DistanceMetric &distance;
+   RBFFunction *rbf;
+   DistanceMetric *distance;
    void SetPositions();
    
    void DDistanceVec(Vector &dy) const;
 
 public:
    RBFFiniteElement(int D, int numPointsD, double h,
-                    RBFFunction &func, DistanceMetric &dist);
+                    RBFFunction *func, DistanceMetric *dist);
+   ~RBFFiniteElement() { delete rbf; delete distance; }
    
    void DistanceVec(const int i,
                     const Vector &x,
@@ -3427,7 +3428,7 @@ private:
    mutable DenseMatrixInverse Minv;
 #endif
    int polyOrd, numPoly;
-   const KernelFiniteElement &baseFE;
+   KernelFiniteElement *baseFE;
 
    virtual void GetPoly(const Vector &x,
                         Vector &p) const;
@@ -3462,13 +3463,14 @@ private:
                                  DenseMatrix &dshape) const;
 public:
    RKFiniteElement(int poly,
-                   KernelFiniteElement& baseClass);
+                   KernelFiniteElement *baseClass);
+   ~RKFiniteElement() { delete baseFE; } 
    
    void DistanceVec(const int i,
                     const Vector &x,
                     Vector &y) const;
 
-   virtual const DenseMatrix &position() const { return baseFE.position(); }
+   virtual const DenseMatrix &position() const { return baseFE->position(); }
    
    static int GetNumPoly(int polyOrd, int dim);
    

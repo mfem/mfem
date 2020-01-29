@@ -12911,7 +12911,7 @@ void EuclideanDistance::DDDistance(const Vector &x,
    }
 }
 
-void ManhattenDistance::Distance(const Vector &x,
+void ManhattanDistance::Distance(const Vector &x,
                                  double &r) const
 {
    r = 0.0;
@@ -12921,7 +12921,7 @@ void ManhattenDistance::Distance(const Vector &x,
    }
 }
 
-void ManhattenDistance::DDistance(const Vector &x,
+void ManhattanDistance::DDistance(const Vector &x,
                                   const Vector &dx,
                                   Vector &dr) const
 {
@@ -12942,7 +12942,7 @@ void ManhattenDistance::DDistance(const Vector &x,
    }
 }
 
-void ManhattenDistance::DDDistance(const Vector &x,
+void ManhattanDistance::DDDistance(const Vector &x,
                                    const Vector &dx,
                                    DenseMatrix &ddr) const
 {
@@ -12978,7 +12978,7 @@ void KernelFiniteElement::IntRuleToVec(const IntegrationPoint &ip,
 }
 
 RBFFiniteElement::RBFFiniteElement(int D, int nD, double h,
-                                   RBFFunction &func, DistanceMetric &dist)
+                                   RBFFunction *func, DistanceMetric *dist)
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
                          TensorBasisElement::Pow(nD, D),
@@ -12998,7 +12998,7 @@ RBFFiniteElement::RBFFiniteElement(int D, int nD, double h,
      rbf(func),
      distance(dist)
 {
-   distance.SetDim(D);
+   distance->SetDim(D);
    SetPositions();
 }
 
@@ -13063,7 +13063,7 @@ void RBFFiniteElement::SetPositions()
 }
 
 void RBFFiniteElement::CalcShape(const IntegrationPoint &ip,
-                                 Vector& shape) const
+                                 Vector &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector x(Dim); // integration point as vector
@@ -13079,15 +13079,15 @@ void RBFFiniteElement::CalcShape(const IntegrationPoint &ip,
       DistanceVec(i, x, y);
 
       // Get distance
-      distance.Distance(y, r);
+      distance->Distance(y, r);
 
       // Get value of function
-      shape(i) = rbf.BaseFunction(r);
+      shape(i) = rbf->BaseFunction(r);
    }
 }
 
 void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
-                                  DenseMatrix& dshape) const
+                                  DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector x(Dim); // integration point as vector
@@ -13108,11 +13108,11 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
       DistanceVec(i, x, y);
 
       // Get distance and its derivative
-      distance.Distance(y, r);
-      distance.DDistance(y, dy, dr);
+      distance->Distance(y, r);
+      distance->DDistance(y, dy, dr);
 
       // Get base value of function
-      df = rbf.BaseDerivative(r);
+      df = rbf->BaseDerivative(r);
       
       for (int d = 0; d < Dim; ++d)
       {
@@ -13122,7 +13122,7 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
-                                   DenseMatrix& h) const
+                                   DenseMatrix &h) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector x(Dim); // integration point as vector
@@ -13145,13 +13145,13 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
       DistanceVec(i, x, y);
 
       // Get distance and its derivative
-      distance.Distance(y, r);
-      distance.DDistance(y, dy, dr);
-      distance.DDDistance(y, dy, ddr);
+      distance->Distance(y, r);
+      distance->DDistance(y, dy, dr);
+      distance->DDDistance(y, dy, ddr);
 
       // Get base value of function
-      df = rbf.BaseDerivative(r);
-      ddf = rbf.BaseDerivative2(r);
+      df = rbf->BaseDerivative(r);
+      ddf = rbf->BaseDerivative2(r);
 
       int k = 0;
       for (int d1 = 0; d1 < Dim; ++d1)
@@ -13166,14 +13166,14 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
 }
 
 RKFiniteElement::RKFiniteElement(int poly,
-                                 KernelFiniteElement& baseClass)
-   : KernelFiniteElement(baseClass.GetDim(),
-                         baseClass.GetGeomType(),
-                         baseClass.GetDof(),
+                                 KernelFiniteElement *baseClass)
+   : KernelFiniteElement(baseClass->GetDim(),
+                         baseClass->GetGeomType(),
+                         baseClass->GetDof(),
                          polyOrd,
                          FunctionSpace::RK),
      polyOrd(poly),
-     numPoly(RKFiniteElement::GetNumPoly(polyOrd, baseClass.GetDim())),
+     numPoly(RKFiniteElement::GetNumPoly(polyOrd, baseClass->GetDim())),
      baseFE(baseClass)
 {
 #ifndef MFEM_THREAD_SAFE
@@ -13200,7 +13200,7 @@ RKFiniteElement::RKFiniteElement(int poly,
 }
 
 void RKFiniteElement::CalcShape(const IntegrationPoint &ip,
-                                Vector& shape) const
+                                Vector &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector c(numPoly);
@@ -13210,7 +13210,7 @@ void RKFiniteElement::CalcShape(const IntegrationPoint &ip,
 #endif
    
    // Fill the shape vector with base function values
-   baseFE.CalcShape(ip, shape);
+   baseFE->CalcShape(ip, shape);
    
    // Calculate M
    GetM(shape, ip, M);
@@ -13225,7 +13225,7 @@ void RKFiniteElement::CalcShape(const IntegrationPoint &ip,
 }
 
 void RKFiniteElement::CalcDShape(const IntegrationPoint &ip,
-                                 DenseMatrix& dshape) const
+                                 DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector c(numPoly);
@@ -13241,8 +13241,8 @@ void RKFiniteElement::CalcDShape(const IntegrationPoint &ip,
 #endif
 
    // Fill the shape vector with base function values
-   baseFE.CalcShape(ip, s);
-   baseFE.CalcDShape(ip, dshape);
+   baseFE->CalcShape(ip, s);
+   baseFE->CalcDShape(ip, dshape);
 
    // Calculate M and dM
    GetDM(s, dshape, ip, M, dM);
@@ -13279,7 +13279,7 @@ void RKFiniteElement::DistanceVec(const int i,
 {
    for (int d = 0; d < Dim; ++d)
    {
-      y(d) = x(d) - baseFE.position()(i, d);
+      y(d) = x(d) - baseFE->position()(i, d);
    }
 }
 
@@ -13438,7 +13438,7 @@ void RKFiniteElement::GetM(const Vector &baseShape,
    Vector p(numPoly);
 #endif
    
-   baseFE.IntRuleToVec(ip, x);
+   IntRuleToVec(ip, x);
    
    for (int i = 0; i < Dof; ++i)
    {
@@ -13471,7 +13471,7 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
       dp[d].SetSize(numPoly);
    }
 #endif
-   baseFE.IntRuleToVec(ip, x);
+   IntRuleToVec(ip, x);
    
    for (int i = 0; i < Dof; ++i)
    {
@@ -13552,7 +13552,7 @@ void RKFiniteElement::CalculateValues(const Vector &c,
    Vector p(numPoly);
 #endif
    
-   baseFE.IntRuleToVec(ip, x);
+   IntRuleToVec(ip, x);
    
    for (int i = 0; i < Dof; ++i)
    {
@@ -13585,7 +13585,7 @@ void RKFiniteElement::CalculateDValues(const Vector &c,
    }
 #endif
    
-   baseFE.IntRuleToVec(ip, x);
+   IntRuleToVec(ip, x);
    
    for (int i = 0; i < Dof; ++i)
    {
