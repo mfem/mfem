@@ -215,9 +215,11 @@ class FunctionSpace
 public:
    enum
    {
-      Pk, ///< Polynomials of order k
-      Qk, ///< Tensor products of polynomials of order k
-      rQk ///< Refined tensor products of polynomials of order k
+      Pk,  ///< Polynomials of order k
+      Qk,  ///< Tensor products of polynomials of order k
+      rQk, ///< Refined tensor products of polynomials of order k
+      RBF, ///< Radial basis functions
+      RK, ///< Reproducing kernels
    };
 };
 
@@ -3270,6 +3272,121 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
+};
+
+class RBFFunction
+{
+public:
+   RBFFunction() { };
+   
+   // Base RBF functions
+   virtual double BaseFunction(double r) const = 0;
+   virtual double BaseDerivative(double r) const = 0;
+   virtual double BaseDerivative2(double r) const = 0;
+};
+
+class GaussianRBF : public RBFFunction
+{
+public:
+   GaussianRBF() { };
+   
+   virtual double BaseFunction(double r) const;
+   virtual double BaseDerivative(double r) const;
+   virtual double BaseDerivative2(double r) const;
+   
+}
+
+class RBFDistance
+{
+protected:
+   int Dim;
+public:
+   RBFDistance(int D) { Dim = D };
+
+   virtual void setDim(int D) { Dim = D };
+   
+   virtual void Distance(const Vector &x,
+                         double &r) const = 0;
+   virtual void DDistance(const Vector &x,
+                          const Vector &dx,
+                          Vector &dr) const = 0;
+   virtual void DDDistance(const Vector &x,
+                           const Vector &dx,
+                           DenseMatrix &ddr) const = 0;
+};
+
+class EuclideanDistance : public RBFDistance
+{
+public:
+   EuclideanDistance(int D) : RBFDistance(D) { };
+
+   virtual void Distance(const Vector &x,
+                         double &r) const;
+   virtual void DDistance(const Vector &x,
+                          const Vector &dx,
+                          Vector &dr) const;
+   virtual void DDDistance(const Vector &x,
+                           const Vector &dx,
+                           DenseMatrix &ddr) const;
+};
+
+class RBFFiniteElement : public ScalarFiniteElement {
+protected:
+#ifndef MFEM_THREAD_SAFE
+   double r, f, df;
+   Vector x, y, dy, dr;
+   DenseMatrix ddr;
+#endif
+   int numPointsD; // Number of points across the element in each D
+   double h; // Shape parameter
+   double hInv; // Inverse shape parameter
+   DenseMatrix positions; // Positions of points
+   RBFFunction &rbf;
+   RBFDistance &distance;
+   void SetPositions();
+   
+public:
+   RBFFiniteElement(int D, int numPointsD, double h,
+                    RBFFunction &func, RBFDistance &dist);
+   
+   virtual void IntRuleToVec(const IntegrationPoint &ip,
+                             Vector &vec) const;
+   virtual void DistanceVec(const int i,
+                            const Vector &x,
+                            Vector &y) const;
+   virtual void DDistanceVec(Vector &dy) const;
+
+   virtual void CalcShape(const IntegrationPoint &ip,
+                          Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &h) const;
+};
+
+class RKFiniteElement : public ScalarFiniteElement {
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector c;
+   mutable DenseMatrix M, dM, ddM, q, p;
+   mutable DenseMatrixInverse Minv;
+#endif
+   const ScalarFiniteElement& baseFE; //
+   int polyOrd, numPoly;
+   
+   // Put the polynomials for this order into P
+   void fillPoly(const IntegrationPoint &ip,
+                 Vector &p);
+public:
+   RKFiniteElement(ScalarFiniteElement& baseClass, int polyOrd);
+
+   static int GetNumPoly(int polyOrd, int dim);
+   
+   virtual void CalcShape(const IntegrationPoint &ip,
+                          Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &h) const;
 };
 
 } // namespace mfem

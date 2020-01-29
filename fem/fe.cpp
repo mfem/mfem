@@ -12813,4 +12813,406 @@ H1_WedgeElement WedgeFE(1);
 // Construct 'Geometries' after 'TriangleFE', 'TetrahedronFE', and 'WedgeFE'.
 Geometry Geometries;
 
+double GaussianRBF::BaseFunction(double r) const
+{
+   return exp(-r * r);
 }
+
+double GaussianRBF::BaseDerivative(double r) const
+{
+   return -2.0 * r * exp(-r * r);
+}
+
+double GaussianRBF::BaseDerivative2(double r) const
+{
+   const double r2 = r * r;
+   return (-2 * 4 * r2) * exp(-r2);
+}
+
+void EuclideanDistance::Distance(const Vector &x,
+                                 double &r) const
+{
+   r = 0.0;
+   for (int d = 0; d < Dim; ++d)
+   {
+      r += x(d) * x(d);
+   }
+   r = sqrt(r);
+}
+
+void EuclideanDistance::DDistance(const Vector &x,
+                                  const Vector &dx,
+                                  Vector &dr) const
+{
+   double r;
+   Distance(x, r);
+   double rinv = r == 0.0 ? 0.0 : 1.0 / r;
+   for (int d = 0; d < Dim; ++d)
+   {
+      dr(d) = dx(d) * x(d) * rinv;
+   }
+}
+
+void EuclideanDistance::DDDistance(const Vector &x,
+                                   const Vector &dx,
+                                   DenseMatrix &ddr) const
+{
+   // Could be exploiting symmetry here
+   double r;
+   Distance(x, r);
+   double rinv = r == 0.0 ? 0.0 : 1.0 / r;
+   for (int d1 = 0; d1 < Dim; ++d1)
+   {
+      for (int d2 = 0; d2 < Dim; ++d2)
+      {
+         if (d1 == d2)
+         {
+            ddr(d1, d2) = dx(d1) * dx(d2) * (rinv - x(d1) * x(d2) * rinv * rinv * rinv);
+         }
+         else
+         {
+            ddr(d1, d2) = -dx(d1) * dx(d2) * x(d1) * x(d2) * rinv * rinv * rinv;
+         }
+      }
+   }
+}
+
+RBFFiniteElement::RBFFiniteElement(int D, int nD, double h,
+                                   RBFFunction &func, RBFDistance &dist)
+   : ScalarFiniteElement(D, TensorBasisElement::GetRBFGeometry(D),
+                         TensorBasisElement::Pow(nD, D), -1,
+                         FunctionSpace::RBF),
+#ifndef MFEM_THREAD_SAFE
+     x(D),
+     y(D),
+     dy(D),
+     dr(D),
+     ddr(D, D),
+#endif
+     numPointsD(nD),
+     h(h),
+     hInv(1.0/h),
+     positions(TensorBasisElement::Pow(nD, D), D),
+     rbf(func),
+     distance(dist)
+{
+   SetPositions();
+}
+
+void RBFFiniteElement::IntRuleToVec(const IntegrationPoint &ip,
+                                    Vector &vec)
+{
+   switch (Dim)
+   {
+   case 1:
+      vec(0) = ip.x;
+      break;
+   case 2:
+      vec(0) = ip.x;
+      vec(1) = ip.y;
+      break;
+   case 3:
+      vec(0) = ip.x;
+      vec(1) = ip.y;
+      vec(2) = ip.z;
+      break;
+   default:
+      MFEM_ABORT("invalid dimension: " << Dim);
+   }
+}
+
+void RBFFiniteElement::DistanceVec(const int i,
+                                   const Vector &x,
+                                   Vector &y)
+{
+   for (int d = 0; d < Dim; ++d)
+   {
+      y(d) = abs(x(d) - positions(i, d)) * hInv;
+   }
+}
+
+void RBFFiniteElement::DDistanceVec(const int i,
+                                    const Vector &x,
+                                    Vector &y)
+{
+   for (int d = 0; d < Dim; ++d)
+   {
+      y(d) = hInv;
+   }
+}
+
+void RBFFiniteElement::SetPositions()
+{
+   const double delta = 1.0 / (static_cast<double>(numPointsD) - 1.0);
+   switch (Dim)
+   {
+   case 1:
+      for (int i = 0; i < numPointsD; ++i)
+      {
+         positions(i, 0) = delta * i;
+      }
+      break;
+   case 2:
+      for (int i = 0; i < numPointsD; ++i)
+      {
+         for (int j = 0; j < numPointsD; ++j)
+         {
+            int l = j + numPointsD * i;
+            positions(l, 0) = delta * static_cast<double>(i);
+            positions(l, 1) = delta * static_cast<double>(j);
+         }
+      }
+      break;
+   case 3:
+      for (int i = 0; i < numPointsD; ++i)
+      {
+         for (int j = 0; j < numPointsD; ++j)
+         {
+            for (int k = 0; k < numPointsD; ++k)
+            {
+               int l = k + numPointsD * (j + numPointsD * i);
+               positions(l, 0) = delta * static_cast<double>(i);
+               positions(l, 1) = delta * static_cast<double>(j);
+               positions(l, 2) = delta * static_cast<double>(k);
+            }
+         }
+      }
+      break;
+   default:
+      MFEM_ABORT("invalid dimension: " << Dim);
+   }
+}
+
+void RBFFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                 Vector& shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector x(Dim); // integration point as vector
+   Vector y(Dim); // distance vector
+   double r; // distance
+#endif
+   
+   IntRuleToVec(ip, x);
+   
+   for (int i = 0; i < Dof; ++i)
+   {
+      // Get distance vector
+      DistanceVec(i, x, y);
+
+      // Get distance
+      distance.Distance(y, r);
+
+      // Get value of function
+      shape(i) = rbf.BaseFunction(r);
+   }
+}
+
+void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                  DenseMatrix& shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector x(Dim); // integration point as vector
+   Vector y(Dim); // distance vector
+   Vector dy(Dim); // derivative of distance vector, diagonal
+   double r; // distance
+   Vector dr(Dim); // derivative of distance
+   double f; // value of function
+   double df; // derivative value of function
+#endif
+   
+   IntRuleToVec(ip, x);
+   DDistanceVec(dy);
+   
+   for (int i = 0; i < Dof; ++i)
+   {
+      // Get distance vector
+      DistanceVec(i, x, y);
+
+      // Get distance and its derivative
+      distance.Distance(y, r);
+      distance.DDistance(y, dy, dr);
+
+      // Get base value of function
+      df = rbf.BaseDerivative(r);
+      
+      for (int d = 0; d < Dim; ++d)
+      {
+         dshape(i, d) = dr(d) * df;
+      }
+   }
+}
+
+void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
+                                   DenseMatrix& h) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector x(Dim); // integration point as vector
+   Vector y(Dim); // distance vector
+   Vector dy(Dim); // derivative of distance vector, diagonal
+   double r; // distance
+   Vector dr(Dim); // derivative of distance
+   DenseMatrix ddr(Dim, Dim);
+   double f; // value of function
+   double df; // derivative value of function
+#endif
+   
+   IntRuleToVec(ip, x);
+   DDistanceVec(dy);
+   
+   for (int i = 0; i < Dof; ++i)
+   {
+      // Get distance vector
+      DistanceVec(i, x, y);
+
+      // Get distance and its derivative
+      distance.Distance(y, r);
+      distance.DDistance(y, dy, dr);
+      distance.DDDistance(y, dy, ddr);
+
+      // Get base value of function
+      df = rbf.BaseDerivative(r);
+      ddf = rbf.BaseDerivative2(r);
+
+      int k = 0;
+      for (int d1 = 0; d1 < Dim; ++d1)
+      {
+         for (int d2 = d1; d2 < Dim; ++d2)
+         {
+            h(i, k) = dr(d1) * dr(d2) * ddf + ddr(d1, d2) * df;
+            k += 1;
+         }
+      }
+   }
+}
+
+RKFiniteElement::RKFiniteElement(ScalarFiniteElement& baseClass, int polyOrd)
+   : ScalarFiniteElement(baseClass.GetDim(),
+                         baseClass.GetGeomType(),
+                         baseClass.GetDof(),
+                         polyOrd,
+                         FunctionSpace::RK),
+     baseFE(baseClass),
+     polyOrd(polyOrd),
+     numPoly(RKFiniteElement::GetNumPoly(polyOrd, baseClass.GetDim())),
+{
+#ifndef MFEM_THREAD_SAFE
+   p.SetSize(numPoly, numPoly);
+   M.SetSize(numPoly, numPoly);
+   dM.SetSize(numPoly, numPoly);
+   q.SetSize(polyOrd, Dim);
+#endif
+}
+
+int RKFiniteElement::GetNumPoly(int polyOrd, int dim)
+{
+   int n = polyOrd + d;
+   int num = 1;
+   for (int i = 0; i < dim; ++i)
+   {
+      num *= (1.0 + polyOrd + d - i) / (i + 1.0)
+   }
+   return num;
+}
+
+void RKFiniteElement::fillPoly(const IntegrationPoint &ip,
+                               Vector &p)
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix q(polyOrd, Dim);
+#endif
+   
+   int index = 0;
+   switch (Dim)
+   {
+   case 1:
+      p(0) = 1.0;
+      for (int i = 1; i < polyOrd; ++i)
+      {
+         p(i) = p(i-1) * ip.x;
+      }
+      break;
+   case 2:
+      q(0, 0) = 1.0;
+      q(0, 1) = 1.0;
+      for (int i = 1; i < polyOrd; ++i)
+      {
+         q(i, 0) = q(i-1, 0) * ip.x;
+         q(i, 1) = q(i-1, 1) * ip.y;
+      }
+      for (int i = 0; i < polyOrd; ++i)
+      {
+         for (int j = 0; j + i < polyOrd; ++j)
+         {
+            p(index) = q(i, 0) * q(j, 1);
+            ++index;
+         }
+      }
+      break;
+   case 3:
+      q(0, 0) = 1.0;
+      q(0, 1) = 1.0;
+      q(0, 2) = 1.0;
+      for (int i = 1; i < polyOrd; ++i)
+      {
+         q(i, 0) = q(i-1, 0) * ip.x;
+         q(i, 1) = q(i-1, 1) * ip.y;
+         q(i, 2) = q(i-1, 2) * ip.z;
+      }
+      for (int i = 0; i < polyOrd; ++i)
+      {
+         for (int j = 0; j + i < polyOrd; ++j)
+         {
+            for (int k = 0; k + j + i < polyOrd; ++k)
+            {
+               p(index) = q(i, 0) * q(j, 0) * q(k, 0);
+               ++index;
+            }
+         }
+      }
+      break;
+   default:
+      MFEM_ABORT("invalid dimension: " << Dim);
+   }
+}
+
+void RBFFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                 Vector& shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix M(numPoly, numPoly);
+   DenseMatrixInverse Minv;
+   Vector c;
+#endif
+
+   // Fill the shape vector with base function values
+   
+
+   // Calculate M
+
+   // Compute M factorization and calculate the values of c
+   Minv.Factor(M);
+   GetCoefficients(M, c);
+
+   // Calculate the values of the functions
+   
+}
+
+void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                  DenseMatrix& shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+
+#endif
+   
+}
+
+void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
+                                   DenseMatrix& h) const
+{
+#ifdef MFEM_THREAD_SAFE
+
+#endif
+   
+}
+
+} // namespace mfem
