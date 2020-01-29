@@ -3294,16 +3294,16 @@ public:
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
    
-}
+};
 
-class DistanceMeasure
+class DistanceMetric
 {
 protected:
    int Dim;
 public:
-   DistanceMeasure(int D) { Dim = D };
+   DistanceMetric(int D) { Dim = D; }
 
-   virtual void setDim(int D) { Dim = D };
+   virtual void setDim(int D) { Dim = D; }
    
    virtual void Distance(const Vector &x,
                          double &r) const = 0;
@@ -3315,10 +3315,10 @@ public:
                            DenseMatrix &ddr) const = 0;
 };
 
-class EuclideanDistance : public DistanceMeasure
+class EuclideanDistance : public DistanceMetric
 {
 public:
-   EuclideanDistance(int D) : DistanceMeasure(D) { };
+   EuclideanDistance(int D) : DistanceMetric(D) { };
 
    virtual void Distance(const Vector &x,
                          double &r) const;
@@ -3330,27 +3330,27 @@ public:
                            DenseMatrix &ddr) const;
 };
 
-class RBFFiniteElement : public MeshlessFiniteElement
+class RBFFiniteElement : public ScalarFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   double r, f, df;
-   Vector x, y, dy, dr;
-   DenseMatrix ddr;
+   mutable double r, f, df, ddf;
+   mutable Vector x, y, dy, dr;
+   mutable DenseMatrix ddr;
 #endif
    int numPointsD; // Number of points across the element in each D
    double h; // Shape parameter
    double hInv; // Inverse shape parameter
-   DenseMatrix positions; // Positions of points
+   DenseMatrix pos; // Positions of points
    RBFFunction &rbf;
-   DistanceMeasure &distance;
+   DistanceMetric &distance;
    void SetPositions();
    
    void DDistanceVec(Vector &dy) const;
 
 public:
    RBFFiniteElement(int D, int numPointsD, double h,
-                    RBFFunction &func, DistanceMeasure &dist);
+                    RBFFunction &func, DistanceMetric &dist);
    
    void IntRuleToVec(const IntegrationPoint &ip,
                      Vector &vec) const;
@@ -3358,7 +3358,7 @@ public:
                     const Vector &x,
                     Vector &y) const;
 
-   const DenseMatrix &positions() const { return positions; }
+   const DenseMatrix &position() const { return pos; }
 
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const;
@@ -3372,7 +3372,7 @@ class RKFiniteElement : public ScalarFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   double f;
+   mutable double f;
    mutable Vector x, y, g, c, s, p, df;
    mutable DenseMatrix q, dq, M;
    mutable Array<Vector> dc, dp;
@@ -3380,7 +3380,7 @@ private:
    mutable DenseMatrixInverse Minv;
 #endif
    int polyOrd, numPoly;
-   const ScalarFiniteElement& baseFE;
+   const RBFFiniteElement &baseFE;
 
    virtual void GetPoly(const Vector &x,
                         Vector &p) const;
@@ -3399,20 +3399,23 @@ private:
                        const double &f,
                        DenseMatrix &M) const;
    virtual void AddToDM(const Vector &p,
+                        const Array<Vector> &dp,
                         const double &f,
                         const Vector &df,
-                        DenseMatrix &M) const;
+                        Array<DenseMatrix> &dM) const;
    virtual void CalculateValues(const Vector &c,
                                 const Vector &baseShape,
+                                const IntegrationPoint &ip,
                                 Vector &shape) const;
    virtual void CalculateDValues(const Vector &c,
                                  const Array<Vector> &dc,
                                  const Vector &baseShape,
                                  const DenseMatrix &baseDShape,
+                                 const IntegrationPoint &ip,
                                  DenseMatrix &dshape) const;
 public:
-   RKFiniteElement(int p,
-                   ScalarFiniteElement& baseClass);
+   RKFiniteElement(int poly,
+                   RBFFiniteElement& baseClass);
 
    void DistanceVec(const int i,
                     const Vector &x,
