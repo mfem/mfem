@@ -3372,7 +3372,7 @@ class KernelFiniteElement : public ScalarFiniteElement
 public:
    KernelFiniteElement(int D, int G, int Do, int O, int F)
       : ScalarFiniteElement(D, G, Do, O, F) { }
-
+   
    virtual const DenseMatrix &position() const = 0;
    
    virtual void IntRuleToVec(const IntegrationPoint &ip,
@@ -3400,7 +3400,7 @@ private:
 public:
    RBFFiniteElement(int D, int numPointsD, double h,
                     RBFFunction *func, DistanceMetric *dist);
-   ~RBFFiniteElement() { delete rbf; delete distance; }
+   virtual ~RBFFiniteElement() { delete rbf; delete distance; }
    
    void DistanceVec(const int i,
                     const Vector &x,
@@ -3464,7 +3464,7 @@ private:
 public:
    RKFiniteElement(int poly,
                    KernelFiniteElement *baseClass);
-   ~RKFiniteElement() { delete baseFE; } 
+   virtual ~RKFiniteElement() { delete baseFE; } 
    
    void DistanceVec(const int i,
                     const Vector &x,
