@@ -20,7 +20,7 @@ TEST_CASE("ILU Structure", "[ILU]")
    int Nb = 3;
    int nnz_blocks = 11;
 
-   // Submatrix of sie Nb x Nb
+   // Submatrix of size Nb x Nb
    DenseMatrix Ab(Nb, Nb);
 
    // Matrix with N x N blocks of size Nb x Nb
