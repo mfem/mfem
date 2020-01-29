@@ -5,8 +5,9 @@
 
 using namespace std;
 using namespace mfem;
-int isupg=0;    //1: test supg with v term only
-                //2: test diffusion along B only
+int isupg=2;    //1: test supg with v term only
+                //2: test hyperdiffusion along B only
+                //3: test a general hyperdiffusion
 bool lumpedMass = false;
 
 // reduced system 
@@ -39,7 +40,7 @@ private:
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; //for stablize B term
    mutable ParLinearForm *PB_VPsi, *PB_VOmega, *PB_BJ;
    mutable BlockOperator *Jacobian;
-   mutable Vector z, zdiff, J, zFull;
+   mutable Vector z, zdiff, z2, z3, J, zFull;
    mutable ParLinearForm zLF;
 
 public:
@@ -85,7 +86,7 @@ public:
                   ASl = ParAdd(Mdtpr, DSlmatpr);
                else
                   ASl = new HypreParMatrix(*Mdtpr);
-           }
+           } 
        }
        if(initialMdt==false)
        {
@@ -413,6 +414,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
+
+
     
    if (use_petsc)
    {
@@ -717,7 +720,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       DRe.TrueAddMult(w, z);
    }
    //add stabilization term
-   if (isupg>2 && StabNv!=NULL)
+   if (isupg>3 && StabNv!=NULL)
    {
        //FIXME this supg form has a bug:
        //the explicit supg needs to modify the mass matrix when computing dw_dt
@@ -759,7 +762,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    if (E0Vec!=NULL)
      z += *E0Vec;
    //add stabilization terms
-   if (isupg>2 && StabNv!=NULL)
+   if (isupg>3 && StabNv!=NULL)
    {
        //FIXME this supg form has the same issue
        //stabilized term for psi
@@ -790,6 +793,10 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    }
    z.Neg(); // z = -z
    if (isupg==2)
+   {
+       StabNb->TrueAddMult(J, z);
+   }
+   else if (isupg==3)
    {
        StabNb->TrueAddMult(J, z);
    }
@@ -860,7 +867,7 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
    Nv->Assemble(); 
 
    //assemble supg type operators
-   if (isupg > 2 || isupg ==1)
+   if (isupg > 3 || isupg ==1)
    {
       delete StabNv;
       StabNv = new ParBilinearForm(&fespace);
@@ -868,7 +875,23 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
       StabNv->Assemble(); 
    }
 
-   if (isupg > 2){
+   //assemble the hyperdiffusion operator
+   if (isupg==3 && StabNb==NULL)
+   {
+      StabNb = new ParBilinearForm(&fespace);
+      double eleLength=2./64.;  //hard coded h here
+      double alpha=.2;
+      double invtau = sqrt( pow(2./dt,2) + pow(2.0*1./eleLength,2) 
+              + pow(4.0*resistivity/(eleLength*eleLength),2) );
+      double tau = alpha*eleLength*eleLength/invtau;
+      if(myid==0) cout<<"tau in hyperdiffusion="<<tau<<"\th ="<<eleLength<<endl;
+      
+      ConstantCoefficient tau_coeff(tau);
+      StabNb->AddDomainIntegrator(new DiffusionIntegrator(tau_coeff));    
+      StabNb->Assemble();
+   }
+
+   if (isupg > 3){
       delete StabMass;
       StabMass = new ParBilinearForm(&fespace);
       StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
@@ -891,7 +914,7 @@ void ResistiveMHDOperator::assembleBoper(double dt, ParGridFunction *phi, ParGri
    Nb->Assemble();
 
    //assemble supg type operators
-   if (isupg > 2){
+   if (isupg > 3){
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
      StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
@@ -1028,7 +1051,8 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      Nv(NULL), Nb(NULL), Pw(NULL), 
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
-     Jacobian(NULL), z(height/3), zdiff(height/3), J(height/3), zFull(f.GetVSize()), zLF(&fespace)
+     Jacobian(NULL), z(height/3), zdiff(height/3), z2(height/3), z3(height/3), 
+     J(height/3), zFull(f.GetVSize()), zLF(&fespace)
 { 
     useFull=0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1067,7 +1091,8 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      Nv(NULL), Nb(NULL), Pw(NULL),  
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
-     Jacobian(NULL), z(height/3), zdiff(height/3), J(height/3), zFull(f.GetVSize()), zLF(&fespace)
+     Jacobian(NULL), z(height/3), zdiff(height/3), z2(height/3), z3(height/3), 
+     J(height/3), zFull(f.GetVSize()), zLF(&fespace)
 { 
     useFull = useFull_;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1295,6 +1320,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      wGf.SetFromTrueVector();
 
    MyCoefficient Bfield(&psiGf, 2);   //we update B
+   MyCoefficient velocity(&phiGf, 2);   //we update velocity
 
    //two different ways to implement Poission Bracket
    //BilinearForm seems a better idea unless we are willing to 
@@ -1305,7 +1331,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       //------assemble Nv and Nb (operators are assembled locally)------
       delete Nv;
       Nv = new ParBilinearForm(&fespace);
-      MyCoefficient velocity(&phiGf, 2);   //we update velocity
       Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
       Nv->Assemble(); 
    }
@@ -1346,35 +1371,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Mmat.Mult(wNew,z);
    y1+=z;
    y1.SetSubVector(ess_tdof_list, 0.0);
-
-   //+++++compute y2
-   add(psiNew, -1., *psi, z);
-   z/=dt;
-   Mmat.Mult(z,y2);
-   if (bilinearPB)
-      Nv->TrueAddMult(psiNew,y2);
-   else
-      y2 += *PB_VPsi;
-
-   if (DSl!=NULL)
-       DSl->TrueAddMult(psiNew,y2);
-   if (E0Vec!=NULL)
-       y2 += *E0Vec;
-
-   //compute resiual from y3 to stabilize B.grad J
-   if(isupg==2 && true)
-   {
-     delete StabNb;
-     StabNb = new ParBilinearForm(&fespace);
-     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
-     StabNb->Assemble(); 
-
-     y2.Neg();
-     StabNb->TrueAddMult(J, y2);
-     y2.Neg();
-   }
-
-   y2.SetSubVector(ess_tdof_list, 0.0);
 
    //+++++compute y3
    add(wNew, -1., *w, zdiff);
@@ -1423,5 +1419,51 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       delete trueBJ;
    }
    y3.SetSubVector(ess_tdof_list, 0.0);
+
+   //+++++compute y2
+   add(psiNew, -1., *psi, z);
+   z/=dt;
+   Mmat.Mult(z,y2);
+   if (bilinearPB)
+      Nv->TrueAddMult(psiNew,y2);
+   else
+      y2 += *PB_VPsi;
+
+   if (DSl!=NULL)
+       DSl->TrueAddMult(psiNew,y2);
+   if (E0Vec!=NULL)
+       y2 += *E0Vec;
+
+   //compute resiual from y3 to stabilize B.grad J
+   if(isupg==2 && true)
+   {
+     //first compute an auxilary variable of z3=-∆w (z3=M^-1 KB * w)
+     KB->Mult(wGf, zLF);
+     zLF.ParallelAssemble(z2);
+     M_solver2->Mult(z2, z3);
+     add(zdiff, viscosity, z3, z2);
+
+     delete StabMass;
+     StabMass = new ParBilinearForm(&fespace);
+     StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, Bfield, true));
+     StabMass->Assemble(); 
+     StabMass->TrueAddMult(z2, y2);
+
+     delete StabNv;
+     StabNv = new ParBilinearForm(&fespace);
+     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity, Bfield, true));
+     StabNv->Assemble(); 
+     StabNv->TrueAddMult(wNew, y2);
+
+     delete StabNb;
+     StabNb = new ParBilinearForm(&fespace);
+     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
+     StabNb->Assemble(); 
+     StabNb->TrueAddMult(J, y2, -1.);
+   }
+
+   y2.SetSubVector(ess_tdof_list, 0.0);
+
+
 }
 
