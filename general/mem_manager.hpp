@@ -31,9 +31,11 @@ enum class MemoryType
    HOST_64,        ///< Host memory; aligned at 64 bytes
    HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
    HOST_UMPIRE,    ///< Host memory; using Umpire
-   MANAGED,        ///< Managed memory; using CUDA or HIP *MallocManaged and *Free
+   MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
+                        and *Free */
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
-   DEVICE_DEBUG,   ///< Pseudo device memory; allocated on host from a "device-debug" pool
+   DEVICE_DEBUG,   /**< Pseudo device memory; allocated on host from a
+                        "device-debug" pool */
    DEVICE_UMPIRE,  ///< Device memory; using Umpire
    SIZE            ///< Number of host and device memory types
 };
@@ -101,7 +103,7 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
-    MemoryType: DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE or DEVICE_MANAGED).
+    MemoryType: DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE or MANAGED).
 
     A Memory object can hold (wrap) an externally allocated pointer with any
     given MemoryType.
@@ -132,13 +134,16 @@ protected:
 
    enum FlagMask: unsigned
    {
-      REGISTERED    = 1 << 0, ///< The host pointer is registered with the MemoryManager
+      REGISTERED    = 1 << 0, /**< The host pointer is registered with the
+                                   MemoryManager */
       OWNS_HOST     = 1 << 1, ///< The host pointer will be deleted by Delete()
-      OWNS_DEVICE   = 1 << 2, ///< The device pointer will be deleted by Delete()
+      OWNS_DEVICE   = 1 << 2, /**< The device pointer will be deleted by
+                                   Delete() */
       OWNS_INTERNAL = 1 << 3, ///< Ownership flag for internal Memory data
       VALID_HOST    = 1 << 4, ///< Host pointer is valid
       VALID_DEVICE  = 1 << 5, ///< Device pointer is valid
-      USE_DEVICE    = 1 << 6, ///< Internal device flag, see e.g. Vector::UseDevice()
+      USE_DEVICE    = 1 << 6, /**< Internal device flag, see e.g.
+                                   Vector::UseDevice() */
       ALIAS         = 1 << 7  ///< Pointer is an alias
    };
 
@@ -744,7 +749,7 @@ inline Memory<T>::operator const U*() const
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
-   const size_t bytes = capacity * sizeof(T);
+   const size_t bytes = size * sizeof(T);
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
@@ -757,7 +762,7 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
-   const size_t bytes = capacity * sizeof(T);
+   const size_t bytes = size * sizeof(T);
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
@@ -770,7 +775,7 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
-   const size_t bytes = capacity * sizeof(T);
+   const size_t bytes = size * sizeof(T);
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
