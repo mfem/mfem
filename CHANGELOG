@@ -116,6 +116,9 @@ Linear and nonlinear solvers
 
 - Added Adams-Bashforth and Adams-Moulton time integrators.
 
+- Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
+  (DG advection) now takes advantage of this for implicit time integration.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added two new miniapps: Find Points (serial + parallel) and Field Diff in
@@ -143,6 +146,9 @@ New and updated examples and miniapps
 
 - Added a modification of ex9 in examples/hiop that demonstrates the nonlinear
   constrained optimization interface and the use of the SLBQP and HiOp solvers.
+
+- Example 9 and 9p now support implicit time integration, using the new block
+  ILU(0) solvers as preconditioners for the linear system.
 
 Improved testing
 ----------------
