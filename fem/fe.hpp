@@ -3367,7 +3367,19 @@ public:
                            DenseMatrix &ddr) const;
 };
 
-class RBFFiniteElement : public ScalarFiniteElement
+class KernelFiniteElement : public ScalarFiniteElement
+{
+public:
+   KernelFiniteElement(int D, int G, int Do, int O, int F)
+      : ScalarFiniteElement(D, G, Do, O, F) { }
+
+   virtual const DenseMatrix &position() const = 0;
+   
+   virtual void IntRuleToVec(const IntegrationPoint &ip,
+                             Vector &vec) const;
+};
+
+class RBFFiniteElement : public KernelFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -3389,13 +3401,11 @@ public:
    RBFFiniteElement(int D, int numPointsD, double h,
                     RBFFunction &func, DistanceMetric &dist);
    
-   void IntRuleToVec(const IntegrationPoint &ip,
-                     Vector &vec) const;
    void DistanceVec(const int i,
                     const Vector &x,
                     Vector &y) const;
 
-   const DenseMatrix &position() const { return pos; }
+   virtual const DenseMatrix &position() const { return pos; }
 
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const;
@@ -3405,7 +3415,7 @@ public:
                             DenseMatrix &h) const;
 };
 
-class RKFiniteElement : public ScalarFiniteElement
+class RKFiniteElement : public KernelFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -3417,7 +3427,7 @@ private:
    mutable DenseMatrixInverse Minv;
 #endif
    int polyOrd, numPoly;
-   const RBFFiniteElement &baseFE;
+   const KernelFiniteElement &baseFE;
 
    virtual void GetPoly(const Vector &x,
                         Vector &p) const;
@@ -3452,11 +3462,13 @@ private:
                                  DenseMatrix &dshape) const;
 public:
    RKFiniteElement(int poly,
-                   RBFFiniteElement& baseClass);
-
+                   KernelFiniteElement& baseClass);
+   
    void DistanceVec(const int i,
                     const Vector &x,
                     Vector &y) const;
+
+   virtual const DenseMatrix &position() const { return baseFE.position(); }
    
    static int GetNumPoly(int polyOrd, int dim);
    

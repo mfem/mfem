@@ -12955,31 +12955,8 @@ void ManhattenDistance::DDDistance(const Vector &x,
    }
 }
 
-RBFFiniteElement::RBFFiniteElement(int D, int nD, double h,
-                                   RBFFunction &func, DistanceMetric &dist)
-   : ScalarFiniteElement(D, TensorBasisElement::GetTensorProductGeometry(D),
-                         TensorBasisElement::Pow(nD, D), -1,
-                         FunctionSpace::RBF),
-#ifndef MFEM_THREAD_SAFE
-     x(D),
-     y(D),
-     dy(D),
-     dr(D),
-     ddr(D, D),
-#endif
-     numPointsD(nD),
-     h(h),
-     hInv(1.0/h),
-     pos(TensorBasisElement::Pow(nD, D), D),
-     rbf(func),
-     distance(dist)
-{
-   distance.SetDim(D);
-   SetPositions();
-}
-
-void RBFFiniteElement::IntRuleToVec(const IntegrationPoint &ip,
-                                    Vector &vec) const
+void KernelFiniteElement::IntRuleToVec(const IntegrationPoint &ip,
+                                       Vector &vec) const
 {
    switch (Dim)
    {
@@ -12998,6 +12975,31 @@ void RBFFiniteElement::IntRuleToVec(const IntegrationPoint &ip,
    default:
       MFEM_ABORT("invalid dimension: " << Dim);
    }
+}
+
+RBFFiniteElement::RBFFiniteElement(int D, int nD, double h,
+                                   RBFFunction &func, DistanceMetric &dist)
+   : KernelFiniteElement(D,
+                         TensorBasisElement::GetTensorProductGeometry(D),
+                         TensorBasisElement::Pow(nD, D),
+                         -1,
+                         FunctionSpace::RBF),
+#ifndef MFEM_THREAD_SAFE
+     x(D),
+     y(D),
+     dy(D),
+     dr(D),
+     ddr(D, D),
+#endif
+     numPointsD(nD),
+     h(h),
+     hInv(1.0/h),
+     pos(TensorBasisElement::Pow(nD, D), D),
+     rbf(func),
+     distance(dist)
+{
+   distance.SetDim(D);
+   SetPositions();
 }
 
 void RBFFiniteElement::DistanceVec(const int i,
@@ -13164,8 +13166,8 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
 }
 
 RKFiniteElement::RKFiniteElement(int poly,
-                                 RBFFiniteElement& baseClass)
-   : ScalarFiniteElement(baseClass.GetDim(),
+                                 KernelFiniteElement& baseClass)
+   : KernelFiniteElement(baseClass.GetDim(),
                          baseClass.GetGeomType(),
                          baseClass.GetDof(),
                          polyOrd,
@@ -13263,12 +13265,12 @@ void RKFiniteElement::CalcDShape(const IntegrationPoint &ip,
 int RKFiniteElement::GetNumPoly(int polyOrd, int dim)
 {
    int n = polyOrd + dim;
-   int num = 1;
+   double num = 1;
    for (int i = 0; i < dim; ++i)
    {
       num *= (1.0 + polyOrd + dim - i) / (i + 1.0);
    }
-   return num;
+   return static_cast<int>(round(num));
 }
 
 void RKFiniteElement::DistanceVec(const int i,
