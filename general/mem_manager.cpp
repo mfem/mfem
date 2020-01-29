@@ -899,6 +899,16 @@ MemoryType MemoryManager::GetMemoryType_(void *h_ptr, unsigned flags)
    return MemoryManager::host_mem_type;
 }
 
+MemoryType MemoryManager::GetHostMemoryType_(void *h_ptr, bool do_k, bool do_a)
+{
+   if (mm.exists)
+   {
+      if (do_k || mm.IsKnown(h_ptr)) { return maps->memories.at(h_ptr).h_mt; }
+      if (do_a || mm.IsAlias(h_ptr)) { return maps->aliases.at(h_ptr).mem->h_mt; }
+   }
+   return MemoryManager::host_mem_type;
+}
+
 void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
                           size_t bytes, unsigned src_flags,
                           unsigned &dst_flags)
@@ -1185,7 +1195,7 @@ void *MemoryManager::GetHostPtr(const void *ptr, size_t bytes, bool copy)
 {
    const internal::Memory &mem = maps->memories.at(ptr);
    MFEM_ASSERT(mem.h_ptr == ptr, "internal error");
-   MFEM_ASSERT(bytes == mem.bytes, "internal error")
+   MFEM_ASSERT(bytes <= mem.bytes, "internal error")
    const MemoryType &h_mt = mem.h_mt;
    const MemoryType &d_mt = mem.d_mt;
    MFEM_VERIFY_TYPES(h_mt, d_mt);

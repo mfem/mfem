@@ -173,7 +173,6 @@ int main(int argc, char *argv[])
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
-   //a->UsePrecomputedSparsity();
    a->Assemble();
 
    OperatorPtr A;

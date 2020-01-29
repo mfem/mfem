@@ -270,7 +270,8 @@ public:
    inline void New(int size, MemoryType mt);
 
    /** @brief Wrap an externally allocated host pointer, @a ptr with type
-       MemoryType::HOST. */
+       MemoryType::HOST if the pointer has not been registered, or the
+       registered type if it had been registered already. */
    /** The parameter @a own determines whether @a ptr will be deleted (using
        operator delete[]) when the method Delete() is called.
 
@@ -495,6 +496,12 @@ private: // Static methods used by the Memory<T> class
    /// are valid, return a device type.
    static MemoryType GetMemoryType_(void *h_ptr, unsigned flags);
 
+   /// Return the type the of the host memory. @a known and @a alias can be
+   /// given if they were precomputed.
+   static MemoryType GetHostMemoryType_(void *h_ptr,
+                                        bool known = false,
+                                        bool alias = false);
+
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
    static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
 
@@ -645,21 +652,26 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
 {
    capacity = size;
    h_ptr = host_ptr;
-   h_mt = MemoryType::HOST; // or MemoryManager::host_mem_type;
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
-#ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
    {
-      MFEM_VERIFY(!MemoryManager::IsKnown_(h_ptr), "Wrap but registered");
-      MFEM_VERIFY(!MemoryManager::IsAlias_(h_ptr), "Wrap but existing alias");
+      const bool known = MemoryManager::IsKnown_(h_ptr);
+      const bool alias = MemoryManager::IsAlias_(h_ptr);
+      if (known || alias)
+      {
+         h_mt = MemoryManager::GetHostMemoryType_(h_ptr, known, alias);
+      }
+      else
+      {
+         h_mt = MemoryType::HOST;
+      }
    }
-#endif
+   else
+   {
+      h_mt = MemoryType::HOST;
+   }
 }
 
-/// Three cases:
-/// 1. MemoryType::HOST
-/// 2. Host memory type that needs to be registered
-/// 3. Device memory type that needs also to be registered
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {

@@ -652,16 +652,23 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    {
       MFEM_VERIFY(Device::IsDisabled(), "transpose action on device is not "
                   "enabled; see BuildTranspose() for details.");
-      for (int i = 0; i < height; i++)
+      const int height = this->height;
+      const int nnz = J.Capacity();
+      auto d_I = HostRead(I, height+1);
+      auto d_J = HostRead(J, nnz);
+      auto d_A = HostRead(A, nnz);
+      auto d_x = x.HostRead();
+      auto d_y = y.HostReadWrite();
+      MFEM_FORALL(i, height,
       {
-         const double xi = a * x[i];
-         const int end = I[i+1];
-         for (int j = I[i]; j < end; j++)
+         const double xi = a * d_x[i];
+         const int end = d_I[i+1];
+         for (int j = d_I[i]; j < end; j++)
          {
-            const int Jj = J[j];
-            y[Jj] += A[j] * xi;
+            const int Jj = d_J[j];
+            d_y[Jj] += d_A[j] * xi;
          }
-      }
+      });
    }
 }
 
