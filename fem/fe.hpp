@@ -3296,12 +3296,12 @@ public:
    
 }
 
-class RBFDistance
+class DistanceMeasure
 {
 protected:
    int Dim;
 public:
-   RBFDistance(int D) { Dim = D };
+   DistanceMeasure(int D) { Dim = D };
 
    virtual void setDim(int D) { Dim = D };
    
@@ -3315,10 +3315,10 @@ public:
                            DenseMatrix &ddr) const = 0;
 };
 
-class EuclideanDistance : public RBFDistance
+class EuclideanDistance : public DistanceMeasure
 {
 public:
-   EuclideanDistance(int D) : RBFDistance(D) { };
+   EuclideanDistance(int D) : DistanceMeasure(D) { };
 
    virtual void Distance(const Vector &x,
                          double &r) const;
@@ -3330,8 +3330,9 @@ public:
                            DenseMatrix &ddr) const;
 };
 
-class RBFFiniteElement : public ScalarFiniteElement {
-protected:
+class RBFFiniteElement : public MeshlessFiniteElement
+{
+private:
 #ifndef MFEM_THREAD_SAFE
    double r, f, df;
    Vector x, y, dy, dr;
@@ -3342,19 +3343,22 @@ protected:
    double hInv; // Inverse shape parameter
    DenseMatrix positions; // Positions of points
    RBFFunction &rbf;
-   RBFDistance &distance;
+   DistanceMeasure &distance;
    void SetPositions();
    
+   void DDistanceVec(Vector &dy) const;
+
 public:
    RBFFiniteElement(int D, int numPointsD, double h,
-                    RBFFunction &func, RBFDistance &dist);
+                    RBFFunction &func, DistanceMeasure &dist);
    
-   virtual void IntRuleToVec(const IntegrationPoint &ip,
-                             Vector &vec) const;
-   virtual void DistanceVec(const int i,
-                            const Vector &x,
-                            Vector &y) const;
-   virtual void DDistanceVec(Vector &dy) const;
+   void IntRuleToVec(const IntegrationPoint &ip,
+                     Vector &vec) const;
+   void DistanceVec(const int i,
+                    const Vector &x,
+                    Vector &y) const;
+
+   const DenseMatrix &positions() const { return positions; }
 
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const;
@@ -3364,29 +3368,63 @@ public:
                             DenseMatrix &h) const;
 };
 
-class RKFiniteElement : public ScalarFiniteElement {
+class RKFiniteElement : public ScalarFiniteElement
+{
+private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector c;
-   mutable DenseMatrix M, dM, ddM, q, p;
+   double f;
+   mutable Vector x, y, g, c, s, p, df;
+   mutable DenseMatrix q, dq, M;
+   mutable Array<Vector> dc, dp;
+   mutable Array<DenseMatrix> dM;
    mutable DenseMatrixInverse Minv;
 #endif
-   const ScalarFiniteElement& baseFE; //
    int polyOrd, numPoly;
-   
-   // Put the polynomials for this order into P
-   void fillPoly(const IntegrationPoint &ip,
-                 Vector &p);
-public:
-   RKFiniteElement(ScalarFiniteElement& baseClass, int polyOrd);
+   const ScalarFiniteElement& baseFE;
 
+   virtual void GetPoly(const Vector &x,
+                        Vector &p) const;
+   virtual void GetDPoly(const Vector &x,
+                         Array<Vector> &dp) const;
+   virtual void GetG(Vector &g) const;
+   virtual void GetM(const Vector &baseShape,
+                     const IntegrationPoint &ip,
+                     DenseMatrix &M) const;
+   virtual void GetDM(const Vector &baseShape,
+                      const DenseMatrix &baseDeriv,
+                      const IntegrationPoint &ip,
+                      DenseMatrix &M,
+                      Array<DenseMatrix> &dM) const;
+   virtual void AddToM(const Vector &p,
+                       const double &f,
+                       DenseMatrix &M) const;
+   virtual void AddToDM(const Vector &p,
+                        const double &f,
+                        const Vector &df,
+                        DenseMatrix &M) const;
+   virtual void CalculateValues(const Vector &c,
+                                const Vector &baseShape,
+                                Vector &shape) const;
+   virtual void CalculateDValues(const Vector &c,
+                                 const Array<Vector> &dc,
+                                 const Vector &baseShape,
+                                 const DenseMatrix &baseDShape,
+                                 DenseMatrix &dshape) const;
+public:
+   RKFiniteElement(int p,
+                   ScalarFiniteElement& baseClass);
+
+   void DistanceVec(const int i,
+                    const Vector &x,
+                    Vector &y) const;
+   
    static int GetNumPoly(int polyOrd, int dim);
    
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   virtual void CalcHessian(const IntegrationPoint &ip,
-                            DenseMatrix &h) const;
+   // Should put in a method to calculate shape and dshape simultaneously
 };
 
 } // namespace mfem

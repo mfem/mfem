@@ -13085,25 +13085,104 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
    }
 }
 
-RKFiniteElement::RKFiniteElement(ScalarFiniteElement& baseClass, int polyOrd)
+RKFiniteElement::RKFiniteElement(int p,
+                                 ScalarFiniteElement& baseClass)
    : ScalarFiniteElement(baseClass.GetDim(),
                          baseClass.GetGeomType(),
                          baseClass.GetDof(),
                          polyOrd,
                          FunctionSpace::RK),
-     baseFE(baseClass),
-     polyOrd(polyOrd),
+     polyOrd(p),
      numPoly(RKFiniteElement::GetNumPoly(polyOrd, baseClass.GetDim())),
+     baseFE(baseClass),
 {
 #ifndef MFEM_THREAD_SAFE
+   x.SetSize(Dim);
+   y.SetSize(Dim);
+   g.SetSize(numPoly);
+   c.SetSize(numPoly);
+   s.SetSize(Dof);
    p.SetSize(numPoly, numPoly);
-   M.SetSize(numPoly, numPoly);
-   dM.SetSize(numPoly, numPoly);
+   df.SetSize(Dim);
    q.SetSize(polyOrd, Dim);
+   dq.SetSize(polyOrd, Dim);
+   M.SetSize(numPoly, numPoly);
+   dc.setSize(Dim);
+   dp.SetSize(Dim);
+   dM.SetSize(Dim);
+   for (int d = 0; d < Dim; ++d)
+   {
+      dM[d].SetSize(numPoly, numPoly);
+      dC[d].SetSize(numPoly);
+      dp[d].SetSize(numPoly);
+   }
 #endif
 }
 
-int RKFiniteElement::GetNumPoly(int polyOrd, int dim)
+void RKFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                Vector& shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector c(numPoly);
+   Vector g(numPoly);
+   DenseMatrix M(numPoly, numPoly);
+   DenseMatrixInverse Minv;
+#endif
+   
+   // Fill the shape vector with base function values
+   rbf.CalcShape(ip, shape);
+   
+   // Calculate M
+   GetM(shape, ip, M);
+   Minv.Factor(M);
+
+   // Get coefficients
+   GetG(g);
+   Minv.Mult(g, c);
+   
+   // Calculate the values of the functions
+   CalculateValues(c, shape, shape);
+}
+
+void RKFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                 DenseMatrix& dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector c(numPoly);
+   Vector g(numPoly);
+   Vector s(Dof);
+   DenseMatrix M(numPoly, numPoly);
+   DenseMatrixInverse Minv;
+   Array<Vector> dc(Dim);
+   for (int d = 0; d < Dim; ++d)
+   {
+      dc.SetSize(numPoly);
+   }
+#endif
+
+   // Fill the shape vector with base function values
+   rbf.CalcShape(ip. s);
+   rbf.CalcDShape(ip, dshape);
+
+   // Calculate M and dM
+   GetDM(s, dshape, ip, M, dM);
+   Minv.Factor(M);
+
+   // Calculate coefficients
+   GetG(g);
+   Minv.Mult(g, c);
+   for (int d = 0; d < Dim; ++d)
+   {
+      dM[d].Mult(c, g);
+      Minv.Mult(g, dc[d]);
+      dc[d].Neg();
+   }
+   
+   // Calculate the values of the functions
+   CalculateDValues(c, dc, s, dshape, dshape);
+}
+
+int RKFiniteElement::GetNumPoly(int polyOrd, int dim) const
 {
    int n = polyOrd + d;
    int num = 1;
@@ -13114,8 +13193,27 @@ int RKFiniteElement::GetNumPoly(int polyOrd, int dim)
    return num;
 }
 
-void RKFiniteElement::fillPoly(const IntegrationPoint &ip,
-                               Vector &p)
+void RKFiniteElement::DistanceVec(const int i,
+                                  const Vector &x,
+                                  Vector &y) const
+{
+   for (int d = 0; d < Dim; ++d)
+   {
+      y(d) = x(d) - positions(i, d);
+   }
+}
+
+void RKFiniteElement::GetG(Vector &g) const
+{
+   g(0) = 1.0;
+   for (int i = 1; i < numPoly; ++i)
+   {
+      g(i) = 0.0;
+   }
+}
+
+void RKFiniteElement::GetPoly(const Vector &x,
+                              Vector &p) const
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix q(polyOrd, Dim);
@@ -13128,7 +13226,7 @@ void RKFiniteElement::fillPoly(const IntegrationPoint &ip,
       p(0) = 1.0;
       for (int i = 1; i < polyOrd; ++i)
       {
-         p(i) = p(i-1) * ip.x;
+         p(i) = p(i-1) * x(0);
       }
       break;
    case 2:
@@ -13136,8 +13234,8 @@ void RKFiniteElement::fillPoly(const IntegrationPoint &ip,
       q(0, 1) = 1.0;
       for (int i = 1; i < polyOrd; ++i)
       {
-         q(i, 0) = q(i-1, 0) * ip.x;
-         q(i, 1) = q(i-1, 1) * ip.y;
+         q(i, 0) = q(i-1, 0) * x(0);
+         q(i, 1) = q(i-1, 1) * x(1);
       }
       for (int i = 0; i < polyOrd; ++i)
       {
@@ -13154,9 +13252,9 @@ void RKFiniteElement::fillPoly(const IntegrationPoint &ip,
       q(0, 2) = 1.0;
       for (int i = 1; i < polyOrd; ++i)
       {
-         q(i, 0) = q(i-1, 0) * ip.x;
-         q(i, 1) = q(i-1, 1) * ip.y;
-         q(i, 2) = q(i-1, 2) * ip.z;
+         q(i, 0) = q(i-1, 0) * x(0);
+         q(i, 1) = q(i-1, 1) * x(1);
+         q(i, 2) = q(i-1, 2) * x(2);
       }
       for (int i = 0; i < polyOrd; ++i)
       {
@@ -13175,44 +13273,257 @@ void RKFiniteElement::fillPoly(const IntegrationPoint &ip,
    }
 }
 
-void RBFFiniteElement::CalcShape(const IntegrationPoint &ip,
-                                 Vector& shape) const
+void RKFiniteElement::GetDPoly(const Vector &x,
+                               Array<Vector> &dp) const
 {
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix M(numPoly, numPoly);
-   DenseMatrixInverse Minv;
-   Vector c;
+   DenseMatrix q(polyOrd, Dim);
+   DenseMatrix dq(polyOrd, Dim);
 #endif
-
-   // Fill the shape vector with base function values
    
-
-   // Calculate M
-
-   // Compute M factorization and calculate the values of c
-   Minv.Factor(M);
-   GetCoefficients(M, c);
-
-   // Calculate the values of the functions
-   
+   int index = 0;
+   switch (Dim)
+   {
+   case 1:
+      Vector &dpl = dp[d];
+      q(0, 0) = 1.0;
+      dpl(0) = 0.0;
+      for (int i = 1; i < polyOrd; ++i)
+      {
+         dpl(i) = dpl(i-1) * x(0) + q(i-1, 0);
+         q(i, 0) = q(i-1, 0) * x(0);
+      }
+      break;
+   case 2:
+      q(0, 0) = 1.0;
+      q(0, 1) = 1.0;
+      dq(0, 0) = 0.0;
+      dq(0, 1) = 0.0;
+      for (int i = 1; i < polyOrd; ++i)
+      {
+         q(i, 0) = q(i-1, 0) * x(0);
+         q(i, 1) = q(i-1, 1) * x(1);
+         dq(i, 0) = dq(i-1, 0) * x(0) + q(i-1, 0);
+         dq(i, 1) = dq(i-1, 1) * x(1) + q(i-1, 1);
+      }
+      for (int i = 0; i < polyOrd; ++i)
+      {
+         for (int j = 0; j + i < polyOrd; ++j)
+         {
+            dp[0](index) = dq(i, 0) * q(j, 1);
+            dp[1](index) = q(i, 0) * dq(j, 1);
+            ++index;
+         }
+      }
+      break;
+   case 3:
+      q(0, 0) = 1.0;
+      q(0, 1) = 1.0;
+      q(0, 2) = 1.0;
+      dq(0, 0) = 0.0;
+      dq(0, 1) = 0.0;
+      for (int i = 1; i < polyOrd; ++i)
+      {
+         q(i, 0) = q(i-1, 0) * x(0);
+         q(i, 1) = q(i-1, 1) * x(1);
+         q(i, 2) = q(i-1, 2) * x(2);
+         dq(i, 0) = dq(i-1, 0) * x(0) + q(i-1, 0);
+         dq(i, 1) = dq(i-1, 1) * x(1) + q(i-1, 1);
+      }
+      for (int i = 0; i < polyOrd; ++i)
+      {
+         for (int j = 0; j + i < polyOrd; ++j)
+         {
+            for (int k = 0; k + j + i < polyOrd; ++k)
+            {
+               dp[0](index) = dq(i, 0) * q(j, 1) * q(k, 2);
+               dp[1](index) = q(i, 0) * dq(j, 1) * q(k, 2);
+               dp[2](index) = q(i, 0) * q(j, 1) * dq(k, 2);
+               ++index;
+            }
+         }
+      }
+      break;
+   default:
+      MFEM_ABORT("invalid dimension: " << Dim);
+   }
 }
 
-void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
-                                  DenseMatrix& shape) const
+void RKFiniteElement::GetM(const Vector &baseShape,
+                           const IntegrationPoint &ip,
+                           DenseMatrix &M) const
 {
 #ifdef MFEM_THREAD_SAFE
-
+   Vector x(Dim);
+   Vector y(Dim);
+   Vector p(numPoly);
 #endif
    
+   baseFE.IntRuleToVec(ip, x);
+   const DenseMatrix &positions = baseFE.positions();
+   
+   for (int i = 0; i < Dof; ++i)
+   {
+      // Distance vector
+      DistanceVec(i, x, y);
+
+      // Polynomials
+      GetPoly(y, p);
+
+      // Add values to M
+      AddToM(p, baseShape(i), M);
+   }
 }
 
-void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
-                                   DenseMatrix& h) const
+void RKFiniteElement::GetDM(const Vector &baseShape,
+                            const DenseMatrix &baseDeriv,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &M,
+                            DenseMatrix &dM) const
 {
 #ifdef MFEM_THREAD_SAFE
+   double f;
+   Vector x(Dim);
+   Vector y(Dim);
+   Vector p(numPoly);
+   Vector df(Dim);
+   Array<Vector> dp(Dim);
+   for (int d = 0; d < Dim; ++d)
+   {
+      dp[d].SetSize(numPoly);
+   }
+#endif
+   baseFE.IntRuleToVec(ip, x);
+   const DenseMatrix &positions = baseFE.positions();
+   
+   for (int i = 0; i < Dof; ++i)
+   {
+      // Distance vector
+      DistanceVec(i, x, y);
+      
+      // Polynomials
+      GetPoly(y, p);
+      GetDPoly(y, dp);
 
+      // Add values to M
+      f = baseShape(i);
+      AddToM(p, f, M);
+      
+      // Add values to dM
+      for (int d = 0; d < Dim; ++d)
+      {
+         df(d) = baseDeriv(i, d);
+      }
+      AddToDM(p, dp, f, df, dM);
+   }
+}
+
+void RKFiniteElement::AddToM(const Vector &p,
+                             const double &f,
+                             DenseMatrix &M) const
+{
+   for (int k = 0; k < numPoly; ++k)
+   {
+      for (int l = k; l < numPoly; ++l)
+      {
+         M(k, l) += p(k) * p(l) * f;
+      }
+   }
+   for (int k = 1; k < numPoly - 1; ++k)
+   {
+      for (int l = 0; l < k; ++l)
+      {
+         M(k, l) = M(l, k);
+      }
+   }
+}
+
+void RKFiniteElement::AddToDM(const Vector &p,
+                              const Array<Vector> &dp,
+                              const double &f,
+                              const Vector &df,
+                              Array<DenseMatrix> &dM) const {
+   for (int d = 0; d < Dim; ++d)
+   {
+      const Vector &dpl = dp[d];
+      for (int k = 0; k < numPoly; ++k)
+      {
+         for (int l = k; l < numPoly; ++l)
+         {
+            dM[d](k, l) += ((dpl(k) * p(l) + p(k) * dpl(l)) * f
+                            + p(l) * p(k) * df(d));
+         }
+      }
+      for (int k = 1; k < numPoly - 1; ++k)
+      {
+         for (int l = 0; l < k; ++l)
+         {
+            dM[d](k, l) = M(l, k);
+         }
+      }
+   }
+}
+
+void RKFiniteElement::CalculateValues(const Vector &c,
+                                      const Vector &baseShape,
+                                      Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector x(Dim);
+   Vector y(Dim);
+   Vector p(numPoly);
 #endif
    
+   baseFE.IntRuleToVec(ip, x);
+   
+   for (int i = 0; i < Dof; ++i)
+   {
+      // Distance vector
+      DistanceVec(i, x, y);
+      
+      // Polynomials
+      GetPoly(y, p);
+
+      // Get shape
+      shape(i) = (p * c) * baseShape(i);
+   }
+}
+
+void RKFiniteElement::CalculateDValues(const Vector &c,
+                                       const Array<Vector> &dc,
+                                       const Vector &baseShape,
+                                       const DenseMatrix &baseDShape,
+                                       DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector x(Dim);
+   Vector y(Dim);
+   Vector p(numPoly);
+   Array<Vector> dp(Dim);
+   for (int d = 0; d < Dim; ++d)
+   {
+      dp.SetSize(numPoly);
+   }
+#endif
+   
+   baseFE.IntRuleToVec(ip, x);
+   
+   for (int i = 0; i < Dof; ++i)
+   {
+      // Distance vector
+      DistanceVec(i, x, y);
+      
+      // Polynomials
+      GetPoly(y, p);
+      GetDPoly(y, dp);
+      
+      // Get shape
+      for (int d = 0; d < Dim; ++d)
+      {
+         dshape(i, d) = ((dp[d] * c + p * dc[d]) * baseShape(i)
+                         + p * c * baseDShape(i, d));
+      }
+   }
 }
 
 } // namespace mfem
