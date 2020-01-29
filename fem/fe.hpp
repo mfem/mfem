@@ -3296,6 +3296,28 @@ public:
    
 };
 
+class MultiquadricRBF : public RBFFunction
+{
+public:
+   MultiquadricRBF() { };
+   
+   virtual double BaseFunction(double r) const;
+   virtual double BaseDerivative(double r) const;
+   virtual double BaseDerivative2(double r) const;
+   
+};
+
+class InvMultiquadricRBF : public RBFFunction
+{
+public:
+   InvMultiquadricRBF() { };
+   
+   virtual double BaseFunction(double r) const;
+   virtual double BaseDerivative(double r) const;
+   virtual double BaseDerivative2(double r) const;
+   
+};
+
 class DistanceMetric
 {
 protected:

@@ -12829,6 +12829,40 @@ double GaussianRBF::BaseDerivative2(double r) const
    return (-2 * 4 * r2) * exp(-r2);
 }
 
+double MultiquadricRBF::BaseFunction(double r) const
+{
+   return sqrt(1 + r * r);
+}
+
+double MultiquadricRBF::BaseDerivative(double r) const
+{
+   const double f = BaseFunction(r);
+   return r / f;
+}
+
+double MultiquadricRBF::BaseDerivative2(double r) const
+{
+   const double f = BaseFunction(r);
+   return 1.0 / (f * f * f);
+}
+
+double InvMultiquadricRBF::BaseFunction(double r) const
+{
+   return 1. / sqrt(1 + r * r);
+}
+
+double InvMultiquadricRBF::BaseDerivative(double r) const
+{
+   const double f = BaseFunction(r);
+   return -r * f * f * f;
+}
+
+double InvMultiquadricRBF::BaseDerivative2(double r) const
+{
+   const double f = BaseFunction(r);
+   return (2 * r * r - 1) * f * f * f * f * f;
+}
+
 void EuclideanDistance::Distance(const Vector &x,
                                  double &r) const
 {
