@@ -29,6 +29,7 @@ list(APPEND ALL_EXE_SRCS
   ex20.cpp
   ex21.cpp
   ex22.cpp
+  ex24.cpp
   )
 
 if (MFEM_USE_MPI)
