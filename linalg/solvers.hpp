@@ -493,7 +493,7 @@ class BlockILU : public Solver
 {
 public:
 
-   /** The reordering method used by the BlockILU factorization. */
+   /// The reordering method used by the BlockILU factorization.
    enum class Reordering
    {
       MINIMUM_DISCARDED_FILL,
@@ -522,8 +522,7 @@ public:
     */
    void SetOperator(const Operator &op);
 
-   /** Solve the system `LUx = b`, where `L` and `U` are the block ILU factors
-    */
+   /// Solve the system `LUx = b`, where `L` and `U` are the block ILU factors.
    void Mult(const Vector &b, Vector &x) const;
 
    /** Get the I array for the block CSR representation of the factorization.
