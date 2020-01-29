@@ -3352,6 +3352,21 @@ public:
                            DenseMatrix &ddr) const;
 };
 
+class ManhattenDistance : public DistanceMetric
+{
+public:
+   ManhattenDistance(int D) : DistanceMetric(D) { };
+
+   virtual void Distance(const Vector &x,
+                         double &r) const;
+   virtual void DDistance(const Vector &x,
+                          const Vector &dx,
+                          Vector &dr) const;
+   virtual void DDDistance(const Vector &x,
+                           const Vector &dx,
+                           DenseMatrix &ddr) const;
+};
+
 class RBFFiniteElement : public ScalarFiniteElement
 {
 private:

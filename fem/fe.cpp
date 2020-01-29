@@ -12911,6 +12911,50 @@ void EuclideanDistance::DDDistance(const Vector &x,
    }
 }
 
+void ManhattenDistance::Distance(const Vector &x,
+                                 double &r) const
+{
+   r = 0.0;
+   for (int d = 0; d < Dim; ++d)
+   {
+      r += abs(x(d));
+   }
+}
+
+void ManhattenDistance::DDistance(const Vector &x,
+                                  const Vector &dx,
+                                  Vector &dr) const
+{
+   for (int d = 0; d < Dim; ++d)
+   {
+      if (x(d) > 0)
+      {
+         dr(d) = dx(d) * 1.0;
+      }
+      else if (x(d) < 0)
+      {
+         dr(d) = -dx(d) * 1.0;
+      }
+      else
+      {
+         dr(d) = 0.0;
+      }
+   }
+}
+
+void ManhattenDistance::DDDistance(const Vector &x,
+                                   const Vector &dx,
+                                   DenseMatrix &ddr) const
+{
+   for (int d1 = 0; d1 < Dim; ++d1)
+   {
+      for (int d2 = 0; d2 < Dim; ++d2)
+      {
+         ddr(d1, d2) = 0.0;
+      }
+   }
+}
+
 RBFFiniteElement::RBFFiniteElement(int D, int nD, double h,
                                    RBFFunction &func, DistanceMetric &dist)
    : ScalarFiniteElement(D, TensorBasisElement::GetTensorProductGeometry(D),
