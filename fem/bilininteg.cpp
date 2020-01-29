@@ -22,7 +22,7 @@ namespace mfem
 
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::AssemblePA (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePA(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -35,31 +35,31 @@ void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
 
 void BilinearFormIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::AssemblePAInteriorFaces (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePAInteriorFaces(...)\n"
                "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::AssemblePABoundaryFaces (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePABoundaryFaces(...)\n"
                "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
 {
-   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA (...)\n"
+   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA(...)\n"
               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembled (...)\n"
+   mfem_error ("BilinearFormIntegrator::MultAssembled(...)\n"
                "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose (...)\n"
+   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -67,7 +67,7 @@ void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
    DenseMatrix &elmat )
 {
-   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -75,7 +75,7 @@ void BilinearFormIntegrator::AssembleElementMatrix2 (
    const FiniteElement &el1, const FiniteElement &el2,
    ElementTransformation &Trans, DenseMatrix &elmat )
 {
-   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2 (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -83,7 +83,7 @@ void BilinearFormIntegrator::AssembleFaceMatrix (
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   mfem_error ("BilinearFormIntegrator::AssembleFaceMatrix (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleFaceMatrix(...)\n"
                "   is not implemented for this class.");
 }
 
