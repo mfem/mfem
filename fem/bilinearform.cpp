@@ -1059,6 +1059,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   mat_e = NULL;
    extern_bfs = 0;
    ext = NULL;
 }

@@ -4,6 +4,8 @@
 
 #include "gsl_sf_airy.h"
 
+#include "multigrid.hpp"
+
 using namespace std;
 using namespace mfem;
 
@@ -112,7 +114,7 @@ int main(int argc, char *argv[])
   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
   std::vector<ParFiniteElementSpace * > fespaces(ref_levels+1);
   std::vector<ParMesh * > ParMeshes(ref_levels+1);
-  std::vector<HypreParMatrix*>  P(ref_levels);
+  std::vector<HypreParMatrix*> P(ref_levels);
 
   for (int i = 0; i < ref_levels; i++)
     {
@@ -133,7 +135,7 @@ int main(int argc, char *argv[])
   Array<int> ess_bdrE(pmesh->bdr_attributes.Max());
   Array<int> ess_bdrH(pmesh->bdr_attributes.Max());
   ess_bdrE = 1;
-  ess_bdrH = 0;
+  ess_bdrH = 0;  // Neumann
   fespace->GetEssentialTrueDofs(ess_bdrE, ess_tdof_listE);
   fespace->GetEssentialTrueDofs(ess_bdrH, ess_tdof_listH);
 
@@ -264,7 +266,7 @@ int main(int argc, char *argv[])
 
   // // mfem::out << "Estimated memory taken by the global matrix: " <<  gb << endl;
 
-  int maxit(500);
+  int maxit(5000);
   double rtol(1.e-8);
   double atol(1.e-12);
 
@@ -277,7 +279,7 @@ int main(int argc, char *argv[])
   pcg.SetPrintLevel(1);
   chrono.Clear();
   chrono.Start();
-  //BlockMGSolver * precMG = new BlockMGSolver(blockA,P,fespaces);
+  BlockMGSolver * precMG = new BlockMGSolver(blockA, P);
   //precMG->SetTheta(0.5);
   // // int lv_coarse = min(ref_levels,ref_levels-1);
   // // int levels = ref_levels - lv_coarse; 
@@ -287,14 +289,21 @@ int main(int argc, char *argv[])
   {
      cout << "MG Setup time: " << chrono.RealTime() << endl;
   }
-   
+
+  // Randomize H RHS
+  //trueRhs = 1.0;
+  /*
+  for (int i=block_trueOffsets[1]; i<block_trueOffsets[2]; ++i)
+    trueRhs[i] = i % 53;
+  */
+  
   chrono.Clear();
   chrono.Start();
-  //pcg.SetPreconditioner(*precMG);
+  pcg.SetPreconditioner(*precMG);
   // // pcg.SetPreconditioner(*precAS);
   pcg.Mult(trueRhs, trueX);
   chrono.Stop();
-  //delete precMG;
+  delete precMG;
   // // delete precAS;
    
   // // trueX = 0.0;
@@ -362,6 +371,20 @@ int main(int argc, char *argv[])
      cout << "Total error = " << setprecision(15) << sqrt(Error_H*Error_H+Error_E*Error_E) << "\n";
   }
 
+  {
+      ostringstream mesh_name, sol_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->Print(mesh_ofs);
+
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+      E_gf->Save(sol_ofs);
+   }
+  
   //ParGridFunction ExactE(fespace);
   /*
   if (visualization)
