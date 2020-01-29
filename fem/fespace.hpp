@@ -991,7 +991,8 @@ public:
    /// This computation uses tensor product structure.
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
 
-   /// Interpolate the derivatives of the E-vector @a e_vec at quadrature points.
+   /// Interpolate the derivatives in physical space of the E-vector @a e_vec
+   /// at quadrature points.
    /// This computation uses tensor product structure.
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
