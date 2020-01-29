@@ -113,7 +113,7 @@ Linear and nonlinear solvers
 - Added Adams-Bashforth and Adams-Moulton time integrators.
 
 - Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
-  (DG advection) now takes advantage of this.
+  (DG advection) now takes advantage of this for implicit time integration.
 
 New and updated examples and miniapps
 -------------------------------------
