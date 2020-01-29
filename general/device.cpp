@@ -104,7 +104,6 @@ void Device::Configure(const std::string &device, const int dev)
          const std::string backend = bname.substr(0, option);
          const std::string boption = bname.substr(option+1);
          Get().device_option = strdup(boption.c_str());
-         printf("\033[32mdevice_option:%s\033[m\n", Get().device_option); fflush(0);
          std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
          MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
          Get().MarkBackend(it->second);
