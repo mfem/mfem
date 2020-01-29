@@ -642,7 +642,8 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
                         Vector &error_estimates,
                         Array<int> *aniso_flags = NULL,
-                        int with_subdomains = 1);
+                        int with_subdomains = 1,
+                        int with_coeff = 0);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
