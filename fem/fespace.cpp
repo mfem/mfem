@@ -3703,7 +3703,7 @@ static void D2QGrad(const FiniteElementSpace &fes,
    const int dim = fes.GetMesh()->Dimension();
    const int NE = fes.GetNE();
    const int D1D = fes.GetFE(0)->GetOrder() + 1;
-   const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
+   const int Q1D = maps->nqpt;
    const int id = (D1D<<4) | Q1D;
    if (dim==2)
    {
