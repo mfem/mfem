@@ -901,6 +901,16 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
 }
 
 
+const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement
+                                                     &trial_fe,
+                                                     const FiniteElement &test_fe,
+                                                     ElementTransformation &Trans)
+{
+   int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
+
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
 void ConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
