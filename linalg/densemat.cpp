@@ -3112,14 +3112,12 @@ bool LinearSolve(DenseMatrix& A, double* X, double TOL)
       default:
       {
          // default to LU factorization for the general case
-         int* ipiv = new int[N];
+         Array<int> ipiv(N);
          LUFactors lu(A.Data(), ipiv);
 
          if (!lu.Factor(N)) { return false; } // singular
 
          lu.Solve(N, 1, X);
-
-         delete [] ipiv;
       }
 
    } // END switch
