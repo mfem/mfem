@@ -3036,13 +3036,15 @@ void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id,
             case 2://NORTH
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = (dof1d-1)*dof1d + dof1d-1 - i;
+                  faceMap[i] = (dof1d-1)*dof1d + i;//Lex
+                  // faceMap[i] = (dof1d-1)*dof1d + dof1d-1 - i;
                }
                break;
             case 3://WEST
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = (dof1d-1)*dof1d - i*dof1d;
+                  faceMap[i] = i*dof1d;//Lex
+                  // faceMap[i] = (dof1d-1)*dof1d - i*dof1d;
                }
                break;
          }
@@ -3243,9 +3245,31 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
-static int PermuteFace2D(const int size1d, const int index)
+static int PermuteFace2D(const int face_id1, const int face_id2,
+                         const int orientation,
+                         const int size1d, const int index)
 {
-   return size1d - 1 - index;
+   int new_index;
+   if (face_id1==2 || face_id1==3)
+   {
+      new_index = size1d-1-index;
+   }
+   else
+   {
+      new_index = index;
+   }
+   if (orientation==1)
+   {
+      new_index = size1d-1-new_index;
+   }
+   if (face_id2==2 || face_id2==3)
+   {
+      return size1d-1-new_index;
+   }
+   else
+   {
+      return new_index;
+   }
 }
 
 static int PermuteFace3D(const int face_id1, const int face_id2,
@@ -3324,7 +3348,7 @@ int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1,
       case 1:
          return 0;
       case 2:
-         return PermuteFace2D(size1d, index);
+         return PermuteFace2D(face_id1, face_id2, orientation, size1d, index);
       case 3:
          return PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
       default:
@@ -3949,6 +3973,7 @@ void FaceQuadratureInterpolator::Eval2D(
    auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
    auto F = Reshape(f_vec.Read(), ND1D, VDIM, NF);
+   auto sign = signs.Read();
    auto val = Reshape(q_val.Write(), NQ1D, VDIM, NF);
    // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF);//Only tangential der
    auto det = Reshape(q_det.Write(), NQ1D, NF);
@@ -4010,8 +4035,9 @@ void FaceQuadratureInterpolator::Eval2D(
                }
                if (eval_flags & NORMALS)
                {
-                  n(q,0,f) =  D[1]/norm;
-                  n(q,1,f) = -D[0]/norm;
+                  const double s = sign[f] ? -1.0 : 1.0;
+                  n(q,0,f) =  s*D[1]/norm;
+                  n(q,1,f) = -s*D[0]/norm;
                }
             }
          }
