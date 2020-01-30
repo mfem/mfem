@@ -18,9 +18,9 @@
 #endif
 
 #include "../config/config.hpp"
-
+#include "../general/cuda.hpp"
 #include "../general/globals.hpp"
-#include "../general/forall.hpp"
+
 #include "matrix.hpp"
 
 namespace mfem
