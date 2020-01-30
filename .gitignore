@@ -89,6 +89,9 @@ examples/gnuplot_ex20p.inp
 examples/ex21*.mesh
 examples/ex21*.sol
 examples/ex21p_*.*
+examples/ex24-*.gf
+examples/ex24-*.mesh
+examples/Example24*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
