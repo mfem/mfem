@@ -440,6 +440,7 @@ private:
 
    /// Allow to detect if a global memory manager instance exists.
    static bool exists;
+   static bool mm_env;
 
    /// Return true if the global memory manager instance exists.
    static bool Exists() { return exists; }
