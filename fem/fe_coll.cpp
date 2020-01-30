@@ -162,6 +162,10 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6));
    }
+   else if (!strncmp(name, "H1Ser_", 6))
+   {
+      fec = new H1Ser_FECollection(atoi(name + 10), atoi(name + 6));
+   }
    else if (!strncmp(name, "H1@", 3))
    {
       fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
@@ -1520,6 +1524,11 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          snprintf(h1_name, 32, "H1Pos_%dD_P%d", dim, p);
          break;
       }
+      case BasisType::Serendipity:
+      {
+         snprintf(h1_name, 32, "H1Ser_%dD_P%d", dim, p);
+         break;
+      }
       default:
       {
          MFEM_VERIFY(Quadrature1D::CheckClosed(pt_type) !=
@@ -1582,6 +1591,18 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
          H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
       }
+      else if (b_type == BasisType::Serendipity)
+      {
+         // Note: in fe_coll.hpp the DofForGeometry(Geometry::Type) method
+         // returns H1_dof[GeomType], so we need to fix the value of H1_dof here
+         // for the serendipity case.
+
+         // formula for number of interior serendipity DoFs (when p>1)
+         H1_dof[Geometry::SQUARE] = (pm3*pm2)/2;
+         H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
+         // allows for mixed tri/quad meshes
+         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
+      }
       else
       {
          H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
@@ -1616,20 +1637,60 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
       }
-      // see Mesh::GetQuadOrientation in mesh/mesh.cpp
-      for (int j = 0; j < pm1; j++)
+
+      // For serendipity order >=4, the QuadDofOrd array must be re-defined. We
+      // do this by computing the corresponding tensor product QuadDofOrd array
+      // or two orders less, which contains enough DoFs for their serendipity
+      // basis. This could be optimized.
+      if (b_type == BasisType::Serendipity)
       {
-         for (int i = 0; i < pm1; i++)
+         if (p < 4)
          {
-            int o = i + j*pm1;
-            QuadDofOrd[0][o] = i + j*pm1;  // (0,1,2,3)
-            QuadDofOrd[1][o] = j + i*pm1;  // (0,3,2,1)
-            QuadDofOrd[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
-            QuadDofOrd[3][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
-            QuadDofOrd[4][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
-            QuadDofOrd[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
-            QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
-            QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+            // no face dofs --> don't need to adjust QuadDofOrd
+         }
+         else  // p >= 4 --> have face dofs
+         {
+            // Exactly the same as tensor product case, but with all orders
+            // reduced by 2 e.g. in case p=5 it builds a 2x2 array, even though
+            // there are only 3 serendipity dofs.
+            // In the tensor product case, the i and j index tensor directions,
+            // and o index from 0 to (pm1)^2,
+            const int pm4 = pm3 -1;
+
+            for (int j = 0; j < pm3; j++)   // pm3 instead of pm1, etc
+            {
+               for (int i = 0; i < pm3; i++)
+               {
+                  int o = i + j*pm3;
+                  QuadDofOrd[0][o] = i + j*pm3;  // (0,1,2,3)
+                  QuadDofOrd[1][o] = j + i*pm3;  // (0,3,2,1)
+                  QuadDofOrd[2][o] = j + (pm4 - i)*pm3;  // (1,2,3,0)
+                  QuadDofOrd[3][o] = (pm4 - i) + j*pm3;  // (1,0,3,2)
+                  QuadDofOrd[4][o] = (pm4 - i) + (pm4 - j)*pm3;  // (2,3,0,1)
+                  QuadDofOrd[5][o] = (pm4 - j) + (pm4 - i)*pm3;  // (2,1,0,3)
+                  QuadDofOrd[6][o] = (pm4 - j) + i*pm3;  // (3,0,1,2)
+                  QuadDofOrd[7][o] = i + (pm4 - j)*pm3;  // (3,2,1,0)
+               }
+            }
+
+         }
+      }
+      else // not serendipity
+      {
+         for (int j = 0; j < pm1; j++)
+         {
+            for (int i = 0; i < pm1; i++)
+            {
+               int o = i + j*pm1;
+               QuadDofOrd[0][o] = i + j*pm1;  // (0,1,2,3)
+               QuadDofOrd[1][o] = j + i*pm1;  // (0,3,2,1)
+               QuadDofOrd[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
+               QuadDofOrd[3][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
+               QuadDofOrd[4][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
+               QuadDofOrd[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
+               QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
+               QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+            }
          }
       }
 
