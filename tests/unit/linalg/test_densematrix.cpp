@@ -21,15 +21,14 @@ TEST_CASE( "DenseMatrix LinearSolve methods",
    {
       constexpr int N = 3;
 
-      DenseMatrix A( N );
-      A.SetRow( 0, 0.0 );
-      A.SetRow( 1, 0.0 );
-      A.SetRow( 2, 0.0 );
+      DenseMatrix A(N);
+      A.SetRow(0, 0.0);
+      A.SetRow(1, 0.0);
+      A.SetRow(2, 0.0);
 
       double X[3];
 
-      int rc = LinearSolve( A, X );
-      REQUIRE( rc < 0 );
+      REQUIRE_FALSE(LinearSolve(A,X));
    }
 
    SECTION( "1x1_system" )
@@ -40,9 +39,8 @@ TEST_CASE( "DenseMatrix LinearSolve methods",
 
       double X[ 1 ] = { 12 };
 
-      int rc = LinearSolve( A, X );
-      REQUIRE( rc==0 );
-      REQUIRE( X[0] == Approx(6) );
+      REQUIRE(LinearSolve(A,X));
+      REQUIRE(X[0] == Approx(6));
    }
 
    SECTION( "2x2_system" )
@@ -55,11 +53,9 @@ TEST_CASE( "DenseMatrix LinearSolve methods",
 
       double X[ 2 ] = { 1, 14 };
 
-      int rc = LinearSolve( A, X );
-
-      REQUIRE( rc==0 );
-      REQUIRE( X[0] == Approx(-2) );
-      REQUIRE( X[1] == Approx(5) );
+      REQUIRE(LinearSolve(A,X));
+      REQUIRE(X[0] == Approx(-2));
+      REQUIRE(X[1] == Approx(5));
    }
 
    SECTION( "3x3_system" )
@@ -73,12 +69,10 @@ TEST_CASE( "DenseMatrix LinearSolve methods",
 
       double X[ 3 ] = { -14, 42, 28 };
 
-      int rc = LinearSolve( A, X );
-
-      REQUIRE( rc==0 );
-      REQUIRE( X[0] == Approx(4)  );
-      REQUIRE( X[1] == Approx(-4) );
-      REQUIRE( X[2] == Approx(5) );
+      REQUIRE(LinearSolve(A,X));
+      REQUIRE(X[0] == Approx(4));
+      REQUIRE(X[1] == Approx(-4));
+      REQUIRE(X[2] == Approx(5));
    }
 
 }

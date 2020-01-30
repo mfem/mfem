@@ -3077,14 +3077,14 @@ void Add(double alpha, const DenseMatrix &A,
    Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
-int LinearSolve(DenseMatrix& A, double* X)
+bool LinearSolve(DenseMatrix& A, double* X)
 {
    MFEM_VERIFY(A.IsSquare(), "A must be a square matrix!");
    MFEM_ASSERT(A.NumCols() > 0, "supplied matrix, A, is empty!");
    MFEM_ASSERT(X != nullptr, "supplied vector, X, is null!");
 
    constexpr double TOL = 1.e-9;
-   constexpr int SINGULAR = -1;
+   constexpr bool SINGULAR = false;
    const int N = A.NumCols();
 
    switch (N)
@@ -3118,11 +3118,10 @@ int LinearSolve(DenseMatrix& A, double* X)
       default:
       {
          // default to LU factorization for the general case
-         constexpr int LU_SUCCESS = 0;
          int* ipiv = new int [N];
          LUFactors lu(A.Data(), ipiv);
 
-         if (lu.Factor( N ) != LU_SUCCESS)
+         if (!lu.Factor(N))
          {
             return SINGULAR;
          }
@@ -3134,7 +3133,7 @@ int LinearSolve(DenseMatrix& A, double* X)
 
    } // END switch
 
-   return 0;
+   return true;
 }
 
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
@@ -4046,10 +4045,10 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 }
 
 
-int LUFactors::Factor(int m, double TOL)
+bool LUFactors::Factor(int m, double TOL)
 {
-   constexpr int LU_SUCCESS = 0;
-   constexpr int LU_FAILED  = -1;
+   constexpr bool LU_SUCCESS = true;
+   constexpr bool LU_FAILED  = false;
 
 #ifdef MFEM_USE_LAPACK
    int info = 0;
