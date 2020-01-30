@@ -379,7 +379,7 @@ void Add(double alpha, const DenseMatrix &A,
 /// @param [in,out] A the square matrix for the linear system
 /// @param [in,out] X the rhs vector, B, on input, the solution, X, on output.
 ///
-/// @return status zero on success, negative number otherwise.
+/// @return status set to true if successful, otherwise, false.
 ///
 /// @note This routine may replace the contents of the input Matrix, A, with the
 ///       corresponding LU factorization of the matrix. Matrices of size 1x1 and
@@ -387,7 +387,7 @@ void Add(double alpha, const DenseMatrix &A,
 ///
 /// @pre A.IsSquare() == true
 /// @pre X != nullptr
-int LinearSolve(DenseMatrix& A, double* X);
+bool LinearSolve(DenseMatrix& A, double* X);
 
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
@@ -503,9 +503,9 @@ public:
     * @param [in] m size of the square matrix
     * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 1e-9.
     *
-    * @return status returns 0 on success, non-zero return value otherwise.
+    * @return status set to true if successful, otherwise, false.
     */
-   int Factor(int m, double TOL=1.e-9 );
+   bool Factor(int m, double TOL=1.e-9 );
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
