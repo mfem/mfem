@@ -49,7 +49,7 @@ static void MmuCatch(const int N = 1024)
    Y = 0.0;
    // in debug device, should raise a SIGSEGV
    // but it can't be caught by this version of Catch
-   //h_Y[0] = 0.0;
+   // h_Y[0] = 0.0;
 }
 
 void Aliases(const int N = 0x1234)

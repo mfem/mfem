@@ -9,9 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-//#include "../../dbg.hpp"
-#define dbg(...)
-
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
@@ -77,16 +74,16 @@ Device::Device() : mode(Device::SEQUENTIAL),
 {
    if (getenv("MFEM_ENV_DEVICE"))
    {
+      Configure(std::string(getenv("MFEM_ENV_DEVICE")));
       device_env = true;
-      std::string env_device(getenv("MFEM_ENV_DEVICE"));
-      Configure(std::string(env_device));
    }
 }
 
 
 Device::~Device()
 {
-   if (destroy_mm)
+   if ( device_env && !destroy_mm) { return; }
+   if (!device_env &&  destroy_mm)
    {
       free(device_option);
 #ifdef MFEM_USE_CEED
@@ -102,7 +99,15 @@ Device::~Device()
 
 void Device::Configure(const std::string &device, const int dev)
 {
-   dbg("device: %s", device.c_str());
+   // If a device was configured via the environment, skip the configuration,
+   // and avoid the 'singleton_device' to destroy the mm.
+   if (device_env)
+   {
+      std::memcpy(this, &Get(), sizeof(Device));
+      Get().destroy_mm = false;
+      return;
+   }
+
    std::map<std::string, Backend::Id> bmap;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
@@ -155,7 +160,7 @@ void Device::Configure(const std::string &device, const int dev)
    std::memcpy(this, &Get(), sizeof(Device));
 
    // Only '*this' will call the MemoryManager::Destroy() method.
-   if (!device_env) { destroy_mm = true; }
+   destroy_mm = true;
 }
 
 void Device::Print(std::ostream &out)
@@ -240,9 +245,8 @@ void Device::UpdateMemoryTypeAndClass()
 
 void Device::Enable()
 {
-   const bool accelerated = Get().backends & ~(Backend::CPU | Backend::DEBUG);
-   if (accelerated) { dbg("accelerated"); Get().mode = Device::ACCELERATED;}
-   else { dbg("!accelerated"); }
+   const bool accelerated = Get().backends & ~(Backend::CPU);
+   if (accelerated) { Get().mode = Device::ACCELERATED;}
    Get().UpdateMemoryTypeAndClass();
 }
 
@@ -406,7 +410,7 @@ void Device::Setup(const int device)
          CeedDeviceSetup(device_option);
       }
    }
-   //if (Allows(Backend::DEBUG)) { dbg("Allows(Backend::DEBUG)"); ngpu = 1; }
+   if (Allows(Backend::DEBUG)) { ngpu = 1; }
 }
 
 } // mfem

@@ -75,7 +75,7 @@ struct Backend
       NUM_BACKENDS = 13,
 
       /// Biwise-OR of all CPU backends
-      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU | DEBUG,
+      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA | CEED_CUDA,
       /// Biwise-OR of all HIP backends
@@ -85,7 +85,7 @@ struct Backend
       /// Bitwise-OR of all CEED backends
       CEED_MASK = CEED_CPU | CEED_CUDA,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | HIP_MASK,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG,
 
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
@@ -180,7 +180,7 @@ public:
         host_mem_class(MemoryClass::HOST),
         device_mem_type(MemoryType::HOST),
         device_mem_class(MemoryClass::HOST)
-   { if (!device_env) { Configure(device, dev); } }
+   { Configure(device, dev); }
 
    /// Destructor.
    ~Device();
