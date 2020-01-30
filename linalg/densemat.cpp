@@ -3103,15 +3103,11 @@ bool LinearSolve(DenseMatrix& A, double* X, double TOL)
 
          const double invdet = 1. / det;
 
-         const double& a00 = A(0,0);
-         const double& a01 = A(0,1);
-         const double& a10 = A(1,0);
-         const double& a11 = A(1,1);
          const double b0   = X[0];
          const double b1   = X[1];
 
-         X[0] = (  a11*b0 - a01*b1 ) * invdet;
-         X[1] = ( -a10*b0 + a00*b1 ) * invdet;
+         X[0] = (  A(1,1)*b0 - A(0,1)*b1 ) * invdet;
+         X[1] = ( -A(1,0)*b0 + A(0,0)*b1 ) * invdet;
          break;
       }
       default:
