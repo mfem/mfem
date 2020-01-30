@@ -20,6 +20,7 @@
 #include "../mesh/pmesh.hpp"
 #include "../mesh/nurbs.hpp"
 #include "fespace.hpp"
+#include "restriction.hpp"
 
 namespace mfem
 {
@@ -437,30 +438,6 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual void MultTranspose(const Vector &x, Vector &y) const;
-};
-
-/// Operator that extracts Face degrees of freedom.
-/** Objects of this type are typically created and owned by FiniteElementSpace
-    objects, see FiniteElementSpace::GetElementRestriction(). */
-class ParL2FaceRestriction : public Operator
-{
-protected:
-   const ParFiniteElementSpace &fes;
-   int nf;//const int nf;
-   const int vdim;
-   const bool byvdim;
-   const int ndofs;
-   int dof;//const int dof;
-   const L2FaceValues m;
-   int nfdofs;//const int nfdofs;
-   Array<int> indices1;
-   Array<int> indices2;
-
-public:
-   ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
-                        FaceType type, L2FaceValues m = L2FaceValues::Double);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
 };
 
 }
