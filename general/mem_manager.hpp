@@ -495,7 +495,7 @@ private: // Static methods used by the Memory<T> class
 
    /// Return the type the of the currently valid memory. If more than one types
    /// are valid, return a device type.
-   static MemoryType GetMemoryType_(void *h_ptr, unsigned flags);
+   static MemoryType GetDeviceMemoryType_(void *h_ptr);
 
    /// Return the type the of the host memory. @a known and @a alias can be
    /// given if they were precomputed.
@@ -524,7 +524,8 @@ private: // Static methods used by the Memory<T> class
    /// Check if the host pointer has been registered in the memory manager.
    static bool IsKnown_(const void *h_ptr);
 
-   /// Check if the host pointer has been registered as an alias in the memory manager.
+   /** @brief Check if the host pointer has been registered as an alias in the
+       memory manager. */
    static bool IsAlias_(const void *h_ptr);
 
    /// Compare the contents of the host and the device memory.
@@ -640,7 +641,7 @@ template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
    capacity = size;
-   const int bytes = size*sizeof(T);
+   const size_t bytes = size*sizeof(T);
    const bool mt_host = mt == MemoryType::HOST;
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
@@ -678,7 +679,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
    if (mt == MemoryType::HOST) { return Wrap(ptr, size, own); }
    capacity = size;
-   const int bytes = size*sizeof(T);
+   const size_t bytes = size*sizeof(T);
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
    const bool h_mt_host = h_mt == MemoryType::HOST;
    T *h_tmp = (h_mt_host) ? new T[size] : nullptr;
@@ -826,8 +827,8 @@ inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
-   if (!(flags & REGISTERED)) { return h_mt; }
-   return MemoryManager::GetMemoryType_(h_ptr, flags);
+   if (!(flags & VALID_DEVICE)) { return h_mt; }
+   return MemoryManager::GetDeviceMemoryType_(h_ptr);
 }
 
 template <typename T>
