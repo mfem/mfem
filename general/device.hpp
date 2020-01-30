@@ -180,7 +180,7 @@ public:
         host_mem_class(MemoryClass::HOST),
         device_mem_type(MemoryType::HOST),
         device_mem_class(MemoryClass::HOST)
-   { if (!device_env) Configure(device, dev); }
+   { if (!device_env) { Configure(device, dev); } }
 
    /// Destructor.
    ~Device();
