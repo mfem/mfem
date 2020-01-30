@@ -103,11 +103,8 @@ Discretization improvements
 
 Linear and nonlinear solvers
 ----------------------------
-- LUFactors::Factor() now returns a status that is equal to 0 if the LU factoriazation
-  is successful, non-zero otherwise.
-
 - Added a LinearSolve(A,X) convenience method to solve linear systems. In the trivial
-  cases, i.e., square matrices of size N=1 or N=2, the system is solve directly,
+  cases, i.e., square matrices of size N=1 or N=2, the system is solved directly,
   otherwise, LU Factorization is employed.
 
 - Added a general interface for specifying and solving nonlinear constrained
