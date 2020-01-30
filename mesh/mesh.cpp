@@ -10103,6 +10103,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
 static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
                      Array<bool> &signs)
 {
+   const int dim = fes.GetMesh()->SpaceDimension();
    int e1, e2;
    int inf1, inf2;
    int face_id;
@@ -10115,13 +10116,27 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
       if ( (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
            (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
-         if (face_id==0 || face_id==3 || face_id==4)
+         if (dim==2)
          {
-            signs[f_ind] = true;
+            if (face_id==2 || face_id==3)
+            {
+               signs[f_ind] = true;
+            }
+            else
+            {
+               signs[f_ind] = false;
+            }
          }
-         else
+         else if (dim==3)
          {
-            signs[f_ind] = false;
+            if (face_id==0 || face_id==3 || face_id==4)
+            {
+               signs[f_ind] = true;
+            }
+            else
+            {
+               signs[f_ind] = false;
+            }
          }
          f_ind++;
       }
