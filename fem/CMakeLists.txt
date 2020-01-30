@@ -42,6 +42,7 @@ set(SRCS
   nonlinearform_ext.cpp
   nonlininteg.cpp
   nonlininteg_vectorconvection.cpp
+  restriction.cpp
   staticcond.cpp
   tmop.cpp
   tmop_tools.cpp
@@ -70,6 +71,7 @@ set(HDRS
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
+  restriction.hpp
   staticcond.hpp
   tbilinearform.hpp
   tbilininteg.hpp
