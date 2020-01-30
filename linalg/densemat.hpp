@@ -378,6 +378,7 @@ void Add(double alpha, const DenseMatrix &A,
 ///
 /// @param [in,out] A the square matrix for the linear system
 /// @param [in,out] X the rhs vector, B, on input, the solution, X, on output.
+/// @param [in] TOL optional fuzzy comparison tolerance. Defaults to 1e-9.
 ///
 /// @return status set to true if successful, otherwise, false.
 ///
@@ -387,7 +388,7 @@ void Add(double alpha, const DenseMatrix &A,
 ///
 /// @pre A.IsSquare() == true
 /// @pre X != nullptr
-bool LinearSolve(DenseMatrix& A, double* X);
+bool LinearSolve(DenseMatrix& A, double* X, double TOL = 1.e-9);
 
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
