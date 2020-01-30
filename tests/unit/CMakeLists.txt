@@ -23,6 +23,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_blockMatrix.cpp
   linalg/test_complex_operator.cpp
   linalg/test_densematrix.cpp
+  linalg/test_ilu.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   mesh/test_mesh.cpp
@@ -37,6 +38,8 @@ set(UNIT_TESTS_SRCS
   fem/test_inversetransform.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
+  fem/test_pa_coeff.cpp
+  fem/test_pa_kernels.cpp
   fem/test_quadraturefunc.cpp
   )
 
