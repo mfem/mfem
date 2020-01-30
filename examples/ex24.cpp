@@ -1,10 +1,10 @@
-//                                MFEM Example 22
+//                                MFEM Example 24
 //
-// Compile with: make ex22
+// Compile with: make ex24
 //
-// Sample runs:  ex22
-//               ex22 -m ../data/inline-tri.mesh
-//               ex22 -m ../data/disc-nurbs.mesh -r 3 -o 2 -tf 2
+// Sample runs:  ex24
+//               ex24 -m ../data/inline-tri.mesh
+//               ex24 -m ../data/disc-nurbs.mesh -r 3 -o 2 -tf 2
 //
 // Description:  This example solves the wave equation
 //               problem of the form d^2u/dt^2 = c^2 \Delta u.
@@ -319,16 +319,16 @@ int main(int argc, char *argv[])
 
    u_gf.SetFromTrueDofs(u);
    {
-      ofstream omesh("ex22.mesh");
+      ofstream omesh("ex24.mesh");
       omesh.precision(precision);
       mesh->Print(omesh);
-      ofstream osol("ex22-init.gf");
+      ofstream osol("ex24-init.gf");
       osol.precision(precision);
       u_gf.Save(osol);
       dudt_gf.Save(osol);
    }
 
-   VisItDataCollection visit_dc("Example22", mesh);
+   VisItDataCollection visit_dc("Example24", mesh);
    visit_dc.RegisterField("solution", &u_gf);
    visit_dc.RegisterField("rate", &dudt_gf);
    if (visit)
