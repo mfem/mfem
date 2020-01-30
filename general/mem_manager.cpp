@@ -477,6 +477,7 @@ public:
 };
 
 /// The Umpire device memory space
+#ifdef MFEM_USE_CUDA
 class UmpireDeviceMemorySpace : public DeviceMemorySpace
 {
 private:
@@ -501,6 +502,9 @@ public:
    void *DtoH(void *dst, const void *src, size_t bytes)
    { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
 };
+#else
+#endif // MFEM_USE_CUDA
+class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
 #endif // MFEM_USE_UMPIRE
 
 /// Memory space controller class
