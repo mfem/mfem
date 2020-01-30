@@ -503,8 +503,8 @@ public:
    { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
 };
 #else
-#endif // MFEM_USE_CUDA
 class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
+#endif // MFEM_USE_CUDA
 #endif // MFEM_USE_UMPIRE
 
 /// Memory space controller class
