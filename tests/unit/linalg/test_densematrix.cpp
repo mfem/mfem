@@ -14,10 +14,10 @@
 
 using namespace mfem;
 
-TEST_CASE( "DenseMatrix LinearSolve methods",
-           "[DenseMatrix]" )
+TEST_CASE("DenseMatrix LinearSolve methods",
+           "[DenseMatrix]")
 {
-   SECTION( "singular_system" )
+   SECTION("singular_system")
    {
       constexpr int N = 3;
 
@@ -31,43 +31,43 @@ TEST_CASE( "DenseMatrix LinearSolve methods",
       REQUIRE_FALSE(LinearSolve(A,X));
    }
 
-   SECTION( "1x1_system" )
+   SECTION("1x1_system")
    {
       constexpr int N = 1;
       DenseMatrix A(N);
       A(0,0) = 2;
 
-      double X[ 1 ] = { 12 };
+      double X[1] = { 12 };
 
       REQUIRE(LinearSolve(A,X));
       REQUIRE(X[0] == Approx(6));
    }
 
-   SECTION( "2x2_system" )
+   SECTION("2x2_system")
    {
       constexpr int N = 2;
 
-      DenseMatrix A( N );
-      A(0,0)=2. ; A(0,1)=1.;
-      A(1,0)=3. ; A(1,1)=4.;
+      DenseMatrix A(N);
+      A(0,0) = 2.0; A(0,1) = 1.0;
+      A(1,0) = 3.0; A(1,1) = 4.0;
 
-      double X[ 2 ] = { 1, 14 };
+      double X[2] = { 1, 14 };
 
       REQUIRE(LinearSolve(A,X));
       REQUIRE(X[0] == Approx(-2));
       REQUIRE(X[1] == Approx(5));
    }
 
-   SECTION( "3x3_system" )
+   SECTION("3x3_system")
    {
       constexpr int N = 3;
 
-      DenseMatrix A( N );
-      A( 0,0 )=4; A( 0,1 )=5; A( 0,2 )=-2;
-      A( 1,0 )=7; A( 1,1 )=-1; A( 1,2 )= 2;
-      A( 2,0 )=3; A( 2,1 )=1; A( 2,2 )= 4;
+      DenseMatrix A(N);
+      A(0,0) = 4; A(0,1) =  5; A(0,2) = -2;
+      A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
+      A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
 
-      double X[ 3 ] = { -14, 42, 28 };
+      double X[3] = { -14, 42, 28 };
 
       REQUIRE(LinearSolve(A,X));
       REQUIRE(X[0] == Approx(4));
@@ -114,13 +114,13 @@ TEST_CASE("DenseMatrix A*B^T methods",
       MultABt(A, B, C);
       C.Add(-1.0, Cexact);
 
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
 
       Mult(A, Bt, Cexact);
       MultABt(A, B, C);
       C.Add(-1.0, Cexact);
 
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
    }
    SECTION("MultADBt")
    {
@@ -137,7 +137,7 @@ TEST_CASE("DenseMatrix A*B^T methods",
       MultADBt(A, D, B, C);
       C.Add(-1.0, Cexact);
 
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
    }
    SECTION("AddMultABt")
    {
@@ -154,12 +154,12 @@ TEST_CASE("DenseMatrix A*B^T methods",
       AddMultABt(A, B, C);
       C.Add(-1.0, Cexact);
 
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
 
       MultABt(A, B, C);
       C *= -1.0;
       AddMultABt(A, B, C);
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
    }
    SECTION("AddMultADBt")
    {
@@ -179,18 +179,18 @@ TEST_CASE("DenseMatrix A*B^T methods",
       AddMultADBt(A, D, B, C);
       C.Add(-1.0, Cexact);
 
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
 
       MultADBt(A, D, B, C);
       C *= -1.0;
       AddMultADBt(A, D, B, C);
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
 
       DData[0] = 1.0; DData[1] = 1.0; DData[2] = 1.0;
       MultABt(A, B, C);
       C *= -1.0;
       AddMultADBt(A, D, B, C);
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
    }
    SECTION("AddMult_a_ABt")
    {
@@ -209,12 +209,12 @@ TEST_CASE("DenseMatrix A*B^T methods",
       AddMult_a_ABt(a, A, B, C);
       C.Add(-1.0, Cexact);
 
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
 
       MultABt(A, B, C);
       AddMult_a_ABt(-1.0, A, B, C);
 
-      REQUIRE( C.MaxMaxNorm() < tol );
+      REQUIRE(C.MaxMaxNorm() < tol);
    }
 }
 
@@ -243,5 +243,5 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    Af2.RightSolve(3, 2, B.GetData());
    C -= B;
 
-   REQUIRE( C.MaxMaxNorm() < tol );
+   REQUIRE(C.MaxMaxNorm() < tol);
 }

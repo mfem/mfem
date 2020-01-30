@@ -3083,43 +3083,39 @@ bool LinearSolve(DenseMatrix& A, double* X, double TOL)
    MFEM_ASSERT(A.NumCols() > 0, "supplied matrix, A, is empty!");
    MFEM_ASSERT(X != nullptr, "supplied vector, X, is null!");
 
-   constexpr bool SINGULAR = false;
-   const int N = A.NumCols();
+   int N = A.NumCols();
 
    switch (N)
    {
       case 1:
       {
-         const double det = A(0,0);
-         if (abs(det-0.0) <= TOL) { return SINGULAR; }
+         double det = A(0,0);
+         if (std::abs(det) <= TOL) { return false; } // singular
 
          X[0] /= det;
          break;
       }
       case 2:
       {
-         const double det = A.Det();
-         if (abs(det-0.0) <= TOL) { return SINGULAR; }
+         double det = A.Det();
+         if (std::abs(det) <= TOL) { return false; } // singular
 
-         const double invdet = 1. / det;
+         double invdet = 1. / det;
 
-         const double b0   = X[0];
-         const double b1   = X[1];
+         double b0 = X[0];
+         double b1 = X[1];
 
-         X[0] = (  A(1,1)*b0 - A(0,1)*b1 ) * invdet;
-         X[1] = ( -A(1,0)*b0 + A(0,0)*b1 ) * invdet;
+         X[0] = ( A(1,1)*b0 - A(0,1)*b1) * invdet;
+         X[1] = (-A(1,0)*b0 + A(0,0)*b1) * invdet;
          break;
       }
       default:
       {
          // default to LU factorization for the general case
-         int* ipiv = new int [N];
+         int* ipiv = new int[N];
          LUFactors lu(A.Data(), ipiv);
 
-         if (!lu.Factor(N))
-         {
-            return SINGULAR;
-         }
+         if (!lu.Factor(N)) { return false; } // singular
 
          lu.Solve(N, 1, X);
 
@@ -4042,13 +4038,10 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 
 bool LUFactors::Factor(int m, double TOL)
 {
-   constexpr bool LU_SUCCESS = true;
-   constexpr bool LU_FAILED  = false;
-
 #ifdef MFEM_USE_LAPACK
    int info = 0;
    if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
-   return (info!=0) ? LU_FAILED : LU_SUCCESS;
+   return info == 0;
 #else
    // compiling without LAPACK
    double *data = this->data;
@@ -4078,12 +4071,12 @@ bool LUFactors::Factor(int m, double TOL)
          }
       }
 
-      if ( abs(data[i+i*m]-0.0) <= TOL )
+      if (abs(data[i + i*m]) <= TOL)
       {
-         return LU_FAILED;
+         return false; // failed
       }
 
-      const double a_ii_inv = 1.0/data[i+i*m];
+      const double a_ii_inv = 1.0 / data[i+i*m];
       for (int j = i+1; j < m; j++)
       {
          data[j+i*m] *= a_ii_inv;
@@ -4099,7 +4092,7 @@ bool LUFactors::Factor(int m, double TOL)
    }
 #endif
 
-   return LU_SUCCESS;
+   return true; // success
 }
 
 double LUFactors::Det(int m) const

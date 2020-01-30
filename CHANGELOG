@@ -103,9 +103,9 @@ Discretization improvements
 
 Linear and nonlinear solvers
 ----------------------------
-- Added a LinearSolve(A,X) convenience method to solve linear systems. In the trivial
-  cases, i.e., square matrices of size N=1 or N=2, the system is solved directly,
-  otherwise, LU Factorization is employed.
+- Added a LinearSolve(A,X) convenience method to solve linear systems. In the
+  trivial cases, i.e., square matrices of size N=1 or N=2, the system is solved
+  directly, otherwise, LU factorization is employed.
 
 - Added a general interface for specifying and solving nonlinear constrained
   optimization problems through the new classes OptimizationProblem and
