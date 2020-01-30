@@ -2916,7 +2916,7 @@ void DenseMatrix::SetRow(int r, const double* row)
 
 void DenseMatrix::SetRow(int r, const Vector &row)
 {
-   MFEM_ASSERT(Width()==row.Size(), "");
+   MFEM_ASSERT(Width() == row.Size(), "");
    SetRow(r, row.GetData());
 }
 
@@ -2931,7 +2931,7 @@ void DenseMatrix::SetCol(int c, const double* col)
 
 void DenseMatrix::SetCol(int c, const Vector &col)
 {
-   MFEM_ASSERT(Height()==col.Size(), "");
+   MFEM_ASSERT(Height() == col.Size(), "");
    SetCol(c, col.GetData());
 }
 
