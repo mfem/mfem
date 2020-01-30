@@ -473,6 +473,106 @@ public:
    virtual void Mult(const Vector &xt, Vector &x) const;
 };
 
+/** Block ILU solver:
+ *  Performs a block ILU(k) approximate factorization with specified block
+ *  size. Currently only k=0 is supported. This is useful as a preconditioner
+ *  for DG-type discretizations, where the system matrix has a natural
+ *  (elemental) block structure.
+ *
+ *  In the case of DG discretizations, the block size should usually be set to
+ *  either ndofs_per_element or vdim*ndofs_per_element (if the finite element
+ *  space has Ordering::byVDIM). The block size must evenly divide the size of
+ *  the matrix.
+ *
+ *  Renumbering the blocks is also supported by specifying a reordering method.
+ *  Currently greedy minimum discarded fill ordering and no reordering are
+ *  supported. Renumbering the blocks can lead to a much better approximate
+ *  factorization.
+ */
+class BlockILU : public Solver
+{
+public:
+
+   /// The reordering method used by the BlockILU factorization.
+   enum class Reordering
+   {
+      MINIMUM_DISCARDED_FILL,
+      NONE
+   };
+
+   /** Create an "empty" BlockILU solver. SetOperator must be called later to
+    *  actually form the factorization
+    */
+   BlockILU(int block_size_,
+            Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
+            int k_fill_ = 0);
+
+   /** Create a block ILU approximate factorization for the matrix @a op.
+    *  @a op should be of type either SparseMatrix or HypreParMatrix. In the
+    *  case that @a op is a HypreParMatrix, the ILU factorization is performed
+    *  on the diagonal blocks of the parallel decomposition.
+    */
+   BlockILU(Operator &op, int block_size_ = 1,
+            Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
+            int k_fill_ = 0);
+
+   /** Perform the block ILU factorization for the matrix @a op.
+    *  As in the constructor, @a op must either be a SparseMatrix or
+    *  HypreParMatrix
+    */
+   void SetOperator(const Operator &op);
+
+   /// Solve the system `LUx = b`, where `L` and `U` are the block ILU factors.
+   void Mult(const Vector &b, Vector &x) const;
+
+   /** Get the I array for the block CSR representation of the factorization.
+    *  Similar to SparseMatrix::GetI(). Mostly used for testing.
+    */
+   int *GetBlockI() { return IB.GetData(); }
+
+   /** Get the J array for the block CSR representation of the factorization.
+    *  Similar to SparseMatrix::GetJ(). Mostly used for testing.
+    */
+   int *GetBlockJ() { return JB.GetData(); }
+
+   /** Get the data array for the block CSR representation of the factorization.
+    *  Similar to SparseMatrix::GetData(). Mostly used for testing.
+    */
+   double *GetBlockData() { return AB.Data(); }
+
+private:
+   /// Set up the block CSR structure corresponding to a sparse matrix @a A
+   void CreateBlockPattern(const SparseMatrix &A);
+
+   /// Perform the block ILU factorization
+   void Factorize();
+
+   int block_size;
+
+   /// Fill level for block ILU(k) factorizations. Only k=0 is supported.
+   int k_fill;
+
+   Reordering reordering;
+
+   /// Temporary vector used in the Mult() function.
+   mutable Vector y;
+
+   /// Permutation and inverse permutation vectors for the block reordering.
+   Array<int> P, Pinv;
+
+   /** Block CSR storage of the factorization. The block upper triangular part
+    *  stores the U factor. The L factor implicitly has identity on the diagonal
+    *  blocks, and the rest of L is given by the strictly block lower triangular
+    *  part.
+    */
+   Array<int> IB, ID, JB;
+   DenseTensor AB;
+
+   /// DB(i) stores the LU factorization of the i'th diagonal block
+   mutable DenseTensor DB;
+   /// Pivot arrays for the LU factorizations given by #DB
+   mutable Array<int> ipiv;
+};
 
 #ifdef MFEM_USE_SUITESPARSE
 

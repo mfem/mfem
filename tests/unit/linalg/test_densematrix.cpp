@@ -155,3 +155,30 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
 }
 
+
+TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
+{
+   double tol = 1e-12;
+
+   // Zero on diagonal forces non-trivial pivot
+   double AData[9] = { 0.0, 0.0, 3.0, 2.0, 2.0, 2.0, 2.0, 0.0, 4.0 };
+   double BData[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+   int ipiv[3];
+
+   DenseMatrix A(AData, 3, 3);
+   DenseMatrix B(BData, 2, 3);
+
+   DenseMatrixInverse Af1(A);
+   DenseMatrix Ainv;
+   Af1.GetInverseMatrix(Ainv);
+
+   LUFactors Af2(AData, ipiv);
+   Af2.Factor(3);
+
+   DenseMatrix C(2,3);
+   Mult(B, Ainv, C);
+   Af2.RightSolve(3, 2, B.GetData());
+   C -= B;
+
+   REQUIRE( C.MaxMaxNorm() < tol );
+}
