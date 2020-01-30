@@ -867,7 +867,7 @@ void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
                  (base_flags & (Mem::VALID_HOST | Mem::VALID_DEVICE));
 }
 
-MemoryType MemoryManager::GetMemoryType_(void *h_ptr, unsigned flags)
+MemoryType MemoryManager::GetDeviceMemoryType_(void *h_ptr)
 {
    if (mm.exists)
    {
@@ -875,18 +875,16 @@ MemoryType MemoryManager::GetMemoryType_(void *h_ptr, unsigned flags)
       if (known)
       {
          internal::Memory &mem = maps->memories.at(h_ptr);
-         if (flags & Mem::VALID_DEVICE) { return mem.d_mt; }
-         return mem.h_mt;
+         return mem.d_mt;
       }
       const bool alias = maps->aliases.find(h_ptr) != maps->aliases.end();
       if (alias)
       {
          internal::Memory *mem = maps->aliases.at(h_ptr).mem;
-         if (flags & Mem::VALID_DEVICE) { return mem->d_mt; }
-         return mem->h_mt;
+         return mem->d_mt;
       }
    }
-   MFEM_VERIFY(false, "internal error");
+   MFEM_ABORT("internal error");
    return MemoryManager::host_mem_type;
 }
 
