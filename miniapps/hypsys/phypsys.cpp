@@ -1,12 +1,16 @@
-#include "lib/fe_evol.hpp"
+#include "lib/pfe_evol.hpp"
 
 int main(int argc, char *argv[])
 {
+	MPI_Session mpi(argc, argv);
+   const int myid = mpi.WorldRank();
+	
 	Configuration config;
    config.ProblemNum = 0;
    config.ConfigNum = 1;
    const char *MeshFile = "data/unstr.mesh";
    int refinements = 1;
+   int prefinements = 0;
    config.order = 3;
    config.tFinal = 1.;
    config.dt = 0.001;
@@ -26,7 +30,9 @@ int main(int argc, char *argv[])
    args.AddOption(&MeshFile, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&refinements, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&prefinements, "-pr", "--parallel-refine",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&config.order, "-o", "--order",
                   "Order (polynomial degree) of the finite element space.");
    args.AddOption(&config.tFinal, "-tf", "--t-final",
@@ -45,10 +51,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0) { args.PrintUsage(cout); }
       return -1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0) { args.PrintOptions(cout); }
    
    ODESolver *odeSolver = NULL;
    switch (config.odeSolverType)
@@ -61,38 +67,41 @@ int main(int argc, char *argv[])
          return -1;
    }
 
-   Mesh mesh(MeshFile, 1, 1);
-   const int dim = mesh.Dimension();
+   // Read the serial mesh from the given mesh file on all processors.
+   Mesh *mesh = new Mesh(MeshFile, 1, 1);
+   const int dim = mesh->Dimension();
+   for (int lev = 0; lev < refinements; lev++) { mesh->UniformRefinement(); }
+   mesh->GetBoundingBox(config.bbMin, config.bbMax, max(config.order, 1));
 
-   for (int lev = 0; lev < refinements; lev++)
-   {
-      mesh.UniformRefinement();
-   }
-   if (mesh.NURBSext)
-   {
-      mesh.SetCurvature(max(config.order, 1));
-   }
+   // Parallel partitioning of the mesh.
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   for (int lev = 0; lev < prefinements; lev++) { pmesh.UniformRefinement(); }
    
-   mesh.GetBoundingBox(config.bbMin, config.bbMax, max(config.order, 1));
+   if (pmesh.NURBSext)
+   {
+      pmesh.SetCurvature(max(config.order, 1));
+   }
+   MPI_Comm comm = pmesh.GetComm();
    
    // Create Bernstein Finite Element Space.
    const int btype = BasisType::Positive;
    L2_FECollection fec(config.order, dim, btype);
-   FiniteElementSpace fes(&mesh, &fec);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
 	
-	const int ProblemSize = fes.GetVSize();
-	cout << "Number of unknowns: " << ProblemSize << endl;
+	const int ProblemSize = pfes.GlobalTrueVSize();
+   if (myid == 0) { cout << "Number of unknowns: " << ProblemSize << endl; }
 
    // The min/max bounds are represented as H1 functions of the same order
 	// as the solution, thus having 1:1 dof correspondence inside each element.
 	H1_FECollection fecBounds(max(config.order, 1), dim,
 									  BasisType::GaussLobatto);
-	FiniteElementSpace fesBounds(&mesh, &fecBounds);
-	DofInfo dofs(&fes, &fesBounds);
+	ParFiniteElementSpace pfesBounds(&pmesh, &fecBounds);
+	ParDofInfo pdofs(&pfes, &pfesBounds);
 	
 	// Compute the lumped mass matrix.
 	Vector LumpedMassMat;
-	BilinearForm ml(&fes);
+	ParBilinearForm ml(&pfes);
 	ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
 	ml.Assemble();
 	ml.Finalize();
@@ -101,7 +110,7 @@ int main(int argc, char *argv[])
    HyperbolicSystem *hyp;
 	switch (config.ProblemNum)
 	{
-		case 0: { hyp =  new Advection(&fes, config); break; }
+		case 0: { hyp =  new Advection(&pfes, config); break; }
 		default:
 			cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
          return -1;
@@ -110,20 +119,22 @@ int main(int argc, char *argv[])
    if (config.odeSolverType != 1 && hyp->SteadyState)
 		MFEM_WARNING("You should use forward Euler for pseudo time stepping.");
 
-	GridFunction u(&fes);
+	ParGridFunction u(&pfes);
 	u = hyp->u0;
 	
-	double InitialMass = LumpedMassMat * u;
+	double InitialMass, MassMPI = LumpedMassMat * u;
+	MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, 
+					  pmesh.GetComm());
 	
 	// Visualization with GLVis, VisIt is currently not supported.
 	if (hyp->FileOutput)
 	{
       ofstream omesh("grid.mesh");
       omesh.precision(config.precision);
-      mesh.Print(omesh);
+      pmesh.PrintAsOne(omesh);
       ofstream osol("initial.gf");
       osol.precision(config.precision);
-      u.Save(osol);
+      u.SaveAsOne(osol);
    }
 
 	socketstream sout;
@@ -131,16 +142,19 @@ int main(int argc, char *argv[])
    int  visport   = 19916;
 	bool VectorOutput = false; // TODO
    {
-      VisualizeField(sout, vishost, visport, u, VectorOutput);
+      // Make sure all MPI ranks have sent their 'v' solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(pmesh.GetComm());
+		ParVisualizeField(sout, vishost, visport, u, VectorOutput);
    }
 
-   FE_Evolution evol(&fes, hyp, dofs, scheme, LumpedMassMat);
+   ParFE_Evolution pevol(&pfes, hyp, pdofs, scheme, LumpedMassMat);
    
-   odeSolver->Init(evol);
+   odeSolver->Init(pevol);
 	if (hyp->SteadyState)
 	{
-		evol.uOld.SetSize(ProblemSize);
-		evol.uOld = 0.;
+		pevol.uOld.SetSize(pfes.GetVSize());
+		pevol.uOld = 0.;
 	}
 
 	bool done = false;
@@ -155,45 +169,60 @@ int main(int argc, char *argv[])
 		
 		if (hyp->SteadyState)
 		{
-			res = evol.ConvergenceCheck(dt, tol, u);
+			res = pevol.ConvergenceCheck(dt, tol, u);
 			if (res < tol)
 			{
 				done = true;
-				u = evol.uOld;
+				u = pevol.uOld;
 			}
 		}
 
       if (done || ti % config.VisSteps == 0)
       {
-			if (hyp->SteadyState)
+			if (myid == 0)
 			{
-				cout << "time step: " << ti << ", time: " << t << 
+				if (hyp->SteadyState)
+				{
+					cout << "time step: " << ti << ", time: " << t << 
 					", residual: " << res << endl;
+				}
+				else
+				{
+					cout << "time step: " << ti << ", time: " << t << endl;
+				}
 			}
-			else
-			{
-				cout << "time step: " << ti << ", time: " << t << endl;
-			}
-         VisualizeField(sout, vishost, visport, u, VectorOutput);
+			ParVisualizeField(sout, vishost, visport, u, VectorOutput);
       }
    }
-   
-   double DomainSize = LumpedMassMat.Sum();
-	cout << "Difference in solution mass: "
-		  << abs(InitialMass - LumpedMassMat * u) / DomainSize << endl;
+
+	double FinalMass, DomainSize, DomainSizeMPI = LumpedMassMat.Sum();
+	MPI_Allreduce(&DomainSizeMPI, &DomainSize, 1, MPI_DOUBLE, MPI_SUM,
+					  comm);
+	
+	MassMPI = LumpedMassMat * u;
+	MPI_Allreduce(&MassMPI, &FinalMass, 1, MPI_DOUBLE, MPI_SUM, comm);
+	
+	if (myid == 0)
+	{
+		cout << "Difference in solution mass: "
+			  << abs(InitialMass - FinalMass) / DomainSize << endl;
+	}
 	
 	if (hyp->SolutionKnown && hyp->FileOutput)
-   {
+	{
 		Array<double> errors;
 		hyp->ComputeErrors(errors, DomainSize, u);
-		hyp->WriteErrors(errors);
+		if (myid == 0)
+		{
+			hyp->WriteErrors(errors);
+		}
 	}
-
+	
 	if (hyp->FileOutput)
 	{
       ofstream osol("final.gf");
       osol.precision(config.precision);
-      u.Save(osol);
+      u.SaveAsOne(osol);
    }
 
    delete hyp;

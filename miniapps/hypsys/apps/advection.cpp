@@ -6,37 +6,55 @@ void VelocityFunction(const Vector &x, Vector &v);
 double InitialCondition(const Vector &x);
 double InflowFunction(const Vector &x);
 
-Advection::Advection(FiniteElementSpace *fes_, DofInfo &dofs_, const Vector &LumpedMassMat_, Configuration &config_)
-							: HyperbolicSystem(fes_, dofs_, LumpedMassMat_, config_)
+Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
+							: HyperbolicSystem(fes_, config_)
 {	
 	config = config_;
 	
 	if (config.ConfigNum == 0)
 	{
 		SteadyState = true;
-		w.SetSize(fes->GetVSize());
-		w = 0.;
 	}
 	else
 	{
 		SteadyState = false;
 	}
 	
-	DenseMatrix adjJ(dim);
-	Vector vec;
-	VectorFunctionCoefficient velocity(dim, VelocityFunction);
+	Mesh *mesh = fes->GetMesh();
+	const int dim = mesh->Dimension();
+	const int ne = fes->GetNE();
+	const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes);
+	const IntegrationRule *IntRuleFace = GetFaceIntegrationRule(fes);
+	const int nqe = IntRuleElem->GetNPoints();
+	const int nqf = IntRuleFace->GetNPoints();
+	Vector vec, vval;
 	DenseMatrix VelEval, mat(dim, nqe);
-	Array <int> bdrs, orientation;
-	ElemInt.SetSize(dim, nqe, ne);
-	BdrInt.SetSize(dofs.NumBdrs, nqf, ne);
 	
-	Array<IntegrationPoint> eip(nqf*dofs.NumBdrs);
+	int NumBdrs;
+	const FiniteElement *el = fes->GetFE(0);
+	switch (el->GetGeomType())
+	{
+		case Geometry::SEGMENT: NumBdrs = 2; break;
+		case Geometry::TRIANGLE: NumBdrs = 3; break;
+		case Geometry::SQUARE:
+		case Geometry::TETRAHEDRON: NumBdrs = 4; break;
+		case Geometry::CUBE: NumBdrs = 6; break;
+		default:
+			MFEM_ABORT("Invalid Geometry type.");
+	}
+	
+	VectorFunctionCoefficient velocity(dim, VelocityFunction);
+	VelElem.SetSize(dim, nqe, ne);
+	VelFace.SetSize(dim, NumBdrs, ne*nqf);
+	
+	Array<int> bdrs, orientation;
+	Array<IntegrationPoint> eip(nqf*NumBdrs);
 	
 	if (dim==1)      { mesh->GetElementVertices(0, bdrs); }
    else if (dim==2) { mesh->GetElementEdges(0, bdrs, orientation); }
    else if (dim==3) { mesh->GetElementFaces(0, bdrs, orientation); }
 	
-	for (int i = 0; i < dofs.NumBdrs; i++)
+	for (int i = 0; i < NumBdrs; i++)
 	{
 		FaceElementTransformations *help
 			= mesh->GetFaceElementTransformations(bdrs[i]);
@@ -53,89 +71,67 @@ Advection::Advection(FiniteElementSpace *fes_, DofInfo &dofs_, const Vector &Lum
 			help->Loc1.Transform(ip, eip[i*nqf + k]);
 		}
 	}
-
+	
 	for (int e = 0; e < ne; e++)
 	{
-		const FiniteElement *el = fes->GetFE(e);
 		ElementTransformation *eltrans = fes->GetElementTransformation(e);
 		velocity.Eval(VelEval, *eltrans, *IntRuleElem);
 		
 		for (int k = 0; k < nqe; k++)
 		{
-			const IntegrationPoint &ip = IntRuleElem->IntPoint(k);
-			eltrans->SetIntPoint(&ip);
-			CalcAdjugate(eltrans->Jacobian(), adjJ);
 			VelEval.GetColumnReference(k, vec);
-			vec *= ip.weight;
-			adjJ.Mult(vec, vec1);
-			mat.SetCol(k, vec1);
+			mat.SetCol(k, vec);
 		}
 		
-		ElemInt(e) = mat;
+		VelElem(e) = mat;
 		
 		if (dim==1)      { mesh->GetElementVertices(e, bdrs); }
       else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
       else if (dim==3) { mesh->GetElementFaces(e, bdrs, orientation); }
 		
-		for (int i = 0; i < dofs.NumBdrs; i++)
+		for (int i = 0; i < NumBdrs; i++)
 		{
-			Vector vval, nor(dim);
 			FaceElementTransformations *facetrans
 				= mesh->GetFaceElementTransformations(bdrs[i]);
-			
+				
 			for (int k = 0; k < nqf; k++)
 			{
-				const IntegrationPoint &ip = IntRuleFace->IntPoint(k);
-				facetrans->Face->SetIntPoint(&ip);
-				
-				if (dim == 1)
-				{
-					IntegrationPoint aux;
-					facetrans->Loc1.Transform(ip, aux);
-					nor(0) = 2.*aux.x - 1.0;
-				}
-				else
-				{
-					CalcOrtho(facetrans->Face->Jacobian(), nor);
-				}
-				
 				if (facetrans->Elem1No != e)
 				{
-					facetrans->Elem2->SetIntPoint(&eip[i*nqf+k]);
 					velocity.Eval(vval, *facetrans->Elem2, eip[i*nqf+k]);
-					nor *= -1.;
 				}
 				else
 				{
-					facetrans->Loc1.Transform(ip, eip[i*nqf+k]);
 					velocity.Eval(vval, *facetrans->Elem1, eip[i*nqf+k]);
 				}
 				
-				nor /= nor.Norml2();
-				BdrInt(i,k,e) = facetrans->Face->Weight() * (vval * nor);
+				for (int l = 0; l < dim; l++)
+				{
+					VelFace(l,i,e*nqf+k) = vval(l);
+				}
 			}
 		}
 	}
 	
 	// Obtain the correct inflow function.
-   FunctionCoefficient Inflow(InflowFunction);
+   FunctionCoefficient bc(InflowFunction);
 	
 	if (config.ConfigNum == 0) // Convergence test: use high order projection.
    {
       L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
       FiniteElementSpace l2_fes(mesh, &l2_fec);
       GridFunction l2_inflow(&l2_fes);
-      l2_inflow.ProjectCoefficient(Inflow);
+      l2_inflow.ProjectCoefficient(bc);
       inflow.ProjectGridFunction(l2_inflow);
    }
    else
 	{
-		inflow.ProjectCoefficient(Inflow);
+		inflow.ProjectCoefficient(bc);
 	}
 	
 	// Initialize solution vector.
-   FunctionCoefficient u0(InitialCondition);
-	u.ProjectCoefficient(u0);
+   FunctionCoefficient ic(InitialCondition);
+	u0.ProjectCoefficient(ic);
 }
 
 void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f) const
@@ -145,7 +141,7 @@ void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f) const
 	MFEM_ABORT("Do not call this routine for objects of type Advection.");
 }
 
-void Advection::ComputeErrors(Array<double> &errors, double DomainSize) const
+void Advection::ComputeErrors(Array<double> &errors, double DomainSize, const GridFunction &u) const
 {
 	errors.SetSize(3);
 	switch (config.ConfigNum)

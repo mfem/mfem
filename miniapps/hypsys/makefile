@@ -25,16 +25,16 @@ OUT_DIR = output
 
 DIRS = $(LIB_DIR) $(APP_DIR)
 
-OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o
+OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/fe_evol.o
 APP_FILES = $(BLD_DIR)/advection.app
 
-SERIAL = hypsys
-PARALLEL = hypsys par-hypsys
+MAIN_FILES = hypsys
 
-ifeq ($(MFEM_USE_MPI),NO)
-   MAIN_FILES = $(SERIAL)
-else
-   MAIN_FILES = $(PARALLEL)
+ifeq ($(MFEM_USE_MPI), YES)
+   MAIN_FILES += phypsys
+   OBJ_FILES += $(BLD_DIR)/pdofs.o
+   OBJ_FILES += $(BLD_DIR)/ptools.o
+   OBJ_FILES += $(BLD_DIR)/pfe_evol.o
 endif
 
 # valgrind-test setup
@@ -61,7 +61,7 @@ CONFIG-NAME = p0e0o4-$(GEOM)
 
 # Replace the default implicit rule for *.cpp files
 %: %.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(BLD_DIR)/* $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(OBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
 
 %.o: ../$(LIB_DIR)/%.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $^ -o $@
@@ -76,7 +76,7 @@ library: $(OBJ_FILES) $(APP_FILES)
 exec: $(MAIN_FILES)
 
 clean:
-	@rm -f par-hypsys errors.txt *.gf *.mesh
+	@rm -f hypsys phypsys errors.txt *.gf *.mesh
 	@rm -f $(BLD_DIR)/*
 
 valgrind-test:

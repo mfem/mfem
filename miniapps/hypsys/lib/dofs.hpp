@@ -1,5 +1,5 @@
-#ifndef MFEM_DOF_INFO
-#define MFEM_DOF_INFO
+#ifndef HYPSYS_DOFS
+#define HYPSYS_DOFS
 
 #include "mfem.hpp"
 

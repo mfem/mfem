@@ -1,5 +1,5 @@
-#ifndef MFEM_PDOF_INFO
-#define MFEM_PDOF_INFO
+#ifndef HYPSYS_PDOFS
+#define HYPSYS_PDOFS
 
 #include "mfem.hpp"
 #include "dofs.hpp"

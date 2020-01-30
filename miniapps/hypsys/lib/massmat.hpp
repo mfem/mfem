@@ -1,5 +1,5 @@
-#ifndef MFEM_MASS_MAT
-#define MFEM_MASS_MAT
+#ifndef HYPSYS_MASSMAT
+#define HYPSYS_MASSMAT
 
 #include "mfem.hpp"
 
