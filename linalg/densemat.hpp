@@ -506,7 +506,7 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   bool Factor(int m, double TOL=1.e-9 );
+   bool Factor(int m, double TOL = 1.e-9 );
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
