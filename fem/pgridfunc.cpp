@@ -242,18 +242,19 @@ void ParGridFunction::ExchangeFaceNbrData()
       d_send_data[i] = d_data[d_send_ldof[i]];
    });
 
-   auto h_send_data = send_data.HostRead();
-   auto h_face_nbr_data = face_nbr_data.HostWrite();
+   bool mpi_gpu_aware = Device::GetGPUAwareMPI();
+   auto send_data_ptr = mpi_gpu_aware ? send_data.Read() : send_data.HostRead();
+   auto face_nbr_data_ptr = mpi_gpu_aware ? face_nbr_data.Write() : face_nbr_data.HostWrite();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
       int tag = 0;
 
-      MPI_Isend(&h_send_data[send_offset[fn]],
+      MPI_Isend(&send_data_ptr[send_offset[fn]],
                 send_offset[fn+1] - send_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
 
-      MPI_Irecv(&h_face_nbr_data[recv_offset[fn]],
+      MPI_Irecv(&face_nbr_data_ptr[recv_offset[fn]],
                 recv_offset[fn+1] - recv_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
    }
