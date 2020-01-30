@@ -37,6 +37,7 @@
 //
 //               We recommend viewing Example 1 before viewing this example.
 
+#include "../../dbg.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -46,6 +47,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   dbg("ex2");
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
@@ -95,12 +97,13 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 5,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      /*
+        int ref_levels =
+           (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+        for (int l = 0; l < ref_levels; l++)
+        {
+           mesh->UniformRefinement();
+        }*/
    }
 
    // 5. Define a finite element space on the mesh. Here we use vector finite
@@ -257,5 +260,6 @@ int main(int argc, char *argv[])
    }
    delete mesh;
 
+   dbg("done");
    return 0;
 }

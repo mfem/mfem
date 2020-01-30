@@ -116,6 +116,7 @@ private:
    friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
 
+   static bool device_env;
    static Device device_singleton;
 
    MODES mode;
@@ -162,16 +163,7 @@ public:
        a program.
        @note This object should be destroyed after all other MFEM objects that
        use the Device are destroyed. */
-   Device()
-      : mode(Device::SEQUENTIAL),
-        backends(Backend::CPU),
-        destroy_mm(false),
-        mpi_gpu_aware(false),
-        host_mem_type(MemoryType::HOST),
-        host_mem_class(MemoryClass::HOST),
-        device_mem_type(MemoryType::HOST),
-        device_mem_class(MemoryClass::HOST)
-   { }
+   Device();
 
    /** @brief Construct a Device and configure it based on the @a device string.
        See Configure() for more details. */

@@ -9,6 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "../../dbg.hpp"
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
@@ -60,12 +61,34 @@ static const char *backend_name[Backend::NUM_BACKENDS] =
 
 // Initialize the unique global Device variable.
 Device Device::device_singleton;
+bool Device::device_env = false;
+
+
+Device::Device() : mode(Device::SEQUENTIAL),
+   backends(Backend::CPU),
+   destroy_mm(false),
+   mpi_gpu_aware(false),
+   host_mem_type(MemoryType::HOST),
+   host_mem_class(MemoryClass::HOST),
+   device_mem_type(MemoryType::HOST),
+   device_mem_class(MemoryClass::HOST)
+{
+   if (getenv("MFEM_ENV_DEVICE"))
+   {
+      device_env = true;
+      std::string env_device(getenv("MFEM_ENV_DEVICE"));
+      dbg("Waking shadow device, using ENV device: '%s'", env_device.c_str());
+      Configure(std::string(env_device));
+   }
+}
 
 
 Device::~Device()
 {
+   dbg("");
    if (destroy_mm)
    {
+      dbg("destroy_mm");
       free(device_option);
 #ifdef MFEM_USE_CEED
       CeedDestroy(&internal::ceed);
@@ -80,6 +103,7 @@ Device::~Device()
 
 void Device::Configure(const std::string &device, const int dev)
 {
+   dbg("");
    std::map<std::string, Backend::Id> bmap;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
@@ -216,7 +240,7 @@ void Device::UpdateMemoryTypeAndClass()
 
 void Device::Enable()
 {
-   const bool accelerated = Get().backends & ~(Backend::CPU | Backend::DEBUG);
+   const bool accelerated = Get().backends & ~(Backend::CPU);
    if (accelerated) { Get().mode = Device::ACCELERATED;}
    Get().UpdateMemoryTypeAndClass();
 }
@@ -381,6 +405,7 @@ void Device::Setup(const int device)
          CeedDeviceSetup(device_option);
       }
    }
+   if (Allows(Backend::DEBUG)) { ngpu = 1; }
 }
 
 } // mfem
