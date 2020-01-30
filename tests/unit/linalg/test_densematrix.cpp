@@ -15,7 +15,7 @@
 using namespace mfem;
 
 TEST_CASE("DenseMatrix LinearSolve methods",
-           "[DenseMatrix]")
+          "[DenseMatrix]")
 {
    SECTION("singular_system")
    {
