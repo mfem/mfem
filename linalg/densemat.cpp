@@ -3077,13 +3077,12 @@ void Add(double alpha, const DenseMatrix &A,
    Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
-bool LinearSolve(DenseMatrix& A, double* X)
+bool LinearSolve(DenseMatrix& A, double* X, double TOL)
 {
    MFEM_VERIFY(A.IsSquare(), "A must be a square matrix!");
    MFEM_ASSERT(A.NumCols() > 0, "supplied matrix, A, is empty!");
    MFEM_ASSERT(X != nullptr, "supplied vector, X, is null!");
 
-   constexpr double TOL = 1.e-9;
    constexpr bool SINGULAR = false;
    const int N = A.NumCols();
 
