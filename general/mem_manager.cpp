@@ -735,15 +735,6 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
       return true;
    }
 
-   /*
-      // Sanity checks
-      const bool known_ptr = IsKnown_(h_ptr);
-      const bool known_alias = IsAlias_(h_ptr);
-      //if (!known_ptr && !known_alias)
-      //{for (int k=0; k<1024*1024; k++) { ((double*)h_ptr)[k] = 0; }}
-      MFEM_VERIFY(known_ptr || known_alias, "!known_ptr && !known_alias");
-   */
-
    const internal::Memory &mem =
       (flags & Mem::ALIAS) ?
       *maps->aliases.at(h_ptr).mem : maps->memories.at(h_ptr);
@@ -1226,11 +1217,14 @@ void *MemoryManager::GetAliasHostPtr(const void *ptr, size_t bytes,
    return alias_h_ptr;
 }
 
+static MemoryType env_host_mem_type;
+static MemoryType env_device_mem_type;
 MemoryManager::MemoryManager()
 {
    exists = true;
    maps = new internal::Maps();
    ctrl = new internal::Ctrl();
+   if (mm_env) { Configure(env_host_mem_type, env_device_mem_type); }
 }
 
 MemoryManager::~MemoryManager() { if (exists) { Destroy(); } }
@@ -1238,6 +1232,13 @@ MemoryManager::~MemoryManager() { if (exists) { Destroy(); } }
 void MemoryManager::Configure(const MemoryType host_mt,
                               const MemoryType device_mt)
 {
+   if (!exists)
+   {
+      mm_env = true;
+      env_host_mem_type = host_mt;
+      env_device_mem_type = device_mt;
+      return;
+   }
    ctrl->Configure();
    host_mem_type = host_mt;
    device_mem_type = device_mt;
@@ -1349,6 +1350,7 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
 MemoryManager mm;
 
 bool MemoryManager::exists = false;
+bool MemoryManager::mm_env = false;
 
 #ifdef MFEM_USE_UMPIRE
 const char* MemoryManager::h_umpire_name = MFEM_UMPIRE_HOST;
