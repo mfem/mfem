@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "restriction.hpp"
 
 using namespace std;
 
@@ -175,14 +176,16 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
          int inf1, inf2;
          fes.GetMesh()->GetFaceElements(f, &e1, &e2);
          fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+         int face_id = inf1 / 64;
          if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
              (type==FaceType::Boundary && e2<0 && inf2<0) )
          {
             ElementTransformation& T = *fes.GetMesh()->GetFaceTransformation(f);
             for (int q = 0; q < nq; ++q)
             {
-               C(q,f_ind) = rho->Eval(T, ir->IntPoint(q));
-               // TODO
+               // Convert to lexicographic ordering
+               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+               C(iq,f_ind) = rho->Eval(T, ir->IntPoint(q));
             }
             f_ind++;
          }
@@ -215,28 +218,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq;
-               if (dim == 2)
-               {
-                  iq = (face_id == 2 || face_id == 3) ? nq-1-q : q;
-               }
-               else if (dim == 3)
-               {
-                  int q_i = q%quad1D;
-                  int q_j = q/quad1D;
-                  if (face_id==2 || face_id==1 || face_id==5)
-                  {
-                     iq = q_i + q_j*quad1D;
-                  }
-                  else if (face_id==3 || face_id==4)
-                  {
-                     iq = (quad1D-1-q_i) + q_j*quad1D;
-                  }
-                  else//face_id==0
-                  {
-                     iq = q_i + (quad1D-1-q_j)*quad1D;
-                  }
-               }
+               int iq = ToLexOrdering(dim, face_id, quad1D, q);
                u->Eval(Vq, T, ir->IntPoint(q));
                for (int i = 0; i < dim; ++i)
                {
