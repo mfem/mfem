@@ -878,9 +878,7 @@ static void PACurlCurlApply3D(const int D1D,
                               const Array<double> &_Bc,
                               const Array<double> &_Bot,
                               const Array<double> &_Bct,
-                              const Array<double> &_Go,
                               const Array<double> &_Gc,
-                              const Array<double> &_Got,
                               const Array<double> &_Gct,
                               const Vector &_op,
                               const Vector &_x,
@@ -898,9 +896,7 @@ static void PACurlCurlApply3D(const int D1D,
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
    auto Bct = Reshape(_Bct.Read(), D1D, Q1D);
-   auto Go = Reshape(_Go.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto Got = Reshape(_Got.Read(), D1D-1, Q1D);
    auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 6, NE);
    auto x = Reshape(_x.Read(), 3*(D1D-1)*D1D*D1D, NE);
@@ -925,22 +921,23 @@ static void PACurlCurlApply3D(const int D1D,
          }
       }
 
+      // We treat x, y, z components separately for optimization specific to each. 
+
       int osc = 0;
 
-      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
-      {
-         const int D1Dz = (c == 2) ? D1D - 1 : D1D;
-         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
-         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+      {  // x component
+         const int D1Dz = D1D;
+         const int D1Dy = D1D;
+         const int D1Dx = D1D - 1;
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MAX_Q1D][MAX_Q1D][3];
+            double gradXY[MAX_Q1D][MAX_Q1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  for (int d = 0; d < 3; ++d)
+                  for (int d = 0; d < 2; ++d)
                   {
                      gradXY[qy][qx][d] = 0.0;
                   }
@@ -949,13 +946,10 @@ static void PACurlCurlApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double gradX[MAX_Q1D][2];
+               double massX[MAX_Q1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  for (int d = 0; d < 2; ++d)
-                  {
-                     gradX[qx][d] = 0.0;
-                  }
+		 massX[qx] = 0.0;
                }
 
                for (int dx = 0; dx < D1Dx; ++dx)
@@ -963,56 +957,176 @@ static void PACurlCurlApply3D(const int D1D,
                   const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     gradX[qx][0] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
-                     gradX[qx][1] += t * ((c == 0) ? Go(qx,dx) : Gc(qx,dx));
+                     massX[qx] += t * Bo(qx,dx);
                   }
                }
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
-                  const double wDy = (c == 1) ? Go(qy,dy) : Gc(qy,dy);
+                  const double wy = Bc(qy,dy);
+                  const double wDy = Gc(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = gradX[qx][0];
-                     const double wDx = gradX[qx][1];
-                     gradXY[qy][qx][0] += wDx * wy;
-                     gradXY[qy][qx][1] += wx * wDy;
-                     gradXY[qy][qx][2] += wx * wy;
+                     const double wx = massX[qx];
+                     gradXY[qy][qx][0] += wx * wDy;
+                     gradXY[qy][qx][1] += wx * wy;
                   }
                }
             }
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
-               const double wDz = (c == 2) ? Go(qz,dz) : Gc(qz,dz);
+               const double wz = Bc(qz,dz);
+               const double wDz = Gc(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-		     if (c == 0)
-		       { // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
-			 curl[qz][qy][qx][1] += gradXY[qy][qx][2] * wDz;  // (u_0)_{x_2}
-			 curl[qz][qy][qx][2] -= gradXY[qy][qx][1] * wz;  // -(u_0)_{x_1}
-		       }
-		     else if (c == 1)
-		       { // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-			 curl[qz][qy][qx][0] -= gradXY[qy][qx][2] * wDz;  // -(u_1)_{x_2}
-			 curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz;  // (u_1)_{x_0}
-		       }
-		     else 
-		       { // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
-			 curl[qz][qy][qx][0] += gradXY[qy][qx][1] * wz;  // (u_2)_{x_1}
-			 curl[qz][qy][qx][1] -= gradXY[qy][qx][0] * wz;  // -(u_2)_{x_0}
-		       }
+		    // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+		    curl[qz][qy][qx][1] += gradXY[qy][qx][1] * wDz;  // (u_0)_{x_2}
+		    curl[qz][qy][qx][2] -= gradXY[qy][qx][0] * wz;  // -(u_0)_{x_1}
                   }
                }
             }
          }
+	 
+	 osc += D1Dx * D1Dy * D1Dz;
+      }
+
+      {  // y component
+         const int D1Dz = D1D;
+         const int D1Dy = D1D - 1;
+         const int D1Dx = D1D;
+
+         for (int dz = 0; dz < D1Dz; ++dz)
+         {
+            double gradXY[MAX_Q1D][MAX_Q1D][2];
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  for (int d = 0; d < 2; ++d)
+                  {
+                     gradXY[qy][qx][d] = 0.0;
+                  }
+               }
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               double massY[MAX_Q1D];
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+		 massY[qy] = 0.0;
+               }
+
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     massY[qy] += t * Bo(qy,dy);
+                  }
+	       }
+
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double wx = Bc(qx,dx);
+                  const double wDx = Gc(qx,dx);
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const double wy = massY[qy];
+                     gradXY[qy][qx][0] += wDx * wy;
+                     gradXY[qy][qx][1] += wx * wy;
+                  }
+               }
+	    }
+
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const double wz = Bc(qz,dz);
+               const double wDz = Gc(qz,dz);
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+		    // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+		    curl[qz][qy][qx][0] -= gradXY[qy][qx][1] * wDz;  // -(u_1)_{x_2}
+		    curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz;  // (u_1)_{x_0}
+                  }
+               }
+            }
+	 }
 
          osc += D1Dx * D1Dy * D1Dz;
-      }  // loop (c) over components
+      }
+
+      {  // z component
+         const int D1Dz = D1D - 1;
+         const int D1Dy = D1D;
+         const int D1Dx = D1D;
+
+         for (int dx = 0; dx < D1Dx; ++dx)
+         {
+            double gradYZ[MAX_Q1D][MAX_Q1D][2];
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int d = 0; d < 2; ++d)
+                  {
+                     gradYZ[qz][qy][d] = 0.0;
+                  }
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               double massZ[MAX_Q1D];
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+		  massZ[qz] = 0.0;
+               }
+
+               for (int dz = 0; dz < D1Dz; ++dz)
+               {
+                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     massZ[qz] += t * Bo(qz,dz);
+                  }
+               }
+
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const double wy = Bc(qy,dy);
+                  const double wDy = Gc(qy,dy);
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     const double wz = massZ[qz];
+                     gradYZ[qz][qy][0] += wz * wy;
+                     gradYZ[qz][qy][1] += wz * wDy;
+                  }
+               }
+            }
+
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double wx = Bc(qx,dx);
+               const double wDx = Gc(qx,dx);
+
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+		    // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+		    curl[qz][qy][qx][0] += gradYZ[qz][qy][1] * wx;  // (u_2)_{x_1}
+		    curl[qz][qy][qx][1] -= gradYZ[qz][qy][0] * wDx;  // -(u_2)_{x_0}
+                  }
+               }
+            }
+         }
+      }
 
       // Apply D operator.
       for (int qz = 0; qz < Q1D; ++qz)
@@ -1039,108 +1153,217 @@ static void PACurlCurlApply3D(const int D1D,
          }
       }
 
-      for (int qz = 0; qz < Q1D; ++qz)
+      // x component
+      osc = 0;
       {
-         double gradXY[MAX_D1D][MAX_D1D][3][3];
+	const int D1Dz = D1D;
+	const int D1Dy = D1D;
+	const int D1Dx = D1D - 1;
 
-         osc = 0;
-
-         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
-         {
-            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
-            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
-            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+	for (int qz = 0; qz < Q1D; ++qz)
+	  {
+	    double gradXY12[MAX_D1D][MAX_D1D];
+	    double gradXY21[MAX_D1D][MAX_D1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
-            {
-               for (int dx = 0; dx < D1Dx; ++dx)
-               {
-                  for (int n = 0; n < 3; ++n)
-                  {
-                     for (int d = 0; d < 3; ++d)
-                     {
-                        gradXY[dy][dx][n][d] = 0.0;
-                        gradXY[dy][dx][n][d] = 0.0;
-                     }
-                  }
-               }
-            }
+	      {
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    gradXY12[dy][dx] = 0.0;
+		    gradXY21[dy][dx] = 0.0;
+		  }
+	      }
             for (int qy = 0; qy < Q1D; ++qy)
-            {
-               double gradX[MAX_D1D][2][3];
-               for (int dx = 0; dx < D1Dx; ++dx)
-               {
-                  for (int n = 0; n < 2; ++n)
-                  {
-                     for (int d = 0; d < 3; ++d)
-                     {
-                        gradX[dx][n][d] = 0.0;
-                     }
-                  }
-               }
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  for (int dx = 0; dx < D1Dx; ++dx)
-                  {
-                     const double wx = ((c == 0) ? Bot(dx,qx) : Bct(dx,qx));
-                     const double wDx = ((c == 0) ? Got(dx,qx) : Gct(dx,qx));
-                     for (int d = 0; d < 3; ++d)
-		       {
-			 gradX[dx][0][d] += wx * curl[qz][qy][qx][d];
-			 gradX[dx][1][d] += wDx * curl[qz][qy][qx][d];
-		       }
-                  }
-               }
-               for (int dy = 0; dy < D1Dy; ++dy)
-               {
-                  const double wy = (c == 1) ? Bot(dy,qy) : Bct(dy,qy);
-                  const double wDy = (c == 1) ? Got(dy,qy) : Gct(dy,qy);
+	      {
+		double massX[MAX_D1D][2];
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    for (int n = 0; n < 2; ++n)
+		      {
+			massX[dx][n] = 0.0;
+		      }
+		  }
+		for (int qx = 0; qx < Q1D; ++qx)
+		  {
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			const double wx = Bot(dx,qx);
 
-                  for (int dx = 0; dx < D1Dx; ++dx)
-                  {
-                     for (int d = 0; d < 3; ++d)
-		       {
-			 const double wx = gradX[dx][0][d];
-			 const double wDx = gradX[dx][1][d];
-			 gradXY[dy][dx][0][d] += wDx * wy;
-			 gradXY[dy][dx][1][d] += wx * wDy;
-			 gradXY[dy][dx][2][d] += wx * wy;
-		       }
-                  }
-               }
-            }
+			massX[dx][0] += wx * curl[qz][qy][qx][1];
+			massX[dx][1] += wx * curl[qz][qy][qx][2];
+		      }
+		  }
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    const double wy = Bct(dy,qy);
+		    const double wDy = Gct(dy,qy);
+
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			gradXY21[dy][dx] += massX[dx][0] * wy;
+			gradXY12[dy][dx] += massX[dx][1] * wDy;
+		      }
+		  }
+	      }
 
             for (int dz = 0; dz < D1Dz; ++dz)
-            {
-               const double wz = (c == 2) ? Bot(dz,qz) : Bct(dz,qz);
-               const double wDz = (c == 2) ? Got(dz,qz) : Gct(dz,qz);
-               for (int dy = 0; dy < D1Dy; ++dy)
-               {
-                  for (int dx = 0; dx < D1Dx; ++dx)
-                  {
-
-		     if (c == 0)
-		       { // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
-			 // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
-			 y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (gradXY[dy][dx][2][1] * wDz) - (gradXY[dy][dx][1][2] * wz);
-		       }
-		     else if (c == 1)
-		       { // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-			 // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
-			 y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (-gradXY[dy][dx][2][0] * wDz) + (gradXY[dy][dx][0][2] * wz);
-		       }
-		     else 
-		       { // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
-			 // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
-			 y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (gradXY[dy][dx][1][0] * wz) - (gradXY[dy][dx][0][1] * wz);
-		       }
+	      {
+		const double wz = Bct(dz,qz);
+		const double wDz = Gct(dz,qz);
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			// \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+			// (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
+			y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
+		      }
 		  }
-	       }
-	    }
+	      }
+	  }  // loop qz
 
-            osc += D1Dx * D1Dy * D1Dz;
-         }  // loop c
-      }  // loop qz
+	osc += D1Dx * D1Dy * D1Dz;
+      }
+
+      // y component
+      {
+	const int D1Dz = D1D;
+	const int D1Dy = D1D - 1;
+	const int D1Dx = D1D;
+
+	for (int qz = 0; qz < Q1D; ++qz)
+	  {
+	    double gradXY02[MAX_D1D][MAX_D1D];
+	    double gradXY20[MAX_D1D][MAX_D1D];
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+	      {
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    gradXY02[dy][dx] = 0.0;
+		    gradXY20[dy][dx] = 0.0;
+		  }
+	      }
+            for (int qx = 0; qx < Q1D; ++qx)
+	      {
+		double massY[MAX_D1D][2];
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    massY[dy][0] = 0.0;
+		    massY[dy][1] = 0.0;
+		  }
+		for (int qy = 0; qy < Q1D; ++qy)
+		  {
+		    for (int dy = 0; dy < D1Dy; ++dy)
+		      {
+			const double wy = Bot(dy,qy);
+
+			massY[dy][0] += wy * curl[qz][qy][qx][2];
+			massY[dy][1] += wy * curl[qz][qy][qx][0];
+		      }
+		  }
+		for (int dx = 0; dx < D1Dx; ++dx)
+		  {
+		    const double wx = Bct(dx,qx);
+		    const double wDx = Gct(dx,qx);
+
+		    for (int dy = 0; dy < D1Dy; ++dy)
+		      {
+			gradXY02[dy][dx] += massY[dy][0] * wDx;
+			gradXY20[dy][dx] += massY[dy][1] * wx;
+		      }
+		  }
+	      }
+
+            for (int dz = 0; dz < D1Dz; ++dz)
+	      {
+		const double wz = Bct(dz,qz);
+		const double wDz = Gct(dz,qz);
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    for (int dx = 0; dx < D1Dx; ++dx)
+		      {
+			// \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+			// -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
+			y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
+		      }
+		  }
+	      }
+	  }  // loop qz
+
+	osc += D1Dx * D1Dy * D1Dz;
+      }
+
+      // z component
+      {
+	const int D1Dz = D1D - 1;
+	const int D1Dy = D1D;
+	const int D1Dx = D1D;
+
+	for (int qx = 0; qx < Q1D; ++qx)
+	  {
+	    double gradYZ01[MAX_D1D][MAX_D1D];
+	    double gradYZ10[MAX_D1D][MAX_D1D];
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+	      {
+		for (int dz = 0; dz < D1Dz; ++dz)
+		  {
+		    gradYZ01[dz][dy] = 0.0;
+		    gradYZ10[dz][dy] = 0.0;
+		  }
+	      }
+            for (int qy = 0; qy < Q1D; ++qy)
+	      {
+		double massZ[MAX_D1D][2];
+		for (int dz = 0; dz < D1Dz; ++dz)
+		  {
+		    for (int n = 0; n < 2; ++n)
+		      {
+			massZ[dz][n] = 0.0;
+		      }
+		  }
+		for (int qz = 0; qz < Q1D; ++qz)
+		  {
+		    for (int dz = 0; dz < D1Dz; ++dz)
+		      {
+			const double wz = Bot(dz,qz);
+
+			massZ[dz][0] += wz * curl[qz][qy][qx][0];
+			massZ[dz][1] += wz * curl[qz][qy][qx][1];
+		      }
+		  }
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    const double wy = Bct(dy,qy);
+		    const double wDy = Gct(dy,qy);
+
+		    for (int dz = 0; dz < D1Dz; ++dz)
+		      {
+			gradYZ01[dz][dy] += wy * massZ[dz][1];
+			gradYZ10[dz][dy] += wDy * massZ[dz][0];
+		      }
+		  }
+	      }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+	      {
+		const double wx = Bct(dx,qx);
+		const double wDx = Gct(dx,qx);
+
+		for (int dy = 0; dy < D1Dy; ++dy)
+		  {
+		    for (int dz = 0; dz < D1Dz; ++dz)
+		      {
+			// \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+			// (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
+			y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
+		      }
+		  }
+	      }
+	  }  // loop qx
+      }
+
    }); // end of element loop
 }
 
@@ -1148,8 +1371,7 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
       PACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                        mapsC->Bt,
-                        mapsO->G, mapsC->G, mapsO->Gt, mapsC->Gt, pa_data, x, y);
+                        mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
    else
       PACurlCurlApply2D(dofs1D, quad1D, ne, mapsO->B, mapsO->Bt,
                         mapsC->G, mapsC->Gt, pa_data, x, y);
