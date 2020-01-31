@@ -42,18 +42,26 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
      trialFes(a->FESpace()),
      testFes(a->FESpace())
 {
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
-   if (elem_restrict_lex)
+   elem_restrict_lex = NULL;
+}
+
+void PABilinearFormExtension::Setup()
+{
+   if (elem_restrict_lex == NULL)
    {
-      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      elem_restrict_lex = trialFes->GetElementRestriction(
+                           ElementDofOrdering::LEXICOGRAPHIC);
+      if (elem_restrict_lex)
+      {
+         localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+         localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+         localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      }
    }
 
    // Construct face restriction operators only if the bilinear form has
    // interior or boundary face integrators
-   if (a->GetFBFI()->Size() > 0 || a->GetBFBFI()->Size() > 0)
+   if (int_face_restrict_lex == NULL && a->GetFBFI()->Size() > 0)
    {
       int_face_restrict_lex = trialFes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
@@ -63,7 +71,10 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
          faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
          faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
       }
+   }
 
+    if (bound_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
+   {
       bound_face_restrict_lex = trialFes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
       if (bound_face_restrict_lex)
@@ -77,6 +88,8 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
 
 void PABilinearFormExtension::Assemble()
 {
+   Setup();
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
