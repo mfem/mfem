@@ -284,7 +284,6 @@ public:
    void UpdateGridFunction()
    {
       j.Update(); 
-      gftmp.Update();
       //DSl and DRe contains ParGridFunctions that need to be updated
       DSl.Update();    
       DSl.Assemble();

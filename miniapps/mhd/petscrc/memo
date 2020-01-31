@@ -37,7 +37,20 @@ glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 try to investigate why the hyprediffusion is so stiff in an explicit scheme (1e-6 for resistivity)
 mpirun -n 12 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 100 -tf 4 -dt .0005 -resi 1e-6 -visc 1e-6
 
-explicit scheme without FD is stable for dt=.0005 with rs=4
+
+explicit scheme without FD is stable for dt=.008 with rs=3
+explicit scheme without FD is stable for dt=.004 with rs=4
+explicit scheme without FD is stable for dt=.002 with rs=5
+explicit scheme without FD is stable for dt=.001 with rs=6
+
+
+with the diffusion term, it is not working with dt=.001 with rs=4 and alpha=.2
+
+it becomes unstable somewhere between t = .72 and .73
+srun -n 36 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -tf .75 -dt .0005 -resi 1e-6 -visc 1e-6
+
+dt=.0002 seems okay
+dt=.0004 seems okay (10 times smaller)
 
 
 1/10
