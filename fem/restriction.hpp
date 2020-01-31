@@ -13,6 +13,7 @@
 #define MFEM_RESTRICTION
 
 #include "../linalg/operator.hpp"
+#include "../mesh/mesh.hpp"
 
 namespace mfem
 {
@@ -20,7 +21,6 @@ namespace mfem
 class FiniteElementSpace;
 class ParFiniteElementSpace;
 enum class ElementDofOrdering;
-enum class FaceType : bool;
 
 /** An enum type to specify if only e1 value is requested (Single) or both
     e1 and e2 (Double). */
