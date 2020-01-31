@@ -90,13 +90,13 @@ TEST_CASE("MemoryManager", "[MemoryManager]")
       for (int n = 1; n < 2*pagesize; n+=7)
       {
          Aliases(n);
-         mm.PrintPtrs();
-         mm.PrintAliases();
+         //mm.PrintPtrs();
+         //mm.PrintAliases();
       }
       MmuCatch();
       ScanMemoryTypes();
-      mm.PrintPtrs();
-      mm.PrintAliases();
+      //mm.PrintPtrs();
+      //mm.PrintAliases();
    }
 }
 
