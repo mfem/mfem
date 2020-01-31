@@ -145,6 +145,7 @@ void ParNCMesh::UpdateVertices()
    // The remaining (ghost) vertices are assigned indices greater or equal to
    // Mesh::GetNV().
 
+#if 0
    for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex()) { node->vert_index = -1; }
@@ -163,6 +164,40 @@ void ParNCMesh::UpdateVertices()
          }
       }
    }
+#else
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasVertex()) { node->vert_index = -2; }
+   }
+
+   // loop over elements we own, mark all non-ghost vertices
+   for (int i = 0; i < NElements; i++)
+   {
+      Element &el = elements[leaf_elements[i]];
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         nodes[el.node[j]].vert_index = -1;
+      }
+   }
+
+   Array<int> inv_glob_order(leaf_elements.Size());
+   for (int i = 0; i < inv_glob_order.Size(); i++)
+   {
+      inv_glob_order[leaf_glob_order[i]] = i;
+   }
+
+   // assign vertex indices in a globally consistent order
+   NVertices = 0;
+   for (int i = 0; i < inv_glob_order.Size(); i++)
+   {
+      Element &el = elements[leaf_elements[inv_glob_order[i]]];
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         int &vindex = nodes[el.node[j]].vert_index;
+         if (vindex == -1) { vindex = NVertices++; }
+      }
+   }
+#endif
 
    vertex_nodeId.SetSize(NVertices);
    for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
