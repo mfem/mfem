@@ -77,34 +77,28 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 					tmp += BdrInt(l,i,e*nqf+k) * hyp->VelFace(l,i,e*nqf+k);
 				}
 				
-				uEval = 0.;
-				if (tmp >= 0)
+				uEval = uNbrEval = 0.;
+				
+				for (int j = 0; j < dofs.NumFaceDofs; j++)
 				{
-					for (int j = 0; j < dofs.NumFaceDofs; j++)
-					{
-						uEval(0) += uElem(dofs.BdrDofs(j,i)) * ShapeEvalFace(i,j,k);
-					}
-				}
-				else
-				{
-					for (int j = 0; j < dofs.NumFaceDofs; j++)
+					nbr = dofs.NbrDofs(i,j,e);
+					if (nbr < 0)
 					{
 						DofInd = e*nd+dofs.BdrDofs(j,i);
-						nbr = dofs.NbrDofs(i,j,e);
-                  if (nbr < 0)
-						{
-							uNbr(0) = hyp->inflow(DofInd);
-						}
-                  else
-                  {
-							// nbr in different MPI task?
-                     uNbr(0) = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
-                  }
-						uEval(0) += uNbr(0) * ShapeEvalFace(i,j,k);
+						uNbr(0) = hyp->inflow(DofInd);
 					}
+					else
+               {
+						// nbr in different MPI task?
+                  uNbr(0) = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
+               }
+					
+					uEval(0) += uElem(dofs.BdrDofs(j,i)) * ShapeEvalFace(i,j,k);
+					uNbrEval(0) += uNbr(0) * ShapeEvalFace(i,j,k);
 				}
 				
-				tmp *= QuadWeightFace(k) * uEval(0);
+				// Lax-Friedrichs flux (equals full upwinding for Advection).
+				tmp = 0.5 * ( tmp * (uEval(0) + uNbrEval(0)) + abs(tmp) * (uEval(0) - uNbrEval(0)) ) * QuadWeightFace(k);
 				
 				for (int j = 0; j < dofs.NumFaceDofs; j++)
 				{

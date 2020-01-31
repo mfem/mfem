@@ -47,7 +47,7 @@ public:
 	
 	// Tools to compute the discrete time derivative, needed repeatedly.
 	mutable Array<int> vdofs;
-	mutable Vector z, uOld, uElem, uEval, uNbr, vec1, vec2, vec3;
+	mutable Vector z, uOld, uElem, uEval, uNbr, uNbrEval, vec1, vec2, vec3;
 	mutable int DofInd, nbr;
 
 

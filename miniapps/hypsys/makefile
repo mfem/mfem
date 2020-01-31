@@ -32,26 +32,26 @@ MAIN_FILES = hypsys
 
 ifeq ($(MFEM_USE_MPI), YES)
    MAIN_FILES += phypsys
-   OBJ_FILES += $(BLD_DIR)/pdofs.o
-   OBJ_FILES += $(BLD_DIR)/ptools.o
-   OBJ_FILES += $(BLD_DIR)/pfe_evol.o
+   POBJ_FILES += $(BLD_DIR)/pdofs.o
+   POBJ_FILES += $(BLD_DIR)/ptools.o
+   POBJ_FILES += $(BLD_DIR)/pfe_evol.o
 endif
 
 # valgrind-test setup
 VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p 0 -e 0
 
 # grid-convergence-test setup
-GEOM = tri
+GEOM = quad
 MESH0 = data/inline-3$(GEOM).mesh
 MESH1 = data/inline-4$(GEOM).mesh
-CONFIG = -p 0 -e 0 -o 4 -c 0 -tf 1 -dt 0.00001 -s 1 -vs 1000
-CONFIG-NAME = p0e0o4-$(GEOM)
+CONFIG = -p 0 -e 0 -o 1 -c 0 -tf 1 -dt 0.00001 -s 1 -vs 1000
+CONFIG-NAME = p0e0o1-$(GEOM)
 
 
 ## Makefile rules. #############################################################
 
 # Keywords that are not associated with files (by default, all are).
-.PHONY: all library exec clean valgrind-test grid-convergence-test sytle
+.PHONY: all library hypsys phypsys clean valgrind-test grid-convergence-test sytle
 
 # Delete the default suffixes.
 .SUFFIXES:
@@ -69,15 +69,18 @@ CONFIG-NAME = p0e0o4-$(GEOM)
 %.app: ../$(APP_DIR)/%.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $^ -o $@
 
-all: library exec
+all: $(MAIN_FILES)
 
-library: $(OBJ_FILES) $(APP_FILES)
+library: $(OBJ_FILES) $(POBJ_FILES) $(APP_FILES)
 
-exec: $(MAIN_FILES)
+hypsys: library
+	$(MFEM_CXX) $(MFEM_FLAGS) hypsys.cpp -o hypsys $(OBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
 
+phypsys: library
+	$(MFEM_CXX) $(MFEM_FLAGS) phypsys.cpp -o phypsys $(OBJ_FILES) $(POBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
+	
 clean:
-	@rm -f hypsys phypsys errors.txt *.gf *.mesh
-	@rm -f $(BLD_DIR)/*
+	@rm -f hypsys phypsys errors.txt *.gf *.mesh $(BLD_DIR)/*
 
 valgrind-test:
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/periodic-segment.mesh -r 4 -o 4
@@ -87,13 +90,13 @@ valgrind-test:
 
 grid-convergence-test:
 	rm errors.txt; \
-	./hypsys $(CONFIG) -m $(MESH0) -r 4; \
-	./hypsys $(CONFIG) -m $(MESH1) -r 4; \
-	./hypsys $(CONFIG) -m $(MESH0) -r 5; \
-	./hypsys $(CONFIG) -m $(MESH1) -r 5; \
-	./hypsys $(CONFIG) -m $(MESH0) -r 6; \
-	./hypsys $(CONFIG) -m $(MESH1) -r 6; \
-	./hypsys $(CONFIG) -m $(MESH0) -r 7; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH0) -r 4; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH1) -r 4; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH0) -r 5; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH1) -r 5; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH0) -r 6; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH1) -r 6; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH0) -r 7; \
 	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
 
 $(MFEM_LIB_FILE):
@@ -102,8 +105,7 @@ $(MFEM_LIB_FILE):
 ASTYLE = astyle --options=$(MFEM_DIR)/config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS),"$(dir)/*.?pp")
 FORMAT_FILES += hypsys.cpp
-FORMAT_FILES += hypsys.hpp
-FORMAT_FILES += par-hypsys.cpp
+FORMAT_FILES += phypsys.cpp
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\

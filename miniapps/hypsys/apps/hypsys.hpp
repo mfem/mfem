@@ -38,9 +38,6 @@ public:
 	
 	DenseTensor VelElem, VelFace;
 	
-	//TODO debug
-	SparseMatrix K;
-	
 	bool SolutionKnown = true;
 	bool FileOutput = false;
 	bool SteadyState;
