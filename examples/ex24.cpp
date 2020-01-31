@@ -201,9 +201,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4, \n"
-                  "\t   99 - Generalized alpha");
+                  "ODE solver: [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
+                  "\t   11 - Average Acceleration, 12 - Linear Acceleration\n"
+                  "\t   13 - CentralDifference, 14 - FoxGoodwin");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
