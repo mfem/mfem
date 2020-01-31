@@ -1,13 +1,13 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
-// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-// LICENSE and NOTICE for details. LLNL-CODE-806117.
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability visit https://mfem.org.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
-// CONTRIBUTING.md for details.
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
 //
 //      ----------------------------------------------------------------
 //      Display Basis Miniapp:  Visualize finite element basis functions
@@ -24,17 +24,16 @@
 // Sample runs:  display-basis
 //               display_basis -e 2 -b 3 -o 3
 //               display-basis -e 5 -b 1 -o 1
-//               display-basis -e 3 -b 7 -o 3
-//               display-basis -e 3 -b 7 -o 5 -only 16
 
 #include "mfem.hpp"
-#include "../common/mfem-common.hpp"
+#include "../common/fem_extras.hpp"
+#include "../common/mesh_extras.hpp"
 #include <vector>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::common;
+using namespace mfem::miniapps;
 
 // Data structure used to collect visualization window layout parameters
 struct VisWinLayout
@@ -80,7 +79,7 @@ public:
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
    void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
-   using VectorCoefficient::Eval;
+
 private:
    void Def1D(const Vector & u, Vector & v);
    void Def2D(const Vector & u, Vector & v);
@@ -106,7 +105,7 @@ string mapTypeStr(int mType);
 int update_basis(vector<socketstream*> & sock, const VisWinLayout & vwl,
                  Element::Type e, char bType, int bOrder, int mType,
                  Deformation::DefType dType, const DeformationData & defData,
-                 bool visualization, int &onlySome);
+                 bool visualization);
 
 int main(int argc, char *argv[])
 {
@@ -129,7 +128,6 @@ int main(int argc, char *argv[])
    DeformationData defData;
 
    bool visualization = true;
-   int onlySome = -1;
 
    vector<socketstream*> sock;
 
@@ -140,7 +138,7 @@ int main(int argc, char *argv[])
    args.AddOption(&bInt, "-b", "--basis-type",
                   "Basis Function Type (0-H1, 1-Nedelec, 2-Raviart-Thomas, "
                   "3-L2, 4-Fixed Order Cont.,\n\t5-Gaussian Discontinuous (2D),"
-                  " 6-Crouzeix-Raviart, 7-Serendipity)");
+                  " 6-Crouzeix-Raviart,7 RBF/RK)");
    args.AddOption(&bOrder, "-o", "--order", "Basis function order");
    args.AddOption(&vwl.nx, "-nx", "--num-win-x",
                   "Number of Viz windows in X");
@@ -153,8 +151,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&onlySome, "-only", "--onlySome",
-                  "Only view 10 dofs, starting with the specified one.");
    args.Parse();
    if (!args.Good())
    {
@@ -192,7 +188,7 @@ int main(int argc, char *argv[])
          bType = 'c';
          break;
       case 7:
-         bType = 's';
+         bType = 'k';
          break;
       default:
          bType = 'h';
@@ -211,7 +207,7 @@ int main(int argc, char *argv[])
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }
       if ( update_basis(sock, vwl, eType, bType, bOrder, mType,
-                        dType, defData, visualization, onlySome) )
+                        dType, defData, visualization) )
       {
          cerr << "Invalid combination of basis info (try again)" << endl;
       }
@@ -226,7 +222,7 @@ int main(int argc, char *argv[])
            "e) Change Element Type\n"
            "b) Change Basis Type\n";
       if ( bType == 'h' || bType == 'p' || bType == 'n' || bType == 'r' ||
-           bType == 'l' || bType == 'f' || bType == 'g' || bType == 's')
+           bType == 'l' || bType == 'f' || bType == 'g' )
       {
          cout << "o) Change Basis Order\n";
       }
@@ -307,7 +303,6 @@ int main(int argc, char *argv[])
          cout << "p) H1 Positive Finite Element\n";
          if ( elemIs2D(eType) || elemIs3D(eType) )
          {
-            cout << "s) H1 Serendipity Finite Element\n";
             cout << "n) Nedelec Finite Element\n";
             cout << "r) Raviart-Thomas Finite Element\n";
          }
@@ -323,11 +318,11 @@ int main(int argc, char *argv[])
          }
          cout << "enter new basis type --> " << flush;
          cin >> bChar;
-         if (bChar == 'h' || bChar == 'p' || bChar == 'l' || bChar == 'f' ||
-             bChar == 's' ||
-             ((bChar == 'n' || bChar == 'r') && (elemIs2D(eType) || elemIs3D(eType))) ||
-             (bChar == 'c' && (elemIs1D(eType) || elemIs2D(eType))) ||
-             (bChar == 'g' && elemIs2D(eType)))
+         if ( bChar == 'h' || bChar == 'p' || bChar == 'l' || bChar == 'f' ||
+              ((bChar == 'n' || bChar == 'r') &&
+               (elemIs2D(eType) || elemIs3D(eType))) ||
+              (bChar == 'c' && (elemIs1D(eType) || elemIs2D(eType))) ||
+              (bChar == 'g' && elemIs2D(eType)))
          {
             bType = bChar;
             if ( bType == 'h' )
@@ -335,10 +330,6 @@ int main(int argc, char *argv[])
                mType = FiniteElement::VALUE;
             }
             else if ( bType == 'p' )
-            {
-               mType = FiniteElement::VALUE;
-            }
-            else if (bType == 's')
             {
                mType = FiniteElement::VALUE;
             }
@@ -408,7 +399,7 @@ int main(int argc, char *argv[])
       {
          int oInt = 1;
          int oMin = ( bType == 'h' || bType == 'p' || bType == 'n' ||
-                      bType == 'f' || bType == 'g' || bType == 's')?1:0;
+                      bType == 'f' || bType == 'g')?1:0;
          int oMax = -1;
          switch (bType)
          {
@@ -516,18 +507,25 @@ string elemTypeStr(const Element::Type & eType)
    {
       case Element::POINT:
          return "POINT";
+         break;
       case Element::SEGMENT:
          return "SEGMENT";
+         break;
       case Element::TRIANGLE:
          return "TRIANGLE";
+         break;
       case Element::QUADRILATERAL:
          return "QUADRILATERAL";
+         break;
       case Element::TETRAHEDRON:
          return "TETRAHEDRON";
+         break;
       case Element::HEXAHEDRON:
          return "HEXAHEDRON";
+         break;
       default:
          return "INVALID";
+         break;
    };
 }
 
@@ -556,24 +554,34 @@ basisTypeStr(char bType)
    {
       case 'h':
          return "Continuous (H1)";
+         break;
       case 'p':
          return "Continuous Positive (H1)";
-      case 's':
-         return "Continuous Serendipity (H1)";
+         break;
       case 'n':
          return "Nedelec";
+         break;
       case 'r':
          return "Raviart-Thomas";
+         break;
       case 'l':
          return "Discontinuous (L2)";
+         break;
       case 'f':
          return "Fixed Order Continuous";
+         break;
       case 'g':
          return "Gaussian Discontinuous";
+         break;
       case 'c':
          return "Crouzeix-Raviart";
+         break;
+      case 'k':
+         return "RBF/RK";
+         break;
       default:
          return "INVALID";
+         break;
    };
 }
 
@@ -588,8 +596,7 @@ bool
 basisIs2D(char bType)
 {
    return bType == 'h' || bType == 'p' || bType == 'n' || bType == 'r' ||
-          bType == 'l' || bType == 'c' || bType == 'f' || bType == 'g' ||
-          bType == 's';
+          bType == 'l' || bType == 'c' || bType == 'f' || bType == 'g';
 }
 
 bool
@@ -606,14 +613,19 @@ mapTypeStr(int mType)
    {
       case FiniteElement::VALUE:
          return "VALUE";
+         break;
       case FiniteElement::H_CURL:
          return "H_CURL";
+         break;
       case FiniteElement::H_DIV:
          return "H_DIV";
+         break;
       case FiniteElement::INTEGRAL:
          return "INTEGRAL";
+         break;
       default:
          return "INVALID";
+         break;
    }
 }
 
@@ -699,7 +711,7 @@ int
 update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
              Element::Type e, char bType, int bOrder, int mType,
              Deformation::DefType dType, const DeformationData & defData,
-             bool visualization, int &onlySome)
+             bool visualization)
 {
    bool vec = false;
 
@@ -730,17 +742,6 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
          break;
       case 'p':
          FEC = new H1Pos_FECollection(bOrder, dim);
-         vec = false;
-         break;
-      case 's':
-         if (bOrder == 1)
-         {
-            FEC = new H1_FECollection(bOrder, dim);
-         }
-         else
-         {
-            FEC = new H1Ser_FECollection(bOrder, dim);
-         }
          vec = false;
          break;
       case 'n':
@@ -783,6 +784,15 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
             FEC = new GaussQuadraticDiscont2DFECollection();
          }
          break;
+      case 'k':
+      {
+         RBFFunction *func = new GaussianRBF();
+         DistanceMetric *dist = new EuclideanDistance(dim);
+         int numPoints = 10;
+         double h = 4.01;
+         FEC = new KernelFECollection(dim, numPoints, h,
+                                      func, dist, bOrder);
+      }
    }
    if ( FEC == NULL)
    {
@@ -845,23 +855,8 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
       ref++;
    }
 
-   int stopAt = ndof;
-   if (ndof > 25 && onlySome == -1)
+   for (int i=0; i<ndof; i++)
    {
-      cout << endl;
-      cout << "There are more than 25 windows to open.\n"
-           << "Only showing Dofs 1-10 to avoid crashing.\n"
-           << "Use the option -only N to show Dofs N to N+9 instead.\n";
-      onlySome = 1;
-   }
-   for (int i = 0; i < stopAt; i++)
-   {
-      if (i ==0 && onlySome > 0 && onlySome <ndof)
-      {
-         i = onlySome-1;
-         stopAt = min(ndof,onlySome+9);
-      }
-
       ostringstream oss;
       oss << "DoF " << i + 1;
       if (visualization)
@@ -869,7 +864,7 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
          VisualizeField(*sock[i], vishost, visport, *x[i], oss.str().c_str(),
                         (i % vwl.nx) * offx, ((i / vwl.nx) % vwl.ny) * offy,
                         vwl.w, vwl.h,
-                        "aaAc", vec);
+                        vec);
       }
    }
 

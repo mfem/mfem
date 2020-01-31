@@ -280,6 +280,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "RBF", 3) || !strncmp(name, "RK", 2))
    {
+      // Example: RK4_IM_M_2d_020_4.01
       int dim = atoi(name + 9);
       int numPoints = atoi(name + 12);
       double h = atof(name + 16);
@@ -328,10 +329,6 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                       func, dist);
       }
    }
-   // else if (!strncmp(name, "RK", 2))
-   // {
-   //    fec = new RK_FECollection();
-   // }
    else
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
@@ -2870,7 +2867,7 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
 
 KernelFECollection::KernelFECollection(int D,
                                        int numPointsD,
-                                       int h,
+                                       double h,
                                        RBFFunction *func,
                                        DistanceMetric *dist,
                                        int order)

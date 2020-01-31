@@ -12993,7 +12993,6 @@ RBFFiniteElement::RBFFiniteElement(int D, int nD, double h,
 #endif
      numPointsD(nD),
      h(h),
-     hInv(1.0/h),
      pos(TensorBasisElement::Pow(nD, D), D),
      rbf(func),
      distance(dist)
@@ -13008,7 +13007,7 @@ void RBFFiniteElement::DistanceVec(const int i,
 {
    for (int d = 0; d < Dim; ++d)
    {
-      y(d) = abs(x(d) - pos(i, d)) * hInv;
+      y(d) = abs(x(d) - pos(i, d)) * hPhysInv;
    }
 }
 
@@ -13016,13 +13015,15 @@ void RBFFiniteElement::DDistanceVec(Vector &dy) const
 {
    for (int d = 0; d < Dim; ++d)
    {
-      dy(d) = hInv;
+      dy(d) = hPhysInv;
    }
 }
 
 void RBFFiniteElement::SetPositions()
 {
-   const double delta = 1.0 / (static_cast<double>(numPointsD) - 1.0);
+   delta = 1.0 / (static_cast<double>(numPointsD) - 1.0);
+   hPhys = delta * h;
+   hPhysInv = 1.0 / hPhys;
    switch (Dim)
    {
    case 1:
@@ -13173,6 +13174,7 @@ RKFiniteElement::RKFiniteElement(int poly,
                          polyOrd,
                          FunctionSpace::RK),
      polyOrd(poly),
+     numPoly1d(poly+1),
      numPoly(RKFiniteElement::GetNumPoly(polyOrd, baseClass->GetDim())),
      baseFE(baseClass)
 {
@@ -13184,8 +13186,8 @@ RKFiniteElement::RKFiniteElement(int poly,
    s.SetSize(Dof);
    p.SetSize(numPoly);
    df.SetSize(Dim);
-   q.SetSize(polyOrd, Dim);
-   dq.SetSize(polyOrd, Dim);
+   q.SetSize(numPoly1d, Dim);
+   dq.SetSize(numPoly1d, Dim);
    M.SetSize(numPoly, numPoly);
    dc.SetSize(Dim);
    dp.SetSize(Dim);
@@ -13234,9 +13236,11 @@ void RKFiniteElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix M(numPoly, numPoly);
    DenseMatrixInverse Minv;
    Array<Vector> dc(Dim);
+   Array<DenseMatrix> dM(Dim);
    for (int d = 0; d < Dim; ++d)
    {
       dc.SetSize(numPoly);
+      dM[d].SetSize(numPoly, numPoly);
    }
 #endif
 
@@ -13264,11 +13268,11 @@ void RKFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 int RKFiniteElement::GetNumPoly(int polyOrd, int dim)
 {
-   int n = polyOrd + dim;
+   double n = polyOrd + dim;
    double num = 1;
    for (int i = 0; i < dim; ++i)
    {
-      num *= (1.0 + polyOrd + dim - i) / (i + 1.0);
+      num *= (n - i) / (i + 1.0);
    }
    return static_cast<int>(round(num));
 }
@@ -13296,7 +13300,7 @@ void RKFiniteElement::GetPoly(const Vector &x,
                               Vector &p) const
 {
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix q(polyOrd, Dim);
+   DenseMatrix q(numPoly1d, Dim);
 #endif
    
    int index = 0;
@@ -13304,7 +13308,7 @@ void RKFiniteElement::GetPoly(const Vector &x,
    {
    case 1:
       p(0) = 1.0;
-      for (int i = 1; i < polyOrd; ++i)
+      for (int i = 1; i < numPoly1d; ++i)
       {
          p(i) = p(i-1) * x(0);
       }
@@ -13312,14 +13316,14 @@ void RKFiniteElement::GetPoly(const Vector &x,
    case 2:
       q(0, 0) = 1.0;
       q(0, 1) = 1.0;
-      for (int i = 1; i < polyOrd; ++i)
+      for (int i = 1; i < numPoly1d; ++i)
       {
          q(i, 0) = q(i-1, 0) * x(0);
          q(i, 1) = q(i-1, 1) * x(1);
       }
-      for (int i = 0; i < polyOrd; ++i)
+      for (int i = 0; i < numPoly1d; ++i)
       {
-         for (int j = 0; j + i < polyOrd; ++j)
+         for (int j = 0; j + i < numPoly1d; ++j)
          {
             p(index) = q(i, 0) * q(j, 1);
             ++index;
@@ -13330,19 +13334,19 @@ void RKFiniteElement::GetPoly(const Vector &x,
       q(0, 0) = 1.0;
       q(0, 1) = 1.0;
       q(0, 2) = 1.0;
-      for (int i = 1; i < polyOrd; ++i)
+      for (int i = 1; i < numPoly1d; ++i)
       {
          q(i, 0) = q(i-1, 0) * x(0);
          q(i, 1) = q(i-1, 1) * x(1);
          q(i, 2) = q(i-1, 2) * x(2);
       }
-      for (int i = 0; i < polyOrd; ++i)
+      for (int i = 0; i < numPoly1d; ++i)
       {
-         for (int j = 0; j + i < polyOrd; ++j)
+         for (int j = 0; j + i < numPoly1d; ++j)
          {
-            for (int k = 0; k + j + i < polyOrd; ++k)
+            for (int k = 0; k + j + i < numPoly1d; ++k)
             {
-               p(index) = q(i, 0) * q(j, 0) * q(k, 0);
+               p(index) = q(i, 0) * q(j, 1) * q(k, 2);
                ++index;
             }
          }
@@ -13357,8 +13361,8 @@ void RKFiniteElement::GetDPoly(const Vector &x,
                                Array<Vector> &dp) const
 {
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix q(polyOrd, Dim);
-   DenseMatrix dq(polyOrd, Dim);
+   DenseMatrix q(numPoly1d, Dim);
+   DenseMatrix dq(numPoly1d, Dim);
 #endif
    
    int index = 0;
@@ -13367,7 +13371,7 @@ void RKFiniteElement::GetDPoly(const Vector &x,
    case 1:
       q(0, 0) = 1.0;
       dp[0](0) = 0.0;
-      for (int i = 1; i < polyOrd; ++i)
+      for (int i = 1; i < numPoly1d; ++i)
       {
          dp[0](i) = dp[0](i-1) * x(0) + q(i-1, 0);
          q(i, 0) = q(i-1, 0) * x(0);
@@ -13378,16 +13382,16 @@ void RKFiniteElement::GetDPoly(const Vector &x,
       q(0, 1) = 1.0;
       dq(0, 0) = 0.0;
       dq(0, 1) = 0.0;
-      for (int i = 1; i < polyOrd; ++i)
+      for (int i = 1; i < numPoly1d; ++i)
       {
          q(i, 0) = q(i-1, 0) * x(0);
          q(i, 1) = q(i-1, 1) * x(1);
          dq(i, 0) = dq(i-1, 0) * x(0) + q(i-1, 0);
          dq(i, 1) = dq(i-1, 1) * x(1) + q(i-1, 1);
       }
-      for (int i = 0; i < polyOrd; ++i)
+      for (int i = 0; i < numPoly1d; ++i)
       {
-         for (int j = 0; j + i < polyOrd; ++j)
+         for (int j = 0; j + i < numPoly1d; ++j)
          {
             dp[0](index) = dq(i, 0) * q(j, 1);
             dp[1](index) = q(i, 0) * dq(j, 1);
@@ -13401,19 +13405,21 @@ void RKFiniteElement::GetDPoly(const Vector &x,
       q(0, 2) = 1.0;
       dq(0, 0) = 0.0;
       dq(0, 1) = 0.0;
-      for (int i = 1; i < polyOrd; ++i)
+      dq(0, 2) = 0.0;
+      for (int i = 1; i < numPoly1d; ++i)
       {
          q(i, 0) = q(i-1, 0) * x(0);
          q(i, 1) = q(i-1, 1) * x(1);
          q(i, 2) = q(i-1, 2) * x(2);
          dq(i, 0) = dq(i-1, 0) * x(0) + q(i-1, 0);
          dq(i, 1) = dq(i-1, 1) * x(1) + q(i-1, 1);
+         dq(i, 2) = dq(i-1, 2) * x(2) + q(i-1, 2);
       }
-      for (int i = 0; i < polyOrd; ++i)
+      for (int i = 0; i < numPoly1d; ++i)
       {
-         for (int j = 0; j + i < polyOrd; ++j)
+         for (int j = 0; j + i < numPoly1d; ++j)
          {
-            for (int k = 0; k + j + i < polyOrd; ++k)
+            for (int k = 0; k + j + i < numPoly1d; ++k)
             {
                dp[0](index) = dq(i, 0) * q(j, 1) * q(k, 2);
                dp[1](index) = q(i, 0) * dq(j, 1) * q(k, 2);
