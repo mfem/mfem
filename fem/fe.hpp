@@ -3433,8 +3433,8 @@ private:
    mutable double f;
    mutable Vector x, y, g, c, s, p, df;
    mutable DenseMatrix q, dq, M;
-   mutable Array<Vector> dc, dp;
-   mutable Array<DenseMatrix> dM;
+   mutable Vector dc[3], dp[3];
+   mutable DenseMatrix dM[3];
    mutable DenseMatrixInverse Minv;
 #endif
    int polyOrd, numPoly, numPoly1d;
@@ -3443,7 +3443,7 @@ private:
    virtual void GetPoly(const Vector &x,
                         Vector &p) const;
    virtual void GetDPoly(const Vector &x,
-                         Array<Vector> &dp) const;
+                         Vector (&dp)[3]) const;
    virtual void GetG(Vector &g) const;
    virtual void GetM(const Vector &baseShape,
                      const IntegrationPoint &ip,
@@ -3452,21 +3452,21 @@ private:
                       const DenseMatrix &baseDeriv,
                       const IntegrationPoint &ip,
                       DenseMatrix &M,
-                      Array<DenseMatrix> &dM) const;
+                      DenseMatrix (&dM)[3]) const;
    virtual void AddToM(const Vector &p,
                        const double &f,
                        DenseMatrix &M) const;
    virtual void AddToDM(const Vector &p,
-                        const Array<Vector> &dp,
+                        const Vector (&dp)[3],
                         const double &f,
                         const Vector &df,
-                        Array<DenseMatrix> &dM) const;
+                        DenseMatrix (&dM)[3]) const;
    virtual void CalculateValues(const Vector &c,
                                 const Vector &baseShape,
                                 const IntegrationPoint &ip,
                                 Vector &shape) const;
    virtual void CalculateDValues(const Vector &c,
-                                 const Array<Vector> &dc,
+                                 const Vector (&dc)[3],
                                  const Vector &baseShape,
                                  const DenseMatrix &baseDShape,
                                  const IntegrationPoint &ip,

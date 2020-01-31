@@ -13189,9 +13189,6 @@ RKFiniteElement::RKFiniteElement(int poly,
    q.SetSize(numPoly1d, Dim);
    dq.SetSize(numPoly1d, Dim);
    M.SetSize(numPoly, numPoly);
-   dc.SetSize(Dim);
-   dp.SetSize(Dim);
-   dM.SetSize(Dim);
    for (int d = 0; d < Dim; ++d)
    {
       dM[d].SetSize(numPoly, numPoly);
@@ -13235,11 +13232,11 @@ void RKFiniteElement::CalcDShape(const IntegrationPoint &ip,
    Vector s(Dof);
    DenseMatrix M(numPoly, numPoly);
    DenseMatrixInverse Minv;
-   Array<Vector> dc(Dim);
-   Array<DenseMatrix> dM(Dim);
+   Vector dc[3];
+   DenseMatrix dM[3];
    for (int d = 0; d < Dim; ++d)
    {
-      dc.SetSize(numPoly);
+      dc[d].SetSize(numPoly);
       dM[d].SetSize(numPoly, numPoly);
    }
 #endif
@@ -13358,7 +13355,7 @@ void RKFiniteElement::GetPoly(const Vector &x,
 }
 
 void RKFiniteElement::GetDPoly(const Vector &x,
-                               Array<Vector> &dp) const
+                               Vector (&dp)[3]) const
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix q(numPoly1d, Dim);
@@ -13463,7 +13460,7 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
                             const DenseMatrix &baseDeriv,
                             const IntegrationPoint &ip,
                             DenseMatrix &M,
-                            Array<DenseMatrix> &dM) const
+                            DenseMatrix (&dM)[3]) const
 {
 #ifdef MFEM_THREAD_SAFE
    double f;
@@ -13471,7 +13468,7 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
    Vector y(Dim);
    Vector p(numPoly);
    Vector df(Dim);
-   Array<Vector> dp(Dim);
+   Vector dp[3];
    for (int d = 0; d < Dim; ++d)
    {
       dp[d].SetSize(numPoly);
@@ -13522,10 +13519,10 @@ void RKFiniteElement::AddToM(const Vector &p,
 }
 
 void RKFiniteElement::AddToDM(const Vector &p,
-                              const Array<Vector> &dp,
+                              const Vector (&dp)[3],
                               const double &f,
                               const Vector &df,
-                              Array<DenseMatrix> &dM) const {
+                              DenseMatrix (&dM)[3]) const {
    for (int d = 0; d < Dim; ++d)
    {
       const Vector &dpl = dp[d];
@@ -13574,7 +13571,7 @@ void RKFiniteElement::CalculateValues(const Vector &c,
 }
 
 void RKFiniteElement::CalculateDValues(const Vector &c,
-                                       const Array<Vector> &dc,
+                                       const Vector (&dc)[3],
                                        const Vector &baseShape,
                                        const DenseMatrix &baseDShape,
                                        const IntegrationPoint &ip,
