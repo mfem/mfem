@@ -43,6 +43,8 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
      testFes(a->FESpace())
 {
    elem_restrict_lex = NULL;
+   int_face_restrict_lex = NULL;
+   bound_face_restrict_lex = NULL;
 }
 
 void PABilinearFormExtension::Setup()
