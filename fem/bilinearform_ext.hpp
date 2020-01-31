@@ -111,6 +111,7 @@ protected:
 public:
    PABilinearFormExtension(BilinearForm*);
 
+   void Setup();
    void Assemble();
    void AssembleDiagonal(Vector &diag) const;
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
