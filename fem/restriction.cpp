@@ -10,8 +10,9 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "restriction.hpp"
-#include "pfespace.hpp"
 #include "pgridfunc.hpp"
+#include "fespace.hpp"
+#include "pfespace.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -59,6 +60,7 @@ void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
       }
    });
 }
+
 void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
 {
    const int NE = ne;
@@ -780,6 +782,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    }
 }
 
+#ifdef MFEM_USE_MPI
 
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                                            ElementDofOrdering e_ordering,
@@ -1027,6 +1030,8 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    }
 }
 
+#endif
+
 int ToLexOrdering(const int dim, const int face_id, const int size1d,
                   const int index)
 {
@@ -1044,4 +1049,4 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
    }
 }
 
-}
+}//namespace mfem
