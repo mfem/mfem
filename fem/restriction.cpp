@@ -497,7 +497,8 @@ static int PermuteFace2D(const int face_id1, const int face_id2,
    return ToLexOrdering2D(face_id2, size1d, new_index);
 }
 
-static int ToLexOrdering3D(const int face_id, const int size1d, const int i, const int j)
+static int ToLexOrdering3D(const int face_id, const int size1d, const int i,
+                           const int j)
 {
    if (face_id==2 || face_id==1 || face_id==5)
    {
@@ -510,7 +511,7 @@ static int ToLexOrdering3D(const int face_id, const int size1d, const int i, con
    else//face_id==0
    {
       return i + (size1d-1-j)*size1d;
-   }   
+   }
 }
 
 static int PermuteFace3D(const int face_id1, const int face_id2,
@@ -1026,7 +1027,8 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    }
 }
 
-int ToLexOrdering(const int dim, const int face_id, const int size1d, const int index)
+int ToLexOrdering(const int dim, const int face_id, const int size1d,
+                  const int index)
 {
    switch (dim)
    {
@@ -1039,7 +1041,7 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d, const int 
       default:
          mfem_error("Unsupported dimension.");
          return 0;
-   }   
+   }
 }
 
 }

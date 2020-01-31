@@ -244,7 +244,8 @@ void ParGridFunction::ExchangeFaceNbrData()
 
    bool mpi_gpu_aware = Device::GetGPUAwareMPI();
    auto send_data_ptr = mpi_gpu_aware ? send_data.Read() : send_data.HostRead();
-   auto face_nbr_data_ptr = mpi_gpu_aware ? face_nbr_data.Write() : face_nbr_data.HostWrite();
+   auto face_nbr_data_ptr = mpi_gpu_aware ? face_nbr_data.Write() :
+                            face_nbr_data.HostWrite();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
