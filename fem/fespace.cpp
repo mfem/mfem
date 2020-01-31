@@ -3742,7 +3742,7 @@ static void ApplyInvJac2D(const int NE, const GeometricFactors *geom,
   constexpr int VDIM = 2;
   const int NQ = Q1D*Q1D;
   auto y = Reshape(phy_der.ReadWrite(), VDIM, VDIM, NQ, NE);
-  auto J = Reshape(geom->J.Read(), NQ, 2, 2, NE);
+  auto J = Reshape(geom->J.Read(), NQ, VDIM, VDIM, NE);
 
   MFEM_FORALL(e, NE,
   {
@@ -3750,7 +3750,7 @@ static void ApplyInvJac2D(const int NE, const GeometricFactors *geom,
     double Jloc[VDIM][VDIM];
     double Jinv[VDIM][VDIM];
 
-    for(int q=0; q<Q1D*Q1D; ++q)
+    for(int q=0; q<NQ; ++q)
     {
 
       for(int r=0; r<VDIM; ++r) 
@@ -3779,9 +3779,54 @@ static void ApplyInvJac2D(const int NE, const GeometricFactors *geom,
     }//qpts
   });
 
-
 }
 
+template<int T_D1D =0, int T_Q1D =0>
+static void ApplyInvJac3D(const int NE, const GeometricFactors *geom,
+                          Vector &phy_der, const int D1D, const int Q1D)
+{
+
+  constexpr int VDIM = 3;
+  int NQ = Q1D*Q1D*Q1D;
+  auto y = Reshape(phy_der.ReadWrite(), VDIM, VDIM, NQ, NE);
+  auto J = Reshape(geom->J.Read(), NQ, VDIM, VDIM, NE);
+
+  MFEM_FORALL(e, NE,
+  {
+    double Yloc[VDIM][VDIM];
+    double Jloc[VDIM][VDIM];
+    double Jinv[VDIM][VDIM];
+
+    for(int q=0; q<NQ; ++q)
+    {
+
+      for(int r=0; r<VDIM; ++r)
+      {
+        for(int c=0; c<VDIM; ++c)
+        {
+          Jloc[c][r] = J(q,c,r,e);
+          Yloc[c][r] = y(c,r,q,e);
+        }
+      }
+
+      blas::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
+
+      //Apply Jinv for change of coordinates
+      for(int r=0; r<VDIM; ++r){
+        for(int c=0; c<VDIM; ++c){
+
+          double dot(0.0);
+          for(int k=0; k<VDIM; ++k){
+            dot += Yloc[r][k]*Jinv[k][c];
+          }
+          y(r,c,q,e) = dot;
+        }
+      }
+
+    }//qpts
+  });
+
+}
 
 static void ApplyInvJac(const FiniteElementSpace &fes, const GeometricFactors *geom,
                         const DofToQuad *maps, Vector &phy_der)
@@ -3806,9 +3851,7 @@ static void ApplyInvJac(const FiniteElementSpace &fes, const GeometricFactors *g
       {
          default:
          {
-             MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
-             //TODO:
-           //return ApplyInvJac3D<0,0,8,8>(NE, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
+           return ApplyInvJac3D(NE, geom, phy_der, D1D, Q1D);
          }
       }
    }
