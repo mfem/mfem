@@ -1,6 +1,6 @@
 make clean && make -j
-hypsys
-phypsys
+./hypsys
+./phypsys
 mpirun -np 4 ./phypsys
 ./hypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -r 3 -c 0
 ./phypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -r 3 -c 0

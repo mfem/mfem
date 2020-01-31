@@ -74,11 +74,11 @@ all: $(MAIN_FILES)
 library: $(OBJ_FILES) $(POBJ_FILES) $(APP_FILES)
 
 hypsys: library
-	$(MFEM_CXX) $(MFEM_FLAGS) hypsys.cpp -o hypsys $(OBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) hypsys.cpp -o $@ $(OBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
 
 phypsys: library
-	$(MFEM_CXX) $(MFEM_FLAGS) phypsys.cpp -o phypsys $(OBJ_FILES) $(POBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
-	
+	$(MFEM_CXX) $(MFEM_FLAGS) phypsys.cpp -o $@ $(OBJ_FILES) $(POBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
+
 clean:
 	@rm -f hypsys phypsys errors.txt *.gf *.mesh $(BLD_DIR)/*
 
