@@ -2003,7 +2003,7 @@ void FiniteElementSpace::Destroy()
       delete E2Q_array[i];
    }
    E2Q_array.SetSize(0);
-   for (auto& x : L2F)
+   for (auto &x : L2F)
    {
       delete x.second;
    }
