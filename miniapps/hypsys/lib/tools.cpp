@@ -2,9 +2,9 @@
 
 const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes)
 {
-	const FiniteElement *el = fes->GetFE(0);
-	ElementTransformation *eltrans = fes->GetElementTransformation(0);
-	int order = eltrans->OrderGrad(el) + eltrans->Order() + el->GetOrder();
+   const FiniteElement *el = fes->GetFE(0);
+   ElementTransformation *eltrans = fes->GetElementTransformation(0);
+   int order = eltrans->OrderGrad(el) + eltrans->Order() + el->GetOrder();
    return &IntRules.Get(el->GetGeomType(), order);
 }
 
@@ -20,7 +20,7 @@ const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes)
    if (Trans->Elem2No >= 0)
    {
       order = min(Trans->Elem1->OrderW(), Trans->Elem2->OrderW())
-					+ 2*el->GetOrder();
+              + 2*el->GetOrder();
    }
    else
    {
@@ -40,25 +40,25 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
 
    bool newly_opened = false;
 
-	if (!sock.is_open() && sock)
-	{
-		sock.open(vishost, visport);
-		sock.precision(8);
-		newly_opened = true;
-	}
-	sock << "solution\n";
-	
-	mesh.Print(sock);
-	gf.Save(sock);
-	
-	if (newly_opened)
-	{
-		sock << "window_title '" << "Solution" << "'\n"
-			  << "window_geometry "
-		     << 0 << " " << 0 << " " << 1080 << " " << 1080 << "\n"
+   if (!sock.is_open() && sock)
+   {
+      sock.open(vishost, visport);
+      sock.precision(8);
+      newly_opened = true;
+   }
+   sock << "solution\n";
+
+   mesh.Print(sock);
+   gf.Save(sock);
+
+   if (newly_opened)
+   {
+      sock << "window_title '" << "Solution" << "'\n"
+           << "window_geometry "
+           << 0 << " " << 0 << " " << 1080 << " " << 1080 << "\n"
            << "keys mcjlppppppppppppppppppppppppppp66666666666666666666666"
            << "66666666666666666666666666666666666666666666666662222222222";
-		if ( vec ) { sock << "vvv"; }
-		sock << endl;
-	}
+      if ( vec ) { sock << "vvv"; }
+      sock << endl;
+   }
 }

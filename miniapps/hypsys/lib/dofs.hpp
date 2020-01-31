@@ -24,25 +24,25 @@ public:
    DofInfo(FiniteElementSpace *fes_sltn, FiniteElementSpace *fes_bounds);
 
    ~DofInfo() { }
-   
+
    // Computes the admissible interval of values for each DG dof from the
    // values of all elements that feature the dof at its physical location.
    // Assumes that xe_min and xe_max are already computed.
    void ComputeBounds();
-	
-	void ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs);
+
+   void ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs);
 
    // NOTE: This approach will not work for meshes with hanging nodes.
    void FillNeighborDofs();
 
    // NOTE: The mesh is assumed to consist of segments, quads or hexes.
    void FillSubcell2CellDof();
-	
-	// Auxiliary routines.
-	int GetLocalFaceDofIndex3D(int loc_face_id, int face_orient,
+
+   // Auxiliary routines.
+   int GetLocalFaceDofIndex3D(int loc_face_id, int face_orient,
                               int face_dof_id, int face_dof1D_cnt);
-	
-	int GetLocalFaceDofIndex(int dim, int loc_face_id, int face_orient,
+
+   int GetLocalFaceDofIndex(int dim, int loc_face_id, int face_orient,
                             int face_dof_id, int face_dof1D_cnt);
 };
 
