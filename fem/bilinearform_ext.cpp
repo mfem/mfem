@@ -51,22 +51,27 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
       localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 
-   int_face_restrict_lex = trialFes->GetFaceRestriction(
-                              ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
-   if (int_face_restrict_lex)
+   // Construct face restriction operators only if the bilinear form has
+   // interior or boundary face integrators
+   if (a->GetFBFI()->Size() > 0 || a->GetBFBFI()->Size() > 0)
    {
-      faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
-   }
+      int_face_restrict_lex = trialFes->GetFaceRestriction(
+                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
+      if (int_face_restrict_lex)
+      {
+         faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+         faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+         faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
+      }
 
-   bound_face_restrict_lex = trialFes->GetFaceRestriction(
-                                ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
-   if (bound_face_restrict_lex)
-   {
-      faceBoundX.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceBoundY.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceBoundY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
+      bound_face_restrict_lex = trialFes->GetFaceRestriction(
+                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
+      if (bound_face_restrict_lex)
+      {
+         faceBoundX.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
+         faceBoundY.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
+         faceBoundY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
+      }
    }
 }
 
