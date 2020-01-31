@@ -16,7 +16,7 @@
 //
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces. Using two different approaches, we project a gradient
-//               of a function in H^1 to H(curl). Other spaces and example 
+//               of a function in H^1 to H(curl). Other spaces and example
 //               computations are to be added in the future.
 //
 //               We recommend viewing examples 1 and 3 before viewing this
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
    }
 
    // 9. Compute the same solution by applying GradientInterpolator in H(curl).
-   
+
    DiscreteLinearOperator grad(H1fespace, fespace);
    grad.AddDomainInterpolator(new GradientInterpolator());
    grad.Assemble();
@@ -203,10 +203,10 @@ int main(int argc, char *argv[])
    grad.Mult(p, gradp);
 
    // 10. Compute the projection of the exact grad p.
-   
+
    GridFunction exact_gradp(fespace);
    exact_gradp.ProjectCoefficient(gradp_coef);
-   
+
    // 11. Compute and print the L^2 norm of the error.
    {
       double errSol = x.ComputeL2Error(gradp_coef);
@@ -214,11 +214,11 @@ int main(int argc, char *argv[])
       double errProj = exact_gradp.ComputeL2Error(gradp_coef);
 
       cout << "\n Solution of (E_h,v) = (grad p,v) for E_h and v in H(curl): "
-	"|| E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
+           "|| E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
       cout << " Gradient interpolant E_h = grad p in H(curl): || E_h - grad p "
-	"||_{L^2} = " << errInterp << '\n' << endl;
+           "||_{L^2} = " << errInterp << '\n' << endl;
       cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
-	"||_{L^2} = " << errProj << '\n' << endl;
+           "||_{L^2} = " << errProj << '\n' << endl;
    }
 
    // 12. Save the refined mesh and the solution. This output can be viewed later

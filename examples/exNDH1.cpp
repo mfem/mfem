@@ -17,8 +17,8 @@
 //               mpirun -np 4 exNDH1 -m ../data/amr-hex.mesh
 //
 // Description:  This example code illustrates usage of mixed finite element
-//               spaces. Using two different approaches, we project a gradient 
-//               of a function in H^1 to H(curl). Other spaces and example 
+//               spaces. Using two different approaches, we project a gradient
+//               of a function in H^1 to H(curl). Other spaces and example
 //               computations are to be added in the future.
 
 //               We recommend viewing examples 1 and 3 before viewing this
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
    }
 
    // 11. Compute the same solution by applying GradientInterpolator in H(curl).
-   
+
    ParDiscreteLinearOperator grad(H1fespace, fespace);
    grad.AddDomainInterpolator(new GradientInterpolator());
    grad.Assemble();
@@ -239,10 +239,10 @@ int main(int argc, char *argv[])
    grad.Mult(p, gradp);
 
    // 12. Compute the projection of the exact grad p.
-   
+
    ParGridFunction exact_gradp(fespace);
    exact_gradp.ProjectCoefficient(gradp_coef);
-   
+
    // 13. Compute and print the L^2 norm of the error.
    {
       double errSol = x.ComputeL2Error(gradp_coef);
@@ -252,14 +252,14 @@ int main(int argc, char *argv[])
       if (myid == 0)
       {
          cout << "\n Solution of (E_h,v) = (grad p,v) for E_h and v in H(curl)"
-	   ": || E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
+              ": || E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
          cout << " Gradient interpolant E_h = grad p in H(curl): || E_h - grad"
-	   "p ||_{L^2} = " << errInterp << '\n' << endl;
+              "p ||_{L^2} = " << errInterp << '\n' << endl;
          cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
-	   "||_{L^2} = " << errProj << '\n' << endl;
+              "||_{L^2} = " << errProj << '\n' << endl;
       }
    }
-   
+
    // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {

@@ -1547,7 +1547,7 @@ protected:
    }
 
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                                const FiniteElementSpace &test_fes);
+                           const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
