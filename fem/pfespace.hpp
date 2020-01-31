@@ -20,7 +20,6 @@
 #include "../mesh/pmesh.hpp"
 #include "../mesh/nurbs.hpp"
 #include "fespace.hpp"
-#include "restriction.hpp"
 
 namespace mfem
 {
