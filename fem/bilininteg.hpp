@@ -1546,6 +1546,7 @@ protected:
       trial_fe.CalcPhysDShape(Trans, shape);
    }
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
@@ -2172,6 +2173,7 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
@@ -2248,6 +2250,7 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
