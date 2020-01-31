@@ -64,11 +64,11 @@ EOF
 esac
 
 # Maximum number of acceptable commits in the branch
-branch_max_commits=100
+branch_max_commits=200
 # Maximum number of acceptable files changed in any commit in the branch
-commit_max_files_changed=100
+commit_max_files_changed=50
 # Maximum number of acceptable lines changed in any commit in the branch
-commit_max_lines_changed=3000
+commit_max_lines_changed=2000
 # Maximum acceptable size (in K) of any file changed in any commit in the branch
 file_max_size=200
 # Maximum number of acceptable lines added to any file changed in any commit in the branch
