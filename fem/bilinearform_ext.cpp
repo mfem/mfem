@@ -223,7 +223,6 @@ void PAMixedBilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-     //integrators[i]->AssemblePA(*a->TrialFESpace(), *a->TestFESpace());
       integrators[i]->AssemblePA(*trialFes, *testFes);
    }
 }

@@ -164,28 +164,28 @@ TEST_CASE("Hcurl pa_coeff")
       const int ne = 3;
       if (dimension == 2)
       {
-	 mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       }
       else
       {
-	 mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
       }
 
       for (int coeffType = 0; coeffType < 2; ++coeffType)
       {
-	 Coefficient* coeff = nullptr;
-	 Coefficient* curlCoeff = nullptr;
-	 if (coeffType == 0)
-	 {
-	    coeff = new ConstantCoefficient(12.34);
-	    curlCoeff = new ConstantCoefficient(12.34);
-	 }
-	 else if (coeffType == 1)
-	 {
-	    coeff = new FunctionCoefficient(&coeffFunction);
-	    curlCoeff = new FunctionCoefficient(&linearFunction);
-	 }
-	 
+         Coefficient* coeff = nullptr;
+         Coefficient* curlCoeff = nullptr;
+         if (coeffType == 0)
+         {
+            coeff = new ConstantCoefficient(12.34);
+            curlCoeff = new ConstantCoefficient(12.34);
+         }
+         else if (coeffType == 1)
+         {
+            coeff = new FunctionCoefficient(&coeffFunction);
+            curlCoeff = new FunctionCoefficient(&linearFunction);
+         }
+
          for (int integrator = 0; integrator < 3; ++integrator)
          {
             std::cout << "Testing " << dimension << "D ND partial assembly with "
@@ -197,39 +197,43 @@ TEST_CASE("Hcurl pa_coeff")
                   new ND_FECollection(order, dimension);
                FiniteElementSpace ND_fespace(mesh, ND_fec);
 
-	       // Set essential boundary conditions on the entire boundary.
-	       Array<int> tdof_ess(ND_fespace.GetVSize());
-	       for (int i=0; i<ND_fespace.GetVSize(); ++i)
-		 tdof_ess[i] = 0;
-	       
-	       for (int i=0; i<mesh->GetNBE(); ++i)
-	       {
-		  Array<int> dofs;
-		  ND_fespace.GetBdrElementDofs(i, dofs);
-		  for (int j=0; j<dofs.Size(); ++j)
-		    {
-		      const int dof_j = (dofs[j] >= 0) ? dofs[j] : -1 - dofs[j];
-		      tdof_ess[dof_j] = 1;
-		    }
-	       }
+               // Set essential boundary conditions on the entire boundary.
+               Array<int> tdof_ess(ND_fespace.GetVSize());
+               for (int i=0; i<ND_fespace.GetVSize(); ++i)
+               {
+                  tdof_ess[i] = 0;
+               }
 
-	       int num_ess = 0;
-	       for (int i=0; i<ND_fespace.GetVSize(); ++i)
-		 {
-		   if (tdof_ess[i] == 1)
-		     num_ess++;
-		 }
+               for (int i=0; i<mesh->GetNBE(); ++i)
+               {
+                  Array<int> dofs;
+                  ND_fespace.GetBdrElementDofs(i, dofs);
+                  for (int j=0; j<dofs.Size(); ++j)
+                  {
+                     const int dof_j = (dofs[j] >= 0) ? dofs[j] : -1 - dofs[j];
+                     tdof_ess[dof_j] = 1;
+                  }
+               }
+
+               int num_ess = 0;
+               for (int i=0; i<ND_fespace.GetVSize(); ++i)
+               {
+                  if (tdof_ess[i] == 1)
+                  {
+                     num_ess++;
+                  }
+               }
 
                Array<int> ess_tdof_list(num_ess);
-	       num_ess = 0;
-	       for (int i=0; i<ND_fespace.GetVSize(); ++i)
-		 {
-		   if (tdof_ess[i] == 1)
-		     {
-		       ess_tdof_list[num_ess] = i;
-		       num_ess++;
-		     }
-		 }
+               num_ess = 0;
+               for (int i=0; i<ND_fespace.GetVSize(); ++i)
+               {
+                  if (tdof_ess[i] == 1)
+                  {
+                     ess_tdof_list[num_ess] = i;
+                     num_ess++;
+                  }
+               }
 
                BilinearForm paform(&ND_fespace);
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -258,8 +262,8 @@ TEST_CASE("Hcurl pa_coeff")
                assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
                assemblyform.Assemble();
                assemblyform.Finalize();
-	       SparseMatrix A_explicit;
-	       assemblyform.FormSystemMatrix(ess_tdof_list, A_explicit);
+               SparseMatrix A_explicit;
+               assemblyform.FormSystemMatrix(ess_tdof_list, A_explicit);
 
                Vector xin(ND_fespace.GetTrueVSize());
                xin.Randomize();
@@ -290,12 +294,12 @@ TEST_CASE("Hcurl pa_coeff")
                delete ND_fec;
             }
          }
-	 
-	 delete coeff;
-	 delete curlCoeff;
+
+         delete coeff;
+         delete curlCoeff;
       }
-      
-      delete mesh;      
+
+      delete mesh;
    }
 }
 
@@ -307,27 +311,27 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
       const int ne = 2;
       if (dimension == 2)
       {
-	 mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       }
       else
       {
-	 mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
       }
 
       for (int coeffType = 0; coeffType < 2; ++coeffType)
       {
-	 Coefficient* coeff = nullptr;
-	 if (coeffType == 0)
-	 {
-	    coeff = new ConstantCoefficient(12.34);
-	 }
-	 else if (coeffType == 1)
-	 {
-	    coeff = new FunctionCoefficient(&coeffFunction);
-	 }
+         Coefficient* coeff = nullptr;
+         if (coeffType == 0)
+         {
+            coeff = new ConstantCoefficient(12.34);
+         }
+         else if (coeffType == 1)
+         {
+            coeff = new FunctionCoefficient(&coeffFunction);
+         }
 
-	 // Currently, we test only one integrator. More could be tested here
-	 // when they are implemented, using different test spaces (e.g. vector L2, H(div)).
+         // Currently, we test only one integrator. More could be tested here
+         // when they are implemented, using different test spaces (e.g. vector L2, H(div)).
          for (int integrator = 0; integrator < 1; ++integrator)
          {
             std::cout << "Testing " << dimension << "D ND H1 mixed partial assembly with "
@@ -347,11 +351,11 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
 
                MixedBilinearForm paform(&h1_fespace, &ND_fespace);
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-	       paform.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
+               paform.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
                paform.Assemble();
 
                MixedBilinearForm assemblyform(&h1_fespace, &ND_fespace);
-	       assemblyform.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
+               assemblyform.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
                assemblyform.Assemble();
                assemblyform.Finalize();
                const SparseMatrix& A_explicit = assemblyform.SpMat();
@@ -386,10 +390,10 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
                delete h1_fec;
             }
          }
-	 
-	 delete coeff;
+
+         delete coeff;
       }
-      
+
       delete mesh;
    }
 }
