@@ -143,7 +143,8 @@ public:
 };
 
 // Convert from Native ordering to lexicographic ordering
-int ToLexOrdering(const int dim, const int face_id, const int size1d, const int index);
+int ToLexOrdering(const int dim, const int face_id, const int size1d,
+                  const int index);
 
 }
 

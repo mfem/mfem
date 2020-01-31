@@ -461,7 +461,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 {
    MFEM_VERIFY(dg_solver != NULL,
-      "Implicit time integration is not supported with partial assembly");
+               "Implicit time integration is not supported with partial assembly");
    K.Mult(x, z);
    z += b;
    dg_solver->SetTimeStep(dt);

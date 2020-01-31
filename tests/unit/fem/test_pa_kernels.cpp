@@ -364,7 +364,8 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-void AddConvectionIntegrators(BilinearForm &k, VectorCoefficient &velocity, bool dg)
+void AddConvectionIntegrators(BilinearForm &k, VectorCoefficient &velocity,
+                              bool dg)
 {
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
 
