@@ -464,11 +464,24 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
+static int ToLexOrdering2D(const int face_id, const int size1d, const int i)
+{
+   if (face_id==2 || face_id==3)
+   {
+      return size1d-1-i;
+   }
+   else
+   {
+      return i;
+   }
+}
+
 static int PermuteFace2D(const int face_id1, const int face_id2,
                          const int orientation,
                          const int size1d, const int index)
 {
    int new_index;
+   // Convert from lex ordering
    if (face_id1==2 || face_id1==3)
    {
       new_index = size1d-1-index;
@@ -477,18 +490,28 @@ static int PermuteFace2D(const int face_id1, const int face_id2,
    {
       new_index = index;
    }
+   // Permute based on face orientations
    if (orientation==1)
    {
       new_index = size1d-1-new_index;
    }
-   if (face_id2==2 || face_id2==3)
+   return ToLexOrdering2D(face_id2, size1d, new_index);
+}
+
+static int ToLexOrdering3D(const int face_id, const int size1d, const int i, const int j)
+{
+   if (face_id==2 || face_id==1 || face_id==5)
    {
-      return size1d-1-new_index;
+      return i + j*size1d;
    }
-   else
+   else if (face_id==3 || face_id==4)
    {
-      return new_index;
+      return (size1d-1-i) + j*size1d;
    }
+   else//face_id==0
+   {
+      return i + (size1d-1-j)*size1d;
+   }   
 }
 
 static int PermuteFace3D(const int face_id1, const int face_id2,
@@ -543,19 +566,7 @@ static int PermuteFace3D(const int face_id1, const int face_id2,
          new_j = (size1d-1-j);
          break;
    }
-   // Convert back to lexicographic ordering
-   if (face_id2==2 || face_id2==1 || face_id2==5)
-   {
-      return new_i + new_j*size1d;
-   }
-   else if (face_id2==3 || face_id2==4)
-   {
-      return (size1d-1-new_i) + new_j*size1d;
-   }
-   else//face_id2==0
-   {
-      return new_i + (size1d-1-new_j)*size1d;
-   }
+   return ToLexOrdering3D(face_id2, size1d, new_i, new_j);
 }
 
 int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1,
@@ -1014,6 +1025,22 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          }
       });
    }
+}
+
+int ToLexOrdering(const int dim, const int face_id, const int size1d, const int index)
+{
+   switch (dim)
+   {
+      case 1:
+         return 0;
+      case 2:
+         return ToLexOrdering2D(face_id, size1d, index);
+      case 3:
+         return ToLexOrdering3D(face_id, size1d, index%size1d, index/size1d);
+      default:
+         mfem_error("Unsupported dimension.");
+         return 0;
+   }   
 }
 
 }
