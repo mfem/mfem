@@ -40,8 +40,7 @@ private:
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; //for stablize B term
    mutable ParLinearForm *PB_VPsi, *PB_VOmega, *PB_BJ;
    mutable BlockOperator *Jacobian;
-   mutable Vector z, zdiff, z2, z3, J, zFull;
-   mutable ParLinearForm zLF;
+   mutable Vector z, zdiff, z2, z3, J;
 
 public:
    ReducedSystemOperator(ParFiniteElementSpace &f,
@@ -257,7 +256,7 @@ protected:
    HypreSolver *K_amg; //BoomerAMG for stiffness matrix
    HyprePCG *K_pcg;
 
-   mutable Vector z, J, z2, z3, zFull; // auxiliary vector 
+   mutable Vector z, J, z2, z3; // auxiliary vector 
    mutable ParGridFunction j, gftmp;  //auxiliary variable (to store the boundary condition)
    ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
 
@@ -284,7 +283,8 @@ public:
    //update grid functions (grid functions have to be updated immediately)
    void UpdateGridFunction()
    {
-      j.Update(); gftmp.Update();
+      j.Update(); 
+      gftmp.Update();
       //DSl and DRe contains ParGridFunctions that need to be updated
       DSl.Update();    
       DSl.Assemble();
@@ -322,8 +322,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
      M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL),
      K_solver(f.GetComm()),  K_prec(NULL),
-     K_amg(NULL), K_pcg(NULL), z(height/3), J(height/3), z2(height/3), z3(height/3),
-     zFull(f.GetVSize()), j(&fespace),
+     K_amg(NULL), K_pcg(NULL), z(height/3), J(height/3), z2(height/3), z3(height/3), j(&fespace),
      DRetmp(NULL), DSltmp(NULL)
 {
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -496,7 +495,6 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
    z2.SetSize(sc);
    z3.SetSize(sc);
    J.SetSize(sc);
-   zFull.SetSize(scFull);
    zLF.Update();
 
    //mass matrix
@@ -708,7 +706,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
 
    //compute the current as an auxilary variable
-   Vector &k_ = const_cast<Vector &>(vx);
+   //Vector &k_ = const_cast<Vector &>(vx);
    KBMat->Mult(psi, z);
    z.Neg();
    M_solver2.Mult(z, J);
@@ -1049,7 +1047,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
      Jacobian(NULL), z(height/3), zdiff(height/3), z2(height/3), z3(height/3), 
-     J(height/3), zFull(f.GetVSize()), zLF(&fespace)
+     J(height/3)
 { 
     useFull=0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1089,7 +1087,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
      Jacobian(NULL), z(height/3), zdiff(height/3), z2(height/3), z3(height/3), 
-     J(height/3), zFull(f.GetVSize()), zLF(&fespace)
+     J(height/3)
 { 
     useFull = useFull_;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1109,7 +1107,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     Mlp->Assemble();
     Mlp->FormSystemMatrix(ess_tdof_list, Mmatlp);
 
-    if (isupg==2 && true)
+    if (isupg==2)
     {
        MinvKB = new HypreParMatrix(KBMat_);
        HypreParVector *MmatlpD = new HypreParVector(Mmatlp.GetComm(), Mmatlp.GetGlobalNumRows(),
@@ -1228,7 +1226,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
            S = ParMult(NbtDinv, NbFull);
            ScFull = ParAdd(ASltmp, S);
        }
-       else if (iSc==3)
+       else if (iSc==3 && isupg==2)
        {
            //VERSION3: Luis's preconditioner + hyperdiffusion
            AReFull->GetDiag(*ARed);
@@ -1251,6 +1249,8 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
            delete ScFull1;
            delete MatStabNb;
        }
+       else 
+           MFEM_ABORT("Error in preconditioner."); 
 
        bool outputMatrix=false;
        if (outputMatrix)
