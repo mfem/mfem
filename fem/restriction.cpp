@@ -9,11 +9,10 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "fespace.hpp"
+#include "restriction.hpp"
 #include "pfespace.hpp"
 #include "pgridfunc.hpp"
 #include "../general/forall.hpp"
-#include "restriction.hpp"
 
 namespace mfem
 {
