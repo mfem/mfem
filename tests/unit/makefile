@@ -29,18 +29,18 @@ HEADER_FILES = $(SRC)catch.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
 
-DEV_UNIT_TESTS = unit_tests_cpu unit_tests_debug
-DEV_UNIT_TESTS += $(if $(MFEM_CXX:nvcc=),,unit_tests_cuda)
-DEV_UNIT_TESTS += $(if $(MFEM_CXX:nvcc=),,unit_tests_cuda_uvm)
+# Sedov numerical tests
+SEDOV_FILES = miniapps/test_sedov.cpp
+SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
+SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda)
+SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda_uvm)
+SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.cpu.o)
+SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.debug.o)
+SEDOV_CUDA_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda.o))
+SEDOV_CUDA_UVM_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
 
-SEQ_UNIT_TESTS = unit_tests $(DEV_UNIT_TESTS)
-PAR_UNIT_TESTS = $(DEV_UNIT_TESTS)
-
-DEV_SOURCE_FILES = miniapps/test_sedov.cpp
-CPU_OBJECT_FILES = $(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cpu.o)
-DEBUG_OBJECT_FILES = $(DEV_SOURCE_FILES:$(SRC)%.cpp=%.debug.o)
-CUDA_OBJECT_FILES = $(if $(MFEM_CXX:nvcc=),,$(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cuda.o))
-CUDA_UVM_OBJECT_FILES = $(if $(MFEM_CXX:nvcc=),,$(DEV_SOURCE_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+SEQ_UNIT_TESTS = unit_tests $(SEDOV_TESTS)
+PAR_UNIT_TESTS = $(SEDOV_TESTS)
 
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
@@ -67,22 +67,22 @@ $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 # 1: postfix of 'unit_tests_', 2: prefix of '_OBJECT_FILES',
 # 3: configuration string for the MFEM device, separated with '$(comma)'
 comma=,
-define unit_tests_dev
-unit_tests_$(1): DEV_UNIT_FLAGS=-DMFEM_DEV_UNIT_TESTS -DMFEM_DEV_UNIT='"$(3)"'
-unit_tests_$(1): $$(SRC)unit_test_main.o $$($(2)_OBJECT_FILES) \
+define sedov_tests
+sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_TESTS -DMFEM_SEDOV_DEVICE='"$(3)"'
+sedov_tests_$(1): $$(SRC)unit_test_main.o $$(SEDOV_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(SRC)unit_test_main.o $$($(2)_OBJECT_FILES) $$(INCLUDES) \
+	$$(CCC) $$(SRC)unit_test_main.o $$(SEDOV_$(2)_OBJ_FILES) $$(INCLUDES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$($(2)_OBJECT_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+$$(SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
 	$$(CCC) -c $$(abspath $$(<)) $$(INCLUDES) $$(MFEM_FLAGS) \
-	   $$(DEV_UNIT_FLAGS) -o $$(@)
+	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
 endef
 
-$(eval $(call unit_tests_dev,cpu,CPU,cpu))
-$(eval $(call unit_tests_dev,debug,DEBUG,debug))
-$(eval $(call unit_tests_dev,cuda,CUDA,cuda))
-$(eval $(call unit_tests_dev,cuda_uvm,CUDA_UVM,cuda:uvm))
+$(eval $(call sedov_tests,cpu,CPU,cpu))
+$(eval $(call sedov_tests,debug,DEBUG,debug))
+$(eval $(call sedov_tests,cuda,CUDA,cuda))
+$(eval $(call sedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .

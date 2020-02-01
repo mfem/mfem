@@ -598,11 +598,13 @@ public:
    /// Check if the host pointer has been registered in the memory manager
    void RegisterCheck(void *h_ptr);
 
-   /// Prints all pointers known by the memory manager
-   void PrintPtrs(void);
+   /// Prints all pointers known by the memory manager,
+   /// returning the number of printed pointers
+   int PrintPtrs(void);
 
    /// Prints all aliases known by the memory manager
-   void PrintAliases(void);
+   /// returning the number of printed pointers
+   int PrintAliases(void);
 
    MemoryType GetHostMemoryType() { return host_mem_type; }
    MemoryType GetDeviceMemoryType() { return device_mem_type; }
