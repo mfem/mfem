@@ -26,12 +26,16 @@ int main(int argc, char *argv[])
 
    
    // Parse command-line options.
+   bool print = false;
    int dim = 1;
    int order = -1;
    int funcType = 0;
    int distType = 0;
    int numPoints = 10;
    double h = 4.01;
+   double x = 0.5;
+   double y = 0.5;
+   double z = 0.5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&dim, "-d", "--dim",
@@ -46,6 +50,14 @@ int main(int argc, char *argv[])
                   "number of points in 1d");
    args.AddOption(&h, "-m", "--smoothing",
                   "smoothing parameter (units of distance)");
+   args.AddOption(&x, "-x", "--xpos",
+                  "evaluation position, x");
+   args.AddOption(&y, "-y", "--ypos",
+                  "evaluation position, y");
+   args.AddOption(&z, "-z", "--zpos",
+                  "evaluation position, z");
+   args.AddOption(&print, "-p", "--print", "-no-p",
+                  "--no-print", "Print out full matrices");
    args.Parse();
    if (!args.Good())
    {
@@ -114,21 +126,44 @@ int main(int argc, char *argv[])
    IntegrationPoint ip;
    Vector shape(dof);
    DenseMatrix dshape(dof, dim);
-   ip.x = 0.5;
-   ip.y = 0.5;
-   ip.z = 0.5;
+   ip.x = x;
+   ip.y = y;
+   ip.z = z;
    fe->CalcShape(ip, shape);
    fe->CalcDShape(ip, dshape);
 
+   if (print)
+   {
+      for (int i = 0; i < dof; ++i)
+      {
+         cout << shape(i) << "\t";
+         for (int d = 0; d < dim; ++d)
+         {
+            cout << dshape(i, d) << "\t";
+         }
+         cout << endl;
+      }
+   }
+
+   double sum = 0.0;
+   vector<double> dsum(3, 0.0);
    for (int i = 0; i < dof; ++i)
    {
-      cout << shape(i) << "\t";
+      sum += shape(i);
       for (int d = 0; d < dim; ++d)
       {
-         cout << dshape(i, d) << "\t";
+         dsum[d] += dshape(i, d);
       }
-      cout << endl;
    }
+
+   cout << "sum:\t" << sum << endl;
+   cout << "dsum:\t";
+   for (int d = 0; d < dim; ++d)
+   {
+      cout << dsum[d] << "\t";
+   }
+   cout << endl;
+
    
    // Free memory
    delete fec;

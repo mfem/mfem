@@ -12875,7 +12875,6 @@ void EuclideanDistance::Distance(const Vector &x,
 }
 
 void EuclideanDistance::DDistance(const Vector &x,
-                                  const Vector &dx,
                                   Vector &dr) const
 {
    double r;
@@ -12883,12 +12882,11 @@ void EuclideanDistance::DDistance(const Vector &x,
    double rinv = r == 0.0 ? 0.0 : 1.0 / r;
    for (int d = 0; d < Dim; ++d)
    {
-      dr(d) = dx(d) * x(d) * rinv;
+      dr(d) = x(d) * rinv;
    }
 }
 
 void EuclideanDistance::DDDistance(const Vector &x,
-                                   const Vector &dx,
                                    DenseMatrix &ddr) const
 {
    // Could be exploiting symmetry here
@@ -12901,11 +12899,11 @@ void EuclideanDistance::DDDistance(const Vector &x,
       {
          if (d1 == d2)
          {
-            ddr(d1, d2) = dx(d1) * dx(d2) * (rinv - x(d1) * x(d2) * rinv * rinv * rinv);
+            ddr(d1, d2) = rinv - x(d1) * x(d2) * rinv * rinv * rinv;
          }
          else
          {
-            ddr(d1, d2) = -dx(d1) * dx(d2) * x(d1) * x(d2) * rinv * rinv * rinv;
+            ddr(d1, d2) = -x(d1) * x(d2) * rinv * rinv * rinv;
          }
       }
    }
@@ -12922,18 +12920,17 @@ void ManhattanDistance::Distance(const Vector &x,
 }
 
 void ManhattanDistance::DDistance(const Vector &x,
-                                  const Vector &dx,
                                   Vector &dr) const
 {
    for (int d = 0; d < Dim; ++d)
    {
       if (x(d) > 0)
       {
-         dr(d) = dx(d) * 1.0;
+         dr(d) = 1.0;
       }
       else if (x(d) < 0)
       {
-         dr(d) = -dx(d) * 1.0;
+         dr(d) = -1.0;
       }
       else
       {
@@ -12943,7 +12940,6 @@ void ManhattanDistance::DDistance(const Vector &x,
 }
 
 void ManhattanDistance::DDDistance(const Vector &x,
-                                   const Vector &dx,
                                    DenseMatrix &ddr) const
 {
    for (int d1 = 0; d1 < Dim; ++d1)
@@ -13007,15 +13003,7 @@ void RBFFiniteElement::DistanceVec(const int i,
 {
    for (int d = 0; d < Dim; ++d)
    {
-      y(d) = abs(x(d) - pos(i, d)) * hPhysInv;
-   }
-}
-
-void RBFFiniteElement::DDistanceVec(Vector &dy) const
-{
-   for (int d = 0; d < Dim; ++d)
-   {
-      dy(d) = hPhysInv;
+      y(d) = (x(d) - pos(i, d)) * hPhysInv;
    }
 }
 
@@ -13101,7 +13089,6 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
 #endif
    
    IntRuleToVec(ip, x);
-   DDistanceVec(dy);
    
    for (int i = 0; i < Dof; ++i)
    {
@@ -13110,14 +13097,14 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
       // Get distance and its derivative
       distance->Distance(y, r);
-      distance->DDistance(y, dy, dr);
+      distance->DDistance(y, dr);
 
       // Get base value of function
       df = rbf->BaseDerivative(r);
       
       for (int d = 0; d < Dim; ++d)
       {
-         dshape(i, d) = dr(d) * df;
+         dshape(i, d) = dr(d) * df * hPhysInv;
       }
    }
 }
@@ -13138,7 +13125,6 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
 #endif
    
    IntRuleToVec(ip, x);
-   DDistanceVec(dy);
    
    for (int i = 0; i < Dof; ++i)
    {
@@ -13147,9 +13133,9 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
 
       // Get distance and its derivative
       distance->Distance(y, r);
-      distance->DDistance(y, dy, dr);
-      distance->DDDistance(y, dy, ddr);
-
+      distance->DDistance(y, dr);
+      distance->DDDistance(y, ddr);
+      
       // Get base value of function
       df = rbf->BaseDerivative(r);
       ddf = rbf->BaseDerivative2(r);
@@ -13159,7 +13145,7 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
       {
          for (int d2 = d1; d2 < Dim; ++d2)
          {
-            h(i, k) = dr(d1) * dr(d2) * ddf + ddr(d1, d2) * df;
+            h(i, k) = dr(d1) * dr(d2) * ddf * hPhysInv + ddr(d1, d2) * df * hPhysInv * hPhysInv;
             k += 1;
          }
       }
