@@ -19,7 +19,7 @@ namespace mfem
 ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
    : Vector(2*(fes->GetVSize()))
 {
-   gfr = new GridFunction(fes, &data[0]);
+   gfr = new GridFunction(fes, data);
    gfi = new GridFunction(fes, &data[fes->GetVSize()]);
 }
 
@@ -43,8 +43,8 @@ ComplexGridFunction::Update()
       this->SetSize(2 * vsize);
 
       // Create temporary vectors which point to the new data array
-      Vector gf_r(&data[0], vsize);
-      Vector gf_i(&data[vsize], vsize);
+      Vector gf_r(data, vsize);
+      Vector gf_i((data) ? &data[vsize] : data, vsize);
 
       // Copy the updated GridFunctions into the new data array
       gf_r = *gfr;
@@ -52,8 +52,8 @@ ComplexGridFunction::Update()
 
       // Replace the individual data arrays with pointers into the new data
       // array
-      gfr->NewDataAndSize(&data[0], vsize);
-      gfi->NewDataAndSize(&data[vsize], vsize);
+      gfr->NewDataAndSize(data, vsize);
+      gfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
    }
    else
    {
@@ -62,8 +62,8 @@ ComplexGridFunction::Update()
       this->SetSize(2 * vsize);
 
       // Point the individual GridFunctions to the new data array
-      gfr->NewDataAndSize(&data[0], vsize);
-      gfi->NewDataAndSize(&data[vsize], vsize);
+      gfr->NewDataAndSize(data, vsize);
+      gfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
 
       // These updates will only set the proper 'sequence' value within
       // the individual GridFunction objects because their sizes are
@@ -124,7 +124,7 @@ ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
    : Vector(2*(f->GetVSize())),
      conv(convention)
 {
-   lfr = new LinearForm(f, &data[0]);
+   lfr = new LinearForm(f, data);
    lfi = new LinearForm(f, &data[f->GetVSize()]);
 }
 
@@ -134,7 +134,7 @@ ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes,
    : Vector(2*(fes->GetVSize())),
      conv(convention)
 {
-   lfr = new LinearForm(fes, lf_r);  lfr->SetData(&data[0]);
+   lfr = new LinearForm(fes, lf_r);  lfr->SetData(data);
    lfi = new LinearForm(fes, lf_i);  lfi->SetData(&data[fes->GetVSize()]);
 }
 
@@ -200,8 +200,8 @@ ComplexLinearForm::Update(FiniteElementSpace *fes)
    int vsize = fes->GetVSize();
    SetSize(2 * vsize);
 
-   Vector vlfr(&data[0], vsize);
-   Vector vlfi(&data[vsize], vsize);
+   Vector vlfr(data, vsize);
+   Vector vlfi((data) ? &data[vsize] : data, vsize);
 
    lfr->Update(fes, vlfr, 0);
    lfi->Update(fes, vlfi, 0);
@@ -509,8 +509,8 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
 ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pfes)
    : Vector(2*(pfes->GetVSize()))
 {
-   pgfr = new ParGridFunction(pfes, &data[0]);
-   pgfi = new ParGridFunction(pfes, &data[pfes->GetVSize()]);
+   pgfr = new ParGridFunction(pfes, data);
+   pgfi = new ParGridFunction(pfes, (data) ? &data[pfes->GetVSize()]:data);
 }
 
 void
@@ -533,8 +533,8 @@ ParComplexGridFunction::Update()
       this->SetSize(2 * vsize);
 
       // Create temporary vectors which point to the new data array
-      Vector gf_r(&data[0], vsize);
-      Vector gf_i(&data[vsize], vsize);
+      Vector gf_r(data, vsize);
+      Vector gf_i((data) ? &data[vsize] : data, vsize);
 
       // Copy the updated GridFunctions into the new data array
       gf_r = *pgfr;
@@ -542,8 +542,8 @@ ParComplexGridFunction::Update()
 
       // Replace the individual data arrays with pointers into the new data
       // array
-      pgfr->NewDataAndSize(&data[0], vsize);
-      pgfi->NewDataAndSize(&data[vsize], vsize);
+      pgfr->NewDataAndSize(data, vsize);
+      pgfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
    }
    else
    {
@@ -552,8 +552,8 @@ ParComplexGridFunction::Update()
       this->SetSize(2 * vsize);
 
       // Point the individual GridFunctions to the new data array
-      pgfr->NewDataAndSize(&data[0], vsize);
-      pgfi->NewDataAndSize(&data[vsize], vsize);
+      pgfr->NewDataAndSize(data, vsize);
+      pgfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
 
       // These updates will only set the proper 'sequence' value within the
       // individual GridFunction objects because their sizes are already correct
@@ -617,7 +617,7 @@ ParComplexGridFunction::Distribute(const Vector *tv)
 
    double * tvd = tv->GetData();
    Vector tvr(tvd, size);
-   Vector tvi(&tvd[size], size);
+   Vector tvi((tvd) ? &tvd[size] : tvd, size);
 
    pgfr->Distribute(tvr);
    pgfi->Distribute(tvi);
@@ -631,7 +631,7 @@ ParComplexGridFunction::ParallelProject(Vector &tv) const
 
    double * tvd = tv.GetData();
    Vector tvr(tvd, size);
-   Vector tvi(&tvd[size], size);
+   Vector tvi((tvd) ? &tvd[size] : tvd, size);
 
    pgfr->ParallelProject(tvr);
    pgfi->ParallelProject(tvi);
@@ -644,8 +644,8 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    : Vector(2*(pfes->GetVSize())),
      conv(convention)
 {
-   plfr = new ParLinearForm(pfes, &data[0]);
-   plfi = new ParLinearForm(pfes, &data[pfes->GetVSize()]);
+   plfr = new ParLinearForm(pfes, data);
+   plfi = new ParLinearForm(pfes, (data) ? &data[pfes->GetVSize()]:data);
 
    HYPRE_Int * tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
@@ -667,9 +667,9 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
      conv(convention)
 {
    plfr = new ParLinearForm(pfes, plf_r);
-   plfr->SetData(&data[0]);
+   plfr->SetData(data);
    plfi = new ParLinearForm(pfes, plf_i);
-   plfi->SetData(&data[pfes->GetVSize()]);
+   plfi->SetData((data) ? &data[pfes->GetVSize()]:data);
 
    HYPRE_Int * tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
@@ -738,8 +738,8 @@ ParComplexLinearForm::Update(ParFiniteElementSpace *pf)
    int vsize = pfes->GetVSize();
    SetSize(2 * vsize);
 
-   Vector vplfr(&data[0], vsize);
-   Vector vplfi(&data[vsize], vsize);
+   Vector vplfr(data, vsize);
+   Vector vplfi((data) ? &data[vsize] : data, vsize);
 
    plfr->Update(pfes, vplfr, 0);
    plfi->Update(pfes, vplfi, 0);
@@ -763,7 +763,7 @@ ParComplexLinearForm::ParallelAssemble(Vector &tv)
 
    double * tvd = tv.GetData();
    Vector tvr(tvd, size);
-   Vector tvi(&tvd[size], size);
+   Vector tvi((tvd) ? &tvd[size] : tvd, size);
 
    plfr->ParallelAssemble(tvr);
    plfi->ParallelAssemble(tvi);
@@ -782,7 +782,7 @@ ParComplexLinearForm::ParallelAssemble()
 
    double * tvd = tv->GetData();
    Vector tvr(tvd, size);
-   Vector tvi(&tvd[size], size);
+   Vector tvi((tvd) ? &tvd[size] : tvd, size);
 
    plfr->ParallelAssemble(tvr);
    plfi->ParallelAssemble(tvi);
