@@ -1036,8 +1036,8 @@ private:
 public:
    KernelFECollection(int D, int numPointsD, double h,
                       RBFFunction *func, DistanceMetric *dist,
-                      int order = -1);
-   
+                      const int order = -1,
+                      const int btype = BasisType::GaussLobatto);
    virtual const FiniteElement *
    FiniteElementForGeometry(int GeomType) const;
 

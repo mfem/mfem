@@ -3385,9 +3385,9 @@ class RBFFiniteElement : public KernelFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable double r_s, f_s, df_s, ddf_s;
-   mutable Vector x_s, y_s, dy_s, dr_s;
-   mutable DenseMatrix ddr_s;
+   mutable double r_scr, f_scr, df_scr, ddf_scr;
+   mutable Vector x_scr, y_scr, dy_scr, dr_scr;
+   mutable DenseMatrix ddr_scr;
 #endif
    int numPointsD; // Number of points across the element in each D
    double delta; // Distance between points
@@ -3422,13 +3422,14 @@ class RKFiniteElement : public KernelFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable double f_s;
-   mutable Vector x_s, y_s, g_s, c_s, s_s, p_s, df_s;
-   mutable DenseMatrix q_s, dq_s, M_s;
-   mutable Vector dc_s[3], dp_s[3];
-   mutable DenseMatrix dM_s[3];
-   mutable DenseMatrixInverse Minv_s;
+   mutable double f_scr;
+   mutable Vector x_scr, y_scr, g_scr, c_scr, s_scr, p_scr, df_scr;
+   mutable DenseMatrix q_scr, dq_scr, M_scr;
+   mutable Vector dc_scr[3], dp_scr[3];
+   mutable DenseMatrix dM_scr[3];
+   mutable DenseMatrixInverse Minv_scr;
 #endif
+   Poly_1D::Basis &basis1d;
    int polyOrd, numPoly, numPoly1d;
    KernelFiniteElement *baseFE;
 
@@ -3468,7 +3469,8 @@ private:
                             Vector &y) const;
    
 public:
-   RKFiniteElement(int poly,
+   RKFiniteElement(const int poly,
+                   const int b_type,
                    KernelFiniteElement *baseClass);
    virtual ~RKFiniteElement() { delete baseFE; } 
    
