@@ -440,7 +440,6 @@ private:
 
    /// Allow to detect if a global memory manager instance exists.
    static bool exists;
-   static bool mm_env;
 
    /// Return true if the global memory manager instance exists.
    static bool Exists() { return exists; }
@@ -573,6 +572,9 @@ public:
    MemoryManager();
    ~MemoryManager();
 
+   /// Initialize the memory manager.
+   void Init();
+
    /// Configure the Memory manager with given default host and device types
    /// This method will be called when configuring a device.
    void Configure(const MemoryType h_mt, const MemoryType d_mt);
@@ -661,16 +663,16 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
       const bool alias = MemoryManager::IsAlias_(h_ptr);
       if (known || alias)
       {
-         h_mt = MemoryManager::GetHostMemoryType_(h_ptr, known, alias);
-      }
-      else
-      {
-         h_mt = MemoryType::HOST;
+         MFEM_VERIFY(MemoryManager::host_mem_type ==
+                     MemoryManager::GetHostMemoryType_(h_ptr, known, alias),"");
+
       }
    }
-   else
+   h_mt = MemoryManager::host_mem_type;
+   if (own &&  h_mt >= MemoryType::HOST_DEBUG)
    {
-      h_mt = MemoryType::HOST;
+      MemoryManager::Register_(host_ptr, host_ptr, size*sizeof(T), h_mt,
+                               own, false, flags);
    }
 }
 
@@ -678,6 +680,7 @@ template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
    if (mt == MemoryType::HOST) { return Wrap(ptr, size, own); }
+   flags = 0;
    capacity = size;
    const size_t bytes = size*sizeof(T);
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
@@ -696,15 +699,20 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    { flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE); }
    else
    {
-      MemoryManager::Alias_(base.h_ptr, offset*sizeof(T), size*sizeof(T),
-                            base.flags, flags);
+      const size_t s_bytes = size*sizeof(T);
+      const size_t o_bytes = offset*sizeof(T);
+      MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
    }
 }
 
 template <typename T>
 inline void Memory<T>::Delete()
 {
-   if (!(flags & REGISTERED) ||
+   const bool registered = flags & REGISTERED;
+   const bool mt_host = h_mt == MemoryType::HOST;
+   const bool std_delete = !registered && mt_host;
+
+   if (std_delete ||
        MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST)
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
