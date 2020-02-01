@@ -116,7 +116,7 @@ private:
    friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
 
-   static bool device_env;
+   static bool device_env, mem_host_env, mem_device_env;
    static Device device_singleton;
 
    MODES mode;

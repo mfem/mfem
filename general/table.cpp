@@ -254,7 +254,7 @@ void Table::Finalize()
 
    if (sum != I[size])
    {
-      int *NewJ = new int[sum];
+      int *NewJ = Memory<int>(sum);
 
       for (i=0; i<size; i++)
       {
