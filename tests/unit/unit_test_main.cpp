@@ -1,4 +1,4 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// Copyright (c) 2019, Lawrence Livermore National Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
 // reserved. See file COPYRIGHT for details.
 //
@@ -9,5 +9,17 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#define CATCH_CONFIG_MAIN     // This tells Catch to provide a main() - only do this in one cpp file
+#define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
+#include "mfem.hpp"
+
+int main(int argc, char *argv[])
+{
+#ifdef MFEM_USE_MPI
+   mfem::MPI_Session mpi;
+#endif
+
+   // There must be exactly one instance
+   int result = Catch::Session().run(argc, argv);
+   return result;
+}
