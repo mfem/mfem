@@ -51,6 +51,7 @@ MemoryType GetMemoryType(MemoryClass mc)
    return MemoryType::HOST;
 }
 
+// We want to keep this pairs, as it is checked in MFEM_VERIFY_TYPES
 MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 {
    switch (mt)
@@ -75,9 +76,9 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
    MFEM_ASSERT(IsHostMemory(h_mt),"");
    MFEM_ASSERT(IsDeviceMemory(d_mt),"");
    const bool sync =
-      (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
+      (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE);
@@ -192,7 +193,7 @@ class StdHostMemorySpace : public HostMemorySpace { };
 /// The No host memory space
 struct NoHostMemorySpace : public HostMemorySpace
 {
-   void Alloc(void**, const size_t) { mfem_error("No Alloc error"); }
+   void Alloc(void**, const size_t) { mfem_error("! Host Alloc error"); }
 };
 
 /// The aligned 32 host memory space
@@ -362,8 +363,8 @@ public:
 class NoDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
-   void Alloc(internal::Memory&) { mfem_error("!Alloc"); }
-   void Dealloc(Memory&) { mfem_error("!Dealloc"); }
+   void Alloc(internal::Memory&) { mfem_error("! Device Alloc"); }
+   void Dealloc(Memory&) { mfem_error("! Device Dealloc"); }
    void *HtoD(void*, const void*, size_t) { mfem_error("!HtoD"); return nullptr; }
    void *DtoD(void*, const void*, size_t) { mfem_error("!DtoD"); return nullptr; }
    void *DtoH(void*, const void*, size_t) { mfem_error("!DtoH"); return nullptr; }
@@ -527,54 +528,44 @@ public:
       // HOST, HOST_32 & HOST_64 are always ready
       // MFEM_USE_UMPIRE will set either [No/Umpire] HostMemorySpace
       host[static_cast<int>(MT::HOST)] = new StdHostMemorySpace();
-
       host[static_cast<int>(MT::HOST_32)] = new Aligned32HostMemorySpace();
-
-      host[static_cast<int>(MT::HOST_64)] =
-         static_cast<HostMemorySpace*>(new Aligned64HostMemorySpace());
-
+      host[static_cast<int>(MT::HOST_64)] = new Aligned64HostMemorySpace();
       // HOST_DEBUG is delayed, as it reroutes signals
       host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
-
       host[static_cast<int>(MT::HOST_UMPIRE)] = new UmpireHostMemorySpace();
-
       host[static_cast<int>(MT::MANAGED)] = new UvmHostMemorySpace();
 
       // Filling the device memory backends, shifting with the device size
       constexpr int shift = DeviceMemoryType;
       device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
-
-      // Debug is special because of wrap(HOST) => uses DEVICE
       device[static_cast<int>(MemoryType::DEVICE)-shift] =
 #if defined(MFEM_USE_CUDA)
-         nullptr;//new CudaDeviceMemorySpace();
+         new CudaDeviceMemorySpace();
 #elif defined(MFEM_USE_HIP)
          new HipDeviceMemorySpace();
 #else
-         new NoDeviceMemorySpace();
+         // No device controller is set by default, initialization is delayed
+         // depending on the device configuration
+         nullptr;
 #endif
-      // DEVICE_DEBUG is delayed
+      // DEVICE DEBUG and UMPIRE are delayed
       device[static_cast<int>(MT::DEVICE_DEBUG)-shift] = nullptr;
-
-      // DEVICE_UMPIRE is delayed
       device[static_cast<int>(MT::DEVICE_UMPIRE)-shift] = nullptr;
    }
 
    HostMemorySpace* Host(const MemoryType mt)
    {
       const int mt_i = static_cast<int>(mt);
-      // Delay HOST_DEBUG initialization
+      // Delayed host DEBUG initialization
       if (!host[mt_i])
       {
          if (mt == MT::HOST_DEBUG)
          {
             host[mt_i] = new MmuHostMemorySpace();
-            device[static_cast<int>(MT::DEVICE_DEBUG) - DeviceMemoryType]
-               = new  MmuDeviceMemorySpace();
          }
          else
          {
-            MFEM_ABORT("Internal error!");
+            MFEM_ABORT("Unknown lazy host memory controller!");
          }
       }
       MFEM_ASSERT(host[mt_i], "Memory manager has not been configured!");
@@ -584,22 +575,27 @@ public:
    DeviceMemorySpace* Device(const MemoryType mt)
    {
       const int mt_i = static_cast<int>(mt) - DeviceMemoryType;
-      // Delay DEVICE UMPIRE and DEBUG initialization
+      // Lazy device UMPIRE and DEBUG/DEVICE initializations
       if (!device[mt_i] )
       {
-         if (mt == MemoryType::DEVICE_UMPIRE)
+         const MemoryType mm_d_mt = mm.GetDeviceMemoryType();
+         if (mt == MT::DEVICE_UMPIRE)
          {
             device[mt_i] = new UmpireDeviceMemorySpace();
          }
-         else if (mt == MemoryType::DEVICE_DEBUG)
+         else if (mt == MT::DEVICE_DEBUG)
          {
-            const int mt_debug = static_cast<int>(MT::HOST_DEBUG);
-            if (!host[mt_debug]) { host[mt_debug] = new MmuHostMemorySpace(); }
+            device[mt_i] = new MmuDeviceMemorySpace();
+         }
+         else if (mt == MT::DEVICE &&  mm_d_mt == MT::DEVICE_DEBUG)
+         {
+            // If 'DEVICE' is used while in 'DEBUG' mode, use it.
+            // This case is tesed in the memory unit test.
             device[mt_i] = new MmuDeviceMemorySpace();
          }
          else
          {
-            MFEM_ABORT("Internal error!");
+            MFEM_ABORT("Unknown lazy device memory controller!");
          }
       }
       MFEM_ASSERT(device[mt_i], "Memory manager has not been configured!");
@@ -1342,21 +1338,24 @@ void MemoryManager::RegisterCheck(void *ptr)
    }
 }
 
-void MemoryManager::PrintPtrs(void)
+int MemoryManager::PrintPtrs(void)
 {
+   int n_out = 0;
    for (const auto& n : maps->memories)
    {
       const internal::Memory &mem = n.second;
-      mfem::out << std::endl
-                << "key " << n.first << ", "
+      mfem::out << "\nkey " << n.first << ", "
                 << "h_ptr " << mem.h_ptr << ", "
                 << "d_ptr " << mem.d_ptr;
+      n_out++;
    }
    if (maps->memories.size() > 0) { mfem::out << std::endl; }
+   return n_out;
 }
 
-void MemoryManager::PrintAliases(void)
+int MemoryManager::PrintAliases(void)
 {
+   int n_out = 0;
    for (const auto& n : maps->aliases)
    {
       const internal::Alias &alias = n.second;
@@ -1366,8 +1365,10 @@ void MemoryManager::PrintAliases(void)
                 << "offset " << alias.offset << ", "
                 << "bytes  " << alias.bytes << ", "
                 << "counter " << alias.counter;
+      n_out++;
    }
    if (maps->aliases.size() > 0) { mfem::out << std::endl; }
+   return n_out;
 }
 
 int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,

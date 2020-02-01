@@ -3639,26 +3639,27 @@ static int argn(const char *argv[], int argc =0)
 
 static void sedov_tests(MPI_Session &mpi)
 {
-   const char *argv2D[]= {"unit_tests_dev",
+   const char *argv2D[]= {"sedov_tests",
                           "-m", "data/square01_quad.mesh",
                           nullptr
                          };
    REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
 
-   const char *argv2Drs1[]= {"unit_tests",
+   const char *argv2Drs1[]= {"sedov_tests",
                              "-rs", "1", "-ms", "20",
                              "-m", "data/square01_quad.mesh",
                              nullptr
                             };
    REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
 
-   const char *argv3D[]= {"unit_tests",
+   const char *argv3D[]= {"sedov_tests",
                           "-m", "data/cube01_hex.mesh",
                           nullptr
                          };
    REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
 
-   /*const char *argv3Drs1[]= {"unit_tests",
+   // 3D refined case desactivated to avoid long tests
+   /*const char *argv3Drs1[]= {"sedov_tests",
                              "-rs", "1", "-ms", "28",
                              "-m", "data/cube01_hex.mesh",
                              nullptr
@@ -3667,7 +3668,7 @@ static void sedov_tests(MPI_Session &mpi)
 
 }
 
-#ifndef MFEM_DEV_UNIT_TESTS
+#ifndef MFEM_SEDOV_TESTS
 
 TEST_CASE("Sedov", "[Sedov]")
 {
@@ -3681,9 +3682,9 @@ TEST_CASE("Sedov", "[Sedov]")
 {
    MPI_Session mpi;
    Device device;
-   device.Configure(MFEM_DEV_UNIT);
+   device.Configure(MFEM_SEDOV_DEVICE);
    if (mpi.Root()) {device.Print();}
    sedov_tests(mpi);
 }
 
-#endif
+#endif // MFEM_SEDOV_TESTS
