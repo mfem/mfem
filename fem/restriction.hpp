@@ -72,14 +72,15 @@ class H1FaceRestriction : public Operator
 {
 protected:
    const FiniteElementSpace &fes;
-   int nf;//const int nf;
+   const int nf;
    const int vdim;
    const bool byvdim;
    const int ndofs;
-   int dof;//const int dof;
-   int nfdofs;//const int nfdofs;
-   Array<int> indices;
-   Array<bool> signs;
+   const int dof;
+   const int nfdofs;
+   Array<int> scatter_indices;
+   Array<int> offsets;
+   Array<int> gather_indices;
 
 public:
    H1FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
@@ -97,16 +98,17 @@ class L2FaceRestriction : public Operator
 {
 protected:
    const FiniteElementSpace &fes;
-   int nf;//const int nf;
+   const int nf;
    const int vdim;
    const bool byvdim;
    const int ndofs;
-   int dof;//const int dof;
+   const int dof;
    const L2FaceValues m;
-   int nfdofs;//const int nfdofs;
-   Array<int> indices1;
-   Array<int> indices2;
-   Array<bool> signs;
+   const int nfdofs;
+   Array<int> scatter_indices2;
+   Array<int> scatter_indices1;
+   Array<int> offsets;
+   Array<int> gather_indices;
 
 public:
    L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
@@ -125,15 +127,17 @@ class ParL2FaceRestriction : public Operator
 {
 protected:
    const ParFiniteElementSpace &fes;
-   int nf;//const int nf;
+   const int nf;
    const int vdim;
    const bool byvdim;
    const int ndofs;
-   int dof;//const int dof;
+   const int dof;
    const L2FaceValues m;
-   int nfdofs;//const int nfdofs;
-   Array<int> indices1;
-   Array<int> indices2;
+   const int nfdofs;
+   Array<int> scatter_indices1;
+   Array<int> scatter_indices2;
+   Array<int> offsets;
+   Array<int> gather_indices;
 
 public:
    ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
