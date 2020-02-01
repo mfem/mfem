@@ -3385,9 +3385,9 @@ class RBFFiniteElement : public KernelFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable double r, f, df, ddf;
-   mutable Vector x, y, dy, dr;
-   mutable DenseMatrix ddr;
+   mutable double r_s, f_s, df_s, ddf_s;
+   mutable Vector x_s, y_s, dy_s, dr_s;
+   mutable DenseMatrix ddr_s;
 #endif
    int numPointsD; // Number of points across the element in each D
    double delta; // Distance between points
@@ -3399,15 +3399,15 @@ private:
    DistanceMetric *distance;
    void SetPositions();
    
+   virtual void DistanceVec(const int i,
+                            const Vector &x,
+                            Vector &y) const;
+   
 public:
    RBFFiniteElement(int D, int numPointsD, double h,
                     RBFFunction *func, DistanceMetric *dist);
    virtual ~RBFFiniteElement() { delete rbf; delete distance; }
    
-   void DistanceVec(const int i,
-                    const Vector &x,
-                    Vector &y) const;
-
    virtual const DenseMatrix &position() const { return pos; }
 
    virtual void CalcShape(const IntegrationPoint &ip,
@@ -3422,12 +3422,12 @@ class RKFiniteElement : public KernelFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable double f;
-   mutable Vector x, y, g, c, s, p, df;
-   mutable DenseMatrix q, dq, M;
-   mutable Vector dc[3], dp[3];
-   mutable DenseMatrix dM[3];
-   mutable DenseMatrixInverse Minv;
+   mutable double f_s;
+   mutable Vector x_s, y_s, g_s, c_s, s_s, p_s, df_s;
+   mutable DenseMatrix q_s, dq_s, M_s;
+   mutable Vector dc_s[3], dp_s[3];
+   mutable DenseMatrix dM_s[3];
+   mutable DenseMatrixInverse Minv_s;
 #endif
    int polyOrd, numPoly, numPoly1d;
    KernelFiniteElement *baseFE;
@@ -3463,15 +3463,15 @@ private:
                                  const DenseMatrix &baseDShape,
                                  const IntegrationPoint &ip,
                                  DenseMatrix &dshape) const;
+   virtual void DistanceVec(const int i,
+                            const Vector &x,
+                            Vector &y) const;
+   
 public:
    RKFiniteElement(int poly,
                    KernelFiniteElement *baseClass);
    virtual ~RKFiniteElement() { delete baseFE; } 
    
-   void DistanceVec(const int i,
-                    const Vector &x,
-                    Vector &y) const;
-
    virtual const DenseMatrix &position() const { return baseFE->position(); }
    
    static int GetNumPoly(int polyOrd, int dim);
