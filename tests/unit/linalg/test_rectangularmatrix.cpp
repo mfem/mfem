@@ -14,6 +14,7 @@
 
 namespace mfem
 {
+
 double f1(const Vector &x)
 {
    double r = cos(x(0)) + sin(x(1));
@@ -94,7 +95,8 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("ParallelFormRectangular", "[Parallel], [FormRectangularSystemMatrix]")
+TEST_CASE("ParallelFormRectangular",
+          "[Parallel], [FormRectangularSystemMatrix]")
 {
    SECTION("ParMixedBilinearForm::FormRectangularSystemMatrix")
    {
