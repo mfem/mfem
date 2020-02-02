@@ -1,54 +1,28 @@
-//                                MFEM Example 1
+//                                MFEM Example 23
 //
-// Compile with: make ex1
+// Compile with: make ex23
 //
-// Sample runs:  ex1 -m ../data/square-disc.mesh
-//               ex1 -m ../data/star.mesh
-//               ex1 -m ../data/star-mixed.mesh
-//               ex1 -m ../data/escher.mesh
-//               ex1 -m ../data/fichera.mesh
-//               ex1 -m ../data/fichera-mixed.mesh
-//               ex1 -m ../data/toroid-wedge.mesh
-//               ex1 -m ../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../data/star-mixed-p2.mesh -o 2
-//               ex1 -m ../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../data/pipe-nurbs.mesh -o -1
-//               ex1 -m ../data/fichera-mixed-p2.mesh -o 2
-//               ex1 -m ../data/star-surf.mesh
-//               ex1 -m ../data/square-disc-surf.mesh
-//               ex1 -m ../data/inline-segment.mesh
-//               ex1 -m ../data/amr-quad.mesh
-//               ex1 -m ../data/amr-hex.mesh
-//               ex1 -m ../data/fichera-amr.mesh
-//               ex1 -m ../data/mobius-strip.mesh
-//               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
+// Sample runs:  ex23 -m ../data/star.mesh
+//               ex23 -m ../data/fichera.mesh
+//               ex23 -m ../data/beam-hex.mesh
 //
 // Device sample runs:
-//               ex1 -pa -d cuda
-//               ex1 -pa -d raja-cuda
-//               ex1 -pa -d occa-cuda
-//               ex1 -pa -d raja-omp
-//               ex1 -pa -d occa-omp
-//               ex1 -pa -d ceed-cpu
-//               ex1 -pa -d ceed-cuda
-//               ex1 -m ../data/beam-hex.mesh -pa -d cuda
+//               ex23 -d cuda
+//               ex23 -d raja-cuda
+//               ex23 -d occa-cuda
+//               ex23 -d raja-omp
+//               ex23 -d occa-omp
+//               ex23 -d ceed-cpu
+//               ex23 -d ceed-cuda
+//               ex23 -m ../data/beam-hex.mesh -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
-//
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+//               -Delta u = 1 with homogeneous Dirichlet boundary conditions
+//               as in example 1. It highlights on the usage of matrix-free
+//               discretizations with partial assembly and the construction of
+//               an efficient p-multigrid preconditioner for the iterative
+//               solver.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -61,9 +35,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int order = 1;
-   bool static_cond = false;
-   bool pa = false;
+   int order = 4;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -73,10 +45,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -107,7 +75,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -140,9 +108,9 @@ int main(int argc, char *argv[])
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
    if (mesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -165,14 +133,12 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
-   //     conditions, applying conforming constraints for non-conforming AMR,
-   //     static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
+   //     conditions, applying conforming constraints for non-conforming AMR, etc.
    a->Assemble();
 
    OperatorPtr A;
@@ -181,31 +147,35 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
-   // 11. Solve the linear system A X = B.
-   if (!pa)
+   // 11. Set up the p-multigrid preconditioner
+   Array<int> orders;
+   orders.Append(order);
+   int coarseOrder = order / 2;
+   while (coarseOrder > 0)
    {
-#ifndef MFEM_USE_SUITESPARSE
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
-#endif
+      orders.Append(coarseOrder);
+      coarseOrder /= 2;
    }
-   else // Jacobi preconditioning in partial assembly mode
+   orders.Sort();
+   SpaceHierarchy spaceHierarchy;
+   Array<H1_FECollection*> collections;
+   for (int level = 0; level < orders.Size() - 1; ++level)
    {
-      OperatorJacobiSmoother M(*a, ess_tdof_list);
-      PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+      collections.Append(new H1_FECollection(orders[level], dim));
+      FiniteElementSpace *fesp = new FiniteElementSpace(mesh, collections.Last());
+      spaceHierarchy.AddLevel(mesh, fesp, false, true);
    }
+   spaceHierarchy.AddLevel(mesh, fespace, false, false);
+   MultigridBilinearForm mgOperator(spaceHierarchy, *a, ess_bdr);
+   MultigridSolver M(&mgOperator, MultigridSolver::CycleType::VCYCLE, 1, 1);
 
-   // 12. Recover the solution as a finite element grid function.
+   // 12. Solve the linear system A X = B.
+   PCG(mgOperator, M, B, X, 1, 2000, 1e-12, 0.0);
+
+   // 13. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 13. Save the refined mesh and the solution. This output can be viewed later
+   // 14. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
@@ -214,7 +184,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -224,7 +194,11 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 15. Free the used memory.
+   // 16. Free the used memory.
+   for (int level = 0; level < orders.Size() - 1; ++level)
+   {
+      delete collections[level];
+   }
    delete a;
    delete b;
    delete fespace;
