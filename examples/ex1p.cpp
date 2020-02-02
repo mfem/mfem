@@ -29,6 +29,8 @@
 //               mpirun -np 4 ex1p -pa -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
+//               mpirun -np 4 ex1p -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d ceed-cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
