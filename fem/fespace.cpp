@@ -3739,45 +3739,48 @@ static void ApplyInvJac2D(const int NE, const GeometricFactors *geom,
                           Vector &phy_der, const int D1D, const int Q1D)
 {
 
-  constexpr int VDIM = 2;
-  const int NQ = Q1D*Q1D;
-  auto y = Reshape(phy_der.ReadWrite(), VDIM, VDIM, NQ, NE);
-  auto J = Reshape(geom->J.Read(), NQ, VDIM, VDIM, NE);
+   constexpr int VDIM = 2;
+   const int NQ = Q1D*Q1D;
+   auto y = Reshape(phy_der.ReadWrite(), VDIM, VDIM, NQ, NE);
+   auto J = Reshape(geom->J.Read(), NQ, VDIM, VDIM, NE);
 
-  MFEM_FORALL(e, NE,
-  {
-    double Yloc[VDIM][VDIM];
-    double Jloc[VDIM][VDIM];
-    double Jinv[VDIM][VDIM];
+   MFEM_FORALL(e, NE,
+   {
+      double Yloc[VDIM][VDIM];
+      double Jloc[VDIM][VDIM];
+      double Jinv[VDIM][VDIM];
 
-    for(int q=0; q<NQ; ++q)
-    {
-
-      for(int r=0; r<VDIM; ++r) 
+      for (int q=0; q<NQ; ++q)
       {
-        for(int c=0; c<VDIM; ++c)
-        {
-          Jloc[c][r] = J(q,c,r,e); 
-          Yloc[c][r] = y(c,r,q,e);
-        }
-      }
 
-      blas::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
+         for (int r=0; r<VDIM; ++r)
+         {
+            for (int c=0; c<VDIM; ++c)
+            {
+               Jloc[c][r] = J(q,c,r,e);
+               Yloc[c][r] = y(c,r,q,e);
+            }
+         }
 
-      //Apply Jinv for change of coordinates
-      for(int r=0; r<VDIM; ++r){
-        for(int c=0; c<VDIM; ++c){
-          
-          double dot(0.0);
-          for(int k=0; k<VDIM; ++k){
-            dot += Yloc[r][k]*Jinv[k][c];
-          }
-          y(r,c,q,e) = dot;
-        }
-      }
+         blas::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
 
-    }//qpts
-  });
+         //Apply Jinv for change of coordinates
+         for (int r=0; r<VDIM; ++r)
+         {
+            for (int c=0; c<VDIM; ++c)
+            {
+
+               double dot(0.0);
+               for (int k=0; k<VDIM; ++k)
+               {
+                  dot += Yloc[r][k]*Jinv[k][c];
+               }
+               y(r,c,q,e) = dot;
+            }
+         }
+
+      }//qpts
+   });
 
 }
 
@@ -3786,49 +3789,53 @@ static void ApplyInvJac3D(const int NE, const GeometricFactors *geom,
                           Vector &phy_der, const int D1D, const int Q1D)
 {
 
-  constexpr int VDIM = 3;
-  int NQ = Q1D*Q1D*Q1D;
-  auto y = Reshape(phy_der.ReadWrite(), VDIM, VDIM, NQ, NE);
-  auto J = Reshape(geom->J.Read(), NQ, VDIM, VDIM, NE);
+   constexpr int VDIM = 3;
+   int NQ = Q1D*Q1D*Q1D;
+   auto y = Reshape(phy_der.ReadWrite(), VDIM, VDIM, NQ, NE);
+   auto J = Reshape(geom->J.Read(), NQ, VDIM, VDIM, NE);
 
-  MFEM_FORALL(e, NE,
-  {
-    double Yloc[VDIM][VDIM];
-    double Jloc[VDIM][VDIM];
-    double Jinv[VDIM][VDIM];
+   MFEM_FORALL(e, NE,
+   {
+      double Yloc[VDIM][VDIM];
+      double Jloc[VDIM][VDIM];
+      double Jinv[VDIM][VDIM];
 
-    for(int q=0; q<NQ; ++q)
-    {
-
-      for(int r=0; r<VDIM; ++r)
+      for (int q=0; q<NQ; ++q)
       {
-        for(int c=0; c<VDIM; ++c)
-        {
-          Jloc[c][r] = J(q,c,r,e);
-          Yloc[c][r] = y(c,r,q,e);
-        }
-      }
 
-      blas::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
+         for (int r=0; r<VDIM; ++r)
+         {
+            for (int c=0; c<VDIM; ++c)
+            {
+               Jloc[c][r] = J(q,c,r,e);
+               Yloc[c][r] = y(c,r,q,e);
+            }
+         }
 
-      //Apply Jinv for change of coordinates
-      for(int r=0; r<VDIM; ++r){
-        for(int c=0; c<VDIM; ++c){
+         blas::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
 
-          double dot(0.0);
-          for(int k=0; k<VDIM; ++k){
-            dot += Yloc[r][k]*Jinv[k][c];
-          }
-          y(r,c,q,e) = dot;
-        }
-      }
+         //Apply Jinv for change of coordinates
+         for (int r=0; r<VDIM; ++r)
+         {
+            for (int c=0; c<VDIM; ++c)
+            {
 
-    }//qpts
-  });
+               double dot(0.0);
+               for (int k=0; k<VDIM; ++k)
+               {
+                  dot += Yloc[r][k]*Jinv[k][c];
+               }
+               y(r,c,q,e) = dot;
+            }
+         }
+
+      }//qpts
+   });
 
 }
 
-static void ApplyInvJac(const FiniteElementSpace &fes, const GeometricFactors *geom,
+static void ApplyInvJac(const FiniteElementSpace &fes,
+                        const GeometricFactors *geom,
                         const DofToQuad *maps, Vector &phy_der)
 {
 
@@ -3851,7 +3858,7 @@ static void ApplyInvJac(const FiniteElementSpace &fes, const GeometricFactors *g
       {
          default:
          {
-           return ApplyInvJac3D(NE, geom, phy_der, D1D, Q1D);
+            return ApplyInvJac3D(NE, geom, phy_der, D1D, Q1D);
          }
       }
    }
@@ -3869,7 +3876,7 @@ void QuadratureInterpolator::Derivatives(const Vector &e_vec,
 }
 
 void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
-                                         Vector &q_der) const
+                                             Vector &q_der) const
 {
 
    Mesh *mesh = fespace->GetMesh();
@@ -3877,7 +3884,7 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
    const IntegrationRule &ir = *IntRule;
 
    const GeometricFactors *geom =
-    mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+      mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
 
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
