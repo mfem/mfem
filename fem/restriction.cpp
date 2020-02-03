@@ -222,8 +222,9 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
-void H1FaceRestriction::GetFaceDofs(const int dim, const int face_id,
-                                    const int dof1d, Array<int> &faceMap)
+/// Return the face degrees of freedom returned in Lexicographic order.
+static void GetFaceDofs(const int dim, const int face_id,
+                        const int dof1d, Array<int> &faceMap)
 {
    switch (dim)
    {
@@ -652,9 +653,10 @@ static int PermuteFace3D(const int face_id1, const int face_id2,
    return ToLexOrdering3D(face_id2, size1d, new_i, new_j);
 }
 
-int L2FaceRestriction::PermuteFaceL2(const int dim, const int face_id1,
-                                     const int face_id2, const int orientation,
-                                     const int size1d, const int index)
+/// Permute dofs or quads on a face for e2 to match with the ordering of e1
+int PermuteFaceL2(const int dim, const int face_id1,
+                  const int face_id2, const int orientation,
+                  const int size1d, const int index)
 {
    switch (dim)
    {
@@ -734,10 +736,10 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
       }
       else
       {
@@ -793,10 +795,10 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1);
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2);
          for (int d = 0; d < dof; ++d)
          {
             const int did = faceMap1[d];
@@ -834,10 +836,10 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1);
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2);
          for (int d = 0; d < dof; ++d)
          {
             const int did = faceMap1[d];
@@ -1049,10 +1051,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
       }
       else
       {
@@ -1076,8 +1078,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             {
                for (int d = 0; d < dof; ++d)
                {
-                  const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2,
-                                                                  orientation, dof1d, d);
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, d);
                   const int face_dof = faceMap2[pd];
                   const int did = face_dof;
                   const int gid = elementMap[e2*elem_dofs + did];
@@ -1092,13 +1094,14 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                fes.GetFaceNbrElementVDofs(se2, sharedDofs);
                for (int d = 0; d < dof; ++d)
                {
-                  const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2,
-                                                                  orientation, dof1d, d);
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, d);
                   const int face_dof = faceMap2[pd];
                   const int did = face_dof;
                   const int gid = sharedDofs[did];
                   const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = ndofs+gid; //trick to differentiate dof location inter/shared
+                  //trick to differentiate dof location inter/shared
+                  scatter_indices2[lid] = ndofs+gid;
                }
             }
          }
@@ -1141,10 +1144,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1);
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2);
          for (int d = 0; d < dof; ++d)
          {
             const int did = faceMap1[d];
@@ -1157,7 +1160,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             {
                if (type==FaceType::Interior && e2>=0) //interior face
                {
-                  const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, d);
                   const int did = faceMap2[pd];
                   const int gid = elementMap[e2*elem_dofs + did];
                   ++offsets[gid + 1];
@@ -1182,10 +1186,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id1, dof1d, faceMap1);
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1);
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         H1FaceRestriction::GetFaceDofs(dim, face_id2, dof1d, faceMap2);
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2);
          for (int d = 0; d < dof; ++d)
          {
             const int did = faceMap1[d];
@@ -1200,7 +1204,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             {
                if (type==FaceType::Interior && e2>=0) //interior face
                {
-                  const int pd = L2FaceRestriction::PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, d);
                   const int did = faceMap2[pd];
                   const int gid = elementMap[e2*elem_dofs + did];
                   const int lid = dof*f_ind + d;

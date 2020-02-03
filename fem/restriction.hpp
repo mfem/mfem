@@ -87,8 +87,6 @@ public:
                      const FaceType);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   static void GetFaceDofs(const int dim, const int face_id, const int dof1d,
-                           Array<int> &faceMap);
 };
 
 /// Operator that extracts Face degrees of freedom.
@@ -115,9 +113,6 @@ public:
                      const FaceType, const L2FaceValues m = L2FaceValues::Double);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   static int PermuteFaceL2(const int dim, const int face_id1, const int face_id2,
-                            const int orientation,
-                            const int size1d, const int index);
 };
 
 /// Operator that extracts Face degrees of freedom.
