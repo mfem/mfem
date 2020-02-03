@@ -229,15 +229,13 @@ static void GetFaceDofs(const int dim, const int face_id,
             case 2://NORTH
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = (dof1d-1)*dof1d + i;//Lex
-                  // faceMap[i] = (dof1d-1)*dof1d + dof1d-1 - i;
+                  faceMap[i] = (dof1d-1)*dof1d + i;
                }
                break;
             case 3://WEST
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = i*dof1d;//Lex
-                  // faceMap[i] = (dof1d-1)*dof1d - i*dof1d;
+                  faceMap[i] = i*dof1d;
                }
                break;
          }
@@ -250,8 +248,7 @@ static void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = i + j*dof1d;//Lex
-                     // faceMap[i+j*dof1d] = i + (dof1d-1-j)*dof1d;
+                     faceMap[i+j*dof1d] = i + j*dof1d;
                   }
                }
                break;
@@ -260,8 +257,7 @@ static void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = i + j*dof1d*dof1d;//Lex
-                     // faceMap[i+j*dof1d] = (dof1d-1-i) + j*dof1d*dof1d;
+                     faceMap[i+j*dof1d] = i + j*dof1d*dof1d;
                   }
                }
                break;
@@ -279,8 +275,7 @@ static void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;//Lex
-                     // faceMap[i+j*dof1d] = (dof1d-1)*dof1d + (dof1d-1-i) + j*dof1d*dof1d;
+                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
                   }
                }
                break;
@@ -289,8 +284,7 @@ static void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;//Lex
-                     // faceMap[i+j*dof1d] = (dof1d-1-i)*dof1d + j*dof1d*dof1d;
+                     faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;
                   }
                }
                break;
@@ -506,18 +500,6 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          d_y(t?c:i,t?i:c) += dofValue;
       }
    });
-   // Kept to be used with MFEM_USE_ATOMICADD
-   // auto d_indices = scatter_indices.Read();
-   // auto d_x = Reshape(x.Read(), nd, vd, nf);
-   // auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   // MFEM_FORALL(i, nfdofs,
-   // {
-   //    const int idx = d_indices[i];
-   //    for (int c = 0; c < vd; ++c)
-   //    {
-   //       MFEM_ATOMIC_ADD(d_y(t?c:idx,t?idx:c), d_x(i % nd, c, i / nd));
-   //    }
-   // });
 }
 
 static int ToLexOrdering2D(const int face_id, const int size1d, const int i)
@@ -924,38 +906,6 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          d_y(t?c:i,t?i:c) += dofValue;
       }
    });
-   // Kept to be used with MFEM_USE_ATOMICADD
-   // if (m==L2FaceValues::Double)
-   // {
-   //    auto d_indices1 = indices1.Read();
-   //    auto d_indices2 = indices2.Read();
-   //    auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-   //    auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-   //    MFEM_FORALL(i, nfdofs,
-   //    {
-   //       const int idx1 = d_indices1[i];
-   //       const int idx2 = d_indices2[i];
-   //       for (int c = 0; c < vd; ++c)
-   //       {
-   //          MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, 0, i / nd));
-   //          if (idx2!=-1) { MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd)); }
-   //       }
-   //    });
-   // }
-   // else
-   // {
-   //    auto d_indices1 = indices1.Read();
-   //    auto d_x = Reshape(x.Read(), nd, vd, nf);
-   //    auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-   //    MFEM_FORALL(i, nfdofs,
-   //    {
-   //       const int idx1 = d_indices1[i];
-   //       for (int c = 0; c < vd; ++c)
-   //       {
-   //          MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, i / nd));
-   //       }
-   //    });
-   // }
 }
 
 #ifdef MFEM_USE_MPI
@@ -1294,39 +1244,6 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          d_y(t?c:i,t?i:c) += dofValue;
       }
    });
-   // Kept to be used with MFEM_USE_ATOMICADD
-   // const int threshold = ndofs;
-   // if (m==L2FaceValues::Double)
-   // {
-   //    auto d_indices1 = indices1.Read();
-   //    auto d_indices2 = indices2.Read();
-   //    auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-   //    auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-   //    MFEM_FORALL(i, nfdofs,
-   //    {
-   //       const int idx1 = d_indices1[i];
-   //       const int idx2 = d_indices2[i];
-   //       for (int c = 0; c < vd; ++c)
-   //       {
-   //          MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, 0, i / nd));
-   //          if (idx2>-1 && idx2<threshold) { MFEM_ATOMIC_ADD(d_y(t?c:idx2,t?idx2:c), d_x(i % nd, c, 1, i / nd)); }
-   //       }
-   //    });
-   // }
-   // else
-   // {
-   //    auto d_indices1 = indices1.Read();
-   //    auto d_x = Reshape(x.Read(), nd, vd, nf);
-   //    auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-   //    MFEM_FORALL(i, nfdofs,
-   //    {
-   //       const int idx1 = d_indices1[i];
-   //       for (int c = 0; c < vd; ++c)
-   //       {
-   //          MFEM_ATOMIC_ADD(d_y(t?c:idx1,t?idx1:c), d_x(i % nd, c, i / nd));
-   //       }
-   //    });
-   // }
 }
 
 #endif
