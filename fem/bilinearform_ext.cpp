@@ -90,7 +90,7 @@ void PABilinearFormExtension::SetupRestrictionOperators()
 
 void PABilinearFormExtension::Assemble()
 {
-   Setup();
+   SetupRestrictionOperators();
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
