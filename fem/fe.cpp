@@ -13153,7 +13153,6 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
 }
 
 RKFiniteElement::RKFiniteElement(const int poly,
-                                 const int b_type,
                                  KernelFiniteElement *baseClass)
    : KernelFiniteElement(baseClass->GetDim(),
                          baseClass->GetGeomType(),
@@ -13161,7 +13160,6 @@ RKFiniteElement::RKFiniteElement(const int poly,
                          polyOrd,
                          FunctionSpace::RK),
      polyOrd(poly),
-     basis1d(poly1d.GetBasis(poly, b_type)),
      numPoly1d(poly+1),
      numPoly(RKFiniteElement::GetNumPoly(polyOrd, baseClass->GetDim())),
      baseFE(baseClass)
@@ -13292,20 +13290,11 @@ void RKFiniteElement::GetPoly(const Vector &x,
    switch (Dim)
    {
    case 1:
-      p(0) = 1.0;
-      for (int i = 1; i < numPoly1d; ++i)
-      {
-         p(i) = p(i-1) * x(0);
-      }
+      poly1d.CalcMono(polyOrd, x(0), &p(0));
       break;
    case 2:
-      q_scr(0, 0) = 1.0;
-      q_scr(0, 1) = 1.0;
-      for (int i = 1; i < numPoly1d; ++i)
-      {
-         q_scr(i, 0) = q_scr(i-1, 0) * x(0);
-         q_scr(i, 1) = q_scr(i-1, 1) * x(1);
-      }
+      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0));
+      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1));
       for (int i = 0; i < numPoly1d; ++i)
       {
          for (int j = 0; j + i < numPoly1d; ++j)
@@ -13316,15 +13305,9 @@ void RKFiniteElement::GetPoly(const Vector &x,
       }
       break;
    case 3:
-      q_scr(0, 0) = 1.0;
-      q_scr(0, 1) = 1.0;
-      q_scr(0, 2) = 1.0;
-      for (int i = 1; i < numPoly1d; ++i)
-      {
-         q_scr(i, 0) = q_scr(i-1, 0) * x(0);
-         q_scr(i, 1) = q_scr(i-1, 1) * x(1);
-         q_scr(i, 2) = q_scr(i-1, 2) * x(2);
-      }
+      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0));
+      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1));
+      poly1d.CalcMono(polyOrd, x(2), &q_scr(0, 2));
       for (int i = 0; i < numPoly1d; ++i)
       {
          for (int j = 0; j + i < numPoly1d; ++j)
@@ -13343,6 +13326,7 @@ void RKFiniteElement::GetPoly(const Vector &x,
 }
 
 void RKFiniteElement::GetDPoly(const Vector &x,
+                               Vector &p,
                                Vector (&dp)[3]) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -13354,30 +13338,16 @@ void RKFiniteElement::GetDPoly(const Vector &x,
    switch (Dim)
    {
    case 1:
-      q_scr(0, 0) = 1.0;
-      dp[0](0) = 0.0;
-      for (int i = 1; i < numPoly1d; ++i)
-      {
-         dp[0](i) = dp[0](i-1) * x(0) + q_scr(i-1, 0);
-         q_scr(i, 0) = q_scr(i-1, 0) * x(0);
-      }
+      poly1d.CalcMono(polyOrd, x(0), &p(0), &dp[0](0));
       break;
    case 2:
-      q_scr(0, 0) = 1.0;
-      q_scr(0, 1) = 1.0;
-      dq_scr(0, 0) = 0.0;
-      dq_scr(0, 1) = 0.0;
-      for (int i = 1; i < numPoly1d; ++i)
-      {
-         q_scr(i, 0) = q_scr(i-1, 0) * x(0);
-         q_scr(i, 1) = q_scr(i-1, 1) * x(1);
-         dq_scr(i, 0) = dq_scr(i-1, 0) * x(0) + q_scr(i-1, 0);
-         dq_scr(i, 1) = dq_scr(i-1, 1) * x(1) + q_scr(i-1, 1);
-      }
+      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
+      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
       for (int i = 0; i < numPoly1d; ++i)
       {
          for (int j = 0; j + i < numPoly1d; ++j)
          {
+            p(index) = q_scr(i, 0) * q_scr(j, 1);
             dp[0](index) = dq_scr(i, 0) * q_scr(j, 1);
             dp[1](index) = q_scr(i, 0) * dq_scr(j, 1);
             ++index;
@@ -13385,27 +13355,16 @@ void RKFiniteElement::GetDPoly(const Vector &x,
       }
       break;
    case 3:
-      q_scr(0, 0) = 1.0;
-      q_scr(0, 1) = 1.0;
-      q_scr(0, 2) = 1.0;
-      dq_scr(0, 0) = 0.0;
-      dq_scr(0, 1) = 0.0;
-      dq_scr(0, 2) = 0.0;
-      for (int i = 1; i < numPoly1d; ++i)
-      {
-         q_scr(i, 0) = q_scr(i-1, 0) * x(0);
-         q_scr(i, 1) = q_scr(i-1, 1) * x(1);
-         q_scr(i, 2) = q_scr(i-1, 2) * x(2);
-         dq_scr(i, 0) = dq_scr(i-1, 0) * x(0) + q_scr(i-1, 0);
-         dq_scr(i, 1) = dq_scr(i-1, 1) * x(1) + q_scr(i-1, 1);
-         dq_scr(i, 2) = dq_scr(i-1, 2) * x(2) + q_scr(i-1, 2);
-      }
+      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
+      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
+      poly1d.CalcMono(polyOrd, x(2), &q_scr(0, 2), &dq_scr(0, 2));
       for (int i = 0; i < numPoly1d; ++i)
       {
          for (int j = 0; j + i < numPoly1d; ++j)
          {
             for (int k = 0; k + j + i < numPoly1d; ++k)
             {
+               p(index) = q_scr(i, 0) * q_scr(j, 1) * q_scr(k, 2);
                dp[0](index) = dq_scr(i, 0) * q_scr(j, 1) * q_scr(k, 2);
                dp[1](index) = q_scr(i, 0) * dq_scr(j, 1) * q_scr(k, 2);
                dp[2](index) = q_scr(i, 0) * q_scr(j, 1) * dq_scr(k, 2);
@@ -13430,7 +13389,11 @@ void RKFiniteElement::GetM(const Vector &baseShape,
 #endif
    
    IntRuleToVec(ip, x_scr);
-   
+
+   // Zero out M
+   M = 0.0;
+
+   // Get lower-triangular M matrix
    for (int i = 0; i < Dof; ++i)
    {
       // Distance vector
@@ -13441,6 +13404,15 @@ void RKFiniteElement::GetM(const Vector &baseShape,
 
       // Add values to M
       AddToM(p_scr, baseShape(i), M);
+   }
+
+   // Fill in symmetries
+   for (int k = 1; k < numPoly; ++k)
+   {
+      for (int l = 0; l < k; ++l)
+      {
+         M(k, l) = M(l, k);
+      }
    }
 }
 
@@ -13463,15 +13435,22 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
    }
 #endif
    IntRuleToVec(ip, x_scr);
-   
+
+   // Zero out M and dM
+   M = 0.0;
+   for (int d = 0; d < Dim; ++d)
+   {
+      dM[d] = 0.0;
+   }
+
+   // Get lower-triangular M and dM matrix
    for (int i = 0; i < Dof; ++i)
    {
       // Distance vector
       DistanceVec(i, x_scr, y_scr);
       
       // Polynomials
-      GetPoly(y_scr, p_scr);
-      GetDPoly(y_scr, dp_scr);
+      GetDPoly(y_scr, p_scr, dp_scr);
 
       // Add values to M
       f_scr = baseShape(i);
@@ -13484,24 +13463,37 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
       }
       AddToDM(p_scr, dp_scr, f_scr, df_scr, dM);
    }
+
+   // Fill in symmetries
+   for (int k = 1; k < numPoly; ++k)
+   {
+      for (int l = 0; l < k; ++l)
+      {
+         M(k, l) = M(l, k);
+      }
+   }
+   for (int d = 0; d < Dim; ++d)
+   {
+      for (int k = 1; k < numPoly; ++k)
+      {
+         for (int l = 0; l < k; ++l)
+         {
+            dM[d](k, l) = dM[d](l, k);
+         }
+      }
+   }
 }
 
 void RKFiniteElement::AddToM(const Vector &p,
                              const double &f,
                              DenseMatrix &M) const
 {
+   // Add to lower triangular part
    for (int k = 0; k < numPoly; ++k)
    {
       for (int l = k; l < numPoly; ++l)
       {
          M(k, l) += p(k) * p(l) * f;
-      }
-   }
-   for (int k = 1; k < numPoly - 1; ++k)
-   {
-      for (int l = 0; l < k; ++l)
-      {
-         M(k, l) = M(l, k);
       }
    }
 }
@@ -13510,7 +13502,9 @@ void RKFiniteElement::AddToDM(const Vector &p,
                               const Vector (&dp)[3],
                               const double &f,
                               const Vector &df,
-                              DenseMatrix (&dM)[3]) const {
+                              DenseMatrix (&dM)[3]) const
+{
+   // Add to lower triangular part
    for (int d = 0; d < Dim; ++d)
    {
       const Vector &dpl = dp[d];
@@ -13520,13 +13514,6 @@ void RKFiniteElement::AddToDM(const Vector &p,
          {
             dM[d](k, l) += ((dpl(k) * p(l) + p(k) * dpl(l)) * f
                             + p(l) * p(k) * df(d));
-         }
-      }
-      for (int k = 1; k < numPoly - 1; ++k)
-      {
-         for (int l = 0; l < k; ++l)
-         {
-            dM[d](k, l) = dM[d](l, k);
          }
       }
    }
@@ -13584,14 +13571,13 @@ void RKFiniteElement::CalculateDValues(const Vector &c,
       DistanceVec(i, x_scr, y_scr);
       
       // Polynomials
-      GetPoly(y_scr, p_scr);
-      GetDPoly(y_scr, dp_scr);
+      GetDPoly(y_scr, p_scr, dp_scr);
       
       // Get shape
       for (int d = 0; d < Dim; ++d)
       {
          dshape(i, d) = ((dp_scr[d] * c + p_scr * dc[d]) * baseShape(i)
-                         + p_scr * c * baseDShape(i, d));
+                         + (p_scr * c) * baseDShape(i, d));
       }
    }
 }

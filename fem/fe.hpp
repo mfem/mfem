@@ -1865,8 +1865,8 @@ private:
 
    static Array2D<int> binom;
 
-   static void CalcMono(const int p, const double x, double *u);
-   static void CalcMono(const int p, const double x, double *u, double *d);
+   static void CalcLegendre(const int p, const double x, double *u);
+   static void CalcLegendre(const int p, const double x, double *u, double *d);
 
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
@@ -1973,8 +1973,9 @@ public:
    static void CalcBernstein(const int p, const double x, double *u, double *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
 
-   static void CalcLegendre(const int p, const double x, double *u);
-   static void CalcLegendre(const int p, const double x, double *u, double *d);
+   /// Compute the standard polynomials
+   static void CalcMono(const int p, const double x, double *u);
+   static void CalcMono(const int p, const double x, double *u, double *d);
 
    ~Poly_1D();
 };
@@ -3429,13 +3430,13 @@ private:
    mutable DenseMatrix dM_scr[3];
    mutable DenseMatrixInverse Minv_scr;
 #endif
-   Poly_1D::Basis &basis1d;
    int polyOrd, numPoly, numPoly1d;
    KernelFiniteElement *baseFE;
 
    virtual void GetPoly(const Vector &x,
                         Vector &p) const;
    virtual void GetDPoly(const Vector &x,
+                         Vector &p,
                          Vector (&dp)[3]) const;
    virtual void GetG(Vector &g) const;
    virtual void GetM(const Vector &baseShape,
@@ -3470,7 +3471,6 @@ private:
    
 public:
    RKFiniteElement(const int poly,
-                   const int b_type,
                    KernelFiniteElement *baseClass);
    virtual ~RKFiniteElement() { delete baseFE; } 
    
