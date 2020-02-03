@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
          (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         //mesh->UniformRefinement();
       }
    }
 
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+         //pmesh->UniformRefinement();
       }
    }
    pmesh->ReorientTetMesh();
