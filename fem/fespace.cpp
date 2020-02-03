@@ -2889,6 +2889,32 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
+void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dofValue = 0;
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+            dofValue += d_x(idx_j % nd, c, idx_j / nd);
+         }
+         d_y(t?c:i,t?i:c) = dofValue;
+      }
+   });
+}
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir)

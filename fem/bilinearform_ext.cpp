@@ -42,8 +42,11 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
      trialFes(a->FESpace()),
      testFes(a->FESpace())
 {
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
+   const Operator* elem_restrict = trialFes->GetElementRestriction(
+                                      ElementDofOrdering::LEXICOGRAPHIC);
+
+   elem_restrict_lex = dynamic_cast<const ElementRestriction*>(elem_restrict);
+
    if (elem_restrict_lex)
    {
       localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
@@ -74,7 +77,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       {
          integrators[i]->AssembleDiagonalPA(localY);
       }
-      elem_restrict_lex->MultTranspose(localY, y);
+      elem_restrict_lex->MultTransposeUnsigned(localY, y);
    }
    else
    {
@@ -85,12 +88,6 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
          integrators[i]->AssembleDiagonalPA(y);
       }
    }
-
-   for (int i = 0; i < y.Size(); ++i)
-   {
-      y[i] = fabs(
-                y[i]); // necessary due to asymmetric signs applied by elem_restrict_lex->MultTranspose.
-   }
 }
 
 void PABilinearFormExtension::Update()
@@ -99,8 +96,12 @@ void PABilinearFormExtension::Update()
    height = width = fes->GetVSize();
    trialFes = fes;
    testFes = fes;
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
+
+   const Operator* elem_restrict = trialFes->GetElementRestriction(
+                                      ElementDofOrdering::LEXICOGRAPHIC);
+
+   elem_restrict_lex = dynamic_cast<const ElementRestriction*>(elem_restrict);
+
    if (elem_restrict_lex)
    {
       localX.SetSize(elem_restrict_lex->Height());
