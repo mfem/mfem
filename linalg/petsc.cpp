@@ -142,6 +142,7 @@ typedef struct
    mfem::TimeDependentOperator     *op;        // The time-dependent operator
    mfem::PetscBCHandler            *bchandler; // Handling of essential bc
    mfem::Vector                    *work;      // Work vector
+   mfem::Vector                    *work2;     // Work vector
    mfem::Operator::Type            jacType;    // OperatorType for the Jacobian
    enum mfem::PetscODESolver::Type type;
    PetscReal                       cached_shift;
@@ -2166,6 +2167,7 @@ void PetscSolver::CreatePrivateContext()
       ts_ctx->op = NULL;
       ts_ctx->bchandler = NULL;
       ts_ctx->work = NULL;
+      ts_ctx->work2 = NULL;
       ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
       ts_ctx->cached_ijacstate = -1;
       ts_ctx->cached_rhsjacstate = -1;
@@ -2190,6 +2192,7 @@ void PetscSolver::FreePrivateContext()
    {
       __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx *)private_ctx;
       delete ts_ctx->work;
+      delete ts_ctx->work2;
    }
    ierr = PetscFree(private_ctx); CCHKERRQ(PETSC_COMM_SELF,ierr);
 }
@@ -2292,6 +2295,25 @@ void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
       {
          y[ess_tdof_list[i]] = x[ess_tdof_list[i]] - eval_g[ess_tdof_list[i]];
       }
+   }
+}
+
+void PetscBCHandler::Zero(Vector &x)
+{
+   (*this).SetUp(x.Size());
+   for (int i = 0; i < ess_tdof_list.Size(); ++i)
+   {
+      x[ess_tdof_list[i]] = 0.0;
+   }
+}
+
+void PetscBCHandler::ZeroBC(const Vector &x, Vector &y)
+{
+   (*this).SetUp(x.Size());
+   y = x;
+   for (int i = 0; i < ess_tdof_list.Size(); ++i)
+   {
+      y[ess_tdof_list[i]] = 0.0;
    }
 }
 
@@ -3672,12 +3694,17 @@ static PetscErrorCode __mfem_ts_ifunction(TS ts, PetscReal t, Vec x, Vec xp,
    if (ts_ctx->bchandler)
    {
       // we evaluate the ImplicitMult method with the correct bc
+      // this means the correct time derivative for essential boundary
+      // dofs is zero
       if (!ts_ctx->work) { ts_ctx->work = new mfem::Vector(xx.Size()); }
+      if (!ts_ctx->work2) { ts_ctx->work2 = new mfem::Vector(xx.Size()); }
       mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
       mfem::Vector* txx = ts_ctx->work;
+      mfem::Vector* txp = ts_ctx->work2;
       bchandler->SetTime(t);
       bchandler->ApplyBC(xx,*txx);
-      op->ImplicitMult(*txx,yy,ff);
+      bchandler->ZeroBC(yy,*txp);
+      op->ImplicitMult(*txx,*txp,ff);
       // and fix the residual (i.e. f_\partial\Omega = u - g(t))
       bchandler->FixResidualBC(xx,ff);
    }
