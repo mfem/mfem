@@ -12,6 +12,7 @@
 #ifndef MFEM_MEM_MANAGER_HPP
 #define MFEM_MEM_MANAGER_HPP
 
+#include "../../dbg.hpp"
 #include "globals.hpp"
 #include "error.hpp"
 #include <cstring> // std::memcpy
@@ -188,6 +189,9 @@ public:
    /** The parameter @a own determines whether @a ptr will be deleted (using
        operator delete[]) when the method Delete() is called. */
    explicit Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
+
+   /** @brief Wrap an externally allocated and registered host pointer. */
+   explicit Memory(T *ptr) { Wrap(ptr, true); }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.

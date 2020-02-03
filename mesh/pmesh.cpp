@@ -3551,16 +3551,16 @@ void ParMesh::UniformRefineGroups2D(int old_nv)
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
 
-   I_group_svert = new int[GetNGroups()];
-   I_group_sedge = new int[GetNGroups()];
+   I_group_svert = Memory<int>(GetNGroups());
+   I_group_sedge = Memory<int>(GetNGroups());
 
    I_group_svert[0] = 0;
    I_group_sedge[0] = 0;
 
    // compute the size of the J arrays
-   J_group_svert = new int[group_svert.Size_of_connections()
-                           + group_sedge.Size_of_connections()];
-   J_group_sedge = new int[2*group_sedge.Size_of_connections()];
+   J_group_svert = Memory<int>(group_svert.Size_of_connections() +
+                               group_sedge.Size_of_connections());
+   J_group_sedge = Memory<int>(2*group_sedge.Size_of_connections());
 
    for (int group = 0; group < GetNGroups()-1; group++)
    {
