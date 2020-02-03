@@ -14,9 +14,9 @@
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
+#include <cmath>
 #endif
 
-#include <cmath>
 #include "../config/config.hpp"
 #include "../general/cuda.hpp"
 #include "../general/globals.hpp"
