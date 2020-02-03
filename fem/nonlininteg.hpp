@@ -72,10 +72,10 @@ public:
 
    /// Interpolate Discrete Targets for Analytic adaptivity
    virtual void SetupElementVectorTargetSpecification(const Vector &x,
-           const FiniteElementSpace &fes);
+                                                      const FiniteElementSpace &fes);
 
    virtual void SetupElementGradTargetSpecification(const Vector &x,
-           const FiniteElementSpace &fes);
+                                                    const FiniteElementSpace &fes);
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
@@ -135,11 +135,11 @@ public:
                                  const Array<const Vector *> &elfun,
                                  const Array2D<DenseMatrix *> &elmats);
 
-    virtual void SetupElementVectorTargetSpecification(
-            const Vector &x, const FiniteElementSpace &fes);
+   virtual void SetupElementVectorTargetSpecification(
+      const Vector &x, const FiniteElementSpace &fes);
 
-    virtual void SetupElementGradTargetSpecification(const Vector &x,
-            const FiniteElementSpace &fes);
+   virtual void SetupElementGradTargetSpecification(const Vector &x,
+                                                    const FiniteElementSpace &fes);
 
    virtual ~BlockNonlinearFormIntegrator() { }
 };
@@ -289,7 +289,7 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 
    virtual void SetupElementVectorTargetSpecification(
-           const Vector &x, const FiniteElementSpace &fes) {};
+      const Vector &x, const FiniteElementSpace &fes) {};
 
    virtual void SetupElementGradTargetSpecification(const Vector &x,
                                                     const FiniteElementSpace &fes) {};
@@ -327,7 +327,7 @@ public:
                                     const Array2D<DenseMatrix *> &elmats);
 
    virtual void SetupElementVectorTargetSpecification(
-           const Vector &x, const FiniteElementSpace &fes) {};
+      const Vector &x, const FiniteElementSpace &fes) {};
 
    virtual void SetupElementGradTargetSpecification(const Vector &x,
                                                     const FiniteElementSpace &fes) {};

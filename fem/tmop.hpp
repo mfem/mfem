@@ -848,8 +848,8 @@ public:
       delete lim_func;
       for (int i=0; i<ElemDer.Size(); i++)
       {
-          delete ElemDer[i];
-          delete ElemPertEnergy[i];
+         delete ElemDer[i];
+         delete ElemPertEnergy[i];
       }
    }
 
@@ -927,10 +927,10 @@ public:
    virtual void SetFDh(const Vector &x, const FiniteElementSpace &fes);
 
    virtual void SetupElementVectorTargetSpecification(const Vector &x,
-           const FiniteElementSpace &fes);
+                                                      const FiniteElementSpace &fes);
 
    virtual void SetupElementGradTargetSpecification(const Vector &x,
-           const FiniteElementSpace &fes);
+                                                    const FiniteElementSpace &fes);
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */
