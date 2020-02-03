@@ -888,8 +888,8 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = dynamic_cast<const L2_FECollection*>(fec)!=nullptr;
-   const L2FaceValues m = (is_dg_space && mul==L2FaceValues::Double) ?
-                          L2FaceValues::Double : L2FaceValues::Single;
+   const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
+                          L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
    key_face key = std::make_tuple(is_dg_space, e_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())

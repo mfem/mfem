@@ -267,7 +267,7 @@ public:
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering,
                                               FaceType type,
-                                              L2FaceValues mul = L2FaceValues::Double
+                                              L2FaceValues mul = L2FaceValues::DoubleValued
                                              ) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;

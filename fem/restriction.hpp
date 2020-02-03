@@ -24,7 +24,7 @@ enum class ElementDofOrdering;
 
 /** An enum type to specify if only e1 value is requested (Single) or both
     e1 and e2 (Double). */
-enum class L2FaceValues : bool {Single, Double};
+enum class L2FaceValues : bool {SingleValued, DoubleValued};
 
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
 /** Objects of this type are typically created and owned by FiniteElementSpace
@@ -111,7 +111,8 @@ protected:
 
 public:
    L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
-                     const FaceType, const L2FaceValues m = L2FaceValues::Double);
+                     const FaceType,
+                     const L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 };
@@ -137,7 +138,8 @@ protected:
 
 public:
    ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
-                        FaceType type, L2FaceValues m = L2FaceValues::Double);
+                        FaceType type,
+                        L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 };

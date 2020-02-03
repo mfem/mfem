@@ -10162,7 +10162,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    const Operator *face_restr = fespace->GetFaceRestriction(
                                    ElementDofOrdering::LEXICOGRAPHIC,
                                    type,
-                                   L2FaceValues::Single );
+                                   L2FaceValues::SingleValued );
    Vector Fnodes(face_restr->Height());
    face_restr->Mult(*nodes, Fnodes);
    Array<bool> signs(NF);
