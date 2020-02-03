@@ -1558,10 +1558,9 @@ void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
           MultAtB(pos, dshape, Jpr);
           detv = Jpr.Det();
           detv_min = std::min(detv,detv_min);
-
        }
     }
-    fdeps = pow(10,-4.)*detv_min;
+    fdeps = pow(10,-2.)*detv_min;
 }
 
 void TMOP_Integrator::SetupElementVectorTargetSpecification(
@@ -1574,9 +1573,9 @@ void TMOP_Integrator::SetupElementVectorTargetSpecification(
         const int dim = fes.GetFE(0)->GetDim();
         const int cnt = x.Size()/dim;
 
-        if (TSpecPerth.Size() != x.Size())
+        if (discr_tc->target_spec_perth.Size() != x.Size())
         {
-           TSpecPerth.SetSize(x.Size());
+           discr_tc->target_spec_perth.SetSize(x.Size());
         }
 
         Vector TSpecTemp;
@@ -1593,7 +1592,7 @@ void TMOP_Integrator::SetupElementVectorTargetSpecification(
 
             for (int i=0;i<cnt;i++)
             {
-                TSpecPerth(j*cnt+i) = TSpecTemp(i);
+                discr_tc->target_spec_perth(j*cnt+i) = TSpecTemp(i);
                 xtemp(j*cnt+i) -= fdeps;
             } //loop-i
         } // loop-j
@@ -1608,16 +1607,18 @@ void TMOP_Integrator::SetupElementGradTargetSpecification(
         const int dim = fes.GetFE(0)->GetDim();
         const int cnt = x.Size()/dim;
 
-        if (TSpecPert2h.Size() != x.Size())
+        if (discr_tc->target_spec_pert2h.Size() != x.Size())
         {
-           TSpecPert2h.SetSize(x.Size());
-           TSpecPertMix.SetSize(cnt*(1+2*(dim-2)));
+           discr_tc->target_spec_pert2h.SetSize(x.Size());
+           discr_tc->target_spec_pertmix.SetSize(cnt*(1+2*(dim-2)));
         }
 
         Vector TSpecTemp;
         TSpecTemp.SetSize(cnt);
         Vector xtemp = x;
-        if (TSpecMixIdx.Size()==0) {TSpecMixIdx.SetSize(dim);}
+
+        if (discr_tc->TSpecMixIdx.NumRows()==0) {
+            discr_tc->TSpecMixIdx.SetSize(dim,dim);}
 
         // T(x+2h)
         for (int j=0;j<dim;j++)
@@ -1631,7 +1632,7 @@ void TMOP_Integrator::SetupElementGradTargetSpecification(
 
             for (int i=0;i<cnt;i++)
             {
-                TSpecPert2h(j*cnt+i) = TSpecTemp(i);
+                discr_tc->target_spec_pert2h(j*cnt+i) = TSpecTemp(i);
                 xtemp(j*cnt+i) -= 2*fdeps;
             } //loop-i
         } // loop-j
@@ -1651,12 +1652,12 @@ void TMOP_Integrator::SetupElementGradTargetSpecification(
 
               for (int i=0; i<cnt; i++)
               {
-                  TSpecPertMix(idx*cnt+i) = TSpecTemp(i);
+                  discr_tc->target_spec_pertmix(idx*cnt+i) = TSpecTemp(i);
                   xtemp(k1*cnt+i) -= fdeps;
                   xtemp(k2*cnt+i) -= fdeps;
               }
-              TSpecMixIdx(k1,k2) = idx;
-              TSpecMixIdx(k2,k1) = idx;
+              discr_tc->TSpecMixIdx(k1,k2) = idx;
+              discr_tc->TSpecMixIdx(k2,k1) = idx;
               idx += 1;
            }
         }
@@ -1718,7 +1719,8 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    {
       for (int i=0; i<dof; i++)
       {
-         if (discr_tc) {discr_tc->UpdateTargetSpecificationAtNode(el,T,i,j,TSpecPerth);}
+         if (discr_tc) {discr_tc->UpdateTargetSpecificationAtNode(
+                         el,T,i,j,discr_tc->target_spec_perth);}
          elvect(j*dof+i) = (this)->GetFDDerivative(el,T,elfunmod,i,j);
          if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,i);}
       }
@@ -1745,7 +1747,6 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    elfunmod.SetData(elfun.GetData());
 
    Vector ElemPertTemp(dof);
-   if (TSpecMixIdx.Size()==0) {TSpecMixIdx.SetSize(dim);}
 
    Vector ElemDerLoc = *(ElemDer[T.ElementNo]);
    Vector ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
@@ -1761,21 +1762,25 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
 
                if (discr_tc)
                {
-                  discr_tc->UpdateTargetSpecificationAtNode(el,T,j,k2,TSpecPerth);
+                  discr_tc->UpdateTargetSpecificationAtNode(
+                              el,T,j,k2,discr_tc->target_spec_perth);
                   if (j!=i)
                   {
-                     discr_tc->UpdateTargetSpecificationAtNode(el,T,i,k1,TSpecPerth);
+                     discr_tc->UpdateTargetSpecificationAtNode(
+                                 el,T,i,k1,discr_tc->target_spec_perth);
                   }
                   else   // j==i
                   {
                      if (k1!=k2)
                      {
-                        int idx = TSpecMixIdx(k1,k2);
-                        discr_tc->UpdateTargetSpecificationAtNode(el,T,i,k1,idx,TSpecPertMix);
+                        int idx = discr_tc->TSpecMixIdx(k1,k2);
+                        discr_tc->UpdateTargetSpecificationAtNode(
+                                    el,T,i,k1,idx,discr_tc->target_spec_pertmix);
                      }
                      else   //j==i && k1==k2
                      {
-                        discr_tc->UpdateTargetSpecificationAtNode(el,T,i,k1,TSpecPert2h);
+                        discr_tc->UpdateTargetSpecificationAtNode(
+                                    el,T,i,k1,discr_tc->target_spec_pert2h);
                      }
                   }
                }

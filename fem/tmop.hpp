@@ -708,8 +708,8 @@ class DiscreteAdaptTC : public TargetConstructor
 protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
-   Vector target_spec;
-   Vector target_spec_sav;
+   Vector target_spec;         //eta(x)
+
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
    const FiniteElementSpace *tspec_fes;
@@ -719,6 +719,12 @@ protected:
    AdaptivityEvaluator *adapt_eval;
 
 public:
+   Vector target_spec_sav;
+   Vector target_spec_perth;   //eta(x+h)
+   Vector target_spec_pert2h;  //eta(x+2*h)
+   Vector target_spec_pertmix; //eta(x+h,y+h)
+   Array2D<int> TSpecMixIdx;   //Index for mix derivative terms
+
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
         target_spec(), tspec_fes(NULL), adapt_eval(NULL) { }
@@ -807,10 +813,6 @@ protected:
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
-   Vector           TSpecPerth;     //eta(x+h)     Discrete field perturbed
-   Vector           TSpecPert2h;    //eta(x+2*h)
-   Vector           TSpecPertMix;   //eta(x+h,y+h)
-   DenseMatrix      TSpecMixIdx;    //Index for mix derivative terms
 
    mutable DiscreteAdaptTC *discr_tc;
 
