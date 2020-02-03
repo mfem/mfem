@@ -1385,6 +1385,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       return;
    }
 
+#if 0
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
@@ -1393,6 +1394,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    }
    MFEM_VERIFY(Iso || Dim < 3,
                "parallel refinement of 3D aniso meshes not supported yet.");
+#endif
 
    NeighborRefinementMessage::Map send_ref;
 
