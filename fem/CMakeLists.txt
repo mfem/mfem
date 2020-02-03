@@ -13,17 +13,14 @@ set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
+  bilininteg_convection.cpp
+  bilininteg_dgtrace.cpp
   bilininteg_diffusion.cpp
   bilininteg_divergence.cpp
   bilininteg_gradient.cpp
   bilininteg_mass.cpp
-  bilininteg_divergence.cpp
-  bilininteg_gradient.cpp
-  bilininteg_convection.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
-  bilininteg_convection.cpp
-  bilininteg_dgtrace.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
