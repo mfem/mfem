@@ -60,6 +60,7 @@ FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
      fdofs(NULL), bdofs(NULL),
+     nbInteriorFaces(-1), nbBoundaryFaces(-1),
      elem_dof(NULL), bdrElem_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
@@ -70,6 +71,7 @@ FiniteElementSpace::FiniteElementSpace()
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
                                        Mesh *mesh,
                                        const FiniteElementCollection *fec)
+   : nbInteriorFaces(-1), nbBoundaryFaces(-1)
 {
    mesh = mesh ? mesh : orig.mesh;
    fec = fec ? fec : orig.fec;
@@ -830,18 +832,25 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
-int FiniteElementSpace::GetNFbyType(FaceType type) const
+static int CountFacesByType(const FiniteElementSpace &fes, const FaceType type)
 {
    int e1, e2;
    int inf1, inf2;
    int nf = 0;
-   for (int f = 0; f < this->GetNF(); ++f)
+   for (int f = 0; f < fes.GetNF(); ++f)
    {
-      this->GetMesh()->GetFaceElements(f, &e1, &e2);
-      this->GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
           (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
    }
+   return nf;
+}
+
+int FiniteElementSpace::GetNFbyType(FaceType type) const
+{
+   int &nf = type==FaceType::Interior? nbInteriorFaces : nbBoundaryFaces;
+   if(nf<0) { nf = CountFacesByType(*this, type); }
    return nf;
 }
 
@@ -1452,6 +1461,8 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
 {
    this->mesh = mesh;
    this->fec = fec;
+   this->nbInteriorFaces = -1;
+   this->nbBoundaryFaces = -1;
    this->vdim = vdim;
    this->ordering = (Ordering::Type) ordering;
 
