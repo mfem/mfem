@@ -122,7 +122,8 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = GetMesh(mt);
    int dim = mesh->Dimension();
-
+   nev = dim + 1;
+   
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
    //    specified on the command line with -rs).
@@ -251,7 +252,7 @@ int main(int argc, char *argv[])
       Vector deigs(size);
       Ad.Eigenvalues(Md, deigs, vd);
 
-      for (int i=bsize; i<min(size,bsize+7); i++)
+      for (int i=bsize; i<min(size,bsize+nev); i++)
       {
          eigenvalues[i-bsize] = deigs[i];
          cout << "Eigenvalue lambda   " << deigs[i] << '\n';
@@ -260,8 +261,8 @@ int main(int argc, char *argv[])
       tic_toc.Stop();
       cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
-      Vector err(7); err = 0.0;
-      for (int i=0; i<min(size-bsize,7); i++)
+      Vector err(nev); err = 0.0;
+      for (int i=0; i<min(size-bsize,nev); i++)
       {
          err[i] = eigenvalues[i] / double(exact_eigs[i]) - 1.0;
       }
@@ -419,8 +420,8 @@ int main(int argc, char *argv[])
       tic_toc.Stop();
       cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
-      Vector err(7);
-      for (int i=0; i<7; i++)
+      Vector err(nev);
+      for (int i=0; i<nev; i++)
       {
          err[i] = eigenvalues[i] / double(exact_eigs[i]) - 1.0;
 	 cout << i << " " << err[i] << endl;
@@ -851,6 +852,8 @@ Mesh * GetMesh(MeshType &type)
    }
    mesh->FinalizeTopology();
 
+   if (mesh->Dimension() == 3)
+   {
    Array<int> fcs;
    Array<int> cor;
    for (int i=0; i<mesh->GetNE(); i++)
@@ -861,6 +864,7 @@ Mesh * GetMesh(MeshType &type)
          cout << i << '\t' << j << '\t' << fcs[j] << '\t' << cor[j] << '\n';
       }
    }
-
+   }
+   
    return mesh;
 }
