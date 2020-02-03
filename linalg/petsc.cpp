@@ -4374,7 +4374,7 @@ static PetscErrorCode __mfem_mat_shell_apply(Mat A, Vec x, Vec y)
 
    PetscFunctionBeginUser;
    ierr = MatShellGetContext(A,(void **)&op); CHKERRQ(ierr);
-   if (!op) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator");
+   if (!op) { SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator"); }
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
    op->Mult(xx,yy);
@@ -4390,7 +4390,7 @@ static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat A, Vec x, Vec y)
 
    PetscFunctionBeginUser;
    ierr = MatShellGetContext(A,(void **)&op); CHKERRQ(ierr);
-   if (!op) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator");
+   if (!op) { SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator"); }
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
    op->MultTranspose(xx,yy);
@@ -4406,7 +4406,7 @@ static PetscErrorCode __mfem_mat_shell_copy(Mat A, Mat B, MatStructure str)
 
    PetscFunctionBeginUser;
    ierr = MatShellGetContext(A,(void **)&op); CHKERRQ(ierr);
-   if (!op) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator");
+   if (!op) { SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator"); }
    ierr = MatShellSetContext(B,(void *)op); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
