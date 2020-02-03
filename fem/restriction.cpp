@@ -22,7 +22,8 @@ L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
    : ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndof(ne > 0 ? fes.GetFE(0)->GetDof() : 0)
+     ndof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
+     ndofs(fes.GetNDofs())
 {
    height = vdim*ne*ndof;
    width = vdim*ne*ndof;
@@ -30,67 +31,38 @@ L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
 
 void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
 {
-   const int NE = ne;
-   const int VDIM = vdim;
-   const int NDOF = ndof;
-   const bool BYVDIM = byvdim;
-   auto d_x = x.Read();
-   auto d_y = y.Write();
-   MFEM_FORALL(iel, NE,
+   const int nd = ndof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, ne);
+   MFEM_FORALL(i, ndofs,
    {
-      for (int vd=0; vd<VDIM; ++vd)
+      const int idx = i;
+      const int dof = idx % nd;
+      const int e = idx / nd;
+      for (int c = 0; c < vd; ++c)
       {
-         for (int idof=0; idof<NDOF; ++idof)
-         {
-            // E-vector dimensions (dofs, vdim, elements)
-            // L-vector dimensions: byVDIM:  (vdim, dofs, element)
-            //                      byNODES: (dofs, elements, vdim)
-            int yidx = iel*VDIM*NDOF + vd*NDOF + idof;
-            int xidx;
-            if (BYVDIM)
-            {
-               xidx = iel*NDOF*VDIM + idof*VDIM + vd;
-            }
-            else
-            {
-               xidx = vd*NE*NDOF + iel*NDOF + idof;
-            }
-            d_y[yidx] = d_x[xidx];
-         }
+         d_y(dof, c, e) = d_x(t?c:idx, t?idx:c);
       }
    });
 }
 
 void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
 {
-   const int NE = ne;
-   const int VDIM = vdim;
-   const int NDOF = ndof;
-   const bool BYVDIM = byvdim;
-   auto d_x = x.Read();
-   auto d_y = y.Write();
-   // Since this restriction is a permutation, the transpose is the inverse
-   MFEM_FORALL(iel, NE,
+   const int nd = ndof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
    {
-      for (int vd=0; vd<VDIM; ++vd)
+      const int idx = i;
+      const int dof = idx % nd;
+      const int e = idx / nd;
+      for (int c = 0; c < vd; ++c)
       {
-         for (int idof=0; idof<NDOF; ++idof)
-         {
-            // E-vector dimensions (dofs, vdim, elements)
-            // L-vector dimensions: byVDIM:  (vdim, dofs, element)
-            //                      byNODES: (dofs, elements, vdim)
-            int xidx = iel*VDIM*NDOF + vd*NDOF + idof;
-            int yidx;
-            if (BYVDIM)
-            {
-               yidx = iel*NDOF*VDIM + idof*VDIM + vd;
-            }
-            else
-            {
-               yidx = vd*NE*NDOF + iel*NDOF + idof;
-            }
-            d_y[yidx] = d_x[xidx];
-         }
+         d_y(t?c:idx,t?idx:c) = d_x(dof, c, e);
       }
    });
 }
@@ -534,6 +506,7 @@ void H1FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          d_y(t?c:i,t?i:c) += dofValue;
       }
    });
+   // Kept to be used with MFEM_USE_ATOMICADD
    // auto d_indices = scatter_indices.Read();
    // auto d_x = Reshape(x.Read(), nd, vd, nf);
    // auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
@@ -951,6 +924,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          d_y(t?c:i,t?i:c) += dofValue;
       }
    });
+   // Kept to be used with MFEM_USE_ATOMICADD
    // if (m==L2FaceValues::Double)
    // {
    //    auto d_indices1 = indices1.Read();
@@ -1320,6 +1294,7 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          d_y(t?c:i,t?i:c) += dofValue;
       }
    });
+   // Kept to be used with MFEM_USE_ATOMICADD
    // const int threshold = ndofs;
    // if (m==L2FaceValues::Double)
    // {

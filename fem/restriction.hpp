@@ -59,6 +59,7 @@ class L2ElementRestriction : public Operator
    const int vdim;
    const bool byvdim;
    const int ndof;
+   const int ndofs;
 public:
    L2ElementRestriction(const FiniteElementSpace&);
    void Mult(const Vector &x, Vector &y) const;
