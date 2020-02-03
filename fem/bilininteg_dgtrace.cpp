@@ -54,7 +54,7 @@ static void PADGTraceSetup2D(const int Q1D,
          const double v1 = const_v ? V(1,0,0) : V(1,q,f);
          const double dot = n(q,0,f) * v0 + n(q,1,f) * v1;
          const double abs = dot > 0.0 ? dot : -dot;
-         const double w = W[q]*d(q,f);
+         const double w = W[q]*r*d(q,f);
          qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
          qd(q,1,0,f) = w*( alpha/2 * dot - beta * abs );
          qd(q,0,1,f) = w*(-alpha/2 * dot - beta * abs );
@@ -100,7 +100,7 @@ static void PADGTraceSetup3D(const int Q1D,
             const double v2 = const_v ? V(2,0,0,0) : V(2,q1,q2,f);
             const double dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 + n(q1,q2,2,f) * v2;
             const double abs = dot > 0.0 ? dot : -dot;
-            const double w = W[q1+q2*Q1D]*d(q1,q2,f);
+            const double w = W[q1+q2*Q1D]*r*d(q1,q2,f);
             qd(q1,q2,0,0,f) = w*( alpha/2 * dot + beta * abs );
             qd(q1,q2,1,0,f) = w*( alpha/2 * dot - beta * abs );
             qd(q1,q2,0,1,f) = w*(-alpha/2 * dot - beta * abs );

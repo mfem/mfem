@@ -47,7 +47,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    bound_face_restrict_lex = NULL;
 }
 
-void PABilinearFormExtension::Setup()
+void PABilinearFormExtension::SetupRestrictionOperators()
 {
    if (elem_restrict_lex == NULL)
    {
