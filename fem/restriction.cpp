@@ -918,8 +918,8 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
             bool isE1 = idx_j < dofs;
             idx_j = isE1 ? idx_j : idx_j - dofs;
             dofValue +=  isE1 ?
-                         d_x(idx_j % nd, c, 0, idx_j / nd)
-                        :d_x(idx_j % nd, c, 1, idx_j / nd);
+            d_x(idx_j % nd, c, 0, idx_j / nd)
+            :d_x(idx_j % nd, c, 1, idx_j / nd);
          }
          d_y(t?c:i,t?i:c) += dofValue;
       }
@@ -1288,8 +1288,8 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
             bool isE1 = idx_j < dofs;
             idx_j = isE1 ? idx_j : idx_j - dofs;
             dofValue +=  isE1 ?
-                         d_x(idx_j % nd, c, 0, idx_j / nd)
-                        :d_x(idx_j % nd, c, 1, idx_j / nd);
+            d_x(idx_j % nd, c, 0, idx_j / nd)
+            :d_x(idx_j % nd, c, 1, idx_j / nd);
          }
          d_y(t?c:i,t?i:c) += dofValue;
       }
