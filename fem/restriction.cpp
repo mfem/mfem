@@ -641,9 +641,9 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      m(m),
      nfdofs(nf*dof),
      scatter_indices1(nf*dof),
-     scatter_indices2(m==L2FaceValues::Double?nf*dof:0),
+     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
      offsets(ndofs+1),
-     gather_indices((m==L2FaceValues::Double? 2 : 1)*nf*dof)
+     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
 {
    //if fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
@@ -655,7 +655,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    if (nf==0) { return; }
-   height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder) { mfem_error("Non-Tensor L2FaceRestriction not yet implemented."); }
@@ -711,7 +711,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             const int lid = dof*f_ind + d;
             scatter_indices1[lid] = gid;
          }
-         if (m==L2FaceValues::Double)
+         if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
             {
@@ -760,7 +760,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             const int gid = elementMap[e1*elem_dofs + did];
             ++offsets[gid + 1];
          }
-         if (m==L2FaceValues::Double)
+         if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
             {
@@ -803,7 +803,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             //we don't shift lid to express that it's e1 of f
             gather_indices[offsets[gid]++] = lid;
          }
-         if (m==L2FaceValues::Double)
+         if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
             {
@@ -836,7 +836,7 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const int vd = vdim;
    const bool t = byvdim;
 
-   if (m==L2FaceValues::Double)
+   if (m==L2FaceValues::DoubleValued)
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_indices2 = scatter_indices2.Read();
@@ -924,9 +924,9 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
      m(m),
      nfdofs(nf*dof),
      scatter_indices1(nf*dof),
-     scatter_indices2(m==L2FaceValues::Double?nf*dof:0),
+     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
      offsets(ndofs+1),
-     gather_indices((m==L2FaceValues::Double? 2 : 1)*nf*dof)
+     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
 {
    if (nf==0) { return; }
    //if fespace == L2
@@ -939,7 +939,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto.
-   height = (m==L2FaceValues::Double? 2 : 1)*vdim*nf*dof;
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder) { mfem_error("Non-Tensor L2FaceRestriction not yet implemented."); }
@@ -996,7 +996,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             const int lid = dof*f_ind + d;
             scatter_indices1[lid] = gid;
          }
-         if (m==L2FaceValues::Double)
+         if (m==L2FaceValues::DoubleValued)
          {
             if (e2>=0)//interior face
             {
@@ -1041,7 +1041,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             const int lid = dof*f_ind + d;
             scatter_indices1[lid] = gid;
          }
-         if (m==L2FaceValues::Double)
+         if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
             {
@@ -1078,7 +1078,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             const int gid = elementMap[e1*elem_dofs + did];
             ++offsets[gid + 1];
          }
-         if (m==L2FaceValues::Double)
+         if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
             {
@@ -1122,7 +1122,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             //we don't shift lid to express that it's e1 of f
             gather_indices[offsets[gid]++] = lid;
          }
-         if (m==L2FaceValues::Double)
+         if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
             {
@@ -1162,7 +1162,7 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const bool t = byvdim;
    const int threshold = ndofs;
 
-   if (m==L2FaceValues::Double)
+   if (m==L2FaceValues::DoubleValued)
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_indices2 = scatter_indices2.Read();
