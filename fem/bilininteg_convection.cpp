@@ -88,9 +88,6 @@ static void PAConvectionSetup3D(const int Q1D,
          const double J13 = J(q,0,2,e);
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
-         // const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         // /* */               J21 * (J12 * J33 - J32 * J13) +
-         // /* */               J31 * (J12 * J23 - J22 * J13);
          const double w = alpha * W[q];
          const double v0 = const_v ? V(0,0,0) : V(0,q,e);
          const double v1 = const_v ? V(1,0,0) : V(1,q,e);
