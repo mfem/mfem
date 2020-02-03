@@ -51,14 +51,14 @@ void NonlinearFormIntegrator::AssembleFaceVector(
 }
 
 void NonlinearFormIntegrator::SetupElementVectorTargetSpecification(
-        const Vector &x, const FiniteElementSpace &fes)
+   const Vector &x, const FiniteElementSpace &fes)
 {
    mfem_error("NonlinearFormIntegrator::SetupElementVectorTargetSpecification"
               " is not overloaded!");
 }
 
 void NonlinearFormIntegrator::SetupElementGradTargetSpecification(
-        const Vector &x, const FiniteElementSpace &fes)
+   const Vector &x, const FiniteElementSpace &fes)
 {
    mfem_error("NonlinearFormIntegrator::SetupElementGradTargetSpecification"
               " is not overloaded!");
@@ -143,17 +143,17 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
 }
 
 void BlockNonlinearFormIntegrator::SetupElementVectorTargetSpecification(
-        const Vector &x, const FiniteElementSpace &fes)
+   const Vector &x, const FiniteElementSpace &fes)
 {
-    mfem_error("BlockNonlinearFormIntegrator::SetupElementVectorTargetSpecification"
-           " is not overloaded!");
+   mfem_error("BlockNonlinearFormIntegrator::SetupElementVectorTargetSpecification"
+              " is not overloaded!");
 }
 
 void BlockNonlinearFormIntegrator::SetupElementGradTargetSpecification(
-        const Vector &x, const FiniteElementSpace &fes)
+   const Vector &x, const FiniteElementSpace &fes)
 {
-    mfem_error("BlockNonlinearFormIntegrator::SetupElementVectorTargetSpecification"
-           " is not overloaded!");
+   mfem_error("BlockNonlinearFormIntegrator::SetupElementVectorTargetSpecification"
+              " is not overloaded!");
 }
 
 double InverseHarmonicModel::EvalW(const DenseMatrix &J) const

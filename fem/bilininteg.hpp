@@ -115,10 +115,10 @@ public:
    { AssembleFaceMatrix(el1, el2, Tr, elmat); }
 
    virtual void SetupElementVectorTargetSpecification(const Vector &x,
-           const FiniteElementSpace &fes);
+                                                      const FiniteElementSpace &fes);
 
    virtual void SetupElementGradTargetSpecification(const Vector &x,
-           const FiniteElementSpace &fes);
+                                                    const FiniteElementSpace &fes);
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
