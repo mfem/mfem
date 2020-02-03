@@ -558,8 +558,8 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (!Finalized())
    {
-      const double *xp = x.GetData();
-      double *yp = y.GetData();
+      const double *xp = x.HostRead();
+      double *yp = y.HostReadWrite();
 
       //  The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
