@@ -293,6 +293,7 @@ void SmemPAConvectionApply2D(const int ne,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
+            // e is really equal to e+tidz
             u[tidz][dy][dx] = x(dx,dy,e);
          }
       }
