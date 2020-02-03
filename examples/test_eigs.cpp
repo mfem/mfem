@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = GetMesh(mt);
    int dim = mesh->Dimension();
    nev = dim + 1;
-   
+
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
    //    specified on the command line with -rs).
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-   
+
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
@@ -281,9 +281,9 @@ int main(int argc, char *argv[])
          for (int i=0; i<nev; i++)
          {
             // convert eigenvector from HypreParVector to ParGridFunction
- 	    Vector ev;
-	    vd.GetColumnReference(bsize+i, ev);	    
-	    x = ev;
+            Vector ev;
+            vd.GetColumnReference(bsize+i, ev);
+            x = ev;
 
             mode_name << "mode_" << setfill('0') << setw(2) << i << "."
                       << setfill('0') << setw(6) << myid;
@@ -313,8 +313,8 @@ int main(int argc, char *argv[])
             }
 
             // convert eigenvector from HypreParVector to ParGridFunction
- 	    Vector ev;
-	    vd.GetColumnReference(bsize+i, ev);	    
+            Vector ev;
+            vd.GetColumnReference(bsize+i, ev);
             x = ev;
 
             mode_sock << "parallel " << num_procs << " " << myid << "\n"
@@ -424,7 +424,7 @@ int main(int argc, char *argv[])
       for (int i=0; i<nev; i++)
       {
          err[i] = eigenvalues[i] / double(exact_eigs[i]) - 1.0;
-	 cout << i << " " << err[i] << endl;
+         cout << i << " " << err[i] << endl;
       }
       cout << "Error: " << err.Norml1() << endl;
 
@@ -694,32 +694,32 @@ Mesh * GetMesh(MeshType &type)
          v[4] = 1; v[5] = 4; v[6] = 10; v[7] = 7;
          mesh->AddHex(v);
 
-	 switch(type)
-	 {
-	 case HEXAHEDRON2A: // Face Orientation 1
-	   v[0] = 4; v[1] = 10; v[2] = 7; v[3] = 1;
-	   v[4] = 3; v[5] = 9; v[6] = 8; v[7] = 2;
-	   mesh->AddHex(v);
-	   break;
-	 case HEXAHEDRON2B: // Face Orientation 3
-	   v[0] = 10; v[1] = 7; v[2] = 1; v[3] = 4;
-	   v[4] = 9; v[5] = 8; v[6] = 2; v[7] = 3;
-	   mesh->AddHex(v);
-	   break;
-	 case HEXAHEDRON2C: // Face Orientation 5
-	   v[0] = 7; v[1] = 1; v[2] = 4; v[3] = 10;
-	   v[4] = 8; v[5] = 2; v[6] = 3; v[7] = 9;
-	   mesh->AddHex(v);
-	   break;
-	 case HEXAHEDRON2D: // Face Orientation 7
-	   v[0] = 1; v[1] = 4; v[2] = 10; v[3] = 7;
-	   v[4] = 2; v[5] = 3; v[6] = 9; v[7] = 8;
-	   mesh->AddHex(v);
-	   break;
-	 default:
-	   // Cannot happen
-	   break;
-	 }
+         switch (type)
+         {
+            case HEXAHEDRON2A: // Face Orientation 1
+               v[0] = 4; v[1] = 10; v[2] = 7; v[3] = 1;
+               v[4] = 3; v[5] = 9; v[6] = 8; v[7] = 2;
+               mesh->AddHex(v);
+               break;
+            case HEXAHEDRON2B: // Face Orientation 3
+               v[0] = 10; v[1] = 7; v[2] = 1; v[3] = 4;
+               v[4] = 9; v[5] = 8; v[6] = 2; v[7] = 3;
+               mesh->AddHex(v);
+               break;
+            case HEXAHEDRON2C: // Face Orientation 5
+               v[0] = 7; v[1] = 1; v[2] = 4; v[3] = 10;
+               v[4] = 8; v[5] = 2; v[6] = 3; v[7] = 9;
+               mesh->AddHex(v);
+               break;
+            case HEXAHEDRON2D: // Face Orientation 7
+               v[0] = 1; v[1] = 4; v[2] = 10; v[3] = 7;
+               v[4] = 2; v[5] = 3; v[6] = 9; v[7] = 8;
+               mesh->AddHex(v);
+               break;
+            default:
+               // Cannot happen
+               break;
+         }
          break;
       case WEDGE2:
          mesh = new Mesh(3, 8, 2);
@@ -854,17 +854,17 @@ Mesh * GetMesh(MeshType &type)
 
    if (mesh->Dimension() == 3)
    {
-   Array<int> fcs;
-   Array<int> cor;
-   for (int i=0; i<mesh->GetNE(); i++)
-   {
-      mesh->GetElementFaces(i, fcs, cor);
-      for (int j=0; j<fcs.Size(); j++)
+      Array<int> fcs;
+      Array<int> cor;
+      for (int i=0; i<mesh->GetNE(); i++)
       {
-         cout << i << '\t' << j << '\t' << fcs[j] << '\t' << cor[j] << '\n';
+         mesh->GetElementFaces(i, fcs, cor);
+         for (int j=0; j<fcs.Size(); j++)
+         {
+            cout << i << '\t' << j << '\t' << fcs[j] << '\t' << cor[j] << '\n';
+         }
       }
    }
-   }
-   
+
    return mesh;
 }

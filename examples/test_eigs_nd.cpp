@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-   
+
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
@@ -251,25 +251,25 @@ int main(int argc, char *argv[])
 
       /*
       for (int i=0; i<size; i++)
-	{
-	  cout << i << " " << deigs[i] << endl;
-	}
-      */
-      
+      {
+        cout << i << " " << deigs[i] << endl;
+      }
+           */
+
       int first = -1;
       for (int i=0; i<size; i++)
-	{
-	  if (deigs[i] > 0.1)
-	    {
-	      first = i;
-	      break;
-	    }
-	}
+      {
+         if (deigs[i] > 0.1)
+         {
+            first = i;
+            break;
+         }
+      }
 
       for (int i=first; i<min(size, first + nev); i++)
       {
-	eigenvalues[i-first] = deigs[i];
-	cout << "Eigenvalue lambda   " << deigs[i] << '\n'; 
+         eigenvalues[i-first] = deigs[i];
+         cout << "Eigenvalue lambda   " << deigs[i] << '\n';
       }
 
       tic_toc.Stop();
@@ -295,9 +295,9 @@ int main(int argc, char *argv[])
          for (int i=0; i<nev; i++)
          {
             // convert eigenvector from HypreParVector to ParGridFunction
- 	    Vector ev;
-	    vd.GetColumnReference(first+i, ev);	    
-	    x = ev;
+            Vector ev;
+            vd.GetColumnReference(first+i, ev);
+            x = ev;
 
             mode_name << "mode_" << setfill('0') << setw(2) << i << "."
                       << setfill('0') << setw(6) << myid;
@@ -317,25 +317,25 @@ int main(int argc, char *argv[])
          socketstream mode_sock(vishost, visport);
          mode_sock.precision(8);
 
-	 for (int i=0; i<min(size-first,nev); i++)
+         for (int i=0; i<min(size-first,nev); i++)
          {
             if ( myid == 0 )
             {
                cout << "Eigenmode " << i+1 << '/' << nev
-		    << ", Lambda = " << eigenvalues[i]
-		    << " (" << exact_eigs[i] << ")"
-		    << endl;
+                    << ", Lambda = " << eigenvalues[i]
+                    << " (" << exact_eigs[i] << ")"
+                    << endl;
             }
 
             // convert eigenvector from HypreParVector to ParGridFunction
- 	    Vector ev;
-	    vd.GetColumnReference(first+i, ev);
+            Vector ev;
+            vd.GetColumnReference(first+i, ev);
             x = ev;
 
             mode_sock << "parallel " << num_procs << " " << myid << "\n"
                       << "solution\n" << *pmesh << x << flush
                       << "window_title 'Eigenmode " << i+1 << '/' << nev
-		      << ", Lambda = " << eigenvalues[i] << "'" << endl;
+                      << ", Lambda = " << eigenvalues[i] << "'" << endl;
 
             char c;
             if (myid == 0)
@@ -358,21 +358,21 @@ int main(int argc, char *argv[])
       tic_toc.Clear();
       tic_toc.Start();
       /*
-#if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
+      #if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
       Operator * Arow = NULL;
-#ifdef MFEM_USE_SUPERLU
+      #ifdef MFEM_USE_SUPERLU
       if (slu_solver)
       {
          Arow = new SuperLURowLocMatrix(*A);
       }
-#endif
-#ifdef MFEM_USE_STRUMPACK
+      #endif
+      #ifdef MFEM_USE_STRUMPACK
       if (sp_solver)
       {
          Arow = new STRUMPACKRowLocMatrix(*A);
       }
-#endif
-#endif
+      #endif
+      #endif
       */
       // 8. Define and configure the LOBPCG eigensolver and the BoomerAMG
       //    preconditioner for A to be used within the solver. Set the matrices
@@ -380,15 +380,15 @@ int main(int argc, char *argv[])
       HypreSolver * precond = NULL;
       // if (!slu_solver && !sp_solver)
       {
-	HypreAMS * ams = new HypreAMS(*A, fespace);
+         HypreAMS * ams = new HypreAMS(*A, fespace);
          ams->SetPrintLevel(0);
-	 ams->SetSingularProblem();
-	 precond = ams;
+         ams->SetSingularProblem();
+         precond = ams;
       }
       /*
       else
       {
-#ifdef MFEM_USE_SUPERLU
+      #ifdef MFEM_USE_SUPERLU
          if (slu_solver)
          {
             SuperLUSolver * superlu = new SuperLUSolver(MPI_COMM_WORLD);
@@ -398,8 +398,8 @@ int main(int argc, char *argv[])
             superlu->SetOperator(*Arow);
             precond = superlu;
          }
-#endif
-#ifdef MFEM_USE_STRUMPACK
+      #endif
+      #ifdef MFEM_USE_STRUMPACK
          if (sp_solver)
          {
             STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
@@ -412,7 +412,7 @@ int main(int argc, char *argv[])
             strumpack->SetFromCommandLine();
             precond = strumpack;
          }
-#endif
+      #endif
       }
       */
       /*
@@ -450,7 +450,7 @@ int main(int argc, char *argv[])
       for (int i=0; i<nev; i++)
       {
          err[i] = eigenvalues[i] / double(exact_eigs[i]) - 1.0;
-	 cout << i << " " << err[i] << endl;
+         cout << i << " " << err[i] << endl;
       }
       cout << "Error: " << err.Norml1() << endl;
 
@@ -522,9 +522,9 @@ int main(int argc, char *argv[])
       delete ame;
       delete precond;
       /*
-#if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
+      #if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
       delete Arow;
-#endif
+      #endif
       */
    }
 
@@ -722,32 +722,32 @@ Mesh * GetMesh(MeshType &type)
          v[4] = 1; v[5] = 4; v[6] = 10; v[7] = 7;
          mesh->AddHex(v);
 
-	 switch(type)
-	 {
-	 case HEXAHEDRON2A: // Face Orientation 1
-	   v[0] = 4; v[1] = 10; v[2] = 7; v[3] = 1;
-	   v[4] = 3; v[5] = 9; v[6] = 8; v[7] = 2;
-	   mesh->AddHex(v);
-	   break;
-	 case HEXAHEDRON2B: // Face Orientation 3
-	   v[0] = 10; v[1] = 7; v[2] = 1; v[3] = 4;
-	   v[4] = 9; v[5] = 8; v[6] = 2; v[7] = 3;
-	   mesh->AddHex(v);
-	   break;
-	 case HEXAHEDRON2C: // Face Orientation 5
-	   v[0] = 7; v[1] = 1; v[2] = 4; v[3] = 10;
-	   v[4] = 8; v[5] = 2; v[6] = 3; v[7] = 9;
-	   mesh->AddHex(v);
-	   break;
-	 case HEXAHEDRON2D: // Face Orientation 7
-	   v[0] = 1; v[1] = 4; v[2] = 10; v[3] = 7;
-	   v[4] = 2; v[5] = 3; v[6] = 9; v[7] = 8;
-	   mesh->AddHex(v);
-	   break;
-	 default:
-	   // Cannot happen
-	   break;
-	 }
+         switch (type)
+         {
+            case HEXAHEDRON2A: // Face Orientation 1
+               v[0] = 4; v[1] = 10; v[2] = 7; v[3] = 1;
+               v[4] = 3; v[5] = 9; v[6] = 8; v[7] = 2;
+               mesh->AddHex(v);
+               break;
+            case HEXAHEDRON2B: // Face Orientation 3
+               v[0] = 10; v[1] = 7; v[2] = 1; v[3] = 4;
+               v[4] = 9; v[5] = 8; v[6] = 2; v[7] = 3;
+               mesh->AddHex(v);
+               break;
+            case HEXAHEDRON2C: // Face Orientation 5
+               v[0] = 7; v[1] = 1; v[2] = 4; v[3] = 10;
+               v[4] = 8; v[5] = 2; v[6] = 3; v[7] = 9;
+               mesh->AddHex(v);
+               break;
+            case HEXAHEDRON2D: // Face Orientation 7
+               v[0] = 1; v[1] = 4; v[2] = 10; v[3] = 7;
+               v[4] = 2; v[5] = 3; v[6] = 9; v[7] = 8;
+               mesh->AddHex(v);
+               break;
+            default:
+               // Cannot happen
+               break;
+         }
          break;
       case WEDGE2:
          mesh = new Mesh(3, 8, 2);
@@ -882,17 +882,17 @@ Mesh * GetMesh(MeshType &type)
 
    if (mesh->Dimension() == 3)
    {
-   Array<int> fcs;
-   Array<int> cor;
-   for (int i=0; i<mesh->GetNE(); i++)
-   {
-      mesh->GetElementFaces(i, fcs, cor);
-      for (int j=0; j<fcs.Size(); j++)
+      Array<int> fcs;
+      Array<int> cor;
+      for (int i=0; i<mesh->GetNE(); i++)
       {
-         cout << i << '\t' << j << '\t' << fcs[j] << '\t' << cor[j] << '\n';
+         mesh->GetElementFaces(i, fcs, cor);
+         for (int j=0; j<fcs.Size(); j++)
+         {
+            cout << i << '\t' << j << '\t' << fcs[j] << '\t' << cor[j] << '\n';
+         }
       }
    }
-   }
-   
+
    return mesh;
 }
