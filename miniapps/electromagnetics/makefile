@@ -18,6 +18,10 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
+# Include defaults.mk to get XLINKER
+DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
+include $(DEFAULTS_MK)
+
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
@@ -35,6 +39,11 @@ endif
 .PRECIOUS: %.o
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
+
+# If MFEM_SHARED is set, add the ../common rpath
+COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
+   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
+   $(MFEM_BUILD_DIR)/miniapps/common))
 
 # Remove built-in rules
 %: %.cpp
