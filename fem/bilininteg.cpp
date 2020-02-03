@@ -783,6 +783,46 @@ const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
+/// alpha (n x u, v)
+void VectorFEBoundaryTangentIntegrator::AssembleElementMatrix
+( const FiniteElement &el, ElementTransformation &Trans,
+  DenseMatrix &elmat )
+{
+  const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
+  
+  int nd1 = el.GetDof();
+
+  DenseMatrix vshape(nd1, 2);
+  DenseMatrix vshapeRotated(nd1, 2);
+
+  elmat.SetSize(nd1);
+
+  elmat = 0.0;
+  for (int i = 0; i < ir->GetNPoints(); i++)
+    {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcVShape(ip, vshape);
+
+      for (int j=0; j<nd1; ++j)
+	{
+	  vshapeRotated(j, 0) = -vshape(j, 1);
+	  vshapeRotated(j, 1) = vshape(j, 0);
+	}
+
+      //IntegrationPoint eip;
+      //Trans.Loc1.Transform(ip, eip);
+      //el1.CalcVShape(eip, vshape);
+
+      Trans.SetIntPoint (&ip);
+      const double w = alpha * Trans.Weight() * ip.weight;
+
+      //Trans.Face->SetIntPoint(&ip);
+      //const double w = alpha * Trans.Face->Weight() * ip.weight;
+
+      // elmat += w * vshapeRotated * vshape^T
+      AddMult_a_ABt(w, vshapeRotated, vshape, elmat);
+    }
+}
 
 void BoundaryMassIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,

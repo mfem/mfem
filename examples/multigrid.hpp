@@ -239,22 +239,24 @@ class BlockMGSolver : public Solver
 {
 private:
    /// The linear system matrix
-   Array2D<HypreParMatrix *> Af;
+   Array2D<HypreParMatrix *>& Af;
+   Array2D<double>& Acoef;
    vector<Array<int>>Aoffsets;
    vector<Array<int>>Poffsets_i;
    vector<Array<int>>Poffsets_j;
    std::vector<Array2D<HypreParMatrix *>> A;
-   std::vector<HypreParMatrix *> P;
+   std::vector<HypreParMatrix *>& P;
    std::vector<BlockOperator *> BlkP;
    std::vector<BlockOperator *> BlkA;
    std::vector<BlockOperator *> S;
    HypreParMatrix * Ac;
-   int NumGrids;
+   int numGrids, numBlocks;
    STRUMPACKSolver *invAc = nullptr;
    double theta = 0.5;
 
 public:
-   BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HypreParMatrix *> P_);
+   BlockMGSolver(const int height, const int width, Array2D<HypreParMatrix *>& Af_,
+		 Array2D<double>& Acoef_, std::vector<HypreParMatrix *>& P_);
 
    virtual void SetOperator(const Operator &op) {}
 
@@ -264,35 +266,45 @@ public:
    virtual ~BlockMGSolver();
 };
 
-BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HypreParMatrix *> P_)
-  : Solver(Af_(0,0)->Height()+Af_(1,0)->Height(), Af_(0,0)->Width()+Af_(1,0)->Width()), Af(Af_), P(P_)
+BlockMGSolver::BlockMGSolver(const int height, const int width,
+			     Array2D<HypreParMatrix *>& Af_, Array2D<double>& Acoef_,
+			     std::vector<HypreParMatrix *>& P_)
+  : Solver(height, width), Af(Af_), Acoef(Acoef_), P(P_)
 {
-   NumGrids = P.size();
-   BlkP.resize(NumGrids);
-   BlkA.resize(NumGrids+1);
-   S.resize(NumGrids);
-   A.resize(NumGrids + 1);
-   A[NumGrids] = Af;
-   Aoffsets.resize(NumGrids+1);
-   Poffsets_i.resize(NumGrids);
-   Poffsets_j.resize(NumGrids);
+   numBlocks = Af.NumRows();
+   MFEM_VERIFY(Af.NumCols() == numBlocks, "");
+   numGrids = P.size();
+   BlkP.resize(numGrids);
+   BlkA.resize(numGrids+1);
+   S.resize(numGrids);
+   A.resize(numGrids + 1);
+   A[numGrids] = Af;
+   Aoffsets.resize(numGrids+1);
+   Poffsets_i.resize(numGrids);
+   Poffsets_j.resize(numGrids);
    // Construct Bilinear form Matrices on each level
-   for (int k = NumGrids ; k > 0; k--)
+   for (int k = numGrids ; k > 0; k--)
    {
-      A[k - 1].SetSize(2,2);
-      Aoffsets[k].SetSize(3); Aoffsets[k][0] = 0;
-      Aoffsets[k][1] = A[k](0,0)->Height();
-      Aoffsets[k][2] = A[k](1,1)->Height();
+      A[k - 1].SetSize(numBlocks,numBlocks);
+      Aoffsets[k].SetSize(numBlocks+1); Aoffsets[k][0] = 0;
+      for (int i=0; i<numBlocks; i++)
+	Aoffsets[k][i+1] = A[k](i,i)->Height();
+
       Aoffsets[k].PartialSum();
       BlkA[k] = new BlockOperator(Aoffsets[k]);
       S[k-1] = new BlockOperator(Aoffsets[k]);  // Smoother
 
-      for (int i=0; i<2; i++)
+      for (int i=0; i<numBlocks; i++)
       {
-         for (int j=0; j<2; j++)
+         for (int j=0; j<numBlocks; j++)
          {
-            A[k - 1](i,j) = RAP(A[k](i,j), P[k - 1]);
-            BlkA[k]->SetBlock(i,j,A[k](i,j));
+	    if (A[k](i,j) == NULL)
+	      A[k - 1](i,j) = NULL;
+	    else
+	      {
+		A[k - 1](i,j) = RAP(A[k](i,j), P[k - 1]);
+		BlkA[k]->SetBlock(i, j, A[k](i,j), Acoef(i,j));
+	      }
          }
 
 	 HypreSmoother *S_i = new HypreSmoother;
@@ -302,48 +314,52 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
 	 S[k - 1]->SetBlock(i,i,S_i);
       }
 
-      Poffsets_i[k-1].SetSize(3); Poffsets_i[k-1][0] = 0;
-      Poffsets_j[k-1].SetSize(3); Poffsets_j[k-1][0] = 0;
-      Poffsets_i[k-1][1] = P[k-1]->Height(); Poffsets_j[k-1][1] = P[k-1]->Width();
-      Poffsets_i[k-1][2] = P[k-1]->Height(); Poffsets_j[k-1][2] = P[k-1]->Width();
+      Poffsets_i[k-1].SetSize(numBlocks+1); Poffsets_i[k-1][0] = 0;
+      Poffsets_j[k-1].SetSize(numBlocks+1); Poffsets_j[k-1][0] = 0;
+      for (int i=0; i<numBlocks; i++)
+	{
+	  Poffsets_i[k-1][i+1] = P[k-1]->Height();
+	  Poffsets_j[k-1][i+1] = P[k-1]->Width();
+	}
       Poffsets_i[k-1].PartialSum();
       Poffsets_j[k-1].PartialSum();
 
       BlkP[k-1] = new BlockOperator(Poffsets_i[k-1],Poffsets_j[k-1]);
-      BlkP[k-1]->SetBlock(0,0,P[k-1]);
-      BlkP[k-1]->SetBlock(1,1,P[k-1]);
+      for (int i=0; i<numBlocks; i++)
+	BlkP[k-1]->SetBlock(i,i,P[k-1]);
    }
    // Set up coarse solve operator
    // Convert the coarse grid blockmatrix to a HypreParMatrix
-   Array<int> offsets(3);
+   Array<int> offsets(numBlocks+1);
    offsets[0]=0;
-   offsets[1]=A[0](0,0)->Height();
-   offsets[2]=A[0](1,1)->Height();
+   for (int i=0; i<numBlocks; i++)
+     offsets[i+1]=A[0](i,i)->Height();
+
    offsets.PartialSum();
 
    BlkA[0] = new BlockOperator(offsets);
 
    Array2D<SparseMatrix*> Asp;
-   Array2D<double> Acoef;
-   Asp.SetSize(2,2);
-   Acoef.SetSize(2,2);
-   for (int i=0; i<2; i++)
+   //Array2D<double> Acoef;
+   Asp.SetSize(numBlocks,numBlocks);
+   //Acoef.SetSize(numBlocks,numBlocks);
+   for (int i=0; i<numBlocks; i++)
    {
-      for (int j=0; j<2; j++)
+      for (int j=0; j<numBlocks; j++)
       {
-         BlkA[0]->SetBlock(i,j,A[0](i,j));
+	 if (A[0](i,j) != NULL)
+	   BlkA[0]->SetBlock(i, j, A[0](i,j), Acoef(i,j));
+	 
 	 Asp(i,j) = NULL;
-	 Acoef(i,j) = 1.0;
+	 //Acoef(i,j) = 1.0;
       }
    }
 
    // Convert to PetscParMatrix
    HypreParMatrix * Ac;
-   // Ac = CreateHypreParMatrixFromBlocks(MPI_COMM_WORLD, offsets, A[0]);
-   //Ac = CreateHypreParMatrixFromBlocks(offsets, BlkA[0]);
 
-   std::vector<std::vector<int> > blockProcOffsets(2);
-   std::vector<std::vector<int> > all_block_num_loc_rows(2);
+   std::vector<std::vector<int> > blockProcOffsets(numBlocks);
+   std::vector<std::vector<int> > all_block_num_loc_rows(numBlocks);
 
    {
      int nprocs, rank;
@@ -354,20 +370,23 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
      const int blockNumRows = A[0](0,0)->Height();
      MPI_Allgather(&blockNumRows, 1, MPI_INT, allnumrows.data(), 1, MPI_INT, MPI_COMM_WORLD);
 
-     blockProcOffsets[0].resize(nprocs);
-     blockProcOffsets[1].resize(nprocs);
+     for (int b=0; b<numBlocks; ++b)
+       {
+	 blockProcOffsets[b].resize(nprocs);
+	 all_block_num_loc_rows[b].resize(nprocs);
+       }
+     
      blockProcOffsets[0][0] = 0;
      for (int i=0; i<nprocs-1; ++i)
        blockProcOffsets[0][i+1] = blockProcOffsets[0][i] + allnumrows[i];
 
-     all_block_num_loc_rows[0].resize(nprocs);
-     all_block_num_loc_rows[1].resize(nprocs);
      for (int i=0; i<nprocs; ++i)
        {
-	 all_block_num_loc_rows[0][i] = allnumrows[i];
-	 all_block_num_loc_rows[1][i] = allnumrows[i];
+	 for (int b=0; b<numBlocks; ++b)
+	   all_block_num_loc_rows[b][i] = allnumrows[i];
 
-	 blockProcOffsets[1][i] = blockProcOffsets[0][i];
+	 for (int b=1; b<numBlocks; ++b)
+	   blockProcOffsets[b][i] = blockProcOffsets[0][i];
        }
    }
    
@@ -382,21 +401,21 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
  void BlockMGSolver::Mult(const Vector &r, Vector &z) const
 {
    // Residual vectors
-   std::vector<Vector> rv(NumGrids + 1);
+   std::vector<Vector> rv(numGrids + 1);
    // correction vectors
-   std::vector<Vector> zv(NumGrids + 1);
+   std::vector<Vector> zv(numGrids + 1);
    // allocation
-   for (int i = 0; i <= NumGrids ; i++)
+   for (int i = 0; i <= numGrids ; i++)
    {
       int n = (i==0) ? invAc->Height(): BlkA[i]->Width();
       rv[i].SetSize(n);
       zv[i].SetSize(n);
    }
    // Initial residual
-   rv[NumGrids] = r;
+   rv[numGrids] = r;
 
    // smooth and update residuals down to the coarsest level
-   for (int i = NumGrids; i > 0 ; i--)
+   for (int i = numGrids; i > 0 ; i--)
    {
       // Pre smooth
       S[i - 1]->Mult(rv[i], zv[i]); zv[i] *= theta;
@@ -412,7 +431,7 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
    // Coarse grid Solve
    invAc->Mult(rv[0], zv[0]);
    //
-   for (int i = 1; i <= NumGrids ; i++)
+   for (int i = 1; i <= numGrids ; i++)
    {
       // Prolong correction
       Vector u(BlkP[i - 1]->Height());
@@ -427,26 +446,26 @@ BlockMGSolver::BlockMGSolver(Array2D<HypreParMatrix *> Af_, std::vector<HyprePar
       // Update correction
       zv[i] += v;
    }
-   z = zv[NumGrids];
+   z = zv[numGrids];
 }
 
 BlockMGSolver::~BlockMGSolver() 
 {
-   for (int i = NumGrids - 1; i >= 0 ; i--)
+   for (int i = numGrids - 1; i >= 0 ; i--)
    {
       delete S[i];
       delete BlkP[i];
       delete BlkA[i];
-      for (int j=0; j<2; j++)
+      for (int j=0; j<numBlocks; j++)
       {
-         for (int k=0; k<2; k++)
+         for (int k=0; k<numBlocks; k++)
          {
             delete A[i](j,k);
          }
       }
       A[i].DeleteAll();
    }
-   delete BlkA[NumGrids];
+   delete BlkA[numGrids];
    delete invAc;
    A.clear();
 }

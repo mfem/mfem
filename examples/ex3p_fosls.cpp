@@ -9,6 +9,8 @@
 using namespace std;
 using namespace mfem;
 
+//#define COMPLEX_IMPEDANCE  // Whether to use impedance BC and solve a complex system
+
 // Define exact solution
 void E_exact(const Vector & x, Vector & E);
 void H_exact(const Vector & x, Vector & H);
@@ -45,7 +47,7 @@ int main(int argc, char *argv[])
   int ref_levels = 1;
   // number of initial ref
   int initref = 1;
-
+  
   // optional command line inputs
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
@@ -134,21 +136,43 @@ int main(int argc, char *argv[])
   Array<int> ess_tdof_listH;
   Array<int> ess_bdrE(pmesh->bdr_attributes.Max());
   Array<int> ess_bdrH(pmesh->bdr_attributes.Max());
+#ifdef COMPLEX_IMPEDANCE
+  ess_bdrE = 0;
+  ess_bdrH = 0;  // Neumann
+#else
   ess_bdrE = 1;
   ess_bdrH = 0;  // Neumann
+#endif
   fespace->GetEssentialTrueDofs(ess_bdrE, ess_tdof_listE);
   fespace->GetEssentialTrueDofs(ess_bdrH, ess_tdof_listH);
 
+#ifdef COMPLEX_IMPEDANCE
+  Array<int> bdr_attr(pmesh->bdr_attributes.Max());
+  bdr_attr = 1;
+  ConstantCoefficient impedance(omega);
+  RestrictedCoefficient imp_rest(impedance, bdr_attr);
+  Array<int> block_offsets(5);
+  Array<int> block_trueOffsets(5);
+#else
   Array<int> block_offsets(3);
+  Array<int> block_trueOffsets(3);
+#endif
   block_offsets[0] = 0;
   block_offsets[1] = fespace->GetVSize();
   block_offsets[2] = fespace->GetVSize();
+#ifdef COMPLEX_IMPEDANCE
+  block_offsets[3] = fespace->GetVSize();
+  block_offsets[4] = fespace->GetVSize();  
+#endif
   block_offsets.PartialSum();
 
-  Array<int> block_trueOffsets(3);
   block_trueOffsets[0] = 0;
   block_trueOffsets[1] = fespace->TrueVSize();
   block_trueOffsets[2] = fespace->TrueVSize();
+#ifdef COMPLEX_IMPEDANCE
+  block_trueOffsets[3] = fespace->TrueVSize();
+  block_trueOffsets[4] = fespace->TrueVSize();
+#endif
   block_trueOffsets.PartialSum();
 
   //    _           _    _  _       _  _
@@ -183,19 +207,29 @@ int main(int argc, char *argv[])
   H_gf->MakeRef(fespace, x.GetBlock(1));
   H_gf->ProjectCoefficient(Hex);
 
-
   ConstantCoefficient one(1.0);
   ConstantCoefficient sigma(pow(omega, 2));
   ConstantCoefficient neg(-abs(omega));
   ConstantCoefficient pos(abs(omega));
 
+  MatrixFunctionCoefficient epsilon(dim,epsilon_func);
+  TransposeMatrixCoefficient epsilonT(epsilon);  // transpose of epsilon
+  MatrixFunctionCoefficient epsilon2(dim,epsilon2_func);
+  ScalarMatrixProductCoefficient coeff(neg,epsilon);
+  ScalarMatrixProductCoefficient coeff2(sigma,epsilon2);
+
   // 6. Set up the linear form
   VectorFunctionCoefficient f_H(sdim,f_exact_H);
   ScalarVectorProductCoefficient sf_H(neg,f_H);
 
+  MatVecCoefficient epsT_sf_H(epsilonT, sf_H);
+    
   ParLinearForm *b_E = new ParLinearForm;
   b_E->Update(fespace, rhs.GetBlock(0), 0);
-  b_E->AddDomainIntegrator(new VectorFEDomainLFIntegrator(sf_H));
+  b_E->AddDomainIntegrator(new VectorFEDomainLFIntegrator(epsT_sf_H));
+#ifdef COMPLEX_IMPEDANCE
+  b_E->AddBoundaryIntegrator(new VectorFEMassIntegrator());  // <g_Im, n x Q x n> = <n x E_Re x n, n x Q x n>
+#endif
   b_E->Assemble();
 
   ParLinearForm *b_H = new ParLinearForm;
@@ -203,25 +237,33 @@ int main(int argc, char *argv[])
   b_H->AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(f_H));
   b_H->Assemble();
 
-  MatrixFunctionCoefficient epsilon(dim,epsilon_func);
-  MatrixFunctionCoefficient epsilon2(dim,epsilon2_func);
-  ScalarMatrixProductCoefficient coeff(neg,epsilon);
-  ScalarMatrixProductCoefficient coeff2(sigma,epsilon2);
-
-
   // 7. Bilinear form a(.,.) on the finite element space
   ParBilinearForm *a_EE = new ParBilinearForm(fespace);
   a_EE->AddDomainIntegrator(new CurlCurlIntegrator(one)); 
   a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(coeff2));
+
+#ifdef COMPLEX_IMPEDANCE
+  a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator());
+  //a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(imp_rest));
+  //a_EE->AddBoundaryIntegrator(new BoundaryMassIntegrator(imp_rest));
+  //a_EE->AddBdrFaceIntegrator(new BoundaryMassIntegrator(imp_rest));
+#endif
+  
   a_EE->Assemble();
   a_EE->Finalize();
   HypreParMatrix *A_EE = new HypreParMatrix;
   a_EE->FormLinearSystem(ess_tdof_listE, x.GetBlock(0), rhs.GetBlock(0), *A_EE, trueX.GetBlock(0), trueRhs.GetBlock(0));
 
-
   ParBilinearForm *a_HH = new ParBilinearForm(fespace);
   a_HH->AddDomainIntegrator(new CurlCurlIntegrator(one)); // one is the coeff
   a_HH->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+
+#ifdef COMPLEX_IMPEDANCE
+  a_HH->AddBoundaryIntegrator(new VectorFEMassIntegrator());
+  //a_HH->AddBoundaryIntegrator(new VectorFEMassIntegrator(imp_rest));
+  //a_HH->AddBoundaryIntegrator(new BoundaryMassIntegrator(imp_rest));
+#endif
+
   a_HH->Assemble();
   a_HH->Finalize();
   HypreParMatrix *A_HH = new HypreParMatrix;
@@ -237,25 +279,72 @@ int main(int argc, char *argv[])
 
   HypreParMatrix *A_EH = A_HE->Transpose();
 
+#ifdef COMPLEX_IMPEDANCE
+  ParBilinearForm *a_EH_Im = new ParBilinearForm(fespace);
+  //a_EH_Im->AddBoundaryIntegrator(new VectorFEBoundaryTangentIntegrator(imp_rest));
+  //a_EH_Im->AddBoundaryIntegrator(new VectorFEBoundaryTangentIntegrator(impedance));
+  //a_EH_Im->AddBoundaryIntegrator(new VectorFEBoundaryTangentIntegrator(omega));
+  a_EH_Im->AddBoundaryIntegrator(new VectorFEBoundaryTangentIntegrator());
+  a_EH_Im->Assemble();
+  a_EH_Im->Finalize();
+
+  OperatorHandle A_EH_Im_ptr;
+  a_EH_Im->FormSystemMatrix(ess_tdof_listE, A_EH_Im_ptr);  // empty ess_tdof_list for impedance
+
+  HypreParMatrix *A_EH_Im = A_EH_Im_ptr.As<HypreParMatrix>();
+  
+  HypreParMatrix *A_HE_Im = A_EH_Im->Transpose();
+#endif
+
   BlockOperator *LS_Maxwellop = new BlockOperator(block_trueOffsets);
+#ifdef COMPLEX_IMPEDANCE
+  const int numBlocks = 4;
+#else
+  const int numBlocks = 2;
+#endif
+  
   LS_Maxwellop->SetBlock(0, 0, A_EE);
   LS_Maxwellop->SetBlock(0, 1, A_EH);
   LS_Maxwellop->SetBlock(1, 0, A_HE);
   LS_Maxwellop->SetBlock(1, 1, A_HH);
 
+#ifdef COMPLEX_IMPEDANCE
+  LS_Maxwellop->SetBlock(0, 3, A_EH_Im);
+  LS_Maxwellop->SetBlock(1, 2, A_HE_Im, -1.0);
+  
+  LS_Maxwellop->SetBlock(2, 1, A_EH_Im, -1.0);
+  LS_Maxwellop->SetBlock(3, 0, A_HE_Im);
+  
+  LS_Maxwellop->SetBlock(2, 2, A_EE);
+  LS_Maxwellop->SetBlock(2, 3, A_EH);
+  LS_Maxwellop->SetBlock(3, 2, A_HE);
+  LS_Maxwellop->SetBlock(3, 3, A_HH);
+#endif
+  
   if (myid == 0)
   {
      cout << "Size of fine grid system: "
           << 2.0 * A_EE->GetGlobalNumRows() << " x " << 2.0* A_EE->GetGlobalNumCols() << endl;
   }
 
-  // Set up the preconditioner
-  Array2D<HypreParMatrix*> blockA(2,2);
-  for (int i=0; i<2; ++i)
+  // Set up the preconditioner  
+  Array2D<HypreParMatrix*> blockA(numBlocks, numBlocks);
+  Array2D<double> blockAcoef(numBlocks, numBlocks);
+
+  for (int i=0; i<numBlocks; ++i)
   {
-     for (int j=0; j<2; ++j)
+     for (int j=0; j<numBlocks; ++j)
      {
-        blockA(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
+       if (LS_Maxwellop->IsZeroBlock(i,j) == 0)
+	 {
+	   blockA(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
+	   blockAcoef(i,j) = LS_Maxwellop->GetBlockCoef(i,j);
+	 }
+       else
+	 {
+	   blockA(i,j) = NULL;
+	   blockAcoef(i,j) = 1.0;
+	 }
      }
   }
 
@@ -266,7 +355,7 @@ int main(int argc, char *argv[])
 
   // // mfem::out << "Estimated memory taken by the global matrix: " <<  gb << endl;
 
-  int maxit(5000);
+  int maxit(2000);
   double rtol(1.e-8);
   double atol(1.e-12);
 
@@ -279,7 +368,7 @@ int main(int argc, char *argv[])
   pcg.SetPrintLevel(1);
   chrono.Clear();
   chrono.Start();
-  BlockMGSolver * precMG = new BlockMGSolver(blockA, P);
+  BlockMGSolver * precMG = new BlockMGSolver(LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, P);
   //precMG->SetTheta(0.5);
   // // int lv_coarse = min(ref_levels,ref_levels-1);
   // // int levels = ref_levels - lv_coarse; 
