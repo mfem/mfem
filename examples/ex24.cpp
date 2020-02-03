@@ -402,9 +402,9 @@ int main(int argc, char *argv[])
    }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m ex22.mesh -g ex22-final.gf".
+   //    "glvis -m ex24.mesh -g ex24-final.gf".
    {
-      ofstream osol("ex22-final.gf");
+      ofstream osol("ex24-final.gf");
       osol.precision(precision);
       u_gf.Save(osol);
       dudt_gf.Save(osol);
