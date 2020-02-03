@@ -849,7 +849,8 @@ static int CountFacesByType(const FiniteElementSpace &fes, const FaceType type)
 
 int FiniteElementSpace::GetNFbyType(FaceType type) const
 {
-   int &nf = (type==FaceType::Interior) ? nbInteriorFaces : nbBoundaryFaces;
+   const bool isInt = type==FaceType::Interior;
+   int &nf = isInt ? nbInteriorFaces : nbBoundaryFaces;
    if (nf<0) { nf = CountFacesByType(*this, type); }
    return nf;
 }
