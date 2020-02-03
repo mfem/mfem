@@ -481,7 +481,7 @@ void PADGTraceApply3D(const int NF,
    });
 }
 
-// PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
+// Optimized PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
 void SmemPADGTraceApply3D(const int NF,
                           const Array<double> &b,
@@ -897,6 +897,141 @@ void PADGTraceApplyTranspose3D(const int NF,
    });
 }
 
+// Optimized PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
+void SmemPADGTraceApplyTranspose3D(const int NF,
+                                   const Array<double> &b,
+                                   const Array<double> &bt,
+                                   const Vector &_op,
+                                   const Vector &_x,
+                                   Vector &_y,
+                                   const int d1d = 0,
+                                   const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, 2, 2, NF);
+   auto x = Reshape(_x.Read(), D1D, D1D, 2, NF);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, 2, NF);
+
+   MFEM_FORALL_2D(f, NF, Q1D, Q1D, NBZ,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      MFEM_SHARED double u0[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED double u1[NBZ][max_D1D][max_D1D];
+      MFEM_FOREACH_THREAD(d1,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(d2,y,D1D)
+         {
+            u0[tidz][d1][d2] = x(d1,d2,0,f+tidz);
+            u1[tidz][d1][d2] = x(d1,d2,1,f+tidz);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double Bu0[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED double Bu1[NBZ][max_Q1D][max_D1D];
+      MFEM_FOREACH_THREAD(q1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(d2,y,D1D)
+         {
+            double Bu0_ = 0.0;
+            double Bu1_ = 0.0;
+            for (int d1 = 0; d1 < D1D; ++d1)
+            {
+               const double b = B(q1,d1);
+               Bu0_ += b*u0[tidz][d1][d2];
+               Bu1_ += b*u1[tidz][d1][d2];
+            }
+            Bu0[tidz][q1][d2] = Bu0_;
+            Bu1[tidz][q1][d2] = Bu1_;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double BBu0[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED double BBu1[NBZ][max_Q1D][max_Q1D];
+      MFEM_FOREACH_THREAD(q1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(q2,y,Q1D)
+         {
+            double BBu0_ = 0.0;
+            double BBu1_ = 0.0;
+            for (int d2 = 0; d2 < D1D; ++d2)
+            {
+               const double b = B(q2,d2);
+               BBu0_ += b*Bu0[tidz][q1][d2];
+               BBu1_ += b*Bu1[tidz][q1][d2];
+            }
+            BBu0[tidz][q1][q2] = BBu0_;
+            BBu1[tidz][q1][q2] = BBu1_;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double DBBu0[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED double DBBu1[NBZ][max_Q1D][max_Q1D];
+      MFEM_FOREACH_THREAD(q1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(q2,y,Q1D)
+         {
+            const double D00 = op(q1,q2,0,0,f+tidz);
+            const double D01 = op(q1,q2,0,1,f+tidz);
+            const double D10 = op(q1,q2,1,0,f+tidz);
+            const double D11 = op(q1,q2,1,1,f+tidz);
+            const double u0 = BBu0[tidz][q1][q2];
+            const double u1 = BBu1[tidz][q1][q2];
+            DBBu0[tidz][q1][q2] = D00*u0 + D01*u1;
+            DBBu1[tidz][q1][q2] = D10*u0 + D11*u1;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double BDBBu0[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED double BDBBu1[NBZ][max_Q1D][max_D1D];
+      MFEM_FOREACH_THREAD(q1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(d2,y,D1D)
+         {
+            double BDBBu0_ = 0.0;
+            double BDBBu1_ = 0.0;
+            for (int q2 = 0; q2 < Q1D; ++q2)
+            {
+               const double b = Bt(d2,q2);
+               BDBBu0_ += b*DBBu0[tidz][q1][q2];
+               BDBBu1_ += b*DBBu1[tidz][q1][q2];
+            }
+            BDBBu0[tidz][q1][d2] = BDBBu0_;
+            BDBBu1[tidz][q1][d2] = BDBBu1_;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(d1,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(d2,y,D1D)
+         {
+            double BBDBBu0_ = 0.0;
+            double BBDBBu1_ = 0.0;
+            for (int q1 = 0; q1 < Q1D; ++q1)
+            {
+               const double b = Bt(d1,q1);
+               BBDBBu0_ += b*BDBBu0[tidz][q1][d2];
+               BBDBBu1_ += b*BDBBu1[tidz][q1][d2];
+            }
+            y(d1,d2,0,f+tidz) += BBDBBu0_;
+            y(d1,d2,1,f+tidz) += BBDBBu1_;
+         }
+      }
+   });
+}
+
 static void PADGTraceApplyTranspose(const int dim,
                                     const int D1D,
                                     const int Q1D,
@@ -926,13 +1061,13 @@ static void PADGTraceApplyTranspose(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return PADGTraceApplyTranspose3D<2,3>(NF,B,Bt,op,x,y);
-         case 0x34: return PADGTraceApplyTranspose3D<3,4>(NF,B,Bt,op,x,y);
-         case 0x45: return PADGTraceApplyTranspose3D<4,5>(NF,B,Bt,op,x,y);
-         case 0x56: return PADGTraceApplyTranspose3D<5,6>(NF,B,Bt,op,x,y);
-         case 0x67: return PADGTraceApplyTranspose3D<6,7>(NF,B,Bt,op,x,y);
-         case 0x78: return PADGTraceApplyTranspose3D<7,8>(NF,B,Bt,op,x,y);
-         case 0x89: return PADGTraceApplyTranspose3D<8,9>(NF,B,Bt,op,x,y);
+         case 0x23: return SmemPADGTraceApplyTranspose3D<2,3>(NF,B,Bt,op,x,y);
+         case 0x34: return SmemPADGTraceApplyTranspose3D<3,4>(NF,B,Bt,op,x,y);
+         case 0x45: return SmemPADGTraceApplyTranspose3D<4,5>(NF,B,Bt,op,x,y);
+         case 0x56: return SmemPADGTraceApplyTranspose3D<5,6>(NF,B,Bt,op,x,y);
+         case 0x67: return SmemPADGTraceApplyTranspose3D<6,7>(NF,B,Bt,op,x,y);
+         case 0x78: return SmemPADGTraceApplyTranspose3D<7,8>(NF,B,Bt,op,x,y);
+         case 0x89: return SmemPADGTraceApplyTranspose3D<8,9>(NF,B,Bt,op,x,y);
          default: return PADGTraceApplyTranspose3D(NF,B,Bt,op,x,y,D1D,Q1D);
       }
    }
