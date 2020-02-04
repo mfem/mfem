@@ -1,4 +1,5 @@
 #include "mfem.hpp"
+#include <ctime>
 #include <fstream>
 #include <iostream>
 
@@ -7,24 +8,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // // Parse command-line options
-   // const char *name = "RBF_MQ_E_1d_009_4.01";
-   
-   // OptionsParser args(argc, argv);
-   // args.AddOption(&name, "-n", "--name",
-   //                "Finite element collection name.");
-   // args.Parse();
-   // if (!args.Good())
-   // {
-   //    args.PrintUsage(cout);
-   //    return 1;
-   // }
-   // args.PrintOptions(cout);
-
-   // FiniteElementCollection *fec = FiniteElementCollection::New(name);
-
-
-   
    // Parse command-line options.
    bool print = false;
    int dim = 1;
@@ -32,6 +15,7 @@ int main(int argc, char *argv[])
    int funcType = 0;
    int distType = 0;
    int numPoints = 10;
+   int evals = 1;
    double h = 4.01;
    double x = 0.5;
    double y = 0.5;
@@ -56,6 +40,8 @@ int main(int argc, char *argv[])
                   "evaluation position, y");
    args.AddOption(&z, "-z", "--zpos",
                   "evaluation position, z");
+   args.AddOption(&evals, "-e", "--evals",
+                  "number of evaluations");
    args.AddOption(&print, "-p", "--print", "-no-p",
                   "--no-print", "Print out full matrices");
    args.Parse();
@@ -118,10 +104,10 @@ int main(int argc, char *argv[])
       MFEM_ABORT("unknown dim");
    }
 
-   // Test out FE
+   // Get element
    const FiniteElement *fe = fec->FiniteElementForGeometry(geomType);
-
-   // Test one value for finite element evalution
+   
+   // Initialize integration point
    int dof = fe->GetDof();
    IntegrationPoint ip;
    Vector shape(dof);
@@ -129,9 +115,14 @@ int main(int argc, char *argv[])
    ip.x = x;
    ip.y = y;
    ip.z = z;
-   fe->CalcShape(ip, shape);
-   fe->CalcDShape(ip, dshape);
 
+   // Evaluate integrals
+   for (int i = 0; i < evals; ++i)
+   {
+      fe->CalcShape(ip, shape);
+      fe->CalcDShape(ip, dshape);
+   }
+   
    if (print)
    {
       for (int i = 0; i < dof; ++i)
