@@ -283,6 +283,7 @@ int main(int argc, char *argv[])
    {
       mesh->SetCurvature(mesh->GetNodalFESpace()->GetOrder(0), true);
    }
+   if (pa) { mesh->EnsureNodes(); }
 
    // 6. Define the parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
