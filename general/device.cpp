@@ -9,6 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "dbg.hpp"
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
@@ -74,9 +75,11 @@ Device::Device() : mode(Device::SEQUENTIAL),
    device_mem_type(MemoryType::HOST),
    device_mem_class(MemoryClass::HOST)
 {
+   dbg("");
    if (getenv("MFEM_MEMORY"))
    {
       std::string mem_backend(getenv("MFEM_MEMORY"));
+      dbg("MFEM_MEMORY: %s", mem_backend.c_str());
       if (mem_backend == "host32")
       {
          mem_host_env = true;
@@ -114,14 +117,19 @@ Device::Device() : mode(Device::SEQUENTIAL),
       }
       else
       {
-         MFEM_ABORT("Unknown memory backend!");
+         printf("MFEM abort: Unknown memory backend!\n");
+         fflush(0);
+         exit(-1);
       }
       mm.Configure(host_mem_type, device_mem_type);
+      dbg("End of Device()");
+
    }
 
    if (getenv("MFEM_DEVICE"))
    {
       std::string device(getenv("MFEM_DEVICE"));
+      dbg("%s", device.c_str());
       const char *device_c_str = device.c_str();
       const bool debug = strlen(device_c_str) == 5 &&
                          strncmp(device_c_str,"debug",5)==0;
@@ -137,9 +145,10 @@ Device::Device() : mode(Device::SEQUENTIAL),
 
 Device::~Device()
 {
-   if ( device_env && !destroy_mm) { return; }
-   if (!device_env &&  destroy_mm)
+   if ( device_env && !destroy_mm) { dbg("env & !mm"); return; }
+   if (!device_env &&  destroy_mm && !mem_host_env)
    {
+      dbg("!env && mm");
       free(device_option);
 #ifdef MFEM_USE_CEED
       CeedDestroy(&internal::ceed);
@@ -154,6 +163,7 @@ Device::~Device()
 
 void Device::Configure(const std::string &device, const int dev)
 {
+   dbg("");
    // If a device was configured via the environment, skip the configuration,
    // and avoid the 'singleton_device' to destroy the mm.
    if (device_env)
