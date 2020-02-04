@@ -9,6 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "mem_manager.hpp"
 
@@ -215,7 +216,7 @@ public:
    { if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
 };
 
-#ifndef _WIN32
+#ifdef _WIN32
 static uintptr_t pagesize = 0;
 static uintptr_t pagemask = 0;
 
@@ -1299,6 +1300,7 @@ void MemoryManager::Configure(const MemoryType host_mt,
    Init();
    host_mem_type = host_mt;
    device_mem_type = device_mt;
+   dbg("host_mem_type:%d, device_mem_type:%d", host_mt, device_mt);
 }
 
 #ifdef MFEM_USE_UMPIRE
