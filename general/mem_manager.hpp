@@ -12,7 +12,6 @@
 #ifndef MFEM_MEM_MANAGER_HPP
 #define MFEM_MEM_MANAGER_HPP
 
-#include "../../dbg.hpp"
 #include "globals.hpp"
 #include "error.hpp"
 #include <cstring> // std::memcpy
