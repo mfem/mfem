@@ -611,6 +611,12 @@ public:
     */
    inline void GetElementValues(int idx, Vector &values) const;
 
+   /// Return the quadrature function values at an integration point
+   /** The result is stored in the Vector @a values as a reference to the
+    global values.
+    */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values);
+
    /// Return all values associated with mesh element @a idx in a DenseMatrix.
    /** The result is stored in the DenseMatrix @a values as a reference to the
        global values.
@@ -712,6 +718,15 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
    {
       values(i) = *(q++);
    }
+}
+// fix me: This function should have a more efficient method for doing this operation.
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
+                                                 Vector &values)
+{
+   Vector elem_vec;
+   GetElementValues(idx, elem_vec);
+   int vDim = GetVDim();
+   values.NewDataAndSize(elem_vec + ip_num * vDim, vDim);
 }
 
 inline void QuadratureFunction::GetElementValues(int idx, DenseMatrix &values)
