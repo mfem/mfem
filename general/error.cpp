@@ -14,6 +14,7 @@
 #include "array.hpp"
 #include <cstdlib>
 #include <iostream>
+#include <cstdio>
 
 #ifdef MFEM_USE_LIBUNWIND
 #define UNW_LOCAL_ONLY
@@ -175,11 +176,51 @@ void mfem_error(const char *msg)
    std::abort(); // force crash by calling abort
 }
 
+void mfem_init_error(const char *func, const char *file, const int line,
+                     const char *prefix, const char *msg)
+{
+   std::FILE *err = stderr;
+
+   if (msg)
+   {
+      const char *fmt = "\n\n%s%s\n ... in function: %s\n ... in file: %s:%d\n";
+      std::fprintf(err, fmt, prefix, msg, func, file, line);
+      fflush(err);
+   }
+
+#ifdef MFEM_USE_EXCEPTIONS
+   if (mfem_error_action == MFEM_ERROR_THROW)
+   {
+      throw ErrorException(msg);
+   }
+#endif
+
+#ifdef MFEM_USE_MPI
+   int init_flag, fin_flag;
+   MPI_Initialized(&init_flag);
+   MPI_Finalized(&fin_flag);
+   if (init_flag && !fin_flag) { MPI_Abort(GetGlobalMPI_Comm(), 1); }
+#endif
+   std::abort(); // force crash by calling abort
+}
+
 void mfem_warning(const char *msg)
 {
    if (msg)
    {
       mfem::out << "\n\n" << msg << std::endl;
+   }
+}
+
+void mfem_init_warning(const char *func, const char *file, const int line,
+                       const char *prefix, const char *msg)
+{
+   if (msg)
+   {
+      std::FILE *out = stdout;
+      const char *fmt = "\n\n%s%s\n ... in function: %s\n ... in file: %s:%d\n";
+      std::fprintf(out, fmt, prefix, msg, func, file, line);
+      fflush(out);
    }
 }
 

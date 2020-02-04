@@ -55,8 +55,16 @@ void mfem_backtrace(int mode = 0, int depth = -1);
     MFEM_ABORT, MFEM_ASSERT, MFEM_VERIFY. */
 void mfem_error(const char *msg = NULL);
 
+/// Function called when an error is encountered during static init.
+void mfem_init_error(const char *func, const char *file, const int line,
+                     const char *prefix, const char *msg = NULL);
+
 /// Function called by the macro MFEM_WARNING.
 void mfem_warning(const char *msg = NULL);
+
+/// Function called by the macro MFEM_WARNING_AT_INIT.
+void mfem_init_warning(const char *func, const char *file, const int line,
+                       const char *prefix, const char *msg = NULL);
 
 }
 
@@ -88,6 +96,16 @@ void mfem_warning(const char *msg = NULL);
       else                                                              \
          mfem::mfem_warning(mfemMsgStream.str().c_str());               \
    }
+#define _MFEM_INIT_MESSAGE(prefix, msg, warn)                           \
+  {                                                                     \
+      const char *func = _MFEM_FUNC_NAME;                               \
+      const char *file = __FILE__;                                      \
+      const int   line = __LINE__;                                      \
+      if (!(warn))                                                      \
+         mfem::mfem_init_error(func, file, line, prefix, msg);          \
+      else                                                              \
+         mfem::mfem_init_warning(func, file, line, prefix, msg);        \
+  }
 
 // Outputs lots of useful information and aborts.
 // For all of these functions, "msg" is pushed to an ostream, so you can
@@ -95,6 +113,7 @@ void mfem_warning(const char *msg = NULL);
 // out to the screen first, then calling abort.  For example:
 // MFEM_ABORT( "Unknown geometry type: " << type );
 #define MFEM_ABORT(msg) _MFEM_MESSAGE("MFEM abort: " << msg, 0)
+#define MFEM_INIT_ABORT(msg) _MFEM_INIT_MESSAGE("MFEM abort: ", msg, 0)
 
 // Does a check, and then outputs lots of useful information if the test fails
 #define MFEM_VERIFY(x, msg)                             \
@@ -137,6 +156,7 @@ void mfem_warning(const char *msg = NULL);
 
 // Generate a warning message - always generated, regardless of MFEM_DEBUG.
 #define MFEM_WARNING(msg) _MFEM_MESSAGE("MFEM Warning: " << msg, 1)
+#define MFEM_INIT_WARNING(msg) _MFEM_INIT_MESSAGE("MFEM Warning: ", msg, 1)
 
 // Macro that checks (in MFEM_DEBUG mode) that i is in the range [imin,imax).
 #define MFEM_ASSERT_INDEX_IN_RANGE(i,imin,imax) \

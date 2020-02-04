@@ -581,6 +581,7 @@ public:
    DeviceMemorySpace* Device(const MemoryType mt)
    {
       const int mt_i = static_cast<int>(mt) - DeviceMemoryType;
+      MFEM_VERIFY(mt_i >= 0,"");
       // Lazy device UMPIRE and DEBUG/DEVICE initializations
       if (!device[mt_i])
       {
@@ -678,6 +679,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
                                MemoryType mt,
                                bool own, bool alias, unsigned &flags)
 {
+   MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
    MFEM_ASSERT(IsHostMemory(mt), "Internal error!");
    MFEM_ASSERT(!alias, "Cannot register an alias!");

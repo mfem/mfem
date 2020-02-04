@@ -41,19 +41,18 @@ Ceed ceed = NULL;
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::HIP,
+   Backend::HIP, Backend::DEBUG,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
-   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::DEBUG,
-   Backend::CPU
+   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
    "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
-   "hip",
+   "hip", "debug",
    "occa-omp", "raja-omp", "omp",
-   "ceed-cpu", "occa-cpu", "raja-cpu", "debug", "cpu"
+   "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
 };
 
 } // namespace mfem::internal
@@ -117,9 +116,7 @@ Device::Device() : mode(Device::SEQUENTIAL),
       }
       else
       {
-         printf("MFEM abort: Unknown memory backend!\n");
-         fflush(0);
-         exit(-1);
+         MFEM_INIT_ABORT("Unknown memory backend!");
       }
       mm.Configure(host_mem_type, device_mem_type);
       dbg("End of Device()");
@@ -261,6 +258,7 @@ void Device::Print(std::ostream &out)
 
 void Device::UpdateMemoryTypeAndClass()
 {
+   dbg("");
 #ifdef MFEM_USE_UMPIRE
    const bool umpire = true;
 #else
