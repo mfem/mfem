@@ -12220,7 +12220,7 @@ void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
 
    kv[0]->CalcD2Shape(d2shape_x, ijk[0], ip.x);
    kv[1]->CalcD2Shape(d2shape_y, ijk[1], ip.y);
-   kv[2]->CalcD2Shape(d2shape_y, ijk[2], ip.z);
+   kv[2]->CalcD2Shape(d2shape_z, ijk[2], ip.z);
 
    sum = dsum[0] = dsum[1] = dsum[2] = 0.0;
    d2sum[0] = d2sum[1] = d2sum[2] = d2sum[3] = d2sum[4] = d2sum[5] = 0.0;
