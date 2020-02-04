@@ -9,7 +9,7 @@
 using namespace std;
 using namespace mfem;
 
-//#define COMPLEX_IMPEDANCE  // Whether to use impedance BC and solve a complex system
+#define COMPLEX_IMPEDANCE  // Whether to use impedance BC and solve a complex system
 
 // Define exact solution
 void E_exact(const Vector & x, Vector & E);
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
     {
       args.PrintOptions(cout);
     }
-
+  
   // Angular frequency
   //omega = 2.0*k*M_PI;
   omega = k;
@@ -196,6 +196,9 @@ int main(int argc, char *argv[])
   trueRhs = 0.0;
 
   VectorFunctionCoefficient Eex(sdim, E_exact);
+  ConstantCoefficient negOne(-1.0);
+  VectorFunctionCoefficient mEex(sdim, E_exact, &negOne);
+    
   ParGridFunction * E_gf = new ParGridFunction;
   ParGridFunction * Exact_gf = new ParGridFunction(fespace);
   E_gf->MakeRef(fespace, x.GetBlock(0));
@@ -228,15 +231,33 @@ int main(int argc, char *argv[])
   b_E->Update(fespace, rhs.GetBlock(0), 0);
   b_E->AddDomainIntegrator(new VectorFEDomainLFIntegrator(epsT_sf_H));
 #ifdef COMPLEX_IMPEDANCE
-  b_E->AddBoundaryIntegrator(new VectorFEMassIntegrator());  // <g_Im, n x Q x n> = <n x E_Re x n, n x Q x n>
+  b_E->AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(Eex));  // <g_Im, n x Q x n> = <n x E_Re x n, n x Q x n>
+
+  ParLinearForm *b_E_Im = new ParLinearForm;
+  b_E_Im->Update(fespace, rhs.GetBlock(2), 0);
+  b_E_Im->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(Hex));  // -<g_Re, n x Q x n> = <n x H_Re, n x Q x n>
+  b_E_Im->Assemble();
 #endif
   b_E->Assemble();
 
   ParLinearForm *b_H = new ParLinearForm;
   b_H->Update(fespace, rhs.GetBlock(1), 0);
   b_H->AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(f_H));
+#ifdef COMPLEX_IMPEDANCE
+  b_H->AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(Hex));  // -<g_Re, n x R> = <n x H_Re, n x R>
+
+  ParLinearForm *b_H_Im = new ParLinearForm;
+  b_H_Im->Update(fespace, rhs.GetBlock(3), 0);
+  b_H_Im->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(mEex));  // -<g_Im, n x R> = -<n x E_Re x n, n x R>
+  b_H_Im->Assemble();
+#endif
   b_H->Assemble();
 
+#ifdef COMPLEX_IMPEDANCE
+  fespace->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(2), trueRhs.GetBlock(2));
+  fespace->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(3), trueRhs.GetBlock(3));
+#endif
+  
   // 7. Bilinear form a(.,.) on the finite element space
   ParBilinearForm *a_EE = new ParBilinearForm(fespace);
   a_EE->AddDomainIntegrator(new CurlCurlIntegrator(one)); 
@@ -674,6 +695,10 @@ void get_maxwell_solution(const Vector &X, double E[], double curlE[], double cu
       double b = -pow(omega/4.0,2.0/3.0)*(4.0*x-1.0);
       //E[2] = boost::math::airy_ai(b);
       E[2] = gsl_sf_airy_Ai(b, GSL_PREC_DOUBLE);
+
+      curlE[0] = 0.0;
+      curlE[1] = 4.0 * pow(omega/4.0,2.0/3.0) * gsl_sf_airy_Ai_deriv(b, GSL_PREC_DOUBLE);
+      curlE[2] = 0.0;
       
       //  not used
       curl2E[0] = 0.0;
