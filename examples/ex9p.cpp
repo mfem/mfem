@@ -299,7 +299,6 @@ int main(int argc, char *argv[])
    //    parallel refined mesh of the given polynomial order.
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
-   fes->ExchangeFaceNbrData();
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
