@@ -212,7 +212,7 @@ public:
        The pointer @a fes is not owned by the newly constructed object.
 
        The integrators are copied as pointers and they are not owned by
-       the newly constructed BilinearForm. */
+       the newly constructed SesquilinearForm. */
    SesquilinearForm(FiniteElementSpace *fes, BilinearForm *bfr, BilinearForm *bfi,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
