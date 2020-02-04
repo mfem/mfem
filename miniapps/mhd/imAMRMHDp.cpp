@@ -131,6 +131,7 @@ int main(int argc, char *argv[])
    bool visit = false;
    bool use_petsc = false;
    bool use_factory = false;
+   bool yRange = false;
    const char *petscrc_file = "";
    //----amr coefficients----
    int amr_levels=0;
@@ -189,6 +190,9 @@ int main(int argc, char *argv[])
    args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
                   "--no-derefine-mesh",
                   "Derefine the mesh in AMR.");
+   args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange",
+                  "--no-y-refine-range",
+                  "Refine only in the y range of [-.6, .6] in AMR.");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
@@ -474,6 +478,8 @@ int main(int argc, char *argv[])
    refiner.SetMaxElements(50000);
    refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetNCLimit(nc_limit);
+   if (yRange)
+       refiner.SetYRange(-.6, .6);
 
    ThresholdDerefiner derefiner(estimator);
    derefiner.SetThreshold(.2*ltol_amr);
@@ -584,8 +590,12 @@ int main(int argc, char *argv[])
       else
           refineMesh=false;
 
-      //here we derefine every ref_steps but is lagged by a step of ref_steps/2
-      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 && ti >  ref_steps ) //&& t<5.0) 
+      /* 
+       * here we derefine every 2*ref_steps but it is lagged by a step of 1.5*ref_steps
+       * sometimes derefine could break down the preconditioner (maybe solutions are 
+       * not so nice after a derefining projection?)
+       */
+      if ( derefine && (ti-ref_steps/2-ref_steps)%(2*ref_steps) ==0 ) //&& ti >  ref_steps ) //&& t<5.0) 
       {
           derefineMesh=true;
           derefiner.Reset();

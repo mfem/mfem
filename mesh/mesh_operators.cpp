@@ -97,6 +97,32 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    const Vector &local_err = estimator.GetLocalErrors();
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
+   double vert[3];
+   double yMean;
+   //a different way to implement yrange (we can modify the local_err vector)
+   //maybe a better way is to modify estimator?
+   if (yRange && mesh.Nonconforming())
+   {
+      FiniteElementSpace * fes = mesh.GetNodes()->FESpace();
+      Array<int> dofs;
+      for (int el = 0; el < NE; el++)
+      {
+        fes->GetElementDofs(el, dofs);
+        int ndof=dofs.Size();
+        yMean=0.0;
+        for (int j = 0; j < ndof; j++)
+        {
+           mesh.GetNode(dofs[j], vert);
+           yMean+=vert[1];
+        }
+        yMean=yMean/ndof;
+        //std::cout <<"el yMean="<<el<<' '<<yMean << '\n';
+        
+        if (yMean<=ymin && yMean>=ymax)
+           local_err(el) =0.;
+      }
+   }
+
    const double total_err = GetNorm(local_err, mesh);
    if (total_err <= total_err_goal) { return STOP; }
 
@@ -111,11 +137,10 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
       threshold = std::max(total_err * total_fraction, local_err_goal);
    }
 
-   double vert[3];
-   double yMean;
 
    for (int el = 0; el < NE; el++)
-   {
+   { 
+      //it does not hurt to leave it there in case local_err is not communicated
       if (yRange && mesh.Nonconforming())
       {
         FiniteElementSpace * fes = mesh.GetNodes()->FESpace();
