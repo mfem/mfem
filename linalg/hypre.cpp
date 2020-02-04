@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/dbg.hpp"
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -1511,30 +1510,29 @@ void HypreParMatrix::PrintCommPkg(std::ostream &out) const
 
 inline void delete_hypre_CSRMatrixData(hypre_CSRMatrix *M)
 {
-   //dbg("");
    HYPRE_Complex *data = hypre_CSRMatrixData(M);
    Memory<HYPRE_Complex>(data, M->num_nonzeros, true).Delete();
 }
 
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {
-   //dbg("");
-   HYPRE_Int *col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
-   Memory<HYPRE_Int>(col_map_offd, A->offd->num_cols, true).Delete();
+   HYPRE_Int  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
+   int size = hypre_CSRMatrixNumCols(hypre_ParCSRMatrixOffd(A));
+   Memory<HYPRE_Int>(A_col_map_offd, size, true).Delete();
 }
 
 inline void delete_hypre_CSRMatrixI(hypre_CSRMatrix *M)
 {
-   //dbg("");
    HYPRE_Int *I = hypre_CSRMatrixI(M);
-   Memory<HYPRE_Int>(I,M->num_rows+1,true).Delete();
+   int size = hypre_CSRMatrixNumRows(M) + 1;
+   Memory<HYPRE_Int>(I, size, true).Delete();
 }
 
 inline void delete_hypre_CSRMatrixJ(hypre_CSRMatrix *M)
 {
-   //dbg("");
    HYPRE_Int *J = hypre_CSRMatrixJ(M);
-   Memory<HYPRE_Int>(J, M->num_cols, true).Delete();
+   int size = hypre_CSRMatrixNumNonzeros(M);
+   Memory<HYPRE_Int>(J, size, true).Delete();
 }
 
 void HypreParMatrix::Destroy()

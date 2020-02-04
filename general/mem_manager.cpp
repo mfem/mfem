@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "mem_manager.hpp"
 
@@ -1122,7 +1121,6 @@ void MemoryManager::Insert(void *h_ptr, size_t bytes,
    if (res.second == false)
    {
       auto &m = res.first->second;
-      if (m.bytes < bytes) { dbg("m.bytes:%d, bytes:%d", m.bytes/8, bytes/8); }
       MFEM_VERIFY(m.bytes >= bytes && m.h_mt == h_mt && m.d_mt == d_mt,
                   "Address already present with different attributes!");
    }
