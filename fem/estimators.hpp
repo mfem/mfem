@@ -109,7 +109,7 @@ public:
                        FiniteElementSpace and will call its Update() method when
                        needed. */
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
-                           FiniteElementSpace *flux_fes, bool with_coeff = 0)
+                           FiniteElementSpace *flux_fes, bool with_coeff = false)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
@@ -129,7 +129,7 @@ public:
                        this FiniteElementSpace; will call its Update() method
                        when needed. */
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
-                           FiniteElementSpace &flux_fes, bool with_coeff = 0)
+                           FiniteElementSpace &flux_fes, bool with_coeff = false)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
