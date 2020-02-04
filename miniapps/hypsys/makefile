@@ -102,7 +102,7 @@ grid-convergence-test:
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-ASTYLE = astyle --options=$(MFEM_DIR)/config/mfem.astylerc
+ASTYLE = ~/astyle --options=$(MFEM_DIR)/config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS),"$(dir)/*.?pp")
 FORMAT_FILES += hypsys.cpp
 FORMAT_FILES += phypsys.cpp

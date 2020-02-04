@@ -161,6 +161,13 @@ int main(int argc, char *argv[])
 
    bool done = false;
    double dt, res, t = 0., tol = 1.e-12;
+   tic_toc.Clear();
+   tic_toc.Start();
+   if (myid == 0)
+   {
+      cout << "Preprocessing done. Entering time stepping loop." << endl;
+   }
+
    for (int ti = 0; !done;)
    {
       dt = min(config.dt, config.tFinal - t);
@@ -195,6 +202,13 @@ int main(int argc, char *argv[])
          }
          ParVisualizeField(sout, vishost, visport, u, VectorOutput);
       }
+   }
+
+   tic_toc.Stop();
+   if (myid == 0)
+   {
+      cout << "Time stepping loop done in " << tic_toc.RealTime() <<
+           " seconds. Wrapping up simulation." << endl;
    }
 
    double FinalMass, DomainSize, DomainSizeMPI = LumpedMassMat.Sum();

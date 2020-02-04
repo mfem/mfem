@@ -147,6 +147,10 @@ int main(int argc, char *argv[])
 
    bool done = false;
    double dt, res, t = 0., tol = 1.e-12;
+   tic_toc.Clear();
+   tic_toc.Start();
+   cout << "Preprocessing done. Entering time stepping loop." << endl;
+
    for (int ti = 0; !done;)
    {
       dt = min(config.dt, config.tFinal - t);
@@ -179,6 +183,10 @@ int main(int argc, char *argv[])
          VisualizeField(sout, vishost, visport, u, VectorOutput);
       }
    }
+
+   tic_toc.Stop();
+   cout << "Time stepping loop done in " << tic_toc.RealTime() <<
+        " seconds. Wrapping up simulation." << endl;
 
    double DomainSize = LumpedMassMat.Sum();
    cout << "Difference in solution mass: "
