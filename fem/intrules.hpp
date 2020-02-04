@@ -34,8 +34,6 @@ public:
       index = i;
    }
 
-   void SetIpID(int id) { ipID = id; }
-
    void Set(const double *p, const int dim)
    {
       MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
