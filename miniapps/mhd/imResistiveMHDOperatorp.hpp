@@ -8,6 +8,7 @@ using namespace mfem;
 int isupg=2;    //1: test supg with v term only
                 //2: test hyperdiffusion along B only
                 //3: test a general hyperdiffusion
+int iSc=0;      //the parameter to control precondtioner
 bool lumpedMass = false;
 
 // reduced system 
@@ -1192,8 +1193,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        HypreParMatrix *NbtDinv=NULL, *S=NULL;
        HypreParMatrix *tmp=Mdtpr;  //if use lumped matrix, it needs to be scaled by dt
 
-       int iSc=3;
-       if (iSc==0)
+       if (iSc==0 && isupg==0)
        {
            //VERSION0: same as Luis's preconditioner
            AReFull->GetDiag(*ARed);
@@ -1225,7 +1225,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
            S = ParMult(NbtDinv, NbFull);
            ScFull = ParAdd(ASltmp, S);
        }
-       else if (iSc==3 && isupg==2)
+       else if (iSc==0 && isupg==2)
        {
            //VERSION3: Luis's preconditioner + hyperdiffusion
            AReFull->GetDiag(*ARed);

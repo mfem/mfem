@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    double ltol_amr=1e-5;
    bool derefine = false;
    int precision = 8;
-   int nc_limit = 3;         // maximum level of hanging nodes
+   int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
    //----end of amr----
    int icase = 1;
@@ -170,6 +170,8 @@ int main(int argc, char *argv[])
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
+   args.AddOption(&ALPHA, "-alpha", "--hyperdiff",
+                  "Numerical hyprediffusion coefficient.");
    args.AddOption(&ltol_amr, "-ltol", "--local-tol",
                   "Local AMR tolerance.");
    args.AddOption(&resi, "-resi", "--resistivity",
@@ -583,7 +585,7 @@ int main(int argc, char *argv[])
           refineMesh=false;
 
       //here we derefine every ref_steps but is lagged by a step of ref_steps/2
-      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 && ti >  ref_steps ) 
+      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 && ti >  ref_steps ) //&& t<5.0) 
       {
           derefineMesh=true;
           derefiner.Reset();
@@ -704,6 +706,8 @@ int main(int argc, char *argv[])
       if (visualization || visit)
       {
          //J need to be updated again just for plotting
+         //this may affect AMR??? no, the nc_limit was the issue
+         //we cannot do nc_limit>1 with h dependent diffusion
          oper.UpdateJ(vx, &j);
       }
 
