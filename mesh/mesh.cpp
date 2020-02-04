@@ -3875,7 +3875,8 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 
 void Mesh::EnsureNodes()
 {
-   if (Nodes) {
+   if (Nodes)
+   {
       const FiniteElementCollection *fec = GetNodalFESpace()->FEColl();
       if (dynamic_cast<const H1_FECollection*>(fec)
           || dynamic_cast<const L2_FECollection*>(fec))
