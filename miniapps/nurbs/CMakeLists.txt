@@ -17,9 +17,15 @@ configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/square-nurbs.mesh
                ${PROJECT_BINARY_DIR}/miniapps/nurbs/square-nurbs.mesh
                COPYONLY)
 
+configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/cube-nurbs.mesh
+               ${PROJECT_BINARY_DIR}/miniapps/nurbs/cube-nurbs.mesh
+               COPYONLY)
+
 configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/pipe-nurbs-2d.mesh
                ${PROJECT_BINARY_DIR}/miniapps/nurbs/pipe-nurbs-2d.mesh
                COPYONLY)
+
+
 
 add_test(NAME nurbs_ex1_ser
   COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis)
