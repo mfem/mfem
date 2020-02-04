@@ -3734,131 +3734,354 @@ static void D2QGrad(const FiniteElementSpace &fes,
    MFEM_ABORT("Unknown kernel");
 }
 
-template<int T_D1D =0, int T_Q1D =0>
-static void ApplyInvJac2D(const int NE, const GeometricFactors *geom,
-                          Vector &phy_der, const int D1D, const int Q1D)
+template<int T_D1D =0, int T_Q1D =0, int T_NBZ =0>
+static void D2QPhysGrad2D(const int NE,
+                          const GeometricFactors *geom,
+                          const Array<double> &b_,
+                          const Array<double> &g_,
+                          const Vector &x_,
+                          Vector &y_,
+                          const int d1d =0,
+                          const int q1d =0)
 {
-
    constexpr int VDIM = 2;
-   const int NQ = Q1D*Q1D;
-   auto y = Reshape(phy_der.ReadWrite(), VDIM, VDIM, NQ, NE);
-   auto J = Reshape(geom->J.Read(), NQ, VDIM, VDIM, NE);
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
-   MFEM_FORALL(e, NE,
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto g = Reshape(g_.Read(), Q1D, D1D);
+   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, NE);
+   auto j = Reshape(geom->J.Read(), Q1D, Q1D, VDIM, VDIM, NE);
+
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      const int tidz = MFEM_THREAD_ID(z);
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double G[MQ1][MD1];
+
       double Yloc[VDIM][VDIM];
       double Jloc[VDIM][VDIM];
       double Jinv[VDIM][VDIM];
 
-      for (int q=0; q<NQ; ++q)
-      {
+      MFEM_SHARED double Xz[NBZ][MD1][MD1];
+      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
 
-         for (int r=0; r<VDIM; ++r)
+      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
+      double (*DQ0)[MQ1] = (double (*)[MQ1])(GD[0] + tidz);
+      double (*DQ1)[MQ1] = (double (*)[MQ1])(GD[1] + tidz);
+
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
          {
-            for (int c=0; c<VDIM; ++c)
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Jloc[c][r] = J(q,c,r,e);
-               Yloc[c][r] = y(c,r,q,e);
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
             }
          }
+      }
+      MFEM_SYNC_THREAD;
 
-         blas::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
-
-         //Apply Jinv for change of coordinates
-         for (int r=0; r<VDIM; ++r)
+      for (int c = 0; c < 2; ++c)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            for (int c=0; c<VDIM; ++c)
+            MFEM_FOREACH_THREAD(dy,y,D1D)
             {
+               X[dx][dy] = x(dx,dy,c,e);
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double input = X[dx][dy];
+                  u += B[qx][dx] * input;
+                  v += G[qx][dx] * input;
+               }
+               DQ0[dy][qx] = u;
+               DQ1[dy][qx] = v;
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  u += DQ1[dy][qx] * B[qy][dy];
+                  v += DQ0[dy][qx] * G[qy][dy];
+               }
+               //Possible optimization:
+               //Use exclusive memory to
+               //store data at quad points
+               y(c,0,qx,qy,e) = u;
+               y(c,1,qx,qy,e) = v;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+
+      //Transfer to physical space
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+
+           for(int r=0; r<VDIM; ++r) {
+             for(int c=0; c<VDIM; ++c) {
+               Yloc[c][r] = y(c,r,qx,qy,e);
+               Jloc[c][r] = j(qx,qy,c,r,e);
+             }
+           }
+
+           blas::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
+
+           for(int r=0; r<VDIM; ++r){
+             for(int c=0; c<VDIM; ++c){
 
                double dot(0.0);
-               for (int k=0; k<VDIM; ++k)
-               {
-                  dot += Yloc[r][k]*Jinv[k][c];
+               for(int k=0; k<VDIM; ++k){
+                 dot += Yloc[r][k]*Jinv[k][c];
                }
-               y(r,c,q,e) = dot;
-            }
+               y(r,c,qx,qy,e) = dot;
+             }
+           }
+
          }
+      }
 
-      }//qpts
+
    });
-
 }
 
-template<int T_D1D =0, int T_Q1D =0>
-static void ApplyInvJac3D(const int NE, const GeometricFactors *geom,
-                          Vector &phy_der, const int D1D, const int Q1D)
+template<int T_D1D =0, int T_Q1D =0, int MAX_D =0, int MAX_Q =0>
+static  void D2QPhysGrad3D(const int NE,
+                           const GeometricFactors *geom,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d =0,
+                           const int q1d =0)
 {
-
    constexpr int VDIM = 3;
-   int NQ = Q1D*Q1D*Q1D;
-   auto y = Reshape(phy_der.ReadWrite(), VDIM, VDIM, NQ, NE);
-   auto J = Reshape(geom->J.Read(), NQ, VDIM, VDIM, NE);
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_FORALL(e, NE,
+   auto b = Reshape(b_.Read(), Q1D, D1D);
+   auto g = Reshape(g_.Read(), Q1D, D1D);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, Q1D, NE);
+   auto j = Reshape(geom->J.Read(), Q1D, Q1D, Q1D, VDIM, VDIM, NE);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
+      const int tidz = MFEM_THREAD_ID(z);
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double G[MQ1][MD1];
+
       double Yloc[VDIM][VDIM];
       double Jloc[VDIM][VDIM];
       double Jinv[VDIM][VDIM];
 
-      for (int q=0; q<NQ; ++q)
+      MFEM_SHARED double sm0[3][MQ1*MQ1*MQ1];
+      MFEM_SHARED double sm1[3][MQ1*MQ1*MQ1];
+      double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
+      double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
+      double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);
+      double (*DQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+0);
+      double (*DQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+1);
+      double (*DQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+2);
+
+      if (tidz == 0)
       {
-
-         for (int r=0; r<VDIM; ++r)
+         MFEM_FOREACH_THREAD(d,y,D1D)
          {
-            for (int c=0; c<VDIM; ++c)
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Jloc[c][r] = J(q,c,r,e);
-               Yloc[c][r] = y(c,r,q,e);
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
             }
          }
+      }
+      MFEM_SYNC_THREAD;
 
-         blas::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
-
-         //Apply Jinv for change of coordinates
-         for (int r=0; r<VDIM; ++r)
+      for (int c = 0; c < VDIM; ++c)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            for (int c=0; c<VDIM; ++c)
+            MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-
-               double dot(0.0);
-               for (int k=0; k<VDIM; ++k)
+               MFEM_FOREACH_THREAD(dz,z,D1D)
                {
-                  dot += Yloc[r][k]*Jinv[k][c];
+
+                  X[dx][dy][dz] = x(dx,dy,dz,c,e);
                }
-               y(r,c,q,e) = dot;
             }
          }
+         MFEM_SYNC_THREAD;
 
-      }//qpts
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     const double coords = X[dx][dy][dz];
+                     u += coords * B[qx][dx];
+                     v += coords * G[qx][dx];
+                  }
+                  DDQ0[dz][dy][qx] = u;
+                  DDQ1[dz][dy][qx] = v;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dy = 0; dy < D1D; ++dy)
+                  {
+                     u += DDQ1[dz][dy][qx] * B[qy][dy];
+                     v += DDQ0[dz][dy][qx] * G[qy][dy];
+                     w += DDQ0[dz][dy][qx] * B[qy][dy];
+                  }
+                  DQQ0[dz][qy][qx] = u;
+                  DQQ1[dz][qy][qx] = v;
+                  DQQ2[dz][qy][qx] = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dz = 0; dz < D1D; ++dz)
+                  {
+                     u += DQQ0[dz][qy][qx] * B[qz][dz];
+                     v += DQQ1[dz][qy][qx] * B[qz][dz];
+                     w += DQQ2[dz][qy][qx] * G[qz][dz];
+                  }
+                  //Possible optimization:
+                  //Use exclusive memory to
+                  //store data at quad points
+                  y(c,0,qx,qy,qz,e) = u;
+                  y(c,1,qx,qy,qz,e) = v;
+                  y(c,2,qx,qy,qz,e) = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+
+      //Transfer to physical space
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+
+              for(int r=0; r<VDIM; ++r)
+              {
+                for(int c=0; c<VDIM; ++c)
+                {
+                  Yloc[c][r] = y(c,r,qx,qy,qz,e);
+                  Jloc[c][r] = j(qx,qy,qz,c,r,e);
+                }
+              }
+
+              blas::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
+
+              for(int r=0; r<VDIM; ++r)
+              {
+                 for(int c=0; c<VDIM; ++c)
+                 {
+
+                   double dot(0.0);
+                   for(int k=0; k<VDIM; ++k)
+                   {
+                     dot += Yloc[r][k]*Jinv[k][c];
+                   }
+                   y(r,c,qx,qy,qz,e) = dot;
+                 }
+              }
+
+            }
+         }
+      }
+
    });
-
 }
 
-static void ApplyInvJac(const FiniteElementSpace &fes,
-                        const GeometricFactors *geom,
-                        const DofToQuad *maps, Vector &phy_der)
-{
 
+static void D2QPhysGrad(const FiniteElementSpace &fes,
+                        const GeometricFactors *geom,
+                        const DofToQuad *maps,
+                        const IntegrationRule& ir,
+                        const Vector &e_vec,
+                        Vector &q_der)
+{
    const int dim = fes.GetMesh()->Dimension();
    const int NE = fes.GetNE();
    const int D1D = fes.GetFE(0)->GetOrder() + 1;
    const int Q1D = maps->nqpt;
    const int id = (D1D<<4) | Q1D;
-
    if (dim==2)
    {
       switch (id)
       {
-         default: return ApplyInvJac2D(NE, geom, phy_der, D1D, Q1D);
+         case 0x34: return D2QPhysGrad2D<3,4,8>(NE, geom, maps->B, maps->G, e_vec, q_der);
+         case 0x46: return D2QPhysGrad2D<4,6,4>(NE, geom, maps->B, maps->G, e_vec, q_der);
+         case 0x58: return D2QPhysGrad2D<5,8,2>(NE, geom, maps->B, maps->G, e_vec, q_der);
+         default: return D2QPhysGrad2D(NE, geom, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
       }
    }
    if (dim==3)
    {
       switch (id)
       {
+         case 0x34: return D2QPhysGrad3D<3,4>(NE, geom, maps->B, maps->G, e_vec, q_der);
+         case 0x46: return D2QPhysGrad3D<4,6>(NE, geom, maps->B, maps->G, e_vec, q_der);
+         case 0x58: return D2QPhysGrad3D<5,8>(NE, geom, maps->B, maps->G, e_vec, q_der);
          default:
          {
-            return ApplyInvJac3D(NE, geom, phy_der, D1D, Q1D);
+            MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
+            return D2QPhysGrad3D<0,0,8,8>(NE, geom, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
          }
       }
    }
@@ -3876,7 +4099,7 @@ void QuadratureInterpolator::Derivatives(const Vector &e_vec,
 }
 
 void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
-                                             Vector &q_der) const
+                                         Vector &q_der) const
 {
 
    Mesh *mesh = fespace->GetMesh();
@@ -3888,8 +4111,7 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
 
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
-   D2QGrad(*fespace, &d2q, ir, e_vec, q_der);
-   ApplyInvJac(*fespace, geom, &d2q, q_der);
+   D2QPhysGrad(*fespace, geom, &d2q, ir, e_vec, q_der);
 }
 
 } // namespace mfem
