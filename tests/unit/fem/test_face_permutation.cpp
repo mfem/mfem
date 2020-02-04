@@ -165,7 +165,7 @@ void TestFaceRestriction(Mesh &mesh, int order)
    GridFunction gf(&fes);
 
    L2FaceRestriction restr(fes, ElementDofOrdering::LEXICOGRAPHIC,
-                           FaceType::Interior, L2FaceValues::Double);
+                           FaceType::Interior, L2FaceValues::DoubleValued);
 
    const int ndof_face = pow(order+1, dim-1);
 
