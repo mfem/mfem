@@ -626,7 +626,7 @@ void DiffusionIntegrator::AssembleElementVector(
 
 void DiffusionIntegrator::ComputeElementFlux
 ( const FiniteElement &el, ElementTransformation &Trans,
-  Vector &u, const FiniteElement &fluxelem, Vector &flux, int with_coef )
+  Vector &u, const FiniteElement &fluxelem, Vector &flux, bool with_coef )
 {
    int i, j, nd, dim, spaceDim, fnd;
 
@@ -1539,7 +1539,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
 void CurlCurlIntegrator
 ::ComputeElementFlux(const FiniteElement &el, ElementTransformation &Trans,
                      Vector &u, const FiniteElement &fluxelem, Vector &flux,
-                     int with_coef)
+                     bool with_coef)
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix projcurl;
@@ -2317,7 +2317,7 @@ void ElasticityIntegrator::AssembleElementMatrix(
 void ElasticityIntegrator::ComputeElementFlux(
    const mfem::FiniteElement &el, ElementTransformation &Trans,
    Vector &u, const mfem::FiniteElement &fluxelem, Vector &flux,
-   int with_coef)
+   bool with_coef)
 {
    const int dof = el.GetDof();
    const int dim = el.GetDim();
