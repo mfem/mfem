@@ -216,7 +216,7 @@ public:
    { if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
 };
 
-#ifdef _WIN32
+#ifndef _WIN32
 static uintptr_t pagesize = 0;
 static uintptr_t pagemask = 0;
 
