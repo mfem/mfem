@@ -758,4 +758,51 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 }
 #endif
 
+void QuadratureVectorFunctionCoefficient::SetLength(int _length)
+{
+   int vdim = QuadF->GetVDim();
+
+   MFEM_ASSERT(_length > 0, "Length must be > 0");
+   vdim -= index;
+   MFEM_ASSERT(_length <= vdim, "Length must be <= (QuadratureFunction length - index)");
+
+   length = _length;
+}
+
+void QuadratureVectorFunctionCoefficient::SetIndex(int _index)
+{
+   MFEM_ASSERT(_index >= 0, "Index must be >= 0");
+   MFEM_ASSERT(_index < QuadF->GetVDim(), "Index must be < the QuadratureFunction length");
+   index = _index;
+}
+
+void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
+                                               ElementTransformation &T,
+                                               const IntegrationPoint &ip)
+{
+   int elem_no = T.ElementNo;
+   if (index == 0 && length == QuadF->GetVDim()) {
+      QuadF->GetElementValues(elem_no, ip.index, V);
+   }
+   else {
+      // This will need to be improved upon...
+      Vector temp;
+      QuadF->GetElementValues(elem_no, ip.index, temp);
+      double *data = temp.GetData();
+      V.NewDataAndSize(data + index, length);
+   }
+
+   return;
+}
+
+/// Evaluate the function coefficient at a specific quadrature point
+double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
+                                           const IntegrationPoint &ip)
+{
+   int elem_no = T.ElementNo;
+   Vector temp(1);
+   QuadF->GetElementValues(elem_no, ip.index, temp);
+   return temp[0];
+}
+
 }
