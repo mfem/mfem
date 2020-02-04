@@ -1670,7 +1670,6 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    SetNodalFESpace(nfes);
    auto pnodes = new ParGridFunction(nfes);
    GetNodes(*pnodes);
-   pnodes->ExchangeFaceNbrData();
    NewNodes(*pnodes, true);
    Nodes->MakeOwner(nfec);
 }

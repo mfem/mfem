@@ -125,7 +125,6 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    {
       ApplyLDofSigns(*elem_dof);
    }
-   ExchangeFaceNbrData();
 }
 
 void ParFiniteElementSpace::Construct()
