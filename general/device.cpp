@@ -79,7 +79,7 @@ Device::Device() : mode(Device::SEQUENTIAL),
    if (getenv("MFEM_MEMORY"))
    {
       std::string mem_backend(getenv("MFEM_MEMORY"));
-      dbg("MFEM_MEMORY: %s", mem_backend.c_str());
+      dbg("MFEM_MEMORY => %s", mem_backend.c_str());
       if (mem_backend == "host32")
       {
          mem_host_env = true;
@@ -126,17 +126,16 @@ Device::Device() : mode(Device::SEQUENTIAL),
 
    }
 
-   if (getenv("MFEM_DEVICE"))
+   if (getenv("MFEM_DEVICE") && !mem_host_env)
    {
       std::string device(getenv("MFEM_DEVICE"));
-      dbg("%s", device.c_str());
+      dbg("MFEM_DEVICE => %s", device.c_str());
       const char *device_c_str = device.c_str();
+      const bool cpu = strlen(device_c_str) == 3 &&
+                       strncmp(device_c_str,"cpu",3)==0;
       const bool debug = strlen(device_c_str) == 5 &&
                          strncmp(device_c_str,"debug",5)==0;
-      if (!debug)
-      {
-         return;
-      }
+      if (!debug && !cpu) { return; }
       Configure(device);
       device_env = true;
    }
@@ -163,16 +162,17 @@ Device::~Device()
 
 void Device::Configure(const std::string &device, const int dev)
 {
-   dbg("");
    // If a device was configured via the environment, skip the configuration,
    // and avoid the 'singleton_device' to destroy the mm.
-   if (device_env)
+   if (device_env || mem_host_env)
    {
+      dbg("skip the configuration");
       std::memcpy(this, &Get(), sizeof(Device));
       Get().destroy_mm = false;
       return;
    }
 
+   dbg("");
    std::map<std::string, Backend::Id> bmap;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {

@@ -305,7 +305,11 @@ inline void MmuAlloc(void **ptr, const size_t bytes)
 inline void MmuDealloc(void *ptr, const size_t bytes)
 {
    const size_t length = bytes == 0 ? 8 : bytes;
-   if (::munmap(ptr, length) == -1) { mfem_error("Dealloc error!"); }
+   if (::munmap(ptr, length) == -1)
+   {
+      dbg("ptr:%p, bytes: 0x%x", ptr, bytes);
+      mfem_error("Dealloc error!");
+   }
 }
 
 /// MMU protection, through ::mprotect with no read/write accesses
@@ -562,6 +566,7 @@ public:
       {
          if (mt == MT::HOST_DEBUG)
          {
+            dbg("HOST_DEBUG");
             host[mt_i] = new MmuHostMemorySpace();
          }
          else
@@ -569,7 +574,7 @@ public:
             MFEM_ABORT("Unknown lazy host memory controller!");
          }
       }
-      MFEM_ASSERT(host[mt_i], "Memory manager has not been configured!");
+      MFEM_ASSERT(host[mt_i], "Memory mana<ger has not been configured!");
       return host[mt_i];
    }
 
@@ -577,22 +582,31 @@ public:
    {
       const int mt_i = static_cast<int>(mt) - DeviceMemoryType;
       // Lazy device UMPIRE and DEBUG/DEVICE initializations
-      if (!device[mt_i] )
+      if (!device[mt_i])
       {
+         dbg("mt_i:%d, mt:%d", mt_i, mt);
          const MemoryType mm_d_mt = mm.GetDeviceMemoryType();
          if (mt == MT::DEVICE_UMPIRE)
          {
+            dbg("DEVICE_UMPIRE");
             device[mt_i] = new UmpireDeviceMemorySpace();
          }
          else if (mt == MT::DEVICE_DEBUG)
          {
+            dbg("DEVICE_DEBUG");
             device[mt_i] = new MmuDeviceMemorySpace();
          }
-         else if (mt == MT::DEVICE &&  mm_d_mt == MT::DEVICE_DEBUG)
+         else if (mt == MT::DEVICE && mm_d_mt == MT::DEVICE_DEBUG)
          {
+            dbg("DEVICE && DEVICE_DEBUG");
             // If 'DEVICE' is used while in 'DEBUG' mode, use it.
             // This case is tesed in the memory unit test.
             device[mt_i] = new MmuDeviceMemorySpace();
+         }
+         else if (mt == MT::DEVICE && mm_d_mt == MT::HOST_DEBUG)
+         {
+            dbg("DEVICE && HOST_DEBUG");
+            device[mt_i] = new DeviceMemorySpace();
          }
          else
          {
@@ -605,6 +619,7 @@ public:
 
    ~Ctrl()
    {
+      dbg("");
       constexpr int mt_h = HostMemoryType;
       constexpr int mt_d = DeviceMemoryType;
       for (int mt = mt_h; mt < HostMemoryTypeSize; mt++) { delete host[mt]; }
@@ -1314,6 +1329,7 @@ void MemoryManager::SetUmpireAllocatorNames(const char *h_name,
 
 void MemoryManager::Destroy()
 {
+   dbg("");
    MFEM_VERIFY(exists, "MemoryManager has already been destroyed!");
    for (auto& n : maps->memories)
    {
