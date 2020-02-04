@@ -230,14 +230,14 @@ bool SesquilinearForm::RealInteg()
 {
    int nint = blfr->GetFBFI()->Size() + blfr->GetDBFI()->Size() +
               blfr->GetBBFI()->Size() + blfr->GetBFBFI()->Size();
-   return !(nint == 0);
+   return (nint != 0);
 }
 
 bool SesquilinearForm::ImagInteg()
 {
    int nint = blfi->GetFBFI()->Size() + blfi->GetDBFI()->Size() +
               blfi->GetBBFI()->Size() + blfi->GetBFBFI()->Size();
-   return !(nint == 0);
+   return (nint != 0);
 }
 
 SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
@@ -346,8 +346,6 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    int vsize  = fes->GetVSize();
 
-   double s = (conv == ComplexOperator::HERMITIAN)?1.0:-1.0;
-
    // Allocate temporary vectors
    Vector b_0(vsize);  b_0 = 0.0;
 
@@ -359,7 +357,8 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    MFEM_ASSERT(b.Size() == 2 * vsize, "Input LinearForm of incorrect size!");
    Vector b_r(b.GetData(), vsize);
    Vector b_i(&(b.GetData())[vsize], vsize);
-   b_i *= s;
+
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC) { b_i *= -1.0; }
 
    int tvsize = fes->GetTrueVSize();
    SparseMatrix * A_r = nullptr;
@@ -373,34 +372,12 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    Vector X_i(&(X.GetData())[tvsize], tvsize);
    Vector B_r(B.GetData(), tvsize);
    Vector B_i(&(B.GetData())[tvsize], tvsize);
-   if (RealInteg() && ImagInteg())
+
+   if (RealInteg())
    {
       A_r = new SparseMatrix;
-      A_i = new SparseMatrix;
-
       blfr->SetDiagonalPolicy(diag_policy);
-      blfi->SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy::DIAG_ZERO);
-      b_0 = b_r;
-      blfr->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_r, X_0, B_0, ci);
-      X_r = X_0; B_r = B_0;
 
-      b_0 = 0.0;
-      blfi->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_i, X_0, B_0, false);
-      B_r -= B_0;
-
-      b_0 = b_i;
-      blfr->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_r, X_0, B_0, ci);
-      X_i = X_0; B_i = B_0;
-
-      b_0 = 0.0;
-      blfi->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_i, X_0, B_0, false);
-      B_i += B_0;
-   }
-   else if (RealInteg())
-   {
-      A_r = new SparseMatrix;
-
-      blfr->SetDiagonalPolicy(diag_policy);
       b_0 = b_r;
       blfr->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_r, X_0, B_0, ci);
       X_r = X_0; B_r = B_0;
@@ -408,11 +385,26 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       b_0 = b_i;
       blfr->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_r, X_0, B_0, ci);
       X_i = X_0; B_i = B_0;
+
+      if (ImagInteg())
+      {
+         A_i = new SparseMatrix;
+         blfi->SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy::DIAG_ZERO);
+
+         b_0 = 0.0;
+         blfi->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_i, X_0, B_0, false);
+         B_r -= B_0;
+
+         b_0 = 0.0;
+         blfi->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_i, X_0, B_0, false);
+         B_i += B_0;
+      }
    }
    else if (ImagInteg())
    {
       A_i = new SparseMatrix;
       blfi->SetDiagonalPolicy(diag_policy);
+
       b_0 = b_i;
       blfi->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_i, X_0, B_0, ci);
       X_r = X_0; B_i = B_0;
@@ -425,9 +417,12 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    {
       MFEM_ABORT("Real and Imaginary part of the Sesquilinear form are empty");
    }
-   B_i *= s;
-   b_i *= s;
 
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
+   {
+      B_i *= -1.0;
+      b_i *= -1.0;
+   }
    // A = A_r + i A_i
    A.Clear();
    ComplexSparseMatrix * A_sp;
@@ -804,14 +799,14 @@ bool ParSesquilinearForm::RealInteg()
 {
    int nint = pblfr->GetFBFI()->Size() + pblfr->GetDBFI()->Size() +
               pblfr->GetBBFI()->Size() + pblfr->GetBFBFI()->Size();
-   return !(nint == 0);
+   return (nint != 0);
 }
 
 bool ParSesquilinearForm::ImagInteg()
 {
    int nint = pblfi->GetFBFI()->Size() + pblfi->GetDBFI()->Size() +
               pblfi->GetBBFI()->Size() + pblfi->GetBFBFI()->Size();
-   return !(nint == 0);
+   return (nint != 0);
 }
 
 ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf,
@@ -918,8 +913,6 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    ParFiniteElementSpace * pfes = pblfr->ParFESpace();
    int vsize = pfes->GetVSize();
 
-   double s = (conv == ComplexOperator::HERMITIAN)?1.0:-1.0;
-
    // Allocate temporary vectors
    Vector b_0(vsize);  b_0 = 0.0;
 
@@ -930,7 +923,8 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    MFEM_ASSERT(b.Size() == 2 * vsize, "Input LinearForm of incorrect size!");
    Vector b_r(b.GetData(), vsize);
    Vector b_i(&(b.GetData())[vsize], vsize);
-   b_i *= s;
+
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC) { b_i *= -1.0; }
 
    int tvsize = pfes->GetTrueVSize();
 
@@ -945,25 +939,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    Vector B_r(B.GetData(), tvsize);
    Vector B_i(&(B.GetData())[tvsize], tvsize);
 
-   if (RealInteg() && ImagInteg())
-   {
-      b_0 = b_r;
-      pblfr->FormLinearSystem(ess_tdof_list, x_r, b_0, A_r, X_0, B_0, ci);
-      X_r = X_0; B_r = B_0;
-
-      b_0 = 0.0;
-      pblfi->FormLinearSystem(ess_tdof_list, x_i, b_0, A_i, X_0, B_0, false);
-      B_r -= B_0;
-
-      b_0 = b_i;
-      pblfr->FormLinearSystem(ess_tdof_list, x_i, b_0, A_r, X_0, B_0, ci);
-      X_i = X_0; B_i = B_0;
-
-      b_0 = 0.0;
-      pblfi->FormLinearSystem(ess_tdof_list, x_r, b_0, A_i, X_0, B_0, false);
-      B_i += B_0;
-   }
-   else if (RealInteg())
+   if (RealInteg())
    {
       b_0 = b_r;
       pblfr->FormLinearSystem(ess_tdof_list, x_r, b_0, A_r, X_0, B_0, ci);
@@ -972,6 +948,17 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       b_0 = b_i;
       pblfr->FormLinearSystem(ess_tdof_list, x_i, b_0, A_r, X_0, B_0, ci);
       X_i = X_0; B_i = B_0;
+
+      if (ImagInteg())
+      {
+         b_0 = 0.0;
+         pblfi->FormLinearSystem(ess_tdof_list, x_i, b_0, A_i, X_0, B_0, false);
+         B_r -= B_0;
+
+         b_0 = 0.0;
+         pblfi->FormLinearSystem(ess_tdof_list, x_r, b_0, A_i, X_0, B_0, false);
+         B_i += B_0;
+      }
    }
    else if (ImagInteg())
    {
@@ -1009,9 +996,11 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       }
    }
 
-   B_i *= s;
-   b_i *= s;
-
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
+   {
+      B_i *= -1.0;
+      b_i *= -1.0;
+   }
    // A = A_r + i A_i
    A.Clear();
    if ( A_r.Type() == Operator::Hypre_ParCSR ||

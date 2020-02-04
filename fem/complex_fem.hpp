@@ -206,7 +206,7 @@ public:
    SesquilinearForm(FiniteElementSpace *fes,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
-   /** @brief Create a BilinearForm on the FiniteElementSpace @a f, using the
+   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a f, using the
        same integrators as the BilinearForms @a bfr and @a bfi .
 
        The pointer @a fes is not owned by the newly constructed object.
@@ -512,7 +512,7 @@ public:
        The pointer @a pf is not owned by the newly constructed object.
 
        The integrators are copied as pointers and they are not owned by
-       the newly constructed ParSesquilinearBilinearForm. */
+       the newly constructed ParSesquilinearForm. */
    ParSesquilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *pbfr,
                        ParBilinearForm *pbfi,
                        ComplexOperator::Convention

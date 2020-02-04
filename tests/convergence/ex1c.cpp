@@ -63,6 +63,8 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
 
+   mesh->UniformRefinement();
+
    // Define a finite element space on the mesh.
    FiniteElementCollection *fec;
    if (order > 0)
@@ -122,7 +124,7 @@ int main(int argc, char *argv[])
 
    double L2err_re0, L2err_im0;
    double H1err_re0, H1err_im0;
-   for (int l=0; l<ref_levels; l++)
+   for (int l=0; l<ref_levels+1; l++)
    {
       a->Assemble();
       b->Assemble();
@@ -221,7 +223,7 @@ int main(int argc, char *argv[])
       H1err_re0 = H1err_re;
       H1err_im0 = H1err_im;
 
-      if (l == ref_levels-1) { break; }
+      if (l == ref_levels) { break; }
 
       mesh->UniformRefinement();
       fespace->Update();
