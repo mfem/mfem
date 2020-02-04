@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <cmath>
+#include <set>
 
 namespace mfem
 {
@@ -109,8 +110,8 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
                                                const double dmpng)
    :
-   Solver(a.Size()),
-   N(a.Size()),
+   Solver(a.FESpace()->GetTrueVSize()),
+   N(height),
    dinv(N),
    damping(dmpng),
    ess_tdof_list(ess_tdofs),
@@ -149,6 +150,9 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
 
 void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_ASSERT(x.Size() == N, "invalid input vector");
+   MFEM_ASSERT(y.Size() == N, "invalid output vector");
+
    if (iterative_mode && oper)
    {
       oper->Mult(y, residual);  // r = A x
@@ -799,10 +803,12 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   if (print_level>=0)
+   if (print_level == 1)
+   {
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
                 << "  || r || = " << beta << endl;
+   }
 
    Array<Vector*> v(m+1);
    Array<Vector*> z(m+1);
@@ -858,17 +864,25 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
          double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-         if (print_level >= 0)
+         if (print_level == 1)
+         {
             mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                       << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
+         }
 
-         if ( resid <= final_norm)
+         if (resid <= final_norm)
          {
             Update(x, i, H, s, z);
             final_norm = resid;
             final_iter = j;
             converged = 1;
+
+            if (print_level == 2)
+            {
+               mfem::out << "Number of FGMRES iterations: " << final_iter << endl;
+            }
+
             for (i= 0; i<=m; i++)
             {
                if (v[i]) { delete v[i]; }
@@ -878,7 +892,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          }
       }
 
-      if (print_level>=0)
+      if (print_level == 1)
       {
          mfem::out << "Restarting..." << endl;
       }
@@ -889,11 +903,17 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       subtract(b,r,r);
       beta = Norm(r);
       MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
-      if ( beta <= final_norm)
+      if (beta <= final_norm)
       {
          final_norm = beta;
          final_iter = j;
          converged = 1;
+
+         if (print_level == 2)
+         {
+            mfem::out << "Number of FGMRES iterations: " << final_iter << endl;
+         }
+
          for (i= 0; i<=m; i++)
          {
             if (v[i]) { delete v[i]; }
@@ -909,8 +929,13 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if (z[i]) { delete z[i]; }
    }
    converged = 0;
-   return;
 
+   if (print_level >= 0)
+   {
+      mfem::out << "FGMRES: No convergence!" << endl;
+   }
+
+   return;
 }
 
 
@@ -1784,6 +1809,459 @@ slbqp_done:
       mfem::out << "SLBQP iterations = " << nclip << '\n';
       mfem::out << "SLBQP lambda     = " << l << '\n';
       mfem::out << "SLBQP residual   = " << r << '\n';
+   }
+}
+
+struct WeightMinHeap
+{
+   const std::vector<double> &w;
+   std::vector<size_t> c;
+   std::vector<int> loc;
+
+   WeightMinHeap(const std::vector<double> &w_) : w(w_)
+   {
+      c.reserve(w.size());
+      loc.resize(w.size());
+      for (size_t i=0; i<w.size(); ++i) { push(i); }
+   }
+
+   size_t percolate_up(size_t pos, double val)
+   {
+      for (; pos > 0 && w[c[(pos-1)/2]] > val; pos = (pos-1)/2)
+      {
+         c[pos] = c[(pos-1)/2];
+         loc[c[(pos-1)/2]] = pos;
+      }
+      return pos;
+   }
+
+   size_t percolate_down(size_t pos, double val)
+   {
+      while (2*pos+1 < c.size())
+      {
+         size_t left = 2*pos+1;
+         size_t right = left+1;
+         size_t tgt;
+         if (right < c.size() && w[c[right]] < w[c[left]]) { tgt = right; }
+         else { tgt = left; }
+         if (w[c[tgt]] < val)
+         {
+            c[pos] = c[tgt];
+            loc[c[tgt]] = pos;
+            pos = tgt;
+         }
+         else
+         {
+            break;
+         }
+      }
+      return pos;
+   }
+
+   void push(size_t i)
+   {
+      double val = w[i];
+      c.push_back(-1);
+      size_t pos = c.size()-1;
+      pos = percolate_up(pos, val);
+      c[pos] = i;
+      loc[i] = pos;
+   }
+
+   int pop()
+   {
+      size_t i = c[0];
+      size_t j = c.back();
+      c.pop_back();
+      // Mark as removed
+      loc[i] = -1;
+      if (c.empty()) { return i; }
+      double val = w[j];
+      size_t pos = 0;
+      pos = percolate_down(pos, val);
+      c[pos] = j;
+      loc[j] = pos;
+      return i;
+   }
+
+   void update(size_t i)
+   {
+      size_t pos = loc[i];
+      double val = w[i];
+      pos = percolate_up(pos, val);
+      pos = percolate_down(pos, val);
+      c[pos] = i;
+      loc[i] = pos;
+   }
+
+   bool picked(size_t i)
+   {
+      return loc[i] < 0;
+   }
+};
+
+void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
+{
+   int n = C.Width();
+   // Scale rows by reciprocal of diagonal and take absolute value
+   Vector D;
+   C.GetDiag(D);
+   int *I = C.GetI();
+   int *J = C.GetJ();
+   double *V = C.GetData();
+   for (int i=0; i<n; ++i)
+   {
+      for (int j=I[i]; j<I[i+1]; ++j)
+      {
+         V[j] = abs(V[j]/D[i]);
+      }
+   }
+
+   std::vector<double> w(n, 0.0);
+   // Compute the discarded-fill weights
+   for (int k=0; k<n; ++k)
+   {
+      for (int ii=I[k]; ii<I[k+1]; ++ii)
+      {
+         double C_ki = V[ii];
+         for (int jj=I[k]; jj<I[k+1]; ++jj)
+         {
+            if (jj == ii) { continue; }
+            double C_jk = V[jj];
+            w[k] += pow(C_jk*C_ki, 2);
+         }
+      }
+      w[k] = sqrt(w[k]);
+   }
+
+   WeightMinHeap w_heap(w);
+
+   // Compute ordering
+   p.SetSize(n);
+   for (int i=0; i<n; ++i)
+   {
+      int pi = w_heap.pop();
+      p[n-1-i] = pi;
+      w[pi] = -1;
+      for (int kk=I[pi]; kk<I[pi+1]; ++kk)
+      {
+         int k = J[kk];
+         if (w_heap.picked(k)) { continue; }
+         // Recompute weight
+         w[k] = 0.0;
+         for (int ii=I[k]; ii<I[k+1]; ++ii)
+         {
+            if (w_heap.picked(J[ii])) { continue; }
+            double C_ki = V[ii];
+            for (int jj=I[k]; jj<I[k+1]; ++jj)
+            {
+               if (jj == ii || w_heap.picked(J[jj])) { continue; }
+               double C_jk = V[jj];
+               w[k] += pow(C_jk*C_ki, 2);
+            }
+         }
+         w[k] = sqrt(w[k]);
+         w_heap.update(k);
+      }
+   }
+}
+
+BlockILU::BlockILU(int block_size_,
+                   Reordering reordering_,
+                   int k_fill_)
+   : Solver(0),
+     block_size(block_size_),
+     k_fill(k_fill_),
+     reordering(reordering_)
+{ }
+
+BlockILU::BlockILU(Operator &op,
+                   int block_size_,
+                   Reordering reordering_,
+                   int k_fill_)
+   : BlockILU(block_size_, reordering_, k_fill_)
+{
+   SetOperator(op);
+}
+
+void BlockILU::SetOperator(const Operator &op)
+{
+   const SparseMatrix *A = NULL;
+#ifdef MFEM_USE_MPI
+   const HypreParMatrix *A_par = dynamic_cast<const HypreParMatrix *>(&op);
+   SparseMatrix A_par_diag;
+   if (A_par != NULL)
+   {
+      A_par->GetDiag(A_par_diag);
+      A = &A_par_diag;
+   }
+#endif
+   if (A == NULL)
+   {
+      A = dynamic_cast<const SparseMatrix *>(&op);
+      if (A == NULL)
+      {
+         MFEM_ABORT("BlockILU must be created with a SparseMatrix or HypreParMatrix");
+      }
+   }
+   height = op.Height();
+   width = op.Width();
+   MFEM_ASSERT(A->Finalized(), "Matrix must be finalized.");
+   CreateBlockPattern(*A);
+   Factorize();
+}
+
+void BlockILU::CreateBlockPattern(const SparseMatrix &A)
+{
+   MFEM_VERIFY(k_fill == 0, "Only block ILU(0) is currently supported.");
+   if (A.Height() % block_size != 0)
+   {
+      MFEM_ABORT("BlockILU: block size must evenly divide the matrix size");
+   }
+
+   int nrows = A.Height();
+   const int *I = A.GetI();
+   const int *J = A.GetJ();
+   const double *V = A.GetData();
+   int nnz = 0;
+   int nblockrows = nrows / block_size;
+
+   std::vector<std::set<int>> unique_block_cols(nblockrows);
+
+   for (int iblock = 0; iblock < nblockrows; ++iblock)
+   {
+      for (int bi = 0; bi < block_size; ++bi)
+      {
+         int i = iblock * block_size + bi;
+         for (int k = I[i]; k < I[i + 1]; ++k)
+         {
+            unique_block_cols[iblock].insert(J[k] / block_size);
+         }
+      }
+      nnz += unique_block_cols[iblock].size();
+   }
+
+   if (reordering != Reordering::NONE)
+   {
+      SparseMatrix C(nblockrows, nblockrows);
+      for (int iblock = 0; iblock < nblockrows; ++iblock)
+      {
+         for (int jblock : unique_block_cols[iblock])
+         {
+            for (int bi = 0; bi < block_size; ++bi)
+            {
+               int i = iblock * block_size + bi;
+               for (int k = I[i]; k < I[i + 1]; ++k)
+               {
+                  int j = J[k];
+                  if (j >= jblock * block_size && j < (jblock + 1) * block_size)
+                  {
+                     C.Add(iblock, jblock, V[k]*V[k]);
+                  }
+               }
+            }
+         }
+      }
+      C.Finalize(false);
+      double *CV = C.GetData();
+      for (int i=0; i<C.NumNonZeroElems(); ++i)
+      {
+         CV[i] = sqrt(CV[i]);
+      }
+
+      switch (reordering)
+      {
+         case Reordering::MINIMUM_DISCARDED_FILL:
+            MinimumDiscardedFillOrdering(C, P);
+            break;
+         default:
+            MFEM_ABORT("BlockILU: unknown reordering")
+      }
+   }
+   else
+   {
+      // No reordering: permutation is identity
+      P.SetSize(nblockrows);
+      for (int i=0; i<nblockrows; ++i)
+      {
+         P[i] = i;
+      }
+   }
+
+   // Compute inverse permutation
+   Pinv.SetSize(nblockrows);
+   for (int i=0; i<nblockrows; ++i)
+   {
+      Pinv[P[i]] = i;
+   }
+
+   // Permute columns
+   std::vector<std::vector<int>> unique_block_cols_perminv(nblockrows);
+   for (int i=0; i<nblockrows; ++i)
+   {
+      std::vector<int> &cols = unique_block_cols_perminv[i];
+      for (int j : unique_block_cols[P[i]])
+      {
+         cols.push_back(Pinv[j]);
+      }
+      std::sort(cols.begin(), cols.end());
+   }
+
+   ID.SetSize(nblockrows);
+   IB.SetSize(nblockrows + 1);
+   IB[0] = 0;
+   JB.SetSize(nnz);
+   AB.SetSize(block_size, block_size, nnz);
+   DB.SetSize(block_size, block_size, nblockrows);
+   AB = 0.0;
+   DB = 0.0;
+   ipiv.SetSize(block_size*nblockrows);
+   int counter = 0;
+
+   for (int iblock = 0; iblock < nblockrows; ++iblock)
+   {
+      int iblock_perm = P[iblock];
+      for (int jblock : unique_block_cols_perminv[iblock])
+      {
+         int jblock_perm = P[jblock];
+         if (iblock == jblock)
+         {
+            ID[iblock] = counter;
+         }
+         JB[counter] = jblock;
+         for (int bi = 0; bi < block_size; ++bi)
+         {
+            int i = iblock_perm*block_size + bi;
+            for (int k = I[i]; k < I[i + 1]; ++k)
+            {
+               int j = J[k];
+               if (j >= jblock_perm*block_size && j < (jblock_perm + 1)*block_size)
+               {
+                  int bj = j - jblock_perm*block_size;
+                  double val = V[k];
+                  AB(bi, bj, counter) = val;
+                  // Extract the diagonal
+                  if (iblock == jblock)
+                  {
+                     DB(bi, bj, iblock) = val;
+                  }
+               }
+            }
+         }
+         ++counter;
+      }
+      IB[iblock + 1] = counter;
+   }
+}
+
+void BlockILU::Factorize()
+{
+   int nblockrows = Height()/block_size;
+
+   // Precompute LU factorization of diagonal blocks
+   for (int i=0; i<nblockrows; ++i)
+   {
+      LUFactors factorization(DB.GetData(i), &ipiv[i*block_size]);
+      factorization.Factor(block_size);
+   }
+
+   // Note: we use UseExternalData to extract submatrices from the tensor AB
+   // instead of the DenseTensor call operator, because the call operator does
+   // not allow for two simultaneous submatrix views into the same tensor
+   DenseMatrix A_ik, A_ij, A_kj;
+   // Loop over block rows (starting with second block row)
+   for (int i=1; i<nblockrows; ++i)
+   {
+      // Find all nonzeros to the left of the diagonal in row i
+      for (int kk=IB[i]; kk<IB[i+1]; ++kk)
+      {
+         int k = JB[kk];
+         // Make sure we're still to the left of the diagonal
+         if (k == i) { break; }
+         if (k > i)
+         {
+            MFEM_ABORT("Matrix must be sorted with nonzero diagonal");
+         }
+         LUFactors A_kk_inv(DB.GetData(k), &ipiv[k*block_size]);
+         A_ik.UseExternalData(&AB(0,0,kk), block_size, block_size);
+         // A_ik = A_ik * A_kk^{-1}
+         A_kk_inv.RightSolve(block_size, block_size, A_ik.GetData());
+         // Modify everything to the right of k in row i
+         for (int jj=kk+1; jj<IB[i+1]; ++jj)
+         {
+            int j = JB[jj];
+            if (j <= k) { continue; } // Superfluous because JB is sorted?
+            A_ij.UseExternalData(&AB(0,0,jj), block_size, block_size);
+            for (int ll=IB[k]; ll<IB[k+1]; ++ll)
+            {
+               int l = JB[ll];
+               if (l == j)
+               {
+                  A_kj.UseExternalData(&AB(0,0,ll), block_size, block_size);
+                  // A_ij = A_ij - A_ik*A_kj;
+                  AddMult_a(-1.0, A_ik, A_kj, A_ij);
+                  // If we need to, update diagonal factorization
+                  if (j == i)
+                  {
+                     DB(i) = A_ij;
+                     LUFactors factorization(DB.GetData(i), &ipiv[i*block_size]);
+                     factorization.Factor(block_size);
+                  }
+                  break;
+               }
+            }
+         }
+      }
+   }
+}
+
+void BlockILU::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_ASSERT(height > 0, "BlockILU(0) preconditioner is not constructed");
+   int nblockrows = Height()/block_size;
+   y.SetSize(Height());
+
+   DenseMatrix B;
+   Vector yi, yj, xi, xj;
+   Vector tmp(block_size);
+   // Forward substitute to solve Ly = b
+   // Implicitly, L has identity on the diagonal
+   y = 0.0;
+   for (int i=0; i<nblockrows; ++i)
+   {
+      yi.SetDataAndSize(&y[i*block_size], block_size);
+      for (int ib=0; ib<block_size; ++ib)
+      {
+         yi[ib] = b[ib + P[i]*block_size];
+      }
+      for (int k=IB[i]; k<ID[i]; ++k)
+      {
+         int j = JB[k];
+         const DenseMatrix &L_ij = AB(k);
+         yj.SetDataAndSize(&y[j*block_size], block_size);
+         // y_i = y_i - L_ij*y_j
+         L_ij.AddMult_a(-1.0, yj, yi);
+      }
+   }
+   // Backward substitution to solve Ux = y
+   for (int i=nblockrows-1; i >= 0; --i)
+   {
+      xi.SetDataAndSize(&x[P[i]*block_size], block_size);
+      for (int ib=0; ib<block_size; ++ib)
+      {
+         xi[ib] = y[ib + i*block_size];
+      }
+      for (int k=ID[i]+1; k<IB[i+1]; ++k)
+      {
+         int j = JB[k];
+         const DenseMatrix &U_ij = AB(k);
+         xj.SetDataAndSize(&x[P[j]*block_size], block_size);
+         // x_i = x_i - U_ij*x_j
+         U_ij.AddMult_a(-1.0, xj, xi);
+      }
+      LUFactors A_ii_inv(&DB(0,0,i), &ipiv[i*block_size]);
+      // x_i = D_ii^{-1} x_i
+      A_ii_inv.Solve(block_size, 1, xi);
    }
 }
 

@@ -9,6 +9,7 @@
 # Object and library files
 *.o
 /libmfem.*
+/miniapps/common/libmfem-common.*
 
 # CMake generated files
 CMakeCache.txt
@@ -179,6 +180,29 @@ miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
+miniapps/tools/get-values
+
+miniapps/toys/automata
+miniapps/toys/life
+miniapps/toys/mandel
+miniapps/toys/rubik
+miniapps/toys/snake
+miniapps/toys/lissajous
+miniapps/toys/mondrian
+
+miniapps/toys/snake-init.mesh
+miniapps/toys/snake-user.mesh
+miniapps/toys/snake-joined.mesh
+miniapps/toys/snake-c*.mesh
+miniapps/toys/automata.gf
+miniapps/toys/automata.mesh
+miniapps/toys/rubik-init.mesh
+miniapps/toys/mandel.mesh
+miniapps/toys/life.gf
+miniapps/toys/life.mesh
+miniapps/toys/lissajous.mesh
+miniapps/toys/lissajous.gf
+miniapps/toys/mondrian.mesh
 
 miniapps/nurbs/ex1
 miniapps/nurbs/ex1p

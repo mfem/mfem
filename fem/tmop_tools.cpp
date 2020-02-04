@@ -29,7 +29,9 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
+#if defined(MFEM_DEBUG) || defined(MFEM_USE_MPI)
    int myid = 0;
+#endif
    Mesh *m = mesh;
 
 #ifdef MFEM_USE_MPI
