@@ -1,25 +1,14 @@
 //                          MFEM Example 1 - NURBS Version
 //
-// Compile with: make ex1
+// Compile with: make nurbs_ex1
 //
-// Sample runs:  ex1 -m ../../data/square-disc.mesh
-//               ex1 -m ../../data/star.mesh
-//               ex1 -m ../../data/escher.mesh
-//               ex1 -m ../../data/fichera.mesh
-//               ex1 -m ../../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../../data/pipe-nurbs.mesh -o -1
-//               ex1 -m ../../data/star-surf.mesh
-//               ex1 -m ../../data/square-disc-surf.mesh
-//               ex1 -m ../../data/inline-segment.mesh
-//               ex1 -m ../../data/amr-quad.mesh
-//               ex1 -m ../../data/amr-hex.mesh
-//               ex1 -m ../../data/fichera-amr.mesh
-//               ex1 -m ../../data/mobius-strip.mesh
-//               ex1 -m ../../data/mobius-strip.mesh -o -1 -sc
-//               ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+// Sample runs:  nurbs_ex1 -m square-nurbs.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m cube-nurbs.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m ../../data/square-disc-nurbs.mesh -o -1
+//               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
+//               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
+//               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -185,7 +174,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -343,7 +332,7 @@ int main(int argc, char *argv[])
 
 #ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple Jacobi preconditioner and use it to
-   //     solve the system A X = B with GMRES.
+   //     solve the system A X = B with PCG.
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
 #else
