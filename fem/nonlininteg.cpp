@@ -76,6 +76,20 @@ void NonlinearFormIntegrator::AssembleFaceGrad(
               " is not overloaded!");
 }
 
+void NonlinearFormIntegrator::AssemblePAGrad(
+   const FiniteElementSpace &fes)
+{
+   mfem_error("NonlinearFormIntegrator::AssemblePAGrad"
+              " is not overloaded!");
+}
+
+void NonlinearFormIntegrator::AddMultPAGrad(
+   const Vector &x, Vector &y)
+{
+   mfem_error("NonlinearFormIntegrator::AddMultPAGrad"
+              " is not overloaded!");
+}
+
 double NonlinearFormIntegrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {

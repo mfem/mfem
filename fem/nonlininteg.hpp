@@ -98,7 +98,11 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
-
+   
+   // We should only really require the Assemble Partial Assembly Gradient                                                            
+   virtual void AssemblePAGrad(const FiniteElementSpace &fes);
+   virtual void AddMultPAGrad(const Vector &x, Vector &y);
+   
    virtual ~NonlinearFormIntegrator() { }
 };
 
