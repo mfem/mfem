@@ -190,7 +190,7 @@ public:
    explicit Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
 
    /** @brief Wrap an externally allocated and registered host pointer. */
-   explicit Memory(T *ptr) { Wrap(ptr, true); }
+   //explicit Memory(T *ptr) { Wrap(ptr, true); }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
