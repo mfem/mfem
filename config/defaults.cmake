@@ -48,6 +48,8 @@ option(MFEM_USE_CUDA "Enable CUDA" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
 option(MFEM_USE_CEED "Enable CEED" OFF)
+option(MFEM_USE_ADEPT "Enable AD using ADEPT"   OFF)
+option(MFEM_USE_CODIPACK "Enable AD using CoDiPack" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
@@ -178,6 +180,13 @@ set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
 set(LAPACK_INCLUDE_DIRS "" CACHE STRING "Path to LAPACK headers.")
 set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
+
+set(ADEPT_INCLUDE_DIRS "${MFEM_DIR}/../adept-1.1op/include" CACHE STRING "Path to ADEPT headers.")
+set(ADEPT_LIBRARIES    "-L${MFEM_DIR}/../adept-1.1op/lib -ladept" CACHE STRING "The ADEPT library.")
+
+set(CODIPACK_INCLUDE_DIRS "${MFEM_DIR}/../CoDiPack/include" CACHE STRING "Path to CoDiPack headers.")
+
+
 
 # Some useful variables:
 set(CMAKE_SKIP_PREPROCESSED_SOURCE_RULES ON) # Skip *.i rules

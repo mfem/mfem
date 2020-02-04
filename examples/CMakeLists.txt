@@ -121,3 +121,6 @@ if (MFEM_USE_HIOP)
   add_subdirectory(hiop)
 endif()
 
+if (MFEM_USE_ADEPT)
+  add_subdirectory(ad)
+endif()

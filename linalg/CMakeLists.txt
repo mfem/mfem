@@ -45,6 +45,8 @@ list(APPEND HDRS
   tmatrix.hpp
   ttensor.hpp
   vector.hpp
+  tadvector.hpp
+  taddensemat.hpp 
   )
 
 if (MFEM_USE_MPI)
