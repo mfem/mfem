@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
    x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
 
-// 11. Set up the parallel sesquilinear form a(.,.) on the finite element
+   // 11. Set up the parallel sesquilinear form a(.,.) on the finite element
    //     space corresponding to the problem of the appropriate type:
 
    Array<int> attr;
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
    if (mesh->attributes.Size())
    {
       attr = 0;
-      if (mesh->attributes.Max() > 1) attr[1] = 1;
+      if (mesh->attributes.Max() > 1) { attr[1] = 1; }
    }
 
    // PML coefficients
@@ -698,11 +698,15 @@ void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml ,  DenseMatrix &M)
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
+   {
       det *= dxs[i];
+   }
 
    M = 0.0;
    for (int i = 0; i < dim; ++i)
+   {
       M(i, i) = (det / pow(dxs[i], 2)).real();
+   }
 }
 
 
@@ -713,11 +717,15 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
+   {
       det *= dxs[i];
+   }
 
    M = 0.0;
    for (int i = 0; i < dim; ++i)
+   {
       M(i, i) = (det / pow(dxs[i], 2)).imag();
+   }
 }
 
 
@@ -728,18 +736,22 @@ void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml , DenseMatrix &M)
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
+   {
       det *= dxs[i];
+   }
 
    // in the 2D case the coefficient is scalar (1/det(J))
-   if (dim == 2) 
+   if (dim == 2)
    {
       M = (1.0 / det).real();
    }
    else
-   {  
+   {
       M = 0.0;
       for (int i = 0; i < dim; ++i)
+      {
          M(i, i) = (pow(dxs[i], 2) / det).real();
+      }
    }
 }
 
@@ -750,23 +762,27 @@ void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
+   {
       det *= dxs[i];
+   }
 
-   if (dim == 2) 
+   if (dim == 2)
    {
       M = (1.0 / det).imag();
    }
    else
-   {  
+   {
       M = 0.0;
       for (int i = 0; i < dim; ++i)
+      {
          M(i, i) = (pow(dxs[i], 2) / det).imag();
+      }
    }
 }
 
 void GetMaxwellPMLCoefficients(CartesianPML * pml, MatrixCoefficient *& c1_Re,
-                                 MatrixCoefficient *& c1_Im,
-                                 MatrixCoefficient *& c2_Re, MatrixCoefficient *& c2_Im)
+                               MatrixCoefficient *& c1_Im,
+                               MatrixCoefficient *& c2_Re, MatrixCoefficient *& c2_Im)
 {
    int sdim = (dim==2) ? 1:dim;
    c1_Re = new PmlMatrixCoefficient(sdim,detJ_inv_JT_J_Re, pml);
