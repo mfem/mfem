@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
          H1err_re0 = H1err_re;
          H1err_im0 = H1err_im;
       }
-      // if (l == ref_levels) { break; }
+      if (l == ref_levels) { break; }
 
       pmesh->UniformRefinement();
       fespace->Update();
