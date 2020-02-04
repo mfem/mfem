@@ -248,10 +248,6 @@ int main(int argc, char *argv[])
       mesh.SetCurvature(max(order, 1));
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
-   if (pa && mesh.GetNodes() != NULL)
-   {
-      mesh.SetCurvature(mesh.GetNodalFESpace()->GetOrder(0), true);
-   }
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.

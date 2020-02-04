@@ -1652,6 +1652,29 @@ void ParMesh::DeleteFaceNbrData()
    send_face_nbr_vertices.Clear();
 }
 
+void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
+{
+   space_dim = (space_dim == -1) ? spaceDim : space_dim;
+   FiniteElementCollection* nfec;
+   if (discont)
+   {
+      const int type = 1; // Gauss-Lobatto points
+      nfec = new L2_FECollection(order, Dim, type);
+   }
+   else
+   {
+      nfec = new H1_FECollection(order, Dim);
+   }
+   ParFiniteElementSpace* nfes = new ParFiniteElementSpace(this, nfec, space_dim,
+                                                           ordering);
+   SetNodalFESpace(nfes);
+   auto pnodes = new ParGridFunction(nfes);
+   GetNodes(*pnodes);
+   pnodes->ExchangeFaceNbrData();
+   NewNodes(*pnodes, true);
+   Nodes->MakeOwner(nfec);
+}
+
 void ParMesh::ExchangeFaceNbrData()
 {
    if (have_face_nbr_data)

@@ -1073,8 +1073,8 @@ public:
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
        new space dimension, 'space_dim' (if != -1), and 'ordering'. */
-   void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                     int ordering = 1);
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
 
    /// Refine all mesh elements.
    /** @param[in] ref_algo %Refinement algorithm. Currently used only for pure

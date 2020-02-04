@@ -3875,8 +3875,23 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 
 void Mesh::EnsureNodes()
 {
-   if (Nodes) { return; }
-   SetCurvature(1, false, -1, Ordering::byVDIM);
+   if (Nodes) {
+      const FiniteElementCollection *fec = GetNodalFESpace()->FEColl();
+      if (dynamic_cast<const H1_FECollection*>(fec)
+          || dynamic_cast<const L2_FECollection*>(fec))
+      {
+         return;
+      }
+      else // Mesh using a legacy FE_Collection
+      {
+         const int order = GetNodalFESpace()->GetOrder(0);
+         SetCurvature(order, false, -1, Ordering::byVDIM);
+      }
+   }
+   else //First order H1 mesh
+   {
+      SetCurvature(1, false, -1, Ordering::byVDIM);
+   }
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
