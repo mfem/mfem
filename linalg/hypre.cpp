@@ -1546,16 +1546,13 @@ void HypreParMatrix::Destroy()
    {
       if (diagOwner & 1)
       {
-         //delete [] hypre_CSRMatrixI(A->diag);
          delete_hypre_CSRMatrixI(A->diag);
-         //delete [] hypre_CSRMatrixJ(A->diag);
          delete_hypre_CSRMatrixJ(A->diag);
       }
       hypre_CSRMatrixI(A->diag) = NULL;
       hypre_CSRMatrixJ(A->diag) = NULL;
       if (diagOwner & 2)
       {
-         //delete [] hypre_CSRMatrixData(A->diag);
          delete_hypre_CSRMatrixData(A->diag);
       }
       hypre_CSRMatrixData(A->diag) = NULL;
@@ -1564,16 +1561,13 @@ void HypreParMatrix::Destroy()
    {
       if (offdOwner & 1)
       {
-         //delete [] hypre_CSRMatrixI(A->offd);
          delete_hypre_CSRMatrixI(A->offd);
-         //delete [] hypre_CSRMatrixJ(A->offd);
          delete_hypre_CSRMatrixJ(A->offd);
       }
       hypre_CSRMatrixI(A->offd) = NULL;
       hypre_CSRMatrixJ(A->offd) = NULL;
       if (offdOwner & 2)
       {
-         //delete [] hypre_CSRMatrixData(A->offd);
          delete_hypre_CSRMatrixData(A->offd);
       }
       hypre_CSRMatrixData(A->offd) = NULL;
@@ -1582,7 +1576,6 @@ void HypreParMatrix::Destroy()
    {
       if (colMapOwner & 1)
       {
-         //delete [] hypre_ParCSRMatrixColMapOffd(A);
          delete_hypre_ParCSRMatrixColMapOffd(A);
       }
       hypre_ParCSRMatrixColMapOffd(A) = NULL;
