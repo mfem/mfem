@@ -736,11 +736,13 @@ void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
 
 MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
 {
+   dbg("%p %d 0x%x", h_ptr, mt, flags);
    const bool mt_host = mt == MemoryType::HOST;
    MFEM_ASSERT(flags & Mem::REGISTERED ||
                (IsHostMemory(mt) &&
                 (!IsHostRegisteredMemory(mt) ||
-                 (mt == MemoryType::HOST_DEBUG))),"");
+                 (mt == MemoryType::HOST_DEBUG)||
+                 (mt == MemoryType::MANAGED))),"");
    MFEM_ASSERT(!(flags & Mem::OWNS_DEVICE) || (flags & Mem::OWNS_INTERNAL),
                "invalid Memory state");
    if (mm.exists)
