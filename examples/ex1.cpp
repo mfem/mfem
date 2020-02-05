@@ -123,11 +123,11 @@ int main(int argc, char *argv[])
    for (int i = 0; i < 5; i++)
    {
       double cost = mesh->GetGeckoElementOrdering(tentative,
-                                   20, // iter
-                                   4, // window
-                                   4, // period
-                                   i+1, // seed
-                                   true, 30);
+                                                  20, // iter
+                                                  4, // window
+                                                  4, // period
+                                                  i+1, // seed
+                                                  true, 30);
 
       if (cost < best_cost)
       {

@@ -191,505 +191,558 @@ A reasonable parameter choice for good-quality layouts is:
 #define GECKO_FLOAT_EPSILON std::numeric_limits<Float>::epsilon()
 #define GECKO_FLOAT_MAX std::numeric_limits<Float>::max()
 
-namespace Gecko {
+namespace Gecko
+{
 
-  typedef unsigned int uint;
+typedef unsigned int uint;
 
 // precision for node positions and computations
 #if GECKO_WITH_DOUBLE_PRECISION
-  typedef double Float;
+typedef double Float;
 #else
-  typedef float Float;
+typedef float Float;
 #endif
 }
 
 // ----- functional.h -----------------------------------------------------------
 
-namespace Gecko {
+namespace Gecko
+{
 
 // abstract base class for weighted terms and sums
-class WeightedValue {
+class WeightedValue
+{
 public:
-  WeightedValue(Float value, Float weight) : value(value), weight(weight) {}
-  Float value;
-  Float weight;
+   WeightedValue(Float value, Float weight) : value(value), weight(weight) {}
+   Float value;
+   Float weight;
 };
 
 // weighted sum of terms
-class WeightedSum : public WeightedValue {
+class WeightedSum : public WeightedValue
+{
 public:
-  WeightedSum(Float value = 0, Float weight = 0) : WeightedValue(value, weight) {}
+   WeightedSum(Float value = 0, Float weight = 0) : WeightedValue(value, weight) {}
 };
 
 // abstract base class for ordering functionals
-class Functional {
+class Functional
+{
 public:
-  virtual ~Functional() {}
+   virtual ~Functional() {}
 
-  virtual WeightedSum sum(const WeightedSum& s, const WeightedValue& t) const
-  {
-    WeightedSum tot = s;
-    accumulate(tot, sum(t));
-    return tot;
-  }
+   virtual WeightedSum sum(const WeightedSum& s, const WeightedValue& t) const
+   {
+      WeightedSum tot = s;
+      accumulate(tot, sum(t));
+      return tot;
+   }
 
-  virtual WeightedSum sum(const WeightedSum& s, const WeightedSum& t) const
-  {
-    WeightedSum tot = s;
-    accumulate(tot, t);
-    return tot;
-  }
+   virtual WeightedSum sum(const WeightedSum& s, const WeightedSum& t) const
+   {
+      WeightedSum tot = s;
+      accumulate(tot, t);
+      return tot;
+   }
 
-  // add weighted term to weighted sum
-  virtual void accumulate(WeightedSum& s, const WeightedValue& t) const
-  {
-    accumulate(s, sum(t));
-  }
+   // add weighted term to weighted sum
+   virtual void accumulate(WeightedSum& s, const WeightedValue& t) const
+   {
+      accumulate(s, sum(t));
+   }
 
-  // add two weighted sums
-  virtual void accumulate(WeightedSum& s, const WeightedSum& t) const
-  {
-    s.value += t.value;
-    s.weight += t.weight;
-  }
+   // add two weighted sums
+   virtual void accumulate(WeightedSum& s, const WeightedSum& t) const
+   {
+      s.value += t.value;
+      s.weight += t.weight;
+   }
 
-  // is s potentially less than t?
-  virtual bool less(const WeightedSum& s, const WeightedSum& t) const
-  {
-    return s.value < t.value;
-  }
+   // is s potentially less than t?
+   virtual bool less(const WeightedSum& s, const WeightedSum& t) const
+   {
+      return s.value < t.value;
+   }
 
-  // transform term into weighted sum
-  virtual WeightedSum sum(const WeightedValue& term) const = 0;
+   // transform term into weighted sum
+   virtual WeightedSum sum(const WeightedValue& term) const = 0;
 
-  // compute weighted mean from a weighted sum
-  virtual Float mean(const WeightedSum& sum) const = 0;
+   // compute weighted mean from a weighted sum
+   virtual Float mean(const WeightedSum& sum) const = 0;
 
-  // compute k'th iteration bond for egde of length l and weight w
-  virtual Float bond(Float w, Float l, uint k) const = 0;
+   // compute k'th iteration bond for egde of length l and weight w
+   virtual Float bond(Float w, Float l, uint k) const = 0;
 
-  // compute position that minimizes weighted distance to a point set
-  virtual Float optimum(const std::vector<WeightedValue>& v) const = 0;
+   // compute position that minimizes weighted distance to a point set
+   virtual Float optimum(const std::vector<WeightedValue>& v) const = 0;
 };
 
 // functionals with quasiconvex terms, e.g., p-means with p < 1.
-class FunctionalQuasiconvex : public Functional {
+class FunctionalQuasiconvex : public Functional
+{
 protected:
-  Float optimum(const std::vector<WeightedValue>& v, Float lmin) const
-  {
-    // Compute the optimum as the node position that minimizes the
-    // functional.  Any nodes coincident with each candidate position
-    // are excluded from the functional.
-    Float x = v[0].value;
-    Float min = GECKO_FLOAT_MAX;
-    switch (v.size()) {
-      case 1:
-        // Only one choice.
-        break;
-      case 2:
-        // Functional is the same for both nodes; pick node with
-        // larger weight.
-        if (v[1].weight > v[0].weight)
-          x = v[1].value;
-        break;
-      default:
-        for (std::vector<WeightedValue>::const_iterator p = v.begin(); p != v.end(); p++) {
-          WeightedSum s;
-          for (std::vector<WeightedValue>::const_iterator q = v.begin(); q != v.end(); q++) {
-            Float l = std::fabs(p->value - q->value);
-            if (l > lmin)
-              accumulate(s, WeightedValue(l, q->weight));
-          }
-          Float f = mean(s);
-          if (f < min) {
-            min = f;
-            x = p->value;
-          }
-        }
-        break;
-    }
-    return x;
-  }
+   Float optimum(const std::vector<WeightedValue>& v, Float lmin) const
+   {
+      // Compute the optimum as the node position that minimizes the
+      // functional.  Any nodes coincident with each candidate position
+      // are excluded from the functional.
+      Float x = v[0].value;
+      Float min = GECKO_FLOAT_MAX;
+      switch (v.size())
+      {
+         case 1:
+            // Only one choice.
+            break;
+         case 2:
+            // Functional is the same for both nodes; pick node with
+            // larger weight.
+            if (v[1].weight > v[0].weight)
+            {
+               x = v[1].value;
+            }
+            break;
+         default:
+            for (std::vector<WeightedValue>::const_iterator p = v.begin(); p != v.end();
+                 p++)
+            {
+               WeightedSum s;
+               for (std::vector<WeightedValue>::const_iterator q = v.begin(); q != v.end();
+                    q++)
+               {
+                  Float l = std::fabs(p->value - q->value);
+                  if (l > lmin)
+                  {
+                     accumulate(s, WeightedValue(l, q->weight));
+                  }
+               }
+               Float f = mean(s);
+               if (f < min)
+               {
+                  min = f;
+                  x = p->value;
+               }
+            }
+            break;
+      }
+      return x;
+   }
 private:
-  using Functional::optimum; // silence overload vs. override warning
+   using Functional::optimum; // silence overload vs. override warning
 };
 
 // harmonic mean (p = -1)
-class FunctionalHarmonic : public FunctionalQuasiconvex {
+class FunctionalHarmonic : public FunctionalQuasiconvex
+{
 public:
-  bool less(const WeightedSum& s, const WeightedSum& t) const
-  {
-    // This is only a loose bound when s.weight < t.weight.
-    return s.value - s.weight > t.value - t.weight;
-  }
-  WeightedSum sum(const WeightedValue& term) const
-  {
-    return WeightedSum(term.weight / term.value, term.weight);
-  }
-  Float mean(const WeightedSum& sum) const
-  {
-    return sum.weight > 0 ? sum.weight / sum.value : 0;
-  }
-  Float bond(Float w, Float l, uint k) const
-  {
-    return w * std::pow(l, -Float(3) * Float(k) / Float(k + 1));
-  }
-  Float optimum(const std::vector<WeightedValue>& v) const
-  {
-    return FunctionalQuasiconvex::optimum(v, Float(0.5));
-  }
+   bool less(const WeightedSum& s, const WeightedSum& t) const
+   {
+      // This is only a loose bound when s.weight < t.weight.
+      return s.value - s.weight > t.value - t.weight;
+   }
+   WeightedSum sum(const WeightedValue& term) const
+   {
+      return WeightedSum(term.weight / term.value, term.weight);
+   }
+   Float mean(const WeightedSum& sum) const
+   {
+      return sum.weight > 0 ? sum.weight / sum.value : 0;
+   }
+   Float bond(Float w, Float l, uint k) const
+   {
+      return w * std::pow(l, -Float(3) * Float(k) / Float(k + 1));
+   }
+   Float optimum(const std::vector<WeightedValue>& v) const
+   {
+      return FunctionalQuasiconvex::optimum(v, Float(0.5));
+   }
 };
 
 // geometric mean (p = 0)
-class FunctionalGeometric : public FunctionalQuasiconvex {
+class FunctionalGeometric : public FunctionalQuasiconvex
+{
 public:
-  WeightedSum sum(const WeightedValue& term) const
-  {
-    return WeightedSum(term.weight * std::log(term.value), term.weight);
-  }
-  Float mean(const WeightedSum& sum) const
-  {
-    return sum.weight > 0 ? std::exp(sum.value / sum.weight) : 0;
-  }
-  Float bond(Float w, Float l, uint k) const
-  {
-    return w * std::pow(l, -Float(2) * Float(k) / Float(k + 1));
-  }
-  Float optimum(const std::vector<WeightedValue>& v) const
-  {
-    return FunctionalQuasiconvex::optimum(v, Float(0.5));
-  }
+   WeightedSum sum(const WeightedValue& term) const
+   {
+      return WeightedSum(term.weight * std::log(term.value), term.weight);
+   }
+   Float mean(const WeightedSum& sum) const
+   {
+      return sum.weight > 0 ? std::exp(sum.value / sum.weight) : 0;
+   }
+   Float bond(Float w, Float l, uint k) const
+   {
+      return w * std::pow(l, -Float(2) * Float(k) / Float(k + 1));
+   }
+   Float optimum(const std::vector<WeightedValue>& v) const
+   {
+      return FunctionalQuasiconvex::optimum(v, Float(0.5));
+   }
 };
 
 // square mean root (p = 1/2)
-class FunctionalSMR : public FunctionalQuasiconvex {
+class FunctionalSMR : public FunctionalQuasiconvex
+{
 public:
-  WeightedSum sum(const WeightedValue& term) const
-  {
-    return WeightedSum(term.weight * std::sqrt(term.value), term.weight);
-  }
-  Float mean(const WeightedSum& sum) const
-  {
-    return sum.weight > 0 ? (sum.value / sum.weight) * (sum.value / sum.weight) : 0;
-  }
-  Float bond(Float w, Float l, uint k) const
-  {
-    return w * std::pow(l, -Float(1.5) * Float(k) / Float(k + 1));
-  }
-  Float optimum(const std::vector<WeightedValue>& v) const
-  {
-    return FunctionalQuasiconvex::optimum(v, Float(0.0));
-  }
+   WeightedSum sum(const WeightedValue& term) const
+   {
+      return WeightedSum(term.weight * std::sqrt(term.value), term.weight);
+   }
+   Float mean(const WeightedSum& sum) const
+   {
+      return sum.weight > 0 ? (sum.value / sum.weight) * (sum.value / sum.weight) : 0;
+   }
+   Float bond(Float w, Float l, uint k) const
+   {
+      return w * std::pow(l, -Float(1.5) * Float(k) / Float(k + 1));
+   }
+   Float optimum(const std::vector<WeightedValue>& v) const
+   {
+      return FunctionalQuasiconvex::optimum(v, Float(0.0));
+   }
 };
 
 // arithmetic mean (p = 1)
-class FunctionalArithmetic : public Functional {
+class FunctionalArithmetic : public Functional
+{
 public:
-  WeightedSum sum(const WeightedValue& term) const
-  {
-    return WeightedSum(term.weight * term.value, term.weight);
-  }
-  Float mean(const WeightedSum& sum) const
-  {
-    return sum.weight > 0 ? sum.value / sum.weight : 0;
-  }
-  Float bond(Float w, Float l, uint k) const
-  {
-    return w * std::pow(l, -Float(1) * Float(k) / Float(k + 1));
-  }
-  Float optimum(const std::vector<WeightedValue>& v) const
-  {
-    // Compute the optimum as the weighted median.  Since the median may
-    // not be unique, the largest interval [x, y] is computed and its
-    // centroid is chosen.  The optimum must occur at a node, and hence
-    // we consider each node position pi at a time and the relative
-    // positions of the remaining nodes pj.
-    Float x = 0;
-    Float y = 0;
-    Float min = GECKO_FLOAT_MAX;
-    for (std::vector<WeightedValue>::const_iterator p = v.begin(); p != v.end(); p++) {
-      // Compute f = |sum_{j:pj<pi} wj - sum_{j:pj>pi} wj|.
-      Float f = 0;
-      for (std::vector<WeightedValue>::const_iterator q = v.begin(); q != v.end(); q++)
-        if (q->value < p->value)
-          f += q->weight;
-        else if (q->value > p->value)
-          f -= q->weight;
-      f = std::fabs(f);
-      // Update interval if f is minimal.
-      if (f <= min) {
-        if (f < min) {
-          min = f;
-          x = y = p->value;
-        }
-        else {
-          x = std::min(x, p->value);
-          y = std::max(y, p->value);
-        }
+   WeightedSum sum(const WeightedValue& term) const
+   {
+      return WeightedSum(term.weight * term.value, term.weight);
+   }
+   Float mean(const WeightedSum& sum) const
+   {
+      return sum.weight > 0 ? sum.value / sum.weight : 0;
+   }
+   Float bond(Float w, Float l, uint k) const
+   {
+      return w * std::pow(l, -Float(1) * Float(k) / Float(k + 1));
+   }
+   Float optimum(const std::vector<WeightedValue>& v) const
+   {
+      // Compute the optimum as the weighted median.  Since the median may
+      // not be unique, the largest interval [x, y] is computed and its
+      // centroid is chosen.  The optimum must occur at a node, and hence
+      // we consider each node position pi at a time and the relative
+      // positions of the remaining nodes pj.
+      Float x = 0;
+      Float y = 0;
+      Float min = GECKO_FLOAT_MAX;
+      for (std::vector<WeightedValue>::const_iterator p = v.begin(); p != v.end();
+           p++)
+      {
+         // Compute f = |sum_{j:pj<pi} wj - sum_{j:pj>pi} wj|.
+         Float f = 0;
+         for (std::vector<WeightedValue>::const_iterator q = v.begin(); q != v.end();
+              q++)
+            if (q->value < p->value)
+            {
+               f += q->weight;
+            }
+            else if (q->value > p->value)
+            {
+               f -= q->weight;
+            }
+         f = std::fabs(f);
+         // Update interval if f is minimal.
+         if (f <= min)
+         {
+            if (f < min)
+            {
+               min = f;
+               x = y = p->value;
+            }
+            else
+            {
+               x = std::min(x, p->value);
+               y = std::max(y, p->value);
+            }
+         }
       }
-    }
-    return (x + y) / 2;
-  }
+      return (x + y) / 2;
+   }
 };
 
 // root mean square (p = 2)
-class FunctionalRMS : public Functional {
+class FunctionalRMS : public Functional
+{
 public:
-  WeightedSum sum(const WeightedValue& term) const
-  {
-    return WeightedSum(term.weight * term.value * term.value, term.weight);
-  }
-  Float mean(const WeightedSum& sum) const
-  {
-    return sum.weight > 0 ? std::sqrt(sum.value / sum.weight) : 0;
-  }
-  Float bond(Float w, Float, uint) const
-  {
-    return w;
-  }
-  Float optimum(const std::vector<WeightedValue>& v) const
-  {
-    // Compute the optimum as the weighted mean.
-    WeightedSum s;
-    for (std::vector<WeightedValue>::const_iterator p = v.begin(); p != v.end(); p++) {
-      s.value += p->weight * p->value;
-      s.weight += p->weight;
-    }
-    return s.value / s.weight;
-  }
+   WeightedSum sum(const WeightedValue& term) const
+   {
+      return WeightedSum(term.weight * term.value * term.value, term.weight);
+   }
+   Float mean(const WeightedSum& sum) const
+   {
+      return sum.weight > 0 ? std::sqrt(sum.value / sum.weight) : 0;
+   }
+   Float bond(Float w, Float, uint) const
+   {
+      return w;
+   }
+   Float optimum(const std::vector<WeightedValue>& v) const
+   {
+      // Compute the optimum as the weighted mean.
+      WeightedSum s;
+      for (std::vector<WeightedValue>::const_iterator p = v.begin(); p != v.end();
+           p++)
+      {
+         s.value += p->weight * p->value;
+         s.weight += p->weight;
+      }
+      return s.value / s.weight;
+   }
 };
 
 // maximum (p = infinity)
-class FunctionalMaximum : public Functional {
+class FunctionalMaximum : public Functional
+{
 public:
-  WeightedSum sum(const WeightedValue& term) const
-  {
-    return WeightedSum(term.value, term.weight);
-  }
-  void accumulate(WeightedSum& s, const WeightedSum& t) const
-  {
-    s.value = std::max(s.value, t.value);
-  }
-  Float mean(const WeightedSum& sum) const
-  {
-    return sum.value;
-  }
-  Float bond(Float, Float, uint) const
-  {
-    return Float(1);
-  }
-  Float optimum(const std::vector<WeightedValue>& v) const
-  {
-    // Compute the optimum as the midrange.
-    Float min = v[0].value;
-    Float max = v[0].value;
-    for (std::vector<WeightedValue>::const_iterator p = v.begin() + 1; p != v.end(); p++) {
-      if (p->value < min)
-        min = p->value;
-      else if (p->value > max)
-        max = p->value;
-    }
-    return (min + max) / 2;
-  }
+   WeightedSum sum(const WeightedValue& term) const
+   {
+      return WeightedSum(term.value, term.weight);
+   }
+   void accumulate(WeightedSum& s, const WeightedSum& t) const
+   {
+      s.value = std::max(s.value, t.value);
+   }
+   Float mean(const WeightedSum& sum) const
+   {
+      return sum.value;
+   }
+   Float bond(Float, Float, uint) const
+   {
+      return Float(1);
+   }
+   Float optimum(const std::vector<WeightedValue>& v) const
+   {
+      // Compute the optimum as the midrange.
+      Float min = v[0].value;
+      Float max = v[0].value;
+      for (std::vector<WeightedValue>::const_iterator p = v.begin() + 1; p != v.end();
+           p++)
+      {
+         if (p->value < min)
+         {
+            min = p->value;
+         }
+         else if (p->value > max)
+         {
+            max = p->value;
+         }
+      }
+      return (min + max) / 2;
+   }
 };
 
 }
 
 // ----- progress.h -------------------------------------------------------------
 
-namespace Gecko {
+namespace Gecko
+{
 
 class Graph;
 
 // Callbacks between iterations and phases.
-class Progress {
+class Progress
+{
 public:
-  virtual ~Progress() {}
-  virtual void beginorder(const Graph* /*graph*/, Float /*cost*/) const {}
-  virtual void endorder(const Graph* /*graph*/, Float /*cost*/) const {}
-  virtual void beginiter(const Graph* /*graph*/, uint /*iter*/, uint /*maxiter*/, uint /*window*/) const {}
-  virtual void enditer(const Graph* /*graph*/, Float /*mincost*/, Float /*cost*/) const {}
-  virtual void beginphase(const Graph* /*graph*/, std::string /*name*/) const {};
-  virtual void endphase(const Graph* /*graph*/, bool /*show*/) const {};
-  virtual bool quit() const { return false; }
+   virtual ~Progress() {}
+   virtual void beginorder(const Graph* /*graph*/, Float /*cost*/) const {}
+   virtual void endorder(const Graph* /*graph*/, Float /*cost*/) const {}
+   virtual void beginiter(const Graph* /*graph*/, uint /*iter*/, uint /*maxiter*/,
+                          uint /*window*/) const {}
+   virtual void enditer(const Graph* /*graph*/, Float /*mincost*/,
+                        Float /*cost*/) const {}
+   virtual void beginphase(const Graph* /*graph*/, std::string /*name*/) const {};
+   virtual void endphase(const Graph* /*graph*/, bool /*show*/) const {};
+   virtual bool quit() const { return false; }
 };
 
 }
 
 // ----- graph.h ----------------------------------------------------------------
 
-namespace Gecko {
+namespace Gecko
+{
 
 // Multilevel graph arc.
-class Arc {
+class Arc
+{
 public:
-  typedef uint Index;
-  typedef std::vector<Index>::const_iterator ConstPtr;
-  enum { null = 0 };
+   typedef uint Index;
+   typedef std::vector<Index>::const_iterator ConstPtr;
+   enum { null = 0 };
 };
 
 // Multilevel graph node.
-class Node {
+class Node
+{
 public:
-  typedef uint Index;
-  typedef std::vector<Node>::const_iterator ConstPtr;
-  enum { null = 0 };
+   typedef uint Index;
+   typedef std::vector<Node>::const_iterator ConstPtr;
+   enum { null = 0 };
 
-  // comparator for sorting node indices
-  class Comparator {
-  public:
-    Comparator(ConstPtr node) : _node(node) {}
-    bool operator()(uint k, uint l) const { return _node[k].pos < _node[l].pos; }
-  private:
-    const ConstPtr _node;
-  };
+   // comparator for sorting node indices
+   class Comparator
+   {
+   public:
+      Comparator(ConstPtr node) : _node(node) {}
+      bool operator()(uint k, uint l) const { return _node[k].pos < _node[l].pos; }
+   private:
+      const ConstPtr _node;
+   };
 
-  // constructor
-  Node(Float pos = -1, Float length = 1, Arc::Index arc = Arc::null, Node::Index parent = Node::null) : pos(pos), hlen(Float(0.5) * length), arc(arc), parent(parent) {}
+   // constructor
+   Node(Float pos = -1, Float length = 1, Arc::Index arc = Arc::null,
+        Node::Index parent = Node::null) : pos(pos), hlen(Float(0.5) * length),
+      arc(arc), parent(parent) {}
 
-  Float pos;          // start position at full resolution
-  Float hlen;         // half of node length (number of full res nodes)
-  Arc::Index arc;     // one past index of last incident arc
-  Node::Index parent; // parent in next coarser resolution
+   Float pos;          // start position at full resolution
+   Float hlen;         // half of node length (number of full res nodes)
+   Arc::Index arc;     // one past index of last incident arc
+   Node::Index parent; // parent in next coarser resolution
 };
 
 // Multilevel graph.
-class Graph {
+class Graph
+{
 public:
-  // constructor of graph with given (initial) number of nodes
-  Graph(uint nodes = 0) : level(0), last_node(Node::null) { init(nodes); }
+   // constructor of graph with given (initial) number of nodes
+   Graph(uint nodes = 0) : level(0), last_node(Node::null) { init(nodes); }
 
-  // number of nodes and edges
-  uint nodes() const { return uint(node.size() - 1); }
-  uint edges() const { return uint((adj.size() - 1) / 2); }
+   // number of nodes and edges
+   uint nodes() const { return uint(node.size() - 1); }
+   uint edges() const { return uint((adj.size() - 1) / 2); }
 
-  // insert node and return its index
-  Node::Index insert_node(Float length = 1);
+   // insert node and return its index
+   Node::Index insert_node(Float length = 1);
 
-  // outgoing arcs {begin, ..., end-1} originating from node i
-  Arc::Index node_begin(Node::Index i) const { return node[i - 1].arc; }
-  Arc::Index node_end(Node::Index i) const { return node[i].arc; }
+   // outgoing arcs {begin, ..., end-1} originating from node i
+   Arc::Index node_begin(Node::Index i) const { return node[i - 1].arc; }
+   Arc::Index node_end(Node::Index i) const { return node[i].arc; }
 
-  // node degree and neighbors
-  uint node_degree(Node::Index i) const { return node_end(i) - node_begin(i); }
-  std::vector<Node::Index> node_neighbors(Node::Index i) const;
+   // node degree and neighbors
+   uint node_degree(Node::Index i) const { return node_end(i) - node_begin(i); }
+   std::vector<Node::Index> node_neighbors(Node::Index i) const;
 
-  // insert directed edge (i, j)
-  Arc::Index insert_arc(Node::Index i, Node::Index j, Float w = 1, Float b = 1);
+   // insert directed edge (i, j)
+   Arc::Index insert_arc(Node::Index i, Node::Index j, Float w = 1, Float b = 1);
 
-  // remove arc or edge
-  bool remove_arc(Arc::Index a);
-  bool remove_arc(Node::Index i, Node::Index j);
-  bool remove_edge(Node::Index i, Node::Index j);
+   // remove arc or edge
+   bool remove_arc(Arc::Index a);
+   bool remove_arc(Node::Index i, Node::Index j);
+   bool remove_edge(Node::Index i, Node::Index j);
 
-  // index of arc (i, j) or null if not present
-  Arc::Index arc_index(Node::Index i, Node::Index j) const;
+   // index of arc (i, j) or null if not present
+   Arc::Index arc_index(Node::Index i, Node::Index j) const;
 
-  // arc source and target nodes and weight
-  Node::Index arc_source(Arc::Index a) const;
-  Node::Index arc_target(Arc::Index a) const { return adj[a]; }
-  Float arc_weight(Arc::Index a) const { return weight[a]; }
+   // arc source and target nodes and weight
+   Node::Index arc_source(Arc::Index a) const;
+   Node::Index arc_target(Arc::Index a) const { return adj[a]; }
+   Float arc_weight(Arc::Index a) const { return weight[a]; }
 
-  // reverse arc (j, i) of arc a = (i, j)
-  Arc::Index reverse_arc(Arc::Index a) const;
+   // reverse arc (j, i) of arc a = (i, j)
+   Arc::Index reverse_arc(Arc::Index a) const;
 
-  // order graph
-  void order(Functional* functional, uint iterations = 1, uint window = 2, uint period = 2, uint seed = 0, Progress* progress = 0);
+   // order graph
+   void order(Functional* functional, uint iterations = 1, uint window = 2,
+              uint period = 2, uint seed = 0, Progress* progress = 0);
 
-  // optimal permutation found
-  const std::vector<Node::Index>& permutation() const { return perm; }
+   // optimal permutation found
+   const std::vector<Node::Index>& permutation() const { return perm; }
 
-  // node of given rank in reordered graph (0 <= rank <= nodes() - 1)
-  Node::Index permutation(uint rank) const { return perm[rank]; }
+   // node of given rank in reordered graph (0 <= rank <= nodes() - 1)
+   Node::Index permutation(uint rank) const { return perm[rank]; }
 
-  // position of node i in reordered graph (1 <= i <= nodes())
-  uint rank(Node::Index i) const { return static_cast<uint>(std::floor(node[i].pos)); }
+   // position of node i in reordered graph (1 <= i <= nodes())
+   uint rank(Node::Index i) const { return static_cast<uint>(std::floor(node[i].pos)); }
 
-  // cost of current layout
-  Float cost() const;
+   // cost of current layout
+   Float cost() const;
 
-  // return first directed arc if one exists or null otherwise
-  Arc::Index directed() const;
+   // return first directed arc if one exists or null otherwise
+   Arc::Index directed() const;
 
 protected:
-  friend class Subgraph;
-  friend class Drawing;
+   friend class Subgraph;
+   friend class Drawing;
 
-  // constructor/destructor
-  Graph(uint nodes, uint level) : level(level), last_node(Node::null) { init(nodes); }
+   // constructor/destructor
+   Graph(uint nodes, uint level) : level(level), last_node(Node::null) { init(nodes); }
 
-  // arc length
-  Float length(Node::Index i, Node::Index j) const { return std::fabs(node[i].pos - node[j].pos); }
-  Float length(Arc::Index a) const
-  {
-    Node::Index i = arc_source(a);
-    Node::Index j = arc_target(a);
-    return length(i, j);
-  }
+   // arc length
+   Float length(Node::Index i, Node::Index j) const { return std::fabs(node[i].pos - node[j].pos); }
+   Float length(Arc::Index a) const
+   {
+      Node::Index i = arc_source(a);
+      Node::Index j = arc_target(a);
+      return length(i, j);
+   }
 
-  // coarsen graph
-  Graph* coarsen();
+   // coarsen graph
+   Graph* coarsen();
 
-  // refine graph
-  void refine(const Graph* graph);
+   // refine graph
+   void refine(const Graph* graph);
 
-  // perform m sweeps of compatible or Gauss-Seidel relaxation
-  void relax(bool compatible, uint m = 1);
+   // perform m sweeps of compatible or Gauss-Seidel relaxation
+   void relax(bool compatible, uint m = 1);
 
-  // optimize using n-node window
-  void optimize(uint n);
+   // optimize using n-node window
+   void optimize(uint n);
 
-  // place all nodes according to their positions
-  void place(bool sort = false);
+   // place all nodes according to their positions
+   void place(bool sort = false);
 
-  // place nodes {k, ..., k + n - 1} according to their positions
-  void place(bool sort, uint k, uint n);
+   // place nodes {k, ..., k + n - 1} according to their positions
+   void place(bool sort, uint k, uint n);
 
-  // perform V cycle using n-node window
-  void vcycle(uint n, uint work = 0);
+   // perform V cycle using n-node window
+   void vcycle(uint n, uint work = 0);
 
-  // randomly shuffle nodes
-  void shuffle(uint seed = 0);
+   // randomly shuffle nodes
+   void shuffle(uint seed = 0);
 
-  // recompute arc bonds for iteration i
-  void reweight(uint i);
+   // recompute arc bonds for iteration i
+   void reweight(uint i);
 
-  // compute cost
-  WeightedSum cost(const std::vector<Arc::Index>& subset, Float pos) const;
+   // compute cost
+   WeightedSum cost(const std::vector<Arc::Index>& subset, Float pos) const;
 
-  // node attributes
-  bool persistent(Node::Index i) const { return node[i].parent != Node::null; }
-  bool placed(Node::Index i) const { return node[i].pos >= Float(0); }
+   // node attributes
+   bool persistent(Node::Index i) const { return node[i].parent != Node::null; }
+   bool placed(Node::Index i) const { return node[i].pos >= Float(0); }
 
-  Functional* functional;        // ordering functional
-  Progress* progress;            // progress callbacks
-  std::vector<Node::Index> perm; // ordered list of indices to nodes
-  std::vector<Node> node;        // statically ordered list of nodes
-  std::vector<Node::Index> adj;  // statically ordered list of adjacent nodes
-  std::vector<Float> weight;     // statically ordered list of arc weights
-  std::vector<Float> bond;       // statically ordered list of coarsening weights
+   Functional* functional;        // ordering functional
+   Progress* progress;            // progress callbacks
+   std::vector<Node::Index> perm; // ordered list of indices to nodes
+   std::vector<Node> node;        // statically ordered list of nodes
+   std::vector<Node::Index> adj;  // statically ordered list of adjacent nodes
+   std::vector<Float> weight;     // statically ordered list of arc weights
+   std::vector<Float> bond;       // statically ordered list of coarsening weights
 
 private:
-  // initialize graph with given number of nodes
-  void init(uint nodes);
+   // initialize graph with given number of nodes
+   void init(uint nodes);
 
-  // find optimal position of node i while fixing all other nodes
-  Float optimal(Node::Index i) const;
+   // find optimal position of node i while fixing all other nodes
+   Float optimal(Node::Index i) const;
 
-  // add contribution of fine arc to coarse graph
-  void update(Node::Index i, Node::Index j, Float w, Float b);
+   // add contribution of fine arc to coarse graph
+   void update(Node::Index i, Node::Index j, Float w, Float b);
 
-  // transfer contribution of fine arc a to coarse node p
-  void transfer(Graph* g, const std::vector<Float>& part, Node::Index p, Arc::Index a, Float f = 1) const;
+   // transfer contribution of fine arc a to coarse node p
+   void transfer(Graph* g, const std::vector<Float>& part, Node::Index p,
+                 Arc::Index a, Float f = 1) const;
 
-  // swap the positions of nodes
-  void swap(uint k, uint l);
+   // swap the positions of nodes
+   void swap(uint k, uint l);
 
-  // random number generator
-  static uint random(uint seed = 0);
+   // random number generator
+   static uint random(uint seed = 0);
 
-  uint level;            // level of coarsening
-  Node::Index last_node; // last node with outgoing arcs
+   uint level;            // level of coarsening
+   Node::Index last_node; // last node with outgoing arcs
 };
 
 }
