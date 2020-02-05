@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tri.mesh";
    int serial_ref_levels = 0;
    int order = 1;
+   int max_dofs = 50000;
    bool static_cond = false;
    bool visualization = 1;
 
@@ -58,6 +59,8 @@ int main(int argc, char *argv[])
                   " partitioning)");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&max_dofs, "-md", "--max-dofs",
+                  "Maximum number of degrees of freedom for the AMR loop.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -207,7 +210,6 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 50000;
    const int max_amr_itr = 20;
    for (int it = 0; it <= max_amr_itr; it++)
    {
