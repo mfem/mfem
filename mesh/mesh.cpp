@@ -8581,10 +8581,10 @@ void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
 
 void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf)
 {
-   std::vector<char> sz_buf;
-   bin_io::AppendBytes(sz_buf, uint32_t(buf.size()));
-   bin_io::WriteBase64(out, sz_buf.data(), sz_buf.size());
-   // Then write all the double values, encoded with base 64
+   // First write size of buffer (as uint32_t), encoded with base 64
+   uint32_t sz = buf.size();
+   bin_io::WriteBase64(out, &sz, sizeof(sz));
+   // Then write all the bytes in the buffer, encoded with base 64
    bin_io::WriteBase64(out, buf.data(), buf.size());
    out << '\n';
    buf.clear();

@@ -1035,9 +1035,8 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
    {
       // First write the size of the buffer in bytes, as a uint32_t encoded with
       // base 64
-      std::vector<char> sz_buf;
-      bin_io::AppendBytes(sz_buf, uint32_t(buf.size()));
-      bin_io::WriteBase64(out, sz_buf.data(), sz_buf.size());
+      uint32_t sz = buf.size();
+      bin_io::WriteBase64(out, &sz, sizeof(sz));
       // Then write all the double values, encoded with base 64
       bin_io::WriteBase64(out, buf.data(), buf.size());
       out << '\n';
@@ -1068,7 +1067,8 @@ int ParaViewDataCollection::create_directory(const std::string &dir_name)
 ParaViewDataCollection::ParaViewDataCollection(const std::string&
                                                collection_name,
                                                mfem::ParMesh *mesh_)
-   :DataCollection(collection_name,mesh_)
+   : DataCollection(collection_name,mesh_),
+     pv_data_format(BINARY)
 {
    lcomm = mesh_->GetComm();
    MPI_Comm_rank(lcomm, &myrank);

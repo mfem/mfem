@@ -21,10 +21,10 @@ static const char *b64str
      "abcdefghijklmnopqrstuvwxyz"
      "0123456789+/";
 
-void WriteBase64(std::ostream &out, const void *bytes, size_t length)
+void WriteBase64(std::ostream &out, const void *bytes, size_t nbytes)
 {
    const unsigned char *in = static_cast<const unsigned char *>(bytes);
-   const unsigned char *end = in + length;
+   const unsigned char *end = in + nbytes;
    while (end - in >= 3)
    {
       out << b64str[in[0] >> 2];
@@ -33,7 +33,7 @@ void WriteBase64(std::ostream &out, const void *bytes, size_t length)
       out << b64str[in[2] & 0x3f];
       in += 3;
    }
-   if (end - in > 0)
+   if (end - in > 0) // Padding
    {
       out << b64str[in[0] >> 2];
       if (end - in == 1)
@@ -41,10 +41,9 @@ void WriteBase64(std::ostream &out, const void *bytes, size_t length)
          out << b64str[(in[0] & 0x03) << 4];
          out << '=';
       }
-      else
+      else // end - in == 2
       {
-         out << b64str[((in[0] & 0x03) << 4) |
-            (in[1] >> 4)];
+         out << b64str[((in[0] & 0x03) << 4) | (in[1] >> 4)];
          out << b64str[(in[1] & 0x0f) << 2];
       }
       out << '=';
