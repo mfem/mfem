@@ -487,6 +487,7 @@ private:
    int levels_of_detail;
    std::fstream pvd_stream;
    DataFormat pv_data_format;
+   bool high_order_output;
 
 protected:
    void SaveDataVTU(std::ostream &out, int ref);
@@ -538,6 +539,8 @@ public:
    virtual void Save() override;
 
    void SetDataFormat(DataFormat fmt);
+
+   void SetHighOrderOutput(bool high_order_output_);
 
    const char *GetDataFormatString() const;
 
