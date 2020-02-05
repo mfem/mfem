@@ -2,7 +2,7 @@
 //
 // Compile with: make ex1c
 //
-//  ./ex1c -m ../../data/inline-hex.mesh -o 1 -ref 4 -sol 1 -iprob 1 -no-vis
+//  ./ex1c -m ../../data/inline-hex.mesh -o 1 -ref 2 -sol 1 -iprob 1 -no-vis
 
 #include "mfem.hpp"
 #include <fstream>
@@ -30,10 +30,11 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
-   bool static_cond = false;
    bool visualization = true;
-   int ref_levels = 0;
+   int ref_levels = 1;
    int iprob = 0;
+   bool pass=false;
+   bool herm_conv = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -47,8 +48,8 @@ int main(int argc, char *argv[])
                   "Problem kind - 0:complex, 1: purely real, 2: purely imaginary");
    args.AddOption(&ref_levels, "-ref", "--ref_levels",
                   "Number of Refinement Levels.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
+                  "--no-hermitian", "Use convention for Hermitian operators.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -62,8 +63,6 @@ int main(int argc, char *argv[])
 
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
-
-   mesh->UniformRefinement();
 
    // Define a finite element space on the mesh.
    FiniteElementCollection *fec;
@@ -85,8 +84,9 @@ int main(int argc, char *argv[])
         << fespace->GetTrueVSize() << endl;
 
    prob_kind = (prob)iprob;
-   mfem::ComplexOperator::Convention conv = mfem::ComplexOperator::HERMITIAN;
 
+   ComplexOperator::Convention conv =
+      herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
    // Set up the linear form b(.)
    ComplexLinearForm *b = new ComplexLinearForm(fespace,conv);
@@ -149,24 +149,46 @@ int main(int argc, char *argv[])
       cout << "Size of linear system: " << A->Height() << endl;
 
 
-#ifndef MFEM_USE_SUITESPARSE
+// #ifndef MFEM_USE_SUITESPARSE
       {
+         GSSmoother * S = nullptr;
+         Array<int>offsets(3);
+         offsets[0] = 0;
+         offsets[1] = A->Height()/2;
+         offsets[2] = A->Height()/2;
+         offsets.PartialSum();
+         BlockDiagonalPreconditioner prec(offsets);
+         switch (prob_kind)
+         {
+         case comp:
+         case rl:
+            S = new GSSmoother(AZ->real());
+            break;
+         case im:
+            S = new GSSmoother(AZ->imag());
+            break;
+         }
+         prec.SetDiagonalBlock(0, S);
+         prec.SetDiagonalBlock(1, S);
+
          GMRESSolver gmres;
-         gmres.SetPrintLevel(1);
-         gmres.SetMaxIter(200);
-         gmres.SetRelTol(1e-12);
-         gmres.SetAbsTol(0.0);
+         gmres.SetPrintLevel(2);
+         gmres.SetMaxIter(2000);
+         gmres.SetRelTol(1e-8);
+         gmres.SetAbsTol(1e-8);
+         gmres.SetPreconditioner(prec);
          gmres.SetOperator(*A);
          gmres.Mult(B, X);
+         delete S;
       }
-#else
-      {
-         UMFPackSolver umf_solver;
-         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         umf_solver.SetOperator(*A);
-         umf_solver.Mult(B, X);
-      }
-#endif
+// #else
+//       {
+//          UMFPackSolver umf_solver;
+//          umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+//          umf_solver.SetOperator(*A);
+//          umf_solver.Mult(B, X);
+//       }
+// #endif
       // Recover the solution as a finite element grid function.
       a->RecoverFEMSolution(X, *b, x);
 
@@ -200,21 +222,23 @@ int main(int argc, char *argv[])
          alpha1 = log(H1err_re0/H1err_re)/log(2.0);
          beta1  = log(H1err_im0/H1err_im)/log(2.0);
       }
-
+      cout << endl;
+      cout << " ---------------------------------------------------" << endl;
+      cout << "|            ABSOLUTE ERROR AND RATES               |" << endl;
+      cout << "|---------------------------------------------------|" << endl;
       cout << setprecision(3);
+      cout << "|real: || u_h - u ||_{H^1} = " << scientific
+            << H1err_re << ",  rate: " << fixed  << alpha1 << "|" << endl;
+      cout << "|imag: || u_h - u ||_{H^1} = " << scientific
+            << H1err_im << ",  rate: " << fixed  << beta1 << "|" << endl;
 
-
-      cout << "real: || u_h - u ||_{H^1} = " << scientific
-           << H1err_re << ",  rate: " << fixed  << alpha1 << endl;
-      cout << "imag: || u_h - u ||_{H^1} = " << scientific
-           << H1err_im << ",  rate: " << fixed  << beta1 << endl;
-
-      cout << "real: || u_h - u ||_{L^2} = " << scientific
-           << L2err_re <<
-           ",  rate: " << fixed << alpha0 << endl;
-      cout << "imag: || u_h - u ||_{L^2} = " << scientific
-           << L2err_im <<
-           ",  rate: " << fixed << beta0 << endl;
+      cout << "|real: || u_h - u ||_{L^2} = " << scientific
+            << L2err_re <<
+            ",  rate: " << fixed << alpha0 << "|" << endl;
+      cout << "|imag: || u_h - u ||_{L^2} = " << scientific
+            << L2err_im <<
+            ",  rate: " << fixed << beta0 << "|" << endl;
+      cout << " ---------------------------------------------------" << endl;
       cout << endl;
 
       L2err_re0 = L2err_re;
@@ -223,7 +247,15 @@ int main(int argc, char *argv[])
       H1err_re0 = H1err_re;
       H1err_im0 = H1err_im;
 
-      if (l == ref_levels) { break; }
+      if (l == ref_levels) 
+      { 
+         // check the rate and exit
+         if (abs(alpha1 - order)<1e-1 && abs(beta1 - order)<1e-1  &&
+             abs(alpha0 - order-1)<1e-1 && abs(beta0 - order-1)<1e-1)
+             pass = true;
+
+         break; 
+      }
 
       mesh->UniformRefinement();
       fespace->Update();
@@ -231,6 +263,14 @@ int main(int argc, char *argv[])
       b->Update();
       x.Update();
       x_ex.Update();
+   }
+   if (pass)
+   {
+      cout << "Convergence Rate tests succesfull \n " << endl;
+   }
+   else
+   {
+      cout << "Convergence Rate tests unsuccesfull \n " << endl;
    }
 
    // Send the solution by socket to a GLVis server.
@@ -254,7 +294,7 @@ int main(int argc, char *argv[])
    delete fespace;
    if (order > 0) { delete fec; }
    delete mesh;
-   return 0;
+   return !pass;
 }
 
 double u_exact_re(const Vector &x)
@@ -312,7 +352,7 @@ void get_solution_re(const Vector &x, double & u, double du[], double & d2u)
                -2.0*(-1.0 + x[1]) * x[1] * (-1.0 + x[2]) * x[2];
       }
    }
-   else if (sol == 1)
+   else
    {
       double alpha;
       if (dim == 2)
@@ -389,7 +429,7 @@ void get_solution_im(const Vector &x, double & u, double du[], double & d2u)
                -2.0*(-1.0 + x[1]) * x[1] * (-1.0 + x[2]) * x[2];
       }
    }
-   else if (sol == 1)
+   else
    {
       double alpha;
       if (dim == 2)

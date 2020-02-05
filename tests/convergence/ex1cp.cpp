@@ -2,6 +2,7 @@
 //
 // Compile with: make ex1pc
 //
+//  mpirun -np 4 ./ex1cp -m ../../data/inline-hex.mesh -o 1 -ref 2 -sol 1 -iprob 1 -no-vis
 
 #include "mfem.hpp"
 #include <fstream>
@@ -35,10 +36,11 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
-   bool static_cond = false;
    bool visualization = true;
-   int ref_levels = 0;
+   int ref_levels = 1;
    int iprob = 0;
+   bool pass=false;
+   bool herm_conv = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -52,8 +54,8 @@ int main(int argc, char *argv[])
                   "Problem kind - 0:complex, 1: purely real, 2: purely imaginary");
    args.AddOption(&ref_levels, "-ref", "--ref_levels",
                   "Number of Refinement Levels.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
+                  "--no-hermitian", "Use convention for Hermitian operators.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -75,7 +77,6 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
 
-   mesh->UniformRefinement();
    // Define a parallel mesh by a partitioning of the serial mesh.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -106,7 +107,9 @@ int main(int argc, char *argv[])
    }
 
    prob_kind = (prob)iprob;
-   mfem::ComplexOperator::Convention conv = mfem::ComplexOperator::HERMITIAN;
+
+   ComplexOperator::Convention conv =
+      herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
    // Set up the parallel linear form b(.)
    ParComplexLinearForm *b = new ParComplexLinearForm(fespace,conv);
@@ -175,13 +178,36 @@ int main(int argc, char *argv[])
 
 #ifndef MFEM_USE_SUPERLU
       {
+         HypreBoomerAMG * S = nullptr;
+         Array<int>offsets(3);
+         offsets[0] = 0;
+         offsets[1] = A->Height()/2;
+         offsets[2] = A->Height()/2;
+         offsets.PartialSum();
+         BlockDiagonalPreconditioner prec(offsets);
+         switch (prob_kind)
+         {
+         case comp:
+         case rl:
+            S = new HypreBoomerAMG(AZ->real());
+            break;
+         case im:
+            S = new HypreBoomerAMG(AZ->imag());
+            break;
+         }
+         S->SetPrintLevel(0);
+         prec.SetDiagonalBlock(0, S);
+         prec.SetDiagonalBlock(1, S);
+
          GMRESSolver gmres(MPI_COMM_WORLD);
-         gmres.SetPrintLevel(1);
-         gmres.SetMaxIter(200);
+         gmres.SetPrintLevel(2);
+         gmres.SetMaxIter(2000);
          gmres.SetRelTol(1e-12);
          gmres.SetAbsTol(0.0);
+         gmres.SetPreconditioner(prec);
          gmres.SetOperator(*A);
          gmres.Mult(B, X);
+         delete S;
       }
 #else
       {
@@ -217,43 +243,55 @@ int main(int argc, char *argv[])
       double H1err_re = GlobalLpNorm(2.0, lH1err_re, MPI_COMM_WORLD);
       double H1err_im = GlobalLpNorm(2.0, lH1err_im, MPI_COMM_WORLD);
 
-
+      double alpha0, beta0;
+      double alpha1, beta1;
+      
+      if (l==0)
+      {
+         alpha0 = 0.0; beta0 = 0.0;
+         alpha1 = 0.0; beta1 = 0.0;
+      }
+      else
+      {
+         alpha0 = log(L2err_re0/L2err_re)/log(2.0);
+         beta0  = log(L2err_im0/L2err_im)/log(2.0);
+         alpha1 = log(H1err_re0/H1err_re)/log(2.0);
+         beta1  = log(H1err_im0/H1err_im)/log(2.0);
+      }
       if (myid == 0)
       {
-         double alpha0, beta0;
-         double alpha1, beta1;
-         if (l==0)
-         {
-            alpha0 = 0.0; beta0 = 0.0;
-            alpha1 = 0.0; beta1 = 0.0;
-         }
-         else
-         {
-            alpha0 = log(L2err_re0/L2err_re)/log(2.0);
-            beta0  = log(L2err_im0/L2err_im)/log(2.0);
-            alpha1 = log(H1err_re0/H1err_re)/log(2.0);
-            beta1  = log(H1err_im0/H1err_im)/log(2.0);
-         }
-         cout << setprecision(3);
-         cout << "real: || u_h - u ||_{H^1} = " << scientific
-              << H1err_re << ",  rate: " << fixed  << alpha1 << endl;
-         cout << "imag: || u_h - u ||_{H^1} = " << scientific
-              << H1err_im << ",  rate: " << fixed  << beta1 << endl;
-
-         cout << "real: || u_h - u ||_{L^2} = " << scientific
-              << L2err_re <<
-              ",  rate: " << fixed << alpha0 << endl;
-         cout << "imag: || u_h - u ||_{L^2} = " << scientific
-              << L2err_im <<
-              ",  rate: " << fixed << beta0 << endl;
          cout << endl;
+         cout << " ---------------------------------------------------" << endl;
+         cout << "|            ABSOLUTE ERROR AND RATES               |" << endl;
+         cout << "|---------------------------------------------------|" << endl;
+         cout << setprecision(3);
+         cout << "|real: || u_h - u ||_{H^1} = " << scientific
+              << H1err_re << ",  rate: " << fixed  << alpha1 << "|" << endl;
+         cout << "|imag: || u_h - u ||_{H^1} = " << scientific
+              << H1err_im << ",  rate: " << fixed  << beta1 << "|" << endl;
 
-         L2err_re0 = L2err_re;
-         L2err_im0 = L2err_im;
-         H1err_re0 = H1err_re;
-         H1err_im0 = H1err_im;
+         cout << "|real: || u_h - u ||_{L^2} = " << scientific
+              << L2err_re <<
+              ",  rate: " << fixed << alpha0 << "|" << endl;
+         cout << "|imag: || u_h - u ||_{L^2} = " << scientific
+              << L2err_im <<
+              ",  rate: " << fixed << beta0 << "|" << endl;
+         cout << " ---------------------------------------------------" << endl;
+         cout << endl;
       }
-      if (l == ref_levels) { break; }
+      L2err_re0 = L2err_re;
+      L2err_im0 = L2err_im;
+      H1err_re0 = H1err_re;
+      H1err_im0 = H1err_im;
+      if (l == ref_levels) 
+      { 
+         // check the rate and exit
+         if (abs(alpha1 - order)<1e-1 && abs(beta1 - order)<1e-1  &&
+             abs(alpha0 - order-1)<1e-1 && abs(beta0 - order-1)<1e-1)
+             pass = true;
+
+         break; 
+      }
 
       pmesh->UniformRefinement();
       fespace->Update();
@@ -261,6 +299,17 @@ int main(int argc, char *argv[])
       b->Update();
       x.Update();
       x_ex.Update();
+   }
+   if (myid == 0)
+   {
+      if (pass)
+      {
+         cout << "Convergence Rates test succesfull \n " << endl;
+      }
+      else
+      {
+         cout << "Convergence Rates test unsuccesfull \n " << endl;
+      }
    }
    if (visualization)
    {
@@ -286,10 +335,9 @@ int main(int argc, char *argv[])
    delete fespace;
    if (order > 0) { delete fec; }
    delete pmesh;
-
    MPI_Finalize();
 
-   return 0;
+   return !pass;
 }
 
 double u_exact_re(const Vector &x)
@@ -347,7 +395,7 @@ void get_solution_re(const Vector &x, double & u, double du[], double & d2u)
                -2.0*(-1.0 + x[1]) * x[1] * (-1.0 + x[2]) * x[2];
       }
    }
-   else if (sol == 1)
+   else
    {
       double alpha;
       if (dim == 2)
@@ -424,7 +472,7 @@ void get_solution_im(const Vector &x, double & u, double du[], double & d2u)
                -2.0*(-1.0 + x[1]) * x[1] * (-1.0 + x[2]) * x[2];
       }
    }
-   else if (sol == 1)
+   else
    {
       double alpha;
       if (dim == 2)
