@@ -9,10 +9,6 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-add_mfem_miniapp(nurbs_ex1
-  MAIN ex1.cpp
-  LIBRARIES mfem)
-
 configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/square-nurbs.mesh
                ${PROJECT_BINARY_DIR}/miniapps/nurbs/square-nurbs.mesh
                COPYONLY)
@@ -25,7 +21,9 @@ configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/pipe-nurbs-2d.mesh
                ${PROJECT_BINARY_DIR}/miniapps/nurbs/pipe-nurbs-2d.mesh
                COPYONLY)
 
-
+add_mfem_miniapp(nurbs_ex1
+  MAIN ex1.cpp
+  LIBRARIES mfem)
 
 add_test(NAME nurbs_ex1_ser
   COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis)
