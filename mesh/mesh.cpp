@@ -8594,9 +8594,118 @@ void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf)
    buf.clear();
 }
 
-void Mesh::PrintVTU(std::ostream &out, int ref, bool binary)
+int ConvertToVTKOrdering(int idx_in, int ref, Geometry::Type geom)
 {
-   int np, nc, size;
+   int n = ref + 1;
+   switch (geom)
+   {
+      case Geometry::POINT:
+      case Geometry::SEGMENT:
+         return idx_in;
+      case Geometry::SQUARE:
+      {
+         int i = idx_in % n;
+         int j = idx_in / n;
+         // Do we lie on any of the edges
+         bool ibdr = (i == 0 || i == ref);
+         bool jbdr = (j == 0 || j == ref);
+         if (ibdr && jbdr) // Vertex DOF
+         {
+            return (i ? (j ? 2 : 1) : (j ? 3 : 0));
+         }
+         int offset = 4;
+         if (jbdr) // Edge DOF on j==0 or j==ref
+         {
+            return (i - 1) + (j ? ref - 1 + ref - 1 : 0) + offset;
+         }
+         else if (ibdr) // Edge DOF on i==0 or i==ref
+         {
+            return (j - 1) + (i ? ref - 1 : 2 * (ref - 1) + ref - 1) + offset;
+         }
+         else // Interior DOF
+         {
+            offset += 2 * (ref - 1 + ref - 1);
+            return offset + (i - 1) + (ref - 1) * ((j - 1));
+         }
+      }
+      case Geometry::CUBE:
+      {
+         int i = idx_in % n;
+         int j = (idx_in / n) % n;
+         int k = idx_in / (n*n);
+         bool ibdr = (i == 0 || i == ref);
+         bool jbdr = (j == 0 || j == ref);
+         bool kbdr = (k == 0 || k == ref);
+         // How many boundaries do we lie on at once?
+         int nbdr = (ibdr ? 1 : 0) + (jbdr ? 1 : 0) + (kbdr ? 1 : 0);
+         if (nbdr == 3) // Vertex DOF
+         {
+            // ijk is a corner node. Return the proper index (in [0,7])
+            return (i ? (j ? 2 : 1) : (j ? 3 : 0)) + (k ? 4 : 0);
+         }
+
+         int offset = 8;
+         if (nbdr == 2) // Edge DOF
+         {
+            if (!ibdr)
+            {
+               // On i axis
+               return (i - 1) +
+                      (j ? ref - 1 + ref - 1 : 0) +
+                      (k ? 2*(ref - 1 + ref - 1) : 0) +
+                      offset;
+            }
+            if (!jbdr)
+            {
+               // On j axis
+               return (j - 1) +
+                      (i ? ref - 1 : 2*(ref - 1) + ref - 1) +
+                      (k ? 2*(ref - 1 + ref - 1) : 0) +
+                      offset;
+            }
+            // !kbdr, On k axis
+            offset += 4*(ref - 1) + 4*(ref - 1);
+            return (k - 1) + (ref - 1)*(i ? (j ? 3 : 1) : (j ? 2 : 0))
+                   + offset;
+         }
+
+         offset += 4*(ref - 1 + ref - 1 + ref - 1);
+         if (nbdr == 1) // Face DOF
+         {
+            if (ibdr) // On i-normal face
+            {
+               return (j - 1) + ((ref - 1)*(k - 1))
+                      + (i ? (ref - 1)*(ref - 1) : 0) + offset;
+            }
+            offset += 2*(ref - 1)*(ref - 1);
+            if (jbdr) // On j-normal face
+            {
+               return (i - 1)
+                      + ((ref - 1)*(k - 1))
+                      + (j ? (ref - 1)*(ref - 1) : 0) + offset;
+            }
+            offset += 2*(ref - 1)*(ref - 1);
+            // kbdr, On k-normal face
+            return (i - 1) + ((ref - 1)*(j - 1))
+                   + (k ? (ref - 1)*(ref - 1) : 0) + offset;
+         }
+
+         // nbdr == 0: Interior DOF
+         offset += 2*((ref - 1)*(ref - 1) +
+                      (ref - 1)*(ref - 1) +
+                      (ref - 1)*(ref - 1));
+         return offset + (i - 1) + (ref - 1)*((j - 1) + (ref - 1)*(k - 1));
+      }
+      default:
+         MFEM_ABORT("High-order VTK triangles, tetrahedra and prisms are not "
+                    "currently supported");
+         return -1;
+   }
+}
+
+void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
+                    bool high_order_output)
+{
    RefinedGeometry *RefG;
    DenseMatrix pmat;
 
@@ -8604,19 +8713,19 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary)
    std::vector<char> buf;
 
    // count the points, cells, size
-   np = nc = size = 0;
+   int np = 0, nc_ref = 0, size = 0;
    for (int i = 0; i < GetNE(); i++)
    {
       Geometry::Type geom = GetElementBaseGeometry(i);
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       np += RefG->RefPts.GetNPoints();
-      nc += RefG->RefGeoms.Size() / nv;
+      nc_ref += RefG->RefGeoms.Size() / nv;
       size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
    }
 
-   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\"" << nc << "\">"
-       << std::endl;
+   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
+       << (high_order_output ? GetNE() : nc_ref) << "\">" << std::endl;
 
    // print out the points
    out << "<Points>" << std::endl;
@@ -8635,18 +8744,17 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary)
          if (pmat.Height() > 1)
          {
             WriteBinaryOrASCII(out, buf, pmat(1,j), " ", binary);
-            if (pmat.Height() > 2)
-            {
-               WriteBinaryOrASCII(out, buf, pmat(2,j), "", binary);
-            }
-            else
-            {
-               WriteBinaryOrASCII(out, buf, 0.0, "", binary);
-            }
          }
          else
          {
             WriteBinaryOrASCII(out, buf, 0.0, " ", binary);
+         }
+         if (pmat.Height() > 2)
+         {
+            WriteBinaryOrASCII(out, buf, pmat(2,j), "", binary);
+         }
+         else
+         {
             WriteBinaryOrASCII(out, buf, 0.0, "", binary);
          }
          if (!binary) { out << '\n'; }
@@ -8661,28 +8769,57 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary)
        << fmt_str << "\">" << std::endl;
    // connectivity
    std::vector<int> offset;
-   int coff = 0;
+
    np = 0;
-   for (int i = 0; i < GetNE(); i++)
+   if (high_order_output)
    {
-      Geometry::Type geom = GetElementBaseGeometry(i);
-      int nv = Geometries.GetVertices(geom)->GetNPoints();
-      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-      Array<int> &RG = RefG->RefGeoms;
-
-      for (int j = 0; j < RG.Size(); )
+      Array<int> local_connectivity;
+      for (int iel = 0; iel < GetNE(); iel++)
       {
-         // out << nv;
-         coff = coff+nv;
-         offset.push_back(coff);
-
-         for (int k = 0; k < nv; k++, j++)
+         Geometry::Type geom = GetElementBaseGeometry(iel);
+         int geom_dim = Geometry::Dimension[geom];
+         int ni = ref+1;
+         int nj = geom_dim > 1 ? ref+1 : 1;
+         int nk = geom_dim > 2 ? ref+1 : 1;
+         int nnodes = ni*nj*nk;
+         local_connectivity.SetSize(nnodes);
+         for (int i=0; i<nnodes; ++i)
          {
-            WriteBinaryOrASCII(out, buf, np + RG[j], " ", binary);
+            int idx = ConvertToVTKOrdering(i, ref, geom);
+            local_connectivity[idx] = np + i;
+         }
+         for (int i=0; i<nnodes; ++i)
+         {
+            WriteBinaryOrASCII(out, buf, local_connectivity[i], " ", binary);
          }
          if (!binary) { out << '\n'; }
+         np += nnodes;
+         offset.push_back(np);
       }
-      np += RefG->RefPts.GetNPoints();
+   }
+   else
+   {
+      int coff = 0;
+      for (int i = 0; i < GetNE(); i++)
+      {
+         Geometry::Type geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         Array<int> &RG = RefG->RefGeoms;
+         for (int j = 0; j < RG.Size(); )
+         {
+            // out << nv;
+            coff = coff+nv;
+            offset.push_back(coff);
+
+            for (int k = 0; k < nv; k++, j++)
+            {
+               WriteBinaryOrASCII(out, buf, np + RG[j], " ", binary);
+            }
+            if (!binary) { out << '\n'; }
+         }
+         np += RefG->RefPts.GetNPoints();
+      }
    }
    if (binary) { WriteBase64WithSizeAndClear(out, buf); }
    out << "</DataArray>" << std::endl;
@@ -8705,25 +8842,46 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary)
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       Array<int> &RG = RefG->RefGeoms;
-      unsigned char vtk_cell_type = 5;
+      uint8_t vtk_cell_type = 5;
 
       switch (geom)
       {
-         case Geometry::POINT:        vtk_cell_type = 1;   break;
-         case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
-         case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
-         case Geometry::SQUARE:       vtk_cell_type = 9;   break;
-         case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-         case Geometry::CUBE:         vtk_cell_type = 12;  break;
-         case Geometry::PRISM:        vtk_cell_type = 13;  break;
+         case Geometry::POINT:
+            vtk_cell_type = 1;
+            break;
+         case Geometry::SEGMENT:
+            vtk_cell_type = high_order_output ? 68 : 3;
+            break;
+         case Geometry::TRIANGLE:
+            vtk_cell_type = high_order_output ? 69 : 5;
+            break;
+         case Geometry::SQUARE:
+            vtk_cell_type = high_order_output ? 70 : 9;
+            break;
+         case Geometry::TETRAHEDRON:
+            vtk_cell_type = high_order_output ? 71 : 10;
+            break;
+         case Geometry::CUBE:
+            vtk_cell_type = high_order_output ? 72 : 12;
+            break;
+         case Geometry::PRISM:
+            vtk_cell_type = high_order_output ? 73 : 13;
+            break;
          default:
             MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
             break;
       }
 
-      for (int j = 0; j < RG.Size(); j += nv)
+      if (high_order_output)
       {
          WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", binary);
+      }
+      else
+      {
+         for (int j = 0; j < RG.Size(); j += nv)
+         {
+            WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", binary);
+         }
       }
    }
    if (binary) { WriteBase64WithSizeAndClear(out, buf); }
@@ -8739,9 +8897,16 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary)
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       int attr = GetAttribute(i);
-      for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+      if (high_order_output)
       {
          WriteBinaryOrASCII(out, buf, attr, "\n", binary);
+      }
+      else
+      {
+         for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+         {
+            WriteBinaryOrASCII(out, buf, attr, "\n", binary);
+         }
       }
    }
    if (binary) { WriteBase64WithSizeAndClear(out, buf); }

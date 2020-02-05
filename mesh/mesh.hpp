@@ -1171,7 +1171,8 @@ public:
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes). */
-   void PrintVTU(std::ostream &out, int ref=1, bool binary=false);
+   void PrintVTU(std::ostream &out, int ref=1, bool binary=false,
+                 bool high_order_output=false);
    /** Print the mesh in VTU format with file name fname. */
    void PrintVTU(std::string fname);
 
