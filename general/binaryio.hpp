@@ -42,11 +42,8 @@ inline T read(std::istream& is)
 template <typename T>
 void AppendBytes(std::vector<char> &vec, const T &val)
 {
-   for(char ib=0; ib<sizeof(T); ++ib)
-   {
-      char byte = *(reinterpret_cast<const char*>(&val) + ib);
-      vec.push_back(byte);
-   }
+   const char *ptr = reinterpret_cast<const char*>(&val);
+   vec.insert(vec.end(), ptr, ptr + sizeof(T));
 }
 
 void WriteBase64(std::ostream &out, const void *bytes, size_t length);
