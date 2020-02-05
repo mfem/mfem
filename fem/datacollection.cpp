@@ -742,7 +742,8 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
                                                collection_name,
                                                mfem::Mesh *mesh_)
    : DataCollection(collection_name, mesh_),
-     pv_data_format(BINARY)
+     pv_data_format(BINARY),
+     high_order_output(false)
 {
    myrank = 0;
    nprocs = 1;
@@ -935,7 +936,7 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
    out << "<VTKFile type=\"UnstructuredGrid\" ";
    out << " version=\"0.1\" byte_order=\"LittleEndian\">" << std::endl;
    out << "<UnstructuredGrid>" << std::endl;
-   mesh->PrintVTU(out,ref,pv_data_format == BINARY);
+   mesh->PrintVTU(out,ref,pv_data_format == BINARY,high_order_output);
 
    // dump out the grid functions as point data
    out << "<PointData >" << std::endl;
@@ -1068,7 +1069,8 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
                                                collection_name,
                                                mfem::ParMesh *mesh_)
    : DataCollection(collection_name,mesh_),
-     pv_data_format(BINARY)
+     pv_data_format(BINARY),
+     high_order_output(false)
 {
    lcomm = mesh_->GetComm();
    MPI_Comm_rank(lcomm, &myrank);
@@ -1127,6 +1129,11 @@ void ParaViewDataCollection::SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh)
 void ParaViewDataCollection::SetDataFormat(DataFormat fmt)
 {
    pv_data_format = fmt;
+}
+
+void ParaViewDataCollection::SetHighOrderOutput(bool high_order_output_)
+{
+   high_order_output = high_order_output_;
 }
 
 const char *ParaViewDataCollection::GetDataFormatString() const
