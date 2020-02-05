@@ -25,15 +25,18 @@ struct Configuration
 class HyperbolicSystem
 {
 public:
-   explicit HyperbolicSystem(FiniteElementSpace *fes_, Configuration &config_) :
-      fes(fes_), inflow(fes_), u0(fes_) { };
+   explicit HyperbolicSystem(FiniteElementSpace *fes_, BlockVector &u_block,
+									  int NumEq_, Configuration &config_) :
+      fes(fes_), inflow(fes_), u0(fes_, u_block), NumEq(NumEq_) { };
    ~HyperbolicSystem() { };
 
-   virtual void EvaluateFlux(const Vector &u, DenseMatrix &f) const = 0;
+   virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval) const = 0;
    virtual void ComputeErrors(Array<double> &errors, double DomainSize,
                               const GridFunction &u) const = 0;
    virtual void WriteErrors(const Array<double> &errors) const = 0;
 
+	const int NumEq;
+	
    FiniteElementSpace *fes;
    GridFunction inflow, u0;
 

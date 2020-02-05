@@ -83,14 +83,51 @@ int main(int argc, char *argv[])
       pmesh.SetCurvature(max(config.order, 1));
    }
    MPI_Comm comm = pmesh.GetComm();
+	
+	int NumEq; // number of scalar unknowns, e.g. 3 for SWE in 2D.
+	int NumUnknowns; // number of physical unknowns, e.g. 2 for SWE: height and momentum
 
+   Array<bool> VectorOutput;
+	switch (config.ProblemNum)
+	{
+		case 0:
+		case 1:
+		case 2:
+		{
+			NumEq = 1;
+			NumUnknowns = 1;
+			VectorOutput.SetSize(NumUnknowns);
+			VectorOutput[0] = false;
+			break;
+		}
+		case 3:
+		{
+			NumEq = 1+dim;
+			NumUnknowns = 2;
+			VectorOutput.SetSize(NumUnknowns);
+			VectorOutput[0] = false;
+			VectorOutput[1] = true;
+			break;
+		}
+		default:
+		{
+         cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
+         delete odeSolver;
+         return -1;
+		}
+	}
+	
    // Create Bernstein Finite Element Space.
    const int btype = BasisType::Positive;
    L2_FECollection fec(config.order, dim, btype);
    ParFiniteElementSpace pfes(&pmesh, &fec);
+	
+	Array<int> offsets(NumEq + 1);
+   for (int k = 0; k <= NumEq; k++) { offsets[k] = k * pfes.GetNDofs(); }
+   BlockVector u_block(offsets);
 
    const int ProblemSize = pfes.GlobalTrueVSize();
-   if (myid == 0) { cout << "Number of unknowns: " << ProblemSize << endl; }
+   if (myid == 0) { cout << "Number of unknowns: " << ProblemSize << ".\n"; }
 
    // The min/max bounds are represented as H1 functions of the same order
    // as the solution, thus having 1:1 dof correspondence inside each element.
@@ -110,9 +147,8 @@ int main(int argc, char *argv[])
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
-      case 0: { hyp =  new Advection(&pfes, config); break; }
+      case 0: { hyp =  new Advection(&pfes, u_block, config); break; }
       default:
-         cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
          return -1;
    }
 
@@ -139,15 +175,17 @@ int main(int argc, char *argv[])
       u.SaveAsOne(osol);
    }
 
-   socketstream sout;
+   Array<socketstream> sout;
+	sout.SetSize(NumUnknowns);
    char vishost[] = "localhost";
    int  visport   = 19916;
-   bool VectorOutput = false; // TODO
    {
       // Make sure all MPI ranks have sent their 'v' solution before initiating
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(pmesh.GetComm());
-      ParVisualizeField(sout, vishost, visport, u, VectorOutput);
+		// TODO name of glvis window
+		for (int k = 0; k < NumUnknowns; k++)
+			ParVisualizeField(sout[k], vishost, visport, u, VectorOutput[k]);
    }
 
    ParFE_Evolution pevol(&pfes, hyp, pdofs, scheme, LumpedMassMat);
@@ -165,7 +203,7 @@ int main(int argc, char *argv[])
    tic_toc.Start();
    if (myid == 0)
    {
-      cout << "Preprocessing done. Entering time stepping loop." << endl;
+      cout << "Preprocessing done. Entering time stepping loop.\n";
    }
 
    for (int ti = 0; !done;)
@@ -200,7 +238,8 @@ int main(int argc, char *argv[])
                cout << "time step: " << ti << ", time: " << t << endl;
             }
          }
-         ParVisualizeField(sout, vishost, visport, u, VectorOutput);
+         for (int k = 0; k < NumUnknowns; k++)
+				ParVisualizeField(sout[k], vishost, visport, u, VectorOutput[k]);
       }
    }
 
@@ -208,7 +247,7 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "Time stepping loop done in " << tic_toc.RealTime() <<
-           " seconds. Wrapping up simulation." << endl;
+           " seconds.\n\n";
    }
 
    double FinalMass, DomainSize, DomainSizeMPI = LumpedMassMat.Sum();
@@ -221,17 +260,21 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "Difference in solution mass: "
-           << abs(InitialMass - FinalMass) / DomainSize << endl;
+           << abs(InitialMass - FinalMass) / DomainSize << ".\n";
    }
 
-   if (hyp->SolutionKnown && hyp->FileOutput)
+   if (hyp->SolutionKnown)
    {
       Array<double> errors;
       hyp->ComputeErrors(errors, DomainSize, u);
       if (myid == 0)
-      {
-         hyp->WriteErrors(errors);
-      }
+		{
+			cout << "L1 error:                    " << errors[0] << ".\n\n";
+			if (hyp->FileOutput)
+			{
+				hyp->WriteErrors(errors);
+			}
+		}
    }
 
    if (hyp->FileOutput)

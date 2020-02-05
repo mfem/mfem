@@ -1,17 +1,19 @@
 #include "advection.hpp"
 
-Configuration config;
+Configuration ConfigAdv;
 
-void VelocityFunction(const Vector &x, Vector &v);
-double InitialCondition(const Vector &x);
-double InflowFunction(const Vector &x);
+void VelocityFunctionAdv(const Vector &x, Vector &v);
+double AnalyticalSolutionAdv(const Vector &x, double t);
+double InitialConditionAdv(const Vector &x);
+double InflowFunctionAdv(const Vector &x);
 
-Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
-   : HyperbolicSystem(fes_, config_)
+Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
+							Configuration &config_)
+   : HyperbolicSystem(fes_, u_block, 1, config_)
 {
-   config = config_;
+   ConfigAdv = config_;
 
-   if (config.ConfigNum == 0)
+   if (ConfigAdv.ConfigNum == 0)
    {
       SteadyState = true;
    }
@@ -19,7 +21,7 @@ Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
    {
       SteadyState = false;
    }
-
+   
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int ne = fes->GetNE();
@@ -43,7 +45,7 @@ Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
          MFEM_ABORT("Invalid Geometry type.");
    }
 
-   VectorFunctionCoefficient velocity(dim, VelocityFunction);
+   VectorFunctionCoefficient velocity(dim, VelocityFunctionAdv);
    VelElem.SetSize(dim, nqe, ne);
    VelFace.SetSize(dim, NumBdrs, ne*nqf);
 
@@ -113,25 +115,26 @@ Advection::Advection(FiniteElementSpace *fes_, Configuration &config_)
       }
    }
 
-   // Obtain the correct inflow function.
-   FunctionCoefficient bc(InflowFunction);
+   FunctionCoefficient bc(InflowFunctionAdv);
+   FunctionCoefficient ic(InitialConditionAdv);
 
-   if (config.ConfigNum == 0) // Convergence test: use high order projection.
+   if (ConfigAdv.ConfigNum == 0)
    {
+		// Use L2 projection to achieve optimal convergence order.
       L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
       FiniteElementSpace l2_fes(mesh, &l2_fec);
-      GridFunction l2_inflow(&l2_fes);
-      l2_inflow.ProjectCoefficient(bc);
-      inflow.ProjectGridFunction(l2_inflow);
+      GridFunction l2_proj(&l2_fes);
+      l2_proj.ProjectCoefficient(bc);
+      inflow.ProjectGridFunction(l2_proj);
+		l2_proj.ProjectCoefficient(ic);
+		u0.ProjectGridFunction(l2_proj);
    }
    else
    {
+		// Bound preserving projection.
       inflow.ProjectCoefficient(bc);
-   }
-
-   // Initialize solution vector.
-   FunctionCoefficient ic(InitialCondition);
-   u0.ProjectCoefficient(ic);
+		u0.ProjectCoefficient(ic);
+   }   
 }
 
 void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f) const
@@ -145,27 +148,28 @@ void Advection::ComputeErrors(Array<double> &errors, double DomainSize,
                               const GridFunction &u) const
 {
    errors.SetSize(3);
-   switch (config.ConfigNum)
+   switch (ConfigAdv.ConfigNum)
    {
+		// TODO generalize
       case 0:
       {
-         FunctionCoefficient uAnalytic(InflowFunction);
+         FunctionCoefficient uAnalytic(InflowFunctionAdv);
          errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
          errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
          errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(),
-                                      uAnalytic) / DomainSize;
+                                      uAnalytic);
          break;
       }
       case 1:
       {
-         FunctionCoefficient uAnalytic(InitialCondition);
+         FunctionCoefficient uAnalytic(InitialConditionAdv);
          errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
          errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
          errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(),
-                                      uAnalytic) / DomainSize;
+                                      uAnalytic);
          break;
       }
-      default: MFEM_ABORT("Solution is not known analytically for this testcase.");
+      default: MFEM_ABORT("Solution is not known for this testcase.");
    }
 }
 
@@ -188,7 +192,7 @@ void Advection::WriteErrors(const Array<double> &errors) const
 }
 
 
-void VelocityFunction(const Vector &x, Vector &v)
+void VelocityFunctionAdv(const Vector &x, Vector &v)
 {
    double s = 1.;
    const int dim = x.Size();
@@ -197,15 +201,15 @@ void VelocityFunction(const Vector &x, Vector &v)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (config.bbMin(i) + config.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (config.bbMax(i) - config.bbMin(i));
-      s *= config.bbMax(i) - config.bbMin(i);
+      double center = (ConfigAdv.bbMin(i) + ConfigAdv.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
+      s *= ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i);
    }
 
    // Scale to be normed to a full revolution.
    s = pow(s, 1./dim) * M_PI;
 
-   switch (config.ConfigNum)
+   switch (ConfigAdv.ConfigNum)
    {
       case 0: // Rotation around corner.
       {
@@ -231,25 +235,26 @@ void VelocityFunction(const Vector &x, Vector &v)
    }
 }
 
-double InitialCondition(const Vector &x)
+double AnalyticalSolutionAdv(const Vector &x, double t)
 {
-   const int dim = x.Size();
+	   const int dim = x.Size();
 
    // Map to the reference [-1,1] domain.
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (config.bbMin(i) + config.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (config.bbMax(i) - config.bbMin(i));
+      double center = (ConfigAdv.bbMin(i) + ConfigAdv.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
    }
 
-   switch (config.ConfigNum)
+   switch (ConfigAdv.ConfigNum)
    {
       case 0: // Smooth solution used for grid convergence studies.
       {
          Vector Y(dim); Y = 1.;
-         X.Add(1., Y);
-         X *= 0.5;
+			X += Y;
+         X *= 0.5; // Map to test case specific domain [0,1] x [0,1].
+			
          double r = X.Norml2();
          double a = 0.5, b = 0.03, c = 0.1;
          return 0.25 * (1. + tanh((r+c-a)/b)) * (1. - tanh((r-c-a)/b));
@@ -274,16 +279,12 @@ double InitialCondition(const Vector &x)
    return 0.;
 }
 
-double InflowFunction(const Vector &x)
+double InitialConditionAdv(const Vector &x)
 {
-   switch (config.ConfigNum)
-   {
-      case 0:
-      {
-         double r = x.Norml2();
-         double a = 0.5, b = 0.03, c = 0.1;
-         return 0.25 * (1. + tanh((r+c-a)/b)) * (1. - tanh((r-c-a)/b));
-      }
-      default: { return 0.; }
-   }
+	return AnalyticalSolutionAdv(x, 0.);
+}
+
+double InflowFunctionAdv(const Vector &x)
+{
+	return AnalyticalSolutionAdv(x, 0.);
 }

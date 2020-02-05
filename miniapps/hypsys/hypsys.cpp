@@ -74,14 +74,53 @@ int main(int argc, char *argv[])
    }
 
    mesh.GetBoundingBox(config.bbMin, config.bbMax, max(config.order, 1));
+	
+	int NumEq; // number of scalar unknowns, e.g. 3 for SWE in 2D.
+	int NumUnknowns; // number of physical unknowns, e.g. 2 for SWE: height and momentum
+	
+   Array<bool> VectorOutput;
+	switch (config.ProblemNum)
+	{
+		case 0:
+		case 1:
+		case 2:
+		{
+			NumEq = 1;
+			NumUnknowns = 1;
+			VectorOutput.SetSize(NumUnknowns);
+			VectorOutput[0] = false;
+			break;
+		}
+		case 3:
+		{
+			NumEq = 1 + dim;
+			NumUnknowns = 2;
+			VectorOutput.SetSize(NumUnknowns);
+			VectorOutput[0] = false;
+			VectorOutput[1] = true;
+			break;
+		}
+		default:
+		{
+         cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
+         delete odeSolver;
+         return -1;
+		}
+	}
 
    // Create Bernstein Finite Element Space.
    const int btype = BasisType::Positive;
    L2_FECollection fec(config.order, dim, btype);
    FiniteElementSpace fes(&mesh, &fec);
+	
+	FiniteElementSpace vfes(&mesh, &fec, NumEq, Ordering::byNODES);
+	
+	Array<int> offsets(NumEq + 1);
+   for (int k = 0; k <= NumEq; k++) { offsets[k] = k * fes.GetNDofs(); }
+   BlockVector u_block(offsets);
 
    const int ProblemSize = fes.GetVSize();
-   cout << "Number of unknowns: " << ProblemSize << endl;
+   cout << "Number of unknowns: " << ProblemSize << ".\n";
 
    // The min/max bounds are represented as H1 functions of the same order
    // as the solution, thus having 1:1 dof correspondence inside each element.
@@ -101,9 +140,11 @@ int main(int argc, char *argv[])
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
-      case 0: { hyp =  new Advection(&fes, config); break; }
+      case 0: { hyp =  new Advection(&vfes, u_block, config); break; }
+		case 1: { break; } // Burgers
+		case 2: { break; } // KPP 
+      case 3: { hyp =  new ShallowWater(&vfes, u_block, config); break; }
       default:
-         cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
          return -1;
    }
 
@@ -112,29 +153,27 @@ int main(int argc, char *argv[])
       MFEM_WARNING("You should use forward Euler for pseudo time stepping.");
    }
 
-   GridFunction u(&fes);
+   GridFunction u(&vfes, u_block);
    u = hyp->u0;
 
-   double InitialMass = LumpedMassMat * u;
+	GridFunction uk(&fes, u_block.GetBlock(0)); // TODO for all
+   double InitialMass = LumpedMassMat * uk;
 
    // Visualization with GLVis, VisIt is currently not supported.
-   if (hyp->FileOutput)
+   if (hyp->FileOutput) // TODO test this, final. Both also in parallel and for vectors.
    {
       ofstream omesh("grid.mesh");
       omesh.precision(config.precision);
       mesh.Print(omesh);
       ofstream osol("initial.gf");
       osol.precision(config.precision);
-      u.Save(osol);
+      uk.Save(osol);
    }
 
    socketstream sout;
    char vishost[] = "localhost";
-   int  visport   = 19916;
-   bool VectorOutput = false; // TODO
-   {
-      VisualizeField(sout, vishost, visport, u, VectorOutput);
-   }
+   int visport = 19916;
+	VisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
 
    FE_Evolution evol(&fes, hyp, dofs, scheme, LumpedMassMat);
 
@@ -145,11 +184,11 @@ int main(int argc, char *argv[])
       evol.uOld = 0.;
    }
 
-   bool done = false;
    double dt, res, t = 0., tol = 1.e-12;
+   bool done = t >= config.tFinal;
    tic_toc.Clear();
    tic_toc.Start();
-   cout << "Preprocessing done. Entering time stepping loop." << endl;
+   cout << "Preprocessing done. Entering time stepping loop.\n";
 
    for (int ti = 0; !done;)
    {
@@ -180,24 +219,27 @@ int main(int argc, char *argv[])
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }
-         VisualizeField(sout, vishost, visport, u, VectorOutput);
+         for (int k = 0; k < NumUnknowns; k++)
+				VisualizeField(sout, vishost, visport, u, VectorOutput[k]);
       }
    }
 
    tic_toc.Stop();
    cout << "Time stepping loop done in " << tic_toc.RealTime() <<
-        " seconds. Wrapping up simulation." << endl;
+        " seconds.\n\n";
 
-   double DomainSize = LumpedMassMat.Sum();
-   cout << "Difference in solution mass: "
-        << abs(InitialMass - LumpedMassMat * u) / DomainSize << endl;
-
-   if (hyp->SolutionKnown && hyp->FileOutput)
+	double DomainSize = LumpedMassMat.Sum();
+   if (hyp->SolutionKnown)
    {
       Array<double> errors;
       hyp->ComputeErrors(errors, DomainSize, u);
-      hyp->WriteErrors(errors);
+		cout << "L1 error:                    " << errors[0] << ".\n";
+		if (hyp->FileOutput)
+			hyp->WriteErrors(errors);
    }
+   
+   cout << "Difference in solution mass: "
+        << abs(InitialMass - LumpedMassMat * u) / DomainSize << ".\n\n";
 
    if (hyp->FileOutput)
    {

@@ -44,9 +44,9 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
    InvMassMat = new InverseMassMatrixDG(MassMat);
 
    uElem.SetSize(nd);
-   uEval.SetSize(1); // TODO Vector valued soultion.
-   uNbr.SetSize(1);
-   uNbrEval.SetSize(1);
+   uEval.SetSize(hyp->NumEq);
+   uNbr.SetSize(hyp->NumEq);
+   uNbrEval.SetSize(hyp->NumEq);
    vec1.SetSize(dim);
    vec2.SetSize(nd);
    vec3.SetSize(nd);
@@ -283,8 +283,8 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
             }
 
             // Lax-Friedrichs flux (equals full upwinding for Advection).
-            tmp = 0.5 * ( tmp * (uEval(0) + uNbrEval(0)) + abs(tmp) * (uEval(0) - uNbrEval(
-                                                                          0)) ) * QuadWeightFace(k);
+            tmp = 0.5 * ( tmp * (uEval(0) + uNbrEval(0)) + abs(tmp) 
+						* (uEval(0) - uNbrEval(0)) ) * QuadWeightFace(k);
 
             for (int j = 0; j < dofs.NumFaceDofs; j++)
             {

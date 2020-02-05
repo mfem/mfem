@@ -1,26 +1,47 @@
 #include "shallowwater.hpp"
 
-int ConfigNum;
-Vector bbMin, bbMax;
+Configuration ConfigSWE;
 
-double InitialCondition(const Vector &x);
-double Inflow(const Vector &x);
+const double GravConst = 9.81;
 
-ShallowWater::ShallowWater(const Vector &bbmin, const Vector &bbmax,
-                           const int config, const double tEnd,
-                           const int _dim, FiniteElementSpace *_fes)
-   : tFinal(tEnd), dim(_dim), NumEq(_dim+1), fes(_fes)
+void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u);
+void InitialConditionSWE(const Vector &x, Vector &u);
+void InflowFunctionSWE(const Vector &x, Vector &u);
+
+ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
+									Configuration &config_)
+   : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension()+1, config_)
 {
-   ConfigNum = config;
-   bbMin = bbmin;
-   bbMax = bbmax;
+   ConfigSWE = config_;
+	SteadyState = false;
+	SolutionKnown = false; // TODO this is set temporarily until error computation works
+	
+	Mesh *mesh = fes->GetMesh();
+	const int dim = mesh->Dimension();
 
-   vol = new VolumeTerms(fes, dim);
+   // Initialize the state.
+   VectorFunctionCoefficient ic(NumEq, InitialConditionSWE);
+
+	if (ConfigSWE.ConfigNum == 0)
+   {
+		// Use L2 projection to achieve optimal convergence order.
+      L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
+      FiniteElementSpace l2_fes(mesh, &l2_fec, NumEq, Ordering::byNODES);
+      GridFunction l2_proj(&l2_fes);
+		l2_proj.ProjectCoefficient(ic);
+		u0.ProjectGridFunction(l2_proj);
+   }
+   else
+   {
+		// Bound preserving projection.
+		u0.ProjectCoefficient(ic);
+   }
 }
 
-void VolumeTerms::EvalFluxFunction(const Vector &u, DenseMatrix &FluxEval)
+void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval) const
 {
-   FluxEval.SetSize(NumEq, fes->GetMesh()->Dimension());
+	const int dim = fes->GetMesh()->Dimension();
+   FluxEval.SetSize(NumEq, dim); // Note: FluxEval size should be set.
    double H0 = 0.05;
 
    if (u.Size() != NumEq) { MFEM_ABORT("Invalid solution vector."); }
@@ -31,159 +52,122 @@ void VolumeTerms::EvalFluxFunction(const Vector &u, DenseMatrix &FluxEval)
       case 1:
       {
          FluxEval(0,0) = u(1);
-         FluxEval(1,0) = u(1)*u(1)/u(0) + 9.81 / 2. * u(0)*u(0);
+         FluxEval(1,0) = u(1)*u(1)/u(0) + GravConst / 2. * u(0)*u(0);
       }
       case 2:
       {
          FluxEval(0,0) = u(1);
          FluxEval(0,1) = u(2);
-         FluxEval(1,0) = u(1)*u(1)/u(0) + 9.81 / 2. * u(0)*u(0);
+         FluxEval(1,0) = u(1)*u(1)/u(0) + GravConst / 2. * u(0)*u(0);
          FluxEval(1,1) = u(1)*u(2)/u(0);
          FluxEval(2,0) = u(2)*u(1)/u(0);
-         FluxEval(2,1) = u(2)*u(2)/u(0) + 9.81 / 2. * u(0)*u(0);
+         FluxEval(2,1) = u(2)*u(2)/u(0) + GravConst / 2. * u(0)*u(0);
       }
       default: MFEM_ABORT("Invalid space dimensions.");
    }
 }
 
-void ShallowWater::PreprocessProblem(FiniteElementSpace *fes, GridFunction &u)
+void ShallowWater::ComputeErrors(Array<double> &errors, double DomainSize,
+                              const GridFunction &u) const
 {
-   Mesh *mesh = fes->GetMesh();
-
-   // Model parameters.
-   FunctionCoefficient u0(InitialCondition);
-   FunctionCoefficient inflow(Inflow);
-
-
-
-   // Initialize solution vector.
-   u.ProjectCoefficient(u0);
+	//TODO
 }
 
-void ShallowWater::PostprocessProblem(const GridFunction &u,
-                                      Array<double> &errors)
+void ShallowWater::WriteErrors(const Array<double> &errors) const
 {
-   if (SolutionKnown)
-   {
-      switch (ConfigNum)
-      {
-         case 0:
-         {
-            FunctionCoefficient uAnalytic(Inflow);
-            errors[0] = u.ComputeLpError(1., uAnalytic);
-            errors[1] = u.ComputeLpError(2., uAnalytic);
-            errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
-            break;
-         }
-         case 1:
-         {
-            FunctionCoefficient uAnalytic(InitialCondition);
-            errors[0] = u.ComputeLpError(1., uAnalytic);
-            errors[1] = u.ComputeLpError(2., uAnalytic);
-            errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
-            break;
-         }
-         default: MFEM_ABORT("No such test case implemented.");
-      }
-   }
+	//TODO
 }
 
-void VolumeTerms::AssembleElementVolumeTerms(const int e,
-                                             const DenseMatrix &uEl, DenseMatrix &VolTerms)
+void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 {
-   cout << "H" << endl;
-   //    const FiniteElement *el = fes->GetFE(e);
-   //    const int nd = el->GetDof();
-   //    const int nq = ir->GetNPoints();
-   //    int i, k;
+	const int dim = x.Size();
+	u.SetSize(dim+1);
 
-   //    VolTerms.SetSize(nd, NumEq); VolTerms = 0.;
-   //    DenseMatrix uQ(nq, NumEq), FluxEval, tmp4(nd, NumEq);
-   //    Vector uQuad(nq), tmp(NumEq), tmp2(dim), tmp3(nd);
-   //
-   //    ElementTransformation *trans = fes->GetElementTransformation(e);
-   //    DenseMatrix adjJ = trans->AdjugateJacobian();
-   //
-   //    for (i = 0; i < NumEq; i++)
-   //    {
-   //       shape.Mult(uEl.GetColumn(i), uQuad);
-   //       uQ.SetCol(i, uQuad);
-   //    }
-   //
-   //    for (k = 0; k < nq; k++)
-   //    {
-   //       const IntegrationPoint &ip = ir->IntPoint(k);
-   //       uQ.GetRow(k, tmp);
-   //       EvalFluxFunction(tmp, FluxEval);
-   //       for (i = 0; i < NumEq; i++)
-   //       {
-   //          FluxEval.GetRow(i, tmp);
-   //          adjJ.Mult(tmp, tmp2);
-   //          dShape(k).Mult(tmp2, tmp3);
-   //          tmp4.SetCol(i, tmp3);
-   //       }
-   //       VolTerms += tmp4;
-   //    }
-}
-
-double InitialCondition(const Vector &x)
-{
-   // Map to the reference [-1,1] domain.
-   int dim = x.Size();
-   Vector X(dim); X = x;
+   // Map to the reference domain [-1,1] x [-1,1].
+   Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bbMin(i) + bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (bbMax(i) - bbMin(i));
+      double center = (ConfigSWE.bbMin(i) + ConfigSWE.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigSWE.bbMax(i) - ConfigSWE.bbMin(i));
    }
-
-   switch (ConfigNum)
+   
+   switch (ConfigSWE.ConfigNum)
    {
-      case 0: // Smooth solution used for grid convergence studies.
+      case 0: // Vorticity advection
       {
-         Vector Y(dim); Y = 1.;
-         X.Add(1., Y);
-         X *= 0.5;
-         double r = X.Norml2();
-         double a = 0.5, b = 0.03, c = 0.1;
-         return 0.25 * (1. + tanh((r+c-a)/b)) * (1. - tanh((r-c-a)/b));
-      }
-      case 1: // Solid body rotation.
-      {
-         double scale = 0.0225;
-         double coef = (0.5/sqrt(scale));
-         double slit = (X(0) <= -0.05) || (X(0) >= 0.05) || (X(1) >= 0.7);
-         double cone = coef * sqrt(pow(X(0), 2.) + pow(X(1) + 0.5, 2.));
-         double hump = coef * sqrt(pow(X(0) + 0.5, 2.) + pow(X(1), 2.));
-
-         return (slit && ((pow(X(0),2.) + pow(X(1)-.5,2.))<=4.*scale)) ? 1. : 0.
-                + (1. - cone) * (pow(X(0), 2.) + pow(X(1)+.5, 2.) <= 4.*scale)
-                + .25 * (1. + cos(M_PI*hump))
-                * ((pow(X(0)+.5, 2.) + pow(X(1), 2.)) <= 4.*scale);
-      }
-      default: { MFEM_ABORT("No such test case implemented."); }
-   }
+			X *= 50.; // Map to test case specific domain [-50,50] x [-50,50].
+			
+			if (dim == 1) 
+				MFEM_ABORT("Test case only implemented in 2D.");
+			
+			// Parameters
+			double M = .5;
+			double c1 = -.04;
+			double c2 = .02;
+			double a = M_PI / 6.;
+			double x0 = -20.;
+			double y0 = -10.;
+			
+			double f = -c2 * ( pow(X(0) - x0 - M*t*cos(a), 2.)
+								  + pow(X(1) - y0 - M*t*sin(a), 2.) );
+			
+			u(0) = 1. - c1*c1 / (4.*c2*GravConst) * exp(2.*f);
+			u(1) = M*cos(a) + c1 * (X(1) - y0 - M*t*sin(a)) * exp(f);
+			u(2) = M*sin(a) - c1 * (X(0) - x0 - M*t*cos(a)) * exp(f);
+			
+			break;
+		}
+		default: { u = 0.; }
+	}
 }
 
-double Inflow(const Vector &x)
+
+void InitialConditionSWE(const Vector &x, Vector &u)
 {
-   // Map to the reference [-1,1] domain.
-   int dim = x.Size();
-   Vector X(dim); X = x;
-   for (int i = 0; i < dim; i++)
-   {
-      double center = (bbMin(i) + bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (bbMax(i) - bbMin(i));
-   }
-
-   switch (ConfigNum)
-   {
-      case 0:
-      {
-         double r = x.Norml2();
-         double a = 0.5, b = 0.03, c = 0.1;
-         return 0.25 * (1. + tanh((r+c-a)/b)) * (1. - tanh((r-c-a)/b));
-      }
-      default: { return 0.; }
-   }
+	AnalyticalSolutionSWE(x, 0., u);
 }
+
+void InflowFunctionSWE(const Vector &x, Vector &u)
+{
+	u.SetSize(x.Size()+1);
+	u = 0.;
+}
+
+// void VolumeTerms::AssembleElementVolumeTerms(const int e,
+// 															const DenseMatrix &uEl, DenseMatrix &VolTerms)
+// {
+// 	cout << "H" << endl;
+// 	const FiniteElement *el = fes->GetFE(e);
+// 	const int nd = el->GetDof();
+// 	const int nq = ir->GetNPoints();
+// 	int i, k;
+// 	
+// 	VolTerms.SetSize(nd, NumEq); VolTerms = 0.;
+// 	DenseMatrix uQ(nq, NumEq), FluxEval, tmp4(nd, NumEq);
+// 	Vector uQuad(nq), tmp(NumEq), tmp2(dim), tmp3(nd);
+// 	
+// 	ElementTransformation *trans = fes->GetElementTransformation(e);
+// 	DenseMatrix adjJ = trans->AdjugateJacobian();
+// 	
+// 	for (i = 0; i < NumEq; i++)
+// 	{
+// 		shape.Mult(uEl.GetColumn(i), uQuad);
+// 		uQ.SetCol(i, uQuad);
+// 	}
+// 	
+// 	for (k = 0; k < nq; k++)
+// 	{
+// 		const IntegrationPoint &ip = ir->IntPoint(k);
+// 		uQ.GetRow(k, tmp);
+// 		EvalFluxFunction(tmp, FluxEval);
+// 		for (i = 0; i < NumEq; i++)
+// 		{
+// 			FluxEval.GetRow(i, tmp);
+// 			adjJ.Mult(tmp, tmp2);
+// 			dShape(k).Mult(tmp2, tmp3);
+// 			tmp4.SetCol(i, tmp3);
+// 		}
+// 		VolTerms += tmp4;
+// 	}
+// }
+

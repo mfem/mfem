@@ -7,8 +7,8 @@
 #include "massmat.hpp"
 #include "dofs.hpp"
 #include "tools.hpp"
-#include "../apps/hypsys.hpp"
 #include "../apps/advection.hpp"
+#include "../apps/shallowwater.hpp"
 
 using namespace std;
 using namespace mfem;
