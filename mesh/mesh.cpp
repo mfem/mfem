@@ -8600,8 +8600,13 @@ int ConvertToVTKOrdering(int idx_in, int ref, Geometry::Type geom)
    switch (geom)
    {
       case Geometry::POINT:
-      case Geometry::SEGMENT:
          return idx_in;
+      case Geometry::SEGMENT:
+         if (idx_in == 0 || idx_in == ref)
+         {
+            return idx_in ? 1 : 0;
+         }
+         return idx_in + 1;
       case Geometry::SQUARE:
       {
          // Cf: https://git.io/JvZLT
