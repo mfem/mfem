@@ -8604,6 +8604,7 @@ int ConvertToVTKOrdering(int idx_in, int ref, Geometry::Type geom)
          return idx_in;
       case Geometry::SQUARE:
       {
+         // Cf: https://git.io/JvZLT
          int i = idx_in % n;
          int j = idx_in / n;
          // Do we lie on any of the edges
@@ -8630,6 +8631,7 @@ int ConvertToVTKOrdering(int idx_in, int ref, Geometry::Type geom)
       }
       case Geometry::CUBE:
       {
+         // Cf: https://git.io/JvZLe
          int i = idx_in % n;
          int j = (idx_in / n) % n;
          int k = idx_in / (n*n);
@@ -8777,11 +8779,8 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
       for (int iel = 0; iel < GetNE(); iel++)
       {
          Geometry::Type geom = GetElementBaseGeometry(iel);
-         int geom_dim = Geometry::Dimension[geom];
-         int ni = ref+1;
-         int nj = geom_dim > 1 ? ref+1 : 1;
-         int nk = geom_dim > 2 ? ref+1 : 1;
-         int nnodes = ni*nj*nk;
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         int nnodes = RefG->RefPts.GetNPoints();
          local_connectivity.SetSize(nnodes);
          for (int i=0; i<nnodes; ++i)
          {
@@ -8844,6 +8843,7 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
       Array<int> &RG = RefG->RefGeoms;
       uint8_t vtk_cell_type = 5;
 
+      // VTK element types defined at: https://git.io/JvZLm
       switch (geom)
       {
          case Geometry::POINT:
