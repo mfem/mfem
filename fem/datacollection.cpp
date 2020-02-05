@@ -11,6 +11,7 @@
 
 #include "fem.hpp"
 #include "../mesh/nurbs.hpp"
+#include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "picojson.h"
 
@@ -426,7 +427,7 @@ void VisItDataCollection::RegisterField(const std::string& name,
    }
    else
    {
-      for (int e=0; e<gf->FESpace()->GetNE() ; e++)
+      for (int e=0; e<gf->FESpace()->GetNE(); e++)
       {
          LOD = std::max(LOD,gf->FESpace()->GetFE(e)->GetOrder());
       }
@@ -740,7 +741,8 @@ ParaViewDataCollection::~ParaViewDataCollection()
 ParaViewDataCollection::ParaViewDataCollection(const std::string&
                                                collection_name,
                                                mfem::Mesh *mesh_)
-   :DataCollection(collection_name, mesh_)
+   : DataCollection(collection_name, mesh_),
+     pv_data_format(BINARY)
 {
    myrank = 0;
    nprocs = 1;
@@ -757,8 +759,7 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
    // initialize the file
    pvd_stream << "<?xml version=\"1.0\"?>" << std::endl;
    pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"" << std::endl;
-   pvd_stream << "     byte_order=\"LittleEndian\"" << std::endl;
-   pvd_stream << "     compressor=\"vtkZLibDataCompressor\">" << std::endl;
+   pvd_stream << "     byte_order=\"LittleEndian\">" << std::endl;
    pvd_stream << "<Collection>" << std::endl;
 }
 
@@ -858,7 +859,8 @@ void ParaViewDataCollection::Save()
    {
       std::string fname = GenerateCollectionPath()+"/"+GenerateVTUPath()+"/"
                           +GenerateVTUFileName();
-      std::fstream out; out.open(fname.c_str(), std::ios::out);
+      std::fstream out(fname.c_str(), std::ios::out);
+      out.precision(precision);
       SaveDataVTU(out,levels_of_detail);
       out.close();
    }
@@ -868,51 +870,56 @@ void ParaViewDataCollection::Save()
    {
       std::string fname = GenerateCollectionPath()+"/"+GeneratePVTUPath()+"/"
                           +GeneratePVTUFileName();
-      std::fstream out; out.open(fname.c_str(), std::ios::out);
+      std::fstream out(fname.c_str(), std::ios::out);
 
-      out << "<?xml version=\"1.0\"?>" << std::endl;
+      out << "<?xml version=\"1.0\"?>" << '\n';
       out << "<VTKFile type=\"PUnstructuredGrid\"";
-      out << " version =\"0.1\" byte_order=\"LittleEndian\"> " << std::endl;
-      out << "<PUnstructuredGrid GhostLevel=\"0\">" << std::endl ;
+      out << " version =\"0.1\" byte_order=\"LittleEndian\"> " << '\n';
+      out << "<PUnstructuredGrid GhostLevel=\"0\">" << '\n';
 
-      out << "<PPoints>" << std::endl;
+      out << "<PPoints>" << '\n';
       out << "\t<PDataArray type=\"Float64\" ";
-      out << " Name=\"Points\" NumberOfComponents=\"3\"/>"  << std::endl;
-      out << "</PPoints>" << std::endl;
+      out << " Name=\"Points\" NumberOfComponents=\"3\""
+          << " format=\"" << GetDataFormatString() << "\"/>"  << '\n';
+      out << "</PPoints>" << '\n';
 
-      out << "<PCells>" << std::endl ;
+      out << "<PCells>" << '\n';
       out << "\t<PDataArray type=\"Int32\" ";
-      out << " Name=\"connectivity\" NumberOfComponents=\"1\"/>"  << std::endl ;
+      out << " Name=\"connectivity\" NumberOfComponents=\"1\""
+          << " format=\"" << GetDataFormatString() << "\"/>"  << '\n';
       out << "\t<PDataArray type=\"Int32\" ";
-      out << " Name=\"offsets\"      NumberOfComponents=\"1\"/>"  << std::endl ;
+      out << " Name=\"offsets\"      NumberOfComponents=\"1\""
+          << " format=\"" << GetDataFormatString() << "\"/>"  << '\n';
       out << "\t<PDataArray type=\"UInt8\" ";
-      out << " Name=\"types\"        NumberOfComponents=\"1\"/>"  << std::endl ;
-      out << "</PCells>" << std::endl ;
+      out << " Name=\"types\"        NumberOfComponents=\"1\""
+          << " format=\"" << GetDataFormatString() << "\"/>"  << '\n';
+      out << "</PCells>" << '\n';
 
-      out << "<PPointData>" << std::endl ;
+      out << "<PPointData>" << '\n';
       for (FieldMapIterator it=field_map.begin(); it!=field_map.end(); ++it)
       {
          out << "<PDataArray type=\"Float64\" Name=\"" << it->first;
          int vec_dim=it->second->VectorDim();
-         out<<"\" NumberOfComponents=\""<< vec_dim <<"\" format=\"ascii\" />" <<
-            std::endl;
+         out << "\" NumberOfComponents=\""<< vec_dim <<"\" "
+             << "format=\"" << GetDataFormatString() << "\" />" << '\n';
       }
-      out << "</PPointData>" << std::endl ;
+      out << "</PPointData>" << '\n';
 
       // CELL DATA
-      out << "<PCellData>" << std::endl ;
+      out << "<PCellData>" << '\n';
       out << "\t<PDataArray type=\"Int32\" Name=\"" << "material"
-          <<"\" NumberOfComponents=\"1\"/> " << std::endl ;
-      out << "</PCellData>" << std::endl ;
+          << "\" NumberOfComponents=\"1\""
+          << " format=\"" << GetDataFormatString() << "\"/>"  << '\n';
+      out << "</PCellData>" << '\n';
 
       for (int ii=0; ii<nprocs; ii++)
       {
          // this one is generated without the path
          std::string nfname=GenerateVTUFileName(ii);
-         out << "<Piece Source=\"" << nfname << "\"/>" << std::endl;
+         out << "<Piece Source=\"" << nfname << "\"/>" << '\n';
       }
-      out << "</PUnstructuredGrid>" << std::endl;
-      out << "</VTKFile>" << std::endl;
+      out << "</PUnstructuredGrid>" << '\n';
+      out << "</VTKFile>" << '\n';
       out.close();
 
       fname = GeneratePVTUPath()+"/"+GeneratePVTUFileName();
@@ -928,7 +935,7 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
    out << "<VTKFile type=\"UnstructuredGrid\" ";
    out << " version=\"0.1\" byte_order=\"LittleEndian\">" << std::endl;
    out << "<UnstructuredGrid>" << std::endl;
-   mesh->PrintVTU(out,ref);
+   mesh->PrintVTU(out,ref,pv_data_format == BINARY);
 
    // dump out the grid functions as point data
    out << "<PointData >" << std::endl;
@@ -958,7 +965,7 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
 void ParaViewDataCollection::SaveQFieldVTU(std::ostream &out, int ref,
                                            const QFieldMapIterator& it )
 {
-   MFEM_WARNING("SaveQFieldVTU is wotk in progress - field name:"<<it->second);
+   MFEM_WARNING("SaveQFieldVTU is not currently implemented - field name:"<<it->second);
 }
 
 void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
@@ -967,12 +974,14 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
    RefinedGeometry *RefG;
    Vector val;
    DenseMatrix vval, pmat;
+   std::vector<char> buf;
    int vec_dim = it->second->VectorDim();
    if (vec_dim == 1)
    {
       // scalar data
       out << "<DataArray type=\"Float64\" Name=\"" << it->first;
-      out << "\" NumberOfComponents=\"1\" format=\"ascii\" >" << std::endl;
+      out << "\" NumberOfComponents=\"1\" format=\""
+          << GetDataFormatString() << "\" >" << std::endl;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -980,17 +989,23 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          it->second->GetValues(i, RefG->RefPts, val, pmat);
          for (int j = 0; j < val.Size(); j++)
          {
-            out << val(j) << '\n';
+            if (pv_data_format == ASCII)
+            {
+               out << val(j) << '\n';
+            }
+            else
+            {
+               bin_io::AppendBytes(buf, val(j));
+            }
          }
       }
-
    }
    else
    {
       // vector data
       out << "<DataArray type=\"Float64\" Name=\"" << it->first;
-      out << "\" NumberOfComponents=\"" << vec_dim << "\" format=\"ascii\" >" <<
-          std::endl;
+      out << "\" NumberOfComponents=\"" << vec_dim << "\""
+          << " format=\"" << GetDataFormatString() << "\" >" << '\n';
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -1002,14 +1017,32 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          {
             for (int ii = 0; ii < vval.Height(); ii++)
             {
-               out << vval(ii, jj) << ' ';
+               if (pv_data_format == ASCII)
+               {
+                  out << vval(ii,jj) << ' ';
+               }
+               else
+               {
+                  bin_io::AppendBytes(buf, vval(ii,jj));
+               }
             }
-            out << std::endl;
+            if (pv_data_format == ASCII) { out << '\n'; }
          }
       }
    }
+
+   if (pv_data_format == BINARY)
+   {
+      // First write the size of the buffer in bytes, as a uint32_t encoded with
+      // base 64
+      std::vector<char> sz_buf;
+      bin_io::AppendBytes(sz_buf, uint32_t(buf.size()));
+      bin_io::WriteBase64(out, sz_buf.data(), sz_buf.size());
+      // Then write all the double values, encoded with base 64
+      bin_io::WriteBase64(out, buf.data(), buf.size());
+      out << '\n';
+   }
    out << "</DataArray>" << std::endl;
-   out.flush();
 }
 
 int ParaViewDataCollection::create_directory(const std::string &dir_name)
@@ -1051,8 +1084,7 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
       pvd_stream.open(pvdname.c_str(),std::ios::out);
       pvd_stream << "<?xml version=\"1.0\"?>" << std::endl;
       pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"" << std::endl;
-      pvd_stream << "     byte_order=\"LittleEndian\"" << std::endl;
-      pvd_stream << "     compressor=\"vtkZLibDataCompressor\">" << std::endl;
+      pvd_stream << "     byte_order=\"LittleEndian\">" << std::endl;
       pvd_stream << "<Collection>" << std::endl;
    }
 }
@@ -1090,6 +1122,23 @@ void ParaViewDataCollection::SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh)
    lcomm = comm;
    MPI_Comm_rank(comm, &myrank);
    MPI_Comm_size(comm, &nprocs);
+}
+
+void ParaViewDataCollection::SetDataFormat(DataFormat fmt)
+{
+   pv_data_format = fmt;
+}
+
+const char *ParaViewDataCollection::GetDataFormatString() const
+{
+   if (pv_data_format == ASCII)
+   {
+      return "ascii";
+   }
+   else
+   {
+      return "binary";
+   }
 }
 
 #endif

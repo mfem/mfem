@@ -472,6 +472,12 @@ public:
 /// Helper class for ParaView visualization data
 class ParaViewDataCollection : public DataCollection
 {
+public:
+   enum DataFormat
+   {
+      ASCII,
+      BINARY
+   };
 private:
 #ifdef MFEM_USE_MPI
    MPI_Comm lcomm;
@@ -480,6 +486,7 @@ private:
    int nprocs;
    int levels_of_detail;
    std::fstream pvd_stream;
+   DataFormat pv_data_format;
 
 protected:
    void SaveDataVTU(std::ostream &out, int ref);
@@ -529,6 +536,10 @@ public:
    /// Save the collection - the directory name is constructed based on the
    /// cycle value
    virtual void Save() override;
+
+   void SetDataFormat(DataFormat fmt);
+
+   const char *GetDataFormatString() const;
 
    /// Load the collection - not implemented in the ParaView writer
    virtual void Load(int cycle_ = 0) override;
