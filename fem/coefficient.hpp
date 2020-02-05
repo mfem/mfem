@@ -947,7 +947,7 @@ public:
 
 class QuadratureFunction;
 
-/// Quadrature function coefficient
+/// Quadrature function vector coefficient
 class QuadratureVectorFunctionCoefficient : public VectorCoefficient
 {
 private:
@@ -957,18 +957,12 @@ private:
 
 public:
    // constructor with a quadrature function as input
-   QuadratureVectorFunctionCoefficient(QuadratureFunction *qf)
-      : VectorCoefficient(0)
-   {
-      QuadF = qf;
-      index = 0;
-      length = -1;//qf->GetVDim();
-   }
+   QuadratureVectorFunctionCoefficient(QuadratureFunction *qf);
 
    // constructor with a null qf
    QuadratureVectorFunctionCoefficient() : VectorCoefficient(0) { QuadF = NULL; }
 
-   void SetQuadratureFunction(QuadratureFunction *qf) { QuadF = qf; }
+   void SetQuadratureFunction(QuadratureFunction *qf);
 
    void SetIndex(int _index);
    void SetLength(int _length);
@@ -990,11 +984,11 @@ private:
    QuadratureFunction *QuadF;
 
 public:
-   QuadratureFunctionCoefficient(QuadratureFunction *qf) { QuadF = qf; }
+   QuadratureFunctionCoefficient(QuadratureFunction *qf);
 
    QuadratureFunctionCoefficient() : Coefficient() { QuadF = NULL; }
 
-   void SetQuadratureFunction(QuadratureFunction *qf) { QuadF = qf; }
+   void SetQuadratureFunction(QuadratureFunction *qf);
 
    QuadratureFunction *GetQuadFunction() const { return QuadF; }
 

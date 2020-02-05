@@ -758,13 +758,30 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 }
 #endif
 
+QuadratureVectorFunctionCoefficient::QuadratureVectorFunctionCoefficient(
+   QuadratureFunction *qf)
+   : VectorCoefficient(qf->GetVDim())
+{
+   QuadF = qf;
+   index = 0;
+   length = qf->GetVDim();
+}
+
+void QuadratureVectorFunctionCoefficient::SetQuadratureFunction(
+   QuadratureFunction *qf)
+{
+   index = 0;
+   length = qf->GetVDim();
+   vdim = length;
+   QuadF = qf;
+}
+
 void QuadratureVectorFunctionCoefficient::SetLength(int _length)
 {
-   int vdim = QuadF->GetVDim();
-
    MFEM_ASSERT(_length > 0, "Length must be > 0");
-   vdim -= index;
-   MFEM_ASSERT(_length <= vdim,
+
+   int diff = vdim - index;
+   MFEM_ASSERT(_length <= diff,
                "Length must be <= (QuadratureFunction length - index)");
 
    length = _length;
@@ -773,7 +790,7 @@ void QuadratureVectorFunctionCoefficient::SetLength(int _length)
 void QuadratureVectorFunctionCoefficient::SetIndex(int _index)
 {
    MFEM_ASSERT(_index >= 0, "Index must be >= 0");
-   MFEM_ASSERT(_index < QuadF->GetVDim(),
+   MFEM_ASSERT(_index < vdim,
                "Index must be < the QuadratureFunction length");
    index = _index;
 }
@@ -783,7 +800,7 @@ void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
                                                const IntegrationPoint &ip)
 {
    int elem_no = T.ElementNo;
-   if (index == 0 && length == QuadF->GetVDim())
+   if (index == 0 && length == vdim)
    {
       QuadF->GetElementValues(elem_no, ip.index, V);
    }
@@ -797,6 +814,20 @@ void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
    }
 
    return;
+}
+
+QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
+   QuadratureFunction *qf)
+{
+   MFEM_ASSERT(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
+   QuadF = qf;
+}
+
+void QuadratureFunctionCoefficient::SetQuadratureFunction(
+   QuadratureFunction *qf)
+{
+   MFEM_ASSERT(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
+   QuadF = qf;
 }
 
 /// Evaluate the function coefficient at a specific quadrature point
