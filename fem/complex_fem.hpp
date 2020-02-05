@@ -288,7 +288,7 @@ public:
    /// Sets diagonal policy used upon construction of the linear system
    void SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy dpolicy);
 
-    /// Returns the diagonal policy of the sesquilinear form 
+   /// Returns the diagonal policy of the sesquilinear form
    Matrix::DiagonalPolicy GetDiagonalPolicy() const {return diag_policy;}
 
    virtual ~SesquilinearForm();
