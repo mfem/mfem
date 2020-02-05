@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 
 #include <iostream>
+#include <vector>
 
 namespace mfem
 {
@@ -37,6 +38,18 @@ inline T read(std::istream& is)
    is.read((char*) &value, sizeof(T));
    return value;
 }
+
+template <typename T>
+void AppendBytes(std::vector<char> &vec, const T &val)
+{
+   for(char ib=0; ib<sizeof(T); ++ib)
+   {
+      char byte = *(reinterpret_cast<const char*>(&val) + ib);
+      vec.push_back(byte);
+   }
+}
+
+void WriteBase64(std::ostream &out, const void *bytes, size_t length);
 
 } // namespace mfem::bin_io
 
