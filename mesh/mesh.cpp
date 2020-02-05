@@ -8569,14 +8569,18 @@ template <typename T>
 void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
                         const char *suffix, bool binary)
 {
-   if (binary)
-   {
-      bin_io::AppendBytes(buf, val);
-   }
-   else
-   {
-      out << val << suffix;
-   }
+   if (binary) { bin_io::AppendBytes(buf, val); }
+   else { out << val << suffix; }
+}
+
+// Ensure ASCII output of uint8_t to stream is integer rather than character
+template <>
+void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
+                                 const uint8_t &val, const char *suffix,
+                                 bool binary)
+{
+   if (binary) { bin_io::AppendBytes(buf, val); }
+   else { out << static_cast<int>(val) << suffix; }
 }
 
 void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf)
