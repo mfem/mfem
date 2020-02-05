@@ -96,7 +96,7 @@ struct CeedData
     accordingly the CeedData. */
 void InitCeedCoeff(Coefficient* Q, CeedData* ptr);
 
-/// Initialize a non-tensor CeedBasis and a CeedElemRestriction
+/// Initialize a CeedBasis and a CeedElemRestriction
 void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
                                  const IntegrationRule &ir,
                                  Ceed ceed, CeedBasis *basis,
