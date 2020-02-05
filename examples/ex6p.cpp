@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
-   int max_dofs = 50000;
+   int max_dofs = 100000;
    const char *device_config = "cpu";
    bool visualization = true;
 
