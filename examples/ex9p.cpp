@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
    }
 
    Device device(device_config);
-   device.Print();
+   if (myid == 0) { device.Print(); }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
