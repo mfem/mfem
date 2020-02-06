@@ -603,11 +603,11 @@ public:
 
    /// Prints all pointers known by the memory manager,
    /// returning the number of printed pointers
-   int PrintPtrs(void);
+   int PrintPtrs(std::ostream &out = mfem::out);
 
    /// Prints all aliases known by the memory manager
    /// returning the number of printed pointers
-   int PrintAliases(void);
+   int PrintAliases(std::ostream &out = mfem::out);
 
    MemoryType GetHostMemoryType() { return host_mem_type; }
    MemoryType GetDeviceMemoryType() { return device_mem_type; }
