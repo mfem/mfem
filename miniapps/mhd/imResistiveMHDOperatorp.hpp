@@ -257,7 +257,7 @@ protected:
    HypreSolver *K_amg; //BoomerAMG for stiffness matrix
    HyprePCG *K_pcg;
 
-   mutable Vector z, J, z2, z3; // auxiliary vector 
+   mutable Vector z, J, z2, z3, zFull; // auxiliary vector 
    mutable ParGridFunction j, gftmp;  //auxiliary variable (to store the boundary condition)
    ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
 
@@ -292,6 +292,15 @@ public:
       DRe.Assemble();
    }
 
+   void outputgf()
+   {
+      ostringstream gf_name;
+      gf_name << "dw_dt." << setfill('0') << setw(6) << myid;
+      ofstream osol6(gf_name.str().c_str());
+      osol6.precision(8);
+      gftmp.Save(osol6);
+   }
+
    //set rhs E0 
    void SetRHSEfield( double(* f)( const Vector&) );
    void SetInitialJ(FunctionCoefficient initJ);
@@ -322,7 +331,9 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
      M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL),
      K_solver(f.GetComm()),  K_prec(NULL),
-     K_amg(NULL), K_pcg(NULL), z(height/3), J(height/3), z2(height/3), z3(height/3), j(&fespace),
+     K_amg(NULL), K_pcg(NULL), z(height/3), 
+     J(height/3), z2(height/3), z3(height/3), zFull(f.GetVSize()),
+     j(&fespace), gftmp(&fespace),
      DRetmp(NULL), DSltmp(NULL)
 {
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -656,7 +667,6 @@ void ResistiveMHDOperator::SetRHSEfield( double(* f)( const Vector&) )
       reduced_oper->setE0(E0Vec);
 }
 
-//this function is not needed any more!!
 void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ) 
 {
     j.ProjectCoefficient(initJ);
@@ -705,11 +715,36 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector dpsi_dt(dvx_dt.GetData() +  sc, sc);
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
 
+   //different way to solve J; the first one is the correct way
    //compute the current as an auxilary variable
-   //Vector &k_ = const_cast<Vector &>(vx);
-   KBMat->Mult(psi, z);
-   z.Neg();
-   M_solver2.Mult(z, J);
+   if (true)
+   {
+      KBMat->Mult(psi, z);
+      z.Neg();
+      M_solver2.Mult(z, J);
+   }
+   else if (false)
+   {
+      Vector Z;
+      HypreParMatrix A;
+      KBMat->Mult(psi, z);
+      z.Neg(); // z = -z
+      gftmp.SetFromTrueDofs(z);  //recover a full rhs
+      M->FormLinearSystem(ess_tdof_list, j, gftmp, A, J, Z); //apply Dirichelt boundary 
+      M_solver.Mult(Z, J); 
+   }
+   else{
+      Vector &k_ = const_cast<Vector &>(vx);
+      gftmp.MakeTRef(&fespace, k_, sc);
+      gftmp.SetFromTrueVector();
+      Vector J, Z;
+      HypreParMatrix A;
+      KB->Mult(gftmp, zFull);
+      zFull.Neg(); // z = -z
+      M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
+      M_solver.Mult(Z, J); 
+   }
+
 
    //compute dw_dt
    z=0.;
@@ -801,6 +836,16 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    z.SetSubVector(ess_tdof_list,0.0);
    M_solver.Mult(z, dpsi_dt);
 
+   if(false)
+   {
+      //output some data for debugging
+      z=0.;
+      //Nv->TrueAddMult(psi, z); 
+      Nb->TrueAddMult(J, z);
+      z.SetSubVector(ess_tdof_list,0.0);
+      M_solver.Mult(z, z2);
+      gftmp.SetFromTrueDofs(z2);  //recover dw_dt
+   }
 }
 
 void ResistiveMHDOperator::ImplicitSolve(const double dt,
@@ -877,13 +922,13 @@ void ResistiveMHDOperator::assembleVoper(double dt, ParGridFunction *phi, ParGri
    {
       StabNb = new ParBilinearForm(&fespace);
       double eleLength=2./64.;  //hard coded h here
-      double alpha=.2;
+      double alpha1=.2;
       double invtau = sqrt( pow(2./dt,2) + pow(2.0*1./eleLength,2) 
               + pow(4.0*resistivity/(eleLength*eleLength),2) );
-      double tau = alpha*eleLength*eleLength/invtau;
-      if(myid==0) cout<<"tau in hyperdiffusion="<<tau<<"\th ="<<eleLength<<endl;
+      double tau1 = alpha1*eleLength*eleLength/invtau;
+      if(myid==0) cout<<"tau in hyperdiffusion="<<tau1<<"\th ="<<eleLength<<endl;
       
-      ConstantCoefficient tau_coeff(tau);
+      ConstantCoefficient tau_coeff(tau1);
       StabNb->AddDomainIntegrator(new DiffusionIntegrator(tau_coeff));    
       StabNb->Assemble();
    }

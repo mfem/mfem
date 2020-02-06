@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
    int ref_steps=4;
    //----end of amr----
    int icase = 1;
-   alpha = 0.001; 
+   beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
 
@@ -173,6 +173,8 @@ int main(int argc, char *argv[])
                   "Viscosity coefficient.");
    args.AddOption(&ALPHA, "-alpha", "--hyperdiff",
                   "Numerical hyprediffusion coefficient.");
+   args.AddOption(&beta, "-beta", "--perturb",
+                  "Pertubation coefficient in initial conditions.");
    args.AddOption(&ltol_amr, "-ltol", "--local-tol",
                   "Local AMR tolerance.");
    args.AddOption(&resi, "-resi", "--resistivity",
@@ -215,7 +217,7 @@ int main(int argc, char *argv[])
    {
       resiG=resi;
    }
-   else if (icase==3)
+   else if (icase==3 || icase==4)
    {
       lambda=.5/M_PI;
       resiG=resi;
@@ -326,7 +328,7 @@ int main(int argc, char *argv[])
    int sdim = pmesh->SpaceDimension();
    BilinearFormIntegrator *integ = new DiffusionIntegrator;
    ParFiniteElementSpace flux_fespace1(pmesh, &fe_coll, sdim), flux_fespace2(pmesh, &fe_coll, sdim);
-   BlockZZEstimator estimatorTmp(*integ, jTmp, *integ, psiTmp, flux_fespace1, flux_fespace2);
+   BlockZZEstimator estimatorTmp(*integ, psiTmp, *integ, jTmp, flux_fespace1, flux_fespace2);
 
    ThresholdRefiner refinerTmp(estimatorTmp);
    refinerTmp.SetTotalErrorGoal(1e-7);    // total error goal (stop criterion)
@@ -355,6 +357,11 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit3(InitialPsi3);
         psiTmp.ProjectCoefficient(psiInit3);
    }
+   else if (icase==4)
+   {
+        FunctionCoefficient psiInit4(InitialPsi4);
+        psiTmp.ProjectCoefficient(psiInit4);
+   }
    psiTmp.SetTrueVector();
 
    if (icase==1)
@@ -371,6 +378,11 @@ int main(int argc, char *argv[])
    {
         FunctionCoefficient jInit3(InitialJ3);
         jTmp.ProjectCoefficient(jInit3);
+   }
+   else if (icase==4)
+   {
+        FunctionCoefficient jInit4(InitialJ4);
+        jTmp.ProjectCoefficient(jInit4);
    }
    jTmp.SetTrueVector();
 
@@ -436,6 +448,10 @@ int main(int argc, char *argv[])
    {
         FunctionCoefficient psiInit3(InitialPsi3);
         psi.ProjectCoefficient(psiInit3);
+   }else if (icase==4)
+   {
+        FunctionCoefficient psiInit4(InitialPsi4);
+        psi.ProjectCoefficient(psiInit4);
    }
    psi.SetTrueVector();
    psi.SetFromTrueVector(); 
@@ -451,7 +467,7 @@ int main(int argc, char *argv[])
    {
        oper.SetRHSEfield(E0rhs);
    }
-   else if (icase==3)     
+   else if (icase==3 || icase==4)     
    {
        oper.SetRHSEfield(E0rhs3);
    }
@@ -464,18 +480,21 @@ int main(int argc, char *argv[])
        jptr=&jInit2;
    else if (icase==3)
        jptr=&jInit3;
+   else if (icase==4)
+       jptr=&jInit4;
    j.ProjectCoefficient(*jptr);
    oper.SetInitialJ(*jptr);
    j.SetTrueVector();
 
    //-----------------------------------AMR for the real computation---------------------------------
-   BlockZZEstimator estimator(*integ, j, *integ, w, flux_fespace1, flux_fespace2);
+   BlockZZEstimator estimator(*integ, psi, *integ, phi, flux_fespace1, flux_fespace2);
+   //estimator.SetErrorRatio(1.0); //we define total_err = err_1 + ratio*err_2
 
    ThresholdRefiner refiner(estimator);
-   //refiner.SetTotalErrorFraction(0.0);   // here 0.0 means we use local threshold; default is 0.5
-   refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
-   refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
-   refiner.SetMaxElements(50000);
+   refiner.SetTotalErrorFraction(0.3);   // here 0.0 means we use local threshold; default is 0.5
+   refiner.SetTotalErrorGoal(ltol_amr);  // total error goal (stop criterion)
+   refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
+   refiner.SetMaxElements(5000000);
    refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetNCLimit(nc_limit);
    if (yRange)
@@ -595,7 +614,7 @@ int main(int argc, char *argv[])
        * sometimes derefine could break down the preconditioner (maybe solutions are 
        * not so nice after a derefining projection?)
        */
-      if ( derefine && (ti-ref_steps/2-ref_steps)%(2*ref_steps) ==0 ) //&& ti >  ref_steps ) //&& t<5.0) 
+      if ( derefine && (ti-ref_steps/2)%(2*ref_steps) ==0 ) //&& ti >  ref_steps ) //&& t<5.0) 
       {
           derefineMesh=true;
           derefiner.Reset();
@@ -618,6 +637,8 @@ int main(int argc, char *argv[])
       {
           w.SetFromTrueDofs(vx.GetBlock(2));
           oper.UpdateJ(vx, &j);
+          phi.SetFromTrueDofs(vx.GetBlock(0));
+          psi.SetFromTrueDofs(vx.GetBlock(1));
       }
 
       if (myid == 0 && (ti % 5)==0)

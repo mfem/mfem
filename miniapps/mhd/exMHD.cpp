@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
    bool visit = false;
    int precision = 8;
    int icase = 1;
-   alpha = 0.001; 
+   beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
 

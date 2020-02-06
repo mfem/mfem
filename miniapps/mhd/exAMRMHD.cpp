@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
    int precision = 8;
    int icase = 1;
    int nc_limit = 3;         // maximum level of hanging nodes
-   alpha = 0.001; 
+   beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
    int ref_steps=1000;

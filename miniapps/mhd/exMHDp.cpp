@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
    double resi = 0.0;
    bool visit = false;
    int icase = 1;
-   alpha = 0.001; 
+   beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
    resi=.001;
@@ -67,6 +67,8 @@ int main(int argc, char *argv[])
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
+   args.AddOption(&beta, "-beta", "--perturb",
+                  "Pertubation coefficient in initial conditions.");
    args.AddOption(&resi, "-resi", "--resistivity",
                   "Resistivity coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",

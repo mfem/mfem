@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
    bool use_factory = false;
    const char *petscrc_file = "";
    int icase = 1;
-   alpha = 0.001; 
+   beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
 
@@ -75,6 +75,10 @@ int main(int argc, char *argv[])
                   "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity",
                   "Resistivity coefficient.");
+   args.AddOption(&ALPHA, "-alpha", "--hyperdiff",
+                  "Numerical hyprediffusion coefficient.");
+   args.AddOption(&beta, "-beta", "--perturb",
+                  "Pertubation coefficient in initial conditions.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -106,7 +110,7 @@ int main(int argc, char *argv[])
    {
       resiG=resi;
    }
-   else if (icase==3)
+   else if (icase==3 || icase==4)
    {
       lambda=.5/M_PI;
       resiG=resi;
@@ -216,6 +220,11 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit3(InitialPsi3);
         psi.ProjectCoefficient(psiInit3);
    }
+   else if (icase==4)
+   {
+        FunctionCoefficient psiInit4(InitialPsi4);
+        psi.ProjectCoefficient(psiInit4);
+   }
    psi.SetTrueVector();
 
    FunctionCoefficient wInit(InitialW);
@@ -236,7 +245,7 @@ int main(int argc, char *argv[])
         FunctionCoefficient psi02(BackPsi2);
         psiBack.ProjectCoefficient(psi02);
    }
-   else if (icase==3)
+   else if (icase==3 || icase==4)
    {
         FunctionCoefficient psi03(BackPsi3);
         psiBack.ProjectCoefficient(psi03);
@@ -264,7 +273,7 @@ int main(int argc, char *argv[])
    {
        oper.SetRHSEfield(E0rhs);
    }
-   else if (icase==3)     
+   else if (icase==3 || icase==4)     
    {
        oper.SetRHSEfield(E0rhs3);
    }
@@ -288,6 +297,12 @@ int main(int argc, char *argv[])
         FunctionCoefficient jInit3(InitialJ3);
         oper.SetInitialJ(jInit3);
         j.ProjectCoefficient(jInit3);
+   }
+   else if (icase==4)
+   {
+        FunctionCoefficient jInit4(InitialJ4);
+        oper.SetInitialJ(jInit4);
+        j.ProjectCoefficient(jInit4);
    }
    j.SetTrueVector();
 
@@ -385,7 +400,8 @@ int main(int argc, char *argv[])
    //++++Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
-   bool useStab = true; //use a stabilized formulation
+   bool useStab = false; //use a stabilized formulation
+   if(!useStab) isupg=0;
    for (int ti = 1; !last_step; ti++)
    {
       double dt_real = min(dt, t_final - t);
@@ -519,6 +535,9 @@ int main(int argc, char *argv[])
       ofstream osol5(j_name.str().c_str());
       osol5.precision(8);
       j.Save(osol5);
+
+      //output gftmp for debugging
+      //oper.outputgf();
 
       //output v1 and v2 for a comparision
       ParGridFunction v1(&fespace), v2(&fespace);
