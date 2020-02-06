@@ -967,7 +967,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &t_spec)
 
    adapt_eval->SetParMetaInfo(*t_spec.ParFESpace()->GetParMesh(),
                               *t_spec.FESpace()->FEColl(),
-                               t_spec.FESpace()->GetVDim());
+                              t_spec.FESpace()->GetVDim());
 
    adapt_eval->SetInitialField
    (*t_spec.FESpace()->GetMesh()->GetNodes(), tspec);
@@ -987,7 +987,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &t_spec)
 
    adapt_eval->SetSerialMetaInfo(*t_spec.FESpace()->GetMesh(),
                                  *t_spec.FESpace()->FEColl(),
-                                  t_spec.FESpace()->GetVDim());
+                                 t_spec.FESpace()->GetVDim());
    adapt_eval->SetInitialField
    (*t_spec.FESpace()->GetMesh()->GetNodes(), tspec);
 
@@ -1088,33 +1088,6 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
             const double size = std::max(shape * tspec_vals, min_size);
             Jtr(i).Set(std::pow(size / Wideal.Det(), 1.0/dim), Wideal);
-         }
-         break;
-      }
-      case GIVEN_ORIENTATION:
-      {
-         const DenseMatrix &Wideal =
-            Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
-         const int dim = Wideal.Height(),
-                   ntspec_dofs = tspec_fes->GetFE(0)->GetDof();
-
-         Vector shape(ntspec_dofs), tspec_vals(ntspec_dofs);
-         Array<int> dofs;
-         tspec_fes->GetElementDofs(e_id, dofs);
-         tspec.GetSubVector(dofs, tspec_vals);
-
-         for (int i = 0; i < ir.GetNPoints(); i++)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(i);
-            tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-            const double size = shape*tspec_vals;
-
-            DenseMatrix t(2,2);
-            t(0,0) = cos(size);
-            t(0,1) = sin(size);
-            t(1,0) = -sin(size);
-            t(1,1) = cos(size);
-            Jtr(i).Set(0.1, t);
          }
          break;
       }

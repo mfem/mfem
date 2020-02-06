@@ -34,12 +34,14 @@
 // Sample runs:
 //   Adapted analytic Hessian:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Adapted analytic Hessian wit orientation:
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fdo 1
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
 //   Blade limited shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
@@ -213,26 +215,18 @@ double ori_values(const Vector &x)
 class HessianCoefficient : public MatrixCoefficient
 {
 private:
-   int type;
+   int metric;
 
 public:
-   HessianCoefficient(int dim, int type_)
-      : MatrixCoefficient(dim), type(type_) { }
+   HessianCoefficient(int dim, int metric_id)
+      : MatrixCoefficient(dim), metric(metric_id) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      int typemod = 3;
-      if (typemod == 0)
-      {
-         K(0, 0) = 1.0 + 3.0 * std::sin(M_PI*pos(0));
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
-      }
-      else if (typemod == 1)
+      if (metric != 14 && metric != 87)
       {
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
@@ -247,7 +241,7 @@ public:
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
       }
-      else if (typemod == 2)
+      else if (metric == 14) //Size + Alignment
       {
          const double xc = pos(0), yc = pos(1);
          double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
@@ -259,9 +253,8 @@ public:
          K(1, 1) =  cos(theta);
 
          K *= alpha_bar;
-         //clear;make mesh-optimizer;./mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 20 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 2 -fdo 1
       }
-      else if (typemod == 3)
+      else if (metric == 87) //Shape + Size + Alignment
       {
          Vector x = pos;
          double xc = x(0)-0.5, yc = x(1)-0.5;
@@ -297,9 +290,6 @@ public:
          K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
          K(0, 1) *=  pow(asp_ratio_tar,0.5);
          K(1, 1) *=  pow(asp_ratio_tar,0.5);
-
-         // This example works with a shape+alignment metric only because we don't know what the size is
-         //clear;make pmesh-optimizer;mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 20 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 2 -fdo 1
       }
    }
 };
@@ -337,7 +327,7 @@ int main (int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int fd_order          = 0;
+   int fdscheme          = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -403,8 +393,9 @@ int main (int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
-   args.AddOption(&fd_order, "-fdo", "--fd_order",
-                  "Order of finite difference method: 1 or 2 (default).");
+   args.AddOption(&fdscheme, "-fd", "--fd_approximation",
+                  "finite difference based approximation if 1, "
+                  "otherwise exact.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -576,7 +567,7 @@ int main (int argc, char *argv[])
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         adapt_coeff = new HessianCoefficient(dim, 1);
+         adapt_coeff = new HessianCoefficient(dim, metric_id);
          tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
          target_c = tc;
          break;
@@ -591,23 +582,7 @@ int main (int argc, char *argv[])
 #ifdef MFEM_USE_GSLIB
          tc->SetAdaptivityEvaluator(new InterpolatorFP(true));
 #else
-         tc->SetAdaptivityEvaluator(new AdvectorCG);
-#endif
-         tc->SetParDiscreteTargetSpec(size);
-         target_c = tc;
-         break;
-      }
-      case 6:
-      {
-         target_t = TargetConstructor::GIVEN_ORIENTATION;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         size.SetSpace(&ind_fes);
-         FunctionCoefficient ind_coeff(ori_values);
-         size.ProjectCoefficient(ind_coeff);
-#ifdef MFEM_USE_GSLIB
-         tc->SetAdaptivityEvaluator(new InterpolatorFP(true));
-#else
-         tc->SetAdaptivityEvaluator(new AdvectorCG);
+         if (fdscheme==0) {tc->SetAdaptivityEvaluator(new AdvectorCG);}
 #endif
          tc->SetParDiscreteTargetSpec(size);
          target_c = tc;
@@ -624,7 +599,7 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
-   he_nlf_integ->SetFDPar(fd_order, pmesh->GetNE());
+   he_nlf_integ->SetFDPar(fdscheme, pmesh->GetNE());
    if (target_id >= 5)
    {
       he_nlf_integ->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
@@ -689,7 +664,7 @@ int main (int argc, char *argv[])
       TMOP_Integrator *he_nlf_integ2;
       he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
-      he_nlf_integ2->SetFDPar(fd_order, pmesh->GetNE());
+      he_nlf_integ2->SetFDPar(fdscheme, pmesh->GetNE());
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);

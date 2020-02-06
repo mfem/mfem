@@ -617,8 +617,6 @@ public:
          Jacobian matrix at all quadrature points. */
       GIVEN_FULL, /**<
          Full target tensor is specified at every quadrature point. */
-      GIVEN_ORIENTATION /**<
-         Orientation specified by an analytic function */
    };
 
 protected:
@@ -794,6 +792,8 @@ protected:
    // Normalization factor for the metric term.
    double metric_normal;
 
+   mutable DiscreteAdaptTC *discr_tc;
+
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
    // These are both NULL when there is no limiting.
    // The class doesn't own nodes0 and coeff0.
@@ -807,14 +807,12 @@ protected:
    double lim_normal;
    // Parameters for Gradient & Hessian calculation
    int    der_flag;
-   double fdeps;
    int    fdorder;
+   double fdeps;
    double elemenergy;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
-
-   mutable DiscreteAdaptTC *discr_tc;
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
