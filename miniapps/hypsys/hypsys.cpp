@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
    int visport = 19916;
 	VisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
 
-   FE_Evolution evol(&fes, hyp, dofs, scheme, LumpedMassMat);
+   FE_Evolution evol(&vfes, hyp, dofs, scheme, LumpedMassMat);
 
    odeSolver->Init(evol);
    if (hyp->SteadyState)

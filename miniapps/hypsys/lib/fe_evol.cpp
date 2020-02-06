@@ -240,12 +240,33 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 
       for (int k = 0; k < nqe; k++)
       {
-         ShapeEval.GetColumn(k, vec2);
-         uEval(0) = uElem * vec2;
+//          ShapeEval.GetColumn(k, vec2);
+//          uEval(0) = uElem * vec2;
+//          ElemInt(nqe*e+k).Mult(vel.GetColumn(k), vec1);
+			
+			
+			uEval = 0.;
+			
+			DenseMatrix Flux(dim, hyp->NumEq);
+			
+			vec1 = vel.GetColumn(k);
+			for (int n = 0; n < hyp->NumEq; n++)
+			{
+				for (int j = 0; j < nd; j++)
+				{
+					uEval(n) += uElem(n*nd+j) * ShapeEval(j,k);
+				}
+				Flux.SetCol(n, vec1 * uEval(n));
+				
+				ElemInt(nqe*e+k).Mult(vec, vec1);
+				DShapeEval(k).Mult(vec1, vec2);
+				vec3 += vec2;
+				vec4
+			}
 
-         ElemInt(nqe*e+k).Mult(vel.GetColumn(k), vec1);
-         DShapeEval(k).Mult(vec1, vec2);
-         vec2 *= uEval(0);
+			
+         
+//          vec2 *= uEval(0);
          vec3 += vec2;
       }
 
