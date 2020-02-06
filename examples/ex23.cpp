@@ -1,10 +1,10 @@
-//                                MFEM Example 24
+//                                MFEM Example 23
 //
-// Compile with: make ex24
+// Compile with: make ex23
 //
-// Sample runs:  ex24
-//               ex24 -m ../data/inline-tri.mesh
-//               ex24 -m ../data/disc-nurbs.mesh -r 3 -o 2 -tf 2
+// Sample runs:  ex23
+//               ex23 -m ../data/inline-tri.mesh
+//               ex23 -m ../data/disc-nurbs.mesh -r 3 -o 2 -tf 2
 //
 // Description:  This example solves the wave equation
 //               problem of the form d^2u/dt^2 = c^2 \Delta u.
@@ -319,16 +319,16 @@ int main(int argc, char *argv[])
 
    u_gf.SetFromTrueDofs(u);
    {
-      ofstream omesh("ex24.mesh");
+      ofstream omesh("ex23.mesh");
       omesh.precision(precision);
       mesh->Print(omesh);
-      ofstream osol("ex24-init.gf");
+      ofstream osol("ex23-init.gf");
       osol.precision(precision);
       u_gf.Save(osol);
       dudt_gf.Save(osol);
    }
 
-   VisItDataCollection visit_dc("Example24", mesh);
+   VisItDataCollection visit_dc("Example23", mesh);
    visit_dc.RegisterField("solution", &u_gf);
    visit_dc.RegisterField("rate", &dudt_gf);
    if (visit)
@@ -402,9 +402,9 @@ int main(int argc, char *argv[])
    }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m ex22.mesh -g ex22-final.gf".
+   //    "glvis -m ex23.mesh -g ex23-final.gf".
    {
-      ofstream osol("ex22-final.gf");
+      ofstream osol("ex23-final.gf");
       osol.precision(precision);
       u_gf.Save(osol);
       dudt_gf.Save(osol);
