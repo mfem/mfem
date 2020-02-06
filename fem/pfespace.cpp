@@ -3023,11 +3023,13 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
 {
    MFEM_ASSERT(pfes.Conforming(), "internal error");
    const SparseMatrix *R = pfes.GetRestrictionMatrix();
-   MFEM_ASSERT(R->Finalized(), "");
+   MFEM_ASSERT(R, "!R");
+   MFEM_ASSERT(R->Finalized(), "!R->Finalized()");
    const int tdofs = R->Height();
-   MFEM_ASSERT(tdofs == pfes.GetTrueVSize(), "");
-   MFEM_ASSERT(tdofs == R->GetI()[tdofs], "");
-   ltdof_ldof = Array<int>(const_cast<int*>(R->GetJ()), tdofs);
+   MFEM_ASSERT(R->GetI(), "!R->GetI()");
+   MFEM_ASSERT(tdofs == pfes.GetTrueVSize(), "invalid R->Height()");
+   MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "invalid row offsets");
+   ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
    ltdof_ldof.UseDevice();
    {
       Table nbr_ltdof;
