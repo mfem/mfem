@@ -9,17 +9,20 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#define CATCH_CONFIG_RUNNER
+// #define CATCH_CONFIG_RUNNER
+// #include "catch.hpp"
+// #include "mfem.hpp"
+
+// int main(int argc, char *argv[])
+// {
+// #ifdef MFEM_USE_MPI
+//    mfem::MPI_Session mpi;
+// #endif
+
+//    // There must be exactly one instance
+//    int result = Catch::Session().run(argc, argv);
+//    return result;
+// }
+
+#define CATCH_CONFIG_MAIN
 #include "catch.hpp"
-#include "mfem.hpp"
-
-int main(int argc, char *argv[])
-{
-#ifdef MFEM_USE_MPI
-   mfem::MPI_Session mpi;
-#endif
-
-   // There must be exactly one instance
-   int result = Catch::Session().run(argc, argv);
-   return result;
-}
