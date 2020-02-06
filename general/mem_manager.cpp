@@ -597,6 +597,7 @@ private:
             {
                case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
                case MT::HOST_DEBUG: return new DeviceMemorySpace();
+               case MT::DEVICE_UMPIRE:
                case MT::MANAGED:
                case MT::DEVICE:
 #if defined(MFEM_USE_CUDA)
