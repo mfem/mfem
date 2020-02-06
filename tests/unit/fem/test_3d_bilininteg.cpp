@@ -2832,24 +2832,7 @@ TEST_CASE("3D Bilinear Weak Gradient Integrators",
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
                SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
-               if (type == 4 && false)
-               {
-                  {
-                     std::ofstream ofs("div.mat");
-                     blf.SpMat().Print(ofs);
-                     ofs.close();
-                  }
-                  {
-                     std::ofstream ofs("wgradT.mat");
-                     blfT->Print(ofs);
-                     ofs.close();
-                  }
-                  {
-                     std::ofstream ofs("diff.mat");
-                     diff->Print(ofs);
-                     ofs.close();
-                  }
-               }
+
                REQUIRE( diff->MaxNorm() < tol );
 
                delete blfT;
