@@ -251,7 +251,7 @@ public:
 };
 
 
-/// Base abstract class for time dependent operators.
+/// Base abstract class for first order time dependent operators.
 /** Operator of the form: (x,t) -> f(x,t), where k = f(x,t) generally solves the
     algebraic equation F(x,k,t) = G(x,t). The functions F and G represent the
     _implicit_ and _explicit_ parts of the operator, respectively. For explicit
@@ -363,27 +363,6 @@ public:
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
-   /** @brief Solve the equation: @a k = f(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t), for the
-       unknown @a k at the current time t.
-
-       For general F and G, the equation for @a k becomes:
-       F(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t) = G(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t).
-
-       The input vector @a x corresponds to time index (or cycle) n, while the
-       currently set time, #t, and the result vector @a k correspond to time
-       index n+1. The time step @a dt corresponds to the time interval between
-       cycles n and n+1.
-
-       This method allows for the abstract implementation of some time
-       integration methods.
-
-       If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt0, const double dt1,
-                              const Vector &x, const Vector &dxdt, Vector &k)
-   {
-      mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
-   }
-
    /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
        given @a x, @a k, and the currently set time.
 
@@ -462,6 +441,53 @@ public:
 
    virtual ~TimeDependentOperator() { }
 };
+
+/// Base abstract class for second order time dependent operators.
+/** Operator of the form: (x,t) -> f(x,t), where k = f(x,t) generally solves the
+    algebraic equation F(x,k,t) = G(x,t). The functions F and G represent the
+    _implicit_ and _explicit_ parts of the operator, respectively. For explicit
+    operators, F(x,k,t) = k, so f(x,t) = G(x,t). */
+class SecondOrderTimeDependentOperator : public TimeDependentOperator
+{
+public:
+   /** @brief Construct a "square" SecondOrderTimeDependentOperator y = f(x,t), where x and
+       y have the same dimension @a n. */
+   explicit SecondOrderTimeDependentOperator(int n = 0, double t_ = 0.0,
+                                  Type type_ = EXPLICIT)
+      : TimeDependentOperator(n, t_,type_) { }
+
+   /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,t), where x and y have
+       dimensions @a w and @a h, respectively. */
+   SecondOrderTimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
+      : TimeDependentOperator(h, w, t_,type_) { }
+
+   /** @brief Perform the action of the operator: @a y = k = f(@a x, t), where
+       k solves the algebraic equation F(@a x, k, t) = G(@a x, t) and t is the
+       current time. */
+   virtual void Mult(const Vector &x, const Vector &dxdt, Vector &y) const;
+
+   /** @brief Solve the equation: @a k = f(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t), for the
+       unknown @a k at the current time t.
+
+       For general F and G, the equation for @a k becomes:
+       F(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t) = G(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t).
+
+       The input vector @a x corresponds to time index (or cycle) n, while the
+       currently set time, #t, and the result vector @a k correspond to time
+       index n+1. The time step @a dt corresponds to the time interval between
+       cycles n and n+1.
+
+       This method allows for the abstract implementation of some time
+       integration methods.
+
+       If not re-implemented, this method simply generates an error. */
+   virtual void ImplicitSolve(const double dt0, const double dt1,
+                              const Vector &x, const Vector &dxdt, Vector &k);
+
+
+   virtual ~SecondOrderTimeDependentOperator() { }
+};
+
 
 /// Base class for solvers
 class Solver : public Operator

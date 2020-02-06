@@ -26,16 +26,16 @@ TEST_CASE("Second order ODE methods",
     *    du2/dt^2 + b du/dt  + a u = 0
     *
     */
-   class ODE2 : public TimeDependentOperator
+   class ODE2 : public SecondOrderTimeDependentOperator
    {
    protected:
       double a,b;
 
    public:
-      ODE2(double a_, double b_) : TimeDependentOperator(1, 0.0),  a(a_), b(b_) {};
+      ODE2(double a_, double b_) :  SecondOrderTimeDependentOperator(1, 0.0),  a(a_), b(b_) {};
 
-      virtual void ExplicitSolve(const Vector &u, const Vector &dudt,
-                                 Vector &d2udt2)  const
+      virtual void Mult(const Vector &u, const Vector &dudt,
+                              Vector &d2udt2)  const
       {
          d2udt2[0] = -a*u[0] - b*dudt[0];
       }
@@ -77,7 +77,7 @@ TEST_CASE("Second order ODE methods",
          dt = t_final/double(ti_steps);
       };
 
-      double order(ODESolver* ode_solver)
+      double order(SecondOrderODESolver* ode_solver)
       {
          double dt,t;
          Vector u(1);
