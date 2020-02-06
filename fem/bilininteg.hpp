@@ -845,6 +845,11 @@ public:
              "and the test space must be a vector field with a divergence";
    }
 
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
+
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
                                  Vector & shape)
