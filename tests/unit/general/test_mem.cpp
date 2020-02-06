@@ -10,13 +10,14 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "mfem.hpp"
-#include "general/dbg.hpp"
 #include "catch.hpp"
 
 #ifndef _WIN32
 #include <unistd.h>
 
 using namespace mfem;
+
+struct NullBuf: public std::streambuf { int overflow(int c) { return c; }};
 
 static void ScanMemoryTypes(const int N = 1024)
 {
@@ -85,19 +86,24 @@ TEST_CASE("MemoryManager", "[MemoryManager]")
 {
    SECTION("Debug")
    {
+      NullBuf null_buffer;
+      std::ostream dev_null(&null_buffer);
+      // If MFEM_MEMORY is set, we start with some non-empty maps
+      const int n_ptr = mm.PrintPtrs(dev_null);
+      const int n_alias = mm.PrintAliases(dev_null);
       const long pagesize = sysconf(_SC_PAGE_SIZE);
       REQUIRE(pagesize > 0);
       Device device("debug");
       for (int n = 1; n < 2*pagesize; n+=7)
       {
          Aliases(n);
-         //REQUIRE(mm.PrintPtrs() == 0);
-         //REQUIRE(mm.PrintAliases() == 0);
+         REQUIRE(mm.PrintPtrs(dev_null) == n_ptr);
+         REQUIRE(mm.PrintAliases(dev_null) == n_alias);
       }
       MmuCatch();
       ScanMemoryTypes();
-      //REQUIRE(mm.PrintPtrs() == 0);
-      //REQUIRE(mm.PrintAliases() == 0);
+      REQUIRE(mm.PrintPtrs(dev_null) == n_ptr);
+      REQUIRE(mm.PrintAliases(dev_null) == n_alias);
    }
 }
 

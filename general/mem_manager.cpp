@@ -543,17 +543,8 @@ public:
       // Filling the device memory backends, shifting with the device size
       constexpr int shift = DeviceMemoryType;
       device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
-      device[static_cast<int>(MemoryType::DEVICE)-shift] =
-#if defined(MFEM_USE_CUDA)
-         new CudaDeviceMemorySpace();
-#elif defined(MFEM_USE_HIP)
-         new HipDeviceMemorySpace();
-#else
-         // No device controller is set by default, initialization is delayed
-         // depending on the device configuration
-         nullptr;
-#endif
-      // DEVICE DEBUG and UMPIRE are delayed
+      // All other devices controllers are delayed
+      device[static_cast<int>(MemoryType::DEVICE)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_DEBUG)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_UMPIRE)-shift] = nullptr;
    }
@@ -561,59 +552,18 @@ public:
    HostMemorySpace* Host(const MemoryType mt)
    {
       const int mt_i = static_cast<int>(mt);
-      // Delayed host DEBUG initialization
-      if (!host[mt_i])
-      {
-         if (mt == MT::HOST_DEBUG)
-         {
-            dbg("HOST_DEBUG");
-            host[mt_i] = new MmuHostMemorySpace();
-         }
-         else
-         {
-            MFEM_ABORT("Unknown lazy host memory controller!");
-         }
-      }
-      MFEM_ASSERT(host[mt_i], "Memory mana<ger has not been configured!");
+      // Delayed host controllers initialization
+      if (!host[mt_i]) { host[mt_i] = NewHostCtrl(mt); }
+      MFEM_ASSERT(host[mt_i], "Host memory controller is not configured!");
       return host[mt_i];
    }
 
    DeviceMemorySpace* Device(const MemoryType mt)
    {
       const int mt_i = static_cast<int>(mt) - DeviceMemoryType;
-      MFEM_VERIFY(mt_i >= 0,"");
-      // Lazy device UMPIRE and DEBUG/DEVICE initializations
-      if (!device[mt_i])
-      {
-         dbg("mt_i:%d, mt:%d", mt_i, mt);
-         const MemoryType mm_d_mt = mm.GetDeviceMemoryType();
-         if (mt == MT::DEVICE_UMPIRE)
-         {
-            dbg("DEVICE_UMPIRE");
-            device[mt_i] = new UmpireDeviceMemorySpace();
-         }
-         else if (mt == MT::DEVICE_DEBUG)
-         {
-            dbg("DEVICE_DEBUG");
-            device[mt_i] = new MmuDeviceMemorySpace();
-         }
-         else if (mt == MT::DEVICE && mm_d_mt == MT::DEVICE_DEBUG)
-         {
-            dbg("DEVICE && DEVICE_DEBUG");
-            // If 'DEVICE' is used while in 'DEBUG' mode, use it.
-            // This case is tesed in the memory unit test.
-            device[mt_i] = new MmuDeviceMemorySpace();
-         }
-         else if (mt == MT::DEVICE && mm_d_mt == MT::HOST_DEBUG)
-         {
-            dbg("DEVICE && HOST_DEBUG");
-            device[mt_i] = new DeviceMemorySpace();
-         }
-         else
-         {
-            MFEM_ABORT("Unknown lazy device memory controller!");
-         }
-      }
+      MFEM_ASSERT(mt_i >= 0,"");
+      // Lazy device controller initializations
+      if (!device[mt_i]) {device[mt_i] = NewDeviceCtrl(mt); }
       MFEM_ASSERT(device[mt_i], "Memory manager has not been configured!");
       return device[mt_i];
    }
@@ -625,6 +575,43 @@ public:
       constexpr int mt_d = DeviceMemoryType;
       for (int mt = mt_h; mt < HostMemoryTypeSize; mt++) { delete host[mt]; }
       for (int mt = mt_d; mt < MemoryTypeSize; mt++) { delete device[mt-mt_d]; }
+   }
+
+private:
+   HostMemorySpace* NewHostCtrl(const MemoryType mt)
+   {
+      if (mt == MT::HOST_DEBUG) { return new MmuHostMemorySpace(); }
+      MFEM_ABORT("Unknown lazy host memory controller!");
+      return nullptr;
+   }
+
+   DeviceMemorySpace* NewDeviceCtrl(const MemoryType mt)
+   {
+      switch (mt)
+      {
+         case MT::DEVICE_UMPIRE: return new UmpireDeviceMemorySpace();
+         case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
+         case MT::DEVICE: // If 'DEVICE' is used
+         {
+            switch (mm.GetDeviceMemoryType())
+            {
+               case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
+               case MT::HOST_DEBUG: return new DeviceMemorySpace();
+               case MT::MANAGED:
+               case MT::DEVICE:
+#if defined(MFEM_USE_CUDA)
+                  return new CudaDeviceMemorySpace();
+#elif defined(MFEM_USE_HIP)
+                  return new HipDeviceMemorySpace();
+#else
+                  MFEM_ABORT("No pure lazy device memory controller!");
+#endif
+               default: MFEM_ABORT("Unknown lazy device memory controller!");
+            }
+         }
+         default: MFEM_ABORT("Unknown lazy device memory controller!");
+      }
+      return nullptr;
    }
 };
 
@@ -736,7 +723,7 @@ void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
 
 MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
 {
-   dbg("%p %d 0x%x", h_ptr, mt, flags);
+   //dbg("%p %d 0x%x", h_ptr, mt, flags);
    const bool mt_host = mt == MemoryType::HOST;
    MFEM_ASSERT(flags & Mem::REGISTERED ||
                (IsHostMemory(mt) &&
@@ -1360,36 +1347,35 @@ void MemoryManager::RegisterCheck(void *ptr)
    }
 }
 
-int MemoryManager::PrintPtrs(void)
+int MemoryManager::PrintPtrs(std::ostream &out)
 {
    int n_out = 0;
    for (const auto& n : maps->memories)
    {
       const internal::Memory &mem = n.second;
-      mfem::out << "\nkey " << n.first << ", "
-                << "h_ptr " << mem.h_ptr << ", "
-                << "d_ptr " << mem.d_ptr;
+      out << "\nkey " << n.first << ", "
+          << "h_ptr " << mem.h_ptr << ", "
+          << "d_ptr " << mem.d_ptr;
       n_out++;
    }
-   if (maps->memories.size() > 0) { mfem::out << std::endl; }
+   if (maps->memories.size() > 0) { out << std::endl; }
    return n_out;
 }
 
-int MemoryManager::PrintAliases(void)
+int MemoryManager::PrintAliases(std::ostream &out)
 {
    int n_out = 0;
    for (const auto& n : maps->aliases)
    {
       const internal::Alias &alias = n.second;
-      mfem::out << std::endl
-                << "alias: key " << n.first << ", "
-                << "h_ptr " << alias.mem->h_ptr << ", "
-                << "offset " << alias.offset << ", "
-                << "bytes  " << alias.bytes << ", "
-                << "counter " << alias.counter;
+      out << "\nalias: key " << n.first << ", "
+          << "h_ptr " << alias.mem->h_ptr << ", "
+          << "offset " << alias.offset << ", "
+          << "bytes  " << alias.bytes << ", "
+          << "counter " << alias.counter;
       n_out++;
    }
-   if (maps->aliases.size() > 0) { mfem::out << std::endl; }
+   if (maps->aliases.size() > 0) { out << std::endl; }
    return n_out;
 }
 
