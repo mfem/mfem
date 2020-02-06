@@ -1479,11 +1479,11 @@ void FiniteElementSpace::Construct()
 
 void FiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 {
-   if (elem_dof)
+   /*if (elem_dof)
    {
       elem_dof -> GetRow (i, dofs);
    }
-   else
+   else*/
    {
       Array<int> V, E, Eo, F, Fo;
       int k, j, nv, ne, nf, nb, nfd, nd, dim;

@@ -429,7 +429,7 @@ void ParFiniteElementSpace::GetGroupComm(
 
 void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
 {
-   MFEM_ASSERT(Conforming(), "wrong code path");
+   //MFEM_ASSERT(Conforming(), "wrong code path");
 
    for (int i = 0; i < dofs.Size(); i++)
    {
@@ -458,11 +458,11 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 
 void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 {
-   if (elem_dof)
+/*   if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
       return;
-   }
+   }*/
    FiniteElementSpace::GetElementDofs(i, dofs);
    if (Conforming())
    {
