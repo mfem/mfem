@@ -48,6 +48,8 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
          ip.weight = ipx.weight * ipy.weight;
       }
    }
+
+   SetPointIndices();
 }
 
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
@@ -76,6 +78,8 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
          }
       }
    }
+
+   SetPointIndices();
 }
 
 const Array<double> &IntegrationRule::GetWeights() const
@@ -89,6 +93,14 @@ const Array<double> &IntegrationRule::GetWeights() const
       }
    }
    return weights;
+}
+
+void IntegrationRule::SetPointIndices()
+{
+   for (int i = 0; i < Size(); i++)
+   {
+      IntPoint(i).index = i;
+   }
 }
 
 void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
