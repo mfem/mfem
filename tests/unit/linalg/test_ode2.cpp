@@ -64,7 +64,7 @@ TEST_CASE("Second order ODE methods",
       CheckODE2()
       {
          oper = new ODE2(1.0, 0.0);
-         ti_steps = 40;
+         ti_steps = 160;
          levels   = 5;
 
          u0.SetSize(1);
