@@ -836,8 +836,8 @@ public:
       : metric(m), targetC(tc),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
-        lim_dist(NULL), lim_func(NULL), lim_normal(1.0), der_flag(0),
-        discr_tc(NULL), fdorder(1), fdeps(0.0)
+        lim_dist(NULL), lim_func(NULL), lim_normal(1.0), discr_tc(NULL),
+        der_flag(0), fdorder(1), fdeps(0.0)
    { }
 
    ~TMOP_Integrator()
