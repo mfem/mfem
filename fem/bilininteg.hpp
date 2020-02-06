@@ -680,6 +680,11 @@ protected:
              "and the test space must be H(Div)";
    }
 
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
+
    virtual void CalcTestShape(const FiniteElement & test_fe,
                               ElementTransformation &Trans,
                               Vector & shape)
