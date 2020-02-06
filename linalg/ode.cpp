@@ -813,9 +813,15 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
-void NewmarkSolver::Init(TimeDependentOperator &_f)
+void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f)
 {
-   ODESolver::Init(_f);
+   this->f = &f;
+   mem_type = GetMemoryType(f.GetMemoryClass());
+}
+
+void NewmarkSolver::Init(SecondOrderTimeDependentOperator &_f)
+{
+   SecondOrderODESolver::Init(_f);
    d2xdt2.SetSize(f->Width());
    d2xdt2 = 0.0;
    first = true;
@@ -882,9 +888,9 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
    t += dt;
 }
 
-void GeneralizedAlpha2Solver::Init(TimeDependentOperator &_f)
+void GeneralizedAlpha2Solver::Init(SecondOrderTimeDependentOperator &_f)
 {
-   ODESolver::Init(_f);
+   SecondOrderODESolver::Init(_f);
    xa.SetSize(f->Width());
    va.SetSize(f->Width());
    aa.SetSize(f->Width());

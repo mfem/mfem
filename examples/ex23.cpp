@@ -28,7 +28,7 @@ using namespace mfem;
  *
  *  Class WaveOperator represents the right-hand side of the above ODE.
  */
-class WaveOperator : public TimeDependentOperator
+class WaveOperator : public SecondOrderTimeDependentOperator
 {
 protected:
    FiniteElementSpace &fespace;
@@ -53,7 +53,7 @@ protected:
 public:
    WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr,double speed);
 
-   virtual void ExplicitSolve(const Vector &u, const Vector &du_dt,
+   virtual void Mult(const Vector &u, const Vector &du_dt,
                               Vector &d2udt2) const;
    /** Solve the Backward-Euler equation:
        d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t), for the unknown d2udt2.*/
@@ -69,7 +69,7 @@ public:
 
 WaveOperator::WaveOperator(FiniteElementSpace &f,
                            Array<int> &ess_bdr, double speed)
-   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
+   : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
      T(NULL), current_dt(0.0), z(height)
 {
    const double rel_tol = 1e-8;
@@ -109,7 +109,7 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
    T = NULL;
 }
 
-void WaveOperator::ExplicitSolve(const Vector &u, const Vector &du_dt,
+void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
                                  Vector &d2udt2)  const
 {
    // Compute:
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver;
+   SecondOrderODESolver *ode_solver;
    switch (ode_solver_type)
    {
       // Implicit methods
