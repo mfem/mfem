@@ -2852,7 +2852,7 @@ TEST_CASE("3D Bilinear Weak Gradient Integrators",
       }
       SECTION("Operators on L2 for element type " + std::to_string(type))
       {
-         L2_FECollection    fec_l2(order - 1, dim);
+         L2_FECollection    fec_l2(order, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
          GridFunction f_l2(&fespace_l2); f_l2.ProjectCoefficient(f3_coef);

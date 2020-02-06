@@ -395,7 +395,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
+      int intorder = 2*el.GetOrder() + 1;  // <----------
       if (F == NULL)
       {
          intorder -= el.GetOrder() + 1;
