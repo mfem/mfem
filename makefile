@@ -117,7 +117,7 @@ EXAMPLE_SUBDIRS = sundials petsc pumi hiop ginkgo
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools nurbs gslib
+MINIAPP_SUBDIRS = common electromagnetics meshing performance tools toys nurbs gslib
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
@@ -260,7 +260,7 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GECKO GINKGO GNUTLS NETCDF PETSC MPFR PUMI HIOP GSLIB\
- OCCA RAJA
+ OCCA CEED RAJA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -322,7 +322,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
  MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
- MFEM_USE_OCCA MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -389,7 +389,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg mesh fem
+DIRS = general linalg mesh fem fem/libceed
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -489,14 +489,14 @@ check: lib
 	@$(MAKE) -C $(BLD)examples \
 	$(if $(findstring YES,$(MFEM_USE_MPI)),ex1p-test-par,ex1-test-seq)
 
-test:
+test test-noclean:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples, miniapps, and tests..."
 	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
 	@echo "Running tests in: [ $(ALL_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(ALL_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
-	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
+	   if ! $(MAKE) -j1 -C $(BLD)$${dir} $@; then \
 	   ERR=1; fi; done; \
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
@@ -517,7 +517,9 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
+	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
+	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -552,6 +554,9 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
 	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
+# install libCEED q-function headers
+	mkdir -p $(PREFIX_INC)/mfem/fem/libceed
+	$(INSTALL) -m 640 $(SRC)fem/libceed/*.h $(PREFIX_INC)/mfem/fem/libceed
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
@@ -634,6 +639,7 @@ status info:
 	$(info MFEM_USE_HIP           = $(MFEM_USE_HIP))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
@@ -659,7 +665,7 @@ status info:
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
-FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
+FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

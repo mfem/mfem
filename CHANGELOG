@@ -16,17 +16,32 @@ Improved GPU support
 - Added support for matrix-free diagonal smoothers on GPUs.
 
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
-  language that can run on both AMD and NVIDIA hardware. With this change, the
-  list of backends is: "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp",
-  "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+  language that can run on both AMD and NVIDIA hardware. With this change and
+  the libCEED addition below, the current list of available backends is:
+  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
+  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
 
 - Improved RAJA backend and multi-GPU MPI communications.
 
+libCEED support
+---------------
+- Added support for libCEED, the portable library for high-order operator
+  evaluation developed by the Center for Efficient Exascale Discretizations in
+  the Exascale Computing Project, https://github.com/CEED/libCEED.
+
+- This initial integration includes Mass and Diffusion integrators. libCEED GPU
+  backends can be used without specific MFEM configuration, however it is highly
+  recommended to use the "cuda" build option to minimize memory transfers.
+
+- Both CPU and GPU modes are available as MFEM device backends (ceed-cpu and
+  ceed-cuda), using some of the best performing CPU and GPU backends from
+  libCEED, see the sample runs in examples 1 and 6.
+
 Meshing improvements
 --------------------
-- Added support for non-conforming prism AMR, including coarsening and parallel
-  load balancing. Anisotropic prism refinement is only available in the serial
-  version at the moment.
+- Added support for non-conforming AMR on prisms and tetrahedra, including
+  coarsening and parallel load balancing. Anisotropic prism refinement is only
+  available in the serial version at the moment.
 
 - The TMOP mesh optimization algorithms were extended to support r-adaptivity.
   Target matrices can now be constructed either via a given analytical function
@@ -52,14 +67,39 @@ Discretization improvements
   in physical space. See INSTALL for details on building MFEM with GSLIB, and
   miniapps/gslib for examples of how to use this feature.
 
+- Added support for serendipity elements of arbitrary order on affinely-mapped
+  square elements. Basis functions for these elements can be visualized using
+  an option in the display-basis miniapp.
+
 - Added support for complex-valued finite element operators and fields using a
   2x2 block structured linear system to mimic complex arithmetic. New classes
   include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
   parallel counterparts.
 
+- Two integrators related to Stokes problems, (Q grad u, v) and (Q div v, u),
+  where u and the components of v are in H1, were added/modified to support full
+  and partial assembly modes. See the new GradientIntegrator and the updated
+  VectorDivergenceIntegrator classes in fem/bilininteg.hpp, as well as the PA
+  kernels in fem/bilininteg_gradient.cpp and fem/bilininteg_divergence.cpp.
+
 - Diagonals of partially assembled operators can now be computed efficiently.
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
+
+- Added initial support for NonlinearForms to support the partial assembly mode.
+
+- Added a nonlinear vector valued convection integrator (Q u \cdot grad u, v)
+  where u_i and v_i are in H1. This form occurs e.g. in the Navier-Stokes
+  equations. The integrator supports the partial assembly mode for its
+  action. In full assembly mode we also provide the GetGradient method that
+  computes the linearized version of the integrator.
+
+- Added a new method, MixedBilinearForm::FormRectangularLinearSystem, that can
+  be used to impose boundary conditions on the non-square off-diagonal blocks of
+  a block operator (similar to FormLinearSystem in the square case).
+
+- Extended the support for partial assembly to vector mass and vector diffusion
+  bilinear integrators.
 
 Linear and nonlinear solvers
 ----------------------------
@@ -72,7 +112,12 @@ Linear and nonlinear solvers
 
 - Added support for Ginkgo, a high-performance linear algebra library for GPU
   and manycore nodes, with a focus on sparse solution of linear systems. For
-  more details see linalg/ginkgo.hpp and the example code in examples/ginko.
+  more details see linalg/ginkgo.hpp and the example code in examples/gingko.
+
+- Added Adams-Bashforth and Adams-Moulton time integrators.
+
+- Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
+  (DG advection) now takes advantage of this for implicit time integration.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -102,6 +147,28 @@ New and updated examples and miniapps
 - Added a modification of ex9 in examples/hiop that demonstrates the nonlinear
   constrained optimization interface and the use of the SLBQP and HiOp solvers.
 
+- Added a collection of 7 playful miniapps in miniapps/toys that illustrate the
+  meshing and visualization features of the library in more relaxed settings.
+  The toys include simulations of cellular automata, Rubik's cube, Mandelbrot
+  set, a tool to convert any image to mfem mesh, and more.
+
+- Example 9 and 9p now support implicit time integration, using the new block
+  ILU(0) solvers as preconditioners for the linear system.
+
+Improved testing
+----------------
+- Added a new directory, tests/scripts, with several shell scripts that perform
+  simple checks on the code including: code styling, documentation formatting,
+  proper use of .gitignore, and preventing the accidental commit of large files.
+
+- It is recommended that developers run the above tests scripts (via the runtest
+  script) before pushing to GitHub. See the README file in tests/scripts.
+
+- The Travis CI settings have been updated to include an initial Checks stage
+  which currently runs the code-style, documentation and gitignore test scripts,
+  as well as a final stage for optional checks/tests which currently runs the
+  branch-history script.
+
 Miscellaneous
 -------------
 - Upgraded the SUNDIALS interface to utilize version 5.0. This necessitated a
@@ -110,6 +177,12 @@ Miscellaneous
 
 - Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
   and the new ParaViewDataCollection class.
+
+- Collected object files from the miniapps/common directory into a new library,
+  libmfem-common for the convenience of application developers. The new library
+  is now used in several miniapps in the electromagnetic and tools directories.
+
+- Added unit tests for time integrators.
 
 
 Version 4.0, released on May 24, 2019
