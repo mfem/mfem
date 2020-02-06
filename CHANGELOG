@@ -58,6 +58,11 @@ Meshing improvements
 
 - The TMOP mesh optimization algorithms have been improved to support AMR meshes.
 
+- Added support for finite difference based gradient and Hessian approximation
+  in the TMOP mesh optimization algorithms. This improves the accuracy of the
+  Hessian for r-adaptivity using discrete fields, and allows use of skewness
+  and orientation based metrics.
+
 - Improved element numbering after uniform mesh refinement.
 
 Discretization improvements

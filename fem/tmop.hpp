@@ -708,7 +708,7 @@ class DiscreteAdaptTC : public TargetConstructor
 protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
-   Vector target_spec;         //eta(x)
+   Vector tspec;         //eta(x)
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
@@ -719,21 +719,21 @@ protected:
    AdaptivityEvaluator *adapt_eval;
 
 public:
-   Vector target_spec_sav;
-   Vector target_spec_perth;   //eta(x+h)
-   Vector target_spec_pert2h;  //eta(x+2*h)
-   Vector target_spec_pertmix; //eta(x+h,y+h)
-   Array2D<int> TSpecMixIdx;   //Index for mix derivative terms
+   Vector tspec_sav;
+   Vector tspec_perth;       //eta(x+h)
+   Vector tspec_pert2h;      //eta(x+2*h)
+   Vector tspec_pertmix;     //eta(x+h,y+h)
+   Array2D<int> TSpecMixIdx; //Index for mix derivative terms
 
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
-        target_spec(), tspec_fes(NULL), adapt_eval(NULL) { }
+        tspec(), tspec_fes(NULL), adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC() { delete adapt_eval; }
 
-   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec);
+   virtual void SetSerialDiscreteTargetSpec(GridFunction &t_spec);
 #ifdef MFEM_USE_MPI
-   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec);
+   virtual void SetParDiscreteTargetSpec(ParGridFunction &t_spec);
 #endif
 
    /** Used to update the target specification after the mesh has changed. The

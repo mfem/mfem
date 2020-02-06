@@ -332,7 +332,7 @@ int main (int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int fd_order          = 0;
+   int fdscheme          = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -397,8 +397,9 @@ int main (int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
-   args.AddOption(&fd_order, "-fdo", "--fd_order",
-                  "Order of finite difference method: 1 or 2 (default).");
+   args.AddOption(&fdscheme, "-fdo", "--fd_approximation",
+                  "finite difference based approximation if 1, otherwise exact"
+                  " (default).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -569,7 +570,7 @@ int main (int argc, char *argv[])
 #ifdef MFEM_USE_GSLIB
          tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
-         tc->SetAdaptivityEvaluator(new AdvectorCG);
+         if (fdscheme==0) {tc->SetAdaptivityEvaluator(new AdvectorCG);}
 #endif
          tc->SetSerialDiscreteTargetSpec(size);
          target_c = tc;
@@ -599,7 +600,7 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   he_nlf_integ->SetFDPar(fd_order, mesh->GetNE());
+   he_nlf_integ->SetFDPar(fdscheme, mesh->GetNE());
    if (target_id >= 5)
    {
       he_nlf_integ->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
@@ -660,7 +661,7 @@ int main (int argc, char *argv[])
       target_c2->SetNodes(x0);
       TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
-      he_nlf_integ2->SetFDPar(fd_order, mesh->GetNE());
+      he_nlf_integ2->SetFDPar(fdscheme, mesh->GetNE());
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);
