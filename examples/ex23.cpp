@@ -37,31 +37,39 @@ private:
    Mesh *mesh;
    int dim;
 
-public:
-   // Domain Boundary
-   Array2D<double> dom_bdr;
+   // Length of the PML Region in each direction
+   Array2D<double> length;
 
    // Computational Domain Boundary
    Array2D<double> comp_dom_bdr;
 
-   // Length of the PML Region in each direction
-   Array2D<double> length;
+   // Domain Boundary
+   Array2D<double> dom_bdr;
 
-   // List of Elements in the PML region
+   // Integer Array identifying elements in the pml
+   // 0: in the pml, 1: not in the pml
    Array<int> elems;
 
+   // Compute Domain and Computational Domain Boundaries
+   void SetBoundaries();
+
+public:
    // Constructor
-   CartesianPML(Mesh *mesh_);
+   CartesianPML(Mesh *mesh_,Array2D<double> length_);
 
-   // Method computing PML data
-   void ComputeData();
+   // Return Computational Domain Boundary
+   Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
 
-   void SetPmlLength(Array2D<double> &length_);
+   // Return Domain Boundary
+   Array2D<double> GetDomainBdr() {return dom_bdr;}
 
-   // Return list of Elements in PML
-   void SetAttributes(Mesh *mesh);
+   // Return Marker list for elements
+   Array<int> * GetMarkedPMLElements() {return &elems;}
 
-   // PML complex streching funstion
+   // Mark element in the PML region
+   void SetAttributes(Mesh *mesh_);
+
+   // PML complex streching function
    void StretchFunction(const Vector &x, std::vector<std::complex<double>> &dxs);
 };
 
@@ -154,7 +162,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.Parse();
 
-   // 3. Setup the (serial) mesh on all processors.
+   // 2. Setup the (serial) mesh on all processors.
    if (iprob > 4) { iprob = 4; }
    prob = (prob_type)iprob;
 
@@ -198,7 +206,7 @@ int main(int argc, char *argv[])
    // Setup PML length
    Array2D<double> lngth(dim, 2);  lngth = 0.0;
 
-   // 4. Setup the Cartesian PML region.
+   // 3. Setup the Cartesian PML region.
    switch (prob)
    {
       case scatter:
@@ -220,25 +228,23 @@ int main(int argc, char *argv[])
          lngth = 0.25;
          break;
    }
-   CartesianPML * pml = new CartesianPML(mesh);
-   pml->SetPmlLength(lngth);
-   pml->ComputeData();
-   comp_domain_bdr = pml->comp_dom_bdr;
-   domain_bdr = pml->dom_bdr;
+   CartesianPML * pml = new CartesianPML(mesh,lngth);
+   comp_domain_bdr = pml->GetCompDomainBdr();
+   domain_bdr = pml->GetDomainBdr();
 
-   // 5. Refine the serial mesh on all processors to increase the resolution.
+   // 4. Refine the serial mesh on all processors to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh.
+   // 5. Define a parallel mesh by a partitioning of the serial mesh.
    mesh->ReorientTetMesh();
 
    // Set element attributes in order to destiguish elements in the PML region
    pml->SetAttributes(mesh);
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
+   // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
@@ -246,7 +252,7 @@ int main(int argc, char *argv[])
 
    cout << "Number of finite element unknowns: " << size << endl;
 
-   // 8. Determine the list of true (i.e. parallel conforming) essential
+   // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    based on the specific mesh and the problem type.
    Array<int> ess_tdof_list;
@@ -254,31 +260,35 @@ int main(int argc, char *argv[])
    if (mesh->bdr_attributes.Size())
    {
       ess_bdr.SetSize(mesh->bdr_attributes.Max());
-      ess_bdr = (prob == lshape || prob == fichera) ? 0 : 1;
-      for (int j = 0; j < mesh->GetNBE(); j++)
+      ess_bdr = 1;
+      if (prob == lshape || prob == fichera)
       {
-         Vector center(dim);
-         int bdrgeom = mesh->GetBdrElementBaseGeometry(j);
-         ElementTransformation * trans = mesh->GetBdrElementTransformation(j);
-         trans->Transform(Geometries.GetCenter(bdrgeom),center);
-         int k = mesh->GetBdrAttribute(j);
-         switch (prob)
+         ess_bdr = 0;
+         for (int j = 0; j < mesh->GetNBE(); j++)
          {
-            case lshape:
-               if (center[0] == 1.0 || center[0] == 0.0 || center[1] == 1.0)
-               {
-                  ess_bdr[k - 1] = 1;
-               }
-               break;
-            case fichera:
-               if (center[0] == -1.0 || center[0] == 0.0 ||
-                   center[1] ==  0.0 || center[2] == 0.0)
-               {
-                  ess_bdr[k - 1] = 1;
-               }
-               break;
-            default:
-               break;
+            Vector center(dim);
+            int bdrgeom = mesh->GetBdrElementBaseGeometry(j);
+            ElementTransformation * trans = mesh->GetBdrElementTransformation(j);
+            trans->Transform(Geometries.GetCenter(bdrgeom),center);
+            int k = mesh->GetBdrAttribute(j);
+            switch (prob)
+            {
+               case lshape:
+                  if (center[0] == 1.0 || center[0] == 0.0 || center[1] == 1.0)
+                  {
+                     ess_bdr[k - 1] = 1;
+                  }
+                  break;
+               case fichera:
+                  if (center[0] == -1.0 || center[0] == 0.0 ||
+                      center[1] ==  0.0 || center[2] == 0.0)
+                  {
+                     ess_bdr[k - 1] = 1;
+                  }
+                  break;
+               default:
+                  break;
+            }
          }
       }
    }
@@ -288,7 +298,7 @@ int main(int argc, char *argv[])
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   // 9. Set up the parallel linear form b(.) which corresponds to the
+   // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system.
    VectorFunctionCoefficient f(dim, source);
    ComplexLinearForm b(fespace, conv);
@@ -299,14 +309,14 @@ int main(int argc, char *argv[])
    b.Vector::operator=(0.0);
    b.Assemble();
 
-   // 10. Define the solution vector x as a parallel complex finite element grid
+   // 9. Define the solution vector x as a parallel complex finite element grid
    //    function corresponding to fespace.
    ComplexGridFunction x(fespace);
    VectorFunctionCoefficient E_Re(dim, E_bdr_data_Re);
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
    x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
 
-   // 11. Set up the parallel sesquilinear form a(.,.) on the finite element
+   // 10. Set up the parallel sesquilinear form a(.,.) on the finite element
    //     space corresponding to the problem of the appropriate type:
 
    Array<int> attr;
@@ -372,12 +382,10 @@ int main(int argc, char *argv[])
 
    //12.  Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
-   // SuperLU direct solver
-   UMFPackSolver  * umf_solver = new UMFPackSolver;
-   umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver->SetOperator(*A);
-   umf_solver->Mult(B, X);
-   delete umf_solver;
+   // Direct Solver
+   KLUSolver  solver(*A);
+   // solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   solver.Mult(B, X);
 #else
    GMRESSolver * gmres = new GMRESSolver;
    gmres->SetPrintLevel(1);
@@ -407,13 +415,17 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      double L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs, &pml->elems);
-      double L2Error_Im = x.imag().ComputeL2Error(E_ex_Im, irs, &pml->elems);
+      double L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs,
+                                                  pml->GetMarkedPMLElements());
+      double L2Error_Im = x.imag().ComputeL2Error(E_ex_Im, irs,
+                                                  pml->GetMarkedPMLElements());
 
       ComplexGridFunction x_gf0(fespace);
       x_gf0 = 0.0;
-      double norm_E_Re = x_gf0.real().ComputeL2Error(E_ex_Re, irs, &pml->elems);
-      double norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs, &pml->elems);
+      double norm_E_Re = x_gf0.real().ComputeL2Error(E_ex_Re, irs,
+                                                     pml->GetMarkedPMLElements());
+      double norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
+                                                     pml->GetMarkedPMLElements());
 
       cout << " Rel Error - Real Part: || E_h - E || / ||E|| = " << L2Error_Re /
            norm_E_Re << '\n' << endl;
@@ -471,6 +483,7 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
+   delete A;
    delete pml;
    delete fespace;
    delete fec;
@@ -490,6 +503,7 @@ void source(const Vector &x, Vector &f)
    double n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
    double coeff = pow(n, 2) / M_PI;
    double alpha = -pow(n, 2) * r;
+   f = 0.0;
    f[0] = coeff * exp(alpha);
 }
 
@@ -583,7 +597,6 @@ void maxwell_solution(const Vector &x, std::vector<std::complex<double>> &E)
          {
             E[1] = -zi * k / M_PI * exp(zi * k * x(0));
          }
-
          break;
       }
       default:
@@ -780,36 +793,17 @@ void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
    }
 }
 
-void GetMaxwellPMLCoefficients(CartesianPML * pml, MatrixCoefficient *& c1_Re,
-                               MatrixCoefficient *& c1_Im,
-                               MatrixCoefficient *& c2_Re, MatrixCoefficient *& c2_Im)
-{
-   int sdim = (dim==2) ? 1:dim;
-   c1_Re = new PmlMatrixCoefficient(sdim,detJ_inv_JT_J_Re, pml);
-   c1_Im = new PmlMatrixCoefficient(sdim,detJ_inv_JT_J_Im, pml);
-   c2_Re = new PmlMatrixCoefficient(dim, detJ_JT_J_inv_Re,pml);
-   c2_Im = new PmlMatrixCoefficient(dim, detJ_JT_J_inv_Im,pml);
-}
-
-CartesianPML::CartesianPML(Mesh *mesh_) : mesh(mesh_)
+CartesianPML::CartesianPML(Mesh *mesh_, Array2D<double> length_)
+   : mesh(mesh_), length(length_)
 {
    dim = mesh->Dimension();
-   length.SetSize(dim, 2);
-   length = 0.25;
+   SetBoundaries();
+}
+
+void CartesianPML::SetBoundaries()
+{
    comp_dom_bdr.SetSize(dim, 2);
    dom_bdr.SetSize(dim, 2);
-}
-
-void CartesianPML::SetPmlLength(Array2D<double> &length_)
-{
-   // check dimensions
-   MFEM_VERIFY(length_.NumRows() == dim, " Pml length NumRows missmatch ");
-   MFEM_VERIFY(length_.NumCols() == 2, " Pml length NumCols missmatch ");
-   length = length_;
-}
-
-void CartesianPML::ComputeData()
-{
    // initialize with any vertex
    for (int i = 0; i < dim; i++)
    {
@@ -838,9 +832,9 @@ void CartesianPML::ComputeData()
    }
 }
 
-void CartesianPML::SetAttributes(Mesh *mesh)
+void CartesianPML::SetAttributes(Mesh *mesh_)
 {
-   int nrelem = mesh->GetNE();
+   int nrelem = mesh_->GetNE();
    // initialize list with 1
    elems.SetSize(nrelem);
    // loop through the elements and identify which of them are in the pml
@@ -848,7 +842,7 @@ void CartesianPML::SetAttributes(Mesh *mesh)
    {
       elems[i] = 1;
       bool in_pml = false;
-      Element *el = mesh->GetElement(i);
+      Element *el = mesh_->GetElement(i);
       Array<int> vertices;
       // Initialize Attribute
       el->SetAttribute(1);
@@ -858,7 +852,7 @@ void CartesianPML::SetAttributes(Mesh *mesh)
       for (int iv = 0; iv < nrvert; ++iv)
       {
          int vert_idx = vertices[iv];
-         double *coords = mesh->GetVertex(vert_idx);
+         double *coords = mesh_->GetVertex(vert_idx);
          for (int comp = 0; comp < dim; ++comp)
          {
             if (coords[comp] > comp_dom_bdr(comp, 1) ||
@@ -875,5 +869,5 @@ void CartesianPML::SetAttributes(Mesh *mesh)
          el->SetAttribute(2);
       }
    }
-   mesh->SetAttributes();
+   mesh_->SetAttributes();
 }
