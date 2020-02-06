@@ -114,11 +114,11 @@ public:
                                  const Vector &elfun, DenseMatrix &elmat)
    { AssembleFaceMatrix(el1, el2, Tr, elmat); }
 
-   virtual void SetupElementVectorTargetSpecification(const Vector &x,
-                                                      const FiniteElementSpace &fes);
+   virtual void SetupElementVectorTargetSpecification(
+      const Vector &x, const FiniteElementSpace &fes) {};
 
-   virtual void SetupElementGradTargetSpecification(const Vector &x,
-                                                    const FiniteElementSpace &fes);
+   virtual void SetupElementGradTargetSpecification(
+      const Vector &x, const FiniteElementSpace &fes) {} ;
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
@@ -1810,11 +1810,11 @@ public:
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
 
-   virtual void SetupElementVectorTargetSpecification(const Vector &x,
-                                                      const FiniteElementSpace &fes) {};
+   virtual void SetupElementVectorTargetSpecification(
+      const Vector &x, const FiniteElementSpace &fes) {};
 
-   virtual void SetupElementGradTargetSpecification(const Vector &x,
-                                                    const FiniteElementSpace &fes) {};
+   virtual void SetupElementGradTargetSpecification(
+      const Vector &x, const FiniteElementSpace &fes) {};
 
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
@@ -2353,11 +2353,11 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
-   virtual void SetupElementVectorTargetSpecification(const Vector &x,
-                                                      const FiniteElementSpace &fes) {};
+   virtual void SetupElementVectorTargetSpecification(
+      const Vector &x, const FiniteElementSpace &fes) {};
 
-   virtual void SetupElementGradTargetSpecification(const Vector &x,
-                                                    const FiniteElementSpace &fes) {};
+   virtual void SetupElementGradTargetSpecification(
+      const Vector &x, const FiniteElementSpace &fes) {};
 
    using BilinearFormIntegrator::AssemblePA;
 
