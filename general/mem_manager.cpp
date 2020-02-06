@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "mem_manager.hpp"
 
@@ -305,11 +304,7 @@ inline void MmuAlloc(void **ptr, const size_t bytes)
 inline void MmuDealloc(void *ptr, const size_t bytes)
 {
    const size_t length = bytes == 0 ? 8 : bytes;
-   if (::munmap(ptr, length) == -1)
-   {
-      dbg("ptr:%p, bytes: 0x%x", ptr, bytes);
-      mfem_error("Dealloc error!");
-   }
+   if (::munmap(ptr, length) == -1) { mfem_error("Dealloc error!"); }
 }
 
 /// MMU protection, through ::mprotect with no read/write accesses
@@ -570,7 +565,6 @@ public:
 
    ~Ctrl()
    {
-      dbg("");
       constexpr int mt_h = HostMemoryType;
       constexpr int mt_d = DeviceMemoryType;
       for (int mt = mt_h; mt < HostMemoryTypeSize; mt++) { delete host[mt]; }
@@ -724,22 +718,21 @@ void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
 
 MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
 {
-   //dbg("%p %d 0x%x", h_ptr, mt, flags);
+   const bool alias = flags & Mem::ALIAS;
    const bool mt_host = mt == MemoryType::HOST;
-   MFEM_ASSERT(flags & Mem::REGISTERED ||
-               (IsHostMemory(mt) &&
-                (!IsHostRegisteredMemory(mt) ||
-                 (mt == MemoryType::HOST_DEBUG)||
-                 (mt == MemoryType::MANAGED))),"");
-   MFEM_ASSERT(!(flags & Mem::OWNS_DEVICE) || (flags & Mem::OWNS_INTERNAL),
-               "invalid Memory state");
+   const bool registered = flags & Mem::REGISTERED;
+   const bool owns_host = flags & Mem::OWNS_HOST;
+   const bool owns_device = flags & Mem::OWNS_DEVICE;
+   const bool owns_internal = flags & Mem::OWNS_INTERNAL;
+   MFEM_ASSERT(registered || IsHostMemory(mt),"");
+   MFEM_ASSERT(!owns_device || owns_internal, "invalid Memory state");
    if (mm.exists)
    {
-      if (flags & Mem::REGISTERED)
+      if (registered)
       {
-         if ((flags & Mem::ALIAS))
+         if (alias)
          {
-            if (flags & Mem::OWNS_INTERNAL)
+            if (owns_internal)
             {
                const MemoryType h_mt = maps->aliases.at(h_ptr).h_mt;
                MFEM_ASSERT(mt == h_mt,"");
@@ -750,15 +743,14 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
          else // Known
          {
             const MemoryType h_mt = mt;
-            MFEM_ASSERT(!(flags & Mem::OWNS_INTERNAL) ||
+            MFEM_ASSERT(!owns_internal ||
                         mt == maps->memories.at(h_ptr).h_mt,"");
-            MFEM_ASSERT(!(flags & Mem::OWNS_HOST) ||
-                        (flags & Mem::OWNS_INTERNAL),"");
-            if ((flags & Mem::OWNS_HOST) && (h_mt != MemoryType::HOST))
+            MFEM_ASSERT(!owns_host || owns_internal,"");
+            if (owns_host && (h_mt != MemoryType::HOST))
             { ctrl->Host(h_mt)->Dealloc(h_ptr); }
-            if (flags & Mem::OWNS_INTERNAL)
+            if (owns_internal)
             {
-               mm.Erase(h_ptr, flags & Mem::OWNS_DEVICE);
+               mm.Erase(h_ptr, owns_device);
             }
             return h_mt;
          }
@@ -767,10 +759,7 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
       {
          if (!mt_host)
          {
-            if ((flags & Mem::OWNS_HOST) && h_ptr)
-            {
-               ctrl->Host(mt)->Dealloc(h_ptr);
-            }
+            if (owns_host && h_ptr) { ctrl->Host(mt)->Dealloc(h_ptr); }
          }
          return mt;
       }
@@ -782,7 +771,7 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
       if (aligned)
       {
          // No more memory manager, delete residual statics for HOST_32/64
-         if (flags & Mem::OWNS_HOST) { std::free(h_ptr); }
+         if (owns_host) { std::free(h_ptr); }
       }
       return mt;
    }
@@ -1307,7 +1296,6 @@ void MemoryManager::Configure(const MemoryType host_mt,
    Init();
    host_mem_type = host_mt;
    device_mem_type = device_mt;
-   dbg("host_mem_type:%d, device_mem_type:%d", host_mt, device_mt);
 }
 
 #ifdef MFEM_USE_UMPIRE
@@ -1321,7 +1309,6 @@ void MemoryManager::SetUmpireAllocatorNames(const char *h_name,
 
 void MemoryManager::Destroy()
 {
-   dbg("");
    MFEM_VERIFY(exists, "MemoryManager has already been destroyed!");
    for (auto& n : maps->memories)
    {
