@@ -31,6 +31,7 @@ public:
    ~HyperbolicSystem() { };
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval) const = 0;
+	virtual double GetWaveSpeed(const Vector &u, const Vector n) const = 0;
    virtual void ComputeErrors(Array<double> &errors, double DomainSize,
                               const GridFunction &u) const = 0;
    virtual void WriteErrors(const Array<double> &errors) const = 0;

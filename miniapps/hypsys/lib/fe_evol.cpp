@@ -38,7 +38,8 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
    ShapeEvalFace.SetSize(dofs.NumBdrs, dofs.NumFaceDofs, nqf);
 
    ElemInt.SetSize(dim, dim, ne*nqe);
-   BdrInt.SetSize(dim, dofs.NumBdrs, ne*nqf);
+   BdrInt.SetSize(dofs.NumBdrs, nqf, ne);
+	ElemNor.SetSize(dim, dofs.NumBdrs, ne); // Generalizeable to curved faces.
 
    MassMat = new MassMatrixDG(fes);
    InvMassMat = new InverseMassMatrixDG(MassMat);
@@ -48,8 +49,11 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
    uNbr.SetSize(hyp->NumEq);
    uNbrEval.SetSize(hyp->NumEq);
    vec1.SetSize(dim);
-   vec2.SetSize(nd);
-   vec3.SetSize(nd);
+   vec2.SetSize(hyp->NumEq*nd);
+	Flux.SetSize(hyp->NumEq, dim);
+	FluxNbr.SetSize(hyp->NumEq, dim);
+	mat1.SetSize(dim, hyp->NumEq);
+	mat2.SetSize(nd, hyp->NumEq);
 
    // Precompute data that is constant for the whole run.
    Array <int> bdrs, orientation;
@@ -90,7 +94,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
       ShapeEval.SetCol(k, shape);
       DShapeEval(k) = dshape;
    }
-
+   
    // Precompute evaluations of shape functions on element faces.
    for (int k = 0; k < nqf; k++)
    {
@@ -165,9 +169,11 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
             }
 
             nor /= nor.Norml2();
+				BdrInt(i,k,e) = facetrans->Face->Weight();
+				
             for (int l = 0; l < dim; l++)
             {
-               BdrInt(l,i,e*nqf+k) = facetrans->Face->Weight() * nor(l);
+					ElemNor(l,i,e) = nor(l);
             }
          }
       }
@@ -202,6 +208,59 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    }
 }
 
+void FE_Evolution::EvaluateSolution(const Vector &x, Vector &y, int k) const
+{
+	y = 0.;
+	for (int n = 0; n < hyp->NumEq; n++)
+	{
+		for (int j = 0; j < nd; j++)
+		{
+			y(n) += x(n*nd+j) * ShapeEval(j,k);
+		}
+	}
+}
+
+void FE_Evolution::EvaluateSolution(const Vector &x, Vector &y1, Vector &y2,
+												int e, int i, int k) const
+{
+	y1 = y2 = 0.;
+	for (int n = 0; n < hyp->NumEq; n++)
+	{
+		for (int j = 0; j < dofs.NumFaceDofs; j++)
+		{
+			nbr = dofs.NbrDofs(i,j,e);
+			DofInd = e*nd+dofs.BdrDofs(j,i);
+			if (nbr < 0)
+			{
+				uNbr(0) = hyp->inflow(DofInd); // TODO vector valued
+			}
+			else
+			{
+				uNbr(0) = x(nbr); // TODO vector valued
+			}
+			
+			uEval(n) += x(DofInd) * ShapeEvalFace(i,j,k);
+         uNbrEval(n) += uNbr(n) * ShapeEvalFace(i,j,k);
+		}
+	}
+}
+
+void FE_Evolution::LaxFriedrichs(const Vector &x1, const Vector &x2,
+											const Vector &normal, Vector &y) const
+{
+	hyp->EvaluateFlux(x1, Flux);
+	hyp->EvaluateFlux(x2, FluxNbr);
+	Flux += FluxNbr;
+	double ws = max( hyp->GetWaveSpeed(x1, normal), 
+						  hyp->GetWaveSpeed(x2, normal) );
+	Flux.Mult(normal, y);
+	
+	Vector x(y.Size());
+	subtract(ws, x1, x2, x);
+	y += x;
+	y *= 0.5;
+}
+
 double FE_Evolution::ConvergenceCheck(double dt, double tol,
                                       const Vector &u) const
 {
@@ -230,87 +289,68 @@ double FE_Evolution::ConvergenceCheck(double dt, double tol,
 void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 {
    z = 0.;
-
    for (int e = 0; e < fes->GetNE(); e++)
    {
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
-      vec3 = 0.;
+		mat2 = 0.;
+
       DenseMatrix vel = hyp->VelElem(e);
 
       for (int k = 0; k < nqe; k++)
       {
-//          ShapeEval.GetColumn(k, vec2);
-//          uEval(0) = uElem * vec2;
-//          ElemInt(nqe*e+k).Mult(vel.GetColumn(k), vec1);
+			EvaluateSolution(uElem, uEval, k);
 			
-			
-			uEval = 0.;
-			
-			DenseMatrix Flux(dim, hyp->NumEq);
-			
-			vec1 = vel.GetColumn(k);
-			for (int n = 0; n < hyp->NumEq; n++)
-			{
-				for (int j = 0; j < nd; j++)
-				{
-					uEval(n) += uElem(n*nd+j) * ShapeEval(j,k);
-				}
-				Flux.SetCol(n, vec1 * uEval(n));
-				
-				ElemInt(nqe*e+k).Mult(vec, vec1);
-				DShapeEval(k).Mult(vec1, vec2);
-				vec3 += vec2;
-				vec4
-			}
+// 			hyp->EvaluateFlux(uEval, Flux);
 
-			
-         
-//          vec2 *= uEval(0);
-         vec3 += vec2;
+			vec1 = vel.GetColumn(k);
+			vec1 *= uEval(0);
+			Flux.SetRow(0, vec1);
+
+			MultABt(ElemInt(nqe*e+k), Flux, mat1);
+			AddMult(DShapeEval(k), mat1, mat2);
       }
 
-      z.AddElementVector(vdofs, vec3); // TODO Vector valued soultion.
+      vec2 = mat2.GetData();
+      z.AddElementVector(vdofs, vec2);
+		
+		DenseMatrix ElemNormals = ElemNor(e); // TODO allocate
 
       // Here, the use of nodal basis functions is essential, i.e. shape
       // functions must vanish on faces that their node is not associated with.
       for (int i = 0; i < dofs.NumBdrs; i++)
       {
+			Vector FaceNor(dim); // TODO allocate
+			ElemNormals.GetColumn(i, FaceNor);
          for (int k = 0; k < nqf; k++)
          {
             double tmp = 0.;
             for (int l = 0; l < dim; l++)
             {
-               tmp += BdrInt(l,i,e*nqf+k) * hyp->VelFace(l,i,e*nqf+k);
+               tmp += FaceNor(l) * hyp->VelFace(l,i,e*nqf+k);
             }
 
-            uEval = uNbrEval = 0.;
-
-            for (int j = 0; j < dofs.NumFaceDofs; j++)
-            {
-               nbr = dofs.NbrDofs(i,j,e);
-               if (nbr < 0)
-               {
-                  DofInd = e*nd+dofs.BdrDofs(j,i);
-                  uNbr(0) = hyp->inflow(DofInd);
-               }
-               else
-               {
-                  uNbr(0) = x(nbr);
-               }
-
-               uEval(0) += uElem(dofs.BdrDofs(j,i)) * ShapeEvalFace(i,j,k);
-               uNbrEval(0) += uNbr(0) * ShapeEvalFace(i,j,k);
-            }
+            EvaluateSolution(x, uEval, uNbrEval, e, i, k);
+				
+// 				Vector NumFlux(hyp->NumEq); // TODO allocate
+// 				LaxFriedrichs(uEval, uNbrEval, FaceNor, NumFlux);
 
             // Lax-Friedrichs flux (equals full upwinding for Advection).
             tmp = 0.5 * ( tmp * (uEval(0) + uNbrEval(0)) + abs(tmp) 
-						* (uEval(0) - uNbrEval(0)) ) * QuadWeightFace(k);
+						* (uEval(0) - uNbrEval(0)) );
+// 
+				tmp *= BdrInt(i,k,e) * QuadWeightFace(k);
+				
+				for (int n = 0; n < hyp->NumEq; n++)
+				{
+					for (int j = 0; j < dofs.NumFaceDofs; j++)
+					{
+               	z(vdofs[dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k) * tmp;
 
-            for (int j = 0; j < dofs.NumFaceDofs; j++)
-            {
-               z(vdofs[dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k) * tmp;
-            }
+// 						z(vdofs[n*nd+dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
+// 							* NumFlux(n) * BdrInt(i,k,e) * QuadWeightFace(k);
+					}
+				}
          }
       }
    }

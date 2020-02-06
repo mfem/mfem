@@ -40,12 +40,11 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 
 void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval) const
 {
-	const int dim = fes->GetMesh()->Dimension();
-   FluxEval.SetSize(NumEq, dim); // Note: FluxEval size should be set.
+	const int dim = u.Size() - 1;
    double H0 = 0.05;
 
    if (u.Size() != NumEq) { MFEM_ABORT("Invalid solution vector."); }
-   if (u(0) < H0) { MFEM_ABORT("Water height too small."); }
+//    if (u(0) < H0) { MFEM_ABORT("Water height too small."); }
 
    switch (dim)
    {
@@ -53,6 +52,7 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval) const
       {
          FluxEval(0,0) = u(1);
          FluxEval(1,0) = u(1)*u(1)/u(0) + GravConst / 2. * u(0)*u(0);
+			break;
       }
       case 2:
       {
@@ -62,9 +62,22 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval) const
          FluxEval(1,1) = u(1)*u(2)/u(0);
          FluxEval(2,0) = u(2)*u(1)/u(0);
          FluxEval(2,1) = u(2)*u(2)/u(0) + GravConst / 2. * u(0)*u(0);
+			break;
       }
       default: MFEM_ABORT("Invalid space dimensions.");
    }
+}
+
+double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n) const
+{
+	switch (u.Size())
+	{
+		case 2:
+			return abs(u(1)*n(0)) + sqrt(GravConst * u(0));
+		case 3:
+			return abs(u(1)*n(0) + u(2)*n(1)) + sqrt(GravConst * u(0));
+		default: MFEM_ABORT("Invalid solution vector.");
+	}
 }
 
 void ShallowWater::ComputeErrors(Array<double> &errors, double DomainSize,
@@ -90,6 +103,8 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
       double center = (ConfigSWE.bbMin(i) + ConfigSWE.bbMax(i)) * 0.5;
       X(i) = 2. * (x(i) - center) / (ConfigSWE.bbMax(i) - ConfigSWE.bbMin(i));
    }
+   
+   u = 0.; u(0) = 1.; return; // TODO
    
    switch (ConfigSWE.ConfigNum)
    {

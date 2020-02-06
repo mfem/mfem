@@ -37,8 +37,9 @@ public:
    DenseTensor ShapeEvalFace;
 
    // Element and boundary integrals evaluated in quadrature points.
-   DenseTensor ElemInt;
-   DenseTensor BdrInt;
+   DenseTensor ElemInt; // TODO better names
+	DenseTensor BdrInt;
+	DenseTensor ElemNor;
 
    // DG mass matrices.
    const Vector &LumpedMassMat;
@@ -47,7 +48,8 @@ public:
 
    // Tools to compute the discrete time derivative, needed repeatedly.
    mutable Array<int> vdofs;
-   mutable Vector z, uOld, uElem, uEval, uNbr, uNbrEval, vec1, vec2, vec3;
+   mutable Vector z, uOld, uElem, uEval, uNbr, uNbrEval, vec1, vec2;
+	mutable DenseMatrix Flux, FluxNbr, mat1, mat2;
    mutable int DofInd, nbr;
 
 
@@ -58,6 +60,11 @@ public:
    virtual ~FE_Evolution();
 
    void Mult(const Vector &x, Vector &y) const override;
+	void EvaluateSolution(const Vector &x, Vector &y, int k) const;
+	void EvaluateSolution(const Vector &x, Vector &y1, Vector &y2,
+								 int e, int i, int k) const;
+	void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
+							 Vector &y) const;
    virtual void EvolveStandard(const Vector &x, Vector &y) const;
    virtual void EvolveMCL     (const Vector &x, Vector &y) const;
 

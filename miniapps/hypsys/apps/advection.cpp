@@ -9,7 +9,8 @@ double InflowFunctionAdv(const Vector &x);
 
 Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 							Configuration &config_)
-   : HyperbolicSystem(fes_, u_block, 1, config_)
+   : HyperbolicSystem(fes_, u_block, 1, config_),
+     velocity(fes_->GetMesh()->Dimension(), VelocityFunctionAdv)
 {
    ConfigAdv = config_;
 
@@ -45,7 +46,6 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
          MFEM_ABORT("Invalid Geometry type.");
    }
 
-   VectorFunctionCoefficient velocity(dim, VelocityFunctionAdv);
    VelElem.SetSize(dim, nqe, ne);
    VelFace.SetSize(dim, NumBdrs, ne*nqf);
 
@@ -142,6 +142,11 @@ void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f) const
    // Due to possibly non-constant velocity a different approach is used.
    // Preprocessing for Advection is done in the Advcetion constructor.
    MFEM_ABORT("Do not call this routine for objects of type Advection.");
+}
+
+double Advection::GetWaveSpeed(const Vector &u, const Vector n) const
+{
+   
 }
 
 void Advection::ComputeErrors(Array<double> &errors, double DomainSize,
