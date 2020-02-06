@@ -1560,7 +1560,7 @@ private:
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D;
+   int dim, ne, dofs1D, quad1D;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q curl u, v) in 3D and
