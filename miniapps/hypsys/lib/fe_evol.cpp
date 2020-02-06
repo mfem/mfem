@@ -301,8 +301,10 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
       {
 			EvaluateSolution(uElem, uEval, k);
 			
+			// GENERAL
 // 			hyp->EvaluateFlux(uEval, Flux);
 
+			// ADVECTION
 			vec1 = vel.GetColumn(k);
 			vec1 *= uEval(0);
 			Flux.SetRow(0, vec1);
@@ -324,31 +326,30 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 			ElemNormals.GetColumn(i, FaceNor);
          for (int k = 0; k < nqf; k++)
          {
-            double tmp = 0.;
+				Vector NumFlux(hyp->NumEq); // TODO allocate
+				EvaluateSolution(x, uEval, uNbrEval, e, i, k);
+
+				// ADVECTION
             for (int l = 0; l < dim; l++)
             {
-               tmp += FaceNor(l) * hyp->VelFace(l,i,e*nqf+k);
+               NumFlux(0) += FaceNor(l) * hyp->VelFace(l,i,e*nqf+k);
             }
 
-            EvaluateSolution(x, uEval, uNbrEval, e, i, k);
-				
-// 				Vector NumFlux(hyp->NumEq); // TODO allocate
+            // Lax-Friedrichs flux (equals full upwinding for Advection).
+            NumFlux(0) = 0.5 * ( NumFlux(0) * (uEval(0) + uNbrEval(0)) + 
+								abs(NumFlux(0)) * (uEval(0) - uNbrEval(0)) );
+
+// 				// GENERAL
 // 				LaxFriedrichs(uEval, uNbrEval, FaceNor, NumFlux);
 
-            // Lax-Friedrichs flux (equals full upwinding for Advection).
-            tmp = 0.5 * ( tmp * (uEval(0) + uNbrEval(0)) + abs(tmp) 
-						* (uEval(0) - uNbrEval(0)) );
-// 
-				tmp *= BdrInt(i,k,e) * QuadWeightFace(k);
+				NumFlux *= BdrInt(i,k,e) * QuadWeightFace(k);
 				
 				for (int n = 0; n < hyp->NumEq; n++)
 				{
 					for (int j = 0; j < dofs.NumFaceDofs; j++)
 					{
-               	z(vdofs[dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k) * tmp;
-
-// 						z(vdofs[n*nd+dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
-// 							* NumFlux(n) * BdrInt(i,k,e) * QuadWeightFace(k);
+               	z(vdofs[n*nd+dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
+							* NumFlux(n);
 					}
 				}
          }
