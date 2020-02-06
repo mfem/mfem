@@ -19,7 +19,7 @@ using namespace mfem;
 TEST_CASE("Second order ODE methods",
           "[ODE2]")
 {
-   double tol = 0.25;
+   double tol = 0.1;
 
    /** Class for simple linear second order ODE.
     *
@@ -64,16 +64,16 @@ TEST_CASE("Second order ODE methods",
       CheckODE2()
       {
          oper = new ODE2(1.0, 0.0);
-         ti_steps = 160;
+         ti_steps = 20;
          levels   = 5;
 
          u0.SetSize(1);
          u0    = 1.0;
 
          dudt0.SetSize(1);
-         dudt0  = 0.0;
+         dudt0  = 1.0;
 
-         t_final = M_PI;
+         t_final = 2*M_PI;
          dt = t_final/double(ti_steps);
       };
 
@@ -81,7 +81,7 @@ TEST_CASE("Second order ODE methods",
       {
          double dt,t;
          Vector u(1);
-         Vector dudt(1);
+         Vector du(1);
          Vector err_u(levels);
          Vector err_du(levels);
          int steps = ti_steps;
@@ -89,17 +89,17 @@ TEST_CASE("Second order ODE methods",
          t = 0.0;
          dt = t_final/double(steps);
          u = u0;
-         dudt = dudt0;
+         du.Set(dt,dudt0);
          ode_solver->Init(*oper);
          for (int ti = 0; ti< steps; ti++)
          {
-            ode_solver->Step(u, dudt, t, dt);
+            ode_solver->Step(u, du, t, dt);
          }
-         u +=u0;
-         dudt +=dudt0;
+         u -= u0;
+         du.Add(-dt,dudt0);
 
          err_u[0] = u.Norml2();
-         err_du[0] = dudt.Norml2();
+         err_du[0] = du.Norml2();
 
          std::cout<<std::setw(12)<<"Error u"
                   <<std::setw(12)<<"Error du"
@@ -116,15 +116,16 @@ TEST_CASE("Second order ODE methods",
             steps *=2;
             dt = t_final/double(steps);
             u = u0;
+            du.Set(dt,dudt0);
             ode_solver->Init(*oper);
             for (int ti = 0; ti< steps; ti++)
             {
-               ode_solver->Step(u, dudt, t, dt);
+               ode_solver->Step(u, du, t, dt);
             }
-            u +=u0;
-            dudt +=dudt0;
+            u -= u0;
+            du.Add(-dt,dudt0);
             err_u[l] = u.Norml2();
-            err_du[l] = dudt.Norml2();
+            err_du[l] = du.Norml2();
             std::cout<<std::setw(12)<<err_u[l]
                      <<std::setw(12)<<err_du[l]
                      <<std::setw(12)<<err_u[l-1]/err_u[l]
@@ -144,19 +145,19 @@ TEST_CASE("Second order ODE methods",
    SECTION("Newmark")
    {
       std::cout <<"\nTesting NewmarkSolver" << std::endl;
-      REQUIRE(check.order(new NewmarkSolver) + tol > 2.0 );
+      REQUIRE(check.order(new NewmarkSolver) + tol > 3.0 );
    }
 
    SECTION("LinearAcceleration")
    {
       std::cout <<"\nLinearAccelerationSolver" << std::endl;
-      REQUIRE(check.order(new LinearAccelerationSolver) + tol > 2.0 );
+      REQUIRE(check.order(new LinearAccelerationSolver) + tol > 3.0 );
    }
 
    SECTION("CentralDifference")
    {
       std::cout <<"\nTesting CentralDifference" << std::endl;
-      REQUIRE(check.order(new CentralDifferenceSolver) + tol > 2.0 );
+      REQUIRE(check.order(new CentralDifferenceSolver) + tol > 3.0 );
    }
 
    SECTION("FoxGoodwin")
@@ -169,25 +170,25 @@ TEST_CASE("Second order ODE methods",
    SECTION("GeneralizedAlpha")
    {
       std::cout <<"\nTesting GeneralizedAlpha" << std::endl;
-      REQUIRE(check.order(new GeneralizedAlpha2Solver) + tol > 2.0 );
+      REQUIRE(check.order(new GeneralizedAlpha2Solver) + tol > 3.0 );
    }
 
    SECTION("AverageAcceleration")
    {
       std::cout <<"\nTesting AverageAcceleration" << std::endl;
-      REQUIRE(check.order(new AverageAccelerationSolver) + tol > 2.0 );
+      REQUIRE(check.order(new AverageAccelerationSolver) + tol > 3.0 );
    }
 
    SECTION("HHTAlpha")
    {
       std::cout <<"\nTesting HHTAlpha" << std::endl;
-      REQUIRE(check.order(new HHTAlphaSolver) + tol > 2.0 );
+      REQUIRE(check.order(new HHTAlphaSolver) + tol > 3.0 );
    }
 
    SECTION("WBZAlphaAlpha")
    {
       std::cout <<"\nTesting WBZAlpha" << std::endl;
-      REQUIRE(check.order(new WBZAlphaSolver) + tol > 2.0 );
+      REQUIRE(check.order(new WBZAlphaSolver) + tol > 3.0 );
    }
 }
 
