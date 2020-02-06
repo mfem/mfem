@@ -792,8 +792,6 @@ protected:
    // Normalization factor for the metric term.
    double metric_normal;
 
-   mutable DiscreteAdaptTC *discr_tc;
-
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
    // These are both NULL when there is no limiting.
    // The class doesn't own nodes0 and coeff0.
@@ -805,6 +803,9 @@ protected:
    TMOP_LimiterFunction *lim_func;
    // Normalization factor for the limiting term.
    double lim_normal;
+
+   mutable DiscreteAdaptTC *discr_tc;
+
    // Parameters for Gradient & Hessian calculation
    int    der_flag;
    int    fdorder;

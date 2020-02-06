@@ -75,7 +75,7 @@ public:
       const Vector &x, const FiniteElementSpace &fes) {};
 
    virtual void SetupElementGradTargetSpecification(
-      const Vector &x, const FiniteElementSpace &fes) {} ;
+      const Vector &x, const FiniteElementSpace &fes) {};
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
@@ -287,13 +287,6 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Ttr,
                                     const Vector &elfun, DenseMatrix &elmat);
-
-   virtual void SetupElementVectorTargetSpecification(
-      const Vector &x, const FiniteElementSpace &fes) {};
-
-   virtual void SetupElementGradTargetSpecification(
-      const Vector &x,const FiniteElementSpace &fes) {};
-
 };
 
 /** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress
@@ -325,12 +318,6 @@ public:
                                     ElementTransformation &Tr,
                                     const Array<const Vector *> &elfun,
                                     const Array2D<DenseMatrix *> &elmats);
-
-   virtual void SetupElementVectorTargetSpecification(
-      const Vector &x, const FiniteElementSpace &fes) {};
-
-   virtual void SetupElementGradTargetSpecification(
-      const Vector &x,const FiniteElementSpace &fes) {};
 };
 
 class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
