@@ -128,6 +128,7 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
    return 0.0;
 }
 
+
 double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 {
    Z.SetSize(J.Width());
