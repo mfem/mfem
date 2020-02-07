@@ -1494,7 +1494,10 @@ void CurlCurlIntegrator::AssembleElementMatrix
       {
          order = 2*el.GetOrder();
       }
-
+      if (Q || MQ)
+      {
+         order += 1;
+      }
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
