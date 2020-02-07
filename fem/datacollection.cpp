@@ -1092,19 +1092,6 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
    MPI_Comm_rank(lcomm, &myrank);
    MPI_Comm_size(lcomm, &nprocs);
    levels_of_detail = 1;
-
-   std::string dpath = GenerateCollectionPath();
-   std::string pvdname = dpath+"/"+GeneratePVDFileName();
-   int err = create_directory(dpath,myrank,lcomm);
-   if (err) { MFEM_ABORT("Cannot create the directory:"<<dpath);}
-   if (myrank==0)
-   {
-      pvd_stream.open(pvdname.c_str(),std::ios::out);
-      pvd_stream << "<?xml version=\"1.0\"?>" << std::endl;
-      pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"" << std::endl;
-      pvd_stream << "     byte_order=\"LittleEndian\">" << std::endl;
-      pvd_stream << "<Collection>" << std::endl;
-   }
 }
 
 int ParaViewDataCollection::create_directory(const std::string &dir_name,
