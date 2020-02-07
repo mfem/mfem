@@ -89,14 +89,14 @@ TEST_CASE("Second order ODE methods",
          t = 0.0;
          dt = t_final/double(steps);
          u = u0;
-         du.Set(dt,dudt0);
+         du = dudt0;
          ode_solver->Init(*oper);
          for (int ti = 0; ti< steps; ti++)
          {
             ode_solver->Step(u, du, t, dt);
          }
          u -= u0;
-         du.Add(-dt,dudt0);
+         du -= dudt0;
 
          err_u[0] = u.Norml2();
          err_du[0] = du.Norml2();
@@ -116,14 +116,16 @@ TEST_CASE("Second order ODE methods",
             steps *=2;
             dt = t_final/double(steps);
             u = u0;
-            du.Set(dt,dudt0);
+            du = dudt0;
             ode_solver->Init(*oper);
             for (int ti = 0; ti< steps; ti++)
             {
+//std::cout<<t<<" "<<u(0)<<" "<< du(0)<<" ll"<<l<<std::endl;
                ode_solver->Step(u, du, t, dt);
+//std::cout<<t<<" "<<u(0)<<" "<< du(0)<<" ll"<<l<<std::endl;
             }
             u -= u0;
-            du.Add(-dt,dudt0);
+            du -= dudt0;
             err_u[l] = u.Norml2();
             err_du[l] = du.Norml2();
             std::cout<<std::setw(12)<<err_u[l]
@@ -145,19 +147,19 @@ TEST_CASE("Second order ODE methods",
    SECTION("Newmark")
    {
       std::cout <<"\nTesting NewmarkSolver" << std::endl;
-      REQUIRE(check.order(new NewmarkSolver) + tol > 3.0 );
+      REQUIRE(check.order(new NewmarkSolver) + tol > 2.0 );
    }
 
    SECTION("LinearAcceleration")
    {
       std::cout <<"\nLinearAccelerationSolver" << std::endl;
-      REQUIRE(check.order(new LinearAccelerationSolver) + tol > 3.0 );
+      REQUIRE(check.order(new LinearAccelerationSolver) + tol > 2.0 );
    }
 
    SECTION("CentralDifference")
    {
       std::cout <<"\nTesting CentralDifference" << std::endl;
-      REQUIRE(check.order(new CentralDifferenceSolver) + tol > 3.0 );
+      REQUIRE(check.order(new CentralDifferenceSolver) + tol > 2.0 );
    }
 
    SECTION("FoxGoodwin")
@@ -170,25 +172,25 @@ TEST_CASE("Second order ODE methods",
    SECTION("GeneralizedAlpha")
    {
       std::cout <<"\nTesting GeneralizedAlpha" << std::endl;
-      REQUIRE(check.order(new GeneralizedAlpha2Solver) + tol > 3.0 );
+      REQUIRE(check.order(new GeneralizedAlpha2Solver(0.0)) + tol > 2.0 );
    }
 
    SECTION("AverageAcceleration")
    {
       std::cout <<"\nTesting AverageAcceleration" << std::endl;
-      REQUIRE(check.order(new AverageAccelerationSolver) + tol > 3.0 );
+      REQUIRE(check.order(new AverageAccelerationSolver) + tol > 2.0 );
    }
 
    SECTION("HHTAlpha")
    {
       std::cout <<"\nTesting HHTAlpha" << std::endl;
-      REQUIRE(check.order(new HHTAlphaSolver) + tol > 3.0 );
+      REQUIRE(check.order(new HHTAlphaSolver(0.5)) + tol > 2.0 );
    }
 
    SECTION("WBZAlphaAlpha")
    {
       std::cout <<"\nTesting WBZAlpha" << std::endl;
-      REQUIRE(check.order(new WBZAlphaSolver) + tol > 3.0 );
+      REQUIRE(check.order(new WBZAlphaSolver(0.5)) + tol > 2.0 );
    }
 }
 
