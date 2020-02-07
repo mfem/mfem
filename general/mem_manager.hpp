@@ -535,9 +535,6 @@ private: // Static methods used by the Memory<T> class
 
 private:
 
-   /// Adds an address in the map
-   void *Insert(void *ptr, const std::size_t bytes);
-
    /// Insert a host address in the memory map
    void Insert(void *h_ptr, size_t bytes, MemoryType h_mt,  MemoryType d_mt);
 
@@ -674,7 +671,7 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
       }
    }
    h_mt = MemoryManager::host_mem_type;
-   if (own &&  h_mt >= MemoryType::HOST_DEBUG)
+   if (own && h_mt >= MemoryType::HOST_DEBUG)
    {
       MemoryManager::Register_(host_ptr, host_ptr, size*sizeof(T), h_mt,
                                own, false, flags);

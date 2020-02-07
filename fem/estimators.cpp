@@ -9,6 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "../general/dbg.hpp"
 #include "estimators.hpp"
 
 namespace mfem
@@ -34,6 +35,8 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
 
 void L2ZienkiewiczZhuEstimator::ComputeEstimates()
 {
+   dbg("error_estimates.UseDevice(true)");
+   error_estimates.UseDevice(true);
    flux_space->Update(false);
    smooth_flux_space->Update(false);
 
