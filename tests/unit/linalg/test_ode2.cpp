@@ -32,10 +32,11 @@ TEST_CASE("Second order ODE methods",
       double a,b;
 
    public:
-      ODE2(double a_, double b_) :  SecondOrderTimeDependentOperator(1, 0.0),  a(a_), b(b_) {};
+      ODE2(double a_, double b_) :  SecondOrderTimeDependentOperator(1, 0.0),  a(a_),
+         b(b_) {};
 
       virtual void Mult(const Vector &u, const Vector &dudt,
-                              Vector &d2udt2)  const
+                        Vector &d2udt2)  const
       {
          d2udt2[0] = -a*u[0] - b*dudt[0];
       }
@@ -120,9 +121,9 @@ TEST_CASE("Second order ODE methods",
             ode_solver->Init(*oper);
             for (int ti = 0; ti< steps; ti++)
             {
-//std::cout<<t<<" "<<u(0)<<" "<< du(0)<<" ll"<<l<<std::endl;
+               //std::cout<<t<<" "<<u(0)<<" "<< du(0)<<" ll"<<l<<std::endl;
                ode_solver->Step(u, du, t, dt);
-//std::cout<<t<<" "<<u(0)<<" "<< du(0)<<" ll"<<l<<std::endl;
+               //std::cout<<t<<" "<<u(0)<<" "<< du(0)<<" ll"<<l<<std::endl;
             }
             u -= u0;
             du -= dudt0;

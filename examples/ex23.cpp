@@ -54,7 +54,7 @@ public:
    WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr,double speed);
 
    virtual void Mult(const Vector &u, const Vector &du_dt,
-                              Vector &d2udt2) const;
+                     Vector &d2udt2) const;
    /** Solve the Backward-Euler equation:
        d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t), for the unknown d2udt2.*/
    virtual void ImplicitSolve(const double fac0, const double fac1,
@@ -69,7 +69,8 @@ public:
 
 WaveOperator::WaveOperator(FiniteElementSpace &f,
                            Array<int> &ess_bdr, double speed)
-   : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
+   : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL),
+     K(NULL),
      T(NULL), current_dt(0.0), z(height)
 {
    const double rel_tol = 1e-8;
@@ -110,7 +111,7 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
 }
 
 void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
-                                 Vector &d2udt2)  const
+                        Vector &d2udt2)  const
 {
    // Compute:
    //    d2udt2 = M^{-1}*-K(u)

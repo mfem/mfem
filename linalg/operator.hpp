@@ -453,12 +453,13 @@ public:
    /** @brief Construct a "square" SecondOrderTimeDependentOperator y = f(x,t), where x and
        y have the same dimension @a n. */
    explicit SecondOrderTimeDependentOperator(int n = 0, double t_ = 0.0,
-                                  Type type_ = EXPLICIT)
+                                             Type type_ = EXPLICIT)
       : TimeDependentOperator(n, t_,type_) { }
 
    /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,t), where x and y have
        dimensions @a w and @a h, respectively. */
-   SecondOrderTimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
+   SecondOrderTimeDependentOperator(int h, int w, double t_ = 0.0,
+                                    Type type_ = EXPLICIT)
       : TimeDependentOperator(h, w, t_,type_) { }
 
    /** @brief Perform the action of the operator: @a y = k = f(@a x, t), where
