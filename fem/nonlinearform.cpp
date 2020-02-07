@@ -153,7 +153,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    {
       for (int k = 0; k < dnfi.Size(); k++)
       {
-         dnfi[k]->SetupElementVectorTargetSpecification(px,*fes);
+         dnfi[k]->SetupElementVectorTSpec(px,*fes);
       }
       for (int i = 0; i < fes->GetNE(); i++)
       {
@@ -293,7 +293,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    {
       for (int k = 0; k < dnfi.Size(); k++)
       {
-         dnfi[k]->SetupElementGradTargetSpecification(px,*fes);
+         dnfi[k]->SetupElementGradTSpec(px,*fes);
       }
       for (int i = 0; i < fes->GetNE(); i++)
       {
