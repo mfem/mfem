@@ -536,6 +536,7 @@ not_supp:
               ", SDim = " << SDim << " is not supported");
 }
 
+#if 0
 const FiniteElement *
 LinearFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
@@ -1501,14 +1502,15 @@ const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
       return NULL;
    }
 }
+#endif
 
-
-H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
+H1_FECollection::H1_FECollection(const int default_p, const int dim, const int btype)
+   : FiniteElementCollection(default_p, dim)
 {
    MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
 
-   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
+   const int p = default_p;
 
    int pt_type = BasisType::GetQuadrature1D(btype);
    b_type = BasisType::Check(btype);
@@ -1540,52 +1542,67 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
    }
 
+   InitOrder(default_p);
+}
+
+template<typename T>
+static void EnlargePArray(Array<T> &array, int p)
+{
+   if (array.Size() <= p)
+   {
+      array.SetSize(p + 1, T());
+   }
+}
+
+void H1_FECollection::CheckOrder(int p)
+{
+   return (H1_Elements[Geometry::Point].Size() > p) &&
+          (H1_Elements[Geometry::Point][p] != NULL);
+}
+
+void H1_FECollection::InitOrder(int p)
+{
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      H1_dof[g] = 0;
-      H1_Elements[g] = NULL;
+      EnlargePArray(H1_Elements[g], p);
+      EnlargePArray(H1_dof[g], p);
    }
-   for (int i = 0; i < 2; i++)
-   {
-      SegDofOrd[i] = NULL;
-   }
-   for (int i = 0; i < 6; i++)
-   {
-      TriDofOrd[i] = NULL;
-   }
-   for (int i = 0; i < 8; i++)
-   {
-      QuadDofOrd[i] = NULL;
-   }
+   for (int i = 0; i < 2; i++) { EnlargePArray(SegDofOrd[i], p); }
+   for (int i = 0; i < 6; i++) { EnlargePArray(TriDofOrd[i], p); }
+   for (int i = 0; i < 8; i++) { EnlargePArray(QuadDofOrd[i], p); }
 
-   H1_dof[Geometry::POINT] = 1;
-   H1_Elements[Geometry::POINT] = new PointFiniteElement;
+   MFEM_VERIFY(H1_Elements[Geometry::POINT][p] == NULL, "already initialized");
+
+   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
+
+   H1_dof[Geometry::POINT][p] = 1;
+   H1_Elements[Geometry::POINT][p] = new PointFiniteElement;
 
    if (dim >= 1)
    {
-      H1_dof[Geometry::SEGMENT] = pm1;
+      H1_dof[Geometry::SEGMENT][p] = pm1;
       if (b_type == BasisType::Positive)
       {
-         H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
+         H1_Elements[Geometry::SEGMENT][p] = new H1Pos_SegmentElement(p);
       }
       else
       {
-         H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, btype);
+         H1_Elements[Geometry::SEGMENT][p] = new H1_SegmentElement(p, btype);
       }
 
-      SegDofOrd[0] = new int[2*pm1];
-      SegDofOrd[1] = SegDofOrd[0] + pm1;
+      SegDofOrd[0][p] = new int[2*pm1];
+      SegDofOrd[1][p] = SegDofOrd[0] + pm1;
       for (int i = 0; i < pm1; i++)
       {
-         SegDofOrd[0][i] = i;
-         SegDofOrd[1][i] = pm2 - i;
+         SegDofOrd[0][p][i] = i;
+         SegDofOrd[1][p][i] = pm2 - i;
       }
    }
 
    if (dim >= 2)
    {
-      H1_dof[Geometry::TRIANGLE] = (pm1*pm2)/2;
-      H1_dof[Geometry::SQUARE] = pm1*pm1;
+      H1_dof[Geometry::TRIANGLE][p] = (pm1*pm2)/2;
+      H1_dof[Geometry::SQUARE][p] = pm1*pm1;
       if (b_type == BasisType::Positive)
       {
          H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
@@ -1716,25 +1733,39 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    }
 }
 
-const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                   int Or) const
+const FiniteElement* H1_FECollection::GetFE(Geometry::Type geom, int p) const
 {
-   if (GeomType == Geometry::SEGMENT)
+   if (!CheckOrder(p)) { InitOrder(p); }
+   return H1_Elements[geom][p];
+}
+
+int H1_FECollection::GetNumDof(Geometry::Type geom, int p) const
+{
+   if (!CheckOrder(p)) { InitOrder(p); }
+   return H1_dof[geom][p];
+}
+
+const int* H1_FECollection::GetDofOrder(Geometry::Type geom, int p,
+                                        int orientation) const
+{
+   if (!CheckOrder(p)) { InitOrder(p); }
+
+   if (geom == Geometry::SEGMENT)
    {
-      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+      return (orientation > 0) ? SegDofOrd[0][p] : SegDofOrd[1][p];
    }
-   else if (GeomType == Geometry::TRIANGLE)
+   else if (geom == Geometry::TRIANGLE)
    {
-      return TriDofOrd[Or%6];
+      return TriDofOrd[orientation % 6][p];
    }
-   else if (GeomType == Geometry::SQUARE)
+   else if (geom == Geometry::SQUARE)
    {
-      return QuadDofOrd[Or%8];
+      return QuadDofOrd[orientation % 8][p];
    }
    return NULL;
 }
 
-FiniteElementCollection *H1_FECollection::GetTraceCollection() const
+/*FiniteElementCollection *H1_FECollection::GetTraceCollection() const
 {
    int p = H1_dof[Geometry::SEGMENT] + 1;
    int dim = -1;
@@ -1772,7 +1803,7 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
          // class GeometryRefiner.
    }
    return dof_map;
-}
+}*/
 
 H1_FECollection::~H1_FECollection()
 {
@@ -1785,7 +1816,7 @@ H1_FECollection::~H1_FECollection()
    }
 }
 
-
+#if 0
 H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
                                              const int btype)
    : H1_FECollection(p, dim-1, btype)
@@ -2602,5 +2633,6 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
    MFEM_ABORT("NURBS finite elements can not be statically condensed!");
    return NULL;
 }
+#endif
 
 }
