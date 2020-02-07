@@ -846,7 +846,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Scalar Coefficient")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(q3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -856,7 +857,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   REQUIRE( g_rt.ComputeL2Error(qF3_coef) < tol );
 
                   MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+                  blfw.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(q3_coef));
                   blfw.Assemble();
                   blfw.Finalize();
 
@@ -871,7 +873,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Diagonal Matrix Coefficient")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(D3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -897,7 +900,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Matrix Coefficient")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(M3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -995,7 +999,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Scalar Coefficient")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(q3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -1006,7 +1011,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   REQUIRE( g_ndp.ComputeL2Error(qF3_coef) < tol );
 
                   MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+                  blfw.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(q3_coef));
                   blfw.Assemble();
                   blfw.Finalize();
 
@@ -1021,7 +1027,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Diagonal Matrix Coefficient")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(D3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -1048,7 +1055,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Matrix Coefficient")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(M3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -1157,7 +1165,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Scalar Coefficient")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(q3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -1167,7 +1176,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   REQUIRE( g_nd.ComputeL2Error(qF3_coef) < tol );
 
                   MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+                  blfw.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(q3_coef));
                   blfw.Assemble();
                   blfw.Finalize();
 
@@ -1182,7 +1192,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Diagonal Matrix Coefficient")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(D3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -1208,7 +1219,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Matrix Coefficient")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(M3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -1306,7 +1318,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Scalar Coefficient")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(q3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -1317,7 +1330,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   REQUIRE( g_rtp.ComputeL2Error(qF3_coef) < tol );
 
                   MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+                  blfw.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(q3_coef));
                   blfw.Assemble();
                   blfw.Finalize();
 
@@ -1332,7 +1346,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Diagonal Matrix Coefficient")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(D3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -1359,7 +1374,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                SECTION("With Matrix Coefficient")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
+                  blf.AddDomainIntegrator(
+                     new MixedVectorMassIntegrator(M3_coef));
                   blf.Assemble();
                   blf.Finalize();
 
@@ -2128,7 +2144,8 @@ TEST_CASE("3D Bilinear Vector Product Integrators",
             SECTION("With Vector Coefficient")
             {
                MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
+               blf.AddDomainIntegrator(
+                  new MixedVectorProductIntegrator(V3_coef));
                blf.Assemble();
                blf.Finalize();
 
@@ -2171,7 +2188,8 @@ TEST_CASE("3D Bilinear Vector Product Integrators",
             SECTION("With Vector Coefficient")
             {
                MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
+               blf.AddDomainIntegrator(
+                  new MixedVectorProductIntegrator(V3_coef));
                blf.Assemble();
                blf.Finalize();
 
@@ -2222,7 +2240,8 @@ TEST_CASE("3D Bilinear Vector Product Integrators",
             SECTION("With Vector Coefficient")
             {
                MixedBilinearForm blf(&fespace_l2, &fespace_nd);
-               blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
+               blf.AddDomainIntegrator(
+                  new MixedVectorProductIntegrator(V3_coef));
                blf.Assemble();
                blf.Finalize();
 
@@ -2265,7 +2284,8 @@ TEST_CASE("3D Bilinear Vector Product Integrators",
             SECTION("With Vector Coefficient")
             {
                MixedBilinearForm blf(&fespace_l2, &fespace_rt);
-               blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
+               blf.AddDomainIntegrator(
+                  new MixedVectorProductIntegrator(V3_coef));
                blf.Assemble();
                blf.Finalize();
 
@@ -2344,7 +2364,8 @@ TEST_CASE("3D Bilinear Vector Cross Product Integrators",
                blf.Finalize();
 
                blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
-               PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
+               PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200,
+                   cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_ndp.ComputeL2Error(VxF3_coef) < tol );
 
@@ -2484,7 +2505,8 @@ TEST_CASE("3D Bilinear Vector Cross Product Integrators",
                blf.Finalize();
 
                blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
-               PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200, cg_rtol * cg_rtol, 0.0);
+               PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200,
+                   cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rtp.ComputeL2Error(VxF3_coef) < tol );
 
