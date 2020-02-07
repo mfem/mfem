@@ -443,35 +443,38 @@ public:
 };
 
 /// Base abstract class for second order time dependent operators.
-/** Operator of the form: (x,t) -> f(x,t), where k = f(x,t) generally solves the
-    algebraic equation F(x,k,t) = G(x,t). The functions F and G represent the
-    _implicit_ and _explicit_ parts of the operator, respectively. For explicit
-    operators, F(x,k,t) = k, so f(x,t) = G(x,t). */
+/** Operator of the form: (x,dxdt,t) -> f(x,dxdt,t), where k = f(x,dxdt,t)
+    generally solves the algebraic equation F(x,dxdt,k,t) = G(x,dxdt,t).
+    The functions F and G represent the_implicit_ and _explicit_ parts of
+    the operator, respectively. For explicit operators,
+    F(x,dxdt,k,t) = k, so f(x,dxdt,t) = G(x,dxdt,t). */
 class SecondOrderTimeDependentOperator : public TimeDependentOperator
 {
 public:
-   /** @brief Construct a "square" SecondOrderTimeDependentOperator y = f(x,t), where x and
-       y have the same dimension @a n. */
+   /** @brief Construct a "square" SecondOrderTimeDependentOperator
+       y = f(x,dxdt,t), where x, dxdt and y have the same dimension @a n. */
    explicit SecondOrderTimeDependentOperator(int n = 0, double t_ = 0.0,
                                              Type type_ = EXPLICIT)
       : TimeDependentOperator(n, t_,type_) { }
 
-   /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,t), where x and y have
-       dimensions @a w and @a h, respectively. */
+   /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,dxdt,t),
+       where x, dxdt and y have the same dimension @a n. */
    SecondOrderTimeDependentOperator(int h, int w, double t_ = 0.0,
                                     Type type_ = EXPLICIT)
       : TimeDependentOperator(h, w, t_,type_) { }
 
-   /** @brief Perform the action of the operator: @a y = k = f(@a x, t), where
-       k solves the algebraic equation F(@a x, k, t) = G(@a x, t) and t is the
-       current time. */
+   /** @brief Perform the action of the operator: @a y = k = f(@a x,@ dxdt, t),
+       where k solves the algebraic equation
+       F(@a x,@ dxdt, k, t) = G(@a x,@ dxdt, t) and t is the current time. */
    virtual void Mult(const Vector &x, const Vector &dxdt, Vector &y) const;
 
-   /** @brief Solve the equation: @a k = f(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t), for the
+   /** @brief Solve the equation:
+       @a k = f(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t), for the
        unknown @a k at the current time t.
 
        For general F and G, the equation for @a k becomes:
-       F(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t) = G(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t).
+       F(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t)
+                        = G(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t).
 
        The input vector @a x corresponds to time index (or cycle) n, while the
        currently set time, #t, and the result vector @a k correspond to time

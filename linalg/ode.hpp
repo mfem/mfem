@@ -527,12 +527,12 @@ private:
 
 
 
-/// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
+/// Abstract class for solving systems of ODEs: d2x/dt2 = f(x,dx/dt,t)
 class SecondOrderODESolver
 {
 protected:
    /// Pointer to the associated TimeDependentOperator.
-   SecondOrderTimeDependentOperator *f;  // f(.,t) : R^n --> R^n
+   SecondOrderTimeDependentOperator *f;  // f(.,.,t) : R^n x R^n --> R^n
    MemoryType mem_type;
 
 public:
@@ -548,10 +548,11 @@ public:
 
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based
        on the requested step size @a dt [in]. */
-   /** @param[in,out] x   Approximate solution.
+   /** @param[in,out] x    Approximate solution.
        @param[in,out] dxdt Approximate rate.
-       @param[in,out] t   Time associated with the approximate solution @a x.
-       @param[in,out] dt  Time step size.
+       @param[in,out] t    Time associated with the
+                           approximate solution @a x and rate @ dxdt
+       @param[in,out] dt   Time step size.
 
        The following rules describe the common behavior of the method:
        - The input @a x [in] is the approximate solution for the input time
@@ -562,7 +563,7 @@ public:
          target time: t [target] = @a t [in] + @a dt [in].
        - The output @a x [out] is the approximate solution for the output time
          @a t [out].
-       - The output @a x [out] is the approximate rate for the output time
+       - The output @a dxdt [out] is the approximate rate for the output time
          @a t [out].
        - The output @a dt [out] is the last time step taken by the method which
          may be smaller or larger than the input @a dt [in] value, e.g. because
