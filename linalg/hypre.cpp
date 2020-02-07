@@ -108,23 +108,11 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
    _SetDataAndSize_();
    own_ParVector = 1;
-   hypre_Vector *local_vector = hypre_ParVectorLocalVector(x);
-   HYPRE_Complex *local_data = hypre_VectorData(local_vector);
-   HYPRE_Int local_size = hypre_VectorSize(local_vector);
-   MFEM_ASSERT(local_size == this->size,"");
-   dbg("data: %p",(double*)this->data);
-   //Memory<HYPRE_Complex>(local_data, size, MemoryType::HOST, false);
-   mm.RegisterCheck(local_data);
-   mm.RegisterCheck(this->data);
-   MFEM_VERIFY(local_data == this->data,"");
-   dbg("done");
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
                                double *_data, HYPRE_Int *col) : Vector()
 {
-   dbg("");
-   //mm.RegisterCheck(_data);
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),0);
@@ -137,17 +125,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
    // Set the internal data array to the one passed in
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
    _SetDataAndSize_();
-   dbg("data: %p",(double*)this->data);
    own_ParVector = 1;
-   hypre_Vector *local_vector = hypre_ParVectorLocalVector(x);
-   HYPRE_Complex *local_data = hypre_VectorData(local_vector);
-   HYPRE_Int local_size = hypre_VectorSize(local_vector);
-   MFEM_ASSERT(local_size == this->size,"");
-   //Memory<HYPRE_Complex>(local_data, size, mm.GetHostMemoryType(), false);
-   mm.RegisterCheck(local_data);
-   mm.RegisterCheck(this->data);
-   mm.RegisterCheck(data);
-   MFEM_VERIFY(local_data == this->data,"");
 }
 
 HypreParVector::HypreParVector(const HypreParVector &y) : Vector()
