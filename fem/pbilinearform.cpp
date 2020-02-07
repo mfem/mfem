@@ -489,6 +489,62 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
    test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
+void ParMixedBilinearForm::FormRectangularSystemMatrix(
+   const Array<int>
+   &trial_tdof_list,
+   const Array<int> &test_tdof_list,
+   OperatorHandle &A)
+{
+   if (ext)
+   {
+      ext->FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, A);
+      return;
+   }
+
+   if (mat)
+   {
+      Finalize();
+      ParallelAssemble(p_mat);
+      delete mat;
+      mat = NULL;
+      delete mat_e;
+      mat_e = NULL;
+      HypreParMatrix *temp =
+         p_mat.As<HypreParMatrix>()->EliminateCols(trial_tdof_list);
+      p_mat.As<HypreParMatrix>()->EliminateRows(test_tdof_list);
+      p_mat_e.Reset(temp, true);
+   }
+
+   A = p_mat;
+}
+
+void ParMixedBilinearForm::FormRectangularLinearSystem(
+   const Array<int>
+   &trial_tdof_list,
+   const Array<int> &test_tdof_list, Vector &x,
+   Vector &b, OperatorHandle &A, Vector &X,
+   Vector &B)
+{
+   if (ext)
+   {
+      ext->FormRectangularLinearSystem(trial_tdof_list, test_tdof_list,
+                                       x, b, A, X, B);
+      return;
+   }
+
+   FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, A);
+
+   const Operator *test_P = test_pfes->GetProlongationMatrix();
+   const SparseMatrix *trial_R = trial_pfes->GetRestrictionMatrix();
+
+   X.SetSize(trial_pfes->TrueVSize());
+   B.SetSize(test_pfes->TrueVSize());
+   test_P->MultTranspose(b, B);
+   trial_R->Mult(x, X);
+
+   p_mat_e.As<HypreParMatrix>()->Mult(-1.0, X, 1.0, B);
+   B.SetSubVector(test_tdof_list, 0.0);
+}
 
 HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
 {
