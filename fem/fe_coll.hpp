@@ -26,6 +26,8 @@ namespace mfem
 class FiniteElementCollection
 {
 protected:
+   int dim, default_p;
+
    template <Geometry::Type geom>
    static inline void GetNVE(int &nv, int &ne);
 
@@ -40,17 +42,29 @@ protected:
                               const int face_info);
 
 public:
-   virtual const FiniteElement *
+   FiniteElementCollection(const int default_p, const int dim)
+      : default_p(default_p), dim(dim) {}
+
+   virtual const FiniteElement * GetFE(Geometry::Type geom, int p) const = 0;
+
+   virtual int GetNumDof(Geometry::Type geom, int p) const = 0;
+
+   /** @brief Returns an array, say p, that maps a local permuted index i to
+       a local base index: base_i = p[i]. */
+   virtual const int * GetDofOrder(Geometry::Type geom, int p,
+                                   int orientation) const = 0;
+
+   /*virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const = 0;
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
-   /** @brief Returns an array, say p, that maps a local permuted index i to
-       a local base index: base_i = p[i]. */
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const = 0;
+                                             int Or) const = 0;*/
 
    virtual const char * Name() const { return "Undefined"; }
+
+   int DefaultOrder() const { return default_p; }
 
    int HasFaceDofs(Geometry::Type GeomType) const;
 
@@ -86,23 +100,32 @@ class H1_FECollection : public FiniteElementCollection
 protected:
    int b_type;
    char h1_name[32];
-   FiniteElement *H1_Elements[Geometry::NumGeom];
-   int H1_dof[Geometry::NumGeom];
-   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+   Array<FiniteElement*> H1_Elements[Geometry::NumGeom];
+   Array<int> H1_dof[Geometry::NumGeom];
+   Array<int*> SegDofOrd[2], TriDofOrd[6], QuadDofOrd[8];
+
+   bool CheckOrder(int p);
+   void InitOrder(int p);
 
 public:
-   explicit H1_FECollection(const int p, const int dim = 3,
+   explicit H1_FECollection(const int default_p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto);
 
-   virtual const FiniteElement *FiniteElementForGeometry(
+/*   virtual const FiniteElement *FiniteElementForGeometry(
       Geometry::Type GeomType) const
    { return H1_Elements[GeomType]; }
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return H1_dof[GeomType]; }
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;
-   virtual const char *Name() const { return h1_name; }
-   FiniteElementCollection *GetTraceCollection() const;
+                                             int Or) const;*/
+
+   virtual const FiniteElement* GetFE(Geometry::Type geom, int p) const;
+   virtual int GetNumDof(Geometry::Type geom, int p) const;
+   virtual const int* GetDofOrder(Geometry::Type geom, int p,
+                                  int orientation) const;
+
+   virtual const char* Name() const { return h1_name; }
+   FiniteElementCollection* GetTraceCollection() const;
 
    int GetBasisType() const { return b_type; }
    /// Get the Cartesian to local H1 dof map
@@ -111,6 +134,7 @@ public:
    virtual ~H1_FECollection();
 };
 
+#if 0
 /** Arbitrary order H1-conforming (continuous) finite elements with positive
     basis functions. */
 class H1Pos_FECollection : public H1_FECollection
@@ -892,6 +916,7 @@ public:
 
    virtual ~Local_FECollection() { delete Local_Element; }
 };
+#endif
 
 }
 
