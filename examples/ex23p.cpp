@@ -339,6 +339,7 @@ int main(int argc, char *argv[])
    // 10. Define the solution vector x as a parallel complex finite element grid
    //    function corresponding to fespace.
    ParComplexGridFunction x(fespace);
+   x = 0.0;
    VectorFunctionCoefficient E_Re(dim, E_bdr_data_Re);
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
    x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
@@ -431,7 +432,7 @@ int main(int argc, char *argv[])
    GMRESSolver * gmres = new GMRESSolver(MPI_COMM_WORLD);
    gmres->SetPrintLevel(1);
    gmres->SetMaxIter(1000);
-   gmres->SetRelTol(1e-6);
+   gmres->SetRelTol(1e-4);
    gmres->SetAbsTol(0.0);
    gmres->SetOperator(*A);
    gmres->Mult(B, X);

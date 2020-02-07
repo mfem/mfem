@@ -312,6 +312,7 @@ int main(int argc, char *argv[])
    // 9. Define the solution vector x as a parallel complex finite element grid
    //    function corresponding to fespace.
    ComplexGridFunction x(fespace);
+   x = 0.0;
    VectorFunctionCoefficient E_Re(dim, E_bdr_data_Re);
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
    x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
@@ -383,8 +384,8 @@ int main(int argc, char *argv[])
    //12.  Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
    // Direct Solver
-   KLUSolver  solver(*A);
-   // solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   UMFPackSolver  solver(*A);
+   solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    solver.Mult(B, X);
 #else
    GMRESSolver * gmres = new GMRESSolver;
