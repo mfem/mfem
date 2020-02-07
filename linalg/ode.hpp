@@ -70,8 +70,8 @@ public:
          between the two Step() calls. */
    virtual void Step(Vector &x, double &t, double &dt) = 0;
 
-   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt)
-   {  MFEM_ABORT("Step for 2nd order odes not implemented")};
+ //  virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt)
+ //  {  MFEM_ABORT("Step for 2nd order odes not implemented")};
 
    /// Perform time integration from time @a t [in] to time @a tf [in].
    /** @param[in,out] x   Approximate solution.
@@ -526,10 +526,97 @@ private:
 };
 
 
+
+/// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
+class SecondOrderODESolver
+{
+protected:
+   /// Pointer to the associated TimeDependentOperator.
+   SecondOrderTimeDependentOperator *f;  // f(.,t) : R^n --> R^n
+   MemoryType mem_type;
+
+public:
+   SecondOrderODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
+
+   /// Associate a TimeDependentOperator with the ODE solver.
+   /** This method has to be called:
+       - Before the first call to Step().
+       - When the dimensions of the associated TimeDependentOperator change.
+       - When a time stepping sequence has to be restarted.
+       - To change the associated TimeDependentOperator. */
+   virtual void Init(SecondOrderTimeDependentOperator &f);
+
+   /** @brief Perform a time step from time @a t [in] to time @a t [out] based
+       on the requested step size @a dt [in]. */
+   /** @param[in,out] x   Approximate solution.
+       @param[in,out] dxdt Approximate rate.
+       @param[in,out] t   Time associated with the approximate solution @a x.
+       @param[in,out] dt  Time step size.
+
+       The following rules describe the common behavior of the method:
+       - The input @a x [in] is the approximate solution for the input time
+         @a t [in].
+       - The input @a dxdt [in] is the approximate rate for the input time
+         @a t [in].
+       - The input @a dt [in] is the desired time step size, defining the desired
+         target time: t [target] = @a t [in] + @a dt [in].
+       - The output @a x [out] is the approximate solution for the output time
+         @a t [out].
+       - The output @a x [out] is the approximate rate for the output time
+         @a t [out].
+       - The output @a dt [out] is the last time step taken by the method which
+         may be smaller or larger than the input @a dt [in] value, e.g. because
+         of time step control.
+       - The method may perform more than one time step internally; in this case
+         @a dt [out] is the last internal time step size.
+       - The output value of @a t [out] may be smaller or larger than
+         t [target], however, it is not smaller than @a t [in] + @a dt [out], if
+         at least one internal time step was performed.
+       - The value @a x [out] may be obtained by interpolation using internally
+         stored data.
+       - In some cases, the contents of @a x [in] may not be used, e.g. when
+         @a x [out] from a previous Step() call was obtained by interpolation.
+       - In consecutive calls to this method, the output @a t [out] of one
+         Step() call has to be the same as the input @a t [in] to the next
+         Step() call.
+       - If the previous rule has to be broken, e.g. to restart a time stepping
+         sequence, then the ODE solver must be re-initialized by calling Init()
+         between the two Step() calls. */
+   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt) = 0;
+
+   /// Perform time integration from time @a t [in] to time @a tf [in].
+   /** @param[in,out] x    Approximate solution.
+       @param[in,out] dxdt Approximate rate.
+       @param[in,out] t    Time associated with the approximate solution @a x.
+       @param[in,out] dt   Time step size.
+       @param[in]     tf   Requested final time.
+
+       The default implementation makes consecutive calls to Step() until
+       reaching @a tf.
+       The following rules describe the common behavior of the method:
+       - The input @a x [in] is the approximate solution for the input time
+         @a t [in].
+       - The input @a dxdt [in] is the approximate rate for the input time
+         @a t [in].
+       - The input @a dt [in] is the initial time step size.
+       - The output @a dt [out] is the last time step taken by the method which
+         may be smaller or larger than the input @a dt [in] value, e.g. because
+         of time step control.
+       - The output value of @a t [out] is not smaller than @a tf [in]. */
+   virtual void Run(Vector &x, Vector &dxdt, double &t, double &dt, double tf)
+   {
+      while (t < tf) { Step(x, dxdt, t, dt); }
+   }
+
+   virtual ~SecondOrderODESolver() { }
+};
+
+
+
 /// The classical newmark method.
 /// Newmark, N. M. (1959) A method of computation for structural dynamics.
 /// Journal of Engineering Mechanics, ASCE, 85 (EM3) 67-94.
-class NewmarkSolver : public ODESolver
+class NewmarkSolver : public SecondOrderODESolver
 {
 private:
    Vector d2xdt2;
@@ -542,10 +629,7 @@ public:
 
    virtual void PrintProperties(std::ostream &out = mfem::out);
 
-   virtual void Init(TimeDependentOperator &_f);
-
-   virtual void Step(Vector &x, double &t, double &dt)
-   {  MFEM_ABORT("Step for 1st-order odes not implemented")};
+   virtual void Init(SecondOrderTimeDependentOperator &_f);
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
 };
@@ -572,7 +656,7 @@ public:
 /// A Time Integration Algorithm for Structural Dynamics With Improved Numerical Dissipation: The Generalized-α Method
 /// J.Chung and G.M. Hulbert,  J. Appl. Mech 60(2), 371-375, 1993
 /// https://doi.org/10.1115/1.2900803
-class GeneralizedAlpha2Solver : public ODESolver
+class GeneralizedAlpha2Solver : public SecondOrderODESolver
 {
 protected:
    Vector xa,va,aa,d2xdt2;
@@ -593,10 +677,7 @@ public:
 
    virtual void PrintProperties(std::ostream &out = mfem::out);
 
-   virtual void Init(TimeDependentOperator &_f);
-
-   virtual void Step(Vector &x, double &t, double &dt)
-   {  MFEM_ABORT("Step for 1st-order odes not implemented")};
+   virtual void Init(SecondOrderTimeDependentOperator &_f);
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
 };
