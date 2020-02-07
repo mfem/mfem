@@ -4356,7 +4356,8 @@ TEST_CASE("3D Bilinear Grad Grad Integrators",
                delete diff;
 
                LinearForm lf(&fespace_h1);
-               lf.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(df3_coef));
+               lf.AddBoundaryIntegrator(
+                  new BoundaryNormalLFIntegrator(df3_coef));
                lf.Assemble();
 
                blf.Mult(f_h1,tmp_h1); tmp_h1 -= lf; g_h1 = 0.0;
@@ -4380,7 +4381,8 @@ TEST_CASE("3D Bilinear Grad Grad Integrators",
                delete diff;
 
                LinearForm lf(&fespace_h1);
-               lf.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qdf3_coef));
+               lf.AddBoundaryIntegrator(
+                  new BoundaryNormalLFIntegrator(qdf3_coef));
                lf.Assemble();
 
                blf.Mult(f_h1,tmp_h1); tmp_h1 -= lf; g_h1 = 0.0;
@@ -4410,7 +4412,8 @@ TEST_CASE("3D Bilinear Grad Grad Integrators",
                delete diff;
 
                LinearForm lf(&fespace_h1);
-               lf.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(Mdf3_coef));
+               lf.AddBoundaryIntegrator(
+                  new BoundaryNormalLFIntegrator(Mdf3_coef));
                lf.Assemble();
 
                blf.Mult(f_h1,tmp_h1); tmp_h1 -= lf; g_h1 = 0.0;
@@ -4490,7 +4493,8 @@ TEST_CASE("3D Bilinear Mixed Grad Grad Integrators",
                delete diff;
 
                LinearForm lf(&fespace_h1);
-               lf.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(df3_coef));
+               lf.AddBoundaryIntegrator(
+                  new BoundaryNormalLFIntegrator(df3_coef));
                lf.Assemble();
 
                blf.Mult(f_h1,tmp_h1); tmp_h1 -= lf; g_h1 = 0.0;
@@ -4515,7 +4519,8 @@ TEST_CASE("3D Bilinear Mixed Grad Grad Integrators",
                delete diff;
 
                LinearForm lf(&fespace_h1);
-               lf.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qdf3_coef));
+               lf.AddBoundaryIntegrator(
+                  new BoundaryNormalLFIntegrator(qdf3_coef));
                lf.Assemble();
 
                blf.Mult(f_h1,tmp_h1); tmp_h1 -= lf; g_h1 = 0.0;
@@ -4541,7 +4546,8 @@ TEST_CASE("3D Bilinear Mixed Grad Grad Integrators",
                delete diff;
 
                LinearForm lf(&fespace_h1);
-               lf.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(Ddf3_coef));
+               lf.AddBoundaryIntegrator(
+                  new BoundaryNormalLFIntegrator(Ddf3_coef));
                lf.Assemble();
 
                blf.Mult(f_h1,tmp_h1); tmp_h1 -= lf; g_h1 = 0.0;
@@ -4573,7 +4579,8 @@ TEST_CASE("3D Bilinear Mixed Grad Grad Integrators",
                delete diff;
 
                LinearForm lf(&fespace_h1);
-               lf.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(Mdf3_coef));
+               lf.AddBoundaryIntegrator(
+                  new BoundaryNormalLFIntegrator(Mdf3_coef));
                lf.Assemble();
 
                blf.Mult(f_h1,tmp_h1); tmp_h1 -= lf; g_h1 = 0.0;
