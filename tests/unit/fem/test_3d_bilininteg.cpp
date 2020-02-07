@@ -417,9 +417,9 @@ void Curl_qCurlF3(const Vector & x, Vector & ddF)
    Vector dq; Grad_q3(x, dq);
    Vector dF; CurlF3(x, dF);
    ddF.SetSize(3);
-   ddF[0] += dq[1]*dF[2] - dq[2]*dF[1];
-   ddF[1] += dq[2]*dF[0] - dq[0]*dF[2];
-   ddF[2] += dq[0]*dF[1] - dq[1]*dF[0];
+   ddF[0] = dq[1]*dF[2] - dq[2]*dF[1];
+   ddF[1] = dq[2]*dF[0] - dq[0]*dF[2];
+   ddF[2] = dq[0]*dF[1] - dq[1]*dF[0];
 }
 
 void Curl_VcrossGrad_f3(const Vector & x, Vector & ddf)
@@ -448,9 +448,9 @@ void Curl_DCurlF3(const Vector & x, Vector & ddF)
    Grad_V3(x, dv);
    Vector dF; CurlF3(x, dF);
    ddF.SetSize(3);
-   ddF[0] += dv(2,1)*dF[2] - dv(1,2)*dF[1];
-   ddF[1] += dv(0,2)*dF[0] - dv(2,0)*dF[2];
-   ddF[2] += dv(1,0)*dF[1] - dv(0,1)*dF[0];
+   ddF[0] = dv(2,1)*dF[2] - dv(1,2)*dF[1];
+   ddF[1] = dv(0,2)*dF[0] - dv(2,0)*dF[2];
+   ddF[2] = dv(1,0)*dF[1] - dv(0,1)*dF[0];
 }
 
 void Curl_MCurlF3(const Vector & x, Vector & ddF)
@@ -4769,7 +4769,7 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      type++; // FIXME
+      type++;
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
       if (type == Element::TETRAHEDRON)
@@ -4841,7 +4841,7 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
                lf.Assemble();
 
                blf.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 1, 200, cg_rtol * cg_rtol, 0.0);
+               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_nd.ComputeL2Error(dqdF3_coef) < tol );
             }
@@ -4880,7 +4880,6 @@ TEST_CASE("3D Bilinear Mixed Curl Curl Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      type++; // FIXME
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
       if (type == Element::TETRAHEDRON)
