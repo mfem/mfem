@@ -12973,11 +12973,14 @@ void KernelFiniteElement::IntRuleToVec(const IntegrationPoint &ip,
    }
 }
 
-RBFFiniteElement::RBFFiniteElement(int D, int nD, double h,
-                                   RBFFunction *func, DistanceMetric *dist)
+RBFFiniteElement::RBFFiniteElement(const int D, 
+                                   const int numPointsD,
+                                   const double h,
+                                   const int rbfType,
+                                   const int distType)
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
-                         TensorBasisElement::Pow(nD, D),
+                         TensorBasisElement::Pow(numPointsD, D),
                          -1,
                          FunctionSpace::RBF),
 #ifndef MFEM_THREAD_SAFE
@@ -12987,13 +12990,12 @@ RBFFiniteElement::RBFFiniteElement(int D, int nD, double h,
      dr_scr(D),
      ddr_scr(D, D),
 #endif
-     numPointsD(nD),
+     numPointsD(numPointsD),
      h(h),
-     pos(TensorBasisElement::Pow(nD, D), D),
-     rbf(func),
-     distance(dist)
+     pos(TensorBasisElement::Pow(numPointsD, D), D),
+     rbf(RBFType::GetRBF(rbfType)),
+     distance(DistanceType::GetDistance(D, distType))
 {
-   distance->SetDim(D);
    SetPositions();
 }
 
@@ -13152,17 +13154,21 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
    }
 }
 
-RKFiniteElement::RKFiniteElement(const int poly,
-                                 KernelFiniteElement *baseClass)
-   : KernelFiniteElement(baseClass->GetDim(),
-                         baseClass->GetGeomType(),
-                         baseClass->GetDof(),
-                         polyOrd,
+RKFiniteElement::RKFiniteElement(const int D,
+                                 const int numPointsD,
+                                 const double h,
+                                 const int rbfType,
+                                 const int distType,
+                                 const int order)
+   : KernelFiniteElement(D,
+                         TensorBasisElement::GetTensorProductGeometry(D),
+                         TensorBasisElement::Pow(numPointsD, D),
+                         order,
                          FunctionSpace::RK),
-     polyOrd(poly),
-     numPoly1d(poly+1),
-     numPoly(RKFiniteElement::GetNumPoly(polyOrd, baseClass->GetDim())),
-     baseFE(baseClass)
+     polyOrd(order),
+     numPoly1d(order+1),
+     numPoly(RKFiniteElement::GetNumPoly(order, D)),
+     baseFE(new RBFFiniteElement(D, numPointsD, h, rbfType, distType))
 {
 #ifndef MFEM_THREAD_SAFE
    x_scr.SetSize(Dim);

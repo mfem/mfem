@@ -1034,9 +1034,14 @@ private:
    bool ValidGeomType(int GeomType) const;
    
 public:
-   KernelFECollection(int D, int numPointsD, double h,
-                      RBFFunction *func, DistanceMetric *dist,
+   KernelFECollection(const int D,
+                      const int numPointsD,
+                      const double h,
+                      const int rbfType,
+                      const int distType,
                       const int order = -1);
+   virtual ~KernelFECollection() { delete FE; }
+   
    virtual const FiniteElement *
    FiniteElementForGeometry(int GeomType) const;
 

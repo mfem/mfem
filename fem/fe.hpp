@@ -3323,6 +3323,63 @@ public:
    
 };
 
+// Choose the type of RBF to use
+class RBFType
+{
+public:
+   enum
+   {
+      Gaussian = 0,
+      Multiquadric = 1,
+      InvMultiquadric = 2,
+      NumRBFTypes = 3
+   };
+
+   // Return the requested RBF
+   static RBFFunction *GetRBF(const int rbfType)
+   {
+      switch (rbfType)
+      {
+      case RBFType::Gaussian:
+         return new GaussianRBF();
+      case RBFType::Multiquadric:
+         return new MultiquadricRBF();
+      case RBFType::InvMultiquadric:
+         return new InvMultiquadricRBF();
+      }
+      MFEM_ABORT("unknown RBF type");
+      return NULL;
+   }
+   
+   // Abort if rbfType is invalid
+   static int Check(const int rbfType)
+   {
+      MFEM_VERIFY(0 <= rbfType < NumRBFTypes,
+                  "unknown RBF type: " << rbfType);
+      return rbfType;
+   }
+
+   // Convert rbf int to identifier
+   static char GetChar(const int rbfType)
+   {
+      static const char ident[] = { 'G', 'M', 'I' };
+      return ident[Check(rbfType)];
+   }
+   
+   // Convert identifier to rbf int
+   static int GetType(const char rbfIdent)
+   {
+      switch (rbfIdent)
+      {
+      case 'G': return Gaussian;
+      case 'M': return Multiquadric;
+      case 'I': return InvMultiquadric;
+      }
+      MFEM_ABORT("unknown RBF identifier");
+      return -1;
+   }
+};
+
 class DistanceMetric
 {
 protected:
@@ -3369,6 +3426,59 @@ public:
                            DenseMatrix &ddr) const;
 };
 
+// Choose the type of RBF to use
+class DistanceType
+{
+public:
+   enum
+   {
+      Euclidean = 0,
+      Manhattan = 1,
+      NumDistanceTypes = 2
+   };
+
+   // Return the requested distance type
+   static DistanceMetric *GetDistance(int dim, int distType)
+   {
+      switch (distType)
+      {
+      case DistanceType::Euclidean:
+         return new EuclideanDistance(dim);
+      case DistanceType::Manhattan:
+         return new ManhattanDistance(dim);
+      }
+      MFEM_ABORT("unknown distance type");
+      return NULL;
+   }
+   
+   // Abort if distType is invalid
+   static int Check(const int distType)
+   {
+      MFEM_VERIFY(0 <= distType < NumDistanceTypes,
+                  "unknown distance type: " << distType);
+      return distType;
+   }
+
+   // Convert rbf int to identifier
+   static char GetChar(const int distType)
+   {
+      static const char ident[] = { 'E', 'M' };
+      return ident[Check(distType)];
+   }
+   
+   // Convert identifier to rbf int
+   static int GetType(const char distIdent)
+   {
+      switch (distIdent)
+      {
+      case 'E': return Euclidean;
+      case 'M': return Manhattan;
+      }
+      MFEM_ABORT("unknown distance identifier");
+      return -1;
+   }
+};
+
 class KernelFiniteElement : public ScalarFiniteElement
 {
 public:
@@ -3396,8 +3506,8 @@ private:
    double hPhys; // Shape parameter times distance between points
    double hPhysInv; // Inverse shape parameter
    DenseMatrix pos; // Positions of points
-   RBFFunction *rbf;
-   DistanceMetric *distance;
+   const RBFFunction *rbf;
+   const DistanceMetric *distance;
    void SetPositions();
    
    virtual void DistanceVec(const int i,
@@ -3405,8 +3515,11 @@ private:
                             Vector &y) const;
    
 public:
-   RBFFiniteElement(int D, int numPointsD, double h,
-                    RBFFunction *func, DistanceMetric *dist);
+   RBFFiniteElement(const int D,
+                    const int numPointsD,
+                    const double h,
+                    const int rbfType,
+                    const int distType);
    virtual ~RBFFiniteElement() { delete rbf; delete distance; }
    
    virtual const DenseMatrix &position() const { return pos; }
@@ -3470,9 +3583,13 @@ private:
                             Vector &y) const;
    
 public:
-   RKFiniteElement(const int poly,
-                   KernelFiniteElement *baseClass);
-   virtual ~RKFiniteElement() { delete baseFE; } 
+   RKFiniteElement(const int D,
+                   const int numPointsD,
+                   const double h,
+                   const int rbfType,
+                   const int distType,
+                   const int order);
+   virtual ~RKFiniteElement() { delete baseFE; }
    
    virtual const DenseMatrix &position() const { return baseFE->position(); }
    

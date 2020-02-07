@@ -11,22 +11,22 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    bool print = false;
    int dim = 1;
-   int order = -1;
-   int funcType = 0;
+   int order = 1;
+   int rbfType = 0;
    int distType = 0;
    int numPoints = 10;
    int evals = 1;
    double h = 4.01;
-   double x = 0.5;
-   double y = 0.5;
-   double z = 0.5;
+   double x = 0.2;
+   double y = 0.7;
+   double z = 0.1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&dim, "-d", "--dim",
                   "dimension");
    args.AddOption(&order, "-o", "--order",
                   "RK order or -1 for RBF");
-   args.AddOption(&funcType, "-f", "--func",
+   args.AddOption(&rbfType, "-f", "--func",
                   "(0) Gaussian, (1) Multiquadric, (2) Inverse multiquadric");
    args.AddOption(&distType, "-s", "--dist",
                   "(0) Euclidean, (1) Manhattan");
@@ -53,70 +53,24 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // Get RBF
-   RBFFunction *func;
-   switch (funcType)
-   {
-   case 0:
-      func = new GaussianRBF();
-      break;
-   case 1:
-      func = new MultiquadricRBF();
-      break;
-   case 2:
-      func = new InvMultiquadricRBF();
-      break;
-   default:
-      MFEM_ABORT("unknown RBF");
-   }
-   
-   // Get distance
-   DistanceMetric *dist;
-   switch (distType)
-   {
-   case 0:
-      dist = new EuclideanDistance(dim);
-      break;
-   case 1:
-      dist = new ManhattanDistance(dim);
-      break;
-   default:
-      MFEM_ABORT("unknown dist");
-   }
-   
    // Get collection
-   KernelFECollection *fec = new KernelFECollection(dim, numPoints, h,
-                                                    func, dist, order);
-
-   Geometry::Type geomType;
-   switch (dim)
-   {
-   case 1:
-      geomType = Geometry::SEGMENT;
-      break;
-   case 2:
-      geomType = Geometry::SQUARE;
-      break;
-   case 3:
-      geomType = Geometry::CUBE;
-      break;
-   default:
-      MFEM_ABORT("unknown dim");
-   }
-
+   const KernelFECollection *fec = new KernelFECollection(dim, numPoints, h,
+                                                          rbfType, distType, order);
+   int geomType = TensorBasisElement::GetTensorProductGeometry(dim);
+   
    // Get element
    const FiniteElement *fe = fec->FiniteElementForGeometry(geomType);
    
    // Initialize integration point
-   int dof = fe->GetDof();
    IntegrationPoint ip;
-   Vector shape(dof);
-   DenseMatrix dshape(dof, dim);
    ip.x = x;
    ip.y = y;
    ip.z = z;
 
-   // Evaluate integrals
+   // Evaluate value at integration point
+   int dof = fe->GetDof();
+   Vector shape(dof);
+   DenseMatrix dshape(dof, dim);
    for (int i = 0; i < evals; ++i)
    {
       fe->CalcShape(ip, shape);
@@ -154,7 +108,6 @@ int main(int argc, char *argv[])
       cout << dsum[d] << "\t";
    }
    cout << endl;
-
    
    // Free memory
    delete fec;

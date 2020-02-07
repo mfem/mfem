@@ -280,53 +280,23 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "RBF", 3) || !strncmp(name, "RK", 2))
    {
-      // Example: RK4_IM_M_2d_020_4.01
-      int dim = atoi(name + 9);
-      int numPoints = atoi(name + 12);
-      double h = atof(name + 16);
-      
-      RBFFunction *func;
-      if (!strncmp(name + 4, "GA", 2))
-      {
-         func = new GaussianRBF();
-      }
-      else if (!strncmp(name + 4, "MQ", 2))
-      {
-         func = new MultiquadricRBF();
-      }
-      else if (!strncmp(name + 4, "IM", 2))
-      {
-         func = new InvMultiquadricRBF();
-      }
-      else
-      {
-         MFEM_ABORT("unknown RBF: " << name);
-      }
-
-      DistanceMetric *dist;
-      if (!strncmp(name + 7, "E", 1))
-      {
-         dist = new EuclideanDistance(dim);
-      }
-      else if (!strncmp(name + 7, "M", 1))
-      {
-         dist = new ManhattanDistance(dim);
-      }
-      else
-      {
-         MFEM_ABORT("unknown distance: " << name);
-      }
+      // Example: RK4_G_E_2d_020_4.01
+      const int dim = atoi(name + 8);
+      const int numPoints = atoi(name + 11);
+      const double h = atof(name + 15);
+      const int rbfType = RBFType::GetType(name[5]);
+      const int distType = DistanceType::GetType(name[7]);
       
       if (!strncmp(name, "RK", 2))
       {
          int order = atoi(name + 2);
          fec = new KernelFECollection(dim, numPoints, h,
-                                      func, dist, order);
+                                      rbfType, distType, order);
       }
       else
       {
          fec = new KernelFECollection(dim, numPoints, h,
-                                      func, dist);
+                                      rbfType, distType);
       }
    }
    else
@@ -2865,23 +2835,22 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
    return NULL;
 }
 
-KernelFECollection::KernelFECollection(int D,
-                                       int numPointsD,
-                                       double h,
-                                       RBFFunction *func,
-                                       DistanceMetric *dist,
+KernelFECollection::KernelFECollection(const int D,
+                                       const int numPointsD,
+                                       const double h,
+                                       const int rbfType,
+                                       const int distType,
                                        const int order)
 {
    if (order == -1)
    {
       FE = new RBFFiniteElement(D, numPointsD, h,
-                                func, dist);
+                                rbfType, distType);
    }
    else
    {
-      RBFFiniteElement *FEBase = new RBFFiniteElement(D, numPointsD, h,
-                                                      func, dist);
-      FE = new RKFiniteElement(order, FEBase);
+      FE = new RKFiniteElement(D, numPointsD, h,
+                               rbfType, distType, order);
    }
 }
 
