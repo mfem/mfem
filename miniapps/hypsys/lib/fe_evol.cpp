@@ -336,8 +336,8 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
             }
 
             // Lax-Friedrichs flux (equals full upwinding for Advection).
-            NumFlux(0) = 0.5 * ( NumFlux(0) * (uEval(0) + uNbrEval(0)) + 
-								abs(NumFlux(0)) * (uEval(0) - uNbrEval(0)) );
+            NumFlux(0) = 0.5 * ( NumFlux(0) * (uEval(0) + uNbrEval(0))
+								 + abs(NumFlux(0)) * (uEval(0) - uNbrEval(0)) );
 
 // 				// GENERAL
 // 				LaxFriedrichs(uEval, uNbrEval, FaceNor, NumFlux);

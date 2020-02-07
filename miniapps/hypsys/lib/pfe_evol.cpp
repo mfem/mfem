@@ -6,7 +6,33 @@ ParFE_Evolution::ParFE_Evolution(ParFiniteElementSpace *pfes_,
                                  const Vector &LumpedMassMat_)
    : FE_Evolution(pfes_, hyp_, dofs_,scheme_,
                   LumpedMassMat_), pfes(pfes_),x_gf_MPI(pfes_),
-     xSizeMPI(pfes_->GetTrueVSize()) { }
+     xSizeMPI(pfes_->GetTrueVSize()), vec3(nd) { }
+
+void ParFE_Evolution::EvaluateSolution(const Vector &x, Vector &y1, Vector &y2,
+												   int e, int i, int k) const
+{
+// 	y1 = y2 = 0.;
+// 	for (int n = 0; n < hyp->NumEq; n++)
+// 	{
+// 		for (int j = 0; j < dofs.NumFaceDofs; j++)
+// 		{
+// 			nbr = dofs.NbrDofs(i,j,e);
+// 			DofInd = e*nd+dofs.BdrDofs(j,i);
+// 			if (nbr < 0)
+// 			{
+// 				uNbr(0) = hyp->inflow(DofInd); // TODO vector valued
+// 			}
+// 			else
+// 			{
+// 				// nbr in different MPI task? // TODO vector valued
+//             uNbr(0) = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
+// 			}
+// 			
+// 			uEval(n) += x(DofInd) * ShapeEvalFace(i,j,k);
+//          uNbrEval(n) += uNbr(n) * ShapeEvalFace(i,j,k);
+// 		}
+// 	}
+}
 
 double ParFE_Evolution::ConvergenceCheck(double dt, double tol,
                                          const Vector &u) const
@@ -65,17 +91,24 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
       }
 
       z.AddElementVector(vdofs, vec3); // TODO Vector valued soultion.
+		
+		DenseMatrix ElemNormals = ElemNor(e); // TODO allocate
 
       // Here, the use of nodal basis functions is essential, i.e. shape
       // functions must vanish on faces that their node is not associated with.
       for (int i = 0; i < dofs.NumBdrs; i++)
       {
+			Vector FaceNor(dim); // TODO allocate
+			ElemNormals.GetColumn(i, FaceNor);
          for (int k = 0; k < nqf; k++)
          {
-            double tmp = 0.;
+            Vector NumFlux(hyp->NumEq); // TODO allocate
+				EvaluateSolution(x, uEval, uNbrEval, e, i, k);
+				
+            // ADVECTION
             for (int l = 0; l < dim; l++)
             {
-               tmp += BdrInt(l,i,e*nqf+k) * hyp->VelFace(l,i,e*nqf+k);
+               NumFlux(0) += FaceNor(l) * hyp->VelFace(l,i,e*nqf+k);
             }
 
             uEval = uNbrEval = 0.;
@@ -99,13 +132,19 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
             }
 
             // Lax-Friedrichs flux (equals full upwinding for Advection).
-            tmp = 0.5 * ( tmp * (uEval(0) + uNbrEval(0)) + abs(tmp) * (uEval(0) - uNbrEval(
-                                                                          0)) ) * QuadWeightFace(k);
+            NumFlux(0) = 0.5 * ( NumFlux(0) * (uEval(0) + uNbrEval(0))
+								 + abs(NumFlux(0)) * (uEval(0) - uNbrEval(0)) );
+				
+				NumFlux *= BdrInt(i,k,e) * QuadWeightFace(k);
 
-            for (int j = 0; j < dofs.NumFaceDofs; j++)
-            {
-               z(vdofs[dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k) * tmp;
-            }
+            for (int n = 0; n < hyp->NumEq; n++)
+				{
+					for (int j = 0; j < dofs.NumFaceDofs; j++)
+					{
+               	z(vdofs[n*nd+dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
+							* NumFlux(n);
+					}
+				}
          }
       }
    }

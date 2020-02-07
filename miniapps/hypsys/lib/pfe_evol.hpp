@@ -21,8 +21,8 @@ public:
    ParFiniteElementSpace *pfes;
    mutable ParGridFunction x_gf_MPI;
    const int xSizeMPI;
-   // TODO in main ParDofInfo, LumpedMassMat
-
+	// TODO temporyry fix
+	mutable Vector vec3;
 
    ParFE_Evolution(ParFiniteElementSpace *pfes_, HyperbolicSystem *hyp_,
                    DofInfo &dofs_, EvolutionScheme scheme_,
@@ -30,6 +30,7 @@ public:
 
    virtual ~ParFE_Evolution() { };
 
+	void EvaluateSolution(const Vector &x, Vector &y1, Vector &y2, int e, int i,int k) const;
    void EvolveStandard(const Vector &x, Vector &y) const override;
    void EvolveMCL     (const Vector &x, Vector &y) const override;
 
