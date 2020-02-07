@@ -80,6 +80,7 @@ template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
+   dbg("");
    TargetT *target_array = cplusplus ? (TargetT*) Memory<TargetT>(size)
                            /*     */ : mfem_hypre_TAlloc(TargetT, size);
    for (int i = 0; i < size; i++)
@@ -99,7 +100,6 @@ inline void HypreParVector::_SetDataAndSize_()
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
                                HYPRE_Int *col) : Vector()
 {
-   dbg("");
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorInitialize(x);
    hypre_ParVectorSetPartitioningOwner(x,0);
@@ -112,16 +112,19 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
    HYPRE_Complex *local_data = hypre_VectorData(local_vector);
    HYPRE_Int local_size = hypre_VectorSize(local_vector);
    MFEM_ASSERT(local_size == this->size,"");
-   Memory<HYPRE_Complex>(local_data, size, MemoryType::HOST, false);
+   dbg("data: %p",(double*)this->data);
+   //Memory<HYPRE_Complex>(local_data, size, MemoryType::HOST, false);
    mm.RegisterCheck(local_data);
    mm.RegisterCheck(this->data);
+   MFEM_VERIFY(local_data == this->data,"");
+   dbg("done");
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
                                double *_data, HYPRE_Int *col) : Vector()
 {
    dbg("");
-   mm.RegisterCheck(_data);
+   //mm.RegisterCheck(_data);
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),0);
@@ -134,8 +137,17 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
    // Set the internal data array to the one passed in
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
    _SetDataAndSize_();
+   dbg("data: %p",(double*)this->data);
    own_ParVector = 1;
+   hypre_Vector *local_vector = hypre_ParVectorLocalVector(x);
+   HYPRE_Complex *local_data = hypre_VectorData(local_vector);
+   HYPRE_Int local_size = hypre_VectorSize(local_vector);
+   MFEM_ASSERT(local_size == this->size,"");
+   //Memory<HYPRE_Complex>(local_data, size, mm.GetHostMemoryType(), false);
+   mm.RegisterCheck(local_data);
+   mm.RegisterCheck(this->data);
    mm.RegisterCheck(data);
+   MFEM_VERIFY(local_data == this->data,"");
 }
 
 HypreParVector::HypreParVector(const HypreParVector &y) : Vector()

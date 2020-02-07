@@ -12,6 +12,7 @@
 #ifndef MFEM_MEM_MANAGER_HPP
 #define MFEM_MEM_MANAGER_HPP
 
+#include "dbg.hpp"
 #include "globals.hpp"
 #include "error.hpp"
 #include <cstring> // std::memcpy
@@ -670,11 +671,21 @@ inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
 
       }
    }
-   h_mt = MemoryManager::host_mem_type;
+   // hypre allocates, _SetDataAndSize_ => keep HOST
+   h_mt = own ? MemoryManager::host_mem_type : MemoryType::HOST;
    if (own && h_mt >= MemoryType::HOST_DEBUG)
    {
       MemoryManager::Register_(host_ptr, host_ptr, size*sizeof(T), h_mt,
                                own, false, flags);
+   }
+   if (!own && h_mt == MemoryType::HOST)
+   {
+      const bool known = MemoryManager::IsKnown_(h_ptr);
+      if (!known && host_ptr && size > 0)
+      {
+         MemoryManager::Register_(host_ptr, host_ptr, size*sizeof(T), h_mt,
+                                  own, false, flags);
+      }
    }
 }
 
