@@ -863,17 +863,12 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
    double fac3 = beta;
    double fac4 = gamma;
 
-   // In the first pass d2xdt2 is not yet computed. If parameter choices requires
-   // d2xdt2  backward euler is used instead for the first step only.
-   if (first && !(fac0*fac2 == 0.0))
+   // In the first pass compute d2xdt2 directy from operator.
+   if (first)
    {
-      fac0 = 0.0;
-      fac2 = 0.0;
-      fac3 = 0.5;
-      fac4 = 1.0;
+      f->Mult(x, dxdt, d2xdt2);
       first = false;
    }
-
    f->SetTime(t + dt);
 
    x.Add(dt, dxdt);
@@ -938,19 +933,13 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    double fac4 = gamma*alpha_f/alpha_m;
    double fac5 = alpha_m;
 
-   // In the first pass d2xdt2 is not yet computed.
-   // If parameter choices requires d2xdt2 then
-   // Midpoint is used instead for the first step only.
-   if (first && (fac0 != 0.0) && (fac2 != 0.0))
+   // In the first pass compute d2xdt2 directy from operator.
+   if (first)
    {
-      fac0 = 0.0;
-      fac1 = 1.0;
-      fac2 = 0.0;
-      fac3 = 0.5;
-      fac4 = 1.0;
-      fac5 = 1.0;
+      f->Mult(x, dxdt, d2xdt2);
       first = false;
    }
+
 
    // Predict alpha levels
    add(dxdt, fac0*dt, d2xdt2, va);
