@@ -8567,19 +8567,39 @@ void Mesh::PrintVTU(std::string fname)
 
 template <typename T>
 void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
-                        const char *suffix, bool binary)
+                        const char *suffix, VTUFormat format)
 {
-   if (binary) { bin_io::AppendBytes(buf, val); }
-   else { out << val << suffix; }
+   if (format == VTUFormat::ASCII) { out << val << suffix; }
+   else { bin_io::AppendBytes(buf, val); }
 }
 
 // Ensure ASCII output of uint8_t to stream is integer rather than character
 template <>
 void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
                                  const uint8_t &val, const char *suffix,
-                                 bool binary)
+                                 VTUFormat format)
 {
-   if (binary) { bin_io::AppendBytes(buf, val); }
+   if (format == VTUFormat::ASCII) { out << static_cast<int>(val) << suffix; }
+   else { bin_io::AppendBytes(buf, val); }
+}
+
+template <>
+void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
+                                const double &val, const char *suffix,
+                                VTUFormat format)
+{
+   if (format == VTUFormat::BINARY32) { bin_io::AppendBytes<float>(buf, val); }
+   else if (format == VTUFormat::BINARY) { bin_io::AppendBytes(buf, val); }
+   else { out << static_cast<int>(val) << suffix; }
+}
+
+template <>
+void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
+                               const float &val, const char *suffix,
+                               VTUFormat format)
+{
+   if (format == VTUFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
+   else if (format == VTUFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
    else { out << static_cast<int>(val) << suffix; }
 }
 
@@ -8710,13 +8730,14 @@ int ConvertToVTKOrdering(int idx_in, int ref, Geometry::Type geom)
    }
 }
 
-void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
+void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
                     bool high_order_output)
 {
    RefinedGeometry *RefG;
    DenseMatrix pmat;
 
-   const char *fmt_str = binary ? "binary" : "ascii";
+   const char *fmt_str = (format == VTUFormat::ASCII) ? "ascii" : "binary";
+   const char *type_str = (format != VTUFormat::BINARY32) ? "Float64" : "Float32";
    std::vector<char> buf;
 
    // count the points, cells, size
@@ -8732,12 +8753,12 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
    }
 
    out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
-       << (high_order_output ? GetNE() : nc_ref) << "\">" << std::endl;
+       << (high_order_output ? GetNE() : nc_ref) << "\">\n";
 
    // print out the points
-   out << "<Points>" << std::endl;
-   out << "<DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\""
-       << fmt_str << "\">" << std::endl;
+   out << "<Points>\n";
+   out << "<DataArray type=\"" << type_str
+       << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
    for (int i = 0; i < GetNE(); i++)
    {
       RefG = GlobGeometryRefiner.Refine(
@@ -8747,27 +8768,27 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
 
       for (int j = 0; j < pmat.Width(); j++)
       {
-         WriteBinaryOrASCII(out, buf, pmat(0,j), " ", binary);
+         WriteBinaryOrASCII(out, buf, pmat(0,j), " ", format);
          if (pmat.Height() > 1)
          {
-            WriteBinaryOrASCII(out, buf, pmat(1,j), " ", binary);
+            WriteBinaryOrASCII(out, buf, pmat(1,j), " ", format);
          }
          else
          {
-            WriteBinaryOrASCII(out, buf, 0.0, " ", binary);
+            WriteBinaryOrASCII(out, buf, 0.0, " ", format);
          }
          if (pmat.Height() > 2)
          {
-            WriteBinaryOrASCII(out, buf, pmat(2,j), "", binary);
+            WriteBinaryOrASCII(out, buf, pmat(2,j), "", format);
          }
          else
          {
-            WriteBinaryOrASCII(out, buf, 0.0, "", binary);
+            WriteBinaryOrASCII(out, buf, 0.0, "", format);
          }
-         if (!binary) { out << '\n'; }
+         if (format == VTUFormat::ASCII) { out << '\n'; }
       }
    }
-   if (binary) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
    out << "</DataArray>" << std::endl;
    out << "</Points>" << std::endl;
 
@@ -8794,9 +8815,9 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
          }
          for (int i=0; i<nnodes; ++i)
          {
-            WriteBinaryOrASCII(out, buf, local_connectivity[i], " ", binary);
+            WriteBinaryOrASCII(out, buf, local_connectivity[i], " ", format);
          }
-         if (!binary) { out << '\n'; }
+         if (format == VTUFormat::ASCII) { out << '\n'; }
          np += nnodes;
          offset.push_back(np);
       }
@@ -8818,14 +8839,14 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
 
             for (int k = 0; k < nv; k++, j++)
             {
-               WriteBinaryOrASCII(out, buf, np + RG[j], " ", binary);
+               WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
             }
-            if (!binary) { out << '\n'; }
+            if (format == VTUFormat::ASCII) { out << '\n'; }
          }
          np += RefG->RefPts.GetNPoints();
       }
    }
-   if (binary) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
    out << "</DataArray>" << std::endl;
 
    out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
@@ -8833,9 +8854,9 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
    // offsets
    for (size_t ii=0; ii<offset.size(); ii++)
    {
-      WriteBinaryOrASCII(out, buf, offset[ii], "\n", binary);
+      WriteBinaryOrASCII(out, buf, offset[ii], "\n", format);
    }
-   if (binary) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
    out << "</DataArray>" << std::endl;
    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
        << fmt_str << "\">" << std::endl;
@@ -8879,17 +8900,17 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
 
       if (high_order_output)
       {
-         WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", binary);
+         WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
       }
       else
       {
          for (int j = 0; j < RG.Size(); j += nv)
          {
-            WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", binary);
+            WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
          }
       }
    }
-   if (binary) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
    out << "</DataArray>" << std::endl;
    out << "</Cells>" << std::endl;
 
@@ -8904,17 +8925,17 @@ void Mesh::PrintVTU(std::ostream &out, int ref, bool binary,
       int attr = GetAttribute(i);
       if (high_order_output)
       {
-         WriteBinaryOrASCII(out, buf, attr, "\n", binary);
+         WriteBinaryOrASCII(out, buf, attr, "\n", format);
       }
       else
       {
          for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
          {
-            WriteBinaryOrASCII(out, buf, attr, "\n", binary);
+            WriteBinaryOrASCII(out, buf, attr, "\n", format);
          }
       }
    }
-   if (binary) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
    out << "</DataArray>" << std::endl;
    out << "</CellData>" << std::endl;
 }
