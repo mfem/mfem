@@ -487,6 +487,8 @@ protected:
    void SaveDataVTU(std::ostream &out, int ref);
    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
    void SaveQFieldVTU(std::ostream &out, int ref, const QFieldMapIterator& it);
+   const char *GetDataFormatString() const;
+   const char *GetDataTypeString() const;
 
    std::string  GenerateCollectionPath();
    std::string  GenerateVTUFileName();
@@ -532,15 +534,18 @@ public:
    /// cycle value
    virtual void Save() override;
 
+   /// Set the data format for the ParaView output files. Possible options are
+   /// VTUFormat::ASCII, VTUFormat::BINARY, and VTUFormat::BINARY32.
+   /// The ASCII and BINARY options output double precision data, whereas the
+   /// BINARY32 option outputs single precision data.
    void SetDataFormat(VTUFormat fmt);
 
+   /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
    bool IsBinaryFormat() const;
 
+   /// Sets whether or not to output the data as high-order elements (false
+   /// by default). Reading high-order data requires ParaView 5.5 or later.
    void SetHighOrderOutput(bool high_order_output_);
-
-   const char *GetDataFormatString() const;
-
-   const char *GetDataTypeString() const;
 
    /// Load the collection - not implemented in the ParaView writer
    virtual void Load(int cycle_ = 0) override;
