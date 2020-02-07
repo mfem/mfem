@@ -246,10 +246,20 @@ public:
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator.
+
+       This returns the same operator as FormRectangularLinearSystem(), but does
+       without the transformations of the right-hand side. */
    virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
                                             const Array<int> &test_tdof_list,
                                             OperatorHandle &A);
 
+   /** @brief Form the parallel linear system A X = B, corresponding to this mixed
+       bilinear form and the linear form @a b(.).
+
+       Return in @a A a *reference* to the system matrix that is column-constrained.
+       The reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
    virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                             const Array<int> &test_tdof_list, Vector &x,
                                             Vector &b, OperatorHandle &A, Vector &X,
