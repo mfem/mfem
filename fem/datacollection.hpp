@@ -472,12 +472,6 @@ public:
 /// Helper class for ParaView visualization data
 class ParaViewDataCollection : public DataCollection
 {
-public:
-   enum DataFormat
-   {
-      ASCII,
-      BINARY
-   };
 private:
 #ifdef MFEM_USE_MPI
    MPI_Comm lcomm;
@@ -486,7 +480,7 @@ private:
    int nprocs;
    int levels_of_detail;
    std::fstream pvd_stream;
-   DataFormat pv_data_format;
+   VTUFormat pv_data_format;
    bool high_order_output;
 
 protected:
@@ -538,11 +532,15 @@ public:
    /// cycle value
    virtual void Save() override;
 
-   void SetDataFormat(DataFormat fmt);
+   void SetDataFormat(VTUFormat fmt);
+
+   bool IsBinaryFormat() const;
 
    void SetHighOrderOutput(bool high_order_output_);
 
    const char *GetDataFormatString() const;
+
+   const char *GetDataTypeString() const;
 
    /// Load the collection - not implemented in the ParaView writer
    virtual void Load(int cycle_ = 0) override;
