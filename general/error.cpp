@@ -153,7 +153,6 @@ void mfem_error(const char *msg)
       // very bad thing if all your processors try to do it at the same time.
       mfem::err << "\n\n" << msg << "\n";
    }
-   __builtin_trap();
 
 #ifdef MFEM_USE_LIBUNWIND
    mfem::err << "Backtrace:" << std::endl;
