@@ -12,7 +12,6 @@
 #ifndef MFEM_MEM_MANAGER_HPP
 #define MFEM_MEM_MANAGER_HPP
 
-#include "dbg.hpp"
 #include "globals.hpp"
 #include "error.hpp"
 #include <cstring> // std::memcpy
@@ -68,14 +67,6 @@ enum class MemoryClass
 /// Return true if the given memory type is in MemoryClass::HOST.
 inline bool IsHostMemory(MemoryType mt) { return mt <= MemoryType::MANAGED; }
 inline bool IsDeviceMemory(MemoryType mt) { return mt >= MemoryType::MANAGED; }
-
-/// Return true if the given host memory type needs to be registered.
-inline bool IsHostRegisteredMemory(MemoryType mt)
-{
-   return mt == MemoryType::HOST_DEBUG  ||
-          mt == MemoryType::HOST_UMPIRE ||
-          mt == MemoryType::MANAGED;
-}
 
 /// Return a suitable MemoryType for a given MemoryClass.
 MemoryType GetMemoryType(MemoryClass mc);
@@ -189,9 +180,6 @@ public:
    /** The parameter @a own determines whether @a ptr will be deleted (using
        operator delete[]) when the method Delete() is called. */
    explicit Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
-
-   /** @brief Wrap an externally allocated and registered host pointer. */
-   //explicit Memory(T *ptr) { Wrap(ptr, true); }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
@@ -655,37 +643,24 @@ inline void Memory<T>::New(int size, MemoryType mt)
 }
 
 template <typename T>
-inline void Memory<T>::Wrap(T *host_ptr, int size, bool own)
+inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 {
+   h_ptr = ptr;
    capacity = size;
-   h_ptr = host_ptr;
+   const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
-   if (own && MemoryManager::Exists())
+   const bool exist = MemoryManager::Exists();
+   const bool known = exist && MemoryManager::IsKnown_(h_ptr);
+   const bool alias = exist && MemoryManager::IsAlias_(h_ptr);
+   const bool registered = known || alias;
+   const MemoryType mt = MemoryManager::GetHostMemoryType_(h_ptr, known, alias);
+   const MemoryType mm_h_mt = MemoryManager::host_mem_type;
+   if (own && exist && registered) { MFEM_ASSERT(mt == mm_h_mt,""); }
+   h_mt = (own && registered) ? mt : own ? mm_h_mt : MemoryType::HOST;
+   const bool h_mt_host = h_mt == MemoryType::HOST;
+   if (own && !h_mt_host)
    {
-      const bool known = MemoryManager::IsKnown_(h_ptr);
-      const bool alias = MemoryManager::IsAlias_(h_ptr);
-      if (known || alias)
-      {
-         MFEM_VERIFY(MemoryManager::host_mem_type ==
-                     MemoryManager::GetHostMemoryType_(h_ptr, known, alias),"");
-
-      }
-   }
-   // hypre allocates, _SetDataAndSize_ => keep HOST
-   h_mt = own ? MemoryManager::host_mem_type : MemoryType::HOST;
-   if (own && h_mt >= MemoryType::HOST_DEBUG)
-   {
-      MemoryManager::Register_(host_ptr, host_ptr, size*sizeof(T), h_mt,
-                               own, false, flags);
-   }
-   if (!own && h_mt == MemoryType::HOST)
-   {
-      const bool known = MemoryManager::IsKnown_(h_ptr);
-      if (!known && host_ptr && size > 0)
-      {
-         MemoryManager::Register_(host_ptr, host_ptr, size*sizeof(T), h_mt,
-                                  own, false, flags);
-      }
+      MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
    }
 }
 

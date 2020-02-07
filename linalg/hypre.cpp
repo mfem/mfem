@@ -15,7 +15,6 @@
 
 #include "linalg.hpp"
 #include "../fem/fem.hpp"
-#include "../general/dbg.hpp"
 
 #include <fstream>
 #include <iomanip>
@@ -80,7 +79,6 @@ template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
-   dbg("");
    TargetT *target_array = cplusplus ? (TargetT*) Memory<TargetT>(size)
                            /*     */ : mfem_hypre_TAlloc(TargetT, size);
    for (int i = 0; i < size; i++)
