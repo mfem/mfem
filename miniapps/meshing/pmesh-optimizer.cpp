@@ -600,7 +600,7 @@ int main (int argc, char *argv[])
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
    he_nlf_integ->SetFDPar(fdscheme, pmesh->GetNE());
-   if (target_id >= 5)
+   if (target_id == 5)
    {
       he_nlf_integ->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
    }
@@ -787,7 +787,7 @@ int main (int argc, char *argv[])
    {
       tauval = 0.0;
       TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir);
-      if (target_id >= 5)
+      if (target_id == 5)
       {
          tns->AddDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
       }

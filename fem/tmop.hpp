@@ -615,7 +615,7 @@ public:
       GIVEN_SHAPE_AND_SIZE, /**<
          Given shape, given size/volume; the given nodes define the exact target
          Jacobian matrix at all quadrature points. */
-      GIVEN_FULL, /**<
+      GIVEN_FULL /**<
          Full target tensor is specified at every quadrature point. */
    };
 
@@ -729,9 +729,9 @@ public:
 
    virtual ~DiscreteAdaptTC() { delete adapt_eval; }
 
-   virtual void SetSerialDiscreteTargetSpec(GridFunction &t_spec);
+   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec_);
 #ifdef MFEM_USE_MPI
-   virtual void SetParDiscreteTargetSpec(ParGridFunction &t_spec);
+   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec_);
 #endif
 
    /** Used to update the target specification after the mesh has changed. The
@@ -807,8 +807,7 @@ protected:
    mutable DiscreteAdaptTC *discr_tc;
 
    // Parameters for Gradient & Hessian calculation
-   int    der_flag;
-   int    fdorder;
+   int    fdflag;
    double fdeps;
    double elemenergy;
 
@@ -838,7 +837,7 @@ public:
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0), discr_tc(NULL),
-        der_flag(0), fdorder(1), fdeps(0.0)
+        fdflag(0), fdeps(0.0)
    { }
 
    ~TMOP_Integrator()
@@ -921,15 +920,15 @@ public:
 
    void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) {discr_tc = tc;}
 
-   virtual void SetFDPar(int fdorderin, int sz);
+   virtual void SetFDPar(int fdflag_, int sz);
 
    virtual void SetFDh(const Vector &x, const FiniteElementSpace &fes);
 
-   virtual void SetupElementVectorTargetSpecification(const Vector &x,
-                                                      const FiniteElementSpace &fes);
+   virtual void SetupElementVectorTSpec(const Vector &x,
+                                        const FiniteElementSpace &fes);
 
-   virtual void SetupElementGradTargetSpecification(const Vector &x,
-                                                    const FiniteElementSpace &fes);
+   virtual void SetupElementGradTSpec(const Vector &x,
+                                      const FiniteElementSpace &fes);
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */

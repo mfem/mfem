@@ -957,39 +957,39 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 }
 
 #ifdef MFEM_USE_MPI
-void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &t_spec)
+void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec_)
 {
-   tspec.SetSize(t_spec.Size());
-   tspec = t_spec;
-   tspec_fes   = t_spec.FESpace();
+   tspec.SetSize(tspec_.Size());
+   tspec = tspec_;
+   tspec_fes   = tspec_.FESpace();
 
    if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
 
-   adapt_eval->SetParMetaInfo(*t_spec.ParFESpace()->GetParMesh(),
-                              *t_spec.FESpace()->FEColl(),
-                              t_spec.FESpace()->GetVDim());
+   adapt_eval->SetParMetaInfo(*tspec_.ParFESpace()->GetParMesh(),
+                              *tspec_.FESpace()->FEColl(),
+                              tspec_.FESpace()->GetVDim());
 
    adapt_eval->SetInitialField
-   (*t_spec.FESpace()->GetMesh()->GetNodes(), tspec);
+   (*tspec_.FESpace()->GetMesh()->GetNodes(), tspec);
 
    tspec_sav.SetSize(tspec.Size());
    BackupTargetSpecification();
 }
 #endif
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &t_spec)
+void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
 {
-   tspec.SetSize(t_spec.Size());
-   tspec = t_spec;
-   tspec_fes   = t_spec.FESpace();
+   tspec.SetSize(tspec_.Size());
+   tspec = tspec_;
+   tspec_fes   = tspec_.FESpace();
 
    if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
 
-   adapt_eval->SetSerialMetaInfo(*t_spec.FESpace()->GetMesh(),
-                                 *t_spec.FESpace()->FEColl(),
-                                 t_spec.FESpace()->GetVDim());
+   adapt_eval->SetSerialMetaInfo(*tspec_.FESpace()->GetMesh(),
+                                 *tspec_.FESpace()->FEColl(),
+                                 tspec_.FESpace()->GetVDim());
    adapt_eval->SetInitialField
-   (*t_spec.FESpace()->GetMesh()->GetNodes(), tspec);
+   (*tspec_.FESpace()->GetMesh()->GetNodes(), tspec);
 
    tspec_sav.SetSize(tspec.Size());
    BackupTargetSpecification();
@@ -1261,7 +1261,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
                                             const Vector &elfun, Vector &elvect)
 {
-   if (der_flag==1)
+   if (fdflag==1)
    {
       (this)->AssembleElementVectorFD(el,T,elfun,elvect);
    }
@@ -1276,7 +1276,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           const Vector &elfun,
                                           DenseMatrix &elmat)
 {
-   if (der_flag==1)
+   if (fdflag==1)
    {
       (this)->AssembleElementGradFD(el,T,elfun,elmat);
    }
@@ -1484,10 +1484,10 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    delete Tpr;
 }
 
-void TMOP_Integrator::SetFDPar(int fdflag, int sz)
+void TMOP_Integrator::SetFDPar(int fdflag_, int sz)
 {
-   der_flag = fdflag;
-   if (der_flag != 0)
+   fdflag = fdflag_;
+   if (fdflag != 0)
    {
       ElemDer.SetSize(sz);
       ElemPertEnergy.SetSize(sz);
@@ -1533,8 +1533,8 @@ void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
    fdeps = pow(10,-2.)*detv_min;
 }
 
-void TMOP_Integrator::SetupElementVectorTargetSpecification(
-   const Vector &x, const FiniteElementSpace &fes)
+void TMOP_Integrator::SetupElementVectorTSpec(const Vector &x,
+                                              const FiniteElementSpace &fes)
 {
    (this)->SetFDh(x,fes);
 
@@ -1569,8 +1569,8 @@ void TMOP_Integrator::SetupElementVectorTargetSpecification(
    } // if (discr_tc)
 }
 
-void TMOP_Integrator::SetupElementGradTargetSpecification(
-   const Vector &x, const FiniteElementSpace &fes)
+void TMOP_Integrator::SetupElementGradTSpec(const Vector &x,
+                                            const FiniteElementSpace &fes)
 {
    if (discr_tc)
    {

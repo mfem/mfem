@@ -114,11 +114,11 @@ public:
                                  const Vector &elfun, DenseMatrix &elmat)
    { AssembleFaceMatrix(el1, el2, Tr, elmat); }
 
-   virtual void SetupElementVectorTargetSpecification(
-      const Vector &x, const FiniteElementSpace &fes) {};
+   virtual void SetupElementVectorTSpec(const Vector &x,
+                                        const FiniteElementSpace &fes) {};
 
-   virtual void SetupElementGradTargetSpecification(
-      const Vector &x, const FiniteElementSpace &fes) {};
+   virtual void SetupElementGradTSpec(const Vector &x,
+                                      const FiniteElementSpace &fes) {};
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
