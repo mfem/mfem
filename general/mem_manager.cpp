@@ -9,7 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/forall.hpp"
+#include "dbg.hpp"
+#include "forall.hpp"
 #include "mem_manager.hpp"
 
 #include <list>
@@ -1402,7 +1403,14 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
    const bool known = mm.IsKnown(h_ptr);
    const bool alias = mm.IsAlias(h_ptr);
    if (known) { MFEM_VERIFY(h_mt == maps->memories.at(h_ptr).h_mt,""); }
-   if (alias) { MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).mem->h_mt,""); }
+   if (alias)
+   {
+      if (h_mt != maps->aliases.at(h_ptr).mem->h_mt)
+      {
+         dbg("error");
+      }
+      MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).mem->h_mt,"");
+   }
 }
 
 MemoryManager mm;
