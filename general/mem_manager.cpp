@@ -9,7 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/forall.hpp"
+#include "dbg.hpp"
+#include "forall.hpp"
 #include "mem_manager.hpp"
 
 #include <list>
@@ -788,6 +789,22 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
       return true;
    }
 
+   const bool known = mm.IsKnown(h_ptr);
+   const bool alias = mm.IsAlias(h_ptr);
+   const bool debug = h_mt == MemoryType::HOST_DEBUG;
+   const bool check = known || ((flags & Mem::ALIAS) && alias);
+   if (debug && !check)
+   {
+      dbg("debug && !check");
+      mm.Insert(h_ptr, 0x1234, MemoryType::HOST_DEBUG, MemoryType::DEVICE_DEBUG);
+      return true;
+   }
+   if (!check)
+   {
+      dbg("h_mt:%d, debug:%d",h_mt, debug);
+      for (int k=0; k<1024*1024; k++) {((double*)h_ptr)[k]=0.0;}
+   }
+   MFEM_ASSERT(check,"");
    const internal::Memory &mem =
       (flags & Mem::ALIAS) ?
       *maps->aliases.at(h_ptr).mem : maps->memories.at(h_ptr);
@@ -930,7 +947,7 @@ MemoryType MemoryManager::GetDeviceMemoryType_(void *h_ptr)
          internal::Memory &mem = maps->memories.at(h_ptr);
          return mem.d_mt;
       }
-      const bool alias = maps->aliases.find(h_ptr) != maps->aliases.end();
+      const bool alias = mm.IsAlias(h_ptr);
       if (alias)
       {
          internal::Memory *mem = maps->aliases.at(h_ptr).mem;
@@ -1401,6 +1418,7 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
    if (!mm.exists) {return;}
    const bool known = mm.IsKnown(h_ptr);
    const bool alias = mm.IsAlias(h_ptr);
+   //dbg("known:%d, alias:%d, h_mt:%d",known,alias,h_mt);
    if (known) { MFEM_VERIFY(h_mt == maps->memories.at(h_ptr).h_mt,""); }
    if (alias) { MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).mem->h_mt,""); }
 }

@@ -15,6 +15,7 @@
 
 #include "linalg.hpp"
 #include "../fem/fem.hpp"
+#include "../general/dbg.hpp"
 
 #include <fstream>
 #include <iomanip>
@@ -98,6 +99,7 @@ inline void HypreParVector::_SetDataAndSize_()
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
                                HYPRE_Int *col) : Vector()
 {
+   dbg("");
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorInitialize(x);
    hypre_ParVectorSetPartitioningOwner(x,0);
@@ -106,11 +108,20 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
    _SetDataAndSize_();
    own_ParVector = 1;
+   hypre_Vector *local_vector = hypre_ParVectorLocalVector(x);
+   HYPRE_Complex *local_data = hypre_VectorData(local_vector);
+   HYPRE_Int local_size = hypre_VectorSize(local_vector);
+   MFEM_ASSERT(local_size == this->size,"");
+   Memory<HYPRE_Complex>(local_data, size, MemoryType::HOST, false);
+   mm.RegisterCheck(local_data);
+   mm.RegisterCheck(this->data);
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
                                double *_data, HYPRE_Int *col) : Vector()
 {
+   dbg("");
+   mm.RegisterCheck(_data);
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),0);
@@ -124,6 +135,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
    _SetDataAndSize_();
    own_ParVector = 1;
+   mm.RegisterCheck(data);
 }
 
 HypreParVector::HypreParVector(const HypreParVector &y) : Vector()
