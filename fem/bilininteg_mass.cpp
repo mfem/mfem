@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "libceed/mass.hpp"
 
 using namespace std;
 
@@ -21,14 +22,26 @@ namespace mfem
 // PA Mass Integrator
 
 // PA Mass Assemble kernel
-void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
+
+void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
 {
    // Assuming the same element type
+   fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed() && !force)
+   {
+      if (ceedDataPtr) { delete ceedDataPtr; }
+      CeedData* ptr = new CeedData();
+      ceedDataPtr = ptr;
+      InitCeedCoeff(Q, ptr);
+      return CeedPAMassAssemble(fes, *ir, *ptr);
+   }
+#endif
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
@@ -112,6 +125,11 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       });
    }
+}
+
+void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   SetupPA(fes);
 }
 
 
@@ -420,8 +438,9 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
    MFEM_ABORT("Unknown kernel.");
 }
 
-void MassIntegrator::AssembleDiagonalPA(Vector &diag) const
+void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
+   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
    PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
 }
 
@@ -1100,7 +1119,38 @@ static void PAMassApply(const int dim,
 
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
+   {
+      const CeedScalar *x_ptr;
+      CeedScalar *y_ptr;
+      CeedMemType mem;
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+      {
+         x_ptr = x.Read();
+         y_ptr = y.ReadWrite();
+      }
+      else
+      {
+         x_ptr = x.HostRead();
+         y_ptr = y.HostReadWrite();
+         mem = CEED_MEM_HOST;
+      }
+      CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
+                         const_cast<CeedScalar*>(x_ptr));
+      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
+
+      CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
+                           CEED_REQUEST_IMMEDIATE);
+
+      CeedVectorSyncArray(ceedDataPtr->v, mem);
+   }
+   else
+#endif
+   {
+      PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+   }
 }
 
 } // namespace mfem

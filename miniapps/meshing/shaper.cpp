@@ -19,6 +19,10 @@
 // for example in the case when the interface is too complex to describe without
 // local refinement. Both conforming and non-conforming refinements are supported.
 //
+// Two additional versions of this miniapp can be found in the miniapps/toys
+// directory: Mandel uses the Shaper algorithm for fractal visualization, while
+// Mondrian convert an image to an AMR mesh suitable for MFEM computations.
+//
 // Compile with: make shaper
 //
 // Sample runs:  shaper
