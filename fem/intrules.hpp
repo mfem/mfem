@@ -26,8 +26,13 @@ class IntegrationPoint
 {
 public:
    double x, y, z, weight;
+   int index;
 
-   void Init() { x = y = z = weight = 0.0; }
+   void Init(int const i)
+   {
+      x = y = z = weight = 0.0;
+      index = i;
+   }
 
    void Set(const double *p, const int dim)
    {
@@ -90,6 +95,9 @@ private:
    /** @brief The quadrature weights gathered as a contiguous array. Created
        by request with the method GetWeights(). */
    mutable Array<double> weights;
+
+   /// Sets the indices of each quadrature point on initialization.
+   void SetPointIndices();
 
    /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
    void GrundmannMollerSimplexRule(int s, int n = 3);
@@ -215,7 +223,7 @@ public:
    {
       for (int i = 0; i < this->Size(); i++)
       {
-         (*this)[i].Init();
+         (*this)[i].Init(i);
       }
    }
 
