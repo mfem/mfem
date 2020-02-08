@@ -11,9 +11,9 @@
 
 // Implementation of FiniteElementSpace
 
+#include "../linalg/blas.hpp"
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
-#include "../linalg/blas.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
 
@@ -3843,25 +3843,30 @@ static void D2QPhysGrad2D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
 
-           for(int r=0; r<VDIM; ++r) {
-             for(int c=0; c<VDIM; ++c) {
-               Yloc[c][r] = y(c,r,qx,qy,e);
-               Jloc[c][r] = j(qx,qy,c,r,e);
-             }
-           }
-
-           blas::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
-
-           for(int r=0; r<VDIM; ++r){
-             for(int c=0; c<VDIM; ++c){
-
-               double dot(0.0);
-               for(int k=0; k<VDIM; ++k){
-                 dot += Yloc[r][k]*Jinv[k][c];
+            for (int r=0; r<VDIM; ++r)
+            {
+               for (int c=0; c<VDIM; ++c)
+               {
+                  Yloc[c][r] = y(c,r,qx,qy,e);
+                  Jloc[c][r] = j(qx,qy,c,r,e);
                }
-               y(r,c,qx,qy,e) = dot;
-             }
-           }
+            }
+
+            blas::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
+
+            for (int r=0; r<VDIM; ++r)
+            {
+               for (int c=0; c<VDIM; ++c)
+               {
+
+                  double dot(0.0);
+                  for (int k=0; k<VDIM; ++k)
+                  {
+                     dot += Yloc[r][k]*Jinv[k][c];
+                  }
+                  y(r,c,qx,qy,e) = dot;
+               }
+            }
 
          }
       }
@@ -4016,30 +4021,30 @@ static  void D2QPhysGrad3D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
 
-              for(int r=0; r<VDIM; ++r)
-              {
-                for(int c=0; c<VDIM; ++c)
-                {
-                  Yloc[c][r] = y(c,r,qx,qy,qz,e);
-                  Jloc[c][r] = j(qx,qy,qz,c,r,e);
-                }
-              }
+               for (int r=0; r<VDIM; ++r)
+               {
+                  for (int c=0; c<VDIM; ++c)
+                  {
+                     Yloc[c][r] = y(c,r,qx,qy,qz,e);
+                     Jloc[c][r] = j(qx,qy,qz,c,r,e);
+                  }
+               }
 
-              blas::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
+               blas::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
 
-              for(int r=0; r<VDIM; ++r)
-              {
-                 for(int c=0; c<VDIM; ++c)
-                 {
+               for (int r=0; r<VDIM; ++r)
+               {
+                  for (int c=0; c<VDIM; ++c)
+                  {
 
-                   double dot(0.0);
-                   for(int k=0; k<VDIM; ++k)
-                   {
-                     dot += Yloc[r][k]*Jinv[k][c];
-                   }
-                   y(r,c,qx,qy,qz,e) = dot;
-                 }
-              }
+                     double dot(0.0);
+                     for (int k=0; k<VDIM; ++k)
+                     {
+                        dot += Yloc[r][k]*Jinv[k][c];
+                     }
+                     y(r,c,qx,qy,qz,e) = dot;
+                  }
+               }
 
             }
          }
@@ -4065,10 +4070,14 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
    {
       switch (id)
       {
-         case 0x34: return D2QPhysGrad2D<3,4,8>(NE, geom, maps->B, maps->G, e_vec, q_der);
-         case 0x46: return D2QPhysGrad2D<4,6,4>(NE, geom, maps->B, maps->G, e_vec, q_der);
-         case 0x58: return D2QPhysGrad2D<5,8,2>(NE, geom, maps->B, maps->G, e_vec, q_der);
-         default: return D2QPhysGrad2D(NE, geom, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
+         case 0x34: return D2QPhysGrad2D<3,4,8>(NE, geom, maps->B, maps->G, e_vec,
+                                                   q_der);
+         case 0x46: return D2QPhysGrad2D<4,6,4>(NE, geom, maps->B, maps->G, e_vec,
+                                                   q_der);
+         case 0x58: return D2QPhysGrad2D<5,8,2>(NE, geom, maps->B, maps->G, e_vec,
+                                                   q_der);
+         default: return D2QPhysGrad2D(NE, geom, maps->B, maps->G, e_vec, q_der, D1D,
+                                          Q1D);
       }
    }
    if (dim==3)
@@ -4081,7 +4090,8 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
          default:
          {
             MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
-            return D2QPhysGrad3D<0,0,8,8>(NE, geom, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
+            return D2QPhysGrad3D<0,0,8,8>(NE, geom, maps->B, maps->G, e_vec, q_der, D1D,
+                                          Q1D);
          }
       }
    }
@@ -4099,7 +4109,7 @@ void QuadratureInterpolator::Derivatives(const Vector &e_vec,
 }
 
 void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
-                                         Vector &q_der) const
+                                             Vector &q_der) const
 {
 
    Mesh *mesh = fespace->GetMesh();
