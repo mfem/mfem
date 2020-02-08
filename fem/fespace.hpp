@@ -991,6 +991,11 @@ public:
    /// This computation uses tensor product structure.
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
 
+   /// Interpolate the derivatives in physical space of the E-vector @a e_vec
+   /// at quadrature points.
+   /// This computation uses tensor product structure.
+   void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
+
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
