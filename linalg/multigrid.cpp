@@ -159,7 +159,7 @@ void TimedMultigridOperator::MultAtLevel(int level, const Vector& x,
    operators[level]->Mult(x, y);
    sw.Stop();
    stats[std::make_tuple(Statistics::NUMAPPLICATIONS, Operation::OPERATOR,
-                                                                      level)] += 1;
+                         level)] += 1;
    stats[std::make_tuple(Statistics::TOTALTIME, Operation::OPERATOR, level)] +=
       sw.RealTime();
 }
@@ -172,9 +172,9 @@ void TimedMultigridOperator::RestrictTo(int level, const Vector& x,
    prolongations[level]->MultTranspose(x, y);
    sw.Stop();
    stats[std::make_tuple(Statistics::NUMAPPLICATIONS, Operation::RESTRICTION,
-                                                                      level)] += 1;
+                         level)] += 1;
    stats[std::make_tuple(Statistics::TOTALTIME, Operation::RESTRICTION,
-                                                                level)] += sw.RealTime();
+                         level)] += sw.RealTime();
 }
 
 void TimedMultigridOperator::InterpolateFrom(int level, const Vector& x,
@@ -185,9 +185,9 @@ void TimedMultigridOperator::InterpolateFrom(int level, const Vector& x,
    prolongations[level]->Mult(x, y);
    sw.Stop();
    stats[std::make_tuple(Statistics::NUMAPPLICATIONS, Operation::PROLONGATION,
-                                                                      level)] += 1;
+                         level)] += 1;
    stats[std::make_tuple(Statistics::TOTALTIME, Operation::PROLONGATION,
-                                                                level)] += sw.RealTime();
+                         level)] += sw.RealTime();
 }
 
 void TimedMultigridOperator::ApplySmootherAtLevel(int level, const Vector& x,
@@ -198,7 +198,7 @@ void TimedMultigridOperator::ApplySmootherAtLevel(int level, const Vector& x,
    MultigridOperator::ApplySmootherAtLevel(level, x, y);
    sw.Stop();
    stats[std::make_tuple(Statistics::NUMAPPLICATIONS, Operation::SMOOTHER,
-                                                                      level)] += 1;
+                         level)] += 1;
    stats[std::make_tuple(Statistics::TOTALTIME, Operation::SMOOTHER, level)] +=
       sw.RealTime();
 }
