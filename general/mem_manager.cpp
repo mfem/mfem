@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "dbg.hpp"
 #include "forall.hpp"
 #include "mem_manager.hpp"
 
@@ -620,40 +619,18 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
 {
    MFEM_ASSERT(exists, "Internal error!");
    MFEM_ASSERT(mt != MemoryType::HOST, "Internal error!");
-   const bool host_mem = IsHostMemory(mt);
-   const bool host_reg = IsHostRegisteredMemory(mt);
-   const bool host_std = host_mem && !host_reg;
+   const bool is_host_mem = IsHostMemory(mt);
    const MemType dual_mt = GetDualMemoryType_(mt);
-   const MemType h_mt = host_mem ? mt : dual_mt;
-   const MemType d_mt = host_mem ? dual_mt : mt;
+   const MemType h_mt = is_host_mem ? mt : dual_mt;
+   const MemType d_mt = is_host_mem ? dual_mt : mt;
    MFEM_VERIFY_TYPES(h_mt, d_mt);
-
    void *h_ptr = h_tmp;
-   if (h_tmp == nullptr)
-   {
-      MFEM_VERIFY(h_mt != MemoryType::HOST,"");
-      ctrl->Host(h_mt)->Alloc(&h_ptr, bytes);
-   }
-
-   flags = Mem::OWNS_INTERNAL | Mem::OWNS_HOST;
-
-   if (host_std) // HOST_32, HOST_64
-   {
-      flags |= Mem::VALID_HOST;
-      return h_ptr;
-   }
-
-   flags |= Mem::REGISTERED;
-   if (host_reg)  // HOST_UMPIRE, HOST_DEBUG
-   {
-      mm.Insert(h_ptr, bytes, h_mt, d_mt);
-      flags |= Mem::OWNS_DEVICE | Mem::VALID_HOST;
-   }
-   else // DEVICE
-   {
-      mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt);
-      flags |= Mem::OWNS_DEVICE| Mem::VALID_DEVICE;
-   }
+   if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
+   flags = Mem::REGISTERED;
+   flags |= Mem::OWNS_INTERNAL | Mem::OWNS_HOST | Mem::OWNS_DEVICE;
+   flags |= is_host_mem ? Mem::VALID_HOST : Mem::VALID_DEVICE;
+   if (is_host_mem) { mm.Insert(h_ptr, bytes, h_mt, d_mt); }
+   else { mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt); }
    CheckHostMemoryType_(h_mt, h_ptr);
    return h_ptr;
 }
@@ -666,9 +643,8 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    MFEM_ASSERT(exists, "Internal error!");
    MFEM_ASSERT(IsHostMemory(mt), "Internal error!");
    MFEM_ASSERT(!alias, "Cannot register an alias!");
-   const bool host_mem = IsHostMemory(mt);
-   const bool host_reg = IsHostRegisteredMemory(mt);
-   const bool host_std = host_mem && !host_reg;
+   const bool is_host_mem = IsHostMemory(mt);
+   const bool mt_host = mt==MemoryType::HOST;
    const MemType dual_mt = GetDualMemoryType_(mt);
    const MemType h_mt = mt;
    const MemType d_mt = dual_mt;
@@ -682,7 +658,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
 
    flags |= Mem::REGISTERED | Mem::OWNS_INTERNAL;
 
-   if (host_std) // HOST, HOST_32, HOST_64
+   if (mt_host) // HOST
    {
       mm.Insert(ptr, bytes, h_mt, d_mt);
       flags = (own ? flags | Mem::OWNS_HOST : flags & ~Mem::OWNS_HOST) |
@@ -693,7 +669,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    void *h_ptr = h_tmp;
    if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
 
-   if (host_reg) // HOST_UMPIRE, HOST_DEBUG, MANAGED
+   if (is_host_mem) // HOST_32, HOST_64, HOST_UMPIRE, HOST_DEBUG, MANAGED
    {
       mm.Insert(h_ptr, bytes, h_mt, d_mt);
       flags = (own ? flags | Mem::OWNS_HOST : flags & ~Mem::OWNS_HOST) |
@@ -705,6 +681,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
       flags = (own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE) |
               Mem::OWNS_HOST | Mem::VALID_DEVICE;
    }
+   CheckHostMemoryType_(h_mt, h_ptr);
    return h_ptr;
 }
 
@@ -720,61 +697,33 @@ void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
 MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
 {
    const bool alias = flags & Mem::ALIAS;
-   const bool mt_host = mt == MemoryType::HOST;
    const bool registered = flags & Mem::REGISTERED;
    const bool owns_host = flags & Mem::OWNS_HOST;
    const bool owns_device = flags & Mem::OWNS_DEVICE;
    const bool owns_internal = flags & Mem::OWNS_INTERNAL;
    MFEM_ASSERT(registered || IsHostMemory(mt),"");
    MFEM_ASSERT(!owns_device || owns_internal, "invalid Memory state");
-   if (mm.exists)
+   if (!mm.exists || !registered) { return mt; }
+   if (alias)
    {
-      if (registered)
+      if (owns_internal)
       {
-         if (alias)
-         {
-            if (owns_internal)
-            {
-               const MemoryType h_mt = maps->aliases.at(h_ptr).h_mt;
-               MFEM_ASSERT(mt == h_mt,"");
-               mm.EraseAlias(h_ptr);
-               return h_mt;
-            }
-         }
-         else // Known
-         {
-            const MemoryType h_mt = mt;
-            MFEM_ASSERT(!owns_internal ||
-                        mt == maps->memories.at(h_ptr).h_mt,"");
-            MFEM_ASSERT(!owns_host || owns_internal,"");
-            if (owns_host && (h_mt != MemoryType::HOST))
-            { ctrl->Host(h_mt)->Dealloc(h_ptr); }
-            if (owns_internal)
-            {
-               mm.Erase(h_ptr, owns_device);
-            }
-            return h_mt;
-         }
-      }
-      else // ! REGISTERED
-      {
-         if (!mt_host)
-         {
-            if (owns_host && h_ptr) { ctrl->Host(mt)->Dealloc(h_ptr); }
-         }
-         return mt;
+         const MemoryType h_mt = maps->aliases.at(h_ptr).h_mt;
+         MFEM_ASSERT(mt == h_mt,"");
+         mm.EraseAlias(h_ptr);
+         return h_mt;
       }
    }
-   else  // !mm.exists
+   else // Known
    {
-      const bool aligned = mt == MemoryType::HOST_32  ||
-                           mt == MemoryType::HOST_64;
-      if (aligned)
-      {
-         // No more memory manager, delete residual statics for HOST_32/64
-         if (owns_host) { std::free(h_ptr); }
-      }
-      return mt;
+      const MemoryType h_mt = mt;
+      MFEM_ASSERT(!owns_internal ||
+                  mt == maps->memories.at(h_ptr).h_mt,"");
+      MFEM_ASSERT(!owns_host || owns_internal,"");
+      if (owns_host && (h_mt != MemoryType::HOST))
+      { ctrl->Host(h_mt)->Dealloc(h_ptr); }
+      if (owns_internal) { mm.Erase(h_ptr, owns_device); }
+      return h_mt;
    }
    return mt;
 }
@@ -789,6 +738,10 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
       return true;
    }
 
+   const bool known = mm.IsKnown(h_ptr);
+   const bool alias = mm.IsAlias(h_ptr);
+   const bool check = known || ((flags & Mem::ALIAS) && alias);
+   MFEM_VERIFY(check,"");
    const internal::Memory &mem =
       (flags & Mem::ALIAS) ?
       *maps->aliases.at(h_ptr).mem : maps->memories.at(h_ptr);
@@ -931,7 +884,7 @@ MemoryType MemoryManager::GetDeviceMemoryType_(void *h_ptr)
          internal::Memory &mem = maps->memories.at(h_ptr);
          return mem.d_mt;
       }
-      const bool alias = maps->aliases.find(h_ptr) != maps->aliases.end();
+      const bool alias = mm.IsAlias(h_ptr);
       if (alias)
       {
          internal::Memory *mem = maps->aliases.at(h_ptr).mem;
@@ -1403,14 +1356,7 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr)
    const bool known = mm.IsKnown(h_ptr);
    const bool alias = mm.IsAlias(h_ptr);
    if (known) { MFEM_VERIFY(h_mt == maps->memories.at(h_ptr).h_mt,""); }
-   if (alias)
-   {
-      if (h_mt != maps->aliases.at(h_ptr).mem->h_mt)
-      {
-         dbg("error");
-      }
-      MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).mem->h_mt,"");
-   }
+   if (alias) { MFEM_VERIFY(h_mt == maps->aliases.at(h_ptr).mem->h_mt,""); }
 }
 
 MemoryManager mm;
