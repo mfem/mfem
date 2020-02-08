@@ -3471,10 +3471,10 @@ void QuadratureInterpolator::Values(const Vector &e_vec, Vector &q_val) const
 
 template<int T_D1D =0, int T_Q1D =0, int T_NBZ =0>
 static void D2QGrad2D(const int NE,
-                      const Array<double> &b_,
-                      const Array<double> &g_,
-                      const Vector &x_,
-                      Vector &y_,
+                      const double *b_,
+                      const double *g_,
+                      const double *x_,
+                      double *y_,
                       const int d1d =0,
                       const int q1d =0)
 {
@@ -3483,10 +3483,10 @@ static void D2QGrad2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto x = Reshape(x_, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_, VDIM, VDIM, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -3566,10 +3566,10 @@ static void D2QGrad2D(const int NE,
 
 template<int T_D1D =0, int T_Q1D =0, int MAX_D =0, int MAX_Q =0>
 static  void D2QGrad3D(const int NE,
-                       const Array<double> &b_,
-                       const Array<double> &g_,
-                       const Vector &x_,
-                       Vector &y_,
+                       const double *b_,
+                       const double *g_,
+                       const double *x_,
+                       double *y_,
                        const int d1d =0,
                        const int q1d =0)
 {
@@ -3577,10 +3577,10 @@ static  void D2QGrad3D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, Q1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_, VDIM, VDIM, Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -3706,27 +3706,31 @@ static void D2QGrad(const FiniteElementSpace &fes,
    const int D1D = fes.GetFE(0)->GetOrder() + 1;
    const int Q1D = maps->nqpt;
    const int id = (D1D<<4) | Q1D;
+   const double *B = maps->B.Read();
+   const double *G = maps->G.Read();
+   const double *X = e_vec.Read();
+   double *Y = q_der.Write();
    if (dim==2)
    {
       switch (id)
       {
-         case 0x34: return D2QGrad2D<3,4,8>(NE, maps->B, maps->G, e_vec, q_der);
-         case 0x46: return D2QGrad2D<4,6,4>(NE, maps->B, maps->G, e_vec, q_der);
-         case 0x58: return D2QGrad2D<5,8,2>(NE, maps->B, maps->G, e_vec, q_der);
-         default: return D2QGrad2D(NE, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
+         case 0x34: return D2QGrad2D<3,4,8>(NE, B, G, X, Y);
+         case 0x46: return D2QGrad2D<4,6,4>(NE, B, G, X, Y);
+         case 0x58: return D2QGrad2D<5,8,2>(NE, B, G, X, Y);
+         default: return D2QGrad2D(NE, B, G, X, Y, D1D, Q1D);
       }
    }
    if (dim==3)
    {
       switch (id)
       {
-         case 0x34: return D2QGrad3D<3,4>(NE, maps->B, maps->G, e_vec, q_der);
-         case 0x46: return D2QGrad3D<4,6>(NE, maps->B, maps->G, e_vec, q_der);
-         case 0x58: return D2QGrad3D<5,8>(NE, maps->B, maps->G, e_vec, q_der);
+         case 0x34: return D2QGrad3D<3,4>(NE, B, G, X, Y);
+         case 0x46: return D2QGrad3D<4,6>(NE, B, G, X, Y);
+         case 0x58: return D2QGrad3D<5,8>(NE, B, G, X, Y);
          default:
          {
             MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
-            return D2QGrad3D<0,0,8,8>(NE, maps->B, maps->G, e_vec, q_der, D1D, Q1D);
+            return D2QGrad3D<0,0,8,8>(NE, B, G, X, Y, D1D, Q1D);
          }
       }
    }
@@ -3736,11 +3740,11 @@ static void D2QGrad(const FiniteElementSpace &fes,
 
 template<int T_D1D =0, int T_Q1D =0, int T_NBZ =0>
 static void D2QPhysGrad2D(const int NE,
-                          const GeometricFactors *geom,
-                          const Array<double> &b_,
-                          const Array<double> &g_,
-                          const Vector &x_,
-                          Vector &y_,
+                          const double *b_,
+                          const double *g_,
+                          const double *j_,
+                          const double *x_,
+                          double *y_,
                           const int d1d =0,
                           const int q1d =0)
 {
@@ -3749,17 +3753,18 @@ static void D2QPhysGrad2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, NE);
-   auto j = Reshape(geom->J.Read(), Q1D, Q1D, VDIM, VDIM, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto j = Reshape(j_, Q1D, Q1D, VDIM, VDIM, NE);
+   auto x = Reshape(x_, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_, VDIM, VDIM, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      constexpr int VDIM = 2;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double G[MQ1][MD1];
@@ -3858,7 +3863,6 @@ static void D2QPhysGrad2D(const int NE,
             {
                for (int c=0; c<VDIM; ++c)
                {
-
                   double dot(0.0);
                   for (int k=0; k<VDIM; ++k)
                   {
@@ -3870,18 +3874,16 @@ static void D2QPhysGrad2D(const int NE,
 
          }
       }
-
-
    });
 }
 
 template<int T_D1D =0, int T_Q1D =0, int MAX_D =0, int MAX_Q =0>
 static  void D2QPhysGrad3D(const int NE,
-                           const GeometricFactors *geom,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
-                           const Vector &x_,
-                           Vector &y_,
+                           const double *b_,
+                           const double *g_,
+                           const double *j_,
+                           const double *x_,
+                           double *y_,
                            const int d1d =0,
                            const int q1d =0)
 {
@@ -3889,14 +3891,15 @@ static  void D2QPhysGrad3D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, Q1D, NE);
-   auto j = Reshape(geom->J.Read(), Q1D, Q1D, Q1D, VDIM, VDIM, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto j = Reshape(j_, Q1D, Q1D, Q1D, VDIM, VDIM, NE);
+   auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_, VDIM, VDIM, Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int VDIM = 3;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
       const int tidz = MFEM_THREAD_ID(z);
@@ -4049,7 +4052,6 @@ static  void D2QPhysGrad3D(const int NE,
             }
          }
       }
-
    });
 }
 
@@ -4066,32 +4068,32 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
    const int D1D = fes.GetFE(0)->GetOrder() + 1;
    const int Q1D = maps->nqpt;
    const int id = (D1D<<4) | Q1D;
+   const double *B = maps->B.Read();
+   const double *G = maps->G.Read();
+   const double *J = geom->J.Read();
+   const double *X = e_vec.Read();
+   double *Y = q_der.Write();
    if (dim==2)
    {
       switch (id)
       {
-         case 0x34: return D2QPhysGrad2D<3,4,8>(NE, geom, maps->B, maps->G, e_vec,
-                                                   q_der);
-         case 0x46: return D2QPhysGrad2D<4,6,4>(NE, geom, maps->B, maps->G, e_vec,
-                                                   q_der);
-         case 0x58: return D2QPhysGrad2D<5,8,2>(NE, geom, maps->B, maps->G, e_vec,
-                                                   q_der);
-         default: return D2QPhysGrad2D(NE, geom, maps->B, maps->G, e_vec, q_der, D1D,
-                                          Q1D);
+         case 0x34: return D2QPhysGrad2D<3,4,8>(NE, B, G, J, X, Y);
+         case 0x46: return D2QPhysGrad2D<4,6,4>(NE, B, G, J, X, Y);
+         case 0x58: return D2QPhysGrad2D<5,8,2>(NE, B, G, J, X, Y);
+         default: return D2QPhysGrad2D(NE, B, G, J, X, Y, D1D, Q1D);
       }
    }
    if (dim==3)
    {
       switch (id)
       {
-         case 0x34: return D2QPhysGrad3D<3,4>(NE, geom, maps->B, maps->G, e_vec, q_der);
-         case 0x46: return D2QPhysGrad3D<4,6>(NE, geom, maps->B, maps->G, e_vec, q_der);
-         case 0x58: return D2QPhysGrad3D<5,8>(NE, geom, maps->B, maps->G, e_vec, q_der);
+         case 0x34: return D2QPhysGrad3D<3,4>(NE, B, G, J, X, Y);
+         case 0x46: return D2QPhysGrad3D<4,6>(NE, B, G, J, X, Y);
+         case 0x58: return D2QPhysGrad3D<5,8>(NE, B, G, J, X, Y);
          default:
          {
             MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
-            return D2QPhysGrad3D<0,0,8,8>(NE, geom, maps->B, maps->G, e_vec, q_der, D1D,
-                                          Q1D);
+            return D2QPhysGrad3D<0,0,8,8>(NE, B, G, J, X, Y, D1D, Q1D);
          }
       }
    }
@@ -4115,10 +4117,8 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
    Mesh *mesh = fespace->GetMesh();
    mesh->DeleteGeometricFactors();
    const IntegrationRule &ir = *IntRule;
-
    const GeometricFactors *geom =
       mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
-
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
    D2QPhysGrad(*fespace, geom, &d2q, ir, e_vec, q_der);
