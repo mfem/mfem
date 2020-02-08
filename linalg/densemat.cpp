@@ -56,6 +56,9 @@ extern "C" void
 dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
         double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
         int *LWORK, int *INFO);
+extern "C" void
+dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
+       double *alpha, double *a, int *lda, double *b, int *ldb);
 #endif
 
 
@@ -3097,6 +3100,39 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 #endif
 }
 
+void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c,
+               DenseMatrix &a)
+{
+   MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
+               b.Width() == c.Height(), "incompatible dimensions");
+
+#ifdef MFEM_USE_LAPACK
+   static char transa = 'N', transb = 'N';
+   static double beta = 1.0;
+   int m = b.Height(), n = c.Width(), k = b.Width();
+
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+          c.Data(), &k, &beta, a.Data(), &m);
+#else
+   const int ah = a.Height();
+   const int aw = a.Width();
+   const int bw = b.Width();
+   double *ad = a.Data();
+   const double *bd = b.Data();
+   const double *cd = c.Data();
+   for (int j = 0; j < aw; j++)
+   {
+      for (int k = 0; k < bw; k++)
+      {
+         for (int i = 0; i < ah; i++)
+         {
+            ad[i+j*ah] += alpha * bd[i+k*ah] * cd[k+j*bw];
+         }
+      }
+   }
+#endif
+}
+
 void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
    MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
@@ -4098,6 +4134,64 @@ void LUFactors::Solve(int m, int n, double *X) const
    LSolve(m, n, X);
    USolve(m, n, X);
 #endif
+}
+
+void LUFactors::RightSolve(int m, int n, double *X) const
+{
+   double *x;
+#ifdef MFEM_USE_LAPACK
+   char n_ch = 'N', side = 'R', u_ch = 'U', l_ch = 'L';
+   double alpha = 1.0;
+   if (m > 0 && n > 0)
+   {
+      dtrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
+      dtrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
+   }
+#else
+   // compiling without LAPACK
+   const double *data = this->data;
+   const int *ipiv = this->ipiv;
+
+   // X <- X U^{-1}
+   x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int j = 0; j < m; j++)
+      {
+         const double x_j = ( x[j*n] /= data[j+j*m]);
+         for (int i = j+1; i < m; i++)
+         {
+            x[i*n] -= data[j + i*m] * x_j;
+         }
+      }
+      ++x;
+   }
+
+   // X <- X L^{-1}
+   x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int j = m-1; j >= 0; j--)
+      {
+         const double x_j = x[j*n];
+         for (int i = 0; i < j; i++)
+         {
+            x[i*n] -= data[j + i*m] * x_j;
+         }
+      }
+      ++x;
+   }
+#endif
+   // X <- X P
+   x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int i = 0; i < m; i++)
+      {
+         Swap<double>(x[i*n], x[(ipiv[i]-ipiv_base)*n]);
+      }
+      ++x;
+   }
 }
 
 void LUFactors::GetInverseMatrix(int m, double *X) const
