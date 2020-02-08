@@ -12973,6 +12973,33 @@ void KernelFiniteElement::IntRuleToVec(const IntegrationPoint &ip,
    }
 }
 
+void KernelFiniteElement::Project(
+   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
+{
+   // Copied from PositiveFiniteElement
+   for (int i = 0; i < Dof; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      dofs(i) = coeff.Eval(Trans, ip);
+   }
+}
+
+void KernelFiniteElement::Project(
+   const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
+{
+   // Copied from PositiveFiniteElement
+   DenseMatrix pos_mass, mixed_mass;
+   MassIntegrator mass_integ;
+   
+   mass_integ.AssembleElementMatrix(*this, Trans, pos_mass);
+   mass_integ.AssembleElementMatrix2(fe, *this, Trans, mixed_mass);
+   
+   DenseMatrixInverse pos_mass_inv(pos_mass);
+   I.SetSize(Dof, fe.GetDof());
+   pos_mass_inv.Mult(mixed_mass, I);
+}
+
 RBFFiniteElement::RBFFiniteElement(const int D, 
                                    const int numPointsD,
                                    const double h,
@@ -12992,7 +13019,6 @@ RBFFiniteElement::RBFFiniteElement(const int D,
 #endif
      numPointsD(numPointsD),
      h(h),
-     pos(TensorBasisElement::Pow(numPointsD, D), D),
      rbf(RBFType::GetRBF(rbfType)),
      distance(DistanceType::GetDistance(D, distType))
 {
@@ -13003,9 +13029,22 @@ void RBFFiniteElement::DistanceVec(const int i,
                                    const Vector &x,
                                    Vector &y) const
 {
-   for (int d = 0; d < Dim; ++d)
+   switch (Dim)
    {
-      y(d) = (x(d) - pos(i, d)) * hPhysInv;
+   case 1:
+      y(0) = (x(0) - Nodes.IntPoint(i).x) * hPhysInv;
+      break;
+   case 2:
+      y(0) = (x(0) - Nodes.IntPoint(i).x) * hPhysInv;
+      y(1) = (x(1) - Nodes.IntPoint(i).y) * hPhysInv;
+      break;
+   case 3:
+      y(0) = (x(0) - Nodes.IntPoint(i).x) * hPhysInv;
+      y(1) = (x(1) - Nodes.IntPoint(i).y) * hPhysInv;
+      y(2) = (x(2) - Nodes.IntPoint(i).z) * hPhysInv;
+      break;
+   default:
+      MFEM_ABORT("invalid dimension: " << Dim);
    }
 }
 
@@ -13019,7 +13058,7 @@ void RBFFiniteElement::SetPositions()
    case 1:
       for (int i = 0; i < numPointsD; ++i)
       {
-         pos(i, 0) = delta * i;
+         Nodes.IntPoint(i).x = delta * static_cast<double>(i);
       }
       break;
    case 2:
@@ -13028,8 +13067,8 @@ void RBFFiniteElement::SetPositions()
          for (int j = 0; j < numPointsD; ++j)
          {
             int l = j + numPointsD * i;
-            pos(l, 0) = delta * static_cast<double>(i);
-            pos(l, 1) = delta * static_cast<double>(j);
+            Nodes.IntPoint(l).x = delta * static_cast<double>(i);
+            Nodes.IntPoint(l).y = delta * static_cast<double>(j);
          }
       }
       break;
@@ -13041,9 +13080,9 @@ void RBFFiniteElement::SetPositions()
             for (int k = 0; k < numPointsD; ++k)
             {
                int l = k + numPointsD * (j + numPointsD * i);
-               pos(l, 0) = delta * static_cast<double>(i);
-               pos(l, 1) = delta * static_cast<double>(j);
-               pos(l, 2) = delta * static_cast<double>(k);
+               Nodes.IntPoint(l).x = delta * static_cast<double>(i);
+               Nodes.IntPoint(l).x = delta * static_cast<double>(j);
+               Nodes.IntPoint(l).x = delta * static_cast<double>(k);
             }
          }
       }
@@ -13170,6 +13209,7 @@ RKFiniteElement::RKFiniteElement(const int D,
      numPoly(RKFiniteElement::GetNumPoly(order, D)),
      baseFE(new RBFFiniteElement(D, numPointsD, h, rbfType, distType))
 {
+   Nodes = baseFE->GetNodes();
 #ifndef MFEM_THREAD_SAFE
    x_scr.SetSize(Dim);
    y_scr.SetSize(Dim);
@@ -13270,9 +13310,22 @@ void RKFiniteElement::DistanceVec(const int i,
                                   const Vector &x,
                                   Vector &y) const
 {
-   for (int d = 0; d < Dim; ++d)
+   switch (Dim)
    {
-      y(d) = x(d) - baseFE->position()(i, d);
+   case 1:
+      y(0) = x(0) - Nodes.IntPoint(i).x;
+      break;
+   case 2:
+      y(0) = x(0) - Nodes.IntPoint(i).x;
+      y(1) = x(1) - Nodes.IntPoint(i).y;
+      break;
+   case 3:
+      y(0) = x(0) - Nodes.IntPoint(i).x;
+      y(1) = x(1) - Nodes.IntPoint(i).y;
+      y(2) = x(2) - Nodes.IntPoint(i).z;
+      break;
+   default:
+      MFEM_ABORT("invalid dimension: " << Dim);
    }
 }
 

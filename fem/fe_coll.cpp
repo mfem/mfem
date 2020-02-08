@@ -2856,7 +2856,7 @@ KernelFECollection::KernelFECollection(const int D,
 
 bool KernelFECollection::ValidGeomType(int GeomType) const
 {
-   int dim = FE->GetDim();
+   const int dim = FE->GetDim();
    return ((GeomType == Geometry::SEGMENT && dim == 1)
            || (GeomType == Geometry::SQUARE && dim == 2)
            || (GeomType == Geometry::CUBE && dim == 3));
@@ -2874,16 +2874,47 @@ KernelFECollection::FiniteElementForGeometry(int GeomType) const
 
 int KernelFECollection::DofForGeometry(int GeomType) const
 {
-   if (!ValidGeomType(GeomType))
+   // No shared Dof on vertices, edges, or faces
+   const int dim = FE->GetDim();
+   switch (dim)
    {
-      mfem_error ("KernelFECollection: not a valid geometry-dim pair");
+   case 1:
+      switch (GeomType)
+      {
+      case Geometry::POINT:
+         return 0;
+      case Geometry::SEGMENT:
+         return FE->GetDof();
+      }
+   case 2:
+      switch (GeomType)
+      {
+      case Geometry::POINT:
+         return 0;
+      case Geometry::SEGMENT:
+         return 0;
+      case Geometry::SQUARE:
+         return FE->GetDof();
+      }
+   case 3:
+      switch (GeomType)
+      {
+      case Geometry::POINT:
+         return 0;
+      case Geometry::SEGMENT:
+         return 0;
+      case Geometry::SQUARE:
+         return 0;
+      case Geometry::CUBE:
+         return FE->GetDof();
+      }
    }
-   return FE->GetDof();
+   mfem_error ("KernelFECollection: not a valid geometry type");
+   return 0; // for compiler
 }
 
 int *KernelFECollection::DofOrderForOrientation(int GeomType, int Or) const
 {
-   mfem_error("KernelFECollection::DofOrderForOrientation");
    return NULL;
 }
 
