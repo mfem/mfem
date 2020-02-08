@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "dbg.hpp"
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
@@ -64,6 +63,10 @@ bool Device::device_env = false;
 bool Device::mem_host_env = false;
 bool Device::mem_device_env = false;
 
+inline bool strlencmp(const char *dev, const char *cmp, const size_t n)
+{
+   return strlen(dev) == n && strncmp(dev, cmp, n)==0;
+}
 
 Device::Device() : mode(Device::SEQUENTIAL),
    backends(Backend::CPU),
@@ -74,11 +77,9 @@ Device::Device() : mode(Device::SEQUENTIAL),
    device_mem_type(MemoryType::HOST),
    device_mem_class(MemoryClass::HOST)
 {
-   dbg("");
    if (getenv("MFEM_MEMORY"))
    {
       std::string mem_backend(getenv("MFEM_MEMORY"));
-      dbg("MFEM_MEMORY => %s", mem_backend.c_str());
       if (mem_backend == "host32")
       {
          mem_host_env = true;
@@ -119,19 +120,14 @@ Device::Device() : mode(Device::SEQUENTIAL),
          MFEM_INIT_ABORT("Unknown memory backend!");
       }
       mm.Configure(host_mem_type, device_mem_type);
-      dbg("End of Device()");
-
    }
 
    if (getenv("MFEM_DEVICE") && !mem_host_env)
    {
       std::string device(getenv("MFEM_DEVICE"));
-      dbg("MFEM_DEVICE => %s", device.c_str());
       const char *device_c_str = device.c_str();
-      const bool cpu = strlen(device_c_str) == 3 &&
-                       strncmp(device_c_str,"cpu",3)==0;
-      const bool debug = strlen(device_c_str) == 5 &&
-                         strncmp(device_c_str,"debug",5)==0;
+      const bool cpu = strlencmp(device_c_str, "cpu", 3);
+      const bool debug = strlencmp(device_c_str, "debug", 5);
       if (!debug && !cpu) { return; }
       Configure(device);
       device_env = true;
@@ -141,10 +137,9 @@ Device::Device() : mode(Device::SEQUENTIAL),
 
 Device::~Device()
 {
-   if ( device_env && !destroy_mm) { dbg("env & !mm"); return; }
+   if ( device_env && !destroy_mm) { return; }
    if (!device_env &&  destroy_mm && !mem_host_env)
    {
-      dbg("!env && mm");
       free(device_option);
 #ifdef MFEM_USE_CEED
       CeedDestroy(&internal::ceed);
@@ -163,13 +158,11 @@ void Device::Configure(const std::string &device, const int dev)
    // and avoid the 'singleton_device' to destroy the mm.
    if (device_env || mem_host_env)
    {
-      dbg("skip the configuration");
       std::memcpy(this, &Get(), sizeof(Device));
       Get().destroy_mm = false;
       return;
    }
 
-   dbg("");
    std::map<std::string, Backend::Id> bmap;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
@@ -258,7 +251,6 @@ void Device::Print(std::ostream &out)
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   dbg("");
 #ifdef MFEM_USE_UMPIRE
    const bool umpire = true;
 #else
@@ -304,9 +296,7 @@ void Device::UpdateMemoryTypeAndClass()
    }
 
    // Enable the UVM shortcut when requested
-   if (device && device_option &&
-       strlen(device_option) == 3 &&
-       strncmp(device_option, "uvm", 3)==0)
+   if (device && device_option && strlencmp(device_option, "uvm", 3))
    {
       host_mem_type = MemoryType::MANAGED;
       device_mem_type = MemoryType::MANAGED;
