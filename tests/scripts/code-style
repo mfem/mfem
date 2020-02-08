@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+# Print usage information
+case $1 in
+   -h|-help)
+      cat <<EOF
+
+   $0 [-h|-help] {mfem_dir}
+
+   where: {mfem_dir}  is the MFEM source directory [default value: ../..]
+          -h|-help    prints this usage information and exits
+
+   This script checks if the code in mfem_dir conforms to the MFEM C++ style
+   (currently based on astyle-2.05.1). Note that the comparison is done with
+   "git diff", so all differences between mfem_dir and the repository will be
+   reported. The local changes can be erased (lost!) with "git checkout .".
+
+   In addition to C++ styling, the script also verifies that std::cout and
+   std::cerr are not used in the library (use mfem::out and mfem::err instead).
+
+   Example usage: $0 ../..
+
+EOF
+      exit
+      ;;
+esac
+
+# Setup
+cur_dir=`pwd`
+mfem_dir=$1
+if [ "$mfem_dir" = "" ]; then
+    mfem_dir="../.."
+fi
+cd $mfem_dir
+mfem_dir=`pwd`
+shift
+
+# Verify C++ code styling in MFEM
+cd $mfem_dir
+make distclean
+make style
+(git diff) 1>&2
+
+# Verify that std::cout and std::cerr are not used in the library (use mfem::out
+# and mfem::err instead)
+(grep cout */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
+(grep cerr */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
+
+# Return to the original directory
+cd $cur_dir
