@@ -41,7 +41,7 @@ using namespace mfem;
 
 // Constant variables
 const double pi = M_PI;
-const double eps = 1.e-12;
+const double eps = 1.e-24;
 const int  visport = 19916;
 const char vishost[] = "localhost";
 
@@ -163,27 +163,29 @@ public:
 // Mesh file surface
 struct MeshFromFile: public Surface<MeshFromFile>
 {
-   MeshFromFile(Array<int> &bc, int order, const char *file, int nr, int vdim):
-      Surface(bc, order, file, nr, vdim) {}
+   MeshFromFile(Array<int> &BC, int o, const char *file, int r, int d):
+      Surface(BC, o, file, r, d) {}
 };
 
 // Catenoid surface
 struct Catenoid: public Surface<Catenoid>
 {
-   Catenoid(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
-      Surface(bc, order, nx, ny, nr, vdim) {}
+   Catenoid(Array<int> &BC, int o, int x, int y, int r, int d):
+      Surface(BC, o, x, y, r, d) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
       // u in [0,2π] and v in [-2π/3,2π/3]
       const double u = 2.0*pi*x[0];
       const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
-      p[0] = cos(u)*cosh(v);
-      p[1] = sin(u)*cosh(v);
+      //p[0] = cos(u)*cosh(v);
+      //p[1] = sin(u)*cosh(v);
+      p[0] = 3.2*cos(u);
+      p[1] = 3.2*sin(u);
       p[2] = v;
    }
-   // Postfix of the Catenoid surface
-   void Postfix()
+   // Prefix of the Catenoid surface
+   void Prefix()
    {
       SetCurvature(order, false, 3, Ordering::byNODES);
       Array<int> v2v(GetNV());
@@ -213,14 +215,16 @@ struct Catenoid: public Surface<Catenoid>
          for (int j = 0; j < nv; j++)
          { v[j] = v2v[v[j]]; }
       }
+      RemoveUnusedVertices();
+      RemoveInternalBoundaries();
    }
 };
 
 // Helicoid surface
 struct Helicoid: public Surface<Helicoid>
 {
-   Helicoid(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
-      Surface(bc, order, nx, ny, nr, vdim) {}
+   Helicoid(Array<int> &BC, int o, int x, int y, int r, int d):
+      Surface(BC, o, x, y, r, d) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -237,8 +241,8 @@ struct Helicoid: public Surface<Helicoid>
 // Enneper's surface
 struct Enneper: public Surface<Enneper>
 {
-   Enneper(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
-      Surface(bc, order, nx, ny, nr, vdim) {}
+   Enneper(Array<int> &BC, int o, int x, int y, int r, int d):
+      Surface(BC, o, x, y, r, d) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -251,11 +255,11 @@ struct Enneper: public Surface<Enneper>
    }
 };
 
-// Parametrization of Scherk's surface
+// Parametrization of Scherk's doubly periodic surface
 struct Scherk: public Surface<Scherk>
 {
-   Scherk(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
-      Surface(bc, order, nx, ny, nr, vdim) {}
+   Scherk(Array<int> &BC, int o, int x, int y, int r, int d):
+      Surface(BC, o, x, y, r, d) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -272,8 +276,8 @@ struct Scherk: public Surface<Scherk>
 // Shell surface model
 struct Shell: public Surface<Shell>
 {
-   Shell(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
-      Surface(bc, order, nx, ny, nr, vdim) {}
+   Shell(Array<int> &BC, int o, int x, int y, int r, int d):
+      Surface(BC, o, x, y, r, d) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -289,25 +293,60 @@ struct Shell: public Surface<Shell>
 // Hold surface
 struct Hold: public Surface<Hold>
 {
-   Hold(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
-      Surface(bc, order, nx, ny, nr, vdim) {}
+   Hold(Array<int> &BC, int o, int x, int y, int r, int d):
+      Surface(BC, o, x, y, r, d) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
       // u in [0,2π] and v in [0,1]
       const double u = 2.0*pi*x[0];
       const double v = x[1];
-      p[0] = cos(u)*(1.0 + 0.3*sin(5.*u + pi*v));
-      p[1] = sin(u)*(1.0 + 0.3*sin(5.*u + pi*v));
+      p[0] = cos(u)*(1.0 + 0.3*sin(3.*u + pi*v));
+      p[1] = sin(u)*(1.0 + 0.3*sin(3.*u + pi*v));
       p[2] = v;
+   }
+   void Prefix()
+   {
+      SetCurvature(order, false, 3, Ordering::byNODES);
+
+      Array<int> v2v(GetNV());
+      for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
+      // identify vertices on vertical lines
+      for (int j = 0; j <= ny; j++)
+      {
+         const int v_old = nx + j * (nx + 1);
+         const int v_new =      j * (nx + 1);
+         v2v[v_old] = v_new;
+      }
+      // renumber elements
+      for (int i = 0; i < GetNE(); i++)
+      {
+         Element *el = GetElement(i);
+         int *v = el->GetVertices();
+         const int nv = el->GetNVertices();
+         for (int j = 0; j < nv; j++)
+         { v[j] = v2v[v[j]]; }
+      }
+      // renumber boundary elements
+      for (int i = 0; i < GetNBE(); i++)
+      {
+         Element *el = GetBdrElement(i);
+         int *v = el->GetVertices();
+         const int nv = el->GetNVertices();
+         for (int j = 0; j < nv; j++)
+         { v[j] = v2v[v[j]]; }
+      }
+
+      RemoveUnusedVertices();
+      RemoveInternalBoundaries();
    }
 };
 
 // 1/4th Peach street model
 struct QPeach: public Surface<QPeach>
 {
-   QPeach(Array<int> &bc, int order, int nx, int ny, int nr, int vdim):
-      Surface(bc, order, nx, ny, nr, vdim) {}
+   QPeach(Array<int> &BC, int o, int x, int y, int r, int d):
+      Surface(BC, o, x, y, r, d) {}
    static void Parametrization(const Vector &X, Vector &p)
    {
       p = X;
@@ -361,8 +400,8 @@ struct QPeach: public Surface<QPeach>
 // Full Peach street model
 struct FPeach: public Surface<FPeach>
 {
-   FPeach(Array<int> &bc, int order, int nr, int vdim):
-      Surface<FPeach>(bc, order, nr, 8, 6, 6, vdim) { }
+   FPeach(Array<int> &BC, int o, int r, int d):
+      Surface<FPeach>(BC, o, r, 8, 6, 6, d) { }
    void Create()
    {
       const double quad_v[8][3] =
@@ -411,8 +450,8 @@ struct FPeach: public Surface<FPeach>
             int k = dofs[c];
             if (k < 0) { k = -1 - k; }
             GetNode(k, X);
-            const bool halfX = fabs(X[0]) < eps && X[1] <= 0;
-            const bool halfY = fabs(X[2]) < eps && X[1] >= 0;
+            const bool halfX = fabs(X[0]) < eps && X[1] <= 0.0;
+            const bool halfY = fabs(X[2]) < eps && X[1] >= 0.0;
             const bool is_on_bc = halfX || halfY;
             for (int d = 0; d < vdim; d++)
             { ess_cdofs[pfes->DofToVDof(k, d)] = is_on_bc; }
@@ -428,8 +467,8 @@ struct FPeach: public Surface<FPeach>
 // Full Peach street model
 struct SlottedSphere: public Surface<SlottedSphere>
 {
-   SlottedSphere(Array<int> &bc, int order, int nr, int vdim):
-      Surface<SlottedSphere>(bc, order, nr, 0, 0, 0, vdim) { }
+   SlottedSphere(Array<int> &BC, int o, int r, int d):
+      Surface<SlottedSphere>(BC, o, r, 0, 0, 0, d) { }
    void Create()
    {
       const double delta = 0.15;
@@ -549,16 +588,6 @@ struct SlottedSphere: public Surface<SlottedSphere>
          { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
       }
    }
-
-   void BoundaryConditions()
-   {
-      if (bdr_attributes.Size())
-      {
-         Array<int> ess_bdr(bdr_attributes.Max());
-         ess_bdr = 1;
-         Nodes->FESpace()->GetEssentialTrueDofs(ess_bdr, bc);
-      }
-   }
 };
 
 
@@ -664,9 +693,9 @@ public:
    }
 
 public:
-   ByComponent(bool pa,  bool vis, int niter, bool pause, int order,
-               XMesh *pmesh, XFiniteElementSpace *pfes, Array<int> &bc):
-      SurfaceSolver(pa, vis, niter, pause, order, pmesh, pfes, bc)
+   ByComponent(bool PA,  bool glvis, int n, bool wait, int o,
+               XMesh *xmesh, XFiniteElementSpace *xfes, Array<int> &BC):
+      SurfaceSolver(PA, glvis, n, wait, o, xmesh, xfes, BC)
    { a.AddDomainIntegrator(new DiffusionIntegrator(one)); }
    void Loop()
    {
@@ -683,9 +712,9 @@ public:
 class ByVector: public SurfaceSolver<ByVector>
 {
 public:
-   ByVector(bool pa, bool vis, int niter, bool pause, int order,
-            XMesh *pmesh, XFiniteElementSpace *pfes, Array<int> &bc):
-      SurfaceSolver(pa, vis, niter, pause, order, pmesh, pfes, bc)
+   ByVector(bool PA, bool glvis, int n, bool wait, int o,
+            XMesh *xmsh, XFiniteElementSpace *xfes, Array<int> &BC):
+      SurfaceSolver(PA, glvis, n, wait, o, xmsh, xfes, BC)
    { a.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); }
    void Loop()
    {
@@ -695,6 +724,26 @@ public:
    }
 };
 
+Mesh *NewMeshFromSurface(const int surface, Array<int> &bc,
+                         int o, int x, int y, int r, int d)
+{
+   switch (surface)
+   {
+      case 0: return new Catenoid(bc, o, x, y, r, d);
+      case 1: return new Helicoid(bc, o, x, y, r, d);
+      case 2: return new Enneper(bc, o, x, y, r, d);
+      case 3: return new Scherk(bc, o, x, y, r, d);
+      case 4: return new Shell(bc, o, x, y, r, d);
+      case 5: return new Hold(bc, o, x, y, r, d);
+      case 6: return new QPeach(bc, o, x, y, r, d);
+      case 7: return new FPeach(bc, o, r, d);
+      case 8: return new SlottedSphere(bc, o, r, d);
+      default: ;
+   }
+   mfem_error("Unknown surface (0 <= surface <= 8)!");
+   return nullptr;
+}
+
 int main(int argc, char *argv[])
 {
    // Initialize MPI.
@@ -703,24 +752,23 @@ int main(int argc, char *argv[])
    NRanks = num_procs; MyRank = myid;
 
    // Parse command-line options.
-   int s = -1;
    int x = 4;
    int y = 4;
    int r = 2;
    int o = 3;
-   int niter = 4;
+   int niter = 10;
+   int surface = -1;
    bool pa = true;
    bool vis = false;
    bool amr = false;
    bool wait = false;
    bool solve_by_components = false;
-   const char *keys = "gAmaaa";
+   const char *keys = "gAmmaaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&s, "-s", "--surface", "Choice of the surface.");
    args.AddOption(&wait, "-w", "--wait", "-no-w", "--no-wait",
                   "Enable or disable a GLVis pause.");
    args.AddOption(&x, "-x", "--num-elements-x",
@@ -730,6 +778,7 @@ int main(int argc, char *argv[])
    args.AddOption(&o, "-o", "--order", "Finite element order.");
    args.AddOption(&r, "-r", "--ref-levels", "Refinement");
    args.AddOption(&niter, "-n", "--niter", "Number of iterations");
+   args.AddOption(&surface, "-s", "--surface", "Choice of the surface.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&amr, "-amr", "--adaptive-mesh-refinement", "-no-amr",
@@ -761,22 +810,14 @@ int main(int argc, char *argv[])
    Mesh *mesh;
    Array<int> bc;
    const int d = solve_by_components ? 1 : 3;
-   if (s < 0)  { mesh = new MeshFromFile(bc, o, mesh_file, r, d); }
-   if (s == 0) { mesh = new Catenoid(bc, o, x, y, r, d); }
-   if (s == 1) { mesh = new Helicoid(bc, o, x, y, r, d); }
-   if (s == 2) { mesh = new Enneper(bc, o, x, y, r, d); }
-   if (s == 3) { mesh = new Scherk(bc, o, x, y, r, d); }
-   if (s == 4) { mesh = new Shell(bc, o, x, y, r, d); }
-   if (s == 5) { mesh = new Hold(bc, o, x, y, r, d); }
-   if (s == 6) { mesh = new QPeach(bc, o, x, y, r, d); }
-   if (s == 7) { mesh = new FPeach(bc, o, r, d); }
-   if (s == 8) { mesh = new SlottedSphere(bc, o, r, d); }
+   mesh = (surface < 0) ? new MeshFromFile(bc, o, mesh_file, r, d) :
+          NewMeshFromSurface(surface, bc, o, x, y, r, d);
    MFEM_VERIFY(mesh, "Not a valid surface number!");
 
    // Grab back the pmesh & pfes from the Surface object.
-   Surface<> &surface = *static_cast<Surface<>*>(mesh);
-   XMesh *pmesh = surface.Pmesh();
-   XFiniteElementSpace *pfes = surface.Pfes();
+   Surface<> &S = *static_cast<Surface<>*>(mesh);
+   XMesh *pmesh = S.Pmesh();
+   XFiniteElementSpace *pfes = S.Pfes();
 
    // Send to GLVis the first mesh and set the 'keys' options.
    if (vis) { Visualize(pmesh, 800, 800, keys); }
