@@ -103,10 +103,6 @@ Discretization improvements
 
 Linear and nonlinear solvers
 ----------------------------
-- Added a LinearSolve(A,X) convenience method to solve linear systems. In the
-  trivial cases, i.e., square matrices of size N=1 or N=2, the system is solved
-  directly, otherwise, LU factorization is employed.
-
 - Added a general interface for specifying and solving nonlinear constrained
   optimization problems through the new classes OptimizationProblem and
   OptimizationSolver, see linalg/solver.hpp
@@ -122,6 +118,10 @@ Linear and nonlinear solvers
 
 - Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
   (DG advection) now takes advantage of this for implicit time integration.
+
+- Added a LinearSolve(A,X) convenience method to solve dense linear systems. In
+  the trivial cases, i.e., square matrices of size 1 or 2, the system is solved
+  directly, otherwise, LU factorization is employed.
 
 New and updated examples and miniapps
 -------------------------------------

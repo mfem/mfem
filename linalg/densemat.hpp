@@ -374,7 +374,7 @@ void Add(double alpha, const double *A,
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
 
-/// @brief Solves the linear system, `A * X = B` for `X`
+/// @brief Solves the dense linear system, `A * X = B` for `X`
 ///
 /// @param [in,out] A the square matrix for the linear system
 /// @param [in,out] X the rhs vector, B, on input, the solution, X, on output.
@@ -506,7 +506,7 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   bool Factor(int m, double TOL = 1.e-9 );
+   bool Factor(int m, double TOL = 1.e-9);
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
