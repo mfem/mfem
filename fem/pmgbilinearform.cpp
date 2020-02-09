@@ -27,6 +27,11 @@ ParMultigridBilinearForm::ParMultigridBilinearForm(
    MFEM_VERIFY(bf.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
                "Assembly level must be PARTIAL");
 
+   MFEM_VERIFY(bf.GetBBFI()->Size() == 0
+               && bf.GetFBFI()->Size() == 0
+               && bf.GetBFBFI()->Size() == 0,
+               "Only domain integrators are currently supported");
+
    ParMesh* pmesh = spaceHierarchy.GetFESpaceAtLevel(0).GetParMesh();
    pmesh_lor = new ParMesh(pmesh, 1, BasisType::GaussLobatto);
    fec_lor =
@@ -67,7 +72,6 @@ ParMultigridBilinearForm::ParMultigridBilinearForm(
       else
       {
          form = new ParBilinearForm(&spaceHierarchy.GetFESpaceAtLevel(level));
-         // TODO: Copy all integrators
          for (int i = 0; i < dbfi.Size(); ++i)
          {
             form->AddDomainIntegrator((*bf.GetDBFI())[i]->Copy());
