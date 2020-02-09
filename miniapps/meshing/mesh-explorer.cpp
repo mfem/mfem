@@ -118,6 +118,7 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
    return mesh;
 }
 
+// Given a 3D mesh, produce a 2D mesh consisting of its boundary elements.
 Mesh *skin_mesh(Mesh *mesh)
 {
    // Determine mapping from vertex to boundary vertex

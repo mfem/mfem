@@ -93,6 +93,9 @@ New and updated examples and miniapps
 
 - New options to reorder and partition the mesh in the mesh-explorer miniapp.
 
+- The mesh-explorer miniapp now supports visualization of boundary attributes of
+  3D meshes (key 'b').
+
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
 
