@@ -25,8 +25,13 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
 {
    MFEM_VERIFY(bf.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
                "Assembly level must be PARTIAL");
+
+   MFEM_VERIFY(bf.GetBBFI()->Size() == 0
+               && bf.GetFBFI()->Size() == 0
+               && bf.GetBFBFI()->Size() == 0,
+               "Only domain integrators are currently supported");
+
    BilinearForm* form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(0));
-   // TODO: Copy all integrators
    Array<BilinearFormIntegrator*>& dbfi = *bf.GetDBFI();
    for (int i = 0; i < dbfi.Size(); ++i)
    {
@@ -65,7 +70,6 @@ MultigridBilinearForm::MultigridBilinearForm(SpaceHierarchy& spaceHierarchy,
       else
       {
          form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(level));
-         // TODO: Copy all integrators
          for (int i = 0; i < dbfi.Size(); ++i)
          {
             form->AddDomainIntegrator((*bf.GetDBFI())[i]->Copy());
