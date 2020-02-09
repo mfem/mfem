@@ -13,7 +13,8 @@ Version 4.0.1 (development)
 
 Improved GPU support
 --------------------
-- Added support for matrix-free diagonal smoothers on GPUs.
+- Added support for matrix-free diagonal smoothers on GPUs like the damped
+  Jacobi method and the Chebyshev accelerated polynomial smoother.
 
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
   language that can run on both AMD and NVIDIA hardware. With this change and
@@ -101,6 +102,10 @@ Discretization improvements
 - Extended the support for partial assembly to vector mass and vector diffusion
   bilinear integrators.
 
+- Added support for matrix-free interpolation and restriction operators between
+  finite element spaces of different order on the same mesh or with the same
+  order on uniformly refined meshes.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added a general interface for specifying and solving nonlinear constrained
@@ -118,6 +123,12 @@ Linear and nonlinear solvers
 
 - Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
   (DG advection) now takes advantage of this for implicit time integration.
+
+- Added power method to iteratively estimate the largest eigenvalue and the
+  corresponding eigenvector of an operator.
+
+- Added initial support for h- and p-multigrid solvers and preconditioners for
+  matrix-based and matrix-free discretizations with basic GPU capability.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -149,6 +160,9 @@ New and updated examples and miniapps
 
 - Example 9 and 9p now support implicit time integration, using the new block
   ILU(0) solvers as preconditioners for the linear system.
+
+- Added examples 23 demonstrating the construction of a matrix-free p-multigrid
+  preconditioner for the iterative solution of the Laplace problem.
 
 Improved testing
 ----------------
