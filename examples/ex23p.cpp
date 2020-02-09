@@ -16,10 +16,10 @@
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions
-//               as in example 1. It highlights on the usage of matrix-free
-//               discretizations with partial assembly and the construction of
-//               an efficient p-multigrid preconditioner for the iterative
-//               solver.
+//               as in example 1. It highlights on the creation of a hierarchy
+//               of discretization spaces with partial assembly and the
+//               construction of an efficient p-multigrid preconditioner for the
+//               iterative solver.
 
 #include "mfem.hpp"
 #include <fstream>
