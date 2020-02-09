@@ -42,7 +42,7 @@ public:
    /// Creates a matrix of the given height and width.
    explicit Matrix(int h, int w) : Operator(h, w) { }
 
-   /// Returns whether this matrix instance is a square matrix.
+   /// Returns whether the matrix is a square matrix.
    bool IsSquare() const { return (height == width); };
 
    /// Returns reference to a_{ij}.
