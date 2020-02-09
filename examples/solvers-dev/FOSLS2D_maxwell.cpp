@@ -148,7 +148,9 @@ int main(int argc, char *argv[])
 
    LinearForm *b_H = new LinearForm;
    b_H->Update(H1fespace, b.GetBlock(1), 0);
-   b_H->AddDomainIntegrator(new VectorFEDomainLFGradIntegrator(rotatedf_H));
+   // TO DO
+   // b_H->AddDomainIntegrator(new VectorDomainLFGradIntegrator(rotatedf_H));
+
    b_H->Assemble();
 
    // 7. Bilinear form a(.,.) on the finite element space

@@ -400,58 +400,6 @@ void VectorFEDomainLFCurlIntegrator::AssembleDeltaElementVect(
    vshape.Mult(vec, elvect);
 }
 
-
-void VectorFEDomainLFGradIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
-{
-   int dof = el.GetDof();
-   int spaceDim = Tr.GetSpaceDim();
-
-   vshape.SetSize(dof,spaceDim);
-   vec.SetSize(spaceDim);
-
-   elvect.SetSize(dof);
-   elvect = 0.0;
-
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
-      int intorder = 2*el.GetOrder();
-      ir = &IntRules.Get(el.GetGeomType(), intorder);
-   }
-
-   for (int i = 0; i < ir->GetNPoints(); i++)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-      
-      Tr.SetIntPoint (&ip);
-      el.CalcPhysDShape(Tr, vshape);
-
-      QF.Eval (vec, Tr, ip);
-      vec *= ip.weight * Tr.Weight();
-
-      vshape.AddMult (vec, elvect);
-   }
-}
-
-void VectorFEDomainLFGradIntegrator::AssembleDeltaElementVect(
-   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
-{
-   MFEM_ASSERT(vec_delta != NULL, "coefficient must be VectorDeltaCoefficient");
-   int dof = fe.GetDof();
-   int spaceDim = Trans.GetSpaceDim();
-
-   vshape.SetSize(dof, spaceDim);
-   fe.CalcPhysDShape(Trans, vshape);
-
-   vec_delta->EvalDelta(vec, Trans, Trans.GetIntPoint());
-
-   elvect.SetSize(dof);
-   vshape.Mult(vec, elvect);
-}
-
-
 void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {

@@ -272,28 +272,6 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-class VectorFEDomainLFGradIntegrator : public DeltaLFIntegrator
-{
-private:
-   VectorCoefficient &QF;
-   DenseMatrix vshape;
-   Vector vec;
-
-public:
-   VectorFEDomainLFGradIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(F) { }
-
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-
-   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
-                                         ElementTransformation &Trans,
-                                         Vector &elvect);
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
-};
-
 /** \f$ (f, v \cdot n)_{\partial\Omega} \f$ for vector test function
     v=(v1,...,vn) where all vi are in the same scalar FE space and f is a
     scalar function. */
