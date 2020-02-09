@@ -1861,7 +1861,7 @@ struct WeightMinHeap
    void push(size_t i)
    {
       double val = w[i];
-      c.push_back(-1);
+      c.push_back(0);
       size_t pos = c.size()-1;
       pos = percolate_up(pos, val);
       c[pos] = i;
