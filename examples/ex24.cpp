@@ -1,18 +1,18 @@
-//                       MFEM Example NDH1
+//                               MFEM Example 24
 //
-// Compile with: make exNDH1ser
+// Compile with: make ex24
 //
-// Sample runs:  exNDH1ser -m ../data/star.mesh
-//               exNDH1ser -m ../data/square-disc.mesh -o 2
-//               exNDH1ser -m ../data/beam-tet.mesh
-//               exNDH1ser -m ../data/beam-hex.mesh -o 2 -pa
-//               exNDH1ser -m ../data/escher.mesh
-//               exNDH1ser -m ../data/escher.mesh -o 2
-//               exNDH1ser -m ../data/fichera.mesh
-//               exNDH1ser -m ../data/fichera-q2.vtk
-//               exNDH1ser -m ../data/fichera-q3.mesh
-//               exNDH1ser -m ../data/square-disc-nurbs.mesh
-//               exNDH1ser -m ../data/beam-hex-nurbs.mesh
+// Sample runs:  ex24 -m ../data/star.mesh
+//               ex24 -m ../data/square-disc.mesh -o 2
+//               ex24 -m ../data/beam-tet.mesh
+//               ex24 -m ../data/beam-hex.mesh -o 2 -pa
+//               ex24 -m ../data/escher.mesh
+//               ex24 -m ../data/escher.mesh -o 2
+//               ex24 -m ../data/fichera.mesh
+//               ex24 -m ../data/fichera-q2.vtk
+//               ex24 -m ../data/fichera-q3.mesh
+//               ex24 -m ../data/square-disc-nurbs.mesh
+//               ex24 -m ../data/beam-hex-nurbs.mesh
 //
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces. Using two different approaches, we project a gradient
