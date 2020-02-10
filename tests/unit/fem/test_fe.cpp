@@ -434,8 +434,8 @@ TEST_CASE("Raviart-Thomas Tetrahedron Finite Element",
       }
       SECTION("Sizes for p = " + std::to_string(p))
       {
-         REQUIRE( fe.GetDof()            == p*(p+1)*(p+3)/2 );
-         REQUIRE( fe.GetOrder()          == p               );
+         REQUIRE( fe.GetDof()   == p*(p+1)*(p+3)/2 );
+         REQUIRE( fe.GetOrder() == p               );
       }
    }
 }
@@ -465,8 +465,8 @@ TEST_CASE("Raviart-Thomas Hexahedron Finite Element",
       }
       SECTION("Sizes for p = " + std::to_string(p))
       {
-         REQUIRE( fe.GetDof()            == 3*(p+1)*(int)pow(p,2) );
-         REQUIRE( fe.GetOrder()          == p                     );
+         REQUIRE( fe.GetDof()   == 3*(p+1)*(int)pow(p,2) );
+         REQUIRE( fe.GetOrder() == p                     );
       }
    }
 }
@@ -650,8 +650,8 @@ TEST_CASE("L2 Wedge Finite Element",
       }
       SECTION("Sizes for p = " + std::to_string(p))
       {
-         REQUIRE( fe.GetDof()            == (p+1)*(p+1)*(p+2)/2 );
-         REQUIRE( fe.GetOrder()          == p                   );
+         REQUIRE( fe.GetDof()   == (p+1)*(p+1)*(p+2)/2 );
+         REQUIRE( fe.GetOrder() == p                   );
       }
    }
 }
