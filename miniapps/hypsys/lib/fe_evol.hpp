@@ -29,7 +29,6 @@ public:
 
    // Parameters that are needed repeatedly.
    int dim, nd, ne, nqe, nqf;
-   Vector QuadWeightFace;
 
    // Shape function evaluations.
    DenseMatrix ShapeEval;
@@ -39,7 +38,7 @@ public:
    // Element and boundary integrals evaluated in quadrature points.
    DenseTensor ElemInt; // TODO better names
 	DenseTensor BdrInt;
-	DenseTensor ElemNor;
+	DenseTensor OuterUnitNormals;
 
    // DG mass matrices.
    const Vector &LumpedMassMat;
@@ -48,9 +47,10 @@ public:
 
    // Tools to compute the discrete time derivative, needed repeatedly.
    mutable Array<int> vdofs;
-   mutable Vector z, uOld, uElem, uEval, uNbr, uNbrEval, vec1, vec2;
+   mutable Vector z, uOld, uElem, uEval, uNbrEval, NumFlux, normal;
 	mutable DenseMatrix Flux, FluxNbr, mat1, mat2;
    mutable int DofInd, nbr;
+	mutable double uNbr;
 
 
    FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,

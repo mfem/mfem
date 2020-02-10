@@ -20,16 +20,16 @@ void ParFE_Evolution::EvaluateSolution(const Vector &x, Vector &y1, Vector &y2,
 // 			DofInd = e*nd+dofs.BdrDofs(j,i);
 // 			if (nbr < 0)
 // 			{
-// 				uNbr(0) = hyp->inflow(DofInd); // TODO vector valued
+// 				uNbr = hyp->inflow(DofInd); // TODO vector valued
 // 			}
 // 			else
 // 			{
 // 				// nbr in different MPI task? // TODO vector valued
-//             uNbr(0) = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
+//             uNbr = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
 // 			}
 // 			
 // 			uEval(n) += x(DofInd) * ShapeEvalFace(i,j,k);
-//          uNbrEval(n) += uNbr(n) * ShapeEvalFace(i,j,k);
+//          uNbrEval(n) += uNbr * ShapeEvalFace(i,j,k);
 // 		}
 // 	}
 }
@@ -119,16 +119,16 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
                if (nbr < 0)
                {
                   DofInd = e*nd+dofs.BdrDofs(j,i);
-                  uNbr(0) = hyp->inflow(DofInd);
+                  uNbr = hyp->inflow(DofInd);
                }
                else
                {
                   // nbr in different MPI task?
-                  uNbr(0) = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
+                  uNbr = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
                }
 
                uEval(0) += uElem(dofs.BdrDofs(j,i)) * ShapeEvalFace(i,j,k);
-               uNbrEval(0) += uNbr(0) * ShapeEvalFace(i,j,k);
+               uNbrEval(0) += uNbr * ShapeEvalFace(i,j,k);
             }
 
             // Lax-Friedrichs flux (equals full upwinding for Advection).

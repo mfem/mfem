@@ -2,11 +2,11 @@
 
 Configuration ConfigSWE;
 
-const double GravConst = 9.81;
+const double GravConst = 1.; // TODO
 
 void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u);
 void InitialConditionSWE(const Vector &x, Vector &u);
-void InflowFunctionSWE(const Vector &x, Vector &u);
+void InflowFunctionSWE(const Vector &x, double t, Vector &u);
 
 ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 									Configuration &config_)
@@ -21,6 +21,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 
    // Initialize the state.
    VectorFunctionCoefficient ic(NumEq, InitialConditionSWE);
+   VectorFunctionCoefficient bc(NumEq, InflowFunctionSWE);
 
 	if (ConfigSWE.ConfigNum == 0)
    {
@@ -28,6 +29,8 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
       L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
       FiniteElementSpace l2_fes(mesh, &l2_fec, NumEq, Ordering::byNODES);
       GridFunction l2_proj(&l2_fes);
+		l2_proj.ProjectCoefficient(bc);
+      inflow.ProjectGridFunction(l2_proj);
 		l2_proj.ProjectCoefficient(ic);
 		u0.ProjectGridFunction(l2_proj);
    }
@@ -41,10 +44,10 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval) const
 {
 	const int dim = u.Size() - 1;
-   double H0 = 0.05;
+   double H0 = 0.001;
 
    if (u.Size() != NumEq) { MFEM_ABORT("Invalid solution vector."); }
-//    if (u(0) < H0) { MFEM_ABORT("Water height too small."); }
+   if (u(0) < H0) { MFEM_ABORT("Water height too small."); }
 
    switch (dim)
    {
@@ -73,9 +76,9 @@ double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n) const
 	switch (u.Size())
 	{
 		case 2:
-			return abs(u(1)*n(0)) + sqrt(GravConst * u(0));
+			return abs(u(1)*n(0)) / u(0) + sqrt(GravConst * u(0));
 		case 3:
-			return abs(u(1)*n(0) + u(2)*n(1)) + sqrt(GravConst * u(0));
+			return abs(u(1)*n(0) + u(2)*n(1)) / u(0) + sqrt(GravConst * u(0));
 		default: MFEM_ABORT("Invalid solution vector.");
 	}
 }
@@ -104,8 +107,6 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
       X(i) = 2. * (x(i) - center) / (ConfigSWE.bbMax(i) - ConfigSWE.bbMin(i));
    }
    
-   u = 0.; u(0) = 1.; return; // TODO
-   
    switch (ConfigSWE.ConfigNum)
    {
       case 0: // Vorticity advection
@@ -126,13 +127,14 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 			double f = -c2 * ( pow(X(0) - x0 - M*t*cos(a), 2.)
 								  + pow(X(1) - y0 - M*t*sin(a), 2.) );
 			
-			u(0) = 1. - c1*c1 / (4.*c2*GravConst) * exp(2.*f);
+			u(0) = 1.;
 			u(1) = M*cos(a) + c1 * (X(1) - y0 - M*t*sin(a)) * exp(f);
 			u(2) = M*sin(a) - c1 * (X(0) - x0 - M*t*cos(a)) * exp(f);
+			u *= 1. - c1*c1 / (4.*c2*GravConst) * exp(2.*f);
 			
 			break;
 		}
-		default: { u = 0.; }
+		default: { u = 0.; u(0) = X.Norml2() < 0.5 ? 1. : .1; }
 	}
 }
 
@@ -142,10 +144,10 @@ void InitialConditionSWE(const Vector &x, Vector &u)
 	AnalyticalSolutionSWE(x, 0., u);
 }
 
-void InflowFunctionSWE(const Vector &x, Vector &u)
+void InflowFunctionSWE(const Vector &x, double t, Vector &u)
 {
 	u.SetSize(x.Size()+1);
-	u = 0.;
+	AnalyticalSolutionSWE(x, t, u);
 }
 
 // void VolumeTerms::AssembleElementVolumeTerms(const int e,

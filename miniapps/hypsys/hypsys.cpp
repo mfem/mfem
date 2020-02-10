@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
    for (int k = 0; k <= NumEq; k++) { offsets[k] = k * fes.GetNDofs(); }
    BlockVector u_block(offsets);
 
-   const int ProblemSize = fes.GetVSize();
+   const int ProblemSize = vfes.GetVSize();
    cout << "Number of unknowns: " << ProblemSize << ".\n";
 
    // The min/max bounds are represented as H1 functions of the same order
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
 
    if (config.odeSolverType != 1 && hyp->SteadyState)
    {
-      MFEM_WARNING("You should use forward Euler for pseudo time stepping.");
+      MFEM_WARNING("Better use forward Euler for pseudo time stepping.");
    }
 
    GridFunction u(&vfes, u_block);
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
             cout << "time step: " << ti << ", time: " << t << endl;
          }
          for (int k = 0; k < NumUnknowns; k++)
-				VisualizeField(sout, vishost, visport, u, VectorOutput[k]);
+				VisualizeField(sout, vishost, visport, uk, VectorOutput[k]);
       }
    }
 
