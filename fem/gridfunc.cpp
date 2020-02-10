@@ -479,7 +479,6 @@ void GridFunction::GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
                                  int vdim)
 const
 {
-
    Array<int> dofs;
    int n = ir.GetNPoints();
    laps.SetSize(n);
