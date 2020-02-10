@@ -34,7 +34,7 @@ add_test(NAME nurbs_ex1_per_ser
 
 add_test(NAME nurbs_ex1_lap_ser
   COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-  -m pipe-nurbs-2d.mesh -no-ibp)
+  -m pipe-nurbs-2d.mesh -o 2 -no-ibp)
 
 
 if (MFEM_USE_MPI)
@@ -49,7 +49,7 @@ if (MFEM_USE_MPI)
 
   add_test(NAME nurbs_ex1p_lap_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis- m pipe-nurbs-2d.mesh -no-ibp
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis -m pipe-nurbs-2d.mesh -o 2 -no-ibp
     ${MPIEXEC_POSTFLAGS})
 
   add_mfem_miniapp(nurbs_ex11p
