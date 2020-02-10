@@ -74,48 +74,48 @@ int main(int argc, char *argv[])
    }
 
    mesh.GetBoundingBox(config.bbMin, config.bbMax, max(config.order, 1));
-	
-	int NumEq; // number of scalar unknowns, e.g. 3 for SWE in 2D.
-	int NumUnknowns; // number of physical unknowns, e.g. 2 for SWE: height and momentum
-	
+
+   int NumEq; // number of scalar unknowns, e.g. 3 for SWE in 2D.
+   int NumUnknowns; // number of physical unknowns, e.g. 2 for SWE: height and momentum
+
    Array<bool> VectorOutput;
-	switch (config.ProblemNum)
-	{
-		case 0:
-		case 1:
-		case 2:
-		{
-			NumEq = 1;
-			NumUnknowns = 1;
-			VectorOutput.SetSize(NumUnknowns);
-			VectorOutput[0] = false;
-			break;
-		}
-		case 3:
-		{
-			NumEq = 1 + dim;
-			NumUnknowns = 2;
-			VectorOutput.SetSize(NumUnknowns);
-			VectorOutput[0] = false;
-			VectorOutput[1] = true;
-			break;
-		}
-		default:
-		{
+   switch (config.ProblemNum)
+   {
+      case 0:
+      case 1:
+      case 2:
+      {
+         NumEq = 1;
+         NumUnknowns = 1;
+         VectorOutput.SetSize(NumUnknowns);
+         VectorOutput[0] = false;
+         break;
+      }
+      case 3:
+      {
+         NumEq = 1 + dim;
+         NumUnknowns = 2;
+         VectorOutput.SetSize(NumUnknowns);
+         VectorOutput[0] = false;
+         VectorOutput[1] = true;
+         break;
+      }
+      default:
+      {
          cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
          delete odeSolver;
          return -1;
-		}
-	}
+      }
+   }
 
    // Create Bernstein Finite Element Space.
    const int btype = BasisType::Positive;
    L2_FECollection fec(config.order, dim, btype);
    FiniteElementSpace fes(&mesh, &fec);
-	
-	FiniteElementSpace vfes(&mesh, &fec, NumEq, Ordering::byNODES);
-	
-	Array<int> offsets(NumEq + 1);
+
+   FiniteElementSpace vfes(&mesh, &fec, NumEq, Ordering::byNODES);
+
+   Array<int> offsets(NumEq + 1);
    for (int k = 0; k <= NumEq; k++) { offsets[k] = k * fes.GetNDofs(); }
    BlockVector u_block(offsets);
 
@@ -141,8 +141,8 @@ int main(int argc, char *argv[])
    switch (config.ProblemNum)
    {
       case 0: { hyp =  new Advection(&vfes, u_block, config); break; }
-		case 1: { break; } // Burgers
-		case 2: { break; } // KPP 
+      case 1: { break; } // Burgers
+      case 2: { break; } // KPP
       case 3: { hyp =  new ShallowWater(&vfes, u_block, config); break; }
       default:
          return -1;
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
    GridFunction u(&vfes, u_block);
    u = hyp->u0;
 
-	GridFunction uk(&fes, u_block.GetBlock(0)); // TODO for all
+   GridFunction uk(&fes, u_block.GetBlock(0)); // TODO for all
    double InitialMass = LumpedMassMat * uk;
 
    // Visualization with GLVis, VisIt is currently not supported.
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
    socketstream sout;
    char vishost[] = "localhost";
    int visport = 19916;
-	VisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
+   VisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
 
    FE_Evolution evol(&vfes, hyp, dofs, scheme, LumpedMassMat);
 
@@ -220,7 +220,9 @@ int main(int argc, char *argv[])
             cout << "time step: " << ti << ", time: " << t << endl;
          }
          for (int k = 0; k < NumUnknowns; k++)
-				VisualizeField(sout, vishost, visport, uk, VectorOutput[k]);
+         {
+            VisualizeField(sout, vishost, visport, uk, VectorOutput[k]);
+         }
       }
    }
 
@@ -228,16 +230,18 @@ int main(int argc, char *argv[])
    cout << "Time stepping loop done in " << tic_toc.RealTime() <<
         " seconds.\n\n";
 
-	double DomainSize = LumpedMassMat.Sum();
+   double DomainSize = LumpedMassMat.Sum();
    if (hyp->SolutionKnown)
    {
       Array<double> errors;
       hyp->ComputeErrors(errors, DomainSize, u);
-		cout << "L1 error:                    " << errors[0] << ".\n";
-		if (hyp->FileOutput)
-			hyp->WriteErrors(errors);
+      cout << "L1 error:                    " << errors[0] << ".\n";
+      if (hyp->FileOutput)
+      {
+         hyp->WriteErrors(errors);
+      }
    }
-   
+
    cout << "Difference in solution mass: "
         << abs(InitialMass - LumpedMassMat * u) / DomainSize << ".\n\n";
 

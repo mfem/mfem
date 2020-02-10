@@ -9,29 +9,29 @@ ParFE_Evolution::ParFE_Evolution(ParFiniteElementSpace *pfes_,
      xSizeMPI(pfes_->GetTrueVSize()) { }
 
 void ParFE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
-										 int e, int i, int k) const
+                               int e, int i, int k) const
 {
-// 	y1 = y2 = 0.;
-// 	for (int n = 0; n < hyp->NumEq; n++)
-// 	{
-// 		for (int j = 0; j < dofs.NumFaceDofs; j++)
-// 		{
-// 			nbr = dofs.NbrDofs(i,j,e);
-// 			DofInd = e*nd+dofs.BdrDofs(j,i);
-// 			if (nbr < 0)
-// 			{
-// 				uNbr = hyp->inflow(DofInd); // TODO vector valued
-// 			}
-// 			else
-// 			{
-// 				// nbr in different MPI task? // TODO vector valued
-//             uNbr = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
-// 			}
-// 			
-// 			uEval(n) += x(DofInd) * ShapeEvalFace(i,j,k);
-//          uNbrEval(n) += uNbr * ShapeEvalFace(i,j,k);
-// 		}
-// 	}
+   //    y1 = y2 = 0.;
+   //    for (int n = 0; n < hyp->NumEq; n++)
+   //    {
+   //       for (int j = 0; j < dofs.NumFaceDofs; j++)
+   //       {
+   //          nbr = dofs.NbrDofs(i,j,e);
+   //          DofInd = e*nd+dofs.BdrDofs(j,i);
+   //          if (nbr < 0)
+   //          {
+   //             uNbr = hyp->inflow(DofInd); // TODO vector valued
+   //          }
+   //          else
+   //          {
+   //             // nbr in different MPI task? // TODO vector valued
+   //             uNbr = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
+   //          }
+   //
+   //          uEval(n) += x(DofInd) * ShapeEvalFace(i,j,k);
+   //          uNbrEval(n) += uNbr * ShapeEvalFace(i,j,k);
+   //       }
+   //    }
 }
 
 double ParFE_Evolution::ConvergenceCheck(double dt, double tol,
@@ -77,20 +77,20 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
       mat2 = 0.;
-		
+
       DenseMatrix vel = hyp->VelElem(e);
 
       for (int k = 0; k < nqe; k++)
       {
-			ElemEval(uElem, uEval, k);
+         ElemEval(uElem, uEval, k);
 
-			// ADVECTION
-			normal = vel.GetColumn(k);
-			normal *= uEval(0);
-			Flux.SetRow(0, normal);
+         // ADVECTION
+         normal = vel.GetColumn(k);
+         normal *= uEval(0);
+         Flux.SetRow(0, normal);
 
-			MultABt(ElemInt(e*nqe+k), Flux, mat1);
-			AddMult(DShapeEval(k), mat1, mat2);
+         MultABt(ElemInt(e*nqe+k), Flux, mat1);
+         AddMult(DShapeEval(k), mat1, mat2);
       }
 
       z.AddElementVector(vdofs, mat2.GetData());
@@ -102,10 +102,10 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
          for (int k = 0; k < nqf; k++)
          {
             OuterUnitNormals(e*dofs.NumBdrs+i).GetColumn(k, normal);
-				FaceEval(x, uEval, uNbrEval, e, i, k);
-				
+            FaceEval(x, uEval, uNbrEval, e, i, k);
+
             // ADVECTION
-				NumFlux = 0.;
+            NumFlux = 0.;
             for (int l = 0; l < dim; l++)
             {
                NumFlux(0) += normal(l) * hyp->VelFace(l,i,e*nqf+k);
@@ -133,18 +133,18 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 
             // Lax-Friedrichs flux (equals full upwinding for Advection).
             NumFlux(0) = 0.5 * ( NumFlux(0) * (uEval(0) + uNbrEval(0))
-								 + abs(NumFlux(0)) * (uEval(0) - uNbrEval(0)) );
-				
-				NumFlux *= BdrInt(i,k,e);
+                                 + abs(NumFlux(0)) * (uEval(0) - uNbrEval(0)) );
+
+            NumFlux *= BdrInt(i,k,e);
 
             for (int n = 0; n < hyp->NumEq; n++)
-				{
-					for (int j = 0; j < dofs.NumFaceDofs; j++)
-					{
-               	z(vdofs[n*nd+dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
-							* NumFlux(n);
-					}
-				}
+            {
+               for (int j = 0; j < dofs.NumFaceDofs; j++)
+               {
+                  z(vdofs[n*nd+dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
+                                                      * NumFlux(n);
+               }
+            }
          }
       }
    }

@@ -28,8 +28,8 @@ public:
 
    virtual ~ParFE_Evolution() { };
 
-	void FaceEval(const Vector &x, Vector &y1, Vector &y2,
-					  int e, int i, int k) const override;
+   void FaceEval(const Vector &x, Vector &y1, Vector &y2,
+                 int e, int i, int k) const override;
    void EvolveStandard(const Vector &x, Vector &y) const override;
    void EvolveMCL     (const Vector &x, Vector &y) const override;
 

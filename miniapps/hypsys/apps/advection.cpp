@@ -8,7 +8,7 @@ double InitialConditionAdv(const Vector &x);
 double InflowFunctionAdv(const Vector &x);
 
 Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
-							Configuration &config_)
+                     Configuration &config_)
    : HyperbolicSystem(fes_, u_block, 1, config_)
 {
    ConfigAdv = config_;
@@ -21,7 +21,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       SteadyState = false;
    }
-   
+
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int ne = fes->GetNE();
@@ -30,7 +30,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    const int nqe = IntRuleElem->GetNPoints();
    nqf = IntRuleFace->GetNPoints();
    Vector vec, vval;
-	VelocityVector.SetSize(dim);
+   VelocityVector.SetSize(dim);
    DenseMatrix VelEval, mat(dim, nqe);
 
    int NumBdrs;
@@ -48,7 +48,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 
    VelElem.SetSize(dim, nqe, ne);
    VelFace.SetSize(dim, NumBdrs, ne*nqf);
-	VectorFunctionCoefficient velocity(dim, VelocityFunctionAdv);
+   VectorFunctionCoefficient velocity(dim, VelocityFunctionAdv);
 
    Array<int> bdrs, orientation;
    Array<IntegrationPoint> eip(nqf*NumBdrs);
@@ -121,43 +121,44 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 
    if (ConfigAdv.ConfigNum == 0)
    {
-		// Use L2 projection to achieve optimal convergence order.
+      // Use L2 projection to achieve optimal convergence order.
       L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
       FiniteElementSpace l2_fes(mesh, &l2_fec);
       GridFunction l2_proj(&l2_fes);
       l2_proj.ProjectCoefficient(bc);
       inflow.ProjectGridFunction(l2_proj);
-		l2_proj.ProjectCoefficient(ic);
-		u0.ProjectGridFunction(l2_proj);
+      l2_proj.ProjectCoefficient(ic);
+      u0.ProjectGridFunction(l2_proj);
    }
    else
    {
-		// Bound preserving projection.
+      // Bound preserving projection.
       inflow.ProjectCoefficient(bc);
-		u0.ProjectCoefficient(ic);
-   }   
+      u0.ProjectCoefficient(ic);
+   }
 }
 
 void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f,
-									  int e, int k, int i) const
+                             int e, int k, int i) const
 {
-	if (i == -1) // Element terms.
-	{
-		VelocityVector = VelElem(e).GetColumn(k);
-		VelocityVector *= u(0);
-		f.SetRow(0, VelocityVector);
-	}
-	else
-	{
-		VelocityVector = VelFace(e*nqf+k).GetColumn(i);
-		VelocityVector *= u(0);
-		f.SetRow(0, VelocityVector);
-	}
+   if (i == -1) // Element terms.
+   {
+      VelocityVector = VelElem(e).GetColumn(k);
+      VelocityVector *= u(0);
+      f.SetRow(0, VelocityVector);
+   }
+   else
+   {
+      VelocityVector = VelFace(e*nqf+k).GetColumn(i);
+      VelocityVector *= u(0);
+      f.SetRow(0, VelocityVector);
+   }
 }
 
-double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
+double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+                               int i) const
 {
-	VelocityVector = VelFace(e*nqf+k).GetColumn(i);
+   VelocityVector = VelFace(e*nqf+k).GetColumn(i);
    return abs(VelocityVector * n);
 }
 
@@ -167,7 +168,7 @@ void Advection::ComputeErrors(Array<double> &errors, double DomainSize,
    errors.SetSize(3);
    switch (ConfigAdv.ConfigNum)
    {
-		// TODO generalize
+      // TODO generalize
       case 0:
       {
          FunctionCoefficient uAnalytic(InflowFunctionAdv);
@@ -254,7 +255,7 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
 
 double AnalyticalSolutionAdv(const Vector &x, double t)
 {
-	   const int dim = x.Size();
+   const int dim = x.Size();
 
    // Map to the reference [-1,1] domain.
    Vector X(dim);
@@ -269,9 +270,9 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
       case 0: // Smooth solution used for grid convergence studies.
       {
          Vector Y(dim); Y = 1.;
-			X += Y;
+         X += Y;
          X *= 0.5; // Map to test case specific domain [0,1] x [0,1].
-			
+
          double r = X.Norml2();
          double a = 0.5, b = 0.03, c = 0.1;
          return 0.25 * (1. + tanh((r+c-a)/b)) * (1. - tanh((r-c-a)/b));
@@ -298,10 +299,10 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
 
 double InitialConditionAdv(const Vector &x)
 {
-	return AnalyticalSolutionAdv(x, 0.);
+   return AnalyticalSolutionAdv(x, 0.);
 }
 
 double InflowFunctionAdv(const Vector &x)
 {
-	return AnalyticalSolutionAdv(x, 0.);
+   return AnalyticalSolutionAdv(x, 0.);
 }

@@ -37,8 +37,8 @@ public:
 
    // Element and boundary integrals evaluated in quadrature points.
    DenseTensor ElemInt; // TODO better names
-	DenseTensor BdrInt;
-	DenseTensor OuterUnitNormals;
+   DenseTensor BdrInt;
+   DenseTensor OuterUnitNormals;
 
    // DG mass matrices.
    const Vector &LumpedMassMat;
@@ -48,9 +48,9 @@ public:
    // Tools to compute the discrete time derivative, needed repeatedly.
    mutable Array<int> vdofs;
    mutable Vector z, uOld, uElem, uEval, uNbrEval, NumFlux, normal;
-	mutable DenseMatrix Flux, FluxNbr, mat1, mat2;
+   mutable DenseMatrix Flux, FluxNbr, mat1, mat2;
    mutable int DofInd, nbr;
-	mutable double uNbr;
+   mutable double uNbr;
 
 
    FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
@@ -60,11 +60,11 @@ public:
    virtual ~FE_Evolution();
 
    void Mult(const Vector &x, Vector &y) const override;
-	void ElemEval(const Vector &uElem, Vector &uEval, int k) const;
-	virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
-								 int e, int i, int k) const;
-	void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
-							 Vector &y, int e, int k, int i) const;
+   void ElemEval(const Vector &uElem, Vector &uEval, int k) const;
+   virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
+                         int e, int i, int k) const;
+   void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
+                      Vector &y, int e, int k, int i) const;
    virtual void EvolveStandard(const Vector &x, Vector &y) const;
    virtual void EvolveMCL     (const Vector &x, Vector &y) const;
 
