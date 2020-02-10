@@ -1815,6 +1815,8 @@ void NURBSExtension::ConnectBoundaries()
    }
 
    // Finalize
+   if (el_dof) { delete el_dof; }
+   if (bel_dof) { delete bel_dof; }
    GenerateElementDofTable();
    GenerateBdrElementDofTable();
 }
