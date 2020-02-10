@@ -60,8 +60,8 @@ public:
    virtual ~FE_Evolution();
 
    void Mult(const Vector &x, Vector &y) const override;
-	void EvaluateSolution(const Vector &x, Vector &y, int k) const;
-	void EvaluateSolution(const Vector &x, Vector &y1, Vector &y2,
+	void ElemEval(const Vector &uElem, Vector &uEval, int k) const;
+	virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
 								 int e, int i, int k) const;
 	void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
 							 Vector &y) const;

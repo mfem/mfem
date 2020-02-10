@@ -6,10 +6,10 @@ ParFE_Evolution::ParFE_Evolution(ParFiniteElementSpace *pfes_,
                                  const Vector &LumpedMassMat_)
    : FE_Evolution(pfes_, hyp_, dofs_,scheme_,
                   LumpedMassMat_), pfes(pfes_),x_gf_MPI(pfes_),
-     xSizeMPI(pfes_->GetTrueVSize()), vec3(nd) { }
+     xSizeMPI(pfes_->GetTrueVSize()) { }
 
-void ParFE_Evolution::EvaluateSolution(const Vector &x, Vector &y1, Vector &y2,
-												   int e, int i, int k) const
+void ParFE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
+										 int e, int i, int k) const
 {
 // 	y1 = y2 = 0.;
 // 	for (int n = 0; n < hyp->NumEq; n++)
@@ -76,39 +76,39 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
    {
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
-      vec3 = 0.;
+      mat2 = 0.;
+		
       DenseMatrix vel = hyp->VelElem(e);
 
       for (int k = 0; k < nqe; k++)
       {
-         ShapeEval.GetColumn(k, vec2);
-         uEval(0) = uElem * vec2;
+			ElemEval(uElem, uEval, k);
 
-         ElemInt(nqe*e+k).Mult(vel.GetColumn(k), vec1);
-         DShapeEval(k).Mult(vec1, vec2);
-         vec2 *= uEval(0);
-         vec3 += vec2;
+			// ADVECTION
+			normal = vel.GetColumn(k);
+			normal *= uEval(0);
+			Flux.SetRow(0, normal);
+
+			MultABt(ElemInt(e*nqe+k), Flux, mat1);
+			AddMult(DShapeEval(k), mat1, mat2);
       }
 
-      z.AddElementVector(vdofs, vec3); // TODO Vector valued soultion.
-		
-		DenseMatrix ElemNormals = ElemNor(e); // TODO allocate
+      z.AddElementVector(vdofs, mat2.GetData());
 
       // Here, the use of nodal basis functions is essential, i.e. shape
       // functions must vanish on faces that their node is not associated with.
       for (int i = 0; i < dofs.NumBdrs; i++)
       {
-			Vector FaceNor(dim); // TODO allocate
-			ElemNormals.GetColumn(i, FaceNor);
          for (int k = 0; k < nqf; k++)
          {
-            Vector NumFlux(hyp->NumEq); // TODO allocate
-				EvaluateSolution(x, uEval, uNbrEval, e, i, k);
+            OuterUnitNormals(e*dofs.NumBdrs+i).GetColumn(k, normal);
+				FaceEval(x, uEval, uNbrEval, e, i, k);
 				
             // ADVECTION
+				NumFlux = 0.;
             for (int l = 0; l < dim; l++)
             {
-               NumFlux(0) += FaceNor(l) * hyp->VelFace(l,i,e*nqf+k);
+               NumFlux(0) += normal(l) * hyp->VelFace(l,i,e*nqf+k);
             }
 
             uEval = uNbrEval = 0.;
@@ -135,7 +135,7 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
             NumFlux(0) = 0.5 * ( NumFlux(0) * (uEval(0) + uNbrEval(0))
 								 + abs(NumFlux(0)) * (uEval(0) - uNbrEval(0)) );
 				
-				NumFlux *= BdrInt(i,k,e) * QuadWeightFace(k);
+				NumFlux *= BdrInt(i,k,e);
 
             for (int n = 0; n < hyp->NumEq; n++)
 				{

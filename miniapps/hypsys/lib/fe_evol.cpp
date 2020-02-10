@@ -205,20 +205,20 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void FE_Evolution::EvaluateSolution(const Vector &x, Vector &y, int k) const
+void FE_Evolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
 {
-	y = 0.;
+	uEval = 0.;
 	for (int n = 0; n < hyp->NumEq; n++)
 	{
 		for (int j = 0; j < nd; j++)
 		{
-			y(n) += x(n*nd+j) * ShapeEval(j,k);
+			uEval(n) += uElem(n*nd+j) * ShapeEval(j,k);
 		}
 	}
 }
 
-void FE_Evolution::EvaluateSolution(const Vector &x, Vector &y1, Vector &y2,
-												int e, int i, int k) const
+void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
+									 int e, int i, int k) const
 {
 	y1 = y2 = 0.;
 	for (int n = 0; n < hyp->NumEq; n++)
@@ -305,7 +305,7 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 
       for (int k = 0; k < nqe; k++)
       {
-			EvaluateSolution(uElem, uEval, k);
+			ElemEval(uElem, uEval, k);
 			
 // // 			GENERAL
 // 			hyp->EvaluateFlux(uEval, Flux);
@@ -328,7 +328,7 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
          for (int k = 0; k < nqf; k++)
          {
 				OuterUnitNormals(e*dofs.NumBdrs+i).GetColumn(k, normal);
-				EvaluateSolution(x, uEval, uNbrEval, e, i, k);
+				FaceEval(x, uEval, uNbrEval, e, i, k);
 
 				// ADVECTION
 				NumFlux = 0.;
