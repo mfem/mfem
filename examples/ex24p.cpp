@@ -1,20 +1,20 @@
-//                       MFEM Example NDH1 - Parallel Version
+//                       MFEM Example 24 - Parallel Version
 //
-// Compile with: make exNDH1
+// Compile with: make ex24p
 //
-// Sample runs:  mpirun -np 4 exNDH1 -m ../data/star.mesh
-//               mpirun -np 4 exNDH1 -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 exNDH1 -m ../data/beam-tet.mesh
-//               mpirun -np 4 exNDH1 -m ../data/beam-hex.mesh -o 2 -pa
-//               mpirun -np 4 exNDH1 -m ../data/escher.mesh
-//               mpirun -np 4 exNDH1 -m ../data/escher.mesh -o 2
-//               mpirun -np 4 exNDH1 -m ../data/fichera.mesh
-//               mpirun -np 4 exNDH1 -m ../data/fichera-q2.vtk
-//               mpirun -np 4 exNDH1 -m ../data/fichera-q3.mesh
-//               mpirun -np 4 exNDH1 -m ../data/square-disc-nurbs.mesh
-//               mpirun -np 4 exNDH1 -m ../data/beam-hex-nurbs.mesh
-//               mpirun -np 4 exNDH1 -m ../data/amr-quad.mesh -o 2
-//               mpirun -np 4 exNDH1 -m ../data/amr-hex.mesh
+// Sample runs:  mpirun -np 4 ex24p -m ../data/star.mesh
+//               mpirun -np 4 ex24p -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 ex24p -m ../data/beam-tet.mesh
+//               mpirun -np 4 ex24p -m ../data/beam-hex.mesh -o 2 -pa
+//               mpirun -np 4 ex24p -m ../data/escher.mesh
+//               mpirun -np 4 ex24p -m ../data/escher.mesh -o 2
+//               mpirun -np 4 ex24p -m ../data/fichera.mesh
+//               mpirun -np 4 ex24p -m ../data/fichera-q2.vtk
+//               mpirun -np 4 ex24p -m ../data/fichera-q3.mesh
+//               mpirun -np 4 ex24p -m ../data/square-disc-nurbs.mesh
+//               mpirun -np 4 ex24p -m ../data/beam-hex-nurbs.mesh
+//               mpirun -np 4 ex24p -m ../data/amr-quad.mesh -o 2
+//               mpirun -np 4 ex24p -m ../data/amr-hex.mesh
 //
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces. Using two different approaches, we project a gradient
