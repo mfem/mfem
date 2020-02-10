@@ -211,6 +211,8 @@ int main(int argc, char *argv[])
    abstol_v[1] = 1.0e-14;
    abstol_v[2] = 1.0e-6;
 
+   Vector q(1);
+   q = 0.;
    
    switch (ode_solver_type)
      {
@@ -246,7 +248,7 @@ int main(int argc, char *argv[])
 			       );
        cvodes->SetSVtolerances(reltol, abstol_v);
        cvodes->UseSundialsLinearSolver();       
-       cvodes->InitQuadIntegration(1.e-6,1.e-6);
+       cvodes->InitQuadIntegration(q, 1.e-6, 1.e-6);
        cvodes->InitAdjointSolve(150, CV_HERMITE);
        ode_solver = cvodes; break;
      }

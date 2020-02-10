@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
    int vis_steps = 5;
 
    // Relative and absolute tolerances for CVODES
-   double reltol = 1e-8, abstol = 1e-5;
+   double reltol = 1e-8, abstol = 1e-6;
 
    int precision = 8;
    cout.precision(precision);
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
    CVODESSolver *cvodes = NULL;
    ARKStepSolver *arkode = NULL;
 
-   int steps = 200;
+   int steps = 50;
 
    Array<int> ess_tdof_list;
    
@@ -304,8 +304,7 @@ int main(int argc, char *argv[])
    switch (ode_solver_type)
      {
      case 4:
-       cvodes = new CVODESSolver(fes->GetComm(),CV_ADAMS);
-       //       cvodes->Init(adv, t, *U);
+       cvodes = new CVODESSolver(fes->GetComm(), CV_ADAMS);
        cvodes->Init(adv);
        cvodes->UseSundialsLinearSolver();
        cvodes->SetSStolerances(reltol, abstol);
@@ -369,7 +368,6 @@ int main(int argc, char *argv[])
      V_final.Print();
    
      t = t_final;
-     //     cvodes->InitB(adv, t, V_final);
      cvodes->InitB(adv);
      cvodes->UseSundialsLinearSolverB();
      cvodes->SetSStolerancesB(reltol, abstol);
@@ -400,7 +398,8 @@ void AdvDiffSUNDIALS::Mult(const Vector &x, Vector &y) const
   x1.SetSubVector(ess_tdof_list, 0.0);
   
   K->Mult(x1, z);
-    
+
+  y = 0.;
   M_solver.Mult(z, y);
 }
 
