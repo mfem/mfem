@@ -1,14 +1,14 @@
 //                          MFEM Example 1 - NURBS Version
 //
-// Compile with: make nurbs_ex1
+// Compile with: make ex1
 //
-// Sample runs:  nurbs_ex1 -m square-nurbs.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m cube-nurbs.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m pipe-nurbs-2d.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m ../../data/square-disc-nurbs.mesh -o -1
-//               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
-//               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
-//               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+// Sample runs:  ex1 -m square-nurbs.mesh -o 2 -no-ibp
+//               ex1 -m cube-nurbs.mesh -o 2 -no-ibp
+//               ex1 -m pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               ex1 -m ../../data/square-disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/pipe-nurbs.mesh -o -1
+//               ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem

@@ -21,7 +21,7 @@ configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/pipe-nurbs-2d.mesh
                ${PROJECT_BINARY_DIR}/miniapps/nurbs/pipe-nurbs-2d.mesh
                COPYONLY)
 
-add_mfem_miniapp(nurbs_ex1
+add_mfem_miniapp(ex1
   MAIN ex1.cpp
   LIBRARIES mfem)
 
@@ -33,7 +33,7 @@ add_test(NAME nurbs_ex1_per_ser
   -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2)
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(nurbs_ex1p
+  add_mfem_miniapp(ex1p
     MAIN ex1p.cpp
     LIBRARIES mfem)
 
@@ -42,7 +42,7 @@ if (MFEM_USE_MPI)
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis
     ${MPIEXEC_POSTFLAGS})
 
-  add_mfem_miniapp(nurbs_ex11p
+  add_mfem_miniapp(ex11p
     MAIN ex11p.cpp
     LIBRARIES mfem)
 
