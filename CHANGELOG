@@ -124,7 +124,12 @@ New and updated examples and miniapps
   complex-valued finite element operators. The example defines and solves
   a family of time-harmonic PDEs related to damped harmonic oscillators.
 
-- Updated Example 1/1p to use diagonal preconditioning in partial assembly mode.
+- Added a new example, Example 24/24p, to demonstrate usage of mixed finite
+  element spaces in bilinear forms. Partial assembly is supported in this
+  example.
+
+- Updated Examples 1/1p and 3/3p to use diagonal preconditioning in partial
+  assembly mode.
 
 - The mesh-optimizer and pmesh-optimizer miniapps have been updated to
   demonstrate the new r-adaptivity capabilities of TMOP.
