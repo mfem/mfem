@@ -161,7 +161,7 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
           "[H1_QuadrilateralElement]"
           "[H1_TetrahedronElement]"
           "[H1_HexahedronElement]"
-	  "[H1_WedgeElement]")
+          "[H1_WedgeElement]")
 {
    int maxOrder = 5;
    int resolution = 10;
