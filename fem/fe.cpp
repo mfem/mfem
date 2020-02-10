@@ -209,7 +209,7 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
    MFEM_ASSERT(MapType == VALUE, "");
 
    // Simpler routine if mapping is affine
-   if (Trans.Hessian().FNorm2() < 1e-10)
+   if (Trans.Hessian().FNorm2() < 1e-20)
    {
       CalcPhysLinLaplacian(Trans, Laplacian);
       return;
