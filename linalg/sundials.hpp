@@ -84,8 +84,6 @@ protected:
 #ifdef MFEM_USE_MPI
   void AllocateEmptyNVector(N_Vector &y, MPI_Comm comm);
 #endif
-
-  void SetN_Vector(N_Vector &y, Vector &x);
   
 public:
    /// Access the SUNDIALS memory structure.
@@ -221,35 +219,39 @@ public:
 
   class CVODESSolver : public CVODESolver
   {
+  private:
+    using CVODESolver::Init;
   protected:
-    int ncheck; // number of checkpoints used so far
-    int indexB; // backward index?
+    int ncheck; ///< number of checkpoints used so far
+    int indexB; ///< backward problem index
     
-    /// Wrapper to compute the ODE Rhs function.
+    /// Wrapper to compute the ODE RHS Quadrature function.
     static int RHSQ(realtype t, const N_Vector y, N_Vector qdot, void *user_data);
 
+    /// Wrapper to compute the ODE RHS backward function.
     static int RHSB(realtype t, N_Vector y, 
 		  N_Vector yB, N_Vector yBdot, void *user_dataB);
 
+    /// Wrapper to compute the ODE RHS Backwards Quadrature function.
     static int RHSQB(realtype t, N_Vector y, N_Vector yB, 
 		   N_Vector qBdot, void *user_dataB);
 
+    /// Error control function
     static int ewt(N_Vector y, N_Vector w, void *user_data);
 
-    SUNMatrix          AB;   /// Linear system A = I - gamma J, M - gamma J, or J.
-    SUNLinearSolver    LSB;  /// Linear solver for A.
-    N_Vector           q;    /// Quadrature vector.
-    N_Vector           yB;   /// State vector.
-    N_Vector           yy;   /// State vector.
-    N_Vector           qB;   /// State vector.
-    mfem::Vector mfem_qB;
-    mfem::Vector mfem_q;
+    SUNMatrix          AB;   ///< Linear system A = I - gamma J, M - gamma J, or J.
+    SUNLinearSolver    LSB;  ///< Linear solver for A.
+    N_Vector           q;    ///< Quadrature vector.
+    N_Vector           yB;   ///< State vector.
+    N_Vector           yy;   ///< State vector.
+    N_Vector           qB;   ///< State vector.
 
-    /// Default scalar tolerances.
+    /// Default scalar backward relative tolerance
     static constexpr double default_rel_tolB = 1e-4;
+    /// Default scalar backward absolute tolerance    
     static constexpr double default_abs_tolB = 1e-9;
-    static constexpr double default_abs_tolQB = 1e-9;
-    
+    /// Default scalar backward absolute quadrature tolerance
+    static constexpr double default_abs_tolQB = 1e-9;   
     
   public:
     /** Construct a serial wrapper to SUNDIALS' CVODE integrator.
@@ -293,7 +295,9 @@ public:
     void SetWFTolerances(EWTFunction func);
 
     // Initialize Quadrature Integration
-    void InitQuadIntegration(double reltolQ = 1.e-3, double abstolQ = 1e-8);
+    void InitQuadIntegration(mfem::Vector &q0,
+			     double reltolQ = 1.e-3, 
+			     double abstolQ = 1.e-8);
 
     // Initialize Quadrature Integration (Adjoint)
     void InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB = 1.e-3, double abstolQB = 1e-8);

@@ -21,6 +21,15 @@
 #include <cmath>
 #include <cstdlib>
 
+#ifdef MFEM_USE_SUNDIALS
+// SUNDIALS vectors
+#include <nvector/nvector_serial.h>
+#ifdef MFEM_USE_MPI
+#include <nvector/nvector_parallel.h>
+#endif
+
+#endif
+
 // Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
 // mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
 // Note: the same macros are defined in hypre_parcsr.cpp.
@@ -230,14 +239,13 @@ HypreParVector::~HypreParVector()
 
 void HypreParVector::ToNVector(N_Vector &nv)
 {
-   MFEM_ASSERT(nv && N_VGetVectorID(nv) == SUNDIALS_NVEC_PARHYP,
+   MFEM_ASSERT(nv && N_VGetVectorID(nv) == SUNDIALS_NVEC_PARALLEL,
                "invalid N_Vector");
-   N_VectorContent_ParHyp nv_c = (N_VectorContent_ParHyp)(nv->content);
-   MFEM_ASSERT(nv_c->own_parvector == SUNFALSE, "invalid N_Vector");
-   nv_c->local_length = x->local_vector->size;
-   nv_c->global_length = x->global_size;
-   nv_c->comm = x->comm;
-   nv_c->x = x;
+
+   MFEM_ASSERT(NV_OWN_DATA_P(nv) == SUNFALSE, "invalid parallel N_Vector");
+   NV_DATA_P(nv) = hypre_VectorData(hypre_ParVectorLocalVector(x));
+   NV_LOCLENGTH_P(nv) = x->local_vector->size;
+   NV_GLOBLENGTH_P(nv) = x->global_size;
 }
 
 #endif // MFEM_USE_SUNDIALS

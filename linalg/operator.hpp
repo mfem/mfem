@@ -392,9 +392,9 @@ public:
 
     virtual ~TimeDependentAdjointOperator(){};
 
-    virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const = 0;
+    virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const {};
     virtual void AdjointRateMult(const Vector &y, Vector & yB, Vector &yBdot) const = 0;
-    virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB, Vector &qBdot) const = 0;
+    virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB, Vector &qBdot) const {}
     virtual int SUNImplicitSetupB(const double t, const Vector &x, const Vector &xB, const Vector &fxB,
     			       int jokB, int *jcurB, double gammaB)
     {

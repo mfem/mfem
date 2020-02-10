@@ -95,27 +95,6 @@ static int LSFree(SUNLinearSolver LS)
     }
   #endif
   
-    void SundialsSolver::SetN_Vector(N_Vector &y, Vector &x)
-    {
-      // Set N_Vector wrapper with initial condition data
-      if (!Parallel()) {
-	NV_LENGTH_S(y) = x.Size();
-	NV_DATA_S(y)   = x.GetData();
-      } else {
-#ifdef MFEM_USE_MPI
-	long local_size = x.Size();
-	long global_size = 0;
-	MPI_Comm sundials_comm = NV_COMM_P(y);
-	MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
-		      sundials_comm);
-	NV_LOCLENGTH_P(y)  = x.Size();
-	NV_GLOBLENGTH_P(y) = global_size;
-	NV_DATA_P(y)       = x.GetData();
-#endif
-      }
-    }
-
-  
 // ---------------------------------------------------------------------------
 // CVODE interface
 // ---------------------------------------------------------------------------
@@ -205,17 +184,13 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 
    // Get the vector length
    long local_size = f_.Height();
+   long global_size = 0;
 #ifdef MFEM_USE_MPI
-   long global_size;
-#endif
-
-   if (Parallel())
-   {
-#ifdef MFEM_USE_MPI
-      MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
-                    NV_COMM_P(y));
-#endif
+   if (Parallel()) {
+     MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
+		   NV_COMM_P(y));
    }
+#endif
 
    // Get current time
    double t = f_.GetTime();
@@ -251,7 +226,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
       // initial condition will be set using CVodeReInit() when Step() is
       // called.
      Vector mfem_y(local_size);
-     SetN_Vector(y, mfem_y);
+     mfem_y.ToNVector(y, global_size);
 
       // Create CVODE
       sundials_mem = CVodeCreate(lmm_type);
@@ -281,8 +256,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 void CVODESolver::Step(Vector &x, double &t, double &dt)
 {
 
-  // We assume all parallel vectors, so we need to bypass the check in ToNVector in the overloaded virtual HypreParVector::ToNVector implementation if x is a HypreParVector
-  SetN_Vector(y, x);
+  x.ToNVector(y);
 
    // Reinitialize CVODE memory if needed
    if (reinit)
@@ -448,9 +422,9 @@ CVODESolver::~CVODESolver()
     ncheck(0),
     indexB(0),
     LSB(nullptr),
-    AB(nullptr),
-    mfem_qB(0),
-    mfem_q(0)
+    AB(nullptr)
+    // mfem_qB(0),
+    // mfem_q(0)
   {
     AllocateEmptyNVector(q);
     AllocateEmptyNVector(qB);
@@ -463,9 +437,9 @@ CVODESSolver::CVODESSolver(MPI_Comm comm, int lmm) :
     CVODESolver(comm, lmm),
     ncheck(0),
     indexB(0),
-    LSB(nullptr),
-    mfem_qB(0),
-    mfem_q(0)
+    LSB(nullptr)
+    // mfem_qB(0),
+    // mfem_q(0)
   {
     AllocateEmptyNVector(q, comm);
     AllocateEmptyNVector(qB, comm);
@@ -483,16 +457,6 @@ CVODESSolver::CVODESSolver(MPI_Comm comm, int lmm) :
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetQuad()");
 
     Vector mfem_q(q);
-    Q.SetSize(mfem_q.Size());
-
-    #ifdef MFEM_USE_MPI
-    if (Parallel()) {
-      Vector global_q(Q.Size());
-      MPI_Allreduce(mfem_q.GetData(), global_q.GetData(), Q.Size(), MPI_DOUBLE, MPI_SUM, NV_COMM_P(q));
-      mfem_q = global_q;
-    }
-    #endif
-    
     Q = mfem_q;
   }
 
@@ -508,7 +472,7 @@ CVODESSolver::CVODESSolver(MPI_Comm comm, int lmm) :
 
   void CVODESSolver::GetForwardSolution(double tB, mfem::Vector & yyy)
   {
-    SetN_Vector(yy, yyy);
+    yyy.ToNVector(yy);
  
     flag = CVodeGetAdjY(sundials_mem, tB, yy);
     MFEM_VERIFY(flag >= 0, "error in CVodeGetAdjY()");
@@ -522,14 +486,22 @@ void CVODESSolver::Init(TimeDependentAdjointOperator &f_) {
   void CVODESSolver::InitB(TimeDependentAdjointOperator &f_)
   {
 
-    int local_size = f_.GetAdjointHeight();
+    long local_size = f_.GetAdjointHeight();
 
     // Get current time
     double tB = f_.GetTime();   
     
     Vector mfem_yB(local_size);
     mfem_yB = 0.;
-    SetN_Vector(yB, mfem_yB);
+    long global_size = 0;    
+#ifdef MFEM_USE_MPI
+    if (Parallel())
+      {
+	MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
+		      NV_COMM_P(yB));
+      }
+#endif
+    mfem_yB.ToNVector(yB, global_size);
     
     // Create the solver memory
     flag = CVodeCreateB(sundials_mem, CV_BDF, &indexB);
@@ -563,11 +535,9 @@ void CVODESSolver::Init(TimeDependentAdjointOperator &f_) {
   }
 
 
-  // For now just do some kind of default
-  void CVODESSolver::InitQuadIntegration(double reltolQ, double abstolQ)
+void CVODESSolver::InitQuadIntegration(mfem::Vector &q0, double reltolQ, double abstolQ)
   {
-    mfem_q.SetSize(1);
-    SetN_Vector(q, mfem_q);
+    q0.ToNVector(q);
 
     flag = CVodeQuadInit(sundials_mem, RHSQ, q);
     MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeQuadInit()");
@@ -580,11 +550,9 @@ void CVODESSolver::Init(TimeDependentAdjointOperator &f_) {
     
   }
 
-  // For now just do some kind of default
 void CVODESSolver::InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB, double abstolQB)
   {
-    mfem_qB.SetSize(qB0.Size());
-    SetN_Vector(qB, mfem_qB);
+    qB0.ToNVector(qB);
 
     flag = CVodeQuadInitB(sundials_mem, indexB, RHSQB, qB);
     MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeQuadInitB()");
@@ -752,7 +720,7 @@ void CVODESSolver::UseSundialsLinearSolverB()
 // Pretty much a copy of CVODESolver::Step except we use CVodeF instead of CVode
   void CVODESSolver::Step(Vector &x, double &t, double &dt)
   {
-    SetN_Vector(y, x);
+    x.ToNVector(y);
 
    // Reinitialize CVODE memory if needed, initializes the N_Vector y with x
    if (reinit)
@@ -776,7 +744,7 @@ void CVODESSolver::UseSundialsLinearSolverB()
 
   void CVODESSolver::StepB(Vector &xB, double &tB, double &dtB)
   {
-    SetN_Vector(yB, xB);
+    xB.ToNVector(yB);
  
     // Reinitialize CVODE memory if needed
     if (reinit)
