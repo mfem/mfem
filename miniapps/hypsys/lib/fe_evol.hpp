@@ -64,7 +64,7 @@ public:
 	virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
 								 int e, int i, int k) const;
 	void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
-							 Vector &y) const;
+							 Vector &y, int e, int k, int i) const;
    virtual void EvolveStandard(const Vector &x, Vector &y) const;
    virtual void EvolveMCL     (const Vector &x, Vector &y) const;
 

@@ -245,20 +245,15 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
 }
 
 void FE_Evolution::LaxFriedrichs(const Vector &x1, const Vector &x2,
-											const Vector &normal, Vector &y) const
+											const Vector &normal, Vector &y,
+										   int e, int k, int i) const
 {
-	hyp->EvaluateFlux(x1, Flux);
-	hyp->EvaluateFlux(x2, FluxNbr);
+	hyp->EvaluateFlux(x1, Flux, e, k, i);
+	hyp->EvaluateFlux(x2, FluxNbr, e, k, i);
 	Flux += FluxNbr;
-	double ws = max( hyp->GetWaveSpeed(x1, normal), 
-						  hyp->GetWaveSpeed(x2, normal) );
-	
-// 	// Roe-Pike for SWE
-// 	double ws = abs( ( (sqrt(x2(0))*x1(1) + sqrt(x1(0))*x2(1)) * normal(0) +
-// 					       (sqrt(x2(0))*x1(2) + sqrt(x1(0))*x2(2)) * normal(1) ) /
-// 					     (x1(0)*sqrt(x2(0)) + x2(0)*sqrt(x1(0))) )
-// 					+ sqrt(9.81 * 0.5 * (x1(0)+x2(0)));
-	
+	double ws = max( hyp->GetWaveSpeed(x1, normal, e, k, i), 
+						  hyp->GetWaveSpeed(x2, normal, e, k, i) );
+
 	Flux.Mult(normal, y);
 	
 	Vector x(y.Size());
@@ -301,19 +296,14 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
       x.GetSubVector(vdofs, uElem);
 		mat2 = 0.;
 
-      DenseMatrix vel = hyp->VelElem(e); // TODO rm
+//       DenseMatrix vel = hyp->VelElem(e); // TODO rm
 
       for (int k = 0; k < nqe; k++)
       {
 			ElemEval(uElem, uEval, k);
 			
-// // 			GENERAL
-// 			hyp->EvaluateFlux(uEval, Flux);
-
-			// ADVECTION
-			normal = vel.GetColumn(k);
-			normal *= uEval(0);
-			Flux.SetRow(0, normal);
+// 			GENERAL
+			hyp->EvaluateFlux(uEval, Flux, e, k);
 
 			MultABt(ElemInt(e*nqe+k), Flux, mat1);
 			AddMult(DShapeEval(k), mat1, mat2);
@@ -330,19 +320,8 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 				OuterUnitNormals(e*dofs.NumBdrs+i).GetColumn(k, normal);
 				FaceEval(x, uEval, uNbrEval, e, i, k);
 
-				// ADVECTION
-				NumFlux = 0.;
-            for (int l = 0; l < dim; l++)
-            {
-               NumFlux(0) += normal(l) * hyp->VelFace(l,i,e*nqf+k);
-            }
-
-            // Lax-Friedrichs flux (equals full upwinding for Advection).
-            NumFlux(0) = 0.5 * ( NumFlux(0) * (uEval(0) + uNbrEval(0))
-								 + abs(NumFlux(0)) * (uEval(0) - uNbrEval(0)) );
-
-// 				// GENERAL
-// 				LaxFriedrichs(uEval, uNbrEval, normal, NumFlux);
+				// GENERAL
+				LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, k, i);
 
 				NumFlux *= BdrInt(i,k,e);
 

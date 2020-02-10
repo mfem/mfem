@@ -9,8 +9,7 @@ double InflowFunctionAdv(const Vector &x);
 
 Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 							Configuration &config_)
-   : HyperbolicSystem(fes_, u_block, 1, config_),
-     velocity(fes_->GetMesh()->Dimension(), VelocityFunctionAdv)
+   : HyperbolicSystem(fes_, u_block, 1, config_)
 {
    ConfigAdv = config_;
 
@@ -29,8 +28,9 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes);
    const IntegrationRule *IntRuleFace = GetFaceIntegrationRule(fes);
    const int nqe = IntRuleElem->GetNPoints();
-   const int nqf = IntRuleFace->GetNPoints();
+   nqf = IntRuleFace->GetNPoints();
    Vector vec, vval;
+	VelocityVector.SetSize(dim);
    DenseMatrix VelEval, mat(dim, nqe);
 
    int NumBdrs;
@@ -48,6 +48,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 
    VelElem.SetSize(dim, nqe, ne);
    VelFace.SetSize(dim, NumBdrs, ne*nqf);
+	VectorFunctionCoefficient velocity(dim, VelocityFunctionAdv);
 
    Array<int> bdrs, orientation;
    Array<IntegrationPoint> eip(nqf*NumBdrs);
@@ -137,16 +138,27 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    }   
 }
 
-void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f) const
+void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f,
+									  int e, int k, int i) const
 {
-   // Due to possibly non-constant velocity a different approach is used.
-   // Preprocessing for Advection is done in the Advcetion constructor.
-   MFEM_ABORT("Do not call this routine for objects of type Advection.");
+	if (i == -1) // Element terms.
+	{
+		VelocityVector = VelElem(e).GetColumn(k);
+		VelocityVector *= u(0);
+		f.SetRow(0, VelocityVector);
+	}
+	else
+	{
+		VelocityVector = VelFace(e*nqf+k).GetColumn(i);
+		VelocityVector *= u(0);
+		f.SetRow(0, VelocityVector);
+	}
 }
 
-double Advection::GetWaveSpeed(const Vector &u, const Vector n) const
+double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
 {
-   
+	VelocityVector = VelFace(e*nqf+k).GetColumn(i);
+   return abs(VelocityVector * n);
 }
 
 void Advection::ComputeErrors(Array<double> &errors, double DomainSize,

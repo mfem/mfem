@@ -41,7 +41,8 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
    }
 }
 
-void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval) const
+void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &f,
+									     int e, int k, int i) const
 {
 	const int dim = u.Size() - 1;
    double H0 = 0.001;
@@ -53,25 +54,25 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval) const
    {
       case 1:
       {
-         FluxEval(0,0) = u(1);
-         FluxEval(1,0) = u(1)*u(1)/u(0) + GravConst / 2. * u(0)*u(0);
+         f(0,0) = u(1);
+         f(1,0) = u(1)*u(1)/u(0) + GravConst / 2. * u(0)*u(0);
 			break;
       }
       case 2:
       {
-         FluxEval(0,0) = u(1);
-         FluxEval(0,1) = u(2);
-         FluxEval(1,0) = u(1)*u(1)/u(0) + GravConst / 2. * u(0)*u(0);
-         FluxEval(1,1) = u(1)*u(2)/u(0);
-         FluxEval(2,0) = u(2)*u(1)/u(0);
-         FluxEval(2,1) = u(2)*u(2)/u(0) + GravConst / 2. * u(0)*u(0);
+         f(0,0) = u(1);
+         f(0,1) = u(2);
+         f(1,0) = u(1)*u(1)/u(0) + GravConst / 2. * u(0)*u(0);
+         f(1,1) = u(1)*u(2)/u(0);
+         f(2,0) = u(2)*u(1)/u(0);
+         f(2,1) = u(2)*u(2)/u(0) + GravConst / 2. * u(0)*u(0);
 			break;
       }
       default: MFEM_ABORT("Invalid space dimensions.");
    }
 }
 
-double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n) const
+double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
 {
 	switch (u.Size())
 	{
