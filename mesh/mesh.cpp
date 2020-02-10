@@ -1157,6 +1157,11 @@ void Mesh::AddVertex(const double *x)
    NumOfVertices++;
 }
 
+void Mesh::AddSegment(const int *vi, int attr)
+{
+   elements[NumOfElements++] = new Segment(vi, attr);
+}
+
 void Mesh::AddTri(const int *vi, int attr)
 {
    elements[NumOfElements++] = new Triangle(vi, attr);
