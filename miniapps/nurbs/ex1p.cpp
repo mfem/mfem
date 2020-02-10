@@ -1,31 +1,31 @@
 //                     MFEM Example 1 - Parallel NURBS Version
 //
-// Compile with: make ex1p
+// Compile with: make nurbs_ex1p
 //
-// Sample runs:  mpirun -np 4 ex1p -m ../../data/square-disc.mesh
-//               mpirun -np 4 ex1p -m ../../data/star.mesh
-//               mpirun -np 4 ex1p -m ../../data/escher.mesh
-//               mpirun -np 4 ex1p -m ../../data/fichera.mesh
-//               mpirun -np 4 ex1p -m ../../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex1p -m ../../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex1p -m ../../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex1p -m ../../data/star-surf.mesh
-//               mpirun -np 4 ex1p -m ../../data/square-disc-surf.mesh
-//               mpirun -np 4 ex1p -m ../../data/inline-segment.mesh
-//               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh
-//               mpirun -np 4 ex1p -m ../../data/amr-hex.mesh
-//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh
-//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh -o -1 -sc
-//               mpirun -np 4 ex1p -m ../../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
-//               mpirun -np 4 ex1p -m square-nurbs.mesh -o 2 -no-ibp
-//               mpirun -np 4 ex1p -m cube-nurbs.mesh -o 2 -no-ibp
-//               mpirun -np 4 ex1p -m pipe-nurbs-2d.mesh -o 2 -no-ibp
+// Sample runs:  mpirun -np 4 nurbs_ex1p -m ../../data/square-disc.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/star.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/escher.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/fichera.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-p2.vtk -o 2
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-p3.mesh -o 3
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/disc-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/ball-nurbs.mesh -o 2
+//               mpirun -np 4 nurbs_ex1p -m ../../data/star-surf.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-surf.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/inline-segment.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/amr-quad.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/amr-hex.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/mobius-strip.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/mobius-strip.mesh -o -1 -sc
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/disc-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+//               mpirun -np 4 nurbs_ex1p -m square-nurbs.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m cube-nurbs.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m pipe-nurbs-2d.mesh -o 2 -no-ibp
 
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
