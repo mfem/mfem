@@ -502,11 +502,11 @@ public:
     * original matrix and P is a permutation matrix represented by ipiv.
     *
     * @param [in] m size of the square matrix
-    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 1e-9.
+    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
     *
     * @return status set to true if successful, otherwise, false.
     */
-   bool Factor(int m, double TOL = 1.e-9);
+   bool Factor(int m, double TOL = 0.0);
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
