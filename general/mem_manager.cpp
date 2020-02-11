@@ -719,7 +719,6 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType mt, unsigned flags)
       const MemoryType h_mt = mt;
       MFEM_ASSERT(!owns_internal ||
                   mt == maps->memories.at(h_ptr).h_mt,"");
-      MFEM_ASSERT(!owns_host || owns_internal,"");
       if (owns_host && (h_mt != MemoryType::HOST))
       { ctrl->Host(h_mt)->Dealloc(h_ptr); }
       if (owns_internal) { mm.Erase(h_ptr, owns_device); }
