@@ -3496,6 +3496,15 @@ public:
 
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
+   
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { ScalarLocalInterpolation(Trans, I, *this); }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { CheckScalarFE(fe).ScalarLocalInterpolation(Trans, I, *this); }
 };
 
 class RBFFiniteElement : public KernelFiniteElement

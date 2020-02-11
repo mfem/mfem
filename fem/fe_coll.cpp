@@ -2835,87 +2835,149 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
    return NULL;
 }
 
-KernelFECollection::KernelFECollection(const int D,
+KernelFECollection::KernelFECollection(const int dim,
                                        const int numPointsD,
                                        const double h,
                                        const int rbfType,
                                        const int distType,
-                                       const int order)
+                                       const int order,
+                                       const int mapType)
 {
-   if (order == -1)
+   for (int g = 0; g < Geometry::NumGeom; ++g)
    {
-      FE = new RBFFiniteElement(D, numPointsD, h,
-                                rbfType, distType);
+      L2_Elements[g] = NULL;
+      Tr_Elements[g] = NULL;
+   }
+   for (int i = 0; i < 2; i++)
+   {
+      SegDofOrd[i] = NULL;
+   }
+   OtherDofOrd = NULL;
+   
+   if (dim == 0)
+   {
+      L2_Elements[Geometry::POINT] = new PointFiniteElement;
+   }
+   else if (dim == 1)
+   {
+      if (order == -1)
+      {
+         L2_Elements[Geometry::SEGMENT]
+            = new RBFFiniteElement(1, numPointsD, h,
+                                   rbfType, distType);
+      }
+      else {
+         L2_Elements[Geometry::SEGMENT]
+            = new RKFiniteElement(1, numPointsD, h,
+                                  rbfType, distType, order);
+      }
+      L2_Elements[Geometry::SEGMENT]->SetMapType(mapType);
+      Tr_Elements[Geometry::POINT] = new PointFiniteElement;
+   }
+   else if (dim == 2)
+   {
+      if (order == -1)
+      {
+         L2_Elements[Geometry::SQUARE]
+            = new RBFFiniteElement(2, numPointsD, h,
+                                   rbfType, distType);
+         Tr_Elements[Geometry::SEGMENT]
+            = new RBFFiniteElement(1, numPointsD, h,
+                                   rbfType, distType);
+      }
+      else {
+         L2_Elements[Geometry::SQUARE]
+            = new RKFiniteElement(2, numPointsD, h,
+                                  rbfType, distType, order);
+         Tr_Elements[Geometry::SEGMENT]
+            = new RKFiniteElement(1, numPointsD, h,
+                                  rbfType, distType, order);
+      }
+      L2_Elements[Geometry::SQUARE]->SetMapType(mapType);
+   }
+   else if (dim == 3)
+   {
+      if (order == -1)
+      {
+         L2_Elements[Geometry::CUBE]
+            = new RBFFiniteElement(3, numPointsD, h,
+                                   rbfType, distType);
+         Tr_Elements[Geometry::SQUARE]
+            = new RBFFiniteElement(2, numPointsD, h,
+                                   rbfType, distType);
+      }
+      else {
+         L2_Elements[Geometry::CUBE]
+            = new RKFiniteElement(3, numPointsD, h,
+                                  rbfType, distType, order);
+         Tr_Elements[Geometry::SQUARE]
+            = new RKFiniteElement(2, numPointsD, h,
+                                  rbfType, distType, order);
+      }
+      L2_Elements[Geometry::CUBE]->SetMapType(mapType);
+   }
+   
+   if (dim == 1)
+   {
+      SegDofOrd[0] = new int[2*numPointsD];
+      SegDofOrd[1] = SegDofOrd[0] + numPointsD;
+      for (int i = 0; i < numPointsD; ++i) {
+         SegDofOrd[0][i] = i;
+         SegDofOrd[1][i] = numPointsD - i - 1;
+      }
    }
    else
    {
-      FE = new RKFiniteElement(D, numPointsD, h,
-                               rbfType, distType, order);
+      const int geomType = TensorBasisElement::GetTensorProductGeometry(dim);
+      const int dof = L2_Elements[geomType]->GetDof();
+      OtherDofOrd = new int[dof];
+      for (int i = 0; i < dof; ++i)
+      {
+         OtherDofOrd[i] = i;
+      }
    }
 }
 
-bool KernelFECollection::ValidGeomType(int GeomType) const
+KernelFECollection::~KernelFECollection()
 {
-   const int dim = FE->GetDim();
-   return ((GeomType == Geometry::SEGMENT && dim == 1)
-           || (GeomType == Geometry::SQUARE && dim == 2)
-           || (GeomType == Geometry::CUBE && dim == 3));
+   delete [] OtherDofOrd;
+   delete [] SegDofOrd[0];
+   for (int i = 0; i < Geometry::NumGeom; ++i)
+   {
+      delete L2_Elements[i];
+   }
 }
 
 const FiniteElement *
 KernelFECollection::FiniteElementForGeometry(int GeomType) const
 {
-   if (!ValidGeomType(GeomType))
-   {
-      mfem_error ("KernelFECollection: not a valid geometry-dim pair");
-   }
-   return FE;
+   return L2_Elements[GeomType];
+}
+
+const FiniteElement *
+KernelFECollection::TraceFiniteElementForGeometry(int GeomType) const
+{
+   return Tr_Elements[GeomType];
 }
 
 int KernelFECollection::DofForGeometry(int GeomType) const
 {
-   // No shared Dof on vertices, edges, or faces
-   const int dim = FE->GetDim();
-   switch (dim)
+   if (L2_Elements[GeomType])
    {
-   case 1:
-      switch (GeomType)
-      {
-      case Geometry::POINT:
-         return 0;
-      case Geometry::SEGMENT:
-         return FE->GetDof();
-      }
-   case 2:
-      switch (GeomType)
-      {
-      case Geometry::POINT:
-         return 0;
-      case Geometry::SEGMENT:
-         return 0;
-      case Geometry::SQUARE:
-         return FE->GetDof();
-      }
-   case 3:
-      switch (GeomType)
-      {
-      case Geometry::POINT:
-         return 0;
-      case Geometry::SEGMENT:
-         return 0;
-      case Geometry::SQUARE:
-         return 0;
-      case Geometry::CUBE:
-         return FE->GetDof();
-      }
+      return L2_Elements[GeomType]->GetDof();
    }
-   mfem_error ("KernelFECollection: not a valid geometry type");
-   return 0; // for compiler
+   return 0;
 }
 
 int *KernelFECollection::DofOrderForOrientation(int GeomType, int Or) const
 {
-   return NULL;
+   if (GeomType == Geometry::SEGMENT) {
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+   }
+   else
+   {
+      return (Or == 0) ? OtherDofOrd : NULL;
+   }
 }
 
 } // namespace mfem
