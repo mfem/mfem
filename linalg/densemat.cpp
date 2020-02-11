@@ -3115,7 +3115,7 @@ bool LinearSolve(DenseMatrix& A, double* X, double TOL)
          Array<int> ipiv(N);
          LUFactors lu(A.Data(), ipiv);
 
-         if (!lu.Factor(N)) { return false; } // singular
+         if (!lu.Factor(N,TOL)) { return false; } // singular
 
          lu.Solve(N, 1, X);
       }
