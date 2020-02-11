@@ -19,6 +19,10 @@ using namespace std;
 namespace mfem
 {
 
+// Local maximum size of dofs and quads in 1D
+constexpr int HCURL_MAX_D1D = 4;
+constexpr int HCURL_MAX_Q1D = 5;
+
 // PA H(curl) Mass Assemble 2D kernel
 static void PAHcurlSetup2D(const int Q1D,
                            const int NE,
@@ -344,6 +348,7 @@ static void PAHcurlMassAssembleDiagonal2D(const int D1D,
    }); // end of element loop
 }
 
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                           const int Q1D,
                                           const int NE,
@@ -352,6 +357,8 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
                                           const Vector &_op,
                                           Vector &_diag)
 {
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
@@ -419,6 +426,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
                                     mapsO->B, mapsC->B, pa_data, diag);
 }
 
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlMassApply3D(const int D1D,
                                const int Q1D,
                                const int NE,
@@ -430,6 +438,8 @@ static void PAHcurlMassApply3D(const int D1D,
                                const Vector &_x,
                                Vector &_y)
 {
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
@@ -871,6 +881,7 @@ static void PACurlCurlApply2D(const int D1D,
    }); // end of element loop
 }
 
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PACurlCurlApply3D(const int D1D,
                               const int Q1D,
                               const int NE,
@@ -884,6 +895,8 @@ static void PACurlCurlApply3D(const int D1D,
                               const Vector &_x,
                               Vector &_y)
 {
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
    // (\nabla\times u) \cdot (\nabla\times v) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{v}
    // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
@@ -1379,11 +1392,19 @@ static void PACurlCurlApply3D(const int D1D,
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
+   {
       PACurlCurlApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                         mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
-   else
+   }
+   else if (dim == 2)
+   {
       PACurlCurlApply2D(dofs1D, quad1D, ne, mapsO->B, mapsO->Bt,
                         mapsC->G, mapsC->Gt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
 }
 
 static void PACurlCurlAssembleDiagonal2D(const int D1D,
@@ -1439,6 +1460,7 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
    }); // end of element loop
 }
 
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PACurlCurlAssembleDiagonal3D(const int D1D,
                                          const int Q1D,
                                          const int NE,
@@ -1450,6 +1472,8 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
                                          Vector &_diag)
 {
    constexpr static int VDIM = 3;
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -1634,11 +1658,20 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
+   {
       PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, ne,
-                                   mapsO->B, mapsC->B, mapsO->G, mapsC->G, pa_data, diag);
-   else
+                                   mapsO->B, mapsC->B, mapsO->G, mapsC->G,
+                                   pa_data, diag);
+   }
+   else if (dim == 2)
+   {
       PACurlCurlAssembleDiagonal2D(dofs1D, quad1D, ne,
                                    mapsO->B, mapsC->G, pa_data, diag);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
 }
 
 void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
@@ -1715,6 +1748,7 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
 
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
 // against H(curl) test functions corresponding to y.
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlH1Apply3D(const int D1D,
                              const int Q1D,
                              const int NE,
@@ -2027,6 +2061,10 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else if (dim == 2)
       PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
 }
 
 } // namespace mfem
