@@ -2,12 +2,13 @@
 //
 // Compile with: make ex23p
 //
-// Sample runs:  mpirun -np 4 ex23p -o 2 -f 1.3 -rs 1 -rp 1 -prob 0
-//               mpirun -np 4 ex23p -o 2 -f 1.3 -rs 1 -rp 1 -prob 1
-//               mpirun -np 4 ex23p -o 2 -f 3.3 -rs 3 -rp 1 -prob 2
-//               mpirun -np 4 ex23p -o 2 -f 1.3 -rs 2 -rp 1 -prob 3
-//               mpirun -np 4 ex23p -o 2 -f 10.3 -rs 2 -rp 2 -m ../data/inline-quad.mesh
-//               mpirun -np 4 ex23p -o 2 -f 2.3 -rs 1 -rp 1 -m ../data/inline-hex.mesh
+// Sample runs:  mpirun -np 4 ex23p -o 2 -f 1.0 -rs 1 -rp 1 -prob 0
+//               mpirun -np 4 ex23p -o 3 -f 1.0 -rs 1 -rp 1 -prob 1
+//               mpirun -np 4 ex23p -o 2 -f 3.0 -rs 3 -rp 1 -prob 2
+//               mpirun -np 4 ex23p -o 2 -f 1.0 -rs 2 -rp 1 -prob 3
+//               mpirun -np 4 ex23p -o 2 -f 1.0 -rs 2 -rp 2 -prob 0 -m ../data/beam-quad.mesh
+//               mpirun -np 4 ex23p -o 2 -f 8.0 -rs 2 -rp 2 -prob 4 -m ../data/inline-quad.mesh
+//               mpirun -np 4 ex23p -o 2 -f 2.0 -rs 1 -rp 1 -prob 4 -m ../data/inline-hex.mesh
 
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order indefinite
@@ -17,7 +18,7 @@
 //
 //               The example also demonstrates the use of complex valued bilinear and linear forms.
 //               We recommend viewing example 22 before viewing this example.
-//               Four examples are probided with exact solutions (iprob = 0-4).
+//               Four examples are provided with exact solutions (iprob = 0-3).
 
 #include "mfem.hpp"
 #include <fstream>
@@ -69,17 +70,15 @@ public:
    // Mark element in the PML region
    void SetAttributes(ParMesh *pmesh);
 
-   // PML complex streching function
+   // PML complex stretching function
    void StretchFunction(const Vector &x, std::vector<std::complex<double>> &dxs);
 };
 
 class PmlMatrixCoefficient : public MatrixCoefficient
 {
 private:
-
    CartesianPML * pml = nullptr;
    void (*Function)(const Vector &, CartesianPML * , DenseMatrix &);
-
 public:
    PmlMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
                                           DenseMatrix &),
@@ -98,17 +97,22 @@ public:
 };
 
 void maxwell_solution(const Vector &x, std::vector<std::complex<double>> &Eval);
+
 void E_bdr_data_Re(const Vector &x, Vector &E);
 void E_bdr_data_Im(const Vector &x, Vector &E);
+
 void E_exact_Re(const Vector &x, Vector &E);
 void E_exact_Im(const Vector &x, Vector &E);
+
 void source(const Vector &x, Vector & f);
 
-// PML Coefficients Functions
 void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
+void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M);
+
 void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
+void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 
 Array2D<double> comp_domain_bdr;
 Array2D<double> domain_bdr;
@@ -141,9 +145,9 @@ int main(int argc, char *argv[])
    const char *mesh_file = nullptr;
    int order = 1;
    int ref_levels = 1;
-   int par_ref_levels = 1;
+   int par_ref_levels = 2;
    int iprob = 4;
-   double freq = 2.0;
+   double freq = 5.0;
    bool herm_conv = true;
    bool visualization = 1;
 
@@ -171,10 +175,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.Parse();
 
-   // 3. Setup the (serial) mesh on all processors.
    if (iprob > 4) { iprob = 4; }
    prob = (prob_type)iprob;
 
+   // 3. Setup the (serial) mesh on all processors.
    if (!mesh_file)
    {
       exact_known = true;
@@ -219,10 +223,9 @@ int main(int argc, char *argv[])
    //Angular frequency
    omega = 2.0 * M_PI * freq;
 
-   // Setup PML length
+   // 4. Setup the Cartesian PML region.
    Array2D<double> lngth(dim, 2);  lngth = 0.0;
 
-   // 4. Setup the Cartesian PML region.
    switch (prob)
    {
       case scatter:
@@ -263,12 +266,14 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
+
+   // 6a. Reorient mesh in case of a tet mesh
    pmesh->ReorientTetMesh();
 
-   // Set element attributes in order to destiguish elements in the PML region
+   // 7. Set element attributes in order to destiguish elements in the PML region
    pml->SetAttributes(pmesh);
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
+   // 8. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
@@ -278,7 +283,7 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 8. Determine the list of true (i.e. parallel conforming) essential
+   // 9. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    based on the specific mesh and the problem type.
    Array<int> ess_tdof_list;
@@ -320,11 +325,11 @@ int main(int argc, char *argv[])
    }
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // Setup Complex Operator convention
+   // 10. Setup Complex Operator convention
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   // 9. Set up the parallel linear form b(.) which corresponds to the
+   // 11. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system.
    VectorFunctionCoefficient f(dim, source);
    ParComplexLinearForm b(fespace, conv);
@@ -332,11 +337,10 @@ int main(int argc, char *argv[])
    {
       b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f));
    }
-
    b.Vector::operator=(0.0);
    b.Assemble();
 
-   // 10. Define the solution vector x as a parallel complex finite element grid
+   // 12. Define the solution vector x as a parallel complex finite element grid
    //    function corresponding to fespace.
    ParComplexGridFunction x(fespace);
    x = 0.0;
@@ -344,71 +348,71 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
    x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
 
-   // 11. Set up the parallel sesquilinear form a(.,.) on the finite element
-   //     space corresponding to the problem of the appropriate type:
+   // 13. Set up the parallel sesquilinear form a(.,.)
+   //
+   //     In Comp
+   //     Domain:   1/mu (Curl E, Curl F) - omega^2 * epsilon (E,F)
+   //
+   //     In PML:   1/mu (1/det(J) J^T J Curl E, Curl F)
+   //               - omega^2 * epsilon (det(J) * (J^T J)^-1 * E, F)
+   //
+   //    where J denotes the Jacobian Matrix of the PML Stretching function
 
    Array<int> attr;
+   Array<int> attrPML;
    if (pmesh->attributes.Size())
    {
       attr.SetSize(pmesh->attributes.Max());
-      attr = 0;
-      attr[0] = 1;
-   }
-   ConstantCoefficient muinv(1.0/mu);
-   ConstantCoefficient sigma(-pow(omega, 2) * epsilon);
-   RestrictedCoefficient restr_muinv(muinv,attr);
-   RestrictedCoefficient restr_sigma(sigma,attr);
-
-   ParSesquilinearForm a(fespace, conv);
-
-   // Sesquilinear form inside the computational domain (excluding PML)
-   a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_sigma),NULL);
-
-   // pml region attributes
-   if (pmesh->attributes.Size())
-   {
-      attr = 0;
+      attrPML.SetSize(pmesh->attributes.Max());
+      attr = 0;   attr[0] = 1;
+      attrPML = 0;
       if (pmesh->attributes.Max() > 1)
       {
-         attr[1] = 1;
+         attrPML[1] = 1;
       }
    }
 
-   // PML coefficients
+   ConstantCoefficient muinv(1.0/mu);
+   ConstantCoefficient omeg(-pow(omega, 2) * epsilon);
+   RestrictedCoefficient restr_muinv(muinv,attr);
+   RestrictedCoefficient restr_omeg(omeg,attr);
+
+   ParSesquilinearForm a(fespace, conv);
+   // Sesquilinear form inside the computational domain (excluding PML)
+   a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
+
    int cdim = (dim == 2) ? 1 : dim;
    PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
    PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
    ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
    ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
-   MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attr);
-   MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attr);
+   MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
 
    PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
    PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
-   ScalarMatrixProductCoefficient c2_Re(sigma,pml_c2_Re);
-   ScalarMatrixProductCoefficient c2_Im(sigma,pml_c2_Im);
-   MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attr);
-   MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attr);
+   ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
+   ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
+   MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
 
-   // Sesquilinear form inside the PML region
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
                          new CurlCurlIntegrator(restr_c1_Im));
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                          new VectorFEMassIntegrator(restr_c2_Im));
 
-   // 12. Assemble the parallel bilinear form and the corresponding linear
+   // 14. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
    a.Assemble();
 
-
    OperatorHandle Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   // Transform to monolithic HypreParMatrix
+   // 15. Transform to monolithic HypreParMatrix
    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
 
    if (myid == 0)
@@ -416,30 +420,81 @@ int main(int argc, char *argv[])
       cout << "Size of linear system: " << A->GetGlobalNumRows() << endl;
    }
 
-   //13.  Solve using a direct or an iterative solver
+   // 16.  Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
-   // SuperLU direct solver
-   SuperLURowLocMatrix *SA = new SuperLURowLocMatrix(*A);
-   SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD);
-   superlu->SetPrintStatistics(false);
-   superlu->SetSymmetricPattern(false);
-   superlu->SetColumnPermutation(superlu::PARMETIS);
-   superlu->SetOperator(*SA);
-   superlu->Mult(B, X);
-   delete superlu;
-   delete SA;
+   {
+      SuperLURowLocMatrix SA(*A);
+      SuperLUSolver superlu(MPI_COMM_WORLD);
+      superlu.SetPrintStatistics(false);
+      superlu.SetSymmetricPattern(false);
+      superlu.SetColumnPermutation(superlu::PARMETIS);
+      superlu.SetOperator(SA);
+      superlu.Mult(B, X);
+   }
 #else
-   GMRESSolver * gmres = new GMRESSolver(MPI_COMM_WORLD);
-   gmres->SetPrintLevel(1);
-   gmres->SetMaxIter(1000);
-   gmres->SetRelTol(1e-4);
-   gmres->SetAbsTol(0.0);
-   gmres->SetOperator(*A);
-   gmres->Mult(B, X);
-   delete gmres;
+   // Set up the preconditioner
+   // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
+   //
+   //    In Comp
+   //    Domain:   1/mu (Curl E, Curl F) + omega^2 * epsilon (E,F)
+   //
+   //    In PML:   1/mu (abs(1/det(J) J^T J) Curl E, Curl F)
+   //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
+   {
+      ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
+      RestrictedCoefficient restr_absomeg(absomeg,attr);
+
+      ParBilinearForm prec(fespace);
+      prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv));
+      prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_absomeg));
+
+      PmlMatrixCoefficient pml_c1_abs(cdim,detJ_inv_JT_J_abs, pml);
+      ScalarMatrixProductCoefficient c1_abs(muinv,pml_c1_abs);
+      MatrixRestrictedCoefficient restr_c1_abs(c1_abs,attrPML);
+
+      PmlMatrixCoefficient pml_c2_abs(dim, detJ_JT_J_inv_abs,pml);
+      ScalarMatrixProductCoefficient c2_abs(absomeg,pml_c2_abs);
+      MatrixRestrictedCoefficient restr_c2_abs(c2_abs,attrPML);
+
+      prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_abs));
+      prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_abs));
+
+      prec.Assemble();
+
+      OperatorHandle PCOpAh;
+      prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
+
+      // 16b. Define and apply a parallel GMRES solver for AU=B with a block
+      //      diagonal preconditioner based on the AMS multigrid
+      //      preconditioner from hypre.
+
+      Array<int> offsets(3);
+      offsets[0] = 0;
+      offsets[1] = fespace->GetTrueVSize();
+      offsets[2] = fespace->GetTrueVSize();
+      offsets.PartialSum();
+
+      HypreAMS ams00(*PCOpAh.As<HypreParMatrix>(),fespace);
+      BlockDiagonalPreconditioner BlockAMS(offsets);
+
+      ScaledOperator ams11(&ams00,(conv == ComplexOperator::HERMITIAN) ? -1.0:1.0);
+
+      BlockAMS.SetDiagonalBlock(0,&ams00);
+      BlockAMS.SetDiagonalBlock(1,&ams11);
+
+      GMRESSolver gmres(MPI_COMM_WORLD);
+      gmres.SetPrintLevel(1);
+      gmres.SetKDim(200);
+      gmres.SetMaxIter(2000);
+      gmres.SetRelTol(1e-5);
+      gmres.SetAbsTol(0.0);
+      gmres.SetOperator(*A);
+      gmres.SetPreconditioner(BlockAMS);
+      gmres.Mult(B, X);
+   }
 #endif
 
-   // 14. Recover the parallel grid function corresponding to X. This is the
+   // 17. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
 
@@ -477,17 +532,37 @@ int main(int argc, char *argv[])
          cout << " Rel Error - Imag Part: || E_h - E || / ||E|| = " << L2Error_Im /
               norm_E_Im << '\n'
               << endl;
-         cout << " Total Error: " << sqrt(L2Error_Re * L2Error_Re + L2Error_Im *
-                                          L2Error_Im)
-              << endl;
       }
    }
 
-   // 15. Send the solution by socket to a GLVis server.
+   // 18. Save the refined mesh and the solution in parallel. This output can be
+   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   {
+      ostringstream mesh_name, sol_r_name, sol_i_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_r_name << "sol_r." << setfill('0') << setw(6) << myid;
+      sol_i_name << "sol_i." << setfill('0') << setw(6) << myid;
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->Print(mesh_ofs);
+
+      ofstream sol_r_ofs(sol_r_name.str().c_str());
+      ofstream sol_i_ofs(sol_i_name.str().c_str());
+      sol_r_ofs.precision(8);
+      sol_i_ofs.precision(8);
+      x.real().Save(sol_r_ofs);
+      x.imag().Save(sol_i_ofs);
+   }
+
+   // 19. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       string keys;
-      keys = (dim == 3) ? "keys macFF\n" : keys = "keys amrRljcUUuuu\n";
+      keys = (dim == 3) ? "keys macF\n" : keys = "keys amrRljcUUuu\n";
+      if (prob == beam && dim == 3) { keys = "keys macFFiYYYYYYYYYYYYYYYYYY\n"; }
+      if (prob == beam && dim == 2) { keys = "keys amrRljcUUuuu\n"; }
+
       char vishost[] = "localhost";
       int visport = 19916;
 
@@ -538,13 +613,12 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 16. Free the used memory.
+   // 20. Free the used memory.
    delete A;
    delete pml;
    delete fespace;
    delete fec;
    delete pmesh;
-
    MPI_Finalize();
    return 0;
 }
@@ -752,7 +826,6 @@ void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml ,  DenseMatrix &M)
    }
 }
 
-
 void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
 {
    std::vector<std::complex<double>> dxs(dim);
@@ -768,6 +841,24 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
    for (int i = 0; i < dim; ++i)
    {
       M(i, i) = (det / pow(dxs[i], 2)).imag();
+   }
+}
+
+void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
+{
+   std::vector<std::complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   M = 0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      M(i, i) = abs(det / pow(dxs[i], 2));
    }
 }
 
@@ -823,8 +914,31 @@ void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
    }
 }
 
+void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+{
+   std::vector<std::complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs);
 
-//PML
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   if (dim == 2)
+   {
+      M = abs(1.0 / det);
+   }
+   else
+   {
+      M = 0.0;
+      for (int i = 0; i < dim; ++i)
+      {
+         M(i, i) = abs(pow(dxs[i], 2) / det);
+      }
+   }
+}
+
 CartesianPML::CartesianPML(Mesh *mesh_, Array2D<double> length_) : mesh(mesh_),
    length(length_)
 {
@@ -906,7 +1020,6 @@ void CartesianPML::SetAttributes(ParMesh *pmesh)
    pmesh->SetAttributes();
 }
 
-// PML
 void CartesianPML::StretchFunction(const Vector &x,
                                    std::vector<std::complex<double>> &dxs)
 {
