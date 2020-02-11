@@ -9,6 +9,7 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
+//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.02 -s 13 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
@@ -21,13 +22,13 @@
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of explicit
-//               ODE time integrators, the definition of periodic boundary
-//               conditions through periodic meshes, as well as the use of GLVis
-//               for persistent visualization of a time-evolving solution. The
-//               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
-//               illustrated.
+//               bilinear forms in MFEM (face integrators), the use of implicit
+//               and explicit ODE time integrators, the definition of periodic
+//               boundary conditions through periodic meshes, as well as the use
+//               of GLVis for persistent visualization of a time-evolving
+//               solution. The saving of time-dependent data files for external
+//               visualization with VisIt (visit.llnl.gov) and ParaView
+//               (paraview.org) is also illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -52,6 +53,7 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+<<<<<<< HEAD
 struct AIR_parameters {
    double distanceR;
    std::string prerelax;
@@ -65,6 +67,68 @@ struct AIR_parameters {
    double filterA_tol;
 };
 
+=======
+class DG_Solver : public Solver
+{
+private:
+   HypreParMatrix &M, &K;
+   SparseMatrix M_diag;
+   HypreParMatrix *A;
+   GMRESSolver linear_solver;
+   BlockILU prec;
+   double dt;
+public:
+   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes)
+      : M(M_),
+        K(K_),
+        A(NULL),
+        linear_solver(M.GetComm()),
+        prec(fes.GetFE(0)->GetDof(),
+             BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
+        dt(-1.0)
+   {
+      linear_solver.iterative_mode = false;
+      linear_solver.SetRelTol(1e-9);
+      linear_solver.SetAbsTol(0.0);
+      linear_solver.SetMaxIter(100);
+      linear_solver.SetPrintLevel(0);
+      linear_solver.SetPreconditioner(prec);
+
+      M.GetDiag(M_diag);
+   }
+
+   void SetTimeStep(double dt_)
+   {
+      if (dt_ != dt)
+      {
+         dt = dt_;
+         // Form operator A = M - dt*K
+         delete A;
+         A = Add(-dt, K, 0.0, K);
+         SparseMatrix A_diag;
+         A->GetDiag(A_diag);
+         A_diag.Add(1.0, M_diag);
+         // this will also call SetOperator on the preconditioner
+         linear_solver.SetOperator(*A);
+      }
+   }
+
+   void SetOperator(const Operator &op)
+   {
+      linear_solver.SetOperator(op);
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      linear_solver.Mult(x, y);
+   }
+
+   ~DG_Solver()
+   {
+      delete A;
+   }
+};
+>>>>>>> 0d691cb8ff339cc7e20d0c23cec7da3387a6d720
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -78,6 +142,7 @@ private:
    const Vector &b;
    HypreSmoother M_prec;
    CGSolver M_solver;
+   DG_Solver dg_solver;
 
    // Preconditioner/solvers for A
    HypreBoomerAMG *AMG_solver;
@@ -92,12 +157,17 @@ private:
 
 public:
    FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
+<<<<<<< HEAD
                 int order, AIR_parameters &_AIR);
+=======
+                const FiniteElementSpace &fes);
+>>>>>>> 0d691cb8ff339cc7e20d0c23cec7da3387a6d720
 
    /** Solve the Backward-Euler equation: d = f(x + dt*d, t+dt), where u_t = f(x,t).
        This is the only requirement for high-order SDIRK implicit integration.*/
    virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
    virtual ~FE_Evolution();
 
@@ -150,7 +220,11 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
+                  "            11 - Backward Euler,\n\t"
+                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
+                  "            22 - Implicit Midpoint Method,\n\t"
+                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -223,6 +297,7 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
+<<<<<<< HEAD
       // Implicit L-stable methods
       case 1:  ode_solver = new BackwardEulerSolver; break;
       case 2:  ode_solver = new SDIRK23Solver(2); break;
@@ -234,6 +309,18 @@ int main(int argc, char *argv[])
       case 14: ode_solver = new RK4Solver; break;
       case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
       case 16: ode_solver = new RK6Solver; break;
+=======
+      // Explicit methods
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
+      // Implicit (L-stable) methods
+      case 11: ode_solver = new BackwardEulerSolver; break;
+      case 12: ode_solver = new SDIRK23Solver(2); break;
+      case 13: ode_solver = new SDIRK33Solver; break;
+>>>>>>> 0d691cb8ff339cc7e20d0c23cec7da3387a6d720
       // Implicit A-stable methods (not L-stable)
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
@@ -405,7 +492,11 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
+<<<<<<< HEAD
    FE_Evolution adv(*M, *K, *B, order, AIR);
+=======
+   FE_Evolution adv(*M, *K, *B, *fes);
+>>>>>>> 0d691cb8ff339cc7e20d0c23cec7da3387a6d720
 
    double t = 0.0;
    adv.SetTime(t);
@@ -486,11 +577,18 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
+<<<<<<< HEAD
                            const Vector &_b, int order,
                            AIR_parameters &_AIR)
    : TimeDependentOperator(_M.Height()), A(NULL), AMG_solver(NULL),
      GMRES_solver(NULL), preconditioner(NULL), M(_M), K(_K), b(_b),
      M_solver(M.GetComm()), z(_M.Height()), AIR(_AIR)
+=======
+                           const Vector &_b, const FiniteElementSpace &fes)
+   : TimeDependentOperator(_M.Height()),
+     M(_M), K(_K), b(_b), M_solver(M.GetComm()),
+     dg_solver(M, K, fes), z(_M.Height())
+>>>>>>> 0d691cb8ff339cc7e20d0c23cec7da3387a6d720
 {
    M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);
@@ -507,6 +605,7 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
    dt = -1;
 }
 
+<<<<<<< HEAD
 
 FE_Evolution::~FE_Evolution()
 {
@@ -518,6 +617,16 @@ FE_Evolution::~FE_Evolution()
 }
 
 
+=======
+void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
+{
+   K.Mult(x, z);
+   z += b;
+   dg_solver.SetTimeStep(dt);
+   dg_solver.Mult(z, k);
+}
+
+>>>>>>> 0d691cb8ff339cc7e20d0c23cec7da3387a6d720
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)

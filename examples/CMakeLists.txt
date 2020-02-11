@@ -28,11 +28,7 @@ list(APPEND ALL_EXE_SRCS
   ex19.cpp
   ex20.cpp
   ex21.cpp
-<<<<<<< HEAD
-  ex23.cpp
-=======
   ex22.cpp
->>>>>>> 67c195af60a345539275c5fc19ddc44df2fe6716
   )
 
 if (MFEM_USE_MPI)
@@ -58,11 +54,7 @@ if (MFEM_USE_MPI)
     ex19p.cpp
     ex20p.cpp
     ex21p.cpp
-<<<<<<< HEAD
-    ex23p.cpp
-=======
     ex22p.cpp
->>>>>>> 67c195af60a345539275c5fc19ddc44df2fe6716
     )
 endif()
 

@@ -56,6 +56,9 @@ extern "C" void
 dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
         double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
         int *LWORK, int *INFO);
+extern "C" void
+dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
+       double *alpha, double *a, int *lda, double *b, int *ldb);
 #endif
 
 
@@ -2902,20 +2905,34 @@ void DenseMatrix::SetCol(int col, double value)
    }
 }
 
-void DenseMatrix::SetRow(int r, const Vector &row)
+void DenseMatrix::SetRow(int r, const double* row)
 {
+   MFEM_ASSERT(row != nullptr, "supplied row pointer is null");
    for (int j = 0; j < Width(); j++)
    {
       (*this)(r, j) = row[j];
    }
 }
 
-void DenseMatrix::SetCol(int c, const Vector &col)
+void DenseMatrix::SetRow(int r, const Vector &row)
 {
+   MFEM_ASSERT(Width() == row.Size(), "");
+   SetRow(r, row.GetData());
+}
+
+void DenseMatrix::SetCol(int c, const double* col)
+{
+   MFEM_ASSERT(col != nullptr, "supplied column pointer is null");
    for (int i = 0; i < Height(); i++)
    {
       (*this)(i, c) = col[i];
    }
+}
+
+void DenseMatrix::SetCol(int c, const Vector &col)
+{
+   MFEM_ASSERT(Height() == col.Size(), "");
+   SetCol(c, col.GetData());
 }
 
 void DenseMatrix::Threshold(double eps)
@@ -3060,6 +3077,53 @@ void Add(double alpha, const DenseMatrix &A,
    Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
+bool LinearSolve(DenseMatrix& A, double* X, double TOL)
+{
+   MFEM_VERIFY(A.IsSquare(), "A must be a square matrix!");
+   MFEM_ASSERT(A.NumCols() > 0, "supplied matrix, A, is empty!");
+   MFEM_ASSERT(X != nullptr, "supplied vector, X, is null!");
+
+   int N = A.NumCols();
+
+   switch (N)
+   {
+      case 1:
+      {
+         double det = A(0,0);
+         if (std::abs(det) <= TOL) { return false; } // singular
+
+         X[0] /= det;
+         break;
+      }
+      case 2:
+      {
+         double det = A.Det();
+         if (std::abs(det) <= TOL) { return false; } // singular
+
+         double invdet = 1. / det;
+
+         double b0 = X[0];
+         double b1 = X[1];
+
+         X[0] = ( A(1,1)*b0 - A(0,1)*b1) * invdet;
+         X[1] = (-A(1,0)*b0 + A(0,0)*b1) * invdet;
+         break;
+      }
+      default:
+      {
+         // default to LU factorization for the general case
+         Array<int> ipiv(N);
+         LUFactors lu(A.Data(), ipiv);
+
+         if (!lu.Factor(N,TOL)) { return false; } // singular
+
+         lu.Solve(N, 1, X);
+      }
+
+   } // END switch
+
+   return true;
+}
 
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
@@ -3091,6 +3155,39 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
          for (int i = 0; i < ah; i++)
          {
             ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
+         }
+      }
+   }
+#endif
+}
+
+void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c,
+               DenseMatrix &a)
+{
+   MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
+               b.Width() == c.Height(), "incompatible dimensions");
+
+#ifdef MFEM_USE_LAPACK
+   static char transa = 'N', transb = 'N';
+   static double beta = 1.0;
+   int m = b.Height(), n = c.Width(), k = b.Width();
+
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+          c.Data(), &k, &beta, a.Data(), &m);
+#else
+   const int ah = a.Height();
+   const int aw = a.Width();
+   const int bw = b.Width();
+   double *ad = a.Data();
+   const double *bd = b.Data();
+   const double *cd = c.Data();
+   for (int j = 0; j < aw; j++)
+   {
+      for (int k = 0; k < bw; k++)
+      {
+         for (int i = 0; i < ah; i++)
+         {
+            ad[i+j*ah] += alpha * bd[i+k*ah] * cd[k+j*bw];
          }
       }
    }
@@ -3937,12 +4034,12 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 }
 
 
-void LUFactors::Factor(int m)
+bool LUFactors::Factor(int m, double TOL)
 {
 #ifdef MFEM_USE_LAPACK
    int info = 0;
    if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
-   MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
+   return info == 0;
 #else
    // compiling without LAPACK
    double *data = this->data;
@@ -3971,8 +4068,13 @@ void LUFactors::Factor(int m)
             }
          }
       }
-      MFEM_ASSERT(data[i+i*m] != 0.0, "division by zero");
-      const double a_ii_inv = 1.0/data[i+i*m];
+
+      if (abs(data[i + i*m]) <= TOL)
+      {
+         return false; // failed
+      }
+
+      const double a_ii_inv = 1.0 / data[i+i*m];
       for (int j = i+1; j < m; j++)
       {
          data[j+i*m] *= a_ii_inv;
@@ -3987,6 +4089,8 @@ void LUFactors::Factor(int m)
       }
    }
 #endif
+
+   return true; // success
 }
 
 double LUFactors::Det(int m) const
@@ -4098,6 +4202,64 @@ void LUFactors::Solve(int m, int n, double *X) const
    LSolve(m, n, X);
    USolve(m, n, X);
 #endif
+}
+
+void LUFactors::RightSolve(int m, int n, double *X) const
+{
+   double *x;
+#ifdef MFEM_USE_LAPACK
+   char n_ch = 'N', side = 'R', u_ch = 'U', l_ch = 'L';
+   double alpha = 1.0;
+   if (m > 0 && n > 0)
+   {
+      dtrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
+      dtrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
+   }
+#else
+   // compiling without LAPACK
+   const double *data = this->data;
+   const int *ipiv = this->ipiv;
+
+   // X <- X U^{-1}
+   x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int j = 0; j < m; j++)
+      {
+         const double x_j = ( x[j*n] /= data[j+j*m]);
+         for (int i = j+1; i < m; i++)
+         {
+            x[i*n] -= data[j + i*m] * x_j;
+         }
+      }
+      ++x;
+   }
+
+   // X <- X L^{-1}
+   x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int j = m-1; j >= 0; j--)
+      {
+         const double x_j = x[j*n];
+         for (int i = 0; i < j; i++)
+         {
+            x[i*n] -= data[j + i*m] * x_j;
+         }
+      }
+      ++x;
+   }
+#endif
+   // X <- X P
+   x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int i = 0; i < m; i++)
+      {
+         Swap<double>(x[i*n], x[(ipiv[i]-ipiv_base)*n]);
+      }
+      ++x;
+   }
 }
 
 void LUFactors::GetInverseMatrix(int m, double *X) const
