@@ -262,8 +262,12 @@ public:
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
 
+   void SetRow(int r, const double* row);
    void SetRow(int r, const Vector &row);
+
+   void SetCol(int c, const double* col);
    void SetCol(int c, const Vector &col);
+
 
    /// Set all entries of a row to the specified value.
    void SetRow(int row, double value);
@@ -370,6 +374,22 @@ void Add(double alpha, const double *A,
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
 
+/// @brief Solves the dense linear system, `A * X = B` for `X`
+///
+/// @param [in,out] A the square matrix for the linear system
+/// @param [in,out] X the rhs vector, B, on input, the solution, X, on output.
+/// @param [in] TOL optional fuzzy comparison tolerance. Defaults to 1e-9.
+///
+/// @return status set to true if successful, otherwise, false.
+///
+/// @note This routine may replace the contents of the input Matrix, A, with the
+///       corresponding LU factorization of the matrix. Matrices of size 1x1 and
+///       2x2 are handled explicitly.
+///
+/// @pre A.IsSquare() == true
+/// @pre X != nullptr
+bool LinearSolve(DenseMatrix& A, double* X, double TOL = 1.e-9);
+
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 
@@ -474,10 +494,19 @@ public:
 
    LUFactors(double *data_, int *ipiv_) : data(data_), ipiv(ipiv_) { }
 
-   /** Factorize the current data of size (m x m) overwriting it with the LU
-       factors. The factorization is such that L.U = P.A, where A is the
-       original matrix and P is a permutation matrix represented by ipiv. */
-   void Factor(int m);
+   /**
+    * @brief Compute the LU factorization of the current matrix
+    *
+    * Factorize the current matrix of size (m x m) overwriting it with the
+    * LU factors. The factorization is such that L.U = P.A, where A is the
+    * original matrix and P is a permutation matrix represented by ipiv.
+    *
+    * @param [in] m size of the square matrix
+    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
+    *
+    * @return status set to true if successful, otherwise, false.
+    */
+   bool Factor(int m, double TOL = 0.0);
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
