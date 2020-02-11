@@ -20,8 +20,8 @@ namespace mfem
 {
 
 // Local maximum size of dofs and quads in 1D
-constexpr int HCURL_MAX_D1D = 4;
-constexpr int HCURL_MAX_Q1D = 5;
+constexpr int HCURL_MAX_D1D = 5;
+constexpr int HCURL_MAX_Q1D = 6;
 
 // PA H(curl) Mass Assemble 2D kernel
 static void PAHcurlSetup2D(const int Q1D,
