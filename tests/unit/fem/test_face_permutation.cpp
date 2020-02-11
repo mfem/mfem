@@ -197,7 +197,7 @@ void TestFaceRestriction(Mesh &mesh, int order)
 
       for (int i=0; i<ndof_face; ++i)
       {
-         REQUIRE(face_values[i] == face_values(i + ndof_face));
+         REQUIRE(face_values(i) == face_values(i + ndof_face));
       }
    }
 }
