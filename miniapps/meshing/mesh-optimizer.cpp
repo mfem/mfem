@@ -494,7 +494,7 @@ public:
       }
       else if (typemod==2)
       {
-          const double small = 0.0001, big = 0.01;
+          const double small = 0.001, big = 0.01;
           const double X = pos(0), Y = pos(1);
           double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
                        std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
@@ -532,6 +532,7 @@ int main (int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    bool combomet         = 0;
+   int amr_flag          = 1;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
@@ -595,6 +596,8 @@ int main (int argc, char *argv[])
                   "Enable motion along horizontal and vertical boundaries.");
    args.AddOption(&combomet, "-cmb", "--combo-met", "-no-cmb", "--no-combo-met",
                   "Combination of metrics.");
+   args.AddOption(&amr_flag, "-amr", "--amr-flag",
+                  "1 - AMR after TMOP");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
@@ -989,9 +992,11 @@ int main (int argc, char *argv[])
 
 
    // 20. AMR based size refinemenet if a size metric is used
-   int nc_limit = 5;
    TMOPEstimator *tmope;
    TMOPRefiner *tmopr;
+   if (amr_flag==1) {
+   int nc_limit = 5;
+
 
    tmope = new TMOPEstimator(ind_fes,size);
    if (target_id==4) {tmope->SetAnalyticTargetSpec(adapt_coeff);}
@@ -1026,6 +1031,7 @@ int main (int argc, char *argv[])
            break;
        }
        std::cout << fespace->GetNE() << " number of elements after AMR ref\n";
+   }
    }
 
    // 21. Save the optimized mesh to a file. This output can be viewed later
