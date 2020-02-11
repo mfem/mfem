@@ -1,16 +1,22 @@
-import sys
 import numpy as np
-from ctypes import *
-from random import *
+from ctypes import cdll
+from ctypes import c_int
+from ctypes import c_double
+from ctypes import c_void_p
+from ctypes import POINTER
+from ctypes import addressof
+from random import random
 from PIL import Image
 
 c_double_p = POINTER(c_double)
 
 MFEM = cdll.LoadLibrary('./libdrl4amr.so')
 
+
 def sign(f, args_t, res_t):
     f.restype = res_t
     f.argtypes = args_t
+
 
 class Ctrl(object):
     def __init__(self, order, seed): self.obj = MFEM.Ctrl(order, seed)
@@ -62,13 +68,13 @@ sim = Ctrl(order, seed)
 NE = sim.GetNE()
 NX = sim.GetImageX()
 NY = sim.GetImageY()
-print(NX,NY)
+print(NX, NY)
 
 
 while sim.GetNorm() > 0.01:
     sim.Compute()
 
-    #sim.Refine(-1); # Will refine using the internal refiner
+    # sim.Refine(-1); # Will refine using the internal refiner
     sim.Refine(int(NE*random()))
 
     image_p = sim.GetImage()
@@ -76,21 +82,22 @@ while sim.GetNorm() > 0.01:
     depth_p = sim.GetDepthField()
 
     # Get the data back
-    image_d = np.frombuffer((c_double*NX*NY).from_address(addressof(image_p.contents)))
-    id_d = np.frombuffer((c_double*NX*NY).from_address(addressof(id_p.contents)))
-    depth_d = np.frombuffer((c_double*NX*NY).from_address(addressof(depth_p.contents)))
+    size_xy = c_double*NX*NY
+    image_d = np.frombuffer(size_xy.from_address(addressof(image_p.contents)))
+    id_d = np.frombuffer(size_xy.from_address(addressof(id_p.contents)))
+    depth_d = np.frombuffer(size_xy.from_address(addressof(depth_p.contents)))
 
     # Scale and convert the image
     image_f = (image_d * 255 / np.max(image_d)).astype('uint8')
-    image = Image.fromarray(image_f.reshape(NX,NY),'L')
+    image = Image.fromarray(image_f.reshape(NX, NY), 'L')
     image.save('image.jpg')
 
     id_f = (id_d * 255 / np.max(id_d)).astype('uint8')
-    id = Image.fromarray(id_f.reshape(NX,NY),'L')
+    id = Image.fromarray(id_f.reshape(NX, NY), 'L')
     id.save('id.jpg')
 
     depth_f = (depth_d * 255 / np.max(depth_d)).astype('uint8')
-    depth = Image.fromarray(depth_f.reshape(NX,NY),'L')
+    depth = Image.fromarray(depth_f.reshape(NX, NY), 'L')
     depth.save('depth.jpg')
 
     print("Norm: "+str(sim.GetNorm()))
