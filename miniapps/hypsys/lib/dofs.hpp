@@ -1,7 +1,7 @@
 #ifndef HYPSYS_DOFS
 #define HYPSYS_DOFS
 
-#include "mfem.hpp"
+#include "../../../mfem.hpp"
 
 using namespace mfem;
 

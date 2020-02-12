@@ -3,7 +3,7 @@
 
 #include <fstream>
 #include <iostream>
-#include "mfem.hpp"
+#include "../../../mfem.hpp"
 #include "massmat.hpp"
 #include "dofs.hpp"
 #include "tools.hpp"

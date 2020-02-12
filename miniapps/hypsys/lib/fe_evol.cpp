@@ -238,8 +238,8 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
             uNbr = x(n*ne*nd + nbr);
          }
 
-         uEval(n) += x(DofInd) * ShapeEvalFace(i,j,k);
-         uNbrEval(n) += uNbr * ShapeEvalFace(i,j,k);
+         y1(n) += x(DofInd) * ShapeEvalFace(i,j,k);
+         y2(n) += uNbr * ShapeEvalFace(i,j,k);
       }
    }
 }
@@ -296,15 +296,10 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
       x.GetSubVector(vdofs, uElem);
       mat2 = 0.;
 
-      //       DenseMatrix vel = hyp->VelElem(e); // TODO rm
-
       for (int k = 0; k < nqe; k++)
       {
          ElemEval(uElem, uEval, k);
-
-         //          GENERAL
          hyp->EvaluateFlux(uEval, Flux, e, k);
-
          MultABt(ElemInt(e*nqe+k), Flux, mat1);
          AddMult(DShapeEval(k), mat1, mat2);
       }
@@ -319,10 +314,7 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
          {
             OuterUnitNormals(e*dofs.NumBdrs+i).GetColumn(k, normal);
             FaceEval(x, uEval, uNbrEval, e, i, k);
-
-            // GENERAL
             LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, k, i);
-
             NumFlux *= BdrInt(i,k,e);
 
             for (int n = 0; n < hyp->NumEq; n++)

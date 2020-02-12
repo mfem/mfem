@@ -44,39 +44,57 @@ int main(int argc, char *argv[])
                   "            2 - RK2 SSP, 3 - RK3 SSP.");
    args.AddOption(&config.VisSteps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-   args.AddOption((int*)(&scheme), "-e", "--EvolutionScheme",
+   args.AddOption((int *)(&scheme), "-e", "--EvolutionScheme",
                   "Scheme: 0 - Standard Finite Element Approximation,\n\t"
                   "        1 - Monolithic Convex Limiting.");
 
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0) { args.PrintUsage(cout); }
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
       return -1;
    }
-   if (myid == 0) { args.PrintOptions(cout); }
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
 
    ODESolver *odeSolver = NULL;
    switch (config.odeSolverType)
    {
-      case 1: odeSolver = new ForwardEulerSolver; break;
-      case 2: odeSolver = new RK2Solver(1.0); break;
-      case 3: odeSolver = new RK3SSPSolver; break;
-      default:
-         cout << "Unknown ODE solver type: " << config.odeSolverType << endl;
-         return -1;
+   case 1:
+      odeSolver = new ForwardEulerSolver;
+      break;
+   case 2:
+      odeSolver = new RK2Solver(1.0);
+      break;
+   case 3:
+      odeSolver = new RK3SSPSolver;
+      break;
+   default:
+      cout << "Unknown ODE solver type: " << config.odeSolverType << endl;
+      return -1;
    }
 
    // Read the serial mesh from the given mesh file on all processors.
    Mesh *mesh = new Mesh(MeshFile, 1, 1);
    const int dim = mesh->Dimension();
-   for (int lev = 0; lev < refinements; lev++) { mesh->UniformRefinement(); }
+   for (int lev = 0; lev < refinements; lev++)
+   {
+      mesh->UniformRefinement();
+   }
    mesh->GetBoundingBox(config.bbMin, config.bbMax, max(config.order, 1));
 
    // Parallel partitioning of the mesh.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   for (int lev = 0; lev < prefinements; lev++) { pmesh.UniformRefinement(); }
+   for (int lev = 0; lev < prefinements; lev++)
+   {
+      pmesh.UniformRefinement();
+   }
 
    if (pmesh.NURBSext)
    {
@@ -84,37 +102,37 @@ int main(int argc, char *argv[])
    }
    MPI_Comm comm = pmesh.GetComm();
 
-   int NumEq; // number of scalar unknowns, e.g. 3 for SWE in 2D.
+   int NumEq;       // number of scalar unknowns, e.g. 3 for SWE in 2D.
    int NumUnknowns; // number of physical unknowns, e.g. 2 for SWE: height and momentum
 
    Array<bool> VectorOutput;
    switch (config.ProblemNum)
    {
-      case 0:
-      case 1:
-      case 2:
-      {
-         NumEq = 1;
-         NumUnknowns = 1;
-         VectorOutput.SetSize(NumUnknowns);
-         VectorOutput[0] = false;
-         break;
-      }
-      case 3:
-      {
-         NumEq = 1+dim;
-         NumUnknowns = 2;
-         VectorOutput.SetSize(NumUnknowns);
-         VectorOutput[0] = false;
-         VectorOutput[1] = true;
-         break;
-      }
-      default:
-      {
-         cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
-         delete odeSolver;
-         return -1;
-      }
+   case 0:
+   case 1:
+   case 2:
+   {
+      NumEq = 1;
+      NumUnknowns = 1;
+      VectorOutput.SetSize(NumUnknowns);
+      VectorOutput[0] = false;
+      break;
+   }
+   case 3:
+   {
+      NumEq = 1 + dim;
+      NumUnknowns = 2;
+      VectorOutput.SetSize(NumUnknowns);
+      VectorOutput[0] = false;
+      VectorOutput[1] = true;
+      break;
+   }
+   default:
+   {
+      cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
+      delete odeSolver;
+      return -1;
+   }
    }
 
    // Create Bernstein Finite Element Space.
@@ -122,12 +140,20 @@ int main(int argc, char *argv[])
    L2_FECollection fec(config.order, dim, btype);
    ParFiniteElementSpace pfes(&pmesh, &fec);
 
+   ParFiniteElementSpace vfes(&pmesh, &fec, NumEq, Ordering::byNODES);
+
    Array<int> offsets(NumEq + 1);
-   for (int k = 0; k <= NumEq; k++) { offsets[k] = k * pfes.GetNDofs(); }
+   for (int k = 0; k <= NumEq; k++)
+   {
+      offsets[k] = k * pfes.GetNDofs();
+   }
    BlockVector u_block(offsets);
 
-   const int ProblemSize = pfes.GlobalTrueVSize();
-   if (myid == 0) { cout << "Number of unknowns: " << ProblemSize << ".\n"; }
+   const int ProblemSize = vfes.GlobalTrueVSize();
+   if (myid == 0)
+   {
+      cout << "Number of unknowns: " << ProblemSize << ".\n";
+   }
 
    // The min/max bounds are represented as H1 functions of the same order
    // as the solution, thus having 1:1 dof correspondence inside each element.
@@ -147,60 +173,73 @@ int main(int argc, char *argv[])
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
-      case 0: { hyp =  new Advection(&pfes, u_block, config); break; }
-      default:
-         return -1;
+   case 0:
+   {
+      hyp = new Advection(&vfes, u_block, config);
+      break;
+   }
+   case 1:
+   {
+      break;
+   } // Burgers
+   case 2:
+   {
+      break;
+   } // KPP
+   case 3:
+   {
+      hyp = new ShallowWater(&vfes, u_block, config);
+      break;
+   }
+   default:
+      return -1;
    }
 
    if (config.odeSolverType != 1 && hyp->SteadyState)
    {
-      MFEM_WARNING("You should use forward Euler for pseudo time stepping.");
+      MFEM_WARNING("Better use forward Euler for pseudo time stepping.");
    }
 
-   ParGridFunction u(&pfes);
+   ParGridFunction u(&vfes, u_block);
    u = hyp->u0;
 
+   ParGridFunction uk(&pfes, u_block.GetBlock(0)); // TODO for all
    double InitialMass, MassMPI = LumpedMassMat * u;
-   MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM,
-                 pmesh.GetComm());
+   MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    // Visualization with GLVis, VisIt is currently not supported.
-   if (hyp->FileOutput)
+   if (hyp->FileOutput) // TODO test this, final. Both also in parallel and for vectors.
    {
       ofstream omesh("grid.mesh");
       omesh.precision(config.precision);
       pmesh.PrintAsOne(omesh);
       ofstream osol("initial.gf");
       osol.precision(config.precision);
-      u.SaveAsOne(osol);
+      uk.SaveAsOne(osol);
    }
 
-   Array<socketstream> sout;
-   sout.SetSize(NumUnknowns);
+   socketstream sout;
    char vishost[] = "localhost";
-   int  visport   = 19916;
+   int visport = 19916;
    {
       // Make sure all MPI ranks have sent their 'v' solution before initiating
       // another set of GLVis connections (one from each rank):
-      MPI_Barrier(pmesh.GetComm());
+      MPI_Barrier(comm);
       // TODO name of glvis window
-      for (int k = 0; k < NumUnknowns; k++)
-      {
-         ParVisualizeField(sout[k], vishost, visport, u, VectorOutput[k]);
-      }
+      ParVisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
    }
 
-   ParFE_Evolution pevol(&pfes, hyp, pdofs, scheme, LumpedMassMat);
+   ParFE_Evolution pevol(&vfes, hyp, pdofs, scheme, LumpedMassMat);
 
    odeSolver->Init(pevol);
    if (hyp->SteadyState)
    {
-      pevol.uOld.SetSize(pfes.GetVSize());
+      pevol.uOld.SetSize(ProblemSize);
       pevol.uOld = 0.;
    }
 
-   bool done = false;
    double dt, res, t = 0., tol = 1.e-12;
+   bool done = t >= config.tFinal;
    tic_toc.Clear();
    tic_toc.Start();
    if (myid == 0)
@@ -214,7 +253,7 @@ int main(int argc, char *argv[])
       odeSolver->Step(u, t, dt);
       ti++;
 
-      done = (t >= config.tFinal - 1.e-8*config.dt);
+      done = (t >= config.tFinal - 1.e-8 * config.dt);
 
       if (hyp->SteadyState)
       {
@@ -232,31 +271,43 @@ int main(int argc, char *argv[])
          {
             if (hyp->SteadyState)
             {
-               cout << "time step: " << ti << ", time: " << t <<
-                    ", residual: " << res << endl;
+               cout << "time step: " << ti << ", time: " << t << ", residual: " << res << endl;
             }
             else
             {
                cout << "time step: " << ti << ", time: " << t << endl;
             }
          }
-         for (int k = 0; k < NumUnknowns; k++)
-         {
-            ParVisualizeField(sout[k], vishost, visport, u, VectorOutput[k]);
-         }
+         //for (int k = 0; k < NumUnknowns; k++)
+         //{
+         ParVisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
+         //}
       }
    }
 
    tic_toc.Stop();
    if (myid == 0)
    {
-      cout << "Time stepping loop done in " << tic_toc.RealTime() <<
-           " seconds.\n\n";
+      cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n\n";
    }
 
    double FinalMass, DomainSize, DomainSizeMPI = LumpedMassMat.Sum();
    MPI_Allreduce(&DomainSizeMPI, &DomainSize, 1, MPI_DOUBLE, MPI_SUM,
                  comm);
+
+   if (hyp->SolutionKnown)
+   {
+      Array<double> errors;
+      hyp->ComputeErrors(errors, u, DomainSize, t);
+      if (myid == 0)
+      {
+         cout << "L1 error:                    " << errors[0] << ".\n";
+         if (hyp->FileOutput)
+         {
+            hyp->WriteErrors(errors);
+         }
+      }
+   }
 
    MassMPI = LumpedMassMat * u;
    MPI_Allreduce(&MassMPI, &FinalMass, 1, MPI_DOUBLE, MPI_SUM, comm);
@@ -264,21 +315,7 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "Difference in solution mass: "
-           << abs(InitialMass - FinalMass) / DomainSize << ".\n";
-   }
-
-   if (hyp->SolutionKnown)
-   {
-      Array<double> errors;
-      hyp->ComputeErrors(errors, DomainSize, u);
-      if (myid == 0)
-      {
-         cout << "L1 error:                    " << errors[0] << ".\n\n";
-         if (hyp->FileOutput)
-         {
-            hyp->WriteErrors(errors);
-         }
-      }
+           << abs(InitialMass - FinalMass) / DomainSize << ".\n\n";
    }
 
    if (hyp->FileOutput)

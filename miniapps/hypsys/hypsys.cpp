@@ -219,10 +219,10 @@ int main(int argc, char *argv[])
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }
-         for (int k = 0; k < NumUnknowns; k++)
-         {
-            VisualizeField(sout, vishost, visport, uk, VectorOutput[k]);
-         }
+         //for (int k = 0; k < NumUnknowns; k++)
+         //{
+            VisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
+         //}
       }
    }
 
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
    if (hyp->SolutionKnown)
    {
       Array<double> errors;
-      hyp->ComputeErrors(errors, DomainSize, u);
+      hyp->ComputeErrors(errors, u, DomainSize, t);
       cout << "L1 error:                    " << errors[0] << ".\n";
       if (hyp->FileOutput)
       {

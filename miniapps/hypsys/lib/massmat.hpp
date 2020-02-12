@@ -1,7 +1,7 @@
 #ifndef HYPSYS_MASSMAT
 #define HYPSYS_MASSMAT
 
-#include "mfem.hpp"
+#include "../../../mfem.hpp"
 
 using namespace mfem;
 
