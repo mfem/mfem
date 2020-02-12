@@ -29,7 +29,7 @@ namespace mfem
     LinearForm and BilinearForm objects.  The DofTransformation class is
     designed to apply the action of both of these types of DoF transformations.
 
-    Let the "primal transformation" by given by the operator T.  This means that
+    Let the "primal transformation" be given by the operator T.  This means that
     given a local element vector v the data that must be placed into a
     GridFunction object is v_t = T * v.
 
