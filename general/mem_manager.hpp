@@ -649,6 +649,25 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    capacity = size;
    const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
+#ifdef MFEM_DEBUG
+   if (own && MemoryManager::Exists())
+   {
+      const bool known = MemoryManager::IsKnown_(h_ptr);
+      const bool alias = MemoryManager::IsAlias_(h_ptr);
+      if (known || alias)
+      {
+         MFEM_VERIFY(MemoryManager::host_mem_type ==
+                     MemoryManager::GetHostMemoryType_(h_ptr, known, alias),"");
+
+      }
+   }
+#endif
+   h_mt = MemoryManager::host_mem_type;
+   if (own &&  h_mt != MemoryType::HOST)
+   {
+      MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
+   }
+   /*
    const bool exist = MemoryManager::Exists();
    const bool known = exist && MemoryManager::IsKnown_(h_ptr);
    const bool alias = exist && MemoryManager::IsAlias_(h_ptr);
@@ -661,7 +680,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    if (own && !h_mt_host)
    {
       MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
-   }
+   }*/
 }
 
 template <typename T>
