@@ -121,7 +121,9 @@ if (MFEM_USE_MPI)
    function(add_mpi_unit_test NAME NP)
       set(test_name sedov_tests_${NAME})
       add_test(NAME ${test_name}_np=${NP}
-               COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${test_name})
+               COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
+               ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
+               ${MPIEXEC_POSTFLAGS})
    endfunction()
    set(MPI_NPS 1 ${MFEM_MPI_NP})
    foreach(np ${MPI_NPS})
