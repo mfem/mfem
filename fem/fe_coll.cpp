@@ -1554,14 +1554,16 @@ static void EnlargePArray(Array<T> &array, int p)
    }
 }
 
-void H1_FECollection::CheckOrder(int p)
+void H1_FECollection::HaveOrder(int p)
 {
-   return (H1_Elements[Geometry::Point].Size() > p) &&
-          (H1_Elements[Geometry::Point][p] != NULL);
+   const auto &array = H1_Elements[Geometry::Point];
+   return (array.Size() > p) && (array[p] != NULL);
 }
 
 void H1_FECollection::InitOrder(int p)
 {
+   MFEM_ASSERT(!HaveOrder(p), "already initialized");
+
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       EnlargePArray(H1_Elements[g], p);
@@ -1570,8 +1572,6 @@ void H1_FECollection::InitOrder(int p)
    for (int i = 0; i < 2; i++) { EnlargePArray(SegDofOrd[i], p); }
    for (int i = 0; i < 6; i++) { EnlargePArray(TriDofOrd[i], p); }
    for (int i = 0; i < 8; i++) { EnlargePArray(QuadDofOrd[i], p); }
-
-   MFEM_VERIFY(H1_Elements[Geometry::POINT][p] == NULL, "already initialized");
 
    const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
 
@@ -1605,8 +1605,8 @@ void H1_FECollection::InitOrder(int p)
       H1_dof[Geometry::SQUARE][p] = pm1*pm1;
       if (b_type == BasisType::Positive)
       {
-         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
-         H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
+         H1_Elements[Geometry::TRIANGLE][p] = new H1Pos_TriangleElement(p);
+         H1_Elements[Geometry::SQUARE][p] = new H1Pos_QuadrilateralElement(p);
       }
       else if (b_type == BasisType::Serendipity)
       {
@@ -1615,23 +1615,23 @@ void H1_FECollection::InitOrder(int p)
          // for the serendipity case.
 
          // formula for number of interior serendipity DoFs (when p>1)
-         H1_dof[Geometry::SQUARE] = (pm3*pm2)/2;
-         H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
+         H1_dof[Geometry::SQUARE][p] = (pm3*pm2)/2;
+         H1_Elements[Geometry::SQUARE][p] = new H1Ser_QuadrilateralElement(p);
          // allows for mixed tri/quad meshes
-         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
+         H1_Elements[Geometry::TRIANGLE][p] = new H1Pos_TriangleElement(p);
       }
       else
       {
-         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
-         H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
+         H1_Elements[Geometry::TRIANGLE][p] = new H1_TriangleElement(p, btype);
+         H1_Elements[Geometry::SQUARE][p] = new H1_QuadrilateralElement(p, btype);
       }
 
-      const int &TriDof = H1_dof[Geometry::TRIANGLE];
-      const int &QuadDof = H1_dof[Geometry::SQUARE];
-      TriDofOrd[0] = new int[6*TriDof];
+      const int &TriDof = H1_dof[Geometry::TRIANGLE][p];
+      const int &QuadDof = H1_dof[Geometry::SQUARE][p];
+      TriDofOrd[0][p] = new int[6*TriDof];
       for (int i = 1; i < 6; i++)
       {
-         TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
+         TriDofOrd[i][p] = TriDofOrd[i-1][p] + TriDof;
       }
       // see Mesh::GetTriOrientation in mesh/mesh.cpp
       for (int j = 0; j < pm2; j++)
@@ -1640,19 +1640,19 @@ void H1_FECollection::InitOrder(int p)
          {
             int o = TriDof - ((pm1 - j)*(pm2 - j))/2 + i;
             int k = pm3 - j - i;
-            TriDofOrd[0][o] = o;  // (0,1,2)
-            TriDofOrd[1][o] = TriDof - ((pm1-j)*(pm2-j))/2 + k;  // (1,0,2)
-            TriDofOrd[2][o] = TriDof - ((pm1-i)*(pm2-i))/2 + k;  // (2,0,1)
-            TriDofOrd[3][o] = TriDof - ((pm1-k)*(pm2-k))/2 + i;  // (2,1,0)
-            TriDofOrd[4][o] = TriDof - ((pm1-k)*(pm2-k))/2 + j;  // (1,2,0)
-            TriDofOrd[5][o] = TriDof - ((pm1-i)*(pm2-i))/2 + j;  // (0,2,1)
+            TriDofOrd[0][p][o] = o;  // (0,1,2)
+            TriDofOrd[1][p][o] = TriDof - ((pm1-j)*(pm2-j))/2 + k;  // (1,0,2)
+            TriDofOrd[2][p][o] = TriDof - ((pm1-i)*(pm2-i))/2 + k;  // (2,0,1)
+            TriDofOrd[3][p][o] = TriDof - ((pm1-k)*(pm2-k))/2 + i;  // (2,1,0)
+            TriDofOrd[4][p][o] = TriDof - ((pm1-k)*(pm2-k))/2 + j;  // (1,2,0)
+            TriDofOrd[5][p][o] = TriDof - ((pm1-i)*(pm2-i))/2 + j;  // (0,2,1)
          }
       }
 
-      QuadDofOrd[0] = new int[8*QuadDof];
+      QuadDofOrd[0][p] = new int[8*QuadDof];
       for (int i = 1; i < 8; i++)
       {
-         QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
+         QuadDofOrd[i][p] = QuadDofOrd[i-1][p] + QuadDof;
       }
 
       // For serendipity order >=4, the QuadDofOrd array must be re-defined. We
@@ -1679,14 +1679,14 @@ void H1_FECollection::InitOrder(int p)
                for (int i = 0; i < pm3; i++)
                {
                   int o = i + j*pm3;
-                  QuadDofOrd[0][o] = i + j*pm3;  // (0,1,2,3)
-                  QuadDofOrd[1][o] = j + i*pm3;  // (0,3,2,1)
-                  QuadDofOrd[2][o] = j + (pm4 - i)*pm3;  // (1,2,3,0)
-                  QuadDofOrd[3][o] = (pm4 - i) + j*pm3;  // (1,0,3,2)
-                  QuadDofOrd[4][o] = (pm4 - i) + (pm4 - j)*pm3;  // (2,3,0,1)
-                  QuadDofOrd[5][o] = (pm4 - j) + (pm4 - i)*pm3;  // (2,1,0,3)
-                  QuadDofOrd[6][o] = (pm4 - j) + i*pm3;  // (3,0,1,2)
-                  QuadDofOrd[7][o] = i + (pm4 - j)*pm3;  // (3,2,1,0)
+                  QuadDofOrd[0][p][o] = i + j*pm3;  // (0,1,2,3)
+                  QuadDofOrd[1][p][o] = j + i*pm3;  // (0,3,2,1)
+                  QuadDofOrd[2][p][o] = j + (pm4 - i)*pm3;  // (1,2,3,0)
+                  QuadDofOrd[3][p][o] = (pm4 - i) + j*pm3;  // (1,0,3,2)
+                  QuadDofOrd[4][p][o] = (pm4 - i) + (pm4 - j)*pm3;  // (2,3,0,1)
+                  QuadDofOrd[5][p][o] = (pm4 - j) + (pm4 - i)*pm3;  // (2,1,0,3)
+                  QuadDofOrd[6][p][o] = (pm4 - j) + i*pm3;  // (3,0,1,2)
+                  QuadDofOrd[7][p][o] = i + (pm4 - j)*pm3;  // (3,2,1,0)
                }
             }
 
@@ -1699,35 +1699,36 @@ void H1_FECollection::InitOrder(int p)
             for (int i = 0; i < pm1; i++)
             {
                int o = i + j*pm1;
-               QuadDofOrd[0][o] = i + j*pm1;  // (0,1,2,3)
-               QuadDofOrd[1][o] = j + i*pm1;  // (0,3,2,1)
-               QuadDofOrd[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
-               QuadDofOrd[3][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
-               QuadDofOrd[4][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
-               QuadDofOrd[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
-               QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
-               QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+               QuadDofOrd[0][p][o] = i + j*pm1;  // (0,1,2,3)
+               QuadDofOrd[1][p][o] = j + i*pm1;  // (0,3,2,1)
+               QuadDofOrd[2][p][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
+               QuadDofOrd[3][p][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
+               QuadDofOrd[4][p][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
+               QuadDofOrd[5][p][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
+               QuadDofOrd[6][p][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
+               QuadDofOrd[7][p][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
             }
          }
       }
 
       if (dim >= 3)
       {
-         H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
-         H1_dof[Geometry::CUBE] = QuadDof*pm1;
-         H1_dof[Geometry::PRISM] = TriDof*pm1;
+         H1_dof[Geometry::TETRAHEDRON][p] = (TriDof*pm3)/3;
+         H1_dof[Geometry::CUBE][p] = QuadDof*pm1;
+         H1_dof[Geometry::PRISM][p] = TriDof*pm1;
          if (b_type == BasisType::Positive)
          {
-            H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
-            H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
-            H1_Elements[Geometry::PRISM] = new H1Pos_WedgeElement(p);
+            H1_Elements[Geometry::TETRAHEDRON][p] =
+               new H1Pos_TetrahedronElement(p);
+            H1_Elements[Geometry::CUBE][p] = new H1Pos_HexahedronElement(p);
+            H1_Elements[Geometry::PRISM][p] = new H1Pos_WedgeElement(p);
          }
          else
          {
-            H1_Elements[Geometry::TETRAHEDRON] =
+            H1_Elements[Geometry::TETRAHEDRON][p] =
                new H1_TetrahedronElement(p, btype);
-            H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
-            H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
+            H1_Elements[Geometry::CUBE][p] = new H1_HexahedronElement(p, btype);
+            H1_Elements[Geometry::PRISM][p] = new H1_WedgeElement(p, btype);
          }
       }
    }
@@ -1735,20 +1736,20 @@ void H1_FECollection::InitOrder(int p)
 
 const FiniteElement* H1_FECollection::GetFE(Geometry::Type geom, int p) const
 {
-   if (!CheckOrder(p)) { InitOrder(p); }
+   if (!HaveOrder(p)) { InitOrder(p); }
    return H1_Elements[geom][p];
 }
 
 int H1_FECollection::GetNumDof(Geometry::Type geom, int p) const
 {
-   if (!CheckOrder(p)) { InitOrder(p); }
+   if (!HaveOrder(p)) { InitOrder(p); }
    return H1_dof[geom][p];
 }
 
 const int* H1_FECollection::GetDofOrder(Geometry::Type geom, int p,
                                         int orientation) const
 {
-   if (!CheckOrder(p)) { InitOrder(p); }
+   if (!HaveOrder(p)) { InitOrder(p); }
 
    if (geom == Geometry::SEGMENT)
    {
@@ -1807,12 +1808,24 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
 
 H1_FECollection::~H1_FECollection()
 {
-   delete [] SegDofOrd[0];
-   delete [] TriDofOrd[0];
-   delete [] QuadDofOrd[0];
+   for (int p = 0; p < SegDofOrd[0].Size(); p++)
+   {
+      delete [] SegDofOrd[0][p];
+   }
+   for (int p = 0; p < TriDofOrd[0].Size(); p++)
+   {
+      delete [] TriDofOrd[0];
+   }
+   for (int p = 0; p < QuadDofOrd[0].Size(); p++)
+   {
+      delete [] QuadDofOrd[0];
+   }
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      delete H1_Elements[g];
+      for (int p = 0; p < H1_Elements[g].Size(); p++)
+      {
+         delete H1_Elements[g][p];
+      }
    }
 }
 

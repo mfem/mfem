@@ -43,7 +43,7 @@ protected:
 
 public:
    FiniteElementCollection(const int default_p, const int dim)
-      : default_p(default_p), dim(dim) {}
+      : dim(dim), default_p(default_p) {}
 
    virtual const FiniteElement * GetFE(Geometry::Type geom, int p) const = 0;
 
@@ -68,10 +68,9 @@ public:
 
    int HasFaceDofs(Geometry::Type GeomType) const;
 
-   virtual const FiniteElement *TraceFiniteElementForGeometry(
-      Geometry::Type GeomType) const
+   virtual const FiniteElement *GetTraceFE(Geometry::Type geom, int p) const
    {
-      return FiniteElementForGeometry(GeomType);
+      return GetFE(geom, p);
    }
 
    virtual FiniteElementCollection *GetTraceCollection() const;
@@ -104,7 +103,7 @@ protected:
    Array<int> H1_dof[Geometry::NumGeom];
    Array<int*> SegDofOrd[2], TriDofOrd[6], QuadDofOrd[8];
 
-   bool CheckOrder(int p);
+   bool HaveOrder(int p);
    void InitOrder(int p);
 
 public:
@@ -359,7 +358,6 @@ public:
 
    virtual ~NURBSFECollection();
 };
-
 
 /// Piecewise-(bi)linear continuous finite elements.
 class LinearFECollection : public FiniteElementCollection
