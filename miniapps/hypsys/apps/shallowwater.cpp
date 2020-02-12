@@ -14,8 +14,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 {
    ConfigSWE = config_;
    SteadyState = false;
-   SolutionKnown =
-      false; // TODO this is set temporarily until error computation works
+   SolutionKnown = true;
 
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
@@ -39,6 +38,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       // Bound preserving projection.
       u0.ProjectCoefficient(ic);
+      inflow.ProjectCoefficient(bc);
    }
 }
 
@@ -86,15 +86,33 @@ double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
    }
 }
 
-void ShallowWater::ComputeErrors(Array<double> &errors, double DomainSize,
-                                 const GridFunction &u) const
+void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,
+                                 double DomainSize, double t) const
 {
-   //TODO
+   errors.SetSize(3);
+   VectorFunctionCoefficient uAnalytic(NumEq, AnalyticalSolutionSWE);
+   uAnalytic.SetTime(0); // Right now we use initial condition = solution.
+   errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
+   errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
+   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
 void ShallowWater::WriteErrors(const Array<double> &errors) const
 {
-   //TODO
+   ofstream file("errors.txt", ios_base::app);
+
+   if (!file)
+   {
+      MFEM_ABORT("Error opening file.");
+   }
+   else
+   {
+      ostringstream strs;
+      strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
+      string str = strs.str();
+      file << str;
+      file.close();
+   }
 }
 
 void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
@@ -125,9 +143,9 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
          double M = .5;
          double c1 = -.04;
          double c2 = .02;
-         double a = M_PI / 6.;
-         double x0 = -20.;
-         double y0 = -10.;
+         double a = M_PI / 4.;
+         double x0 = 0.;
+         double y0 = 0.;
 
          double f = -c2 * ( pow(X(0) - x0 - M*t*cos(a), 2.)
                             + pow(X(1) - y0 - M*t*sin(a), 2.) );
@@ -154,42 +172,3 @@ void InflowFunctionSWE(const Vector &x, double t, Vector &u)
    u.SetSize(x.Size()+1);
    AnalyticalSolutionSWE(x, t, u);
 }
-
-// void VolumeTerms::AssembleElementVolumeTerms(const int e,
-//                                              const DenseMatrix &uEl, DenseMatrix &VolTerms)
-// {
-//    cout << "H" << endl;
-//    const FiniteElement *el = fes->GetFE(e);
-//    const int nd = el->GetDof();
-//    const int nq = ir->GetNPoints();
-//    int i, k;
-//
-//    VolTerms.SetSize(nd, NumEq); VolTerms = 0.;
-//    DenseMatrix uQ(nq, NumEq), FluxEval, tmp4(nd, NumEq);
-//    Vector uQuad(nq), tmp(NumEq), tmp2(dim), tmp3(nd);
-//
-//    ElementTransformation *trans = fes->GetElementTransformation(e);
-//    DenseMatrix adjJ = trans->AdjugateJacobian();
-//
-//    for (i = 0; i < NumEq; i++)
-//    {
-//       shape.Mult(uEl.GetColumn(i), uQuad);
-//       uQ.SetCol(i, uQuad);
-//    }
-//
-//    for (k = 0; k < nq; k++)
-//    {
-//       const IntegrationPoint &ip = ir->IntPoint(k);
-//       uQ.GetRow(k, tmp);
-//       EvalFluxFunction(tmp, FluxEval);
-//       for (i = 0; i < NumEq; i++)
-//       {
-//          FluxEval.GetRow(i, tmp);
-//          adjJ.Mult(tmp, tmp2);
-//          dShape(k).Mult(tmp2, tmp3);
-//          tmp4.SetCol(i, tmp3);
-//       }
-//       VolTerms += tmp4;
-//    }
-// }
-

@@ -3,7 +3,7 @@
 
 #include <fstream>
 #include <iostream>
-#include "mfem.hpp"
+#include "../../../mfem.hpp"
 #include "../lib/tools.hpp"
 
 using namespace std;
@@ -34,8 +34,8 @@ public:
                              int e, int k, int i = -1) const = 0;
    virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                int i) const = 0;
-   virtual void ComputeErrors(Array<double> &errors, double DomainSize,
-                              const GridFunction &u) const = 0;
+   virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
+                              double DomainSize, double t) const = 0;
    virtual void WriteErrors(const Array<double> &errors) const = 0;
 
    const int NumEq;
@@ -44,7 +44,7 @@ public:
    GridFunction inflow, u0;
 
    bool SolutionKnown = true;
-   bool FileOutput = false;
+   bool FileOutput = true;
    bool SteadyState;
 };
 

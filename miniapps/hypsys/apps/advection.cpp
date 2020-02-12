@@ -162,33 +162,15 @@ double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
    return abs(VelocityVector * n);
 }
 
-void Advection::ComputeErrors(Array<double> &errors, double DomainSize,
-                              const GridFunction &u) const
+void Advection::ComputeErrors(Array<double> &errors, const GridFunction &u,
+                              double DomainSize, double t) const
 {
    errors.SetSize(3);
-   switch (ConfigAdv.ConfigNum)
-   {
-      // TODO generalize
-      case 0:
-      {
-         FunctionCoefficient uAnalytic(InflowFunctionAdv);
-         errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
-         errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
-         errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(),
-                                      uAnalytic);
-         break;
-      }
-      case 1:
-      {
-         FunctionCoefficient uAnalytic(InitialConditionAdv);
-         errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
-         errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
-         errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(),
-                                      uAnalytic);
-         break;
-      }
-      default: MFEM_ABORT("Solution is not known for this testcase.");
-   }
+   FunctionCoefficient uAnalytic(AnalyticalSolutionAdv);
+   uAnalytic.SetTime(t);
+   errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
+   errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
+   errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
 void Advection::WriteErrors(const Array<double> &errors) const
