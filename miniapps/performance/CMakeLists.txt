@@ -23,9 +23,11 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   list(APPEND PERFORMANCE_CXX_OPTIONS
     "-march=native"
-    "-pedantic"
     "-Wall"
     "--param" "max-completely-peel-times=3")
+  if (NOT MFEM_USE_CUDA)
+     list(APPEND PERFORMANCE_CXX_OPTIONS "-pedantic")
+  endif()
 endif()
 
 if (MFEM_USE_CUDA)
