@@ -1864,6 +1864,7 @@ void Mesh::PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert)
 
 void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
 {
+#if 0
    FiniteElementSpace *fes = Nodes->FESpace();
    const FiniteElementCollection *fec = fes->FEColl();
    Array<int> old_dofs, new_dofs;
@@ -2087,6 +2088,7 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
    last_operation = Mesh::NONE;
    fes->Update(false); // want_transform = false
    Nodes->Update(); // just needed to update Nodes->sequence
+#endif
 }
 
 void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
@@ -3870,8 +3872,12 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    FiniteElementCollection* nfec;
    if (discont)
    {
+#if 0
       const int type = 1; // Gauss-Lobatto points
       nfec = new L2_FECollection(order, Dim, type);
+#else
+      MFEM_ABORT("TODO");
+#endif
    }
    else
    {
@@ -9665,6 +9671,7 @@ void Mesh::Transform(void (*f)(const Vector&, Vector&))
 
 void Mesh::Transform(VectorCoefficient &deformation)
 {
+#if 0
    MFEM_VERIFY(spaceDim == deformation.GetVDim(),
                "incompatible vector dimensions");
    if (Nodes == NULL)
@@ -9685,6 +9692,9 @@ void Mesh::Transform(VectorCoefficient &deformation)
       xnew.ProjectCoefficient(deformation);
       *Nodes = xnew;
    }
+#else
+   MFEM_ABORT("TODO");
+#endif
 }
 
 void Mesh::RemoveUnusedVertices()
@@ -10093,6 +10103,7 @@ void NodeExtrudeCoefficient::Eval(Vector &V, ElementTransformation &T,
 
 Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
 {
+#if 0
    if (mesh->Dimension() != 1)
    {
       mfem::err << "Extrude1D : Not a 1D mesh!" << endl;
@@ -10249,10 +10260,15 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
       }
    }
    return mesh2d;
+#else
+   MFEM_ABORT("TODO");
+   return NULL;
+#endif
 }
 
 Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
 {
+#if 0
    if (mesh->Dimension() != 2)
    {
       mfem::err << "Extrude2D : Not a 2D mesh!" << endl;
@@ -10475,6 +10491,9 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
       }
    }
    return mesh3d;
+#else
+   return NULL;
+#endif
 }
 
 #ifdef MFEM_DEBUG
