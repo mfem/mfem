@@ -8723,8 +8723,58 @@ int ConvertToVTKOrdering(int idx_in, int ref, Geometry::Type geom)
                       (ref - 1)*(ref - 1));
          return offset + (i - 1) + (ref - 1)*((j - 1) + (ref - 1)*(k - 1));
       }
+      case Geometry::TRIANGLE:
+      {
+         MFEM_VERIFY(ref <= 6, "VTK only supports high-order Lagrange triangles"
+            " up to order 6.");
+         // Convert to Barycentric coordinates
+         int b[3];
+         b[0] = idx_in;
+         b[1] = 0;
+         while (b[0] >= n)
+         {
+            b[0] -= n;
+            ++b[1];
+            --n;
+         }
+         b[2] = ref - b[0] - b[1];
+
+         // Cf. https://git.io/JvW8f
+         int max = ref;
+         int min = 0;
+         int bmin = std::min(std::min(b[0], b[1]), b[2]);
+         int idx = 0;
+
+         // scope into the correct triangle
+         while (bmin > min)
+         {
+            idx += 3*ref;
+            max -= 2;
+            ++min;
+            ref -= 3;
+         }
+         for (int d=0; d<3; ++d)
+         {
+            if (b[(d+2)%3] == max)
+            {
+               // we are on a vertex
+               return idx;
+            }
+            ++idx;
+         }
+         for (int d=0; d<3; ++d)
+         {
+            if (b[(d+1)%3] == min)
+            {
+               // we are on an edge
+               return idx + b[d] - (min + 1);
+            }
+            idx += max - (min + 1);
+         }
+         return idx;
+      }
       default:
-         MFEM_ABORT("High-order VTK triangles, tetrahedra and prisms are not "
+         MFEM_ABORT("High-order VTK tetrahedra and prisms are not "
                     "currently supported");
          return -1;
    }
