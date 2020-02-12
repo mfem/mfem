@@ -350,14 +350,6 @@ int main(int argc, char *argv[])
    double t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
-	
-	Vector LumpedMassMat;
-   BilinearForm ml(&fes);
-   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-   ml.Assemble();
-   ml.Finalize();
-   ml.SpMat().GetDiag(LumpedMassMat);
-	const double InitialMass = LumpedMassMat * u;
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -392,9 +384,6 @@ int main(int argc, char *argv[])
          }
       }
    }
-   
-   cout << "Difference in solution mass: " <<
-		abs(InitialMass - LumpedMassMat * u) << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
