@@ -239,7 +239,7 @@ TEST_CASE("PA Gradient", "[PartialAssembly]")
 
 double test_nl_convection_nd(int dim)
 {
-   Mesh *mesh;
+   Mesh *mesh = nullptr;
 
    if (dim == 2)
    {
