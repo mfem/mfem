@@ -438,7 +438,7 @@ public:
    void GetFaceInteriorDofs(int i, Array<int> &dofs) const;
 
    int GetNumElementInteriorDofs(int i) const
-   { return fec->DofForGeometry(mesh->GetElementBaseGeometry(i)); }
+   { return 0; /* FIXME fec->DofForGeometry(mesh->GetElementBaseGeometry(i)); */}
 
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
 
