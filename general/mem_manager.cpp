@@ -894,13 +894,11 @@ MemoryType MemoryManager::GetDeviceMemoryType_(void *h_ptr)
    return MemoryManager::host_mem_type;
 }
 
-MemoryType MemoryManager::GetHostMemoryType_(void *h_ptr, bool do_k, bool do_a)
+MemoryType MemoryManager::GetHostMemoryType_(void *h_ptr)
 {
-   if (mm.exists)
-   {
-      if (do_k || mm.IsKnown(h_ptr)) { return maps->memories.at(h_ptr).h_mt; }
-      if (do_a || mm.IsAlias(h_ptr)) { return maps->aliases.at(h_ptr).mem->h_mt; }
-   }
+   if (!mm.exists) { return MemoryManager::host_mem_type; }
+   if (mm.IsKnown(h_ptr)) { return maps->memories.at(h_ptr).h_mt; }
+   if (mm.IsAlias(h_ptr)) { return maps->aliases.at(h_ptr).mem->h_mt; }
    return MemoryManager::host_mem_type;
 }
 
@@ -1363,8 +1361,8 @@ MemoryManager mm;
 bool MemoryManager::exists = false;
 
 #ifdef MFEM_USE_UMPIRE
-const char* MemoryManager::h_umpire_name = MFEM_UMPIRE_HOST;
-const char* MemoryManager::d_umpire_name = MFEM_UMPIRE_DEVICE;
+const char* MemoryManager::h_umpire_name = "HOST";
+const char* MemoryManager::d_umpire_name = "DEVICE";
 #endif
 
 MemoryType MemoryManager::host_mem_type = MemoryType::HOST;

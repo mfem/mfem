@@ -262,7 +262,6 @@ public:
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
    static void Synchronize() { MFEM_DEVICE_SYNC; }
-
 };
 
 
