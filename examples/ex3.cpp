@@ -23,11 +23,7 @@
 // Device sample runs:
 //               ex3 -m ../data/star.mesh -pa -d cuda
 //               ex3 -m ../data/star.mesh -pa -d raja-cuda
-//               ex3 -m ../data/star.mesh -pa -d occa-cuda
 //               ex3 -m ../data/star.mesh -pa -d raja-omp
-//               ex3 -m ../data/star.mesh -pa -d occa-omp
-//               ex3 -m ../data/star.mesh -pa -d ceed-cpu
-//               ex3 -m ../data/star.mesh -pa -d ceed-cuda
 //               ex3 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code solves a simple electromagnetic diffusion

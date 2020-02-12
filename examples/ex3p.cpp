@@ -23,11 +23,7 @@
 // Device sample runs:
 //               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d cuda
 //               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d raja-cuda
-//               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d occa-cuda
 //               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d raja-omp
-//               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d occa-omp
-//               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d ceed-cpu
-//               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d ceed-cuda
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code solves a simple electromagnetic diffusion
