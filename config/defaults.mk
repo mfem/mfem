@@ -358,8 +358,6 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
-MFEM_UMPIRE_HOST = mfem_host
-MFEM_UMPIRE_DEVICE = mfem_device
 
 # If YES, enable some informational messages
 VERBOSE = NO

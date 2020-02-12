@@ -484,21 +484,18 @@ private: // Static methods used by the Memory<T> class
                           size_t alias_bytes, unsigned base_flags,
                           unsigned &alias_flags);
 
-   /// Return the type the of the currently valid memory. If more than one types
-   /// are valid, return a device type.
+   /// Return the type the of the currently valid memory.
+   /// If more than one types are valid, return a device type.
    static MemoryType GetDeviceMemoryType_(void *h_ptr);
 
-   /// Return the type the of the host memory. @a known and @a alias can be
-   /// given if they were precomputed.
-   static MemoryType GetHostMemoryType_(void *h_ptr,
-                                        bool known = false,
-                                        bool alias = false);
+   /// Return the type the of the host memory.
+   static MemoryType GetHostMemoryType_(void *h_ptr);
 
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
    static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr);
 
-   /// Copy entries from valid memory type to valid memory type. Both dest_h_ptr
-   /// and src_h_ptr are registered host pointers.
+   /// Copy entries from valid memory type to valid memory type.
+   ///  Both dest_h_ptr and src_h_ptr are registered host pointers.
    static void Copy_(void *dest_h_ptr, const void *src_h_ptr, size_t bytes,
                      unsigned src_flags, unsigned &dest_flags);
 
@@ -649,38 +646,13 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    capacity = size;
    const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
+   h_mt = MemoryManager::host_mem_type;
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
-   {
-      const bool known = MemoryManager::IsKnown_(h_ptr);
-      const bool alias = MemoryManager::IsAlias_(h_ptr);
-      if (known || alias)
-      {
-         MFEM_VERIFY(MemoryManager::host_mem_type ==
-                     MemoryManager::GetHostMemoryType_(h_ptr, known, alias),"");
-
-      }
-   }
+   { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
 #endif
-   h_mt = MemoryManager::host_mem_type;
    if (own &&  h_mt != MemoryType::HOST)
-   {
-      MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
-   }
-   /*
-   const bool exist = MemoryManager::Exists();
-   const bool known = exist && MemoryManager::IsKnown_(h_ptr);
-   const bool alias = exist && MemoryManager::IsAlias_(h_ptr);
-   const bool registered = known || alias;
-   const MemoryType mt = MemoryManager::GetHostMemoryType_(h_ptr, known, alias);
-   const MemoryType mm_h_mt = MemoryManager::host_mem_type;
-   if (own && exist && registered) { MFEM_ASSERT(mt == mm_h_mt,""); }
-   h_mt = (own && registered) ? mt : own ? mm_h_mt : MemoryType::HOST;
-   const bool h_mt_host = h_mt == MemoryType::HOST;
-   if (own && !h_mt_host)
-   {
-      MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
-   }*/
+   { MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags); }
 }
 
 template <typename T>

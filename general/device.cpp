@@ -242,7 +242,7 @@ void Device::Print(std::ostream &out)
 #endif
    out << "Memory configuration: "
        << MemoryTypeName[static_cast<int>(host_mem_type)];
-   //if (Device::Allows(Backend::DEVICE_MASK))
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
       out << ", " << MemoryTypeName[static_cast<int>(device_mem_type)];
    }

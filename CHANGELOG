@@ -21,8 +21,8 @@ Improved GPU support
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
   language that can run on both AMD and NVIDIA hardware. With this change and
   the libCEED addition below, the current list of available backends is:
-  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
-  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", "debug" and "cpu".
+  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "debug", "occa-omp", "raja-omp",
+  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
 
 - Improved RAJA backend and multi-GPU MPI communications.
 
