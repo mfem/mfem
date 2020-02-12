@@ -288,6 +288,9 @@ case "$1" in
        mfem_config+=" MFEM_USE_CUDA=YES MFEM_USE_OPENMP=YES"
        # OCCA, RAJA, libCEED are enabled below, if available
       ;;
+   -debug)
+      mfem_config=`echo ${mfem_config} | sed -e "s/DEBUG=NO/DEBUG=YES/g"`
+      ;;
    -v)
       valgrind="yes"
       ;;
