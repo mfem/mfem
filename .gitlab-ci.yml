@@ -1,8 +1,38 @@
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+# the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+# reserved. See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+# BUILD_ROOT: The path to the shared resources between all jobs.
+#   For example, external repository like tests and tpls are clone here
+#   Also, tpls are build once for all targets, so builds happen here
+# The naming of BUILD_ROOT is unique to the pipeline, preventing any form
+# of concurrency with other pipelines. However, this means this directory
+# will never be cleaned.
+# TODO: add a clean-up mechanism
+#
+# BUILD_PATH: In BUILD_ROOT, we want to separate builds depending on the
+# machine used, typically because we build on set of dependencies per
+# machine.
+#
+# REBASELINE: Defines the default choice for deploying/publishing baseline
+# results. By default baseline is only publishable from master branch. This
+# offers the possibility to manually ask for it on another branch if necessary.
+#
+# MFEM_ALLOC_NAME: On quartz, there is only one allocation shared among jobs
+# in order to save time and resources. This allocation has to be uniquely named
+# so that we are sure to retrieve it.
 variables:
-    BUILD_ROOT: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}
-    BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}/${PLAT}/${TOOLCHAIN}
+    BUILD_ROOT: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+    BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}/${PLAT}/${TOOLCHAIN}
     REBASELINE: "NO"
-    MFEM_ALLOC_NAME: mfem_ci_${CI_COMMIT_SHORT_SHA}
+    MFEM_ALLOC_NAME: mfem_ci_${CI_PIPELINE_ID}
 
 stages:
     - precleanup
@@ -108,15 +138,15 @@ stages:
         - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
         - make test
 
+# The BUILD_ROOT is unique to the branch and pipeline ID. branch is not necessary but makes it easier to retrieve a data.
+# This means that there cannot be concurrency between 2 pipelines.
 .baselinecheck_mfem:
     stage: baseline_check
     script:
         - cd ${BUILD_ROOT}
         - ln -snf ${CI_PROJECT_DIR} mfem
         - cd tests
-        - mkdir -p runs_${CI_COMMIT_REF_SLUG}
-        - cd runs_${CI_COMMIT_REF_SLUG}
-        - rm -f *
+        - mkdir -p runs && cd runs && rm -f *
         - ../runtest ../../mfem "baseline ${BUILD_ROOT}/tpls"
         - cp baseline.out ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt
         - diff -u baseline-${SYS_TYPE}.out ../baseline-${SYS_TYPE}.saved | tee baseline-diff.txt || true
