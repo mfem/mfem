@@ -13008,7 +13008,7 @@ RBFFiniteElement::RBFFiniteElement(const int D,
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
                          TensorBasisElement::Pow(numPointsD, D),
-                         -1,
+                         2*numPointsD,
                          FunctionSpace::Qk),
 #ifndef MFEM_THREAD_SAFE
      x_scr(D),
@@ -13081,8 +13081,8 @@ void RBFFiniteElement::SetPositions()
             {
                int l = k + numPointsD * (j + numPointsD * i);
                Nodes.IntPoint(l).x = delta * static_cast<double>(i);
-               Nodes.IntPoint(l).x = delta * static_cast<double>(j);
-               Nodes.IntPoint(l).x = delta * static_cast<double>(k);
+               Nodes.IntPoint(l).y = delta * static_cast<double>(j);
+               Nodes.IntPoint(l).z = delta * static_cast<double>(k);
             }
          }
       }
@@ -13202,7 +13202,7 @@ RKFiniteElement::RKFiniteElement(const int D,
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
                          TensorBasisElement::Pow(numPointsD, D),
-                         order,
+                         2*numPointsD,
                          FunctionSpace::Qk),
      polyOrd(order),
      numPoly1d(order+1),
@@ -13341,7 +13341,7 @@ void RKFiniteElement::GetG(Vector &g) const
 void RKFiniteElement::GetPoly(const Vector &x,
                               Vector &p) const
 {
-#ifdef MFEM_THREAD_scrAFE
+#ifdef MFEM_THREAD_SAFE
    DenseMatrix q_scr(numPoly1d, Dim);
 #endif
    
@@ -13583,7 +13583,7 @@ void RKFiniteElement::CalculateValues(const Vector &c,
                                       const IntegrationPoint &ip,
                                       Vector &shape) const
 {
-#ifdef MFEM_THREAD_scrAFE
+#ifdef MFEM_THREAD_SAFE
    Vector x_scr(Dim);
    Vector y_scr(Dim);
    Vector p_scr(numPoly);
@@ -13618,7 +13618,7 @@ void RKFiniteElement::CalculateDValues(const Vector &c,
    Vector dp_scr[3];
    for (int d = 0; d < Dim; ++d)
    {
-      dp_scr.SetSize(numPoly);
+      dp_scr[d].SetSize(numPoly);
    }
 #endif
    

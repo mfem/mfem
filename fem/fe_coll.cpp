@@ -280,23 +280,30 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "RBF", 3) || !strncmp(name, "RK", 2))
    {
-      // Example: RK4_G_E_2d_020_4.01
-      const int dim = atoi(name + 8);
-      const int numPoints = atoi(name + 11);
-      const double h = atof(name + 15);
+      // Example: RK4_G_E_V_2D_0020_4.01
+      // (RK order 4, Gaussian, Euclidean dist, Value map, 2 dimensions,
+      //  20 points across element, smoothing length of 4.01)
+      const int dim = atoi(name + 10);
+      const int numPoints = atoi(name + 13);
+      const double h = atof(name + 18);
       const int rbfType = RBFType::GetType(name[5]);
       const int distType = DistanceType::GetType(name[7]);
+      const int mapType = (name[9] == 'V'
+                           ? FiniteElement::VALUE
+                           : FiniteElement::INTEGRAL);
       
       if (!strncmp(name, "RK", 2))
       {
          int order = atoi(name + 2);
          fec = new KernelFECollection(dim, numPoints, h,
-                                      rbfType, distType, order);
+                                      rbfType, distType, order,
+                                      mapType);
       }
       else
       {
          fec = new KernelFECollection(dim, numPoints, h,
-                                      rbfType, distType);
+                                      rbfType, distType, -1,
+                                      mapType);
       }
    }
    else
@@ -2843,6 +2850,31 @@ KernelFECollection::KernelFECollection(const int dim,
                                        const int order,
                                        const int mapType)
 {
+   const char *mapStr = NULL;
+   switch (mapType)
+   {
+      case FiniteElement::VALUE:    mapStr = "V"; break;
+      case FiniteElement::INTEGRAL: mapStr = "I"; break;
+      default:
+         MFEM_ABORT("invalid mapType: " << mapType);
+   }
+   if (order == -1)
+   {
+      snprintf(d_name, 32, "RBF_%c_%c_%s_%dD_%04d_%.2f",
+               (int)RBFType::GetChar(rbfType), (int)DistanceType::GetChar(distType),
+               mapStr, dim, numPointsD, h);
+   }
+   else if (order >= 0)
+   {
+      snprintf(d_name, 32, "RK%d_%c_%c_%s_%dD_%04d_%.2f", order,
+               (int)RBFType::GetChar(rbfType), (int)DistanceType::GetChar(distType),
+               mapStr, dim, numPointsD, h);
+   }
+   else
+   {
+      MFEM_ABORT("invalid order: " << order);
+   }
+   
    for (int g = 0; g < Geometry::NumGeom; ++g)
    {
       L2_Elements[g] = NULL;

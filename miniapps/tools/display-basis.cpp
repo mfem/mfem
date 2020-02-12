@@ -786,12 +786,11 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
          break;
       case 'k':
       {
-         RBFFunction *func = new GaussianRBF();
-         DistanceMetric *dist = new EuclideanDistance(dim);
          int numPoints = 10;
          double h = 4.01;
          FEC = new KernelFECollection(dim, numPoints, h,
-                                      func, dist, bOrder);
+                                      RBFType::Gaussian,
+                                      DistanceType::Euclidean, bOrder);
       }
    }
    if ( FEC == NULL)

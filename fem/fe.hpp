@@ -3354,7 +3354,7 @@ public:
    // Abort if rbfType is invalid
    static int Check(const int rbfType)
    {
-      MFEM_VERIFY(0 <= rbfType < NumRBFTypes,
+      MFEM_VERIFY(0 <= rbfType && rbfType < NumRBFTypes,
                   "unknown RBF type: " << rbfType);
       return rbfType;
    }
@@ -3454,7 +3454,7 @@ public:
    // Abort if distType is invalid
    static int Check(const int distType)
    {
-      MFEM_VERIFY(0 <= distType < NumDistanceTypes,
+      MFEM_VERIFY(0 <= distType && distType < NumDistanceTypes,
                   "unknown distance type: " << distType);
       return distType;
    }

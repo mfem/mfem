@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
    const KernelFECollection *fec = new KernelFECollection(dim, numPoints, h,
                                                           rbfType, distType, order);
    int geomType = TensorBasisElement::GetTensorProductGeometry(dim);
-   
+   cout << fec->Name() << endl;
    // Get element
    const FiniteElement *fe = fec->FiniteElementForGeometry(geomType);
    
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
    ip.y = y;
    ip.z = z;
 
-   // Evaluate value at integration point
+   // Evaluate value at integration point, possibly multiple times for timing
    int dof = fe->GetDof();
    Vector shape(dof);
    DenseMatrix dshape(dof, dim);
@@ -76,7 +76,8 @@ int main(int argc, char *argv[])
       fe->CalcShape(ip, shape);
       fe->CalcDShape(ip, dshape);
    }
-   
+
+   // Print the values of each function at the specified point
    if (print)
    {
       for (int i = 0; i < dof; ++i)
@@ -90,6 +91,7 @@ int main(int argc, char *argv[])
       }
    }
 
+   // Make sure the value sums to 1 and the derivative sums to 0
    double sum = 0.0;
    vector<double> dsum(3, 0.0);
    for (int i = 0; i < dof; ++i)
@@ -100,7 +102,6 @@ int main(int argc, char *argv[])
          dsum[d] += dshape(i, d);
       }
    }
-
    cout << "sum:\t" << sum << endl;
    cout << "dsum:\t";
    for (int d = 0; d < dim; ++d)
@@ -108,6 +109,8 @@ int main(int argc, char *argv[])
       cout << dsum[d] << "\t";
    }
    cout << endl;
+
+   
    
    // Free memory
    delete fec;
