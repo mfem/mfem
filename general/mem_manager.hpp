@@ -763,7 +763,7 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
-      MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
+      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
    return (T*)MemoryManager::ReadWrite_(h_ptr, h_mt, mc, bytes, flags);
@@ -776,7 +776,7 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
-      MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
+      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
    return (const T*)MemoryManager::Read_(h_ptr, h_mt, mc, bytes, flags);
@@ -789,7 +789,7 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
-      MemoryManager::Register_(h_ptr, nullptr, bytes, h_mt,
+      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
    return (T*)MemoryManager::Write_(h_ptr, h_mt, mc, bytes, flags);
