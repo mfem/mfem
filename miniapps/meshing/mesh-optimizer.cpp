@@ -151,6 +151,7 @@ public:
 void TMOPEstimator::ComputeEstimates()
 {
    // Compute error for each element
+    Vector nodes_sol;
     if (!discrete_flag) {
         const int NE = fespace->GetNE();
         const int dim = fespace->GetMesh()->Dimension();
@@ -160,7 +161,7 @@ void TMOPEstimator::ComputeEstimates()
         //nodes->GetNodalValues(nodesv);
         const int pnt_cnt = nodesv.Size()/dim;
         DenseMatrix K;K.SetSize(dim);
-        Vector nodes_sol(pnt_cnt);
+        nodes_sol.SetSize(pnt_cnt);
         Vector posv(dim);
         const IntegrationPoint *ip = NULL;
         IsoparametricTransformation *Tpr = NULL;
@@ -175,12 +176,14 @@ void TMOPEstimator::ComputeEstimates()
 
             nodes_sol(i) = col1.Norml2()*col2.Norml2();
         }
-        solution->SetData(nodes_sol.GetData());
+//        solution->SetData(nodes_sol.GetData());
+        solution->SetDataAndSize(nodes_sol.GetData(),nodes_sol.Size());
     }
 
     L2_FECollection avg_fec(0, fespace->GetMesh()->Dimension());
     FiniteElementSpace avg_fes(fespace->GetMesh(), &avg_fec);
     tarsize.SetSpace(&avg_fes);
+
 
     solution->GetElementAverages(tarsize);
     const int NE = tarsize.Size();
@@ -291,10 +294,16 @@ int TMOPRefiner::ApplyImpl(Mesh &mesh)
    {
       if (local_err(el) > scale*tarsize(el))
       {
-         //std::cout << el << " " <<
-         //             local_err(el) << " " <<
-         //             tarsize(el) << " k10check\n";
+//         std::cout << el << " " <<
+//                      local_err(el) << " " <<
+//                      tarsize(el) << " k10check\n";
          marked_elements.Append(Refinement(el));
+      }
+      else
+      {
+//          std::cout << el << " " <<
+//                       local_err(el) << " " <<
+//                       tarsize(el) << " k10checkfail\n";
       }
    }
 
@@ -448,7 +457,7 @@ class HessianCoefficient : public MatrixCoefficient
 {
 private:
    int type;
-   int typemod = 2;
+   int typemod = 1;
 
 public:
    HessianCoefficient(int dim, int type_)
@@ -479,6 +488,7 @@ public:
       }
       else if (typemod==1)
       {
+         const double small = 0.001, big = 0.01;
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
          double r1 = 0.15; double r2 = 0.35; double sf=30.0;
@@ -487,10 +497,17 @@ public:
          const double tan1 = std::tanh(sf*(r-r1)),
                       tan2 = std::tanh(sf*(r-r2));
 
-         K(0, 0) = eps + 1.0 * (tan1 - tan2);
+         double ind = (tan1 - tan2);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double val = ind * small + (1.0 - ind) * big;
+         //K(0, 0) = eps + 1.0 * (tan1 - tan2);
+         K(0, 0) = 1.0;
          K(0, 1) = 0.0;
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
+         K(0,0) *= pow(val,0.5);
+         K(1,1) *= pow(val,0.5);
       }
       else if (typemod==2)
       {
@@ -507,6 +524,61 @@ public:
           K(1, 1) = pow(val,0.5);
       }
    }
+};
+
+void TMOPupdate(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace,
+                bool move_bnd)
+{
+    int dim = fespace.GetFE(0)->GetDim();
+    if (move_bnd == false)
+    {
+       Array<int> ess_bdr(mesh.bdr_attributes.Max());
+       ess_bdr = 1;
+       a.SetEssentialBC(ess_bdr);
+    }
+    else
+    {
+       const int nd  = fespace.GetBE(0)->GetDof();
+       int n = 0;
+       for (int i = 0; i < mesh.GetNBE(); i++)
+       {
+          const int attr = mesh.GetBdrElement(i)->GetAttribute();
+          MFEM_VERIFY(!(dim == 2 && attr == 3),
+                      "Boundary attribute 3 must be used only for 3D meshes. "
+                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                      "components, rest for free nodes), or use -fix-bnd.");
+          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+          if (attr == 4) { n += nd * dim; }
+       }
+       Array<int> ess_vdofs(n), vdofs;
+       n = 0;
+       for (int i = 0; i < mesh.GetNBE(); i++)
+       {
+          const int attr = mesh.GetBdrElement(i)->GetAttribute();
+          fespace.GetBdrElementVDofs(i, vdofs);
+          if (attr == 1) // Fix x components.
+          {
+             for (int j = 0; j < nd; j++)
+             { ess_vdofs[n++] = vdofs[j]; }
+          }
+          else if (attr == 2) // Fix y components.
+          {
+             for (int j = 0; j < nd; j++)
+             { ess_vdofs[n++] = vdofs[j+nd]; }
+          }
+          else if (attr == 3) // Fix z components.
+          {
+             for (int j = 0; j < nd; j++)
+             { ess_vdofs[n++] = vdofs[j+2*nd]; }
+          }
+          else if (attr == 4) // Fix all components.
+          {
+             for (int j = 0; j < vdofs.Size(); j++)
+             { ess_vdofs[n++] = vdofs[j]; }
+          }
+       }
+       a.SetEssentialVDofs(ess_vdofs);
+    }
 };
 
 // Additional IntegrationRules that can be used with the --quad-type option.
@@ -527,7 +599,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-12;
+   double newton_rtol    = 1e-8;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -615,11 +687,11 @@ int main (int argc, char *argv[])
    args.PrintOptions(cout);
 
    // 2. Initialize and refine the starting mesh.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   const int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1, false);
+   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
+   const int dim = mesh.Dimension();
    cout << "Mesh curvature: ";
-   if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
+   if (mesh.GetNodes()) { cout << mesh.GetNodes()->OwnFEC()->Name(); }
    else { cout << "(NONE)"; }
    cout << endl;
 
@@ -627,19 +699,13 @@ int main (int argc, char *argv[])
    //    elements which are tensor products of quadratic finite elements. The
    //    number of components in the vector finite element space is specified by
    //    the last parameter of the FiniteElementSpace constructor.
-   FiniteElementCollection *fec;
-   if (mesh_poly_deg <= 0)
-   {
-      fec = new QuadraticPosFECollection;
-      mesh_poly_deg = 2;
-   }
-   else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
+   H1_FECollection fec(mesh_poly_deg, dim);
+   FiniteElementSpace fespace(&mesh, &fec, dim);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
    //    transformation of the reference element.
-   mesh->SetNodalFESpace(fespace);
+   mesh.SetNodalFESpace(&fespace);
 
    // 5. Set up an empty right-hand side vector b, which is equivalent to b=0.
    Vector b(0);
@@ -647,29 +713,31 @@ int main (int argc, char *argv[])
    // 6. Get the mesh nodes (vertices and other degrees of freedom in the finite
    //    element space) as a finite element grid function in fespace. Note that
    //    changing x automatically changes the shapes of the mesh elements.
-   GridFunction x(fespace);
-   mesh->SetNodalGridFunction(&x);
+   GridFunction x(&fespace);
+   GridFunction xnew(&fespace);
+   GridFunction x0new(&fespace);
+   mesh.SetNodalGridFunction(&x);
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
    //    freedom in pfespace. Note: this is partition-dependent.
    //
    //    In addition, compute average mesh size and total volume.
-   Vector h0(fespace->GetNDofs());
+   Vector h0(fespace.GetNDofs());
    h0 = infinity();
    double volume = 0.0;
    Array<int> dofs;
-   for (int i = 0; i < mesh->GetNE(); i++)
+   for (int i = 0; i < mesh.GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
-      fespace->GetElementDofs(i, dofs);
+      fespace.GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = mesh->GetElementSize(i);
+      const double hi = mesh.GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
-      volume += mesh->GetElementVolume(i);
+      volume += mesh.GetElementVolume(i);
    }
    const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
 
@@ -678,23 +746,23 @@ int main (int argc, char *argv[])
    //    zero on the boundary and its values are locally of the order of h0.
    //    The latter is based on the DofToVDof() method which maps the scalar to
    //    the vector degrees of freedom in fespace.
-   GridFunction rdm(fespace);
+   GridFunction rdm(&fespace);
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
    // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < fespace->GetNDofs(); i++)
+   for (int i = 0; i < fespace.GetNDofs(); i++)
    {
       for (int d = 0; d < dim; d++)
       {
-         rdm(fespace->DofToVDof(i,d)) *= h0(i);
+         rdm(fespace.DofToVDof(i,d)) *= h0(i);
       }
    }
    Array<int> vdofs;
-   for (int i = 0; i < fespace->GetNBE(); i++)
+   for (int i = 0; i < fespace.GetNBE(); i++)
    {
       // Get the vector degrees of freedom in the boundary element.
-      fespace->GetBdrElementVDofs(i, vdofs);
+      fespace.GetBdrElementVDofs(i, vdofs);
       // Set the boundary values to zero.
       for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
@@ -706,11 +774,11 @@ int main (int argc, char *argv[])
    //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
    {
       ofstream mesh_ofs("perturbed.mesh");
-      mesh->Print(mesh_ofs);
+      mesh.Print(mesh_ofs);
    }
 
    // 10. Store the starting (prior to the optimization) positions.
-   GridFunction x0(fespace);
+   GridFunction x0(&fespace);
    x0 = x;
 
    // 11. Form the integrator that uses the chosen metric and target.
@@ -743,7 +811,7 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
-   FiniteElementSpace ind_fes(mesh, &ind_fec);
+   FiniteElementSpace ind_fes(&mesh, &ind_fec);
    GridFunction size;size.SetSpace(&ind_fes);
    DiscreteAdaptTC *tcd = NULL;
    AnalyticAdaptTC *tca = NULL;
@@ -782,9 +850,10 @@ int main (int argc, char *argv[])
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
 
+
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
-   const int geom_type = fespace->GetFE(0)->GetGeomType();
+   const int geom_type = fespace.GetFE(0)->GetGeomType();
    switch (quad_type)
    {
       case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
@@ -800,7 +869,7 @@ int main (int argc, char *argv[])
 
    // 13. Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   GridFunction dist(fespace);
+   GridFunction dist(&fespace);
    dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
@@ -813,7 +882,7 @@ int main (int argc, char *argv[])
    //     scaled by used-defined space-dependent weights. Note that there are no
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
-   NonlinearForm a(fespace);
+   NonlinearForm a(&fespace);
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
@@ -850,7 +919,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Initial metric values";
-      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 0);
+      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title, 0);
    }
 
    // 16. Fix all boundary nodes, or fix only a given component depending on the
@@ -860,17 +929,17 @@ int main (int argc, char *argv[])
    //     movement boundary conditions.
    if (move_bnd == false)
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
       a.SetEssentialBC(ess_bdr);
    }
    else
    {
-      const int nd  = fespace->GetBE(0)->GetDof();
+      const int nd  = fespace.GetBE(0)->GetDof();
       int n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         const int attr = mesh.GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
@@ -880,10 +949,10 @@ int main (int argc, char *argv[])
       }
       Array<int> ess_vdofs(n), vdofs;
       n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         fespace->GetBdrElementVDofs(i, vdofs);
+         const int attr = mesh.GetBdrElement(i)->GetAttribute();
+         fespace.GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
          {
             for (int j = 0; j < nd; j++)
@@ -937,10 +1006,10 @@ int main (int argc, char *argv[])
 
    // 18. Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
-   const int NE = mesh->GetNE();
+   const int NE = mesh.GetNE();
    for (int i = 0; i < NE; i++)
    {
-      ElementTransformation *transf = mesh->GetElementTransformation(i);
+      ElementTransformation *transf = mesh.GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          transf->SetIntPoint(&ir->IntPoint(j));
@@ -979,67 +1048,81 @@ int main (int argc, char *argv[])
    newton->SetRelTol(newton_rtol);
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   newton->SetOperator(a);
-   newton->Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
-
-   if (newton->GetConverged() == false)
-   {
-      cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
-           << endl;
-   }
-   delete newton;
-
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPEstimator *tmope;
-   TMOPRefiner *tmopr;
+   TMOPEstimator tmope(ind_fes,size);
+   if (target_id==4) {tmope.SetAnalyticTargetSpec(adapt_coeff);}
+   TMOPRefiner tmopr(tmope);
    if (amr_flag==1) {
-   int nc_limit = 5;
+   int nc_limit = 1;
+   int ni_limit = 5;
+   int newtonstop = 0;
+   int amrstop = 0;
 
+   tmopr.PreferNonconformingRefinement();
+   tmopr.SetNCLimit(nc_limit);
 
-   tmope = new TMOPEstimator(ind_fes,size);
-   if (target_id==4) {tmope->SetAnalyticTargetSpec(adapt_coeff);}
-   tmopr = new TMOPRefiner(*tmope);
-
-   tmopr->PreferNonconformingRefinement();
-   tmopr->SetNCLimit(nc_limit);
-   std::cout << fespace->GetNE() << " Start AMR ref\n";
-   for (int it = 0;it<nc_limit; it++)
+   for (int it = 0;it<ni_limit; it++)
    {
-       tmopr->Reset();
 
-       tmopr->Apply(*mesh);
+       std::cout << it << " Begin NEWTON+AMR Iteration\n";
 
-       ind_fes.Update();
-       if (target_id == 5) {size.Update();}
-
-       fespace->Update();
-       x.Update();
-       x0.Update();
-
-       if (target_id == 5) {
-           tcd->SetSerialDiscreteTargetSpec(size);
-           target_c = tcd;
-           he_nlf_integ->UpdateTargetConstructor(target_c);
-       }
-
-       a.Update();
-       if (tmopr->Stop())
+       newton->SetOperator(a);
+       newton->Mult(b, x.GetTrueVector());
+       x.SetFromTrueVector();
+       if (newton->GetConverged() == false)
+       {cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
+       << endl;}
+       if (amrstop==1)
        {
-           cout << it << " AMR stopping criterion satisfied. Stop." << endl;
+           cout << it << " Newton and AMR have converged" << endl;
            break;
        }
-       std::cout << fespace->GetNE() << " number of elements after AMR ref\n";
-   }
-   }
+       char title1[10];
+       sprintf(title1, "%s %d","Newton", it);
+       //vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
+
+
+       for (int amrit=0;amrit<nc_limit;amrit++) {
+           tmopr.Reset();
+           if (nc_limit!=0 && amrstop==0) {tmopr.Apply(mesh);}
+           //Update stuff
+           ind_fes.Update();
+           size.Update();
+           if (target_id == 5) {size.Update();}
+           fespace.Update();
+           x.Update();x.SetTrueVector();
+           x0.Update();x0.SetTrueVector();
+           fespace.UpdatesFinished();
+           if (target_id == 5) {
+               tcd->SetSerialDiscreteTargetSpec(size);
+               target_c = tcd;
+               he_nlf_integ->UpdateTargetConstructor(target_c);
+           }
+           a.Update();
+           TMOPupdate(a,mesh,fespace,move_bnd);
+           if (amrstop==0) {
+           if (tmopr.Stop())
+           {amrstop = 1;
+               cout << it << " " << amrit <<
+                       " AMR stopping criterion satisfied. Stop." << endl;}
+           else
+           {std::cout << mesh.GetNE() << " Number of elements after AMR\n";}
+           }
+       }
+
+       sprintf(title1, "%s %d","AMR", it);
+       //qqvis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
+   } //nc_limit
+   } //amr_flag==1
+   delete newton;
 
    // 21. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
    {
       ofstream mesh_ofs("optimized.mesh");
       mesh_ofs.precision(14);
-      mesh->Print(mesh_ofs);
+      mesh.Print(mesh_ofs);
    }
 
    // 22. Compute the amount of energy decrease.
@@ -1064,7 +1147,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Final metric values";
-      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
+      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title, 600);
    }
 
    // 23. Visualize the mesh displacement.
@@ -1072,7 +1155,7 @@ int main (int argc, char *argv[])
    {
       osockstream sock(19916, "localhost");
       sock << "solution\n";
-      mesh->Print(sock);
+      mesh.Print(sock);
       x0 -= x;
       x0.Save(sock);
       sock.send();
@@ -1089,11 +1172,6 @@ int main (int argc, char *argv[])
    delete coeff1;
    delete target_c;
    delete metric;
-   delete fespace;
-   delete fec;
-   delete mesh;
-   delete tmope;
-   delete tmopr;
 
    return 0;
 }
