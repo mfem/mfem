@@ -940,7 +940,7 @@ void ParaViewDataCollection::Save()
 void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
 {
    out << "<VTKFile type=\"UnstructuredGrid\"";
-   if (compression_level > 0)
+   if (compression_level != 0)
    {
       out << " compressor=\"vtkZLibDataCompressor\"";
    }
@@ -1145,9 +1145,18 @@ void ParaViewDataCollection::SetHighOrderOutput(bool high_order_output_)
 
 void ParaViewDataCollection::SetCompressionLevel(int compression_level_)
 {
-   MFEM_ASSERT(compression_level_ >= 0 && compression_level_ <= 9,
-               "Compression level must be between 0 and 9 (inclusive).");
+   MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
+               "Compression level must be between -1 and 9 (inclusive).");
    compression_level = compression_level_;
+}
+
+void ParaViewDataCollection::SetCompression(bool compression)
+{
+   DataCollection::SetCompression(compression);
+   if (compression && compression_level == 0)
+   {
+      SetCompressionLevel(-1);
+   }
 }
 
 const char *ParaViewDataCollection::GetDataFormatString() const

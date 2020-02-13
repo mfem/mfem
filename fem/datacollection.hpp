@@ -349,7 +349,7 @@ public:
    virtual void SetFormat(int fmt);
 
    /// Set the flag for use of gz compressed files
-   void SetCompression(bool comp);
+   virtual void SetCompression(bool comp);
 
    /// Set the path where the DataCollection will be saved.
    void SetPrefixPath(const std::string &prefix);
@@ -482,7 +482,7 @@ private:
    std::fstream pvd_stream;
    VTUFormat pv_data_format;
    bool high_order_output;
-   bool compression_level;
+   int compression_level;
 
 protected:
    void SaveDataVTU(std::ostream &out, int ref);
@@ -541,10 +541,17 @@ public:
    /// BINARY32 option outputs single precision data.
    void SetDataFormat(VTUFormat fmt);
 
-   /// Enable or diable zlib compression. Compression only takes effect if the
-   /// output format is BINARY or BINARY32. MFEM must be compiled with
-   /// MFEM_USE_GZSTREAM = YES.
+   /// Set the zlib compression level. 0 indicates no compression, -1 indicates
+   /// the default compression level. Otherwise, specify a number between 1 and
+   /// 9, 1 being the fastest, and 9 being the best compression. Compression
+   /// only takes effect if the output format is BINARY or BINARY32. MFEM must
+   /// be compiled with MFEM_USE_GZSTREAM = YES.
    void SetCompressionLevel(int compression_level_);
+
+   /// Enable or diable zlib compression. If the input is true, use the default
+   /// zlib compression level (unless the compression level has previously been
+   /// set by calling SetCompressionLevel).
+   void SetCompression(bool compression) override;
 
    /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
    bool IsBinaryFormat() const;

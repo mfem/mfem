@@ -68,8 +68,8 @@ void WriteEncodedCompressed(std::ostream &out, const void *bytes,
    else
    {
 #ifdef MFEM_USE_GZSTREAM
-      MFEM_ASSERT(compression_level >= 0 && compression_level <= 9,
-                  "Compression level must be between 0 and 9 (inclusive).");
+      MFEM_ASSERT(compression_level >= -1 && compression_level <= 9,
+                  "Compression level must be between -1 and 9 (inclusive).");
       uLongf buf_sz = compressBound(nbytes);
       std::vector<unsigned char> buf(buf_sz);
       compress2(buf.data(), &buf_sz, static_cast<const Bytef *>(bytes), nbytes,
