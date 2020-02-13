@@ -8741,7 +8741,7 @@ int VTKTriangleDOFOffset(int ref, int i, int j)
 
 int CartesianToVTKPrism(int i, int j, int k, int ref)
 {
-   // Cf. https://git.io/JvW4P
+   // Cf. https://git.io/JvW0M
    int om1 = ref - 1;
    int ibdr = (i == 0);
    int jbdr = (j == 0);
