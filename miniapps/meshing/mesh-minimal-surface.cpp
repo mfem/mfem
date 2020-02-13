@@ -32,7 +32,6 @@
 //               mesh-minimal-surface -d cuda
 
 #include "mfem.hpp"
-#include "/home/camier1/home/mfem/dbg.hpp"
 #include "general/forall.hpp"
 #include <fstream>
 #include <iostream>
