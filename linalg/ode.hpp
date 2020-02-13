@@ -654,6 +654,7 @@ public:
 /// A Time Integration Algorithm for Structural Dynamics With Improved Numerical Dissipation: The Generalized-α Method
 /// J.Chung and G.M. Hulbert,  J. Appl. Mech 60(2), 371-375, 1993
 /// https://doi.org/10.1115/1.2900803
+/// rho_inf in [0,1]
 class GeneralizedAlpha2Solver : public SecondOrderODESolver
 {
 protected:
@@ -697,17 +698,18 @@ public:
 /// Improved numerical dissipation for time integration algorithms in structural dynamics
 /// H.M. Hilber, T.J.R. Hughes and R.L. Taylor 1977
 /// https://doi.org/10.1002/eqe.4290050306
+/// alpha in [2/3,1] --> Defined differently than in paper.
 class HHTAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:
-   HHTAlphaSolver(double rho_inf = 1.0)
+   HHTAlphaSolver(double alpha = 1.0)
    {
-      rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
-      rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+      alpha = (alpha > 1.0) ? 1.0 : alpha;
+      alpha = (alpha < 2.0/3.0) ? 2.0/3.0 : alpha;
 
       alpha_m = 1.0;
-      alpha_f = 2.0*rho_inf/(1.0 + rho_inf);
-      beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
+      alpha_f = alpha;
+      beta    = (2-alpha)*(2-alpha)/4;
       gamma   = 0.5 + alpha_m - alpha_f;
    };
 
@@ -717,6 +719,7 @@ public:
 /// An alpha modification of Newmark's method
 /// W.L. Wood, M. Bossak and O.C. Zienkiewicz 1980
 /// https://doi.org/10.1002/nme.1620151011
+/// rho_inf in [0,1]
 class WBZAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:

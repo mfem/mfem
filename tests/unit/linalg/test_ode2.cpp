@@ -121,9 +121,7 @@ TEST_CASE("Second order ODE methods",
             ode_solver->Init(*oper);
             for (int ti = 0; ti< steps; ti++)
             {
-               //std::cout<<t<<" "<<u(0)<<" "<< du(0)<<" ll"<<l<<std::endl;
                ode_solver->Step(u, du, t, dt);
-               //std::cout<<t<<" "<<u(0)<<" "<< du(0)<<" ll"<<l<<std::endl;
             }
             u -= u0;
             du -= dudt0;
@@ -170,11 +168,24 @@ TEST_CASE("Second order ODE methods",
    }
 
    //Generalized-alpha based solvers
-   SECTION("GeneralizedAlpha")
+   SECTION("GeneralizedAlpha(0.0)")
    {
-      std::cout <<"\nTesting GeneralizedAlpha" << std::endl;
+      std::cout <<"\nTesting GeneralizedAlpha(0.0)" << std::endl;
       REQUIRE(check.order(new GeneralizedAlpha2Solver(0.0)) + tol > 2.0 );
    }
+
+   SECTION("GeneralizedAlpha(0.5)")
+   {
+      std::cout <<"\nTesting GeneralizedAlpha(0.5)" << std::endl;
+      REQUIRE(check.order(new GeneralizedAlpha2Solver(0.5)) + tol > 2.0 );
+   }
+
+   SECTION("GeneralizedAlpha(1.0)")
+   {
+      std::cout <<"\nTesting GeneralizedAlpha(1.0)" << std::endl;
+      REQUIRE(check.order(new GeneralizedAlpha2Solver(1.0)) + tol > 2.0 );
+   }
+
 
    SECTION("AverageAcceleration")
    {
@@ -182,16 +193,40 @@ TEST_CASE("Second order ODE methods",
       REQUIRE(check.order(new AverageAccelerationSolver) + tol > 2.0 );
    }
 
-   SECTION("HHTAlpha")
+   SECTION("HHTAlpha(2/3)")
    {
-      std::cout <<"\nTesting HHTAlpha" << std::endl;
-      REQUIRE(check.order(new HHTAlphaSolver(0.5)) + tol > 2.0 );
+      std::cout <<"\nTesting HHTAlpha(2/3)" << std::endl;
+      REQUIRE(check.order(new HHTAlphaSolver(2.0/3.0)) + tol > 2.0 );
    }
 
-   SECTION("WBZAlphaAlpha")
+   SECTION("HHTAlpha(0.75)")
    {
-      std::cout <<"\nTesting WBZAlpha" << std::endl;
+      std::cout <<"\nTesting HHTAlpha(0.75)" << std::endl;
+      REQUIRE(check.order(new HHTAlphaSolver(0.75)) + tol > 2.0 );
+   }
+
+   SECTION("HHTAlpha(1.0)")
+   {
+      std::cout <<"\nTesting HHTAlpha(1.0)" << std::endl;
+      REQUIRE(check.order(new HHTAlphaSolver(1.0)) + tol > 2.0 );
+   }
+
+   SECTION("WBZAlpha(0.0)")
+   {
+      std::cout <<"\nTesting WBZAlpha(0.0)" << std::endl;
+      REQUIRE(check.order(new WBZAlphaSolver(0.0)) + tol > 2.0 );
+   }
+
+   SECTION("WBZAlpha(0.5)")
+   {
+      std::cout <<"\nTesting WBZAlpha(0.5)" << std::endl;
       REQUIRE(check.order(new WBZAlphaSolver(0.5)) + tol > 2.0 );
+   }
+
+   SECTION("WBZAlpha(1.0)")
+   {
+      std::cout <<"\nTesting WBZAlpha(1.0)" << std::endl;
+      REQUIRE(check.order(new WBZAlphaSolver(1.0)) + tol > 2.0 );
    }
 }
 
