@@ -8720,7 +8720,7 @@ int BarycentricToVTKTetra(int *b, int ref)
          int projectedb[3];
          for (int i = 0; i < 3; i++)
          {
-         projectedb[i] = b[FaceBCoords[face][i]] - min;
+            projectedb[i] = b[FaceBCoords[face][i]] - min;
          }
          // we must subtract the indices of the face's vertices and edges, which
          // total to 3*ref
@@ -8733,7 +8733,7 @@ int BarycentricToVTKTetra(int *b, int ref)
 
 int VTKTriangleDOFOffset(int ref, int i, int j)
 {
-  return i + ref*(j - 1) - (j*(j + 1))/2;
+   return i + ref*(j - 1) - (j*(j + 1))/2;
 }
 
 int CartesianToVTKPrism(int i, int j, int k, int ref)
@@ -8767,7 +8767,7 @@ int CartesianToVTKPrism(int i, int j, int k, int ref)
          // Must be on a vertical edge and 2 of {ibdr, jbdr, ijbdr} are true
          offset += om1*6;
          return offset + (k-1)
-            + ((ibdr && jbdr) ? 0 : (jbdr && ijbdr ? 1 : 2))*om1;
+                + ((ibdr && jbdr) ? 0 : (jbdr && ijbdr ? 1 : 2))*om1;
       }
       else
       {
@@ -8797,7 +8797,8 @@ int CartesianToVTKPrism(int i, int j, int k, int ref)
    if (nbdr == 1) // Face DOF
    {
       if (kbdr)
-      { // We are on a triangular face.
+      {
+         // We are on a triangular face.
          if (k > 0)
          {
             offset += ntfdof;
