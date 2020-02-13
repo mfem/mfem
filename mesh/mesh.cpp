@@ -8554,17 +8554,24 @@ void Mesh::PrintVTK(std::ostream &out)
    out.flush();
 }
 
-void Mesh::PrintVTU(std::string fname)
+void Mesh::PrintVTU(std::string fname,
+                    VTUFormat format,
+                    bool high_order_output,
+                    int compression_level)
 {
+   int ref = (high_order_output && Nodes) ? Nodes->FESpace()->GetOrder(0) : 1;
    fname = fname + ".vtu";
    std::fstream out(fname.c_str(),std::ios::out);
-   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"
-       << std::endl;
-   out << "<UnstructuredGrid>" << std::endl;
-   PrintVTU(out,1);
-   out << "</Piece>" <<
-       std::endl; // needed to close the piece open in the PrintVTU method
-   out << "</UnstructuredGrid>" << std::endl;
+   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+   if (compression_level != 0)
+   {
+      out << " compressor=\"vtkZLibDataCompressor\"";
+   }
+   out << " byte_order=\"LittleEndian\">\n";
+   out << "<UnstructuredGrid>\n";
+   PrintVTU(out, ref, format, high_order_output, compression_level);
+   out << "</Piece>\n"; // need to close the piece open in the PrintVTU method
+   out << "</UnstructuredGrid>\n";
    out << "</VTKFile>" << std::endl;
 
    out.close();
