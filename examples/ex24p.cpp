@@ -140,9 +140,7 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
 
-   // 8. Set up the parallel bilinear form corresponding to the EM diffusion
-   //    operator curl muinv curl + sigma I, by adding the curl-curl and the
-   //    mass domain integrators.
+   // 8. Set up the parallel bilinear forms.
    Coefficient *muinv = new ConstantCoefficient(1.0);
    Coefficient *sigma = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
@@ -174,8 +172,10 @@ int main(int argc, char *argv[])
 
    if (pa)
    {
-      a_NDH1->Mult(p, x);
-      x.GetTrueDofs(B);
+      ParLinearForm *b = new ParLinearForm(fespace); // used as a vector
+      a_NDH1->Mult(p, *b); // process-local multiplication
+      b->ParallelAssemble(B);
+      delete b;
    }
    else
    {
@@ -195,25 +195,21 @@ int main(int argc, char *argv[])
 
    if (pa)
    {
-      ParGridFunction diag_pa(fespace);
-      Vector tdiag_pa(fespace->GetTrueVSize());
-      a->AssembleDiagonal(tdiag_pa);
-      diag_pa.SetFromTrueDofs(tdiag_pa);
+      Array<int> ess_tdof_list; // empty
 
-      Array<int> ess_tdof_list;
-      OperatorJacobiSmoother Jacobi(diag_pa, ess_tdof_list, 1.0);
+      OperatorPtr A;
+      a->FormSystemMatrix(ess_tdof_list, A);
+
+      OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(1000);
       cg.SetPrintLevel(1);
-      cg.SetOperator(*a);
+      cg.SetOperator(*A);
       cg.SetPreconditioner(Jacobi);
 
-      ParGridFunction rhs(fespace);
-      rhs = x;
-      x = 0.0;
-      cg.Mult(rhs, x);
+      cg.Mult(B, X);
    }
    else
    {
@@ -225,9 +221,9 @@ int main(int argc, char *argv[])
       pcg.Mult(B, X);
 
       delete Amat;
-
-      x.SetFromTrueDofs(X);
    }
+
+   x.SetFromTrueDofs(X);
 
    // 11. Compute the same solution by applying GradientInterpolator in H(curl).
 
@@ -251,10 +247,10 @@ int main(int argc, char *argv[])
 
       if (myid == 0)
       {
-         cout << "\n Solution of (E_h,v) = (grad p,v) for E_h and v in H(curl)"
-              ": || E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
-         cout << " Gradient interpolant E_h = grad p in H(curl): || E_h - grad"
-              "p ||_{L^2} = " << errInterp << '\n' << endl;
+         cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in "
+              "H(curl): || E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
+         cout << " Gradient interpolant E_h = grad p_h in H(curl): || E_h - "
+              "grad p ||_{L^2} = " << errInterp << '\n' << endl;
          cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
               "||_{L^2} = " << errProj << '\n' << endl;
       }

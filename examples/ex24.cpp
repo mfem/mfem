@@ -108,9 +108,7 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
 
-   // 6. Set up the parallel bilinear form corresponding to the EM diffusion
-   //    operator curl muinv curl + sigma I, by adding the curl-curl and the
-   //    mass domain integrators.
+   // 6. Set up the bilinear forms.
    Coefficient *muinv = new ConstantCoefficient(1.0);
    Coefficient *sigma = new ConstantCoefficient(1.0);
    BilinearForm *a = new BilinearForm(fespace);
@@ -160,13 +158,8 @@ int main(int argc, char *argv[])
 
    if (pa)
    {
-      GridFunction diag_pa(fespace);
-      Vector tdiag_pa(fespace->GetTrueVSize());
-      a->AssembleDiagonal(tdiag_pa);
-      diag_pa.SetFromTrueDofs(tdiag_pa);
-
-      Array<int> ess_tdof_list;
-      OperatorJacobiSmoother Jacobi(diag_pa, ess_tdof_list, 1.0);
+      Array<int> ess_tdof_list; // empty
+      OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
 
       CGSolver cg;
       cg.SetRelTol(1e-12);
@@ -213,9 +206,9 @@ int main(int argc, char *argv[])
       double errInterp = gradp.ComputeL2Error(gradp_coef);
       double errProj = exact_gradp.ComputeL2Error(gradp_coef);
 
-      cout << "\n Solution of (E_h,v) = (grad p,v) for E_h and v in H(curl): "
+      cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
            "|| E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
-      cout << " Gradient interpolant E_h = grad p in H(curl): || E_h - grad p "
+      cout << " Gradient interpolant E_h = grad p_h in H(curl): || E_h - grad p"
            "||_{L^2} = " << errInterp << '\n' << endl;
       cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
            "||_{L^2} = " << errProj << '\n' << endl;
