@@ -17,7 +17,7 @@ using namespace mfem;
 namespace doftrans
 {
 
-TEST_CASE("DoF Transformations"
+TEST_CASE("DoF Transformation Classes"
           "[ND_TetDofTransformation]")
 {
    int p = 4;
@@ -40,9 +40,9 @@ TEST_CASE("DoF Transformations"
       Vector u(T.Width());
       Vector v(T.Width());
       Vector f(T.Width());
-      Vector ut(T.Height());
-      Vector vt(T.Height());
-      Vector ft(T.Height());
+      Vector ut;
+      Vector vt;
+      Vector ft;
 
       u.Randomize(seed);
       v.Randomize(seed+1);
@@ -50,7 +50,7 @@ TEST_CASE("DoF Transformations"
 
       SECTION("Inverse DoF transformation")
       {
-         Vector w(T.Width());
+         Vector w;
 
          T.TransformPrimal(u, ut);
          T.InvTransformPrimal(ut, w);
@@ -60,12 +60,14 @@ TEST_CASE("DoF Transformations"
          REQUIRE(w.Norml2() < tol * u.Norml2());
       }
 
-      SECTION("Inner product with linear form f(u)")
+      SECTION("Inner product with linear form f(v)")
       {
-         T.TransformPrimal(u, ut);
+         T.TransformPrimal(v, vt);
          T.TransformDual(f, ft);
 
-         REQUIRE(fabs(f * u - ft * ut) < tol);
+         double fv = f * v;
+
+         REQUIRE(fabs(fv - ft * vt) < tol * fabs(fv));
       }
 
       DenseMatrix A(T.Width());
@@ -80,9 +82,9 @@ TEST_CASE("DoF Transformations"
 
       SECTION("Inner product of two primal vectors")
       {
-         DenseMatrix tA(T.Height(), T.Width());
-         DenseMatrix At(T.Width(), T.Height());
-         DenseMatrix tAt(T.Height());
+         DenseMatrix tA;
+         DenseMatrix At;
+         DenseMatrix tAt;
 
          T.TransformPrimal(u, ut);
          T.TransformPrimal(v, vt);
@@ -99,9 +101,9 @@ TEST_CASE("DoF Transformations"
       }
       SECTION("Inner product of a primal vector and a dual vector")
       {
-         DenseMatrix tA(T.Height(), T.Width());
-         DenseMatrix At(T.Width(), T.Height());
-         DenseMatrix tAt(T.Height());
+         DenseMatrix tA;
+         DenseMatrix At;
+         DenseMatrix tAt;
 
          T.TransformDual(f, ft);
          T.TransformPrimal(v, vt);
