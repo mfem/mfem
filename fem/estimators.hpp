@@ -78,13 +78,13 @@ protected:
    bool anisotropic;
    Array<int> aniso_flags;
    int flux_averaging; // see SetFluxAveraging()
-   bool _with_coeff;
 
    BilinearFormIntegrator *integ; ///< Not owned.
    GridFunction *solution; ///< Not owned.
 
    FiniteElementSpace *flux_space; /**< @brief Ownership based on own_flux_fes.
       Its Update() method is called automatically by this class when needed. */
+   bool _with_coeff;
    bool own_flux_fes; ///< Ownership flag for flux_space.
 
    /// Check if the mesh of the solution was modified.
