@@ -23,7 +23,6 @@
 //               mesh-minimal-surface -d cuda
 
 #include "mfem.hpp"
-#include "/home/camier1/home/mfem/dbg.hpp"
 #include "general/forall.hpp"
 #include <fstream>
 #include <iostream>
@@ -126,7 +125,6 @@ public:
    {
       if (bdr_attributes.Size())
       {
-         dbg("BoundaryConditions");
          Array<int> ess_bdr(bdr_attributes.Max());
          ess_bdr = 1;
          pfes->GetEssentialTrueDofs(ess_bdr, bc);
@@ -366,7 +364,7 @@ struct QuarterPeach: public Surface<QuarterPeach>
 struct FullPeach: public Surface<FullPeach>
 {
    FullPeach(Array<int> &BC, int o, int r, int d):
-      Surface(BC, o, r, 8, 6, 0, d) { }
+      Surface(BC, o, r, 8, 6, 6, d) { }
    void Create()
    {
       const double quad_v[8][3] =
@@ -382,11 +380,11 @@ struct FullPeach: public Surface<FullPeach>
       };
       for (int j = 0; j < nx; j++) { AddVertex(quad_v[j]); }
       for (int j = 0; j < ny; j++) { AddQuad(quad_e[j], j+1); }
-      //for (int j = 0; j < ny; j++) { AddBdrQuad(quad_e[j], j+1); }
-      RemoveUnusedVertices();
+      for (int j = 0; j < ny; j++) { AddBdrQuad(quad_e[j], j+1); }
+      //RemoveUnusedVertices();
       FinalizeQuadMesh(1, 1, true);
       EnsureNodes();
-      FinalizeTopology();
+      //FinalizeTopology();
       UniformRefinement();
       for (int l = 0; l < nr; l++) { UniformRefinement(); }
       SetCurvature(order, false, 3, Ordering::byNODES);
@@ -403,34 +401,34 @@ struct FullPeach: public Surface<FullPeach>
          { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
       }
    }
-   /*
-      void BoundaryConditions()
+
+   void BoundaryConditions()
+   {
+      double X[3];
+      Array<int> dofs;
+      Array<int> ess_cdofs, ess_tdofs;
+      ess_cdofs.SetSize(pfes->GetVSize());
+      ess_cdofs = 0;
+      for (int e = 0; e < pfes->GetNE(); e++)
       {
-         double X[3];
-         Array<int> dofs;
-         Array<int> ess_cdofs, ess_tdofs;
-         ess_cdofs.SetSize(pfes->GetVSize());
-         ess_cdofs = 0;
-         for (int e = 0; e < pfes->GetNE(); e++)
+         pfes->GetElementDofs(e, dofs);
+         for (int c = 0; c < dofs.Size(); c++)
          {
-            pfes->GetElementDofs(e, dofs);
-            for (int c = 0; c < dofs.Size(); c++)
-            {
-               int k = dofs[c];
-               if (k < 0) { k = -1 - k; }
-               GetNode(k, X);
-               const bool halfX = fabs(X[0]) < EPS && X[1] <= 0.0;
-               const bool halfY = fabs(X[2]) < EPS && X[1] >= 0.0;
-               const bool is_on_bc = halfX || halfY;
-               for (int d = 0; d < vdim; d++)
-               { ess_cdofs[pfes->DofToVDof(k, d)] = is_on_bc; }
-            }
+            int k = dofs[c];
+            if (k < 0) { k = -1 - k; }
+            pfes->GetMesh()->GetNode(k, X);
+            const bool halfX = fabs(X[0]) < EPS && X[1] <= 0.0;
+            const bool halfY = fabs(X[2]) < EPS && X[1] >= 0.0;
+            const bool is_on_bc = halfX || halfY;
+            for (int d = 0; d < vdim; d++)
+            { ess_cdofs[pfes->DofToVDof(k, d)] = is_on_bc; }
          }
-         const SparseMatrix *R = pfes->GetConformingRestriction();
-         if (!R) { ess_tdofs.MakeRef(ess_cdofs); }
-         else { R->BooleanMult(ess_cdofs, ess_tdofs); }
-         ParFiniteElementSpace::MarkerToList(ess_tdofs, bc);
-            }*/
+      }
+      const SparseMatrix *R = pfes->GetRestrictionMatrix();
+      if (!R) { ess_tdofs.MakeRef(ess_cdofs); }
+      else { R->BooleanMult(ess_cdofs, ess_tdofs); }
+      ParFiniteElementSpace::MarkerToList(ess_tdofs, bc);
+   }
 };
 
 // #7: Full Peach street model
