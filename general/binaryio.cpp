@@ -56,9 +56,9 @@ void WriteBase64(std::ostream &out, const void *bytes, size_t nbytes)
 }
 
 void WriteEncodedCompressed(std::ostream &out, const void *bytes,
-                            uint32_t nbytes, bool compressed)
+                            uint32_t nbytes, int compression_level)
 {
-   if (!compressed)
+   if (compression_level == 0)
    {
       // First write size of buffer (as uint32_t), encoded with base 64
       WriteBase64(out, &nbytes, sizeof(nbytes));
@@ -68,9 +68,12 @@ void WriteEncodedCompressed(std::ostream &out, const void *bytes,
    else
    {
 #ifdef MFEM_USE_GZSTREAM
+      MFEM_ASSERT(compression_level >= 0 && compression_level <= 9,
+                  "Compression level must be between 0 and 9 (inclusive).");
       uLongf buf_sz = compressBound(nbytes);
       std::vector<unsigned char> buf(buf_sz);
-      compress(buf.data(), &buf_sz, static_cast<const Bytef *>(bytes), nbytes);
+      compress2(buf.data(), &buf_sz, static_cast<const Bytef *>(bytes), nbytes,
+                compression_level);
 
       // Write the header
       std::vector<uint32_t> header(4);
