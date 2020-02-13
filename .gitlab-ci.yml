@@ -170,20 +170,45 @@ stages:
             - baseline-diff.txt
         when: always
 
+.samplebaselinecheck_mfem:
+    stage: baseline_check
+    script:
+        - cd ${BUILD_ROOT}
+        - ln -snf ${CI_PROJECT_DIR} mfem
+        - cd tests
+        - mkdir -p runs_sample && cd runs_sample && rm -f *
+        - ../runtest ../../mfem "sample-runs-baseline ${BUILD_ROOT}/tpls"
+        - |
+          if [[ ! -f sample-runs-baseline.out || ! -f sample-runs-baseline-${SYS_TYPE}.out ]]
+          then
+              echo "Something went wrong";
+              exit 1;
+          fi
+        - cp sample-runs-baseline.out ${CI_PROJECT_DIR}/sample-runs-baseline-${SYS_TYPE}-saved.txt
+        - diff -u sample-runs-baseline-${SYS_TYPE}.out ../sample-runs-baseline-${SYS_TYPE}.saved | tee baseline-diff.txt || true
+        - cp sample-runs-baseline-diff.txt ${CI_PROJECT_DIR}
+        - if [[ ! $(head -n1 sample-runs-baseline-diff.txt) ]]; then true; else false; fi
+    allow_failure: true
+    timeout: 6h
+    artifacts:
+        paths:
+            - sample-runs-baseline-${SYS_TYPE}-saved.txt
+            - sample-runs-baseline-diff.txt
+        when: always
+
+# This job can only be manually triggers on a pipeline for master branch,
+# or if the pipeline was triggered with REBASELINE="YES"
 .rebaseline_mfem:
     stage: baseline_publish
-    #    only:
-    #        refs:
-    #            - master
-    #        variables:
-    #            - $REBASELINE == "YES"
+    rules:
+      - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
+        when: manual
     script:
-        - echo "cd ${BUILD_PATH}/tests"
+        - echo "cd ${BUILD_ROOT}/tests"
         - echo "cp ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt ./baseline-${SYS_TYPE}.saved"
         - echo "git add baseline-${SYS_TYPE}.saved"
-        - echo "git commit -m Rebaselined"
+        - echo "git commit -m Rebaselined in Gitlab pipeline #${CI_PIPELINE_ID}"
         - echo "git push origin master"
-    when: manual
     allow_failure: false
 
 .postcleanup:
