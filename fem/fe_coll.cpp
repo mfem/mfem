@@ -48,7 +48,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
 {
    FiniteElementCollection *fec = NULL;
 
-   if (!strcmp(name, "Linear"))
+   /*if (!strcmp(name, "Linear"))
    {
       fec = new LinearFECollection;
    }
@@ -149,11 +149,11 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       fec = new H1_Trace_FECollection(atoi(name + 15), atoi(name + 11),
                                       BasisType::GetType(name[9]));
    }
-   else if (!strncmp(name, "H1_", 3))
+   else*/ if (!strncmp(name, "H1_", 3))
    {
       fec = new H1_FECollection(atoi(name + 7), atoi(name + 3));
    }
-   else if (!strncmp(name, "H1Pos_Trace_", 12))
+   /*else if (!strncmp(name, "H1Pos_Trace_", 12))
    {
       fec = new H1_Trace_FECollection(atoi(name + 16), atoi(name + 12),
                                       BasisType::Positive);
@@ -277,7 +277,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
          // "NURBS" --> variable order nurbs collection
          fec = new NURBSFECollection();
       }
-   }
+   }*/
    else
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
@@ -1507,7 +1507,7 @@ const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
 H1_FECollection::H1_FECollection(const int default_p, const int dim, const int btype)
    : FiniteElementCollection(default_p, dim)
 {
-   MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
+   MFEM_VERIFY(default_p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
 
    const int p = default_p;
@@ -1554,13 +1554,13 @@ static void EnlargePArray(Array<T> &array, int p)
    }
 }
 
-void H1_FECollection::HaveOrder(int p)
+bool H1_FECollection::HaveOrder(int p) const
 {
-   const auto &array = H1_Elements[Geometry::Point];
+   const auto &array = H1_Elements[Geometry::POINT];
    return (array.Size() > p) && (array[p] != NULL);
 }
 
-void H1_FECollection::InitOrder(int p)
+void H1_FECollection::InitOrder(int p) const
 {
    MFEM_ASSERT(!HaveOrder(p), "already initialized");
 
@@ -1587,11 +1587,11 @@ void H1_FECollection::InitOrder(int p)
       }
       else
       {
-         H1_Elements[Geometry::SEGMENT][p] = new H1_SegmentElement(p, btype);
+         H1_Elements[Geometry::SEGMENT][p] = new H1_SegmentElement(p, b_type);
       }
 
       SegDofOrd[0][p] = new int[2*pm1];
-      SegDofOrd[1][p] = SegDofOrd[0] + pm1;
+      SegDofOrd[1][p] = SegDofOrd[0][p] + pm1;
       for (int i = 0; i < pm1; i++)
       {
          SegDofOrd[0][p][i] = i;
@@ -1622,8 +1622,8 @@ void H1_FECollection::InitOrder(int p)
       }
       else
       {
-         H1_Elements[Geometry::TRIANGLE][p] = new H1_TriangleElement(p, btype);
-         H1_Elements[Geometry::SQUARE][p] = new H1_QuadrilateralElement(p, btype);
+         H1_Elements[Geometry::TRIANGLE][p] = new H1_TriangleElement(p, b_type);
+         H1_Elements[Geometry::SQUARE][p] = new H1_QuadrilateralElement(p, b_type);
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE][p];
@@ -1726,9 +1726,9 @@ void H1_FECollection::InitOrder(int p)
          else
          {
             H1_Elements[Geometry::TETRAHEDRON][p] =
-               new H1_TetrahedronElement(p, btype);
-            H1_Elements[Geometry::CUBE][p] = new H1_HexahedronElement(p, btype);
-            H1_Elements[Geometry::PRISM][p] = new H1_WedgeElement(p, btype);
+               new H1_TetrahedronElement(p, b_type);
+            H1_Elements[Geometry::CUBE][p] = new H1_HexahedronElement(p, b_type);
+            H1_Elements[Geometry::PRISM][p] = new H1_WedgeElement(p, b_type);
          }
       }
    }
@@ -1814,11 +1814,11 @@ H1_FECollection::~H1_FECollection()
    }
    for (int p = 0; p < TriDofOrd[0].Size(); p++)
    {
-      delete [] TriDofOrd[0];
+      delete [] TriDofOrd[0][p];
    }
    for (int p = 0; p < QuadDofOrd[0].Size(); p++)
    {
-      delete [] QuadDofOrd[0];
+      delete [] QuadDofOrd[0][p];
    }
    for (int g = 0; g < Geometry::NumGeom; g++)
    {

@@ -3049,6 +3049,7 @@ double ExtrudeCoefficient::Eval(ElementTransformation &T,
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny)
 {
+#if 0
    GridFunction *sol2d;
 
    FiniteElementCollection *solfec2d;
@@ -3100,6 +3101,10 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
       sol2d->ProjectCoefficient(c2d);
    }
    return sol2d;
+#else
+   MFEM_ABORT("TODO");
+   return NULL;
+#endif
 }
 
 }

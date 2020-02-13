@@ -689,10 +689,12 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
 
       read_gf = 0;
    }
+#endif
 }
 
 void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
 {
+#if 0
    NURBSext = new NURBSExtension(input);
 
    Dim              = NURBSext->Dimension();
