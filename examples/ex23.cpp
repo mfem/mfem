@@ -159,9 +159,8 @@ WaveOperator::~WaveOperator()
 double InitialSolution(const Vector &x)
 {
    if (x.Norml2() < 0.5)
-      //if (fabs(x[0]-0.0) < 0.5)
    {
-      return 1.0;//cos(3.1415*x[0]);
+      return 1.0;
    }
    else
    {
