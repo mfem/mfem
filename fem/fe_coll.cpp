@@ -286,9 +286,9 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       const int dim = atoi(name + 10);
       const int numPoints = atoi(name + 13);
       const double h = atof(name + 18);
-      const int rbfType = RBFType::GetType(name[5]);
-      const int distType = DistanceType::GetType(name[7]);
-      const int mapType = (name[9] == 'V'
+      const int rbfType = RBFType::GetType(name[4]);
+      const int distType = DistanceType::GetType(name[6]);
+      const int mapType = (name[8] == 'V'
                            ? FiniteElement::VALUE
                            : FiniteElement::INTEGRAL);
       

@@ -12863,6 +12863,44 @@ double InvMultiquadricRBF::BaseDerivative2(double r) const
    return (2 * r * r - 1) * f * f * f * f * f;
 }
 
+const double Wendland31RBF::radius = 1.0;
+
+double Wendland31RBF::BaseFunction(double r) const
+{
+   if (r < radius)
+   {
+      return pow(1 - r, 4) * (4 * r + 1);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double Wendland31RBF::BaseDerivative(double r) const
+{
+   if (r < radius)
+   {
+      return -20 * pow(1. - r, 3) * r;
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double Wendland31RBF::BaseDerivative2(double r) const
+{
+   if (r < radius)
+   {
+      return 20. * pow(1 - r, 2) * (4. * r - 1.);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
 void EuclideanDistance::Distance(const Vector &x,
                                  double &r) const
 {
@@ -12889,7 +12927,7 @@ void EuclideanDistance::DDistance(const Vector &x,
 void EuclideanDistance::DDDistance(const Vector &x,
                                    DenseMatrix &ddr) const
 {
-   // Could be exploiting symmetry here
+   // Could be exploiting symmetry in the below loop
    double r;
    Distance(x, r);
    double rinv = r == 0.0 ? 0.0 : 1.0 / r;

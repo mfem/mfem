@@ -80,8 +80,12 @@ int main(int argc, char *argv[])
    // Print the values of each function at the specified point
    if (print)
    {
+      const IntegrationRule &nodes = fe->GetNodes();
       for (int i = 0; i < dof; ++i)
       {
+         cout << nodes.IntPoint(i).x << "\t";
+         if (dim > 1) cout << nodes.IntPoint(i).y << "\t";
+         if (dim > 2) cout << nodes.IntPoint(i).z << "\t";
          cout << shape(i) << "\t";
          for (int d = 0; d < dim; ++d)
          {
