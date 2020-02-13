@@ -8609,9 +8609,9 @@ void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
 }
 
 void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
-                                 bool compressed)
+                                 int compression_level)
 {
-   bin_io::WriteEncodedCompressed(out, buf.data(), buf.size(), compressed);
+   bin_io::WriteEncodedCompressed(out, buf.data(), buf.size(), compression_level);
    out << '\n';
    buf.clear();
 }
@@ -9014,7 +9014,7 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
 }
 
 void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
-                    bool high_order_output, bool compressed)
+                    bool high_order_output, int compression_level)
 {
    RefinedGeometry *RefG;
    DenseMatrix pmat;
@@ -9073,7 +9073,7 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
    }
    if (format != VTUFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compressed);
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
    }
    out << "</DataArray>" << std::endl;
    out << "</Points>" << std::endl;
@@ -9128,7 +9128,7 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
    }
    if (format != VTUFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compressed);
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
    }
    out << "</DataArray>" << std::endl;
 
@@ -9141,7 +9141,7 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
    }
    if (format != VTUFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compressed);
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
    }
    out << "</DataArray>" << std::endl;
    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
@@ -9198,7 +9198,7 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
    }
    if (format != VTUFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compressed);
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
    }
    out << "</DataArray>" << std::endl;
    out << "</Cells>" << std::endl;
@@ -9226,7 +9226,7 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
    }
    if (format != VTUFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compressed);
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
    }
    out << "</DataArray>" << std::endl;
    out << "</CellData>" << std::endl;

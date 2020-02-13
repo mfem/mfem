@@ -482,7 +482,7 @@ private:
    std::fstream pvd_stream;
    VTUFormat pv_data_format;
    bool high_order_output;
-   bool compress_output;
+   bool compression_level;
 
 protected:
    void SaveDataVTU(std::ostream &out, int ref);
@@ -544,7 +544,7 @@ public:
    /// Enable or diable zlib compression. Compression only takes effect if the
    /// output format is BINARY or BINARY32. MFEM must be compiled with
    /// MFEM_USE_GZSTREAM = YES.
-   void SetCompression(bool compress_output_);
+   void SetCompressionLevel(int compression_level_);
 
    /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
    bool IsBinaryFormat() const;
