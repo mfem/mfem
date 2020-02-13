@@ -84,7 +84,7 @@ protected:
 
    FiniteElementSpace *flux_space; /**< @brief Ownership based on own_flux_fes.
       Its Update() method is called automatically by this class when needed. */
-   bool _with_coeff;
+   bool with_coeff;
    bool own_flux_fes; ///< Ownership flag for flux_space.
 
    /// Check if the mesh of the solution was modified.
@@ -115,7 +115,7 @@ public:
         integ(&integ),
         solution(&sol),
         flux_space(flux_fes),
-        _with_coeff(false),
+        with_coeff(false),
         own_flux_fes(true)
    { }
 
@@ -135,13 +135,13 @@ public:
         integ(&integ),
         solution(&sol),
         flux_space(&flux_fes),
-        _with_coeff(false),
+        with_coeff(false),
         own_flux_fes(false)
    { }
 
    /** @brief Consider the coefficient in BilinearFormIntegrator to calculate the
        fluxes for the error estimator.*/
-   void SetWithCoeff(bool with_coeff = true) { _with_coeff = with_coeff; }
+   void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
 
    /** @brief Enable/disable anisotropic estimates. To enable this option, the
        BilinearFormIntegrator must support the 'd_energy' parameter in its
