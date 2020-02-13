@@ -852,8 +852,8 @@ void ParaViewDataCollection::Save()
       pvd_stream.open(pvdname.c_str(),std::ios::out);
       // initialize the file
       pvd_stream << "<?xml version=\"1.0\"?>\n";
-      pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"\n";
-      pvd_stream << "     byte_order=\"LittleEndian\">\n";
+      pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
+      pvd_stream << " byte_order=\"LittleEndian\">\n";
       pvd_stream << "<Collection>" << std::endl;
    }
 
@@ -876,7 +876,7 @@ void ParaViewDataCollection::Save()
 
       out << "<?xml version=\"1.0\"?>\n";
       out << "<VTKFile type=\"PUnstructuredGrid\"";
-      out << " version =\"0.1\" byte_order=\"LittleEndian\"> \n";
+      out << " version =\"0.1\" byte_order=\"LittleEndian\">\n";
       out << "<PUnstructuredGrid GhostLevel=\"0\">\n";
 
       out << "<PPoints>\n";
@@ -939,10 +939,14 @@ void ParaViewDataCollection::Save()
 
 void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
 {
-   out << "<VTKFile type=\"UnstructuredGrid\" ";
+   out << "<VTKFile type=\"UnstructuredGrid\"";
+   if (compress_output)
+   {
+      out << " compressor=\"vtkZLibDataCompressor\"";
+   }
    out << " version=\"0.1\" byte_order=\"LittleEndian\">" << std::endl;
    out << "<UnstructuredGrid>" << std::endl;
-   mesh->PrintVTU(out,ref,pv_data_format,high_order_output);
+   mesh->PrintVTU(out,ref,pv_data_format,high_order_output,compress_output);
 
    // dump out the grid functions as point data
    out << "<PointData >" << std::endl;
@@ -1050,12 +1054,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
 
    if (IsBinaryFormat())
    {
-      // First write the size of the buffer in bytes, as a uint32_t encoded with
-      // base 64
-      uint32_t sz = buf.size();
-      bin_io::WriteBase64(out, &sz, sizeof(sz));
-      // Then write all the double values, encoded with base 64
-      bin_io::WriteBase64(out, buf.data(), buf.size());
+      bin_io::WriteEncodedCompressed(out,buf.data(),buf.size(),compress_output);
       out << '\n';
    }
    out << "</DataArray>" << std::endl;
@@ -1142,6 +1141,11 @@ bool ParaViewDataCollection::IsBinaryFormat() const
 void ParaViewDataCollection::SetHighOrderOutput(bool high_order_output_)
 {
    high_order_output = high_order_output_;
+}
+
+void ParaViewDataCollection::SetCompression(bool compress_output_)
+{
+   compress_output = compress_output_;
 }
 
 const char *ParaViewDataCollection::GetDataFormatString() const

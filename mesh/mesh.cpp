@@ -8603,13 +8603,10 @@ void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
    else { out << val << suffix; }
 }
 
-void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf)
+void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
+                                 bool compressed)
 {
-   // First write size of buffer (as uint32_t), encoded with base 64
-   uint32_t sz = buf.size();
-   bin_io::WriteBase64(out, &sz, sizeof(sz));
-   // Then write all the bytes in the buffer, encoded with base 64
-   bin_io::WriteBase64(out, buf.data(), buf.size());
+   bin_io::WriteEncodedCompressed(out, buf.data(), buf.size(), compressed);
    out << '\n';
    buf.clear();
 }
@@ -9011,7 +9008,7 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
 }
 
 void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
-                    bool high_order_output)
+                    bool high_order_output, bool compressed)
 {
    RefinedGeometry *RefG;
    DenseMatrix pmat;
@@ -9068,7 +9065,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
          if (format == VTUFormat::ASCII) { out << '\n'; }
       }
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compressed);
+   }
    out << "</DataArray>" << std::endl;
    out << "</Points>" << std::endl;
 
@@ -9120,7 +9120,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
          np += RefG->RefPts.GetNPoints();
       }
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compressed);
+   }
    out << "</DataArray>" << std::endl;
 
    out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
@@ -9130,7 +9133,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
    {
       WriteBinaryOrASCII(out, buf, offset[ii], "\n", format);
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compressed);
+   }
    out << "</DataArray>" << std::endl;
    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
        << fmt_str << "\">" << std::endl;
@@ -9184,7 +9190,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
          }
       }
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compressed);
+   }
    out << "</DataArray>" << std::endl;
    out << "</Cells>" << std::endl;
 
@@ -9209,7 +9218,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
          }
       }
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTUFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compressed);
+   }
    out << "</DataArray>" << std::endl;
    out << "</CellData>" << std::endl;
 }

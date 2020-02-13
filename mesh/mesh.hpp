@@ -1179,7 +1179,8 @@ public:
        subdivision number (useful for high order fields and curved meshes). */
    void PrintVTU(std::ostream &out, int ref=1,
                  VTUFormat format=VTUFormat::ASCII,
-                 bool high_order_output=false);
+                 bool high_order_output=false,
+                 bool compressed=false);
    /** Print the mesh in VTU format with file name fname. */
    void PrintVTU(std::string fname);
 

@@ -482,6 +482,7 @@ private:
    std::fstream pvd_stream;
    VTUFormat pv_data_format;
    bool high_order_output;
+   bool compress_output;
 
 protected:
    void SaveDataVTU(std::ostream &out, int ref);
@@ -539,6 +540,11 @@ public:
    /// The ASCII and BINARY options output double precision data, whereas the
    /// BINARY32 option outputs single precision data.
    void SetDataFormat(VTUFormat fmt);
+
+   /// Enable or diable zlib compression. Compression only takes effect if the
+   /// output format is BINARY or BINARY32. MFEM must be compiled with
+   /// MFEM_USE_GZSTREAM = YES.
+   void SetCompression(bool compress_output_);
 
    /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
    bool IsBinaryFormat() const;
