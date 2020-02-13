@@ -3450,6 +3450,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 {
+#if 0
    Dim = orig_mesh->Dimension();
    MFEM_VERIFY(ref_factor >= 1, "the refinement factor must be >= 1");
    MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
@@ -3608,6 +3609,9 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+#else
+   MFEM_ABORT("TODO");
+#endif
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)

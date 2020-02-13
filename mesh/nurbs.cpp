@@ -2148,6 +2148,7 @@ void NURBSExtension::GetBdrPatchKnotVectors(
 
 void NURBSExtension::SetOrderFromOrders()
 {
+#if 0
    MFEM_VERIFY(mOrders.Size() > 0, "");
    mOrder = mOrders[0];
    for (int i = 1; i < mOrders.Size(); i++)
@@ -2158,6 +2159,9 @@ void NURBSExtension::SetOrderFromOrders()
          return;
       }
    }
+#else
+   MFEM_ABORT("TODO");
+#endif
 }
 
 void NURBSExtension::SetOrdersFromKnotVectors()

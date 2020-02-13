@@ -502,6 +502,7 @@ void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, Mesh &mesh,
                        char *title, int position)
 {
+#if 0
    L2_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec, 1);
    GridFunction metric(&fes);
@@ -515,6 +516,9 @@ void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
         << "window_geometry "
         << position << " " << 0 << " " << 600 << " " << 600 << "\n"
         << "keys jRmclA\n";
+#else
+   MFEM_ABORT("TODO");
+#endif
 }
 
 }

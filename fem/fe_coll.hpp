@@ -54,13 +54,16 @@ public:
    virtual const int * GetDofOrder(Geometry::Type geom, int p,
                                    int orientation) const = 0;
 
-   /*virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const = 0;
+   // legacy >>>
+   const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType) const
+   { return GetFE(GeomType, default_p); }
 
-   virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
+   int DofForGeometry(Geometry::Type GeomType) const
+   { return GetNumDof(GeomType, default_p); }
 
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const = 0;*/
+   const int *DofOrderForOrientation(Geometry::Type GeomType, int Or) const
+   { return GetDofOrder(GeomType, default_p, Or); }
+   // <<< legacy
 
    virtual const char * Name() const { return "Undefined"; }
 
@@ -99,12 +102,12 @@ class H1_FECollection : public FiniteElementCollection
 protected:
    int b_type;
    char h1_name[32];
-   Array<FiniteElement*> H1_Elements[Geometry::NumGeom];
-   Array<int> H1_dof[Geometry::NumGeom];
-   Array<int*> SegDofOrd[2], TriDofOrd[6], QuadDofOrd[8];
+   mutable Array<FiniteElement*> H1_Elements[Geometry::NumGeom];
+   mutable Array<int> H1_dof[Geometry::NumGeom];
+   mutable Array<int*> SegDofOrd[2], TriDofOrd[6], QuadDofOrd[8];
 
-   bool HaveOrder(int p);
-   void InitOrder(int p);
+   bool HaveOrder(int p) const;
+   void InitOrder(int p) const;
 
 public:
    explicit H1_FECollection(const int default_p, const int dim = 3,
@@ -124,7 +127,7 @@ public:
                                   int orientation) const;
 
    virtual const char* Name() const { return h1_name; }
-   FiniteElementCollection* GetTraceCollection() const;
+   //FiniteElementCollection* GetTraceCollection() const;
 
    int GetBasisType() const { return b_type; }
    /// Get the Cartesian to local H1 dof map
