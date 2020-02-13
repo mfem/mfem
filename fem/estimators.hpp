@@ -109,7 +109,7 @@ public:
        @param with_coeff Takes value of 1 if we want to consider the coefficient
                in the bilinear integrator to weight the fluxed. */
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
-                           FiniteElementSpace *flux_fes, bool with_coeff = false)
+                           FiniteElementSpace *flux_fes)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
@@ -117,7 +117,7 @@ public:
         integ(&integ),
         solution(&sol),
         flux_space(flux_fes),
-        _with_coeff(with_coeff),
+        _with_coeff(false),
         own_flux_fes(true)
    { }
 
@@ -131,7 +131,7 @@ public:
        @param with_coeff Takes value of 1 if we want to consider the coefficient
                in the bilinear integrator to weight the fluxed. */
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
-                           FiniteElementSpace &flux_fes, bool with_coeff = false)
+                           FiniteElementSpace &flux_fes)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
@@ -139,7 +139,7 @@ public:
         integ(&integ),
         solution(&sol),
         flux_space(&flux_fes),
-        _with_coeff(with_coeff),
+        _with_coeff(false),
         own_flux_fes(false)
    { }
 
