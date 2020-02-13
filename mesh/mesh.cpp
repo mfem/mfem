@@ -8590,7 +8590,7 @@ void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
 {
    if (format == VTUFormat::BINARY32) { bin_io::AppendBytes<float>(buf, val); }
    else if (format == VTUFormat::BINARY) { bin_io::AppendBytes(buf, val); }
-   else { out << static_cast<int>(val) << suffix; }
+   else { out << val << suffix; }
 }
 
 template <>
@@ -8600,7 +8600,7 @@ void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
 {
    if (format == VTUFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
    else if (format == VTUFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
-   else { out << static_cast<int>(val) << suffix; }
+   else { out << val << suffix; }
 }
 
 void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf)
