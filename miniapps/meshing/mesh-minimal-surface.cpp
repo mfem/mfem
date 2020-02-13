@@ -32,6 +32,7 @@
 //               mesh-minimal-surface -d cuda
 
 #include "mfem.hpp"
+#include "/home/camier1/home/mfem/dbg.hpp"
 #include "general/forall.hpp"
 #include <fstream>
 #include <iostream>
@@ -50,19 +51,6 @@ static socketstream glvis;
 const int  visport = 19916;
 const char vishost[] = "localhost";
 
-// Use MFEM's sequential classes and constructs for X-MPI ones, if needed.
-#ifndef XMesh
-#define XMesh Mesh
-#define XGridFunction GridFunction
-#define XBilinearForm BilinearForm
-#define XMeshConstructor(this) Mesh(*this)
-#define XFiniteElementSpace FiniteElementSpace
-#define XInit(num_procs, myid) { num_procs=1; myid=0; }
-#define XCGArguments
-#define XPreconditioner new GSSmoother((SparseMatrix&)(*A))
-#define XFinalize()
-#endif
-
 // Surface mesh class
 template<typename T = nullptr_t>
 class Surface: public Mesh
@@ -71,9 +59,9 @@ protected:
    T *S;
    Array<int> &bc;
    int order, nx, ny, nr, vdim;
-   XMesh *pmesh = nullptr;
+   Mesh *pmesh = nullptr;
    H1_FECollection *fec = nullptr;
-   XFiniteElementSpace *pfes = nullptr;
+   FiniteElementSpace *pfes = nullptr;
 public:
 
    // Reading from mesh file
@@ -143,7 +131,7 @@ public:
       //PrintCharacteristics();
    }
 
-   void  BoundaryConditions()
+   void BoundaryConditions()
    {
       if (bdr_attributes.Size())
       {
@@ -156,13 +144,13 @@ public:
    void GenFESpace()
    {
       fec = new H1_FECollection(order, 2);
-      pmesh = new XMeshConstructor(this);
-      pfes = new XFiniteElementSpace(pmesh, fec, vdim);
+      pmesh = new Mesh(*this);
+      pfes = new FiniteElementSpace(pmesh, fec, vdim);
    }
 
-   XMesh *Pmesh() const { return pmesh; }
+   Mesh *GetMesh() const { return pmesh; }
 
-   XFiniteElementSpace *Pfes() const { return pfes; }
+   FiniteElementSpace *GetFESpace() const { return pfes; }
 };
 
 // Default surface mesh file
@@ -444,10 +432,9 @@ struct FullPeach: public Surface<FullPeach>
          }
       }
       const SparseMatrix *R = pfes->GetConformingRestriction();
-      //MFEM_VERIFY(R,"!R");
       if (!R) { ess_tdofs.MakeRef(ess_cdofs); }
       else { R->BooleanMult(ess_cdofs, ess_tdofs); }
-      XFiniteElementSpace::MarkerToList(ess_tdofs, bc);
+      FiniteElementSpace::MarkerToList(ess_tdofs, bc);
    }
 };
 
@@ -455,20 +442,15 @@ struct FullPeach: public Surface<FullPeach>
 struct SlottedSphere: public Surface<SlottedSphere>
 {
    SlottedSphere(Array<int> &BC, int o, int r, int d):
-      Surface(BC, o, r, 0, 0, 0, d) { }
+      Surface(BC, o, r, 64, 40, 0, d) { }
    void Create()
    {
-      const double delta = 0.15;
-      static const int nv1d = 4;
-      static const int nv = nv1d*nv1d*nv1d;
-      static const int nel_per_face = (nv1d-1)*(nv1d-1);
-      static const int nel_delete = 7*2;
-      static const int nel_total = nel_per_face*6;
-      static const int nel = nel_total - nel_delete;
-
-      InitMesh(2, 3, nv, nel, 0);
-
-      double vert1d[nv1d] = {-1.0, -delta, delta, 1.0};
+      constexpr double delta = 0.15;
+      constexpr int nv1d = 4;
+      constexpr int nv = nv1d*nv1d*nv1d;
+      constexpr int nel_per_face = (nv1d-1)*(nv1d-1);
+      constexpr int nel_total = nel_per_face*6;
+      const double vert1d[nv1d] = {-1.0, -delta, delta, 1.0};
       double quad_v[nv][3];
 
       for (int iv=0; iv<nv; ++iv)
@@ -525,6 +507,19 @@ struct SlottedSphere: public Surface<SlottedSphere>
          }
       }
 
+      // Delete on x = 0 face
+      quad_e[0*nel_per_face + 1 + 2*(nv1d-1)][0] = -1;
+      quad_e[0*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+      // Delete on x = 1 face
+      quad_e[1*nel_per_face + 1 + 2*(nv1d-1)][0] = -1;
+      quad_e[1*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+      // Delete on y = 1 face
+      quad_e[3*nel_per_face + 1 + 0*(nv1d-1)][0] = -1;
+      quad_e[3*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+      // Delete on z = 1 face
+      quad_e[5*nel_per_face + 0 + 1*(nv1d-1)][0] = -1;
+      quad_e[5*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+      quad_e[5*nel_per_face + 2 + 1*(nv1d-1)][0] = -1;
       // Delete on z = 0 face
       quad_e[4*nel_per_face + 1 + 0*(nv1d-1)][0] = -1;
       quad_e[4*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
@@ -532,44 +527,19 @@ struct SlottedSphere: public Surface<SlottedSphere>
       // Delete on y = 0 face
       quad_e[2*nel_per_face + 1 + 0*(nv1d-1)][0] = -1;
       quad_e[2*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
-      // Delete on y = 1 face
-      quad_e[3*nel_per_face + 1 + 0*(nv1d-1)][0] = -1;
-      quad_e[3*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
-
-      // Delete on z = 1 face
-      quad_e[5*nel_per_face + 0 + 1*(nv1d-1)][0] = -1;
-      quad_e[5*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
-      quad_e[5*nel_per_face + 2 + 1*(nv1d-1)][0] = -1;
-      // Delete on x = 0 face
-      quad_e[0*nel_per_face + 1 + 2*(nv1d-1)][0] = -1;
-      quad_e[0*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
-      // Delete on x = 1 face
-      quad_e[1*nel_per_face + 1 + 2*(nv1d-1)][0] = -1;
-      quad_e[1*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
 
       for (int j = 0; j < nv; j++) { AddVertex(quad_v[j]); }
       for (int j = 0; j < nel_total; j++)
       {
-         if (quad_e[j][0] >= 0)
-         {
-            AddQuad(quad_e[j], j+1);
-         }
+         if (quad_e[j][0] < 0) { continue; }
+         AddQuad(quad_e[j], j+1);
       }
-      for (int j = 0; j < nel_total; j++)
-      {
-         if (quad_e[j][0] >= 0)
-         {
-            AddBdrQuad(quad_e[j], j+1);
-         }
-      }
-
       RemoveUnusedVertices();
-      //RemoveInternalBoundaries();
       FinalizeQuadMesh(1, 1, true);
+      EnsureNodes();
       FinalizeTopology();
       for (int l = 0; l < nr; l++) { UniformRefinement(); }
       SetCurvature(order, false, 3, Ordering::byNODES);
-
       // Snap the nodes to the unit sphere
       const int sdim = SpaceDimension();
       GridFunction &nodes = *GetNodes();
@@ -604,7 +574,7 @@ struct Shell: public Surface<Shell>
 
 
 // Visualize some solution on the given mesh
-static void Visualize(XMesh *pm, const int w, const int h,
+static void Visualize(Mesh *pm, const int w, const int h,
                       const char *keys)
 {
    glvis << "parallel " << NRanks << " " << MyRank << "\n";
@@ -616,7 +586,7 @@ static void Visualize(XMesh *pm, const int w, const int h,
    glvis << flush;
 }
 
-static void Visualize(XMesh *pm,  const bool pause)
+static void Visualize(Mesh *pm,  const bool pause)
 {
    glvis << "parallel " << NRanks << " " << MyRank << "\n";
    const GridFunction *x = pm->GetNodes();
@@ -632,13 +602,13 @@ class SurfaceSolver
 protected:
    bool pa, vis, pause, radial;
    int nmax, vdim, order;
-   XMesh *pmesh;
+   Mesh *pmesh;
    Vector X, B;
    OperatorPtr A;
-   XFiniteElementSpace *pfes;
-   XBilinearForm a;
+   FiniteElementSpace *pfes;
+   BilinearForm a;
    Array<int> &bc;
-   XGridFunction x, x0, b;
+   GridFunction x, x0, b;
    ConstantCoefficient one;
    Type *solver;
    Solver *M;
@@ -648,7 +618,7 @@ public:
    SurfaceSolver(const bool pa, const bool vis,
                  const int n, const bool pause,
                  const int order, const double l, const bool radial,
-                 XMesh *pmesh, XFiniteElementSpace *pfes,
+                 Mesh *pmesh, FiniteElementSpace *pfes,
                  Array<int> &bc):
       pa(pa), vis(vis), pause(pause), radial(radial), nmax(n),
       vdim(pfes->GetVDim()), order(order), pmesh(pmesh), pfes(pfes),
@@ -682,24 +652,19 @@ public:
    {
       b = 0.0;
       a.FormLinearSystem(bc, x, b, A, X, B);
-      CGSolver cg XCGArguments;
+      CGSolver cg;
       cg.SetPrintLevel(print_iter);
       cg.SetMaxIter(max_num_iter);
       cg.SetRelTol(sqrt(RTOLERANCE));
       cg.SetAbsTol(sqrt(ATOLERANCE));
-      if (!pa) { M = XPreconditioner; }
+      if (!pa) { M = new GSSmoother((SparseMatrix&)(*A)); }
       if (M) { cg.SetPreconditioner(*M); }
       cg.SetOperator(*A);
       cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, x);
       GridFunction *nodes = by_component ? &x0 : pfes->GetMesh()->GetNodes();
       double rnorm = nodes->DistanceTo(x) / nodes->Norml2();
-#ifdef MFEM_USE_MPI
-      double glob_norm;
-      MPI_Allreduce(&rnorm, &glob_norm, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-      rnorm = glob_norm;
-#endif
-      if (MyRank == 0) { mfem::out << "rnorm = " << rnorm << endl; }
+      mfem::out << "rnorm = " << rnorm << endl;
       if (by_component)
       {
          MFEM_VERIFY(lambda == 0.0,"'By component' assumes lambda == 0.0");
@@ -762,7 +727,7 @@ public:
 
 public:
    ByComponent(bool PA, bool glvis, int n, bool wait, int o, double l, bool rad,
-               XMesh *xmesh, XFiniteElementSpace *xfes, Array<int> &BC):
+               Mesh *xmesh, FiniteElementSpace *xfes, Array<int> &BC):
       SurfaceSolver(PA, glvis, n, wait, o, l, rad, xmesh, xfes, BC)
    { a.AddDomainIntegrator(new DiffusionIntegrator(one)); }
    bool Loop()
@@ -785,7 +750,7 @@ class ByVector: public SurfaceSolver<ByVector>
 {
 public:
    ByVector(bool PA, bool glvis, int n, bool wait, int o, double l, bool rad,
-            XMesh *xmsh, XFiniteElementSpace *xfes, Array<int> &BC):
+            Mesh *xmsh, FiniteElementSpace *xfes, Array<int> &BC):
       SurfaceSolver(PA, glvis, n, wait, o, l, rad, xmsh, xfes, BC)
    { a.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); }
    bool Loop()
@@ -820,8 +785,7 @@ Mesh *NewMeshFromSurface(const int surface, Array<int> &bc,
 int main(int argc, char *argv[])
 {
    // Initialize MPI.
-   int num_procs, myid;
-   XInit(num_procs, myid);
+   const int num_procs=1, myid=0;
    NRanks = num_procs; MyRank = myid;
 
    // Parse command-line options.
@@ -832,11 +796,11 @@ int main(int argc, char *argv[])
    int nmax = 16;
    int surface = -1;
    bool pa = true;
-   bool vis = false;
+   bool vis = true;
    bool amr = false;
    bool wait = false;
    bool rad = false;
-   double l = 0.0;
+   double lambda = 0.0;
    bool solve_by_components = false;
    const char *keys = "gAmmaaa";
    const char *device_config = "cpu";
@@ -858,7 +822,7 @@ int main(int argc, char *argv[])
    args.AddOption(&surface, "-s", "--surface", "Choice of the surface.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&l, "-l", "--lambda", "Lambda step toward solution.");
+   args.AddOption(&lambda, "-l", "--lambda", "Lambda step toward solution.");
    args.AddOption(&amr, "-amr", "--adaptive-mesh-refinement", "-no-amr",
                   "--no-adaptive-mesh-refinement", "Enable AMR.");
    args.AddOption(&device_config, "-d", "--device",
@@ -894,19 +858,19 @@ int main(int argc, char *argv[])
 
    // Grab back the pmesh & pfes from the Surface object.
    Surface<> &S = *static_cast<Surface<>*>(mesh);
-   XMesh *pmesh = S.Pmesh();
-   XFiniteElementSpace *pfes = S.Pfes();
+   Mesh *pmesh = S.GetMesh();
+   FiniteElementSpace *pfes = S.GetFESpace();
 
    // Send to GLVis the first mesh and set the 'keys' options.
    if (vis) { Visualize(pmesh, 800, 800, keys); }
 
    // Create and launch the surface solver.
    if (solve_by_components)
-   { ByComponent(pa, vis, nmax, wait, o, l, rad, pmesh, pfes, bc).Solve(); }
-   else { ByVector(pa, vis, nmax, wait, o, l, rad, pmesh, pfes, bc).Solve(); }
+   { ByComponent(pa, vis, nmax, wait, o, lambda, rad, pmesh, pfes, bc).Solve(); }
+   else
+   { ByVector(pa, vis, nmax, wait, o, lambda, rad, pmesh, pfes, bc).Solve(); }
 
    // Free the used memory.
    delete mesh;
-   XFinalize();
    return 0;
 }
