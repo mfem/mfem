@@ -214,4 +214,120 @@ TEST_CASE("DoF Transformation Functions"
       REQUIRE(fabs(uAv - tAt.InnerProduct(vt, ut)) < tol * fabs(uAv));
    }
 }
+
+TEST_CASE("VDoF Transformation Class"
+          "[VDofTransformation]")
+{
+   int p = 4;
+   int vdim = 3;
+   int seed = 123;
+
+   double tol = 1e-13;
+
+   ND_TetDofTransformation Tnd(p);
+
+   Array<int> ori(4);
+   ori[0] = 1;
+   ori[1] = 3;
+   ori[2] = 5;
+   ori[3] = 1;
+
+   Tnd.SetFaceOrientations(ori);
+
+   SECTION("VDim == 1")
+   {
+      VDofTransformation T(Tnd);
+
+      Vector v(T.Width());
+      Vector f(T.Width());
+      Vector vt;
+      Vector ft;
+
+      v.Randomize(seed);
+      f.Randomize(seed+1);
+
+      SECTION("Inverse DoF transformation")
+      {
+         Vector w;
+
+         T.TransformPrimal(v, vt);
+         T.InvTransformPrimal(vt, w);
+
+         w -= v;
+
+         REQUIRE(w.Norml2() < tol * v.Norml2());
+      }
+      SECTION("Inner product with linear form f(v)")
+      {
+         T.TransformPrimal(v, vt);
+         T.TransformDual(f, ft);
+
+         double fv = f * v;
+
+         REQUIRE(fabs(fv - ft * vt) < tol * fabs(fv));
+      }
+   }
+   SECTION("VDim > 1")
+   {
+      Vector v(vdim * Tnd.Width());
+      Vector f(vdim * Tnd.Width());
+      Vector vt;
+      Vector ft;
+
+      v.Randomize(seed);
+      f.Randomize(seed+1);
+
+      SECTION("Ordering == byNODES")
+      {
+         VDofTransformation T(Tnd, vdim, Ordering::byNODES);
+
+         SECTION("Inverse DoF transformation")
+         {
+            Vector w;
+
+            T.TransformPrimal(v, vt);
+            T.InvTransformPrimal(vt, w);
+
+            w -= v;
+
+            REQUIRE(w.Norml2() < tol * v.Norml2());
+         }
+         SECTION("Inner product with linear form f(v)")
+         {
+            T.TransformPrimal(v, vt);
+            T.TransformDual(f, ft);
+
+            double fv = f * v;
+
+            REQUIRE(fabs(fv - ft * vt) < tol * fabs(fv));
+         }
+      }
+      SECTION("Ordering == byVDIM")
+      {
+         VDofTransformation T(Tnd, vdim, Ordering::byVDIM);
+
+         SECTION("Inverse DoF transformation")
+         {
+            Vector w;
+
+            T.TransformPrimal(v, vt);
+            T.InvTransformPrimal(vt, w);
+
+            w -= v;
+
+            REQUIRE(w.Norml2() < tol * v.Norml2());
+         }
+         SECTION("Inner product with linear form f(v)")
+         {
+            T.TransformPrimal(v, vt);
+            T.TransformDual(f, ft);
+
+            double fv = f * v;
+
+            REQUIRE(fabs(fv - ft * vt) < tol * fabs(fv));
+         }
+      }
+   }
+}
+
 } // namespace doftrans
