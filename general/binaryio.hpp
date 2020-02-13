@@ -48,6 +48,9 @@ void AppendBytes(std::vector<char> &vec, const T &val)
 
 void WriteBase64(std::ostream &out, const void *bytes, size_t length);
 
+void WriteEncodedCompressed(std::ostream &out, const void *bytes,
+                            uint32_t nbytes, bool compressed);
+
 } // namespace mfem::bin_io
 
 } // namespace mfem
