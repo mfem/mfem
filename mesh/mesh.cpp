@@ -8615,6 +8615,224 @@ void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf)
 }
 
 int ConvertToVTKOrdering(int idx_in, int ref, Geometry::Type geom)
+int BarycentricToVTKTriangle(int *b, int ref)
+{
+   // Cf. https://git.io/JvW8f
+   int max = ref;
+   int min = 0;
+   int bmin = std::min(std::min(b[0], b[1]), b[2]);
+   int idx = 0;
+
+   // scope into the correct triangle
+   while (bmin > min)
+   {
+      idx += 3*ref;
+      max -= 2;
+      ++min;
+      ref -= 3;
+   }
+   for (int d=0; d<3; ++d)
+   {
+      if (b[(d+2)%3] == max)
+      {
+         // we are on a vertex
+         return idx;
+      }
+      ++idx;
+   }
+   for (int d=0; d<3; ++d)
+   {
+      if (b[(d+1)%3] == min)
+      {
+         // we are on an edge
+         return idx + b[d] - (min + 1);
+      }
+      idx += max - (min + 1);
+   }
+   return idx;
+}
+
+int BarycentricToVTKTetra(int *b, int ref)
+{
+   // Cf. https://git.io/JvW8c
+   int idx = 0;
+
+   int max = ref;
+   int min = 0;
+
+   int bmin = std::min(std::min(std::min(b[0], b[1]), b[2]), b[3]);
+
+   // scope into the correct tetra
+   while (bmin > min)
+   {
+      idx += 2*(ref*ref + 1);
+      max -= 3;
+      min++;
+      ref -= 4;
+   }
+
+   // When a linearized tetra vertex is cast into barycentric coordinates, one of
+   // its coordinates is maximal and the other three are minimal. These are the
+   // indices of the maximal barycentric coordinate for each vertex.
+   static const int VertexMaxCoords[4] = {3,0,1,2};
+   // Each linearized tetra edge holds two barycentric tetra coordinates constant
+   // and varies the other two. These are the coordinates that are held constant
+   // for each edge.
+   static const int EdgeMinCoords[6][2] = {{1,2},{2,3},{0,2}, {0,1},{1,3},{0,3}};
+   // The coordinate that increments when traversing an edge (i.e. the coordinate
+   // of the nonzero component of the second vertex of the edge).
+   static const int EdgeCountingCoord[6] = {0,1,3,2,2,2};
+   // When describing a linearized tetra face, there is a mapping between the
+   // four-component barycentric tetra system and the three-component barycentric
+   // triangle system. These are the constant indices within the four-component
+   // system for each face (e.g. face 0 holds barycentric tetra coordinate 1
+   // constant).
+   static const int FaceMinCoord[4] = {1,3,0,2};
+   // When describing a linearized tetra face, there is a mapping between the
+   // four-component barycentric tetra system and the three-component barycentric
+   // triangle system. These are the relevant indices within the four-component
+   // system for each face (e.g. face 0 varies across the barycentric tetra
+   // coordinates 0, 2 and 3).
+   static const int FaceBCoords[4][3] = {{0,2,3}, {2,0,1}, {2,1,3}, {1,0,3}};
+
+
+   for (int vertex = 0; vertex < 4; vertex++)
+   {
+      if (b[VertexMaxCoords[vertex]] == max)
+      {
+         // we are on a vertex
+         return idx;
+      }
+      idx++;
+   }
+
+   for (int edge = 0; edge < 6; edge++)
+   {
+      if (b[EdgeMinCoords[edge][0]] == min && b[EdgeMinCoords[edge][1]] == min)
+      {
+         // we are on an edge
+         return idx + b[EdgeCountingCoord[edge]] - (min + 1);
+      }
+      idx += max - (min + 1);
+   }
+
+   for (int face = 0; face < 4; face++)
+   {
+      if (b[FaceMinCoord[face]] == min)
+      {
+         // we are on a face
+         int projectedb[3];
+         for (int i = 0; i < 3; i++)
+         {
+         projectedb[i] = b[FaceBCoords[face][i]] - min;
+         }
+         // we must subtract the indices of the face's vertices and edges, which
+         // total to 3*ref
+         return (idx + BarycentricToVTKTriangle(projectedb, ref) - 3*ref);
+      }
+      idx += (ref+1)*(ref+2)/2 - 3*ref;
+   }
+   return idx;
+}
+
+int VTKTriangleDOFOffset(int ref, int i, int j)
+{
+  return i + ref*(j - 1) - (j*(j + 1))/2;
+}
+
+int CartesianToVTKPrism(int i, int j, int k, int ref)
+{
+   // Cf. https://git.io/JvW4P
+   int om1 = ref - 1;
+   int ibdr = (i == 0);
+   int jbdr = (j == 0);
+   int ijbdr = (i + j == ref);
+   int kbdr = (k == 0 || k == ref);
+   // How many boundaries do we lie on at once?
+   int nbdr = ibdr + jbdr + ijbdr + kbdr;
+
+   // Return an invalid index given invalid coordinates
+   if (i < 0 || i > ref || j < 0 || j > ref || i + j > ref || k < 0 || k > ref)
+   {
+      MFEM_ABORT("Invalid index")
+   }
+
+   if (nbdr == 3) // Vertex DOF
+   {
+      // ijk is a corner node. Return the proper index (somewhere in [0,5]):
+      return (ibdr && jbdr ? 0 : (jbdr && ijbdr ? 1 : 2)) + (k ? 3 : 0);
+   }
+
+   int offset = 6;
+   if (nbdr == 2) // Edge DOF
+   {
+      if (!kbdr)
+      {
+         // Must be on a vertical edge and 2 of {ibdr, jbdr, ijbdr} are true
+         offset += om1*6;
+         return offset + (k-1)
+            + ((ibdr && jbdr) ? 0 : (jbdr && ijbdr ? 1 : 2))*om1;
+      }
+      else
+      {
+         // Must be on a horizontal edge and kbdr plus 1 of {ibdr, jbdr, ijbdr} is true
+         // Skip past first 3 edges if we are on the top (k = ref) face:
+         offset += (k == ref ? 3*om1 : 0);
+         if (jbdr)
+         {
+            return offset + i - 1;
+         }
+         offset += om1; // Skip the i-axis edge
+         if (ijbdr)
+         {
+            return offset + j - 1;
+         }
+         offset += om1; // Skip the ij-axis edge
+         // if (ibdr)
+         return offset + (ref - j - 1);
+      }
+   }
+
+   offset += 9*om1; // Skip all the edges
+
+   // Number of points on a triangular face (but not on edge/corner):
+   int ntfdof = (om1 - 1)*om1/2;
+   int nqfdof = om1*om1;
+   if (nbdr == 1) // Face DOF
+   {
+      if (kbdr)
+      { // We are on a triangular face.
+         if (k > 0)
+         {
+            offset += ntfdof;
+         }
+         return offset + VTKTriangleDOFOffset(ref, i, j);
+      }
+      // Not a k-normal face, so skip them:
+      offset += 2*ntfdof;
+
+      // Face is quadrilateral (ref - 1) x (ref - 1)
+      // First face is i-normal, then ij-normal, then j-normal
+      if (jbdr) // On i-normal face
+      {
+         return offset + (i - 1) + om1*(k - 1);
+      }
+      offset += nqfdof; // Skip i-normal face
+      if (ijbdr) // on ij-normal face
+      {
+         return offset + (ref - i - 1) + om1*(k - 1);
+      }
+      offset += nqfdof; // Skip ij-normal face
+      return offset + j - 1 + om1*(k - 1);
+   }
+
+   // Skip all face DOF
+   offset += 2*ntfdof + 3*nqfdof;
+
+   // nbdr == 0: Body DOF
+   return offset + VTKTriangleDOFOffset(ref, i, j) + ntfdof*(k - 1);
+   // (i - 1) + (ref-1)*((j - 1) + (ref - 1)*(k - 1)));
+}
 {
    int n = ref + 1;
    switch (geom)
