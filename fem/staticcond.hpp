@@ -82,8 +82,8 @@ class StaticCondensation
 
    bool symm; // TODO: handle the symmetric case correctly.
    Array<int> A_offsets, A_ipiv_offsets;
-   double *A_data;
-   int *A_ipiv;
+   Memory<double> A_data;
+   Memory<int> A_ipiv;
 
    Array<int> ess_rtdof_list;
 
