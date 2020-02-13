@@ -787,10 +787,11 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
       case 'k':
       {
          int numPoints = 10;
+         int distNorm = 2;
          double h = 4.01;
          FEC = new KernelFECollection(dim, numPoints, h,
                                       RBFType::Gaussian,
-                                      DistanceType::Euclidean, bOrder);
+                                      distNorm, bOrder);
       }
    }
    if ( FEC == NULL)

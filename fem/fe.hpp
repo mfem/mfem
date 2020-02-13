@@ -3288,10 +3288,15 @@ public:
 
    // The support radius, outside of which the function is zero
    virtual double Radius() const { return 1.e10; }
+
+   // This makes the shape parameter consistent across kernels
+   virtual double HNorm() const = 0;
 };
 
 class GaussianRBF : public RBFFunction
 {
+   // Hnorm minimizes integral of Gaussian minus Wendland kernel over r=0,1
+   static const double hnorm;
 public:
    GaussianRBF() { };
    virtual ~GaussianRBF() { }
@@ -3299,10 +3304,14 @@ public:
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
+   
+   virtual double HNorm() const { return hnorm; }
 };
 
 class MultiquadricRBF : public RBFFunction
 {
+   // Same as inverse multiquadric
+   static const double hnorm;
 public:
    MultiquadricRBF() { };
    virtual ~MultiquadricRBF() { }
@@ -3310,10 +3319,14 @@ public:
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
+   
+   virtual double HNorm() const { return hnorm; }
 };
 
 class InvMultiquadricRBF : public RBFFunction
 {
+   // Hnorm minimizes integral of Gaussian minus InvMQ kernel over r=0,0.5
+   static const double hnorm;
 public:
    InvMultiquadricRBF() { };
    virtual ~InvMultiquadricRBF() { }
@@ -3321,6 +3334,8 @@ public:
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
+   
+   virtual double HNorm() const { return hnorm; }
 };
 
 class Wendland31RBF : public RBFFunction
@@ -3336,6 +3351,8 @@ public:
    virtual double BaseDerivative2(double r) const;
 
    virtual double Radius() const { return radius; }
+   
+   virtual double HNorm() const { return 1.0; }
 };
 
 // Choose the type of RBF to use
@@ -3505,10 +3522,9 @@ private:
 #endif
    int numPointsD; // Number of points across the element in each D
    double delta; // Distance between points
-   double h; // Shape parameter, dimensionless
-   double hPhys; // Shape parameter times distance between points
-   double hPhysInv; // Inverse shape parameter
-   DenseMatrix pos; // Positions of points
+   double h; // Shape parameter, approx number of points in 1d support radius
+   double hPhys; // Shape parameter times distance between points times HNorm
+   double hPhysInv; // Inverse hPhys
    const RBFFunction *rbf;
    const DistanceMetric *distance;
    void SetPositions();

@@ -12813,6 +12813,8 @@ H1_WedgeElement WedgeFE(1);
 // Construct 'Geometries' after 'TriangleFE', 'TetrahedronFE', and 'WedgeFE'.
 Geometry Geometries;
 
+const double GaussianRBF::hnorm = 0.37619048746124223;
+
 double GaussianRBF::BaseFunction(double r) const
 {
    return exp(-r * r);
@@ -12828,6 +12830,8 @@ double GaussianRBF::BaseDerivative2(double r) const
    const double r2 = r * r;
    return (-2 * 4 * r2) * exp(-r2);
 }
+
+const double MultiquadricRBF::hnorm = 0.17889;
 
 double MultiquadricRBF::BaseFunction(double r) const
 {
@@ -12845,6 +12849,8 @@ double MultiquadricRBF::BaseDerivative2(double r) const
    const double f = BaseFunction(r);
    return 1.0 / (f * f * f);
 }
+
+const double InvMultiquadricRBF::hnorm = 0.17889;
 
 double InvMultiquadricRBF::BaseFunction(double r) const
 {
@@ -13145,7 +13151,7 @@ void RBFFiniteElement::DistanceVec(const int i,
 void RBFFiniteElement::SetPositions()
 {
    delta = 1.0 / (static_cast<double>(numPointsD) - 1.0);
-   hPhys = delta * h;
+   hPhys = delta * h * rbf->HNorm();
    hPhysInv = 1.0 / hPhys;
    switch (Dim)
    {
