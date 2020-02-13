@@ -105,9 +105,7 @@ public:
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The ZienkiewiczZhuEstimator assumes ownership of this
                        FiniteElementSpace and will call its Update() method when
-                       needed.
-       @param with_coeff Takes value of 1 if we want to consider the coefficient
-               in the bilinear integrator to weight the fluxed. */
+                       needed.*/
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
                            FiniteElementSpace *flux_fes)
       : current_sequence(-1),
@@ -127,9 +125,7 @@ public:
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The ZienkiewiczZhuEstimator does NOT assume ownership of
                        this FiniteElementSpace; will call its Update() method
-                       when needed.
-       @param with_coeff Takes value of 1 if we want to consider the coefficient
-               in the bilinear integrator to weight the fluxed. */
+                       when needed. */
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
                            FiniteElementSpace &flux_fes)
       : current_sequence(-1),
