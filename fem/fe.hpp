@@ -3415,13 +3415,15 @@ public:
                           Vector &dr) const = 0;
    virtual void DDDistance(const Vector &x,
                            DenseMatrix &ddr) const = 0;
+   
+   static DistanceMetric *GetDistance(int dim, int pnorm);
 };
 
-class EuclideanDistance : public DistanceMetric
+class L1Distance : public DistanceMetric
 {
 public:
-   EuclideanDistance(int D) : DistanceMetric(D) { };
-   virtual ~EuclideanDistance() { }
+   L1Distance(int D) : DistanceMetric(D) { };
+   virtual ~L1Distance() { }
 
    virtual void Distance(const Vector &x,
                          double &r) const;
@@ -3431,11 +3433,11 @@ public:
                            DenseMatrix &ddr) const;
 };
 
-class ManhattanDistance : public DistanceMetric
+class L2Distance : public DistanceMetric
 {
 public:
-   ManhattanDistance(int D) : DistanceMetric(D) { };
-   virtual ~ManhattanDistance() { }
+   L2Distance(int D) : DistanceMetric(D) { };
+   virtual ~L2Distance() { }
 
    virtual void Distance(const Vector &x,
                          double &r) const;
@@ -3445,57 +3447,24 @@ public:
                            DenseMatrix &ddr) const;
 };
 
-// Choose the type of RBF to use
-class DistanceType
+class LpDistance : public DistanceMetric
 {
+   const int p;
+   const double pinv;
 public:
-   enum
-   {
-      Euclidean = 0,
-      Manhattan = 1,
-      NumDistanceTypes = 2
-   };
-
-   // Return the requested distance type
-   static DistanceMetric *GetDistance(int dim, int distType)
-   {
-      switch (distType)
-      {
-      case DistanceType::Euclidean:
-         return new EuclideanDistance(dim);
-      case DistanceType::Manhattan:
-         return new ManhattanDistance(dim);
-      }
-      MFEM_ABORT("unknown distance type");
-      return NULL;
-   }
+   LpDistance(int D, int pnorm)
+      : DistanceMetric(D),
+        p(pnorm),
+        pinv(1. / static_cast<double>(p))
+   { };
+   virtual ~LpDistance() { }
    
-   // Abort if distType is invalid
-   static int Check(const int distType)
-   {
-      MFEM_VERIFY(0 <= distType && distType < NumDistanceTypes,
-                  "unknown distance type: " << distType);
-      return distType;
-   }
-
-   // Convert rbf int to identifier
-   static char GetChar(const int distType)
-   {
-      static const char ident[] = { 'E', 'M' };
-      return ident[Check(distType)];
-   }
-   
-   // Convert identifier to rbf int
-   static int GetType(const char distIdent)
-   {
-      switch (distIdent)
-      {
-      case 'E': return Euclidean;
-      case 'M': return Manhattan;
-      }
-      MFEM_ABORT("unknown distance identifier");
-      return -1;
-   }
+   virtual void Distance(const Vector &x,
+                         double &r) const;
+   virtual void DDistance(const Vector &x,
+                          Vector &dr) const;
+   virtual void DDDistance(const Vector &x,
+                           DenseMatrix &ddr) const;
 };
 
 class KernelFiniteElement : public ScalarFiniteElement
@@ -3553,7 +3522,7 @@ public:
                     const int numPointsD,
                     const double h,
                     const int rbfType,
-                    const int distType);
+                    const int distNorm);
    virtual ~RBFFiniteElement() { delete rbf; delete distance; }
    
    virtual void CalcShape(const IntegrationPoint &ip,
@@ -3619,7 +3588,7 @@ public:
                    const int numPointsD,
                    const double h,
                    const int rbfType,
-                   const int distType,
+                   const int distNorm,
                    const int order);
    virtual ~RKFiniteElement() { delete baseFE; }
    

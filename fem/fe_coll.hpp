@@ -1042,7 +1042,7 @@ public:
                       const int numPointsD,
                       const double h,
                       const int rbfType,
-                      const int distType,
+                      const int distNorm,
                       const int order = -1,
                       const int mapType = FiniteElement::VALUE);
    virtual ~KernelFECollection();

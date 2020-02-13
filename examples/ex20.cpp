@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
    int dim = 1;
    int order = 1;
    int rbfType = 0;
-   int distType = 0;
+   int distNorm = 2;
    int numPoints = 10;
    int evals = 1;
    double h = 4.01;
@@ -28,8 +28,8 @@ int main(int argc, char *argv[])
                   "RK order or -1 for RBF");
    args.AddOption(&rbfType, "-f", "--func",
                   "(0) Gaussian, (1) Multiquadric, (2) Inverse multiquadric");
-   args.AddOption(&distType, "-s", "--dist",
-                  "(0) Euclidean, (1) Manhattan");
+   args.AddOption(&distNorm, "-s", "--dist",
+                  "Which Lp norm to use for distance");
    args.AddOption(&numPoints, "-n", "--points",
                   "number of points in 1d");
    args.AddOption(&h, "-m", "--smoothing",
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 
    // Get collection
    const KernelFECollection *fec = new KernelFECollection(dim, numPoints, h,
-                                                          rbfType, distType, order);
+                                                          rbfType, distNorm, order);
    int geomType = TensorBasisElement::GetTensorProductGeometry(dim);
    cout << fec->Name() << endl;
    // Get element

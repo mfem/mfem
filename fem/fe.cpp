@@ -12901,8 +12901,60 @@ double Wendland31RBF::BaseDerivative2(double r) const
    }
 }
 
-void EuclideanDistance::Distance(const Vector &x,
-                                 double &r) const
+DistanceMetric *DistanceMetric::GetDistance(const int dim,
+                                            const int pnorm)
+{
+   if (pnorm == 1)      return new L1Distance(dim);
+   else if (pnorm == 2) return new L2Distance(dim);
+   else if (pnorm > 2)  return new LpDistance(dim, pnorm);
+   else MFEM_ABORT("distance norm not recognized: " << pnorm);
+   return NULL;
+}
+
+void L1Distance::Distance(const Vector &x,
+                          double &r) const
+{
+   r = 0.0;
+   for (int d = 0; d < Dim; ++d)
+   {
+      r += abs(x(d));
+   }
+}
+
+void L1Distance::DDistance(const Vector &x,
+                           Vector &dr) const
+{
+   for (int d = 0; d < Dim; ++d)
+   {
+      if (x(d) > 0)
+      {
+         dr(d) = 1.0;
+      }
+      else if (x(d) < 0)
+      {
+         dr(d) = -1.0;
+      }
+      else
+      {
+         dr(d) = 0.0;
+      }
+   }
+}
+
+void L1Distance::DDDistance(const Vector &x,
+                            DenseMatrix &ddr) const
+{
+   for (int d1 = 0; d1 < Dim; ++d1)
+   {
+      for (int d2 = 0; d2 < Dim; ++d2)
+      {
+         ddr(d1, d2) = 0.0;
+      }
+   }
+}
+
+void L2Distance::Distance(const Vector &x,
+                          double &r) const
 {
    r = 0.0;
    for (int d = 0; d < Dim; ++d)
@@ -12912,8 +12964,8 @@ void EuclideanDistance::Distance(const Vector &x,
    r = sqrt(r);
 }
 
-void EuclideanDistance::DDistance(const Vector &x,
-                                  Vector &dr) const
+void L2Distance::DDistance(const Vector &x,
+                           Vector &dr) const
 {
    double r;
    Distance(x, r);
@@ -12924,10 +12976,9 @@ void EuclideanDistance::DDistance(const Vector &x,
    }
 }
 
-void EuclideanDistance::DDDistance(const Vector &x,
-                                   DenseMatrix &ddr) const
+void L2Distance::DDDistance(const Vector &x,
+                            DenseMatrix &ddr) const
 {
-   // Could be exploiting symmetry in the below loop
    double r;
    Distance(x, r);
    double rinv = r == 0.0 ? 0.0 : 1.0 / r;
@@ -12947,44 +12998,49 @@ void EuclideanDistance::DDDistance(const Vector &x,
    }
 }
 
-void ManhattanDistance::Distance(const Vector &x,
-                                 double &r) const
+void LpDistance::Distance(const Vector &x,
+                          double &r) const
 {
    r = 0.0;
    for (int d = 0; d < Dim; ++d)
    {
-      r += abs(x(d));
+      r += pow(abs(x(d)), p);
    }
+   r = pow(r, pinv);
 }
 
-void ManhattanDistance::DDistance(const Vector &x,
-                                  Vector &dr) const
+void LpDistance::DDistance(const Vector &x,
+                           Vector &dr) const
 {
+   double r;
+   Distance(x, r);
+   double rinv = r == 0.0 ? 0.0 : 1.0 / r;
    for (int d = 0; d < Dim; ++d)
    {
-      if (x(d) > 0)
-      {
-         dr(d) = 1.0;
-      }
-      else if (x(d) < 0)
-      {
-         dr(d) = -1.0;
-      }
-      else
-      {
-         dr(d) = 0.0;
-      }
+      dr(d) = pow(abs(x(d)) * rinv, p-1) * copysign(1.0, x(d));
    }
 }
 
-void ManhattanDistance::DDDistance(const Vector &x,
-                                   DenseMatrix &ddr) const
+void LpDistance::DDDistance(const Vector &x,
+                            DenseMatrix &ddr) const
 {
+   double r;
+   Distance(x, r);
    for (int d1 = 0; d1 < Dim; ++d1)
    {
       for (int d2 = 0; d2 < Dim; ++d2)
       {
-         ddr(d1, d2) = 0.0;
+         if (d1 == d2)
+         {
+            ddr(d1, d2) = (p-1) * (pow(abs(x(d1)), p-2) * pow(r, 1-p)
+                                   - pow(x(d1), 2*p-2) * pow(r, 1-2*p));
+         }
+         else
+         {
+            ddr(d1, d2) = (1-p) * (abs(x(d1) * x(d2)) * pow(r, 1-2*p)
+                                   * copysign(1.0, x(d1))
+                                   * copysign(1.0, x(d2)));
+         }
       }
    }
 }
@@ -13042,7 +13098,7 @@ RBFFiniteElement::RBFFiniteElement(const int D,
                                    const int numPointsD,
                                    const double h,
                                    const int rbfType,
-                                   const int distType)
+                                   const int distNorm)
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
                          TensorBasisElement::Pow(numPointsD, D),
@@ -13058,7 +13114,7 @@ RBFFiniteElement::RBFFiniteElement(const int D,
      numPointsD(numPointsD),
      h(h),
      rbf(RBFType::GetRBF(rbfType)),
-     distance(DistanceType::GetDistance(D, distType))
+     distance(DistanceMetric::GetDistance(D, distNorm))
 {
    SetPositions();
 }
@@ -13235,7 +13291,7 @@ RKFiniteElement::RKFiniteElement(const int D,
                                  const int numPointsD,
                                  const double h,
                                  const int rbfType,
-                                 const int distType,
+                                 const int distNorm,
                                  const int order)
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
@@ -13245,7 +13301,7 @@ RKFiniteElement::RKFiniteElement(const int D,
      polyOrd(order),
      numPoly1d(order+1),
      numPoly(RKFiniteElement::GetNumPoly(order, D)),
-     baseFE(new RBFFiniteElement(D, numPointsD, h, rbfType, distType))
+     baseFE(new RBFFiniteElement(D, numPointsD, h, rbfType, distNorm))
 {
    Nodes = baseFE->GetNodes();
 #ifndef MFEM_THREAD_SAFE
