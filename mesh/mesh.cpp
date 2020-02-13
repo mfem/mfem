@@ -8614,7 +8614,6 @@ void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf)
    buf.clear();
 }
 
-int ConvertToVTKOrdering(int idx_in, int ref, Geometry::Type geom)
 int BarycentricToVTKTriangle(int *b, int ref)
 {
    // Cf. https://git.io/JvW8f
@@ -8833,6 +8832,8 @@ int CartesianToVTKPrism(int i, int j, int k, int ref)
    return offset + VTKTriangleDOFOffset(ref, i, j) + ntfdof*(k - 1);
    // (i - 1) + (ref-1)*((j - 1) + (ref - 1)*(k - 1)));
 }
+
+int CartesianToVTKTensor(int idx_in, int ref, Geometry::Type geom)
 {
    int n = ref + 1;
    switch (geom)
@@ -8941,60 +8942,71 @@ int CartesianToVTKPrism(int i, int j, int k, int ref)
                       (ref - 1)*(ref - 1));
          return offset + (i - 1) + (ref - 1)*((j - 1) + (ref - 1)*(k - 1));
       }
-      case Geometry::TRIANGLE:
-      {
-         MFEM_VERIFY(ref <= 6, "VTK only supports high-order Lagrange triangles"
-            " up to order 6.");
-         // Convert to Barycentric coordinates
-         int b[3];
-         b[0] = idx_in;
-         b[1] = 0;
-         while (b[0] >= n)
-         {
-            b[0] -= n;
-            ++b[1];
-            --n;
-         }
-         b[2] = ref - b[0] - b[1];
-
-         // Cf. https://git.io/JvW8f
-         int max = ref;
-         int min = 0;
-         int bmin = std::min(std::min(b[0], b[1]), b[2]);
-         int idx = 0;
-
-         // scope into the correct triangle
-         while (bmin > min)
-         {
-            idx += 3*ref;
-            max -= 2;
-            ++min;
-            ref -= 3;
-         }
-         for (int d=0; d<3; ++d)
-         {
-            if (b[(d+2)%3] == max)
-            {
-               // we are on a vertex
-               return idx;
-            }
-            ++idx;
-         }
-         for (int d=0; d<3; ++d)
-         {
-            if (b[(d+1)%3] == min)
-            {
-               // we are on an edge
-               return idx + b[d] - (min + 1);
-            }
-            idx += max - (min + 1);
-         }
-         return idx;
-      }
       default:
-         MFEM_ABORT("High-order VTK tetrahedra and prisms are not "
-                    "currently supported");
+         MFEM_ABORT("CartesianToVTKOrderingTensor only supports tensor"
+                    " geometries.");
          return -1;
+   }
+}
+
+void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
+{
+
+   RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+   int nnodes = RefG->RefPts.GetNPoints();
+   con.SetSize(nnodes);
+   if (geom == Geometry::TRIANGLE)
+   {
+      int b[3];
+      int idx = 0;
+      for (b[1]=0; b[1]<=ref; ++b[1])
+      {
+         for (b[0]=0; b[0]<=ref-b[1]; ++b[0])
+         {
+            b[2] = ref - b[0] - b[1];
+            con[BarycentricToVTKTriangle(b, ref)] = idx++;
+         }
+      }
+   }
+   else if (geom == Geometry::TETRAHEDRON)
+   {
+      int idx = 0;
+      int b[4];
+      for (int k=0; k<=ref; k++)
+      {
+         for (int j=0; j<=k; j++)
+         {
+            for (int i=0; i<=j; i++)
+            {
+               b[0] = k-j;
+               b[1] = i;
+               b[2] = j-i;
+               b[3] = ref-b[0]-b[1]-b[2];
+               con[BarycentricToVTKTetra(b, ref)] = idx++;
+            }
+         }
+      }
+   }
+   else if (geom == Geometry::PRISM)
+   {
+      int idx = 0;
+      for (int k=0; k<=ref; k++)
+      {
+         for (int j=0; j<=ref; j++)
+         {
+            for (int i=0; i<=ref-j; i++)
+            {
+               con[CartesianToVTKPrism(i, j, k, ref)] = idx++;
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int idx=0; idx<nnodes; ++idx)
+      {
+         con[CartesianToVTKTensor(idx, ref, geom)] = idx;
+      }
    }
 }
 
@@ -9073,17 +9085,11 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
       for (int iel = 0; iel < GetNE(); iel++)
       {
          Geometry::Type geom = GetElementBaseGeometry(iel);
-         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-         int nnodes = RefG->RefPts.GetNPoints();
-         local_connectivity.SetSize(nnodes);
+         CreateVTKElementConnectivity(local_connectivity, geom, ref);
+         int nnodes = local_connectivity.Size();
          for (int i=0; i<nnodes; ++i)
          {
-            int idx = ConvertToVTKOrdering(i, ref, geom);
-            local_connectivity[idx] = np + i;
-         }
-         for (int i=0; i<nnodes; ++i)
-         {
-            WriteBinaryOrASCII(out, buf, local_connectivity[i], " ", format);
+            WriteBinaryOrASCII(out, buf, np+local_connectivity[i], " ", format);
          }
          if (format == VTUFormat::ASCII) { out << '\n'; }
          np += nnodes;
