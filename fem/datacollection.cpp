@@ -944,12 +944,12 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
    {
       out << " compressor=\"vtkZLibDataCompressor\"";
    }
-   out << " version=\"0.1\" byte_order=\"LittleEndian\">" << std::endl;
-   out << "<UnstructuredGrid>" << std::endl;
+   out << " version=\"0.1\" byte_order=\"LittleEndian\">\n";
+   out << "<UnstructuredGrid>\n";
    mesh->PrintVTU(out,ref,pv_data_format,high_order_output,compress_output);
 
    // dump out the grid functions as point data
-   out << "<PointData >" << std::endl;
+   out << "<PointData >\n";
    // save the grid functions
    // iterate over all grid functions
    for (FieldMapIterator it=field_map.begin(); it!=field_map.end(); ++it)
@@ -966,10 +966,10 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
       // this one is not implemented yet
       SaveQFieldVTU(out,ref,it);
    }
-   out << "</PointData>" << std::endl;
+   out << "</PointData>\n";
    // close the mesh
-   out << "</Piece>" << std::endl; // close the piece open in the PrintVTU method
-   out << "</UnstructuredGrid>" << std::endl;
+   out << "</Piece>\n"; // close the piece open in the PrintVTU method
+   out << "</UnstructuredGrid>\n";
    out << "</VTKFile>" << std::endl;
 }
 
@@ -993,7 +993,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
       out << "<DataArray type=\"" << GetDataTypeString()
           << "\" Name=\"" << it->first;
       out << "\" NumberOfComponents=\"1\" format=\""
-          << GetDataFormatString() << "\" >" << std::endl;
+          << GetDataFormatString() << "\" >\n";
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
