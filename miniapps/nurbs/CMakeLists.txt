@@ -22,7 +22,7 @@ configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/pipe-nurbs-2d.mesh
                COPYONLY)
 
 add_mfem_miniapp(nurbs_ex1
-  MAIN ex1.cpp
+  MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
 
 add_test(NAME nurbs_ex1_ser
@@ -39,7 +39,7 @@ add_test(NAME nurbs_ex1_lap_ser
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
-    MAIN ex1p.cpp
+    MAIN nurbs_ex1p.cpp
     LIBRARIES mfem)
 
   add_test(NAME nurbs_ex1p_np=4
@@ -53,7 +53,7 @@ if (MFEM_USE_MPI)
     ${MPIEXEC_POSTFLAGS})
 
   add_mfem_miniapp(nurbs_ex11p
-    MAIN ex11p.cpp
+    MAIN nurbs_ex11p.cpp
     LIBRARIES mfem)
 
   add_test(NAME nurbs_ex11p_np=4
