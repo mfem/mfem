@@ -176,13 +176,9 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   if (pa)
+   if (pa) // Jacobi preconditioning in partial assembly mode
    {
-      // Jacobi preconditioning in partial assembly mode
-      Vector tdiag_pa(fespace->GetTrueVSize());
-      a->AssembleDiagonal(tdiag_pa);
-
-      OperatorJacobiSmoother M(tdiag_pa, ess_tdof_list, 1.0);
+      OperatorJacobiSmoother M(*a, ess_tdof_list);
       PCG(*A, M, B, X, 1, 1000, 1e-12, 0.0);
    }
    else
