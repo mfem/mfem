@@ -473,11 +473,6 @@ public:
 class ParaViewDataCollection : public DataCollection
 {
 private:
-#ifdef MFEM_USE_MPI
-   MPI_Comm lcomm;
-#endif
-   int myrank;
-   int nprocs;
    int levels_of_detail;
    std::fstream pvd_stream;
    VTUFormat pv_data_format;
@@ -501,26 +496,12 @@ protected:
 public:
    /// Constructor. The collection name is used when saving the data.
    /** If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh().
-       The constructor works only in serial. */
+       Before saving the data collection, some parameters in the collection can
+       be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
    ParaViewDataCollection(const std::string& collection_name,
                           mfem::Mesh *mesh_ = NULL);
 
-#ifdef MFEM_USE_MPI
-   /// Construct a parallel ParaViewDataCollection.
-   /** Before saving the data collection, some parameters in the collection can
-       be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
-   ParaViewDataCollection(const std::string& collection_name,
-                          mfem::ParMesh *mesh_ = NULL);
-#endif
-
    virtual ~ParaViewDataCollection() override;
-
-   virtual void SetMesh(mfem::Mesh * new_mesh) override;
-
-#ifdef MFEM_USE_MPI
-   /// Set/change the mesh associated with the collection.
-   virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override;
-#endif
 
    /// Add a grid function to the collection
    virtual void RegisterField(const std::string& field_name,
@@ -561,13 +542,6 @@ public:
 
    /// Load the collection - not implemented in the ParaView writer
    virtual void Load(int cycle_ = 0) override;
-
-   static int create_directory(const std::string &dir_name);
-
-#ifdef MFEM_USE_MPI
-   static int create_directory(const std::string &dir_name, int myid,
-                               MPI_Comm mycom);
-#endif
 };
 
 }
