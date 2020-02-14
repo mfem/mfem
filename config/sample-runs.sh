@@ -24,6 +24,7 @@ cur_dir="${PWD}"
 mfem_dir="$(cd "$(dirname "$0")"/.. && pwd)"
 mfem_build_dir=""
 build_log=""
+no_output=""
 output_dir=""
 output_sfx=".out"
 # The group format is: '"group-name" "group-summary-title" "group-directory"
@@ -168,6 +169,8 @@ function extract_sample_runs()
    if [ "$rp" != "" ]; then
       # mpirun runs with 'rp' => ${rp}
       pruns=`printf "%s" "$pruns" | sed -e "s/-rp [0-9]/-rp ${rp}/g"`
+      # mpirun runs w/o 'rp' => ${rp}
+      pruns=`printf "%s" "$pruns" | sed -e "/-rp [0-9]/! s/$/ -rp ${rp}/g"`
    fi
    # if max_dofs_ex is set, add the option
    if [ "$max_dofs_ex" != "" ]; then
@@ -344,6 +347,9 @@ case "$1" in
       shift
       output_dir="$1"
       ;;
+   -no)
+      no_output="yes"
+      ;;
    -d)
       shift
       mfem_build_dir="$1"
@@ -452,10 +458,12 @@ function go()
    echo $sep
    echo "<${group}>" "${cmd[@]}"
    echo $sep
+   local cmd_suffix=
+   if [ "${no_output}" == "yes" ]; then cmd_suffix=">/dev/null"; fi
    if [ "${timing}" == "yes" ]; then
-      timed_run "${cmd[@]}"
+      eval timed_run "${cmd[@]}" $cmd_suffix
    else
-      "${cmd[@]}"
+      eval "${cmd[@]}" $cmd_suffix
    fi
    if [ "$?" -eq 0 ]; then
       res="${green}  OK  ${none}"
