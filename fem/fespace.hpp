@@ -101,6 +101,10 @@ protected:
        - Ordering::byVDIM  - first vector dimension, then nodes */
    Ordering::Type ordering;
 
+   /** Polynomial order for each element. If empty, all elements are assumed
+       to be of the default order (fec->DefaultOrder()). */
+   Array<char> elem_order;
+
    /// Number of degrees of freedom. Number of unknowns is #ndofs * #vdim.
    int ndofs;
 
@@ -341,8 +345,13 @@ public:
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
 
+   /// Sets the polynomial order of the i'th finite element.
+   void SetElementOrder(int i, int p);
    /// Returns the order of the i'th finite element
-   int GetOrder(int i) const;
+   int GetElementOrder(int i) const;
+
+   /// Returns the order of the i'th finite element (deprecated).
+   int GetOrder(int i) const { return GetElementOrder(i); }
    /// Returns the order of the i'th face finite element
    int GetFaceOrder(int i) const;
 

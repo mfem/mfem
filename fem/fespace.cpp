@@ -92,8 +92,17 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
    Constructor(mesh, NURBSext, fec, orig.vdim, orig.ordering);
 }
 
-int FiniteElementSpace::GetOrder(int i) const
+int FiniteElementSpace::SetElementOrder(int i, int p)
 {
+   MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
+
+   Geometry::Type GeomType = mesh->GetElementBaseGeometry(i);
+   return fec->FiniteElementForGeometry(GeomType)->GetOrder();
+}
+
+int FiniteElementSpace::GetElementOrder(int i) const
+{
+   MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
    Geometry::Type GeomType = mesh->GetElementBaseGeometry(i);
    return fec->FiniteElementForGeometry(GeomType)->GetOrder();
 }
