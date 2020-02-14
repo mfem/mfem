@@ -692,7 +692,7 @@ static void PAVectorDiffusionAssembleDiagonal(const int dim,
    {
       return PAVectorDiffusionDiagonal3D(NE, B, G, op, y, D1D, Q1D);
    }
-   MFEM_ABORT("Unknown kernel.");
+   MFEM_ABORT("Dimension not implemented.");
 }
 
 void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
