@@ -326,7 +326,8 @@ int main(int argc, char *argv[])
    visit_dc.Save();
 
    // 16. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("PVExample5P", pmesh);
+   ParaViewDataCollection paraview_dc("Example5P", pmesh);
+   paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(1);
    paraview_dc.SetCycle(1);
    paraview_dc.SetTime(0.0);
