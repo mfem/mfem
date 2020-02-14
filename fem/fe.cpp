@@ -12815,7 +12815,7 @@ Geometry Geometries;
 
 const double RBFFunction::GlobalRadius = 1.e10;
 
-const double GaussianRBF::hnorm = 0.37619048746124223;
+const double GaussianRBF::hNorm = 0.37619048746124223;
 
 double GaussianRBF::BaseFunction(double r) const
 {
@@ -12833,7 +12833,7 @@ double GaussianRBF::BaseDerivative2(double r) const
    return (-2 * 4 * r2) * exp(-r2);
 }
 
-const double MultiquadricRBF::hnorm = 0.17889;
+const double MultiquadricRBF::hNorm = 0.17889;
 
 double MultiquadricRBF::BaseFunction(double r) const
 {
@@ -12852,7 +12852,7 @@ double MultiquadricRBF::BaseDerivative2(double r) const
    return 1.0 / (f * f * f);
 }
 
-const double InvMultiquadricRBF::hnorm = 0.17889;
+const double InvMultiquadricRBF::hNorm = 0.17889;
 
 double InvMultiquadricRBF::BaseFunction(double r) const
 {
@@ -12869,6 +12869,130 @@ double InvMultiquadricRBF::BaseDerivative2(double r) const
 {
    const double f = BaseFunction(r);
    return (2 * r * r - 1) * f * f * f * f * f;
+}
+
+const double CompactGaussianRBF::hNorm = 0.37619048746124223;
+
+CompactGaussianRBF::CompactGaussianRBF(const double rad)
+   : radius(rad)
+{
+   double k = exp(-radius*radius);
+   multK = 1. / (1. - k);
+   shiftK = k / (1. - k);
+}
+
+double CompactGaussianRBF::BaseFunction(double r) const
+{
+   if (r < radius)
+   {
+      return multK * exp(-r * r) - shiftK;
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double CompactGaussianRBF::BaseDerivative(double r) const
+{
+   if (r < radius)
+   {
+      return -2.0 * multK * r * exp(-r * r);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double CompactGaussianRBF::BaseDerivative2(double r) const
+{
+   if (r < radius)
+   {
+      const double r2 = r * r;
+      return (-2 * 4 * r2) * multK * exp(-r2);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+const double TruncatedGaussianRBF::hNorm = 0.37619048746124223;
+
+double TruncatedGaussianRBF::BaseFunction(double r) const
+{
+   if (r < radius)
+   {
+      return exp(-r * r);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double TruncatedGaussianRBF::BaseDerivative(double r) const
+{
+   if (r < radius)
+   {
+      return -2.0 * r * exp(-r * r);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double TruncatedGaussianRBF::BaseDerivative2(double r) const
+{
+   if (r < radius)
+   {
+      const double r2 = r * r;
+      return (-2 * 4 * r2) * exp(-r2);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+const double Wendland11RBF::radius = 1.0;
+
+double Wendland11RBF::BaseFunction(double r) const
+{
+   if (r < radius)
+   {
+      return pow(1 - r, 3) * (1 + 3 * r);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double Wendland11RBF::BaseDerivative(double r) const
+{
+   if (r < radius)
+   {
+      return -12 * pow(-1 + r, 2) * r;
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double Wendland11RBF::BaseDerivative2(double r) const
+{
+   if (r < radius)
+   {
+      return -12 * (1 - 4 * r + 3 * r * r);
+   }
+   else
+   {
+      return 0.0;
+   }
 }
 
 const double Wendland31RBF::radius = 1.0;
@@ -12902,6 +13026,44 @@ double Wendland31RBF::BaseDerivative2(double r) const
    if (r < radius)
    {
       return 20. * pow(1 - r, 2) * (4. * r - 1.);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+const double Wendland33RBF::radius = 1.0;
+
+double Wendland33RBF::BaseFunction(double r) const
+{
+   if (r < radius)
+   {
+      return pow(1 - r, 8) * (1 + 8 * r + 25 * r * r + 32 * r * r * r);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double Wendland33RBF::BaseDerivative(double r) const
+{
+   if (r < radius)
+   {
+      return 22 * pow(-1 + r, 7) * r * (1 + 7 * r + 16 * r * r);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double Wendland33RBF::BaseDerivative2(double r) const
+{
+   if (r < radius)
+   {
+      return 22 * pow(-1 + r, 6) * (-1 - 6 * r + 15 * r * r + 160 * r * r * r);
    }
    else
    {
@@ -13106,11 +13268,12 @@ RBFFiniteElement::RBFFiniteElement(const int D,
                                    const int numPointsD,
                                    const double h,
                                    const int rbfType,
-                                   const int distNorm)
+                                   const int distNorm,
+                                   const int intOrder)
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
                          TensorBasisElement::Pow(numPointsD, D),
-                         2*numPointsD,
+                         intOrder*numPointsD,
                          FunctionSpace::Qk),
 #ifndef MFEM_THREAD_SAFE
      x_scr(D),
@@ -13304,6 +13467,7 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
    IntRuleToVec(ip, x_scr);
    if (isCompact)
    {
+      dshape = 0.0;
       GetTensorIndices(x_scr, cInd);
       for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
       {
@@ -13372,6 +13536,7 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
    
    if (isCompact)
    {
+      h = 0.0;
       for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
       {
          for (int j = cInd[1][0]; j <= cInd[1][1]; ++j)
@@ -13441,16 +13606,17 @@ RKFiniteElement::RKFiniteElement(const int D,
                                  const double h,
                                  const int rbfType,
                                  const int distNorm,
-                                 const int order)
+                                 const int order,
+                                 const int intOrder)
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
                          TensorBasisElement::Pow(numPointsD, D),
-                         2*numPointsD,
+                         intOrder * numPointsD, // integration order
                          FunctionSpace::Qk),
      polyOrd(order),
      numPoly1d(order+1),
      numPoly(RKFiniteElement::GetNumPoly(order, D)),
-     baseFE(new RBFFiniteElement(D, numPointsD, h, rbfType, distNorm))
+     baseFE(new RBFFiniteElement(D, numPointsD, h, rbfType, distNorm, intOrder))
 {
    Nodes = baseFE->GetNodes();
 #ifndef MFEM_THREAD_SAFE

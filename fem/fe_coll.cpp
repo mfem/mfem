@@ -291,19 +291,20 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       const int mapType = (name[8] == 'V'
                            ? FiniteElement::VALUE
                            : FiniteElement::INTEGRAL);
+      const int intOrder = 2; // fix this for now
       
       if (!strncmp(name, "RK", 2))
       {
          int order = atoi(name + 2);
          fec = new KernelFECollection(dim, numPoints, h,
                                       rbfType, distNorm, order,
-                                      mapType);
+                                      intOrder, mapType);
       }
       else
       {
          fec = new KernelFECollection(dim, numPoints, h,
                                       rbfType, distNorm, -1,
-                                      mapType);
+                                      intOrder, mapType);
       }
    }
    else
@@ -2848,6 +2849,7 @@ KernelFECollection::KernelFECollection(const int dim,
                                        const int rbfType,
                                        const int distNorm,
                                        const int order,
+                                       const int intOrder,
                                        const int mapType)
 {
    const char *mapStr = NULL;
@@ -2896,12 +2898,12 @@ KernelFECollection::KernelFECollection(const int dim,
       {
          L2_Elements[Geometry::SEGMENT]
             = new RBFFiniteElement(1, numPointsD, h,
-                                   rbfType, distNorm);
+                                   rbfType, distNorm, intOrder);
       }
       else {
          L2_Elements[Geometry::SEGMENT]
             = new RKFiniteElement(1, numPointsD, h,
-                                  rbfType, distNorm, order);
+                                  rbfType, distNorm, order, intOrder);
       }
       L2_Elements[Geometry::SEGMENT]->SetMapType(mapType);
       Tr_Elements[Geometry::POINT] = new PointFiniteElement;
@@ -2912,18 +2914,18 @@ KernelFECollection::KernelFECollection(const int dim,
       {
          L2_Elements[Geometry::SQUARE]
             = new RBFFiniteElement(2, numPointsD, h,
-                                   rbfType, distNorm);
+                                   rbfType, distNorm, intOrder);
          Tr_Elements[Geometry::SEGMENT]
             = new RBFFiniteElement(1, numPointsD, h,
-                                   rbfType, distNorm);
+                                   rbfType, distNorm, intOrder);
       }
       else {
          L2_Elements[Geometry::SQUARE]
             = new RKFiniteElement(2, numPointsD, h,
-                                  rbfType, distNorm, order);
+                                  rbfType, distNorm, order, intOrder);
          Tr_Elements[Geometry::SEGMENT]
             = new RKFiniteElement(1, numPointsD, h,
-                                  rbfType, distNorm, order);
+                                  rbfType, distNorm, order, intOrder);
       }
       L2_Elements[Geometry::SQUARE]->SetMapType(mapType);
    }
@@ -2933,18 +2935,18 @@ KernelFECollection::KernelFECollection(const int dim,
       {
          L2_Elements[Geometry::CUBE]
             = new RBFFiniteElement(3, numPointsD, h,
-                                   rbfType, distNorm);
+                                   rbfType, distNorm, intOrder);
          Tr_Elements[Geometry::SQUARE]
             = new RBFFiniteElement(2, numPointsD, h,
-                                   rbfType, distNorm);
+                                   rbfType, distNorm, intOrder);
       }
       else {
          L2_Elements[Geometry::CUBE]
             = new RKFiniteElement(3, numPointsD, h,
-                                  rbfType, distNorm, order);
+                                  rbfType, distNorm, order, intOrder);
          Tr_Elements[Geometry::SQUARE]
             = new RKFiniteElement(2, numPointsD, h,
-                                  rbfType, distNorm, order);
+                                  rbfType, distNorm, order, intOrder);
       }
       L2_Elements[Geometry::CUBE]->SetMapType(mapType);
    }

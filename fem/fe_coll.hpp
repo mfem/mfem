@@ -1044,6 +1044,7 @@ public:
                       const int rbfType,
                       const int distNorm,
                       const int order = -1,
+                      const int intOrder = 2, // num integration points per 1d point
                       const int mapType = FiniteElement::VALUE);
    virtual ~KernelFECollection();
    
