@@ -41,8 +41,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    : BilinearFormExtension(form),
      trialFes(a->FESpace()), testFes(a->FESpace())
 {
-   ElementDofOrdering ordering = dynamic_cast<const mfem::TensorBasisElement *>
-                                 (a->FESpace()->GetFE(0))?
+   ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
                                  ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
    elem_restrict_lex = trialFes->GetElementRestriction(ordering);
    if (elem_restrict_lex)
@@ -94,8 +93,7 @@ void PABilinearFormExtension::Update()
    height = width = fes->GetVSize();
    trialFes = fes;
    testFes = fes;
-   ElementDofOrdering ordering = dynamic_cast<const mfem::TensorBasisElement *>
-                                 (a->FESpace()->GetFE(0))?
+   ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
                                  ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
    elem_restrict_lex = trialFes->GetElementRestriction(ordering);
    if (elem_restrict_lex)

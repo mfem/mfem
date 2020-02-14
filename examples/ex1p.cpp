@@ -215,8 +215,7 @@ int main(int argc, char *argv[])
    Solver *prec = NULL;
    if (pa)
    {
-      if (dynamic_cast<const mfem::TensorBasisElement *>(fespace->GetFE(0)))
-      {
+      if (UsesTensorBasis(*fespace)) {
          prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
       }
    }
