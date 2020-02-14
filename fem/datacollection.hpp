@@ -206,7 +206,7 @@ protected:
 
    /// Output mesh format: see the #Format enumeration
    int format;
-   bool compression;
+   int compression;
 
    /// Should the collection delete its mesh and fields
    bool own_data;
@@ -482,7 +482,6 @@ private:
    std::fstream pvd_stream;
    VTUFormat pv_data_format;
    bool high_order_output;
-   int compression_level;
 
 protected:
    void SaveDataVTU(std::ostream &out, int ref);
@@ -551,7 +550,7 @@ public:
    /// Enable or diable zlib compression. If the input is true, use the default
    /// zlib compression level (unless the compression level has previously been
    /// set by calling SetCompressionLevel).
-   void SetCompression(bool compression) override;
+   void SetCompression(bool compression_) override;
 
    /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
    bool IsBinaryFormat() const;

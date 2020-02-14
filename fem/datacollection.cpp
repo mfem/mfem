@@ -940,13 +940,13 @@ void ParaViewDataCollection::Save()
 void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
 {
    out << "<VTKFile type=\"UnstructuredGrid\"";
-   if (compression_level != 0)
+   if (compression != 0)
    {
       out << " compressor=\"vtkZLibDataCompressor\"";
    }
    out << " version=\"0.1\" byte_order=\"LittleEndian\">\n";
    out << "<UnstructuredGrid>\n";
-   mesh->PrintVTU(out,ref,pv_data_format,high_order_output,compression_level);
+   mesh->PrintVTU(out,ref,pv_data_format,high_order_output,compression);
 
    // dump out the grid functions as point data
    out << "<PointData >\n";
@@ -1054,7 +1054,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
 
    if (IsBinaryFormat())
    {
-      bin_io::WriteEncodedCompressed(out,buf.data(),buf.size(),compression_level);
+      bin_io::WriteEncodedCompressed(out,buf.data(),buf.size(),compression);
       out << '\n';
    }
    out << "</DataArray>" << std::endl;
@@ -1098,13 +1098,15 @@ void ParaViewDataCollection::SetCompressionLevel(int compression_level_)
 {
    MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
                "Compression level must be between -1 and 9 (inclusive).");
-   compression_level = compression_level_;
+   compression = compression_level_;
 }
 
-void ParaViewDataCollection::SetCompression(bool compression)
+void ParaViewDataCollection::SetCompression(bool compression_)
 {
-   DataCollection::SetCompression(compression);
-   if (compression && compression_level == 0)
+   // If we are enabling compression, and it was disabled previously, use the
+   // default compression level. Otherwise, leave the compression level
+   // unchanged.
+   if (compression_ && compression == 0)
    {
       SetCompressionLevel(-1);
    }
