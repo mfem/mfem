@@ -52,6 +52,11 @@ Meshing improvements
   Hilbert curve. The ordering can be used to improve caching and parallel
   partitioning in non-conforming AMR.
 
+- The graph linear ordering library Gecko, previously an external dependency, is
+  now included directly in MFEM. As a result, the method
+  Mesh::GetGeckoElementOrdering is now always available. See the mesh-explorer
+  miniapp for an example of use.
+
 - Added support for creating refined versions of periodic meshes, making use of
   the new L2ElementRestriction class. This class also allows for computing
   geometric factors on periodic meshes using partial assembly.
