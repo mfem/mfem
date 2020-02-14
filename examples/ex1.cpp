@@ -114,43 +114,6 @@ int main(int argc, char *argv[])
       }
    }
 
-
-   // Gecko demo
-
-   Array<int> ordering, tentative;
-   double best_cost = infinity();
-
-   for (int i = 0; i < 5; i++)
-   {
-      double cost = mesh->GetGeckoElementOrdering(tentative,
-                                                  20, // iter
-                                                  4, // window
-                                                  4, // period
-                                                  i+1, // seed
-                                                  true, 30);
-
-      if (cost < best_cost)
-      {
-         ordering = tentative;
-         best_cost = cost;
-      }
-   }
-
-   cout << "Final cost: " << best_cost << endl;
-
-   mesh->ReorderElements(ordering);
-
-   ofstream f("curve.txt");
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Vector c;
-      mesh->GetElementCenter(i, c);
-      f << c(0) << " " << c(1) << endl;
-   }
-
-   return EXIT_SUCCESS;
-
-
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
