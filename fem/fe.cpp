@@ -12813,6 +12813,8 @@ H1_WedgeElement WedgeFE(1);
 // Construct 'Geometries' after 'TriangleFE', 'TetrahedronFE', and 'WedgeFE'.
 Geometry Geometries;
 
+const double RBFFunction::GlobalRadius = 1.e10;
+
 const double GaussianRBF::hnorm = 0.37619048746124223;
 
 double GaussianRBF::BaseFunction(double r) const
@@ -13122,7 +13124,44 @@ RBFFiniteElement::RBFFiniteElement(const int D,
      rbf(RBFType::GetRBF(rbfType)),
      distance(DistanceMetric::GetDistance(D, distNorm))
 {
-   SetPositions();
+   InitializeGeometry();
+}
+
+void RBFFiniteElement::GetCompactIndices(const Vector &ip,
+                                         int (&indices)[3][2]) const
+{
+   // This assumes the points lie on vertices of equally-spaced Cartesian grid
+   // Should work for any Lp norm, as the regions are assumed to be square
+   for (int d = 0; d < Dim; ++d)
+   {
+      indices[d][0] = max(int(ceil((ip(d) - radPhys) / delta)), 0);
+      indices[d][1] = min(int(floor((ip(d) + radPhys) / delta)), numPointsD - 1);
+   }
+
+   // Fill remainder of indices with zeros so we don't have to specialize dim
+   for (int d = Dim; d < 3; ++d)
+   {
+      indices[d][0] = 0;
+      indices[d][1] = 0;
+   }
+}
+
+void RBFFiniteElement::GetGlobalIndices(const Vector &ip,
+                                        int (&indices)[3][2]) const
+{
+   // Make the indices range through all the points
+   for (int d = 0; d < Dim; ++d)
+   {
+      indices[d][0] = 0;
+      indices[d][1] = numPointsD - 1;
+   }
+}
+
+void RBFFiniteElement::GetTensorIndices(const Vector &ip,
+                                        int (&indices)[3][2]) const
+{
+   if (isCompact) GetCompactIndices(ip, indices);
+   else           GetGlobalIndices(ip, indices);
 }
 
 void RBFFiniteElement::DistanceVec(const int i,
@@ -13148,11 +13187,16 @@ void RBFFiniteElement::DistanceVec(const int i,
    }
 }
 
-void RBFFiniteElement::SetPositions()
+void RBFFiniteElement::InitializeGeometry()
 {
    delta = 1.0 / (static_cast<double>(numPointsD) - 1.0);
    hPhys = delta * h * rbf->HNorm();
    hPhysInv = 1.0 / hPhys;
+   radPhys = hPhys * rbf->Radius();
+   isCompact = (rbf->CompactSupport() && radPhys < 1.0);
+   dimPoints[0] = numPointsD;
+   dimPoints[1] = Dim > 1 ? numPointsD : 1;
+   dimPoints[2] = Dim > 2 ? numPointsD : 1;
    switch (Dim)
    {
    case 1:
@@ -13199,20 +13243,47 @@ void RBFFiniteElement::CalcShape(const IntegrationPoint &ip,
    Vector x_scr(Dim); // integration point as vector
    Vector y_scr(Dim); // distance vector
    double r_scr; // distance
+   int cInd[3][2];
 #endif
    
    IntRuleToVec(ip, x_scr);
-   
-   for (int i = 0; i < Dof; ++i)
+   if (isCompact)
    {
-      // Get distance vector
-      DistanceVec(i, x_scr, y_scr);
-
-      // Get distance
-      distance->Distance(y_scr, r_scr);
-
-      // Get value of function
-      shape(i) = rbf->BaseFunction(r_scr);
+      shape = 0.0;
+      GetTensorIndices(x_scr, cInd);
+      for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
+      {
+         for (int j = cInd[1][0]; j <= cInd[1][1]; ++j)
+         {
+            for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
+            {
+               int l = k + dimPoints[2] * (j + dimPoints[1] * i);
+               
+               // Get distance vector
+               DistanceVec(l, x_scr, y_scr);
+               
+               // Get distance
+               distance->Distance(y_scr, r_scr);
+               
+               // Get value of function
+               shape(l) = rbf->BaseFunction(r_scr);
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < Dof; ++i)
+      {
+         // Get distance vector
+         DistanceVec(i, x_scr, y_scr);
+               
+         // Get distance
+         distance->Distance(y_scr, r_scr);
+               
+         // Get value of function
+         shape(i) = rbf->BaseFunction(r_scr);
+      }
    }
 }
 
@@ -13227,25 +13298,57 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
    Vector dr_scr(Dim); // derivative of distance
    double f_scr; // value of function
    double df_scr; // derivative value of function
+   int cInd[3][2];
 #endif
    
    IntRuleToVec(ip, x_scr);
-   
-   for (int i = 0; i < Dof; ++i)
+   if (isCompact)
    {
-      // Get distance vector
-      DistanceVec(i, x_scr, y_scr);
-
-      // Get distance and its derivative
-      distance->Distance(y_scr, r_scr);
-      distance->DDistance(y_scr, dr_scr);
-
-      // Get base value of function
-      df_scr = rbf->BaseDerivative(r_scr);
-      
-      for (int d = 0; d < Dim; ++d)
+      GetTensorIndices(x_scr, cInd);
+      for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
       {
-         dshape(i, d) = dr_scr(d) * df_scr * hPhysInv;
+         for (int j = cInd[1][0]; j <= cInd[1][1]; ++j)
+         {
+            for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
+            {
+               int l = k + dimPoints[2] * (j + dimPoints[1] * i);
+               
+               // Get distance vector
+               DistanceVec(l, x_scr, y_scr);
+
+               // Get distance and its derivative
+               distance->Distance(y_scr, r_scr);
+               distance->DDistance(y_scr, dr_scr);
+
+               // Get base value of function
+               df_scr = rbf->BaseDerivative(r_scr);
+      
+               for (int d = 0; d < Dim; ++d)
+               {
+                  dshape(l, d) = dr_scr(d) * df_scr * hPhysInv;
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < Dof; ++i)
+      {
+         // Get distance vector
+         DistanceVec(i, x_scr, y_scr);
+
+         // Get distance and its derivative
+         distance->Distance(y_scr, r_scr);
+         distance->DDistance(y_scr, dr_scr);
+
+         // Get base value of function
+         df_scr = rbf->BaseDerivative(r_scr);
+      
+         for (int d = 0; d < Dim; ++d)
+         {
+            dshape(i, d) = dr_scr(d) * df_scr * hPhysInv;
+         }
       }
    }
 }
@@ -13263,31 +13366,71 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
    double f_scr; // value of function
    double df_scr; // derivative value of function
    double ddf_scr;
+   int cInd[3][2];
 #endif
-   
    IntRuleToVec(ip, x_scr);
    
-   for (int i = 0; i < Dof; ++i)
+   if (isCompact)
    {
-      // Get distance vector
-      DistanceVec(i, x_scr, y_scr);
-
-      // Get distance and its derivative
-      distance->Distance(y_scr, r_scr);
-      distance->DDistance(y_scr, dr_scr);
-      distance->DDDistance(y_scr, ddr_scr);
-      
-      // Get base value of function
-      df_scr = rbf->BaseDerivative(r_scr);
-      ddf_scr = rbf->BaseDerivative2(r_scr);
-
-      int k = 0;
-      for (int d1 = 0; d1 < Dim; ++d1)
+      for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
       {
-         for (int d2 = d1; d2 < Dim; ++d2)
+         for (int j = cInd[1][0]; j <= cInd[1][1]; ++j)
          {
-            h(i, k) = dr_scr(d1) * dr_scr(d2) * ddf_scr * hPhysInv + ddr_scr(d1, d2) * df_scr * hPhysInv * hPhysInv;
-            k += 1;
+            for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
+            {
+               int l = k + dimPoints[2] * (j + dimPoints[1] * i);
+               
+               // Get distance vector
+               DistanceVec(l, x_scr, y_scr);
+
+               // Get distance and its derivative
+               distance->Distance(y_scr, r_scr);
+               distance->DDistance(y_scr, dr_scr);
+               distance->DDDistance(y_scr, ddr_scr);
+      
+               // Get base value of function
+               df_scr = rbf->BaseDerivative(r_scr);
+               ddf_scr = rbf->BaseDerivative2(r_scr);
+
+               int m = 0;
+               for (int d1 = 0; d1 < Dim; ++d1)
+               {
+                  for (int d2 = d1; d2 < Dim; ++d2)
+                  {
+                     h(l, m) = (dr_scr(d1) * dr_scr(d2) * ddf_scr * hPhysInv
+                                + ddr_scr(d1, d2) * df_scr * hPhysInv * hPhysInv);
+                     m += 1;
+                  }
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < Dof; ++i)
+      {
+         // Get distance vector
+         DistanceVec(i, x_scr, y_scr);
+
+         // Get distance and its derivative
+         distance->Distance(y_scr, r_scr);
+         distance->DDistance(y_scr, dr_scr);
+         distance->DDDistance(y_scr, ddr_scr);
+      
+         // Get base value of function
+         df_scr = rbf->BaseDerivative(r_scr);
+         ddf_scr = rbf->BaseDerivative2(r_scr);
+
+         int k = 0;
+         for (int d1 = 0; d1 < Dim; ++d1)
+         {
+            for (int d2 = d1; d2 < Dim; ++d2)
+            {
+               h(i, k) = (dr_scr(d1) * dr_scr(d2) * ddf_scr * hPhysInv
+                          + ddr_scr(d1, d2) * df_scr * hPhysInv * hPhysInv);
+               k += 1;
+            }
          }
       }
    }
@@ -13545,6 +13688,8 @@ void RKFiniteElement::GetM(const Vector &baseShape,
    Vector x_scr(Dim);
    Vector y_scr(Dim);
    Vector p_scr(numPoly);
+   int cInd[3][2];
+   int dimPoints[3];
 #endif
    
    IntRuleToVec(ip, x_scr);
@@ -13552,19 +13697,46 @@ void RKFiniteElement::GetM(const Vector &baseShape,
    // Zero out M
    M = 0.0;
 
-   // Get lower-triangular M matrix
-   for (int i = 0; i < Dof; ++i)
+   if (baseFE->IsCompact() && baseFE->TensorIndexed())
    {
-      // Distance vector
-      DistanceVec(i, x_scr, y_scr);
-
-      // Polynomials
-      GetPoly(y_scr, p_scr);
-
-      // Add values to M
-      AddToM(p_scr, baseShape(i), M);
+      baseFE->GetTensorIndices(x_scr, cInd);
+      baseFE->GetTensorNumPoints(dimPoints);
+      for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
+      {
+         for (int j = cInd[1][0]; j <= cInd[1][1]; ++j)
+         {
+            for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
+            {
+               int l = k + dimPoints[2] * (j + dimPoints[1] * i);
+               
+               // Distance vector
+               DistanceVec(l, x_scr, y_scr);
+               
+               // Polynomials
+               GetPoly(y_scr, p_scr);
+               
+               // Add values to M
+               AddToM(p_scr, baseShape(l), M);
+            }
+         }
+      }
    }
+   else
+   {
+      // Get lower-triangular M matrix
+      for (int i = 0; i < Dof; ++i)
+      {
+         // Distance vector
+         DistanceVec(i, x_scr, y_scr);
 
+         // Polynomials
+         GetPoly(y_scr, p_scr);
+
+         // Add values to M
+         AddToM(p_scr, baseShape(i), M);
+      }
+   }
+   
    // Fill in symmetries
    for (int k = 1; k < numPoly; ++k)
    {
@@ -13592,6 +13764,8 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
    {
       dp_scr[d].SetSize(numPoly);
    }
+   int cInd[3][2];
+   int dimPoints[3];
 #endif
    IntRuleToVec(ip, x_scr);
 
@@ -13603,26 +13777,61 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
    }
 
    // Get lower-triangular M and dM matrix
-   for (int i = 0; i < Dof; ++i)
+   if (baseFE->IsCompact() && baseFE->TensorIndexed())
    {
-      // Distance vector
-      DistanceVec(i, x_scr, y_scr);
-      
-      // Polynomials
-      GetDPoly(y_scr, p_scr, dp_scr);
-
-      // Add values to M
-      f_scr = baseShape(i);
-      AddToM(p_scr, f_scr, M);
-      
-      // Add values to dM
-      for (int d = 0; d < Dim; ++d)
+      baseFE->GetTensorIndices(x_scr, cInd);
+      baseFE->GetTensorNumPoints(dimPoints);
+      for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
       {
-         df_scr(d) = baseDeriv(i, d);
-      }
-      AddToDM(p_scr, dp_scr, f_scr, df_scr, dM);
-   }
+         for (int j = cInd[1][0]; j <= cInd[1][1]; ++j)
+         {
+            for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
+            {
+               int l = k + dimPoints[2] * (j + dimPoints[1] * i);
+               
+               // Distance vector
+               DistanceVec(l, x_scr, y_scr);
+      
+               // Polynomials
+               GetDPoly(y_scr, p_scr, dp_scr);
 
+               // Add values to M
+               f_scr = baseShape(l);
+               AddToM(p_scr, f_scr, M);
+      
+               // Add values to dM
+               for (int d = 0; d < Dim; ++d)
+               {
+                  df_scr(d) = baseDeriv(l, d);
+               }
+               AddToDM(p_scr, dp_scr, f_scr, df_scr, dM);
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < Dof; ++i)
+      {
+         // Distance vector
+         DistanceVec(i, x_scr, y_scr);
+      
+         // Polynomials
+         GetDPoly(y_scr, p_scr, dp_scr);
+
+         // Add values to M
+         f_scr = baseShape(i);
+         AddToM(p_scr, f_scr, M);
+      
+         // Add values to dM
+         for (int d = 0; d < Dim; ++d)
+         {
+            df_scr(d) = baseDeriv(i, d);
+         }
+         AddToDM(p_scr, dp_scr, f_scr, df_scr, dM);
+      }
+   }
+   
    // Fill in symmetries
    for (int k = 1; k < numPoly; ++k)
    {
@@ -13687,20 +13896,49 @@ void RKFiniteElement::CalculateValues(const Vector &c,
    Vector x_scr(Dim);
    Vector y_scr(Dim);
    Vector p_scr(numPoly);
+   int cInd[3][2];
+   int dimPoints[3];
 #endif
    
    IntRuleToVec(ip, x_scr);
    
-   for (int i = 0; i < Dof; ++i)
+   if (baseFE->IsCompact() && baseFE->TensorIndexed())
    {
-      // Distance vector
-      DistanceVec(i, x_scr, y_scr);
-      
-      // Polynomials
-      GetPoly(y_scr, p_scr);
+      baseFE->GetTensorIndices(x_scr, cInd);
+      baseFE->GetTensorNumPoints(dimPoints);
+      for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
+      {
+         for (int j = cInd[1][0]; j <= cInd[1][1]; ++j)
+         {
+            for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
+            {
+               int l = k + dimPoints[2] * (j + dimPoints[1] * i);
+               
+               // Distance vector
+               DistanceVec(l, x_scr, y_scr);
+               
+               // Polynomials
+               GetPoly(y_scr, p_scr);
 
-      // Get shape
-      shape(i) = (p_scr * c) * baseShape(i);
+               // Get shape
+               shape(l) = (p_scr * c) * baseShape(l);
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < Dof; ++i)
+      {
+         // Distance vector
+         DistanceVec(i, x_scr, y_scr);
+      
+         // Polynomials
+         GetPoly(y_scr, p_scr);
+
+         // Get shape
+         shape(i) = (p_scr * c) * baseShape(i);
+      }
    }
 }
 
@@ -13720,23 +13958,56 @@ void RKFiniteElement::CalculateDValues(const Vector &c,
    {
       dp_scr[d].SetSize(numPoly);
    }
+   int cInd[3][2];
+   int dimPoints[3];
 #endif
    
    IntRuleToVec(ip, x_scr);
    
-   for (int i = 0; i < Dof; ++i)
+   if (baseFE->IsCompact() && baseFE->TensorIndexed())
    {
-      // Distance vector
-      DistanceVec(i, x_scr, y_scr);
-      
-      // Polynomials
-      GetDPoly(y_scr, p_scr, dp_scr);
-      
-      // Get shape
-      for (int d = 0; d < Dim; ++d)
+      baseFE->GetTensorIndices(x_scr, cInd);
+      baseFE->GetTensorNumPoints(dimPoints);
+      for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
       {
-         dshape(i, d) = ((dp_scr[d] * c + p_scr * dc[d]) * baseShape(i)
-                         + (p_scr * c) * baseDShape(i, d));
+         for (int j = cInd[1][0]; j <= cInd[1][1]; ++j)
+         {
+            for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
+            {
+               int l = k + dimPoints[2] * (j + dimPoints[1] * i);
+               
+               // Distance vector
+               DistanceVec(l, x_scr, y_scr);
+               
+               // Polynomials
+               GetDPoly(y_scr, p_scr, dp_scr);
+               
+               // Get shape
+               for (int d = 0; d < Dim; ++d)
+               {
+                  dshape(l, d) = ((dp_scr[d] * c + p_scr * dc[d]) * baseShape(l)
+                                  + (p_scr * c) * baseDShape(l, d));
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < Dof; ++i)
+      {
+         // Distance vector
+         DistanceVec(i, x_scr, y_scr);
+      
+         // Polynomials
+         GetDPoly(y_scr, p_scr, dp_scr);
+      
+         // Get shape
+         for (int d = 0; d < Dim; ++d)
+         {
+            dshape(i, d) = ((dp_scr[d] * c + p_scr * dc[d]) * baseShape(i)
+                            + (p_scr * c) * baseDShape(i, d));
+         }
       }
    }
 }

@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "RK order or -1 for RBF");
    args.AddOption(&rbfType, "-f", "--func",
-                  "(0) Gaussian, (1) Multiquadric, (2) Inverse multiquadric");
+                  "(0) Gaussian, (1) Multiquadric, (2) Inverse multiquadric, (3) Wendland31");
    args.AddOption(&distNorm, "-s", "--dist",
                   "Which Lp norm to use for distance");
    args.AddOption(&numPoints, "-n", "--points",

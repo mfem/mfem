@@ -3278,6 +3278,7 @@ public:
 class RBFFunction
 {
 public:
+   static const double GlobalRadius; // functions with r>=GR are considered global
    RBFFunction() { };
    virtual ~RBFFunction() { }
 
@@ -3287,8 +3288,11 @@ public:
    virtual double BaseDerivative2(double r) const = 0;
 
    // The support radius, outside of which the function is zero
-   virtual double Radius() const { return 1.e10; }
+   virtual double Radius() const { return GlobalRadius; }
 
+   // Does function have compact support?
+   virtual bool CompactSupport() const { return false; }
+   
    // This makes the shape parameter consistent across kernels
    virtual double HNorm() const = 0;
 };
@@ -3352,7 +3356,8 @@ public:
 
    virtual double Radius() const { return radius; }
    
-   virtual double HNorm() const { return 1.0; }
+   virtual double HNorm() const { return 1.0 / radius; }
+   virtual bool CompactSupport() const { return true; }
 };
 
 // Choose the type of RBF to use
@@ -3490,9 +3495,21 @@ public:
    KernelFiniteElement(int D, int G, int Do, int O, int F)
       : ScalarFiniteElement(D, G, Do, O, F) { }
    virtual ~KernelFiniteElement() { }
-   
+
+   // Converts integration rule to vector
    virtual void IntRuleToVec(const IntegrationPoint &ip,
                              Vector &vec) const;
+
+   virtual bool IsCompact() const = 0;
+   virtual const RBFFunction *Kernel() const = 0;
+
+   // Get range of i,j,k indices that are nonzero for compact support
+   virtual bool TensorIndexed() const { return false; }
+   virtual void GetTensorIndices(const Vector &ip,
+                                 int (&indices)[3][2]) const
+   { MFEM_ABORT("GetTensorIndices(...)"); }
+   virtual void GetTensorNumPoints(int (&tNumPoints)[3]) const
+   { MFEM_ABORT("GetTensorNumPoints(...)"); }
    
    using FiniteElement::Project;
    
@@ -3501,7 +3518,7 @@ public:
 
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
-   
+
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { ScalarLocalInterpolation(Trans, I, *this); }
@@ -3519,15 +3536,19 @@ private:
    mutable double r_scr, f_scr, df_scr, ddf_scr;
    mutable Vector x_scr, y_scr, dy_scr, dr_scr;
    mutable DenseMatrix ddr_scr;
+   mutable int cInd[3][2];
 #endif
+   bool isCompact; // Is the RBF with the given h compact?
+   int dimPoints[3];
    int numPointsD; // Number of points across the element in each D
    double delta; // Distance between points
    double h; // Shape parameter, approx number of points in 1d support radius
    double hPhys; // Shape parameter times distance between points times HNorm
    double hPhysInv; // Inverse hPhys
+   double radPhys; // Radius adjusted by h
    const RBFFunction *rbf;
    const DistanceMetric *distance;
-   void SetPositions();
+   void InitializeGeometry();
    
    virtual void DistanceVec(const int i,
                             const Vector &x,
@@ -3540,6 +3561,23 @@ public:
                     const int rbfType,
                     const int distNorm);
    virtual ~RBFFiniteElement() { delete rbf; delete distance; }
+
+   virtual bool TensorIndexed() const { return true; }
+   virtual void GetCompactIndices(const Vector &ip,
+                                  int (&indices)[3][2]) const;
+   virtual void GetGlobalIndices(const Vector &ip,
+                                 int (&indices)[3][2]) const;
+   virtual void GetTensorIndices(const Vector &ip,
+                                 int (&indices)[3][2]) const;
+   virtual void GetTensorNumPoints(int (&tNumPoints)[3]) const
+   {
+      tNumPoints[0] = dimPoints[0];
+      tNumPoints[1] = dimPoints[1];
+      tNumPoints[2] = dimPoints[2];
+   }
+   
+   virtual bool IsCompact() const { return isCompact; }
+   virtual const RBFFunction *Kernel() const { return rbf; }
    
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const;
@@ -3559,6 +3597,8 @@ private:
    mutable Vector dc_scr[3], dp_scr[3];
    mutable DenseMatrix dM_scr[3];
    mutable DenseMatrixInverse Minv_scr;
+   mutable int cInd[3][2];
+   mutable int dimPoints[3];
 #endif
    int polyOrd, numPoly, numPoly1d;
    KernelFiniteElement *baseFE;
@@ -3607,6 +3647,9 @@ public:
                    const int distNorm,
                    const int order);
    virtual ~RKFiniteElement() { delete baseFE; }
+   
+   virtual bool IsCompact() const { return baseFE->IsCompact(); }
+   virtual const RBFFunction *Kernel() const { return baseFE->Kernel(); }
    
    static int GetNumPoly(int polyOrd, int dim);
    
