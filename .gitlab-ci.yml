@@ -147,58 +147,58 @@ stages:
         - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
         - make test
 
-# The BUILD_ROOT is unique to the branch and pipeline ID. This prevent
-# concurrency between 2 pipelines. Branch is not necessary but makes it easier
-# to retrieve a given pipeline.
+# Shared script for baseline and sample-run-baseline.
+# BASELINE_TEST is what differentiate between both.
+.baseline_script: &baseline_script |
+  # locals
+  _full_out=${BASELINE_TEST}.out
+  _out=${BASELINE_TEST}-${SYS_TYPE}.out
+  _diff=${BASELINE_TEST}.diff
+  _ref=../${BASELINE_TEST}-${SYS_TYPE}.saved
+  _artifact=${CI_PROJECT_DIR}/${BASELINE_TEST}-${SYS_TYPE}-saved.txt
+  # prepare
+  cd ${BUILD_ROOT}
+  ln -snf ${CI_PROJECT_DIR} mfem
+  cd tests
+  mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
+  # run
+  ../runtest ../../mfem "${BASELINE_TEST} ${BUILD_ROOT}/tpls"
+  # post
+  if [[ ! -f ${_full_out} || ! -f ${_out} ]]
+  then
+      echo "Something went wrong in ${BASELINE_TEST}";
+      exit 1;
+  fi
+  cp ${_out} ${_artifact}
+  diff -u ${_out} ${_ref} | tee ${_diff} || true
+  cp ${_diff} ${CI_PROJECT_DIR}/
+  if [[ ! $(head -n1 ${_diff}) ]]; then true; else false; fi
+
 .baselinecheck_mfem:
     stage: baseline_check
+    variables:
+      BASELINE_TEST: "baseline"
     script:
-        - cd ${BUILD_ROOT}
-        - ln -snf ${CI_PROJECT_DIR} mfem
-        - cd tests
-        - mkdir -p runs && cd runs && rm -f *
-        - ../runtest ../../mfem "baseline ${BUILD_ROOT}/tpls"
-        - |
-          if [[ ! -f baseline.out || ! -f baseline-${SYS_TYPE}.out ]]
-          then
-              echo "Something went wrong";
-              exit 1;
-          fi
-        - cp baseline.out ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt
-        - diff -u baseline-${SYS_TYPE}.out ../baseline-${SYS_TYPE}.saved | tee baseline-diff.txt || true
-        - cp baseline-diff.txt ${CI_PROJECT_DIR}
-        - if [[ ! $(head -n1 baseline-diff.txt) ]]; then true; else false; fi
+      - *baseline_script
     allow_failure: true
     artifacts:
         paths:
-            - baseline-${SYS_TYPE}-saved.txt
-            - baseline-diff.txt
+            - ${BASELINE_TEST}-${SYS_TYPE}-saved.txt
+            - ${BASELINE_TEST}-diff.txt
         when: always
 
 .samplebaselinecheck_mfem:
     stage: baseline_check
+    variables:
+      BASELINE_TEST: "sample-runs-baseline"
     script:
-        - cd ${BUILD_ROOT}
-        - ln -snf ${CI_PROJECT_DIR} mfem
-        - cd tests
-        - mkdir -p runs_sample && cd runs_sample && rm -f *
-        - ../runtest ../../mfem "sample-runs-baseline ${BUILD_ROOT}/tpls"
-        - |
-          if [[ ! -f sample-runs-baseline.out || ! -f sample-runs-baseline-${SYS_TYPE}.out ]]
-          then
-              echo "Something went wrong";
-              exit 1;
-          fi
-        - cp sample-runs-baseline.out ${CI_PROJECT_DIR}/sample-runs-baseline-${SYS_TYPE}-saved.txt
-        - diff -u sample-runs-baseline-${SYS_TYPE}.out ../sample-runs-baseline-${SYS_TYPE}.saved | tee baseline-diff.txt || true
-        - cp sample-runs-baseline-diff.txt ${CI_PROJECT_DIR}
-        - if [[ ! $(head -n1 sample-runs-baseline-diff.txt) ]]; then true; else false; fi
+      - *baseline_script
     allow_failure: true
     timeout: 6h
     artifacts:
         paths:
-            - sample-runs-baseline-${SYS_TYPE}-saved.txt
-            - sample-runs-baseline-diff.txt
+            - ${BASELINE_TEST}-${SYS_TYPE}-saved.txt
+            - ${BASELINE_TEST}-diff.txt
         when: always
 
 # This job can only be manually triggers on a pipeline for master branch,
