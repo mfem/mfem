@@ -328,8 +328,13 @@ int main(int argc, char *argv[])
    // 16. Save data in the ParaView format
    ParaViewDataCollection paraview_dc("Example5P", pmesh);
    paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(1);
-   paraview_dc.SetCycle(1);
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetDataFormat(VTUFormat::BINARY);
+#ifdef MFEM_USE_GZSTREAM
+   paraview_dc.SetCompression(true);
+#endif
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0.0);
    paraview_dc.RegisterField("velocity",u);
    paraview_dc.RegisterField("pressure",p);
