@@ -239,11 +239,11 @@ class BlockMGSolver : public Solver
 {
 private:
    /// The linear system matrix
-   Array2D<HypreParMatrix *>& Af;
-   Array2D<double>& Acoef;
-   vector<Array<int>>Aoffsets;
-   vector<Array<int>>Poffsets_i;
-   vector<Array<int>>Poffsets_j;
+   Array2D<HypreParMatrix *>& Af;  // TODO: remove this, as it is used only in the constructor
+   Array2D<double>& Acoef;  // TODO: remove this, as it is used only in the constructor
+   vector<Array<int>> Aoffsets;
+   vector<Array<int>> Poffsets_i;
+   vector<Array<int>> Poffsets_j;
    std::vector<Array2D<HypreParMatrix *>> A;
    std::vector<HypreParMatrix *>& P;
    std::vector<BlockOperator *> BlkP;
@@ -355,7 +355,7 @@ BlockMGSolver::BlockMGSolver(const int height, const int width,
       }
    }
 
-   // Convert to PetscParMatrix
+   // Convert to HypreParMatrix
    HypreParMatrix * Ac;
 
    std::vector<std::vector<int> > blockProcOffsets(numBlocks);

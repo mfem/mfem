@@ -1813,14 +1813,8 @@ private:
 public:
   VectorFEBoundaryTangentIntegrator(double a = 1.0) : alpha(a)
   { }
-  /*  
-  virtual void AssembleFaceMatrix(const FiniteElement &el1,
-				  const FiniteElement &el2,
-				  FaceElementTransformations &Trans,
-				  DenseMatrix &elmat);
-  */
-  void AssembleElementMatrix( const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat );
 
+  void AssembleElementMatrix(const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat);
 };
 
 /// alpha (q . grad u, v)
