@@ -43,16 +43,16 @@ VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p 0 -e 0
 # grid-convergence-test setup
 MESH0 = data/inline-3$(GEOM).mesh
 MESH1 = data/inline-4$(GEOM).mesh
-GEOM = quad
+GEOM = tri
 
 # ADVECTION
 CONFIG = -p 0 -e 0 -o 1 -c 0 -tf 1 -dt 0.00001 -s 1 -vs 1000
 CONFIG-NAME = p0e0o1-$(GEOM)
 
 # SHALLOW WATER
-MESH = data/periodic-square.mesh
-CONFIG = -p 3 -e 0 -o 1 -c 0 -tf 5.656854249 -dt 0.0001 -s 3 -vs 1000
-CONFIG-NAME = p3e0o1-$(GEOM)
+MESH = data/periodic-tri.mesh
+CONFIG = -p 3 -e 0 -o 3 -c 0 -tf 2.828427125 -dt 0.0001 -s 3 -vs 1000
+CONFIG-NAME = p3e0o3-$(GEOM)
 
 ## Makefile rules. #############################################################
 
@@ -107,10 +107,10 @@ grid-convergence-advection:
 
 grid-convergence-swe:
 	rm errors.txt; \
+	hypsys $(CONFIG) -m $(MESH) -r 2; \
 	hypsys $(CONFIG) -m $(MESH) -r 3; \
 	hypsys $(CONFIG) -m $(MESH) -r 4; \
 	hypsys $(CONFIG) -m $(MESH) -r 5; \
-	hypsys $(CONFIG) -m $(MESH) -r 6; \
 	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
 
 $(MFEM_LIB_FILE):

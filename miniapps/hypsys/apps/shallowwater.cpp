@@ -63,15 +63,38 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &f,
       {
          f(0,0) = u(1);
          f(0,1) = u(2);
-         f(1,0) = u(1)*u(1)/u(0) + GravConst / 2. * u(0)*u(0);
+         f(1,0) = u(1)*u(1)/u(0) + 0.5 * GravConst * u(0)*u(0);
          f(1,1) = u(1)*u(2)/u(0);
          f(2,0) = u(2)*u(1)/u(0);
-         f(2,1) = u(2)*u(2)/u(0) + GravConst / 2. * u(0)*u(0);
+         f(2,1) = u(2)*u(2)/u(0) + 0.5 * GravConst * u(0)*u(0);
          break;
       }
       default: MFEM_ABORT("Invalid space dimensions.");
    }
 }
+
+/* void ShallowWater::EvaluateFluxDerivative(const Vector &u, Vector &df, int n)
+{
+   switch (dim)
+   {
+   case 1:
+   {
+      df(0) = 1;
+      df(1) = pow(-u(1) / u(0), 2.) + GravConst * u(0);
+      df * = normal(0);
+      break;
+   }
+   case 2:
+   {
+      double velx = u(1) / u(0);
+      double vely = u(2) / u(0);
+
+      break;
+   }
+   default:
+      MFEM_ABORT("Invalid space dimensions.");
+   }
+} */
 
 double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                   int i) const
@@ -169,6 +192,5 @@ void InitialConditionSWE(const Vector &x, Vector &u)
 
 void InflowFunctionSWE(const Vector &x, double t, Vector &u)
 {
-   u.SetSize(x.Size()+1);
    AnalyticalSolutionSWE(x, t, u);
 }

@@ -65,18 +65,18 @@ int main(int argc, char *argv[])
    ODESolver *odeSolver = NULL;
    switch (config.odeSolverType)
    {
-   case 1:
-      odeSolver = new ForwardEulerSolver;
-      break;
-   case 2:
-      odeSolver = new RK2Solver(1.0);
-      break;
-   case 3:
-      odeSolver = new RK3SSPSolver;
-      break;
-   default:
-      cout << "Unknown ODE solver type: " << config.odeSolverType << endl;
-      return -1;
+      case 1:
+         odeSolver = new ForwardEulerSolver;
+         break;
+      case 2:
+         odeSolver = new RK2Solver(1.0);
+         break;
+      case 3:
+         odeSolver = new RK3SSPSolver;
+         break;
+      default:
+         cout << "Unknown ODE solver type: " << config.odeSolverType << endl;
+         return -1;
    }
 
    // Read the serial mesh from the given mesh file on all processors.
@@ -108,31 +108,31 @@ int main(int argc, char *argv[])
    Array<bool> VectorOutput;
    switch (config.ProblemNum)
    {
-   case 0:
-   case 1:
-   case 2:
-   {
-      NumEq = 1;
-      NumUnknowns = 1;
-      VectorOutput.SetSize(NumUnknowns);
-      VectorOutput[0] = false;
-      break;
-   }
-   case 3:
-   {
-      NumEq = 1 + dim;
-      NumUnknowns = 2;
-      VectorOutput.SetSize(NumUnknowns);
-      VectorOutput[0] = false;
-      VectorOutput[1] = true;
-      break;
-   }
-   default:
-   {
-      cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
-      delete odeSolver;
-      return -1;
-   }
+      case 0:
+      case 1:
+      case 2:
+      {
+         NumEq = 1;
+         NumUnknowns = 1;
+         VectorOutput.SetSize(NumUnknowns);
+         VectorOutput[0] = false;
+         break;
+      }
+      case 3:
+      {
+         NumEq = 1 + dim;
+         NumUnknowns = 2;
+         VectorOutput.SetSize(NumUnknowns);
+         VectorOutput[0] = false;
+         VectorOutput[1] = true;
+         break;
+      }
+      default:
+      {
+         cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
+         delete odeSolver;
+         return -1;
+      }
    }
 
    // Create Bernstein Finite Element Space.
@@ -173,26 +173,26 @@ int main(int argc, char *argv[])
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
-   case 0:
-   {
-      hyp = new Advection(&vfes, u_block, config);
-      break;
-   }
-   case 1:
-   {
-      break;
-   } // Burgers
-   case 2:
-   {
-      break;
-   } // KPP
-   case 3:
-   {
-      hyp = new ShallowWater(&vfes, u_block, config);
-      break;
-   }
-   default:
-      return -1;
+      case 0:
+      {
+         hyp = new Advection(&vfes, u_block, config);
+         break;
+      }
+      case 1:
+      {
+         break;
+      } // Burgers
+      case 2:
+      {
+         break;
+      } // KPP
+      case 3:
+      {
+         hyp = new ShallowWater(&vfes, u_block, config);
+         break;
+      }
+      default:
+         return -1;
    }
 
    if (config.odeSolverType != 1 && hyp->SteadyState)

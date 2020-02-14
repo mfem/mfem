@@ -4,9 +4,9 @@ ParFE_Evolution::ParFE_Evolution(ParFiniteElementSpace *pfes_,
                                  HyperbolicSystem *hyp_,
                                  DofInfo &dofs_, EvolutionScheme scheme_,
                                  const Vector &LumpedMassMat_)
-    : FE_Evolution(pfes_, hyp_, dofs_, scheme_,
-                   LumpedMassMat_), pfes(pfes_), x_gf_MPI(pfes_),
-      xSizeMPI(dofs.fes->GetTrueVSize()) { cout << xSizeMPI << " " << pfes->GetTrueVSize() << endl; }
+   : FE_Evolution(pfes_, hyp_, dofs_, scheme_,
+                  LumpedMassMat_), pfes(pfes_), x_gf_MPI(pfes_),
+     xSizeMPI(dofs.fes->GetTrueVSize()) { }
 
 void ParFE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
                                Vector &xMPI, int e, int i, int k) const
@@ -28,22 +28,15 @@ void ParFE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
          }
          else
          {
-            // nbr in different MPI task? // TODO vector valued
-            uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr)
-                                    : xMPI(n + (nbr - xSizeMPI) * hyp->NumEq);
-            if (nbr >= xSizeMPI && myid == 0)
-            {
-               //xMPI.Print();
-               //cout << n << " " << nbr << " " << xSizeMPI << " " << n + (nbr - xSizeMPI) * hyp->NumEq << endl;
-            }
+            // nbr in different MPI task?
+            uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) : xMPI(int((
+                                                                         nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
          }
 
          y1(n) += x(DofInd) * ShapeEvalFace(i, j, k);
          y2(n) += uNbr * ShapeEvalFace(i, j, k);
       }
-      // 		cout << y2(n) << " ";
    }
-   // 	cout << /*xSizeMPI <<*/ endl;
 }
 
 double ParFE_Evolution::ConvergenceCheck(double dt, double tol,
@@ -84,42 +77,15 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
    x_gf_MPI.ExchangeFaceNbrData();
    Vector &xMPI = x_gf_MPI.FaceNbrData();
 
-   MPI_Comm comm = pfes->GetParMesh()->GetComm();
-
-   int myid;
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   if (myid == 0)
-   {
-      // 		xMPI.Print();
-      // 		x.Print();
-   }
-   // 	MPI_Barrier(comm);
-   // 	cout << endl;
-   // 	if (myid == 1)
-   // 	{
-   // 		xMPI.Print();
-   // 		x.Print();
-   // 	}
-   // 	MPI_Barrier(comm);
-   // 	MFEM_ABORT(".");
-
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
       mat2 = 0.;
 
-      //       DenseMatrix vel = hyp->VelElem(e);
-
       for (int k = 0; k < nqe; k++)
       {
          ElemEval(uElem, uEval, k);
-
-         //          // ADVECTION
-         //          normal = vel.GetColumn(k);
-         //          normal *= uEval(0);
-         //          Flux.SetRow(0, normal);
-
          hyp->EvaluateFlux(uEval, Flux, e, k);
          MultABt(ElemInt(e * nqe + k), Flux, mat1);
          AddMult(DShapeEval(k), mat1, mat2);
@@ -133,38 +99,6 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
       {
          for (int k = 0; k < nqf; k++)
          {
-            //             // ADVECTION
-            //             NumFlux = 0.;
-            //             for (int l = 0; l < dim; l++)
-            //             {
-            //                NumFlux(0) += normal(l) * hyp->VelFace(l,i,e*nqf+k);
-            //             }
-            //
-            //             uEval = uNbrEval = 0.;
-            //
-            //             for (int j = 0; j < dofs.NumFaceDofs; j++)
-            //             {
-            //                nbr = dofs.NbrDofs(i,j,e);
-            //                if (nbr < 0)
-            //                {
-            //                   DofInd = e*nd+dofs.BdrDofs(j,i);
-            //                   uNbr = hyp->inflow(DofInd);
-            //                }
-            //                else
-            //                {
-            //                   // nbr in different MPI task?
-            //                   uNbr = (nbr < xSizeMPI) ? x(nbr) : xMPI(nbr-xSizeMPI);
-            //                }
-            //
-            //                uEval(0) += uElem(dofs.BdrDofs(j,i)) * ShapeEvalFace(i,j,k);
-            //                uNbrEval(0) += uNbr * ShapeEvalFace(i,j,k);
-            //             }
-            //
-            //             // Lax-Friedrichs flux (equals full upwinding for Advection).
-            //             NumFlux(0) = 0.5 * ( NumFlux(0) * (uEval(0) + uNbrEval(0))
-            //                                  + abs(NumFlux(0)) * (uEval(0) - uNbrEval(0)) );
-            //             NumFlux *= BdrInt(i,k,e);
-
             OuterUnitNormals(e * dofs.NumBdrs + i).GetColumn(k, normal);
             FaceEval(x, uEval, uNbrEval, xMPI, e, i, k);
 

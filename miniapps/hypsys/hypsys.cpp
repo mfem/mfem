@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
          }
          //for (int k = 0; k < NumUnknowns; k++)
          //{
-            VisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
+         VisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
          //}
       }
    }
