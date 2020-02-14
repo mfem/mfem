@@ -100,6 +100,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(comm, &myid);
 
    // 2. Parse command-line options.
+   int ser_ref_levels = 0;
    int order  = 1;
    int nsteps = 100;
    double dt  = 0.1;
@@ -107,6 +108,8 @@ int main(int argc, char *argv[])
    bool gnuplot = false;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
                   "Time integration order.");
    args.AddOption(&prob_, "-p", "--problem-type",
@@ -167,10 +170,17 @@ int main(int argc, char *argv[])
       ofs << t << "\t" << q(0) << "\t" << p(0) << endl;
    }
 
-   // 6. Create a Mesh for visualization in phase space
+   // 6. Create a Mesh for visualization in phase space and refine the mesh
+   //    in serial to increase the resolution. In this example we do
+   //    'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
+   //    a command-line parameter.
    int nverts = (visualization) ? (num_procs+1)*(nsteps+1) : 0;
    int nelems = (visualization) ? (nsteps * num_procs) : 0;
    Mesh mesh(2, nverts, nelems, 0, 3);
+   for (int lev = 0; lev < ser_ref_levels; lev++)
+   {
+      mesh.UniformRefinement();
+   }
 
    int   *part = (visualization) ? (new int[nelems]) : NULL;
    int    v[4];

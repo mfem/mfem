@@ -88,6 +88,7 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
+   int ref_levels = 0;
    int order  = 1;
    int nsteps = 100;
    double dt  = 0.1;
@@ -95,6 +96,8 @@ int main(int argc, char *argv[])
    bool gnuplot = false;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Time integration order.");
    args.AddOption(&prob_, "-p", "--problem-type",
@@ -146,10 +149,18 @@ int main(int argc, char *argv[])
       ofs << t << "\t" << q(0) << "\t" << p(0) << endl;
    }
 
-   // 5. Create a Mesh for visualization in phase space
+   // 5. Create a Mesh for visualization in phase space.
+   //    Refine the mesh to increase the resolution. In this example we do
+   //    'ref_levels' of uniform refinement.
    int nverts = (visualization) ? 2*(nsteps+1) : 0;
    int nelems = (visualization) ? nsteps : 0;
    Mesh mesh(2, nverts, nelems, 0, 3);
+   {
+      for (int l = 0; l < ref_levels; l++)
+      {
+         mesh.UniformRefinement();
+      }
+   }
 
    int    v[4];
    Vector x0(3); x0 = 0.0;
