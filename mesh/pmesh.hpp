@@ -121,9 +121,6 @@ protected:
                               const STable3D &old_faces,
                               Array<int> *f2qf);
 
-   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                             int ordering = 1);
-
    void ExchangeFaceNbrData(Table *gr_sface, int *s2l_face);
 
    /// Refine a mixed 2D mesh uniformly.
@@ -265,6 +262,9 @@ public:
 
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
+
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
