@@ -115,7 +115,7 @@ TEST_CASE("diffusiondiag")
 }
 
 template <typename INTEGRATOR>
-double test_vectorintegratordiagonalpa(int dim)
+double test_vectorintegratordiagonalpa(int dim, int order)
 {
    Mesh *mesh = nullptr;
    if (dim == 2)
@@ -126,8 +126,6 @@ double test_vectorintegratordiagonalpa(int dim)
    {
       mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
    }
-
-   int order = 2;
 
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(mesh, &fec, dim);
@@ -159,13 +157,19 @@ TEST_CASE("Vector Mass Diagonal PA", "[PartialAssembly], [AssembleDiagonal]")
 {
    SECTION("2D")
    {
-      REQUIRE(test_vectorintegratordiagonalpa<VectorMassIntegrator>(2) == Approx(
+      REQUIRE(test_vectorintegratordiagonalpa<VectorMassIntegrator>(2, 2) == Approx(
+                 0.0));
+
+      REQUIRE(test_vectorintegratordiagonalpa<VectorMassIntegrator>(2, 3) == Approx(
                  0.0));
    }
 
    SECTION("3D")
    {
-      REQUIRE(test_vectorintegratordiagonalpa<VectorMassIntegrator>(3) == Approx(
+      REQUIRE(test_vectorintegratordiagonalpa<VectorMassIntegrator>(3, 2) == Approx(
+                 0.0));
+
+      REQUIRE(test_vectorintegratordiagonalpa<VectorMassIntegrator>(3, 3) == Approx(
                  0.0));
    }
 }
@@ -175,13 +179,24 @@ TEST_CASE("Vector Diffusion Diagonal PA",
 {
    SECTION("2D")
    {
-      REQUIRE(test_vectorintegratordiagonalpa<VectorDiffusionIntegrator>(2) == Approx(
+      REQUIRE(
+         test_vectorintegratordiagonalpa<VectorDiffusionIntegrator>(2,
+                                                                    2) == Approx(
+            0.0));
+
+      REQUIRE(test_vectorintegratordiagonalpa<VectorDiffusionIntegrator>(2,
+                                                                         3) == Approx(
                  0.0));
    }
 
    SECTION("3D")
    {
-      REQUIRE(test_vectorintegratordiagonalpa<VectorDiffusionIntegrator>(3) == Approx(
+      REQUIRE(test_vectorintegratordiagonalpa<VectorDiffusionIntegrator>(3,
+                                                                         2) == Approx(
+                 0.0));
+
+      REQUIRE(test_vectorintegratordiagonalpa<VectorDiffusionIntegrator>(3,
+                                                                         3) == Approx(
                  0.0));
    }
 }

@@ -429,7 +429,6 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(_B.Read(), Q1D, D1D);
-   // auto Bt = Reshape(_Bt.Read(), D1D, Q1D); // ?? (TODO atb@llnl.gov)
    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
    auto y = Reshape(_diag.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
@@ -506,7 +505,7 @@ static void PAVectorMassAssembleDiagonal(const int dim,
    {
       return PAVectorMassAssembleDiagonal3D(NE, B, Bt, op, y, D1D, Q1D);
    }
-   MFEM_ABORT("Unknown kernel.");
+   MFEM_ABORT("Dimension not implemented.");
 }
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
