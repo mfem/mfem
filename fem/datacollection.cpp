@@ -1079,55 +1079,6 @@ int ParaViewDataCollection::create_directory(const std::string &dir_name)
    return err;
 }
 
-#ifdef MFEM_USE_MPI
-ParaViewDataCollection::ParaViewDataCollection(const std::string&
-                                               collection_name,
-                                               mfem::ParMesh *mesh_)
-   : DataCollection(collection_name,mesh_),
-     pv_data_format(VTUFormat::BINARY),
-     high_order_output(false)
-{
-   lcomm = mesh_->GetComm();
-   MPI_Comm_rank(lcomm, &myrank);
-   MPI_Comm_size(lcomm, &nprocs);
-   levels_of_detail = 1;
-}
-
-int ParaViewDataCollection::create_directory(const std::string &dir_name,
-                                             int myid,
-                                             MPI_Comm lcomm_)
-{
-   // create directories recursively
-   const char path_delim = '/';
-   std::string::size_type pos = 0;
-   int err;
-
-   // create the directories only on process 0
-   if (myid==0)
-   {
-      do
-      {
-         pos = dir_name.find(path_delim, pos+1);
-         std::string subdir = dir_name.substr(0, pos);
-         err = mkdir(subdir.c_str(), 0777);
-         err = (err && (errno != EEXIST)) ? 1 : 0;
-      }
-      while ( pos != std::string::npos );
-   }
-   // broadcast the error
-   MPI_Bcast(&err, 1, MPI_INT, 0, lcomm_);
-
-   return err;
-}
-
-void ParaViewDataCollection::SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh)
-{
-   DataCollection::SetMesh(new_mesh);
-   lcomm = comm;
-   MPI_Comm_rank(comm, &myrank);
-   MPI_Comm_size(comm, &nprocs);
-}
-
 void ParaViewDataCollection::SetDataFormat(VTUFormat fmt)
 {
    pv_data_format = fmt;
@@ -1181,6 +1132,55 @@ const char *ParaViewDataCollection::GetDataTypeString() const
    {
       return "Float32";
    }
+}
+
+#ifdef MFEM_USE_MPI
+ParaViewDataCollection::ParaViewDataCollection(const std::string&
+                                               collection_name,
+                                               mfem::ParMesh *mesh_)
+   : DataCollection(collection_name,mesh_),
+     pv_data_format(VTUFormat::BINARY),
+     high_order_output(false)
+{
+   lcomm = mesh_->GetComm();
+   MPI_Comm_rank(lcomm, &myrank);
+   MPI_Comm_size(lcomm, &nprocs);
+   levels_of_detail = 1;
+}
+
+int ParaViewDataCollection::create_directory(const std::string &dir_name,
+                                             int myid,
+                                             MPI_Comm lcomm_)
+{
+   // create directories recursively
+   const char path_delim = '/';
+   std::string::size_type pos = 0;
+   int err;
+
+   // create the directories only on process 0
+   if (myid==0)
+   {
+      do
+      {
+         pos = dir_name.find(path_delim, pos+1);
+         std::string subdir = dir_name.substr(0, pos);
+         err = mkdir(subdir.c_str(), 0777);
+         err = (err && (errno != EEXIST)) ? 1 : 0;
+      }
+      while ( pos != std::string::npos );
+   }
+   // broadcast the error
+   MPI_Bcast(&err, 1, MPI_INT, 0, lcomm_);
+
+   return err;
+}
+
+void ParaViewDataCollection::SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh)
+{
+   DataCollection::SetMesh(new_mesh);
+   lcomm = comm;
+   MPI_Comm_rank(comm, &myrank);
+   MPI_Comm_size(comm, &nprocs);
 }
 
 #endif
