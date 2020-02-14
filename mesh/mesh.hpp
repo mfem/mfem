@@ -490,6 +490,7 @@ public:
    Element *NewElement(int geom);
 
    void AddVertex(const double *);
+   void AddSegment(const int *vi, int attr = 1);
    void AddTri(const int *vi, int attr = 1);
    void AddTriangle(const int *vi, int attr = 1);
    void AddQuad(const int *vi, int attr = 1);
