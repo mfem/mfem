@@ -19,10 +19,6 @@
         MPIEXEC: srun
         MPIEXEC_NP: "-n"
 
-#Precleanup
-precleanup_quartz:
-    extends: [.precleanup, .on_quartz]
-
 # Setup
 setup_quartz:
     extends: [.setup, .on_quartz]
@@ -154,7 +150,3 @@ samplebaselinecheck_mfem_gcc_6_1_0_quartz:
 
 baselinepublish_mfem_quartz:
     extends: [.rebaseline_mfem, .on_quartz]
-
-# Postcleanup
-postcleanup_quartz:
-    extends: [.postcleanup, .on_quartz]

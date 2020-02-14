@@ -43,8 +43,16 @@ variables:
     REBASELINE: "NO"
     MFEM_ALLOC_NAME: mfem_ci_${CI_PIPELINE_ID}
 
+# The pipeline is divided into stages. Usually, these are also synchronisation points, however, we use "needs" keyword to express the DAG of jobs for more efficiency.
+# - We use setup phase to download content outside of mfem directory.
+# - Allocate is where quartz resources are allocated once for all.
+# - Libs is where dependencies are built.
+# - Build is where we build MFEM for multiple toolchains.
+# - Test is where we perform a first set of tests on MFEM build.
+# - Baseline_checks gathers baseline-type test suites execution
+# - Baseline_publish, only available on master, allows to commit baseline resluts
+# - Deallocate releases quartz resources
 stages:
-    - precleanup
     - setup
     - allocate
     - libs
@@ -53,15 +61,6 @@ stages:
     - deallocate
     - baseline_check
     - baseline_publish
-    - postcleanup
-
-.precleanup:
-    stage: precleanup
-    variables:
-        GIT_STRATEGY: none
-    script:
-        - rm -rf ${BUILD_ROOT}/${PLAT}
-        - rm -f ${BUILD_ROOT}/mfem
 
 # This section is LLNL-specific
 .setup:
@@ -217,13 +216,6 @@ stages:
         - echo "git push origin master"
     allow_failure: false
 
-.postcleanup:
-    stage: postcleanup
-    variables:
-        GIT_STRATEGY: none
-    script:
-        - rm -rf ${BUILD_ROOT}/${PLAT}
-        - rm -f ${BUILD_ROOT}/mfem
-
+# The list on jobs is in fact defined in other files.
 include:
     - local: .gitlab/quartz.yml
