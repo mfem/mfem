@@ -265,7 +265,8 @@ int main(int argc, char *argv[])
    visit_dc.Save();
 
    // 14. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("PVExample5S", mesh);
+   ParaViewDataCollection paraview_dc("Example5", mesh);
+   paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetCycle(1);
    paraview_dc.SetDataFormat(VTUFormat::BINARY);
