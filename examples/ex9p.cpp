@@ -53,7 +53,8 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-struct AIR_parameters {
+struct AIR_parameters
+{
    int blocksize;
    int distanceR;
    std::string prerelax;
@@ -97,16 +98,16 @@ public:
       AIR_solver->SetLAIROptions(AIR.distanceR, AIR.prerelax,
                                  AIR.postrelax, AIR.strength_tolC,
                                  AIR.strength_tolR, AIR.filter_tolR,
-                                 AIR.interp_type, AIR.relax_type, 
+                                 AIR.interp_type, AIR.relax_type,
                                  AIR.filterA_tol, AIR.coarsen_type,
-                                 -1, 1);  
+                                 -1, 1);
       AIR_solver->SetPrintLevel(0);
       AIR_solver->SetMaxLevels(50);
    }
 
    virtual void Mult(const Vector &x, Vector &y) const
    {
-      // scale the rhs by block inverse and solve system 
+      // scale the rhs by block inverse and solve system
       HypreParVector z_s;
       BlockInvScal(A, NULL, &x, &z_s, blocksize, 2);
       AIR_solver->Mult(z_s, y);
@@ -138,7 +139,7 @@ public:
         dt(-1.0)
    {
       prec = new BlockILU(fes.GetFE(0)->GetDof(),
-             BlockILU::Reordering::MINIMUM_DISCARDED_FILL);
+                          BlockILU::Reordering::MINIMUM_DISCARDED_FILL);
       linear_solver.iterative_mode = false;
       linear_solver.SetRelTol(1e-9);
       linear_solver.SetAbsTol(0.0);
@@ -150,7 +151,7 @@ public:
    }
 
    DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes,
-      const AIR_parameters &_AIR)
+             const AIR_parameters &_AIR)
       : M(M_),
         K(K_),
         A(NULL),
@@ -257,7 +258,8 @@ int main(int argc, char *argv[])
    int solver_type = 1;
    int basis_type = 1;
    AIR_parameters AIR0 = {-1, 1, "", "FA", 100, 10, 10,
-                          0.1, 0.01, 0.0, 1e-4};
+                          0.1, 0.01, 0.0, 1e-4
+                         };
    int precision = 8;
    cout.precision(precision);
 
@@ -511,10 +513,12 @@ int main(int argc, char *argv[])
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
    FE_Evolution *adv;
-   if (solver_type == 1) {
+   if (solver_type == 1)
+   {
       adv = new FE_Evolution(*M, *K, *B, *fes, AIR0);
    }
-   else {
+   else
+   {
       adv = new FE_Evolution(*M, *K, *B, *fes);
    }
 
@@ -634,7 +638,7 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
 }
 
 // Solve the equation:
-//    u_t = M^{-1}(Ku + b), 
+//    u_t = M^{-1}(Ku + b),
 // by solving associated linear system
 //    (M - dt*K) d = K*u + b
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)

@@ -86,7 +86,7 @@ private:
 public:
 
   HypreParVector() {}
-  
+
    /** @brief Creates vector with given global size and parallel partitioning of
        the rows/columns given by @a col. */
    /** @anchor hypre_partitioning_descr
@@ -120,7 +120,7 @@ public:
    MPI_Comm GetComm() { return x->comm; }
 
    void WrapHypreParVector(hypre_ParVector *y);
-   
+
    /// Returns the row partitioning
    inline HYPRE_Int *Partitioning() { return x->partitioning; }
 
@@ -1025,19 +1025,19 @@ public:
    distance 1 neighbors, distance two neighbors, or distance two on processor and
    distance 1 off processor (i.e., distance 1.5 --> 15).        */
    void SetLAIROptions(int distance=15,  std::string prerelax="",
-                      std::string postrelax="FFC", double strength_tol=0.1,
-                      double strength_tolR=0.01, double filter_tolR=0.0,
-                      int interp_type=100, int relax_type=3, double filterA_tol=0.0, 
-                      int splitting=6, int blksize=0, int Sabs=0);
+                       std::string postrelax="FFC", double strength_tol=0.1,
+                       double strength_tolR=0.01, double filter_tolR=0.0,
+                       int interp_type=100, int relax_type=3, double filterA_tol=0.0,
+                       int splitting=6, int blksize=0, int Sabs=0);
 
    void SetNAIROptions(int neumann_degree=2,  std::string prerelax="A",
-                      std::string postrelax="F", double strength_tol=0.1,
-                      double strength_tolR=0.01, double filter_tolR=0.0,
-                      int interp_type=100, int relax_type=10, double filterA_tol=0.0, 
-                      int splitting=6, int blksize=0, int Sabs=0);
+                       std::string postrelax="F", double strength_tol=0.1,
+                       double strength_tolR=0.01, double filter_tolR=0.0,
+                       int interp_type=100, int relax_type=10, double filterA_tol=0.0,
+                       int splitting=6, int blksize=0, int Sabs=0);
 
    void SetCoord(int dim, float *coord);
-   
+
    void SetPrintLevel(int print_level)
    { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }
 
@@ -1072,8 +1072,10 @@ public:
    { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
 
    void SetRelaxCycle(int prerelax, int postrelax)
-   { HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
-     HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2); }
+   {
+     HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
+     HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2);
+   }
 
    void GetNumIterations(int &num_it)
    { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
@@ -1082,8 +1084,10 @@ public:
    { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
 
    void SetNodal(int blocksize)
-   { HYPRE_BoomerAMGSetNumFunctions(amg_precond, blocksize);
-     HYPRE_BoomerAMGSetNodal(amg_precond, 1); }
+   {
+     HYPRE_BoomerAMGSetNumFunctions(amg_precond, blocksize);
+     HYPRE_BoomerAMGSetNodal(amg_precond, 1);
+   }
 
    void SetAggressiveCoarsening(int num_levels)
    { HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels); }
