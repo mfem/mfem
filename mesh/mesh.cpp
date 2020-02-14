@@ -8600,9 +8600,18 @@ void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
                                 const double &val, const char *suffix,
                                 VTUFormat format)
 {
-   if (format == VTUFormat::BINARY32) { bin_io::AppendBytes<float>(buf, val); }
-   else if (format == VTUFormat::BINARY) { bin_io::AppendBytes(buf, val); }
-   else { out << val << suffix; }
+   if (format == VTUFormat::BINARY32)
+   {
+      bin_io::AppendBytes<float>(buf, float(val));
+   }
+   else if (format == VTUFormat::BINARY)
+   {
+      bin_io::AppendBytes(buf, val);
+   }
+   else
+   {
+      out << val << suffix;
+   }
 }
 
 template <>

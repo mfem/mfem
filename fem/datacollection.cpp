@@ -1011,7 +1011,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
             }
             else
             {
-               bin_io::AppendBytes<float>(buf, val(j));
+               bin_io::AppendBytes<float>(buf, float(val(j)));
             }
          }
       }
@@ -1044,7 +1044,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
                }
                else
                {
-                  bin_io::AppendBytes<float>(buf, vval(ii,jj));
+                  bin_io::AppendBytes<float>(buf, float(vval(ii,jj)));
                }
             }
             if (pv_data_format == VTUFormat::ASCII) { out << '\n'; }
