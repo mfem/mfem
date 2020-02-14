@@ -85,7 +85,7 @@ private:
 
 public:
 
-  HypreParVector() {}
+   HypreParVector() {}
 
    /** @brief Creates vector with given global size and parallel partitioning of
        the rows/columns given by @a col. */
@@ -1073,8 +1073,8 @@ public:
 
    void SetRelaxCycle(int prerelax, int postrelax)
    {
-     HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
-     HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2);
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2);
    }
 
    void GetNumIterations(int &num_it)
@@ -1085,8 +1085,8 @@ public:
 
    void SetNodal(int blocksize)
    {
-     HYPRE_BoomerAMGSetNumFunctions(amg_precond, blocksize);
-     HYPRE_BoomerAMGSetNodal(amg_precond, 1);
+      HYPRE_BoomerAMGSetNumFunctions(amg_precond, blocksize);
+      HYPRE_BoomerAMGSetNodal(amg_precond, 1);
    }
 
    void SetAggressiveCoarsening(int num_levels)

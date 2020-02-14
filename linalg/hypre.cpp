@@ -3170,7 +3170,7 @@ void HypreBoomerAMG::SetLAIROptions(int distance,
       grid_relax_points[3][0] = 0;
 
       // set down relax scheme
-      for(unsigned int i = 0; i<ns_down; i++)
+      for (unsigned int i = 0; i<ns_down; i++)
       {
          if (prerelax.compare(i,1,F) == 0)
          {
@@ -3187,7 +3187,7 @@ void HypreBoomerAMG::SetLAIROptions(int distance,
       }
 
       // set up relax scheme
-      for(unsigned int i = 0; i<ns_up; i++)
+      for (unsigned int i = 0; i<ns_up; i++)
       {
          if (postrelax.compare(i,1,F) == 0)
          {
@@ -3209,7 +3209,7 @@ void HypreBoomerAMG::SetLAIROptions(int distance,
 
       HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    }
-  
+
    //HYPRE_BoomerAMGSetMaxRowSum(amg_precond, 0.8);
    if (Sabs)
    {
@@ -3224,12 +3224,12 @@ void HypreBoomerAMG::SetLAIROptions(int distance,
    }
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
-  
+
    /* does not support aggressive coarsening */
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-  
+
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tolC);
-  
+
    if (distance > 0)
    {
       HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
@@ -3288,7 +3288,7 @@ void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
       grid_relax_points[3][0] = 0;
 
       // set down relax scheme
-      for(unsigned int i = 0; i<ns_down; i++)
+      for (unsigned int i = 0; i<ns_down; i++)
       {
          if (prerelax.compare(i,1,F) == 0)
          {
@@ -3305,7 +3305,7 @@ void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
       }
 
       // set up relax scheme
-      for(unsigned int i = 0; i<ns_up; i++)
+      for (unsigned int i = 0; i<ns_up; i++)
       {
          if (postrelax.compare(i,1,F) == 0)
          {
@@ -3327,7 +3327,7 @@ void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
 
       HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    }
-  
+
    //HYPRE_BoomerAMGSetMaxRowSum(amg_precond, 0.8);
    if (Sabs)
    {
@@ -3342,12 +3342,12 @@ void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
    }
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
-  
+
    /* does not support aggressive coarsening */
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-  
+
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tolC);
-  
+
    if (neumann_degree > 0)
    {
       HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
