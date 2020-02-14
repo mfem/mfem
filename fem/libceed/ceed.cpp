@@ -81,34 +81,33 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
    }
 }
 
-static void InitCeedNonTensorBasisAndRestriction(const mfem::FiniteElementSpace
-                                                 &fes,
-                                                 const mfem::IntegrationRule &ir,
+static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
+                                                 const IntegrationRule &ir,
                                                  Ceed ceed, CeedBasis *basis,
                                                  CeedElemRestriction *restr)
 {
-   mfem::Mesh *mesh = fes.GetMesh();
-   const mfem::FiniteElement *fe = fes.GetFE(0);
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement *fe = fes.GetFE(0);
    const int order = fes.GetOrder(0);
    const int dim = mesh->Dimension();
    const int P = fe->GetDof();
    const int Q = ir.GetNPoints();
-   mfem::DenseMatrix shape(P, Q);
-   mfem::Vector grad(P*dim*Q);
-   mfem::DenseMatrix qref(dim, Q);
-   mfem::Vector qweight(Q);
-   mfem::Vector shape_i(P);
-   mfem::DenseMatrix grad_i(P, dim);
-   const mfem::Table &el_dof = fes.GetElementToDofTable();
-   mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
-   const mfem::TensorBasisElement * tfe =
-      dynamic_cast<const mfem::TensorBasisElement *>(fe);
+   DenseMatrix shape(P, Q);
+   Vector grad(P*dim*Q);
+   DenseMatrix qref(dim, Q);
+   Vector qweight(Q);
+   Vector shape_i(P);
+   DenseMatrix grad_i(P, dim);
+   const Table &el_dof = fes.GetElementToDofTable();
+   Array<int> tp_el_dof(el_dof.Size_of_connections());
+   const TensorBasisElement * tfe =
+      dynamic_cast<const TensorBasisElement *>(fe);
    if (tfe) //Lexicographic ordering using dof_map
    {
-      const mfem::Array<int>& dof_map = tfe->GetDofMap();
+      const Array<int>& dof_map = tfe->GetDofMap();
       for (int i = 0; i < Q; i++)
       {
-         const mfem::IntegrationPoint &ip = ir.IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          qref(0,i) = ip.x;
          if (dim>1) { qref(1,i) = ip.y; }
          if (dim>2) { qref(2,i) = ip.z; }
@@ -138,7 +137,7 @@ static void InitCeedNonTensorBasisAndRestriction(const mfem::FiniteElementSpace
    {
       for (int i = 0; i < Q; i++)
       {
-         const mfem::IntegrationPoint &ip = ir.IntPoint(i);
+         const IntegrationPoint &ip = ir.IntPoint(i);
          qref(0,i) = ip.x;
          if (dim>1) { qref(1,i) = ip.y; }
          if (dim>2) { qref(2,i) = ip.z; }
@@ -155,7 +154,7 @@ static void InitCeedNonTensorBasisAndRestriction(const mfem::FiniteElementSpace
          }
       }
 
-      const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+      const FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
       for (int e = 0; e < mesh->GetNE(); e++)
       {
          for (int i = 0; i < P; i++)
@@ -172,33 +171,32 @@ static void InitCeedNonTensorBasisAndRestriction(const mfem::FiniteElementSpace
                              tp_el_dof.GetData(), restr);
 }
 
-static void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace
-                                              &fes,
-                                              const mfem::IntegrationRule &ir,
+static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
+                                              const IntegrationRule &ir,
                                               Ceed ceed, CeedBasis *basis,
                                               CeedElemRestriction *restr)
 {
-   mfem::Mesh *mesh = fes.GetMesh();
-   const mfem::FiniteElement *fe = fes.GetFE(0);
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement *fe = fes.GetFE(0);
    const int order = fes.GetOrder(0);
-   const mfem::TensorBasisElement * tfe =
-      dynamic_cast<const mfem::TensorBasisElement *>(fe);
+   const TensorBasisElement * tfe =
+      dynamic_cast<const TensorBasisElement *>(fe);
    MFEM_VERIFY(tfe, "invalid FE");
-   const mfem::Array<int>& dof_map = tfe->GetDofMap();
-   const mfem::FiniteElement *fe1d =
-      fes.FEColl()->FiniteElementForGeometry(mfem::Geometry::SEGMENT);
-   mfem::DenseMatrix shape1d(fe1d->GetDof(), ir.GetNPoints());
-   mfem::DenseMatrix grad1d(fe1d->GetDof(), ir.GetNPoints());
-   mfem::Vector qref1d(ir.GetNPoints()), qweight1d(ir.GetNPoints());
-   mfem::Vector shape_i(shape1d.Height());
-   mfem::DenseMatrix grad_i(grad1d.Height(), 1);
-   const mfem::H1_SegmentElement *h1_fe1d =
-      dynamic_cast<const mfem::H1_SegmentElement *>(fe1d);
+   const Array<int>& dof_map = tfe->GetDofMap();
+   const FiniteElement *fe1d =
+      fes.FEColl()->FiniteElementForGeometry(Geometry::SEGMENT);
+   DenseMatrix shape1d(fe1d->GetDof(), ir.GetNPoints());
+   DenseMatrix grad1d(fe1d->GetDof(), ir.GetNPoints());
+   Vector qref1d(ir.GetNPoints()), qweight1d(ir.GetNPoints());
+   Vector shape_i(shape1d.Height());
+   DenseMatrix grad_i(grad1d.Height(), 1);
+   const H1_SegmentElement *h1_fe1d =
+      dynamic_cast<const H1_SegmentElement *>(fe1d);
    MFEM_VERIFY(h1_fe1d, "invalid FE");
-   const mfem::Array<int> &dof_map_1d = h1_fe1d->GetDofMap();
+   const Array<int> &dof_map_1d = h1_fe1d->GetDofMap();
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
-      const mfem::IntegrationPoint &ip = ir.IntPoint(i);
+      const IntegrationPoint &ip = ir.IntPoint(i);
       qref1d(i) = ip.x;
       qweight1d(i) = ip.weight;
       fe1d->CalcShape(ip, shape_i);
@@ -214,8 +212,8 @@ static void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace
                            grad1d.GetData(), qref1d.GetData(),
                            qweight1d.GetData(), basis);
 
-   const mfem::Table &el_dof = fes.GetElementToDofTable();
-   mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
+   const Table &el_dof = fes.GetElementToDofTable();
+   Array<int> tp_el_dof(el_dof.Size_of_connections());
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       const int el_offset = fe->GetDof() * i;
@@ -229,23 +227,19 @@ static void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace
                              tp_el_dof.GetData(), restr);
 }
 
-void InitCeedBasisAndRestriction(const mfem::FiniteElementSpace &fes,
-                                 const mfem::IntegrationRule &irm,
+void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
+                                 const IntegrationRule &irm,
                                  Ceed ceed, CeedBasis *basis,
                                  CeedElemRestriction *restr)
 {
-   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(
-                                                                         0)) ? true : false;
-   const mfem::IntegrationRule &ir = tensor ?
-                                     mfem::IntRules.Get(mfem::Geometry::SEGMENT, irm.GetOrder()):
-                                     irm;
-   if (tensor)
+   if (UsesTensorBasis(fes))
    {
+      const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, irm.GetOrder());
       InitCeedTensorBasisAndRestriction(fes, ir, ceed, basis, restr);
    }
    else
    {
-      InitCeedNonTensorBasisAndRestriction(fes, ir, ceed, basis, restr);
+      InitCeedNonTensorBasisAndRestriction(fes, irm, ceed, basis, restr);
    }
 }
 
