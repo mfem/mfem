@@ -129,9 +129,18 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
+      fec = new H1_FEColleDction(order = 1, dim);
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+
+   // 6. At this point all elements have the default order (specified when
+   //    construction the FECollection). Now we can p-refine some of them to
+   //    obtain a variable-order space...
+   for (int i = 0; i < mesh->GetNE()/2; i++)
+   {
+      fespace->SetElementOrder(i, order+1);
+   }
+
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
