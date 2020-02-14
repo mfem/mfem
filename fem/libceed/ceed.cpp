@@ -81,7 +81,8 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
    }
 }
 
-static void InitCeedNonTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
+static void InitCeedNonTensorBasisAndRestriction(const mfem::FiniteElementSpace
+                                                 &fes,
                                                  const mfem::IntegrationRule &ir,
                                                  Ceed ceed, CeedBasis *basis,
                                                  CeedElemRestriction *restr)
@@ -171,7 +172,8 @@ static void InitCeedNonTensorBasisAndRestriction(const mfem::FiniteElementSpace 
                              tp_el_dof.GetData(), restr);
 }
 
-static void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
+static void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace
+                                              &fes,
                                               const mfem::IntegrationRule &ir,
                                               Ceed ceed, CeedBasis *basis,
                                               CeedElemRestriction *restr)
