@@ -115,9 +115,6 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_STRUMPACK
       "MFEM_USE_STRUMPACK\n"
 #endif
-#ifdef MFEM_USE_GECKO
-      "MFEM_USE_GECKO\n"
-#endif
 #ifdef MFEM_USE_GNUTLS
       "MFEM_USE_GNUTLS\n"
 #endif
