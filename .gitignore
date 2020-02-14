@@ -204,9 +204,9 @@ miniapps/toys/lissajous.mesh
 miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
 
-miniapps/nurbs/ex1
-miniapps/nurbs/ex1p
-miniapps/nurbs/ex11p
+miniapps/nurbs/nurbs_ex1
+miniapps/nurbs/nurbs_ex1p
+miniapps/nurbs/nurbs_ex11p
 miniapps/nurbs/refined.mesh
 miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
