@@ -24,6 +24,24 @@ namespace mfem
 
 using namespace std;
 
+void CGLegacyMonitor::BeginInfo(int iteration, double res_norm_squared)
+{
+   if (print_level == 1 || print_level == 3)
+   {
+      mfem::out << "   Iteration : " << setw(3) << iteration << "  (B r, r) = "
+                << res_norm_squared << (print_level == 3 ? " ...\n" : "\n");
+   }
+}
+
+void CGLegacyMonitor::IterationInfo(int iteration, double res_norm_squared)
+{
+   if (print_level == 1)
+   {
+      mfem::out << "   Iteration : " << setw(3) << iteration << "  (B r, r) = "
+                << res_norm_squared << '\n';
+   }
+}
+
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
 {
@@ -383,11 +401,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
 
-   if (print_level == 1 || print_level == 3)
-   {
-      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                << nom << (print_level == 3 ? " ...\n" : "\n");
-   }
+   monitor->SetPrintLevel(print_level);
+   monitor->BeginInfo(0, nom);
 
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
@@ -437,11 +452,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
 
-      if (print_level == 1)
-      {
-         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
-                   << betanom << '\n';
-      }
+      monitor->IterationInfo(i, betanom);
 
       if (betanom < r0)
       {

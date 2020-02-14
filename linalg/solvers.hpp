@@ -30,6 +30,55 @@ namespace mfem
 
 class BilinearForm;
 
+/// TODO: what should this do in parallel?
+class IterativeSolverMonitor
+{
+protected:
+   bool master;
+   int print_level;
+   int leading_spaces;
+
+public:
+   void SetPrintLevel(int pl) { print_level = pl; }
+
+   virtual ~IterativeSolverMonitor() { }
+
+   /// outputs for pl 1 or 3
+   virtual void BeginInfo(int iteration, double res_norm_squared) = 0;
+
+   virtual void IterationInfo(int iteration, double res_norm_squared) = 0;
+
+   virtual void ConvergenceInfo(int iteration, double res_norm_squared,
+                                double initial_norm_square) = 0;
+
+   virtual void NoConvergenceInfo(int iteration, double res_norm_squared,
+                                  double initial_norm_square) = 0;
+
+   /// outputs for pl >= 0
+   virtual void Alert(std::string& message) = 0;
+};
+
+class CGLegacyMonitor : public IterativeSolverMonitor
+{
+public:
+   void BeginInfo(int iteration, double res_norm_squared);
+   void IterationInfo(int iteration, double res_norm_squared);
+
+   void ConvergenceInfo(int iteration, double res_norm_squared,
+                        double initial_norm_square)
+   {
+   }
+
+   void NoConvergenceInfo(int iteration, double res_norm_squared,
+                          double initial_norm_square)
+   {
+   }
+   
+   void Alert(std::string& message)
+   {
+   }
+};
+
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
@@ -156,12 +205,16 @@ protected:
 
    void UpdateVectors();
 
+   IterativeSolverMonitor * monitor;
+
 public:
-   CGSolver() { }
+   CGSolver() : monitor(new CGLegacyMonitor) { }
 
 #ifdef MFEM_USE_MPI
    CGSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
 #endif
+
+   ~CGSolver() { delete monitor; }
 
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
