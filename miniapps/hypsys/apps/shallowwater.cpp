@@ -69,7 +69,7 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &f,
          f(2,1) = u(2)*u(2)/u(0) + 0.5 * GravConst * u(0)*u(0);
          break;
       }
-      default: MFEM_ABORT("Invalid space dimensions.");
+      default: MFEM_ABORT("Invalid space dimension.");
    }
 }
 
@@ -92,7 +92,7 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &f,
       break;
    }
    default:
-      MFEM_ABORT("Invalid space dimensions.");
+      MFEM_ABORT("Invalid space dimension.");
    }
 } */
 

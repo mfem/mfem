@@ -38,7 +38,7 @@ ifeq ($(MFEM_USE_MPI), YES)
 endif
 
 # valgrind-test setup
-VALGRIND-CONFIG = -tf 0.001 -dt 0.001 -p 0 -e 0
+VALGRIND-CONFIG = -tf 0.01 -dt 0.001 -p 0 -e 0
 
 # grid-convergence-test setup
 MESH0 = data/inline-3$(GEOM).mesh
