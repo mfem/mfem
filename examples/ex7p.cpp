@@ -2,8 +2,8 @@
 //
 // Compile with: make ex7p
 //
-// Sample runs:  mpirun -np 4 ex7p -e 0 -o 2 -r 4
-//               mpirun -np 4 ex7p -e 1 -o 2 -r 4 -snap
+// Sample runs:  mpirun -np 4 ex7p -e 0 -o 2 -rs 4
+//               mpirun -np 4 ex7p -e 1 -o 2 -rs 4 -snap
 //               mpirun -np 4 ex7p -e 0 -amr 1
 //               mpirun -np 4 ex7p -e 1 -amr 2 -o 2
 //
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
                   "Type of elements to use: 0 - triangles, 1 - quads.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&ref_levels, "-r", "--refine",
+   args.AddOption(&ref_levels, "-rs", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&amr, "-amr", "--refine-locally",
                   "Additional local (non-conforming) refinement:"
@@ -146,8 +146,8 @@ int main(int argc, char *argv[])
    FiniteElementSpace nodal_fes(mesh, &fec, mesh->SpaceDimension());
    mesh->SetNodalFESpace(&nodal_fes);
 
-   // 4. Refine the mesh while snapping nodes to the sphere. Number of parallel
-   //    refinements is fixed to 2.
+   // 4. Refine the mesh while snapping nodes to the sphere. Number of serial
+   //    refinements is set by default to 2.
    for (int l = 0; l <= ref_levels; l++)
    {
       if (l > 0) // for l == 0 just perform snapping

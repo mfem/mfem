@@ -125,6 +125,14 @@ make_j="-j $(getconf _NPROCESSORS_ONLN)"
 color="no"
 built="no"
 timing="no"
+rs=""
+rp=""
+max_dofs_ex=()
+max_dofs=""
+time_final_ex=()
+time_final=""
+
+NUM='[0-9]+([.][0-9]+)?'
 
 # Read the sample runs from the source "$1" and put them in the array variable
 # "runs".
@@ -146,6 +154,38 @@ function extract_sample_runs()
    sruns=`grep -v "^//.*  mpirun .* ${app}" "${src}" |
           grep "^//.*  ${app}" |
           sed -e "s/.*  ${app}/${vg_app}/g"`
+   # if refine is set, add the options
+   if [ "$rs" != "" ]; then
+      # mpirun runs with 'rs' => ${rs}
+      pruns=`printf "%s" "$pruns" | sed -e "s/-rs [0-9]/-rs ${rs}/g"`
+      # mpirun runs w/o 'rs' => ${rs}
+      pruns=`printf "%s" "$pruns" | sed -e "/-rs [0-9]/! s/$/ -rs ${rs}/g"`
+      # serial runs with 'r' => ${rs}
+      sruns=`printf "%s" "$sruns" | sed -e "s/-r [0-9]/-r ${rs}/g"`
+      # serial runs w/o 'r' => ${rs}
+      sruns=`printf "%s" "$sruns" | sed -e "/-r [0-9]/! s/$/ -r ${rs}/g"`
+   fi
+   if [ "$rp" != "" ]; then
+      # mpirun runs with 'rp' => ${rp}
+      pruns=`printf "%s" "$pruns" | sed -e "s/-rp [0-9]/-rp ${rp}/g"`
+   fi
+   # if max_dofs_ex is set, add the option
+   if [ "$max_dofs_ex" != "" ]; then
+      for ex in "${max_dofs_ex[@]}"; do
+        sruns=`printf "%s" "$sruns" | sed -e "/${ex}/ s/$/ -md ${max_dofs}/g"`
+        pruns=`printf "%s" "$pruns" | sed -e "/${ex}p/ s/$/ -md ${max_dofs}/g"`
+      done
+   fi
+   # if time_final_ex is set, add the option
+   if [ "$time_final_ex" != "" ]; then
+      for ex in "${time_final_ex[@]}"; do
+        sruns=`printf "%s" "$sruns" | sed -e "/-tf [\.0-9]*/! s/${ex} \(.*\)$/${ex} \1 -tf ${time_final}/g"`
+        sruns=`printf "%s" "$sruns" | sed -e "/${ex}/ s/-tf [\.0-9]*/-tf ${time_final}/g"`
+
+        pruns=`printf "%s" "$pruns" | sed -e "/-tf [\.0-9]*/! s/${ex}p \(.*\)$/${ex}p \1 -tf ${time_final}/g"`
+        pruns=`printf "%s" "$pruns" | sed -e "/${ex}p/ s/-tf [\.0-9]*/-tf ${time_final}/g"`
+      done
+   fi
    runs="${sruns}${pruns}"
    if [ "$skip_gen_meshes" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep -v ".* -m .*\.gen"`
@@ -198,6 +238,12 @@ function help_message()
       -c|-color   Always use colors for the status messages: OK, FAILED, etc
       -b|-built   Do NOT rebuild the library and the executables
       -t|-time    Measure and print execution time for each sample run
+      -rs <value> Serial refinement option
+      -rp <value> Parallel refinement option
+      -md <pattern> <max_dofs>
+                  Specify the pattern of the serial basename on which the
+                  max_dofs option will be added: -md 'ex6 ex21' 100
+
       -s|-show    Show all configured sample runs and exit
       -n          Dry run: replace "\$sample_run" with "echo \$sample_run"
       <var>=<value>
@@ -311,6 +357,24 @@ case "$1" in
       ;;
    -b|-built)
       built="yes"
+      ;;
+   -rs)
+      shift
+      rs="$1"
+      ;;
+   -rp)
+      shift
+      rp="$1"
+      ;;
+   -md)
+      max_dofs_ex+=($2)
+      max_dofs="$3"
+      shift 2
+      ;;
+   -tf)
+      time_final_ex+=($2)
+      time_final="$3"
+      shift 2
       ;;
    -t|-time)
       timing="yes"

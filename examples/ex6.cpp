@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int ref_levels = 2;
    int order = 1;
    bool pa = false;
    int max_dofs = 50000;
@@ -58,6 +59,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&max_dofs, "-md", "--max-dofs",
@@ -94,7 +97,7 @@ int main(int argc, char *argv[])
    //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
    if (mesh.NURBSext)
    {
-      for (int i = 0; i < 2; i++)
+      for (int i = 0; i < ref_levels; i++)
       {
          mesh.UniformRefinement();
       }

@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int ser_ref_levels = 1;
    int order = 1;
    bool pa = false;
    int max_dofs = 100000;
@@ -64,6 +65,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the NURBS mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&max_dofs, "-md", "--max-dofs",
@@ -107,7 +110,10 @@ int main(int argc, char *argv[])
    //    sure that the mesh is non-conforming.
    if (mesh->NURBSext)
    {
-      mesh->UniformRefinement();
+      for (int lev = 0; lev < ser_ref_levels; lev++)
+      {
+         mesh->UniformRefinement();
+      }
       mesh->SetCurvature(2);
    }
    mesh->EnsureNCMesh();

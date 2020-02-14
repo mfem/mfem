@@ -17,7 +17,7 @@
 //               mpirun -np 4 ex15p -m ../data/mobius-strip.mesh
 //               mpirun -np 4 ex15p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex15p -m ../data/square-disc.mesh
-//               mpirun -np 4 ex15p -m ../data/escher.mesh -r 2 -tf 0.3
+//               mpirun -np 4 ex15p -m ../data/escher.mesh -rs 2 -tf 0.3
 //
 // Description:  Building on Example 6, this example demonstrates dynamic AMR.
 //               The mesh is adapted to a time-dependent solution by refinement
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
                   "Maximum element error");
    args.AddOption(&hysteresis, "-y", "--hysteresis",
                   "Derefinement safety coefficient.");
-   args.AddOption(&ref_levels, "-r", "--ref-levels",
+   args.AddOption(&ref_levels, "-rs", "--ref-levels",
                   "Number of initial uniform refinement levels.");
    args.AddOption(&nc_limit, "-l", "--nc-limit",
                   "Maximum level of hanging nodes.");
