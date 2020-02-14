@@ -22,7 +22,7 @@ CXX = g++
 MPICXX = mpicxx
 
 BASE_FLAGS  = -std=c++11
-OPTIM_FLAGS = -O3 $(BASE_FLAGS)
+OPTIM_FLAGS = -O3 $(BASE_FLAGS) -g
 DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
 
 # Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
@@ -121,7 +121,6 @@ MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_STRUMPACK     = NO
-MFEM_USE_GECKO         = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
@@ -242,11 +241,6 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # STRUMPACK_OPT += $(OPENMP_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
-
-# Gecko library configuration
-GECKO_DIR = @MFEM_DIR@/../gecko
-GECKO_OPT = -I$(GECKO_DIR)/inc
-GECKO_LIB = -L$(GECKO_DIR)/lib -lgecko
 
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
