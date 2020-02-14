@@ -16,6 +16,7 @@ mpiexec="${MPIEXEC:-mpirun}"
 mpiexec_np="${MPIEXEC_NP:--np}"
 run_prefix=""
 run_vg="valgrind --leak-check=full --show-reachable=yes --track-origins=yes"
+opt_vg=""
 run_suffix="-no-vis"
 skip_gen_meshes="yes"
 # filter-out device runs ("no") or non-device runs ("yes"):
@@ -144,7 +145,7 @@ function extract_sample_runs()
    if [ "${src}" == "" ]; then runs=(); return 1; fi
    local app=${src%.cpp}
    local vg_app="${app}"
-   if [ "${valgrind}" == "yes" ]; then vg_app="${run_vg} ${app}"; fi
+   if [ "${valgrind}" == "yes" ]; then vg_app="${run_vg} ${opt_vg} ${app}"; fi
    # parallel sample runs are lines matching "^//.*  mpirun .* ${app}" with
    # everything in front of "mpirun" removed:
    pruns=`grep "^//.*  mpirun .* ${app}" "${src}" |
@@ -343,6 +344,10 @@ case "$1" in
    -v)
       valgrind="yes"
       ;;
+   -vo)
+   shift
+      opt_vg="$1"
+      ;;
    -o)
       shift
       output_dir="$1"
@@ -455,15 +460,17 @@ function go()
 {
    local cmd=("$@")
    local res=""
-   echo $sep
-   echo "<${group}>" "${cmd[@]}"
-   echo $sep
-   local cmd_suffix=
-   if [ "${no_output}" == "yes" ]; then cmd_suffix=">/dev/null"; fi
-   if [ "${timing}" == "yes" ]; then
-      eval timed_run "${cmd[@]}" $cmd_suffix
+   local sfx=
+   if [ "${no_output}" == "yes" ]; then sfx=">/dev/null 2>&1";
    else
-      eval "${cmd[@]}" $cmd_suffix
+      echo $sep
+      echo "<${group}>" "${cmd[@]}"
+      echo $sep
+   fi
+   if [ "${timing}" == "yes" ]; then
+      eval timed_run "${cmd[@]}" $sfx
+   else
+      eval "${cmd[@]}" $sfx
    fi
    if [ "$?" -eq 0 ]; then
       res="${green}  OK  ${none}"

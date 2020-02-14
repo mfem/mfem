@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int ser_ref_levels = 1;
+   int par_ref_levels = 0;
    int order = 1;
    bool pa = false;
    int max_dofs = 100000;
@@ -66,7 +67,9 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
-                  "Number of times to refine the NURBS mesh uniformly in serial.");
+                  "Number of times to refine the NURBS mesh in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&max_dofs, "-md", "--max-dofs",
@@ -118,10 +121,13 @@ int main(int argc, char *argv[])
    }
    mesh->EnsureNCMesh();
 
-   // 6. Define a parallel mesh by partitioning the serial mesh.
+   // 6. Define a parallel mesh by partitioning the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution.
    //    Once the parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
+
 
    MFEM_VERIFY(pmesh.bdr_attributes.Size() > 0,
                "Boundary attributes required in the mesh.");

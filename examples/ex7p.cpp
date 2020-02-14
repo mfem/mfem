@@ -42,7 +42,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    int elem_type = 1;
-   int ref_levels = 2;
+   int ser_ref_levels = 2;
+   int par_ref_levels = 0;
    int amr = 0;
    int order = 2;
    bool always_snap = false;
@@ -53,8 +54,10 @@ int main(int argc, char *argv[])
                   "Type of elements to use: 0 - triangles, 1 - quads.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&ref_levels, "-rs", "--refine",
+   args.AddOption(&ser_ref_levels, "-rs", "--refine",
                   "Number of times to refine the mesh uniformly.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&amr, "-amr", "--refine-locally",
                   "Additional local (non-conforming) refinement:"
                   " 1 = refine around north pole, 2 = refine randomly.");
@@ -148,7 +151,7 @@ int main(int argc, char *argv[])
 
    // 4. Refine the mesh while snapping nodes to the sphere. Number of serial
    //    refinements is set by default to 2.
-   for (int l = 0; l <= ref_levels; l++)
+   for (int l = 0; l <= ser_ref_levels; l++)
    {
       if (l > 0) // for l == 0 just perform snapping
       {
