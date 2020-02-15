@@ -155,7 +155,7 @@ private:
        will remain disabled.
 
        If the device is actually enabled, this method will also update the
-       current MemoryType and MemoryClass. */
+       current host/device MemoryType and MemoryClass. */
    static void Enable();
 
 public:
@@ -249,14 +249,16 @@ public:
    */
    static inline MemoryType GetDeviceMemoryType() { return Get().device_mem_type; }
 
-   /// @deprecated, Use GetDeviceMemoryType() instead.
+   /// (DEPRECATED) Equivalent to GetDeviceMemoryType().
+   /** @deprecated Use GetDeviceMemoryType() instead. */
    static inline MemoryType GetMemoryType() { return Get().device_mem_type; }
 
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
    static inline MemoryClass GetDeviceMemoryClass() { return Get().device_mem_class; }
 
-   /// @deprecated, Use GetDeviceMemoryClass() instead.
+   /// (DEPRECATED) Equivalent to GetDeviceMemoryClass().
+   /** @deprecated Use GetDeviceMemoryClass() instead. */
    static inline MemoryClass GetMemoryClass() { return Get().device_mem_class; }
 
    static void SetGPUAwareMPI(const bool force = true)
@@ -288,8 +290,9 @@ MemoryClass GetMemoryClass(const Memory<T> &mem, bool on_dev)
    }
 }
 
-/** @brief Get a pointer for read access to @a mem with the mfem::Device
-    MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
+/** @brief Get a pointer for read access to @a mem with the mfem::Device's
+    DeviceMemoryClass, if @a on_dev = true, or the mfem::Device's
+    HostMemoryClass, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
@@ -304,8 +307,9 @@ inline const T *HostRead(const Memory<T> &mem, int size)
    return mfem::Read(mem, size, false);
 }
 
-/** @brief Get a pointer for write access to @a mem with the mfem::Device
-    MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
+/** @brief Get a pointer for write access to @a mem with the mfem::Device's
+    DeviceMemoryClass, if @a on_dev = true, or the mfem::Device's
+    HostMemoryClass, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
@@ -320,8 +324,9 @@ inline T *HostWrite(Memory<T> &mem, int size)
    return mfem::Write(mem, size, false);
 }
 
-/** @brief Get a pointer for read+write access to @a mem with the mfem::Device
-    MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
+/** @brief Get a pointer for read+write access to @a mem with the mfem::Device's
+    DeviceMemoryClass, if @a on_dev = true, or the mfem::Device's
+    HostMemoryClass, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
