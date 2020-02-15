@@ -653,21 +653,22 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
    else
    {
+      // We keep this loop on host as it requires atomics
       const int height = this->height;
       const int nnz = J.Capacity();
-      auto d_I = Read(I, height+1);
-      auto d_J = Read(J, nnz);
-      auto d_A = Read(A, nnz);
-      auto d_x = x.Read();
-      auto d_y = y.ReadWrite();
+      auto h_I = HostRead(I, height+1);
+      auto h_J = HostRead(J, nnz);
+      auto h_A = HostRead(A, nnz);
+      auto h_x = x.HostRead();
+      auto h_y = y.HostReadWrite();
       MFEM_FORALL(i, height,
       {
-         const double xi = a * d_x[i];
-         const int end = d_I[i+1];
-         for (int j = d_I[i]; j < end; j++)
+         const double xi = a * h_x[i];
+         const int end = h_I[i+1];
+         for (int j = h_I[i]; j < end; j++)
          {
-            const int Jj = d_J[j];
-            d_y[Jj] += d_A[j] * xi;
+            const int Jj = h_J[j];
+            h_y[Jj] += h_A[j] * xi;
          }
       });
    }
