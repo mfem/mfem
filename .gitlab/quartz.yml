@@ -33,7 +33,7 @@ allocate_quartz:
         - |
           if [[ "${MPIEXEC}" == "srun" ]]
           then
-              salloc --nodes=1 --sockets-per-node=2 --partition=pbatch --time=240 --no-shell --job-name=${MFEM_ALLOC_NAME}
+              salloc --nodes=1 --extra-node-info=2:18:1 --partition=pbatch --time=240 --no-shell --job-name=${MFEM_ALLOC_NAME}
           fi
 
 # Release
