@@ -215,7 +215,8 @@ int main(int argc, char *argv[])
    Solver *prec = NULL;
    if (pa)
    {
-      if (UsesTensorBasis(*fespace)) {
+      if (UsesTensorBasis(*fespace))
+      {
          prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
       }
    }
