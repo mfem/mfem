@@ -601,9 +601,11 @@ private:
 #else
                   MFEM_ABORT("No pure lazy device memory controller!");
 #endif
+                  break;
                default: MFEM_ABORT("Unknown lazy device memory controller!");
             }
          }
+         break;
          default: MFEM_ABORT("Unknown lazy device memory controller!");
       }
       return nullptr;
