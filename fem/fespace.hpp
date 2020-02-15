@@ -1012,7 +1012,8 @@ public:
                       const int eval_flags);
 };
 
-inline bool UsesTensorBasis(const FiniteElementSpace& fes) {
+inline bool UsesTensorBasis(const FiniteElementSpace& fes)
+{
     return dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
 }
 
