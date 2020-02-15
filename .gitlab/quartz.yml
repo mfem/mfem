@@ -33,7 +33,7 @@ allocate_quartz:
         - |
           if [[ "${MPIEXEC}" == "srun" ]]
           then
-              salloc -N 1 -c 36 -p pdebug -t 30 --no-shell --job-name=${MFEM_ALLOC_NAME}
+              salloc --nodes=1 --sockets-per-node=2 --partition=pbatch --time=240 --no-shell --job-name=${MFEM_ALLOC_NAME}
           fi
 
 # Release
@@ -141,12 +141,8 @@ baselinecheck_mfem_gcc_6_1_0_quartz:
 
 samplebaselinecheck_mfem_gcc_6_1_0_quartz:
     extends: [.samplebaselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
-    tags:
-      - batch
-      - slurm
-      - quartz
-    variables:
-        LLNL_SLURM_SCHEDULER_PARAMETERS: "--nodes=1 --sockets-per-node=1 --partition=pbatch --time=240"
+    needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
 
 baselinepublish_mfem_quartz:
     extends: [.rebaseline_mfem, .on_quartz]
+    needs: [baselinecheck_mfem_gcc_6_1_0_quartz]
