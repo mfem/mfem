@@ -70,7 +70,6 @@ using namespace std;
 DenseMatrix::DenseMatrix() : Matrix(0)
 {
    data.Reset();
-   capacity = 0;
 }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
@@ -80,23 +79,20 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
       data.New(hw);
-      capacity = hw;
       std::memcpy(data, m.data, sizeof(double)*hw);
    }
    else
    {
       data.Reset();
-      capacity = 0;
    }
 }
 
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
-   capacity = s*s;
-   if (capacity > 0)
+   if (s > 0)
    {
-      data.New(capacity);
+      data.New(s*s);
       *this = 0.0; // init with zeroes
    }
    else
@@ -109,7 +105,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
 {
    MFEM_ASSERT(m >= 0 && n >= 0,
                "invalid DenseMatrix size: " << m << " x " << n);
-   capacity = m*n;
+   const int capacity = m*n;
    if (capacity > 0)
    {
       data.New(capacity);
@@ -125,7 +121,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    : Matrix(mat.width, mat.height)
 {
    MFEM_CONTRACT_VAR(ch);
-   capacity = height*width;
+   const int capacity = height*width;
    if (capacity > 0)
    {
       data.New(capacity);
@@ -155,13 +151,9 @@ void DenseMatrix::SetSize(int h, int w)
    height = h;
    width = w;
    const int hw = h*w;
-   if (hw > std::abs(capacity))
+   if (hw > data.Capacity())
    {
-      if (capacity > 0)
-      {
-         data.Delete();
-      }
-      capacity = hw;
+      data.Delete();
       data.New(hw);
       *this = 0.0; // init with zeroes
    }
@@ -3057,10 +3049,7 @@ void DenseMatrix::TestInversion()
 
 DenseMatrix::~DenseMatrix()
 {
-   if (capacity > 0)
-   {
-      data.Delete();
-   }
+   data.Delete();
 }
 
 

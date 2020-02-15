@@ -27,7 +27,6 @@ class DenseMatrix : public Matrix
 
 private:
    Memory<double> data;
-   int capacity; // zero or negative capacity means we do not own the data.
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
 
@@ -66,7 +65,7 @@ public:
    void UseExternalData(double *d, int h, int w)
    {
       data.Wrap(d, h*w, false);
-      height = h; width = w; capacity = -h*w;
+      height = h; width = w;
    }
 
    /// Change the data array and the size of the DenseMatrix.
@@ -78,7 +77,7 @@ public:
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
-   void ClearExternalData() { data.Reset(); height = width = 0; capacity = 0; }
+   void ClearExternalData() { data.Reset(); height = width = 0; }
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
@@ -103,7 +102,8 @@ public:
    Memory<double> &GetMemory() { return data; }
    const Memory<double> &GetMemory() const { return data; }
 
-   inline bool OwnsData() const { return (capacity > 0); }
+   /// Return the DenseMatrix data (host pointer) ownership flag.
+   inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Returns reference to a_{ij}.
    inline double &operator()(int i, int j);
@@ -364,7 +364,7 @@ public:
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
 
-   long MemoryUsage() const { return std::abs(capacity) * sizeof(double); }
+   long MemoryUsage() const { return data.Capacity() * sizeof(double); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
    const double *Read(bool on_dev = true) const
