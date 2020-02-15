@@ -76,8 +76,8 @@ ErrorAction get_error_action()
 
 namespace internal
 {
-   // defined in globals.cpp
-   extern bool mfem_out_initialized, mfem_err_initialized;
+// defined in globals.cpp
+extern bool mfem_out_initialized, mfem_err_initialized;
 }
 
 void mfem_backtrace(int mode, int depth)
