@@ -63,11 +63,6 @@ bool Device::device_env = false;
 bool Device::mem_host_env = false;
 bool Device::mem_device_env = false;
 
-inline bool strlencmp(const char *dev, const char *cmp, const size_t n)
-{
-   return strlen(dev) == n && strncmp(dev, cmp, n)==0;
-}
-
 Device::Device() : mode(Device::SEQUENTIAL),
    backends(Backend::CPU),
    destroy_mm(false),
@@ -80,33 +75,55 @@ Device::Device() : mode(Device::SEQUENTIAL),
    if (getenv("MFEM_MEMORY"))
    {
       std::string mem_backend(getenv("MFEM_MEMORY"));
-      if (mem_backend == "host32")
+      if (mem_backend == "host")
       {
          mem_host_env = true;
-         //mem_device_env = true;
+         host_mem_type = MemoryType::HOST;
+         device_mem_type = MemoryType::HOST;
+      }
+      else if (mem_backend == "host32")
+      {
+         mem_host_env = true;
          host_mem_type = MemoryType::HOST_32;
          device_mem_type = MemoryType::HOST_32;
       }
       else if (mem_backend == "host64")
       {
          mem_host_env = true;
-         //mem_device_env = true;
          host_mem_type = MemoryType::HOST_64;
          device_mem_type = MemoryType::HOST_64;
       }
       else if (mem_backend == "umpire")
       {
          mem_host_env = true;
-         //mem_device_env = true;
          host_mem_type = MemoryType::HOST_UMPIRE;
+         // Note: device_mem_type will be set to MemoryType::DEVICE_UMPIRE only
+         // when an actual device is configured -- this is done later in
+         // Device::UpdateMemoryTypeAndClass().
          device_mem_type = MemoryType::HOST_UMPIRE;
       }
       else if (mem_backend == "debug")
       {
          mem_host_env = true;
-         //mem_device_env = true;
          host_mem_type = MemoryType::HOST_DEBUG;
+         // Note: device_mem_type will be set to MemoryType::DEVICE_DEBUG only
+         // when an actual device is configured -- this is done later in
+         // Device::UpdateMemoryTypeAndClass().
          device_mem_type = MemoryType::HOST_DEBUG;
+      }
+      else if (false
+#ifdef MFEM_USE_CUDA
+               || mem_backend == "cuda"
+#endif
+#ifdef MFEM_USE_HIP
+               || mem_backend == "hip"
+#endif
+              )
+      {
+         mem_host_env = true;
+         host_mem_type = MemoryType::HOST;
+         mem_device_env = true;
+         device_mem_type = MemoryType::DEVICE;
       }
       else if (mem_backend == "uvm")
       {
@@ -117,18 +134,14 @@ Device::Device() : mode(Device::SEQUENTIAL),
       }
       else
       {
-         MFEM_INIT_ABORT("Unknown memory backend!");
+         MFEM_ABORT("Unknown memory backend!");
       }
       mm.Configure(host_mem_type, device_mem_type);
    }
 
-   if (getenv("MFEM_DEVICE") && !mem_host_env)
+   if (getenv("MFEM_DEVICE"))
    {
       std::string device(getenv("MFEM_DEVICE"));
-      const char *device_c_str = device.c_str();
-      const bool cpu = strlencmp(device_c_str, "cpu", 3);
-      const bool debug = strlencmp(device_c_str, "debug", 5);
-      if (!debug && !cpu) { return; }
       Configure(device);
       device_env = true;
    }
@@ -156,7 +169,7 @@ void Device::Configure(const std::string &device, const int dev)
 {
    // If a device was configured via the environment, skip the configuration,
    // and avoid the 'singleton_device' to destroy the mm.
-   if (device_env || mem_host_env)
+   if (device_env)
    {
       std::memcpy(this, &Get(), sizeof(Device));
       Get().destroy_mm = false;
@@ -244,21 +257,23 @@ void Device::Print(std::ostream &out)
        << MemoryTypeName[static_cast<int>(host_mem_type)];
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      out << ", " << MemoryTypeName[static_cast<int>(device_mem_type)];
+      out << ',' << MemoryTypeName[static_cast<int>(device_mem_type)];
    }
    out << std::endl;
 }
 
 void Device::UpdateMemoryTypeAndClass()
 {
-#ifdef MFEM_USE_UMPIRE
-   const bool umpire = true;
-#else
-   const bool umpire = false;
-#endif
    const bool debug = Device::Allows(Backend::DEBUG);
 
    const bool device = Device::Allows(Backend::DEVICE_MASK);
+
+#ifdef MFEM_USE_UMPIRE
+   // If MFEM has been compiled with Umpire support, use it as the default
+   if (!mem_host_env) { host_mem_type = MemoryType::HOST_UMPIRE; }
+   if (device && !mem_device_env)
+   { device_mem_type = MemoryType::DEVICE_UMPIRE; }
+#endif
 
    // Enable the device memory type
    if (device)
@@ -287,16 +302,8 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_class = MemoryClass::DEVICE;
    }
 
-   // If MFEM has been compiled with Umpire support, use it as the default
-   if (umpire)
-   {
-      if (!mem_host_env) { host_mem_type = MemoryType::HOST_UMPIRE; }
-      if (device && !mem_device_env)
-      { device_mem_type = MemoryType::DEVICE_UMPIRE; }
-   }
-
    // Enable the UVM shortcut when requested
-   if (device && device_option && strlencmp(device_option, "uvm", 3))
+   if (device && device_option && !strcmp(device_option, "uvm"))
    {
       host_mem_type = MemoryType::MANAGED;
       device_mem_type = MemoryType::MANAGED;

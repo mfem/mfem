@@ -80,13 +80,16 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
 {
    I.Wrap(i, height+1, ownij);
    J.Wrap(j, I[height], ownij);
-   A.Wrap(data, I[height], owna);
 
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
 
-   if ( A == NULL )
+   if (data)
+   {
+      A.Wrap(data, I[height], owna);
+   }
+   else
    {
       const int nnz = I[height];
       A.New(nnz);
