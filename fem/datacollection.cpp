@@ -726,16 +726,6 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
    }
 }
 
-
-ParaViewDataCollection::~ParaViewDataCollection()
-{
-   if (myid==0)
-   {
-      // Close the data collection
-      pvd_stream.close();
-   }
-}
-
 ParaViewDataCollection::ParaViewDataCollection(const std::string&
                                                collection_name,
                                                Mesh *mesh_)

@@ -501,8 +501,6 @@ public:
    ParaViewDataCollection(const std::string& collection_name,
                           mfem::Mesh *mesh_ = NULL);
 
-   virtual ~ParaViewDataCollection() override;
-
    /// Add a grid function to the collection
    virtual void RegisterField(const std::string& field_name,
                               mfem::GridFunction *gf) override;
