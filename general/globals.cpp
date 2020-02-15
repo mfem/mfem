@@ -24,8 +24,8 @@ OutStream err(std::cerr);
 
 namespace internal
 {
-   bool mfem_out_initialized = false;
-   bool mfem_err_initialized = false;
+bool mfem_out_initialized = false;
+bool mfem_err_initialized = false;
 }
 
 void OutStream::Init()
