@@ -774,7 +774,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ElementTransformation &Trans = *fes.GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
    const int dims = el.GetDim();
-   const int symmDims = dims; // 1x1: 1, 2x2: 3, 3x3: 6
+   const int symmDims = dims;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
