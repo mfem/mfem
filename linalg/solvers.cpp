@@ -42,6 +42,52 @@ void CGLegacyMonitor::IterationInfo(int iteration, double res_norm_squared)
    }
 }
 
+void CGLegacyMonitor::ConvergenceInfo(int iteration, double res_norm_squared,
+                                      double initial_norm_squared)
+{
+   if (print_level == 2)
+   {
+      mfem::out << "Number of PCG iterations: " << iteration << '\n';
+   }
+   else if (print_level == 3)
+   {
+      mfem::out << "   Iteration : " << setw(3) << iteration << "  (B r, r) = "
+                << res_norm_squared << '\n';
+   }
+   if (print_level >= 1)
+   {
+      mfem::out << "Average reduction factor = "
+                << pow(res_norm_squared/initial_norm_squared,
+                       0.5/iteration) << '\n';
+   }
+}
+
+void CGLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm_squared,
+                                        double initial_norm_squared)
+{
+   if (print_level >= 0)
+   {
+      if (print_level != 1)
+      {
+         if (print_level != 3)
+         {
+            mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                      << initial_norm_squared << " ...\n";
+         }
+         mfem::out << "   Iteration : " << setw(3) << iteration << "  (B r, r) = "
+                   << res_norm_squared << '\n';
+      }
+      mfem::out << "PCG: No convergence!" << '\n';
+   }
+   if (print_level >= 0)
+   {
+      mfem::out << "Average reduction factor = "
+                << pow(res_norm_squared/initial_norm_squared,
+                       0.5/iteration) << '\n';
+   }
+}
+
+
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
 {
@@ -456,15 +502,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
       if (betanom < r0)
       {
-         if (print_level == 2)
-         {
-            mfem::out << "Number of PCG iterations: " << i << '\n';
-         }
-         else if (print_level == 3)
-         {
-            mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
-                      << betanom << '\n';
-         }
+         monitor->ConvergenceInfo(i, betanom, nom0);
          converged = 1;
          final_iter = i;
          break;
@@ -502,24 +540,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       nom = betanom;
    }
-   if (print_level >= 0 && !converged)
+   if (!converged)
    {
-      if (print_level != 1)
-      {
-         if (print_level != 3)
-         {
-            mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                      << nom0 << " ...\n";
-         }
-         mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
-                   << betanom << '\n';
-      }
-      mfem::out << "PCG: No convergence!" << '\n';
-   }
-   if (print_level >= 1 || (print_level >= 0 && !converged))
-   {
-      mfem::out << "Average reduction factor = "
-                << pow (betanom/nom0, 0.5/final_iter) << '\n';
+      monitor->NoConvergenceInfo(final_iter, betanom, nom0);
    }
    final_norm = sqrt(betanom);
 }

@@ -63,16 +63,10 @@ class CGLegacyMonitor : public IterativeSolverMonitor
 public:
    void BeginInfo(int iteration, double res_norm_squared);
    void IterationInfo(int iteration, double res_norm_squared);
-
    void ConvergenceInfo(int iteration, double res_norm_squared,
-                        double initial_norm_square)
-   {
-   }
-
+                        double initial_norm_square);
    void NoConvergenceInfo(int iteration, double res_norm_squared,
-                          double initial_norm_square)
-   {
-   }
+                          double initial_norm_square);
    
    void Alert(std::string& message)
    {
