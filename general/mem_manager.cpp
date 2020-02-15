@@ -558,7 +558,7 @@ public:
       const int mt_i = static_cast<int>(mt) - DeviceMemoryType;
       MFEM_ASSERT(mt_i >= 0,"");
       // Lazy device controller initializations
-      if (!device[mt_i]) {device[mt_i] = NewDeviceCtrl(mt); }
+      if (!device[mt_i]) { device[mt_i] = NewDeviceCtrl(mt); }
       MFEM_ASSERT(device[mt_i], "Memory manager has not been configured!");
       return device[mt_i];
    }
