@@ -1223,6 +1223,7 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
    // Local interpolation
    Array<int> vdofs;
    Vector vals;
+   this->HostReadWrite();
    *this = 0.0;
    for (int i = 0; i < fes->GetNE(); i++)
    {
@@ -1261,6 +1262,7 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
    // Local interpolation
    Array<int> vdofs;
    Vector vals;
+   this->HostReadWrite();
    *this = 0.0;
    for (int i = 0; i < fes->GetNE(); i++)
    {
@@ -1810,6 +1812,8 @@ void GridFunction::ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff,
    const FiniteElement *fe;
    ElementTransformation *transf;
    Array<int> vdofs;
+
+   this->HostReadWrite();
 
    vdim = fes->GetVDim();
    // loop over boundary elements

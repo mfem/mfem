@@ -350,9 +350,12 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
 
 void CGSolver::UpdateVectors()
 {
-   r.SetSize(width);
-   d.SetSize(width);
-   z.SetSize(width);
+   r.SetSize(width, Device::GetMemoryType());
+   d.SetSize(width, Device::GetMemoryType());
+   z.SetSize(width, Device::GetMemoryType());
+   r.UseDevice(true);
+   d.UseDevice(true);
+   z.UseDevice(true);
 }
 
 void CGSolver::Mult(const Vector &b, Vector &x) const

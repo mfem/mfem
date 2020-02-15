@@ -626,7 +626,6 @@ public:
    /// Return the quadrature function values at an integration point
    /** The result is stored in the Vector @a values as a reference to the
     global values.
-
     */
    inline void GetElementValues(int idx, const int ip_num, Vector &values);
 
@@ -733,7 +732,7 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
    }
 }
 
-inline void QuadratureFunction::GetElementValues(int idx, int ip_num,
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
                                                  Vector &values)
 {
    // get the element values and store them in elem_vec
@@ -746,12 +745,7 @@ inline void QuadratureFunction::GetElementValues(int idx, int ip_num,
 
    // set the size of the integration point data vector @a values
    //   values.SetSize(vDim);
-   values.NewDataAndSize(elem_vec + ip_num*vDim, vDim);
-
-   // set the data in values, which is a subset of the full
-   // element data stored in elem_vec. This is a routine
-   // written by SRW on the vector class
-   //   values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
+   values.NewDataAndSize(elem_vec + ip_num * vDim, vDim);
 }
 
 inline void QuadratureFunction::GetElementValues(int idx, DenseMatrix &values)
