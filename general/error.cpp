@@ -14,7 +14,6 @@
 #include "array.hpp"
 #include <cstdlib>
 #include <iostream>
-#include <cstdio>
 
 #ifdef MFEM_USE_LIBUNWIND
 #define UNW_LOCAL_ONLY
@@ -75,6 +74,12 @@ ErrorAction get_error_action()
    return mfem_error_action;
 }
 
+namespace internal
+{
+   // defined in globals.cpp
+   extern bool mfem_out_initialized, mfem_err_initialized;
+}
+
 void mfem_backtrace(int mode, int depth)
 {
 #ifdef MFEM_USE_LIBUNWIND
@@ -82,6 +87,7 @@ void mfem_backtrace(int mode, int depth)
    unw_cursor_t cursor;
    unw_context_t uc;
    unw_word_t ip, offp;
+   std::ostream &merr = internal::mfem_err_initialized ? mfem::err : std::cerr;
 
    int err = unw_getcontext(&uc);
    err = err ? err : unw_init_local(&cursor, &uc);
@@ -103,8 +109,8 @@ void mfem_backtrace(int mode, int depth)
          name_p = name_demangle;
       }
 
-      mfem::err << addrs.Size() << ") [0x" << std::hex << ip - 1 << std::dec
-                << "]: " << name_p << std::endl;
+      merr << addrs.Size() << ") [0x" << std::hex << ip - 1 << std::dec
+           << "]: " << name_p << std::endl;
       addrs.Append(ip - 1);
 
       if (demangle_status == 0)
@@ -115,7 +121,7 @@ void mfem_backtrace(int mode, int depth)
 #if defined(__APPLE__) || defined(__linux__)
    if (addrs.Size() > 0 && (mode & 1))
    {
-      mfem::err << "\nLookup backtrace source lines:";
+      merr << "\nLookup backtrace source lines:";
       const char *fname = NULL;
       for (int i = 0; i < addrs.Size(); i++)
       {
@@ -128,17 +134,17 @@ void mfem_backtrace(int mode, int depth)
          else if (fname != info.dli_fname)
          {
             fname = info.dli_fname;
-            mfem::err << '\n';
+            merr << '\n';
 #ifdef __linux__
-            mfem::err << "addr2line -C -e " << fname;
+            merr << "addr2line -C -e " << fname;
 #else
-            mfem::err << "atos -o " << fname << " -l "
-                      << (err ? 0 : info.dli_fbase);
+            merr << "atos -o " << fname << " -l "
+                 << (err ? 0 : info.dli_fbase);
 #endif
          }
-         mfem::err << " 0x" << std::hex << addrs[i] << std::dec;
+         merr << " 0x" << std::hex << addrs[i] << std::dec;
       }
-      mfem::err << '\n';
+      merr << '\n';
    }
 #endif
 #endif // MFEM_USE_LIBUNWIND
@@ -146,47 +152,20 @@ void mfem_backtrace(int mode, int depth)
 
 void mfem_error(const char *msg)
 {
+   std::ostream &merr = internal::mfem_err_initialized ? mfem::err : std::cerr;
    if (msg)
    {
       // NOTE: By default, each call of the "operator <<" method of the
       // mfem::err object results in flushing the I/O stream, which can be a
       // very bad thing if all your processors try to do it at the same time.
-      mfem::err << "\n\n" << msg << "\n";
+      merr << "\n\n" << msg << "\n";
    }
 
 #ifdef MFEM_USE_LIBUNWIND
-   mfem::err << "Backtrace:" << std::endl;
+   merr << "Backtrace:" << std::endl;
    mfem_backtrace(1, -1);
-   mfem::err << std::endl;
+   merr << std::endl;
 #endif
-
-#ifdef MFEM_USE_EXCEPTIONS
-   if (mfem_error_action == MFEM_ERROR_THROW)
-   {
-      throw ErrorException(msg);
-   }
-#endif
-
-#ifdef MFEM_USE_MPI
-   int init_flag, fin_flag;
-   MPI_Initialized(&init_flag);
-   MPI_Finalized(&fin_flag);
-   if (init_flag && !fin_flag) { MPI_Abort(GetGlobalMPI_Comm(), 1); }
-#endif
-   std::abort(); // force crash by calling abort
-}
-
-void mfem_init_error(const char *func, const char *file, const int line,
-                     const char *prefix, const char *msg)
-{
-   std::FILE *err = stderr;
-
-   if (msg)
-   {
-      const char *fmt = "\n\n%s%s\n ... in function: %s\n ... in file: %s:%d\n";
-      std::fprintf(err, fmt, prefix, msg, func, file, line);
-      fflush(err);
-   }
 
 #ifdef MFEM_USE_EXCEPTIONS
    if (mfem_error_action == MFEM_ERROR_THROW)
@@ -206,21 +185,10 @@ void mfem_init_error(const char *func, const char *file, const int line,
 
 void mfem_warning(const char *msg)
 {
+   std::ostream &mout = internal::mfem_out_initialized ? mfem::out : std::cout;
    if (msg)
    {
-      mfem::out << "\n\n" << msg << std::endl;
-   }
-}
-
-void mfem_init_warning(const char *func, const char *file, const int line,
-                       const char *prefix, const char *msg)
-{
-   if (msg)
-   {
-      std::FILE *out = stdout;
-      const char *fmt = "\n\n%s%s\n ... in function: %s\n ... in file: %s:%d\n";
-      std::fprintf(out, fmt, prefix, msg, func, file, line);
-      fflush(out);
+      mout << "\n\n" << msg << std::endl;
    }
 }
 

@@ -145,7 +145,7 @@ void* CuMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
    return dst;
 }
 
-void CuGetLastError()
+void CuCheckLastError()
 {
 #ifdef MFEM_USE_CUDA
    MFEM_GPU_CHECK(cudaGetLastError());

@@ -16,13 +16,14 @@ Improved GPU support
 - Added support for matrix-free diagonal smoothers on GPUs.
 
 - Added a "debug" device that is to be used specifically for debugging purposes.
-  It allows to test the "device" code-path without any hardware.
+  It allows to test the "device" code-path (using separate host/device memory
+  pools and host <-> device transfers) without any GPU hardware.
 
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
   language that can run on both AMD and NVIDIA hardware. With this change and
   the libCEED addition below, the current list of available backends is:
-  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "debug", "occa-omp", "raja-omp",
-  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
+  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "debug", "occa-omp",
+  "raja-omp", "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
 
 - Improved RAJA backend and multi-GPU MPI communications.
 
@@ -39,7 +40,9 @@ Memory Manager Backends
       'posix_memalign' otherwise,
     - CUDA pointers, using 'cudaMalloc',
     - HIP pointers, using 'hipMalloc',
-    - Protected mode used by the "debug" device, using 'mmap' and 'mprotect',
+    - Managed CUDA pointers (UVM), using 'cudaMallocManaged',
+    - Debug memory types with protection, emulating separate host and device
+      memory pools, using 'mmap' and 'mprotect'; used by the new "debug" device,
     - Umpire, using its API.
 
 libCEED support
@@ -208,15 +211,13 @@ Miscellaneous
   libmfem-common for the convenience of application developers. The new library
   is now used in several miniapps in the electromagnetic and tools directories.
 
-- Renamed and merged the 'CUDA' and 'HIP' memory types into 'DEVICE'.
-
-- Renamed the method GetMemoryType() to GetDeviceMemoryType(). The legacy
-  method is now deprecated and planned for removal in a future release.
-
-- Renamed the method GetMemoryClass() to GetDeviceMemoryClass(). The legacy
-  method is now deprecated and planned for removal in a future release.
-
 - Added unit tests for time integrators.
+
+Backward incompatible API changes
+---------------------------------
+- In the enum classes MemoryType and MemoryClass, renamed the 'CUDA' to 'DEVICE'
+  which now denotes either 'CUDA' or 'HIP' depending on the build configuration.
+  In the same enum classes, renamed 'CUDA_UVM' to 'MANAGED'.
 
 
 Version 4.0, released on May 24, 2019

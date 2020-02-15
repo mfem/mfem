@@ -62,8 +62,10 @@ struct Backend
           CUDA backend. Enabled when MFEM_USE_CEED = YES and
           MFEM_USE_CUDA = YES. */
       CEED_CUDA = 1 << 11,
-      /** @brief [host] Debug backend: host memory is READ/WRITE protected
-          while a device is in use. */
+      /** @brief [device] Debug backend: host memory is READ/WRITE protected
+          while a device is in use. It allows to test the "device" code-path
+          (using separate host/device memory pools and host <-> device
+          transfers) without any GPU hardware. */
       DEBUG = 1 << 12
    };
 
@@ -207,6 +209,7 @@ public:
        * The backend 'ceed-cuda' delegates to a libCEED CUDA backend the setup
          and evaluation of the operator and enables the 'cuda' backend to avoid
          transfer between host and device.
+       * The 'debug' backend should not be combined with other device backends.
    */
    void Configure(const std::string &device, const int dev = 0);
 
@@ -268,21 +271,30 @@ public:
 // Inline Memory access functions using the mfem::Device DeviceMemoryClass or
 // the mfem::Device HostMemoryClass.
 
+/** @brief Return the memory class to be used by the functions Read(), Write(),
+    and ReadWrite(), while setting the device use flag in @a mem, if @a on_dev
+    is true. */
+template <typename T>
+MemoryClass GetMemoryClass(const Memory<T> &mem, bool on_dev)
+{
+   if (!on_dev)
+   {
+      return Device::GetHostMemoryClass();
+   }
+   else
+   {
+      mem.UseDevice(true);
+      return Device::GetDeviceMemoryClass();
+   }
+}
+
 /** @brief Get a pointer for read access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
 {
-   if (!on_dev)
-   {
-      return mem.Read(Device::GetHostMemoryClass(), size);
-   }
-   else
-   {
-      mem.UseDevice(true);
-      return mem.Read(Device::GetDeviceMemoryClass(), size);
-   }
+   return mem.Read(GetMemoryClass(mem, on_dev), size);
 }
 
 /** @brief Shortcut to Read(const Memory<T> &mem, int size, false) */
@@ -298,15 +310,7 @@ inline const T *HostRead(const Memory<T> &mem, int size)
 template <typename T>
 inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
 {
-   if (!on_dev)
-   {
-      return mem.Write(Device::GetHostMemoryClass(), size);
-   }
-   else
-   {
-      mem.UseDevice(true);
-      return mem.Write(Device::GetDeviceMemoryClass(), size);
-   }
+   return mem.Write(GetMemoryClass(mem, on_dev), size);
 }
 
 /** @brief Shortcut to Write(const Memory<T> &mem, int size, false) */
@@ -322,15 +326,7 @@ inline T *HostWrite(Memory<T> &mem, int size)
 template <typename T>
 inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
 {
-   if (!on_dev)
-   {
-      return mem.ReadWrite(Device::GetHostMemoryClass(), size);
-   }
-   else
-   {
-      mem.UseDevice(true);
-      return mem.ReadWrite(Device::GetDeviceMemoryClass(), size);
-   }
+   return mem.ReadWrite(GetMemoryClass(mem, on_dev), size);
 }
 
 /** @brief Shortcut to ReadWrite(Memory<T> &mem, int size, false) */

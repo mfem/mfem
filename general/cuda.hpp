@@ -99,7 +99,8 @@ void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 /// Copies memory from Device to Host
 void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
 
-void CuGetLastError();
+/// Check the error code returned by cudaGetLastError(), aborting on error.
+void CuCheckLastError();
 
 /// Get the number of CUDA devices
 int CuGetDeviceCount();
