@@ -72,7 +72,7 @@ Device::Device() : mode(Device::SEQUENTIAL),
    device_mem_type(MemoryType::HOST),
    device_mem_class(MemoryClass::HOST)
 {
-   if (getenv("MFEM_MEMORY"))
+   if (getenv("MFEM_MEMORY") && !mem_host_env && !mem_device_env)
    {
       std::string mem_backend(getenv("MFEM_MEMORY"));
       if (mem_backend == "host")
@@ -271,8 +271,6 @@ void Device::UpdateMemoryTypeAndClass()
 #ifdef MFEM_USE_UMPIRE
    // If MFEM has been compiled with Umpire support, use it as the default
    if (!mem_host_env) { host_mem_type = MemoryType::HOST_UMPIRE; }
-   if (device && !mem_device_env)
-   { device_mem_type = MemoryType::DEVICE_UMPIRE; }
 #endif
 
    // Enable the device memory type
@@ -296,7 +294,11 @@ void Device::UpdateMemoryTypeAndClass()
          }
          else
          {
+#ifndef MFEM_USE_UMPIRE
             device_mem_type = MemoryType::DEVICE;
+#else
+            device_mem_type = MemoryType::DEVICE_UMPIRE;
+#endif
          }
       }
       device_mem_class = MemoryClass::DEVICE;
