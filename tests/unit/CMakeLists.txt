@@ -25,6 +25,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_densematrix.cpp
   linalg/test_ilu.cpp
   linalg/test_ode.cpp
+  linalg/test_fdual.cpp
   mesh/test_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
