@@ -130,6 +130,10 @@ Linear and nonlinear solvers
 - Added initial support for h- and p-multigrid solvers and preconditioners for
   matrix-based and matrix-free discretizations with basic GPU capability.
 
+- Added a LinearSolve(A,X) convenience method to solve dense linear systems. In
+  the trivial cases, i.e., square matrices of size 1 or 2, the system is solved
+  directly, otherwise, LU factorization is employed.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added two new miniapps: Find Points (serial + parallel) and Field Diff in
@@ -148,6 +152,9 @@ New and updated examples and miniapps
   demonstrate the new r-adaptivity capabilities of TMOP.
 
 - New options to reorder and partition the mesh in the mesh-explorer miniapp.
+
+- The mesh-explorer miniapp now supports visualization of boundary attributes of
+  3D meshes (key 'b').
 
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
