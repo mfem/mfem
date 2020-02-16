@@ -18,6 +18,7 @@
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
+#include "vtk.hpp"
 #include "ncmesh.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
@@ -40,13 +41,6 @@ struct Refinement;
 class ParMesh;
 class ParNCMesh;
 #endif
-
-enum class VTUFormat
-{
-   ASCII,
-   BINARY,
-   BINARY32
-};
 
 class Mesh
 {
@@ -1180,12 +1174,12 @@ public:
        subdivision number (useful for high order fields and curved meshes). */
    void PrintVTU(std::ostream &out,
                  int ref=1,
-                 VTUFormat format=VTUFormat::ASCII,
+                 VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
                  int compression_level=0);
    /** Print the mesh in VTU format with file name fname. */
    void PrintVTU(std::string fname,
-                 VTUFormat format=VTUFormat::ASCII,
+                 VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
                  int compression_level=0);
 

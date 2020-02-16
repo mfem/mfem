@@ -731,7 +731,7 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
                                                Mesh *mesh_)
    : DataCollection(collection_name, mesh_),
      levels_of_detail(1),
-     pv_data_format(VTUFormat::BINARY),
+     pv_data_format(VTKFormat::BINARY),
      high_order_output(false)
 {
 #ifdef MFEM_USE_GZSTREAM
@@ -973,11 +973,11 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          it->second->GetValues(i, RefG->RefPts, val, pmat);
          for (int j = 0; j < val.Size(); j++)
          {
-            if (pv_data_format == VTUFormat::ASCII)
+            if (pv_data_format == VTKFormat::ASCII)
             {
                out << val(j) << '\n';
             }
-            else if (pv_data_format == VTUFormat::BINARY)
+            else if (pv_data_format == VTKFormat::BINARY)
             {
                bin_io::AppendBytes(buf, val(j));
             }
@@ -1006,11 +1006,11 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          {
             for (int ii = 0; ii < vval.Height(); ii++)
             {
-               if (pv_data_format == VTUFormat::ASCII)
+               if (pv_data_format == VTKFormat::ASCII)
                {
                   out << vval(ii,jj) << ' ';
                }
-               else if (pv_data_format == VTUFormat::BINARY)
+               else if (pv_data_format == VTKFormat::BINARY)
                {
                   bin_io::AppendBytes(buf, vval(ii,jj));
                }
@@ -1019,27 +1019,27 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
                   bin_io::AppendBytes<float>(buf, float(vval(ii,jj)));
                }
             }
-            if (pv_data_format == VTUFormat::ASCII) { out << '\n'; }
+            if (pv_data_format == VTKFormat::ASCII) { out << '\n'; }
          }
       }
    }
 
    if (IsBinaryFormat())
    {
-      bin_io::WriteEncodedCompressed(out,buf.data(),buf.size(),compression);
+      WriteVTKEncodedCompressed(out,buf.data(),buf.size(),compression);
       out << '\n';
    }
    out << "</DataArray>" << std::endl;
 }
 
-void ParaViewDataCollection::SetDataFormat(VTUFormat fmt)
+void ParaViewDataCollection::SetDataFormat(VTKFormat fmt)
 {
    pv_data_format = fmt;
 }
 
 bool ParaViewDataCollection::IsBinaryFormat() const
 {
-   return pv_data_format != VTUFormat::ASCII;
+   return pv_data_format != VTKFormat::ASCII;
 }
 
 void ParaViewDataCollection::SetHighOrderOutput(bool high_order_output_)
@@ -1067,7 +1067,7 @@ void ParaViewDataCollection::SetCompression(bool compression_)
 
 const char *ParaViewDataCollection::GetDataFormatString() const
 {
-   if (pv_data_format == VTUFormat::ASCII)
+   if (pv_data_format == VTKFormat::ASCII)
    {
       return "ascii";
    }
@@ -1079,7 +1079,7 @@ const char *ParaViewDataCollection::GetDataFormatString() const
 
 const char *ParaViewDataCollection::GetDataTypeString() const
 {
-   if (pv_data_format==VTUFormat::ASCII || pv_data_format==VTUFormat::BINARY)
+   if (pv_data_format==VTKFormat::ASCII || pv_data_format==VTKFormat::BINARY)
    {
       return "Float64";
    }

@@ -11,10 +11,6 @@
 
 #include "binaryio.hpp"
 #include "error.hpp"
-#ifdef MFEM_USE_GZSTREAM
-#include <vector>
-#include <zlib.h>
-#endif
 
 namespace mfem
 {
@@ -52,42 +48,6 @@ void WriteBase64(std::ostream &out, const void *bytes, size_t nbytes)
          out << b64str[(in[1] & 0x0f) << 2];
       }
       out << '=';
-   }
-}
-
-void WriteEncodedCompressed(std::ostream &out, const void *bytes,
-                            uint32_t nbytes, int compression_level)
-{
-   if (compression_level == 0)
-   {
-      // First write size of buffer (as uint32_t), encoded with base 64
-      WriteBase64(out, &nbytes, sizeof(nbytes));
-      // Then write all the bytes in the buffer, encoded with base 64
-      WriteBase64(out, bytes, nbytes);
-   }
-   else
-   {
-#ifdef MFEM_USE_GZSTREAM
-      MFEM_ASSERT(compression_level >= -1 && compression_level <= 9,
-                  "Compression level must be between -1 and 9 (inclusive).");
-      uLongf buf_sz = compressBound(nbytes);
-      std::vector<unsigned char> buf(buf_sz);
-      compress2(buf.data(), &buf_sz, static_cast<const Bytef *>(bytes), nbytes,
-                compression_level);
-
-      // Write the header
-      std::vector<uint32_t> header(4);
-      header[0] = 1; // number of blocks
-      header[1] = nbytes; // uncompressed size
-      header[2] = 0; // size of partial block
-      header[3] = buf_sz; // compressed size
-      WriteBase64(out, header.data(), header.size()*sizeof(uint32_t));
-      // Write the compressed data
-      WriteBase64(out, buf.data(), buf_sz);
-#else
-      MFEM_ABORT("MFEM must be compiled with gzstream support to output "
-                 "compressed binary data.")
-#endif
    }
 }
 

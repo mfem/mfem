@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
    ParaViewDataCollection paraview_dc("Example5P", pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetDataFormat(VTUFormat::BINARY);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0.0);
