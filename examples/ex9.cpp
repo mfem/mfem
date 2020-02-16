@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("solution", &u);
       pd->SetLevelsOfDetail(order);
-      pd->SetDataFormat(VTUFormat::BINARY);
+      pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
       pd->SetCycle(0);
       pd->SetTime(0.0);

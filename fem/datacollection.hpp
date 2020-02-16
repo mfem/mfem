@@ -475,7 +475,7 @@ class ParaViewDataCollection : public DataCollection
 private:
    int levels_of_detail;
    std::fstream pvd_stream;
-   VTUFormat pv_data_format;
+   VTKFormat pv_data_format;
    bool high_order_output;
 
 protected:
@@ -514,10 +514,10 @@ public:
    virtual void Save() override;
 
    /// Set the data format for the ParaView output files. Possible options are
-   /// VTUFormat::ASCII, VTUFormat::BINARY, and VTUFormat::BINARY32.
+   /// VTKFormat::ASCII, VTKFormat::BINARY, and VTKFormat::BINARY32.
    /// The ASCII and BINARY options output double precision data, whereas the
    /// BINARY32 option outputs single precision data.
-   void SetDataFormat(VTUFormat fmt);
+   void SetDataFormat(VTKFormat fmt);
 
    /// Set the zlib compression level. 0 indicates no compression, -1 indicates
    /// the default compression level. Otherwise, specify a number between 1 and
