@@ -330,9 +330,6 @@ int main(int argc, char *argv[])
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetDataFormat(VTUFormat::BINARY);
-#ifdef MFEM_USE_GZSTREAM
-   paraview_dc.SetCompression(true);
-#endif
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0.0);
