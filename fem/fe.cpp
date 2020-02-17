@@ -383,6 +383,7 @@ FiniteElement::~FiniteElement()
    }
 }
 
+
 void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
    const ScalarFiniteElement &fine_fe) const
@@ -12205,7 +12206,7 @@ void NURBS1DFiniteElement::CalcHessian (const IntegrationPoint &ip,
    add(1.0, hess, (-d2sum + 2*dsum*dsum*sum)*sum*sum, shape_x, hess);
 }
 
-//---------------------------------------------------------------------
+
 void NURBS2DFiniteElement::SetOrder() const
 {
    Orders[0] = kv[0]->GetOrder();
@@ -12333,11 +12334,10 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
       hessian(o,2) = hessian(o,2)*sum
                      - 2*du(o,1)*sum*dsum[1]
                      + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[2]);
-
    }
 }
 
-//---------------------------------------------------------------------
+
 void NURBS3DFiniteElement::SetOrder() const
 {
    Orders[0] = kv[0]->GetOrder();

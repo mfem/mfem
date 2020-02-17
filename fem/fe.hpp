@@ -426,20 +426,20 @@ public:
        element in reference space at the given point @a ip. */
    /** Each row of the result DenseMatrix @a Hessian contains upper triangular
        part of the Hessian of one shape function.
-       The order in 2D is {u_xx, u_xy, u_yy}
-       The size (#Dof x (#Dim (#Dim-1)/2) of @a Hessian must be set in advance.  */
+       The order in 2D is {u_xx, u_xy, u_yy}.
+       The size (#Dof x (#Dim (#Dim-1)/2) of @a Hessian must be set in advance.*/
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &Hessian) const;
 
    /** @brief Evaluate the Hessian of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
-   /** The size (#Dof, #Dim*(#Dim+1)/2) of @a Hessian must be set in advance.  */
+   /** The size (#Dof, #Dim*(#Dim+1)/2) of @a Hessian must be set in advance. */
    virtual void CalcPhysHessian(ElementTransformation &Trans,
                                 DenseMatrix& Hessian) const;
 
    /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
-   /** The size (#Dof) of @a Laplacian must be set in advance.  */
+   /** The size (#Dof) of @a Laplacian must be set in advance. */
    virtual void CalcPhysLaplacian(ElementTransformation &Trans,
                                   Vector& Laplacian) const;
 
@@ -2988,8 +2988,6 @@ public:
                            DenseMatrix &dshape) const;
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &hessian) const;
-
-
 };
 
 } // namespace mfem
