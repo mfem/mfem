@@ -99,10 +99,11 @@ do
    if [ -s "$this_test.err" ]; then
       runtest_check=1
       printf '\033[31m'"FAILED\n"'\033[0m'
+      (printf '\033[31m'; cat $this_test.msg; printf '\033[0m') 1>&2
       echo "=== BEGIN error log from $this_test.err"
       (cat $this_test.err) 1>&2
       echo "=== END error log from $this_test.err"
-      # rm -f $this_test.err $this_test.out
+      # rm -f $this_test.err $this_test.out $this_test.msg
    else
       printf '\033[32m'"OK\n"'\033[0m'
    fi
