@@ -89,7 +89,6 @@ TEST_CASE("operatorjacobismoother")
 
 TEST_CASE("operatorjacobifichera")
 {
-   const int refine = 2;
    const int dimension = 3;
    for (int refine = 1; refine < 4; ++refine)
    {

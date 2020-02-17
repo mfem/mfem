@@ -117,7 +117,7 @@ EXAMPLE_SUBDIRS = sundials petsc pumi hiop ginkgo
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools nurbs gslib
+MINIAPP_SUBDIRS = common electromagnetics meshing performance tools toys nurbs gslib
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
@@ -489,14 +489,14 @@ check: lib
 	@$(MAKE) -C $(BLD)examples \
 	$(if $(findstring YES,$(MFEM_USE_MPI)),ex1p-test-par,ex1-test-seq)
 
-test:
+test test-noclean:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples, miniapps, and tests..."
 	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
 	@echo "Running tests in: [ $(ALL_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(ALL_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
-	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
+	   if ! $(MAKE) -j1 -C $(BLD)$${dir} $@; then \
 	   ERR=1; fi; done; \
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
@@ -517,8 +517,9 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
-	rm -rf $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*{.o,~}) \
-	   *~ libmfem.* deps.mk)
+	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
+	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/

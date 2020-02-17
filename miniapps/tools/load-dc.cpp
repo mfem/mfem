@@ -94,7 +94,8 @@ int main(int argc, char *argv[])
       bool succeeded = sol_sock.good();
 #ifdef MFEM_USE_MPI
       bool all_succeeded;
-      MPI_Allreduce(&succeeded, &all_succeeded, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+      MPI_Allreduce(&succeeded, &all_succeeded, 1,
+                    MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
       succeeded = all_succeeded;
 #endif
       if (!succeeded)

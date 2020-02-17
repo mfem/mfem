@@ -87,7 +87,7 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData(). */
    LinearForm(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; }
+   { fes = f; extern_lfs = 0; }
 
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use FiniteElementSpace%s that

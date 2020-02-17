@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+# Print usage information
+case $1 in
+   -h|-help)
+      cat <<EOF
+
+   $0 [-h|-help] {mfem_dir}
+
+   where: {mfem_dir}  is the MFEM source directory [default value: ../..]
+          -h|-help    prints this usage information and exits
+
+   This script runs documentation-related tests in mfem_dir. It checks in
+   particular the Doxygen formatting used in the source comments.
+
+   Example usage: $0 ../..
+
+EOF
+      exit
+      ;;
+esac
+
+# Setup
+cur_dir=`pwd`
+mfem_dir=$1
+if [ "$mfem_dir" = "" ]; then
+    mfem_dir="../.."
+fi
+shift
+cd $mfem_dir
+
+# Test the documentation of some make targets
+make help
+make distclean
+make config MFEM_USE_MPI=YES
+make status
+
+# Test the build of the Doxygen documentation
+cd doc; make clean; make
+
+# Return to the original directory
+cd $cur_dir

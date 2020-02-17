@@ -353,6 +353,10 @@ public:
    void EliminateCols(const Array<int> &cols, const Vector *x = NULL,
                       Vector *b = NULL);
 
+   /** @brief Similar to EliminateCols + save the eliminated entries into
+       @a Ae so that (*this) + Ae is equal to the original matrix. */
+   void EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae);
+
    /// Eliminate row @a rc and column @a rc and modify the @a rhs using @a sol.
    /** Eliminates the column @a rc to the @a rhs, deletes the row @a rc and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
@@ -417,8 +421,10 @@ public:
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
+   /// Returns whether or not CSR format has been finalized.
    bool Finalized() const { return !A.Empty(); }
-   bool areColumnsSorted() const { return isSorted; }
+   /// Returns whether or not the columns are sorted.
+   bool ColumnsAreSorted() const { return isSorted; }
 
    /** @brief Remove entries smaller in absolute value than a given tolerance
        @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
