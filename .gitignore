@@ -200,8 +200,9 @@ tests/unit/output_meshes
 tests/unit/unit_tests
 
 # Test script output
-tests/scripts/branch-history.err
-tests/scripts/branch-history.out
+tests/scripts/*.err
+tests/scripts/*.out
+tests/scripts/*.msg
 
 # VPATH builds
 build-*/*
