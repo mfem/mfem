@@ -404,11 +404,13 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
       {
          for (int dx = 0; dx < D1D; ++dx)
          {
+            double temp1 = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               y(dx, dy, 0, e) += B(qx, dx) * B(qx, dx) * temp[qx][dy];
+               temp1 += B(qx, dx) * B(qx, dx) * temp[qx][dy];
             }
-            y(dx, dy, 1, e) = y(dx, dy, 0, e);
+            y(dx, dy, 0, e) = temp1;
+            y(dx, dy, 1, e) = temp1;
          }
       }
    });
@@ -475,13 +477,15 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
          {
             for (int dx = 0; dx < D1D; ++dx)
             {
+               double temp3 = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  y(dx, dy, dz, 0, e) += B(qx, dx) * B(qx, dx)
-                                         * temp2[qx][dy][dz];
+                  temp3 += B(qx, dx) * B(qx, dx)
+                           * temp2[qx][dy][dz];
                }
-               y(dx, dy, dz, 1, e) = y(dx, dy, dz, 0, e);
-               y(dx, dy, dz, 2, e) = y(dx, dy, dz, 0, e);
+               y(dx, dy, dz, 0, e) = temp3;
+               y(dx, dy, dz, 1, e) = temp3;
+               y(dx, dy, dz, 2, e) = temp3;
             }
          }
       }
