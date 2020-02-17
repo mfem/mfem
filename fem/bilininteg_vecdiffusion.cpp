@@ -552,14 +552,16 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
       {
          for (int dx = 0; dx < D1D; ++dx)
          {
+            double temp = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               Y(dx,dy,0,e) += G(qx, dx) * G(qx, dx) * QD0[qx][dy];
-               Y(dx,dy,0,e) += G(qx, dx) * B(qx, dx) * QD1[qx][dy];
-               Y(dx,dy,0,e) += B(qx, dx) * G(qx, dx) * QD1[qx][dy];
-               Y(dx,dy,0,e) += B(qx, dx) * B(qx, dx) * QD2[qx][dy];
+               temp += G(qx, dx) * G(qx, dx) * QD0[qx][dy];
+               temp += G(qx, dx) * B(qx, dx) * QD1[qx][dy];
+               temp += B(qx, dx) * G(qx, dx) * QD1[qx][dy];
+               temp += B(qx, dx) * B(qx, dx) * QD2[qx][dy];
             }
-            Y(dx,dy,1,e) += Y(dx,dy,0,e);
+            Y(dx,dy,0,e) += temp;
+            Y(dx,dy,1,e) += temp;
          }
       }
    });
@@ -647,14 +649,16 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
                {
                   for (int dx = 0; dx < D1D; ++dx)
                   {
+                     double temp = 0.0;
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
                         const double Bx = B(qx,dx);
                         const double Gx = G(qx,dx);
                         const double L = i==0 ? Gx : Bx;
                         const double R = j==0 ? Gx : Bx;
-                        Y(dx, dy, dz, 0, e) += L * QDD[qx][dy][dz] * R;
+                        temp += L * QDD[qx][dy][dz] * R;
                      }
+                     Y(dx, dy, dz, 0, e) += temp;
                   }
                }
             }
