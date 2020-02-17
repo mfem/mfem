@@ -218,6 +218,7 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient zeroVecCoef(zeroVec);
    VectorConstantCoefficient oneVecCoef(oneVec);
 
+   u = 0.0;
    switch (prob)
    {
       case 0:
@@ -380,7 +381,7 @@ int main(int argc, char *argv[])
 
       BDP.SetDiagonalBlock(0, pc_r);
       BDP.SetDiagonalBlock(1, pc_i);
-      BDP.owns_blocks = 0;
+      BDP.owns_blocks = 1;
 
       GMRESSolver gmres;
       gmres.SetPreconditioner(BDP);

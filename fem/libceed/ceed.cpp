@@ -222,7 +222,12 @@ static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
          tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
       }
    }
-   CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(),
+   CeedInterlaceMode imode = CEED_NONINTERLACED;
+   if (fes.GetOrdering()==Ordering::byVDIM)
+   {
+      imode = CEED_INTERLACED;
+   }
+   CeedElemRestrictionCreate(ceed, imode, mesh->GetNE(), fe->GetDof(),
                              fes.GetNDofs(), fes.GetVDim(), CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
 }
