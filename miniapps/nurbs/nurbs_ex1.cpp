@@ -59,7 +59,6 @@ public:
       int nd = el.GetDof();
       int dim = el.GetDim();
       int spaceDim = Trans.GetSpaceDim();
-      bool square = (dim == spaceDim);
       double w;
 
 #ifdef MFEM_THREAD_SAFE
