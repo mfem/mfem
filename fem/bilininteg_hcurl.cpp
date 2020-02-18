@@ -1659,9 +1659,13 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
    {
-      PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, ne,
-                                   mapsO->B, mapsC->B, mapsO->G, mapsC->G,
-                                   pa_data, diag);
+      // Reduce HCURL_MAX_D1D/Q1D to avoid using too much memory
+      constexpr int MAX_D1D = 4;
+      constexpr int MAX_Q1D = 5;
+      PACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
+                                                    mapsO->B, mapsC->B,
+                                                    mapsO->G, mapsC->G,
+                                                    pa_data, diag);
    }
    else if (dim == 2)
    {
