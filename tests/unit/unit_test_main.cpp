@@ -15,10 +15,6 @@
 
 int main(int argc, char *argv[])
 {
-#ifdef MFEM_USE_MPI
-   mfem::MPI_Session mpi;
-#endif
-
    // There must be exactly one instance.
    Catch::Session session;
 
@@ -30,18 +26,19 @@ int main(int argc, char *argv[])
    }
 
 #ifdef MFEM_USE_MPI
-   // Force to only run parallel tests if the tests
-   // are executed on multiple processors.
-   if (mpi.WorldSize() > 1)
+   mfem::MPI_Session mpi;
+   // Force tests not tagged as [Parallel] to run only on MPI rank 0
+   if (mpi.WorldRank() > 0)
    {
       auto cfg = session.configData();
       cfg.testsOrTags.push_back("[Parallel]");
       session.useConfigData(cfg);
-      if (mpi.Root())
-      {
-         mfem::out
-               << "WARNING: Only running the [Parallel] label on MPI ranks > 1." << std::endl;
-      }
+   }
+   if (mpi.WorldSize() > 1 && mpi.Root())
+   {
+      mfem::out
+         << "WARNING: Only running the [Parallel] label on MPI ranks > 1."
+         << std::endl;
    }
 #endif
 
