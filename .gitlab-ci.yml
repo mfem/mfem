@@ -170,7 +170,7 @@ stages:
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
       export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:18:1 --cpus-per-task=18 --ntasks=1"
   fi
-  ${EXEC_PREFIX} ../runtest ../../mfem "${BASELINE_TEST} ${BUILD_ROOT}/tpls"
+  ${EXEC_PREFIX} ../runtest ../../mfem "${BASELINE_TEST}" "${ADDITIONAL_DIR}"
   # post
   if [[ ! -f ${_full_out} || ! -f ${_out} ]]
   then
@@ -185,7 +185,8 @@ stages:
 .baselinecheck_mfem:
     stage: baseline_check
     variables:
-      BASELINE_TEST: "baseline"
+      BASELINE_TEST: baseline
+      ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
     script:
       - *baseline_script
     allow_failure: true
@@ -198,7 +199,8 @@ stages:
 .samplebaselinecheck_mfem:
     stage: baseline_check
     variables:
-      BASELINE_TEST: "sample-runs-baseline"
+      BASELINE_TEST: sample-runs-baseline
+      ADDITIONAL_DIR: ""
     script:
       - *baseline_script
     allow_failure: true
