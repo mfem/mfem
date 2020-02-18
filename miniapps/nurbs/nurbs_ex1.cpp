@@ -58,7 +58,6 @@ public:
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
-      int spaceDim = Trans.GetSpaceDim();
       double w;
 
 #ifdef MFEM_THREAD_SAFE
