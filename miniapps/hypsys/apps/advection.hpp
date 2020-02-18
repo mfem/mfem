@@ -16,7 +16,6 @@ public:
                                int i) const;
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const;
-   // virtual void WriteErrors(const Array<double> &errors) const;
 
    int nqf;
    DenseTensor VelElem, VelFace;

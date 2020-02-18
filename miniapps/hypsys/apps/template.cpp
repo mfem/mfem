@@ -8,7 +8,8 @@ void InflowFunctionTEMPLATE(const Vector &x, double t, Vector &u);
 
 TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
                    Configuration &config_)
-   : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 1, config_)
+   : HyperbolicSystem(fes_, u_block, NUMEQ, config_,
+                      VectorFunctionCoefficient(NUMEQ, InflowFunctionTEMPLATE))
 {
    ConfigTEMPLATE = config_;
    SteadyState = false;
@@ -19,7 +20,6 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
 
    // Initialize the state.
    VectorFunctionCoefficient ic(NumEq, InitialConditionTEMPLATE);
-   VectorFunctionCoefficient bc(NumEq, InflowFunctionTEMPLATE);
 
    if (ConfigTEMPLATE.ConfigNum == 0)
    {
@@ -27,16 +27,12 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
       L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
       FiniteElementSpace l2_fes(mesh, &l2_fec, NumEq, Ordering::byNODES);
       GridFunction l2_proj(&l2_fes);
-      l2_proj.ProjectCoefficient(bc);
-      inflow.ProjectGridFunction(l2_proj);
       l2_proj.ProjectCoefficient(ic);
       u0.ProjectGridFunction(l2_proj);
    }
-   else
+   else // Bound preserving projection.
    {
-      // Bound preserving projection.
       u0.ProjectCoefficient(ic);
-      inflow.ProjectCoefficient(bc);
    }
 }
 
@@ -57,29 +53,12 @@ void TEMPLATE::ComputeErrors(Array<double> &errors, const GridFunction &u,
 {
    errors.SetSize(3);
    VectorFunctionCoefficient uAnalytic(NumEq, AnalyticalSolutionTEMPLATE);
-   uAnalytic.SetTime(0); // Right now we use initial condition = solution.
+   uAnalytic.SetTime(t);
    errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
    errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
    errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
-void TEMPLATE::WriteErrors(const Array<double> &errors) const
-{
-   ofstream file("errors.txt", ios_base::app);
-
-   if (!file)
-   {
-      MFEM_ABORT("Error opening file.");
-   }
-   else
-   {
-      ostringstream strs;
-      strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
-      string str = strs.str();
-      file << str;
-      file.close();
-   }
-}
 
 void AnalyticalSolutionTEMPLATE(const Vector &x, double t, Vector &u)
 {

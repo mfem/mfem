@@ -117,10 +117,6 @@ void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,
    errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
-// void ShallowWater::WriteErrors(const Array<double> &errors) const
-// {
-
-// }
 
 void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 {
@@ -167,7 +163,6 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
       default: { u = 0.; u(0) = X.Norml2() < 0.5 ? 1. : .1; }
    }
 }
-
 
 void InitialConditionSWE(const Vector &x, Vector &u)
 {

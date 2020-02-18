@@ -59,23 +59,6 @@ void Burgers::ComputeErrors(Array<double> &errors, const GridFunction &u,
    errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
-// void Burgers::WriteErrors(const Array<double> &errors) const
-// {
-//    ofstream file("errors.txt", ios_base::app);
-
-//    if (!file)
-//    {
-//       MFEM_ABORT("Error opening file.");
-//    }
-//    else
-//    {
-//       ostringstream strs;
-//       strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
-//       string str = strs.str();
-//       file << str;
-//       file.close();
-//    }
-// }
 
 double AnalyticalSolutionBurgers(const Vector &x, double t)
 {

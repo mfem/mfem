@@ -170,24 +170,6 @@ void Advection::ComputeErrors(Array<double> &errors, const GridFunction &u,
    errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
-// void Advection::WriteErrors(const Array<double> &errors) const
-// {
-//    ofstream file("errors.txt", ios_base::app);
-
-//    if (!file)
-//    {
-//       MFEM_ABORT("Error opening file.");
-//    }
-//    else
-//    {
-//       ostringstream strs;
-//       strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
-//       string str = strs.str();
-//       file << str;
-//       file.close();
-//    }
-// }
-
 
 void VelocityFunctionAdv(const Vector &x, Vector &v)
 {
