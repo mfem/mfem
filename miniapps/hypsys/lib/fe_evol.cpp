@@ -6,7 +6,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
    : TimeDependentOperator(fes_->GetVSize()),
      fes(fes_), hyp(hyp_), dofs(dofs_),
      scheme(scheme_), LumpedMassMat(LumpedMassMat_),
-     z(fes_->GetVSize())
+     z(fes_->GetVSize()), inflow(fes_)
 {
    const char* fecol = fes->FEColl()->Name();
    if (strncmp(fecol, "L2", 2))
@@ -231,7 +231,7 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
          if (nbr < 0)
          {
             // TODO more general boundary conditions, Riemann problem
-            uNbr = hyp->inflow(DofInd);
+            uNbr = inflow(DofInd);
          }
          else
          {
@@ -290,6 +290,9 @@ double FE_Evolution::ConvergenceCheck(double dt, double tol,
 void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 {
    z = 0.;
+   hyp->b.SetTime(t);
+   inflow.ProjectCoefficient(hyp->b); // TODO Fallunterscheidung: bc zeitabh.?
+
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);

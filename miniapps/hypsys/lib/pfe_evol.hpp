@@ -9,6 +9,7 @@
 #include "pdofs.hpp"
 #include "ptools.hpp"
 #include "../apps/advection.hpp"
+#include "../apps/burgers.hpp"
 #include "../apps/shallowwater.hpp"
 
 using namespace std;

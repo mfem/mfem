@@ -26,8 +26,8 @@ class HyperbolicSystem
 {
 public:
    explicit HyperbolicSystem(FiniteElementSpace *fes_, BlockVector &u_block,
-                             int NumEq_, Configuration &config_) :
-      fes(fes_), inflow(fes_), u0(fes_, u_block), NumEq(NumEq_) { };
+                             int NumEq_, Configuration &config_, VectorFunctionCoefficient b_) :
+      fes(fes_), inflow(fes_), u0(fes_, u_block), NumEq(NumEq_), b(b_) { };
    ~HyperbolicSystem() { };
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
@@ -36,12 +36,29 @@ public:
                                int i) const = 0;
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const = 0;
-   virtual void WriteErrors(const Array<double> &errors) const = 0;
+   virtual void WriteErrors(const Array<double> &errors) const
+   {
+      ofstream file("errors.txt", ios_base::app);
+
+      if (!file)
+      {
+         MFEM_ABORT("Error opening file.");
+      }
+      else
+      {
+         ostringstream strs;
+         strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
+         string str = strs.str();
+         file << str;
+         file.close();
+      }
+   }
 
    const int NumEq;
 
    FiniteElementSpace *fes;
    GridFunction inflow, u0;
+   mutable VectorFunctionCoefficient b;
 
    bool SolutionKnown = true;
    bool FileOutput = true;

@@ -180,8 +180,9 @@ int main(int argc, char *argv[])
       }
       case 1:
       {
+         hyp =  new Burgers(&vfes, u_block, config);
          break;
-      } // Burgers
+      }
       case 2:
       {
          break;

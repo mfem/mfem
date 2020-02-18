@@ -10,7 +10,7 @@ void InflowFunctionSWE(const Vector &x, double t, Vector &u);
 
 ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
                            Configuration &config_)
-   : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension()+1, config_)
+    : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 1, config_, VectorFunctionCoefficient(fes_->GetMesh()->Dimension() + 1, InflowFunctionSWE))
 {
    ConfigSWE = config_;
    SteadyState = false;
@@ -21,7 +21,6 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 
    // Initialize the state.
    VectorFunctionCoefficient ic(NumEq, InitialConditionSWE);
-   VectorFunctionCoefficient bc(NumEq, InflowFunctionSWE);
 
    if (ConfigSWE.ConfigNum == 0)
    {
@@ -29,16 +28,12 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
       L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
       FiniteElementSpace l2_fes(mesh, &l2_fec, NumEq, Ordering::byNODES);
       GridFunction l2_proj(&l2_fes);
-      l2_proj.ProjectCoefficient(bc);
-      inflow.ProjectGridFunction(l2_proj);
       l2_proj.ProjectCoefficient(ic);
       u0.ProjectGridFunction(l2_proj);
    }
-   else
+   else // Bound preserving projection.
    {
-      // Bound preserving projection.
       u0.ProjectCoefficient(ic);
-      inflow.ProjectCoefficient(bc);
    }
 }
 
@@ -114,29 +109,17 @@ void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,
 {
    errors.SetSize(3);
    VectorFunctionCoefficient uAnalytic(NumEq, AnalyticalSolutionSWE);
-   uAnalytic.SetTime(0); // Right now we use initial condition = solution.
+   // Right now we use initial condition = solution due to periodic mesh.
+   uAnalytic.SetTime(0);
    errors[0] = u.ComputeLpError(1., uAnalytic) / DomainSize;
    errors[1] = u.ComputeLpError(2., uAnalytic) / DomainSize;
    errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
-void ShallowWater::WriteErrors(const Array<double> &errors) const
-{
-   ofstream file("errors.txt", ios_base::app);
+// void ShallowWater::WriteErrors(const Array<double> &errors) const
+// {
 
-   if (!file)
-   {
-      MFEM_ABORT("Error opening file.");
-   }
-   else
-   {
-      ostringstream strs;
-      strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
-      string str = strs.str();
-      file << str;
-      file.close();
-   }
-}
+// }
 
 void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 {

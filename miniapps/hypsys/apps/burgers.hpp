@@ -1,14 +1,14 @@
-#ifndef HYPSYS_SHALLOWWATER
-#define HYPSYS_SHALLOWWATER
+#ifndef HYPSYS_BURGERS
+#define HYPSYS_BURGERS
 
 #include "hypsys.hpp"
 
-class ShallowWater : public HyperbolicSystem
+class Burgers : public HyperbolicSystem
 {
 public:
-   explicit ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
-                         Configuration &config_);
-   ~ShallowWater() { };
+   explicit Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
+                    Configuration &config_);
+   ~Burgers(){};
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &f,
                              int e, int k, int i = -1) const;

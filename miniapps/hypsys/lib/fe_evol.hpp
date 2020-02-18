@@ -8,6 +8,7 @@
 #include "dofs.hpp"
 #include "tools.hpp"
 #include "../apps/advection.hpp"
+#include "../apps/burgers.hpp"
 #include "../apps/shallowwater.hpp"
 
 using namespace std;
@@ -52,6 +53,7 @@ public:
    mutable int DofInd, nbr;
    mutable double uNbr;
 
+   mutable GridFunction inflow;
 
    FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                 DofInfo &dofs_, EvolutionScheme scheme_,

@@ -26,7 +26,7 @@ OUT_DIR = output
 DIRS = $(LIB_DIR) $(APP_DIR)
 
 OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/fe_evol.o
-APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/shallowwater.app
+APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/shallowwater.app
 
 MAIN_FILES = hypsys
 
@@ -38,7 +38,8 @@ ifeq ($(MFEM_USE_MPI), YES)
 endif
 
 # valgrind-test setup
-VALGRIND-CONFIG = -tf 0.01 -dt 0.001 -p 0 -e 0
+PROBLEM = 3
+VALGRIND-CONFIG = -tf 0.01 -dt 0.001 -p $(PROBLEM) -e 0
 
 # grid-convergence-test setup
 MESH0 = data/inline-3$(GEOM).mesh

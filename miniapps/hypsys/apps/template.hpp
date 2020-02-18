@@ -1,14 +1,14 @@
-#ifndef HYPSYS_SHALLOWWATER
-#define HYPSYS_SHALLOWWATER
+#ifndef HYPSYS_TEMPLATE
+#define HYPSYS_TEMPLATE
 
 #include "hypsys.hpp"
 
-class ShallowWater : public HyperbolicSystem
+class TEMPLATE : public HyperbolicSystem
 {
 public:
-   explicit ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
-                         Configuration &config_);
-   ~ShallowWater() { };
+   explicit TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
+                     Configuration &config_);
+   ~TEMPLATE(){};
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &f,
                              int e, int k, int i = -1) const;
@@ -16,7 +16,7 @@ public:
                                int i) const;
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const;
-   // virtual void WriteErrors(const Array<double> &errors) const;
+   virtual void WriteErrors(const Array<double> &errors) const;
 };
 
 #endif

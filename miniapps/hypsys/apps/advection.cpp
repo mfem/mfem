@@ -2,14 +2,14 @@
 
 Configuration ConfigAdv;
 
-void VelocityFunctionAdv(const Vector &x, Vector &v);
 double AnalyticalSolutionAdv(const Vector &x, double t);
 double InitialConditionAdv(const Vector &x);
-double InflowFunctionAdv(const Vector &x);
+void InflowFunctionAdv(const Vector &x, double t, Vector &u);
+void VelocityFunctionAdv(const Vector &x, Vector &v);
 
 Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
                      Configuration &config_)
-   : HyperbolicSystem(fes_, u_block, 1, config_)
+    : HyperbolicSystem(fes_, u_block, 1, config_, VectorFunctionCoefficient (1, InflowFunctionAdv))
 {
    ConfigAdv = config_;
 
@@ -116,24 +116,20 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
       }
    }
 
-   FunctionCoefficient bc(InflowFunctionAdv);
    FunctionCoefficient ic(InitialConditionAdv);
 
+   // TODO diese Fallunterscheidung muss in Mult getroffen werden.
    if (ConfigAdv.ConfigNum == 0)
    {
       // Use L2 projection to achieve optimal convergence order.
       L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
       FiniteElementSpace l2_fes(mesh, &l2_fec);
       GridFunction l2_proj(&l2_fes);
-      l2_proj.ProjectCoefficient(bc);
-      inflow.ProjectGridFunction(l2_proj);
       l2_proj.ProjectCoefficient(ic);
       u0.ProjectGridFunction(l2_proj);
    }
-   else
+   else // Bound preserving projection.
    {
-      // Bound preserving projection.
-      inflow.ProjectCoefficient(bc);
       u0.ProjectCoefficient(ic);
    }
 }
@@ -173,23 +169,23 @@ void Advection::ComputeErrors(Array<double> &errors, const GridFunction &u,
    errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
-void Advection::WriteErrors(const Array<double> &errors) const
-{
-   ofstream file("errors.txt", ios_base::app);
+// void Advection::WriteErrors(const Array<double> &errors) const
+// {
+//    ofstream file("errors.txt", ios_base::app);
 
-   if (!file)
-   {
-      MFEM_ABORT("Error opening file.");
-   }
-   else
-   {
-      ostringstream strs;
-      strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
-      string str = strs.str();
-      file << str;
-      file.close();
-   }
-}
+//    if (!file)
+//    {
+//       MFEM_ABORT("Error opening file.");
+//    }
+//    else
+//    {
+//       ostringstream strs;
+//       strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
+//       string str = strs.str();
+//       file << str;
+//       file.close();
+//    }
+// }
 
 
 void VelocityFunctionAdv(const Vector &x, Vector &v)
@@ -284,7 +280,7 @@ double InitialConditionAdv(const Vector &x)
    return AnalyticalSolutionAdv(x, 0.);
 }
 
-double InflowFunctionAdv(const Vector &x)
+void InflowFunctionAdv(const Vector &x, double t, Vector &u)
 {
-   return AnalyticalSolutionAdv(x, 0.);
+   u(0) = AnalyticalSolutionAdv(x, t);
 }
