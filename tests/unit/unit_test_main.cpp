@@ -19,7 +19,33 @@ int main(int argc, char *argv[])
    mfem::MPI_Session mpi;
 #endif
 
-   // There must be exactly one instance
-   int result = Catch::Session().run(argc, argv);
+   // There must be exactly one instance.
+   Catch::Session session;
+
+   // Apply provided command line arguments.
+   int r = session.applyCommandLine(argc, argv);
+   if (r != 0)
+   {
+      return r;
+   }
+
+#ifdef MFEM_USE_MPI
+   // Force to only run parallel tests if the tests
+   // are executed on multiple processors.
+   if (mpi.WorldSize() > 1)
+   {
+      auto cfg = session.configData();
+      cfg.testsOrTags.push_back("[Parallel]");
+      session.useConfigData(cfg);
+      if (mpi.Root())
+      {
+         mfem::out
+               << "WARNING: Only running the [Parallel] label on MPI ranks > 1." << std::endl;
+      }
+   }
+#endif
+
+   int result = session.run();
+
    return result;
 }
