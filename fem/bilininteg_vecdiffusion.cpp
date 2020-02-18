@@ -659,20 +659,10 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
                         temp += L * QDD[qx][dy][dz] * R;
                      }
                      Y(dx, dy, dz, 0, e) += temp;
+                     Y(dx, dy, dz, 1, e) += temp;
+                     Y(dx, dy, dz, 2, e) += temp;
                   }
                }
-            }
-         }
-      }
-
-      for (int dz = 0; dz < D1D; ++dz)
-      {
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               Y(dx, dy, dz, 1, e) += Y(dx, dy, dz, 0, e);
-               Y(dx, dy, dz, 2, e) += Y(dx, dy, dz, 0, e);
             }
          }
       }
