@@ -26,7 +26,7 @@ OUT_DIR = output
 DIRS = $(LIB_DIR) $(APP_DIR)
 
 OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/fe_evol.o
-APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/shallowwater.app
+APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/shallowwater.app
 
 MAIN_FILES = hypsys
 

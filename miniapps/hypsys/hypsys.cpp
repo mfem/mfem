@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
    {
       case 0: { hyp =  new Advection(&vfes, u_block, config); break; }
       case 1: { hyp =  new Burgers(&vfes, u_block, config); break; }
-      case 2: { break; } // KPP
+      case 2: { hyp =  new KPP(&vfes, u_block, config); break; }
       case 3: { hyp =  new ShallowWater(&vfes, u_block, config); break; }
       default:
          return -1;

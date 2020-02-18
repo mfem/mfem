@@ -65,15 +65,9 @@ int main(int argc, char *argv[])
    ODESolver *odeSolver = NULL;
    switch (config.odeSolverType)
    {
-      case 1:
-         odeSolver = new ForwardEulerSolver;
-         break;
-      case 2:
-         odeSolver = new RK2Solver(1.0);
-         break;
-      case 3:
-         odeSolver = new RK3SSPSolver;
-         break;
+      case 1: odeSolver = new ForwardEulerSolver; break;
+      case 2: odeSolver = new RK2Solver(1.0); break;
+      case 3: odeSolver = new RK3SSPSolver; break;
       default:
          cout << "Unknown ODE solver type: " << config.odeSolverType << endl;
          return -1;
@@ -173,25 +167,10 @@ int main(int argc, char *argv[])
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
-      case 0:
-      {
-         hyp = new Advection(&vfes, u_block, config);
-         break;
-      }
-      case 1:
-      {
-         hyp =  new Burgers(&vfes, u_block, config);
-         break;
-      }
-      case 2:
-      {
-         break;
-      } // KPP
-      case 3:
-      {
-         hyp = new ShallowWater(&vfes, u_block, config);
-         break;
-      }
+      case 0: { hyp =  new Advection(&vfes, u_block, config); break; }
+      case 1: { hyp =  new Burgers(&vfes, u_block, config); break; }
+      case 2: { hyp =  new KPP(&vfes, u_block, config); break; }
+      case 3: { hyp =  new ShallowWater(&vfes, u_block, config); break; }
       default:
          return -1;
    }

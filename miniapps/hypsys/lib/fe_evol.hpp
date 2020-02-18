@@ -9,6 +9,7 @@
 #include "tools.hpp"
 #include "../apps/advection.hpp"
 #include "../apps/burgers.hpp"
+#include "../apps/kpp.hpp"
 #include "../apps/shallowwater.hpp"
 
 using namespace std;
