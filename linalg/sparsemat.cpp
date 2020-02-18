@@ -661,7 +661,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       auto h_A = HostRead(A, nnz);
       auto h_x = x.HostRead();
       auto h_y = y.HostReadWrite();
-      MFEM_FORALL(i, height,
+      for (int i = 0; i < height; i++)
       {
          const double xi = a * h_x[i];
          const int end = h_I[i+1];
@@ -670,7 +670,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
             const int Jj = h_J[j];
             h_y[Jj] += h_A[j] * xi;
          }
-      });
+      }
    }
 }
 

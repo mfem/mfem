@@ -48,7 +48,6 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
-   int ref_levels = -1;
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -56,9 +55,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly;"
-                  " -1 = auto: <= 5,000 elements.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -97,11 +93,10 @@ int main(int argc, char *argv[])
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 5,000
-   //    elements, or as specified on the command line with the option
-   //    '--refine'.
+   //    elements.
    {
-      ref_levels = (ref_levels != -1) ? ref_levels :
-                   (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels =
+         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
