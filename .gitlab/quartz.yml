@@ -11,30 +11,30 @@
 
 # GitLab pipelines configurations for the Quart machine at LLNL
 .on_quartz:
-    tags:
-        - shell
-        - quartz
-    variables:
-        PLAT: quartz
-        MPIEXEC: srun
-        MPIEXEC_NP: "-n"
+  tags:
+    - shell
+    - quartz
+  variables:
+    PLAT: quartz
+    MPIEXEC: srun
+    MPIEXEC_NP: "-n"
 
 # Setup
 setup_quartz:
-    extends: [.setup, .on_quartz]
+  extends: [.setup, .on_quartz]
 
 # Allocate
 allocate_quartz:
-    variables:
-        GIT_STRATEGY: none
-    extends: .on_quartz
-    stage: allocate
-    script:
-        - |
-          if [[ "${MPIEXEC}" == "srun" ]]
-          then
-              salloc --nodes=1 --extra-node-info=2:18:1 --partition=pbatch --time=240 --no-shell --job-name=${MFEM_ALLOC_NAME}
-          fi
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: allocate
+  script:
+    - |
+      if [[ "${MPIEXEC}" == "srun" ]]
+      then
+      salloc --nodes=1 --extra-node-info=2:18:1 --partition=pbatch --time=240 --no-shell --job-name=${MFEM_ALLOC_NAME}
+      fi
 
 # Release
 deallocate_quartz:
@@ -43,106 +43,106 @@ deallocate_quartz:
   extends: .on_quartz
   stage: deallocate
   script:
-      - |
-        if [[ "${MPIEXEC}" == "srun" ]]
-        then
-            export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-            ([[ -n "${JOB_ID}" ]] && scancel ${JOB_ID})
-        fi
+    - |
+      if [[ "${MPIEXEC}" == "srun" ]]
+      then
+      export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+      ([[ -n "${JOB_ID}" ]] && scancel ${JOB_ID})
+      fi
   when: always
 
 #Build libs
 build_hypre_gcc_6_1_0_quartz:
-    extends: [.build_hypre, .with_gcc_6_1_0, .on_quartz]
+  extends: [.build_hypre, .with_gcc_6_1_0, .on_quartz]
 
 build_parmetis_gcc_6_1_0_quartz:
-    extends: [.build_metis, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        METIS: parmetis
+  extends: [.build_metis, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    METIS: parmetis
 
 build_metis4_gcc_6_1_0_quartz:
-    extends: [.build_metis, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        METIS: metis4
+  extends: [.build_metis, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    METIS: metis4
 
 build_metis5_gcc_6_1_0_quartz:
-    extends: [.build_metis, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        METIS: metis5
-    allow_failure: true
+  extends: [.build_metis, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    METIS: metis5
+  allow_failure: true
 
 # Build MFEM
 build_mfem_debug_ser_gcc_4_9_3_quartz:
-    extends: [.build_mfem, .with_gcc_4_9_3, .on_quartz]
-    variables:
-        MFEM_DEBUG: "YES"
-        MFEM_USE_MPI: "NO"
+  extends: [.build_mfem, .with_gcc_4_9_3, .on_quartz]
+  variables:
+    MFEM_DEBUG: "YES"
+    MFEM_USE_MPI: "NO"
 
 build_mfem_debug_ser_gcc_6_1_0_quartz:
-    extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        MFEM_DEBUG: "YES"
-        MFEM_USE_MPI: "NO"
+  extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    MFEM_DEBUG: "YES"
+    MFEM_USE_MPI: "NO"
 
 build_mfem_debug_par_gcc_6_1_0_quartz:
-    extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        MFEM_DEBUG: "YES"
-        MFEM_USE_MPI: "YES"
-    needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+  extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    MFEM_DEBUG: "YES"
+    MFEM_USE_MPI: "YES"
+  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
 
 build_mfem_opt_ser_gcc_6_1_0_quartz:
-    extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        MFEM_DEBUG: "NO"
-        MFEM_USE_MPI: "NO"
+  extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    MFEM_DEBUG: "NO"
+    MFEM_USE_MPI: "NO"
 
 build_mfem_opt_par_gcc_6_1_0_quartz:
-    extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        MFEM_DEBUG: "NO"
-        MFEM_USE_MPI: "YES"
-    needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+  extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    MFEM_DEBUG: "NO"
+    MFEM_USE_MPI: "YES"
+  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
 
 ## Tests
 # Sanity check
 sanitycheck_mfem_debug_ser_gcc_4_9_3_quartz:
-    extends: [.sanitycheck_mfem, .with_gcc_4_9_3, .on_quartz]
-    variables:
-        MFEM_DEBUG: "YES"
-        MFEM_USE_MPI: "NO"
-    needs: [build_mfem_debug_ser_gcc_4_9_3_quartz, allocate_quartz]
+  extends: [.sanitycheck_mfem, .with_gcc_4_9_3, .on_quartz]
+  variables:
+    MFEM_DEBUG: "YES"
+    MFEM_USE_MPI: "NO"
+  needs: [build_mfem_debug_ser_gcc_4_9_3_quartz, allocate_quartz]
 
 sanitycheck_mfem_debug_ser_gcc_6_1_0_quartz:
-    extends: [.sanitycheck_mfem, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        MFEM_DEBUG: "YES"
-        MFEM_USE_MPI: "NO"
-    needs: [build_mfem_debug_ser_gcc_6_1_0_quartz, allocate_quartz]
+  extends: [.sanitycheck_mfem, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    MFEM_DEBUG: "YES"
+    MFEM_USE_MPI: "NO"
+  needs: [build_mfem_debug_ser_gcc_6_1_0_quartz, allocate_quartz]
 
 sanitycheck_opt_ser_mfem_gcc_6_1_0_quartz:
-    extends: [.sanitycheck_mfem, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        MFEM_DEBUG: "NO"
-        MFEM_USE_MPI: "NO"
-    needs: [build_mfem_opt_ser_gcc_6_1_0_quartz, allocate_quartz]
+  extends: [.sanitycheck_mfem, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    MFEM_DEBUG: "NO"
+    MFEM_USE_MPI: "NO"
+  needs: [build_mfem_opt_ser_gcc_6_1_0_quartz, allocate_quartz]
 
 sanitycheck_opt_par_mfem_gcc_6_1_0_quartz:
-    extends: [.sanitycheck_mfem, .with_gcc_6_1_0, .on_quartz]
-    variables:
-        MFEM_DEBUG: "NO"
-        MFEM_USE_MPI: "YES"
-    needs: [build_mfem_opt_par_gcc_6_1_0_quartz, allocate_quartz]
+  extends: [.sanitycheck_mfem, .with_gcc_6_1_0, .on_quartz]
+  variables:
+    MFEM_DEBUG: "NO"
+    MFEM_USE_MPI: "YES"
+  needs: [build_mfem_opt_par_gcc_6_1_0_quartz, allocate_quartz]
 
 # Baseline
 baselinecheck_mfem_gcc_6_1_0_quartz:
-    extends: [.baselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
-    needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+  extends: [.baselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
+  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
 
 samplebaselinecheck_mfem_gcc_6_1_0_quartz:
-    extends: [.samplebaselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
-    needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+  extends: [.samplebaselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
+  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
 
 baselinepublish_mfem_quartz:
-    extends: [.rebaseline_mfem, .on_quartz]
-    needs: [baselinecheck_mfem_gcc_6_1_0_quartz]
+  extends: [.rebaseline_mfem, .on_quartz]
+  needs: [baselinecheck_mfem_gcc_6_1_0_quartz]

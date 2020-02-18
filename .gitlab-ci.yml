@@ -38,117 +38,120 @@
 # are sure to retrieve it.
 
 variables:
-    BUILD_ROOT: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
-    BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}/${PLAT}/${TOOLCHAIN}
-    REBASELINE: "NO"
-    MFEM_ALLOC_NAME: mfem_ci_${CI_PIPELINE_ID}
+  BUILD_ROOT: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+  BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}/${PLAT}/${TOOLCHAIN}
+  REBASELINE: "NO"
+  MFEM_ALLOC_NAME: mfem_ci_${CI_PIPELINE_ID}
+  TPLS_ORIGIN: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
+  TESTS_ORIGIN: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
 
-# The pipeline is divided into stages. Usually, these are also synchronisation points, however, we use "needs" keyword to express the DAG of jobs for more efficiency.
+# The pipeline is divided into stages. Usually, these are also synchronisation
+# points, however, we use "needs" keyword to express the DAG of jobs for more
+# efficiency.
 # - We use setup phase to download content outside of mfem directory.
 # - Allocate is where quartz resources are allocated once for all.
 # - Libs is where dependencies are built.
 # - Build is where we build MFEM for multiple toolchains.
 # - Test is where we perform a first set of tests on MFEM build.
 # - Baseline_checks gathers baseline-type test suites execution
-# - Baseline_publish, only available on master, allows to commit baseline resluts
+# - Baseline_publish, only available on master, allows to commit baseline
+#   results
 # - Deallocate releases quartz resources
 stages:
-    - setup
-    - allocate
-    - libs
-    - build
-    - test
-    - baseline_check
-    - deallocate
-    - baseline_publish
+  - setup
+  - allocate
+  - libs
+  - build
+  - test
+  - baseline_check
+  - deallocate
+  - baseline_publish
 
-# This section is LLNL-specific
+    # This section is LLNL-specific
 .setup:
-    stage: setup
-    variables:
-        GIT_STRATEGY: none
-    script:
-        - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
-        - if [ ! -d "tpls" ]; then git clone ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git; fi
-        - if [ ! -d "tests" ]; then git clone ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git; fi
-        - cd tpls && git pull && cd ..
-        - cd tests && git pull && cd ..
+  stage: setup
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
+    - if [ ! -d "tpls" ]; then git clone ${TPLS_ORIGIN}; fi
+    - if [ ! -d "tests" ]; then git clone ${TESTS_ORIGIN}; fi
+    - cd tpls && git pull && cd ..
+    - cd tests && git pull && cd ..
 
 .with_gcc_6_1_0:
-    variables:
-        TOOLCHAIN: gcc_6_1_0
-    before_script:
-        - module load gcc/6.1.0
+  variables:
+    TOOLCHAIN: gcc_6_1_0
+  before_script:
+    - module load gcc/6.1.0
 
 .with_gcc_4_9_3:
-    variables:
-        TOOLCHAIN: gcc_4_9_3
-    before_script:
-        - module load gcc/4.9.3
+  variables:
+    TOOLCHAIN: gcc_4_9_3
+  before_script:
+    - module load gcc/4.9.3
 
 # Build of dependencies and mfem:
 # if on quartz, uses a subpart of preallocated resources
 .build_hypre:
-    variables:
-        EXEC_PREFIX: ""
-    stage: libs
-    variables:
-        GIT_STRATEGY: none
-    script:
-        - cd ${BUILD_ROOT}/tpls
-        - mkdir -p ${BUILD_PATH}
-        - make clean
-        - |
-          if [[ "${MPIEXEC}" == "srun" ]]
-          then
-              export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-              export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:6:1 --cpus-per-task=6 --ntasks=1"
-          fi
-        - $EXEC_PREFIX make -j 6 hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
+  variables:
+    EXEC_PREFIX: ""
+    GIT_STRATEGY: none
+  stage: libs
+  script:
+    - cd ${BUILD_ROOT}/tpls
+    - mkdir -p ${BUILD_PATH}
+    - make clean
+    - |
+      if [[ "${MPIEXEC}" == "srun" ]]
+      then
+      export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:6:1 --cpus-per-task=6 --ntasks=1"
+      fi
+    - $EXEC_PREFIX make -j 6 hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
 
 .build_metis:
-    variables:
-        EXEC_PREFIX: ""
-    stage: libs
-    variables:
-        GIT_STRATEGY: none
-    script:
-        - cd ${BUILD_ROOT}/tpls
-        - mkdir -p ${BUILD_PATH}
-        - |
-          if [[ "${MPIEXEC}" == "srun" ]]
-          then
-              export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-              export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:6:1 --cpus-per-task=6 --ntasks=1"
-          fi
-        - $EXEC_PREFIX make -j 6 ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
+  variables:
+    EXEC_PREFIX: ""
+    GIT_STRATEGY: none
+  stage: libs
+  script:
+    - cd ${BUILD_ROOT}/tpls
+    - mkdir -p ${BUILD_PATH}
+    - |
+      if [[ "${MPIEXEC}" == "srun" ]]
+      then
+      export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:6:1 --cpus-per-task=6 --ntasks=1"
+      fi
+    - $EXEC_PREFIX make -j 6 ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
 
 .build_mfem:
-    variables:
-        EXEC_PREFIX: ""
-    stage: build
-    script:
-        - mkdir -p ${BUILD_PATH}
-        - cd ..
-        - cp -r mfem ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
-        - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
-        - |
-          if [[ "${MPIEXEC}" == "srun" ]]
-          then
-              export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-              export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:6:1 --cpus-per-task=6 --ntasks=1"
-          fi
-        - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="$EXEC_PREFIX" MFEM_MPIEXEC_NP=$MPIEXEC_NP
-        - $EXEC_PREFIX make -j 6 all
+  variables:
+    EXEC_PREFIX: ""
+  stage: build
+  script:
+    - mkdir -p ${BUILD_PATH}
+    - cd ..
+    - cp -r mfem ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - |
+      if [[ "${MPIEXEC}" == "srun" ]]
+      then
+      export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:6:1 --cpus-per-task=6 --ntasks=1"
+      fi
+    - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="$EXEC_PREFIX" MFEM_MPIEXEC_NP=$MPIEXEC_NP
+    - $EXEC_PREFIX make -j 6 all
 
 # Could this phase use a parallel run?
 .sanitycheck_mfem:
-    stage: test
-    variables:
-        GIT_STRATEGY: none
-    script:
-        - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
-        - make test
+  stage: test
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - make test
 
 # Shared script for baseline and sample-run-baseline.
 # BASELINE_TEST is what differentiate between both.
@@ -183,49 +186,49 @@ stages:
   if [[ ! $(head -n1 ${_diff}) ]]; then true; else false; fi
 
 .baselinecheck_mfem:
-    stage: baseline_check
-    variables:
-      BASELINE_TEST: baseline
-      ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
-    script:
-      - *baseline_script
-    allow_failure: true
-    artifacts:
-        paths:
-            - ${BASELINE_TEST}-${SYS_TYPE}-saved.txt
-            - ${BASELINE_TEST}-diff.txt
-        when: always
+  stage: baseline_check
+  variables:
+    BASELINE_TEST: baseline
+    ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
+  script:
+    - *baseline_script
+  allow_failure: true
+  artifacts:
+    paths:
+      - ${BASELINE_TEST}-${SYS_TYPE}-saved.txt
+      - ${BASELINE_TEST}-diff.txt
+    when: always
 
 .samplebaselinecheck_mfem:
-    stage: baseline_check
-    variables:
-      BASELINE_TEST: sample-runs-baseline
-      ADDITIONAL_DIR: ""
-    script:
-      - *baseline_script
-    allow_failure: true
-    timeout: 4h
-    artifacts:
-        paths:
-            - ${BASELINE_TEST}-${SYS_TYPE}-saved.txt
-            - ${BASELINE_TEST}-diff.txt
-        when: always
+  stage: baseline_check
+  variables:
+    BASELINE_TEST: sample-runs-baseline
+    ADDITIONAL_DIR: ""
+  script:
+    - *baseline_script
+  allow_failure: true
+  timeout: 4h
+  artifacts:
+    paths:
+      - ${BASELINE_TEST}-${SYS_TYPE}-saved.txt
+      - ${BASELINE_TEST}-diff.txt
+    when: always
 
 # This job can only be manually triggers on a pipeline for master branch,
 # or if the pipeline was triggered with REBASELINE="YES"
 .rebaseline_mfem:
-    stage: baseline_publish
-    rules:
-      - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
-        when: manual
-    script:
-        - echo "cd ${BUILD_ROOT}/tests"
-        - echo "cp ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt ./baseline-${SYS_TYPE}.saved"
-        - echo "git add baseline-${SYS_TYPE}.saved"
-        - echo "git commit -m Rebaselined in Gitlab pipeline #${CI_PIPELINE_ID}"
-        - echo "git push origin master"
-    allow_failure: false
+  stage: baseline_publish
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
+      when: manual
+  script:
+    - echo "cd ${BUILD_ROOT}/tests"
+    - echo "cp ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt ./baseline-${SYS_TYPE}.saved"
+    - echo "git add baseline-${SYS_TYPE}.saved"
+    - echo "git commit -m Rebaselined in Gitlab pipeline #${CI_PIPELINE_ID}"
+    - echo "git push origin master"
+  allow_failure: false
 
 # The list on jobs is in fact defined in other files.
 include:
-    - local: .gitlab/quartz.yml
+  - local: .gitlab/quartz.yml
