@@ -9,25 +9,34 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-# BUILD_ROOT: The path to the shared resources between all jobs.
-#   For example, external repository like tests and tpls are clone here
-#   Also, tpls are build once for all targets, so builds happen here
-# The naming of BUILD_ROOT is unique to the pipeline, preventing any form
-# of concurrency with other pipelines. However, this means this directory
-# will never be cleaned.
+
+# General GitLab pipelines configurations for supercomputers and Linux clusters
+# at Lawrence Livermore National Laboratory (LLNL).
+
+# We define the following GitLab pipeline variables:
+#
+# BUILD_ROOT:
+# The path to the shared resources between all jobs. For example, external
+# repositories like 'tests' and 'tpls' are cloned here. Also, 'tpls' is built
+# once for all targets, so that build happen here. The BUILD_ROOT is unique to
+# the pipeline, preventing any form of concurrency with other pipelines. This
+# also means that the BUILD_ROOT directory will never be cleaned.
 # TODO: add a clean-up mechanism
 #
-# BUILD_PATH: In BUILD_ROOT, we want to separate builds depending on the
-# machine used, typically because we build on set of dependencies per
-# machine.
+# BUILD_PATH:
+# In BUILD_ROOT, we want to separate builds depending on the machine used,
+# typically because we build on a set of dependencies per machine.
 #
-# REBASELINE: Defines the default choice for deploying/publishing baseline
-# results. By default baseline is only publishable from master branch. This
-# offers the possibility to manually ask for it on another branch if necessary.
+# REBASELINE:
+# Defines the default choice for updating the saved baseline results. By default
+# the baseline can only be updated from the master branch. This variable offers
+# the option to manually ask for rebaselining from another branch if necessary.
 #
-# MFEM_ALLOC_NAME: On quartz, there is only one allocation shared among jobs
-# in order to save time and resources. This allocation has to be uniquely named
-# so that we are sure to retrieve it.
+# MFEM_ALLOC_NAME:
+# On LLNL's quartz, there is only one allocation shared among jobs in order to
+# save time and resources. This allocation has to be uniquely named so that we
+# are sure to retrieve it.
+
 variables:
     BUILD_ROOT: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
     BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}/${PLAT}/${TOOLCHAIN}
@@ -54,6 +63,7 @@ stages:
         - rm -rf ${BUILD_ROOT}/${PLAT}
         - rm -f ${BUILD_ROOT}/mfem
 
+# This section is LLNL-specific
 .setup:
     stage: setup
     variables:
@@ -138,8 +148,9 @@ stages:
         - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
         - make test
 
-# The BUILD_ROOT is unique to the branch and pipeline ID. branch is not necessary but makes it easier to retrieve a data.
-# This means that there cannot be concurrency between 2 pipelines.
+# The BUILD_ROOT is unique to the branch and the pipeline ID. Branch is not
+# necessary but makes it easier to retrieve a data. This means that there cannot
+# be concurrency between 2 pipelines.
 .baselinecheck_mfem:
     stage: baseline_check
     script:
