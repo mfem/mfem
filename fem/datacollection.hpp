@@ -526,7 +526,7 @@ public:
    /// be compiled with MFEM_USE_GZSTREAM = YES.
    void SetCompressionLevel(int compression_level_);
 
-   /// Enable or diable zlib compression. If the input is true, use the default
+   /// Enable or disable zlib compression. If the input is true, use the default
    /// zlib compression level (unless the compression level has previously been
    /// set by calling SetCompressionLevel).
    void SetCompression(bool compression_) override;
