@@ -159,6 +159,8 @@ Device::~Device()
 #endif
       mm.Destroy();
    }
+   Get().mode = SEQUENTIAL;
+   Get().backends = Backend::CPU;
    Get().host_mem_type = MemoryType::HOST;
    Get().host_mem_class = MemoryClass::HOST;
    Get().device_mem_type = MemoryType::HOST;
