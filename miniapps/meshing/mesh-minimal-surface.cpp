@@ -1107,33 +1107,52 @@ std::complex<double> WeierstrassZeta_ACB(std::complex<double> a)
 
 using cdouble = std::complex<double>;
 
-cdouble WeierstrassP(cdouble z,
-                     const cdouble g2 = 189.07272012923385229,
-                     const cdouble g3 = 0.0)
+cdouble WeierstrassP(const cdouble z,
+                     const cdouble tau = {189.07272012923385229,0})
 {
-   const cdouble z2 = z*z;
-   const cdouble z4 = z2*z*z;
-   const cdouble z6 = z4*z*z;
-   const cdouble z8 = z6*z*z;
-   return 1./z2 + g2*z2/20. + g3*z4/28. + g2*g2*z6/1200.
-          + 3.*g2*g3*z8/6160.;
+   const int MAX = 128;
+   cdouble p = 1./(z*z);
+   for (int m=0; m<MAX; m+=1)
+   {
+      const cdouble M(m);
+      for (int n=0; n<MAX; n+=1)
+      {
+         if (m==0 && n==0) { continue; }
+         const cdouble N(n);
+         const cdouble a = z + M + N*tau;
+         const cdouble a2 = a*a;
+         const cdouble ia2 = 1.0/a2;
+         const cdouble b = M + N*tau;
+         const cdouble b2 = b*b;
+         const cdouble ib2 = 1.0/b2;
+         p += ia2 - ib2;
+      }
+   }
+   return p;
 }
 
 // Series[WeierstrassZeta[z, {g2, g3}], {z, 0, 10}]
 cdouble WeierstrassZeta(const cdouble z,
-                        const cdouble g2 = 189.07272012923385229,
-                        const cdouble g3 = 0.0)
+                        const cdouble tau = {189.07272012923385229,0})
 {
-   const cdouble zm1 = 1./z;
-   const cdouble z3 = z*z*z;
-   const cdouble z5 = z3*z*z;
-   const cdouble z7 = z5*z*z;
-   const cdouble z9 = z7*z*z;
-   const cdouble b = g2/60.;
-   const cdouble c = g3/140.;
-   const cdouble d = g2*g2/8400.;
-   const cdouble E = g2*g3/18480.;
-   return zm1 - b*z3 - c*z5 - d*z7 - E*z9;
+   const int MAX = 128;
+   cdouble zeta = 1./z;
+   for (int m=1; m<MAX; m+=1)
+   {
+      const cdouble M(m);
+      for (int n=1; n<MAX; n+=1)
+      {
+         //if (m==0 && n==0) { continue; }
+         const cdouble N(n);
+         const cdouble a = z - M - N*tau;
+         const cdouble ia = 1.0/a;
+         const cdouble b = M + N*tau;
+         const cdouble ib = 1.0/b;
+         const cdouble ic = z/(b*b);
+         zeta += ia + ib + ic;
+      }
+   }
+   return zeta;
 }
 
 static double R = 8.0;
@@ -1158,25 +1177,25 @@ struct Costa: public Surface<Costa>
       // Verif WeierstrassP
       const double e1 = 6.8751858180203728274;
       const double c = 189.07272012923385229;
-      const std::complex<double> tau(c,0);
-      const std::complex<double> g[2] = {tau,{0,0}};
-      const std::complex<double> e0 = wP(0.5,tau,g);
+      const cdouble tau(c,0);
+      const cdouble g[2] = {tau,{0,0}};
+      const cdouble e0 = wP(0.5,tau,g);
       //printf("\n\033[32m(%.15e,%f)\033[m", real(e0), imag(e0)); fflush(0);
-      //const std::complex<double> e00 = WeierstrassP(0.25);
-      //printf("\n\033[32m(%.15e,%f)\033[m", real(e00), imag(e00)); fflush(0);
-      MFEM_VERIFY(fabs(real(wP(0.25,tau,g))-16.5981668456999459)<1e-14,"");
-      MFEM_VERIFY(fabs(real(WeierstrassP(0.25))-16.5981668456999459)<1e-4,"");
-      MFEM_VERIFY(fabs(real(e0)-e1)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(e0))<1e-14,"");
+      const cdouble e00 = WeierstrassP(0.25);
+      printf("\n\033[32m(%.15e,%f)\033[m", real(e00), imag(e00)); fflush(0);
+      //MFEM_VERIFY(fabs(real(wP(0.25,tau,g))-16.5981668456999459)<1e-14,"");
+      //MFEM_VERIFY(fabs(real(e00)-16.5981668456999459)<1e-14,"");
+      //MFEM_VERIFY(fabs(real(e0)-e1)<1e-14,"");
+      //MFEM_VERIFY(fabs(imag(e0))<1e-14,"");
 
       // Verif WeierstrassZeta
-      //const cdouble wz212 = WeierstrassZeta(0.25, c, 0);
+      const cdouble wz212 = WeierstrassZeta(0.25);
       //printf("\n\033[32m(%.15e,%f)\033[m", real(wz212), imag(wz212));
       //fflush(0);
-      //MFEM_VERIFY(fabs(real(wz212)-3.95050161784488013)<1e-14,"");
+      MFEM_VERIFY(fabs(real(wz212)-3.95050161784488013)<1e-14,"");
 
-      //const std::complex<double> c0 = WeierstrassZeta(0.25);
-      //MFEM_VERIFY(fabs(real(c0)-3.95050161784488013)<1e-14,"");
+      const std::complex<double> c0 = WeierstrassZeta(0.25);
+      MFEM_VERIFY(fabs(real(c0)-3.95050161784488013)<1e-14,"");
       //MFEM_VERIFY(fabs(imag(c0))<1e-14,"");
 
       // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
