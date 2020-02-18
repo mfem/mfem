@@ -152,9 +152,8 @@ int main(int argc, char *argv[])
       NDH1.Mult(P,B);
    }
 
-   // 8. Define and apply a PCG solver for AX=B with no
-   //    preconditioner, in the full assembly case.
-   //    With partial assembly, use Jacobi preconditioner.
+   // 8. Define and apply a PCG solver for AX=B with Jacobi
+   //    preconditioner.
 
    if (pa)
    {
@@ -176,11 +175,13 @@ int main(int argc, char *argv[])
    else
    {
       SparseMatrix& Amat = a->SpMat();
+      DSmoother Jacobi(Amat);
       CGSolver cg;
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(1000);
       cg.SetPrintLevel(1);
       cg.SetOperator(Amat);
+      cg.SetPreconditioner(Jacobi);
       cg.Mult(B, X);
 
       x.SetFromTrueDofs(X);
