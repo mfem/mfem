@@ -60,39 +60,23 @@ void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
 
    mesh = &m;
-   const GridFunction *nodes = mesh->GetNodes();
-   const FiniteElementSpace *fes = nodes->FESpace();
-
-   dim = mesh->Dimension();
-   const int NE = mesh->GetNE(),
-             dof_cnt = fes->GetFE(0)->GetDof(),
+   int gt = mesh->GetNodalFESpace()->GetFE(0)->GetGeomType();
+   unsigned dof1D = mesh->GetNodalFESpace()->GetFE(0)->GetOrder() + 1;
+   int NE = mesh->GetNE(),
+             dof_cnt = mesh->GetNodalFESpace()->GetFE(0)->GetDof(),
              pts_cnt = NE * dof_cnt;
-   gsl_mesh.SetSize(dim * pts_cnt);
 
-   const TensorBasisElement *tbe =
-      dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
-   const Array<int> &dof_map = tbe->GetDofMap();
-
-   DenseMatrix pos(dof_cnt, dim);
-   Vector posV(pos.Data(), dof_cnt * dim);
-   Array<int> xdofs(dof_cnt * dim);
-
-   int pt_id = 0;
-   for (int i = 0; i < NE; i++)
+   if (gt == 3 || gt == 5) //quad/hex
    {
-      fes->GetElementVDofs(i, xdofs);
-      nodes->GetSubVector(xdofs, posV);
-      for (int j = 0; j < dof_cnt; j++)
-      {
-         for (int d = 0; d < dim; d++)
-         {
-            gsl_mesh(pts_cnt * d + pt_id) = pos(dof_map[j], d);
-         }
-         pt_id++;
-      }
+       (this)->GetQuadHexNodalCoordinates();
+   }
+   else //simplices
+   {
+       (this)->GetTriNodalCoordinates();
+       NE *= 3;
+       pts_cnt = gsl_mesh.Size()/mesh->Dimension();
    }
 
-   const unsigned dof1D = fes->GetFE(0)->GetOrder() + 1;
    if (dim == 2)
    {
       unsigned nr[2] = {dof1D, dof1D};
@@ -192,26 +176,172 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
 {
    MFEM_ASSERT(gf_in.FESpace()->GetVDim() == 1, "Scalar function expected.");
 
-   const GridFunction *nodes = mesh->GetNodes();
-   const FiniteElementSpace *fes = nodes->FESpace();
-   const IntegrationRule &ir = fes->GetFE(0)->GetNodes();
+   int gt = mesh->GetNodalFESpace()->GetFE(0)->GetGeomType();
 
-   const int NE = mesh->GetNE(), dof_cnt = ir.GetNPoints();
-   node_vals.SetSize(NE * dof_cnt);
+   if (gt==3 || gt==5)
+   {
+       const GridFunction *nodes = mesh->GetNodes();
+       const FiniteElementSpace *fes = nodes->FESpace();
+       const IntegrationRule &ir = fes->GetFE(0)->GetNodes();
+
+       const int NE = mesh->GetNE(), dof_cnt = ir.GetNPoints();
+       node_vals.SetSize(NE * dof_cnt);
+
+       const TensorBasisElement *tbe =
+          dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
+       const Array<int> &dof_map = tbe->GetDofMap();
+
+       int pt_id = 0;
+       Vector vals_el;
+       for (int i = 0; i < NE; i++)
+       {
+          gf_in.GetValues(i, ir, vals_el);
+          for (int j = 0; j < dof_cnt; j++)
+          {
+             node_vals(pt_id++) = vals_el(dof_map[j]);
+          }
+       }
+   }
+   else if (gt == 2) //Triangle
+   {
+       dim = meshsplit->Dimension();
+       unsigned dof1D = mesh->GetNodalFESpace()->GetFE(0)->GetOrder() + 1;
+       const int NE = meshsplit->GetNE(),
+                 dof_cnt = dof1D*dof1D,
+                 pts_cnt = NE * dof_cnt;
+       int pt_id = 0;
+       const int tpts_cnt = pts_cnt*mesh->GetNE();
+       node_vals.SetSize(tpts_cnt);
+       for (int j=0;j<mesh->GetNE();j++) {
+       for (int i=0;i<dof_cnt*NE;i++)
+       {
+           const IntegrationPoint &ip = triir->IntPoint(i);
+           node_vals(pt_id++) = gf_in.GetValue(j,ip,1);
+       }
+       }
+   }
+   else {MFEM_ABORT("ELEMENT TYPE NOT CURRENTLY SUPPORTED");}
+
+}
+
+void FindPointsGSLIB::GetQuadHexNodalCoordinates()
+{
+
+
+  const GridFunction *nodes = mesh->GetNodes();
+  const FiniteElementSpace *fes = nodes->FESpace();
+
+   dim = mesh->Dimension();
+   const int NE = mesh->GetNE(),
+             dof_cnt = fes->GetFE(0)->GetDof(),
+             pts_cnt = NE * dof_cnt;
+   gsl_mesh.SetSize(dim * pts_cnt);
 
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
    const Array<int> &dof_map = tbe->GetDofMap();
 
+   DenseMatrix pos(dof_cnt, dim);
+   Vector posV(pos.Data(), dof_cnt * dim);
+   Array<int> xdofs(dof_cnt * dim);
+
    int pt_id = 0;
-   Vector vals_el;
    for (int i = 0; i < NE; i++)
    {
-      gf_in.GetValues(i, ir, vals_el);
+      fes->GetElementVDofs(i, xdofs);
+      nodes->GetSubVector(xdofs, posV);
       for (int j = 0; j < dof_cnt; j++)
       {
-         node_vals(pt_id++) = vals_el(dof_map[j]);
+         for (int d = 0; d < dim; d++)
+         {
+            gsl_mesh(pts_cnt * d + pt_id) = pos(dof_map[j], d);
+         }
+         pt_id++;
       }
+   }
+}
+
+void FindPointsGSLIB::GetTriNodalCoordinates()
+{
+  const GridFunction *nodes = mesh->GetNodes();
+  const FiniteElementSpace *fes = nodes->FESpace();
+
+  int Nvert = 7;
+  int Nelem = 3;
+  meshsplit = new Mesh(2, Nvert, Nelem, 0, 2);
+  double sq2 = pow(2,0.5);
+  double rv = 1.-1./sq2;
+  double xv = rv*1./std::tan(M_PI/8);
+  double xv6 = 1. - xv*std::cos(M_PI/4.);
+  double yv6 = xv*std::sin(M_PI/4);
+  const double quad_v[7][2] = { {0,0},{0.5,0},{1,0},{0,rv},{rv,rv},{xv6,yv6},{0,1}};
+  const int quad_e[3][4] = {{3,4,1,0},{4,5,2,1},{6,5,4,3}};
+  for (int j = 0; j < Nvert; j++)
+  {
+     meshsplit->AddVertex(quad_v[j]);
+  }
+  for (int j = 0; j < Nelem; j++)
+  {
+     int attribute = j + 1;
+     meshsplit->AddQuad(quad_e[j], attribute);
+  }
+  meshsplit->FinalizeQuadMesh(1, 1, true);
+
+  H1_FECollection fec(mesh->GetNodalFESpace()->GetFE(0)->GetOrder(),
+                      meshsplit->Dimension());
+  FiniteElementSpace nodal_fes(meshsplit, &fec, meshsplit->SpaceDimension());
+  meshsplit->SetNodalFESpace(&nodal_fes);
+
+  Vector irlist;
+  dim = meshsplit->Dimension();
+  const int NE = meshsplit->GetNE(),
+            dof_cnt = nodal_fes.GetFE(0)->GetDof(),
+            pts_cnt = NE * dof_cnt;
+  irlist.SetSize(dim * pts_cnt);
+
+  const TensorBasisElement *tbe =
+     dynamic_cast<const TensorBasisElement *>(nodal_fes.GetFE(0));
+  const Array<int> &dof_map = tbe->GetDofMap();
+
+   DenseMatrix pos(dof_cnt, dim);
+   Vector posV(pos.Data(), dof_cnt * dim);
+   Array<int> xdofs(dof_cnt * dim);
+
+   triir = new IntegrationRule(pts_cnt);
+
+   GridFunction *nodesplit = meshsplit->GetNodes();
+
+   int pt_id = 0;
+   for (int i = 0; i < NE; i++)
+   {
+      nodal_fes.GetElementVDofs(i, xdofs);
+      nodesplit->GetSubVector(xdofs, posV);
+      for (int j = 0; j < dof_cnt; j++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            irlist(pts_cnt * d + pt_id) = pos(dof_map[j], d);
+         }
+             triir->IntPoint(pt_id).x = irlist(pt_id);
+             triir->IntPoint(pt_id).y = irlist(pts_cnt + pt_id);
+         pt_id++;
+      }
+   }
+
+   pt_id = 0;
+   Vector locval(dim);
+   const int tpts_cnt = pts_cnt*mesh->GetNE();
+   gsl_mesh.SetSize(tpts_cnt*mesh->Dimension());
+   for (int j=0;j<mesh->GetNE();j++) {
+   for (int i=0;i<dof_cnt*NE;i++)
+   {
+       const IntegrationPoint &ip = triir->IntPoint(i);
+       nodes->GetVectorValue(j,ip,locval);
+       for (int d=0;d<dim;d++) {
+           gsl_mesh(tpts_cnt*d + pt_id) = locval(d);
+       }
+       pt_id++;
+   }
    }
 }
 
