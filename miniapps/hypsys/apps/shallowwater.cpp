@@ -10,7 +10,8 @@ void InflowFunctionSWE(const Vector &x, double t, Vector &u);
 
 ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
                            Configuration &config_)
-    : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 1, config_, VectorFunctionCoefficient(fes_->GetMesh()->Dimension() + 1, InflowFunctionSWE))
+   : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 1, config_,
+                      VectorFunctionCoefficient(fes_->GetMesh()->Dimension() + 1, InflowFunctionSWE))
 {
    ConfigSWE = config_;
    SteadyState = false;

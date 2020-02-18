@@ -8,7 +8,7 @@ class TEMPLATE : public HyperbolicSystem
 public:
    explicit TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
                      Configuration &config_);
-   ~TEMPLATE(){};
+   ~TEMPLATE() {};
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &f,
                              int e, int k, int i = -1) const;

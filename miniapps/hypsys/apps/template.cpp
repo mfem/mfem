@@ -8,7 +8,7 @@ void InflowFunctionTEMPLATE(const Vector &x, double t, Vector &u);
 
 TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
                    Configuration &config_)
-    : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 1, config_)
+   : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 1, config_)
 {
    ConfigTEMPLATE = config_;
    SteadyState = false;

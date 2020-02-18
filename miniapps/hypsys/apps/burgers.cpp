@@ -8,7 +8,8 @@ void InflowFunctionBurgers(const Vector &x, double t, Vector &u);
 
 Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
                  Configuration &config_)
-    : HyperbolicSystem(fes_, u_block, 1, config_, VectorFunctionCoefficient (1, InflowFunctionBurgers))
+   : HyperbolicSystem(fes_, u_block, 1, config_, VectorFunctionCoefficient (1,
+                                                                            InflowFunctionBurgers))
 {
    ConfigBurgers = config_;
    SteadyState = false;
@@ -36,19 +37,19 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
 }
 
 void Burgers::EvaluateFlux(const Vector &u, DenseMatrix &f,
-                            int e, int k, int i) const
+                           int e, int k, int i) const
 {
    f = 0.5 * u(0) * u(0);
 }
 
 double Burgers::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                              int i) const
+                             int i) const
 {
    return abs(u(0) * n.Sum());
 }
 
 void Burgers::ComputeErrors(Array<double> &errors, const GridFunction &u,
-                             double DomainSize, double t) const
+                            double DomainSize, double t) const
 {
    errors.SetSize(3);
    FunctionCoefficient uAnalytic(AnalyticalSolutionBurgers);
@@ -106,7 +107,8 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
          }
          if (0.5 + 0.5 * t < x(0) && x(0) < 0.5 + 0.8 * t)
          {
-            return x(1) > x(0) - 5. / (18. * t) * (x(0) + t - 0.5) * (x(0) + t - 0.5) ? -1. : (2. * x(0) - 1.) / (2 * t);
+            return x(1) > x(0) - 5. / (18. * t) * (x(0) + t - 0.5) * (x(
+                                                                         0) + t - 0.5) ? -1. : (2. * x(0) - 1.) / (2 * t);
          }
          if (0.5 + 0.8 * t <= x(0))
          {
