@@ -169,9 +169,10 @@ Miscellaneous
 
 - Added unit tests for time integrators.
 
-- Added a Gitlab pipeline in order to automate PR testing on Linux clusters and
-  supercomputing systems at Lawrence Livermore National Lab (LLNL). This can be
-  triggered only by LLNL developers, see the updated CONTRIBUTING.md.
+- Added a Gitlab pipeline that automates PR testing on supercomputing systems
+  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
+  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab file and
+  the updated CONTRIBUTING.md.
 
 Version 4.0, released on May 24, 2019
 =====================================

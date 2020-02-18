@@ -51,7 +51,7 @@ deallocate_quartz:
       fi
   when: always
 
-#Build libs
+# Build external libraries (tpls)
 build_hypre_gcc_6_1_0_quartz:
   extends: [.build_hypre, .with_gcc_6_1_0, .on_quartz]
 
@@ -104,7 +104,8 @@ build_mfem_opt_par_gcc_6_1_0_quartz:
     MFEM_USE_MPI: "YES"
   needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
 
-## Tests
+### Tests
+
 # Sanity check
 sanitycheck_mfem_debug_ser_gcc_4_9_3_quartz:
   extends: [.sanitycheck_mfem, .with_gcc_4_9_3, .on_quartz]
