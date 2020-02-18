@@ -36,6 +36,13 @@
       } \
    } \
    while (0)
+#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(hipDeviceSynchronize())
+#define MFEM_STREAM_SYNC MFEM_GPU_CHECK(hipStreamSynchronize(0))
+#else
+#define MFEM_DEVICE
+#define MFEM_HOST_DEVICE
+#define MFEM_DEVICE_SYNC
+#define MFEM_STREAM_SYNC
 #endif // MFEM_USE_HIP
 
 // Define the MFEM inner threading macros
@@ -45,6 +52,12 @@
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
+#else
+#define MFEM_SHARED
+#define MFEM_SYNC_THREAD
+#define MFEM_THREAD_ID(k) 0
+#define MFEM_THREAD_SIZE(k) 1
+#define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
 namespace mfem
@@ -58,6 +71,9 @@ void mfem_hip_error(hipError_t err, const char *expr, const char *func,
 
 /// Allocates device memory
 void* HipMemAlloc(void **d_ptr, size_t bytes);
+
+/// Allocates managed device memory
+void* HipMallocManaged(void **d_ptr, size_t bytes);
 
 /// Frees device memory
 void* HipMemFree(void *d_ptr);
@@ -79,6 +95,12 @@ void* HipMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
 void* HipMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
+
+/// Check the error code returned by hipGetLastError(), aborting on error.
+void HipCheckLastError();
+
+/// Get the number of HIP devices
+int HipGetDeviceCount();
 
 } // namespace mfem
 

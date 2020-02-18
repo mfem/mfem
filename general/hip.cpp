@@ -46,6 +46,21 @@ void* HipMemAlloc(void** dptr, size_t bytes)
    return *dptr;
 }
 
+void* HipMallocManaged(void** dptr, size_t bytes)
+{
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMallocManaged(): allocating " << bytes << " bytes ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(hipMallocManaged(dptr, bytes));
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "done: " << *dptr << std::endl;
+#endif
+#endif
+   return *dptr;
+}
+
 void* HipMemFree(void *dptr)
 {
 #ifdef MFEM_USE_HIP
@@ -128,6 +143,22 @@ void* HipMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
    MFEM_GPU_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToHost));
 #endif
    return dst;
+}
+
+void HipCheckLastError()
+{
+#ifdef MFEM_USE_HIP
+   MFEM_GPU_CHECK(hipGetLastError());
+#endif
+}
+
+int HipGetDeviceCount()
+{
+   int num_gpus = -1;
+#ifdef MFEM_USE_HIP
+   MFEM_GPU_CHECK(hipGetDeviceCount(&num_gpus));
+#endif
+   return num_gpus;
 }
 
 } // namespace mfem
