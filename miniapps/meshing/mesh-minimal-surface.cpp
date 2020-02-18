@@ -76,12 +76,13 @@ public:
    }
 
    // Generate Quad surface mesh
-   Surface(Array<int> &b, int order, int nx, int ny, int nr, int vdim):
-      Mesh(nx, ny, Element::QUADRILATERAL, true, 1.0, 1.0, false),
+   Surface(Array<int> &b, int order, int nx, int ny, int nr, int vdim,
+           double s = 1.0):
+      Mesh(nx, ny, Element::QUADRILATERAL, true, s, s, false),
       S(static_cast<T*>(this)),
       bc(b), order(order), nx(nx), ny(ny), nr(nr), vdim(vdim)
    {
-      //EnsureNodes();
+      EnsureNodes();
       S->Prefix();
       S->Create();
       S->Postfix();
@@ -571,6 +572,657 @@ struct Shell: public Surface<Shell>
    }
 };
 
+// #9: Costa minimal surface
+#include <complex>
+#include "/Users/camier1/usr/local/include/acb.h"
+#include "/Users/camier1/usr/local/include/acb_elliptic.h"
+
+#define THETA_ITER_MAX 200
+/* (4/3) * pi^4 */
+#define _CONST_43PI4 129.8787880453365829819204435849401483329701142
+/* 8 pi^6 / 27 */
+#define _CONST_827PI6 284.85605735564575912006502034145774781250889720920
+/* 4 pi^6 / 9 */
+#define _CONST_49PI6 427.28408603346863868009753051218662171876334581380
+/* 1/28 */
+#define _CONST_1_28 0.035714285714285714285714285714285714285714285714286
+/* 1/7 */
+#define _CONST_1_7 0.14285714285714285714285714285714285714285714285714
+#define gsl_complex std::complex<double>
+#define gsl_complex_add(a,b) (a+b)
+#define gsl_complex_sub(a,b) (a-b)
+#define gsl_complex_mul(a,b) (a*b)
+#define gsl_complex_div(a,b) (a/b)
+#define gsl_complex_sqrt(z)(std::sqrt(z))
+#define gsl_complex_inverse(z)(1./z)
+#define gsl_complex_add_real(z,a)(z+a)
+#define gsl_complex_sub_real(z,a)(z-a)
+#define gsl_complex_div_real(z,a)(z/a)
+#define gsl_complex_mul_real(z,a)(z*((double)a))
+#define gsl_complex_mul_imag(z,a)(z*(gsl_complex(0,a)))
+#define gsl_complex_sin(z)(std::sin(z))
+#define gsl_complex_cos(z)(std::cos(z))
+#define gsl_complex_exp(z)(std::exp(z))
+#define gsl_complex_negative(z)(-z)
+#define gsl_complex_rect(a,b) gsl_complex{a,b}
+#define gsl_complex_abs(z) std::abs(z)
+#define GSL_DBL_EPSILON 1.e-16
+
+static gsl_complex pow4(gsl_complex x)
+{
+   return gsl_complex_mul(gsl_complex_mul(x,x),gsl_complex_mul(x,x));
+}
+
+static gsl_complex theta10(gsl_complex q, gsl_complex q14)
+{
+   return gsl_complex_rect(0.0,0.0);
+}
+
+static gsl_complex theta20(gsl_complex q, gsl_complex q14)
+{
+   int n=0;
+   gsl_complex accum = gsl_complex_rect(0.0,0.0);
+   gsl_complex q2 = gsl_complex_mul(q,q);
+   gsl_complex nextm = q2;
+   gsl_complex qpower = gsl_complex_rect(1.0,0.0);
+
+   while ((gsl_complex_abs(qpower) > 2.0*GSL_DBL_EPSILON) && (n < THETA_ITER_MAX))
+   {
+      accum = gsl_complex_add(accum, qpower);
+      qpower = gsl_complex_mul(qpower, nextm);
+      nextm = gsl_complex_mul(nextm, q2);
+      n++;
+   }
+   if (n >= THETA_ITER_MAX)
+   {
+      return (gsl_complex_rect(0.0,0.0));
+   }
+   return gsl_complex_mul_real(gsl_complex_mul(q14,accum),2.0);
+}
+
+
+static gsl_complex theta30(gsl_complex q)
+{
+   int n=0;
+   gsl_complex accum = gsl_complex_rect(0.5,0.0);
+   gsl_complex q2 = gsl_complex_mul(q,q);
+   gsl_complex nextm = gsl_complex_mul(q,q2);
+   gsl_complex qpower = q;
+
+   while ((gsl_complex_abs(qpower) > 2.0*GSL_DBL_EPSILON) && (n < THETA_ITER_MAX))
+   {
+      accum = gsl_complex_add(accum, qpower);
+      qpower = gsl_complex_mul(qpower, nextm);
+      nextm = gsl_complex_mul(nextm, q2);
+      n++;
+   }
+   if (n >= THETA_ITER_MAX)
+   {
+      return (gsl_complex_rect(0.0,0.0));
+   }
+   return gsl_complex_mul_real(accum,2.0);
+}
+
+static gsl_complex theta40(gsl_complex q)
+{
+   int n=0;
+   gsl_complex accum = gsl_complex_rect(0.5,0.0);
+   gsl_complex q2 = gsl_complex_mul(q,q);
+   gsl_complex nextm = gsl_complex_negative(gsl_complex_mul(q,q2));
+   gsl_complex qpower = gsl_complex_negative(q);
+
+   while ((gsl_complex_abs(qpower) > 2.0*GSL_DBL_EPSILON) && (n < THETA_ITER_MAX))
+   {
+      accum = gsl_complex_add(accum, qpower);
+      qpower = gsl_complex_mul(qpower, nextm);
+      nextm = gsl_complex_mul(nextm, q2);
+      n++;
+   }
+   if (n >= THETA_ITER_MAX)
+   {
+      return (gsl_complex_rect(0.0,0.0));
+   }
+   return gsl_complex_mul_real(accum,2.0);
+}
+
+static gsl_complex theta1(gsl_complex z, gsl_complex q, gsl_complex q14)
+{
+   int n=0;
+   gsl_complex accum = gsl_complex_rect(0.0,0.0);
+   gsl_complex q2 = gsl_complex_mul(q,q);
+   gsl_complex nextm = gsl_complex_negative(q2);
+   gsl_complex qpower = gsl_complex_rect(1.0,0.0);
+   gsl_complex term = gsl_complex_rect(1.0,0.0);
+
+   while ((gsl_complex_abs(term) > 2.0*GSL_DBL_EPSILON) && (n < THETA_ITER_MAX))
+   {
+      term = gsl_complex_mul(qpower, gsl_complex_sin(gsl_complex_mul_real(z,2*n+1)));
+      accum = gsl_complex_add(accum, term);
+      qpower = gsl_complex_mul(qpower, nextm);
+      nextm = gsl_complex_mul(nextm, q2);
+      n++;
+   }
+   if (n >= THETA_ITER_MAX)
+   {
+      return (gsl_complex_rect(0.0,0.0));
+   }
+   return gsl_complex_mul_real(gsl_complex_mul(q14,accum),2.0);
+}
+
+static gsl_complex theta2(gsl_complex z, gsl_complex q, gsl_complex q14)
+{
+   int n=0;
+   gsl_complex accum = gsl_complex_rect(0.0,0.0);
+   gsl_complex q2 = gsl_complex_mul(q,q);
+   gsl_complex nextm = q2;
+   gsl_complex qpower = gsl_complex_rect(1.0,0.0);
+   gsl_complex term = gsl_complex_rect(1.0,0.0);
+
+   while ((gsl_complex_abs(term) > 2.0*GSL_DBL_EPSILON) && (n < THETA_ITER_MAX))
+   {
+      term = gsl_complex_mul(qpower, gsl_complex_cos(gsl_complex_mul_real(z,2*n+1)));
+      accum = gsl_complex_add(accum, term);
+      qpower = gsl_complex_mul(qpower, nextm);
+      nextm = gsl_complex_mul(nextm, q2);
+      n++;
+   }
+   if (n >= THETA_ITER_MAX)
+   {
+      return (gsl_complex_rect(0.0,0.0));
+   }
+   return gsl_complex_mul_real(gsl_complex_mul(q14,accum),2.0);
+}
+
+static gsl_complex theta3(gsl_complex z, gsl_complex q)
+{
+   int n=0;
+   gsl_complex accum = gsl_complex_rect(0.5,0.0);
+   gsl_complex q2 = gsl_complex_mul(q,q);
+   gsl_complex nextm = gsl_complex_mul(q,q2);
+   gsl_complex qpower = q;
+   gsl_complex term = gsl_complex_rect(1.0,0.0);
+
+   while ((gsl_complex_abs(qpower) > 2.0*GSL_DBL_EPSILON) && (n < THETA_ITER_MAX))
+   {
+      term = gsl_complex_mul(qpower, gsl_complex_cos(gsl_complex_mul_real(z,
+                                                                          2*(n+1))));
+      accum = gsl_complex_add(accum, term);
+      qpower = gsl_complex_mul(qpower, nextm);
+      nextm = gsl_complex_mul(nextm, q2);
+      n++;
+   }
+   if (n >= THETA_ITER_MAX)
+   {
+      return (gsl_complex_rect(0.0,0.0));
+   }
+   return gsl_complex_mul_real(accum,2.0);
+}
+
+static gsl_complex theta4(gsl_complex z, gsl_complex q)
+{
+   int n=0;
+   gsl_complex accum = gsl_complex_rect(0.5,0.0);
+   gsl_complex q2 = gsl_complex_mul(q,q);
+   gsl_complex nextm = gsl_complex_negative(gsl_complex_mul(q,q2));
+   gsl_complex qpower = gsl_complex_negative(q);
+   gsl_complex term = gsl_complex_rect(1.0,0.0);
+
+   while ((gsl_complex_abs(qpower) > 2.0*GSL_DBL_EPSILON) && (n < THETA_ITER_MAX))
+   {
+      term = gsl_complex_mul(qpower, gsl_complex_cos(gsl_complex_mul_real(z,
+                                                                          2*(n+1))));
+      accum = gsl_complex_add(accum, term);
+      qpower = gsl_complex_mul(qpower, nextm);
+      nextm = gsl_complex_mul(nextm, q2);
+      n++;
+   }
+   if (n >= THETA_ITER_MAX)
+   {
+      return (gsl_complex_rect(0.0,0.0));
+   }
+   return gsl_complex_mul_real(accum,2.0);
+}
+
+/*
+   In:  tau (lattice parameter)
+   Out: g2 -> g[0]
+        g3 -> g[1]
+*/
+static void compute_invariants(gsl_complex tau, gsl_complex *g)
+{
+   gsl_complex q, q14;
+   gsl_complex t2,t3,t24,t34;
+   gsl_complex g3_term1, g3_term2;
+   gsl_complex g2, g3;
+
+   q = gsl_complex_exp(gsl_complex_mul_imag(tau,M_PI));
+   q14 = gsl_complex_exp(gsl_complex_mul_imag(tau,M_PI_4));
+
+   t2=theta20(q,q14);
+   t3=theta30(q);
+   t24 = pow4(t2);
+   t34 = pow4(t3);
+
+   g2 = gsl_complex_mul_real(gsl_complex_sub(gsl_complex_add(gsl_complex_mul(t24,
+                                                                             t24),gsl_complex_mul(t34,t34)),gsl_complex_mul(t24,t34)),_CONST_43PI4);
+
+   g3_term1 = gsl_complex_add(gsl_complex_mul(t24,gsl_complex_mul(t24,t24)),
+                              gsl_complex_mul(t34,gsl_complex_mul(t34,t34)));
+
+   g3_term2 = gsl_complex_mul(gsl_complex_add(t24,t34),gsl_complex_mul(t24,t34));
+
+   g3 = gsl_complex_sub( gsl_complex_mul_real(g3_term1, _CONST_827PI6),
+                         gsl_complex_mul_real(g3_term2, _CONST_49PI6) );
+
+   g[0] = g2;
+   g[1] = g3;
+}
+
+
+/* The Lattes map */
+static gsl_complex P_doubler(gsl_complex p, const gsl_complex *g)
+{
+   gsl_complex p2, p3;
+   gsl_complex num;
+   gsl_complex denom;
+   gsl_complex term;
+
+   p2 = gsl_complex_mul(p,p);
+   p3 = gsl_complex_mul(p2,p);
+
+   /* denom = 4p^3 - g2p - g3 */
+   denom = gsl_complex_sub(gsl_complex_mul_real(p3,4.0),
+                           gsl_complex_add(gsl_complex_mul(p,g[0]),g[1]));
+
+   /* num = (p^2 + g2/4)^2 + 2g3p */
+   term = gsl_complex_add(p2,gsl_complex_mul_real(g[0],0.25));
+   num = gsl_complex_add(gsl_complex_mul(p,gsl_complex_mul_real(g[1],2.0)),
+                         gsl_complex_mul(term,term));
+
+   return gsl_complex_div(num,denom);
+}
+
+/* The extended Lattes map (rational function doubling on the elliptic curve) */
+static void P_and_Pprime_doubler(gsl_complex *p, gsl_complex *pp,
+                                 const gsl_complex *g)
+{
+   gsl_complex pp3;
+   gsl_complex ppp, ppp3;
+
+
+   /* p'' */
+   ppp = gsl_complex_sub(gsl_complex_mul_real(gsl_complex_mul(*p,*p),6.0),
+                         gsl_complex_mul_real(g[0],0.5));
+
+   ppp3 = gsl_complex_mul(ppp,gsl_complex_mul(ppp,ppp));
+   pp3 = gsl_complex_mul(*pp,gsl_complex_mul(*pp,*pp));
+
+
+   *pp = gsl_complex_sub(gsl_complex_add(gsl_complex_mul_real(gsl_complex_div(
+                                                                 gsl_complex_mul(*p,ppp),*pp),3.0),
+                                         gsl_complex_mul_real(gsl_complex_div(ppp3,pp3),-0.25)),
+                         *pp);
+   *p = P_doubler(*p,g);
+}
+
+/* Assuming z is in the (1,tau) parallelogram, return the point
+   closest to the origin among all translates of z by the lattice. */
+static gsl_complex near_origin(gsl_complex z, gsl_complex tau)
+{
+   gsl_complex znew;
+
+   znew = gsl_complex_sub_real(z,1.0);
+   if (gsl_complex_abs(z) > gsl_complex_abs(znew))
+   {
+      z = znew;
+   }
+
+   znew = gsl_complex_sub(z,tau);
+   if (gsl_complex_abs(z) > gsl_complex_abs(znew))
+   {
+      z = znew;
+   }
+
+   znew = gsl_complex_sub(z,gsl_complex_add_real(tau,1.0));
+   if (gsl_complex_abs(z) > gsl_complex_abs(znew))
+   {
+      z = znew;
+   }
+
+   return z;
+}
+
+/* Compute P using CGL/Lattes iteration */
+/* NOTE: Assumes z is in fundamental parallelogram  */
+gsl_complex wP(gsl_complex z, gsl_complex tau, const gsl_complex *g)
+{
+   int N = 6;
+   int i;
+   gsl_complex z0;
+   gsl_complex z02;
+   gsl_complex p;
+
+   z = near_origin(z,tau);
+
+   z0 = gsl_complex_div_real(z,(double)(1 << N));
+   z02 = gsl_complex_mul(z0,z0);
+
+   /* Laurent expansion:  P \approx 1/z^2 + (g2/20)z^2 + (g3/28) z^4 */
+   p = gsl_complex_add(gsl_complex_inverse(z02),
+                       gsl_complex_add(gsl_complex_mul(z02,gsl_complex_mul_real(g[0],0.05)),
+                                       gsl_complex_mul(gsl_complex_mul(z02,z02),gsl_complex_mul_real(g[1],
+                                                       _CONST_1_28))));
+
+   for (i=0; i<N; i++)
+   {
+      p = P_doubler(p,g);
+   }
+
+   return p;
+}
+
+/* Compute P and P' using CGL/Lattes iteration */
+/* NOTE: Assumes z is in fundamental parallelogram  */
+void wP_and_prime(gsl_complex z, gsl_complex tau, const gsl_complex *g,
+                  gsl_complex *p, gsl_complex *pp)
+{
+   int N = 6;  /* Enough iterations for good P, not so good P' */
+   int i;
+   gsl_complex z0;
+   gsl_complex z02;
+   gsl_complex pout, ppout;
+   gsl_complex ppsolve;
+
+   z = near_origin(z,tau);
+
+   z0 = gsl_complex_div_real(z,(double)(1 << N));
+   z02 = gsl_complex_mul(z0,z0);
+
+   /* Laurent expansion:  P \approx 1/z^2 + (g2/20)z^2 + (g3/28) z^4 */
+   pout = gsl_complex_add(gsl_complex_inverse(z02),
+                          gsl_complex_add(gsl_complex_mul(z02,gsl_complex_mul_real(g[0],0.05)),
+                                          gsl_complex_mul(gsl_complex_mul(z02,z02),gsl_complex_mul_real(g[1],
+                                                          _CONST_1_28))));
+
+   /* Laurent expansion:  P' \approx -2/z^3 + g2/10z + g3/7 z^3 */
+   ppout = gsl_complex_add(gsl_complex_mul_real(gsl_complex_inverse(
+                                                   gsl_complex_mul(z0,z02)),-2.0),
+                           gsl_complex_add(gsl_complex_mul(z0,gsl_complex_mul_real(g[0],0.1)),
+                                           gsl_complex_mul(gsl_complex_mul(z0,z02),gsl_complex_mul_real(g[1],
+                                                           _CONST_1_7))));
+
+   for (i=0; i<N; i++)
+   {
+      P_and_Pprime_doubler(&pout, &ppout, g);
+   }
+
+   /* At this point ppout is a decent but not great approximation of P'(z)        */
+   /* Instead of using it directly, we use it as a guide for which square root of */
+   /* (4P^3 - g2 P - g3) should be selected.                                      */
+
+   ppsolve = gsl_complex_sqrt(
+                gsl_complex_sub(
+                   gsl_complex_mul_real(gsl_complex_mul(pout,gsl_complex_mul(pout,pout)),4.0),
+                   gsl_complex_add(gsl_complex_mul(g[0],pout),g[1])
+                )
+             );
+
+   *p = pout;
+   if (gsl_complex_abs(gsl_complex_sub(ppsolve,
+                                       ppout)) < gsl_complex_abs(gsl_complex_add(ppsolve,ppout)))
+   {
+      *pp = ppsolve;
+   }
+   else
+   {
+      *pp = gsl_complex_negative(ppsolve);
+   }
+}
+
+/* Compute P using CGL/Lattes iteration */
+/* NOTE: Assumes z is in fundamental parallelogram  */
+gsl_complex wPprime(gsl_complex z, gsl_complex tau, const gsl_complex *g)
+{
+   gsl_complex p,pp;
+
+   wP_and_prime(z,tau,g,&p,&pp);
+   return pp;
+}
+
+/* Compute P directly from tau */
+/* For speed, should compute and store g2,g3 if making many calls with same tau */
+gsl_complex wP_tau(gsl_complex z, gsl_complex tau)
+{
+   gsl_complex g[2];
+
+   compute_invariants(tau,g);
+   return wP(z,tau,g);
+}
+
+/* Compute P' directly from tau */
+/* For speed, should compute and store g2,g3 if making many calls with same tau */
+gsl_complex wPprime_tau(gsl_complex z, gsl_complex tau)
+{
+   gsl_complex g[2];
+
+   compute_invariants(tau,g);
+   return wPprime(z,tau,g);
+}
+
+/* Compute P' directly from tau */
+/* For speed, should compute and store g2,g3 if making many calls with same tau */
+void wP_and_prime_tau(gsl_complex z, gsl_complex tau, gsl_complex *p,
+                      gsl_complex *pp)
+{
+   gsl_complex g[2];
+
+   compute_invariants(tau,g);
+   wP_and_prime(z,tau,g,p,pp);
+}
+#define ARB_PRECISION 128
+/*
+  g++  -g -Wall -std=c++11 -I../..  mesh-minimal-surface.cpp \
+  -o mesh-minimal-surface -L../.. -lmfem -I/usr/local/include \
+  -L/Users/camierjs/usr/local/lib -larb
+*/
+// Weierstrass Elliptic Function
+// http://arblib.org/acb_elliptic.html#weierstrass-elliptic-functions
+std::complex<double> WeierstrassP_ACB(std::complex<double> a)
+{
+   const slong prec = ARB_PRECISION;
+
+   acb_t z, res;
+   acb_init(z);
+   acb_init(res);
+
+   acb_set_d_d(z, std::real(a), std::imag(a));
+   acb_onei(res);
+
+   acb_elliptic_p(res, z, res, prec);
+
+   arb_t reb,imb;
+   arb_init(reb);
+   arb_init(imb);
+   acb_get_real(reb, res);
+   acb_get_imag(imb, res);
+
+   arf_t ref,imf;
+   arf_init(ref);
+   arf_init(imf);
+   arb_get_ubound_arf(ref, reb, prec);
+   arb_get_ubound_arf(imf, imb, prec);
+
+   const double res_re = arf_get_d(ref, ARF_RND_NEAR);
+   const double res_im = arf_get_d(imf, ARF_RND_NEAR);
+   const std::complex<double> result(res_re, res_im);
+
+   acb_clear(z);
+   acb_clear(res);
+   arb_clear(reb);
+   arb_clear(imb);
+   arf_clear(ref);
+   arf_clear(imf);
+   return result;
+}
+
+// Weierstrass Zeta Function
+// http://jalape.no/math/costatxt
+std::complex<double> WeierstrassZeta_ACB(std::complex<double> a)
+{
+   slong prec = ARB_PRECISION;
+
+   acb_t z, res;
+   acb_init(z);
+   acb_init(res);
+
+   acb_set_d_d(z, std::real(a), std::imag(a));
+   acb_onei(res);
+
+   acb_elliptic_zeta(res, z, res, prec);
+
+   arb_t reb,imb;
+   arb_init(reb);
+   arb_init(imb);
+   acb_get_real(reb, res);
+   acb_get_imag(imb, res);
+
+   arf_t ref,imf;
+   arf_init(ref);
+   arf_init(imf);
+   arb_get_ubound_arf(ref, reb, prec);
+   arb_get_ubound_arf(imf, imb, prec);
+
+   const double res_re = arf_get_d(ref, ARF_RND_NEAR);
+   const double res_im = arf_get_d(imf, ARF_RND_NEAR);
+   const std::complex<double> result(res_re, res_im);
+
+   acb_clear(z);
+   acb_clear(res);
+   arb_clear(reb);
+   arb_clear(imb);
+   arf_clear(ref);
+   arf_clear(imf);
+   return result;
+}
+
+using cdouble = std::complex<double>;
+
+cdouble WeierstrassP(cdouble z,
+                     const cdouble g2 = 189.07272012923385229,
+                     const cdouble g3 = 0.0)
+{
+   const cdouble z2 = z*z;
+   const cdouble z4 = z2*z*z;
+   const cdouble z6 = z4*z*z;
+   const cdouble z8 = z6*z*z;
+   return 1./z2 + g2*z2/20. + g3*z4/28. + g2*g2*z6/1200.
+          + 3.*g2*g3*z8/6160.;
+}
+
+// Series[WeierstrassZeta[z, {g2, g3}], {z, 0, 10}]
+cdouble WeierstrassZeta(const cdouble z,
+                        const cdouble g2 = 189.07272012923385229,
+                        const cdouble g3 = 0.0)
+{
+   const cdouble zm1 = 1./z;
+   const cdouble z3 = z*z*z;
+   const cdouble z5 = z3*z*z;
+   const cdouble z7 = z5*z*z;
+   const cdouble z9 = z7*z*z;
+   const cdouble b = g2/60.;
+   const cdouble c = g3/140.;
+   const cdouble d = g2*g2/8400.;
+   const cdouble E = g2*g3/18480.;
+   return zm1 - b*z3 - c*z5 - d*z7 - E*z9;
+}
+
+static double R = 8.0;
+constexpr double SCALE = 0.99998;
+
+struct Costa: public Surface<Costa>
+{
+   Costa(Array<int> &BC, int o, int x, int y, int r, int d):
+      Surface(BC, o, x, y, r, d, SCALE) { }
+   static void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(3);
+      const double a = 1./2.;
+      // With 0 < u,v <= 1
+      const double delta = (1.0 - SCALE) / 2.0;
+      const double u = x[0] + delta;
+      const double v = x[1] + delta;
+      //printf("\n\033[35m(u:%f, v:%f, x[0]:%f)\033[m", u, v, x[0]); fflush(0);
+
+      const std::complex<double> I{0,1};
+
+      // Verif WeierstrassP
+      const double e1 = 6.8751858180203728274;
+      const double c = 189.07272012923385229;
+      const std::complex<double> tau(c,0);
+      const std::complex<double> g[2] = {tau,{0,0}};
+      const std::complex<double> e0 = wP(0.5,tau,g);
+      //printf("\n\033[32m(%.15e,%f)\033[m", real(e0), imag(e0)); fflush(0);
+      //const std::complex<double> e00 = WeierstrassP(0.25);
+      //printf("\n\033[32m(%.15e,%f)\033[m", real(e00), imag(e00)); fflush(0);
+      MFEM_VERIFY(fabs(real(wP(0.25,tau,g))-16.5981668456999459)<1e-14,"");
+      MFEM_VERIFY(fabs(real(WeierstrassP(0.25))-16.5981668456999459)<1e-4,"");
+      MFEM_VERIFY(fabs(real(e0)-e1)<1e-14,"");
+      MFEM_VERIFY(fabs(imag(e0))<1e-14,"");
+
+      // Verif WeierstrassZeta
+      //const cdouble wz212 = WeierstrassZeta(0.25, c, 0);
+      //printf("\n\033[32m(%.15e,%f)\033[m", real(wz212), imag(wz212));
+      //fflush(0);
+      //MFEM_VERIFY(fabs(real(wz212)-3.95050161784488013)<1e-14,"");
+
+      //const std::complex<double> c0 = WeierstrassZeta(0.25);
+      //MFEM_VERIFY(fabs(real(c0)-3.95050161784488013)<1e-14,"");
+      //MFEM_VERIFY(fabs(imag(c0))<1e-14,"");
+
+      // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
+      const std::complex<double> w = u + I*v;
+      // Weierstrass zeta function
+      const std::complex<double> wz_w = WeierstrassZeta_ACB(w);
+      const std::complex<double> wz_wi =
+         WeierstrassZeta_ACB(w-1./2.) - WeierstrassZeta_ACB(w-I/2.);
+      p[0] = a * std::real(PI * (u + PI / (4.0*e1)) - wz_w +
+                           PI / (2.0*e1) * (wz_wi));
+      p[1] = a * std::real(PI * (v + PI / (4.0*e1)) - I*wz_w -
+                           PI*I/(2.0*e1) * (wz_wi));
+
+      // Weierstrass elliptic function
+      const std::complex<double> we_w = WeierstrassP_ACB(w);
+      const double value = std::abs((we_w - e1) / (we_w + e1));
+      p[2] = a * sqrt(PI/2.0) * log(value);
+
+      const bool nan = std::isnan(p[0])||std::isnan(p[1])||std::isnan(p[2]);
+      MFEM_VERIFY(!nan, "nan");
+      const bool OUT = (fabs(p[0])>R)||(fabs(p[1])>R)||(fabs(p[2])>R);
+      int color = OUT ? 33 : 32;
+
+      const double H = R;
+      if (u == 0.5 && v == delta)     { p[1] = -R; p[2] = -H; return; }
+      if (u == 0.5 && v == 1.0-delta) { p[1] = +R; p[2] = -H; return; }
+      if (v == 0.5 && u == delta)     { p[0] = -R; p[2] = +H; return; }
+      if (v == 0.5 && u == 1.0-delta) { p[0] = +R; p[2] = +H; return; }
+
+      if (u == delta && v == delta)         { p[0] = -R; p[1] = -R; return; }
+      if (u == 1.0-delta && v == delta)     { p[0] = +R; p[1] = -R; return; }
+      if (u == delta && v == 1.0-delta)     { p[0] = -R; p[1] = +R; return; }
+      if (u == 1.0-delta && v == 1.0-delta) { p[0] = +R; p[1] = +R; return; }
+
+      if (u == delta && fabs(p[1]) > R) { p[1] *= R/fabs(p[1]); return; }
+      if (v == delta && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
+      if (u == (1.0-delta) && fabs(p[1]) > R) { p[1] *= R/fabs(p[1]); return; }
+      if (v == (1.0-delta) && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
+
+      if (OUT)
+      {
+         printf("\n\033[%dm(%f:%f,%f): (%f,%f,%f)\033[m",
+                color, delta, u, v, p[0], p[1], p[2]); fflush(0);
+      }
+   }
+};
 
 // Visualize some solution on the given mesh
 static void Visualize(Mesh *pm, const int w, const int h,
@@ -775,9 +1427,10 @@ Mesh *NewMeshFromSurface(const int surface, Array<int> &bc,
       case 6: return new FullPeach(bc, o, r, d);
       case 7: return new SlottedSphere(bc, o, r, d);
       case 8: return new Shell(bc, o, x, y, r, d);
+      case 9: return new Costa(bc, o, x, y, r, d);
       default: ;
    }
-   mfem_error("Unknown surface (0 <= surface <= 8)!");
+   mfem_error("Unknown surface (0 <= surface <= 9)!");
    return nullptr;
 }
 
