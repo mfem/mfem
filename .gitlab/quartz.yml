@@ -151,4 +151,3 @@ quartz_baselinepublish_mfem:
 # Post-Cleanup
 quartz_postcleanup:
     extends: [.quartz_common, .postcleanup]
-
