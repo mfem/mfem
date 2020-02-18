@@ -189,9 +189,8 @@ int main(int argc, char *argv[])
       delete NDH1;
    }
 
-   // 10. Define and apply a parallel PCG solver for AX=B with no
-   //     preconditioner, in the full assembly case.
-   //     With partial assembly, use Jacobi preconditioner.
+   // 10. Define and apply a parallel PCG solver for AX=B with Jacobi
+   //     preconditioner.
 
    if (pa)
    {
@@ -214,10 +213,13 @@ int main(int argc, char *argv[])
    else
    {
       HypreParMatrix *Amat = a->ParallelAssemble();
+      HypreDiagScale Jacobi(*Amat);
       HyprePCG pcg(*Amat);
       pcg.SetTol(1e-12);
       pcg.SetMaxIter(1000);
       pcg.SetPrintLevel(2);
+      pcg.SetPreconditioner(Jacobi);
+      X = 0.0;
       pcg.Mult(B, X);
 
       delete Amat;
