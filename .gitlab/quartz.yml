@@ -9,6 +9,9 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+
+# GitLab pipelines configurations for the Quart machine at LLNL
+
 .quartz_common:
     tags:
         - shell
@@ -18,18 +21,15 @@
         MPIEXEC: srun
         MPIEXEC_NP: "-n"
 
-#Precleanup
-
+# Pre-Cleanup
 quartz_precleanup:
     extends: [.quartz_common, .precleanup]
 
 # Setup
-
 quartz_setup:
     extends: [.quartz_common, .setup]
 
 # Allocate
-
 quartz_allocate:
     variables:
         GIT_STRATEGY: none
@@ -43,7 +43,6 @@ quartz_allocate:
           fi
 
 # Release
-
 quartz_deallocate:
   variables:
     GIT_STRATEGY: none
@@ -58,8 +57,7 @@ quartz_deallocate:
         fi
   when: always
 
-#Build libs
-
+# Build external libraries (tpls)
 quartz_build_hypre_gcc_6_1_0:
     extends: [.quartz_common, .with_gcc_6_1_0, .build_hypre]
 
@@ -80,7 +78,6 @@ quartz_build_metis5_gcc_6_1_0:
     allow_failure: true
 
 # Build MFEM
-
 quartz_build_mfem_gcc_4_9_3_debug_ser:
     extends: [.quartz_common, .with_gcc_4_9_3, .build_mfem]
     variables:
@@ -113,9 +110,9 @@ quartz_build_mfem_gcc_6_1_0_opt_par:
         MFEM_USE_MPI: "YES"
     needs: [quartz_build_hypre_gcc_6_1_0, quartz_build_parmetis_gcc_6_1_0, quartz_allocate]
 
-## Tests
-# Sanity check
+### Tests
 
+# Sanity check
 quartz_sanitycheck_mfem_gcc_4_9_3_debug_ser:
     extends: [.quartz_common, .with_gcc_4_9_3, .sanitycheck_mfem]
     variables:
@@ -145,15 +142,13 @@ quartz_sanitycheck_mfem_gcc_6_1_0_opt_par:
     needs: [quartz_build_mfem_gcc_6_1_0_opt_par, quartz_allocate]
 
 # Baseline
-
 quartz_baselinecheck_mfem_gcc_6_1_0:
     extends: [.quartz_common, .with_gcc_6_1_0, .baselinecheck_mfem]
 
 quartz_baselinepublish_mfem:
     extends: [.quartz_common, .rebaseline_mfem]
 
-# Postcleanup
-
+# Post-Cleanup
 quartz_postcleanup:
     extends: [.quartz_common, .postcleanup]
 
