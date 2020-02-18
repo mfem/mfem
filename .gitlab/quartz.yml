@@ -145,9 +145,18 @@ quartz_sanitycheck_mfem_gcc_6_1_0_opt_par:
 quartz_baselinecheck_mfem_gcc_6_1_0:
     extends: [.quartz_common, .with_gcc_6_1_0, .baselinecheck_mfem]
 
+quartz_samplecheck_mfem_gcc_6_1_0:
+    extends: [.quartz_common, .with_gcc_6_1_0, .samplebaselinecheck_mfem]
+    tags:
+      - batch
+      - slurm
+      - quartz
+    variables:
+        LLNL_SLURM_SCHEDULER_PARAMETERS: "--nodes=1 --sockets-per-node=1 --partition=pbatch --time=240"
+
 quartz_baselinepublish_mfem:
     extends: [.quartz_common, .rebaseline_mfem]
 
-# Post-Cleanup
+# Postcleanup
 quartz_postcleanup:
     extends: [.quartz_common, .postcleanup]

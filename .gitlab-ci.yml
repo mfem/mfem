@@ -148,9 +148,9 @@ stages:
         - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
         - make test
 
-# The BUILD_ROOT is unique to the branch and the pipeline ID. Branch is not
-# necessary but makes it easier to retrieve a data. This means that there cannot
-# be concurrency between 2 pipelines.
+# The BUILD_ROOT is unique to the branch and pipeline ID. This prevent
+# concurrency between 2 pipelines. Branch is not necessary but makes it easier
+# to retrieve a given pipeline.
 .baselinecheck_mfem:
     stage: baseline_check
     script:
@@ -159,6 +159,12 @@ stages:
         - cd tests
         - mkdir -p runs && cd runs && rm -f *
         - ../runtest ../../mfem "baseline ${BUILD_ROOT}/tpls"
+        - |
+          if [[ ! -f baseline.out || ! -f baseline-${SYS_TYPE}.out ]]
+          then
+              echo "Something went wrong";
+              exit 1;
+          fi
         - cp baseline.out ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt
         - diff -u baseline-${SYS_TYPE}.out ../baseline-${SYS_TYPE}.saved | tee baseline-diff.txt || true
         - cp baseline-diff.txt ${CI_PROJECT_DIR}
