@@ -1357,6 +1357,7 @@ class GeckoVerboseProgress : public GeckoProgress
 {
    using Float = Gecko::Float;
    using Graph = Gecko::Graph;
+   using uint = Gecko::uint;
 public:
    GeckoVerboseProgress(double limit) : GeckoProgress(limit) {}
 
