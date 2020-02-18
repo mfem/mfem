@@ -55,7 +55,7 @@ variables:
 # - Build is where we build MFEM for multiple toolchains.
 # - Test is where we perform a first set of tests on MFEM build.
 # - Baseline_checks gathers baseline-type test suites execution
-# - Baseline_publish, only available on master, allows to commit baseline
+# - Baseline_publish, only available on master, allows to update baseline
 #   results
 # - Deallocate releases quartz resources
 stages:
@@ -154,8 +154,8 @@ stages:
     - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
     - make test
 
-# Shared script for baseline and sample-run-baseline.
-# BASELINE_TEST is what differentiate between both.
+# Shared script for baseline and sample-run-baseline, the value of BASELINE_TEST
+# differentiates between the two tests.
 .baseline_script: &baseline_script |
   # locals
   _full_out=${BASELINE_TEST}.out
@@ -222,8 +222,8 @@ stages:
       - artifacts
   allow_failure: true
 
-# This job can only be manually triggers on a pipeline for master branch,
-# or if the pipeline was triggered with REBASELINE="YES"
+# This job can only be manually triggers on a pipeline for master branch, or if
+# the pipeline was triggered with REBASELINE="YES"
 .rebaseline_mfem:
   stage: baseline_publish
   rules:
@@ -236,6 +236,6 @@ stages:
     - echo "git commit -m Rebaselined in Gitlab pipeline #${CI_PIPELINE_ID}"
     - echo "git push origin master"
 
-# The list on jobs is in fact defined in other files.
+# The list on jobs is defined in machine-specific files.
 include:
   - local: .gitlab/quartz.yml

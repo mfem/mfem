@@ -20,9 +20,9 @@ HPC performance improvements; etc.
 Use a pull request (PR) toward the `mfem:master` branch to propose your
 contribution. If you are planning significant code changes, or have any
 questions, you can also open an [issue](https://github.com/mfem/mfem/issues)
-before issuing a PR. In addition to technical contributions, we also interested in your results and [simulation
-images](http://mfem.org/gallery/), which you can share via a pull request in
-[mfem/web](https://github.com/mfem/web).
+before issuing a PR. In addition to technical contributions, we also interested
+in your results and [simulation images](http://mfem.org/gallery/), which you
+can share via a pull request in [mfem/web](https://github.com/mfem/web).
 
 See the [Quick Summary](#quick-summary) section for the main highlights of our
 GitHub workflow. For more details, consult the following sections and refer
@@ -61,8 +61,10 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   to check the items off the [Pull Request Checklist](#pull-request-checklist).
 - When your contribution is fully working and ready to be reviewed, add
   the `ready-for-review` label.
-- PRs are treated similarly to journal submission with an "editor" assigning two reviewers to evaluate the changes.
-- The reviewers have 3 weeks to evaluate the PR and work with the author to implement improvements and fix issues.
+- PRs are treated similarly to journal submission with an "editor" assigning two
+  reviewers to evaluate the changes.
+- The reviewers have 3 weeks to evaluate the PR and work with the author to
+  implement improvements and fix issues.
 - After approval, MFEM developers merge the PR manually in the [mfem:next branch](#masternext-workflow).
 - After a week of testing in `mfem:next`, the original PR is merged in `mfem:master`.
 - We use [milestones](https://github.com/mfem/mfem/milestones) to coordinate the
@@ -105,7 +107,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   │   ├── nurbs
   │   ├── performance
   │   ├── tools
-  │   └── toysp
+  │   └── toys
   └── tests
       ├── scripts
       ├── unit
@@ -198,7 +200,8 @@ will allow us to reach you directly with project announcements.
 
 - Before you can start, you need a GitHub account, here are a few suggestions:
   + Create the account at: github.com/join.
-  + For easy identification, please add your name and maybe a picture of you at: https://github.com/settings/profile.
+  + For easy identification, please add your name and maybe a picture of you at:
+    https://github.com/settings/profile.
   + To receive notification, set a primary email at: https://github.com/settings/emails.
   + For password-less pull/push over SSH, add your SSH keys at: https://github.com/settings/keys.
 
@@ -496,9 +499,9 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 - [ ] Create the release tarball and push to `mfem/releases`.
 - [ ] Recreate the `next` branch as described in previous section.
 - [ ] Update and push documentation  to `mfem/doxygen`.
-- [ ] Update URL shorlinks:
+- [ ] Update URL shortlinks:
     - [ ] Create a shortlink at [https://goo.gl/](https://goo.gl/) for the release tarball, e.g. http://mfem.github.io/releases/mfem-3.1.tgz.
-    - [ ] (LLNL only) Add and commit the new shorlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
+    - [ ] (LLNL only) Add and commit the new shortlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
     - [ ] Add the new shortlinks to the MFEM packages in `spack`, `homebrew/science`, `VisIt`, etc.
 - [ ] Update website in `mfem/web` repo:
     - Update version and shortlinks in `src/index.md` and `src/download.md`.
