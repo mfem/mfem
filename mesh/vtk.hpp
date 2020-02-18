@@ -26,12 +26,13 @@ enum class VTKFormat
    BINARY32
 };
 
-/// Create the VTK element connectivity array for a given element geometry and 
+/// Create the VTK element connectivity array for a given element geometry and
 /// refinement level. Converts node numbers from MFEM to VTK ordering.
-void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref);
+void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom,
+                                  int ref);
 
 /// Outputs encoded binary data in the format needed by VTK. The binary data
-/// will be base 64 encoded, and compressed if @a compression_level is not 
+/// will be base 64 encoded, and compressed if @a compression_level is not
 /// zero. The proper header will be prepended to the data.
 void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
                                uint32_t nbytes, int compression_level);
