@@ -555,9 +555,8 @@ public:
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B);
 
-/// Returns the matrix A * B
-/** Returned matrix does not own row or column starts unless the bool
-    own_matrix is set to true. */
+/** Returns the matrix \@ A * \@ B. Returned matrix does not necessarily own
+    row or column starts unless the bool own_matrix is set to true. */
 HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
                          bool own_matrix=false);
 /// Returns the matrix A + B
