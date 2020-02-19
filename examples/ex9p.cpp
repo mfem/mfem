@@ -352,11 +352,6 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-
-   // TODO : Add more general method to get blocksize
-   AIR0.blocksize = (order+1)*(order+1);
-
-
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
    //    a command-line parameter. If the mesh is of NURBS type, we convert it
@@ -391,6 +386,9 @@ int main(int argc, char *argv[])
    {
       cout << "Number of unknowns: " << global_vSize << endl;
    }
+
+   // Get DG blocksize for AIR
+   AIR0.blocksize = fes->GetFE(0).GetDof();
 
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The

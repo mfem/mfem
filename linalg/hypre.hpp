@@ -340,6 +340,7 @@ public:
 
    /// MPI communicator
    MPI_Comm GetComm() const { return A->comm; }
+   void BuildComm() const { hypre_MatvecCommPkgCreate(A); }
 
    /// Typecasting to hypre's hypre_ParCSRMatrix*
    operator hypre_ParCSRMatrix*() const { return A; }
@@ -410,6 +411,11 @@ public:
 
    /// Returns the transpose of *this
    HypreParMatrix * Transpose() const;
+
+   /** Returns principle submatrix given by array of indices of connections
+       with relative size > \@ threshold in *this. */
+   HypreParMatrix * ExtractSubmatrix(Array<int> &indices,
+                                     double threshhold=0.0) const;
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
    int GetNumRows() const
