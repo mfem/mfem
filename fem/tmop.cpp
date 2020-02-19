@@ -895,7 +895,6 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 {
    DenseMatrix point_mat;
    point_mat.UseExternalData(elfun.GetData(), fe.GetDof(), fe.GetDim());
-
    switch (target_type)
    {
       case GIVEN_FULL:
