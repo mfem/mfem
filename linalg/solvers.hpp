@@ -71,8 +71,24 @@ public:
    }
 };
 
-/// todo: this one needs to somehow get "pass"
-/// does that go in the interface, or specialized to this one?
+class SLILegacyMonitor : public IterativeSolverMonitor
+{
+private:
+   double nomold;
+
+public:
+   void BeginInfo(int iteration, double res_norm);
+   void IterationInfo(int iteration, double res_norm);
+   void ConvergenceInfo(int iteration, double res_norm,
+                        double initial_norm);
+   void NoConvergenceInfo(int iteration, double res_norm,
+                          double initial_norm);
+   
+   void Alert(std::string& message)
+   {
+   }
+};
+
 /// (FGMRES too) (check with ./ex14p -s 1)
 class GMRESLegacyMonitor : public IterativeSolverMonitor
 {
@@ -192,12 +208,18 @@ protected:
 
    void UpdateVectors();
 
+   IterativeSolverMonitor * monitor;
+
 public:
-   SLISolver() { }
+   SLISolver() : monitor(new SLILegacyMonitor) { }
 
 #ifdef MFEM_USE_MPI
-   SLISolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   SLISolver(MPI_Comm _comm) : IterativeSolver(_comm),
+                               monitor(new SLILegacyMonitor)
+   { }
 #endif
+
+   ~SLISolver() { delete monitor; }
 
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }

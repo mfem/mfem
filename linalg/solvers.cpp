@@ -87,6 +87,70 @@ void CGLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
    }
 }
 
+void SLILegacyMonitor::BeginInfo(int iteration, double res_norm)
+{
+   if (print_level == 1)
+   {
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                << res_norm*res_norm << '\n';
+   }
+   // nomold = res_norm*res_norm;
+   nomold = 1.0;
+}
+
+void SLILegacyMonitor::IterationInfo(int iteration, double res_norm)
+{
+   double nom = res_norm*res_norm;
+   double cf = sqrt(nom/nomold);
+   if (print_level == 1)
+   {
+         mfem::out << "   Iteration : " << setw(3) << iteration << "  (B r, r) = "
+                   << nom << "\tConv. rate: " << cf << '\n';
+   }
+   nomold = nom;
+}
+
+void SLILegacyMonitor::ConvergenceInfo(int iteration, double res_norm,
+                                      double initial_norm)
+{
+   double nom = res_norm*res_norm;
+   double nom0 = initial_norm*initial_norm;
+   double cf = sqrt(nom/nomold);
+   if (print_level == 2)
+   {
+      mfem::out << "Number of SLI iterations: " << iteration << '\n'
+                << "Conv. rate: " << cf << '\n';
+   }
+   else if (print_level == 3)
+   {
+      mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
+                << "(B r_N, r_N) = " << nom << '\n'
+                << "Number of SLI iterations: " << iteration << '\n';
+   }
+   if (print_level >= 1)
+   {
+      mfem::out << "Average reduction factor = "
+                << pow (nom/nom0, 0.5/iteration) << '\n';
+   }
+
+}
+
+void SLILegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
+                                        double initial_norm)
+{
+   double nom = res_norm*res_norm;
+   double nom0 = initial_norm*initial_norm;
+   if (print_level >= 0)
+   {
+      mfem::err << "SLI: No convergence!" << '\n';
+      mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
+                << "(B r_N, r_N) = " << nom << '\n'
+                << "Number of SLI iterations: " << iteration << '\n';
+      mfem::out << "Average reduction factor = "
+                << pow (nom/nom0, 0.5/iteration) << '\n';
+   }
+}
+
 void GMRESLegacyMonitor::BeginInfo(int iteration, double res_norm)
 {
    if (print_level == 1 || print_level == 3)
@@ -334,7 +398,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // General version of SLI with a relative tolerance, optional preconditioner
    // and optional initial guess
-   double r0, nom, nom0, nomold = 1, cf;
+   double r0, nom, nom0;
 
    if (iterative_mode)
    {
@@ -357,9 +421,8 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       nom0 = nom = Dot(r, r);
    }
 
-   if (print_level == 1)
-      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                << nom << '\n';
+   monitor->SetPrintLevel(print_level);
+   monitor->BeginInfo(0, sqrt(nom));
 
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
@@ -397,21 +460,11 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          nom = Dot(r, r);
       }
 
-      cf = sqrt(nom/nomold);
-      if (print_level == 1)
-         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
-                   << nom << "\tConv. rate: " << cf << '\n';
-      nomold = nom;
+      monitor->IterationInfo(i, sqrt(nom));
 
       if (nom < r0)
       {
-         if (print_level == 2)
-            mfem::out << "Number of SLI iterations: " << i << '\n'
-                      << "Conv. rate: " << cf << '\n';
-         else if (print_level == 3)
-            mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
-                      << "(B r_N, r_N) = " << nom << '\n'
-                      << "Number of SLI iterations: " << i << '\n';
+         monitor->ConvergenceInfo(i, sqrt(nom), sqrt(nom0));
          converged = 1;
          final_iter = i;
          break;
@@ -423,17 +476,9 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       }
    }
 
-   if (print_level >= 0 && !converged)
+   if (!converged)
    {
-      mfem::err << "SLI: No convergence!" << '\n';
-      mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
-                << "(B r_N, r_N) = " << nom << '\n'
-                << "Number of SLI iterations: " << final_iter << '\n';
-   }
-   if (print_level >= 1 || (print_level >= 0 && !converged))
-   {
-      mfem::out << "Average reduction factor = "
-                << pow (nom/nom0, 0.5/final_iter) << '\n';
+      monitor->NoConvergenceInfo(final_iter, sqrt(nom), sqrt(nom0));
    }
    final_norm = sqrt(nom);
 }
