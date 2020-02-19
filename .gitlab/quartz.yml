@@ -33,7 +33,7 @@ allocate_quartz:
     - |
       if [[ "${MPIEXEC}" == "srun" ]]
       then
-      salloc --nodes=1 --extra-node-info=2:18:1 --partition=pbatch --time=240 --no-shell --job-name=${MFEM_ALLOC_NAME}
+      salloc --nodes=1 --extra-node-info=1:18:1 --partition=pdebug --time=30 --no-shell --job-name=${MFEM_ALLOC_NAME}
       fi
 
 # Release
@@ -139,10 +139,10 @@ baselinecheck_mfem_gcc_6_1_0_quartz:
   extends: [.baselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
   needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
 
-samplebaselinecheck_mfem_gcc_6_1_0_quartz:
-  extends: [.samplebaselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
-  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
-
-baselinepublish_mfem_quartz:
-  extends: [.rebaseline_mfem, .on_quartz]
-  needs: [baselinecheck_mfem_gcc_6_1_0_quartz]
+  #samplebaselinecheck_mfem_gcc_6_1_0_quartz:
+  #  extends: [.samplebaselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
+  #  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+  #
+  #baselinepublish_mfem_quartz:
+  #  extends: [.rebaseline_mfem, .on_quartz]
+  #  needs: [baselinecheck_mfem_gcc_6_1_0_quartz]
