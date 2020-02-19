@@ -499,6 +499,12 @@ public:
    /// y = x-g on ess_tdof_list, the rest of y is unchanged
    void FixResidualBC(const Vector& x, Vector& y);
 
+   /// Replace boundary dofs with 0
+   void Zero(Vector &x);
+
+   /// y = x on ess_tdof_list_c and y = 0 on ess_tdof_list
+   void ZeroBC(const Vector &x, Vector &y);
+
 private:
    enum Type bctype;
    bool setup;
