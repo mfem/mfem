@@ -279,7 +279,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          nom = sqrt(Dot(r, r));
       }
 
-      cf = sqrt(nom/nomold);
+      cf = nom/nomold;
       if (print_level == 1)
          mfem::out << "   Iteration : " << setw(3) << i << "  ||Br|| = "
                    << nom << "\tConv. rate: " << cf << '\n';
@@ -315,7 +315,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (print_level >= 1 || (print_level >= 0 && !converged))
    {
       mfem::out << "Average reduction factor = "
-                << pow (nom/nom0, 0.5/final_iter) << '\n';
+                << pow (nom/nom0, 1.0/final_iter) << '\n';
    }
    final_norm = nom;
 }
