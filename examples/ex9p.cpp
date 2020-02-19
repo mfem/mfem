@@ -388,7 +388,7 @@ int main(int argc, char *argv[])
    }
 
    // Get DG blocksize for AIR
-   AIR0.blocksize = fes->GetFE(0).GetDof();
+   AIR0.blocksize = fes->GetFE(0)->GetDof();
 
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
