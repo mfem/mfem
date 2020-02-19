@@ -60,23 +60,25 @@ void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
 
    mesh = &m;
+   dim  = mesh->Dimension();
    int gt = mesh->GetNodalFESpace()->GetFE(0)->GetGeomType();
    unsigned dof1D = mesh->GetNodalFESpace()->GetFE(0)->GetOrder() + 1;
    int NE = mesh->GetNE(),
              dof_cnt = mesh->GetNodalFESpace()->GetFE(0)->GetDof(),
              pts_cnt = NE * dof_cnt;
 
-   if (gt == 3 || gt == 5) //quad/hex
+   if (gt == 2 || gt == 4 || gt == 6) //tri/tet/prism
+   {
+       (this)->GetSimplexNodalCoordinates();
+   }
+   else if (gt == 3 || gt == 5) //quad/hex
    {
        (this)->GetQuadHexNodalCoordinates();
    }
-   else //simplices
-   {
-       (this)->GetTriNodalCoordinates();
-       NE *= 3;
-       pts_cnt = gsl_mesh.Size()/mesh->Dimension();
-   }
+   else {MFEM_ABORT("ELEMENT TYPE NOT CURRENTLY SUPPORTED");}
 
+   NE *= splitfactor;
+   pts_cnt = gsl_mesh.Size()/dim;
    if (dim == 2)
    {
       unsigned nr[2] = {dof1D, dof1D};
@@ -202,20 +204,20 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
           }
        }
    }
-   else if (gt == 2) //Triangle
+   else if (gt == 2 || gt == 4 || gt == 6) //Triangle
    {
-       dim = meshsplit->Dimension();
        unsigned dof1D = mesh->GetNodalFESpace()->GetFE(0)->GetOrder() + 1;
-       const int NE = meshsplit->GetNE(),
-                 dof_cnt = dof1D*dof1D,
-                 pts_cnt = NE * dof_cnt;
+       int NE = meshsplit->GetNE(),
+           dof_cnt = dof1D*dof1D;
+       if (dim==3) {dof_cnt *= dof1D;}
+       int pts_cnt = NE * dof_cnt;
        int pt_id = 0;
        const int tpts_cnt = pts_cnt*mesh->GetNE();
        node_vals.SetSize(tpts_cnt);
        for (int j=0;j<mesh->GetNE();j++) {
        for (int i=0;i<dof_cnt*NE;i++)
        {
-           const IntegrationPoint &ip = triir->IntPoint(i);
+           const IntegrationPoint &ip = simir->IntPoint(i);
            node_vals(pt_id++) = gf_in.GetValue(j,ip,1);
        }
        }
@@ -226,12 +228,9 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
 
 void FindPointsGSLIB::GetQuadHexNodalCoordinates()
 {
-
-
   const GridFunction *nodes = mesh->GetNodes();
   const FiniteElementSpace *fes = nodes->FESpace();
 
-   dim = mesh->Dimension();
    const int NE = mesh->GetNE(),
              dof_cnt = fes->GetFE(0)->GetDof(),
              pts_cnt = NE * dof_cnt;
@@ -259,41 +258,90 @@ void FindPointsGSLIB::GetQuadHexNodalCoordinates()
          pt_id++;
       }
    }
+   splitfactor = 1;
 }
 
-void FindPointsGSLIB::GetTriNodalCoordinates()
+void FindPointsGSLIB::GetSimplexNodalCoordinates() //tri/tet/prism
 {
+  int gt = mesh->GetNodalFESpace()->GetFE(0)->GetGeomType();
   const GridFunction *nodes = mesh->GetNodes();
   const FiniteElementSpace *fes = nodes->FESpace();
 
-  int Nvert = 7;
-  int Nelem = 3;
-  meshsplit = new Mesh(2, Nvert, Nelem, 0, 2);
-  double sq2 = pow(2,0.5);
-  double rv = 1.-1./sq2;
-  double xv = rv*1./std::tan(M_PI/8);
-  double xv6 = 1. - xv*std::cos(M_PI/4.);
-  double yv6 = xv*std::sin(M_PI/4);
-  const double quad_v[7][2] = { {0,0},{0.5,0},{1,0},{0,rv},{rv,rv},{xv6,yv6},{0,1}};
-  const int quad_e[3][4] = {{3,4,1,0},{4,5,2,1},{6,5,4,3}};
-  for (int j = 0; j < Nvert; j++)
-  {
-     meshsplit->AddVertex(quad_v[j]);
+  if (gt==2) { //Triangles
+      int Nvert = 7;
+      int Nelem = 3;
+      meshsplit = new Mesh(2, Nvert, Nelem, 0, 2);
+      const double quad_v[7][2] = { {0,0},{0.5,0},{1,0},{0,0.5},
+                                    {1./3.,1./3.},{0.5,0.5},{0,1}};
+      const int quad_e[3][4] = {{3,4,1,0},{4,5,2,1},{6,5,4,3}};
+      for (int j = 0; j < Nvert; j++)
+      {
+         meshsplit->AddVertex(quad_v[j]);
+      }
+      for (int j = 0; j < Nelem; j++)
+      {
+         int attribute = j + 1;
+         meshsplit->AddQuad(quad_e[j], attribute);
+      }
+      meshsplit->FinalizeQuadMesh(1, 1, true);
+      splitfactor = 3;
   }
-  for (int j = 0; j < Nelem; j++)
-  {
-     int attribute = j + 1;
-     meshsplit->AddQuad(quad_e[j], attribute);
+  else if (gt==4) { //Tetrahedrons
+      int Nvert = 15;
+      int Nelem = 4;
+      meshsplit = new Mesh(3, Nvert, Nelem, 0, 3);
+      double fc = 1./3.;
+      const double hex_v[15][3] = {{0,0,0.},{1,0.,0.},{0.,1.,0.},{0,0.,1.},
+                                    {0.5,0.,0.},{0.5,0.5,0.},{0.,0.5,0.},
+                                    {0.,0.,0.5},{0.5,0.,0.5},{0.,0.5,0.5},
+                                    {fc,0.,fc},{fc,fc,fc},{0,fc,fc},
+                                    {fc,fc,0},{0.25,0.25,0.25}};
+      const int hex_e[4][8] = {{0,4,10,7,6,13,14,12},
+                               {4,1,8,10,13,5,11,14},
+                               {13,5,11,14,6,2,9,12},
+                               {10,8,3,7,14,11,9,12}};
+      for (int j = 0; j < Nvert; j++)
+      {
+         meshsplit->AddVertex(hex_v[j]);
+      }
+      for (int j = 0; j < Nelem; j++)
+      {
+         int attribute = j + 1;
+         meshsplit->AddHex(hex_e[j], attribute);
+      }
+      meshsplit->FinalizeHexMesh(1, 1, true);
+      splitfactor = 4;
   }
-  meshsplit->FinalizeQuadMesh(1, 1, true);
+  else if (gt==6) { //Prisms
+      int Nvert = 14;
+      int Nelem = 3;
+      meshsplit = new Mesh(3, Nvert, Nelem, 0, 3);
 
-  H1_FECollection fec(mesh->GetNodalFESpace()->GetFE(0)->GetOrder(),
-                      meshsplit->Dimension());
-  FiniteElementSpace nodal_fes(meshsplit, &fec, meshsplit->SpaceDimension());
+      const double hex_v[14][3] = {{0,0,0},{0.5,0,0},{1,0,0},{0,0.5,0},
+                                   {1./3.,1./3.,0},{0.5,0.5,0},{0,1,0},
+                                   {0,0,1},{0.5,0,1},{1,0,1},{0,0.5,1},
+                                   {1./3.,1./3.,1},{0.5,0.5,1},{0,1,1}};
+      const int hex_e[3][8] = {{3,4,1,0,10,11,8,7},
+                               {4,5,2,1,11,12,9,8},
+                               {6,5,4,3,13,12,11,10}};
+      for (int j = 0; j < Nvert; j++)
+      {
+         meshsplit->AddVertex(hex_v[j]);
+      }
+      for (int j = 0; j < Nelem; j++)
+      {
+         int attribute = j + 1;
+         meshsplit->AddHex(hex_e[j], attribute);
+      }
+      meshsplit->FinalizeHexMesh(1, 1, true);
+      splitfactor = 3;
+  }
+
+  H1_FECollection fec(mesh->GetNodalFESpace()->GetFE(0)->GetOrder(),dim);
+  FiniteElementSpace nodal_fes(meshsplit, &fec,dim);
   meshsplit->SetNodalFESpace(&nodal_fes);
 
   Vector irlist;
-  dim = meshsplit->Dimension();
   const int NE = meshsplit->GetNE(),
             dof_cnt = nodal_fes.GetFE(0)->GetDof(),
             pts_cnt = NE * dof_cnt;
@@ -307,7 +355,7 @@ void FindPointsGSLIB::GetTriNodalCoordinates()
    Vector posV(pos.Data(), dof_cnt * dim);
    Array<int> xdofs(dof_cnt * dim);
 
-   triir = new IntegrationRule(pts_cnt);
+   simir = new IntegrationRule(pts_cnt);
 
    GridFunction *nodesplit = meshsplit->GetNodes();
 
@@ -322,8 +370,9 @@ void FindPointsGSLIB::GetTriNodalCoordinates()
          {
             irlist(pts_cnt * d + pt_id) = pos(dof_map[j], d);
          }
-             triir->IntPoint(pt_id).x = irlist(pt_id);
-             triir->IntPoint(pt_id).y = irlist(pts_cnt + pt_id);
+             simir->IntPoint(pt_id).x = irlist(pt_id);
+             simir->IntPoint(pt_id).y = irlist(pts_cnt + pt_id);
+             if (dim==3) {simir->IntPoint(pt_id).z = irlist(2*pts_cnt + pt_id);}
          pt_id++;
       }
    }
@@ -331,11 +380,11 @@ void FindPointsGSLIB::GetTriNodalCoordinates()
    pt_id = 0;
    Vector locval(dim);
    const int tpts_cnt = pts_cnt*mesh->GetNE();
-   gsl_mesh.SetSize(tpts_cnt*mesh->Dimension());
+   gsl_mesh.SetSize(tpts_cnt*dim);
    for (int j=0;j<mesh->GetNE();j++) {
    for (int i=0;i<dof_cnt*NE;i++)
    {
-       const IntegrationPoint &ip = triir->IntPoint(i);
+       const IntegrationPoint &ip = simir->IntPoint(i);
        nodes->GetVectorValue(j,ip,locval);
        for (int d=0;d<dim;d++) {
            gsl_mesh(tpts_cnt*d + pt_id) = locval(d);

@@ -29,6 +29,12 @@
 // Sample runs:
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/fichera.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/inline-tri.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/inline-tet.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/inline-prism.mesh -o 3
+
 
 #include "mfem.hpp"
 

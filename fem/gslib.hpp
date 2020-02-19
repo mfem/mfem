@@ -29,11 +29,11 @@ class FindPointsGSLIB
 protected:
    Mesh *mesh;
    Mesh *meshsplit;
-   IntegrationRule *triir;
+   IntegrationRule *simir;
    Vector gsl_mesh;
    struct findpts_data_2 *fdata2D;
    struct findpts_data_3 *fdata3D;
-   int dim;
+   int dim, splitfactor;
 
    struct comm *gsl_comm;
 
@@ -101,7 +101,7 @@ public:
        it calls MPI_Comm_free() for internal gslib communicators. */
 
    void GetQuadHexNodalCoordinates();
-   void GetTriNodalCoordinates();
+   void GetSimplexNodalCoordinates();
 
    void FreeData();
 };
