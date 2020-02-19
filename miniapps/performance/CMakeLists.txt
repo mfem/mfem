@@ -30,18 +30,10 @@ elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   endif()
 endif()
 
-if (MFEM_USE_CUDA)
-   list(TRANSFORM PERFORMANCE_CXX_OPTIONS PREPEND "-Xcompiler=")
-endif()
-
 add_mfem_miniapp(performance_ex1
   MAIN ex1.cpp
   LIBRARIES mfem
   EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
-
-if (MFEM_USE_CUDA)
-   set_property(SOURCE ex1.cpp PROPERTY LANGUAGE CUDA)
-endif()
 
 add_test(NAME performance_ex1_ser
   COMMAND performance_ex1 -no-vis -r 2)
@@ -51,10 +43,6 @@ if (MFEM_USE_MPI)
     MAIN ex1p.cpp
     LIBRARIES mfem
     EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
-
-  if (MFEM_USE_CUDA)
-     set_property(SOURCE ex1p.cpp PROPERTY LANGUAGE CUDA)
-  endif()
    
   add_test(NAME performance_ex1p_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}

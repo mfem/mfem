@@ -34,21 +34,6 @@ if (MFEM_USE_MPI)
    maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem mfem-common)
 
-  # Tag ALL_EXE_SRCS files to be compiled with nvcc.
-  if (MFEM_USE_CUDA)
-     set_property(SOURCE tesla.cpp PROPERTY LANGUAGE CUDA)
-     set_property(SOURCE tesla_solver.cpp PROPERTY LANGUAGE CUDA)
-     
-     set_property(SOURCE volta.cpp PROPERTY LANGUAGE CUDA)
-     set_property(SOURCE volta_solver.cpp PROPERTY LANGUAGE CUDA)
-     
-     set_property(SOURCE joule.cpp PROPERTY LANGUAGE CUDA)
-     set_property(SOURCE joule_solver.cpp PROPERTY LANGUAGE CUDA)
-     
-     set_property(SOURCE maxwell.cpp PROPERTY LANGUAGE CUDA)
-     set_property(SOURCE maxwell_solver.cpp PROPERTY LANGUAGE CUDA)
-  endif()
-   
   # Add the corresponding tests to the "test" target
   add_test(NAME tesla_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}

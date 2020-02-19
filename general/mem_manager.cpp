@@ -32,6 +32,15 @@
 
 #ifdef MFEM_USE_UMPIRE
 #include "umpire/Umpire.hpp"
+
+// Make sure Umpire is build with CUDA support if MFEM is built with it.
+#if defined(MFEM_USE_CUDA) && !defined(UMPIRE_ENABLE_CUDA)
+#error "CUDA is not enabled in Umpire!"
+#endif
+// Make sure Umpire is build with HIP support if MFEM is built with it.
+#if defined(MFEM_USE_HIP) && !defined(UMPIRE_ENABLE_HIP)
+#error "HIP is not enabled in Umpire!"
+#endif
 #endif // MFEM_USE_UMPIRE
 
 namespace mfem
@@ -593,9 +602,9 @@ private:
             return new HipDeviceMemorySpace();
 #else
             MFEM_ABORT("No device memory controller!");
+            break;
 #endif
          }
-         break;
          default: MFEM_ABORT("Unknown device memory controller!");
       }
       return nullptr;

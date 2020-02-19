@@ -27,9 +27,7 @@ if (MFEM_USE_MPI)
 endif()
 
 if (MFEM_USE_CUDA)
-   foreach(file IN LISTS SRCS)
-      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
-   endforeach()
+  set_property(SOURCE ${SRCS} PROPERTY LANGUAGE CUDA)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

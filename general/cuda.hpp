@@ -41,11 +41,6 @@
    while (0)
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
-#else
-#define MFEM_DEVICE
-#define MFEM_HOST_DEVICE
-#define MFEM_DEVICE_SYNC
-#define MFEM_STREAM_SYNC
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros
@@ -55,12 +50,6 @@
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
-#else
-#define MFEM_SHARED
-#define MFEM_SYNC_THREAD
-#define MFEM_THREAD_ID(k) 0
-#define MFEM_THREAD_SIZE(k) 1
-#define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
 namespace mfem

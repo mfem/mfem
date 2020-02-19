@@ -37,16 +37,6 @@ add_mfem_miniapp(toroid
   MAIN toroid.cpp
   LIBRARIES mfem)
 
-if (MFEM_USE_CUDA)
-   set_property(SOURCE klein-bottle.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE mesh-explorer.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE mobius-strip.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE shaper.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE extruder.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE mesh-optimizer.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE toroid.cpp PROPERTY LANGUAGE CUDA)
-endif()
-
 # Add serial tests.
 add_test(NAME mesh-optimizer
   COMMAND mesh-optimizer -no-vis -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh)
