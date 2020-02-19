@@ -4155,8 +4155,8 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
          {
             orient = 1;   //  (0, 1, 3, 2)
          }
-      else if (test[1] == base[2])
-         if (test[2] == base[3])
+      else if (test[2] == base[1])
+         if (test[3] == base[2])
          {
             orient = 2;   //  (0, 2, 3, 1)
          }
@@ -4164,8 +4164,8 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
          {
             orient = 3;   //  (0, 2, 1, 3)
          }
-      else // test[1] == base[3]
-         if (test[2] == base[1])
+      else // test[3] == base[1]
+         if (test[1] == base[2])
          {
             orient = 4;   //  (0, 3, 1, 2)
          }
@@ -4173,9 +4173,9 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
          {
             orient = 5;   //  (0, 3, 2, 1)
          }
-   else if (test[0] == base[1])
-      if (test[1] == base[2])
-         if (test[2] == base[0])
+   else if (test[1] == base[0])
+      if (test[2] == base[1])
+         if (test[0] == base[2])
          {
             orient = 6;   //  (1, 2, 0, 3)
          }
@@ -4183,7 +4183,7 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
          {
             orient = 7;   //  (1, 2, 3, 0)
          }
-      else if (test[1] == base[3])
+      else if (test[3] == base[1])
          if (test[2] == base[2])
          {
             orient = 8;   //  (1, 3, 2, 0)
@@ -4192,8 +4192,8 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
          {
             orient = 9;   //  (1, 3, 0, 2)
          }
-      else // test[1] == base[0]
-         if (test[2] == base[3])
+      else // test[0] == base[1]
+         if (test[3] == base[2])
          {
             orient = 10;   //  (1, 0, 3, 2)
          }
@@ -4201,9 +4201,9 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
          {
             orient = 11;   //  (1, 0, 2, 3)
          }
-   else if (test[0] == base[2])
-      if (test[1] == base[3])
-         if (test[2] == base[0])
+   else if (test[2] == base[0])
+      if (test[3] == base[1])
+         if (test[0] == base[2])
          {
             orient = 12;   //  (2, 3, 0, 1)
          }
@@ -4211,8 +4211,8 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
          {
             orient = 13;   //  (2, 3, 1, 0)
          }
-      else if (test[1] == base[0])
-         if (test[2] == base[1])
+      else if (test[0] == base[1])
+         if (test[1] == base[2])
          {
             orient = 14;   //  (2, 0, 1, 3)
          }
@@ -4221,7 +4221,7 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
             orient = 15;   //  (2, 0, 3, 1)
          }
       else // test[1] == base[1]
-         if (test[2] == base[3])
+         if (test[3] == base[2])
          {
             orient = 16;   //  (2, 1, 3, 0)
          }
@@ -4229,8 +4229,8 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
          {
             orient = 17;   //  (2, 1, 0, 3)
          }
-   else // (test[0] == base[3])
-      if (test[1] == base[0])
+   else // (test[3] == base[0])
+      if (test[0] == base[1])
          if (test[2] == base[2])
          {
             orient = 18;   //  (3, 0, 2, 1)
@@ -4240,7 +4240,7 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
             orient = 19;   //  (3, 0, 1, 2)
          }
       else if (test[1] == base[1])
-         if (test[2] == base[0])
+         if (test[0] == base[2])
          {
             orient = 20;   //  (3, 1, 0, 2)
          }
@@ -4248,8 +4248,8 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
          {
             orient = 21;   //  (3, 1, 2, 0)
          }
-      else // test[1] == base[2]
-         if (test[2] == base[1])
+      else // test[2] == base[1]
+         if (test[1] == base[2])
          {
             orient = 22;   //  (3, 2, 1, 0)
          }
