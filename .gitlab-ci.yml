@@ -159,9 +159,10 @@ stages:
 .baseline_script: &baseline_script |
   # locals
   _full_out=${BASELINE_TEST}.out
-  _full_txt=${BASELINE_TEST}.txt
+  _err=${BASELINE_TEST}.err
   _out=${BASELINE_TEST}-${SYS_TYPE}.out
   _ref=../${BASELINE_TEST}-${SYS_TYPE}.saved
+  _out_txt=${BASELINE_TEST}.txt
   _diff=${BASELINE_TEST}-diff.txt
   # prepare
   cd ${BUILD_ROOT}
@@ -176,15 +177,16 @@ stages:
   fi
   ${EXEC_PREFIX} ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
-  if [[ ! -f ${_full_out} || ! -f ${_out} ]]
+  mkdir ${ARTIFACTS_DIR}
+  if [[ ! -f ${_full_out} || ! -f ${_out} || -s ${_full_err} ]]
   then
-      echo "Something went wrong in ${BASELINE_TEST}";
+      echo "Something went WRONG in ${BASELINE_TEST}";
+      cp ${_full_err} ${ARTIFACTS_DIR}/
       exit 1;
   fi
-  mv ${_full_out} ${_full_txt}
+  cp ${_out} ${_out_txt}
   diff -u ${_ref} ${_out} | tee ${_diff} || true
-  mkdir ${ARTIFACTS_DIR}
-  cp ${_out} ${_diff} ${ARTIFACTS_DIR}
+  cp ${_full_out} ${_out_txt} ${_diff} ${ARTIFACTS_DIR}/
   if [[ ! $(head -n1 ${_diff}) ]]; then true; else false; fi
 
 .baselinecheck_mfem:
@@ -195,9 +197,9 @@ stages:
   script:
     - *baseline_script
   artifacts:
+    when: always
     paths:
       - artifacts
-  when: always
   allow_failure: true
 
 .samplebaselinecheck_mfem:
@@ -209,9 +211,9 @@ stages:
     - *baseline_script
   timeout: 4h
   artifacts:
+    when: always
     paths:
       - artifacts
-  when: always
   allow_failure: true
 
 # This job can only be manually triggers on a pipeline for master branch,
