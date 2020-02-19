@@ -44,13 +44,7 @@ public:
    virtual ~IterativeSolverMonitor() { }
 
    virtual void BeginInfo(int iteration, double res_norm) = 0;
-
    virtual void IterationInfo(int iteration, double res_norm) = 0;
-   virtual void IterationInfo(int pass, int iteration, double res_norm)
-   {
-      IterationInfo(iteration, res_norm);
-   }
-
    virtual void ConvergenceInfo(int iteration, double res_norm,
                                 double initial_norm) = 0;
 
@@ -82,10 +76,14 @@ public:
 /// (FGMRES too) (check with ./ex14p -s 1)
 class GMRESLegacyMonitor : public IterativeSolverMonitor
 {
+private:
+   int restart;
+
 public:
+   GMRESLegacyMonitor(int m_) : restart(m_) { }
+
    void BeginInfo(int iteration, double res_norm);
    void IterationInfo(int iteration, double res_norm);
-   void IterationInfo(int pass, int iteration, double res_norm);
    void ConvergenceInfo(int iteration, double res_norm,
                         double initial_norm);
    void NoConvergenceInfo(int iteration, double res_norm,
@@ -265,16 +263,22 @@ protected:
    IterativeSolverMonitor * monitor;
 
 public:
-   GMRESSolver() : monitor(new GMRESLegacyMonitor) { m = 50; }
+   GMRESSolver() : monitor(new GMRESLegacyMonitor(50)) { m = 50; }
 
 #ifdef MFEM_USE_MPI
    GMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm),
-                                 monitor(new GMRESLegacyMonitor)
+                                 monitor(new GMRESLegacyMonitor(50))
    { m = 50; }
 #endif
+   ~GMRESSolver() { delete monitor; }
 
    /// Set the number of iteration to perform between restarts, default is 50.
-   void SetKDim(int dim) { m = dim; }
+   void SetKDim(int dim)
+   {
+      m = dim;
+      delete monitor;
+      monitor = new GMRESLegacyMonitor(m);
+   }
 
    virtual void Mult(const Vector &b, Vector &x) const;
 };

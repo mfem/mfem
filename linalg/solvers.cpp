@@ -89,31 +89,57 @@ void CGLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
 
 void GMRESLegacyMonitor::BeginInfo(int iteration, double res_norm)
 {
-}
-
-void GMRESLegacyMonitor::IterationInfo(int iteration, double res_norm)
-{
-}
-
-void GMRESLegacyMonitor::IterationInfo(int pass, int iteration, double res_norm)
-{
    if (print_level == 1 || print_level == 3)
    {
-      mfem::out << "   Pass : " << setw(2) << pass
+      mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
                 << "   Iteration : " << setw(3) << iteration
                 << "  ||B r|| = " << res_norm
                 << (print_level == 3 ? " ...\n" : "\n");
    }
 }
 
+void GMRESLegacyMonitor::IterationInfo(int iteration, double res_norm)
+{
+   if (print_level == 1)
+   {
+      mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
+                << "   Iteration : " << setw(3) << iteration
+                << "  ||B r|| = " << res_norm << "\n";
+   }
+}
+
 void GMRESLegacyMonitor::ConvergenceInfo(int iteration, double res_norm,
                                          double initial_norm)
 {
+   if (print_level == 1 || print_level == 3)
+   {
+      mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
+                << "   Iteration : " << setw(3) << iteration
+                << "  ||B r|| = " << res_norm << '\n';
+   }
+   else if (print_level == 2)
+   {
+      mfem::out << "GMRES: Number of iterations: " << iteration << '\n';
+   }
 }
 
 void GMRESLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
                                            double initial_norm)
 {
+   if (print_level == 1 || print_level == 3)
+   {
+      mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
+                << "   Iteration : " << setw(3) << iteration
+                << "  ||B r|| = " << res_norm << '\n';
+   }
+   else if (print_level == 2)
+   {
+      mfem::out << "GMRES: Number of iterations: " << iteration << '\n';
+   }
+   if (print_level >= 0)
+   {
+      mfem::out << "GMRES: No convergence!\n";
+   }
 }
 
 IterativeSolver::IterativeSolver()
@@ -701,6 +727,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       }
    }
    double beta = Norm(r);  // beta = ||r||
+   double initial_norm = beta;
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -712,16 +739,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       converged = 1;
       goto finish;
    }
-
-   monitor->IterationInfo(1, 0, beta);
-   /*
-   if (print_level == 1 || print_level == 3)
-   {
-      mfem::out << "   Pass : " << setw(2) << 1
-                << "   Iteration : " << setw(3) << 0
-                << "  ||B r|| = " << beta << (print_level == 3 ? " ...\n" : "\n");
-   }
-   */
+   monitor->BeginInfo(0, beta);
 
    v.SetSize(m+1, NULL);
 
@@ -775,15 +793,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
             goto finish;
          }
 
-         if (print_level == 1)
-         {
-            monitor->IterationInfo((j-1)/m+1, j, resid);
-            /*
-            mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
-                      << "   Iteration : " << setw(3) << j
-                      << "  ||B r|| = " << resid << '\n';
-            */
-         }
+         monitor->IterationInfo(j, resid);
       }
 
       if (print_level == 1 && j <= max_iter)
@@ -819,19 +829,13 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    converged = 0;
 
 finish:
-   if (print_level == 1 || print_level == 3)
+   if (converged)
    {
-      mfem::out << "   Pass : " << setw(2) << (final_iter-1)/m+1
-                << "   Iteration : " << setw(3) << final_iter
-                << "  ||B r|| = " << final_norm << '\n';
+      monitor->ConvergenceInfo(final_iter, final_norm, initial_norm);
    }
-   else if (print_level == 2)
+   else
    {
-      mfem::out << "GMRES: Number of iterations: " << final_iter << '\n';
-   }
-   if (print_level >= 0 && !converged)
-   {
-      mfem::out << "GMRES: No convergence!\n";
+      monitor->NoConvergenceInfo(final_iter, final_norm, initial_norm);
    }
    for (i = 0; i < v.Size(); i++)
    {
