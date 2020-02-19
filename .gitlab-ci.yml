@@ -107,9 +107,9 @@ stages:
       if [[ "${MPIEXEC}" == "srun" ]]
       then
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:6:1 --cpus-per-task=6 --ntasks=1"
+      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
       fi
-    - $EXEC_PREFIX make -j 6 hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
+    - $EXEC_PREFIX make -j ${MAKE_PAR} hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
 
 .build_metis:
   variables:
@@ -123,9 +123,9 @@ stages:
       if [[ "${MPIEXEC}" == "srun" ]]
       then
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:6:1 --cpus-per-task=6 --ntasks=1"
+      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
       fi
-    - $EXEC_PREFIX make -j 6 ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
+    - $EXEC_PREFIX make -j ${MAKE_PAR} ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
 
 .build_mfem:
   variables:
@@ -140,10 +140,10 @@ stages:
       if [[ "${MPIEXEC}" == "srun" ]]
       then
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:6:1 --cpus-per-task=6 --ntasks=1"
+      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
       fi
     - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="$EXEC_PREFIX" MFEM_MPIEXEC_NP=$MPIEXEC_NP
-    - $EXEC_PREFIX make -j 6 all
+    - $EXEC_PREFIX make -j ${MAKE_PAR} all
 
 # Could this phase use a parallel run?
 .sanitycheck_mfem:
@@ -172,7 +172,7 @@ stages:
   if [[ "${MPIEXEC}" == "srun" ]]
   then
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:18:1 --cpus-per-task=18 --ntasks=1"
+      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${BASELINE_PAR}:1 --cpus-per-task=${BASELINE_PAR} --ntasks=1"
   fi
   ${EXEC_PREFIX} ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
@@ -198,6 +198,7 @@ stages:
     paths:
       - artifacts
   when: always
+  allow_failure: true
 
 .samplebaselinecheck_mfem:
   stage: baseline_check
@@ -211,6 +212,7 @@ stages:
     paths:
       - artifacts
   when: always
+  allow_failure: true
 
 # This job can only be manually triggers on a pipeline for master branch,
 # or if the pipeline was triggered with REBASELINE="YES"
