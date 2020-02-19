@@ -575,7 +575,7 @@ private:
    HostMemorySpace* NewHostCtrl(const MemoryType mt)
    {
       if (mt == MT::HOST_DEBUG) { return new MmuHostMemorySpace(); }
-      MFEM_ABORT("Unknown lazy host memory controller!");
+      MFEM_ABORT("Unknown host memory controller!");
       return nullptr;
    }
 
@@ -585,28 +585,18 @@ private:
       {
          case MT::DEVICE_UMPIRE: return new UmpireDeviceMemorySpace();
          case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
-         case MT::DEVICE: // If 'DEVICE' is used
+         case MT::DEVICE:
          {
-            switch (mm.GetDeviceMemoryType())
-            {
-               case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
-               case MT::HOST_DEBUG: return new DeviceMemorySpace();
-               case MT::DEVICE_UMPIRE:
-               case MT::MANAGED:
-               case MT::DEVICE:
 #if defined(MFEM_USE_CUDA)
-                  return new CudaDeviceMemorySpace();
+            return new CudaDeviceMemorySpace();
 #elif defined(MFEM_USE_HIP)
-                  return new HipDeviceMemorySpace();
+            return new HipDeviceMemorySpace();
 #else
-                  MFEM_ABORT("No pure lazy device memory controller!");
+            MFEM_ABORT("No device memory controller!");
 #endif
-                  break;
-               default: MFEM_ABORT("Unknown lazy device memory controller!");
-            }
          }
          break;
-         default: MFEM_ABORT("Unknown lazy device memory controller!");
+         default: MFEM_ABORT("Unknown device memory controller!");
       }
       return nullptr;
    }
