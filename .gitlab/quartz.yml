@@ -18,6 +18,8 @@
     PLAT: quartz
     MPIEXEC: srun
     MPIEXEC_NP: "-n"
+    MAKE_PAR: 6
+    BASELINE_PAR: 18
 
 # Setup
 setup_quartz:
@@ -33,7 +35,7 @@ allocate_quartz:
     - |
       if [[ "${MPIEXEC}" == "srun" ]]
       then
-      salloc --nodes=1 --extra-node-info=1:18:1 --partition=pdebug --time=30 --no-shell --job-name=${MFEM_ALLOC_NAME}
+      salloc --nodes=1 --extra-node-info=2:18:1 --partition=pdebug --time=30 --no-shell --job-name=${MFEM_ALLOC_NAME}
       fi
 
 # Release
