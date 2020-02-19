@@ -837,10 +837,12 @@ Constants<Geometry::TETRAHEDRON>::Orient[24][4] =
 };
 const int Geometry::
 Constants<Geometry::TETRAHEDRON>::InvOrient[24] =
-  { 0,  1,  4,  3,  2,  5,
+{
+   0,   1,  4,  3,  2,  5,
    14, 19, 18, 15, 10, 11,
    12, 23,  6,  9, 20, 17,
-    8,   7, 16, 21, 22, 13};
+   8,   7, 16, 21, 22, 13
+};
 
 const int Geometry::
 Constants<Geometry::CUBE>::Edges[12][2] =
