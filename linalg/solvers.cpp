@@ -87,6 +87,34 @@ void CGLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
    }
 }
 
+void GMRESLegacyMonitor::BeginInfo(int iteration, double res_norm)
+{
+}
+
+void GMRESLegacyMonitor::IterationInfo(int iteration, double res_norm)
+{
+}
+
+void GMRESLegacyMonitor::IterationInfo(int pass, int iteration, double res_norm)
+{
+   if (print_level == 1 || print_level == 3)
+   {
+      mfem::out << "   Pass : " << setw(2) << pass
+                << "   Iteration : " << setw(3) << iteration
+                << "  ||B r|| = " << res_norm
+                << (print_level == 3 ? " ...\n" : "\n");
+   }
+}
+
+void GMRESLegacyMonitor::ConvergenceInfo(int iteration, double res_norm,
+                                         double initial_norm)
+{
+}
+
+void GMRESLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
+                                           double initial_norm)
+{
+}
 
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
@@ -629,7 +657,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 {
    // Generalized Minimum Residual method following the algorithm
    // on p. 20 of the SIAM Templates book.
-
+   monitor->SetPrintLevel(print_level);
    int n = width;
 
    DenseMatrix H(m+1, m);
@@ -685,12 +713,15 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       goto finish;
    }
 
+   monitor->IterationInfo(1, 0, beta);
+   /*
    if (print_level == 1 || print_level == 3)
    {
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
                 << "  ||B r|| = " << beta << (print_level == 3 ? " ...\n" : "\n");
    }
+   */
 
    v.SetSize(m+1, NULL);
 
@@ -746,9 +777,12 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
          if (print_level == 1)
          {
+            monitor->IterationInfo((j-1)/m+1, j, resid);
+            /*
             mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                       << "   Iteration : " << setw(3) << j
                       << "  ||B r|| = " << resid << '\n';
+            */
          }
       }
 

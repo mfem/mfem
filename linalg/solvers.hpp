@@ -43,7 +43,6 @@ public:
 
    virtual ~IterativeSolverMonitor() { }
 
-   /// outputs for pl 1 or 3
    virtual void BeginInfo(int iteration, double res_norm) = 0;
 
    virtual void IterationInfo(int iteration, double res_norm) = 0;
@@ -80,12 +79,13 @@ public:
 
 /// todo: this one needs to somehow get "pass"
 /// does that go in the interface, or specialized to this one?
-/// (FGMRES too)
+/// (FGMRES too) (check with ./ex14p -s 1)
 class GMRESLegacyMonitor : public IterativeSolverMonitor
 {
 public:
    void BeginInfo(int iteration, double res_norm);
    void IterationInfo(int iteration, double res_norm);
+   void IterationInfo(int pass, int iteration, double res_norm);
    void ConvergenceInfo(int iteration, double res_norm,
                         double initial_norm);
    void NoConvergenceInfo(int iteration, double res_norm,
@@ -232,7 +232,9 @@ public:
    CGSolver() : monitor(new CGLegacyMonitor) { }
 
 #ifdef MFEM_USE_MPI
-   CGSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   CGSolver(MPI_Comm _comm) : IterativeSolver(_comm),
+                              monitor(new CGLegacyMonitor)
+   { }
 #endif
 
    ~CGSolver() { delete monitor; }
@@ -260,11 +262,15 @@ class GMRESSolver : public IterativeSolver
 protected:
    int m; // see SetKDim()
 
+   IterativeSolverMonitor * monitor;
+
 public:
-   GMRESSolver() { m = 50; }
+   GMRESSolver() : monitor(new GMRESLegacyMonitor) { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   GMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   GMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm),
+                                 monitor(new GMRESLegacyMonitor)
+   { m = 50; }
 #endif
 
    /// Set the number of iteration to perform between restarts, default is 50.
