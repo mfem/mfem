@@ -166,7 +166,12 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
    CeedBasisCreateH1(ceed, GetCeedTopology(fe->GetGeomType()), fes.GetVDim(),
                      fe->GetDof(), ir.GetNPoints(), shape.GetData(),
                      grad.GetData(), qref.GetData(), qweight.GetData(), basis);
-   CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(),
+   CeedInterlaceMode imode = CEED_NONINTERLACED;
+   if (fes.GetOrdering()==Ordering::byVDIM)
+   {
+      imode = CEED_INTERLACED;
+   }
+   CeedElemRestrictionCreate(ceed, imode, mesh->GetNE(), fe->GetDof(),
                              fes.GetNDofs(), fes.GetVDim(), CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
 }
