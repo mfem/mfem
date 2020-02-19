@@ -33,59 +33,53 @@ struct UniqueIndexGenerator
 };
 
 
-class CartesianMeshPartition // for now every vertex defines a patch 
+class CartesianParMeshPartition // for now every vertex defines a patch
 {
 private:
    ParMesh *pmesh=nullptr;
 public:
    int nrpatch;
-   Array<int> patch_rank; 
+   Array<int> patch_rank;
    std::vector<Array<int>> local_element_map;
    // constructor
-   CartesianMeshPartition(ParMesh * pmesh_);
-   ~CartesianMeshPartition(){};
+   CartesianParMeshPartition(ParMesh * pmesh_);
+   ~CartesianParMeshPartition() {};
 };
 
-
-
-class VertexMeshPartition 
+class VertexParMeshPartition
 {
 private:
    ParMesh *pmesh=nullptr;
 public:
    int nrpatch;
-   Array<int> patch_rank; 
+   Array<int> patch_rank;
    std::vector<Array<int>> local_element_map;
    // constructor
-   VertexMeshPartition(ParMesh * pmesh_);
-   ~VertexMeshPartition(){};
+   VertexParMeshPartition(ParMesh * pmesh_);
+   ~VertexParMeshPartition() {};
 };
 
-
-
-
-class ParMeshPartition 
+class ParMeshPartition
 {
 private:
    MPI_Comm comm;
    ParMesh *pmesh=nullptr;
    void AddElementToMesh(Mesh * mesh,mfem::Element::Type elem_type,int * ind);
    void GetNumVertices(int type, mfem::Element::Type & elem_type, int & nrvert);
-   void save_mesh_partition();
+   void SaveMeshPartition();
 public:
    int nrpatch;
    int myelem_offset = 0;
-   Array<int> patch_rank; 
-   std::vector<Array<int>> element_map; 
-   std::vector<Array<int>> local_element_map; 
+   Array<int> patch_rank;
+   std::vector<Array<int>> element_map;
+   std::vector<Array<int>> local_element_map;
    Array<Mesh *> patch_mesh;
    // constructor
-   ParMeshPartition(ParMesh * pmesh_);
+   ParMeshPartition(ParMesh * pmesh_, int part);
    ~ParMeshPartition();
 };
 
-
-class ParPatchDofInfo 
+class ParPatchDofInfo
 {
 public:
    MPI_Comm comm = MPI_COMM_WORLD;
@@ -97,22 +91,21 @@ public:
    std::vector<Array<int>> patch_dof_map;
    ParMeshPartition * p;
    // constructor
-   ParPatchDofInfo(ParFiniteElementSpace *fespace);
+   ParPatchDofInfo(ParFiniteElementSpace *fespace, int part);
    // void Print();
    ~ParPatchDofInfo();
 };
 
 
 
-
-
-class ParPatchAssembly // for now every vertex defines a patch 
+class ParPatchAssembly // for now every vertex defines a patch
 {
+private:
    std::vector<int> tdof_offsets;
    ParBilinearForm *bf=nullptr;
    void compute_trueoffsets();
    void AssemblePatchMatrices(ParPatchDofInfo * p);
-   void print_patch_dof_map(){};
+   void print_patch_dof_map() {};
 public:
    MPI_Comm comm;
    int nrpatch;
@@ -127,13 +120,14 @@ public:
    std::vector<Array<int>> ess_tdof_list;
 
    // constructor
-   ParPatchAssembly(ParBilinearForm * bf_);
+   ParPatchAssembly(ParBilinearForm * bf_, int part);
    int get_rank(int tdof);
    ~ParPatchAssembly();
 };
 
 
-class ParPatchRestriction  {
+class ParPatchRestriction
+{
 private:
    MPI_Comm comm;
    int num_procs, myid;
@@ -151,30 +145,36 @@ public:
    void Mult(const Vector & r , std::vector<Vector  > & res);
    // void MultTranspose(const Array<BlockVector*> & sol, Vector & z);
    void MultTranspose(const std::vector<Vector  > & sol, Vector & z);
-   virtual ~ParPatchRestriction(){}
+   virtual ~ParPatchRestriction() {}
 };
 
 
-
-
-
-class ParAddSchwarz : public Solver// 
+class ParAddSchwarz : public Solver//
 {
 private:
    MPI_Comm comm;
    int nrpatch;
+   int part;
    int maxit = 1;
    double theta = 0.5;
-   FiniteElementSpace *fespace=nullptr;
    ParPatchAssembly * p;
    const Operator * A;
-   BilinearForm * bf;
    ParPatchRestriction * R;
 public:
-   ParAddSchwarz(ParBilinearForm * bf_);
-   void SetNumSmoothSteps(const int iter) {maxit = iter;}
-   void SetDumpingParam(const double dump_param) {theta = dump_param;}
-   virtual void SetOperator(const Operator &op) {A = &op;}
+   ParAddSchwarz(ParBilinearForm * bf_, int i = 0);
+
+   void SetNumSmoothSteps(const int iter)
+   {
+      maxit = iter;
+   }
+   void SetDumpingParam(const double dump_param)
+   {
+      theta = dump_param;
+   }
+   virtual void SetOperator(const Operator &op)
+   {
+      A = &op;
+   }
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~ParAddSchwarz();
 };

@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&ref_levels, "-ref", "--ref_levels",
-                  "Number of uniform h-refinements");                              
+                  "Number of uniform h-refinements");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
    chrono.Stop();
-   if (myid == 0)  cout << "Form Linear System time: " << chrono.RealTime() << endl;
+   if (myid == 0) { cout << "Form Linear System time: " << chrono.RealTime() << endl; }
 
    // Array<int>elem_vertices;
    // for (int iel = 0; iel<pmesh->GetNE(); iel++)
@@ -111,10 +111,11 @@ int main(int argc, char *argv[])
 
    chrono.Clear();
    chrono.Start();
-   ParAddSchwarz *prec = new ParAddSchwarz(a);
+   ParAddSchwarz *prec = new ParAddSchwarz(a,0);
    prec->SetOperator(A);
    prec->SetNumSmoothSteps(1);
    prec->SetDumpingParam(0.5);
+
    chrono.Stop();
    times[0] = chrono.RealTime();
 
@@ -127,7 +128,7 @@ int main(int argc, char *argv[])
    pcg.SetMaxIter(maxit);
    pcg.SetRelTol(rtol);
    pcg.SetAbsTol(atol);
-   pcg.SetPreconditioner(*prec); 
+   pcg.SetPreconditioner(*prec);
    pcg.SetOperator(A);
 
    chrono.Clear();
@@ -142,7 +143,7 @@ int main(int argc, char *argv[])
       cout << "prec construction time: " << times[0] << endl;
       cout << "PCG solution time:      " << times[1] << endl;
    }
-   
+
    a->RecoverFEMSolution(X, *b, x);
 
    // 16. Send the solution by socket to a GLVis server.
@@ -164,7 +165,10 @@ int main(int argc, char *argv[])
    delete a;
    delete b;
    delete fespace;
-   if (order > 0) { delete fec; }
+   if (order > 0)
+   {
+      delete fec;
+   }
    delete pmesh;
 
    MPI_Finalize();

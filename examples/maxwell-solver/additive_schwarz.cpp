@@ -1,10 +1,77 @@
 #include "additive_schwarz.hpp"
 
 // constructor
-mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
+CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
+{
+   int dim = mesh->Dimension();
+
+   int nx = 2;
+   int ny = 2;
+   int nz = 1;
+   int nxyz[3] = {nx,ny,nz};
+   nrpatch = nx*ny*nz;
+   double pmin[3] = { infinity(), infinity(), infinity() };
+   double pmax[3] = { -infinity(), -infinity(), -infinity() };
+
+   // find a bounding box using the vertices
+   for (int vi = 0; vi < mesh->GetNV(); vi++)
+   {
+      const double *p = mesh->GetVertex(vi);
+      for (int i = 0; i < dim; i++)
+      {
+         if (p[i] < pmin[i])
+         {
+            pmin[i] = p[i];
+         }
+         if (p[i] > pmax[i])
+         {
+            pmax[i] = p[i];
+         }
+      }
+   }
+
+   int nrelem = mesh->GetNE();
+   int partitioning[nrelem];
+
+   // determine the partitioning using the centers of the elements
+   double ppt[dim];
+   Vector pt(ppt, dim);
+   for (int el = 0; el < nrelem; el++)
+   {
+      mesh->GetElementTransformation(el)->Transform(
+         Geometries.GetCenter(mesh->GetElementBaseGeometry(el)), pt);
+      int part = 0;
+      for (int i = dim-1; i >= 0; i--)
+      {
+         int idx = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
+         if (idx < 0)
+         {
+            idx = 0;
+         }
+         if (idx >= nxyz[i])
+         {
+            idx = nxyz[i]-1;
+         }
+         part = part * nxyz[i] + idx;
+      }
+      partitioning[el] = part;
+   }
+
+   element_map.resize(nrpatch);
+   for (int iel = 0; iel < nrelem; iel++)
+   {
+      int ip = partitioning[iel];
+      element_map[ip].Append(iel);
+   }
+}
+
+
+
+
+// constructor
+VertexMeshPartition::VertexMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
    nrpatch = mesh->GetNV();
-   int dim = mesh->Dimension();
    element_map.resize(nrpatch);
    //every element will contribute to the the patches of its vertices
    // loop through the elements
@@ -22,20 +89,24 @@ mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
          element_map[ip].Append(iel);
       }
    }
+}
 
-   // Compute and store vertices coordinates of the global mesh
-   // mesh->EnsureNodes();
-   // GridFunction * nodes = mesh->GetNodes();
-   // int ndofs = nodes->FESpace()->GetNDofs();
-   // Array2D<double> coords(ndofs,dim);
-   // for (int comp = 0; comp < dim; comp++)
-   // {
-   //    // cout << comp << endl;
-   //    for (int i = 0; i < ndofs; i++)
-   //    {
-   //       coords(i,comp) = (*nodes)[nodes->FESpace()->DofToVDof(i, comp)];
-   //    }
-   // }
+
+MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
+{
+   if (part)
+   {
+      CartesianMeshPartition partition(mesh);
+      element_map = partition.element_map;
+   }
+   else
+   {
+      VertexMeshPartition partition(mesh);
+      element_map = partition.element_map;
+   }
+
+   nrpatch = element_map.size();
+   int dim = mesh->Dimension();
 
    patch_mesh.SetSize(nrpatch);
    for (int ip = 0; ip<nrpatch; ++ip)
@@ -45,7 +116,7 @@ mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
       // need to ensure that a vertex is not added more than once
       // and that the ordering of vertices is known for when the element is added
       // create a list of for this patch including possible repetitions
-      // loop through elements in the patch 
+      // loop through elements in the patch
       Array<int> patch_vertices;
       for (int iel=0; iel<patch_nrelems; ++iel)
       {
@@ -55,8 +126,8 @@ mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
          mesh->GetElementVertices(iel_idx,elem_vertices);
          patch_vertices.Append(elem_vertices);
       }
-      patch_vertices.Sort();   
-      patch_vertices.Unique();   
+      patch_vertices.Sort();
+      patch_vertices.Unique();
       int patch_nrvertices = patch_vertices.Size();
 
       // create the mesh
@@ -79,50 +150,53 @@ mesh_partition::mesh_partition(Mesh *mesh_) : mesh(mesh_)
          int ind[nrvert];
          for (int iv = 0; iv<nrvert; ++iv)
          {
-            ind[iv] = patch_vertices.FindSorted(elem_vertices[iv]);   
+            ind[iv] = patch_vertices.FindSorted(elem_vertices[iv]);
          }
          mfem::Element::Type elem_type = mesh->GetElementType(element_map[ip][iel]);
-         
+
          AddElementToMesh(patch_mesh[ip],elem_type,ind);
-         
+
       }
       patch_mesh[ip]->FinalizeTopology();
    }
 }
 
-void mesh_partition::AddElementToMesh(Mesh * mesh,mfem::Element::Type elem_type,int * ind)
+
+void MeshPartition::AddElementToMesh(Mesh * mesh,mfem::Element::Type elem_type,
+                                     int * ind)
 {
    switch (elem_type)
    {
-   case Element::QUADRILATERAL:
-      mesh->AddQuad(ind);
-      break;
-   case Element::TRIANGLE :
-      mesh->AddTri(ind);
-      break;
-   case Element::HEXAHEDRON :
-      mesh->AddHex(ind);
-      break;
-   case Element::TETRAHEDRON :
-      mesh->AddTet(ind);
-      break;
-   default:
-      MFEM_ABORT("Unknown element type");
-      break;
+      case Element::QUADRILATERAL:
+         mesh->AddQuad(ind);
+         break;
+      case Element::TRIANGLE :
+         mesh->AddTri(ind);
+         break;
+      case Element::HEXAHEDRON :
+         mesh->AddHex(ind);
+         break;
+      case Element::TETRAHEDRON :
+         mesh->AddTet(ind);
+         break;
+      default:
+         MFEM_ABORT("Unknown element type");
+         break;
    }
 }
 
-void mesh_partition::print_element_map()
+void MeshPartition::PrintElementMap()
 {
    mfem::out << "Element map" << endl;
    for (int ip = 0; ip<nrpatch; ++ip)
    {
       mfem::out << "Patch No: " << ip;
-      mfem::out << ", element map: " ; element_map[ip].Print(cout,element_map[ip].Size()); 
+      mfem::out << ", element map: " ;
+      element_map[ip].Print(cout,element_map[ip].Size());
    }
 }
 
-void mesh_partition::save_mesh_partition()
+void MeshPartition::SaveMeshPartition()
 {
    for (int ip = 0; ip<nrpatch; ++ip)
    {
@@ -133,23 +207,24 @@ void mesh_partition::save_mesh_partition()
       patch_mesh[ip]->Print(mesh_ofs);
    }
 }
-mesh_partition::~mesh_partition()
+MeshPartition::~MeshPartition()
 {
    for (int ip = 0; ip<nrpatch; ++ip)
    {
-      delete patch_mesh[ip]; patch_mesh[ip] = nullptr;
+      delete patch_mesh[ip];
+      patch_mesh[ip] = nullptr;
    }
    patch_mesh.DeleteAll();
 }
 
 // constructor
-PatchAssembly::PatchAssembly(BilinearForm *bf_) : bf(bf_)
+PatchAssembly::PatchAssembly(BilinearForm *bf_, int part) : bf(bf_)
 {
    fespace = bf->FESpace();
    Mesh * mesh = fespace->GetMesh();
    const FiniteElementCollection *fec = fespace->FEColl();
 
-   mesh_partition * p = new mesh_partition(mesh); 
+   MeshPartition * p = new MeshPartition(mesh, part);
    nrpatch = p->nrpatch;
    patch_fespaces.SetSize(nrpatch);
    patch_dof_map.resize(nrpatch);
@@ -174,7 +249,8 @@ PatchAssembly::PatchAssembly(BilinearForm *bf_) : bf(bf_)
          patch_fespaces[ip]->GetElementDofs(iel,patch_elem_dofs);
          fespace->GetElementDofs(iel_idx,global_elem_dofs);
          // the sizes have to match
-         MFEM_VERIFY(patch_elem_dofs.Size() == global_elem_dofs.Size(), "Size inconsistency");
+         MFEM_VERIFY(patch_elem_dofs.Size() == global_elem_dofs.Size(),
+                     "Size inconsistency");
          // loop through the dofs and take into account the signs;
          int ndof = patch_elem_dofs.Size();
          for (int i = 0; i<ndof; ++i)
@@ -194,7 +270,7 @@ PatchAssembly::PatchAssembly(BilinearForm *bf_) : bf(bf_)
          patch_fespaces[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list[ip]);
       }
       BilinearForm a(patch_fespaces[ip], bf);
-      a.Assemble(); 
+      a.Assemble();
       OperatorPtr Alocal;
       a.FormSystemMatrix(ess_tdof_list[ip],Alocal);
       delete patch_fespaces[ip];
@@ -213,7 +289,8 @@ void PatchAssembly::print_patch_dof_map()
    for (int ip = 0; ip<nrpatch; ++ip)
    {
       mfem::out << "Patch No: " << ip;
-      mfem::out << ", dof map: " ; patch_dof_map[ip].Print(cout,patch_dof_map[ip].Size()); 
+      mfem::out << ", dof map: " ;
+      patch_dof_map[ip].Print(cout,patch_dof_map[ip].Size());
    }
 }
 
@@ -222,18 +299,21 @@ PatchAssembly::~PatchAssembly()
    for (int ip=0; ip<nrpatch; ++ip)
    {
       // delete patch_fespaces[ip]; patch_fespaces[ip]=nullptr;
-      delete patch_mat_inv[ip]; patch_mat_inv[ip]=nullptr;
-      delete patch_mat[ip]; patch_mat[ip]=nullptr;
+      delete patch_mat_inv[ip];
+      patch_mat_inv[ip]=nullptr;
+      delete patch_mat[ip];
+      patch_mat[ip]=nullptr;
    }
    patch_fespaces.DeleteAll();
    patch_mat.DeleteAll();
    patch_mat_inv.DeleteAll();
 }
 
-AddSchwarz::AddSchwarz(BilinearForm * bf_) 
-: Solver(bf_->FESpace()->GetTrueVSize(), bf_->FESpace()->GetTrueVSize())
+AddSchwarz::AddSchwarz(BilinearForm * bf_, int i)
+   : Solver(bf_->FESpace()->GetTrueVSize(), bf_->FESpace()->GetTrueVSize()),
+     part(i)
 {
-   p = new PatchAssembly(bf_);
+   p = new PatchAssembly(bf_, part);
    nrpatch = p->nrpatch;
 }
 
@@ -256,9 +336,10 @@ void AddSchwarz::Mult(const Vector &r, Vector &z) const
 
          rnew.GetSubVector(*dof_map, res_local);
          Array<int> ess_bdr_indices = p->ess_tdof_list[ip];
-         // need to zero out the entries corresponding to the ess_bdr
+         // for the overlapping case
+         // zero out the entries corresponding to the ess_bdr
          p->patch_mat_inv[ip]->Mult(res_local, sol_local);
-         sol_local.SetSubVector(ess_bdr_indices,0.0);
+         if (!part) { sol_local.SetSubVector(ess_bdr_indices,0.0); }
          znew.AddElementVector(*dof_map,sol_local);
       }
       // Relaxation parameter

@@ -1,7 +1,8 @@
 #include "complex_additive_schwarzp.hpp"
 
 // constructor
-ComplexParPatchAssembly::ComplexParPatchAssembly(ParSesquilinearForm * bf_) : bf(bf_)
+ComplexParPatchAssembly::ComplexParPatchAssembly(ParSesquilinearForm * bf_) :
+   bf(bf_)
 {
 
 
@@ -32,7 +33,7 @@ void ComplexParPatchAssembly::AssemblePatchMatrices(ParPatchDofInfo * p)
    //          patch_fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list[ip]);
    //       }
    //       patch_bilinear_forms[ip] = new SesquilinearForm(patch_fespace, bf);
-   //       patch_bilinear_forms[ip]->Assemble(); 
+   //       patch_bilinear_forms[ip]->Assemble();
    //       OperatorPtr Alocal;
    //       // need to add the method FormSystemMatrix to complex_fem
    //       // patch_bilinear_forms[ip]->FormSystemMatrix(ess_tdof_list[ip],Alocal);
@@ -41,27 +42,31 @@ void ComplexParPatchAssembly::AssemblePatchMatrices(ParPatchDofInfo * p)
    //       // Save the inverse
    //       patch_mat_inv[ip] = new KLUSolver;
    //       patch_mat_inv[ip]->SetOperator(*patch_mat[ip]);
-   //    }   
+   //    }
    // }
 }
 
 
-ComplexParPatchAssembly::~ComplexParPatchAssembly(){};
+ComplexParPatchAssembly::~ComplexParPatchAssembly() {};
 
 
-ComplexParPatchRestriction::ComplexParPatchRestriction(ComplexParPatchAssembly * P_)
+ComplexParPatchRestriction::ComplexParPatchRestriction(ComplexParPatchAssembly *
+                                                       P_)
 {}
 
-void ComplexParPatchRestriction::Mult(const Vector & r , std::vector<Vector > & res)
+void ComplexParPatchRestriction::Mult(const Vector & r ,
+                                      std::vector<Vector > & res)
 {}
 
 
-void ComplexParPatchRestriction::MultTranspose(const std::vector<Vector > & sol, Vector & z)
+void ComplexParPatchRestriction::MultTranspose(const std::vector<Vector > & sol,
+                                               Vector & z)
 {}
 
 
 ComplexParAddSchwarz::ComplexParAddSchwarz(ParSesquilinearForm * pbf_)
-: Solver(2*pbf_->ParFESpace()->GetTrueVSize(), 2*pbf_->ParFESpace()->GetTrueVSize())
+   : Solver(2*pbf_->ParFESpace()->GetTrueVSize(),
+            2*pbf_->ParFESpace()->GetTrueVSize())
 {
    cout << "Testing ComplexParAddSchwarz" << endl;
    comm = pbf_->ParFESpace()->GetComm();

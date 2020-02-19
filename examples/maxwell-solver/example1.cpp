@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&ref_levels, "-ref", "--ref_levels",
-                  "Number of uniform h-refinements");               
+                  "Number of uniform h-refinements");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
-   AddSchwarz * prec = new AddSchwarz(a);
+   AddSchwarz * prec = new AddSchwarz(a,0);
    prec->SetOperator((SparseMatrix&)(*A));
    prec->SetNumSmoothSteps(1);
    prec->SetDumpingParam(0.5);

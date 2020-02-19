@@ -5,25 +5,49 @@
 using namespace std;
 using namespace mfem;
 
+class CartesianMeshPartition // for now every vertex defines a patch
+{
+private:
+   Mesh *mesh=nullptr;
+public:
+   int nrpatch;
+   std::vector<Array<int>> element_map;
+   // constructor
+   CartesianMeshPartition(Mesh * mesh_);
+   ~CartesianMeshPartition() {};
+};
 
-class mesh_partition // for now every vertex defines a patch 
+class VertexMeshPartition // for now every vertex defines a patch
+{
+private:
+   Mesh *mesh=nullptr;
+public:
+   int nrpatch;
+   std::vector<Array<int>>
+                        element_map; // map local (patch) element to global (original mesh) element
+   // constructor
+   VertexMeshPartition(Mesh * mesh_);
+   ~VertexMeshPartition() {};
+};
+
+class MeshPartition
 {
 private:
    Mesh *mesh=nullptr;
    void AddElementToMesh(Mesh * mesh,mfem::Element::Type elem_type,int * ind);
-   void print_element_map();
-   void save_mesh_partition();
+   void GetNumVertices(int type, mfem::Element::Type & elem_type, int & nrvert);
+   void PrintElementMap();
+   void SaveMeshPartition();
 public:
    int nrpatch;
-   std::vector<Array<int>> element_map; // map local (patch) element to global (original mesh) element
+   std::vector<Array<int>> element_map;
    Array<Mesh *> patch_mesh;
    // constructor
-   mesh_partition(Mesh * mesh_);
-   ~mesh_partition();
+   MeshPartition(Mesh * mesh_, int part);
+   ~MeshPartition();
 };
 
-
-class PatchAssembly // for now every vertex defines a patch 
+class PatchAssembly // for now every vertex defines a patch
 {
    FiniteElementSpace *fespace=nullptr;
    BilinearForm *bf=nullptr;
@@ -37,25 +61,33 @@ public:
    std::vector<Array<int>> ess_tdof_list;
 
    // constructor
-   PatchAssembly(BilinearForm * bf_);
+   PatchAssembly(BilinearForm * bf_, int part);
    ~PatchAssembly();
 };
 
-class AddSchwarz : public Solver// 
+class AddSchwarz : public Solver//
 {
 private:
    int nrpatch;
    int maxit = 1;
+   int part;
    double theta = 0.5;
-   FiniteElementSpace *fespace=nullptr;
    PatchAssembly * p;
    const Operator * A;
-   BilinearForm * bf;
 public:
-   AddSchwarz(BilinearForm * bf_);
-   void SetNumSmoothSteps(const int iter) {maxit = iter;}
-   void SetDumpingParam(const double dump_param) {theta = dump_param;}
-   virtual void SetOperator(const Operator &op) {A = &op;}
+   AddSchwarz(BilinearForm * bf_, int i = 0);
+   void SetNumSmoothSteps(const int iter)
+   {
+      maxit = iter;
+   }
+   void SetDumpingParam(const double dump_param)
+   {
+      theta = dump_param;
+   }
+   virtual void SetOperator(const Operator &op)
+   {
+      A = &op;
+   }
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~AddSchwarz();
 };

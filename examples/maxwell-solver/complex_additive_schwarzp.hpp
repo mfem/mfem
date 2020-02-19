@@ -8,7 +8,7 @@ using namespace mfem;
 
 
 
-class ComplexParPatchAssembly 
+class ComplexParPatchAssembly
 {
    std::vector<int> tdof_offsets;
    ParSesquilinearForm * bf=nullptr;
@@ -33,7 +33,8 @@ public:
 };
 
 
-class ComplexParPatchRestriction  {
+class ComplexParPatchRestriction
+{
 private:
    MPI_Comm comm;
    int num_procs, myid;
@@ -49,11 +50,11 @@ public:
    ComplexParPatchRestriction(ComplexParPatchAssembly * P_);
    void Mult(const Vector & r , std::vector<Vector > & res);
    void MultTranspose(const std::vector<Vector > & sol, Vector & z);
-   virtual ~ComplexParPatchRestriction(){}
+   virtual ~ComplexParPatchRestriction() {}
 };
 
 
-class ComplexParAddSchwarz : public Solver// 
+class ComplexParAddSchwarz : public Solver//
 {
 private:
    MPI_Comm comm;
@@ -67,9 +68,18 @@ private:
    ComplexParPatchRestriction * R;
 public:
    ComplexParAddSchwarz(ParSesquilinearForm * pbf_);
-   void SetNumSmoothSteps(const int iter) {maxit = iter;}
-   void SetDumpingParam(const double dump_param) {theta = dump_param;}
-   virtual void SetOperator(const Operator &op) {A = &op;}
+   void SetNumSmoothSteps(const int iter)
+   {
+      maxit = iter;
+   }
+   void SetDumpingParam(const double dump_param)
+   {
+      theta = dump_param;
+   }
+   virtual void SetOperator(const Operator &op)
+   {
+      A = &op;
+   }
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~ComplexParAddSchwarz();
 };
