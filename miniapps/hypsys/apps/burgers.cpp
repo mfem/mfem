@@ -90,8 +90,8 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
          }
          if (0.5 + 0.5 * t < x(0) && x(0) < 0.5 + 0.8 * t)
          {
-            return x(1) > x(0) - 5. / (18. * t) * (x(0) + t - 0.5) * (x(
-                                                                         0) + t - 0.5) ? -1. : (2. * x(0) - 1.) / (2 * t);
+            return x(1) > x(0) - 5. / (18. * t) * (x(0) + t - 0.5)
+                        * (x(0) + t - 0.5) ? -1. : (2. * x(0) - 1.) / (2 * t);
          }
          if (0.5 + 0.8 * t <= x(0))
          {

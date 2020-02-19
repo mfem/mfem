@@ -272,8 +272,7 @@ int main(int argc, char *argv[])
    }
 
    double FinalMass, DomainSize, DomainSizeMPI = LumpedMassMat.Sum();
-   MPI_Allreduce(&DomainSizeMPI, &DomainSize, 1, MPI_DOUBLE, MPI_SUM,
-                 comm);
+   MPI_Allreduce(&DomainSizeMPI, &DomainSize, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (hyp->SolutionKnown)
    {
@@ -289,7 +288,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   MassMPI = LumpedMassMat * u;
+   MassMPI = LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &FinalMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (myid == 0)
