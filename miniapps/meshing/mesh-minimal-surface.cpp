@@ -575,9 +575,9 @@ struct Shell: public Surface<Shell>
 // #9: Costa minimal surface
 #include <complex>
 using cdouble = std::complex<double>;
-
 #define I cdouble(0.0, 1.0)
 
+// https://dlmf.nist.gov/20.2
 cdouble EllipticTheta(const int a, const cdouble u, const cdouble q)
 {
    cdouble J = 0.0;
@@ -621,97 +621,72 @@ cdouble EllipticTheta(const int a, const cdouble u, const cdouble q)
    return J;
 }
 
-cdouble LatticeRoot(int type, cdouble q, cdouble omega1)
+// https://dlmf.nist.gov/23.6#E5
+cdouble WeierstrassP(const cdouble z,
+                     const cdouble w1 = 0.5,
+                     const cdouble w3 = 0.5*I)
 {
-   // TODO: Validate input.
-   cdouble root = 0.0;
+   const cdouble tau = w3/w1;
+   const cdouble q = exp(I*M_PI*tau);
+   const cdouble e1 = M_PI*M_PI/(12.*w1*w1)*
+                      (1.0*pow(EllipticTheta(2,0,q),4) +
+                       2.0*pow(EllipticTheta(4,0,q),4));
+   const cdouble u = M_PI*z / (2.0*w1);
+   const cdouble P = M_PI * EllipticTheta(3,0,q)*EllipticTheta(4,0,q) *
+                     EllipticTheta(2,u,q)/(2.0*w1*EllipticTheta(1,u,q));
+   return P*P + e1;
+}
 
-   switch (type)
+cdouble EllipticTheta1Prime(int k, const cdouble u, const cdouble q)
+{
+   cdouble J = 0.0;
+   double delta = std::numeric_limits<double>::max();
+   for (int n=0; delta > EPS; n+=1)
    {
-      case (1):
-         root = pow(PI, 2) / (12.0 * pow(omega1, 2)) *
-                (pow(EllipticTheta(2, 0, q), 4) + 2.0 * pow(EllipticTheta(4, 0, q), 4));
-         break;
-
-      case (2):
-         root = pow(PI, 2) / (12.0 * pow(omega1, 2)) *
-                (pow(EllipticTheta(2, 0, q), 4) - pow(EllipticTheta(4, 0, q), 4));
-         break;
-
-      case (3):
-         root = pow(PI, 2) / (12.0 * pow(omega1, 2)) *
-                (2.0 * pow(EllipticTheta(2, 0, q), 4) + pow(EllipticTheta(4, 0, q), 4));
-         break;
-
-      default: // TODO: Wrong input.
-         break;
+      const double alpha = 2.0*n+1.0;
+      const cdouble Dcosine = pow(alpha,k)*sin(k*M_PI/2.0 + alpha*u);
+      const cdouble j = pow(-1,n)*pow(q,n*(n+1.0))*Dcosine;
+      delta = abs(j);
+      J += j;
    }
-
-   return root;
+   return 2.0*pow(q,0.25)*J;
 }
 
-cdouble WeierstrassP(cdouble z, cdouble q, cdouble omega1)
+// Logarithmic Derivative of Theta Function 1
+cdouble LogEllipticTheta1Prime(const cdouble u, const cdouble q)
 {
-   // Evaluate lattice root 1
-   const cdouble e1 = LatticeRoot(1, q, omega1);
-   // Evaluate Weierstrass Elliptic P function
-   cdouble z0 = PI * z / (2.0 * omega1);
-   cdouble P = pow(
-                  PI * EllipticTheta(3, 0.0, q) * EllipticTheta(4, 0.0, q) * EllipticTheta(2, z0,
-                        q)/
-                  (2.0 * omega1 * EllipticTheta(1, z0, q)), 2);
-   P += e1;
-   return P;
+   cdouble J = 0.0;
+   double delta = std::numeric_limits<double>::max();
+   for (int n=1; delta > EPS; n+=1)
+   {
+      cdouble q2n = pow(q, 2*n);
+      if (fabs(q2n) < EPS) { q2n = 0.0; }
+      const cdouble j = q2n/(1.0-q2n)*sin(2.0*n*u);
+      delta = abs(j);
+      J += j;
+   }
+   return 1./tan(u) + 4.0*J;
 }
-// http://arblib.org/acb_elliptic.html#weierstrass-elliptic-functions
-#define ARB_PRECISION 128
-#include "/home/camier1/usr/local/include/acb.h"
-#include "/home/camier1/usr/local/include/acb_elliptic.h"
 
-
-// Weierstrass Zeta Function
-// http://jalape.no/math/costatxt
-std::complex<double> WeierstrassZeta_ACB(std::complex<double> a)
+// https://dlmf.nist.gov/23.6#E13
+std::complex<double> WeierstrassZeta(const cdouble z,
+                                     const cdouble w1 = 0.5,
+                                     const cdouble w3 = 0.5*I)
 {
-   slong prec = ARB_PRECISION;
-
-   acb_t z, res;
-   acb_init(z);
-   acb_init(res);
-
-   acb_set_d_d(z, std::real(a), std::imag(a));
-   acb_onei(res);
-
-   acb_elliptic_zeta(res, z, res, prec);
-
-   arb_t reb,imb;
-   arb_init(reb);
-   arb_init(imb);
-   acb_get_real(reb, res);
-   acb_get_imag(imb, res);
-
-   arf_t ref,imf;
-   arf_init(ref);
-   arf_init(imf);
-   arb_get_ubound_arf(ref, reb, prec);
-   arb_get_ubound_arf(imf, imb, prec);
-
-   const double res_re = arf_get_d(ref, ARF_RND_NEAR);
-   const double res_im = arf_get_d(imf, ARF_RND_NEAR);
-   const std::complex<double> result(res_re, res_im);
-
-   acb_clear(z);
-   acb_clear(res);
-   arb_clear(reb);
-   arb_clear(imb);
-   arf_clear(ref);
-   arf_clear(imf);
-   return result;
+   const cdouble tau = w3/w1;
+   const cdouble q = exp(I*M_PI*tau);
+   const cdouble n1 = -M_PI*M_PI/(12.0*w1) *
+                      (EllipticTheta1Prime(3,0,q)/
+                       EllipticTheta1Prime(1,0,q));
+   const cdouble u = M_PI*z / (2.0*w1);
+   printf("\n\033[32m[WeierstrassZeta] n1:(%f,%f)\033[m", real(n1), imag(n1));
+   fflush(0);
+   return z*n1/w1 + M_PI/(2.0*w1)*LogEllipticTheta1Prime(u,q);
 }
 
 
 static double R = 8.0;
-constexpr double SCALE = 0.99998;
+constexpr double SCALE = 0.998;
 
 struct Costa: public Surface<Costa>
 {
@@ -721,7 +696,7 @@ struct Costa: public Surface<Costa>
    {
       p.SetSize(3);
       const double a = 1./2.;
-      // With 0 < u,v <= 1
+      // With 0 < u,v < 1
       const double delta = (1.0 - SCALE) / 2.0;
       const double u = x[0] + delta;
       const double v = x[1] + delta;
@@ -729,7 +704,7 @@ struct Costa: public Surface<Costa>
 
 
       // Verif WeierstrassP
-      const double tau = 189.07272012923385229;
+      //const double tau = 189.07272012923385229;
       const double e1 = 6.8751858180203728274;
 
       const cdouble J1 = EllipticTheta(1, 2, 1./3.);
@@ -748,42 +723,67 @@ struct Costa: public Surface<Costa>
       MFEM_VERIFY(fabs(real(J4)-1.43208403154144924477915699774)<1e-14,"");
       MFEM_VERIFY(fabs(imag(J4))<1e-14,"");
 
-      const cdouble e0 = WeierstrassP(0.5,0,tau);
-      printf("\n\033[33m(%.15e,%f)\033[m", real(e0), imag(e0)); fflush(0);
+      const cdouble JI1= EllipticTheta(1, 1, I/2.);
+      MFEM_VERIFY(fabs(real(JI1)-1.3853047468431163153)<1e-14,"");
+      MFEM_VERIFY(fabs(imag(JI1)-0.5738120141622458063)<1e-14,"");
+
+      const cdouble JI2= EllipticTheta(2, 1, I/2.);
+      MFEM_VERIFY(fabs(real(JI2)-1.21746176892453427018)<1e-14,"");
+      MFEM_VERIFY(fabs(imag(JI2)-0.50428917635928120733)<1e-14,"");
+
+      const cdouble JI3= EllipticTheta(3, 1, I/2.);
+      MFEM_VERIFY(fabs(real(JI3)-0.91829010710795894861)<1e-14,"");
+      MFEM_VERIFY(fabs(imag(JI3)+0.41239622137747434069)<1e-14,"");
+
+      const cdouble JI4= EllipticTheta(4, 1, I/3.);
+      MFEM_VERIFY(fabs(real(JI4)-0.98386064457660260134)<1e-14,"");
+      MFEM_VERIFY(fabs(imag(JI4)-0.27733366095804937739)<1e-14,"");
+
+      const cdouble w1 = 0.5;
+      const cdouble w3 = 0.5*I;
+      const cdouble e0 = WeierstrassP(0.5, w1, w3);
       MFEM_VERIFY(fabs(real(e0)-e1)<1e-14,"");
       MFEM_VERIFY(fabs(imag(e0))<1e-14,"");
-      //MFEM_VERIFY(fabs(real(WeierstrassP(0.25))-16.5981668456999459)<1e-14,"");
-
-      //const cdouble e00 = WeierstrassP(0.25);
-      //printf("\n\033[33m(%f,%f)\033[m", real(e00), imag(e00)); fflush(0);
-      //MFEM_VERIFY(fabs(real(e00)-16.5981668456999459)<1e-14,"");
-      exit(0);
+      const cdouble e00 = WeierstrassP(0.25,w1,w3);
+      MFEM_VERIFY(fabs(real(e00)-16.5981668456999459)<1e-14,"");
 
       // Verif WeierstrassZeta
-      const cdouble wz212 = WeierstrassZeta_ACB(0.25);
-      //printf("\n\033[32m(%.15e,%f)\033[m", real(wz212), imag(wz212));
-      //fflush(0);
-      MFEM_VERIFY(fabs(real(wz212)-3.95050161784488013)<1e-14,"");
+      MFEM_VERIFY(fabs(real(EllipticTheta1Prime(1,2,1./3.))+
+                       1.1275358978032848155)<1.e-14,"");
+      MFEM_VERIFY(fabs(real(EllipticTheta1Prime(1,2,I/3.))+
+                       0.126832435189053924650)<1.e-14,"");
+      MFEM_VERIFY(fabs(imag(EllipticTheta1Prime(1,2,I/3.))+
+                       0.052535714804112723136)<1.e-14,"");
+      const cdouble wz = WeierstrassZeta(0.25);
+      MFEM_VERIFY(fabs(real(wz)-3.95050161784488013)<1e-12,"");
 
-      const std::complex<double> c0 = WeierstrassZeta_ACB(0.25);
-      MFEM_VERIFY(fabs(real(c0)-3.95050161784488013)<1e-14,"");
-      //MFEM_VERIFY(fabs(imag(c0))<1e-14,"");
+      const std::complex<double> c0 = WeierstrassZeta(0.25);
+      MFEM_VERIFY(fabs(real(c0)-3.95050161784488013)<1e-12,"");
+      MFEM_VERIFY(fabs(imag(c0))<1e-14,"");
+
+      printf("\n\033[33m[costa] (%f,%f)\033[m", u,v);
+      fflush(0);
 
       // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
-      const std::complex<double> w = u + I*v;
+      const cdouble w = u + I*v;
       // Weierstrass zeta function
-      const std::complex<double> wz_w = WeierstrassZeta_ACB(w);
-      const std::complex<double> wz_wi =
-         WeierstrassZeta_ACB(w-1./2.) - WeierstrassZeta_ACB(w-I/2.);
+      const cdouble wz_w = WeierstrassZeta(w);
+      const cdouble wz_wi = WeierstrassZeta(w-1./2.) - WeierstrassZeta(w-I/2.);
+      printf("\n\033[33m[costa] (%f,%f)\033[m", real(wz_w), real(wz_wi));
+      fflush(0);
       p[0] = a * std::real(PI * (u + PI / (4.0*e1)) - wz_w +
                            PI / (2.0*e1) * (wz_wi));
+
       p[1] = a * std::real(PI * (v + PI / (4.0*e1)) - I*wz_w -
                            PI*I/(2.0*e1) * (wz_wi));
 
       // Weierstrass elliptic function
-      const std::complex<double> we_w = WeierstrassP(w,1,tau);
+      const std::complex<double> we_w = WeierstrassP(w);
       const double value = std::abs((we_w - e1) / (we_w + e1));
       p[2] = a * sqrt(PI/2.0) * log(value);
+
+      printf("\n\033[33m[costa] => [%f,%f,%f]\033[m", p[0], p[1], p[2]);
+      fflush(0);
 
       const bool nan = std::isnan(p[0])||std::isnan(p[1])||std::isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
