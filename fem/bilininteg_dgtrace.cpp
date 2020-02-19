@@ -19,8 +19,6 @@ using namespace std;
 namespace mfem
 {
 // PA DG Trace Integrator
-
-// PA DG Trace Assemble 2D kernel for constant velocity
 static void PADGTraceSetup2D(const int Q1D,
                              const int NF,
                              const Array<double> &w,
@@ -63,7 +61,6 @@ static void PADGTraceSetup2D(const int Q1D,
    });
 }
 
-// PA DG Trace Assemble 2D kernel for constant velocity
 static void PADGTraceSetup3D(const int Q1D,
                              const int NF,
                              const Array<double> &w,
