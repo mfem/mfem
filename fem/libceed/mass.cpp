@@ -40,9 +40,19 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                                      &ceedData.mesh_restr);
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
-   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
+   CeedInterlaceMode imode = CEED_NONINTERLACED;
+   if (fes.GetOrdering()==Ordering::byVDIM)
+   {
+      imode = CEED_INTERLACED;
+   }
+   CeedElemRestrictionCreateIdentity(ceed, imode, nelem, nqpts,
                                      nqpts*nelem, 1, &ceedData.restr_i);
-   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
+   CeedInterlaceMode mesh_imode = CEED_NONINTERLACED;
+   if (mesh_fes->GetOrdering()==Ordering::byVDIM)
+   {
+      mesh_imode = CEED_INTERLACED;
+   }
+   CeedElemRestrictionCreateIdentity(ceed, mesh_imode, nelem, nqpts,
                                      nqpts*nelem, 1, &ceedData.mesh_restr_i);
 
    CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
@@ -90,11 +100,6 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    // Create the operator that builds the quadrature data for the mass operator.
    CeedOperatorCreate(ceed, ceedData.build_qfunc, NULL, NULL,
                       &ceedData.build_oper);
-   CeedTransposeMode lmode = CEED_NOTRANSPOSE;
-   if (mesh_fes->GetOrdering()==Ordering::byVDIM)
-   {
-      lmode = CEED_TRANSPOSE;
-   }
    if (ceedData.coeff_type==CeedCoeff::Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
@@ -106,16 +111,13 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
                          ceedCoeff->coeff->GetData());
       CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr,
-                           CEED_NOTRANSPOSE,
                            ceedCoeff->basis, ceedCoeff->coeffVector);
    }
-   CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, lmode,
+   CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr,
                         ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
    CeedOperatorSetField(ceedData.build_oper, "weights", ceedData.mesh_restr_i,
-                        CEED_NOTRANSPOSE,
                         ceedData.mesh_basis, CEED_VECTOR_NONE);
    CeedOperatorSetField(ceedData.build_oper, "rho", ceedData.restr_i,
-                        CEED_NOTRANSPOSE,
                         CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
 
    // Compute the quadrature data for the mass operator.
@@ -132,11 +134,11 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
 
    // Create the mass operator.
    CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
-   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, CEED_NOTRANSPOSE,
+   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr,
                         ceedData.basis, CEED_VECTOR_ACTIVE);
-   CeedOperatorSetField(ceedData.oper, "rho", ceedData.restr_i, CEED_NOTRANSPOSE,
+   CeedOperatorSetField(ceedData.oper, "rho", ceedData.restr_i,
                         CEED_BASIS_COLLOCATED, ceedData.rho);
-   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, CEED_NOTRANSPOSE,
+   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr,
                         ceedData.basis, CEED_VECTOR_ACTIVE);
 
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
