@@ -13,25 +13,24 @@
 //             Twist Miniapp:  Generate simple twisted meshes
 //             ----------------------------------------------
 //
-// This miniapp generates two types of Toroidal meshes; one with triangular
-// cross sections and one with square cross sections.  It works by defining a
-// stack of individual elements and bending them so that the bottom and top of
-// the stack can be joined to form a torus.  The stack can also be twisted so
-// that the vertices of the bottom and top can be joined with any integer
-// offset.
+// This miniapp generates simple periodic meshes to demonstrate MFEM's
+// implementation of periodic domains.  MFEM's strategy is to use a
+// discontinuous vector field to define the mesh coordinates on a
+// topologically periodic mesh.  It works by defining a stack of
+// individual elements and stitching together the top and bottom of
+// the mesh.  The stack can also be twisted so that the vertices of
+// the bottom and top can be joined with any integer offset (for
+// tetrahedral and wedge meshes only even offsets are supported).
 //
-// Compile with: make toroid
+// Compile with: make twist
 //
-// Sample runs:  toroid
-//               toroid -nphi 6
-//               toroid -ns 1
-//               toroid -ns 0 -t0 -30
-//               toroid -R 2 -r 1 -ns 3
-//               toroid -R 2 -r 1 -ns -3
-//               toroid -R 2 -r 1 -ns 3 -e 1
-//               toroid -R 2 -r 1 -ns 3 -e 1 -rs 1
-//               toroid -nphi 2 -ns 10 -e 1 -o 4
-
+// Sample runs:  twist
+//               twist -ns 2
+//               twist -ns -2
+//               twist -ns 2 -e 4 -pm
+//               twist -ns 2 -e 6 -pm
+//               twist -ns 3 -e 8 -pm
+//
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
