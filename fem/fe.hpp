@@ -36,7 +36,8 @@ public:
       OpenUniform     = 3,  ///< Nodes: x_i = (i+1)/(n+1), i=0,...,n-1
       ClosedUniform   = 4,  ///< Nodes: x_i = i/(n-1),     i=0,...,n-1
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
-      NumBasisTypes   = 6   /**< Keep track of maximum types to prevent
+      Serendipity     = 6,  ///< Serendipity basis (squares / cubes)
+      NumBasisTypes   = 7   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
    /** @brief If the input does not represents a valid BasisType, abort with an
@@ -67,6 +68,7 @@ public:
          case OpenUniform:     return Quadrature1D::OpenUniform;
          case ClosedUniform:   return Quadrature1D::ClosedUniform;
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
+         case Serendipity:     return Quadrature1D::GaussLobatto;
       }
       return Quadrature1D::Invalid;
    }
@@ -110,6 +112,7 @@ public:
          case 'u': return OpenUniform;
          case 'U': return ClosedUniform;
          case 'o': return OpenHalfUniform;
+         case 's': return GaussLobatto;
       }
       MFEM_ABORT("unknown BasisType identifier");
       return -1;
@@ -1701,9 +1704,6 @@ private:
    static void CalcMono(const int p, const double x, double *u);
    static void CalcMono(const int p, const double x, double *u, double *d);
 
-   static void CalcLegendre(const int p, const double x, double *u);
-   static void CalcLegendre(const int p, const double x, double *u, double *d);
-
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
    static void CalcChebyshev(const int p, const double x, double *u, double *d,
@@ -1792,6 +1792,9 @@ public:
    static void CalcBernstein(const int p, const double x, double *u, double *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
 
+   static void CalcLegendre(const int p, const double x, double *u);
+   static void CalcLegendre(const int p, const double x, double *u, double *d);
+
    ~Poly_1D();
 };
 
@@ -1803,12 +1806,14 @@ protected:
    int b_type;
    Array<int> dof_map;
    Poly_1D::Basis &basis1d;
+   Array<int> inv_dof_map;
 
 public:
    enum DofMapType
    {
       L2_DOF_MAP = 0,
-      H1_DOF_MAP = 1
+      H1_DOF_MAP = 1,
+      Sr_DOF_MAP = 2,  // Sr = Serendipity
    };
 
    TensorBasisElement(const int dims, const int p, const int btype,
@@ -1967,6 +1972,18 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
+
+class H1Ser_QuadrilateralElement : public ScalarFiniteElement
+{
+public:
+   H1Ser_QuadrilateralElement(const int p);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
+   using FiniteElement::Project;
+};
 
 class H1Pos_HexahedronElement : public PositiveTensorFiniteElement
 {

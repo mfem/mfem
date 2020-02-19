@@ -27,6 +27,9 @@ public:
    ElementMeshStream(Element::Type e);
 };
 
+/// Merges vertices which lie at the same location
+void MergeMeshNodes(Mesh * mesh, int logging);
+
 } // namespace common
 
 } // namespace mfem

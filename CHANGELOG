@@ -67,6 +67,10 @@ Discretization improvements
   in physical space. See INSTALL for details on building MFEM with GSLIB, and
   miniapps/gslib for examples of how to use this feature.
 
+- Added support for serendipity elements of arbitrary order on affinely-mapped
+  square elements. Basis functions for these elements can be visualized using
+  an option in the display-basis miniapp.
+
 - Added support for complex-valued finite element operators and fields using a
   2x2 block structured linear system to mimic complex arithmetic. New classes
   include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
@@ -112,6 +116,13 @@ Linear and nonlinear solvers
 
 - Added Adams-Bashforth and Adams-Moulton time integrators.
 
+- Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
+  (DG advection) now takes advantage of this for implicit time integration.
+
+- Added a LinearSolve(A,X) convenience method to solve dense linear systems. In
+  the trivial cases, i.e., square matrices of size 1 or 2, the system is solved
+  directly, otherwise, LU factorization is employed.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added two new miniapps: Find Points (serial + parallel) and Field Diff in
@@ -131,6 +142,9 @@ New and updated examples and miniapps
 
 - New options to reorder and partition the mesh in the mesh-explorer miniapp.
 
+- The mesh-explorer miniapp now supports visualization of boundary attributes of
+  3D meshes (key 'b').
+
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
 
@@ -139,6 +153,14 @@ New and updated examples and miniapps
 
 - Added a modification of ex9 in examples/hiop that demonstrates the nonlinear
   constrained optimization interface and the use of the SLBQP and HiOp solvers.
+
+- Added a collection of 7 playful miniapps in miniapps/toys that illustrate the
+  meshing and visualization features of the library in more relaxed settings.
+  The toys include simulations of cellular automata, Rubik's cube, Mandelbrot
+  set, a tool to convert any image to mfem mesh, and more.
+
+- Example 9 and 9p now support implicit time integration, using the new block
+  ILU(0) solvers as preconditioners for the linear system.
 
 Improved testing
 ----------------
