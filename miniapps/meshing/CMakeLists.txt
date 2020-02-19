@@ -46,10 +46,6 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
     LIBRARIES mfem)
-
-  if (MFEM_USE_CUDA)
-     set_property(SOURCE pmesh-optimizer.cpp PROPERTY LANGUAGE CUDA)
-  endif()
      
   # Add parallel tests.
   add_test(NAME pmesh-optimizer_np=4
