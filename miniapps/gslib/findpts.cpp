@@ -28,12 +28,13 @@
 //
 // Sample runs:
 //    findpts -m ../../data/rt-2d-q3.mesh -o 3
-//    findpts -m ../../data/fichera.mesh -o 3
+//    findpts -m ../../data/rt-2d-q4-tri.mesh -o 4
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
 //    findpts -m ../../data/inline-tet.mesh -o 3
 //    findpts -m ../../data/inline-hex.mesh -o 3
 //    findpts -m ../../data/inline-prism.mesh -o 3
+//    findpts -m ../../data/amr-quad.mesh -o 2
 
 #include "mfem.hpp"
 
