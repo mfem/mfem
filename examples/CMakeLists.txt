@@ -58,13 +58,6 @@ if (MFEM_USE_MPI)
     )
 endif()
 
-# Tag ALL_EXE_SRCS files to be compiled with nvcc.
-if (MFEM_USE_CUDA)
-   foreach(file IN LISTS ALL_EXE_SRCS)
-      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
-   endforeach()
-endif()
-
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
 

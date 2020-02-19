@@ -40,7 +40,8 @@ Memory Manager Backends
       'posix_memalign' otherwise,
     - CUDA pointers, using 'cudaMalloc',
     - HIP pointers, using 'hipMalloc',
-    - Managed CUDA pointers (UVM), using 'cudaMallocManaged',
+    - Managed CUDA/HIP pointers (UVM), using 'cudaMallocManaged'/
+      'hipMallocManaged', respectively,
     - Debug memory types with protection, emulating separate host and device
       memory pools, using 'mmap' and 'mprotect'; used by the new "debug" device,
     - Umpire, using its API.

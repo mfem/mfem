@@ -33,13 +33,3 @@ add_mfem_miniapp(toy_lissajous
 
 add_mfem_miniapp(toy_mondrian
     MAIN mondrian.cpp LIBRARIES mfem)
-
-if (MFEM_USE_CUDA)
-   set_property(SOURCE automata.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE life.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE mandel.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE rubik.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE snake.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE lissajous.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE mondrian.cpp PROPERTY LANGUAGE CUDA)
-endif()

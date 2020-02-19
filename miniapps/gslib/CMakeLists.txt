@@ -11,12 +11,6 @@
 
 if (MFEM_USE_GSLIB)
 
-  # Tag ALL_EXE_SRCS files to be compiled with nvcc.
-  if (MFEM_USE_CUDA)
-     set_property(SOURCE field-diff.cpp PROPERTY LANGUAGE CUDA)
-     set_property(SOURCE findpts.cpp PROPERTY LANGUAGE CUDA)
-  endif()
-
   add_mfem_miniapp(field-diff
     MAIN field-diff.cpp
     LIBRARIES mfem)

@@ -27,11 +27,3 @@ add_mfem_miniapp(convert-dc
 
 add_mfem_miniapp(lor-transfer
   MAIN lor-transfer.cpp LIBRARIES mfem)
-
-if (MFEM_USE_CUDA)
-   set_property(SOURCE display-basis.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE get-values.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE load-dc.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE convert-dc.cpp PROPERTY LANGUAGE CUDA)
-   set_property(SOURCE lor-transfer.cpp PROPERTY LANGUAGE CUDA)
-endif()

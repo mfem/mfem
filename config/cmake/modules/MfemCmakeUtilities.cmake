@@ -70,6 +70,11 @@ function(add_mfem_examples EXE_SRCS)
     endif()
   endif()
   foreach(SRC_FILE IN LISTS ${EXE_SRCS})
+    # If CUDA is enabled, tag source files to be compiled with nvcc.
+    if (MFEM_USE_CUDA)
+      set_property(SOURCE ${SRC_FILE} PROPERTY LANGUAGE CUDA)
+    endif()
+
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
@@ -118,6 +123,13 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
       list(APPEND ${CURRENT_ARG}_LIST ${arg})
     endif()
   endforeach()
+
+  # If CUDA is enabled, tag source files to be compiled with nvcc.
+  if (MFEM_USE_CUDA)
+    set_property(SOURCE ${MAIN_LIST} ${EXTRA_SOURCES_LIST}
+      PROPERTY LANGUAGE CUDA)
+    list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
+  endif()
 
   # Actually add the executable
   add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
