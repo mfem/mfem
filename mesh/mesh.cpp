@@ -2035,6 +2035,9 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
             case Geometry::SQUARE:
                new_or = GetQuadOrientation(old_v, new_v);
                break;
+            case Geometry::TETRAHEDRON:
+               new_or = GetTetOrientation(old_v, new_v);
+               break;
             default:
                new_or = 0;
                MFEM_ABORT(Geometry::Name[geom] << " elements (" << fec->Name()

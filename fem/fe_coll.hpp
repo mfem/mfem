@@ -88,7 +88,7 @@ protected:
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
-   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8], *TetDofOrd[24];
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,

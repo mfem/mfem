@@ -1712,6 +1712,96 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
          }
+
+         const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
+         TetDofOrd[0] = new int[24*TetDof];
+         for (int i = 1; i < 24; i++)
+         {
+            TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
+         }
+         // see Mesh::GetTetOrientation in mesh/mesh.cpp
+         for (int k = 0; k < pm2; k++)
+         {
+            for (int j = 0; j + k < pm2; j++)
+            {
+               for (int i = 0; i + j + k < pm2; i++)
+               {
+                  int l = pm3 - k - j - i;
+                  int o   = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
+                            + ((j + k) * (2 * p - 3 - j - k)) / 2 + i;
+                  int o1  = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
+                            + ((k + j) * (2 * p - 3 - k - j)) / 2 + i;
+                  int o2  = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
+                            + ((k + i) * (2 * p - 3 - k - i)) / 2 + j;
+                  int o3  = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
+                            + ((i + k) * (2 * p - 3 - i - k)) / 2 + j;
+                  int o4  = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
+                            + ((i + j) * (2 * p - 3 - i - j)) / 2 + k;
+                  int o5  = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
+                            + ((j + i) * (2 * p - 3 - j - i)) / 2 + k;
+                  int o6  = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
+                            + ((l + k) * (2 * p - 3 - l - k)) / 2 + j;
+                  int o7  = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
+                            + ((k + l) * (2 * p - 3 - k - l)) / 2 + j;
+                  int o8  = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
+                            + ((j + l) * (2 * p - 3 - j - l)) / 2 + k;
+                  int o9  = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
+                            + ((l + j) * (2 * p - 3 - l - j)) / 2 + k;
+                  int o10 = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
+                            + ((k + j) * (2 * p - 3 - k - j)) / 2 + l;
+                  int o11 = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
+                            + ((j + k) * (2 * p - 3 - j - k)) / 2 + l;
+                  int o12 = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
+                            + ((l + i) * (2 * p - 3 - l - i)) / 2 + k;
+                  int o13 = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
+                            + ((i + l) * (2 * p - 3 - i - l)) / 2 + k;
+                  int o14 = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
+                            + ((i + k) * (2 * p - 3 - i - k)) / 2 + l;
+                  int o15 = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
+                            + ((k + i) * (2 * p - 3 - k - i)) / 2 + l;
+                  int o16 = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
+                            + ((k + l) * (2 * p - 3 - k - l)) / 2 + i;
+                  int o17 = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
+                            + ((l + k) * (2 * p - 3 - l - k)) / 2 + i;
+                  int o18 = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
+                            + ((j + i) * (2 * p - 3 - j - i)) / 2 + l;
+                  int o19 = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
+                            + ((i + j) * (2 * p - 3 - i - j)) / 2 + l;
+                  int o20 = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
+                            + ((l + j) * (2 * p - 3 - l - j)) / 2 + i;
+                  int o21 = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
+                            + ((j + l) * (2 * p - 3 - j - l)) / 2 + i;
+                  int o22 = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
+                            + ((i + l) * (2 * p - 3 - i - l)) / 2 + j;
+                  int o23 = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
+                            + ((l + i) * (2 * p - 3 - l - i)) / 2 + j;
+                  TetDofOrd[ 0][o] = o;   // (0,1,2,3)
+                  TetDofOrd[ 1][o] = o1;  // (0,1,3,2)
+                  TetDofOrd[ 2][o] = o2;  // (0,2,3,1)
+                  TetDofOrd[ 3][o] = o3;  // (0,2,1,3)
+                  TetDofOrd[ 4][o] = o4;  // (0,3,1,2)
+                  TetDofOrd[ 5][o] = o5;  // (0,3,2,1)
+                  TetDofOrd[ 6][o] = o6;  // (1,2,0,3)
+                  TetDofOrd[ 7][o] = o7;  // (1,2,3,0)
+                  TetDofOrd[ 8][o] = o8;  // (1,3,2,0)
+                  TetDofOrd[ 9][o] = o9;  // (1,3,0,2)
+                  TetDofOrd[10][o] = o10; // (1,0,3,2)
+                  TetDofOrd[11][o] = o11; // (1,0,2,3)
+                  TetDofOrd[12][o] = o12; // (2,3,0,1)
+                  TetDofOrd[13][o] = o13; // (2,3,1,0)
+                  TetDofOrd[14][o] = o14; // (2,0,1,3)
+                  TetDofOrd[15][o] = o15; // (2,0,3,1)
+                  TetDofOrd[16][o] = o16; // (2,1,3,0)
+                  TetDofOrd[17][o] = o17; // (2,1,0,3)
+                  TetDofOrd[18][o] = o18; // (3,0,2,1)
+                  TetDofOrd[19][o] = o19; // (3,0,1,2)
+                  TetDofOrd[20][o] = o20; // (3,1,0,2)
+                  TetDofOrd[21][o] = o21; // (3,1,2,0)
+                  TetDofOrd[22][o] = o22; // (3,2,1,0)
+                  TetDofOrd[23][o] = o23; // (3,2,0,1)
+               }
+            }
+         }
       }
    }
 }
@@ -1730,6 +1820,10 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    else if (GeomType == Geometry::SQUARE)
    {
       return QuadDofOrd[Or%8];
+   }
+   else if (GeomType == Geometry::TETRAHEDRON)
+   {
+      return TetDofOrd[Or%24];
    }
    return NULL;
 }
