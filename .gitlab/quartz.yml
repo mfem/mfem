@@ -89,7 +89,7 @@ build_mfem_debug_par_gcc_6_1_0_quartz:
   variables:
     MFEM_DEBUG: "YES"
     MFEM_USE_MPI: "YES"
-  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz]
 
 build_mfem_opt_ser_gcc_6_1_0_quartz:
   extends: [.build_mfem, .with_gcc_6_1_0, .on_quartz]
@@ -102,7 +102,7 @@ build_mfem_opt_par_gcc_6_1_0_quartz:
   variables:
     MFEM_DEBUG: "NO"
     MFEM_USE_MPI: "YES"
-  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz]
 
 ## Tests
 # Sanity check

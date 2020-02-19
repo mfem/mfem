@@ -44,6 +44,7 @@ variables:
   MFEM_ALLOC_NAME: mfem_ci_${CI_PIPELINE_ID}
   TPLS_ORIGIN: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
   TESTS_ORIGIN: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
+  ARTIFACTS_DIR: ${CI_PROJECT_DIR}/artifacts
 
 # The pipeline is divided into stages. Usually, these are also synchronisation
 # points, however, we use "needs" keyword to express the DAG of jobs for more
@@ -158,10 +159,10 @@ stages:
 .baseline_script: &baseline_script |
   # locals
   _full_out=${BASELINE_TEST}.out
+  _full_txt=${BASELINE_TEST}.txt
   _out=${BASELINE_TEST}-${SYS_TYPE}.out
-  _diff=${BASELINE_TEST}.diff
   _ref=../${BASELINE_TEST}-${SYS_TYPE}.saved
-  _artifact=${CI_PROJECT_DIR}/${BASELINE_TEST}-${SYS_TYPE}-saved.txt
+  _diff=${BASELINE_TEST}-diff.txt
   # prepare
   cd ${BUILD_ROOT}
   ln -snf ${CI_PROJECT_DIR} mfem
@@ -173,16 +174,17 @@ stages:
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
       export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:18:1 --cpus-per-task=18 --ntasks=1"
   fi
-  ${EXEC_PREFIX} ../runtest ../../mfem "${BASELINE_TEST}" "${ADDITIONAL_DIR}"
+  ${EXEC_PREFIX} ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
   if [[ ! -f ${_full_out} || ! -f ${_out} ]]
   then
       echo "Something went wrong in ${BASELINE_TEST}";
       exit 1;
   fi
-  cp ${_out} ${_artifact}
-  diff -u ${_out} ${_ref} | tee ${_diff} || true
-  cp ${_diff} ${CI_PROJECT_DIR}/
+  mv ${_full_out} ${_full_txt}
+  diff -u ${_ref} ${_out} | tee ${_diff} || true
+  mkdir ${ARTIFACTS_DIR}
+  cp ${_out} ${_diff} ${ARTIFACTS_DIR}
   if [[ ! $(head -n1 ${_diff}) ]]; then true; else false; fi
 
 .baselinecheck_mfem:
@@ -192,12 +194,10 @@ stages:
     ADDITIONAL_DIR: ${BUILD_ROOT}/tpls
   script:
     - *baseline_script
-  allow_failure: true
   artifacts:
     paths:
-      - ${BASELINE_TEST}-${SYS_TYPE}-saved.txt
-      - ${BASELINE_TEST}-diff.txt
-    when: always
+      - artifacts
+  when: always
 
 .samplebaselinecheck_mfem:
   stage: baseline_check
@@ -206,13 +206,11 @@ stages:
     ADDITIONAL_DIR: ""
   script:
     - *baseline_script
-  allow_failure: true
   timeout: 4h
   artifacts:
     paths:
-      - ${BASELINE_TEST}-${SYS_TYPE}-saved.txt
-      - ${BASELINE_TEST}-diff.txt
-    when: always
+      - artifacts
+  when: always
 
 # This job can only be manually triggers on a pipeline for master branch,
 # or if the pipeline was triggered with REBASELINE="YES"
@@ -223,11 +221,10 @@ stages:
       when: manual
   script:
     - echo "cd ${BUILD_ROOT}/tests"
-    - echo "cp ${CI_PROJECT_DIR}/baseline-${SYS_TYPE}-saved.txt ./baseline-${SYS_TYPE}.saved"
+    - echo "cp ${CI_PROJECT_DIR}/artifacts/baseline-${SYS_TYPE}.txt ./baseline-${SYS_TYPE}.saved"
     - echo "git add baseline-${SYS_TYPE}.saved"
     - echo "git commit -m Rebaselined in Gitlab pipeline #${CI_PIPELINE_ID}"
     - echo "git push origin master"
-  allow_failure: false
 
 # The list on jobs is in fact defined in other files.
 include:
