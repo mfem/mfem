@@ -44,34 +44,61 @@ public:
    virtual ~IterativeSolverMonitor() { }
 
    /// outputs for pl 1 or 3
-   virtual void BeginInfo(int iteration, double res_norm_squared) = 0;
+   virtual void BeginInfo(int iteration, double res_norm) = 0;
 
-   virtual void IterationInfo(int iteration, double res_norm_squared) = 0;
+   virtual void IterationInfo(int iteration, double res_norm) = 0;
+   virtual void IterationInfo(int pass, int iteration, double res_norm)
+   {
+      IterationInfo(iteration, res_norm);
+   }
 
-   virtual void ConvergenceInfo(int iteration, double res_norm_squared,
-                                double initial_norm_square) = 0;
+   virtual void ConvergenceInfo(int iteration, double res_norm,
+                                double initial_norm) = 0;
 
-   virtual void NoConvergenceInfo(int iteration, double res_norm_squared,
-                                  double initial_norm_square) = 0;
+   virtual void NoConvergenceInfo(int iteration, double res_norm,
+                                  double initial_norm) = 0;
 
    /// outputs for pl >= 0
    virtual void Alert(std::string& message) = 0;
 };
 
+/// SLI will be very similar to this
 class CGLegacyMonitor : public IterativeSolverMonitor
 {
 public:
-   void BeginInfo(int iteration, double res_norm_squared);
-   void IterationInfo(int iteration, double res_norm_squared);
-   void ConvergenceInfo(int iteration, double res_norm_squared,
-                        double initial_norm_square);
-   void NoConvergenceInfo(int iteration, double res_norm_squared,
-                          double initial_norm_square);
+   void BeginInfo(int iteration, double res_norm);
+   void IterationInfo(int iteration, double res_norm);
+   void ConvergenceInfo(int iteration, double res_norm,
+                        double initial_norm);
+   void NoConvergenceInfo(int iteration, double res_norm,
+                          double initial_norm);
    
    void Alert(std::string& message)
    {
    }
 };
+
+/// todo: this one needs to somehow get "pass"
+/// does that go in the interface, or specialized to this one?
+/// (FGMRES too)
+class GMRESLegacyMonitor : public IterativeSolverMonitor
+{
+public:
+   void BeginInfo(int iteration, double res_norm);
+   void IterationInfo(int iteration, double res_norm);
+   void ConvergenceInfo(int iteration, double res_norm,
+                        double initial_norm);
+   void NoConvergenceInfo(int iteration, double res_norm,
+                          double initial_norm);
+   
+   void Alert(std::string& message)
+   {
+   }
+};
+
+/// Minres, bicgstab are fine...
+/// Newton will be just a bit different (but quite doable)
+/// and SLBQP probably does not fit in this framework
 
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver

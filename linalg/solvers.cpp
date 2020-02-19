@@ -24,26 +24,26 @@ namespace mfem
 
 using namespace std;
 
-void CGLegacyMonitor::BeginInfo(int iteration, double res_norm_squared)
+void CGLegacyMonitor::BeginInfo(int iteration, double res_norm)
 {
    if (print_level == 1 || print_level == 3)
    {
       mfem::out << "   Iteration : " << setw(3) << iteration << "  (B r, r) = "
-                << res_norm_squared << (print_level == 3 ? " ...\n" : "\n");
+                << res_norm*res_norm << (print_level == 3 ? " ...\n" : "\n");
    }
 }
 
-void CGLegacyMonitor::IterationInfo(int iteration, double res_norm_squared)
+void CGLegacyMonitor::IterationInfo(int iteration, double res_norm)
 {
    if (print_level == 1)
    {
       mfem::out << "   Iteration : " << setw(3) << iteration << "  (B r, r) = "
-                << res_norm_squared << '\n';
+                << res_norm*res_norm << '\n';
    }
 }
 
-void CGLegacyMonitor::ConvergenceInfo(int iteration, double res_norm_squared,
-                                      double initial_norm_squared)
+void CGLegacyMonitor::ConvergenceInfo(int iteration, double res_norm,
+                                      double initial_norm)
 {
    if (print_level == 2)
    {
@@ -52,18 +52,18 @@ void CGLegacyMonitor::ConvergenceInfo(int iteration, double res_norm_squared,
    else if (print_level == 3)
    {
       mfem::out << "   Iteration : " << setw(3) << iteration << "  (B r, r) = "
-                << res_norm_squared << '\n';
+                << res_norm*res_norm << '\n';
    }
    if (print_level >= 1)
    {
       mfem::out << "Average reduction factor = "
-                << pow(res_norm_squared/initial_norm_squared,
+                << pow(res_norm*res_norm/(initial_norm*initial_norm),
                        0.5/iteration) << '\n';
    }
 }
 
-void CGLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm_squared,
-                                        double initial_norm_squared)
+void CGLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
+                                        double initial_norm)
 {
    if (print_level >= 0)
    {
@@ -72,17 +72,17 @@ void CGLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm_squared,
          if (print_level != 3)
          {
             mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                      << initial_norm_squared << " ...\n";
+                      << initial_norm*initial_norm << " ...\n";
          }
          mfem::out << "   Iteration : " << setw(3) << iteration << "  (B r, r) = "
-                   << res_norm_squared << '\n';
+                   << res_norm*res_norm << '\n';
       }
       mfem::out << "PCG: No convergence!" << '\n';
    }
    if (print_level >= 0)
    {
       mfem::out << "Average reduction factor = "
-                << pow(res_norm_squared/initial_norm_squared,
+                << pow(res_norm*res_norm/(initial_norm*initial_norm),
                        0.5/iteration) << '\n';
    }
 }
@@ -448,7 +448,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
 
    monitor->SetPrintLevel(print_level);
-   monitor->BeginInfo(0, nom);
+   monitor->BeginInfo(0, sqrt(nom));
 
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
@@ -498,11 +498,11 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
 
-      monitor->IterationInfo(i, betanom);
+      monitor->IterationInfo(i, sqrt(betanom));
 
       if (betanom < r0)
       {
-         monitor->ConvergenceInfo(i, betanom, nom0);
+         monitor->ConvergenceInfo(i, sqrt(betanom), sqrt(nom0));
          converged = 1;
          final_iter = i;
          break;
@@ -542,7 +542,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    if (!converged)
    {
-      monitor->NoConvergenceInfo(final_iter, betanom, nom0);
+      monitor->NoConvergenceInfo(final_iter, sqrt(betanom), sqrt(nom0));
    }
    final_norm = sqrt(betanom);
 }
