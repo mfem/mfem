@@ -37,8 +37,8 @@ int main(int argc, char *argv[])
    if (mpi.WorldSize() > 1 && mpi.Root())
    {
       mfem::out
-         << "WARNING: Only running the [Parallel] label on MPI ranks > 1."
-         << std::endl;
+            << "WARNING: Only running the [Parallel] label on MPI ranks > 1."
+            << std::endl;
    }
 #endif
 
