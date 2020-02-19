@@ -823,6 +823,7 @@ Constants<Geometry::TETRAHEDRON>::VertToVert::J[6][2] =
    {2, 3}, {3, 4},         // 1,2:3   1,3:4
    {3, 5}                  // 2,3:5
 };
+const int Geometry::
 Constants<Geometry::TETRAHEDRON>::Orient[24][4] =
 {
    {0, 1, 2, 3}, {0, 1, 3, 2}, {0, 2, 3, 1}, {0, 2, 1, 3},
@@ -839,7 +840,7 @@ Constants<Geometry::TETRAHEDRON>::InvOrient[24] =
   { 0,  1,  4,  3,  2,  5,
    14, 19, 18, 15, 10, 11,
    12, 23,  6,  9, 20, 17,
-   8,   7, 16, 21, 22, 13}
+    8,   7, 16, 21, 22, 13};
 
 const int Geometry::
 Constants<Geometry::CUBE>::Edges[12][2] =
