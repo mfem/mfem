@@ -99,13 +99,13 @@ public:
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a f, using the
-      same integrators as the LinearForms @a lfr (real) and @a lfi (imag) .
+   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a f, using
+       the same integrators as the LinearForms @a lfr (real) and @a lfi (imag) .
 
-      The pointer @a fes is not owned by the newly constructed object.
+       The pointer @a fes is not owned by the newly constructed object.
 
-      The integrators are copied as pointers and they are not owned by
-      the newly constructed ComplexLinearForm. */
+       The integrators are copied as pointers and they are not owned by the
+       newly constructed ComplexLinearForm. */
    ComplexLinearForm(FiniteElementSpace *fes, LinearForm *lf_r, LinearForm *lf_i,
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
@@ -187,18 +187,16 @@ class SesquilinearForm
 private:
    ComplexOperator::Convention conv;
 
-   /**
-    * This member allows one to specify what should be done
-    * to the diagonal matrix entries and corresponding RHS
-    * values upon elimination of the constrained DoFs.
-    */
+   /** This data member allows one to specify what should be done to the
+       diagonal matrix entries and corresponding RHS values upon elimination of
+       the constrained DoFs. */
    mfem::Matrix::DiagonalPolicy diag_policy = mfem::Matrix::DIAG_ONE;
 
    BilinearForm *blfr;
    BilinearForm *blfi;
 
-   /* These methods check if the real/imag parts of the
-   sesqulinear form are not empty */
+   /* These methods check if the real/imag parts of the sesqulinear form are not
+      empty */
    bool RealInteg();
    bool ImagInteg();
 
@@ -206,13 +204,13 @@ public:
    SesquilinearForm(FiniteElementSpace *fes,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
-   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a f, using the
-       same integrators as the BilinearForms @a bfr and @a bfi .
+   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a f, using
+       the same integrators as the BilinearForms @a bfr and @a bfi .
 
        The pointer @a fes is not owned by the newly constructed object.
 
-       The integrators are copied as pointers and they are not owned by
-       the newly constructed SesquilinearForm. */
+       The integrators are copied as pointers and they are not owned by the
+       newly constructed SesquilinearForm. */
    SesquilinearForm(FiniteElementSpace *fes, BilinearForm *bfr, BilinearForm *bfi,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
@@ -402,13 +400,14 @@ public:
                         ComplexOperator::Convention
                         convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a pf, using the
-      same integrators as the LinearForms @a plfr (real) and @a plfi (imag) .
+   /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a pf,
+       using the same integrators as the LinearForms @a plfr (real) and @a plfi
+       (imag) .
 
       The pointer @a fes is not owned by the newly constructed object.
 
-      The integrators are copied as pointers and they are not owned by
-      the newly constructed ParComplexLinearForm. */
+      The integrators are copied as pointers and they are not owned by the newly
+      constructed ParComplexLinearForm. */
    ParComplexLinearForm(ParFiniteElementSpace *pf, ParLinearForm *plf_r,
                         ParLinearForm *plf_i,
                         ComplexOperator::Convention
@@ -499,8 +498,8 @@ private:
    ParBilinearForm *pblfr;
    ParBilinearForm *pblfi;
 
-   /* These methods check if the real/imag parts of the
-   sesqulinear form are not empty */
+   /* These methods check if the real/imag parts of the sesqulinear form are not
+      empty */
    bool RealInteg();
    bool ImagInteg();
 
@@ -509,13 +508,13 @@ public:
                        ComplexOperator::Convention
                        convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a ParSesquilinearForm on the ParFiniteElementSpace @a pf, using the
-       same integrators as the ParBilinearForms @a pbfr and @a pbfi .
+   /** @brief Create a ParSesquilinearForm on the ParFiniteElementSpace @a pf,
+       using the same integrators as the ParBilinearForms @a pbfr and @a pbfi .
 
        The pointer @a pf is not owned by the newly constructed object.
 
-       The integrators are copied as pointers and they are not owned by
-       the newly constructed ParSesquilinearForm. */
+       The integrators are copied as pointers and they are not owned by the
+       newly constructed ParSesquilinearForm. */
    ParSesquilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *pbfr,
                        ParBilinearForm *pbfi,
                        ComplexOperator::Convention
