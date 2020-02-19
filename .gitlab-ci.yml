@@ -172,17 +172,23 @@ stages:
   # run
   if [[ "${MPIEXEC}" == "srun" ]]
   then
-      export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-      export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${BASELINE_PAR}:1 --cpus-per-task=${BASELINE_PAR} --ntasks=1"
+    export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
+    export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${BASELINE_PAR}:1 --cpus-per-task=${BASELINE_PAR} --ntasks=1"
   fi
   ${EXEC_PREFIX} ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
   mkdir ${ARTIFACTS_DIR}
-  if [[ ! -f ${_full_out} || ! -f ${_out} || -s ${_full_err} ]]
+  if [[ ! -f ${_full_out} || ! -f ${_out} ]]
   then
-      echo "Something went WRONG in ${BASELINE_TEST}";
-      cp ${_full_err} ${ARTIFACTS_DIR}/
-      exit 1;
+    echo "Something went WRONG in ${BASELINE_TEST}:";
+    echo "${_full_out} and/or ${_out}";
+    exit 1;
+  elif [[ -s ${_full_err} ]]
+  then
+    echo "ERROR during ${BASELINE_TEST} execution";
+    echo "Here is the ${_full_err} file content";
+    cat ${_full_err} && cp ${_full_err} ${ARTIFACTS_DIR}/
+    exit 1;
   fi
   cp ${_out} ${_out_txt}
   diff -u ${_ref} ${_out} | tee ${_diff} || true
