@@ -147,9 +147,10 @@ private:
    char d_name[32];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
-   int *SegDofOrd[2]; // for rotating segment dofs in 1D
-   int *TriDofOrd[6]; // for rotating triangle dofs in 2D
-   int *OtherDofOrd;  // for rotating other types of elements (for Or == 0)
+   int *SegDofOrd[2];  // for rotating segment dofs in 1D
+   int *TriDofOrd[6];  // for rotating triangle dofs in 2D
+   int *TetDofOrd[24]; // for rotating tetrahedron dofs in 3D
+   int *OtherDofOrd;   // for rotating other types of elements (for Or == 0)
 
 public:
    L2_FECollection(const int p, const int dim,
