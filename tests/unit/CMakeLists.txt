@@ -45,9 +45,7 @@ set(UNIT_TESTS_SRCS
 )
 
 if (MFEM_USE_CUDA)
-   foreach(file IN LISTS UNIT_TESTS_SRCS)
-      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
-   endforeach()
+   set_property(SOURCE ${UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
 endif()
 
 # All non-device unit tests are built into a single executable 'unit_tests'.
@@ -62,9 +60,7 @@ set(SEDOV_TESTS_SRCS
     miniapps/test_sedov.cpp
 )
 if (MFEM_USE_CUDA)
-   foreach(file IN LISTS SEDOV_TESTS_SRCS)
-      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
-   endforeach()
+   set_property(SOURCE ${SEDOV_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
 endif()
 
 add_executable(sedov_tests_cpu ${SEDOV_TESTS_SRCS})
