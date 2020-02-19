@@ -66,12 +66,12 @@ using namespace std;
 
 double GetTargetSum(Mesh &mesh, GridFunction &size)
 {
-    L2_FECollection avg_fec(0, mesh.Dimension());
-    FiniteElementSpace avg_fes(&mesh, &avg_fec);
-    GridFunction elsize_avgs(&avg_fes);
+   L2_FECollection avg_fec(0, mesh.Dimension());
+   FiniteElementSpace avg_fes(&mesh, &avg_fec);
+   GridFunction elsize_avgs(&avg_fes);
 
-    size.GetElementAverages(elsize_avgs);
-    return elsize_avgs.Sum();
+   size.GetElementAverages(elsize_avgs);
+   return elsize_avgs.Sum();
 }
 
 class TMOPEstimator : public ErrorEstimator
@@ -120,7 +120,7 @@ public:
    double GetTotalError() const { return total_error; }
 
    void SetAnalyticTargetSpec(MatrixCoefficient *mspec)
-             {solution_spec = mspec;discrete_flag=false;}
+   {solution_spec = mspec; discrete_flag=false;}
 
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors()
@@ -151,54 +151,54 @@ public:
 void TMOPEstimator::ComputeEstimates()
 {
    // Compute error for each element
-    Vector nodes_sol;
-    if (!discrete_flag) {
-        const int NE = fespace->GetNE();
-        const int dim = fespace->GetMesh()->Dimension();
-        GridFunction *nodes = fespace->GetMesh()->GetNodes();
-        Vector nodesv(nodes->Size());
-        nodesv.SetData(nodes->GetData());
-        //nodes->GetNodalValues(nodesv);
-        const int pnt_cnt = nodesv.Size()/dim;
-        DenseMatrix K;K.SetSize(dim);
-        nodes_sol.SetSize(pnt_cnt);
-        Vector posv(dim);
-        const IntegrationPoint *ip = NULL;
-        IsoparametricTransformation *Tpr = NULL;
+   Vector nodes_sol;
+   if (!discrete_flag)
+   {
+      const int NE = fespace->GetNE();
+      const int dim = fespace->GetMesh()->Dimension();
+      GridFunction *nodes = fespace->GetMesh()->GetNodes();
+      Vector nodesv(nodes->Size());
+      nodesv.SetData(nodes->GetData());
+      const int pnt_cnt = nodesv.Size()/dim;
+      DenseMatrix K; K.SetSize(dim);
+      nodes_sol.SetSize(pnt_cnt);
+      Vector posv(dim);
+      const IntegrationPoint *ip = NULL;
+      IsoparametricTransformation *Tpr = NULL;
 
-        for (int i=0;i<pnt_cnt;i++)
-        {
-            for (int j=0;j<dim;j++) {K(j,j) = nodesv(i+j*pnt_cnt);}
-            solution_spec->Eval(K,*Tpr,*ip);
-            Vector col1, col2;
-            K.GetColumn(0, col1);
-            K.GetColumn(1, col2);
+      for (int i=0; i<pnt_cnt; i++)
+      {
+         for (int j=0; j<dim; j++) {K(j,j) = nodesv(i+j*pnt_cnt);}
+         solution_spec->Eval(K,*Tpr,*ip);
+         Vector col1, col2;
+         K.GetColumn(0, col1);
+         K.GetColumn(1, col2);
 
-            nodes_sol(i) = col1.Norml2()*col2.Norml2();
-        }
-//        solution->SetData(nodes_sol.GetData());
-        solution->SetDataAndSize(nodes_sol.GetData(),nodes_sol.Size());
-    }
+         nodes_sol(i) = col1.Norml2()*col2.Norml2();
+      }
+      //        solution->SetData(nodes_sol.GetData());
+      solution->SetDataAndSize(nodes_sol.GetData(),nodes_sol.Size());
+   }
 
-    L2_FECollection avg_fec(0, fespace->GetMesh()->Dimension());
-    FiniteElementSpace avg_fes(fespace->GetMesh(), &avg_fec);
-    tarsize.SetSpace(&avg_fes);
+   L2_FECollection avg_fec(0, fespace->GetMesh()->Dimension());
+   FiniteElementSpace avg_fes(fespace->GetMesh(), &avg_fec);
+   tarsize.SetSpace(&avg_fes);
 
 
-    solution->GetElementAverages(tarsize);
-    const int NE = tarsize.Size();
-    error_estimates.SetSize(NE);
-    total_error = 0.;
-    for (int i=0;i<NE;i++)
-    {
-        double curr_size = fespace->GetMesh()->GetElementVolume(i);
-        double tar_size  = tarsize(i);
-        double loc_err   = curr_size - tar_size;
-        total_error += std::fabs(loc_err);
+   solution->GetElementAverages(tarsize);
+   const int NE = tarsize.Size();
+   error_estimates.SetSize(NE);
+   total_error = 0.;
+   for (int i=0; i<NE; i++)
+   {
+      double curr_size = fespace->GetMesh()->GetElementVolume(i);
+      double tar_size  = tarsize(i);
+      double loc_err   = curr_size - tar_size;
+      total_error += std::fabs(loc_err);
 
-        error_estimates(i) = std::max(0.,loc_err);
-    }
-    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      error_estimates(i) = std::max(0.,loc_err);
+   }
+   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
 
 class TMOPRefiner : public MeshOperator
@@ -281,29 +281,32 @@ int TMOPRefiner::ApplyImpl(Mesh &mesh)
 
    int eltype = mesh.GetElement(1)->GetType();
    double scale = 0.;
-   if (eltype==3) {
-       scale = 3./5.;
+   if (eltype==3)
+   {
+      scale = 3./5.;
    }
-   else if (eltype==5) {
-       scale = 7./9.;
+   else if (eltype==5)
+   {
+      scale = 7./9.;
    }
-   else {
-       MFEM_ABORT(" TMOP+AMR only allowed for quad or hex meshes.");
+   else
+   {
+      MFEM_ABORT(" TMOP+AMR only allowed for quad or hex meshes.");
    }
    for (int el = 0; el < NE; el++)
    {
       if (local_err(el) > scale*tarsize(el))
       {
-//         std::cout << el << " " <<
-//                      local_err(el) << " " <<
-//                      tarsize(el) << " k10check\n";
+         //         std::cout << el << " " <<
+         //                      local_err(el) << " " <<
+         //                      tarsize(el) << " k10check\n";
          marked_elements.Append(Refinement(el));
       }
       else
       {
-//          std::cout << el << " " <<
-//                       local_err(el) << " " <<
-//                       tarsize(el) << " k10checkfail\n";
+         //          std::cout << el << " " <<
+         //                       local_err(el) << " " <<
+         //                       tarsize(el) << " k10checkfail\n";
       }
    }
 
@@ -339,7 +342,7 @@ double weight_fun(const Vector &x);
 
 double ind_values(const Vector &x)
 {
-   const int opt = 1;
+   const int opt = 2;
    const double small = 0.0001, big = 0.01;
 
    // Sine wave.
@@ -466,15 +469,17 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      if (&T==NULL) {
-          Vector pos(3);
-          for (int i=0;i<K.Size();i++) {pos(i)=K(i,i);}
-          (this)->Eval(K,pos);
+      if (&T==NULL)
+      {
+         Vector pos(3);
+         for (int i=0; i<K.Size(); i++) {pos(i)=K(i,i);}
+         (this)->Eval(K,pos);
       }
-      else {
-          Vector pos(3);
-          T.Transform(ip, pos);
-          (this)->Eval(K,pos);
+      else
+      {
+         Vector pos(3);
+         T.Transform(ip, pos);
+         (this)->Eval(K,pos);
       }
    }
    virtual void Eval(DenseMatrix &K, Vector pos)
@@ -511,17 +516,17 @@ public:
       }
       else if (typemod==2)
       {
-          const double small = 0.001, big = 0.01;
-          const double X = pos(0), Y = pos(1);
-          double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                       std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-          if (ind > 1.0) {ind = 1.;}
-          if (ind < 0.0) {ind = 0.;}
-          double val = ind * small + (1.0 - ind) * big;
-          K(0, 0) = pow(val,0.5);
-          K(0, 1) = 0.0;
-          K(1, 0) = 0.0;
-          K(1, 1) = pow(val,0.5);
+         const double small = 0.001, big = 0.01;
+         const double X = pos(0), Y = pos(1);
+         double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+                      std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double val = ind * small + (1.0 - ind) * big;
+         K(0, 0) = pow(val,0.5);
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = pow(val,0.5);
       }
    }
 };
@@ -529,56 +534,56 @@ public:
 void TMOPupdate(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace,
                 bool move_bnd)
 {
-    int dim = fespace.GetFE(0)->GetDim();
-    if (move_bnd == false)
-    {
-       Array<int> ess_bdr(mesh.bdr_attributes.Max());
-       ess_bdr = 1;
-       a.SetEssentialBC(ess_bdr);
-    }
-    else
-    {
-       const int nd  = fespace.GetBE(0)->GetDof();
-       int n = 0;
-       for (int i = 0; i < mesh.GetNBE(); i++)
-       {
-          const int attr = mesh.GetBdrElement(i)->GetAttribute();
-          MFEM_VERIFY(!(dim == 2 && attr == 3),
-                      "Boundary attribute 3 must be used only for 3D meshes. "
-                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                      "components, rest for free nodes), or use -fix-bnd.");
-          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-          if (attr == 4) { n += nd * dim; }
-       }
-       Array<int> ess_vdofs(n), vdofs;
-       n = 0;
-       for (int i = 0; i < mesh.GetNBE(); i++)
-       {
-          const int attr = mesh.GetBdrElement(i)->GetAttribute();
-          fespace.GetBdrElementVDofs(i, vdofs);
-          if (attr == 1) // Fix x components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j]; }
-          }
-          else if (attr == 2) // Fix y components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j+nd]; }
-          }
-          else if (attr == 3) // Fix z components.
-          {
-             for (int j = 0; j < nd; j++)
-             { ess_vdofs[n++] = vdofs[j+2*nd]; }
-          }
-          else if (attr == 4) // Fix all components.
-          {
-             for (int j = 0; j < vdofs.Size(); j++)
-             { ess_vdofs[n++] = vdofs[j]; }
-          }
-       }
-       a.SetEssentialVDofs(ess_vdofs);
-    }
+   int dim = fespace.GetFE(0)->GetDim();
+   if (move_bnd == false)
+   {
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      a.SetEssentialBC(ess_bdr);
+   }
+   else
+   {
+      const int nd  = fespace.GetBE(0)->GetDof();
+      int n = 0;
+      for (int i = 0; i < mesh.GetNBE(); i++)
+      {
+         const int attr = mesh.GetBdrElement(i)->GetAttribute();
+         MFEM_VERIFY(!(dim == 2 && attr == 3),
+                     "Boundary attribute 3 must be used only for 3D meshes. "
+                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                     "components, rest for free nodes), or use -fix-bnd.");
+         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+         if (attr == 4) { n += nd * dim; }
+      }
+      Array<int> ess_vdofs(n), vdofs;
+      n = 0;
+      for (int i = 0; i < mesh.GetNBE(); i++)
+      {
+         const int attr = mesh.GetBdrElement(i)->GetAttribute();
+         fespace.GetBdrElementVDofs(i, vdofs);
+         if (attr == 1) // Fix x components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+         else if (attr == 2) // Fix y components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+nd]; }
+         }
+         else if (attr == 3) // Fix z components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+2*nd]; }
+         }
+         else if (attr == 4) // Fix all components.
+         {
+            for (int j = 0; j < vdofs.Size(); j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+      }
+      a.SetEssentialVDofs(ess_vdofs);
+   }
 };
 
 // Additional IntegrationRules that can be used with the --quad-type option.
@@ -812,7 +817,7 @@ int main (int argc, char *argv[])
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(&mesh, &ind_fec);
-   GridFunction size;size.SetSpace(&ind_fes);
+   GridFunction size; size.SetSpace(&ind_fes);
    DiscreteAdaptTC *tcd = NULL;
    AnalyticAdaptTC *tca = NULL;
    switch (target_id)
@@ -1053,67 +1058,74 @@ int main (int argc, char *argv[])
    TMOPEstimator tmope(ind_fes,size);
    if (target_id==4) {tmope.SetAnalyticTargetSpec(adapt_coeff);}
    TMOPRefiner tmopr(tmope);
-   if (amr_flag==1) {
-   int nc_limit = 1;
-   int ni_limit = 5;
-   int newtonstop = 0;
-   int amrstop = 0;
-
-   tmopr.PreferNonconformingRefinement();
-   tmopr.SetNCLimit(nc_limit);
-
-   for (int it = 0;it<ni_limit; it++)
+   if (amr_flag==1)
    {
+      int nc_limit = 1;
+      int ni_limit = 5;
+      int newtonstop = 0;
+      int amrstop = 0;
 
-       std::cout << it << " Begin NEWTON+AMR Iteration\n";
+      tmopr.PreferNonconformingRefinement();
+      tmopr.SetNCLimit(nc_limit);
 
-       newton->SetOperator(a);
-       newton->Mult(b, x.GetTrueVector());
-       x.SetFromTrueVector();
-       if (newton->GetConverged() == false)
-       {cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
-       << endl;}
-       if (amrstop==1)
-       {
-           cout << it << " Newton and AMR have converged" << endl;
-           break;
-       }
-       char title1[10];
-       sprintf(title1, "%s %d","Newton", it);
-       //vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
+      for (int it = 0; it<ni_limit; it++)
+      {
+
+         std::cout << it << " Begin NEWTON+AMR Iteration\n";
+
+         newton->SetOperator(a);
+         newton->Mult(b, x.GetTrueVector());
+         x.SetFromTrueVector();
+         if (newton->GetConverged() == false)
+         {
+            cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
+                 << endl;
+         }
+         if (amrstop==1)
+         {
+            cout << it << " Newton and AMR have converged" << endl;
+            break;
+         }
+         char title1[10];
+         sprintf(title1, "%s %d","Newton", it);
+         //vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
 
 
-       for (int amrit=0;amrit<nc_limit;amrit++) {
-           tmopr.Reset();
-           if (nc_limit!=0 && amrstop==0) {tmopr.Apply(mesh);}
-           //Update stuff
-           ind_fes.Update();
-           size.Update();
-           if (target_id == 5) {size.Update();}
-           fespace.Update();
-           x.Update();x.SetTrueVector();
-           x0.Update();x0.SetTrueVector();
-           fespace.UpdatesFinished();
-           if (target_id == 5) {
+         for (int amrit=0; amrit<nc_limit; amrit++)
+         {
+            tmopr.Reset();
+            if (nc_limit!=0 && amrstop==0) {tmopr.Apply(mesh);}
+            //Update stuff
+            ind_fes.Update();
+            size.Update();
+            fespace.Update();
+            x.Update(); x.SetTrueVector();
+            x0.Update(); x0.SetTrueVector();
+            fespace.UpdatesFinished();
+            if (target_id == 5)
+            {
                tcd->SetSerialDiscreteTargetSpec(size);
                target_c = tcd;
                he_nlf_integ->UpdateTargetConstructor(target_c);
-           }
-           a.Update();
-           TMOPupdate(a,mesh,fespace,move_bnd);
-           if (amrstop==0) {
-           if (tmopr.Stop())
-           {amrstop = 1;
-               cout << it << " " << amrit <<
-                       " AMR stopping criterion satisfied. Stop." << endl;}
-           else
-           {std::cout << mesh.GetNE() << " Number of elements after AMR\n";}
-           }
-       }
+            }
+            a.Update();
+            TMOPupdate(a,mesh,fespace,move_bnd);
+            if (amrstop==0)
+            {
+               if (tmopr.Stop())
+               {
+                  amrstop = 1;
+                  cout << it << " " << amrit <<
+                       " AMR stopping criterion satisfied. Stop." << endl;
+               }
+               else
+               {std::cout << mesh.GetNE() << " Number of elements after AMR\n";}
+            }
+         }
 
-       sprintf(title1, "%s %d","AMR", it);
-       //qqvis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
-   } //nc_limit
+         sprintf(title1, "%s %d","AMR", it);
+         //qqvis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
+      } //ni_limit
    } //amr_flag==1
    delete newton;
 
