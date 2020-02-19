@@ -19,28 +19,32 @@ using namespace mfem;
 
 struct NullBuf: public std::streambuf { int overflow(int c) { return c; }};
 
-static void ScanMemoryTypes(const int N = 1024)
+static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 {
-   constexpr int mt_max = static_cast<int>(MemoryType::HOST_DEBUG);
-   Vector v[mt_max];
-   int mt = HostMemoryType;
-   for (int i=0; i < mt_max; i++, mt++)
-   {
-      Memory<double> mem(N, static_cast<MemoryType>(mt));
-      REQUIRE(mem.Capacity() == N);
-      Vector &y = v[i];
-      y.NewMemoryAndSize(mem, N, true);
-      y.UseDevice(true);
-      y = 0.0;
-      y.HostWrite();
-      y[0] = -1.0;
-      y.Write();
-      y = 1.0;
-      y.HostReadWrite();
-      y[0] = 0.0;
-      REQUIRE(y*y == Approx(N-1));
-      y.Destroy();
-   }
+   Memory<double> mem(N, mt);
+   REQUIRE(mem.Capacity() == N);
+   Vector y;
+   y.NewMemoryAndSize(mem, N, true);
+   y.UseDevice(use_dev);
+   y = 0.0;
+   y.HostWrite();
+   y[0] = -1.0;
+   y.Write();
+   y = 1.0;
+   y.HostReadWrite();
+   y[0] = 0.0;
+   REQUIRE(y*y == Approx(N-1));
+   y.Destroy();
+}
+
+static void ScanMemoryTypes()
+{
+   const MemoryType h_mt = mm.GetHostMemoryType();
+   const MemoryType d_mt = mm.GetDeviceMemoryType();
+   TestMemoryTypes(h_mt, true);
+   TestMemoryTypes(d_mt, true);
+   TestMemoryTypes(h_mt, false);
+   TestMemoryTypes(d_mt, false);
 }
 
 static void MmuCatch(const int N = 1024)

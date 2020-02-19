@@ -159,6 +159,7 @@ Device::~Device()
 #endif
       mm.Destroy();
    }
+   Get().ngpu = -1;
    Get().mode = SEQUENTIAL;
    Get().backends = Backend::CPU;
    Get().host_mem_type = MemoryType::HOST;
