@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "vector.hpp"
-#include "dtensor.hpp"
 #include "operator.hpp"
 #include "../general/forall.hpp"
 

@@ -12,26 +12,8 @@
 #ifndef MFEM_DEVICE_HPP
 #define MFEM_DEVICE_HPP
 
-#include "cuda.hpp"
-#include "hip.hpp"
 #include "globals.hpp"
 #include "mem_manager.hpp"
-
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-#define MFEM_DEVICE
-#define MFEM_HOST_DEVICE
-#define MFEM_DEVICE_SYNC
-#define MFEM_STREAM_SYNC
-#endif
-
-#if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-      (defined(MFEM_USE_HIP)  && defined(__ROCM_ARCH__)))
-#define MFEM_SHARED
-#define MFEM_SYNC_THREAD
-#define MFEM_THREAD_ID(k) 0
-#define MFEM_THREAD_SIZE(k) 1
-#define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
-#endif
 
 namespace mfem
 {
@@ -282,8 +264,6 @@ public:
    { Get().mpi_gpu_aware = force; }
 
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
-
-   static void Synchronize() { MFEM_DEVICE_SYNC; }
 };
 
 

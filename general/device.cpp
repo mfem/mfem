@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "forall.hpp"
-#include "cuda.hpp"
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed.h>

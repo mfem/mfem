@@ -13,7 +13,6 @@
 #define MFEM_DTENSOR
 
 #include "../general/cuda.hpp"
-#include "../general/mem_manager.hpp"
 
 namespace mfem
 {
