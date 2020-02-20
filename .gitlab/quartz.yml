@@ -9,7 +9,9 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-# GitLab pipelines configurations for the Quart machine at LLNL
+
+# GitLab pipelines configurations for the Quartz machine at LLNL
+
 .on_quartz:
   tags:
     - shell

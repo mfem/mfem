@@ -121,7 +121,7 @@ stages:
   fi
 
 # Build of dependencies and mfem:
-# if on quartz, uses a subpart of preallocated resources
+# if on quartz, uses a part of preallocated resources
 # Note: Those jobs don't rely on MFEM repository, hence the use of
 # "GIT_STRATEGY: none" preventing its clone.
 .build_hypre:
