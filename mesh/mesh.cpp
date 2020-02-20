@@ -16,6 +16,7 @@
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
 #include "../general/device.hpp"
+#include "../fem/quadinterpolator.hpp"
 
 #include <iostream>
 #include <sstream>
