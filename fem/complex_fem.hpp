@@ -99,6 +99,17 @@ public:
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
 
+   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a f, using
+       the same integrators as the LinearForms @a lfr (real) and @a lfi (imag) .
+
+       The pointer @a fes is not owned by the newly constructed object.
+
+       The integrators are copied as pointers and they are not owned by the
+       newly constructed ComplexLinearForm. */
+   ComplexLinearForm(FiniteElementSpace *fes, LinearForm *lf_r, LinearForm *lf_i,
+                     ComplexOperator::Convention
+                     convention = ComplexOperator::HERMITIAN);
+
    virtual ~ComplexLinearForm();
 
    ComplexOperator::Convention GetConvention() const { return conv; }
@@ -155,6 +166,7 @@ public:
    std::complex<double> operator()(const ComplexGridFunction &gf) const;
 };
 
+
 /** Class for sesquilinear form
 
     A sesquilinear form is a generalization of a bilinear form to complex-valued
@@ -175,11 +187,31 @@ class SesquilinearForm
 private:
    ComplexOperator::Convention conv;
 
+   /** This data member allows one to specify what should be done to the
+       diagonal matrix entries and corresponding RHS values upon elimination of
+       the constrained DoFs. */
+   mfem::Matrix::DiagonalPolicy diag_policy = mfem::Matrix::DIAG_ONE;
+
    BilinearForm *blfr;
    BilinearForm *blfi;
 
+   /* These methods check if the real/imag parts of the sesqulinear form are not
+      empty */
+   bool RealInteg();
+   bool ImagInteg();
+
 public:
    SesquilinearForm(FiniteElementSpace *fes,
+                    ComplexOperator::Convention
+                    convention = ComplexOperator::HERMITIAN);
+   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a f, using
+       the same integrators as the BilinearForms @a bfr and @a bfi .
+
+       The pointer @a fes is not owned by the newly constructed object.
+
+       The integrators are copied as pointers and they are not owned by the
+       newly constructed SesquilinearForm. */
+   SesquilinearForm(FiniteElementSpace *fes, BilinearForm *bfr, BilinearForm *bfi,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
 
@@ -241,12 +273,21 @@ public:
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
 
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A);
+
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
        vector in x. Use the same arguments as in the FormLinearSystem call. */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
+
+   /// Sets diagonal policy used upon construction of the linear system
+   void SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy dpolicy);
+
+   /// Returns the diagonal policy of the sesquilinear form
+   Matrix::DiagonalPolicy GetDiagonalPolicy() const {return diag_policy;}
 
    virtual ~SesquilinearForm();
 };
@@ -359,6 +400,19 @@ public:
                         ComplexOperator::Convention
                         convention = ComplexOperator::HERMITIAN);
 
+   /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a pf,
+       using the same integrators as the LinearForms @a plfr (real) and @a plfi
+       (imag) .
+
+      The pointer @a fes is not owned by the newly constructed object.
+
+      The integrators are copied as pointers and they are not owned by the newly
+      constructed ParComplexLinearForm. */
+   ParComplexLinearForm(ParFiniteElementSpace *pf, ParLinearForm *plf_r,
+                        ParLinearForm *plf_i,
+                        ComplexOperator::Convention
+                        convention = ComplexOperator::HERMITIAN);
+
    virtual ~ParComplexLinearForm();
 
    ComplexOperator::Convention GetConvention() const { return conv; }
@@ -444,8 +498,25 @@ private:
    ParBilinearForm *pblfr;
    ParBilinearForm *pblfi;
 
+   /* These methods check if the real/imag parts of the sesqulinear form are not
+      empty */
+   bool RealInteg();
+   bool ImagInteg();
+
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf,
+                       ComplexOperator::Convention
+                       convention = ComplexOperator::HERMITIAN);
+
+   /** @brief Create a ParSesquilinearForm on the ParFiniteElementSpace @a pf,
+       using the same integrators as the ParBilinearForms @a pbfr and @a pbfi .
+
+       The pointer @a pf is not owned by the newly constructed object.
+
+       The integrators are copied as pointers and they are not owned by the
+       newly constructed ParSesquilinearForm. */
+   ParSesquilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *pbfr,
+                       ParBilinearForm *pbfi,
                        ComplexOperator::Convention
                        convention = ComplexOperator::HERMITIAN);
 
@@ -512,6 +583,9 @@ public:
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
+
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
