@@ -28,16 +28,18 @@ class FindPointsGSLIB
 {
 protected:
    Mesh *mesh;
-   Mesh *meshsplit;
    IntegrationRule *simir;
    Vector gsl_mesh;
    struct findpts_data_2 *fdata2D;
    struct findpts_data_3 *fdata3D;
-   int dim, splitfactor;
+   int dim, NEsplit;
 
    struct comm *gsl_comm;
 
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
+   void GetQuadHexNodalCoordinates();
+   void GetSimplexNodalCoordinates();
+
 
 public:
    FindPointsGSLIB();
@@ -99,9 +101,6 @@ public:
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as
        it calls MPI_Comm_free() for internal gslib communicators. */
-
-   void GetQuadHexNodalCoordinates();
-   void GetSimplexNodalCoordinates();
 
    void FreeData();
 };

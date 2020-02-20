@@ -33,7 +33,7 @@
 //    findpts -m ../../data/inline-quad.mesh -o 3
 //    findpts -m ../../data/inline-tet.mesh -o 3
 //    findpts -m ../../data/inline-hex.mesh -o 3
-//    findpts -m ../../data/inline-prism.mesh -o 3
+//    findpts -m ../../data/inline-wedge.mesh -o 3
 //    findpts -m ../../data/amr-quad.mesh -o 2
 
 #include "mfem.hpp"
