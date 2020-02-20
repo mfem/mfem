@@ -284,9 +284,9 @@ private:
    int oa, ob;
 
 public:
-   VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = 1)
+   VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = -1)
       : F(NULL), oa(a), ob(b) { }
-   VectorFEBoundaryFluxLFIntegrator(Coefficient &f, int a = 1, int b = 1)
+   VectorFEBoundaryFluxLFIntegrator(Coefficient &f, int a = 2, int b = 0)
       : F(&f), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -305,7 +305,7 @@ private:
 
 public:
    VectorFEBoundaryTangentLFIntegrator(VectorCoefficient &QG,
-                                       int a = 1, int b = 1)
+                                       int a = 2, int b = 0)
       : f(QG), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
