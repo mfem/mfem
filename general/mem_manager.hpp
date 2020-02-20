@@ -133,20 +133,19 @@ protected:
                                    Delete() */
       OWNS_INTERNAL = 1 << 3, ///< Ownership flag for internal Memory data
       VALID_HOST    = 1 << 4, ///< Host pointer is valid
-      VALID_DEVICE  = 1 << 5, ///< Device pointer is valid
+      VALID_DEVICE  = 1 << 5, ///< %Device pointer is valid
       USE_DEVICE    = 1 << 6, /**< Internal device flag, see e.g.
                                    Vector::UseDevice() */
       ALIAS         = 1 << 7  ///< Pointer is an alias
    };
 
    /// Pointer to host memory. Not owned.
-   /** When the pointer is not registered with the MemoryManager, this pointer
-       has type MemoryType::HOST. When the pointer is registered, it can be any
-       type from MemoryClass::HOST. */
+   /** The type of the pointer is given by the field #h_mt; it can be any type
+       from MemoryClass::HOST. */
    T *h_ptr;
-   int capacity;
-   MemoryType h_mt; // host memory type
-   mutable unsigned flags;
+   int capacity; ///< Size of the allocated memory
+   MemoryType h_mt; ///< Host memory type
+   mutable unsigned flags; ///< Bit flags defined from the #FlagMask enum
    // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
@@ -167,6 +166,8 @@ public:
    Memory &operator=(Memory &&orig) = default;
 
    /// Allocate host memory for @a size entries.
+   /** The allocation uses the current host memory type returned by
+       MemoryManager::GetHostMemoryType(). */
    explicit Memory(int size) { New(size); }
 
    /** @brief Allocate memory for @a size entries with the given MemoryType
@@ -175,10 +176,10 @@ public:
        MemoryType is still set as valid. */
    Memory(int size, MemoryType mt) { New(size, mt); }
 
-   /** @brief Wrap an externally allocated host pointer, @a ptr with type
-       MemoryType::HOST. */
-   /** The parameter @a own determines whether @a ptr will be deleted (using
-       operator delete[]) when the method Delete() is called. */
+   /** @brief Wrap an externally allocated host pointer, @a ptr with the current
+       host memory type returned by MemoryManager::GetHostMemoryType(). */
+   /** The parameter @a own determines whether @a ptr will be deleted when the
+       method Delete() is called. */
    explicit Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
@@ -242,15 +243,16 @@ public:
        @note The current memory is NOT deleted by this method. */
    void Reset();
 
-   /// Reset the memory and set the memory type.
-   void Reset(MemoryType mt);
+   /// Reset the memory and set the host memory type.
+   void Reset(MemoryType host_mt);
 
    /// Return true if the Memory object is empty, see Reset().
    /** Default-constructed objects are uninitialized, so they are not guaranteed
        to be empty. */
    bool Empty() const { return h_ptr == NULL; }
 
-   /// Allocate host memory for @a size entries with type MemoryType::HOST.
+   /** @brief Allocate host memory for @a size entries with the current host
+       memory type returned by MemoryManager::GetHostMemoryType(). */
    /** @note The current memory is NOT deleted by this method. */
    inline void New(int size);
 
@@ -261,11 +263,10 @@ public:
        @note The current memory is NOT deleted by this method. */
    inline void New(int size, MemoryType mt);
 
-   /** @brief Wrap an externally allocated host pointer, @a ptr with type
-       MemoryType::HOST if the pointer has not been registered, or the
-       registered type if it had been registered already. */
-   /** The parameter @a own determines whether @a ptr will be deleted (using
-       operator delete[]) when the method Delete() is called.
+   /** @brief Wrap an externally allocated host pointer, @a ptr with the current
+       host memory type returned by MemoryManager::GetHostMemoryType(). */
+   /** The parameter @a own determines whether @a ptr will be deleted when the
+       method Delete() is called.
 
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, bool own);
@@ -288,7 +289,8 @@ public:
        @note The current memory is NOT deleted by this method. */
    inline void MakeAlias(const Memory &base, int offset, int size);
 
-   /// Delete the owned pointers. The Memory is not reset by this method.
+   /** @brief Delete the owned pointers. The Memory is not reset by this method,
+       i.e. it will, generally, not be Empty() after this call. */
    inline void Delete();
 
    /// Array subscript operator for host memory.
@@ -592,8 +594,8 @@ public:
    /// returning the number of printed pointers
    int PrintAliases(std::ostream &out = mfem::out);
 
-   MemoryType GetHostMemoryType() { return host_mem_type; }
-   MemoryType GetDeviceMemoryType() { return device_mem_type; }
+   static MemoryType GetHostMemoryType() { return host_mem_type; }
+   static MemoryType GetDeviceMemoryType() { return device_mem_type; }
 };
 
 
@@ -609,10 +611,10 @@ inline void Memory<T>::Reset()
 }
 
 template <typename T>
-inline void Memory<T>::Reset(MemoryType mt)
+inline void Memory<T>::Reset(MemoryType host_mt)
 {
    h_ptr = NULL;
-   h_mt = mt;
+   h_mt = host_mt;
    capacity = 0;
    flags = 0;
 }
@@ -651,21 +653,33 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    if (own && MemoryManager::Exists())
    { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
 #endif
-   if (own &&  h_mt != MemoryType::HOST)
+   if (own && h_mt != MemoryType::HOST)
    { MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags); }
 }
 
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
-   if (mt == MemoryType::HOST) { return Wrap(ptr, size, own); }
-   flags = 0;
    capacity = size;
-   const size_t bytes = size*sizeof(T);
-   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
-   const bool h_mt_host = h_mt == MemoryType::HOST;
-   T *h_tmp = (h_mt_host) ? new T[size] : nullptr;
-   h_ptr = (T*)MemoryManager::Register_(ptr, h_tmp, bytes, mt, own, false, flags);
+   if (IsHostMemory(mt))
+   {
+      h_mt = mt;
+      h_ptr = ptr;
+      if (mt == MemoryType::HOST || !own)
+      {
+         // Skip restration
+         flags = (own ? OWNS_HOST : 0) | VALID_HOST;
+         return;
+      }
+   }
+   else
+   {
+      h_mt = MemoryManager::GetDualMemoryType_(mt);
+      h_ptr = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
+   }
+   flags = 0;
+   h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
+                                        own, false, flags);
 }
 
 template <typename T>

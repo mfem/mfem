@@ -46,7 +46,7 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
     LIBRARIES mfem)
-     
+
   # Add parallel tests.
   add_test(NAME pmesh-optimizer_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
