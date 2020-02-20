@@ -33,6 +33,130 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+2/20
+mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -no-vis -vs 1 -tf 4.9 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6 > log3.out
+
+1e-6
+r5o4 stuck at t=5.0
+r5o5 ??
+
+some ideas to try:
+do more stretching
+try add the B diffusion on omega
+
+
+
+2/7
+mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 5 -i 3 -no-vis -vs 1 -tf 8 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6 > log1.out &
+
+mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 1 -o 3 -i 3 -no-vis -vs 1 -tf 1 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 > log1.out &
+
+mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 1 -o 4 -i 3 -no-vis -vs 1 -tf 1 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 > logR6o4.out
+
+mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -no-vis -vs 1 -tf 4.9 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6 >log2.out
+
+2/6
+testing amr criterion:
+(stuck at t=6.8)
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 2 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-8 -derefine -resi 1e-4 -visc 1e-4 -refs 4
+
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 2 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-8 -derefine -resi 1e-4 -visc 1e-4 -refs 8
+
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 1 -o 3 -i 3 -vs 2 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-8 -derefine -resi 1e-6 -visc 1e-6 -refs 8
+
+mpirun -n 42 imMHDp -m Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -vs 2 -tf 2 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 
+
+mpirun -n 42 imMHDp -m Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -vs 2 -tf 2 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6
+
+
+mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -vs 2 -tf 2 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4
+
+mpirun -n 42 imMHDp -m Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -vs 2 -tf 2 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6
+
+mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -no-vis -vs 1 -tf 8 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4
+
+mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -no-vis -vs 1 -tf 2 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5
+
+this looks good at t=2
+case3StretchedR5o4res1e-5
+
+issue at t=5.4!!
+case3StretchedR5o3res1e-5
+
+ok:
+case3StretchedR5o3
+case3stretchedR5o4
+
+2/5
+mpirun -n 48 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 5 -rp 1 -o 3 -i 3 -no-vis -tf 5 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 1 -ltol 1e-4 -derefine -resi 1e-6 -visc 1e-6 -refs 10 -yrange
+
+oscillations here??
+mpirun -n 12 exMHDp -m Meshes/xperiodic-new.mesh -rs 5 -o 3 -tf 1 -i 3 -vs 100 -dt .001 -resi 1e-6 -visc 1e-6
+
+2/2
+ideas to try: 
+1. no supg, resi=1e-4? t=8? but with amr
+this can run but supg definitely helps a lot!
+
+2. turn of supg after a while?
+3. reduce supg for resi=1e-4
+
+4. try to check if reduce nonconforming level would help??
+set nc_limit=1 seems help a lot!!
+resi=1-4 it can run up to t=6
+
+mpirun -n 32 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 2 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 10
+
+np=32 got stuck at t=7.2 (probably the second peak time!)
+
+it reaches the peack around t=6.7-6.8
+
+this works well:
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 2 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 10
+
+this got stuck at t=4.8, wth? (something happens at this time??)
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 2 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-5 -visc 1e-5 -refs 10
+
+np=32 it got stuck at t=4.0
+np=42 r=5, it got stuck at t=2.5, maybe increase wp to 5e-3
+np=42,r=5, after modification, it got stuck at 4.4
+
+try this (stuck at t=3):
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 2 -tf 4 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 5e-4 -derefine -resi 1e-6 -visc 1e-6 -refs 4 -yrange
+
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 2 -tf 4 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 5e-4 -derefine -resi 1e-6 -visc 1e-6 -refs 10 -yrange
+
+(this got stuck at t=4 after mesh is refined; the adding a fine mesh is a bad idea; can we do some prepacking??)
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 2 -tf 6 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 5e-4 -derefine -resi 1e-6 -visc 1e-6 -refs 10 -yrange
+
+try (got stuck again at t=4; can we do prepacking??):
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 2 -tf 6 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-4 -derefine -resi 1e-6 -visc 1e-6 -refs 10 -yrange
+
+this seems got stuck at t=3.2
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 6 -rp 0 -o 3 -i 3 -vs 2 -tf 6 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 5e-4 -derefine -resi 1e-6 -visc 1e-6 -refs 10 -yrange
+
+try this:
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 6 -rp 0 -o 3 -i 3 -vs 2 -tf 6 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 2 -ltol 1e-4 -derefine -resi 1e-6 -visc 1e-6 -refs 10 -yrange
+
+try this:
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 7 -rp 0 -o 3 -i 3 -vs 2 -tf 6 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 1 -ltol 1e-4 -derefine -resi 1e-6 -visc 1e-6 -refs 10 -yrange
+
+try this (this is fine but very under-resolved):
+mpirun -n 42 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 2 -tf 2 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 
+
+1/29
+mpirun -n 46 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 5 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 4
+this got stuck at t=2.0?? with rc_debug
+
+mpirun -n 46 imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 5 -tf 8 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 4
+
+preconditioner becomes worse after derefine or mesh changed in general??
+
+okay (the plotting routine will affect AMR and may affect convergence, a bug???):
+mpirun -n 44 ../imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 1 -tf 4 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 10
+
+mpirun -n 48 ../imAMRMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -tf 8 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 10 > log.out
+
 1/22
 try to investigate why the hyprediffusion is so stiff in an explicit scheme (1e-6 for resistivity)
 mpirun -n 12 imMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 100 -tf 4 -dt .0005 -resi 1e-6 -visc 1e-6
