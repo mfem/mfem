@@ -30,7 +30,7 @@ OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
 
 # Sedov numerical tests
-SEDOV_FILES = miniapps/test_sedov.cpp
+SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
 SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
 SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda)
 SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda_uvm)
