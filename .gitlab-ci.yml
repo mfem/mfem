@@ -9,9 +9,12 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-
+###############################################################################
 # General GitLab pipelines configurations for supercomputers and Linux clusters
 # at Lawrence Livermore National Laboratory (LLNL).
+#
+# This entire pipeline is LLNL-specific
+# #############################################################################
 
 # We define the following GitLab pipeline variables:
 #
@@ -36,15 +39,21 @@
 # On LLNL's quartz, there is only one allocation shared among jobs in order to
 # save time and resources. This allocation has to be uniquely named so that we
 # are sure to retrieve it.
+#
+# TPLS_REPO & TESTS_REPO:
+# Git repositories used in the pipeline
+#
+# ARTIFACTS_DIR:
+# Directory used to place artifacts.
 
 variables:
   BUILD_ROOT: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
   BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}/${PLAT}/${TOOLCHAIN}
   REBASELINE: "NO"
   MFEM_ALLOC_NAME: mfem_ci_${CI_PIPELINE_ID}
-  TPLS_ORIGIN: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
-  TESTS_ORIGIN: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
-  ARTIFACTS_DIR: ${CI_PROJECT_DIR}/artifacts
+  TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
+  TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
+  ARTIFACTS_DIR: artifacts
 
 # The pipeline is divided into stages. Usually, these are also synchronisation
 # points, however, we use "needs" keyword to express the DAG of jobs for more
@@ -68,18 +77,23 @@ stages:
   - deallocate
   - baseline_publish
 
-    # This section is LLNL-specific
+# The setup job in setup stage don’t rely on MFEM git repo. It prepares a
+# pipeline-wide working directory downloading/updating external repos.
+# TODO: update isn’t necessary anymore, repo are never shared with another
+# pipeline. May be simplified if we don’t want to optimise this.
 .setup:
   stage: setup
   variables:
     GIT_STRATEGY: none
   script:
     - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
-    - if [ ! -d "tpls" ]; then git clone ${TPLS_ORIGIN}; fi
-    - if [ ! -d "tests" ]; then git clone ${TESTS_ORIGIN}; fi
+    - if [ ! -d "tpls" ]; then git clone ${TPLS_REPO}; fi
+    - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
     - cd tpls && git pull && cd ..
     - cd tests && git pull && cd ..
 
+# Share configurations (templates) for toolchain configuration.
+# Note: Any job using this template shouldn't redefine "before_script" key.
 .with_gcc_6_1_0:
   variables:
     TOOLCHAIN: gcc_6_1_0
@@ -94,6 +108,8 @@ stages:
 
 # Build of dependencies and mfem:
 # if on quartz, uses a subpart of preallocated resources
+# Note: Those jobs don't rely on MFEM repository, hence the use of
+# "GIT_STRATEGY: none" preventing its clone.
 .build_hypre:
   variables:
     EXEC_PREFIX: ""
@@ -109,7 +125,7 @@ stages:
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
       export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
       fi
-    - $EXEC_PREFIX make -j ${MAKE_PAR} hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
+    - ${EXEC_PREFIX} make -j ${MAKE_PAR} hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
 
 .build_metis:
   variables:
@@ -125,8 +141,9 @@ stages:
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
       export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
       fi
-    - $EXEC_PREFIX make -j ${MAKE_PAR} ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
+    - ${EXEC_PREFIX} make -j ${MAKE_PAR} ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
 
+# Building MFEM
 .build_mfem:
   variables:
     EXEC_PREFIX: ""
@@ -142,10 +159,10 @@ stages:
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
       export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
       fi
-    - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="$EXEC_PREFIX" MFEM_MPIEXEC_NP=$MPIEXEC_NP
-    - $EXEC_PREFIX make -j ${MAKE_PAR} all
+    - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="${EXEC_PREFIX}" MFEM_MPIEXEC_NP=${MPIEXEC_NP}
+    - ${EXEC_PREFIX} make -j ${MAKE_PAR} all
 
-# Could this phase use a parallel run?
+# TODO: Could this phase use a parallel run?
 .sanitycheck_mfem:
   stage: test
   variables:
@@ -177,7 +194,7 @@ stages:
   fi
   ${EXEC_PREFIX} ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
-  mkdir ${ARTIFACTS_DIR}
+  mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
   if [[ ! -f ${_full_out} || ! -f ${_out} ]]
   then
     echo "Something went WRONG in ${BASELINE_TEST}:";
@@ -187,14 +204,15 @@ stages:
   then
     echo "ERROR during ${BASELINE_TEST} execution";
     echo "Here is the ${_full_err} file content";
-    cat ${_full_err} && cp ${_full_err} ${ARTIFACTS_DIR}/
+    cat ${_full_err} && cp ${_full_err} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
     exit 1;
   fi
   cp ${_out} ${_out_txt}
   diff -u ${_ref} ${_out} | tee ${_diff} || true
-  cp ${_full_out} ${_out_txt} ${_diff} ${ARTIFACTS_DIR}/
+  cp ${_full_out} ${_out_txt} ${_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
   if [[ ! $(head -n1 ${_diff}) ]]; then true; else false; fi
 
+# Actual templates for baseline checks
 .baselinecheck_mfem:
   stage: baseline_check
   variables:
@@ -205,7 +223,7 @@ stages:
   artifacts:
     when: always
     paths:
-      - artifacts
+      - ${ARTIFACTS_DIR}
   allow_failure: true
 
 .samplebaselinecheck_mfem:
@@ -219,7 +237,7 @@ stages:
   artifacts:
     when: always
     paths:
-      - artifacts
+      - ${ARTIFACTS_DIR}
   allow_failure: true
 
 # This job can only be manually triggers on a pipeline for master branch, or if
@@ -231,7 +249,7 @@ stages:
       when: manual
   script:
     - echo "cd ${BUILD_ROOT}/tests"
-    - echo "cp ${CI_PROJECT_DIR}/artifacts/baseline-${SYS_TYPE}.txt ./baseline-${SYS_TYPE}.saved"
+    - echo "cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.txt ./baseline-${SYS_TYPE}.saved"
     - echo "git add baseline-${SYS_TYPE}.saved"
     - echo "git commit -m Rebaselined in Gitlab pipeline #${CI_PIPELINE_ID}"
     - echo "git push origin master"
