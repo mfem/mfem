@@ -1557,6 +1557,10 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    {
       QuadDofOrd[i] = NULL;
    }
+   for (int i = 0; i < 24; i++)
+   {
+      TetDofOrd[i] = NULL;
+   }
 
    H1_dof[Geometry::POINT] = 1;
    H1_Elements[Geometry::POINT] = new PointFiniteElement;
@@ -1936,6 +1940,10 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    for (int i = 0; i < 6; i++)
    {
       TriDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 24; i++)
+   {
+      TetDofOrd[i] = NULL;
    }
    OtherDofOrd = NULL;
 
