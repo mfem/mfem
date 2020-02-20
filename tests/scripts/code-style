@@ -50,7 +50,7 @@ shift
 cd $mfem_dir
 
 make distclean
-make style ASTYLE_BIN=${ASTYLE:-astyle}
+make style
 
 (git diff) 1>&2
 
